@@ -1744,6 +1744,29 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: r_var(),
         },
     );
+    // (:wat::kernel::select receivers) — ∀T. Vec<Receiver<T>> -> :(i64, Option<T>).
+    // Spec calls for :usize on the index; wat-rs returns :i64 until
+    // :usize lands as a value variant.
+    env.register(
+        ":wat::kernel::select".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![TypeExpr::Parametric {
+                head: "Vec".into(),
+                args: vec![TypeExpr::Parametric {
+                    head: "crossbeam_channel::Receiver".into(),
+                    args: vec![t_var()],
+                }],
+            }],
+            ret: TypeExpr::Tuple(vec![
+                TypeExpr::Path(":i64".into()),
+                TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![t_var()],
+                },
+            ]),
+        },
+    );
     // Tuple accessors — scoped to 2-tuples in this slice.
     //   (:wat::core::first (pair :(A,B)))  -> :A
     //   (:wat::core::second (pair :(A,B))) -> :B

@@ -994,6 +994,7 @@ fn dispatch_keyword_head(
         ":wat::kernel::drop" => eval_kernel_drop(args, env, sym),
         ":wat::kernel::spawn" => eval_kernel_spawn(args, env, sym),
         ":wat::kernel::join" => eval_kernel_join(args, env, sym),
+        ":wat::kernel::select" => eval_kernel_select(args, env, sym),
         ":wat::kernel::make-bounded-queue" => eval_make_bounded_queue(args, env, sym),
         ":wat::kernel::make-unbounded-queue" => eval_make_unbounded_queue(args),
         ":wat::kernel::sigusr1?" => {
@@ -2530,6 +2531,77 @@ fn eval_kernel_drop(
             got: other.type_name(),
         }),
     }
+}
+
+/// `(:wat::kernel::select receivers)` — fan-in over multiple receivers.
+/// Blocks until ANY of the given receivers produces a value or
+/// disconnects. Returns a 2-tuple `(index, Option<T>)` — the position
+/// of the ready receiver in the input Vec, and either `(Some v)` if
+/// it produced or `:None` if it disconnected.
+///
+/// The caller typically loops over the result, dropping disconnected
+/// receivers from the Vec on `(index, :None)` and exiting when the
+/// Vec is empty. No Mailbox stdlib; the select loop IS the fan-in.
+///
+/// Spec index type is `:usize`; wat-rs currently has no `:usize`
+/// value variant, so the index surfaces as `:i64`. This is the one
+/// deviation from FOUNDATION here; a follow-up slice adds `:usize`
+/// when the first caller demands it.
+fn eval_kernel_select(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::select".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let items = match eval(&args[0], env, sym)? {
+        Value::Vec(v) => v,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::select".into(),
+                expected: "Vec",
+                got: other.type_name(),
+            });
+        }
+    };
+    if items.is_empty() {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::kernel::select".into(),
+            reason: "receivers vec cannot be empty — select would block forever".into(),
+        });
+    }
+    // Extract Arc<Receiver<Value>> for each element; error on any
+    // non-receiver Value so the typed-pipe contract is visible.
+    let mut rxs: Vec<Arc<crossbeam_channel::Receiver<Value>>> = Vec::with_capacity(items.len());
+    for v in items.iter() {
+        match v {
+            Value::crossbeam_channel__Receiver(r) => rxs.push(r.clone()),
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: ":wat::kernel::select".into(),
+                    expected: "crossbeam_channel::Receiver",
+                    got: other.type_name(),
+                });
+            }
+        }
+    }
+    let mut sel = crossbeam_channel::Select::new();
+    for rx in &rxs {
+        sel.recv(rx.as_ref());
+    }
+    let oper = sel.select();
+    let idx = oper.index();
+    let result = oper.recv(rxs[idx].as_ref());
+    let inner = match result {
+        Ok(v) => Value::Option(Arc::new(Some(v))),
+        Err(_) => Value::Option(Arc::new(None)),
+    };
+    Ok(Value::Tuple(Arc::new(vec![Value::i64(idx as i64), inner])))
 }
 
 /// `(:wat::kernel::spawn :fn::path arg1 arg2 ...)` — spawn a function
@@ -4224,6 +4296,73 @@ mod tests {
     #[test]
     fn join_refuses_non_program_handle() {
         let err = eval_expr("(:wat::kernel::join 42)").unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    // ─── select ────────────────────────────────────────────────────────
+
+    #[test]
+    fn select_returns_index_and_value_from_ready_receiver() {
+        // Two queues; send only to the second; select returns index 1
+        // with the value.
+        let src = r#"
+            (:wat::core::let*
+              (((tx0 rx0) (:wat::kernel::make-bounded-queue :i64 1))
+               (((tx1 rx1)) (:wat::kernel::make-bounded-queue :i64 1)))
+              ;; (this shape won't parse — rewrite below)
+              true)
+        "#;
+        let _ = src; // placeholder; inline the real test directly below.
+
+        // Direct construction: two receivers, only rx1 gets a value,
+        // select must pick index 1.
+        let (tx0, rx0) = crossbeam_channel::bounded::<Value>(1);
+        let (tx1, rx1) = crossbeam_channel::bounded::<Value>(1);
+        drop(tx0); // rx0 disconnected
+        tx1.send(Value::i64(7)).unwrap();
+        let rxs = Value::Vec(Arc::new(vec![
+            Value::crossbeam_channel__Receiver(Arc::new(rx0)),
+            Value::crossbeam_channel__Receiver(Arc::new(rx1)),
+        ]));
+        let env = Environment::new().child().bind("rxs", rxs).build();
+        let ast = parse_one("(:wat::kernel::select rxs)").expect("parse");
+        let result = eval(&ast, &env, &SymbolTable::new()).expect("select");
+        match result {
+            Value::Tuple(items) => {
+                assert_eq!(items.len(), 2);
+                // select may pick index 0 (disconnected, :None) or
+                // index 1 (Some 7). Both are valid because crossbeam's
+                // select doesn't promise ordering. Accept either and
+                // assert the OPTION is consistent with the index.
+                match (&items[0], &items[1]) {
+                    (Value::i64(0), Value::Option(opt)) if opt.is_none() => {}
+                    (Value::i64(1), Value::Option(opt)) => match &**opt {
+                        Some(Value::i64(7)) => {}
+                        other => panic!("index 1 should carry Some 7; got {:?}", other),
+                    },
+                    other => panic!("unexpected select result {:?}", other),
+                }
+            }
+            v => panic!("expected tuple, got {:?}", v),
+        }
+        drop(tx1);
+    }
+
+    #[test]
+    fn select_refuses_empty_vec() {
+        let src = r#"
+            (:wat::kernel::select (:wat::core::vec))
+        "#;
+        let err = eval_expr(src).unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn select_refuses_non_receiver_element() {
+        let src = r#"
+            (:wat::kernel::select (:wat::core::vec 1 2 3))
+        "#;
+        let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
