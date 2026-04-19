@@ -86,6 +86,14 @@ pub enum CheckError {
     UnknownCallee {
         callee: String,
     },
+    /// A built-in form (e.g., `:wat::core::match`) is structurally
+    /// malformed in a way the syntax-level grammar doesn't catch —
+    /// e.g., a match arm that isn't `(pattern body)`, or a match
+    /// whose pattern coverage is non-exhaustive.
+    MalformedForm {
+        head: String,
+        reason: String,
+    },
 }
 
 impl fmt::Display for CheckError {
@@ -117,6 +125,9 @@ impl fmt::Display for CheckError {
             ),
             CheckError::UnknownCallee { callee } => {
                 write!(f, "unknown callee: {}", callee)
+            }
+            CheckError::MalformedForm { head, reason } => {
+                write!(f, "malformed {} form: {}", head, reason)
             }
         }
     }
@@ -292,6 +303,13 @@ fn infer(
         WatAST::FloatLit(_) => Some(TypeExpr::Path(":f64".into())),
         WatAST::BoolLit(_) => Some(TypeExpr::Path(":bool".into())),
         WatAST::StringLit(_) => Some(TypeExpr::Path(":String".into())),
+        // `:None` — nullary constructor of the built-in :Option<T> enum.
+        // Infers as `:Option<T>` with a fresh T; unification against the
+        // expected type sharpens T at the use site.
+        WatAST::Keyword(k) if k == ":None" => Some(TypeExpr::Parametric {
+            head: "Option".into(),
+            args: vec![fresh.fresh()],
+        }),
         WatAST::Keyword(_) => Some(TypeExpr::Path(":wat::core::keyword".into())),
         WatAST::Symbol(ident) => locals.get(&ident.name).cloned(),
         WatAST::List(items) => infer_list(items, env, locals, fresh, subst, errors),
@@ -327,6 +345,9 @@ fn infer_list(
                     });
                 }
                 return Some(TypeExpr::Path(":wat::WatAST".into()));
+            }
+            ":wat::core::match" => {
+                return infer_match(args, env, locals, fresh, subst, errors);
             }
             ":wat::core::and" | ":wat::core::or" => {
                 return infer_boolean_shortcircuit(args, env, locals, fresh, subst, errors);
@@ -406,6 +427,35 @@ fn infer_list(
         return Some(apply_subst(&ret_type, subst));
     }
 
+    // Bare `Some` as call head — built-in tagged constructor of
+    // `:Option<T>`. `(Some expr)` infers as `:Option<T>` where T is the
+    // argument's type.
+    if let WatAST::Symbol(ident) = head {
+        if ident.as_str() == "Some" {
+            let args = &items[1..];
+            if args.len() != 1 {
+                errors.push(CheckError::ArityMismatch {
+                    callee: "Some".into(),
+                    expected: 1,
+                    got: args.len(),
+                });
+                for arg in args {
+                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![fresh.fresh()],
+                });
+            }
+            let inner_ty = infer(&args[0], env, locals, fresh, subst, errors)
+                .unwrap_or_else(|| fresh.fresh());
+            return Some(TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![inner_ty],
+            });
+        }
+    }
+
     // Non-keyword head (bare symbol or inline expression). Not typed
     // at this layer pending your call on explicit let-binding type
     // annotations. Recurse into args so nested keyword-headed calls
@@ -414,6 +464,214 @@ fn infer_list(
         let _ = infer(item, env, locals, fresh, subst, errors);
     }
     None
+}
+
+/// Type-check `(:wat::core::match scrutinee arm...)`. Scrutinee must
+/// be `:Option<T>` (the only built-in enum in this slice). Each arm's
+/// pattern introduces bindings visible in its body; every arm body's
+/// type unifies to a common result type. Exhaustiveness: at least one
+/// arm matches `:None` (either the `:None` pattern or a wildcard) and
+/// at least one arm matches `(Some _)` (either the `Some` pattern or
+/// a wildcard).
+fn infer_match(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() < 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::core::match".into(),
+            expected: 2,
+            got: args.len(),
+        });
+        return None;
+    }
+    // Scrutinee must be :Option<T>.
+    let scrutinee_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let inner_ty = fresh.fresh();
+    let expected_scrutinee = TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![inner_ty.clone()],
+    };
+    if let Some(sty) = &scrutinee_ty {
+        if unify(sty, &expected_scrutinee, subst).is_err() {
+            errors.push(CheckError::TypeMismatch {
+                callee: ":wat::core::match".into(),
+                param: "scrutinee".into(),
+                expected: "Option<T>".into(),
+                got: format_type(&apply_subst(sty, subst)),
+            });
+        }
+    }
+
+    let mut covers_none = false;
+    let mut covers_some = false;
+    let mut result_ty: Option<TypeExpr> = None;
+
+    for (idx, arm) in args[1..].iter().enumerate() {
+        let arm_items = match arm {
+            WatAST::List(items) if items.len() == 2 => items,
+            _ => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!("arm #{} must be `(pattern body)`", idx + 1),
+                });
+                continue;
+            }
+        };
+        let pattern = &arm_items[0];
+        let body = &arm_items[1];
+
+        let mut arm_locals = locals.clone();
+        match pattern_coverage(pattern, &inner_ty, &mut arm_locals, errors) {
+            Some(Coverage::None) => covers_none = true,
+            Some(Coverage::Some) => covers_some = true,
+            Some(Coverage::Wildcard) => {
+                covers_none = true;
+                covers_some = true;
+            }
+            None => continue,
+        }
+
+        let arm_ty = infer(body, env, &arm_locals, fresh, subst, errors);
+        match (&result_ty, arm_ty) {
+            (None, Some(t)) => result_ty = Some(t),
+            (Some(rt), Some(t)) => {
+                if unify(rt, &t, subst).is_err() {
+                    errors.push(CheckError::TypeMismatch {
+                        callee: ":wat::core::match".into(),
+                        param: format!("arm #{}", idx + 1),
+                        expected: format_type(&apply_subst(rt, subst)),
+                        got: format_type(&apply_subst(&t, subst)),
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if !(covers_none && covers_some) {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: "non-exhaustive: :Option<T> needs arms for both :None and (Some _), or a wildcard".into(),
+        });
+    }
+
+    result_ty.map(|t| apply_subst(&t, subst))
+}
+
+/// Coverage class for a match pattern under `:Option<T>`.
+enum Coverage {
+    None,
+    Some,
+    Wildcard,
+}
+
+/// Validate `pattern` against the inner type `T` (the argument of
+/// `:Option<T>`), push bindings into `bindings`, and report its
+/// coverage class.
+fn pattern_coverage(
+    pattern: &WatAST,
+    inner_ty: &TypeExpr,
+    bindings: &mut HashMap<String, TypeExpr>,
+    errors: &mut Vec<CheckError>,
+) -> Option<Coverage> {
+    match pattern {
+        WatAST::Keyword(k) if k == ":None" => Some(Coverage::None),
+        WatAST::Keyword(k) => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: format!("keyword pattern {} not recognized (only `:None` in this slice)", k),
+            });
+            None
+        }
+        WatAST::Symbol(ident) if ident.as_str() == "_" => Some(Coverage::Wildcard),
+        WatAST::Symbol(ident) => {
+            // Bare name binds the whole scrutinee.
+            bindings.insert(
+                ident.as_str().to_string(),
+                TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![inner_ty.clone()],
+                },
+            );
+            Some(Coverage::Wildcard)
+        }
+        WatAST::List(items) => {
+            let (head, rest) = match items.split_first() {
+                Some(pair) => pair,
+                None => {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: "empty list pattern".into(),
+                    });
+                    return None;
+                }
+            };
+            match head {
+                WatAST::Symbol(ident) if ident.as_str() == "Some" => {
+                    if rest.len() != 1 {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "(Some _) takes exactly one field, got {}",
+                                rest.len()
+                            ),
+                        });
+                        return None;
+                    }
+                    match &rest[0] {
+                        WatAST::Symbol(b) => {
+                            bindings.insert(b.as_str().to_string(), inner_ty.clone());
+                            Some(Coverage::Some)
+                        }
+                        other => {
+                            errors.push(CheckError::MalformedForm {
+                                head: ":wat::core::match".into(),
+                                reason: format!(
+                                    "(Some _): binder must be a bare symbol, got {}",
+                                    ast_variant_name_check(other)
+                                ),
+                            });
+                            None
+                        }
+                    }
+                }
+                other => {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "list pattern head must be a variant constructor; got {}",
+                            ast_variant_name_check(other)
+                        ),
+                    });
+                    None
+                }
+            }
+        }
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: format!("pattern must be keyword, symbol, or list; got {}", ast_variant_name_check(other)),
+            });
+            None
+        }
+    }
+}
+
+fn ast_variant_name_check(ast: &WatAST) -> &'static str {
+    match ast {
+        WatAST::IntLit(_) => "int",
+        WatAST::FloatLit(_) => "float",
+        WatAST::BoolLit(_) => "bool",
+        WatAST::StringLit(_) => "string",
+        WatAST::Keyword(_) => "keyword",
+        WatAST::Symbol(_) => "symbol",
+        WatAST::List(_) => "list",
+    }
 }
 
 fn infer_if(
@@ -1123,8 +1381,8 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Tuple(vec![]),
         },
     );
-    // (:wat::kernel::recv receiver) — MVP: ∀T. Receiver<T> -> T (target
-    // :Option<T> per FOUNDATION, lands when Option+match runtime lands).
+    // (:wat::kernel::recv receiver) — ∀T. Receiver<T> -> :Option<T>.
+    // `:None` is the disconnect signal; `(Some v)` carries the payload.
     env.register(
         ":wat::kernel::recv".into(),
         TypeScheme {
@@ -1133,7 +1391,10 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "crossbeam_channel::Receiver".into(),
                 args: vec![t_var()],
             }],
-            ret: t_var(),
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![t_var()],
+            },
         },
     );
 }

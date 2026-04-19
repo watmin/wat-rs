@@ -122,6 +122,13 @@ pub enum Value {
     crossbeam_channel__Sender(Arc<crossbeam_channel::Sender<String>>),
     /// A channel receiver handle. String-typed for the MVP.
     crossbeam_channel__Receiver(Arc<crossbeam_channel::Receiver<String>>),
+    /// An `:Option<T>` value — `:None` or `(Some v)`. Built-in
+    /// parametric enum per 058-030; used as the return type of
+    /// `:wat::kernel::recv` / `try-recv` / `select` and of structural
+    /// retrieval (`get` on HashMap/Vec/HashSet). The `std::option::Option`
+    /// here is the Rust host's own Option — wat's `:Option<T>`
+    /// compiles to it directly.
+    Option(Arc<std::option::Option<Value>>),
 }
 
 impl Value {
@@ -139,6 +146,7 @@ impl Value {
             Value::wat__WatAST(_) => "wat::WatAST",
             Value::crossbeam_channel__Sender(_) => "crossbeam_channel::Sender",
             Value::crossbeam_channel__Receiver(_) => "crossbeam_channel::Receiver",
+            Value::Option(_) => "Option",
         }
     }
 }
@@ -431,11 +439,11 @@ pub enum RuntimeError {
     /// names the specific failure (mismatched digest, invalid
     /// signature, unsupported algorithm, malformed payload).
     EvalVerificationFailed { err: crate::hash::HashError },
-    /// A `:wat::kernel::recv` call on a channel whose sender has been
-    /// dropped, or a `:wat::kernel::send` on a channel whose receiver
-    /// has been dropped. MVP `recv` returns `:String` and errors on
-    /// disconnect; when `:Option<T>` + match lands, recv disconnect
-    /// becomes a first-class `:None` instead of an error.
+    /// A `:wat::kernel::send` on a channel whose receiver has been
+    /// dropped. `recv` itself no longer errors on disconnect — it
+    /// returns `:None` per FOUNDATION's `∀T. Receiver<T> -> Option<T>`
+    /// shape — so the only surviving producer of this variant is
+    /// send-after-disconnect.
     ChannelDisconnected { op: String },
     /// A vector-level primitive (`:wat::core::presence`,
     /// `:wat::config::noise-floor`, etc.) was invoked but the
@@ -443,6 +451,11 @@ pub enum RuntimeError {
     /// test harnesses that don't go through freeze; the frozen startup
     /// pipeline always installs one.
     NoEncodingCtx { op: String },
+    /// A `(:wat::core::match scrutinee ...)` ran with no arm whose
+    /// pattern matches the scrutinee's shape. Exhaustiveness is the
+    /// type checker's job; this variant fires only when the check was
+    /// bypassed or hasn't caught up with a new pattern form.
+    PatternMatchFailed { value_type: &'static str },
 }
 
 impl fmt::Display for RuntimeError {
@@ -496,13 +509,18 @@ impl fmt::Display for RuntimeError {
             }
             RuntimeError::ChannelDisconnected { op } => write!(
                 f,
-                "{}: channel disconnected (counterparty dropped); MVP recv returns :String and errors on disconnect — :Option<T> lands with match",
+                "{}: channel disconnected — receiver was dropped. `recv` is now Option-returning (disconnect yields :None); only `send` to a dropped receiver raises this error.",
                 op
             ),
             RuntimeError::NoEncodingCtx { op } => write!(
                 f,
                 "{}: no encoding context attached to SymbolTable; presence / config accessors need a frozen EncodingCtx. Call via the freeze pipeline rather than a bare SymbolTable::new().",
                 op
+            ),
+            RuntimeError::PatternMatchFailed { value_type } => write!(
+                f,
+                ":wat::core::match: no arm matched scrutinee of type {}; exhaustiveness should be caught at type-check time",
+                value_type
             ),
         }
     }
@@ -785,7 +803,17 @@ pub fn eval(
         WatAST::FloatLit(x) => Ok(Value::f64(*x)),
         WatAST::BoolLit(b) => Ok(Value::bool(*b)),
         WatAST::StringLit(s) => Ok(Value::String(Arc::new(s.clone()))),
-        WatAST::Keyword(k) => Ok(Value::wat__core__keyword(Arc::new(k.clone()))),
+        WatAST::Keyword(k) => {
+            // `:None` is the nullary constructor of the built-in
+            // `:Option<T>` enum (058-030). Special-cased here so users
+            // can write `:None` in expression position to produce
+            // `Value::Option(None)` without requiring a keyword-path
+            // call form.
+            if k == ":None" {
+                return Ok(Value::Option(Arc::new(None)));
+            }
+            Ok(Value::wat__core__keyword(Arc::new(k.clone())))
+        }
         WatAST::Symbol(ident) => env
             .lookup(ident.as_str())
             .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone())),
@@ -808,6 +836,7 @@ fn eval_list(
 
     match head {
         WatAST::Keyword(k) => dispatch_keyword_head(k, rest, env, sym),
+        WatAST::Symbol(ident) if ident.as_str() == "Some" => eval_some_ctor(rest, env, sym),
         WatAST::Symbol(ident) => {
             // Bare symbol as head — look up a callable in the env.
             let callee = env
@@ -842,6 +871,7 @@ fn dispatch_keyword_head(
         ":wat::core::if" => eval_if(args, env, sym),
         ":wat::core::quote" => eval_quote(args),
         ":wat::core::atom-value" => eval_atom_value(args, env, sym),
+        ":wat::core::match" => eval_match(args, env, sym),
 
         // Arithmetic
         ":wat::core::+" => eval_arith(head, args, env, sym, |a, b| Ok(a + b), |a, b| Ok(a + b)),
@@ -1370,6 +1400,180 @@ fn eval_quote(args: &[WatAST]) -> Result<Value, RuntimeError> {
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
 }
 
+/// `(Some <expr>)` — tagged constructor of the built-in `:Option<T>`
+/// enum (058-030). Reserved bare identifier; users cannot shadow it.
+/// Arity 1. Evaluates `expr` and wraps it in `Value::Option(Some(_))`.
+///
+/// The dual is `:None` (keyword literal, nullary) handled directly in
+/// [`eval`]. Together they are the only way to produce `Value::Option`;
+/// callers consume via `(:wat::core::match ...)`.
+fn eval_some_ctor(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: "Some".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    Ok(Value::Option(Arc::new(Some(v))))
+}
+
+/// `(:wat::core::match <scrutinee> <arm>...)` — pattern-match over
+/// enum values. MVP-scoped to `:Option<T>` (the only built-in enum);
+/// user-declared enums graduate in a later slice.
+///
+/// Each arm is `(pattern body)`. Pattern forms:
+/// - `:None` — matches `Value::Option(None)`, no binding.
+/// - `(Some binder)` — matches `Value::Option(Some(v))`, binds `binder`
+///   to `v` in the body's scope. Exactly one binder; further pattern
+///   nesting is a future slice.
+/// - bare identifier — wildcard that binds the scrutinee as that name.
+/// - `_` — wildcard, no binding.
+///
+/// Arms are tried in order; the first match fires. If no arm matches
+/// the scrutinee, returns `PatternMatchFailed`. (Exhaustiveness is
+/// enforced statically by the type checker; this runtime error fires
+/// only when the type check hasn't run.)
+fn eval_match(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() < 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::match".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let scrutinee = eval(&args[0], env, sym)?;
+    for arm in &args[1..] {
+        let arm_items = match arm {
+            WatAST::List(items) => items,
+            other => {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "each arm must be a list `(pattern body)`, got {}",
+                        ast_variant_name(other)
+                    ),
+                });
+            }
+        };
+        if arm_items.len() != 2 {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: format!(
+                    "each arm must have exactly (pattern body); got {} elements",
+                    arm_items.len()
+                ),
+            });
+        }
+        let pattern = &arm_items[0];
+        let body = &arm_items[1];
+        if let Some(arm_env) = try_match_pattern(pattern, &scrutinee, env)? {
+            return eval(body, &arm_env, sym);
+        }
+    }
+    Err(RuntimeError::PatternMatchFailed {
+        value_type: scrutinee.type_name(),
+    })
+}
+
+/// Attempt to match `pattern` against `value`. Returns:
+/// - `Ok(Some(env))` — pattern matches; `env` extends `outer` with any
+///   pattern-introduced bindings.
+/// - `Ok(None)` — pattern doesn't match this value; try the next arm.
+/// - `Err(_)` — pattern is malformed.
+fn try_match_pattern(
+    pattern: &WatAST,
+    value: &Value,
+    outer: &Environment,
+) -> Result<Option<Environment>, RuntimeError> {
+    match pattern {
+        // `:None` — matches Option(None) only.
+        WatAST::Keyword(k) if k == ":None" => match value {
+            Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
+            _ => Ok(None),
+        },
+        // Keyword patterns other than `:None` are not yet spec'd;
+        // user-enum variants graduate in a later slice.
+        WatAST::Keyword(k) => Err(RuntimeError::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: format!(
+                "keyword pattern {} not supported (only `:None` is recognized in this slice)",
+                k
+            ),
+        }),
+        // `_` wildcard — matches any value, no binding.
+        WatAST::Symbol(ident) if ident.as_str() == "_" => Ok(Some(outer.clone())),
+        // Bare identifier — binds the scrutinee to that name.
+        WatAST::Symbol(ident) => Ok(Some(
+            outer.child().bind(ident.as_str().to_string(), value.clone()).build(),
+        )),
+        // `(Some binder)` — matches Option(Some(v)), binds `binder` to v.
+        WatAST::List(items) => {
+            let head = items.first().ok_or_else(|| RuntimeError::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: "empty list pattern".into(),
+            })?;
+            match head {
+                WatAST::Symbol(ident) if ident.as_str() == "Some" => {
+                    if items.len() != 2 {
+                        return Err(RuntimeError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "(Some binder) takes exactly one field, got {}",
+                                items.len() - 1
+                            ),
+                        });
+                    }
+                    match value {
+                        Value::Option(opt) => match &**opt {
+                            Some(inner) => {
+                                let binder = match &items[1] {
+                                    WatAST::Symbol(b) => b.as_str().to_string(),
+                                    other => {
+                                        return Err(RuntimeError::MalformedForm {
+                                            head: ":wat::core::match".into(),
+                                            reason: format!(
+                                                "(Some _): binder must be a bare symbol, got {}",
+                                                ast_variant_name(other)
+                                            ),
+                                        });
+                                    }
+                                };
+                                Ok(Some(outer.child().bind(binder, inner.clone()).build()))
+                            }
+                            None => Ok(None),
+                        },
+                        _ => Ok(None),
+                    }
+                }
+                other => Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "list pattern head must be a variant constructor; got {}",
+                        ast_variant_name(other)
+                    ),
+                }),
+            }
+        }
+        other => Err(RuntimeError::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: format!(
+                "pattern must be a keyword, symbol, or list; got {}",
+                ast_variant_name(other)
+            ),
+        }),
+    }
+}
+
 /// `(:wat::core::atom-value <holon>)` — extract the payload from an Atom.
 ///
 /// Dual of `:wat::algebra::Atom`. Given an `:Atom<T>` holon, returns the
@@ -1877,10 +2081,10 @@ fn eval_kernel_send(
 }
 
 /// `(:wat::kernel::recv receiver)` — blocks until the receiver
-/// produces a value or its sender is dropped. MVP returns `:String`
-/// directly and raises `ChannelDisconnected` on sender drop; the
-/// target shape is `∀T. Receiver<T> -> Option<T>` which requires
-/// runtime `Option<T>` + pattern-matching support (future slice).
+/// produces a value or its sender is dropped. Typed
+/// `∀T. Receiver<T> -> Option<T>` per FOUNDATION: `(Some v)` on a
+/// successful receive, `:None` when every sender has dropped
+/// (disconnect becomes first-class absence rather than an error).
 fn eval_kernel_recv(
     args: &[WatAST],
     env: &Environment,
@@ -1904,10 +2108,8 @@ fn eval_kernel_recv(
         }
     };
     match receiver.recv() {
-        Ok(s) => Ok(Value::String(Arc::new(s))),
-        Err(_) => Err(RuntimeError::ChannelDisconnected {
-            op: ":wat::kernel::recv".into(),
-        }),
+        Ok(s) => Ok(Value::Option(Arc::new(Some(Value::String(Arc::new(s)))))),
+        Err(_) => Ok(Value::Option(Arc::new(None))),
     }
 }
 

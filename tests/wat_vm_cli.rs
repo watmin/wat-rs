@@ -42,7 +42,9 @@ const ECHO_PROGRAM: &str = r#"
                      (stdout :crossbeam_channel::Sender<String>)
                      (stderr :crossbeam_channel::Sender<String>)
                      -> :())
-  (:wat::kernel::send stdout (:wat::kernel::recv stdin)))
+  (:wat::core::match (:wat::kernel::recv stdin)
+    ((Some line) (:wat::kernel::send stdout line))
+    (:None ())))
 "#;
 
 #[test]
@@ -113,7 +115,9 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
   (:wat::core::let*
     (((program :wat::WatAST)
        (:wat::core::quote
-         (:wat::kernel::send stdout (:wat::kernel::recv stdin))))
+         (:wat::core::match (:wat::kernel::recv stdin)
+           ((Some line) (:wat::kernel::send stdout line))
+           (:None ()))))
      ((program-atom :holon::HolonAST)
        (:wat::algebra::Atom program))
      ((reveal :wat::WatAST)
@@ -197,7 +201,9 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
   (:wat::core::let*
     (((program :wat::WatAST)
        (:wat::core::quote
-         (:wat::kernel::send stdout (:wat::kernel::recv stdin))))
+         (:wat::core::match (:wat::kernel::recv stdin)
+           ((Some line) (:wat::kernel::send stdout line))
+           (:None ()))))
      ((program-atom :holon::HolonAST)
        (:wat::algebra::Atom program))
      ((key-atom :holon::HolonAST)

@@ -201,13 +201,21 @@ slice.
                      (stdout :crossbeam_channel::Sender<String>)
                      (stderr :crossbeam_channel::Sender<String>)
                      -> :())
-  (:wat::kernel::send stdout (:wat::kernel::recv stdin)))
+  (:wat::core::match (:wat::kernel::recv stdin)
+    ((Some line) (:wat::kernel::send stdout line))
+    (:None ())))
 ```
 
 ```
 $ echo watmin | wat-vm echo.wat
 watmin
 ```
+
+`recv` returns `:Option<String>` — `(Some line)` on a payload,
+`:None` when every sender has dropped. `:wat::core::match` decomposes
+it; exhaustiveness on `:Option<T>` is a type-check-time requirement
+(every match must cover both `:None` and `(Some _)`, or include a
+wildcard).
 
 ## Namespace discipline
 
@@ -224,11 +232,11 @@ Full rename table in `FOUNDATION-CHANGELOG.md` (entry dated 2026-04-19,
 
 Phase 1 is complete. Further work is additive:
 
-- **Multi-line stdin.** `:Option<T>` runtime + `match` form → graceful EOF
-  for `recv`.
 - **More kernel primitives.** `:wat::kernel::spawn` / `select` / `drop` /
-  `try-recv` for richer concurrency; matches FOUNDATION's eight-primitive
-  kernel surface.
+  `try-recv` / `join` / `make-bounded-queue` / `make-unbounded-queue` /
+  `HandlePool` for richer concurrency; matches FOUNDATION's eight-primitive
+  kernel surface. `Signal` enum + signals queue as `:user::main`'s
+  fourth parameter.
 - **Compile path.** Emit Rust source from the frozen world; `rustc`
   produces a native binary with `wat`'s frontend as its builder.
 
