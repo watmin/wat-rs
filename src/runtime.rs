@@ -225,6 +225,16 @@ pub enum RuntimeError {
     /// lambda is fine in expression position. A caught-in-eval define
     /// means the caller confused the two phases.
     DefineInExpressionPosition,
+    /// A constrained `eval` (`eval_in_frozen`) found a mutation-inducing
+    /// form inside the AST it was asked to evaluate. Per FOUNDATION
+    /// (§ constrained eval, line 663): "If the submitted AST contains a
+    /// `define`, `defmacro`, `struct`, `enum`, `newtype`, `typealias`,
+    /// or `load` form — eval refuses. This is not a mode; it is an
+    /// invariant." Also covers `set-*!` config setters.
+    EvalForbidsMutationForm { head: String },
+    /// `:user::main` was not registered at startup. FOUNDATION requires
+    /// exactly one `:user::main` declaration; zero halts.
+    UserMainMissing,
 }
 
 impl fmt::Display for RuntimeError {
@@ -263,6 +273,15 @@ impl fmt::Display for RuntimeError {
             RuntimeError::DefineInExpressionPosition => write!(
                 f,
                 ":wat::core::define is a top-level registration form, not an expression"
+            ),
+            RuntimeError::EvalForbidsMutationForm { head } => write!(
+                f,
+                "constrained eval refuses mutation form {}; eval evaluates against the frozen symbol table and cannot register / replace / load definitions",
+                head
+            ),
+            RuntimeError::UserMainMissing => write!(
+                f,
+                ":user::main not defined — a wat program needs an entry point"
             ),
         }
     }
@@ -1238,7 +1257,14 @@ fn apply_value(
     apply_function(&func, vals, sym)
 }
 
-fn apply_function(
+/// Apply a function to a list of argument values, evaluated under the
+/// given symbol table. Arity must match the function's declared
+/// parameters; mismatch returns [`RuntimeError::ArityMismatch`].
+///
+/// Public so the freeze module's `:user::main` invocation and
+/// constrained-eval paths can apply pre-registered functions from a
+/// frozen world without duplicating the param-binding logic.
+pub fn apply_function(
     func: &Function,
     args: Vec<Value>,
     sym: &SymbolTable,

@@ -45,7 +45,9 @@ use crate::load::{resolve_loads, LoadError, SourceLoader};
 use crate::macros::{expand_all, register_defmacros, MacroError, MacroRegistry};
 use crate::parser::{parse_all, ParseError};
 use crate::resolve::{resolve_references, ResolveError};
-use crate::runtime::{register_defines, RuntimeError, SymbolTable};
+use crate::runtime::{
+    apply_function, register_defines, Environment, RuntimeError, SymbolTable, Value,
+};
 use crate::types::{register_types, TypeEnv, TypeError};
 use std::fmt;
 
@@ -242,6 +244,105 @@ pub fn startup_from_source(
     Ok(FrozenWorld::freeze(config, types, macros, symbols, residue))
 }
 
+// ─── :user::main invocation ─────────────────────────────────────────────
+
+/// Canonical path for the user's entry-point slot. Per FOUNDATION.md
+/// (line 1072): `:user::main` is kernel-REQUIRED (user provides;
+/// kernel invokes). Zero or more-than-one declarations halt.
+pub const USER_MAIN_PATH: &str = ":user::main";
+
+/// Look up `:user::main` in the frozen world and apply it to the
+/// provided argument values.
+///
+/// Per FOUNDATION § "The kernel invokes `:user::main` with four
+/// parameters" (line 1041), the kernel hands the user's entry point
+/// four channel values — `stdin`, `stdout`, `stderr`, `signals` —
+/// plus any additional typed state the deployment signature declares.
+/// This function is agnostic to the number / type of arguments; the
+/// caller (the wat-vm CLI binary, task #141) constructs the channel
+/// [`Value`]s and passes them in. Arity mismatch is caught by
+/// [`apply_function`] and surfaces as `ArityMismatch`.
+pub fn invoke_user_main(
+    frozen: &FrozenWorld,
+    args: Vec<Value>,
+) -> Result<Value, RuntimeError> {
+    let main_func = frozen
+        .symbols()
+        .get(USER_MAIN_PATH)
+        .ok_or(RuntimeError::UserMainMissing)?;
+    apply_function(main_func, args, frozen.symbols())
+}
+
+// ─── Constrained eval ───────────────────────────────────────────────────
+
+/// Constrained `eval` — runs an AST against the frozen world and
+/// refuses any form that would mutate the startup registries.
+///
+/// Per FOUNDATION § "constrained eval at runtime" (line 658):
+///
+/// > 1. Every function called must be in the static symbol table.
+/// > 2. Every type used must be in the static type universe.
+/// > 3. Every argument's type must match the called function's signature.
+/// > 4. Eval cannot register or replace any definition.
+///
+/// Rule (4) is enforced by pre-walking the AST and refusing any of
+/// the ten mutation-inducing heads before evaluation starts. The
+/// other three rules are enforced by the existing runtime + resolve
+/// + check passes (which already ran at startup) — once the AST is
+/// confirmed mutation-free, the standard [`crate::runtime::eval`]
+/// handles function lookup and argument dispatch against the frozen
+/// symbol table.
+///
+/// Use this for: dynamic holon composition, rule-like pattern-match
+/// systems, received holon-programs over the network. An attacker
+/// who supplies a malicious AST cannot invoke arbitrary code — only
+/// functions the operator explicitly loaded at startup.
+pub fn eval_in_frozen(
+    ast: &WatAST,
+    frozen: &FrozenWorld,
+    env: &Environment,
+) -> Result<Value, RuntimeError> {
+    refuse_mutation_forms(ast)?;
+    crate::runtime::eval(ast, env, frozen.symbols())
+}
+
+/// Walk an AST and raise [`RuntimeError::EvalForbidsMutationForm`]
+/// if any mutation-inducing head appears at any depth. The forbidden
+/// set is exactly the forms that register into or modify startup
+/// registries: `define`, `defmacro`, `struct`, `enum`, `newtype`,
+/// `typealias`, the three `load!` variants, and any
+/// `:wat::config::set-*!` setter.
+fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
+    if let WatAST::List(items) = ast {
+        if let Some(WatAST::Keyword(head)) = items.first() {
+            if is_mutation_form(head) {
+                return Err(RuntimeError::EvalForbidsMutationForm {
+                    head: head.clone(),
+                });
+            }
+        }
+        for child in items {
+            refuse_mutation_forms(child)?;
+        }
+    }
+    Ok(())
+}
+
+fn is_mutation_form(head: &str) -> bool {
+    matches!(
+        head,
+        ":wat::core::define"
+            | ":wat::core::defmacro"
+            | ":wat::core::struct"
+            | ":wat::core::enum"
+            | ":wat::core::newtype"
+            | ":wat::core::typealias"
+            | ":wat::core::load!"
+            | ":wat::core::digest-load!"
+            | ":wat::core::signed-load!"
+    ) || head.starts_with(":wat::config::set-")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -415,5 +516,293 @@ mod tests {
         "#;
         let world = startup_from_source(entry, None, &loader).expect("startup");
         assert!(world.symbols().get(":lib::square").is_some());
+    }
+
+    // ─── :user::main invocation ─────────────────────────────────────────
+
+    #[test]
+    fn invoke_main_happy_path() {
+        // :user::main takes no arguments and returns an Int.
+        let src = r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::core::define (:user::main -> :i64)
+              (:wat::core::+ 21 21))
+        "#;
+        let world = startup(src).expect("startup");
+        let result = invoke_user_main(&world, Vec::new()).expect("main runs");
+        assert!(matches!(result, Value::Int(42)));
+    }
+
+    #[test]
+    fn invoke_main_calls_user_define() {
+        // :user::main delegates to a user-defined helper.
+        let src = r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::core::define (:my::app::double (x :i64) -> :i64)
+              (:wat::core::* x 2))
+            (:wat::core::define (:user::main -> :i64)
+              (:my::app::double 21))
+        "#;
+        let world = startup(src).expect("startup");
+        let result = invoke_user_main(&world, Vec::new()).expect("main runs");
+        assert!(matches!(result, Value::Int(42)));
+    }
+
+    #[test]
+    fn invoke_main_missing_is_error() {
+        let src = r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#;
+        let world = startup(src).expect("startup");
+        let err = invoke_user_main(&world, Vec::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::UserMainMissing));
+    }
+
+    #[test]
+    fn invoke_main_wrong_arity_is_error() {
+        // :user::main declared with one parameter; invoke with zero.
+        let src = r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::core::define (:user::main (x :i64) -> :i64) x)
+        "#;
+        let world = startup(src).expect("startup");
+        let err = invoke_user_main(&world, Vec::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { expected: 1, got: 0, .. }));
+    }
+
+    #[test]
+    fn invoke_main_passes_channel_value_through() {
+        // :user::main takes one argument; we pass an Int as an opaque
+        // stand-in for a channel value. The runtime doesn't inspect
+        // the arg type — it passes through to the body.
+        let src = r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::core::define (:user::main (x :i64) -> :i64)
+              (:wat::core::+ x 1))
+        "#;
+        let world = startup(src).expect("startup");
+        let result = invoke_user_main(&world, vec![Value::Int(41)]).expect("main runs");
+        assert!(matches!(result, Value::Int(42)));
+    }
+
+    // ─── Constrained eval ───────────────────────────────────────────────
+
+    fn frozen_with(src: &str) -> FrozenWorld {
+        startup(src).expect("startup")
+    }
+
+    #[test]
+    fn eval_can_invoke_registered_function() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::core::define (:my::app::triple (x :i64) -> :i64)
+              (:wat::core::* x 3))
+        "#,
+        );
+        let ast = crate::parser::parse_one("(:my::app::triple 7)").unwrap();
+        let env = Environment::new();
+        let result = eval_in_frozen(&ast, &world, &env).expect("eval ok");
+        assert!(matches!(result, Value::Int(21)));
+    }
+
+    #[test]
+    fn eval_can_compose_holon_dynamically() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast = crate::parser::parse_one(
+            r#"(:wat::algebra::Bind (:wat::algebra::Atom "role") (:wat::algebra::Atom "filler"))"#,
+        )
+        .unwrap();
+        let env = Environment::new();
+        let result = eval_in_frozen(&ast, &world, &env).expect("eval ok");
+        assert!(matches!(result, Value::Holon(_)));
+    }
+
+    #[test]
+    fn eval_refuses_define() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast = crate::parser::parse_one(
+            r#"(:wat::core::define (:evil::backdoor (x :i64) -> :i64) x)"#,
+        )
+        .unwrap();
+        let env = Environment::new();
+        let err = eval_in_frozen(&ast, &world, &env).unwrap_err();
+        match err {
+            RuntimeError::EvalForbidsMutationForm { head } => {
+                assert_eq!(head, ":wat::core::define");
+            }
+            other => panic!("expected EvalForbidsMutationForm, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn eval_refuses_defmacro() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast = crate::parser::parse_one(
+            r#"(:wat::core::defmacro (:evil::M (x :AST<Holon>) -> :AST<Holon>) x)"#,
+        )
+        .unwrap();
+        let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+    }
+
+    #[test]
+    fn eval_refuses_struct() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast = crate::parser::parse_one(
+            r#"(:wat::core::struct :evil::T (x :i64))"#,
+        )
+        .unwrap();
+        let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+    }
+
+    #[test]
+    fn eval_refuses_enum() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast =
+            crate::parser::parse_one(r#"(:wat::core::enum :evil::E :A :B)"#).unwrap();
+        let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+    }
+
+    #[test]
+    fn eval_refuses_newtype() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast =
+            crate::parser::parse_one(r#"(:wat::core::newtype :evil::N :i64)"#).unwrap();
+        let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+    }
+
+    #[test]
+    fn eval_refuses_typealias() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast =
+            crate::parser::parse_one(r#"(:wat::core::typealias :evil::A :i64)"#).unwrap();
+        let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+    }
+
+    #[test]
+    fn eval_refuses_load() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast = crate::parser::parse_one(
+            r#"(:wat::core::load! :wat::load::file-path "evil.wat")"#,
+        )
+        .unwrap();
+        let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+    }
+
+    #[test]
+    fn eval_refuses_digest_load() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast = crate::parser::parse_one(
+            r#"(:wat::core::digest-load! :wat::load::file-path "x" :wat::verify::digest-sha256 :wat::verify::string "hex")"#,
+        )
+        .unwrap();
+        let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+    }
+
+    #[test]
+    fn eval_refuses_signed_load() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast = crate::parser::parse_one(
+            r#"(:wat::core::signed-load! :wat::load::file-path "x" :wat::verify::signed-ed25519 :wat::verify::string "sig" :wat::verify::string "pk")"#,
+        )
+        .unwrap();
+        let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+    }
+
+    #[test]
+    fn eval_refuses_config_setter() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast =
+            crate::parser::parse_one(r#"(:wat::config::set-dims! 8192)"#).unwrap();
+        let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+    }
+
+    #[test]
+    fn eval_refuses_mutation_form_at_any_depth() {
+        // A mutation form nested inside otherwise-legal structure is
+        // still refused. The walker descends into every child.
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast = crate::parser::parse_one(
+            r#"(:wat::core::let (((x :i64) 1))
+                 (:wat::core::define (:evil (y :i64) -> :i64) y))"#,
+        )
+        .unwrap();
+        let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
     }
 }
