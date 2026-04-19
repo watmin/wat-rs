@@ -38,6 +38,14 @@ const STDLIB_FILES: &[StdlibFile] = &[
         path: "wat/std/Subtract.wat",
         source: include_str!("../wat/std/Subtract.wat"),
     },
+    StdlibFile {
+        path: "wat/std/Log.wat",
+        source: include_str!("../wat/std/Log.wat"),
+    },
+    StdlibFile {
+        path: "wat/std/Circular.wat",
+        source: include_str!("../wat/std/Circular.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.

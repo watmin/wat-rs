@@ -23,7 +23,7 @@
 //! # What this catches today
 //!
 //! - Arity mismatches in user-function and built-in calls at startup.
-//! - Type mismatches: `(:wat::core::+ "hello" 3)`, `(:wat::core::< 1 "x")`
+//! - Type mismatches: `(:wat::core::i64::+ "hello" 3)`, `(:wat::core::< 1 "x")`
 //!   — `<` requires matching operand types.
 //! - Polymorphic failures: `(:wat::core::vec 1 "two" 3)` — list
 //!   elements must unify to a common element type.
@@ -1503,14 +1503,38 @@ fn register_builtins(env: &mut CheckEnv) {
     let holon_ty = || TypeExpr::Path(":holon::HolonAST".into());
     let t_var = || TypeExpr::Path(":T".into());
 
-    // Arithmetic — i64 × i64 → i64. No implicit promotion.
-    for op in &[":wat::core::+", ":wat::core::-", ":wat::core::*", ":wat::core::/"] {
+    // Integer arithmetic — strict i64 × i64 → i64 under the
+    // `:wat::core::i64::*` namespace.
+    for op in &[
+        ":wat::core::i64::+",
+        ":wat::core::i64::-",
+        ":wat::core::i64::*",
+        ":wat::core::i64::/",
+    ] {
         env.register(
             op.to_string(),
             TypeScheme {
                 type_params: vec![],
                 params: vec![i64_ty(), i64_ty()],
                 ret: i64_ty(),
+            },
+        );
+    }
+    // Float arithmetic — strict f64 × f64 → f64 under the
+    // `:wat::core::f64::*` namespace. Users commit to int or float at
+    // the call site; no implicit promotion.
+    for op in &[
+        ":wat::core::f64::+",
+        ":wat::core::f64::-",
+        ":wat::core::f64::*",
+        ":wat::core::f64::/",
+    ] {
+        env.register(
+            op.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![f64_ty(), f64_ty()],
+                ret: f64_ty(),
             },
         );
     }
@@ -1884,14 +1908,14 @@ mod tests {
 
     #[test]
     fn correct_arity_passes() {
-        assert!(check("(:wat::core::+ 1 2)").is_ok());
+        assert!(check("(:wat::core::i64::+ 1 2)").is_ok());
         assert!(check("(:wat::core::not true)").is_ok());
         assert!(check("(:wat::algebra::Bind (:wat::algebra::Atom 1) (:wat::algebra::Atom 2))").is_ok());
     }
 
     #[test]
     fn too_few_args_rejected() {
-        let err = check("(:wat::core::+ 1)").unwrap_err();
+        let err = check("(:wat::core::i64::+ 1)").unwrap_err();
         assert!(err
             .0
             .iter()
@@ -1911,13 +1935,13 @@ mod tests {
 
     #[test]
     fn string_to_add_rejected() {
-        let err = check(r#"(:wat::core::+ "hello" 3)"#).unwrap_err();
+        let err = check(r#"(:wat::core::i64::+ "hello" 3)"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
     #[test]
     fn bool_to_add_rejected() {
-        let err = check("(:wat::core::+ true 3)").unwrap_err();
+        let err = check("(:wat::core::i64::+ true 3)").unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
@@ -1987,7 +2011,7 @@ mod tests {
     fn user_define_body_matches_signature() {
         assert!(check(
             r#"(:wat::core::define (:my::app::add (x :i64) (y :i64) -> :i64)
-                 (:wat::core::+ x y))"#
+                 (:wat::core::i64::+ x y))"#
         )
         .is_ok());
     }
@@ -1996,7 +2020,7 @@ mod tests {
     fn user_define_body_wrong_return_rejected() {
         let err = check(
             r#"(:wat::core::define (:my::app::add (x :i64) (y :i64) -> :bool)
-                 (:wat::core::+ x y))"#,
+                 (:wat::core::i64::+ x y))"#,
         )
         .unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::ReturnTypeMismatch { .. })));
@@ -2028,7 +2052,7 @@ mod tests {
     #[test]
     fn typed_let_binding_matches_rhs() {
         assert!(check(
-            r#"(:wat::core::let (((x :i64) 42)) (:wat::core::+ x 1))"#
+            r#"(:wat::core::let (((x :i64) 42)) (:wat::core::i64::+ x 1))"#
         )
         .is_ok());
     }
@@ -2050,7 +2074,7 @@ mod tests {
                  (((x :i64) 1)
                   ((y :i64) 2)
                   ((z :i64) 3))
-                 (:wat::core::+ (:wat::core::+ x y) z))"#
+                 (:wat::core::i64::+ (:wat::core::i64::+ x y) z))"#
         )
         .is_ok());
     }
@@ -2063,7 +2087,7 @@ mod tests {
             r#"(:wat::core::let
                  (((doubler :fn(i64)->i64)
                    (:wat::core::lambda ((x :i64) -> :i64)
-                     (:wat::core::+ x x))))
+                     (:wat::core::i64::+ x x))))
                  true)"#
         )
         .is_ok());
@@ -2114,7 +2138,7 @@ mod tests {
 
     #[test]
     fn multiple_errors_reported() {
-        let err = check(r#"(:wat::core::+ "s" 1) (:wat::core::not 42)"#).unwrap_err();
+        let err = check(r#"(:wat::core::i64::+ "s" 1) (:wat::core::not 42)"#).unwrap_err();
         assert!(err.0.len() >= 2, "expected >=2 errors, got {}", err.0.len());
     }
 

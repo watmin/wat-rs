@@ -500,3 +500,71 @@ fn stdlib_subtract_macro_expands_in_user_program() {
         stdout
     );
 }
+
+/// Circular expansion — hour 23 and hour 0 are adjacent on the
+/// unit circle; hour 0 and hour 12 are antipodal. The stdlib macro
+/// expands to a Blend over two basis atoms with cos/sin weights;
+/// presence measurement against the reference encoding verifies
+/// both the near-neighbor AND the far-neighbor paths fire as the
+/// circular geometry predicts.
+///
+/// Expansion details (defined in wat/std/Circular.wat):
+///   (Circular v p) →
+///     (let* ((frac   (/ v p))
+///            (two-pi (* 2.0 (pi)))
+///            (theta  (* two-pi frac)))
+///       (Blend (Atom :cos-basis) (Atom :sin-basis) (cos theta) (sin theta)))
+///
+/// Assertions exercise both branches of the noise-floor comparator.
+#[test]
+fn stdlib_circular_macro_near_and_far() {
+    let program = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:my::test::verdict
+                             (score :f64)
+                             -> :String)
+          (:wat::core::if
+            (:wat::core::> score (:wat::config::noise-floor))
+            "above\n"
+            "below\n"))
+
+        (:wat::core::define (:user::main
+                             (stdin  :crossbeam_channel::Receiver<String>)
+                             (stdout :crossbeam_channel::Sender<String>)
+                             (stderr :crossbeam_channel::Sender<String>)
+                             -> :())
+          (:wat::core::let*
+            ;; Period is 24 (hours). h0 is midnight; h23 is an hour away;
+            ;; h12 is noon, antipodal to h0 on the circle.
+            (((h0  :holon::HolonAST) (:wat::std::Circular  0.0 24.0))
+             ((h23 :holon::HolonAST) (:wat::std::Circular 23.0 24.0))
+             ((h12 :holon::HolonAST) (:wat::std::Circular 12.0 24.0))
+             ((near-score :f64) (:wat::core::presence h0 h23))
+             ((far-score  :f64) (:wat::core::presence h0 h12))
+             ((_ :()) (:wat::kernel::send stdout (:my::test::verdict near-score))))
+            (:wat::kernel::send stdout (:my::test::verdict far-score))))
+    "#;
+    let path = write_temp(program);
+    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let output = Command::new(bin)
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn");
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    // h0↔h23 are adjacent on the circle → cosine well above the 5σ floor.
+    // h0↔h12 are antipodal → cosine is ~negative, below the floor.
+    assert_eq!(
+        stdout, "above\nbelow\n",
+        "Circular(0,24)/Circular(23,24) should be near (above); Circular(0,24)/Circular(12,24) should be far (below); got {:?}",
+        stdout
+    );
+}

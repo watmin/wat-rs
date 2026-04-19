@@ -218,15 +218,15 @@ mod tests {
 
     #[test]
     fn core_arithmetic_resolves() {
-        assert!(resolve(r#"(:wat::core::+ 1 2)"#).is_ok());
-        assert!(resolve(r#"(:wat::core::* (:wat::core::+ 1 2) 3)"#).is_ok());
+        assert!(resolve(r#"(:wat::core::i64::+ 1 2)"#).is_ok());
+        assert!(resolve(r#"(:wat::core::i64::* (:wat::core::i64::+ 1 2) 3)"#).is_ok());
     }
 
     #[test]
     fn user_define_resolves() {
         assert!(resolve(
             r#"
-            (:wat::core::define (:my::app::inc (x :i64) -> :i64) (:wat::core::+ x 1))
+            (:wat::core::define (:my::app::inc (x :i64) -> :i64) (:wat::core::i64::+ x 1))
             (:my::app::inc 41)
             "#,
         )
@@ -251,8 +251,8 @@ mod tests {
     fn nested_references_all_resolve() {
         assert!(resolve(
             r#"
-            (:wat::core::define (:my::app::add-one (x :i64) -> :i64) (:wat::core::+ x 1))
-            (:wat::core::define (:my::app::double (x :i64) -> :i64) (:wat::core::* x 2))
+            (:wat::core::define (:my::app::add-one (x :i64) -> :i64) (:wat::core::i64::+ x 1))
+            (:wat::core::define (:my::app::double (x :i64) -> :i64) (:wat::core::i64::* x 2))
             (:my::app::add-one (:my::app::double 10))
             "#,
         )
@@ -278,7 +278,7 @@ mod tests {
             r#"
             (:my::app::missing-a 1)
             (:my::app::missing-b 2)
-            (:wat::core::+ (:my::app::missing-c) (:my::app::missing-d))
+            (:wat::core::i64::+ (:my::app::missing-c) (:my::app::missing-d))
             "#,
         )
         .unwrap_err();

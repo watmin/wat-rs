@@ -491,7 +491,7 @@ mod tests {
             (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::define (:my::app::add (x :i64) (y :i64) -> :i64)
-              (:wat::core::+ x y))
+              (:wat::core::i64::+ x y))
         "#;
         let world = startup(src).expect("startup");
         assert!(world.symbols().get(":my::app::add").is_some());
@@ -554,7 +554,7 @@ mod tests {
         let src = r#"
             (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::+ "hello" 1)
+            (:wat::core::i64::+ "hello" 1)
         "#;
         let err = startup(src).unwrap_err();
         assert!(matches!(err, StartupError::Check(_)));
@@ -614,7 +614,7 @@ mod tests {
         loader.add_source(
             "lib.wat",
             r#"(:wat::core::define (:lib::square (x :i64) -> :i64)
-                 (:wat::core::* x x))"#,
+                 (:wat::core::i64::* x x))"#,
         );
         let entry = r#"
             (:wat::config::set-dims! 1024)
@@ -634,7 +634,7 @@ mod tests {
             (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::define (:user::main -> :i64)
-              (:wat::core::+ 21 21))
+              (:wat::core::i64::+ 21 21))
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");
@@ -648,7 +648,7 @@ mod tests {
             (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::define (:my::app::double (x :i64) -> :i64)
-              (:wat::core::* x 2))
+              (:wat::core::i64::* x 2))
             (:wat::core::define (:user::main -> :i64)
               (:my::app::double 21))
         "#;
@@ -690,7 +690,7 @@ mod tests {
             (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::define (:user::main (x :i64) -> :i64)
-              (:wat::core::+ x 1))
+              (:wat::core::i64::+ x 1))
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, vec![Value::i64(41)]).expect("main runs");
@@ -710,7 +710,7 @@ mod tests {
             (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::define (:my::app::triple (x :i64) -> :i64)
-              (:wat::core::* x 3))
+              (:wat::core::i64::* x 3))
         "#,
         );
         let ast = crate::parser::parse_one("(:my::app::triple 7)").unwrap();
@@ -932,7 +932,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parser::parse_one(r#"(:wat::core::+ 20 22)"#).unwrap();
+            crate::parser::parse_one(r#"(:wat::core::i64::+ 20 22)"#).unwrap();
         let hex = digest_hex_for(&ast);
         let result =
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
@@ -948,7 +948,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one(r#"(:wat::core::+ 1 1)"#).unwrap();
+        let ast = crate::parser::parse_one(r#"(:wat::core::i64::+ 1 1)"#).unwrap();
         let wrong =
             "0000000000000000000000000000000000000000000000000000000000000000";
         let err =
@@ -1006,7 +1006,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parser::parse_one(r#"(:wat::core::+ 40 2)"#).unwrap();
+            crate::parser::parse_one(r#"(:wat::core::i64::+ 40 2)"#).unwrap();
         let (sig, pk) = sign_ast_ed25519(&ast);
         let result = eval_signed_in_frozen(
             &ast,
@@ -1028,8 +1028,8 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let original = crate::parser::parse_one(r#"(:wat::core::+ 1 1)"#).unwrap();
-        let tampered = crate::parser::parse_one(r#"(:wat::core::+ 99 99)"#).unwrap();
+        let original = crate::parser::parse_one(r#"(:wat::core::i64::+ 1 1)"#).unwrap();
+        let tampered = crate::parser::parse_one(r#"(:wat::core::i64::+ 99 99)"#).unwrap();
         let (sig, pk) = sign_ast_ed25519(&original);
         let err = eval_signed_in_frozen(
             &tampered,
