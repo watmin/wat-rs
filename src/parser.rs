@@ -467,10 +467,10 @@ mod tests {
 
     #[test]
     fn parametric_keyword_survives_in_call() {
-        let src = "(foo :List<T>)";
+        let src = "(foo :Vec<T>)";
         assert_eq!(
             parse_one(src).unwrap(),
-            list(vec![sym("foo"), kw(":List<T>")])
+            list(vec![sym("foo"), kw(":Vec<T>")])
         );
     }
 }

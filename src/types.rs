@@ -18,7 +18,7 @@
 //! - Classifies each declaration form at startup.
 //! - Extracts the name, type parameters, and structural shape (field
 //!   name/type pairs, enum variants).
-//! - Parses type expressions (`:f64`, `:List<T>`, `:fn(T,U)->R`,
+//! - Parses type expressions (`:f64`, `:Vec<T>`, `:fn(T,U)->R`,
 //!   `:my::ns::MyType`) into structured [`TypeExpr`] values.
 //! - Stores the result in a [`TypeEnv`], keyed by the bare declaration
 //!   name (no `<T>` in the key — parametric types are registered once;
@@ -52,7 +52,7 @@ pub enum TypeExpr {
     /// rejection of the escape hatch. `parse_type_expr` refuses it at
     /// the parse layer.
     Path(String),
-    /// `:List<T>`, `:HashMap<K,V>`, `:my::ns::Container<Holon,f64>`.
+    /// `:Vec<T>`, `:HashMap<K,V>`, `:my::ns::Container<Holon,f64>`.
     Parametric {
         head: String,
         args: Vec<TypeExpr>,
@@ -928,13 +928,13 @@ mod tests {
 
     #[test]
     fn parametric_typealias() {
-        let (env, _) = collect(r#"(:wat::core::typealias :my::Series<T> :List<T>)"#).unwrap();
+        let (env, _) = collect(r#"(:wat::core::typealias :my::Series<T> :Vec<T>)"#).unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Series").unwrap() {
             assert_eq!(a.type_params, vec!["T".to_string()]);
             assert_eq!(
                 a.expr,
                 TypeExpr::Parametric {
-                    head: "List".into(),
+                    head: "Vec".into(),
                     args: vec![TypeExpr::Path(":T".into())]
                 }
             );
@@ -1060,9 +1060,9 @@ mod tests {
     #[test]
     fn type_expr_parametric() {
         assert_eq!(
-            parse_type_expr(":List<T>").unwrap(),
+            parse_type_expr(":Vec<T>").unwrap(),
             TypeExpr::Parametric {
-                head: "List".into(),
+                head: "Vec".into(),
                 args: vec![TypeExpr::Path(":T".into())]
             }
         );

@@ -12,7 +12,7 @@
 //! [`Value`] covers what a runtime expression can evaluate to:
 //! `Bool`, `Int`, `Float`, `String`, `Keyword`, `Holon`, `Function`,
 //! `Unit`, and `List` for the small set of list-shaped runtime values
-//! (currently only used as return values from explicit `:wat::core::list`
+//! (currently only used as return values from explicit `:wat::core::vec`
 //! calls). No `Null`. No `Any`.
 //!
 //! # Environment model
@@ -55,7 +55,7 @@ pub enum Value {
     /// A callable — either a `define`-registered function or a `lambda`
     /// closure.
     Function(Arc<Function>),
-    /// A list of values — used by `:wat::core::list`.
+    /// A list of values — used by `:wat::core::vec`.
     List(Arc<Vec<Value>>),
     /// `:()` — unit. Returned by expressions with no meaningful value
     /// (not used widely in this slice).
@@ -72,7 +72,7 @@ impl Value {
             Value::Keyword(_) => "Keyword",
             Value::Holon(_) => "Holon",
             Value::Function(_) => "Function",
-            Value::List(_) => "List",
+            Value::List(_) => "Vec",
             Value::Unit => "()",
         }
     }
@@ -628,7 +628,7 @@ fn dispatch_keyword_head(
         ":wat::core::or" => eval_or(args, env, sym),
 
         // List construction
-        ":wat::core::list" => eval_list_ctor(args, env, sym),
+        ":wat::core::vec" => eval_list_ctor(args, env, sym),
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
         ":wat::algebra::Atom" => eval_algebra_atom(args, env, sym),
@@ -1110,7 +1110,7 @@ fn eval_algebra_bundle(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::algebra::Bundle".into(),
-                expected: "List<Holon> from (:wat::core::list ...)",
+                expected: "List<Holon> from (:wat::core::vec ...)",
                 got: other.type_name(),
             });
         }
@@ -1617,7 +1617,7 @@ mod tests {
     fn algebra_bundle_via_list_ctor() {
         let v = eval_expr(
             r#"(:wat::algebra::Bundle
-                 (:wat::core::list
+                 (:wat::core::vec
                    (:wat::algebra::Atom "a")
                    (:wat::algebra::Atom "b")
                    (:wat::algebra::Atom "c")))"#,

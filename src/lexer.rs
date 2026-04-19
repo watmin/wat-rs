@@ -464,8 +464,8 @@ mod tests {
     #[test]
     fn keyword_parametric_type() {
         assert_eq!(
-            lex(":List<Holon>").unwrap(),
-            vec![Token::Keyword(":List<Holon>".into())]
+            lex(":Vec<Holon>").unwrap(),
+            vec![Token::Keyword(":Vec<Holon>".into())]
         );
         assert_eq!(
             lex(":HashMap<K,V>").unwrap(),

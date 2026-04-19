@@ -25,7 +25,7 @@
 //! - Arity mismatches in user-function and built-in calls at startup.
 //! - Type mismatches: `(:wat::core::+ "hello" 3)`, `(:wat::core::< 1 "x")`
 //!   — `<` requires matching operand types.
-//! - Polymorphic failures: `(:wat::core::list 1 "two" 3)` — list
+//! - Polymorphic failures: `(:wat::core::vec 1 "two" 3)` — list
 //!   elements must unify to a common element type.
 //! - User-define body vs signature mismatches. Rigid type params
 //!   mean a body of `:i64` in a `∀T. T -> T` signature is rejected.
@@ -313,7 +313,7 @@ fn infer_list(
         match k.as_str() {
             ":wat::core::if" => return infer_if(args, env, locals, fresh, subst, errors),
             ":wat::core::let" => return infer_let(args, env, locals, fresh, subst, errors),
-            ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::core::vec" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::and" | ":wat::core::or" => {
                 return infer_boolean_shortcircuit(args, env, locals, fresh, subst, errors);
             }
@@ -514,7 +514,7 @@ fn infer_list_constructor(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    // :wat::core::list — `∀T. T* -> List<T>`. All args must unify to a
+    // :wat::core::vec — `∀T. T* -> List<T>`. All args must unify to a
     // common element type.
     let elem_var = fresh.fresh();
     for (i, arg) in args.iter().enumerate() {
@@ -522,7 +522,7 @@ fn infer_list_constructor(
         if let Some(arg_ty) = arg_ty {
             if unify(&arg_ty, &elem_var, subst).is_err() {
                 errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::list".into(),
+                    callee: ":wat::core::vec".into(),
                     param: format!("#{}", i + 1),
                     expected: format_type(&apply_subst(&elem_var, subst)),
                     got: format_type(&apply_subst(&arg_ty, subst)),
@@ -531,7 +531,7 @@ fn infer_list_constructor(
         }
     }
     Some(TypeExpr::Parametric {
-        head: "List".into(),
+        head: "Vec".into(),
         args: vec![apply_subst(&elem_var, subst)],
     })
 }
@@ -957,13 +957,13 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: holon_ty(),
         },
     );
-    // Bundle takes :List<Holon> → :Holon.
+    // Bundle takes :Vec<Holon> → :Holon.
     env.register(
         ":wat::algebra::Bundle".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Parametric {
-                head: "List".into(),
+                head: "Vec".into(),
                 args: vec![holon_ty()],
             }],
             ret: holon_ty(),
@@ -1086,22 +1086,22 @@ mod tests {
 
     #[test]
     fn list_same_type_passes() {
-        assert!(check("(:wat::core::list 1 2 3)").is_ok());
-        assert!(check(r#"(:wat::core::list "a" "b")"#).is_ok());
+        assert!(check("(:wat::core::vec 1 2 3)").is_ok());
+        assert!(check(r#"(:wat::core::vec "a" "b")"#).is_ok());
     }
 
     #[test]
     fn list_mixed_types_rejected() {
-        let err = check(r#"(:wat::core::list 1 "two" 3)"#).unwrap_err();
+        let err = check(r#"(:wat::core::vec 1 "two" 3)"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
     #[test]
     fn bundle_of_list_of_holons_passes() {
-        // Bundle takes :List<Holon>. A list of (Atom ...) calls
-        // returns :List<Holon>, so Bundle(list(Atoms...)) type-checks.
+        // Bundle takes :Vec<Holon>. A list of (Atom ...) calls
+        // returns :Vec<Holon>, so Bundle(list(Atoms...)) type-checks.
         assert!(check(
-            r#"(:wat::algebra::Bundle (:wat::core::list
+            r#"(:wat::algebra::Bundle (:wat::core::vec
                  (:wat::algebra::Atom 1)
                  (:wat::algebra::Atom 2)))"#
         )
@@ -1110,8 +1110,8 @@ mod tests {
 
     #[test]
     fn bundle_of_list_of_ints_rejected() {
-        // Bundle wants :List<Holon>, but this is :List<i64>.
-        let err = check(r#"(:wat::algebra::Bundle (:wat::core::list 1 2 3))"#).unwrap_err();
+        // Bundle wants :Vec<Holon>, but this is :Vec<i64>.
+        let err = check(r#"(:wat::algebra::Bundle (:wat::core::vec 1 2 3))"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
@@ -1233,7 +1233,7 @@ mod tests {
 
     #[test]
     fn any_as_nested_arg_rejected_at_parse() {
-        let err = parse_type_expr(":List<Any>").unwrap_err();
+        let err = parse_type_expr(":Vec<Any>").unwrap_err();
         assert!(matches!(err, crate::types::TypeError::AnyBanned { .. }));
     }
 
@@ -1305,16 +1305,17 @@ mod tests {
 
     #[test]
     fn unify_parametric_head_must_match() {
+        // Different parametric heads must NOT unify: Vec<i64> vs Option<i64>.
         let mut s = Subst::new();
-        let list_int = TypeExpr::Parametric {
-            head: "List".into(),
-            args: vec![TypeExpr::Path(":i64".into())],
-        };
         let vec_int = TypeExpr::Parametric {
             head: "Vec".into(),
             args: vec![TypeExpr::Path(":i64".into())],
         };
-        assert!(unify(&list_int, &vec_int, &mut s).is_err());
+        let option_int = TypeExpr::Parametric {
+            head: "Option".into(),
+            args: vec![TypeExpr::Path(":i64".into())],
+        };
+        assert!(unify(&vec_int, &option_int, &mut s).is_err());
     }
 
     #[test]
@@ -1336,7 +1337,7 @@ mod tests {
         let mut s = Subst::new();
         // α = List<α>  — would produce an infinite type.
         let cyclic = TypeExpr::Parametric {
-            head: "List".into(),
+            head: "Vec".into(),
             args: vec![TypeExpr::Var(0)],
         };
         assert!(unify(&TypeExpr::Var(0), &cyclic, &mut s).is_err());

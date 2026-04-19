@@ -65,7 +65,7 @@ fn different_sources_produce_different_vectors() {
 
 #[test]
 fn bind_vs_bundle_of_same_atoms_differ() {
-    // (:wat::algebra::Bind a b) and (:wat::algebra::Bundle (:wat::core::list a b))
+    // (:wat::algebra::Bind a b) and (:wat::algebra::Bundle (:wat::core::vec a b))
     // are different algebra operations; their vectors must differ.
     let (vm, se, reg) = env();
     let v_bind = eval_algebra_source(
@@ -76,7 +76,7 @@ fn bind_vs_bundle_of_same_atoms_differ() {
     )
     .unwrap();
     let v_bundle = eval_algebra_source(
-        r#"(:wat::algebra::Bundle (:wat::core::list (:wat::algebra::Atom "a") (:wat::algebra::Atom "b")))"#,
+        r#"(:wat::algebra::Bundle (:wat::core::vec (:wat::algebra::Atom "a") (:wat::algebra::Atom "b")))"#,
         &vm,
         &se,
         &reg,

@@ -20,8 +20,8 @@ Implication: every wat keyword-path should be a literal Rust path (no translatio
 | `:wat::core::+` | `:wat::core::+` | same |
 | `:wat::core::/` | `:wat::core::/` | reads unambiguous — `::` separator, `/` is the name |
 | `:my/vocab/foo` | `:my::vocab::foo` | user paths too |
-| `:List<T>` | `:Vec<T>` | Rust collection is Vec |
-| `:wat::core::list` | `:wat::core::vec` | Rust constructor is `vec!` / `Vec::new()` |
+| `:Vec<T>` | `:Vec<T>` | Rust collection is Vec |
+| `:wat::core::vec` | `:wat::core::vec` | Rust constructor is `vec!` / `Vec::new()` |
 | `:Pair<T,U>` | `:(T,U)` | Rust has no `Pair`; it has tuples |
 | `:Tuple<T,U,V>` | `:(T,U,V)` | same |
 | `:Union<T,U,V>` | named enum required | Rust has no anonymous union; force named enum declaration |
@@ -97,10 +97,10 @@ The named-enum approach is objectively better: every coproduct has a discriminat
 
 ### Track C — Type system honesty
 
-**C1: `:List<T>` → `:Vec<T>` and `:wat::core::list` → `:wat::core::vec`**
+**C1: `:Vec<T>` → `:Vec<T>` and `:wat::core::vec` → `:wat::core::vec`**
 - Rename in check.rs schemes (Bundle's input type, list constructor return type).
 - Rename constructor path; `is_special_form` updates.
-- Every test referring to `:List<...>` or `(:wat::core::list ...)` updates.
+- Every test referring to `:Vec<...>` or `(:wat::core::vec ...)` updates.
 
 **C2: Drop `:Pair<T,U>` / `:Tuple<T,U,V>` from docs**
 - Requires A2.
@@ -132,7 +132,7 @@ The named-enum approach is objectively better: every coproduct has a discriminat
 **D3: FOUNDATION-CHANGELOG**
 Four entries (2026-04-19):
 - Colon-quote model — `:` is the symbol-literal reader macro; `::` is the canonical separator.
-- `:List<T>` → `:Vec<T>` and `:wat::core::vec`.
+- `:Vec<T>` → `:Vec<T>` and `:wat::core::vec`.
 - `:Pair<T,U>` / `:Tuple<T,U,V>` retired for `:(T,U)` / `:(T,U,V)`.
 - `:Union<T,U,V>` retired — heterogeneous types require named enums.
 - Channel types use `crossbeam_channel` paths.
@@ -142,7 +142,7 @@ Four entries (2026-04-19):
 **E1: Ward pass across the whole repo**
 - `/ignorant` + `/scry` + `/gaze` over updated corpus.
 - Find any `/`-separator path that slipped through.
-- Find any leftover `:List<...>`, `:Pair<...>`, `:Tuple<...>`, `:Union<...>`, `:QueueSender<...>`, `:QueueReceiver<...>`.
+- Find any leftover `:Vec<...>`, `:Pair<...>`, `:Tuple<...>`, `:Union<...>`, `:QueueSender<...>`, `:QueueReceiver<...>`.
 
 **E2: End-to-end smoke**
 - wat-rs: `cargo test` + `cargo test --release` clean.
@@ -155,7 +155,7 @@ Each commit must leave tests green.
 1. A1 — lexer allows internal `::`
 2. A2 — tuple-literal parser
 3. B1+B2 — atomic reserved-prefix flip + source sweep
-4. C1 — `:List` → `:Vec`, `:wat::core::list` → `:wat::core::vec`
+4. C1 — `:List` → `:Vec`, `:wat::core::vec` → `:wat::core::vec`
 5. C3 — drop `:Union` from parser
 6. D1 — holon-lab-trading wat files
 7. D2 + D3 — proposal docs + changelog entries

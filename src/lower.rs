@@ -13,7 +13,7 @@
 //!   for the Rust primitive the literal represents, or
 //!   `HolonAST::keyword(...)` for a keyword literal.
 //! - `(:wat::algebra::Bind a b)` — both args recursively lowered.
-//! - `(:wat::algebra::Bundle (:wat::core::list ...))` — list form required;
+//! - `(:wat::algebra::Bundle (:wat::core::vec ...))` — list form required;
 //!   children recursively lowered.
 //! - `(:wat::algebra::Permute child k)` — `k` must be an integer literal
 //!   (fits in `i32`).
@@ -47,7 +47,7 @@ pub enum LowerError {
     AtomNonLiteral,
     /// A `Bind` expected two arguments; got some other count.
     BindArity(usize),
-    /// A `Bundle` expected exactly one list argument `(:wat::core::list ...)`.
+    /// A `Bundle` expected exactly one list argument `(:wat::core::vec ...)`.
     BundleShape,
     /// A `Permute` expected two arguments (child, integer step).
     PermuteArity(usize),
@@ -87,7 +87,7 @@ impl fmt::Display for LowerError {
             ),
             LowerError::BundleShape => write!(
                 f,
-                "(:wat::algebra::Bundle ...) expects (:wat::core::list ...) as its single argument"
+                "(:wat::algebra::Bundle ...) expects (:wat::core::vec ...) as its single argument"
             ),
             LowerError::PermuteArity(n) => write!(
                 f,
@@ -202,7 +202,7 @@ fn lower_bind(args: &[WatAST]) -> Result<HolonAST, LowerError> {
 }
 
 fn lower_bundle(args: &[WatAST]) -> Result<HolonAST, LowerError> {
-    // Expect exactly one argument: a (:wat::core::list ...) form.
+    // Expect exactly one argument: a (:wat::core::vec ...) form.
     if args.len() != 1 {
         return Err(LowerError::BundleShape);
     }
@@ -210,7 +210,7 @@ fn lower_bundle(args: &[WatAST]) -> Result<HolonAST, LowerError> {
         WatAST::List(items) => {
             let head = items.first().ok_or(LowerError::BundleShape)?;
             match head {
-                WatAST::Keyword(k) if k == ":wat::core::list" => &items[1..],
+                WatAST::Keyword(k) if k == ":wat::core::vec" => &items[1..],
                 _ => return Err(LowerError::BundleShape),
             }
         }
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn lower_bundle() {
         let ast = parse_one(
-            r#"(:wat::algebra::Bundle (:wat::core::list (:wat::algebra::Atom "a") (:wat::algebra::Atom "b") (:wat::algebra::Atom "c")))"#,
+            r#"(:wat::algebra::Bundle (:wat::core::vec (:wat::algebra::Atom "a") (:wat::algebra::Atom "b") (:wat::algebra::Atom "c")))"#,
         )
         .unwrap();
         let holon = lower(&ast).unwrap();
@@ -409,7 +409,7 @@ mod tests {
 
     #[test]
     fn bundle_must_take_list_form() {
-        // Bundle directly with args, not (:wat::core::list ...).
+        // Bundle directly with args, not (:wat::core::vec ...).
         let ast = parse_one(
             r#"(:wat::algebra::Bundle (:wat::algebra::Atom "a") (:wat::algebra::Atom "b"))"#,
         )

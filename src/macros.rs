@@ -529,12 +529,12 @@ mod tests {
             r#"
             (:wat::core::defmacro (:my::vocab::Concurrent (xs :AST<List<Holon>>) -> :AST<Holon>)
               `(:wat::algebra::Bundle ,xs))
-            (:my::vocab::Concurrent (:wat::core::list a b c))
+            (:my::vocab::Concurrent (:wat::core::vec a b c))
             "#,
         )
         .unwrap();
         assert_eq!(forms.len(), 1);
-        // Expansion: (:wat::algebra::Bundle (:wat::core::list a b c))
+        // Expansion: (:wat::algebra::Bundle (:wat::core::vec a b c))
         match &forms[0] {
             WatAST::List(items) => {
                 assert_eq!(items.len(), 2);
@@ -783,7 +783,7 @@ mod tests {
         let err = expand(
             r#"
             (:wat::core::defmacro (:my::two (x :AST) (y :AST) -> :AST)
-              `(:wat::core::list ,x ,y))
+              `(:wat::core::vec ,x ,y))
             (:my::two 1)
             "#,
         )
@@ -798,7 +798,7 @@ mod tests {
         let err = expand(
             r#"
             (:wat::core::defmacro (:my::m (x :AST) -> :AST)
-              (:wat::core::list :bogus x))
+              (:wat::core::vec :bogus x))
             (:my::m 1)
             "#,
         )
@@ -811,7 +811,7 @@ mod tests {
         let err = expand(
             r#"
             (:wat::core::defmacro (:my::s (xs :AST) -> :AST)
-              `(:wat::core::list ,@xs))
+              `(:wat::core::vec ,@xs))
             (:my::s 42)
             "#,
         )

@@ -50,7 +50,7 @@ pending.
       entry points. Structured error types. 22 tests.
 - [x] `lower` — `WatAST` → `holon::HolonAST` for the 6-form algebra
       core: Atom (any Rust primitive + keyword), Bind, Bundle (with
-      `:wat::core::list` form), Permute (i32 step), Thermometer, Blend
+      `:wat::core::vec` form), Permute (i32 step), Thermometer, Blend
       (Option B). 16 tests.
 - [x] `eval_algebra_source` — the "door works" public function. Source
       text → `holon::Vector` in one call. 10 integration tests.
