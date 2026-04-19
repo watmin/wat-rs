@@ -124,7 +124,20 @@ impl<'a> Cursor<'a> {
             Token::Str(s) => Ok(Some(WatAST::StringLit(s.clone()))),
             Token::Keyword(k) => Ok(Some(WatAST::Keyword(k.clone()))),
             Token::Symbol(s) => Ok(Some(WatAST::Symbol(s.clone()))),
+            Token::Quasiquote => self.parse_reader_macro(":wat/core/quasiquote"),
+            Token::Unquote => self.parse_reader_macro(":wat/core/unquote"),
+            Token::UnquoteSplicing => self.parse_reader_macro(":wat/core/unquote-splicing"),
         }
+    }
+
+    /// A reader macro (`` ` `` / `,` / `,@`) wraps the following form.
+    /// `` `X `` → `(:wat/core/quasiquote X)`, etc.
+    fn parse_reader_macro(&mut self, head_keyword: &str) -> Result<Option<WatAST>, ParseError> {
+        let inner = self.parse_form()?.ok_or(ParseError::Empty)?;
+        Ok(Some(WatAST::List(vec![
+            WatAST::Keyword(head_keyword.to_string()),
+            inner,
+        ])))
     }
 
     /// Parse the body of a list — `(` already consumed. Accumulates child
@@ -369,6 +382,81 @@ mod tests {
     fn keyword_with_parens_inside() {
         // :fn(T,U)->R — internal parens must parse as a single keyword.
         assert_eq!(parse_one(":fn(T,U)->R").unwrap(), kw(":fn(T,U)->R"));
+    }
+
+    // ─── Quasiquote reader macros ───────────────────────────────────────
+
+    #[test]
+    fn quasiquote_wraps_following_form() {
+        assert_eq!(
+            parse_one("`foo").unwrap(),
+            list(vec![kw(":wat/core/quasiquote"), sym("foo")])
+        );
+    }
+
+    #[test]
+    fn quasiquote_over_list() {
+        // `(a b c) → (:wat/core/quasiquote (a b c))
+        let expected = list(vec![
+            kw(":wat/core/quasiquote"),
+            list(vec![sym("a"), sym("b"), sym("c")]),
+        ]);
+        assert_eq!(parse_one("`(a b c)").unwrap(), expected);
+    }
+
+    #[test]
+    fn unquote_wraps_following_form() {
+        assert_eq!(
+            parse_one(",x").unwrap(),
+            list(vec![kw(":wat/core/unquote"), sym("x")])
+        );
+    }
+
+    #[test]
+    fn unquote_splicing_wraps_following_form() {
+        assert_eq!(
+            parse_one(",@xs").unwrap(),
+            list(vec![kw(":wat/core/unquote-splicing"), sym("xs")])
+        );
+    }
+
+    #[test]
+    fn quasiquote_with_unquote_inside() {
+        // `(:wat/algebra/Bind ,x ,y) — classic macro template shape.
+        let expected = list(vec![
+            kw(":wat/core/quasiquote"),
+            list(vec![
+                kw(":wat/algebra/Bind"),
+                list(vec![kw(":wat/core/unquote"), sym("x")]),
+                list(vec![kw(":wat/core/unquote"), sym("y")]),
+            ]),
+        ]);
+        assert_eq!(
+            parse_one("`(:wat/algebra/Bind ,x ,y)").unwrap(),
+            expected
+        );
+    }
+
+    #[test]
+    fn quasiquote_with_unquote_splicing_inside() {
+        let expected = list(vec![
+            kw(":wat/core/quasiquote"),
+            list(vec![
+                kw(":wat/algebra/Bundle"),
+                list(vec![kw(":wat/core/unquote-splicing"), sym("xs")]),
+            ]),
+        ]);
+        assert_eq!(
+            parse_one("`(:wat/algebra/Bundle ,@xs)").unwrap(),
+            expected
+        );
+    }
+
+    #[test]
+    fn reader_macro_without_following_form_errors() {
+        assert!(matches!(parse_one("`"), Err(ParseError::Empty)));
+        assert!(matches!(parse_one(","), Err(ParseError::Empty)));
+        assert!(matches!(parse_one(",@"), Err(ParseError::Empty)));
     }
 
     #[test]

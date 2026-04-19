@@ -24,8 +24,13 @@
 //!   non-string token.
 //! - **Line comments** — `;` to end-of-line — skipped.
 //!
-//! Future extensions (not in MVP): quasi-quote `` ` ``, unquote `,`,
-//! unquote-splicing `,@`, character literals `#\a`, block comments.
+//! - **Reader macros** — `` ` `` (quasiquote), `,` (unquote), `,@`
+//!   (unquote-splicing). The parser rewrites each to a list-form with
+//!   a `:wat/core/quasiquote` / `:wat/core/unquote` / `:wat/core/unquote-splicing`
+//!   head, so downstream passes see uniform `List` nodes.
+//!
+//! Future extensions (not in MVP): character literals `#\a`,
+//! block comments.
 
 use std::fmt;
 
@@ -48,6 +53,15 @@ pub enum Token {
     Keyword(String),
     /// Bare identifier.
     Symbol(String),
+    /// Quasiquote `` ` `` reader macro. Parser rewrites to
+    /// `(:wat/core/quasiquote X)` wrapping the following form.
+    Quasiquote,
+    /// Unquote `,` reader macro. Parser rewrites to
+    /// `(:wat/core/unquote X)`.
+    Unquote,
+    /// Unquote-splicing `,@` reader macro. Parser rewrites to
+    /// `(:wat/core/unquote-splicing X)`.
+    UnquoteSplicing,
 }
 
 /// Byte offset in the source. Kept for future span support.
@@ -134,6 +148,24 @@ pub fn lex(src: &str) -> Result<Vec<Token>, LexError> {
         if c == ')' {
             tokens.push(Token::RParen);
             i += 1;
+            continue;
+        }
+
+        // Quasiquote reader macros — `, ,, ,@`.
+        if c == '`' {
+            tokens.push(Token::Quasiquote);
+            i += 1;
+            continue;
+        }
+        if c == ',' {
+            // `,@` or just `,`.
+            if i + 1 < bytes.len() && bytes[i + 1] as char == '@' {
+                tokens.push(Token::UnquoteSplicing);
+                i += 2;
+            } else {
+                tokens.push(Token::Unquote);
+                i += 1;
+            }
             continue;
         }
 
