@@ -761,6 +761,87 @@ fn stdlib_console_hello_world() {
     assert_eq!(stdout, "hello via Console", "got: {:?}", stdout);
 }
 
+/// Console with N>1 clients — the multi-writer gateway pattern.
+/// Three worker functions each get their own Console client handle
+/// and write a distinct message. Main joins all three workers inside
+/// an inner scope; when the inner scope ends, every client handle's
+/// Arc drops, Console/loop sees its rxs disconnect one-by-one via
+/// select+remove-at, the list empties, the driver thread exits, and
+/// the outer `(join console-driver)` unblocks.
+///
+/// Ordering: the three workers run in parallel; their writes arrive
+/// at Console in whatever order the scheduler picks. The test sorts
+/// the output lines and compares to the sorted expected set.
+#[test]
+fn stdlib_console_multi_writer() {
+    let program = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define
+          (:my::worker
+            (console :crossbeam_channel::Sender<(i64,String)>)
+            (msg :String)
+            -> :())
+          (:wat::std::program::Console/out console msg))
+
+        (:wat::core::define (:user::main
+                             (stdin  :io::Stdin)
+                             (stdout :io::Stdout)
+                             (stderr :io::Stderr)
+                             -> :())
+          (:wat::core::let*
+            (((pool console-driver)
+              (:wat::std::program::Console stdout stderr 3))
+             ;; Inner scope owns the three handles AND the worker
+             ;; program handles. When its body finishes, the inner
+             ;; env drops, every handle Arc releases its last ref,
+             ;; and Console/loop cascades shut.
+             ((_ :())
+              (:wat::core::let*
+                (((h0 :crossbeam_channel::Sender<(i64,String)>)
+                  (:wat::kernel::HandlePool::pop pool))
+                 ((h1 :crossbeam_channel::Sender<(i64,String)>)
+                  (:wat::kernel::HandlePool::pop pool))
+                 ((h2 :crossbeam_channel::Sender<(i64,String)>)
+                  (:wat::kernel::HandlePool::pop pool))
+                 ((_0 :()) (:wat::kernel::HandlePool::finish pool))
+                 ((w0 :wat::kernel::ProgramHandle<()>)
+                  (:wat::kernel::spawn :my::worker h0 "alpha\n"))
+                 ((w1 :wat::kernel::ProgramHandle<()>)
+                  (:wat::kernel::spawn :my::worker h1 "bravo\n"))
+                 ((w2 :wat::kernel::ProgramHandle<()>)
+                  (:wat::kernel::spawn :my::worker h2 "charlie\n"))
+                 ((_1 :()) (:wat::kernel::join w0))
+                 ((_2 :()) (:wat::kernel::join w1)))
+                (:wat::kernel::join w2))))
+            (:wat::kernel::join console-driver)))
+    "#;
+    let path = write_temp(program);
+    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let output = Command::new(bin)
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn wat-vm");
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        output.status.success(),
+        "wat-vm exit {:?}, stderr: {}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let mut lines: Vec<&str> = stdout.lines().collect();
+    lines.sort();
+    assert_eq!(
+        lines,
+        vec!["alpha", "bravo", "charlie"],
+        "expected sorted {{alpha, bravo, charlie}}; got {:?}",
+        stdout
+    );
+}
+
 /// Trigram(a,b,c,d) = Bundle([Sequential(a,b,c), Sequential(b,c,d)]).
 /// Presence of the first trigram's Sequential encoding against the
 /// full Trigram should be above the noise floor — it's a participant
