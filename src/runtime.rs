@@ -183,7 +183,7 @@ impl EnvBuilder {
 }
 
 /// Keyword-path ↦ Function registry.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct SymbolTable {
     pub functions: HashMap<String, Arc<Function>>,
 }

@@ -43,6 +43,7 @@
 pub mod ast;
 pub mod check;
 pub mod config;
+pub mod freeze;
 pub mod hash;
 pub mod identifier;
 pub mod lexer;
@@ -57,6 +58,7 @@ pub mod types;
 pub use ast::WatAST;
 pub use check::{check_program, CheckEnv, CheckError, CheckErrors, TypeScheme};
 pub use config::{collect_entry_file, CapacityMode, Config, ConfigError};
+pub use freeze::{startup_from_source, FrozenWorld, StartupError};
 pub use hash::{canonical_edn_wat, hash_canonical_ast, hex_encode, verify_source_hash, HashError};
 pub use identifier::{fresh_scope, Identifier, ScopeId};
 pub use lexer::LexError;
