@@ -626,6 +626,30 @@ pub fn register_defines(
     Ok(rest)
 }
 
+/// Stdlib-registration variant of [`register_defines`] that bypasses
+/// the reserved-prefix check. Called by the startup pipeline on the
+/// baked stdlib sources; user source still goes through
+/// [`register_defines`] where the prefix check blocks mis-namespaced
+/// user defines.
+pub fn register_stdlib_defines(
+    forms: Vec<WatAST>,
+    sym: &mut SymbolTable,
+) -> Result<Vec<WatAST>, RuntimeError> {
+    let mut rest = Vec::new();
+    for form in forms {
+        if is_define_form(&form) {
+            let (path, func) = parse_define_form(form)?;
+            if sym.functions.contains_key(&path) {
+                return Err(RuntimeError::DuplicateDefine(path));
+            }
+            sym.functions.insert(path, func);
+        } else {
+            rest.push(form);
+        }
+    }
+    Ok(rest)
+}
+
 fn is_define_form(form: &WatAST) -> bool {
     matches!(
         form,
@@ -945,8 +969,17 @@ fn dispatch_keyword_head(
         ":wat::core::quote" => eval_quote(args),
         ":wat::core::atom-value" => eval_atom_value(args, env, sym),
         ":wat::core::match" => eval_match(args, env, sym),
-        ":wat::core::first" => eval_tuple_accessor(args, env, sym, ":wat::core::first", 0),
-        ":wat::core::second" => eval_tuple_accessor(args, env, sym, ":wat::core::second", 1),
+        ":wat::core::first" => {
+            eval_positional_accessor(args, env, sym, ":wat::core::first", 0)
+        }
+        ":wat::core::second" => {
+            eval_positional_accessor(args, env, sym, ":wat::core::second", 1)
+        }
+        ":wat::core::third" => {
+            eval_positional_accessor(args, env, sym, ":wat::core::third", 2)
+        }
+        ":wat::core::rest" => eval_vec_rest(args, env, sym),
+        ":wat::std::list::map-with-index" => eval_list_map_with_index(args, env, sym),
 
         // Integer arithmetic — strict i64. No promotion from f64.
         ":wat::core::i64::+" => eval_i64_arith(head, args, env, sym, |a, b| Ok(a + b)),
@@ -1915,14 +1948,16 @@ fn eval_quote(args: &[WatAST]) -> Result<Value, RuntimeError> {
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
 }
 
-/// `(:wat::core::first tuple)` / `(:wat::core::second tuple)` —
-/// positional tuple accessors. Arity 1; tuple arg must have at least
-/// `index + 1` elements. Returns the element at `index`, cloned.
+/// `(:wat::core::first xs)` / `second` / `third` — positional
+/// accessor polymorphic over `Vec<T>` and tuples. Both are
+/// index-addressed sequences (user direction 2026-04-19: "both are
+/// index-accessed data structs"). Returns the element at `index`,
+/// cloned. Runtime error if the container is shorter than
+/// `index + 1`.
 ///
-/// Scoped to `first` / `second` in this slice; higher-arity tuple
-/// indexing graduates when a use case demands it (for all substrate
-/// primitives shipped today the returned tuples are pairs).
-fn eval_tuple_accessor(
+/// `third` covers 3-tuples + Vecs-of-length-≥-3; higher indices go
+/// through `:wat::std::get` (lands with HashMap in round 4b).
+fn eval_positional_accessor(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -1948,12 +1983,87 @@ fn eval_tuple_accessor(
                 ),
             }
         }),
+        Value::Vec(items) => items.get(index).cloned().ok_or_else(|| {
+            RuntimeError::MalformedForm {
+                head: op.into(),
+                reason: format!(
+                    "Vec has {} element(s); no element at index {} (reach for :wat::std::get if empty is expected)",
+                    items.len(),
+                    index
+                ),
+            }
+        }),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
-            expected: "tuple",
+            expected: "tuple or Vec",
             got: other.type_name(),
         }),
     }
+}
+
+/// `(:wat::core::rest xs)` — everything after the first element of a
+/// Vec. Mirrors `slice[1..]`. Runtime error if `xs` is empty (there
+/// is no `rest` of an empty sequence). Tuples do NOT support rest —
+/// tuple arity is fixed at the type level.
+fn eval_vec_rest(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::rest".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::core::rest", eval(&args[0], env, sym)?)?;
+    if xs.is_empty() {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::rest".into(),
+            reason: "cannot take rest of empty Vec".into(),
+        });
+    }
+    let out: Vec<Value> = xs.iter().skip(1).cloned().collect();
+    Ok(Value::Vec(Arc::new(out)))
+}
+
+/// `(:wat::std::list::map-with-index xs f)` → `Vec<U>`. Per
+/// FOUNDATION-CHANGELOG 2026-04-18 stdlib list surface. `f` takes
+/// `(item, index)` and returns U. Used by Sequential's indexed fold.
+fn eval_list_map_with_index(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::std::list::map-with-index".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::std::list::map-with-index", eval(&args[0], env, sym)?)?;
+    let f = eval(&args[1], env, sym)?;
+    let func = match &f {
+        Value::wat__core__lambda(func) => func.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::std::list::map-with-index".into(),
+                expected: "wat::core::lambda",
+                got: other.type_name(),
+            });
+        }
+    };
+    let mut out = Vec::with_capacity(xs.len());
+    for (i, x) in xs.iter().enumerate() {
+        out.push(apply_function(
+            &func,
+            vec![x.clone(), Value::i64(i as i64)],
+            sym,
+        )?);
+    }
+    Ok(Value::Vec(Arc::new(out)))
 }
 
 /// `(Some <expr>)` — tagged constructor of the built-in `:Option<T>`
@@ -4993,6 +5103,74 @@ mod tests {
                     }
                     v => panic!("expected Vec window, got {:?}", v),
                 }
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn first_polymorphic_on_vec() {
+        match eval_expr("(:wat::core::first (:wat::core::list 10 20 30))").unwrap() {
+            Value::i64(10) => {}
+            v => panic!("expected 10, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn second_polymorphic_on_vec() {
+        match eval_expr("(:wat::core::second (:wat::core::list 10 20 30))").unwrap() {
+            Value::i64(20) => {}
+            v => panic!("expected 20, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn third_on_vec() {
+        match eval_expr("(:wat::core::third (:wat::core::list 10 20 30))").unwrap() {
+            Value::i64(30) => {}
+            v => panic!("expected 30, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn rest_drops_first() {
+        match eval_expr("(:wat::core::rest (:wat::core::list 1 2 3))").unwrap() {
+            Value::Vec(items) => {
+                assert_eq!(items.len(), 2);
+                match (&items[0], &items[1]) {
+                    (Value::i64(2), Value::i64(3)) => {}
+                    other => panic!("expected [2,3]; got {:?}", other),
+                }
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn rest_of_empty_errors() {
+        let err = eval_expr("(:wat::core::rest (:wat::core::list))").unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn map_with_index_attaches_positions() {
+        let src = r#"
+            (:wat::std::list::map-with-index
+              (:wat::core::list 10 20 30)
+              (:wat::core::lambda ((x :i64) (i :i64) -> :i64)
+                (:wat::core::i64::+ x i)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::Vec(items) => {
+                let ns: Vec<_> = items
+                    .iter()
+                    .map(|v| match v {
+                        Value::i64(n) => *n,
+                        _ => panic!("expected i64"),
+                    })
+                    .collect();
+                // 10+0, 20+1, 30+2
+                assert_eq!(ns, vec![10, 21, 32]);
             }
             v => panic!("expected Vec, got {:?}", v),
         }

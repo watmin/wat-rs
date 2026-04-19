@@ -632,3 +632,126 @@ fn stdlib_reject_project_gram_schmidt_duo() {
         stdout
     );
 }
+
+/// Sequential encoding is STRICT identity: two lists with the same
+/// items in different order produce vectors that are orthogonal at
+/// the noise-floor level. This is the load-bearing property of the
+/// bind-chain expansion (058-009 reframe).
+///
+/// Test exercises both branches of the discriminator in one program:
+///   - presence(Sequential[a,b,c], Sequential[a,b,c]) → above floor
+///     (identical compound, cosine ≈ 1.0)
+///   - presence(Sequential[a,b,c], Sequential[a,c,b]) → below floor
+///     (different compound — the ordering is meaningful)
+#[test]
+fn stdlib_sequential_is_order_sensitive() {
+    let program = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:my::test::verdict
+                             (score :f64)
+                             -> :String)
+          (:wat::core::if
+            (:wat::core::> score (:wat::config::noise-floor))
+            "above\n"
+            "below\n"))
+
+        (:wat::core::define (:user::main
+                             (stdin  :crossbeam_channel::Receiver<String>)
+                             (stdout :crossbeam_channel::Sender<String>)
+                             (stderr :crossbeam_channel::Sender<String>)
+                             -> :())
+          (:wat::core::let*
+            (((a :holon::HolonAST) (:wat::algebra::Atom "a"))
+             ((b :holon::HolonAST) (:wat::algebra::Atom "b"))
+             ((c :holon::HolonAST) (:wat::algebra::Atom "c"))
+             ((abc :holon::HolonAST) (:wat::std::Sequential (:wat::core::list a b c)))
+             ((acb :holon::HolonAST) (:wat::std::Sequential (:wat::core::list a c b)))
+             ((same :f64) (:wat::core::presence abc abc))
+             ((reorder :f64) (:wat::core::presence abc acb))
+             ((_ :()) (:wat::kernel::send stdout (:my::test::verdict same))))
+            (:wat::kernel::send stdout (:my::test::verdict reorder))))
+    "#;
+    let path = write_temp(program);
+    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let output = Command::new(bin)
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn");
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(
+        stdout, "above\nbelow\n",
+        "Sequential(a,b,c) ≈ itself (above); Sequential(a,b,c) vs Sequential(a,c,b) differ (below); got {:?}",
+        stdout
+    );
+}
+
+/// Trigram(a,b,c,d) = Bundle([Sequential(a,b,c), Sequential(b,c,d)]).
+/// Presence of the first trigram's Sequential encoding against the
+/// full Trigram should be above the noise floor — it's a participant
+/// in the bundle. Presence of an UNRELATED atom should be below.
+///
+/// Exercises the full stdlib chain: Trigram → Ngram → map over window
+/// → Sequential → foldl+map-with-index+Permute+Bind.
+#[test]
+fn stdlib_trigram_bundles_sequential_windows() {
+    let program = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:my::test::verdict
+                             (score :f64)
+                             -> :String)
+          (:wat::core::if
+            (:wat::core::> score (:wat::config::noise-floor))
+            "above\n"
+            "below\n"))
+
+        (:wat::core::define (:user::main
+                             (stdin  :crossbeam_channel::Receiver<String>)
+                             (stdout :crossbeam_channel::Sender<String>)
+                             (stderr :crossbeam_channel::Sender<String>)
+                             -> :())
+          (:wat::core::let*
+            (((a :holon::HolonAST) (:wat::algebra::Atom "a"))
+             ((b :holon::HolonAST) (:wat::algebra::Atom "b"))
+             ((c :holon::HolonAST) (:wat::algebra::Atom "c"))
+             ((d :holon::HolonAST) (:wat::algebra::Atom "d"))
+             ((z :holon::HolonAST) (:wat::algebra::Atom "unrelated-z"))
+             ((window-1 :holon::HolonAST)
+              (:wat::std::Sequential (:wat::core::list a b c)))
+             ((full :holon::HolonAST)
+              (:wat::std::Trigram (:wat::core::list a b c d)))
+             ((participant :f64) (:wat::core::presence window-1 full))
+             ((outsider :f64) (:wat::core::presence z full))
+             ((_ :()) (:wat::kernel::send stdout (:my::test::verdict participant))))
+            (:wat::kernel::send stdout (:my::test::verdict outsider))))
+    "#;
+    let path = write_temp(program);
+    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let output = Command::new(bin)
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn");
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(
+        stdout, "above\nbelow\n",
+        "Sequential(a,b,c) should be present in Trigram(a,b,c,d) (above); unrelated atom not (below); got {:?}",
+        stdout
+    );
+}

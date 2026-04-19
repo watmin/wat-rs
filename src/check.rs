@@ -380,6 +380,15 @@ fn infer_list(
             ":wat::kernel::spawn" => {
                 return infer_spawn(args, env, locals, fresh, subst, errors);
             }
+            ":wat::core::first" => {
+                return infer_positional_accessor(args, env, locals, fresh, subst, errors, ":wat::core::first", 0);
+            }
+            ":wat::core::second" => {
+                return infer_positional_accessor(args, env, locals, fresh, subst, errors, ":wat::core::second", 1);
+            }
+            ":wat::core::third" => {
+                return infer_positional_accessor(args, env, locals, fresh, subst, errors, ":wat::core::third", 2);
+            }
             ":wat::core::and" | ":wat::core::or" => {
                 return infer_boolean_shortcircuit(args, env, locals, fresh, subst, errors);
             }
@@ -881,6 +890,69 @@ fn infer_spawn(
         head: "wat::kernel::ProgramHandle".into(),
         args: vec![apply_subst(&ret_type, subst)],
     })
+}
+
+/// Type-check `(:wat::core::first xs)` / `second` / `third`.
+/// Polymorphic over Vec<T> and tuple — both are index-addressed.
+/// Rank-1 HM can't express the union, so this is special-cased:
+/// inspect the argument's type after substitution and return the
+/// element at `index` from whichever container shape matches.
+#[allow(clippy::too_many_arguments)]
+fn infer_positional_accessor(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+    op: &str,
+    index: usize,
+) -> Option<TypeExpr> {
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: op.into(),
+            expected: 1,
+            got: args.len(),
+        });
+        return Some(fresh.fresh());
+    }
+    let arg_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    if let Some(ty) = arg_ty {
+        let resolved = apply_subst(&ty, subst);
+        match &resolved {
+            // Tuple: return element at `index`.
+            TypeExpr::Tuple(elements) => {
+                if let Some(elem) = elements.get(index) {
+                    return Some(apply_subst(elem, subst));
+                } else {
+                    errors.push(CheckError::TypeMismatch {
+                        callee: op.into(),
+                        param: "#1".into(),
+                        expected: format!("tuple with ≥ {} element(s)", index + 1),
+                        got: format_type(&resolved),
+                    });
+                    return Some(fresh.fresh());
+                }
+            }
+            // Vec<T>: return T.
+            TypeExpr::Parametric { head, args: targs } if head == "Vec" => {
+                if let Some(inner) = targs.first() {
+                    return Some(apply_subst(inner, subst));
+                } else {
+                    return Some(fresh.fresh());
+                }
+            }
+            _ => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: op.into(),
+                    param: "#1".into(),
+                    expected: "tuple or Vec<T>".into(),
+                    got: format_type(&resolved),
+                });
+            }
+        }
+    }
+    Some(fresh.fresh())
 }
 
 /// Type-check `(:wat::kernel::drop handle)`. The handle is either a
@@ -1975,28 +2047,30 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Tuple accessors — scoped to 2-tuples in this slice.
-    //   (:wat::core::first (pair :(A,B)))  -> :A
-    //   (:wat::core::second (pair :(A,B))) -> :B
-    // Every substrate primitive that returns a tuple today returns a
-    // 2-tuple (make-*-queue, spawn, select), so 2-tuple schemes cover
-    // every shipped caller. Higher-arity accessors graduate if needed.
-    let a_var = || TypeExpr::Path(":A".into());
-    let b_var = || TypeExpr::Path(":B".into());
+    // first/second/third are special-cased (polymorphic over Vec + tuple;
+    // see infer_positional_accessor). rest is simple:
     env.register(
-        ":wat::core::first".into(),
+        ":wat::core::rest".into(),
         TypeScheme {
-            type_params: vec!["A".into(), "B".into()],
-            params: vec![TypeExpr::Tuple(vec![a_var(), b_var()])],
-            ret: a_var(),
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var())],
+            ret: vec_of(t_var()),
         },
     );
+    // :wat::std::list::map-with-index — needed by Sequential for
+    // indexed fold.
     env.register(
-        ":wat::core::second".into(),
+        ":wat::std::list::map-with-index".into(),
         TypeScheme {
-            type_params: vec!["A".into(), "B".into()],
-            params: vec![TypeExpr::Tuple(vec![a_var(), b_var()])],
-            ret: b_var(),
+            type_params: vec!["T".into(), "U".into()],
+            params: vec![
+                vec_of(t_var()),
+                TypeExpr::Fn {
+                    args: vec![t_var(), i64_ty()],
+                    ret: Box::new(u_var()),
+                },
+            ],
+            ret: vec_of(u_var()),
         },
     );
 }
