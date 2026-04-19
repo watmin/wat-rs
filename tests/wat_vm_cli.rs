@@ -438,33 +438,47 @@ fn program_writes_multiple_times_to_stdout() {
 
 /// Stdlib macros are live at startup without an explicit load! —
 /// `(:wat::std::Subtract x y)` expands to `(Blend x y 1 -1)` through
-/// the baked `wat/std/Subtract.wat` file. Proves the stdlib loader
-/// registers defmacros ahead of user code.
+/// the baked `wat/std/Subtract.wat` file. Exercises BOTH branches of
+/// the presence-vs-noise-floor discriminator so the test is honest:
+///
+/// - `presence(a, Subtract(a, b))` → `above` — Subtract(a, b) keeps
+///   ~half of a's bits intact (the positions where a and b disagree);
+///   cosine lands around 0.7, well above the 5σ floor (≈ 0.156 at
+///   d=1024).
+/// - `presence(c, Subtract(a, b))` → `below` — c is an independent
+///   random atom uncorrelated with either a or b; cosine is near
+///   zero, well below the floor.
+///
+/// Deterministic under the fixed seed. Output is exactly
+/// "above\nbelow".
 #[test]
 fn stdlib_subtract_macro_expands_in_user_program() {
     let program = r#"
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
 
+        (:wat::core::define (:my::test::verdict
+                             (score :f64)
+                             -> :String)
+          (:wat::core::if
+            (:wat::core::> score (:wat::config::noise-floor))
+            "above\n"
+            "below\n"))
+
         (:wat::core::define (:user::main
                              (stdin  :crossbeam_channel::Receiver<String>)
                              (stdout :crossbeam_channel::Sender<String>)
                              (stderr :crossbeam_channel::Sender<String>)
                              -> :())
-          ;; Call Subtract on two atoms. Expansion commits to Blend
-          ;; with literal weights 1 / -1. The result is a holon;
-          ;; measure presence of the first atom against the result and
-          ;; report whether it crossed the noise floor.
           (:wat::core::let*
             (((a :holon::HolonAST) (:wat::algebra::Atom "alice"))
              ((b :holon::HolonAST) (:wat::algebra::Atom "bob"))
+             ((c :holon::HolonAST) (:wat::algebra::Atom "charlie"))
              ((diff :holon::HolonAST) (:wat::std::Subtract a b))
-             ((score :f64) (:wat::core::presence a diff)))
-            (:wat::kernel::send stdout
-              (:wat::core::if
-                (:wat::core::> score (:wat::config::noise-floor))
-                "above"
-                "below"))))
+             ((self-score :f64) (:wat::core::presence a diff))
+             ((other-score :f64) (:wat::core::presence c diff))
+             ((_ :()) (:wat::kernel::send stdout (:my::test::verdict self-score))))
+            (:wat::kernel::send stdout (:my::test::verdict other-score))))
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat-vm");
@@ -479,13 +493,10 @@ fn stdlib_subtract_macro_expands_in_user_program() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    // The specific above/below answer depends on Blend's geometry;
-    // what matters for this test is that the macro EXPANDED without
-    // error and the program ran cleanly. Either outcome is a pass.
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(
-        stdout == "above" || stdout == "below",
-        "expected `above` or `below`; got {:?}",
+    assert_eq!(
+        stdout, "above\nbelow\n",
+        "Subtract(a,b): presence(a,diff) should be above floor and presence(c,diff) below; got {:?}",
         stdout
     );
 }
