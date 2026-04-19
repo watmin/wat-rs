@@ -172,6 +172,11 @@ pub enum Value {
     /// (i64, f64, bool, String, keyword); composite keys land when
     /// a caller demands them.
     wat__std__HashMap(Arc<std::collections::HashMap<String, (Value, Value)>>),
+    /// A `:HashSet<T>` — Rust std's HashSet semantically; stored as
+    /// a `HashMap<canonical-key, original-value>` so `get` can
+    /// return the stored variant on hit. Primitive elements only in
+    /// this slice (matches HashMap's key scope).
+    wat__std__HashSet(Arc<std::collections::HashMap<String, Value>>),
     /// The OS stdout handle. Rust's `std::io::Stdout` — thread-safe
     /// handle to the shared global stdout stream. Writes go through
     /// `handle.lock()` (std's internal lock); multiple threads
@@ -236,6 +241,7 @@ impl Value {
             Value::crossbeam_channel__Sender(_) => "crossbeam_channel::Sender",
             Value::crossbeam_channel__Receiver(_) => "crossbeam_channel::Receiver",
             Value::wat__std__HashMap(_) => "HashMap",
+            Value::wat__std__HashSet(_) => "HashSet",
             Value::io__Stdout(_) => "io::Stdout",
             Value::io__Stderr(_) => "io::Stderr",
             Value::io__Stdin(_) => "io::Stdin",
@@ -1059,8 +1065,10 @@ fn dispatch_keyword_head(
         ":wat::std::list::window" => eval_list_window(args, env, sym),
         ":wat::std::list::remove-at" => eval_list_remove_at(args, env, sym),
         ":wat::std::HashMap" => eval_hashmap_ctor(args, env, sym),
-        ":wat::std::get" => eval_hashmap_get(args, env, sym),
+        ":wat::std::HashSet" => eval_hashset_ctor(args, env, sym),
+        ":wat::std::get" => eval_get(args, env, sym),
         ":wat::std::contains?" => eval_hashmap_contains(args, env, sym),
+        ":wat::std::member?" => eval_hashset_member(args, env, sym),
         ":wat::io::write" => eval_io_write(args, env, sym),
         ":wat::io::read-line" => eval_io_read_line(args, env, sym),
 
@@ -2161,11 +2169,15 @@ fn eval_hashmap_ctor(
     Ok(Value::wat__std__HashMap(Arc::new(map)))
 }
 
-/// `(:wat::std::get m k)` — unified accessor. For `:HashMap<K,V>`,
-/// returns `(Some v)` on hit, `:None` on miss. Per FOUNDATION line
-/// 2634, the same primitive extends to `:Vec<T>` (index lookup) and
-/// `:HashSet<T>` (membership) when those land.
-fn eval_hashmap_get(
+/// `(:wat::std::get container locator)` — unified accessor per
+/// FOUNDATION line 2634. Dispatches on the container's runtime
+/// variant:
+///   - `:HashMap<K,V>` × `:K` → `:Option<V>`
+///   - `:HashSet<T>`   × `:T` → `:Option<T>` (Some of the stored
+///     element on membership, None on miss — round-trips the
+///     caller's value)
+/// Vec index-get graduates when a caller demands it.
+fn eval_get(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -2187,9 +2199,62 @@ fn eval_hashmap_get(
                 None => Ok(Value::Option(Arc::new(None))),
             }
         }
+        Value::wat__std__HashSet(s) => {
+            let key = hashmap_key(":wat::std::get", &k)?;
+            match s.get(&key) {
+                Some(stored) => Ok(Value::Option(Arc::new(Some(stored.clone())))),
+                None => Ok(Value::Option(Arc::new(None))),
+            }
+        }
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::std::get".into(),
-            expected: "HashMap",
+            expected: "HashMap | HashSet",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::std::HashSet x1 x2 x3 ...)` — variadic constructor.
+/// Duplicate elements collapse (last stored wins on the exact
+/// canonical key).
+fn eval_hashset_ctor(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let mut set = std::collections::HashMap::with_capacity(args.len());
+    for a in args {
+        let v = eval(a, env, sym)?;
+        let key = hashmap_key(":wat::std::HashSet", &v)?;
+        set.insert(key, v);
+    }
+    Ok(Value::wat__std__HashSet(Arc::new(set)))
+}
+
+/// `(:wat::std::member? s x)` — boolean membership test over
+/// `:HashSet<T>`.
+fn eval_hashset_member(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::std::member?".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let set = eval(&args[0], env, sym)?;
+    let x = eval(&args[1], env, sym)?;
+    match set {
+        Value::wat__std__HashSet(s) => {
+            let key = hashmap_key(":wat::std::member?", &x)?;
+            Ok(Value::bool(s.contains_key(&key)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::std::member?".into(),
+            expected: "HashSet",
             got: other.type_name(),
         }),
     }
@@ -5654,6 +5719,91 @@ mod tests {
     fn hashmap_get_requires_hashmap_arg() {
         let err = eval_expr(r#"(:wat::std::get 42 "k")"#).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    // ─── HashSet ───────────────────────────────────────────────────────
+
+    #[test]
+    fn hashset_constructor() {
+        let v = eval_expr(r#"(:wat::std::HashSet "a" "b" "c")"#).unwrap();
+        match v {
+            Value::wat__std__HashSet(s) => assert_eq!(s.len(), 3),
+            v => panic!("expected HashSet, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn hashset_collapses_duplicates() {
+        let v = eval_expr(r#"(:wat::std::HashSet "a" "a" "b")"#).unwrap();
+        match v {
+            Value::wat__std__HashSet(s) => assert_eq!(s.len(), 2),
+            v => panic!("expected HashSet, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn hashset_member_present_and_absent() {
+        let present = r#"(:wat::core::let*
+            (((s :HashSet<String>) (:wat::std::HashSet "a" "b")))
+            (:wat::std::member? s "a"))"#;
+        assert!(matches!(eval_expr(present).unwrap(), Value::bool(true)));
+        let absent = r#"(:wat::core::let*
+            (((s :HashSet<String>) (:wat::std::HashSet "a" "b")))
+            (:wat::std::member? s "z"))"#;
+        assert!(matches!(eval_expr(absent).unwrap(), Value::bool(false)));
+    }
+
+    #[test]
+    fn hashset_get_returns_stored_element() {
+        // (get s x) on HashSet returns (Some stored-x) on hit —
+        // round-trips the caller's element through the Rust backing.
+        let src = r#"
+            (:wat::core::let*
+              (((s :HashSet<String>) (:wat::std::HashSet "apple" "banana")))
+              (:wat::core::match (:wat::std::get s "apple")
+                ((Some x) x)
+                (:None "missing")))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::String(s) => assert_eq!(&*s, "apple"),
+            v => panic!("expected \"apple\", got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn hashset_get_miss_returns_none() {
+        let src = r#"
+            (:wat::core::let*
+              (((s :HashSet<String>) (:wat::std::HashSet "apple")))
+              (:wat::core::match (:wat::std::get s "banana")
+                ((Some x) x)
+                (:None "not-found")))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::String(s) => assert_eq!(&*s, "not-found"),
+            v => panic!("expected fallback, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn hashset_rejects_composite_element() {
+        let err = eval_expr(r#"(:wat::std::HashSet (:wat::core::list 1 2))"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn hashset_int_and_string_keys_distinct() {
+        // A HashSet carrying only the String "42" shouldn't report
+        // membership for the i64 42 (type-tagged canonical key).
+        let src = r#"
+            (:wat::core::let*
+              (((s :HashSet<String>) (:wat::std::HashSet "42")))
+              (:wat::std::member? s 42))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::bool(false) => {}
+            v => panic!("expected false (no collision), got {:?}", v),
+        }
     }
 
     #[test]

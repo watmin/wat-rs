@@ -341,6 +341,8 @@ fn infer_list(
             ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::tuple" => return infer_tuple_constructor(args, env, locals, fresh, subst, errors),
             ":wat::std::HashMap" => return infer_hashmap_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::std::HashSet" => return infer_hashset_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::std::get" => return infer_get(args, env, locals, fresh, subst, errors),
             ":wat::core::quote" => {
                 // Quote captures an unevaluated AST. The argument is
                 // DATA, not an expression — the type checker does not
@@ -1188,6 +1190,116 @@ fn process_let_binding(
     for (name, ev) in names.into_iter().zip(elem_vars.into_iter()) {
         out_scope.insert(name, apply_subst(&ev, subst));
     }
+}
+
+/// Type-check `(:wat::std::HashSet x1 x2 x3 ...)`. Variadic; all
+/// elements unify to a common T; return `:HashSet<T>`.
+fn infer_hashset_constructor(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    let t_var = fresh.fresh();
+    for (i, arg) in args.iter().enumerate() {
+        if let Some(ty) = infer(arg, env, locals, fresh, subst, errors) {
+            if unify(&ty, &t_var, subst).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::std::HashSet".into(),
+                    param: format!("element #{}", i + 1),
+                    expected: format_type(&apply_subst(&t_var, subst)),
+                    got: format_type(&apply_subst(&ty, subst)),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Parametric {
+        head: "HashSet".into(),
+        args: vec![apply_subst(&t_var, subst)],
+    })
+}
+
+/// Type-check `(:wat::std::get container locator)`. Polymorphic over
+/// HashMap and HashSet; dispatch by arg shape. Rank-1 HM can't
+/// express the union at the SCHEME layer, so special-case: inspect
+/// the first arg's type and produce the matching return type.
+///   HashMap<K,V>, K → Option<V>
+///   HashSet<T>,   T → Option<T>
+fn infer_get(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::std::get".into(),
+            expected: 2,
+            got: args.len(),
+        });
+        return Some(TypeExpr::Parametric {
+            head: "Option".into(),
+            args: vec![fresh.fresh()],
+        });
+    }
+    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let key_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    if let Some(ct) = container_ty {
+        let resolved = apply_subst(&ct, subst);
+        match &resolved {
+            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
+                let k = apply_subst(&ta[0], subst);
+                let v = apply_subst(&ta[1], subst);
+                if let Some(key_ty) = key_ty {
+                    if unify(&key_ty, &k, subst).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::std::get".into(),
+                            param: "key".into(),
+                            expected: format_type(&apply_subst(&k, subst)),
+                            got: format_type(&apply_subst(&key_ty, subst)),
+                        });
+                    }
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![apply_subst(&v, subst)],
+                });
+            }
+            TypeExpr::Parametric { head, args: ta } if head == "HashSet" && ta.len() == 1 => {
+                let t = apply_subst(&ta[0], subst);
+                if let Some(key_ty) = key_ty {
+                    if unify(&key_ty, &t, subst).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::std::get".into(),
+                            param: "element".into(),
+                            expected: format_type(&apply_subst(&t, subst)),
+                            got: format_type(&apply_subst(&key_ty, subst)),
+                        });
+                    }
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![apply_subst(&t, subst)],
+                });
+            }
+            _ => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::std::get".into(),
+                    param: "container".into(),
+                    expected: "HashMap<K,V> | HashSet<T>".into(),
+                    got: format_type(&resolved),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![fresh.fresh()],
+    })
 }
 
 /// Type-check `(:wat::std::HashMap k1 v1 k2 v2 ...)`. Variadic
@@ -2165,24 +2277,9 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: acc_var(),
         },
     );
-    // HashMap accessors — get returns Option<V>, contains? returns bool.
-    env.register(
-        ":wat::std::get".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![
-                TypeExpr::Parametric {
-                    head: "HashMap".into(),
-                    args: vec![TypeExpr::Path(":K".into()), TypeExpr::Path(":V".into())],
-                },
-                TypeExpr::Path(":K".into()),
-            ],
-            ret: TypeExpr::Parametric {
-                head: "Option".into(),
-                args: vec![TypeExpr::Path(":V".into())],
-            },
-        },
-    );
+    // get is special-cased in infer_list (polymorphic over HashMap
+    // and HashSet). contains? (HashMap) and member? (HashSet) carry
+    // their own narrow schemes.
     env.register(
         ":wat::std::contains?".into(),
         TypeScheme {
@@ -2193,6 +2290,20 @@ fn register_builtins(env: &mut CheckEnv) {
                     args: vec![TypeExpr::Path(":K".into()), TypeExpr::Path(":V".into())],
                 },
                 TypeExpr::Path(":K".into()),
+            ],
+            ret: bool_ty(),
+        },
+    );
+    env.register(
+        ":wat::std::member?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![
+                TypeExpr::Parametric {
+                    head: "HashSet".into(),
+                    args: vec![t_var()],
+                },
+                t_var(),
             ],
             ret: bool_ty(),
         },
