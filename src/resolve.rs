@@ -15,6 +15,11 @@
 //!   core forms, but references that didn't expand (e.g., stdlib
 //!   programs) pass through.
 //! - A `:wat/config/*` setter or accessor.
+//! - A `:wat/load/*` interface keyword (source-fetch selector for
+//!   `load!` / `digest-load!` / `signed-load!`).
+//! - A `:wat/verify/*` keyword — either a verification algorithm
+//!   (`:wat/verify/digest-sha256`, `:wat/verify/signed-ed25519`) or a
+//!   payload-fetch interface (`:wat/verify/string`, `:wat/verify/file-path`).
 //! - A user-registered `define`-function in the [`SymbolTable`].
 //!
 //! Anything else is an unresolved reference and halts startup with a
@@ -156,6 +161,8 @@ pub fn is_reserved_prefix(keyword: &str) -> bool {
         || stripped.starts_with("wat/algebra/")
         || stripped.starts_with("wat/std/")
         || stripped.starts_with("wat/config/")
+        || stripped.starts_with("wat/load/")
+        || stripped.starts_with("wat/verify/")
 }
 
 #[cfg(test)]
@@ -282,6 +289,12 @@ mod tests {
         assert!(is_reserved_prefix(":wat/algebra/Atom"));
         assert!(is_reserved_prefix(":wat/std/Subtract"));
         assert!(is_reserved_prefix(":wat/config/dims"));
+        assert!(is_reserved_prefix(":wat/load/file-path"));
+        assert!(is_reserved_prefix(":wat/load/string"));
+        assert!(is_reserved_prefix(":wat/verify/digest-sha256"));
+        assert!(is_reserved_prefix(":wat/verify/signed-ed25519"));
+        assert!(is_reserved_prefix(":wat/verify/string"));
+        assert!(is_reserved_prefix(":wat/verify/file-path"));
     }
 
     #[test]

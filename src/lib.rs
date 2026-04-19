@@ -47,7 +47,7 @@ pub use identifier::{fresh_scope, Identifier, ScopeId};
 pub use lexer::LexError;
 pub use load::{
     resolve_loads, FsLoader, InMemoryLoader, LoadError, LoadFetchError, LoadSpec, LoadedSource,
-    SourceLoader, VerificationMode,
+    PayloadInterface, SourceInterface, SourceLoader, VerificationSpec,
 };
 pub use lower::{lower, LowerError};
 pub use macros::{

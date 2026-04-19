@@ -9,5 +9,7 @@ repository = "https://github.com/watmin/wat-rs"
 [dependencies]
 holon = { path = "../holon-rs" }
 sha2 = "0.10"
+ed25519-dalek = "2"
+base64 = "0.22"
 
 [dev-dependencies]

@@ -55,24 +55,40 @@ pending.
 - [x] `eval_algebra_source` — the "door works" public function. Source
       text → `holon::Vector` in one call. 10 integration tests.
 
+**Landed (continued):**
+
+- [x] Entry-file discipline + config pass (`set-dims!`,
+      `set-capacity-mode!`, `set-global-seed!`; all setters before any
+      `load!`; setter in a loaded file halts parse).
+- [x] Recursive `:wat/core/load!` resolution — depth-first,
+      commit-once, cycle detection, in-memory and filesystem loaders.
+- [x] `:wat/core/define` / `:wat/core/lambda` / `:wat/core/let` /
+      `:wat/core/if` + basic AST-walker runtime with algebra-core
+      dispatch.
+- [x] `:wat/core/defmacro` + Racket sets-of-scopes hygiene (Flatt 2016).
+- [x] Type declarations (`struct`, `enum`, `newtype`, `typealias`) +
+      type environment; parametric names (`:my/Container<T>`).
+- [x] Name resolution across the frozen symbol table — reserved prefix
+      gate (`:wat/core/`, `:wat/kernel/`, `:wat/algebra/`, `:wat/std/`,
+      `:wat/config/`).
+- [x] Slice 7a monomorphic type check — arity + obvious mismatches.
+- [x] Canonical-EDN hashing + SHA-256 source-file integrity.
+- [x] Ed25519 signed-load verification — per-file and full-program;
+      signs SHA-256 of canonical-EDN.
+- [x] Load-form grammar redesign — three sibling forms
+      (`:wat/core/load!`, `:wat/core/digest-load!`,
+      `:wat/core/signed-load!`) using `:wat/load/*` source-interface
+      keywords and `:wat/verify/*` payload-interface + algorithm
+      keywords. Sidecar signature files work via `:wat/verify/file-path`.
+
 **Pending (ordered per FOUNDATION's startup pipeline):**
 
-- [ ] Entry-file discipline + config pass
-      (`(:wat/config/set-dims!)`, `(:wat/config/set-capacity-mode!)`,
-      `(:wat/config/set-global-seed!)`; all setters before any `load!`).
-- [ ] Recursive `:wat/core/load!` resolution.
-- [ ] `:wat/core/define` / `:wat/core/lambda` / `:wat/core/let` /
-      `:wat/core/if` + a basic AST-walker runtime.
-- [ ] `:wat/core/defmacro` + Racket sets-of-scopes hygiene.
-- [ ] Type declarations (`struct`, `enum`, `newtype`, `typealias`) +
-      type environment.
-- [ ] Name resolution across the frozen symbol table.
-- [ ] Rank-1 Hindley-Milner type checker.
-- [ ] Canonical-EDN hashing + cryptographic verification (`md5`,
-      `signed` load modes).
+- [ ] Slice 7b — real rank-1 HM with substitution + parametric
+      polymorphism (current check is monomorphic).
 - [ ] Freeze (symbol table, type env, macro registry, config).
 - [ ] Runtime + `:user/main` + constrained `eval`.
-- [ ] `wat-vm` CLI binary.
+- [ ] `wat-vm` CLI binary (incl. full-program signature verification
+      via `--signed <algo> --sig <b64> --pubkey <b64>` or sidecar).
 
 The measurements tier (`:wat/algebra/cosine`, `:wat/algebra/dot`
 returning `:f64`) lands with the runtime slice — measurements don't go
