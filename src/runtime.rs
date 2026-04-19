@@ -235,6 +235,11 @@ pub enum RuntimeError {
     /// `:user::main` was not registered at startup. FOUNDATION requires
     /// exactly one `:user::main` declaration; zero halts.
     UserMainMissing,
+    /// Verification failed for a `:wat::core::eval-digest!` /
+    /// `:wat::core::eval-signed!` call. The wrapped [`HashError`]
+    /// names the specific failure (mismatched digest, invalid
+    /// signature, unsupported algorithm, malformed payload).
+    EvalVerificationFailed { err: crate::hash::HashError },
 }
 
 impl fmt::Display for RuntimeError {
@@ -283,6 +288,9 @@ impl fmt::Display for RuntimeError {
                 f,
                 ":user::main not defined — a wat program needs an entry point"
             ),
+            RuntimeError::EvalVerificationFailed { err } => {
+                write!(f, "eval verification failed: {}", err)
+            }
         }
     }
 }

@@ -59,8 +59,8 @@ pub use ast::WatAST;
 pub use check::{check_program, CheckEnv, CheckError, CheckErrors, TypeScheme};
 pub use config::{collect_entry_file, CapacityMode, Config, ConfigError};
 pub use freeze::{
-    eval_in_frozen, invoke_user_main, startup_from_source, FrozenWorld, StartupError,
-    USER_MAIN_PATH,
+    eval_digest_in_frozen, eval_in_frozen, eval_signed_in_frozen, invoke_user_main,
+    startup_from_source, FrozenWorld, StartupError, USER_MAIN_PATH,
 };
 pub use hash::{canonical_edn_wat, hash_canonical_ast, hex_encode, verify_source_hash, HashError};
 pub use identifier::{fresh_scope, Identifier, ScopeId};

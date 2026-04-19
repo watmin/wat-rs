@@ -275,8 +275,9 @@ pub fn invoke_user_main(
 
 // ─── Constrained eval ───────────────────────────────────────────────────
 
-/// Constrained `eval` — runs an AST against the frozen world and
-/// refuses any form that would mutate the startup registries.
+/// Constrained `eval` — the wat `(:wat::core::eval! ...)` form.
+/// Runs an AST against the frozen world and refuses any form that
+/// would mutate the startup registries.
 ///
 /// Per FOUNDATION § "constrained eval at runtime" (line 658):
 ///
@@ -304,6 +305,65 @@ pub fn eval_in_frozen(
 ) -> Result<Value, RuntimeError> {
     refuse_mutation_forms(ast)?;
     crate::runtime::eval(ast, env, frozen.symbols())
+}
+
+/// Digest-verified eval — the wat `(:wat::core::eval-digest! ...)`
+/// form. Mirrors `(:wat::core::digest-load! ...)`: verify the hash
+/// of the canonical-EDN of the AST before any execution.
+///
+/// The verification target is `hash_canonical_ast(ast)` — the same
+/// sha256 used for content-addressed caching / identity. Mismatch
+/// produces [`RuntimeError::EvalVerificationFailed`] and NO code
+/// runs. Successful verification is followed by the same mutation-
+/// form refusal + delegate-to-eval path as [`eval_in_frozen`].
+///
+/// `algo` names the hash algorithm (e.g., `"sha256"`); `hex` is the
+/// hex-encoded expected digest. Algorithm dispatch matches
+/// [`crate::hash::verify_source_hash`] — other algos return
+/// `UnsupportedAlgorithm`.
+pub fn eval_digest_in_frozen(
+    ast: &WatAST,
+    frozen: &FrozenWorld,
+    env: &Environment,
+    algo: &str,
+    expected_hex: &str,
+) -> Result<Value, RuntimeError> {
+    // Compute the canonical-EDN bytes and verify against expected.
+    let bytes = crate::hash::canonical_edn_wat(ast);
+    crate::hash::verify_source_hash(&bytes, algo, expected_hex).map_err(|err| {
+        RuntimeError::EvalVerificationFailed { err }
+    })?;
+    eval_in_frozen(ast, frozen, env)
+}
+
+/// Signature-verified eval — the wat `(:wat::core::eval-signed! ...)`
+/// form. Mirrors `(:wat::core::signed-load! ...)`: verify an Ed25519
+/// (or other registered algorithm) signature over the SHA-256 of the
+/// canonical-EDN of the AST before any execution.
+///
+/// Same signing target as `signed-load!` — this is the load-time
+/// integrity story extended to runtime-received ASTs. Typical use:
+/// a distributed node receives a signed holon-program over the
+/// network, verifies the signature against its pinned public key,
+/// evals against its frozen symbol table. Failed verification
+/// produces [`RuntimeError::EvalVerificationFailed`] and NO code
+/// runs.
+///
+/// `algo` names the signature algorithm (e.g., `"ed25519"`);
+/// `sig_b64` and `pubkey_b64` are base64-encoded per the same
+/// discipline as `:wat::verify::signed-ed25519` in load forms.
+pub fn eval_signed_in_frozen(
+    ast: &WatAST,
+    frozen: &FrozenWorld,
+    env: &Environment,
+    algo: &str,
+    sig_b64: &str,
+    pubkey_b64: &str,
+) -> Result<Value, RuntimeError> {
+    crate::hash::verify_ast_signature(ast, algo, sig_b64, pubkey_b64).map_err(
+        |err| RuntimeError::EvalVerificationFailed { err },
+    )?;
+    eval_in_frozen(ast, frozen, env)
 }
 
 /// Walk an AST and raise [`RuntimeError::EvalForbidsMutationForm`]
@@ -803,6 +863,192 @@ mod tests {
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+    }
+
+    // ─── Digest-verified eval ───────────────────────────────────────────
+
+    fn digest_hex_for(ast: &WatAST) -> String {
+        let bytes = crate::hash::canonical_edn_wat(ast);
+        use sha2::Digest as _;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(&bytes);
+        crate::hash::hex_encode(&hasher.finalize())
+    }
+
+    #[test]
+    fn eval_digest_verified_runs() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast =
+            crate::parser::parse_one(r#"(:wat::core::+ 20 22)"#).unwrap();
+        let hex = digest_hex_for(&ast);
+        let result =
+            eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
+                .expect("eval ok");
+        assert!(matches!(result, Value::Int(42)));
+    }
+
+    #[test]
+    fn eval_digest_mismatch_refuses() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast = crate::parser::parse_one(r#"(:wat::core::+ 1 1)"#).unwrap();
+        let wrong =
+            "0000000000000000000000000000000000000000000000000000000000000000";
+        let err =
+            eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", wrong)
+                .unwrap_err();
+        match err {
+            RuntimeError::EvalVerificationFailed { err } => {
+                assert!(matches!(err, crate::hash::HashError::Mismatch { .. }));
+            }
+            other => panic!("expected EvalVerificationFailed, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn eval_digest_unsupported_algo() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast = crate::parser::parse_one("42").unwrap();
+        let err =
+            eval_digest_in_frozen(&ast, &world, &Environment::new(), "md5", "abc123")
+                .unwrap_err();
+        match err {
+            RuntimeError::EvalVerificationFailed { err } => {
+                assert!(matches!(err, crate::hash::HashError::UnsupportedAlgorithm { .. }));
+            }
+            other => panic!("expected EvalVerificationFailed, got {:?}", other),
+        }
+    }
+
+    // ─── Signature-verified eval ────────────────────────────────────────
+
+    fn sign_ast_ed25519(ast: &WatAST) -> (String, String) {
+        use base64::engine::general_purpose::STANDARD as B64;
+        use base64::Engine;
+        use ed25519_dalek::{Signer, SigningKey};
+        let sk = SigningKey::from_bytes(&[11u8; 32]);
+        let hash = crate::hash::hash_canonical_ast(ast);
+        let sig = sk.sign(&hash);
+        (
+            B64.encode(sig.to_bytes()),
+            B64.encode(sk.verifying_key().as_bytes()),
+        )
+    }
+
+    #[test]
+    fn eval_signed_verified_runs() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast =
+            crate::parser::parse_one(r#"(:wat::core::+ 40 2)"#).unwrap();
+        let (sig, pk) = sign_ast_ed25519(&ast);
+        let result = eval_signed_in_frozen(
+            &ast,
+            &world,
+            &Environment::new(),
+            "ed25519",
+            &sig,
+            &pk,
+        )
+        .expect("eval ok");
+        assert!(matches!(result, Value::Int(42)));
+    }
+
+    #[test]
+    fn eval_signed_tampered_ast_refuses() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let original = crate::parser::parse_one(r#"(:wat::core::+ 1 1)"#).unwrap();
+        let tampered = crate::parser::parse_one(r#"(:wat::core::+ 99 99)"#).unwrap();
+        let (sig, pk) = sign_ast_ed25519(&original);
+        let err = eval_signed_in_frozen(
+            &tampered,
+            &world,
+            &Environment::new(),
+            "ed25519",
+            &sig,
+            &pk,
+        )
+        .unwrap_err();
+        match err {
+            RuntimeError::EvalVerificationFailed { err } => {
+                assert!(matches!(err, crate::hash::HashError::SignatureMismatch { .. }));
+            }
+            other => panic!("expected SignatureMismatch, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn eval_signed_unsupported_algo() {
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast = crate::parser::parse_one("42").unwrap();
+        let err = eval_signed_in_frozen(
+            &ast,
+            &world,
+            &Environment::new(),
+            "rsa",
+            "dummy",
+            "dummy",
+        )
+        .unwrap_err();
+        match err {
+            RuntimeError::EvalVerificationFailed { err } => {
+                assert!(matches!(
+                    err,
+                    crate::hash::HashError::UnsupportedSignatureAlgorithm { .. }
+                ));
+            }
+            other => panic!("expected UnsupportedSignatureAlgorithm, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn eval_digest_still_refuses_mutation_after_verify() {
+        // Even a correctly-signed / correctly-digested AST that
+        // contains a mutation form is refused — verification is BEFORE
+        // the mutation-form walk, but both guards must pass.
+        let world = frozen_with(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+        "#,
+        );
+        let ast = crate::parser::parse_one(
+            r#"(:wat::core::define (:evil (x :i64) -> :i64) x)"#,
+        )
+        .unwrap();
+        let hex = digest_hex_for(&ast);
+        let err =
+            eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
+                .unwrap_err();
         assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
     }
 }
