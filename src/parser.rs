@@ -362,20 +362,25 @@ mod tests {
 
     #[test]
     fn lex_error_surfaces_as_parse_error() {
-        // Internal colon inside a keyword is a lex error; ParseError::Lex wraps it.
-        let e = parse_one(":Atom<:Holon>").unwrap_err();
+        // A lex error must surface as ParseError::Lex. Use the
+        // unclosed-bracket-in-keyword error — whitespace inside an
+        // unclosed `(` in a keyword body.
+        let e = parse_one(":fn(T ").unwrap_err();
         assert!(matches!(e, ParseError::Lex(_)));
     }
 
     #[test]
-    fn illegal_colon_message_matches_spec() {
-        // Sanity: the specific error we show to users names the rule.
-        let e = parse_one(":Atom<:Holon>").unwrap_err();
-        let msg = format!("{}", e);
-        assert!(
-            msg.contains("internal ':'"),
-            "expected 'internal \\'\\:\\''; got: {}",
-            msg
+    fn internal_colons_lex_as_single_keyword() {
+        // Under the colon-quote model, `:` is the symbol-literal reader
+        // macro — one leading `:` marks the start; internal `::` is
+        // just the Rust path separator, pushed as body characters.
+        assert_eq!(
+            parse_one(":wat::core::load!").unwrap(),
+            kw(":wat::core::load!")
+        );
+        assert_eq!(
+            parse_one(":crossbeam_channel::Sender<T>").unwrap(),
+            kw(":crossbeam_channel::Sender<T>")
         );
     }
 

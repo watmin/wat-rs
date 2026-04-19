@@ -8,18 +8,32 @@
 //! - **Bool literals** — `true` / `false`.
 //! - **String literals** — `"..."` with `\"`, `\\`, `\n`, `\t`, `\r`
 //!   escapes. Quotes stripped before emission.
-//! - **Keyword tokens** — start with `:`, followed by any chars matching
-//!   a keyword-path or parametric type keyword. Example: `:wat/algebra/Atom`,
-//!   `:List<Holon>`, `:fn(T,U)->R`. The only brackets wat has are `(` and
-//!   `)`, and they're the only ones this lexer tracks (because `(` and
-//!   `)` can appear inside a keyword — as in `:fn(T,U)->R` — and the
-//!   lexer must distinguish an internal matched pair from the outer `)`
-//!   that closes the enclosing form). Every other character is plain:
-//!   `<`, `>`, `/`, `-`, `,`, digits, letters — all just characters in
-//!   the keyword's string. A keyword ends at whitespace at paren-depth 0
-//!   or at an unmatched `)`. Rejects internal `:` per the colon-quoting
-//!   rule — a keyword carries exactly one leading `:`. Whitespace inside
-//!   an unclosed `(` is a lex error (malformed keyword).
+//! - **Keyword tokens** — start with `:`, followed by a body that is a
+//!   **literal Rust path**. Examples:
+//!     - `:wat::core::load!`
+//!     - `:wat::algebra::Atom`
+//!     - `:crossbeam_channel::Sender<T>`
+//!     - `:Vec<T>`, `:HashMap<K,V>`, `:Option<T>`
+//!     - `:fn(T,U)->R`
+//!     - `:(T,U)` — a tuple-literal type.
+//!
+//!   **The `:` is wat's symbol-literal reader macro** — exactly one
+//!   leading `:` marks the start of a symbol literal; everything after
+//!   is the body. The body contains the literal Rust syntax you want to
+//!   name: module paths use `::` (Rust's path separator), type
+//!   parameters use `<T>`, function types use `fn(args)->ret`, tuples
+//!   use `(T,U)`. No translation — what you write IS the Rust form.
+//!
+//!   The only brackets wat has are `(` and `)`, and the lexer tracks
+//!   their depth inside a keyword body so an internal balanced pair
+//!   (`:fn(T,U)->R` or `:(i64,String)`) doesn't get cut short by the
+//!   `)` that closes the enclosing form. Every other character is
+//!   plain: `<`, `>`, `/`, `-`, `,`, `:`, `::`, digits, letters — all
+//!   just body characters. A keyword ends at whitespace at paren-depth
+//!   0, or at an unmatched `)`, or at a `"` / `;` (which can't appear
+//!   inside a keyword). Whitespace inside an unclosed `(` is a lex
+//!   error (malformed keyword).
+//!
 //! - **Bare symbols** — any non-keyword, non-numeric, non-bool, non-paren,
 //!   non-string token.
 //! - **Line comments** — `;` to end-of-line — skipped.
@@ -77,12 +91,9 @@ pub enum LexError {
     UnterminatedString(Position),
     UnknownEscape(char, Position),
     InvalidNumber(String, Position),
-    /// Keyword contains an internal `:` — the colon-quoting rule says
-    /// a keyword has exactly one leading `:` and no others.
-    InternalColon(Position),
-    /// Whitespace inside an unclosed `(` or `<` in a keyword. The spec
-    /// forbids internal whitespace in keywords; if we hit one while
-    /// brackets are still open, the keyword is malformed.
+    /// Whitespace inside an unclosed `(` in a keyword. The spec forbids
+    /// internal whitespace in keywords; if we hit one while parens are
+    /// still open, the keyword is malformed.
     UnclosedBracketInKeyword(Position),
 }
 
@@ -101,11 +112,6 @@ impl fmt::Display for LexError {
             LexError::InvalidNumber(s, p) => {
                 write!(f, "invalid numeric literal {:?} at byte {}", s, p)
             }
-            LexError::InternalColon(p) => write!(
-                f,
-                "keyword contains an internal ':' at byte {} — a keyword carries exactly one leading ':'",
-                p
-            ),
             LexError::UnclosedBracketInKeyword(p) => write!(
                 f,
                 "whitespace inside unclosed bracket in keyword at byte {} — keywords cannot contain whitespace",
@@ -264,11 +270,17 @@ fn lex_string(src: &str, start: usize) -> Result<(String, usize), LexError> {
 
 /// Lex a keyword token starting at `start` (pointing at `:`).
 ///
-/// Tracks paren depth because `(` and `)` can appear inside a keyword
-/// (as in `:fn(T,U)->R`). `)` at paren_depth 0 ends the keyword — that
-/// closer belongs to the enclosing form. Every other character
-/// (including `<`, `>`, `/`, `-`, `,`) is just pushed as-is. Rejects
-/// internal `:`. Whitespace inside an unclosed `(` is an error.
+/// The `:` is the symbol-literal reader macro; everything that follows
+/// is the body — a literal Rust path. Tracks paren depth because `(`
+/// and `)` appear inside keyword bodies (as in `:fn(T,U)->R` and
+/// `:(i64,String)`). An unmatched `)` ends the keyword — that closer
+/// belongs to the enclosing form. Internal `:` and `::` are body
+/// characters (Rust's path separator); the leading `:` is the only
+/// one that marks "symbol starts here."
+///
+/// Every other character (including `<`, `>`, `/`, `-`, `,`, `!`, `?`)
+/// is pushed as-is. Whitespace inside an unclosed `(` is an error.
+/// `"` and `;` terminate the keyword — they never appear inside one.
 fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
     let bytes = src.as_bytes();
     debug_assert_eq!(bytes[start] as char, ':');
@@ -299,10 +311,6 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
                 }
                 paren_depth -= 1;
                 out.push(c);
-            }
-            ':' => {
-                // No internal ':' per the colon-quoting rule.
-                return Err(LexError::InternalColon(i));
             }
             '"' | ';' => {
                 // These never appear inside a keyword.
@@ -483,12 +491,82 @@ mod tests {
         );
     }
 
+    // ─── Colon-quote model: :: is the Rust path separator ──────────────
+
     #[test]
-    fn keyword_internal_colon_rejected() {
-        assert!(matches!(
-            lex(":Atom<:Holon>"),
-            Err(LexError::InternalColon(_))
-        ));
+    fn keyword_double_colon_path() {
+        // :: is the canonical namespace separator. The leading : is
+        // the symbol-quote; everything after is literal Rust.
+        assert_eq!(
+            lex(":wat::core::load!").unwrap(),
+            vec![Token::Keyword(":wat::core::load!".into())]
+        );
+        assert_eq!(
+            lex(":wat::algebra::Atom").unwrap(),
+            vec![Token::Keyword(":wat::algebra::Atom".into())]
+        );
+        assert_eq!(
+            lex(":my::vocab::foo").unwrap(),
+            vec![Token::Keyword(":my::vocab::foo".into())]
+        );
+    }
+
+    #[test]
+    fn keyword_crate_path() {
+        // Rust crate paths embed directly — no translation.
+        assert_eq!(
+            lex(":crossbeam_channel::Sender<T>").unwrap(),
+            vec![Token::Keyword(":crossbeam_channel::Sender<T>".into())]
+        );
+        assert_eq!(
+            lex(":std::sync::mpsc::Receiver<String>").unwrap(),
+            vec![Token::Keyword(":std::sync::mpsc::Receiver<String>".into())]
+        );
+    }
+
+    #[test]
+    fn keyword_division_operator_path() {
+        // The division operator's full path: :: separator + / name.
+        // Unambiguous: separator is ::, name is /.
+        assert_eq!(
+            lex(":wat::core::/").unwrap(),
+            vec![Token::Keyword(":wat::core::/".into())]
+        );
+    }
+
+    #[test]
+    fn keyword_tuple_literal_type() {
+        // :( opens a tuple-literal type expression.
+        assert_eq!(
+            lex(":(i64,String)").unwrap(),
+            vec![Token::Keyword(":(i64,String)".into())]
+        );
+        assert_eq!(
+            lex(":(Holon,Holon,Holon)").unwrap(),
+            vec![Token::Keyword(":(Holon,Holon,Holon)".into())]
+        );
+    }
+
+    #[test]
+    fn keyword_unit_type() {
+        // :() is the unit type — also the empty tuple.
+        assert_eq!(
+            lex(":()").unwrap(),
+            vec![Token::Keyword(":()".into())]
+        );
+    }
+
+    #[test]
+    fn keyword_vec_parametric() {
+        // :Vec<T> — Rust's collection name.
+        assert_eq!(
+            lex(":Vec<T>").unwrap(),
+            vec![Token::Keyword(":Vec<T>".into())]
+        );
+        assert_eq!(
+            lex(":Vec<Holon>").unwrap(),
+            vec![Token::Keyword(":Vec<Holon>".into())]
+        );
     }
 
     #[test]
