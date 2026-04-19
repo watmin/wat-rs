@@ -141,9 +141,9 @@ pub fn lower(ast: &WatAST) -> Result<HolonAST, LowerError> {
         | WatAST::StringLit(_) | WatAST::Keyword(_) => Err(LowerError::UnsupportedForm(
             "bare literal outside of an (:wat/algebra/...) call".into(),
         )),
-        WatAST::Symbol(s) => Err(LowerError::UnsupportedForm(format!(
+        WatAST::Symbol(ident) => Err(LowerError::UnsupportedForm(format!(
             "bare symbol '{}' (requires name resolution)",
-            s
+            ident.as_str()
         ))),
     }
 }

@@ -334,7 +334,7 @@ fn parse_verification_form(form: &WatAST) -> Result<VerificationMode, LoadError>
         }
     };
     let head_name = match items.first() {
-        Some(WatAST::Symbol(s)) => s.as_str(),
+        Some(WatAST::Symbol(ident)) => ident.as_str(),
         Some(other) => {
             return Err(LoadError::MalformedLoadForm {
                 reason: format!(
@@ -400,7 +400,7 @@ fn parse_verification_form(form: &WatAST) -> Result<VerificationMode, LoadError>
 fn render_placeholder(ast: &WatAST) -> String {
     match ast {
         WatAST::StringLit(s) => s.clone(),
-        WatAST::Symbol(s) => s.clone(),
+        WatAST::Symbol(ident) => ident.name.clone(),
         WatAST::Keyword(k) => k.clone(),
         other => format!("{:?}", other),
     }

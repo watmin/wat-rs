@@ -11,8 +11,16 @@
 //! Standard Lisp parser discipline: parse to a uniform tree; interpret
 //! structure at semantic passes, not at lex/parse time.
 //!
-//! Source positions (spans) are not carried on this MVP version.
-//! Added in a follow-up refinement when error messages need them.
+//! # Hygiene
+//!
+//! `Symbol` carries an [`Identifier`](crate::identifier::Identifier) —
+//! a (name, scope-set) pair that lets lexical-scope lookups distinguish
+//! `tmp` the user wrote from `tmp` a macro introduced. Fresh-parsed
+//! symbols have empty scope sets; macro expansion (slice 5c) adds
+//! scopes per Racket's sets-of-scopes model. Keywords (full paths)
+//! carry no scope tracking — hygiene only matters for bare names.
+
+use crate::identifier::Identifier;
 
 /// The parsed source tree. One variant per terminal kind plus a `List`
 /// variant for any parenthesized form.
@@ -37,16 +45,15 @@ pub enum WatAST {
     /// keyword atoms) and as keyword-path references (heads of calls,
     /// type annotations). Distinguished by context at later passes.
     ///
-    /// The spec's colon-quoting rule (`:Atom<Holon>` legal,
-    /// `:Atom<:Holon>` illegal) is enforced at the lexer — an internal
-    /// `:` produces a lex error before this node can carry it.
+    /// Keywords carry no scope tracking — their full-path spelling
+    /// already disambiguates `:my/app/foo` from `:my/macro/foo`.
     Keyword(String),
 
     /// Bare identifier, as in `x`, `role`, `tmp`. Used in `let` bindings,
     /// `lambda` parameter names, `match` patterns — the only places the
-    /// language admits bare names. Keyword paths always carry the
-    /// leading `:`; anything without one is a `Symbol`.
-    Symbol(String),
+    /// language admits bare names. The `Identifier` carries a scope
+    /// set for macro hygiene (empty on fresh parse).
+    Symbol(Identifier),
 
     /// Parenthesized form `(head arg1 arg2 ...)`. Also covers
     /// empty list `()`. The first child is typically the head —

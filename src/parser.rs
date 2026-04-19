@@ -13,6 +13,7 @@
 //!   unclosed parens or unexpected closers.
 
 use crate::ast::WatAST;
+use crate::identifier::Identifier;
 use crate::lexer::{lex, LexError, Token};
 use std::fmt;
 
@@ -123,7 +124,7 @@ impl<'a> Cursor<'a> {
             Token::Bool(b) => Ok(Some(WatAST::BoolLit(*b))),
             Token::Str(s) => Ok(Some(WatAST::StringLit(s.clone()))),
             Token::Keyword(k) => Ok(Some(WatAST::Keyword(k.clone()))),
-            Token::Symbol(s) => Ok(Some(WatAST::Symbol(s.clone()))),
+            Token::Symbol(s) => Ok(Some(WatAST::Symbol(Identifier::bare(s.clone())))),
             Token::Quasiquote => self.parse_reader_macro(":wat/core/quasiquote"),
             Token::Unquote => self.parse_reader_macro(":wat/core/unquote"),
             Token::UnquoteSplicing => self.parse_reader_macro(":wat/core/unquote-splicing"),
@@ -171,7 +172,7 @@ mod tests {
         WatAST::Keyword(s.to_string())
     }
     fn sym(s: &str) -> WatAST {
-        WatAST::Symbol(s.to_string())
+        WatAST::Symbol(Identifier::bare(s))
     }
     fn str_lit(s: &str) -> WatAST {
         WatAST::StringLit(s.to_string())

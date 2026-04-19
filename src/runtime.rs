@@ -349,11 +349,11 @@ fn parse_define_signature(sig: WatAST) -> Result<(String, Vec<String>), RuntimeE
     let mut params = Vec::new();
     for item in iter {
         match item {
-            WatAST::Symbol(s) if s == "->" => break, // return-type arrow; rest is return type (ignored)
+            WatAST::Symbol(ref s) if s.as_str() == "->" => break, // return-type arrow; rest is return type (ignored)
             WatAST::List(pair) => {
                 // (paramname :Type) — extract the paramname.
                 let paramname = match pair.into_iter().next() {
-                    Some(WatAST::Symbol(s)) => s,
+                    Some(WatAST::Symbol(ident)) => ident.name,
                     Some(other) => {
                         return Err(RuntimeError::MalformedForm {
                             head: ":wat/core/define".into(),
@@ -399,9 +399,9 @@ pub fn eval(
         WatAST::BoolLit(b) => Ok(Value::Bool(*b)),
         WatAST::StringLit(s) => Ok(Value::String(Arc::new(s.clone()))),
         WatAST::Keyword(k) => Ok(Value::Keyword(Arc::new(k.clone()))),
-        WatAST::Symbol(name) => env
-            .lookup(name)
-            .ok_or_else(|| RuntimeError::UnboundSymbol(name.clone())),
+        WatAST::Symbol(ident) => env
+            .lookup(ident.as_str())
+            .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone())),
         WatAST::List(items) => eval_list(items, env, sym),
     }
 }
@@ -421,11 +421,11 @@ fn eval_list(
 
     match head {
         WatAST::Keyword(k) => dispatch_keyword_head(k, rest, env, sym),
-        WatAST::Symbol(name) => {
+        WatAST::Symbol(ident) => {
             // Bare symbol as head — look up a callable in the env.
             let callee = env
-                .lookup(name)
-                .ok_or_else(|| RuntimeError::UnboundSymbol(name.clone()))?;
+                .lookup(ident.as_str())
+                .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone()))?;
             apply_value(&callee, rest, env, sym)
         }
         WatAST::List(_) => {
@@ -542,9 +542,9 @@ fn parse_lambda_signature(sig: &WatAST) -> Result<Vec<String>, RuntimeError> {
     let mut params = Vec::new();
     for item in items {
         match item {
-            WatAST::Symbol(s) if s == "->" => break,
+            WatAST::Symbol(s) if s.as_str() == "->" => break,
             WatAST::List(pair) => match pair.first() {
-                Some(WatAST::Symbol(s)) => params.push(s.clone()),
+                Some(WatAST::Symbol(ident)) => params.push(ident.name.clone()),
                 Some(other) => {
                     return Err(RuntimeError::MalformedForm {
                         head: ":wat/core/lambda".into(),
@@ -607,7 +607,7 @@ fn eval_let(
         match pair {
             WatAST::List(kv) if kv.len() == 2 => {
                 let name = match &kv[0] {
-                    WatAST::Symbol(s) => s.clone(),
+                    WatAST::Symbol(ident) => ident.name.clone(),
                     other => {
                         return Err(RuntimeError::MalformedForm {
                             head: ":wat/core/let".into(),

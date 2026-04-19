@@ -27,6 +27,7 @@
 
 pub mod ast;
 pub mod config;
+pub mod identifier;
 pub mod lexer;
 pub mod load;
 pub mod lower;
@@ -35,6 +36,7 @@ pub mod runtime;
 
 pub use ast::WatAST;
 pub use config::{collect_entry_file, CapacityMode, Config, ConfigError};
+pub use identifier::{fresh_scope, Identifier, ScopeId};
 pub use lexer::LexError;
 pub use load::{
     resolve_loads, FsLoader, InMemoryLoader, LoadError, LoadFetchError, LoadSpec, LoadedSource,
