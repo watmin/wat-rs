@@ -10,7 +10,7 @@ algebra-surface proposal batch (`holon-lab-trading/docs/proposals/2026/04/058-as
 
 - **Interpret path (this crate's first job).** Parse → resolve → type-check
   → freeze → runtime AST walker. The runtime dispatches algebra-core
-  UpperCalls (`:wat/algebra/Atom`, `:wat/algebra/Bind`, …) to
+  UpperCalls (`:wat::algebra::Atom`, `:wat::algebra::Bind`, …) to
   `holon::HolonAST` and encodes via `holon::encode`.
 - **Compile path (later).** Parse → resolve → type-check → emit Rust source
   that `rustc` compiles to a native binary. See `WAT-TO-RUST.md` in the 058
@@ -50,7 +50,7 @@ pending.
       entry points. Structured error types. 22 tests.
 - [x] `lower` — `WatAST` → `holon::HolonAST` for the 6-form algebra
       core: Atom (any Rust primitive + keyword), Bind, Bundle (with
-      `:wat/core/list` form), Permute (i32 step), Thermometer, Blend
+      `:wat::core::list` form), Permute (i32 step), Thermometer, Blend
       (Option B). 16 tests.
 - [x] `eval_algebra_source` — the "door works" public function. Source
       text → `holon::Vector` in one call. 10 integration tests.
@@ -60,17 +60,17 @@ pending.
 - [x] Entry-file discipline + config pass (`set-dims!`,
       `set-capacity-mode!`, `set-global-seed!`; all setters before any
       `load!`; setter in a loaded file halts parse).
-- [x] Recursive `:wat/core/load!` resolution — depth-first,
+- [x] Recursive `:wat::core::load!` resolution — depth-first,
       commit-once, cycle detection, in-memory and filesystem loaders.
-- [x] `:wat/core/define` / `:wat/core/lambda` / `:wat/core/let` /
-      `:wat/core/if` + basic AST-walker runtime with algebra-core
+- [x] `:wat::core::define` / `:wat::core::lambda` / `:wat::core::let` /
+      `:wat::core::if` + basic AST-walker runtime with algebra-core
       dispatch.
-- [x] `:wat/core/defmacro` + Racket sets-of-scopes hygiene (Flatt 2016).
+- [x] `:wat::core::defmacro` + Racket sets-of-scopes hygiene (Flatt 2016).
 - [x] Type declarations (`struct`, `enum`, `newtype`, `typealias`) +
-      type environment; parametric names (`:my/Container<T>`).
+      type environment; parametric names (`:my::Container<T>`).
 - [x] Name resolution across the frozen symbol table — reserved prefix
-      gate (`:wat/core/`, `:wat/kernel/`, `:wat/algebra/`, `:wat/std/`,
-      `:wat/config/`).
+      gate (`:wat::core::`, `:wat::kernel::`, `:wat::algebra::`, `:wat::std::`,
+      `:wat::config::`).
 - [x] Slice 7b rank-1 Hindley-Milner type check — parametric
       polymorphism (list: `∀T. T*→List<T>`; comparison: `∀T. T→T→bool`;
       Atom: `∀T. T→Holon`), substitution + occurs-check, user-define
@@ -80,10 +80,10 @@ pending.
 - [x] Ed25519 signed-load verification — per-file and full-program;
       signs SHA-256 of canonical-EDN.
 - [x] Load-form grammar redesign — three sibling forms
-      (`:wat/core/load!`, `:wat/core/digest-load!`,
-      `:wat/core/signed-load!`) using `:wat/load/*` source-interface
-      keywords and `:wat/verify/*` payload-interface + algorithm
-      keywords. Sidecar signature files work via `:wat/verify/file-path`.
+      (`:wat::core::load!`, `:wat::core::digest-load!`,
+      `:wat::core::signed-load!`) using `:wat::load::*` source-interface
+      keywords and `:wat::verify::*` payload-interface + algorithm
+      keywords. Sidecar signature files work via `:wat::verify::file-path`.
 
 **Pending (ordered per FOUNDATION's startup pipeline):**
 
@@ -92,7 +92,7 @@ pending.
 - [ ] `wat-vm` CLI binary (incl. full-program signature verification
       via `--signed <algo> --sig <b64> --pubkey <b64>` or sidecar).
 
-The measurements tier (`:wat/algebra/cosine`, `:wat/algebra/dot`
+The measurements tier (`:wat::algebra::cosine`, `:wat::algebra::dot`
 returning `:f64`) lands with the runtime slice — measurements don't go
 through `eval_algebra_source`, which only returns `Vector`. A unified
 value-dispatch layer lives in the runtime.

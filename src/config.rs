@@ -1,15 +1,15 @@
 //! Entry-file discipline + config pass.
 //!
-//! A wat entry file has a two-part shape per FOUNDATION's `:wat/config`
-//! section: all `(:wat/config/set-*!)` setters first, then all
-//! `(:wat/core/load!)` forms (and any trailing program body). This
+//! A wat entry file has a two-part shape per FOUNDATION's `:wat::config`
+//! section: all `(:wat::config::set-*!)` setters first, then all
+//! `(:wat::core::load!)` forms (and any trailing program body). This
 //! module enforces that shape and commits the setters into a [`Config`]
 //! struct.
 //!
-//! The three fields currently on `:wat/config`:
+//! The three fields currently on `:wat::config`:
 //!
 //! - `dims` (`:usize`) — vector dimension. Required; no default.
-//! - `capacity-mode` (`:wat/config/CapacityMode`) — overflow policy.
+//! - `capacity-mode` (`:wat::config::CapacityMode`) — overflow policy.
 //!   Required; no default. Variants: `:silent` / `:warn` / `:error` /
 //!   `:abort`.
 //! - `global-seed` (`:u64`) — deterministic-vector seed. **Default 42.**
@@ -48,7 +48,7 @@ pub struct Config {
     pub global_seed: u64,
 }
 
-/// `:wat/config/CapacityMode` — overflow policy when a frame exceeds
+/// `:wat::config::CapacityMode` — overflow policy when a frame exceeds
 /// Kanerva's capacity budget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CapacityMode {
@@ -76,7 +76,7 @@ pub enum ConfigError {
     /// A required field was not set. `global-seed` is optional
     /// (defaults to 42); `dims` and `capacity-mode` are required.
     RequiredFieldMissing { field: String },
-    /// A setter head didn't match any known `:wat/config/set-*!`.
+    /// A setter head didn't match any known `:wat::config::set-*!`.
     UnknownSetter { head: String },
     /// A setter was called with the wrong number of arguments.
     BadArity {
@@ -153,7 +153,7 @@ impl fmt::Display for ConfigError {
 
 impl std::error::Error for ConfigError {}
 
-/// Collect the entry file's leading `(:wat/config/set-*!)` setters and
+/// Collect the entry file's leading `(:wat::config::set-*!)` setters and
 /// commit them to a [`Config`]. Returns the config plus the remaining
 /// forms (load!s, program body) for further processing.
 ///
@@ -171,7 +171,7 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
 
     for (i, form) in forms.iter().enumerate() {
         let setter_head = match setter_head_of(form) {
-            Some(head) if head.starts_with(":wat/config/set-") && head.ends_with('!') => {
+            Some(head) if head.starts_with(":wat::config::set-") && head.ends_with('!') => {
                 head.to_string()
             }
             _ => {
@@ -192,7 +192,7 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
         let args = setter_args_of(form).ok_or(ConfigError::MalformedSetter { form_index: i })?;
 
         match setter_head.as_str() {
-            ":wat/config/set-dims!" => {
+            ":wat::config::set-dims!" => {
                 if dims.is_some() {
                     return Err(ConfigError::DuplicateField { field: "dims".into() });
                 }
@@ -205,7 +205,7 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
                 }
                 dims = Some(parse_usize(&args[0], "dims")?);
             }
-            ":wat/config/set-capacity-mode!" => {
+            ":wat::config::set-capacity-mode!" => {
                 if capacity_mode.is_some() {
                     return Err(ConfigError::DuplicateField {
                         field: "capacity-mode".into(),
@@ -220,7 +220,7 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
                 }
                 capacity_mode = Some(parse_capacity_mode(&args[0])?);
             }
-            ":wat/config/set-global-seed!" => {
+            ":wat::config::set-global-seed!" => {
                 if global_seed.is_some() {
                     return Err(ConfigError::DuplicateField {
                         field: "global-seed".into(),
@@ -377,8 +377,8 @@ mod tests {
     fn minimum_required_entry_file() {
         let (cfg, rest) = collect(
             r#"
-            (:wat/config/set-dims! 10000)
-            (:wat/config/set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
+            (:wat::config::set-capacity-mode! :error)
             "#,
         )
         .unwrap();
@@ -392,8 +392,8 @@ mod tests {
     fn global_seed_default_is_42() {
         let (cfg, _) = collect(
             r#"
-            (:wat/config/set-dims! 10000)
-            (:wat/config/set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
+            (:wat::config::set-capacity-mode! :error)
             "#,
         )
         .unwrap();
@@ -404,9 +404,9 @@ mod tests {
     fn global_seed_override() {
         let (cfg, _) = collect(
             r#"
-            (:wat/config/set-dims! 10000)
-            (:wat/config/set-capacity-mode! :error)
-            (:wat/config/set-global-seed! 12345)
+            (:wat::config::set-dims! 10000)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-global-seed! 12345)
             "#,
         )
         .unwrap();
@@ -417,9 +417,9 @@ mod tests {
     fn setters_then_body() {
         let (cfg, rest) = collect(
             r#"
-            (:wat/config/set-dims! 10000)
-            (:wat/config/set-capacity-mode! :error)
-            (:wat/algebra/Atom "hello")
+            (:wat::config::set-dims! 10000)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::algebra::Atom "hello")
             "#,
         )
         .unwrap();
@@ -437,8 +437,8 @@ mod tests {
         ] {
             let src = format!(
                 r#"
-                (:wat/config/set-dims! 1024)
-                (:wat/config/set-capacity-mode! {})
+                (:wat::config::set-dims! 1024)
+                (:wat::config::set-capacity-mode! {})
                 "#,
                 kw
             );
@@ -453,9 +453,9 @@ mod tests {
     fn setter_after_non_setter_rejected() {
         let err = collect(
             r#"
-            (:wat/config/set-dims! 10000)
-            (:wat/algebra/Atom "oops — body in the middle")
-            (:wat/config/set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
+            (:wat::algebra::Atom "oops — body in the middle")
+            (:wat::config::set-capacity-mode! :error)
             "#,
         )
         .unwrap_err();
@@ -472,9 +472,9 @@ mod tests {
     fn duplicate_dims_rejected() {
         let err = collect(
             r#"
-            (:wat/config/set-dims! 10000)
-            (:wat/config/set-dims! 8192)
-            (:wat/config/set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
+            (:wat::config::set-dims! 8192)
+            (:wat::config::set-capacity-mode! :error)
             "#,
         )
         .unwrap_err();
@@ -485,9 +485,9 @@ mod tests {
     fn duplicate_capacity_mode_rejected() {
         let err = collect(
             r#"
-            (:wat/config/set-dims! 10000)
-            (:wat/config/set-capacity-mode! :error)
-            (:wat/config/set-capacity-mode! :abort)
+            (:wat::config::set-dims! 10000)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-capacity-mode! :abort)
             "#,
         )
         .unwrap_err();
@@ -496,13 +496,13 @@ mod tests {
 
     #[test]
     fn missing_dims_rejected() {
-        let err = collect(r#"(:wat/config/set-capacity-mode! :error)"#).unwrap_err();
+        let err = collect(r#"(:wat::config::set-capacity-mode! :error)"#).unwrap_err();
         assert!(matches!(err, ConfigError::RequiredFieldMissing { ref field } if field == "dims"));
     }
 
     #[test]
     fn missing_capacity_mode_rejected() {
-        let err = collect(r#"(:wat/config/set-dims! 10000)"#).unwrap_err();
+        let err = collect(r#"(:wat::config::set-dims! 10000)"#).unwrap_err();
         assert!(matches!(err, ConfigError::RequiredFieldMissing { ref field } if field == "capacity-mode"));
     }
 
@@ -515,16 +515,16 @@ mod tests {
 
     #[test]
     fn unknown_setter_rejected() {
-        let err = collect(r#"(:wat/config/set-bogus! 1)"#).unwrap_err();
-        assert!(matches!(err, ConfigError::UnknownSetter { ref head } if head == ":wat/config/set-bogus!"));
+        let err = collect(r#"(:wat::config::set-bogus! 1)"#).unwrap_err();
+        assert!(matches!(err, ConfigError::UnknownSetter { ref head } if head == ":wat::config::set-bogus!"));
     }
 
     #[test]
     fn wrong_arity_rejected() {
         let err = collect(
             r#"
-            (:wat/config/set-dims! 10000 8192)
-            (:wat/config/set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000 8192)
+            (:wat::config::set-capacity-mode! :error)
             "#,
         )
         .unwrap_err();
@@ -538,8 +538,8 @@ mod tests {
     fn dims_wrong_type_rejected() {
         let err = collect(
             r#"
-            (:wat/config/set-dims! "oops")
-            (:wat/config/set-capacity-mode! :error)
+            (:wat::config::set-dims! "oops")
+            (:wat::config::set-capacity-mode! :error)
             "#,
         )
         .unwrap_err();
@@ -550,8 +550,8 @@ mod tests {
     fn capacity_mode_wrong_type_rejected() {
         let err = collect(
             r#"
-            (:wat/config/set-dims! 10000)
-            (:wat/config/set-capacity-mode! 42)
+            (:wat::config::set-dims! 10000)
+            (:wat::config::set-capacity-mode! 42)
             "#,
         )
         .unwrap_err();
@@ -562,8 +562,8 @@ mod tests {
     fn capacity_mode_unknown_variant_rejected() {
         let err = collect(
             r#"
-            (:wat/config/set-dims! 10000)
-            (:wat/config/set-capacity-mode! :chaos)
+            (:wat::config::set-dims! 10000)
+            (:wat::config::set-capacity-mode! :chaos)
             "#,
         )
         .unwrap_err();
@@ -574,8 +574,8 @@ mod tests {
     fn negative_dims_rejected() {
         let err = collect(
             r#"
-            (:wat/config/set-dims! -1)
-            (:wat/config/set-capacity-mode! :error)
+            (:wat::config::set-dims! -1)
+            (:wat::config::set-capacity-mode! :error)
             "#,
         )
         .unwrap_err();
@@ -586,9 +586,9 @@ mod tests {
     fn negative_global_seed_rejected() {
         let err = collect(
             r#"
-            (:wat/config/set-dims! 10000)
-            (:wat/config/set-capacity-mode! :error)
-            (:wat/config/set-global-seed! -5)
+            (:wat::config::set-dims! 10000)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-global-seed! -5)
             "#,
         )
         .unwrap_err();
@@ -601,15 +601,15 @@ mod tests {
         // capacity-mode. Order among setters is free.
         let (cfg_a, _) = collect(
             r#"
-            (:wat/config/set-dims! 10000)
-            (:wat/config/set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
+            (:wat::config::set-capacity-mode! :error)
             "#,
         )
         .unwrap();
         let (cfg_b, _) = collect(
             r#"
-            (:wat/config/set-capacity-mode! :error)
-            (:wat/config/set-dims! 10000)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
             "#,
         )
         .unwrap();

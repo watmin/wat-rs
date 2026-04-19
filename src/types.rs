@@ -2,16 +2,16 @@
 //!
 //! Four declaration forms per 058-030, each with a distinct head keyword:
 //!
-//! - `(:wat/core/struct :name (field :Type) ...)` — product type.
-//! - `(:wat/core/enum :name :unit-variant (tagged-variant (field :Type)) ...)` —
+//! - `(:wat::core::struct :name (field :Type) ...)` — product type.
+//! - `(:wat::core::enum :name :unit-variant (tagged-variant (field :Type)) ...)` —
 //!   coproduct type.
-//! - `(:wat/core/newtype :name :Inner)` — nominal wrapper.
-//! - `(:wat/core/typealias :name :Expr)` — structural alias (same type,
+//! - `(:wat::core::newtype :name :Inner)` — nominal wrapper.
+//! - `(:wat::core::typealias :name :Expr)` — structural alias (same type,
 //!   alternative name).
 //!
 //! Parametric polymorphism (058-030 Q1 resolved YES): the name keyword
 //! may carry a `<T,U,V>` suffix declaring type parameters. Example:
-//! `:my/Wrapper<T>` declares a type with one type variable `T`.
+//! `:my::Wrapper<T>` declares a type with one type variable `T`.
 //!
 //! # What this slice does
 //!
@@ -19,7 +19,7 @@
 //! - Extracts the name, type parameters, and structural shape (field
 //!   name/type pairs, enum variants).
 //! - Parses type expressions (`:f64`, `:List<T>`, `:fn(T,U)->R`,
-//!   `:my/ns/MyType`) into structured [`TypeExpr`] values.
+//!   `:my::ns::MyType`) into structured [`TypeExpr`] values.
 //! - Stores the result in a [`TypeEnv`], keyed by the bare declaration
 //!   name (no `<T>` in the key — parametric types are registered once;
 //!   call-site instantiation is the type checker's concern, task #137).
@@ -43,7 +43,7 @@ use std::fmt;
 /// A type expression — the shape that appears after `:` in a keyword.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeExpr {
-    /// A bare type path: `:f64`, `:Holon`, `:my/ns/Candle`. Lexically-
+    /// A bare type path: `:f64`, `:Holon`, `:my::ns::Candle`. Lexically-
     /// scoped type variables (`:T`, `:K`, `:V`) also appear as `Path`
     /// when parsed — the type checker distinguishes them via the
     /// enclosing scheme's / declaration's `type_params`.
@@ -52,7 +52,7 @@ pub enum TypeExpr {
     /// rejection of the escape hatch. `parse_type_expr` refuses it at
     /// the parse layer.
     Path(String),
-    /// `:List<T>`, `:HashMap<K,V>`, `:my/ns/Container<Holon,f64>`.
+    /// `:List<T>`, `:HashMap<K,V>`, `:my::ns::Container<Holon,f64>`.
     Parametric {
         head: String,
         args: Vec<TypeExpr>,
@@ -253,10 +253,10 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
     if let WatAST::List(items) = form {
         if let Some(WatAST::Keyword(k)) = items.first() {
             match k.as_str() {
-                ":wat/core/struct" => return Some("struct"),
-                ":wat/core/enum" => return Some("enum"),
-                ":wat/core/newtype" => return Some("newtype"),
-                ":wat/core/typealias" => return Some("typealias"),
+                ":wat::core::struct" => return Some("struct"),
+                ":wat::core::enum" => return Some("enum"),
+                ":wat::core::newtype" => return Some("newtype"),
+                ":wat::core::typealias" => return Some("typealias"),
                 _ => {}
             }
         }
@@ -332,7 +332,7 @@ fn parse_newtype(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
         return Err(TypeError::MalformedDecl {
             head: "newtype".into(),
             reason: format!(
-                "expected (:wat/core/newtype :name :InnerType); got {} args",
+                "expected (:wat::core::newtype :name :InnerType); got {} args",
                 args.len()
             ),
         });
@@ -365,7 +365,7 @@ fn parse_typealias(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
         return Err(TypeError::MalformedDecl {
             head: "typealias".into(),
             reason: format!(
-                "expected (:wat/core/typealias :name :Expr); got {} args",
+                "expected (:wat::core::typealias :name :Expr); got {} args",
                 args.len()
             ),
         });
@@ -486,9 +486,9 @@ fn parse_enum_variant(form: WatAST) -> Result<EnumVariant, TypeError> {
 }
 
 /// Parse a declared type name. Accepts:
-/// - `:my/ns/MyType` → ("my/ns/MyType", [])
-/// - `:my/ns/Wrapper<T>` → ("my/ns/Wrapper", ["T"])
-/// - `:my/ns/Container<K,V>` → ("my/ns/Container", ["K", "V"])
+/// - `:my::ns::MyType` → ("my/ns/MyType", [])
+/// - `:my::ns::Wrapper<T>` → ("my/ns/Wrapper", ["T"])
+/// - `:my::ns::Container<K,V>` → ("my/ns/Container", ["K", "V"])
 fn parse_declared_name(
     head: &str,
     form: &WatAST,
@@ -778,7 +778,7 @@ mod tests {
     #[test]
     fn simple_struct() {
         let (env, rest) = collect(
-            r#"(:wat/core/struct :project/market/Candle
+            r#"(:wat::core::struct :project::market::Candle
                   (open :f64)
                   (high :f64)
                   (low :f64)
@@ -786,10 +786,10 @@ mod tests {
         )
         .unwrap();
         assert!(rest.is_empty());
-        let def = env.get(":project/market/Candle").expect("registered");
+        let def = env.get(":project::market::Candle").expect("registered");
         match def {
             TypeDef::Struct(s) => {
-                assert_eq!(s.name, ":project/market/Candle");
+                assert_eq!(s.name, ":project::market::Candle");
                 assert!(s.type_params.is_empty());
                 assert_eq!(s.fields.len(), 4);
                 assert_eq!(s.fields[0].0, "open");
@@ -802,12 +802,12 @@ mod tests {
     #[test]
     fn parametric_struct() {
         let (env, _) = collect(
-            r#"(:wat/core/struct :my/Container<T>
+            r#"(:wat::core::struct :my::Container<T>
                   (value :T)
                   (count :i64))"#,
         )
         .unwrap();
-        let def = env.get(":my/Container").expect("registered");
+        let def = env.get(":my::Container").expect("registered");
         match def {
             TypeDef::Struct(s) => {
                 assert_eq!(s.type_params, vec!["T".to_string()]);
@@ -820,12 +820,12 @@ mod tests {
     #[test]
     fn parametric_struct_multiple_params() {
         let (env, _) = collect(
-            r#"(:wat/core/struct :my/Pair<K,V>
+            r#"(:wat::core::struct :my::Pair<K,V>
                   (key :K)
                   (value :V))"#,
         )
         .unwrap();
-        let def = env.get(":my/Pair").expect("registered");
+        let def = env.get(":my::Pair").expect("registered");
         if let TypeDef::Struct(s) = def {
             assert_eq!(s.type_params, vec!["K".to_string(), "V".to_string()]);
         } else {
@@ -837,8 +837,8 @@ mod tests {
 
     #[test]
     fn unit_variant_enum() {
-        let (env, _) = collect(r#"(:wat/core/enum :my/Direction :up :down :left :right)"#).unwrap();
-        if let TypeDef::Enum(e) = env.get(":my/Direction").unwrap() {
+        let (env, _) = collect(r#"(:wat::core::enum :my::Direction :up :down :left :right)"#).unwrap();
+        if let TypeDef::Enum(e) = env.get(":my::Direction").unwrap() {
             assert_eq!(e.variants.len(), 4);
             assert!(matches!(&e.variants[0], EnumVariant::Unit(n) if n == "up"));
         } else {
@@ -849,13 +849,13 @@ mod tests {
     #[test]
     fn tagged_variant_enum() {
         let (env, _) = collect(
-            r#"(:wat/core/enum :my/Event
+            r#"(:wat::core::enum :my::Event
                   :empty
                   (candle (open :f64) (close :f64))
                   (deposit (amount :f64)))"#,
         )
         .unwrap();
-        if let TypeDef::Enum(e) = env.get(":my/Event").unwrap() {
+        if let TypeDef::Enum(e) = env.get(":my::Event").unwrap() {
             assert_eq!(e.variants.len(), 3);
             assert!(matches!(&e.variants[0], EnumVariant::Unit(n) if n == "empty"));
             match &e.variants[1] {
@@ -873,12 +873,12 @@ mod tests {
     #[test]
     fn parametric_enum() {
         let (env, _) = collect(
-            r#"(:wat/core/enum :my/Option<T>
+            r#"(:wat::core::enum :my::Option<T>
                   :none
                   (some (value :T)))"#,
         )
         .unwrap();
-        if let TypeDef::Enum(e) = env.get(":my/Option").unwrap() {
+        if let TypeDef::Enum(e) = env.get(":my::Option").unwrap() {
             assert_eq!(e.type_params, vec!["T".to_string()]);
         } else {
             panic!();
@@ -887,7 +887,7 @@ mod tests {
 
     #[test]
     fn empty_enum_rejected() {
-        let err = collect(r#"(:wat/core/enum :my/Empty)"#).unwrap_err();
+        let err = collect(r#"(:wat::core::enum :my::Empty)"#).unwrap_err();
         assert!(matches!(err, TypeError::MalformedDecl { .. }));
     }
 
@@ -895,8 +895,8 @@ mod tests {
 
     #[test]
     fn simple_newtype() {
-        let (env, _) = collect(r#"(:wat/core/newtype :my/trading/Price :f64)"#).unwrap();
-        if let TypeDef::Newtype(n) = env.get(":my/trading/Price").unwrap() {
+        let (env, _) = collect(r#"(:wat::core::newtype :my::trading::Price :f64)"#).unwrap();
+        if let TypeDef::Newtype(n) = env.get(":my::trading::Price").unwrap() {
             assert_eq!(n.inner, TypeExpr::Path(":f64".into()));
         } else {
             panic!();
@@ -905,8 +905,8 @@ mod tests {
 
     #[test]
     fn parametric_newtype() {
-        let (env, _) = collect(r#"(:wat/core/newtype :my/Wrap<T> :T)"#).unwrap();
-        if let TypeDef::Newtype(n) = env.get(":my/Wrap").unwrap() {
+        let (env, _) = collect(r#"(:wat::core::newtype :my::Wrap<T> :T)"#).unwrap();
+        if let TypeDef::Newtype(n) = env.get(":my::Wrap").unwrap() {
             assert_eq!(n.type_params, vec!["T".to_string()]);
             assert_eq!(n.inner, TypeExpr::Path(":T".into()));
         } else {
@@ -918,8 +918,8 @@ mod tests {
 
     #[test]
     fn simple_typealias() {
-        let (env, _) = collect(r#"(:wat/core/typealias :my/Amount :f64)"#).unwrap();
-        if let TypeDef::Alias(a) = env.get(":my/Amount").unwrap() {
+        let (env, _) = collect(r#"(:wat::core::typealias :my::Amount :f64)"#).unwrap();
+        if let TypeDef::Alias(a) = env.get(":my::Amount").unwrap() {
             assert_eq!(a.expr, TypeExpr::Path(":f64".into()));
         } else {
             panic!();
@@ -928,8 +928,8 @@ mod tests {
 
     #[test]
     fn parametric_typealias() {
-        let (env, _) = collect(r#"(:wat/core/typealias :my/Series<T> :List<T>)"#).unwrap();
-        if let TypeDef::Alias(a) = env.get(":my/Series").unwrap() {
+        let (env, _) = collect(r#"(:wat::core::typealias :my::Series<T> :List<T>)"#).unwrap();
+        if let TypeDef::Alias(a) = env.get(":my::Series").unwrap() {
             assert_eq!(a.type_params, vec!["T".to_string()]);
             assert_eq!(
                 a.expr,
@@ -945,8 +945,8 @@ mod tests {
 
     #[test]
     fn typealias_function_type() {
-        let (env, _) = collect(r#"(:wat/core/typealias :my/Predicate :fn(Holon)->bool)"#).unwrap();
-        if let TypeDef::Alias(a) = env.get(":my/Predicate").unwrap() {
+        let (env, _) = collect(r#"(:wat::core::typealias :my::Predicate :fn(Holon)->bool)"#).unwrap();
+        if let TypeDef::Alias(a) = env.get(":my::Predicate").unwrap() {
             match &a.expr {
                 TypeExpr::Fn { args, ret } => {
                     assert_eq!(args.len(), 1);
@@ -963,10 +963,10 @@ mod tests {
     #[test]
     fn typealias_nested_parametric() {
         let (env, _) = collect(
-            r#"(:wat/core/typealias :my/Scores :HashMap<Atom,f64>)"#,
+            r#"(:wat::core::typealias :my::Scores :HashMap<Atom,f64>)"#,
         )
         .unwrap();
-        if let TypeDef::Alias(a) = env.get(":my/Scores").unwrap() {
+        if let TypeDef::Alias(a) = env.get(":my::Scores").unwrap() {
             match &a.expr {
                 TypeExpr::Parametric { head, args } => {
                     assert_eq!(head, "HashMap");
@@ -987,8 +987,8 @@ mod tests {
     fn duplicate_type_rejected() {
         let err = collect(
             r#"
-            (:wat/core/struct :my/T (x :f64))
-            (:wat/core/struct :my/T (y :i64))
+            (:wat::core::struct :my::T (x :f64))
+            (:wat::core::struct :my::T (y :i64))
             "#,
         )
         .unwrap_err();
@@ -997,32 +997,32 @@ mod tests {
 
     #[test]
     fn reserved_prefix_rejected() {
-        let err = collect(r#"(:wat/core/struct :wat/core/MyStruct (x :f64))"#).unwrap_err();
+        let err = collect(r#"(:wat::core::struct :wat::core::MyStruct (x :f64))"#).unwrap_err();
         assert!(matches!(err, TypeError::ReservedPrefix { .. }));
 
-        let err = collect(r#"(:wat/core/struct :wat/algebra/Bad (x :f64))"#).unwrap_err();
+        let err = collect(r#"(:wat::core::struct :wat::algebra::Bad (x :f64))"#).unwrap_err();
         assert!(matches!(err, TypeError::ReservedPrefix { .. }));
 
-        let err = collect(r#"(:wat/core/struct :wat/std/Bad (x :f64))"#).unwrap_err();
+        let err = collect(r#"(:wat::core::struct :wat::std::Bad (x :f64))"#).unwrap_err();
         assert!(matches!(err, TypeError::ReservedPrefix { .. }));
     }
 
     #[test]
     fn malformed_newtype_arity_rejected() {
-        let err = collect(r#"(:wat/core/newtype :my/T)"#).unwrap_err();
+        let err = collect(r#"(:wat::core::newtype :my::T)"#).unwrap_err();
         assert!(matches!(err, TypeError::MalformedDecl { .. }));
     }
 
     #[test]
     fn malformed_field_rejected() {
-        let err = collect(r#"(:wat/core/struct :my/T (oops))"#).unwrap_err();
+        let err = collect(r#"(:wat::core::struct :my::T (oops))"#).unwrap_err();
         assert!(matches!(err, TypeError::MalformedField { .. }));
     }
 
     #[test]
     fn malformed_parametric_name_rejected() {
-        let err = collect(r#"(:wat/core/struct :my/Bad<T (x :T))"#).unwrap_err();
-        // `:my/Bad<T` (no closing `>`) — under the keyword-lexer rules
+        let err = collect(r#"(:wat::core::struct :my::Bad<T (x :T))"#).unwrap_err();
+        // `:my::Bad<T` (no closing `>`) — under the keyword-lexer rules
         // either the lexer errors out (unterminated) or the type
         // declaration complains. Either way, an error surfaces.
         assert!(matches!(err, TypeError::MalformedName { .. } | TypeError::MalformedDecl { .. }));
@@ -1034,8 +1034,8 @@ mod tests {
     fn non_type_forms_preserved() {
         let (_env, rest) = collect(
             r#"
-            (:wat/core/struct :my/T (x :f64))
-            (:wat/algebra/Atom "hello")
+            (:wat::core::struct :my::T (x :f64))
+            (:wat::algebra::Atom "hello")
             42
             "#,
         )
@@ -1052,8 +1052,8 @@ mod tests {
             TypeExpr::Path(":f64".into())
         );
         assert_eq!(
-            parse_type_expr(":my/ns/MyType").unwrap(),
-            TypeExpr::Path(":my/ns/MyType".into())
+            parse_type_expr(":my::ns::MyType").unwrap(),
+            TypeExpr::Path(":my::ns::MyType".into())
         );
     }
 

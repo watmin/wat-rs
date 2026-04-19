@@ -1,5 +1,5 @@
 //! Runtime — AST walker for `define` / `lambda` / `let` / `if` +
-//! a small set of `:wat/core/*` built-in primitives + algebra-core
+//! a small set of `:wat::core::*` built-in primitives + algebra-core
 //! UpperCall construction.
 //!
 //! This is the first slice where a multi-form wat program runs
@@ -12,7 +12,7 @@
 //! [`Value`] covers what a runtime expression can evaluate to:
 //! `Bool`, `Int`, `Float`, `String`, `Keyword`, `Holon`, `Function`,
 //! `Unit`, and `List` for the small set of list-shaped runtime values
-//! (currently only used as return values from explicit `:wat/core/list`
+//! (currently only used as return values from explicit `:wat::core::list`
 //! calls). No `Null`. No `Any`.
 //!
 //! # Environment model
@@ -20,7 +20,7 @@
 //! - [`Environment`] is a lexical-scope chain via `Arc`. Each `let` /
 //!   function application creates a child env; lookups walk outward.
 //! - [`SymbolTable`] holds keyword-path ↦ `Arc<Function>` entries
-//!   registered by `:wat/core/define`. Functions are looked up directly
+//!   registered by `:wat::core::define`. Functions are looked up directly
 //!   by their full path.
 //!
 //! # Functions
@@ -55,7 +55,7 @@ pub enum Value {
     /// A callable — either a `define`-registered function or a `lambda`
     /// closure.
     Function(Arc<Function>),
-    /// A list of values — used by `:wat/core/list`.
+    /// A list of values — used by `:wat::core::list`.
     List(Arc<Vec<Value>>),
     /// `:()` — unit. Returned by expressions with no meaningful value
     /// (not used widely in this slice).
@@ -86,13 +86,13 @@ pub struct Function {
     pub name: Option<String>,
     pub params: Vec<String>,
     /// Declared type-parameter list from the function name keyword
-    /// (e.g., `<T,U>` on `:my/ns/foo<T,U>`). Empty for monomorphic
+    /// (e.g., `<T,U>` on `:my::ns::foo<T,U>`). Empty for monomorphic
     /// functions. Names appearing in `param_types` / `ret_type` that
     /// match an entry here are treated as type variables at check
     /// time.
     pub type_params: Vec<String>,
     /// Declared parameter types, parallel to `params`. Populated from
-    /// the `(:wat/core/define (sig ...) body)` signature by
+    /// the `(:wat::core::define (sig ...) body)` signature by
     /// `parse_define_form`. Used by the type checker for call-site
     /// unification and body-vs-signature checks. Empty only for
     /// lambda values (type-untracked).
@@ -220,7 +220,7 @@ pub enum RuntimeError {
     DivisionByZero,
     DuplicateDefine(String),
     ReservedPrefix(String),
-    /// `:wat/core/define` / `:wat/core/lambda` found in expression
+    /// `:wat::core::define` / `:wat::core::lambda` found in expression
     /// position at runtime. Define is a top-level registration form;
     /// lambda is fine in expression position. A caught-in-eval define
     /// means the caller confused the two phases.
@@ -248,7 +248,7 @@ impl fmt::Display for RuntimeError {
                 write!(f, "malformed {} form: {}", head, reason)
             }
             RuntimeError::ParamShadowsBuiltin(s) => {
-                write!(f, "parameter name {} shadows a :wat/core builtin; pick another name", s)
+                write!(f, "parameter name {} shadows a :wat::core builtin; pick another name", s)
             }
             RuntimeError::DivisionByZero => write!(f, "division by zero"),
             RuntimeError::DuplicateDefine(p) => {
@@ -262,7 +262,7 @@ impl fmt::Display for RuntimeError {
             ),
             RuntimeError::DefineInExpressionPosition => write!(
                 f,
-                ":wat/core/define is a top-level registration form, not an expression"
+                ":wat::core::define is a top-level registration form, not an expression"
             ),
         }
     }
@@ -270,7 +270,7 @@ impl fmt::Display for RuntimeError {
 
 impl std::error::Error for RuntimeError {}
 
-/// Walk `forms`, register every `(:wat/core/define ...)` into `sym`,
+/// Walk `forms`, register every `(:wat::core::define ...)` into `sym`,
 /// and return the remaining (non-define) forms in order. Dupe
 /// registration halts with [`RuntimeError::DuplicateDefine`].
 pub fn register_defines(
@@ -299,7 +299,7 @@ fn is_define_form(form: &WatAST) -> bool {
     matches!(
         form,
         WatAST::List(items)
-            if matches!(items.first(), Some(WatAST::Keyword(k)) if k == ":wat/core/define")
+            if matches!(items.first(), Some(WatAST::Keyword(k)) if k == ":wat::core::define")
     )
 }
 
@@ -312,7 +312,7 @@ struct ParsedDefineSignature {
     ret_type: crate::types::TypeExpr,
 }
 
-/// Parse `(:wat/core/define (:name/path<T,U> (p1 :T1) ... -> :R) body)`
+/// Parse `(:wat::core::define (:name::path<T,U> (p1 :T1) ... -> :R) body)`
 /// into `(path, Arc<Function>)`. Captures the declared name (with
 /// type-parameter list stripped from the keyword), parameter names
 /// and types, and return type so the type checker can run real
@@ -321,15 +321,15 @@ fn parse_define_form(form: WatAST) -> Result<(String, Arc<Function>), RuntimeErr
     let items = match form {
         WatAST::List(items) => items,
         _ => return Err(RuntimeError::MalformedForm {
-            head: ":wat/core/define".into(),
+            head: ":wat::core::define".into(),
             reason: "expected list".into(),
         }),
     };
     if items.len() != 3 {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat/core/define".into(),
+            head: ":wat::core::define".into(),
             reason: format!(
-                "expected (:wat/core/define signature body); got {} elements",
+                "expected (:wat::core::define signature body); got {} elements",
                 items.len()
             ),
         });
@@ -360,7 +360,7 @@ fn parse_define_form(form: WatAST) -> Result<(String, Arc<Function>), RuntimeErr
     ))
 }
 
-/// Signature is a List: `(:name/path<T,U> (p1 :T1) ... -> :R)`.
+/// Signature is a List: `(:name::path<T,U> (p1 :T1) ... -> :R)`.
 /// Extracts:
 /// - canonical_name (the keyword path with any `<T,U>` stripped, re-
 ///   prefixed with ':' — matches the form used for symbol-table keys)
@@ -374,7 +374,7 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
         WatAST::List(items) => items,
         _ => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat/core/define".into(),
+                head: ":wat::core::define".into(),
                 reason: "signature must be a list".into(),
             })
         }
@@ -384,7 +384,7 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
         Some(WatAST::Keyword(k)) => k,
         Some(other) => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat/core/define".into(),
+                head: ":wat::core::define".into(),
                 reason: format!(
                     "function name must be a keyword-path; got {}",
                     ast_variant_name(&other)
@@ -393,7 +393,7 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
         }
         None => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat/core/define".into(),
+                head: ":wat::core::define".into(),
                 reason: "signature is empty".into(),
             });
         }
@@ -410,7 +410,7 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
             // Only one form may follow `->` — the return type keyword.
             if ret_type.is_some() {
                 return Err(RuntimeError::MalformedForm {
-                    head: ":wat/core/define".into(),
+                    head: ":wat::core::define".into(),
                     reason: "signature has more than one return type after '->'".into(),
                 });
             }
@@ -420,7 +420,7 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
                 }
                 other => {
                     return Err(RuntimeError::MalformedForm {
-                        head: ":wat/core/define".into(),
+                        head: ":wat::core::define".into(),
                         reason: format!(
                             "return type after '->' must be a type keyword; got {}",
                             ast_variant_name(&other)
@@ -441,7 +441,7 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
             }
             other => {
                 return Err(RuntimeError::MalformedForm {
-                    head: ":wat/core/define".into(),
+                    head: ":wat::core::define".into(),
                     reason: format!(
                         "unexpected signature element: {}",
                         ast_variant_name(&other)
@@ -466,7 +466,7 @@ fn parse_param_pair(
 ) -> Result<(String, crate::types::TypeExpr), RuntimeError> {
     if pair.len() != 2 {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat/core/define".into(),
+            head: ":wat::core::define".into(),
             reason: format!(
                 "parameter must be (name :Type); got {}-element list",
                 pair.len()
@@ -478,7 +478,7 @@ fn parse_param_pair(
         Some(WatAST::Symbol(ident)) => ident.name,
         Some(other) => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat/core/define".into(),
+                head: ":wat::core::define".into(),
                 reason: format!(
                     "parameter name must be a bare symbol; got {}",
                     ast_variant_name(&other)
@@ -491,7 +491,7 @@ fn parse_param_pair(
         Some(WatAST::Keyword(k)) => k,
         Some(other) => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat/core/define".into(),
+                head: ":wat::core::define".into(),
                 reason: format!(
                     "parameter type must be a type keyword; got {}",
                     ast_variant_name(&other)
@@ -506,7 +506,7 @@ fn parse_param_pair(
 
 fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, RuntimeError> {
     crate::types::parse_type_expr(kw).map_err(|e| RuntimeError::MalformedForm {
-        head: ":wat/core/define".into(),
+        head: ":wat::core::define".into(),
         reason: e.to_string(),
     })
 }
@@ -520,7 +520,7 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), Runtime
     };
     if !kw.ends_with('>') {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat/core/define".into(),
+            head: ":wat::core::define".into(),
             reason: format!("name keyword {:?} opens '<' but does not close '>'", kw),
         });
     }
@@ -595,16 +595,16 @@ fn dispatch_keyword_head(
 ) -> Result<Value, RuntimeError> {
     match head {
         // Language forms
-        ":wat/core/define" => Err(RuntimeError::DefineInExpressionPosition),
-        ":wat/core/lambda" => eval_lambda(args, env),
-        ":wat/core/let" => eval_let(args, env, sym),
-        ":wat/core/if" => eval_if(args, env, sym),
+        ":wat::core::define" => Err(RuntimeError::DefineInExpressionPosition),
+        ":wat::core::lambda" => eval_lambda(args, env),
+        ":wat::core::let" => eval_let(args, env, sym),
+        ":wat::core::if" => eval_if(args, env, sym),
 
         // Arithmetic
-        ":wat/core/+" => eval_arith(head, args, env, sym, |a, b| Ok(a + b), |a, b| Ok(a + b)),
-        ":wat/core/-" => eval_arith(head, args, env, sym, |a, b| Ok(a - b), |a, b| Ok(a - b)),
-        ":wat/core/*" => eval_arith(head, args, env, sym, |a, b| Ok(a * b), |a, b| Ok(a * b)),
-        ":wat/core//" => eval_arith(
+        ":wat::core::+" => eval_arith(head, args, env, sym, |a, b| Ok(a + b), |a, b| Ok(a + b)),
+        ":wat::core::-" => eval_arith(head, args, env, sym, |a, b| Ok(a - b), |a, b| Ok(a - b)),
+        ":wat::core::*" => eval_arith(head, args, env, sym, |a, b| Ok(a * b), |a, b| Ok(a * b)),
+        ":wat::core::/" => eval_arith(
             head,
             args,
             env,
@@ -614,29 +614,29 @@ fn dispatch_keyword_head(
         ),
 
         // Comparison — return :bool
-        ":wat/core/=" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Equal),
-        ":wat/core/<" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Less),
-        ":wat/core/>" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Greater),
-        ":wat/core/<=" => eval_compare(head, args, env, sym, |o| {
+        ":wat::core::=" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Equal),
+        ":wat::core::<" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Less),
+        ":wat::core::>" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Greater),
+        ":wat::core::<=" => eval_compare(head, args, env, sym, |o| {
             o != std::cmp::Ordering::Greater
         }),
-        ":wat/core/>=" => eval_compare(head, args, env, sym, |o| o != std::cmp::Ordering::Less),
+        ":wat::core::>=" => eval_compare(head, args, env, sym, |o| o != std::cmp::Ordering::Less),
 
         // Boolean
-        ":wat/core/not" => eval_not(args, env, sym),
-        ":wat/core/and" => eval_and(args, env, sym),
-        ":wat/core/or" => eval_or(args, env, sym),
+        ":wat::core::not" => eval_not(args, env, sym),
+        ":wat::core::and" => eval_and(args, env, sym),
+        ":wat::core::or" => eval_or(args, env, sym),
 
         // List construction
-        ":wat/core/list" => eval_list_ctor(args, env, sym),
+        ":wat::core::list" => eval_list_ctor(args, env, sym),
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
-        ":wat/algebra/Atom" => eval_algebra_atom(args, env, sym),
-        ":wat/algebra/Bind" => eval_algebra_bind(args, env, sym),
-        ":wat/algebra/Bundle" => eval_algebra_bundle(args, env, sym),
-        ":wat/algebra/Permute" => eval_algebra_permute(args, env, sym),
-        ":wat/algebra/Thermometer" => eval_algebra_thermometer(args, env, sym),
-        ":wat/algebra/Blend" => eval_algebra_blend(args, env, sym),
+        ":wat::algebra::Atom" => eval_algebra_atom(args, env, sym),
+        ":wat::algebra::Bind" => eval_algebra_bind(args, env, sym),
+        ":wat::algebra::Bundle" => eval_algebra_bundle(args, env, sym),
+        ":wat::algebra::Permute" => eval_algebra_permute(args, env, sym),
+        ":wat::algebra::Thermometer" => eval_algebra_thermometer(args, env, sym),
+        ":wat::algebra::Blend" => eval_algebra_blend(args, env, sym),
 
         // Anything else: user-defined function lookup.
         other => {
@@ -658,9 +658,9 @@ fn dispatch_keyword_head(
 fn eval_lambda(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat/core/lambda".into(),
+            head: ":wat::core::lambda".into(),
             reason: format!(
-                "expected (:wat/core/lambda signature body); got {} args",
+                "expected (:wat::core::lambda signature body); got {} args",
                 args.len()
             ),
         });
@@ -693,7 +693,7 @@ fn parse_lambda_signature(
         WatAST::List(items) => items,
         _ => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat/core/lambda".into(),
+                head: ":wat::core::lambda".into(),
                 reason: "signature must be a list".into(),
             });
         }
@@ -706,7 +706,7 @@ fn parse_lambda_signature(
         if saw_arrow {
             if ret_type.is_some() {
                 return Err(RuntimeError::MalformedForm {
-                    head: ":wat/core/lambda".into(),
+                    head: ":wat::core::lambda".into(),
                     reason: "signature has more than one return type after '->'".into(),
                 });
             }
@@ -716,7 +716,7 @@ fn parse_lambda_signature(
                 }
                 other => {
                     return Err(RuntimeError::MalformedForm {
-                        head: ":wat/core/lambda".into(),
+                        head: ":wat::core::lambda".into(),
                         reason: format!(
                             "return type after '->' must be a type keyword; got {}",
                             ast_variant_name(other)
@@ -737,7 +737,7 @@ fn parse_lambda_signature(
             }
             other => {
                 return Err(RuntimeError::MalformedForm {
-                    head: ":wat/core/lambda".into(),
+                    head: ":wat::core::lambda".into(),
                     reason: format!(
                         "unexpected signature element: {}",
                         ast_variant_name(other)
@@ -747,7 +747,7 @@ fn parse_lambda_signature(
         }
     }
     let ret_type = ret_type.ok_or_else(|| RuntimeError::MalformedForm {
-        head: ":wat/core/lambda".into(),
+        head: ":wat::core::lambda".into(),
         reason:
             "lambda signature must end with '-> :Type' (typed return is required per 058-029)"
                 .into(),
@@ -762,9 +762,9 @@ fn eval_let(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat/core/let".into(),
+            head: ":wat::core::let".into(),
             reason: format!(
-                "expected (:wat/core/let (((n1 :T1) e1) ...) body); got {} args",
+                "expected (:wat::core::let (((n1 :T1) e1) ...) body); got {} args",
                 args.len()
             ),
         });
@@ -776,7 +776,7 @@ fn eval_let(
         WatAST::List(items) => items,
         _ => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat/core/let".into(),
+                head: ":wat::core::let".into(),
                 reason: "bindings must be a list of ((name :Type) expr) pairs".into(),
             })
         }
@@ -810,7 +810,7 @@ fn parse_let_binding(
         WatAST::List(items) if items.len() == 2 => items,
         other => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat/core/let".into(),
+                head: ":wat::core::let".into(),
                 reason: format!(
                     "each binding must be ((name :Type) rhs); got {}",
                     ast_variant_name(other)
@@ -822,7 +822,7 @@ fn parse_let_binding(
         WatAST::List(inner) if inner.len() == 2 => inner,
         other => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat/core/let".into(),
+                head: ":wat::core::let".into(),
                 reason: format!(
                     "binding's name-and-type must be (name :Type); got {}. Every let binding declares its type — no untyped form.",
                     ast_variant_name(other)
@@ -834,7 +834,7 @@ fn parse_let_binding(
         WatAST::Symbol(ident) => ident.name.clone(),
         other => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat/core/let".into(),
+                head: ":wat::core::let".into(),
                 reason: format!(
                     "binding name must be a bare symbol; got {}",
                     ast_variant_name(other)
@@ -846,7 +846,7 @@ fn parse_let_binding(
         WatAST::Keyword(k) => parse_type_keyword(k)?,
         other => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat/core/let".into(),
+                head: ":wat::core::let".into(),
                 reason: format!(
                     "binding type must be a type keyword; got {}",
                     ast_variant_name(other)
@@ -864,9 +864,9 @@ fn eval_if(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 3 {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat/core/if".into(),
+            head: ":wat::core::if".into(),
             reason: format!(
-                "expected (:wat/core/if cond then else); got {} args",
+                "expected (:wat::core::if cond then else); got {} args",
                 args.len()
             ),
         });
@@ -967,7 +967,7 @@ fn eval_not(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat/core/not".into(),
+            op: ":wat::core::not".into(),
             expected: 1,
             got: args.len(),
         });
@@ -975,7 +975,7 @@ fn eval_not(
     match eval(&args[0], env, sym)? {
         Value::Bool(b) => Ok(Value::Bool(!b)),
         other => Err(RuntimeError::TypeMismatch {
-            op: ":wat/core/not".into(),
+            op: ":wat::core::not".into(),
             expected: "bool",
             got: other.type_name(),
         }),
@@ -994,7 +994,7 @@ fn eval_and(
             Value::Bool(true) => continue,
             other => {
                 return Err(RuntimeError::TypeMismatch {
-                    op: ":wat/core/and".into(),
+                    op: ":wat::core::and".into(),
                     expected: "bool",
                     got: other.type_name(),
                 })
@@ -1015,7 +1015,7 @@ fn eval_or(
             Value::Bool(false) => continue,
             other => {
                 return Err(RuntimeError::TypeMismatch {
-                    op: ":wat/core/or".into(),
+                    op: ":wat::core::or".into(),
                     expected: "bool",
                     got: other.type_name(),
                 })
@@ -1046,7 +1046,7 @@ fn eval_algebra_atom(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat/algebra/Atom".into(),
+            op: ":wat::algebra::Atom".into(),
             expected: 1,
             got: args.len(),
         });
@@ -1067,7 +1067,7 @@ fn value_to_atom(v: Value) -> Result<Value, RuntimeError> {
         Value::Holon(h) => HolonAST::atom((*h).clone()),
         other => {
             return Err(RuntimeError::TypeMismatch {
-                op: ":wat/algebra/Atom".into(),
+                op: ":wat::algebra::Atom".into(),
                 expected: "atomizable value (Int/Float/Bool/String/Keyword/Holon)",
                 got: other.type_name(),
             });
@@ -1083,13 +1083,13 @@ fn eval_algebra_bind(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat/algebra/Bind".into(),
+            op: ":wat::algebra::Bind".into(),
             expected: 2,
             got: args.len(),
         });
     }
-    let a = require_holon(":wat/algebra/Bind", eval(&args[0], env, sym)?)?;
-    let b = require_holon(":wat/algebra/Bind", eval(&args[1], env, sym)?)?;
+    let a = require_holon(":wat::algebra::Bind", eval(&args[0], env, sym)?)?;
+    let b = require_holon(":wat::algebra::Bind", eval(&args[1], env, sym)?)?;
     Ok(Value::Holon(Arc::new(HolonAST::bind((*a).clone(), (*b).clone()))))
 }
 
@@ -1100,7 +1100,7 @@ fn eval_algebra_bundle(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat/algebra/Bundle".into(),
+            op: ":wat::algebra::Bundle".into(),
             expected: 1,
             got: args.len(),
         });
@@ -1109,8 +1109,8 @@ fn eval_algebra_bundle(
         Value::List(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
-                op: ":wat/algebra/Bundle".into(),
-                expected: "List<Holon> from (:wat/core/list ...)",
+                op: ":wat::algebra::Bundle".into(),
+                expected: "List<Holon> from (:wat::core::list ...)",
                 got: other.type_name(),
             });
         }
@@ -1118,7 +1118,7 @@ fn eval_algebra_bundle(
     let children: Result<Vec<HolonAST>, _> = list
         .iter()
         .map(|v| {
-            require_holon(":wat/algebra/Bundle list element", v.clone())
+            require_holon(":wat::algebra::Bundle list element", v.clone())
                 .map(|h| (*h).clone())
         })
         .collect();
@@ -1132,21 +1132,21 @@ fn eval_algebra_permute(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat/algebra/Permute".into(),
+            op: ":wat::algebra::Permute".into(),
             expected: 2,
             got: args.len(),
         });
     }
-    let child = require_holon(":wat/algebra/Permute", eval(&args[0], env, sym)?)?;
+    let child = require_holon(":wat::algebra::Permute", eval(&args[0], env, sym)?)?;
     let k = match eval(&args[1], env, sym)? {
         Value::Int(n) => i32::try_from(n).map_err(|_| RuntimeError::TypeMismatch {
-            op: ":wat/algebra/Permute".into(),
+            op: ":wat::algebra::Permute".into(),
             expected: "i32 step (integer fitting in i32)",
             got: "i64 out of range",
         })?,
         other => {
             return Err(RuntimeError::TypeMismatch {
-                op: ":wat/algebra/Permute".into(),
+                op: ":wat::algebra::Permute".into(),
                 expected: "i32 step",
                 got: other.type_name(),
             });
@@ -1162,14 +1162,14 @@ fn eval_algebra_thermometer(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 3 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat/algebra/Thermometer".into(),
+            op: ":wat::algebra::Thermometer".into(),
             expected: 3,
             got: args.len(),
         });
     }
-    let v = require_numeric(":wat/algebra/Thermometer", eval(&args[0], env, sym)?)?;
-    let mn = require_numeric(":wat/algebra/Thermometer", eval(&args[1], env, sym)?)?;
-    let mx = require_numeric(":wat/algebra/Thermometer", eval(&args[2], env, sym)?)?;
+    let v = require_numeric(":wat::algebra::Thermometer", eval(&args[0], env, sym)?)?;
+    let mn = require_numeric(":wat::algebra::Thermometer", eval(&args[1], env, sym)?)?;
+    let mx = require_numeric(":wat::algebra::Thermometer", eval(&args[2], env, sym)?)?;
     Ok(Value::Holon(Arc::new(HolonAST::thermometer(v, mn, mx))))
 }
 
@@ -1180,15 +1180,15 @@ fn eval_algebra_blend(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 4 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat/algebra/Blend".into(),
+            op: ":wat::algebra::Blend".into(),
             expected: 4,
             got: args.len(),
         });
     }
-    let a = require_holon(":wat/algebra/Blend", eval(&args[0], env, sym)?)?;
-    let b = require_holon(":wat/algebra/Blend", eval(&args[1], env, sym)?)?;
-    let w1 = require_numeric(":wat/algebra/Blend", eval(&args[2], env, sym)?)?;
-    let w2 = require_numeric(":wat/algebra/Blend", eval(&args[3], env, sym)?)?;
+    let a = require_holon(":wat::algebra::Blend", eval(&args[0], env, sym)?)?;
+    let b = require_holon(":wat::algebra::Blend", eval(&args[1], env, sym)?)?;
+    let w1 = require_numeric(":wat::algebra::Blend", eval(&args[2], env, sym)?)?;
+    let w2 = require_numeric(":wat::algebra::Blend", eval(&args[3], env, sym)?)?;
     Ok(Value::Holon(Arc::new(HolonAST::blend((*a).clone(), (*b).clone(), w1, w2))))
 }
 
@@ -1329,7 +1329,7 @@ mod tests {
     #[test]
     fn add_ints() {
         assert!(matches!(
-            eval_expr("(:wat/core/+ 2 3)").unwrap(),
+            eval_expr("(:wat::core::+ 2 3)").unwrap(),
             Value::Int(5)
         ));
     }
@@ -1337,14 +1337,14 @@ mod tests {
     #[test]
     fn subtract_ints() {
         assert!(matches!(
-            eval_expr("(:wat/core/- 10 4)").unwrap(),
+            eval_expr("(:wat::core::- 10 4)").unwrap(),
             Value::Int(6)
         ));
     }
 
     #[test]
     fn multiply_mixed_promotes_to_float() {
-        match eval_expr("(:wat/core/* 3 2.0)").unwrap() {
+        match eval_expr("(:wat::core::* 3 2.0)").unwrap() {
             Value::Float(x) => assert_eq!(x, 6.0),
             v => panic!("expected float, got {:?}", v),
         }
@@ -1353,7 +1353,7 @@ mod tests {
     #[test]
     fn divide_by_zero_errors() {
         assert!(matches!(
-            eval_expr("(:wat/core// 5 0)"),
+            eval_expr("(:wat::core::/ 5 0)"),
             Err(RuntimeError::DivisionByZero)
         ));
     }
@@ -1363,11 +1363,11 @@ mod tests {
     #[test]
     fn equality() {
         assert!(matches!(
-            eval_expr("(:wat/core/= 3 3)").unwrap(),
+            eval_expr("(:wat::core::= 3 3)").unwrap(),
             Value::Bool(true)
         ));
         assert!(matches!(
-            eval_expr("(:wat/core/= 3 4)").unwrap(),
+            eval_expr("(:wat::core::= 3 4)").unwrap(),
             Value::Bool(false)
         ));
     }
@@ -1375,11 +1375,11 @@ mod tests {
     #[test]
     fn less_than() {
         assert!(matches!(
-            eval_expr("(:wat/core/< 2 3)").unwrap(),
+            eval_expr("(:wat::core::< 2 3)").unwrap(),
             Value::Bool(true)
         ));
         assert!(matches!(
-            eval_expr("(:wat/core/< 3 2)").unwrap(),
+            eval_expr("(:wat::core::< 3 2)").unwrap(),
             Value::Bool(false)
         ));
     }
@@ -1389,7 +1389,7 @@ mod tests {
     #[test]
     fn and_short_circuits() {
         assert!(matches!(
-            eval_expr("(:wat/core/and true false true)").unwrap(),
+            eval_expr("(:wat::core::and true false true)").unwrap(),
             Value::Bool(false)
         ));
     }
@@ -1397,7 +1397,7 @@ mod tests {
     #[test]
     fn or_short_circuits() {
         assert!(matches!(
-            eval_expr("(:wat/core/or false false true false)").unwrap(),
+            eval_expr("(:wat::core::or false false true false)").unwrap(),
             Value::Bool(true)
         ));
     }
@@ -1405,7 +1405,7 @@ mod tests {
     #[test]
     fn not_bool() {
         assert!(matches!(
-            eval_expr("(:wat/core/not true)").unwrap(),
+            eval_expr("(:wat::core::not true)").unwrap(),
             Value::Bool(false)
         ));
     }
@@ -1415,7 +1415,7 @@ mod tests {
     #[test]
     fn if_true_branch() {
         assert!(matches!(
-            eval_expr("(:wat/core/if true 1 2)").unwrap(),
+            eval_expr("(:wat::core::if true 1 2)").unwrap(),
             Value::Int(1)
         ));
     }
@@ -1423,7 +1423,7 @@ mod tests {
     #[test]
     fn if_false_branch() {
         assert!(matches!(
-            eval_expr("(:wat/core/if false 1 2)").unwrap(),
+            eval_expr("(:wat::core::if false 1 2)").unwrap(),
             Value::Int(2)
         ));
     }
@@ -1431,7 +1431,7 @@ mod tests {
     #[test]
     fn if_non_bool_rejected() {
         assert!(matches!(
-            eval_expr("(:wat/core/if 42 1 2)"),
+            eval_expr("(:wat::core::if 42 1 2)"),
             Err(RuntimeError::BadCondition { .. })
         ));
     }
@@ -1440,7 +1440,7 @@ mod tests {
     fn let_binds_parallel() {
         assert!(matches!(
             eval_expr(
-                r#"(:wat/core/let (((x :i64) 2) ((y :i64) 3)) (:wat/core/+ x y))"#
+                r#"(:wat::core::let (((x :i64) 2) ((y :i64) 3)) (:wat::core::+ x y))"#
             )
             .unwrap(),
             Value::Int(5)
@@ -1452,7 +1452,7 @@ mod tests {
         // Inner let shadows the outer x.
         assert!(matches!(
             eval_expr(
-                r#"(:wat/core/let (((x :i64) 1)) (:wat/core/let (((x :i64) 100)) x))"#
+                r#"(:wat::core::let (((x :i64) 1)) (:wat::core::let (((x :i64) 100)) x))"#
             )
             .unwrap(),
             Value::Int(100)
@@ -1463,7 +1463,7 @@ mod tests {
     fn untyped_let_binding_rejected() {
         // The old `(name rhs)` shape is no longer legal; every binding
         // must declare its type via `((name :Type) rhs)`.
-        let err = eval_expr(r#"(:wat/core/let ((x 1)) x)"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::core::let ((x 1)) x)"#).unwrap_err();
         assert!(matches!(err, RuntimeError::MalformedForm { .. }));
     }
 
@@ -1471,7 +1471,7 @@ mod tests {
     fn let_binding_with_any_type_rejected() {
         // :Any is banned by parse_type_expr; a let binding declaring
         // :Any halts with a typed-form error.
-        let err = eval_expr(r#"(:wat/core/let (((x :Any) 1)) x)"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::core::let (((x :Any) 1)) x)"#).unwrap_err();
         assert!(matches!(err, RuntimeError::MalformedForm { .. }));
     }
 
@@ -1481,9 +1481,9 @@ mod tests {
     fn define_and_call() {
         let result = run(
             r#"
-            (:wat/core/define (:my/app/inc (x :i64) -> :i64)
-              (:wat/core/+ x 1))
-            (:my/app/inc 41)
+            (:wat::core::define (:my::app::inc (x :i64) -> :i64)
+              (:wat::core::+ x 1))
+            (:my::app::inc 41)
             "#,
         )
         .unwrap();
@@ -1494,11 +1494,11 @@ mod tests {
     fn define_recursive_factorial() {
         let result = run(
             r#"
-            (:wat/core/define (:my/app/fact (n :i64) -> :i64)
-              (:wat/core/if (:wat/core/= n 0)
+            (:wat::core::define (:my::app::fact (n :i64) -> :i64)
+              (:wat::core::if (:wat::core::= n 0)
                   1
-                  (:wat/core/* n (:my/app/fact (:wat/core/- n 1)))))
-            (:my/app/fact 5)
+                  (:wat::core::* n (:my::app::fact (:wat::core::- n 1)))))
+            (:my::app::fact 5)
             "#,
         )
         .unwrap();
@@ -1508,7 +1508,7 @@ mod tests {
     #[test]
     fn reserved_prefix_define_rejected() {
         let err = run(
-            r#"(:wat/core/define (:wat/algebra/Bogus (x :i64) -> :i64) x)"#,
+            r#"(:wat::core::define (:wat::algebra::Bogus (x :i64) -> :i64) x)"#,
         )
         .unwrap_err();
         assert!(matches!(err, RuntimeError::ReservedPrefix(_)));
@@ -1518,8 +1518,8 @@ mod tests {
     fn duplicate_define_rejected() {
         let err = run(
             r#"
-            (:wat/core/define (:foo (x :i64) -> :i64) x)
-            (:wat/core/define (:foo (x :i64) -> :i64) (:wat/core/+ x 1))
+            (:wat::core::define (:foo (x :i64) -> :i64) x)
+            (:wat::core::define (:foo (x :i64) -> :i64) (:wat::core::+ x 1))
             "#,
         )
         .unwrap_err();
@@ -1529,7 +1529,7 @@ mod tests {
     #[test]
     fn undefined_function_errors() {
         assert!(matches!(
-            eval_expr("(:my/app/missing 1)"),
+            eval_expr("(:my::app::missing 1)"),
             Err(RuntimeError::UnknownFunction(_))
         ));
     }
@@ -1540,8 +1540,8 @@ mod tests {
     fn lambda_as_value() {
         // The lambda produces a callable; invoking it inline.
         let result = eval_expr(
-            r#"((:wat/core/lambda ((x :i64) (y :i64) -> :i64)
-                  (:wat/core/+ x y))
+            r#"((:wat::core::lambda ((x :i64) (y :i64) -> :i64)
+                  (:wat::core::+ x y))
                 3 4)"#,
         )
         .unwrap();
@@ -1551,10 +1551,10 @@ mod tests {
     #[test]
     fn closure_captures_let_binding() {
         let result = eval_expr(
-            r#"(:wat/core/let
+            r#"(:wat::core::let
                  (((adder :fn(i64)->i64)
-                   (:wat/core/lambda ((x :i64) -> :i64)
-                     (:wat/core/+ x 10))))
+                   (:wat::core::lambda ((x :i64) -> :i64)
+                     (:wat::core::+ x 10))))
                  (adder 5))"#,
         )
         .unwrap();
@@ -1566,11 +1566,11 @@ mod tests {
         // The lambda captures `n` from the outer let; even when invoked
         // from a deeper scope, it sees the captured value.
         let result = eval_expr(
-            r#"(:wat/core/let (((n :i64) 100))
-                 (:wat/core/let (((f :fn(i64)->i64)
-                                  (:wat/core/lambda ((x :i64) -> :i64)
-                                    (:wat/core/+ x n))))
-                   (:wat/core/let (((n :i64) 999))
+            r#"(:wat::core::let (((n :i64) 100))
+                 (:wat::core::let (((f :fn(i64)->i64)
+                                  (:wat::core::lambda ((x :i64) -> :i64)
+                                    (:wat::core::+ x n))))
+                   (:wat::core::let (((n :i64) 999))
                      (f 1))))"#,
         )
         .unwrap();
@@ -1582,7 +1582,7 @@ mod tests {
 
     #[test]
     fn algebra_atom_from_literal() {
-        let v = eval_expr(r#"(:wat/algebra/Atom "role")"#).unwrap();
+        let v = eval_expr(r#"(:wat::algebra::Atom "role")"#).unwrap();
         assert!(matches!(v, Value::Holon(_)));
     }
 
@@ -1590,7 +1590,7 @@ mod tests {
     fn algebra_atom_from_bound_variable() {
         // (Atom x) where x is a let-bound integer — runtime construction.
         let v = eval_expr(
-            r#"(:wat/core/let (((x :i64) 42)) (:wat/algebra/Atom x))"#,
+            r#"(:wat::core::let (((x :i64) 42)) (:wat::algebra::Atom x))"#,
         )
         .unwrap();
         match v {
@@ -1605,9 +1605,9 @@ mod tests {
     #[test]
     fn algebra_bind_composes_holons() {
         let v = eval_expr(
-            r#"(:wat/algebra/Bind
-                 (:wat/algebra/Atom "role")
-                 (:wat/algebra/Atom "filler"))"#,
+            r#"(:wat::algebra::Bind
+                 (:wat::algebra::Atom "role")
+                 (:wat::algebra::Atom "filler"))"#,
         )
         .unwrap();
         assert!(matches!(v, Value::Holon(_)));
@@ -1616,11 +1616,11 @@ mod tests {
     #[test]
     fn algebra_bundle_via_list_ctor() {
         let v = eval_expr(
-            r#"(:wat/algebra/Bundle
-                 (:wat/core/list
-                   (:wat/algebra/Atom "a")
-                   (:wat/algebra/Atom "b")
-                   (:wat/algebra/Atom "c")))"#,
+            r#"(:wat::algebra::Bundle
+                 (:wat::core::list
+                   (:wat::algebra::Atom "a")
+                   (:wat::algebra::Atom "b")
+                   (:wat::algebra::Atom "c")))"#,
         )
         .unwrap();
         assert!(matches!(v, Value::Holon(_)));
@@ -1630,11 +1630,11 @@ mod tests {
     fn algebra_blend_with_runtime_weight() {
         // Weight computed at runtime via arithmetic.
         let v = eval_expr(
-            r#"(:wat/algebra/Blend
-                 (:wat/algebra/Atom "x")
-                 (:wat/algebra/Atom "y")
+            r#"(:wat::algebra::Blend
+                 (:wat::algebra::Atom "x")
+                 (:wat::algebra::Atom "y")
                  1
-                 (:wat/core/- 0 1))"#,
+                 (:wat::core::- 0 1))"#,
         )
         .unwrap();
         assert!(matches!(v, Value::Holon(_)));
@@ -1643,7 +1643,7 @@ mod tests {
     #[test]
     fn algebra_bundle_non_list_rejected() {
         let err = eval_expr(
-            r#"(:wat/algebra/Bundle (:wat/algebra/Atom "a"))"#,
+            r#"(:wat::algebra::Bundle (:wat::algebra::Atom "a"))"#,
         )
         .unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
@@ -1656,11 +1656,11 @@ mod tests {
         // A small program that defines a helper and uses it to build a Holon.
         let result = run(
             r#"
-            (:wat/core/define (:my/app/encode-pair (a :String) (b :String) -> :Holon)
-              (:wat/algebra/Bind
-                (:wat/algebra/Atom a)
-                (:wat/algebra/Atom b)))
-            (:my/app/encode-pair "role" "filler")
+            (:wat::core::define (:my::app::encode-pair (a :String) (b :String) -> :Holon)
+              (:wat::algebra::Bind
+                (:wat::algebra::Atom a)
+                (:wat::algebra::Atom b)))
+            (:my::app::encode-pair "role" "filler")
             "#,
         )
         .unwrap();

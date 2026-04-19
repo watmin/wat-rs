@@ -19,8 +19,8 @@
 //!   literals, comments.
 //! - [`parser`] — tokens → `WatAST`.
 //! - [`config`] — entry-file discipline + `set-*!` setter commit.
-//! - [`load`] — recursive load-form resolution with `:wat/load/*` and
-//!   `:wat/verify/*` interface keywords.
+//! - [`load`] — recursive load-form resolution with `:wat::load::*` and
+//!   `:wat::verify::*` interface keywords.
 //! - [`identifier`] — `Identifier` with `BTreeSet<ScopeId>` scope sets
 //!   for Racket sets-of-scopes hygiene.
 //! - [`macros`] — `defmacro` with quasiquote + hygiene.
@@ -127,7 +127,7 @@ impl From<LowerError> for Error {
 /// let se = ScalarEncoder::with_seed(1_024, 42);
 /// let reg = AtomTypeRegistry::with_builtins();
 ///
-/// let src = r#"(:wat/algebra/Bind (:wat/algebra/Atom "role") (:wat/algebra/Atom "filler"))"#;
+/// let src = r#"(:wat::algebra::Bind (:wat::algebra::Atom "role") (:wat::algebra::Atom "filler"))"#;
 /// let vector = eval_algebra_source(src, &vm, &se, &reg).unwrap();
 /// assert_eq!(vector.dimensions(), 1_024);
 /// ```

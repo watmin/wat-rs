@@ -3,7 +3,7 @@
 //! Recursive descent over the s-expression grammar. Produces a uniform
 //! `WatAST` tree: literals are their respective variants, keywords and
 //! symbols are leaves, parenthesized forms are `List` nodes. Dispatch
-//! on head keyword (`:wat/core/define`, `:wat/algebra/...`, etc.)
+//! on head keyword (`:wat::core::define`, `:wat::algebra::...`, etc.)
 //! happens at later passes, not here.
 //!
 //! Two entry points:
@@ -125,14 +125,14 @@ impl<'a> Cursor<'a> {
             Token::Str(s) => Ok(Some(WatAST::StringLit(s.clone()))),
             Token::Keyword(k) => Ok(Some(WatAST::Keyword(k.clone()))),
             Token::Symbol(s) => Ok(Some(WatAST::Symbol(Identifier::bare(s.clone())))),
-            Token::Quasiquote => self.parse_reader_macro(":wat/core/quasiquote"),
-            Token::Unquote => self.parse_reader_macro(":wat/core/unquote"),
-            Token::UnquoteSplicing => self.parse_reader_macro(":wat/core/unquote-splicing"),
+            Token::Quasiquote => self.parse_reader_macro(":wat::core::quasiquote"),
+            Token::Unquote => self.parse_reader_macro(":wat::core::unquote"),
+            Token::UnquoteSplicing => self.parse_reader_macro(":wat::core::unquote-splicing"),
         }
     }
 
     /// A reader macro (`` ` `` / `,` / `,@`) wraps the following form.
-    /// `` `X `` → `(:wat/core/quasiquote X)`, etc.
+    /// `` `X `` → `(:wat::core::quasiquote X)`, etc.
     fn parse_reader_macro(&mut self, head_keyword: &str) -> Result<Option<WatAST>, ParseError> {
         let inner = self.parse_form()?.ok_or(ParseError::Empty)?;
         Ok(Some(WatAST::List(vec![
@@ -221,19 +221,19 @@ mod tests {
     #[test]
     fn algebra_core_atom() {
         assert_eq!(
-            parse_one(r#"(:wat/algebra/Atom "role")"#).unwrap(),
-            list(vec![kw(":wat/algebra/Atom"), str_lit("role")])
+            parse_one(r#"(:wat::algebra::Atom "role")"#).unwrap(),
+            list(vec![kw(":wat::algebra::Atom"), str_lit("role")])
         );
     }
 
     #[test]
     fn algebra_core_bind_with_atoms() {
         // The MVP target shape.
-        let src = r#"(:wat/algebra/Bind (:wat/algebra/Atom "role") (:wat/algebra/Atom "filler"))"#;
+        let src = r#"(:wat::algebra::Bind (:wat::algebra::Atom "role") (:wat::algebra::Atom "filler"))"#;
         let expected = list(vec![
-            kw(":wat/algebra/Bind"),
-            list(vec![kw(":wat/algebra/Atom"), str_lit("role")]),
-            list(vec![kw(":wat/algebra/Atom"), str_lit("filler")]),
+            kw(":wat::algebra::Bind"),
+            list(vec![kw(":wat::algebra::Atom"), str_lit("role")]),
+            list(vec![kw(":wat::algebra::Atom"), str_lit("filler")]),
         ]);
         assert_eq!(parse_one(src).unwrap(), expected);
     }
@@ -241,9 +241,9 @@ mod tests {
     #[test]
     fn algebra_core_thermometer() {
         assert_eq!(
-            parse_one("(:wat/algebra/Thermometer 0.5 0.0 1.0)").unwrap(),
+            parse_one("(:wat::algebra::Thermometer 0.5 0.0 1.0)").unwrap(),
             list(vec![
-                kw(":wat/algebra/Thermometer"),
+                kw(":wat::algebra::Thermometer"),
                 WatAST::FloatLit(0.5),
                 WatAST::FloatLit(0.0),
                 WatAST::FloatLit(1.0),
@@ -254,9 +254,9 @@ mod tests {
     #[test]
     fn algebra_core_blend_negative_weight() {
         assert_eq!(
-            parse_one("(:wat/algebra/Blend a b 1 -1)").unwrap(),
+            parse_one("(:wat::algebra::Blend a b 1 -1)").unwrap(),
             list(vec![
-                kw(":wat/algebra/Blend"),
+                kw(":wat::algebra::Blend"),
                 sym("a"),
                 sym("b"),
                 WatAST::IntLit(1),
@@ -269,11 +269,11 @@ mod tests {
     fn define_signature_shape() {
         // Just verifying the shape survives parsing as a uniform List.
         // Dispatch to a Define node happens in a later pass.
-        let src = "(:wat/core/define (:my/app/amplify (x :Holon) (y :Holon) (s :f64) -> :Holon) (:wat/algebra/Blend x y 1 s))";
+        let src = "(:wat::core::define (:my::app::amplify (x :Holon) (y :Holon) (s :f64) -> :Holon) (:wat::algebra::Blend x y 1 s))";
         let parsed = parse_one(src).unwrap();
-        // First child must be the :wat/core/define keyword.
+        // First child must be the :wat::core::define keyword.
         if let WatAST::List(items) = &parsed {
-            assert_eq!(items[0], kw(":wat/core/define"));
+            assert_eq!(items[0], kw(":wat::core::define"));
         } else {
             panic!("expected top-level List");
         }
@@ -283,8 +283,8 @@ mod tests {
     fn parse_all_multiple_forms() {
         let forms = parse_all(
             r#"
-            (:wat/config/set-dims! 10000)
-            (:wat/core/load! "wat/std/Subtract.wat")
+            (:wat::config::set-dims! 10000)
+            (:wat::core::load! "wat/std/Subtract.wat")
             "#,
         )
         .unwrap();
@@ -396,15 +396,15 @@ mod tests {
     fn quasiquote_wraps_following_form() {
         assert_eq!(
             parse_one("`foo").unwrap(),
-            list(vec![kw(":wat/core/quasiquote"), sym("foo")])
+            list(vec![kw(":wat::core::quasiquote"), sym("foo")])
         );
     }
 
     #[test]
     fn quasiquote_over_list() {
-        // `(a b c) → (:wat/core/quasiquote (a b c))
+        // `(a b c) → (:wat::core::quasiquote (a b c))
         let expected = list(vec![
-            kw(":wat/core/quasiquote"),
+            kw(":wat::core::quasiquote"),
             list(vec![sym("a"), sym("b"), sym("c")]),
         ]);
         assert_eq!(parse_one("`(a b c)").unwrap(), expected);
@@ -414,7 +414,7 @@ mod tests {
     fn unquote_wraps_following_form() {
         assert_eq!(
             parse_one(",x").unwrap(),
-            list(vec![kw(":wat/core/unquote"), sym("x")])
+            list(vec![kw(":wat::core::unquote"), sym("x")])
         );
     }
 
@@ -422,23 +422,23 @@ mod tests {
     fn unquote_splicing_wraps_following_form() {
         assert_eq!(
             parse_one(",@xs").unwrap(),
-            list(vec![kw(":wat/core/unquote-splicing"), sym("xs")])
+            list(vec![kw(":wat::core::unquote-splicing"), sym("xs")])
         );
     }
 
     #[test]
     fn quasiquote_with_unquote_inside() {
-        // `(:wat/algebra/Bind ,x ,y) — classic macro template shape.
+        // `(:wat::algebra::Bind ,x ,y) — classic macro template shape.
         let expected = list(vec![
-            kw(":wat/core/quasiquote"),
+            kw(":wat::core::quasiquote"),
             list(vec![
-                kw(":wat/algebra/Bind"),
-                list(vec![kw(":wat/core/unquote"), sym("x")]),
-                list(vec![kw(":wat/core/unquote"), sym("y")]),
+                kw(":wat::algebra::Bind"),
+                list(vec![kw(":wat::core::unquote"), sym("x")]),
+                list(vec![kw(":wat::core::unquote"), sym("y")]),
             ]),
         ]);
         assert_eq!(
-            parse_one("`(:wat/algebra/Bind ,x ,y)").unwrap(),
+            parse_one("`(:wat::algebra::Bind ,x ,y)").unwrap(),
             expected
         );
     }
@@ -446,14 +446,14 @@ mod tests {
     #[test]
     fn quasiquote_with_unquote_splicing_inside() {
         let expected = list(vec![
-            kw(":wat/core/quasiquote"),
+            kw(":wat::core::quasiquote"),
             list(vec![
-                kw(":wat/algebra/Bundle"),
-                list(vec![kw(":wat/core/unquote-splicing"), sym("xs")]),
+                kw(":wat::algebra::Bundle"),
+                list(vec![kw(":wat::core::unquote-splicing"), sym("xs")]),
             ]),
         ]);
         assert_eq!(
-            parse_one("`(:wat/algebra/Bundle ,@xs)").unwrap(),
+            parse_one("`(:wat::algebra::Bundle ,@xs)").unwrap(),
             expected
         );
     }

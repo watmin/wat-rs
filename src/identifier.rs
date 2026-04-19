@@ -23,9 +23,9 @@
 //!
 //! # Keywords do not need scopes
 //!
-//! Keyword tokens (`:wat/core/define`, `:my/app/foo`) are fully-
-//! qualified paths. A macro introducing `:my/macro/tmp` cannot collide
-//! with user code's `:my/app/tmp` because the paths differ. Hygiene
+//! Keyword tokens (`:wat::core::define`, `:my::app::foo`) are fully-
+//! qualified paths. A macro introducing `:my::macro::tmp` cannot collide
+//! with user code's `:my::app::tmp` because the paths differ. Hygiene
 //! only attaches to `WatAST::Symbol`.
 
 use std::collections::BTreeSet;

@@ -40,7 +40,7 @@
 //!
 //! - **Reader macros** — `` ` `` (quasiquote), `,` (unquote), `,@`
 //!   (unquote-splicing). The parser rewrites each to a list-form with
-//!   a `:wat/core/quasiquote` / `:wat/core/unquote` / `:wat/core/unquote-splicing`
+//!   a `:wat::core::quasiquote` / `:wat::core::unquote` / `:wat::core::unquote-splicing`
 //!   head, so downstream passes see uniform `List` nodes.
 //!
 //! Future extensions (not in MVP): character literals `#\a`,
@@ -68,13 +68,13 @@ pub enum Token {
     /// Bare identifier.
     Symbol(String),
     /// Quasiquote `` ` `` reader macro. Parser rewrites to
-    /// `(:wat/core/quasiquote X)` wrapping the following form.
+    /// `(:wat::core::quasiquote X)` wrapping the following form.
     Quasiquote,
     /// Unquote `,` reader macro. Parser rewrites to
-    /// `(:wat/core/unquote X)`.
+    /// `(:wat::core::unquote X)`.
     Unquote,
     /// Unquote-splicing `,@` reader macro. Parser rewrites to
-    /// `(:wat/core/unquote-splicing X)`.
+    /// `(:wat::core::unquote-splicing X)`.
     UnquoteSplicing,
 }
 
@@ -456,8 +456,8 @@ mod tests {
     #[test]
     fn keyword_path() {
         assert_eq!(
-            lex(":wat/algebra/Atom").unwrap(),
-            vec![Token::Keyword(":wat/algebra/Atom".into())]
+            lex(":wat::algebra::Atom").unwrap(),
+            vec![Token::Keyword(":wat::algebra::Atom".into())]
         );
     }
 
@@ -571,11 +571,11 @@ mod tests {
 
     #[test]
     fn keyword_gt_operator_path() {
-        // `:wat/core/>` — the greater-than function at a keyword path.
+        // `:wat::core::>` — the greater-than function at a keyword path.
         // The trailing `>` has no matching `<`, so it's a plain char.
         assert_eq!(
-            lex(":wat/core/>").unwrap(),
-            vec![Token::Keyword(":wat/core/>".into())]
+            lex(":wat::core::>").unwrap(),
+            vec![Token::Keyword(":wat::core::>".into())]
         );
     }
 
@@ -616,18 +616,18 @@ mod tests {
     #[test]
     fn algebra_core_call_tokens() {
         // The MVP target: tokenize the hello-world algebra-core call.
-        let toks = lex(r#"(:wat/algebra/Bind (:wat/algebra/Atom "role") (:wat/algebra/Atom "filler"))"#).unwrap();
+        let toks = lex(r#"(:wat::algebra::Bind (:wat::algebra::Atom "role") (:wat::algebra::Atom "filler"))"#).unwrap();
         assert_eq!(
             toks,
             vec![
                 Token::LParen,
-                Token::Keyword(":wat/algebra/Bind".into()),
+                Token::Keyword(":wat::algebra::Bind".into()),
                 Token::LParen,
-                Token::Keyword(":wat/algebra/Atom".into()),
+                Token::Keyword(":wat::algebra::Atom".into()),
                 Token::Str("role".into()),
                 Token::RParen,
                 Token::LParen,
-                Token::Keyword(":wat/algebra/Atom".into()),
+                Token::Keyword(":wat::algebra::Atom".into()),
                 Token::Str("filler".into()),
                 Token::RParen,
                 Token::RParen,
@@ -637,12 +637,12 @@ mod tests {
 
     #[test]
     fn thermometer_numeric_args() {
-        let toks = lex("(:wat/algebra/Thermometer 0.5 0.0 1.0)").unwrap();
+        let toks = lex("(:wat::algebra::Thermometer 0.5 0.0 1.0)").unwrap();
         assert_eq!(
             toks,
             vec![
                 Token::LParen,
-                Token::Keyword(":wat/algebra/Thermometer".into()),
+                Token::Keyword(":wat::algebra::Thermometer".into()),
                 Token::Float(0.5),
                 Token::Float(0.0),
                 Token::Float(1.0),
@@ -653,12 +653,12 @@ mod tests {
 
     #[test]
     fn blend_with_negative_weight() {
-        let toks = lex("(:wat/algebra/Blend a b 1 -1)").unwrap();
+        let toks = lex("(:wat::algebra::Blend a b 1 -1)").unwrap();
         assert_eq!(
             toks,
             vec![
                 Token::LParen,
-                Token::Keyword(":wat/algebra/Blend".into()),
+                Token::Keyword(":wat::algebra::Blend".into()),
                 Token::Symbol("a".into()),
                 Token::Symbol("b".into()),
                 Token::Int(1),

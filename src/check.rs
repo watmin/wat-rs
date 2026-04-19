@@ -23,9 +23,9 @@
 //! # What this catches today
 //!
 //! - Arity mismatches in user-function and built-in calls at startup.
-//! - Type mismatches: `(:wat/core/+ "hello" 3)`, `(:wat/core/< 1 "x")`
+//! - Type mismatches: `(:wat::core::+ "hello" 3)`, `(:wat::core::< 1 "x")`
 //!   — `<` requires matching operand types.
-//! - Polymorphic failures: `(:wat/core/list 1 "two" 3)` — list
+//! - Polymorphic failures: `(:wat::core::list 1 "two" 3)` — list
 //!   elements must unify to a common element type.
 //! - User-define body vs signature mismatches. Rigid type params
 //!   mean a body of `:i64` in a `∀T. T -> T` signature is rejected.
@@ -172,8 +172,8 @@ impl CheckEnv {
         Self::default()
     }
 
-    /// Build an env with built-in schemes for `:wat/core/*` and
-    /// `:wat/algebra/*` forms, then overlay user-define signatures
+    /// Build an env with built-in schemes for `:wat::core::*` and
+    /// `:wat::algebra::*` forms, then overlay user-define signatures
     /// from `sym`.
     pub fn from_symbols(sym: &SymbolTable) -> Self {
         let mut env = Self::with_builtins();
@@ -311,31 +311,31 @@ fn infer_list(
     if let WatAST::Keyword(k) = head {
         let args = &items[1..];
         match k.as_str() {
-            ":wat/core/if" => return infer_if(args, env, locals, fresh, subst, errors),
-            ":wat/core/let" => return infer_let(args, env, locals, fresh, subst, errors),
-            ":wat/core/list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
-            ":wat/core/and" | ":wat/core/or" => {
+            ":wat::core::if" => return infer_if(args, env, locals, fresh, subst, errors),
+            ":wat::core::let" => return infer_let(args, env, locals, fresh, subst, errors),
+            ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::core::and" | ":wat::core::or" => {
                 return infer_boolean_shortcircuit(args, env, locals, fresh, subst, errors);
             }
-            ":wat/core/lambda" => return infer_lambda(args, env, locals, fresh, subst, errors),
-            ":wat/core/define"
-            | ":wat/core/struct"
-            | ":wat/core/enum"
-            | ":wat/core/newtype"
-            | ":wat/core/typealias"
-            | ":wat/core/defmacro"
-            | ":wat/core/load!"
-            | ":wat/core/digest-load!"
-            | ":wat/core/signed-load!"
-            | ":wat/core/quasiquote"
-            | ":wat/core/unquote"
-            | ":wat/core/unquote-splicing" => {
+            ":wat::core::lambda" => return infer_lambda(args, env, locals, fresh, subst, errors),
+            ":wat::core::define"
+            | ":wat::core::struct"
+            | ":wat::core::enum"
+            | ":wat::core::newtype"
+            | ":wat::core::typealias"
+            | ":wat::core::defmacro"
+            | ":wat::core::load!"
+            | ":wat::core::digest-load!"
+            | ":wat::core::signed-load!"
+            | ":wat::core::quasiquote"
+            | ":wat::core::unquote"
+            | ":wat::core::unquote-splicing" => {
                 // Top-level forms / reader-macro heads don't participate
                 // in expression-level inference.
                 return None;
             }
-            _ if k.starts_with(":wat/config/set-") => return None,
-            _ if k.starts_with(":wat/kernel/") || k.starts_with(":wat/std/") => {
+            _ if k.starts_with(":wat::config::set-") => return None,
+            _ if k.starts_with(":wat::kernel::") || k.starts_with(":wat::std::") => {
                 // Kernel / std paths don't have type schemes in this
                 // slice; still recurse into their args so inner calls
                 // get checked.
@@ -427,7 +427,7 @@ fn infer_if(
                 Some(apply_subst(&t, subst))
             } else {
                 errors.push(CheckError::TypeMismatch {
-                    callee: ":wat/core/if".into(),
+                    callee: ":wat::core::if".into(),
                     param: "branches".into(),
                     expected: format_type(&apply_subst(&t, subst)),
                     got: format_type(&apply_subst(&e, subst)),
@@ -469,7 +469,7 @@ fn infer_let(
         if let Some(rhs_ty) = rhs_ty {
             if unify(&rhs_ty, &declared_type, subst).is_err() {
                 errors.push(CheckError::TypeMismatch {
-                    callee: ":wat/core/let".into(),
+                    callee: ":wat::core::let".into(),
                     param: format!("binding '{}'", name),
                     expected: format_type(&apply_subst(&declared_type, subst)),
                     got: format_type(&apply_subst(&rhs_ty, subst)),
@@ -514,7 +514,7 @@ fn infer_list_constructor(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    // :wat/core/list — `∀T. T* -> List<T>`. All args must unify to a
+    // :wat::core::list — `∀T. T* -> List<T>`. All args must unify to a
     // common element type.
     let elem_var = fresh.fresh();
     for (i, arg) in args.iter().enumerate() {
@@ -522,7 +522,7 @@ fn infer_list_constructor(
         if let Some(arg_ty) = arg_ty {
             if unify(&arg_ty, &elem_var, subst).is_err() {
                 errors.push(CheckError::TypeMismatch {
-                    callee: ":wat/core/list".into(),
+                    callee: ":wat::core::list".into(),
                     param: format!("#{}", i + 1),
                     expected: format_type(&apply_subst(&elem_var, subst)),
                     got: format_type(&apply_subst(&arg_ty, subst)),
@@ -642,7 +642,7 @@ fn infer_boolean_shortcircuit(
         if let Some(arg_ty) = arg_ty {
             if unify(&arg_ty, &TypeExpr::Path(":bool".into()), subst).is_err() {
                 errors.push(CheckError::TypeMismatch {
-                    callee: ":wat/core/and/or".into(),
+                    callee: ":wat::core::and/or".into(),
                     param: format!("#{}", i + 1),
                     expected: ":bool".into(),
                     got: format_type(&apply_subst(&arg_ty, subst)),
@@ -900,7 +900,7 @@ fn register_builtins(env: &mut CheckEnv) {
     let t_var = || TypeExpr::Path(":T".into());
 
     // Arithmetic — i64 × i64 → i64. No implicit promotion.
-    for op in &[":wat/core/+", ":wat/core/-", ":wat/core/*", ":wat/core//"] {
+    for op in &[":wat::core::+", ":wat::core::-", ":wat::core::*", ":wat::core::/"] {
         env.register(
             op.to_string(),
             TypeScheme {
@@ -913,11 +913,11 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Comparison — ∀T. T → T → :bool. Operands must agree.
     for op in &[
-        ":wat/core/=",
-        ":wat/core/<",
-        ":wat/core/>",
-        ":wat/core/<=",
-        ":wat/core/>=",
+        ":wat::core::=",
+        ":wat::core::<",
+        ":wat::core::>",
+        ":wat::core::<=",
+        ":wat::core::>=",
     ] {
         env.register(
             op.to_string(),
@@ -931,7 +931,7 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Boolean negation.
     env.register(
-        ":wat/core/not".into(),
+        ":wat::core::not".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![bool_ty()],
@@ -942,7 +942,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Algebra-core UpperCalls.
     // Atom — ∀T. T → :Holon. Accepts any payload type.
     env.register(
-        ":wat/algebra/Atom".into(),
+        ":wat::algebra::Atom".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![t_var()],
@@ -950,7 +950,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat/algebra/Bind".into(),
+        ":wat::algebra::Bind".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty()],
@@ -959,7 +959,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     // Bundle takes :List<Holon> → :Holon.
     env.register(
-        ":wat/algebra/Bundle".into(),
+        ":wat::algebra::Bundle".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Parametric {
@@ -970,7 +970,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat/algebra/Permute".into(),
+        ":wat::algebra::Permute".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty(), i64_ty()],
@@ -978,7 +978,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat/algebra/Thermometer".into(),
+        ":wat::algebra::Thermometer".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![f64_ty(), f64_ty(), f64_ty()],
@@ -986,7 +986,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat/algebra/Blend".into(),
+        ":wat::algebra::Blend".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty(), f64_ty(), f64_ty()],
@@ -1018,14 +1018,14 @@ mod tests {
 
     #[test]
     fn correct_arity_passes() {
-        assert!(check("(:wat/core/+ 1 2)").is_ok());
-        assert!(check("(:wat/core/not true)").is_ok());
-        assert!(check("(:wat/algebra/Bind (:wat/algebra/Atom 1) (:wat/algebra/Atom 2))").is_ok());
+        assert!(check("(:wat::core::+ 1 2)").is_ok());
+        assert!(check("(:wat::core::not true)").is_ok());
+        assert!(check("(:wat::algebra::Bind (:wat::algebra::Atom 1) (:wat::algebra::Atom 2))").is_ok());
     }
 
     #[test]
     fn too_few_args_rejected() {
-        let err = check("(:wat/core/+ 1)").unwrap_err();
+        let err = check("(:wat::core::+ 1)").unwrap_err();
         assert!(err
             .0
             .iter()
@@ -1034,7 +1034,7 @@ mod tests {
 
     #[test]
     fn too_many_args_rejected() {
-        let err = check("(:wat/core/not true false)").unwrap_err();
+        let err = check("(:wat::core::not true false)").unwrap_err();
         assert!(err
             .0
             .iter()
@@ -1045,19 +1045,19 @@ mod tests {
 
     #[test]
     fn string_to_add_rejected() {
-        let err = check(r#"(:wat/core/+ "hello" 3)"#).unwrap_err();
+        let err = check(r#"(:wat::core::+ "hello" 3)"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
     #[test]
     fn bool_to_add_rejected() {
-        let err = check("(:wat/core/+ true 3)").unwrap_err();
+        let err = check("(:wat::core::+ true 3)").unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
     #[test]
     fn bind_non_holon_rejected() {
-        let err = check("(:wat/algebra/Bind 42 (:wat/algebra/Atom 1))").unwrap_err();
+        let err = check("(:wat::algebra::Bind 42 (:wat::algebra::Atom 1))").unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
@@ -1065,20 +1065,20 @@ mod tests {
 
     #[test]
     fn equality_same_type_passes() {
-        assert!(check("(:wat/core/= 1 2)").is_ok());
-        assert!(check(r#"(:wat/core/= "a" "b")"#).is_ok());
-        assert!(check("(:wat/core/= true false)").is_ok());
+        assert!(check("(:wat::core::= 1 2)").is_ok());
+        assert!(check(r#"(:wat::core::= "a" "b")"#).is_ok());
+        assert!(check("(:wat::core::= true false)").is_ok());
     }
 
     #[test]
     fn equality_mixed_types_rejected() {
-        let err = check(r#"(:wat/core/= 1 "x")"#).unwrap_err();
+        let err = check(r#"(:wat::core::= 1 "x")"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
     #[test]
     fn less_than_mixed_types_rejected() {
-        let err = check(r#"(:wat/core/< 1 "x")"#).unwrap_err();
+        let err = check(r#"(:wat::core::< 1 "x")"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
@@ -1086,13 +1086,13 @@ mod tests {
 
     #[test]
     fn list_same_type_passes() {
-        assert!(check("(:wat/core/list 1 2 3)").is_ok());
-        assert!(check(r#"(:wat/core/list "a" "b")"#).is_ok());
+        assert!(check("(:wat::core::list 1 2 3)").is_ok());
+        assert!(check(r#"(:wat::core::list "a" "b")"#).is_ok());
     }
 
     #[test]
     fn list_mixed_types_rejected() {
-        let err = check(r#"(:wat/core/list 1 "two" 3)"#).unwrap_err();
+        let err = check(r#"(:wat::core::list 1 "two" 3)"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
@@ -1101,9 +1101,9 @@ mod tests {
         // Bundle takes :List<Holon>. A list of (Atom ...) calls
         // returns :List<Holon>, so Bundle(list(Atoms...)) type-checks.
         assert!(check(
-            r#"(:wat/algebra/Bundle (:wat/core/list
-                 (:wat/algebra/Atom 1)
-                 (:wat/algebra/Atom 2)))"#
+            r#"(:wat::algebra::Bundle (:wat::core::list
+                 (:wat::algebra::Atom 1)
+                 (:wat::algebra::Atom 2)))"#
         )
         .is_ok());
     }
@@ -1111,7 +1111,7 @@ mod tests {
     #[test]
     fn bundle_of_list_of_ints_rejected() {
         // Bundle wants :List<Holon>, but this is :List<i64>.
-        let err = check(r#"(:wat/algebra/Bundle (:wat/core/list 1 2 3))"#).unwrap_err();
+        let err = check(r#"(:wat::algebra::Bundle (:wat::core::list 1 2 3))"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
@@ -1120,8 +1120,8 @@ mod tests {
     #[test]
     fn user_define_body_matches_signature() {
         assert!(check(
-            r#"(:wat/core/define (:my/app/add (x :i64) (y :i64) -> :i64)
-                 (:wat/core/+ x y))"#
+            r#"(:wat::core::define (:my::app::add (x :i64) (y :i64) -> :i64)
+                 (:wat::core::+ x y))"#
         )
         .is_ok());
     }
@@ -1129,8 +1129,8 @@ mod tests {
     #[test]
     fn user_define_body_wrong_return_rejected() {
         let err = check(
-            r#"(:wat/core/define (:my/app/add (x :i64) (y :i64) -> :bool)
-                 (:wat/core/+ x y))"#,
+            r#"(:wat::core::define (:my::app::add (x :i64) (y :i64) -> :bool)
+                 (:wat::core::+ x y))"#,
         )
         .unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::ReturnTypeMismatch { .. })));
@@ -1141,7 +1141,7 @@ mod tests {
         // Identity: ∀T. T -> T. Body returns x, which has type T.
         // With rigid type variables, x: T unifies with ret: T.
         assert!(check(
-            r#"(:wat/core/define (:my/app/id<T> (x :T) -> :T) x)"#
+            r#"(:wat::core::define (:my::app::id<T> (x :T) -> :T) x)"#
         )
         .is_ok());
     }
@@ -1151,7 +1151,7 @@ mod tests {
         // Declared ret T; body returns an :i64 constant. Rigid T
         // doesn't unify with :i64.
         let err = check(
-            r#"(:wat/core/define (:my/app/bad<T> (x :T) -> :T) 42)"#,
+            r#"(:wat::core::define (:my::app::bad<T> (x :T) -> :T) 42)"#,
         )
         .unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::ReturnTypeMismatch { .. })));
@@ -1162,7 +1162,7 @@ mod tests {
     #[test]
     fn typed_let_binding_matches_rhs() {
         assert!(check(
-            r#"(:wat/core/let (((x :i64) 42)) (:wat/core/+ x 1))"#
+            r#"(:wat::core::let (((x :i64) 42)) (:wat::core::+ x 1))"#
         )
         .is_ok());
     }
@@ -1171,7 +1171,7 @@ mod tests {
     fn typed_let_binding_wrong_type_rejected() {
         // Declared :i64 but RHS is :String — unification fails.
         let err = check(
-            r#"(:wat/core/let (((x :i64) "hello")) x)"#,
+            r#"(:wat::core::let (((x :i64) "hello")) x)"#,
         )
         .unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
@@ -1180,11 +1180,11 @@ mod tests {
     #[test]
     fn typed_let_binding_multiple() {
         assert!(check(
-            r#"(:wat/core/let
+            r#"(:wat::core::let
                  (((x :i64) 1)
                   ((y :i64) 2)
                   ((z :i64) 3))
-                 (:wat/core/+ (:wat/core/+ x y) z))"#
+                 (:wat::core::+ (:wat::core::+ x y) z))"#
         )
         .is_ok());
     }
@@ -1194,10 +1194,10 @@ mod tests {
         // A lambda bound to a let with :fn(i64)->i64 declaration.
         // Declared type matches lambda's own signature, so it passes.
         assert!(check(
-            r#"(:wat/core/let
+            r#"(:wat::core::let
                  (((doubler :fn(i64)->i64)
-                   (:wat/core/lambda ((x :i64) -> :i64)
-                     (:wat/core/+ x x))))
+                   (:wat::core::lambda ((x :i64) -> :i64)
+                     (:wat::core::+ x x))))
                  true)"#
         )
         .is_ok());
@@ -1207,9 +1207,9 @@ mod tests {
     fn typed_let_binding_lambda_declared_wrong_rejected() {
         // Declared :fn(i64)->bool but lambda produces :fn(i64)->i64.
         let err = check(
-            r#"(:wat/core/let
+            r#"(:wat::core::let
                  (((f :fn(i64)->bool)
-                   (:wat/core/lambda ((x :i64) -> :i64) x)))
+                   (:wat::core::lambda ((x :i64) -> :i64) x)))
                  true)"#,
         )
         .unwrap_err();
@@ -1247,7 +1247,7 @@ mod tests {
 
     #[test]
     fn multiple_errors_reported() {
-        let err = check(r#"(:wat/core/+ "s" 1) (:wat/core/not 42)"#).unwrap_err();
+        let err = check(r#"(:wat::core::+ "s" 1) (:wat::core::not 42)"#).unwrap_err();
         assert!(err.0.len() >= 2, "expected >=2 errors, got {}", err.0.len());
     }
 

@@ -3,23 +3,23 @@
 //! After macro expansion, every keyword-path reference used in call
 //! position must resolve to one of:
 //!
-//! - A known `:wat/core/*` language form (define, lambda, let, if,
+//! - A known `:wat::core::*` language form (define, lambda, let, if,
 //!   the builtin arithmetic / comparison / boolean ops, the list
 //!   constructor, the quasiquote forms, the type-declaration heads,
 //!   `load!`).
-//! - A known `:wat/algebra/*` core form (`Atom`, `Bind`, `Bundle`,
+//! - A known `:wat::algebra::*` core form (`Atom`, `Bind`, `Bundle`,
 //!   `Permute`, `Thermometer`, `Blend`, `cosine`, `dot`).
-//! - A `:wat/kernel/*` primitive (queue / spawn / select / HandlePool /
+//! - A `:wat::kernel::*` primitive (queue / spawn / select / HandlePool /
 //!   signals) — accepted here; runtime not yet implementing kernel.
-//! - A `:wat/std/*` name — accepted here; stdlib macros expand to
+//! - A `:wat::std::*` name — accepted here; stdlib macros expand to
 //!   core forms, but references that didn't expand (e.g., stdlib
 //!   programs) pass through.
-//! - A `:wat/config/*` setter or accessor.
-//! - A `:wat/load/*` interface keyword (source-fetch selector for
+//! - A `:wat::config::*` setter or accessor.
+//! - A `:wat::load::*` interface keyword (source-fetch selector for
 //!   `load!` / `digest-load!` / `signed-load!`).
-//! - A `:wat/verify/*` keyword — either a verification algorithm
-//!   (`:wat/verify/digest-sha256`, `:wat/verify/signed-ed25519`) or a
-//!   payload-fetch interface (`:wat/verify/string`, `:wat/verify/file-path`).
+//! - A `:wat::verify::*` keyword — either a verification algorithm
+//!   (`:wat::verify::digest-sha256`, `:wat::verify::signed-ed25519`) or a
+//!   payload-fetch interface (`:wat::verify::string`, `:wat::verify::file-path`).
 //! - A user-registered `define`-function in the [`SymbolTable`].
 //!
 //! Anything else is an unresolved reference and halts startup with a
@@ -127,7 +127,7 @@ fn check_form(
 fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry) -> bool {
     // Kernel, algebra, std, config, and core prefixes are reserved for
     // the language; accept them as-is. A wrong name under those
-    // prefixes (e.g. :wat/algebra/Bogus) fails DOWNSTREAM at
+    // prefixes (e.g. :wat::algebra::Bogus) fails DOWNSTREAM at
     // runtime or lowering, but the name-resolution pass is scoped
     // to catch "no such namespace" mistakes, not "wrong name inside
     // a known namespace" mistakes. The spec's name-resolution layer
@@ -162,13 +162,13 @@ fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry
 /// prefixes should read this list via [`reserved_prefix_list`] so
 /// the user-facing message stays in sync with [`is_reserved_prefix`].
 pub const RESERVED_PREFIXES: &[&str] = &[
-    ":wat/core/",
-    ":wat/kernel/",
-    ":wat/algebra/",
-    ":wat/std/",
-    ":wat/config/",
-    ":wat/load/",
-    ":wat/verify/",
+    ":wat::core::",
+    ":wat::kernel::",
+    ":wat::algebra::",
+    ":wat::std::",
+    ":wat::config::",
+    ":wat::load::",
+    ":wat::verify::",
 ];
 
 pub fn is_reserved_prefix(keyword: &str) -> bool {
@@ -208,23 +208,23 @@ mod tests {
 
     #[test]
     fn algebra_core_calls_resolve() {
-        assert!(resolve(r#"(:wat/algebra/Atom "x")"#).is_ok());
-        assert!(resolve(r#"(:wat/algebra/Bind (:wat/algebra/Atom "r") (:wat/algebra/Atom "f"))"#).is_ok());
-        assert!(resolve(r#"(:wat/algebra/Bundle (:wat/core/list (:wat/algebra/Atom "a")))"#).is_ok());
+        assert!(resolve(r#"(:wat::algebra::Atom "x")"#).is_ok());
+        assert!(resolve(r#"(:wat::algebra::Bind (:wat::algebra::Atom "r") (:wat::algebra::Atom "f"))"#).is_ok());
+        assert!(resolve(r#"(:wat::algebra::Bundle (:wat::core::list (:wat::algebra::Atom "a")))"#).is_ok());
     }
 
     #[test]
     fn core_arithmetic_resolves() {
-        assert!(resolve(r#"(:wat/core/+ 1 2)"#).is_ok());
-        assert!(resolve(r#"(:wat/core/* (:wat/core/+ 1 2) 3)"#).is_ok());
+        assert!(resolve(r#"(:wat::core::+ 1 2)"#).is_ok());
+        assert!(resolve(r#"(:wat::core::* (:wat::core::+ 1 2) 3)"#).is_ok());
     }
 
     #[test]
     fn user_define_resolves() {
         assert!(resolve(
             r#"
-            (:wat/core/define (:my/app/inc (x :i64) -> :i64) (:wat/core/+ x 1))
-            (:my/app/inc 41)
+            (:wat::core::define (:my::app::inc (x :i64) -> :i64) (:wat::core::+ x 1))
+            (:my::app::inc 41)
             "#,
         )
         .is_ok());
@@ -234,23 +234,23 @@ mod tests {
     fn kernel_and_std_prefixes_accepted() {
         // These aren't implemented yet but shouldn't fail resolution —
         // they're under reserved prefixes that the spec carves out.
-        assert!(resolve(r#"(:wat/kernel/send sender value)"#).is_ok());
-        assert!(resolve(r#"(:wat/std/Subtract a b)"#).is_ok());
+        assert!(resolve(r#"(:wat::kernel::send sender value)"#).is_ok());
+        assert!(resolve(r#"(:wat::std::Subtract a b)"#).is_ok());
     }
 
     #[test]
     fn config_accessors_accepted() {
-        assert!(resolve(r#"(:wat/config/dims)"#).is_ok());
-        assert!(resolve(r#"(:wat/config/set-dims! 4096)"#).is_ok());
+        assert!(resolve(r#"(:wat::config::dims)"#).is_ok());
+        assert!(resolve(r#"(:wat::config::set-dims! 4096)"#).is_ok());
     }
 
     #[test]
     fn nested_references_all_resolve() {
         assert!(resolve(
             r#"
-            (:wat/core/define (:my/app/add-one (x :i64) -> :i64) (:wat/core/+ x 1))
-            (:wat/core/define (:my/app/double (x :i64) -> :i64) (:wat/core/* x 2))
-            (:my/app/add-one (:my/app/double 10))
+            (:wat::core::define (:my::app::add-one (x :i64) -> :i64) (:wat::core::+ x 1))
+            (:wat::core::define (:my::app::double (x :i64) -> :i64) (:wat::core::* x 2))
+            (:my::app::add-one (:my::app::double 10))
             "#,
         )
         .is_ok());
@@ -260,11 +260,11 @@ mod tests {
 
     #[test]
     fn unknown_user_path_rejected() {
-        let err = resolve(r#"(:my/app/missing 1)"#).unwrap_err();
+        let err = resolve(r#"(:my::app::missing 1)"#).unwrap_err();
         match err {
             ResolveError::UnresolvedReferences(refs) => {
                 assert_eq!(refs.len(), 1);
-                assert_eq!(refs[0].path, ":my/app/missing");
+                assert_eq!(refs[0].path, ":my::app::missing");
             }
         }
     }
@@ -273,9 +273,9 @@ mod tests {
     fn multiple_unresolved_reported_together() {
         let err = resolve(
             r#"
-            (:my/app/missing-a 1)
-            (:my/app/missing-b 2)
-            (:wat/core/+ (:my/app/missing-c) (:my/app/missing-d))
+            (:my::app::missing-a 1)
+            (:my::app::missing-b 2)
+            (:wat::core::+ (:my::app::missing-c) (:my::app::missing-d))
             "#,
         )
         .unwrap_err();
@@ -291,10 +291,10 @@ mod tests {
         // Calling a function before it's defined in the same file is OK
         // at startup (all defines register first), but if it's NEVER
         // defined, resolve errors.
-        let err = resolve(r#"(:my/app/never-defined 1)"#).unwrap_err();
+        let err = resolve(r#"(:my::app::never-defined 1)"#).unwrap_err();
         match err {
             ResolveError::UnresolvedReferences(refs) => {
-                assert_eq!(refs[0].path, ":my/app/never-defined");
+                assert_eq!(refs[0].path, ":my::app::never-defined");
             }
         }
     }
@@ -303,24 +303,24 @@ mod tests {
 
     #[test]
     fn reserved_prefix_recognized() {
-        assert!(is_reserved_prefix(":wat/core/define"));
-        assert!(is_reserved_prefix(":wat/kernel/spawn"));
-        assert!(is_reserved_prefix(":wat/algebra/Atom"));
-        assert!(is_reserved_prefix(":wat/std/Subtract"));
-        assert!(is_reserved_prefix(":wat/config/dims"));
-        assert!(is_reserved_prefix(":wat/load/file-path"));
-        assert!(is_reserved_prefix(":wat/load/string"));
-        assert!(is_reserved_prefix(":wat/verify/digest-sha256"));
-        assert!(is_reserved_prefix(":wat/verify/signed-ed25519"));
-        assert!(is_reserved_prefix(":wat/verify/string"));
-        assert!(is_reserved_prefix(":wat/verify/file-path"));
+        assert!(is_reserved_prefix(":wat::core::define"));
+        assert!(is_reserved_prefix(":wat::kernel::spawn"));
+        assert!(is_reserved_prefix(":wat::algebra::Atom"));
+        assert!(is_reserved_prefix(":wat::std::Subtract"));
+        assert!(is_reserved_prefix(":wat::config::dims"));
+        assert!(is_reserved_prefix(":wat::load::file-path"));
+        assert!(is_reserved_prefix(":wat::load::string"));
+        assert!(is_reserved_prefix(":wat::verify::digest-sha256"));
+        assert!(is_reserved_prefix(":wat::verify::signed-ed25519"));
+        assert!(is_reserved_prefix(":wat::verify::string"));
+        assert!(is_reserved_prefix(":wat::verify::file-path"));
     }
 
     #[test]
     fn user_prefix_not_reserved() {
-        assert!(!is_reserved_prefix(":my/app/foo"));
-        assert!(!is_reserved_prefix(":project/market/Candle"));
-        assert!(!is_reserved_prefix(":alice/math/clamp"));
+        assert!(!is_reserved_prefix(":my::app::foo"));
+        assert!(!is_reserved_prefix(":project::market::Candle"));
+        assert!(!is_reserved_prefix(":alice::math::clamp"));
     }
 
     #[test]

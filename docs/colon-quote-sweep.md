@@ -16,12 +16,12 @@ Implication: every wat keyword-path should be a literal Rust path (no translatio
 
 | Current | Rust truth | Reason for change |
 |---|---|---|
-| `:wat/core/load!` | `:wat::core::load!` | `/` was never the Rust separator |
-| `:wat/core/+` | `:wat::core::+` | same |
-| `:wat/core//` | `:wat::core::/` | reads unambiguous — `::` separator, `/` is the name |
+| `:wat::core::load!` | `:wat::core::load!` | `/` was never the Rust separator |
+| `:wat::core::+` | `:wat::core::+` | same |
+| `:wat::core::/` | `:wat::core::/` | reads unambiguous — `::` separator, `/` is the name |
 | `:my/vocab/foo` | `:my::vocab::foo` | user paths too |
 | `:List<T>` | `:Vec<T>` | Rust collection is Vec |
-| `:wat/core/list` | `:wat::core::vec` | Rust constructor is `vec!` / `Vec::new()` |
+| `:wat::core::list` | `:wat::core::vec` | Rust constructor is `vec!` / `Vec::new()` |
 | `:Pair<T,U>` | `:(T,U)` | Rust has no `Pair`; it has tuples |
 | `:Tuple<T,U,V>` | `:(T,U,V)` | same |
 | `:Union<T,U,V>` | named enum required | Rust has no anonymous union; force named enum declaration |
@@ -92,7 +92,7 @@ The named-enum approach is objectively better: every coproduct has a discriminat
 - `RESERVED_PREFIXES` becomes `[":wat::core::", ":wat::kernel::", ":wat::algebra::", ":wat::std::", ":wat::config::", ":wat::load::", ":wat::verify::"]`.
 - Every Rust match arm, every symbol-table key, every scheme registration, every check-pass built-in key, every resolve-pass head, every lower-pass head, every runtime dispatch.
 - Every test's wat-source literal.
-- Division: `:wat/core//` → `:wat::core::/`.
+- Division: `:wat::core::/` → `:wat::core::/`.
 - Atomic commit — can't be split without breaking tests.
 
 ### Track C — Type system honesty
@@ -118,7 +118,7 @@ The named-enum approach is objectively better: every coproduct has a discriminat
 ### Track D — Downstream sweep
 
 **D1: holon-lab-trading wat files (every `wat/*.wat`)**
-- Every `:wat/...` → `:wat::...`.
+- Every `:wat::...` → `:wat::...`.
 - Every user path migrates to `::`.
 - Blocks running under wat-vm until migrated.
 - Ward pass after.

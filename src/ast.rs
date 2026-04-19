@@ -39,14 +39,14 @@ pub enum WatAST {
     /// applied.
     StringLit(String),
 
-    /// Keyword token, as in `:foo`, `:wat/algebra/Atom`,
+    /// Keyword token, as in `:foo`, `:wat::algebra::Atom`,
     /// `:List<Holon>`, `:fn(T,U)->R`. The leading `:` is part of the
     /// stored string. Used both as keyword literals (payloads for wat
     /// keyword atoms) and as keyword-path references (heads of calls,
     /// type annotations). Distinguished by context at later passes.
     ///
     /// Keywords carry no scope tracking — their full-path spelling
-    /// already disambiguates `:my/app/foo` from `:my/macro/foo`.
+    /// already disambiguates `:my::app::foo` from `:my::macro::foo`.
     Keyword(String),
 
     /// Bare identifier, as in `x`, `role`, `tmp`. Used in `let` bindings,

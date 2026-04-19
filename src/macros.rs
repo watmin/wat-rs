@@ -51,11 +51,11 @@ use std::fmt;
 /// A registered macro.
 #[derive(Debug, Clone)]
 pub struct MacroDef {
-    /// Full keyword-path of the macro (e.g. `:wat/std/Subtract`).
+    /// Full keyword-path of the macro (e.g. `:wat::std::Subtract`).
     pub name: String,
     /// Parameter names in order. Macros use positional binding.
     pub params: Vec<String>,
-    /// The template — typically `(:wat/core/quasiquote ...)`.
+    /// The template — typically `(:wat::core::quasiquote ...)`.
     pub body: WatAST,
 }
 
@@ -94,9 +94,9 @@ impl MacroRegistry {
 /// Errors during macro registration / expansion.
 #[derive(Debug)]
 pub enum MacroError {
-    /// Two `(:wat/core/defmacro ...)` forms registered the same name.
+    /// Two `(:wat::core::defmacro ...)` forms registered the same name.
     DuplicateMacro(String),
-    /// A user macro declared under a reserved `:wat/...` prefix.
+    /// A user macro declared under a reserved `:wat::...` prefix.
     ReservedPrefix(String),
     /// A `defmacro` form was malformed.
     MalformedDefmacro { reason: String },
@@ -171,7 +171,7 @@ impl std::error::Error for MacroError {}
 
 const EXPANSION_DEPTH_LIMIT: usize = 512;
 
-/// Walk `forms`, register every `(:wat/core/defmacro ...)` into
+/// Walk `forms`, register every `(:wat::core::defmacro ...)` into
 /// `registry`, and return the remaining forms in order.
 pub fn register_defmacros(
     forms: Vec<WatAST>,
@@ -193,11 +193,11 @@ fn is_defmacro_form(form: &WatAST) -> bool {
     matches!(
         form,
         WatAST::List(items)
-            if matches!(items.first(), Some(WatAST::Keyword(k)) if k == ":wat/core/defmacro")
+            if matches!(items.first(), Some(WatAST::Keyword(k)) if k == ":wat::core::defmacro")
     )
 }
 
-/// Parse `(:wat/core/defmacro (:name/path (p :AST<T>) ... -> :AST<R>) body)`.
+/// Parse `(:wat::core::defmacro (:name::path (p :AST<T>) ... -> :AST<R>) body)`.
 fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     let items = match form {
         WatAST::List(items) => items,
@@ -210,7 +210,7 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     if items.len() != 3 {
         return Err(MacroError::MalformedDefmacro {
             reason: format!(
-                "expected (:wat/core/defmacro signature body); got {} elements",
+                "expected (:wat::core::defmacro signature body); got {} elements",
                 items.len()
             ),
         });
@@ -358,7 +358,7 @@ fn expand_macro_call(
 /// Walk a macro template, substituting `,param` and `,@param` at
 /// unquote sites and adding the macro scope to template-origin symbols.
 ///
-/// The template's top-level form is usually `(:wat/core/quasiquote X)`.
+/// The template's top-level form is usually `(:wat::core::quasiquote X)`.
 /// If it's not a quasiquote, we error (this slice doesn't do arbitrary
 /// macro bodies).
 fn expand_template(
@@ -369,7 +369,7 @@ fn expand_template(
 ) -> Result<WatAST, MacroError> {
     let quasi_body = match template {
         WatAST::List(items) if items.len() == 2 => match items.first() {
-            Some(WatAST::Keyword(k)) if k == ":wat/core/quasiquote" => &items[1],
+            Some(WatAST::Keyword(k)) if k == ":wat::core::quasiquote" => &items[1],
             _ => {
                 return Err(MacroError::UnsupportedBody {
                     name: macro_name.into(),
@@ -399,8 +399,8 @@ fn walk_template(
 ) -> Result<WatAST, MacroError> {
     match form {
         WatAST::List(items) => {
-            // Detect `(:wat/core/unquote X)` — substitute the argument.
-            if let Some(arg) = match_unquote(items, ":wat/core/unquote") {
+            // Detect `(:wat::core::unquote X)` — substitute the argument.
+            if let Some(arg) = match_unquote(items, ":wat::core::unquote") {
                 return unquote_argument(arg, bindings, macro_name);
             }
 
@@ -409,7 +409,7 @@ fn walk_template(
             for child in items {
                 if let WatAST::List(child_items) = child {
                     if let Some(splice_arg) =
-                        match_unquote(child_items, ":wat/core/unquote-splicing")
+                        match_unquote(child_items, ":wat::core::unquote-splicing")
                     {
                         let spliced = splice_argument(splice_arg, bindings, macro_name)?;
                         out.extend(spliced);
@@ -527,18 +527,18 @@ mod tests {
     fn alias_macro_expands_to_primitive() {
         let forms = expand(
             r#"
-            (:wat/core/defmacro (:my/vocab/Concurrent (xs :AST<List<Holon>>) -> :AST<Holon>)
-              `(:wat/algebra/Bundle ,xs))
-            (:my/vocab/Concurrent (:wat/core/list a b c))
+            (:wat::core::defmacro (:my::vocab::Concurrent (xs :AST<List<Holon>>) -> :AST<Holon>)
+              `(:wat::algebra::Bundle ,xs))
+            (:my::vocab::Concurrent (:wat::core::list a b c))
             "#,
         )
         .unwrap();
         assert_eq!(forms.len(), 1);
-        // Expansion: (:wat/algebra/Bundle (:wat/core/list a b c))
+        // Expansion: (:wat::algebra::Bundle (:wat::core::list a b c))
         match &forms[0] {
             WatAST::List(items) => {
                 assert_eq!(items.len(), 2);
-                assert!(matches!(&items[0], WatAST::Keyword(k) if k == ":wat/algebra/Bundle"));
+                assert!(matches!(&items[0], WatAST::Keyword(k) if k == ":wat::algebra::Bundle"));
             }
             _ => panic!("expected List after expansion"),
         }
@@ -550,17 +550,17 @@ mod tests {
     fn subtract_macro_expansion() {
         let forms = expand(
             r#"
-            (:wat/core/defmacro (:my/vocab/Subtract (x :AST<Holon>) (y :AST<Holon>) -> :AST<Holon>)
-              `(:wat/algebra/Blend ,x ,y 1 -1))
-            (:my/vocab/Subtract foo bar)
+            (:wat::core::defmacro (:my::vocab::Subtract (x :AST<Holon>) (y :AST<Holon>) -> :AST<Holon>)
+              `(:wat::algebra::Blend ,x ,y 1 -1))
+            (:my::vocab::Subtract foo bar)
             "#,
         )
         .unwrap();
-        // (:wat/algebra/Blend foo bar 1 -1)
+        // (:wat::algebra::Blend foo bar 1 -1)
         match &forms[0] {
             WatAST::List(items) => {
                 assert_eq!(items.len(), 5);
-                assert!(matches!(&items[0], WatAST::Keyword(k) if k == ":wat/algebra/Blend"));
+                assert!(matches!(&items[0], WatAST::Keyword(k) if k == ":wat::algebra::Blend"));
                 assert!(matches!(&items[1], WatAST::Symbol(i) if i.as_str() == "foo"));
                 assert!(matches!(&items[2], WatAST::Symbol(i) if i.as_str() == "bar"));
                 assert!(matches!(items[3], WatAST::IntLit(1)));
@@ -576,17 +576,17 @@ mod tests {
     fn splice_list_arg_into_template() {
         let forms = expand(
             r#"
-            (:wat/core/defmacro (:my/vocab/SumAll (xs :AST<List<Holon>>) -> :AST<Holon>)
-              `(:wat/algebra/Bundle ,@xs))
-            (:my/vocab/SumAll (a b c))
+            (:wat::core::defmacro (:my::vocab::SumAll (xs :AST<List<Holon>>) -> :AST<Holon>)
+              `(:wat::algebra::Bundle ,@xs))
+            (:my::vocab::SumAll (a b c))
             "#,
         )
         .unwrap();
-        // (:wat/algebra/Bundle a b c) — the list elements are spliced in.
+        // (:wat::algebra::Bundle a b c) — the list elements are spliced in.
         match &forms[0] {
             WatAST::List(items) => {
                 assert_eq!(items.len(), 4);
-                assert!(matches!(&items[0], WatAST::Keyword(k) if k == ":wat/algebra/Bundle"));
+                assert!(matches!(&items[0], WatAST::Keyword(k) if k == ":wat::algebra::Bundle"));
                 assert!(matches!(&items[1], WatAST::Symbol(i) if i.as_str() == "a"));
                 assert!(matches!(&items[2], WatAST::Symbol(i) if i.as_str() == "b"));
                 assert!(matches!(&items[3], WatAST::Symbol(i) if i.as_str() == "c"));
@@ -601,19 +601,19 @@ mod tests {
     fn nested_macro_expands_to_fixpoint() {
         let forms = expand(
             r#"
-            (:wat/core/defmacro (:my/outer (x :AST) -> :AST)
-              `(:my/inner ,x))
-            (:wat/core/defmacro (:my/inner (x :AST) -> :AST)
-              `(:wat/algebra/Atom ,x))
-            (:my/outer 42)
+            (:wat::core::defmacro (:my::outer (x :AST) -> :AST)
+              `(:my::inner ,x))
+            (:wat::core::defmacro (:my::inner (x :AST) -> :AST)
+              `(:wat::algebra::Atom ,x))
+            (:my::outer 42)
             "#,
         )
         .unwrap();
-        // (:wat/algebra/Atom 42) after fixpoint.
+        // (:wat::algebra::Atom 42) after fixpoint.
         match &forms[0] {
             WatAST::List(items) => {
                 assert_eq!(items.len(), 2);
-                assert!(matches!(&items[0], WatAST::Keyword(k) if k == ":wat/algebra/Atom"));
+                assert!(matches!(&items[0], WatAST::Keyword(k) if k == ":wat::algebra::Atom"));
                 assert!(matches!(items[1], WatAST::IntLit(42)));
             }
             _ => panic!("expected List"),
@@ -626,13 +626,13 @@ mod tests {
     fn template_identifier_carries_macro_scope() {
         let forms = expand(
             r#"
-            (:wat/core/defmacro (:my/vocab/WithTmp (body :AST) -> :AST)
-              `(:wat/core/let (((tmp :i64) 1)) ,body))
-            (:my/vocab/WithTmp tmp)
+            (:wat::core::defmacro (:my::vocab::WithTmp (body :AST) -> :AST)
+              `(:wat::core::let (((tmp :i64) 1)) ,body))
+            (:my::vocab::WithTmp tmp)
             "#,
         )
         .unwrap();
-        // Expansion: (:wat/core/let (((tmp[macro-scope] :i64) 1)) tmp[user-empty])
+        // Expansion: (:wat::core::let (((tmp[macro-scope] :i64) 1)) tmp[user-empty])
         // The two `tmp`s must have DIFFERENT Identifiers.
         let list = match &forms[0] {
             WatAST::List(items) => items,
@@ -684,9 +684,9 @@ mod tests {
         // User passes a symbol; the macro should splice it verbatim.
         let forms = expand(
             r#"
-            (:wat/core/defmacro (:my/wrap (v :AST) -> :AST)
-              `(:wat/algebra/Atom ,v))
-            (:my/wrap some-var)
+            (:wat::core::defmacro (:my::wrap (v :AST) -> :AST)
+              `(:wat::algebra::Atom ,v))
+            (:my::wrap some-var)
             "#,
         )
         .unwrap();
@@ -712,10 +712,10 @@ mod tests {
     fn two_macro_invocations_get_distinct_scopes() {
         let forms = expand(
             r#"
-            (:wat/core/defmacro (:my/twice (x :AST) -> :AST)
-              `(:wat/core/let (((t :i64) ,x)) t))
-            (:my/twice 1)
-            (:my/twice 2)
+            (:wat::core::defmacro (:my::twice (x :AST) -> :AST)
+              `(:wat::core::let (((t :i64) ,x)) t))
+            (:my::twice 1)
+            (:my::twice 2)
             "#,
         )
         .unwrap();
@@ -760,7 +760,7 @@ mod tests {
     #[test]
     fn reserved_prefix_macro_rejected() {
         let err = expand(
-            r#"(:wat/core/defmacro (:wat/std/MyMacro (x :AST) -> :AST) `,x)"#,
+            r#"(:wat::core::defmacro (:wat::std::MyMacro (x :AST) -> :AST) `,x)"#,
         )
         .unwrap_err();
         assert!(matches!(err, MacroError::ReservedPrefix(_)));
@@ -770,8 +770,8 @@ mod tests {
     fn duplicate_defmacro_rejected() {
         let err = expand(
             r#"
-            (:wat/core/defmacro (:my/m (x :AST) -> :AST) `,x)
-            (:wat/core/defmacro (:my/m (x :AST) -> :AST) `,x)
+            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `,x)
+            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `,x)
             "#,
         )
         .unwrap_err();
@@ -782,9 +782,9 @@ mod tests {
     fn macro_arity_mismatch() {
         let err = expand(
             r#"
-            (:wat/core/defmacro (:my/two (x :AST) (y :AST) -> :AST)
-              `(:wat/core/list ,x ,y))
-            (:my/two 1)
+            (:wat::core::defmacro (:my::two (x :AST) (y :AST) -> :AST)
+              `(:wat::core::list ,x ,y))
+            (:my::two 1)
             "#,
         )
         .unwrap_err();
@@ -797,9 +797,9 @@ mod tests {
         // evaluate arbitrary macro bodies.
         let err = expand(
             r#"
-            (:wat/core/defmacro (:my/m (x :AST) -> :AST)
-              (:wat/core/list :bogus x))
-            (:my/m 1)
+            (:wat::core::defmacro (:my::m (x :AST) -> :AST)
+              (:wat::core::list :bogus x))
+            (:my::m 1)
             "#,
         )
         .unwrap_err();
@@ -810,9 +810,9 @@ mod tests {
     fn splice_non_list_arg_rejected() {
         let err = expand(
             r#"
-            (:wat/core/defmacro (:my/s (xs :AST) -> :AST)
-              `(:wat/core/list ,@xs))
-            (:my/s 42)
+            (:wat::core::defmacro (:my::s (xs :AST) -> :AST)
+              `(:wat::core::list ,@xs))
+            (:my::s 42)
             "#,
         )
         .unwrap_err();
@@ -823,7 +823,7 @@ mod tests {
 
     #[test]
     fn non_macro_forms_unchanged() {
-        let forms = expand(r#"(:wat/algebra/Atom "hello") 42 "world""#).unwrap();
+        let forms = expand(r#"(:wat::algebra::Atom "hello") 42 "world""#).unwrap();
         assert_eq!(forms.len(), 3);
         assert!(matches!(forms[1], WatAST::IntLit(42)));
         assert!(matches!(&forms[2], WatAST::StringLit(s) if s == "world"));
