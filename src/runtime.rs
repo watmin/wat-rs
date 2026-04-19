@@ -170,6 +170,14 @@ pub enum Value {
     /// here is the Rust host's own Option — wat's `:Option<T>`
     /// compiles to it directly.
     Option(Arc<std::option::Option<Value>>),
+    /// An `n`-tuple — `:(T1,T2,...,Tn)`. Distinct from [`Value::Vec`]
+    /// at the type level (heterogeneous vs homogeneous). Primarily
+    /// produced by kernel primitives that return pairs
+    /// (`make-bounded-queue`, `make-unbounded-queue`, `spawn`,
+    /// `select`) and destructured in `let` / `let*` via the
+    /// `((a b ...) rhs)` binder shape. The unit type `:()` stays on
+    /// [`Value::Unit`] — tuples start at arity 1.
+    Tuple(Arc<Vec<Value>>),
 }
 
 impl Value {
@@ -188,6 +196,7 @@ impl Value {
             Value::crossbeam_channel__Sender(_) => "crossbeam_channel::Sender",
             Value::crossbeam_channel__Receiver(_) => "crossbeam_channel::Receiver",
             Value::Option(_) => "Option",
+            Value::Tuple(_) => "tuple",
         }
     }
 }
@@ -913,6 +922,8 @@ fn dispatch_keyword_head(
         ":wat::core::quote" => eval_quote(args),
         ":wat::core::atom-value" => eval_atom_value(args, env, sym),
         ":wat::core::match" => eval_match(args, env, sym),
+        ":wat::core::first" => eval_tuple_accessor(args, env, sym, ":wat::core::first", 0),
+        ":wat::core::second" => eval_tuple_accessor(args, env, sym, ":wat::core::second", 1),
 
         // Arithmetic
         ":wat::core::+" => eval_arith(head, args, env, sym, |a, b| Ok(a + b), |a, b| Ok(a + b)),
@@ -1138,12 +1149,22 @@ fn eval_let(
 
     let mut builder = env.child();
     for pair in binding_pairs {
-        let (name, _declared_type, rhs) = parse_let_binding(pair)?;
-        // Runtime ignores the declared type — type checking ran before
-        // eval. Parsing it here enforces the grammar: an untyped
-        // binding like `(x 42)` halts here rather than being allowed.
-        let value = eval(rhs, env, sym)?; // eval in OUTER env, not cumulative let*
-        builder = builder.bind(name, value);
+        let binding = parse_let_binding(pair)?;
+        match binding {
+            LetBinding::Single { name, rhs, .. } => {
+                // Runtime ignores the declared type — type checking ran
+                // before eval. Parsing it here enforces the grammar.
+                let value = eval(rhs, env, sym)?; // eval in OUTER env, not cumulative let*
+                builder = builder.bind(name, value);
+            }
+            LetBinding::Destructure { names, rhs } => {
+                let value = eval(rhs, env, sym)?;
+                let elements = destructure_tuple(&value, names.len(), ":wat::core::let")?;
+                for (name, elem) in names.into_iter().zip(elements.into_iter()) {
+                    builder = builder.bind(name, elem);
+                }
+            }
+        }
     }
     let scope = builder.build();
     eval(body, &scope, sym)
@@ -1190,11 +1211,54 @@ fn eval_let_star(
     // RHS evaluates, so subsequent bindings can reference earlier ones.
     let mut scope = env.clone();
     for pair in binding_pairs {
-        let (name, _declared_type, rhs) = parse_let_binding(pair)?;
-        let value = eval(rhs, &scope, sym)?;
-        scope = scope.child().bind(name, value).build();
+        let binding = parse_let_binding(pair)?;
+        match binding {
+            LetBinding::Single { name, rhs, .. } => {
+                let value = eval(rhs, &scope, sym)?;
+                scope = scope.child().bind(name, value).build();
+            }
+            LetBinding::Destructure { names, rhs } => {
+                let value = eval(rhs, &scope, sym)?;
+                let elements = destructure_tuple(&value, names.len(), ":wat::core::let*")?;
+                let mut builder = scope.child();
+                for (name, elem) in names.into_iter().zip(elements.into_iter()) {
+                    builder = builder.bind(name, elem);
+                }
+                scope = builder.build();
+            }
+        }
     }
     eval(body, &scope, sym)
+}
+
+/// Verify `value` is a tuple of the expected arity and return its
+/// elements cloned. Used by both `let` and `let*` destructure bindings.
+fn destructure_tuple(
+    value: &Value,
+    expected_arity: usize,
+    op: &str,
+) -> Result<Vec<Value>, RuntimeError> {
+    match value {
+        Value::Tuple(items) => {
+            if items.len() != expected_arity {
+                Err(RuntimeError::MalformedForm {
+                    head: op.into(),
+                    reason: format!(
+                        "destructure arity mismatch: binder has {} names, tuple has {} elements",
+                        expected_arity,
+                        items.len()
+                    ),
+                })
+            } else {
+                Ok((**items).clone())
+            }
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "tuple",
+            got: other.type_name(),
+        }),
+    }
 }
 
 /// Parse a single let binding. Per the typed-let discipline, every
@@ -1205,58 +1269,103 @@ fn eval_let_star(
 /// Returns `(name, declared_type, rhs)`. Declared type is validated
 /// via [`crate::types::parse_type_expr`] so `:Any` and malformed
 /// type expressions are caught at this layer.
-fn parse_let_binding(
-    pair: &WatAST,
-) -> Result<(String, crate::types::TypeExpr, &WatAST), RuntimeError> {
+/// One let / let* binding form.
+///
+/// Two spec'd shapes:
+///
+/// - **Single, typed** — `((name :Type) rhs)`. The canonical form:
+///   every single binding declares its type. Used throughout the
+///   startup pipeline's code paths.
+/// - **Destructure** — `((a b c ...) rhs)`. RHS must evaluate to a
+///   tuple of matching arity; each element binds to the matching name
+///   in the outer scope. Names are untyped individually; their types
+///   come from the tuple's element types via inference.
+enum LetBinding<'a> {
+    Single {
+        name: String,
+        #[allow(dead_code)]
+        declared_type: crate::types::TypeExpr,
+        rhs: &'a WatAST,
+    },
+    Destructure {
+        names: Vec<String>,
+        rhs: &'a WatAST,
+    },
+}
+
+fn parse_let_binding(pair: &WatAST) -> Result<LetBinding<'_>, RuntimeError> {
     let kv = match pair {
         WatAST::List(items) if items.len() == 2 => items,
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
                 reason: format!(
-                    "each binding must be ((name :Type) rhs); got {}",
+                    "each binding must be ((name :Type) rhs) or ((a b ...) rhs); got {}",
                     ast_variant_name(other)
                 ),
             });
         }
     };
-    let typed_name = match &kv[0] {
-        WatAST::List(inner) if inner.len() == 2 => inner,
+    let binder = match &kv[0] {
+        WatAST::List(inner) => inner,
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
                 reason: format!(
-                    "binding's name-and-type must be (name :Type); got {}. Every let binding declares its type — no untyped form.",
+                    "binding's binder must be a list; got {}",
                     ast_variant_name(other)
                 ),
             });
         }
     };
-    let name = match &typed_name[0] {
-        WatAST::Symbol(ident) => ident.name.clone(),
-        other => {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::let".into(),
-                reason: format!(
-                    "binding name must be a bare symbol; got {}",
-                    ast_variant_name(other)
-                ),
-            });
+    // Distinguish typed-single from destructure by checking the shape
+    // of the inner list. Typed-single is exactly `(symbol keyword)` —
+    // a bare symbol followed by a type keyword. Anything else is
+    // destructure (list of bare symbols).
+    let is_typed_single = binder.len() == 2
+        && matches!(&binder[0], WatAST::Symbol(_))
+        && matches!(&binder[1], WatAST::Keyword(_));
+    if is_typed_single {
+        let name = match &binder[0] {
+            WatAST::Symbol(ident) => ident.name.clone(),
+            _ => unreachable!(),
+        };
+        let declared_type = match &binder[1] {
+            WatAST::Keyword(k) => parse_type_keyword(k)?,
+            _ => unreachable!(),
+        };
+        return Ok(LetBinding::Single {
+            name,
+            declared_type,
+            rhs: &kv[1],
+        });
+    }
+    // Destructure: every binder element must be a bare symbol.
+    let mut names = Vec::with_capacity(binder.len());
+    for item in binder {
+        match item {
+            WatAST::Symbol(ident) => names.push(ident.name.clone()),
+            other => {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::let".into(),
+                    reason: format!(
+                        "destructure binder must be a list of bare symbols; got {}",
+                        ast_variant_name(other)
+                    ),
+                });
+            }
         }
-    };
-    let declared_type = match &typed_name[1] {
-        WatAST::Keyword(k) => parse_type_keyword(k)?,
-        other => {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::let".into(),
-                reason: format!(
-                    "binding type must be a type keyword; got {}",
-                    ast_variant_name(other)
-                ),
-            });
-        }
-    };
-    Ok((name, declared_type, &kv[1]))
+    }
+    if names.is_empty() {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::let".into(),
+            reason: "destructure binder cannot be empty — at least one name is required".into(),
+        });
+    }
+    Ok(LetBinding::Destructure {
+        names,
+        rhs: &kv[1],
+    })
 }
 
 fn eval_if(
@@ -1457,6 +1566,47 @@ fn eval_quote(args: &[WatAST]) -> Result<Value, RuntimeError> {
         });
     }
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
+}
+
+/// `(:wat::core::first tuple)` / `(:wat::core::second tuple)` —
+/// positional tuple accessors. Arity 1; tuple arg must have at least
+/// `index + 1` elements. Returns the element at `index`, cloned.
+///
+/// Scoped to `first` / `second` in this slice; higher-arity tuple
+/// indexing graduates when a use case demands it (for all substrate
+/// primitives shipped today the returned tuples are pairs).
+fn eval_tuple_accessor(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    op: &'static str,
+    index: usize,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: op.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    match v {
+        Value::Tuple(items) => items.get(index).cloned().ok_or_else(|| {
+            RuntimeError::MalformedForm {
+                head: op.into(),
+                reason: format!(
+                    "tuple has {} element(s); no element at index {}",
+                    items.len(),
+                    index
+                ),
+            }
+        }),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "tuple",
+            got: other.type_name(),
+        }),
+    }
 }
 
 /// `(Some <expr>)` — tagged constructor of the built-in `:Option<T>`
@@ -3555,5 +3705,80 @@ mod tests {
             Err(RuntimeError::ArityMismatch { .. })
         ));
         reset_user_signals();
+    }
+
+    // ─── Tuples + destructure + first/second ───────────────────────────
+
+    /// Helper: evaluate `src` in an env pre-bound with `name -> value`.
+    fn eval_with_binding(src: &str, name: &str, value: Value) -> Result<Value, RuntimeError> {
+        let ast = parse_one(src).expect("parse ok");
+        let env = Environment::new().child().bind(name, value).build();
+        eval(&ast, &env, &SymbolTable::new())
+    }
+
+    fn pair(a: Value, b: Value) -> Value {
+        Value::Tuple(Arc::new(vec![a, b]))
+    }
+
+    #[test]
+    fn first_extracts_zeroth_element() {
+        let p = pair(Value::i64(10), Value::i64(20));
+        match eval_with_binding("(:wat::core::first pair)", "pair", p).unwrap() {
+            Value::i64(10) => {}
+            v => panic!("expected 10, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn second_extracts_first_element() {
+        let p = pair(Value::i64(10), Value::i64(20));
+        match eval_with_binding("(:wat::core::second pair)", "pair", p).unwrap() {
+            Value::i64(20) => {}
+            v => panic!("expected 20, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn first_refuses_non_tuple() {
+        let err = eval_with_binding("(:wat::core::first v)", "v", Value::i64(42)).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn first_index_out_of_range_on_empty_tuple() {
+        let t = Value::Tuple(Arc::new(vec![]));
+        let err = eval_with_binding("(:wat::core::first t)", "t", t).unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn let_star_destructures_a_pair() {
+        let src = r#"
+            (:wat::core::let* (((a b) p)) (:wat::core::+ a b))
+        "#;
+        let p = pair(Value::i64(3), Value::i64(4));
+        match eval_with_binding(src, "p", p).unwrap() {
+            Value::i64(7) => {}
+            v => panic!("expected 7, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn let_destructure_arity_mismatch_errors() {
+        let src = r#"
+            (:wat::core::let (((a b c) p)) a)
+        "#;
+        let p = pair(Value::i64(1), Value::i64(2));
+        let err = eval_with_binding(src, "p", p).unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn let_destructure_requires_tuple() {
+        let src = r#"
+            (:wat::core::let (((a b) v)) a)
+        "#;
+        let err = eval_with_binding(src, "v", Value::i64(42)).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 }

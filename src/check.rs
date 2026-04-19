@@ -727,38 +727,19 @@ fn infer_let(
         WatAST::List(items) => items,
         _ => return None,
     };
-    // Every let binding is `((name :Type) rhs)` — typed discipline,
-    // no untyped form. The runtime parser also rejects untyped
-    // bindings; the checker trusts that but still verifies declared
-    // type agrees with inferred RHS type.
+    // Each binding is either typed-single `((name :Type) rhs)` or
+    // untyped destructure `((a b ...) rhs)`. Parallel let — all RHSs
+    // see the OUTER locals, not each other.
     let mut extended = locals.clone();
     for pair in bindings {
-        let (name, declared_type, rhs) = match extract_typed_binding(pair) {
-            Some(v) => v,
-            None => continue, // malformed shape — runtime catches it
-        };
-        let rhs_ty = infer(rhs, env, locals, fresh, subst, errors);
-        if let Some(rhs_ty) = rhs_ty {
-            if unify(&rhs_ty, &declared_type, subst).is_err() {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::let".into(),
-                    param: format!("binding '{}'", name),
-                    expected: format_type(&apply_subst(&declared_type, subst)),
-                    got: format_type(&apply_subst(&rhs_ty, subst)),
-                });
-            }
-        }
-        // The binding's type in the body IS the declared type. This
-        // is what the user committed to; the body must use `name` as
-        // that type, not as whatever the RHS happened to produce.
-        extended.insert(name, declared_type);
+        process_let_binding(pair, env, locals, &mut extended, fresh, subst, errors, ":wat::core::let");
     }
     infer(&args[1], env, &extended, fresh, subst, errors)
 }
 
-/// Sequential let — same typed-binding discipline as parallel `let`,
-/// but each RHS is checked with the cumulatively extended locals so
-/// later bindings may reference earlier ones.
+/// Sequential let — same binding shapes as parallel `let`, but each
+/// RHS is checked with the cumulatively extended locals so later
+/// bindings may reference earlier ones.
 fn infer_let_star(
     args: &[WatAST],
     env: &CheckEnv,
@@ -776,48 +757,99 @@ fn infer_let_star(
     };
     let mut extended = locals.clone();
     for pair in bindings {
-        let (name, declared_type, rhs) = match extract_typed_binding(pair) {
-            Some(v) => v,
-            None => continue,
-        };
-        // RHS is checked against the CUMULATIVE extended locals — the
-        // difference from parallel let.
-        let rhs_ty = infer(rhs, env, &extended, fresh, subst, errors);
-        if let Some(rhs_ty) = rhs_ty {
-            if unify(&rhs_ty, &declared_type, subst).is_err() {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::let*".into(),
-                    param: format!("binding '{}'", name),
-                    expected: format_type(&apply_subst(&declared_type, subst)),
-                    got: format_type(&apply_subst(&rhs_ty, subst)),
-                });
-            }
-        }
-        extended.insert(name, declared_type);
+        // let* threads the cumulative extended locals through each RHS.
+        // We pass `extended` as BOTH the RHS-inference scope and the
+        // mutable target; the parallel variant passes the outer
+        // `locals` as the RHS scope.
+        let cumulative = extended.clone();
+        process_let_binding(pair, env, &cumulative, &mut extended, fresh, subst, errors, ":wat::core::let*");
     }
     infer(&args[1], env, &extended, fresh, subst, errors)
 }
 
-/// Extract `((name :Type) rhs)` structure. Returns None on malformed
-/// shape (runtime parser surfaces the error; check silently skips).
-fn extract_typed_binding(pair: &WatAST) -> Option<(String, TypeExpr, &WatAST)> {
+/// Process one binding — single-typed or destructure. Infers the RHS
+/// in `rhs_scope` and adds the binding(s) to `out_scope`.
+#[allow(clippy::too_many_arguments)]
+fn process_let_binding(
+    pair: &WatAST,
+    env: &CheckEnv,
+    rhs_scope: &HashMap<String, TypeExpr>,
+    out_scope: &mut HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+    form: &str,
+) {
     let kv = match pair {
         WatAST::List(items) if items.len() == 2 => items,
-        _ => return None,
+        _ => return, // runtime parser surfaces the shape error
     };
-    let typed_name = match &kv[0] {
-        WatAST::List(inner) if inner.len() == 2 => inner,
-        _ => return None,
+    let binder = match &kv[0] {
+        WatAST::List(inner) => inner,
+        _ => return,
     };
-    let name = match &typed_name[0] {
-        WatAST::Symbol(ident) => ident.name.clone(),
-        _ => return None,
-    };
-    let declared = match &typed_name[1] {
-        WatAST::Keyword(k) => crate::types::parse_type_expr(k).ok()?,
-        _ => return None,
-    };
-    Some((name, declared, &kv[1]))
+    let rhs = &kv[1];
+
+    let is_typed_single = binder.len() == 2
+        && matches!(&binder[0], WatAST::Symbol(_))
+        && matches!(&binder[1], WatAST::Keyword(_));
+
+    if is_typed_single {
+        let name = match &binder[0] {
+            WatAST::Symbol(ident) => ident.name.clone(),
+            _ => return,
+        };
+        let declared = match &binder[1] {
+            WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+                Ok(t) => t,
+                Err(_) => return,
+            },
+            _ => return,
+        };
+        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst, errors);
+        if let Some(rhs_ty) = rhs_ty {
+            if unify(&rhs_ty, &declared, subst).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: form.into(),
+                    param: format!("binding '{}'", name),
+                    expected: format_type(&apply_subst(&declared, subst)),
+                    got: format_type(&apply_subst(&rhs_ty, subst)),
+                });
+            }
+        }
+        out_scope.insert(name, declared);
+        return;
+    }
+
+    // Destructure: each element is a bare symbol. Generate one fresh
+    // type variable per name; unify the RHS against a tuple of those
+    // vars; bind each name to its (post-substitution) element type.
+    let mut names = Vec::with_capacity(binder.len());
+    for item in binder {
+        match item {
+            WatAST::Symbol(ident) => names.push(ident.name.clone()),
+            _ => return, // runtime parser surfaces the shape error
+        }
+    }
+    if names.is_empty() {
+        return;
+    }
+    let elem_vars: Vec<TypeExpr> = (0..names.len()).map(|_| fresh.fresh()).collect();
+    let tuple_ty = TypeExpr::Tuple(elem_vars.clone());
+    let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst, errors);
+    if let Some(rhs_ty) = rhs_ty {
+        if unify(&rhs_ty, &tuple_ty, subst).is_err() {
+            errors.push(CheckError::TypeMismatch {
+                callee: form.into(),
+                param: format!("destructure ({})", names.join(" ")),
+                expected: format_type(&apply_subst(&tuple_ty, subst)),
+                got: format_type(&apply_subst(&rhs_ty, subst)),
+            });
+        }
+    }
+    for (name, ev) in names.into_iter().zip(elem_vars.into_iter()) {
+        out_scope.insert(name, apply_subst(&ev, subst));
+    }
 }
 
 fn infer_list_constructor(
@@ -1427,6 +1459,30 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Option".into(),
                 args: vec![t_var()],
             },
+        },
+    );
+    // Tuple accessors — scoped to 2-tuples in this slice.
+    //   (:wat::core::first (pair :(A,B)))  -> :A
+    //   (:wat::core::second (pair :(A,B))) -> :B
+    // Every substrate primitive that returns a tuple today returns a
+    // 2-tuple (make-*-queue, spawn, select), so 2-tuple schemes cover
+    // every shipped caller. Higher-arity accessors graduate if needed.
+    let a_var = || TypeExpr::Path(":A".into());
+    let b_var = || TypeExpr::Path(":B".into());
+    env.register(
+        ":wat::core::first".into(),
+        TypeScheme {
+            type_params: vec!["A".into(), "B".into()],
+            params: vec![TypeExpr::Tuple(vec![a_var(), b_var()])],
+            ret: a_var(),
+        },
+    );
+    env.register(
+        ":wat::core::second".into(),
+        TypeScheme {
+            type_params: vec!["A".into(), "B".into()],
+            params: vec![TypeExpr::Tuple(vec![a_var(), b_var()])],
+            ret: b_var(),
         },
     );
 }
