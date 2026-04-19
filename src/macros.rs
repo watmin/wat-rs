@@ -44,8 +44,8 @@
 //!   validate `:AST<T>` annotations against body positions.
 
 use crate::ast::WatAST;
-use crate::identifier::{fresh_scope, Identifier, ScopeId};
-use std::collections::{BTreeSet, HashMap};
+use crate::identifier::{fresh_scope, ScopeId};
+use std::collections::HashMap;
 use std::fmt;
 
 /// A registered macro.
@@ -500,6 +500,7 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::identifier::Identifier;
     use crate::parser::parse_all;
 
     fn expand(src: &str) -> Result<Vec<WatAST>, MacroError> {

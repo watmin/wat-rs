@@ -98,17 +98,17 @@ impl From<LowerError> for Error {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use wat_rs::eval_algebra_source;
 /// use holon::{AtomTypeRegistry, ScalarEncoder, VectorManager};
 ///
-/// let vm = VectorManager::with_seed(10_000, 42);
-/// let se = ScalarEncoder::with_seed(10_000, 42);
+/// let vm = VectorManager::with_seed(1_024, 42);
+/// let se = ScalarEncoder::with_seed(1_024, 42);
 /// let reg = AtomTypeRegistry::with_builtins();
 ///
 /// let src = r#"(:wat/algebra/Bind (:wat/algebra/Atom "role") (:wat/algebra/Atom "filler"))"#;
 /// let vector = eval_algebra_source(src, &vm, &se, &reg).unwrap();
-/// assert_eq!(vector.dimensions(), 10_000);
+/// assert_eq!(vector.dimensions(), 1_024);
 /// ```
 pub fn eval_algebra_source(
     src: &str,
