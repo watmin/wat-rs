@@ -46,6 +46,21 @@ pub struct Config {
     pub dims: usize,
     pub capacity_mode: CapacityMode,
     pub global_seed: u64,
+    /// Cosine threshold distinguishing signal from noise for the
+    /// substrate at this `dims`. Per FOUNDATION 1718, presence
+    /// measurements are compared against this floor to decide whether a
+    /// target is "in" a reference vector with confidence.
+    ///
+    /// Default: `5.0 / sqrt(dims as f64)` — the 5-sigma substrate noise
+    /// floor. At `d = 10,000` this is ≈ 0.05; at `d = 1024` ≈ 0.156.
+    ///
+    /// Users may override exactly once via
+    /// `(:wat::config::set-noise-floor! <f64>)` — same discipline as
+    /// `set-global-seed!`. Applications that need tighter confidence
+    /// (10σ engram-recognition) or looser (rough prefiltering) commit
+    /// their threshold at startup rather than threading it through
+    /// every presence call.
+    pub noise_floor: f64,
 }
 
 /// `:wat::config::CapacityMode` — overflow policy when a frame exceeds
@@ -167,6 +182,7 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
     let mut dims: Option<usize> = None;
     let mut capacity_mode: Option<CapacityMode> = None;
     let mut global_seed: Option<u64> = None;
+    let mut noise_floor: Option<f64> = None;
     let mut remainder_start: Option<usize> = None;
 
     for (i, form) in forms.iter().enumerate() {
@@ -235,6 +251,21 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
                 }
                 global_seed = Some(parse_u64(&args[0], "global-seed")?);
             }
+            ":wat::config::set-noise-floor!" => {
+                if noise_floor.is_some() {
+                    return Err(ConfigError::DuplicateField {
+                        field: "noise-floor".into(),
+                    });
+                }
+                if args.len() != 1 {
+                    return Err(ConfigError::BadArity {
+                        head: setter_head,
+                        expected: 1,
+                        got: args.len(),
+                    });
+                }
+                noise_floor = Some(parse_f64(&args[0], "noise-floor")?);
+            }
             _ => {
                 return Err(ConfigError::UnknownSetter {
                     head: setter_head,
@@ -250,11 +281,15 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
         field: "capacity-mode".into(),
     })?;
     let global_seed = global_seed.unwrap_or(42);
+    // Default: 5-sigma substrate noise floor derived from `dims`.
+    // `5.0 / sqrt(d)` per FOUNDATION 1718.
+    let noise_floor = noise_floor.unwrap_or_else(|| 5.0 / (dims as f64).sqrt());
 
     let config = Config {
         dims,
         capacity_mode,
         global_seed,
+        noise_floor,
     };
 
     let remainder = match remainder_start {
@@ -328,6 +363,19 @@ fn parse_u64(ast: &WatAST, field: &'static str) -> Result<u64, ConfigError> {
     }
 }
 
+fn parse_f64(ast: &WatAST, field: &'static str) -> Result<f64, ConfigError> {
+    match ast {
+        WatAST::FloatLit(x) => Ok(*x),
+        // Accept IntLit as a convenience — `(set-noise-floor! 0)` works.
+        WatAST::IntLit(n) => Ok(*n as f64),
+        other => Err(ConfigError::BadType {
+            field: field.into(),
+            expected: "float or integer literal",
+            got: variant_name(other),
+        }),
+    }
+}
+
 fn parse_capacity_mode(ast: &WatAST) -> Result<CapacityMode, ConfigError> {
     match ast {
         WatAST::Keyword(k) => match k.as_str() {
@@ -385,7 +433,68 @@ mod tests {
         assert_eq!(cfg.dims, 10000);
         assert_eq!(cfg.capacity_mode, CapacityMode::Error);
         assert_eq!(cfg.global_seed, 42, "default global-seed is 42");
+        // Default noise floor at d=10000 is 5/sqrt(10000) = 0.05.
+        let expected = 5.0_f64 / (10000_f64).sqrt();
+        assert!((cfg.noise_floor - expected).abs() < 1e-12);
         assert!(rest.is_empty());
+    }
+
+    #[test]
+    fn noise_floor_default_is_5_over_sqrt_dims() {
+        // d=1024 → 5/32 = 0.15625
+        let (cfg, _) = collect(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(cfg.dims, 1024);
+        assert!((cfg.noise_floor - 5.0 / 32.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn noise_floor_override() {
+        let (cfg, _) = collect(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-noise-floor! 0.1)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(cfg.noise_floor, 0.1);
+    }
+
+    #[test]
+    fn noise_floor_override_accepts_integer() {
+        // set-noise-floor! accepts integer literals as convenience.
+        let (cfg, _) = collect(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-noise-floor! 0)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(cfg.noise_floor, 0.0);
+    }
+
+    #[test]
+    fn noise_floor_double_set_rejected() {
+        let err = collect(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-noise-floor! 0.1)
+            (:wat::config::set-noise-floor! 0.2)
+            "#,
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::DuplicateField { field } if field == "noise-floor"
+        ));
     }
 
     #[test]

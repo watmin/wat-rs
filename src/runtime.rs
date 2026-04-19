@@ -36,7 +36,8 @@
 //! The type checker lands in task #137 and will walk the same AST.
 
 use crate::ast::WatAST;
-use holon::HolonAST;
+use crate::config::Config;
+use holon::{encode, AtomTypeRegistry, HolonAST, ScalarEncoder, Similarity, VectorManager};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -246,10 +247,123 @@ impl EnvBuilder {
     }
 }
 
-/// Keyword-path ↦ Function registry.
+/// Runtime encoding context — the machinery needed to project a
+/// `HolonAST` into its `Vector` at eval time.
+///
+/// Constructed once from [`Config`] at freeze and attached to the
+/// frozen [`SymbolTable`]. Used by vector-level primitives like
+/// `:wat::core::presence` (FOUNDATION 1718), which measure cosine
+/// similarity between encoded holons against the substrate noise floor.
+///
+/// Holds `Arc`s so it can be cloned cheaply by the runtime when a
+/// primitive needs encoding access; the underlying `VectorManager` and
+/// `ScalarEncoder` are pure caches that can be shared across threads.
+#[derive(Clone)]
+pub struct EncodingCtx {
+    pub vm: Arc<VectorManager>,
+    pub scalar: Arc<ScalarEncoder>,
+    pub registry: Arc<AtomTypeRegistry>,
+    pub config: Config,
+}
+
+impl EncodingCtx {
+    /// Build an encoding context from the frozen [`Config`]. `dims` and
+    /// `global_seed` drive deterministic atom vectors; the registry
+    /// is seeded with the built-in atom payload types (i64, f64, bool,
+    /// String, keyword, HolonAST) plus [`WatAST`] for programs-as-atoms
+    /// — a program captured via `:wat::core::quote` and wrapped in an
+    /// `:wat::algebra::Atom` needs a stable canonical form so it can
+    /// encode to a deterministic vector.
+    pub fn from_config(cfg: &Config) -> Self {
+        let mut registry = AtomTypeRegistry::with_builtins();
+        registry.register::<WatAST>("wat/WatAST", |ast, _reg| canonical_wat_ast(ast));
+        EncodingCtx {
+            vm: Arc::new(VectorManager::with_seed(cfg.dims, cfg.global_seed)),
+            scalar: Arc::new(ScalarEncoder::with_seed(cfg.dims, cfg.global_seed)),
+            registry: Arc::new(registry),
+            config: *cfg,
+        }
+    }
+}
+
+/// Canonical byte encoding of a [`WatAST`] for atom-payload hashing.
+///
+/// Deterministic per spec: same AST ⇒ same bytes ⇒ same vector seed.
+/// Format is a simple tagged recursive serialization — variant tag
+/// (1 byte) followed by variant-specific body. Used only for atom
+/// canonicalization inside the registry; not a wire format.
+fn canonical_wat_ast(ast: &WatAST) -> Vec<u8> {
+    let mut out = Vec::new();
+    write_wat_ast(ast, &mut out);
+    out
+}
+
+fn write_wat_ast(ast: &WatAST, out: &mut Vec<u8>) {
+    match ast {
+        WatAST::IntLit(n) => {
+            out.push(0);
+            out.extend_from_slice(&n.to_le_bytes());
+        }
+        WatAST::FloatLit(x) => {
+            out.push(1);
+            out.extend_from_slice(&x.to_le_bytes());
+        }
+        WatAST::BoolLit(b) => {
+            out.push(2);
+            out.push(if *b { 1 } else { 0 });
+        }
+        WatAST::StringLit(s) => {
+            out.push(3);
+            write_bytes(s.as_bytes(), out);
+        }
+        WatAST::Keyword(k) => {
+            out.push(4);
+            write_bytes(k.as_bytes(), out);
+        }
+        WatAST::Symbol(ident) => {
+            out.push(5);
+            write_bytes(ident.name.as_bytes(), out);
+            // Scope IDs — sorted (BTreeSet already provides order).
+            out.extend_from_slice(&(ident.scopes.len() as u64).to_le_bytes());
+            for sid in ident.scopes.iter() {
+                out.extend_from_slice(&sid.0.to_le_bytes());
+            }
+        }
+        WatAST::List(items) => {
+            out.push(6);
+            out.extend_from_slice(&(items.len() as u64).to_le_bytes());
+            for child in items {
+                write_wat_ast(child, out);
+            }
+        }
+    }
+}
+
+fn write_bytes(bytes: &[u8], out: &mut Vec<u8>) {
+    out.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
+    out.extend_from_slice(bytes);
+}
+
+impl fmt::Debug for EncodingCtx {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EncodingCtx")
+            .field("dims", &self.config.dims)
+            .field("global_seed", &self.config.global_seed)
+            .field("noise_floor", &self.config.noise_floor)
+            .finish()
+    }
+}
+
+/// Keyword-path ↦ Function registry + optional encoding context.
+///
+/// The `encoding_ctx` field is populated at freeze time by the startup
+/// pipeline. Test harnesses (`SymbolTable::new()`) leave it `None`;
+/// primitives that require encoding (presence, encode) error cleanly if
+/// invoked without a frozen context.
 #[derive(Debug, Default)]
 pub struct SymbolTable {
     pub functions: HashMap<String, Arc<Function>>,
+    pub encoding_ctx: Option<Arc<EncodingCtx>>,
 }
 
 impl SymbolTable {
@@ -259,6 +373,19 @@ impl SymbolTable {
 
     pub fn get(&self, path: &str) -> Option<&Arc<Function>> {
         self.functions.get(path)
+    }
+
+    /// Attach an encoding context. Called once at freeze time by
+    /// [`crate::freeze::FrozenWorld::freeze`].
+    pub fn set_encoding_ctx(&mut self, ctx: Arc<EncodingCtx>) {
+        self.encoding_ctx = Some(ctx);
+    }
+
+    /// Borrow the encoding context, if one is attached. Runtime
+    /// primitives that require encoding (`:wat::core::presence`) call
+    /// this and raise [`RuntimeError::NoEncodingCtx`] on `None`.
+    pub fn encoding_ctx(&self) -> Option<&Arc<EncodingCtx>> {
+        self.encoding_ctx.as_ref()
     }
 }
 
@@ -310,6 +437,12 @@ pub enum RuntimeError {
     /// disconnect; when `:Option<T>` + match lands, recv disconnect
     /// becomes a first-class `:None` instead of an error.
     ChannelDisconnected { op: String },
+    /// A vector-level primitive (`:wat::core::presence`,
+    /// `:wat::config::noise-floor`, etc.) was invoked but the
+    /// [`SymbolTable`] has no attached [`EncodingCtx`]. Reachable from
+    /// test harnesses that don't go through freeze; the frozen startup
+    /// pipeline always installs one.
+    NoEncodingCtx { op: String },
 }
 
 impl fmt::Display for RuntimeError {
@@ -364,6 +497,11 @@ impl fmt::Display for RuntimeError {
             RuntimeError::ChannelDisconnected { op } => write!(
                 f,
                 "{}: channel disconnected (counterparty dropped); MVP recv returns :String and errors on disconnect — :Option<T> lands with match",
+                op
+            ),
+            RuntimeError::NoEncodingCtx { op } => write!(
+                f,
+                "{}: no encoding context attached to SymbolTable; presence / config accessors need a frozen EncodingCtx. Call via the freeze pipeline rather than a bare SymbolTable::new().",
                 op
             ),
         }
@@ -700,7 +838,10 @@ fn dispatch_keyword_head(
         ":wat::core::define" => Err(RuntimeError::DefineInExpressionPosition),
         ":wat::core::lambda" => eval_lambda(args, env),
         ":wat::core::let" => eval_let(args, env, sym),
+        ":wat::core::let*" => eval_let_star(args, env, sym),
         ":wat::core::if" => eval_if(args, env, sym),
+        ":wat::core::quote" => eval_quote(args),
+        ":wat::core::atom-value" => eval_atom_value(args, env, sym),
 
         // Arithmetic
         ":wat::core::+" => eval_arith(head, args, env, sym, |a, b| Ok(a + b), |a, b| Ok(a + b)),
@@ -740,6 +881,11 @@ fn dispatch_keyword_head(
         ":wat::algebra::Thermometer" => eval_algebra_thermometer(args, env, sym),
         ":wat::algebra::Blend" => eval_algebra_blend(args, env, sym),
 
+        // Presence — the retrieval primitive per FOUNDATION 1718.
+        // Cosine between encoded target and encoded reference. Returns
+        // scalar :f64; the caller binarizes at the noise floor.
+        ":wat::core::presence" => eval_presence(args, env, sym),
+
         // Constrained runtime eval — four forms, matching the load
         // pipeline's discipline on source interface and verification.
         ":wat::core::eval-ast!" => eval_form_ast(args, env, sym),
@@ -751,6 +897,11 @@ fn dispatch_keyword_head(
         ":wat::kernel::stopped" => eval_kernel_stopped(args),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym),
         ":wat::kernel::recv" => eval_kernel_recv(args, env, sym),
+
+        // Config accessors — read committed config fields at runtime.
+        ":wat::config::dims" => eval_config_dims(args, sym),
+        ":wat::config::global-seed" => eval_config_global_seed(args, sym),
+        ":wat::config::noise-floor" => eval_config_noise_floor(args, sym),
 
         // Anything else: user-defined function lookup.
         other => {
@@ -906,6 +1057,54 @@ fn eval_let(
         builder = builder.bind(name, value);
     }
     let scope = builder.build();
+    eval(body, &scope, sym)
+}
+
+/// `(:wat::core::let* (((n1 :T1) e1) ((n2 :T2) e2) ...) body)` —
+/// sequential let.
+///
+/// Same surface grammar as `:wat::core::let` but each RHS is evaluated
+/// in an environment that includes the PRIOR bindings. `n2`'s RHS can
+/// refer to `n1`; `n3`'s RHS can refer to both.
+///
+/// Rust-level semantics: cumulative `Environment` chain. Parallel `let`
+/// evaluates all RHSes in the outer env then commits; `let*` commits
+/// each binding before evaluating the next.
+fn eval_let_star(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::let*".into(),
+            reason: format!(
+                "expected (:wat::core::let* (((n1 :T1) e1) ...) body); got {} args",
+                args.len()
+            ),
+        });
+    }
+    let bindings_form = &args[0];
+    let body = &args[1];
+
+    let binding_pairs = match bindings_form {
+        WatAST::List(items) => items,
+        _ => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::let*".into(),
+                reason: "bindings must be a list of ((name :Type) expr) pairs".into(),
+            })
+        }
+    };
+
+    // Sequential: each binding commits to the env chain before the next
+    // RHS evaluates, so subsequent bindings can reference earlier ones.
+    let mut scope = env.clone();
+    for pair in binding_pairs {
+        let (name, _declared_type, rhs) = parse_let_binding(pair)?;
+        let value = eval(rhs, &scope, sym)?;
+        scope = scope.child().bind(name, value).build();
+    }
     eval(body, &scope, sym)
 }
 
@@ -1151,6 +1350,101 @@ fn eval_list_ctor(
     Ok(Value::Vec(Arc::new(items)))
 }
 
+/// `(:wat::core::quote <expr>)` — capture an unevaluated AST.
+///
+/// This is the mechanism that places a wat program into the algebra as
+/// data. The inner form is NOT evaluated at quote time — no side effects
+/// fire, no functions are called. The AST is wrapped as a
+/// `Value::wat__WatAST` and can be passed to `:wat::algebra::Atom`,
+/// `:wat::core::eval-ast!`, stored in environments, etc.
+///
+/// Quote is how programs become holons without running.
+fn eval_quote(args: &[WatAST]) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::quote".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
+}
+
+/// `(:wat::core::atom-value <holon>)` — extract the payload from an Atom.
+///
+/// Dual of `:wat::algebra::Atom`. Given an `:Atom<T>` holon, returns the
+/// `:T` payload. The payload's Rust type determines which `Value`
+/// variant is returned; callers annotate the expected `T` at let-binding
+/// sites, and the checker unifies through `atom-value`'s
+/// `∀T. :holon::HolonAST -> :T` scheme.
+///
+/// Errors if the holon is not an `Atom` variant (Bind/Bundle/Permute/
+/// Thermometer/Blend) or if the payload type isn't one of the dispatchable
+/// atom payload types (String/i64/f64/bool/HolonAST/WatAST/keyword).
+fn eval_atom_value(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::atom-value".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    let holon = match v {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::atom-value".into(),
+                expected: "holon::HolonAST",
+                got: other.type_name(),
+            });
+        }
+    };
+    match &*holon {
+        HolonAST::Atom(payload) => {
+            // Dispatch on the payload's concrete Rust type. Order
+            // matters only for `String` vs keyword: HolonAST::keyword
+            // stores keywords as `String` with a leading `:`. We
+            // distinguish by inspecting that byte.
+            if let Some(s) = payload.downcast_ref::<String>() {
+                if s.starts_with(':') {
+                    return Ok(Value::wat__core__keyword(Arc::new(s.clone())));
+                }
+                return Ok(Value::String(Arc::new(s.clone())));
+            }
+            if let Some(n) = payload.downcast_ref::<i64>() {
+                return Ok(Value::i64(*n));
+            }
+            if let Some(x) = payload.downcast_ref::<f64>() {
+                return Ok(Value::f64(*x));
+            }
+            if let Some(b) = payload.downcast_ref::<bool>() {
+                return Ok(Value::bool(*b));
+            }
+            if let Some(w) = payload.downcast_ref::<WatAST>() {
+                return Ok(Value::wat__WatAST(Arc::new(w.clone())));
+            }
+            if let Some(h) = payload.downcast_ref::<HolonAST>() {
+                return Ok(Value::holon__HolonAST(Arc::new(h.clone())));
+            }
+            Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::atom-value".into(),
+                expected: "atom payload of known type (String/i64/f64/bool/HolonAST/WatAST/keyword)",
+                got: "atom payload type not registered in atom-value dispatch",
+            })
+        }
+        _ => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::atom-value".into(),
+            expected: "Atom holon",
+            got: "non-Atom HolonAST variant (Bind/Bundle/Permute/Thermometer/Blend)",
+        }),
+    }
+}
+
 // ─── Algebra-core UpperCall runtime construction ────────────────────────
 
 fn eval_algebra_atom(
@@ -1179,10 +1473,15 @@ fn value_to_atom(v: Value) -> Result<Value, RuntimeError> {
         Value::String(s) => HolonAST::atom((*s).clone()),
         Value::wat__core__keyword(k) => HolonAST::keyword(&k),
         Value::holon__HolonAST(h) => HolonAST::atom((*h).clone()),
+        // Programs-as-atoms: a quoted wat program (captured via
+        // `:wat::core::quote`) becomes an Atom whose payload IS the
+        // WatAST. Retrieved later via `:wat::core::atom-value` and
+        // executed via `:wat::core::eval-ast!`. See VISION.md.
+        Value::wat__WatAST(a) => HolonAST::atom((*a).clone()),
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::algebra::Atom".into(),
-                expected: "atomizable value (Int/Float/Bool/String/Keyword/Holon)",
+                expected: "atomizable value (Int/Float/Bool/String/Keyword/Holon/WatAST)",
                 got: other.type_name(),
             });
         }
@@ -1204,6 +1503,14 @@ fn eval_algebra_bind(
     }
     let a = require_holon(":wat::algebra::Bind", eval(&args[0], env, sym)?)?;
     let b = require_holon(":wat::algebra::Bind", eval(&args[1], env, sym)?)?;
+
+    // No AST-level simplification. MAP's bind self-inverse — Bind(Bind(x,y),x) →
+    // y — is a VECTOR-level identity (and per 058-024's rejection text, holds
+    // only on non-zero positions of the key; zero positions drop to 0).
+    // Lifting it to the AST as a rewrite rule would overclaim exact recovery
+    // where the algebra acknowledges quantized noise. Bind always constructs
+    // the Bind tree; the self-inverse is observable via vector-level presence
+    // measurement. FOUNDATION 1718: the retrieval primitive is cosine.
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::bind((*a).clone(), (*b).clone()))))
 }
 
@@ -1315,6 +1622,37 @@ fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, RuntimeError> {
             got: other.type_name(),
         }),
     }
+}
+
+/// `(:wat::core::presence target reference) -> :f64` — the retrieval
+/// primitive per FOUNDATION 1718.
+///
+/// Encodes both holons via the frozen [`EncodingCtx`] and returns the
+/// cosine similarity in `[-1, +1]`. The algebra does NOT binarize — the
+/// caller compares against `(:wat::config::noise-floor)` (or any
+/// threshold of its own choosing) to derive a verdict.
+///
+/// Use cases: membership (`member?`), engram matching, discriminant
+/// similarity, "is this atom present in this composite holon?"
+fn eval_presence(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::presence".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let target = require_holon(":wat::core::presence", eval(&args[0], env, sym)?)?;
+    let reference = require_holon(":wat::core::presence", eval(&args[1], env, sym)?)?;
+    let ctx = require_encoding_ctx(":wat::core::presence", sym)?;
+
+    let vt = encode(&target, &ctx.vm, &ctx.scalar, &ctx.registry);
+    let vr = encode(&reference, &ctx.vm, &ctx.scalar, &ctx.registry);
+    Ok(Value::f64(Similarity::cosine(&vt, &vr)))
 }
 
 fn require_numeric(op: &str, v: Value) -> Result<f64, RuntimeError> {
@@ -1430,6 +1768,67 @@ fn eval_kernel_stopped(args: &[WatAST]) -> Result<Value, RuntimeError> {
         });
     }
     Ok(Value::bool(KERNEL_STOPPED.load(Ordering::SeqCst)))
+}
+
+// ─── Config accessors ─────────────────────────────────────────────────
+//
+// Every setter in `:wat::config::set-*!` commits exactly once during
+// the startup's config pass. After freeze, the committed value is read
+// by its nullary accessor. These have the same discipline as other
+// substrate constants — no arguments, deterministic, safe to call from
+// any context as long as the SymbolTable carries an EncodingCtx (which
+// it does after freeze).
+
+fn require_encoding_ctx<'a>(
+    op: &'static str,
+    sym: &'a SymbolTable,
+) -> Result<&'a EncodingCtx, RuntimeError> {
+    sym.encoding_ctx()
+        .map(|arc| arc.as_ref())
+        .ok_or_else(|| RuntimeError::NoEncodingCtx { op: op.into() })
+}
+
+fn check_nullary(op: &'static str, args: &[WatAST]) -> Result<(), RuntimeError> {
+    if !args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: op.into(),
+            expected: 0,
+            got: args.len(),
+        });
+    }
+    Ok(())
+}
+
+/// `(:wat::config::dims)` — committed vector dimensionality as `:i64`.
+fn eval_config_dims(args: &[WatAST], sym: &SymbolTable) -> Result<Value, RuntimeError> {
+    check_nullary(":wat::config::dims", args)?;
+    let ctx = require_encoding_ctx(":wat::config::dims", sym)?;
+    Ok(Value::i64(ctx.config.dims as i64))
+}
+
+/// `(:wat::config::global-seed)` — committed atom-seeding seed as `:i64`.
+fn eval_config_global_seed(
+    args: &[WatAST],
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    check_nullary(":wat::config::global-seed", args)?;
+    let ctx = require_encoding_ctx(":wat::config::global-seed", sym)?;
+    Ok(Value::i64(ctx.config.global_seed as i64))
+}
+
+/// `(:wat::config::noise-floor)` — committed substrate noise floor as
+/// `:f64`. Per FOUNDATION 1718, defaults to `5.0 / sqrt(dims)` — the
+/// 5-sigma threshold below which a presence measurement is
+/// indistinguishable from noise. Applications that need tighter
+/// confidence (10σ engram-recognition) or looser (rough prefiltering)
+/// override via `(:wat::config::set-noise-floor! <f64>)` at startup.
+fn eval_config_noise_floor(
+    args: &[WatAST],
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    check_nullary(":wat::config::noise-floor", args)?;
+    let ctx = require_encoding_ctx(":wat::config::noise-floor", sym)?;
+    Ok(Value::f64(ctx.config.noise_floor))
 }
 
 /// `(:wat::kernel::send sender value)` — blocks until the value is
@@ -2303,6 +2702,280 @@ mod tests {
             RuntimeError::TypeMismatch { op, expected: "Ast", got: "String" }
                 if op == ":wat::core::eval-ast!"
         ));
+    }
+
+    // ─── Programs-as-atoms roundtrip ────────────────────────────────────
+    //
+    // quote + Atom + atom-value + Bind self-inverse — the substrate
+    // claim made executable. A wat program is captured as data, atomized,
+    // passed through Bind/unbind, extracted, and evaluated.
+
+    #[test]
+    fn quote_captures_unevaluated_ast() {
+        // (quote (+ 1 2)) returns a WatAST; does NOT evaluate the +.
+        let result =
+            eval_expr("(:wat::core::quote (:wat::core::+ 1 2))").unwrap();
+        match result {
+            Value::wat__WatAST(ast) => {
+                // The captured AST should be a List whose head is :wat::core::+
+                match &*ast {
+                    WatAST::List(items) => {
+                        assert!(matches!(
+                            items.first(),
+                            Some(WatAST::Keyword(k)) if k == ":wat::core::+"
+                        ));
+                    }
+                    other => panic!("expected List AST, got {:?}", other),
+                }
+            }
+            other => panic!("expected Value::wat__WatAST, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn quote_arity_mismatch() {
+        let err = eval_expr("(:wat::core::quote 1 2)").unwrap_err();
+        assert!(matches!(
+            err,
+            RuntimeError::ArityMismatch { op, expected: 1, got: 2 }
+                if op == ":wat::core::quote"
+        ));
+    }
+
+    #[test]
+    fn atom_wraps_quoted_program() {
+        // (Atom (quote (+ 1 2))) — program becomes a holon.
+        let result = eval_expr(
+            "(:wat::algebra::Atom (:wat::core::quote (:wat::core::+ 1 2)))",
+        )
+        .unwrap();
+        assert!(matches!(result, Value::holon__HolonAST(_)));
+    }
+
+    #[test]
+    fn atom_value_recovers_string() {
+        let result = eval_expr(
+            r#"(:wat::core::atom-value (:wat::algebra::Atom "hello"))"#,
+        )
+        .unwrap();
+        match result {
+            Value::String(s) => assert_eq!(&*s, "hello"),
+            other => panic!("expected Value::String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn atom_value_recovers_quoted_program() {
+        // Atom(quote X) → atom-value back to WatAST X.
+        let result = eval_expr(
+            "(:wat::core::atom-value (:wat::algebra::Atom (:wat::core::quote (:wat::core::+ 40 2))))",
+        )
+        .unwrap();
+        match result {
+            Value::wat__WatAST(ast) => match &*ast {
+                WatAST::List(items) => {
+                    assert!(matches!(
+                        items.first(),
+                        Some(WatAST::Keyword(k)) if k == ":wat::core::+"
+                    ));
+                }
+                other => panic!("expected List AST, got {:?}", other),
+            },
+            other => panic!("expected Value::wat__WatAST, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn atom_value_refuses_non_atom_holon() {
+        // Bind(Atom, Atom) is not an Atom — atom-value refuses.
+        let err = eval_expr(
+            r#"(:wat::core::atom-value
+                 (:wat::algebra::Bind
+                   (:wat::algebra::Atom "a")
+                   (:wat::algebra::Atom "b")))"#,
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            RuntimeError::TypeMismatch { op, .. } if op == ":wat::core::atom-value"
+        ));
+    }
+
+    #[test]
+    fn bind_always_constructs_tree() {
+        // Bind never reduces at the AST level — even when the pattern would
+        // be self-inverse at the vector level. The structure stays; the
+        // vector is where the self-inverse shows up via cosine. Per 058-024
+        // rejection text + FOUNDATION 1718 (presence is measurement).
+        let result = eval_expr(
+            r#"(:wat::algebra::Bind
+                 (:wat::algebra::Bind
+                   (:wat::algebra::Atom "key")
+                   (:wat::algebra::Atom "program"))
+                 (:wat::algebra::Atom "key"))"#,
+        )
+        .unwrap();
+        match result {
+            Value::holon__HolonAST(h) => {
+                // Must be a Bind tree, NOT reduced to the "program" atom.
+                assert!(matches!(&*h, HolonAST::Bind(_, _)));
+            }
+            other => panic!("expected Bind holon, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn programs_as_atoms_structural_roundtrip() {
+        // The structural side of programs-as-atoms: quote captures a
+        // WatAST; Atom wraps it; atom-value unwraps it; eval-ast! runs
+        // it. No Bind / unbind in this path — that's the vector-side
+        // proof, which needs presence (added separately).
+        let result = eval_expr(
+            r#"(:wat::core::let*
+                 (((program :wat::WatAST)
+                    (:wat::core::quote (:wat::core::+ 40 2)))
+                  ((program-atom :holon::HolonAST)
+                    (:wat::algebra::Atom program))
+                  ((reveal :wat::WatAST)
+                    (:wat::core::atom-value program-atom)))
+                 (:wat::core::eval-ast! reveal))"#,
+        )
+        .unwrap();
+        assert!(matches!(result, Value::i64(42)));
+    }
+
+    // ─── Presence measurement (FOUNDATION 1718) ─────────────────────────
+    //
+    // The vector-level proof that `Bind(k, p)` obscures `p` in the
+    // composite vector, and that the self-inverse Bind-on-Bind recovers
+    // it. The algebra's retrieval primitive: cosine between encoded
+    // holons, scalar output, caller binarizes.
+
+    /// Build a SymbolTable with an EncodingCtx attached — mirrors what
+    /// `FrozenWorld::freeze` does. Needed for tests exercising presence
+    /// or config accessors without running the full startup pipeline.
+    fn test_sym_with_ctx(dims: usize) -> SymbolTable {
+        let cfg = Config {
+            dims,
+            capacity_mode: crate::config::CapacityMode::Error,
+            global_seed: 42,
+            noise_floor: 5.0 / (dims as f64).sqrt(),
+        };
+        let mut sym = SymbolTable::new();
+        sym.set_encoding_ctx(Arc::new(EncodingCtx::from_config(&cfg)));
+        sym
+    }
+
+    fn eval_with_ctx(src: &str, dims: usize) -> Result<Value, RuntimeError> {
+        let ast = parse_one(src).expect("parse ok");
+        let sym = test_sym_with_ctx(dims);
+        eval(&ast, &Environment::new(), &sym)
+    }
+
+    #[test]
+    fn presence_of_atom_in_itself_is_one() {
+        let result = eval_with_ctx(
+            r#"(:wat::core::presence
+                 (:wat::algebra::Atom "hello")
+                 (:wat::algebra::Atom "hello"))"#,
+            1024,
+        )
+        .unwrap();
+        match result {
+            Value::f64(x) => assert!((x - 1.0).abs() < 1e-9, "expected ≈1.0, got {}", x),
+            other => panic!("expected f64, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn presence_requires_encoding_ctx() {
+        // Without a frozen SymbolTable, presence must error — can't
+        // reach into encoding machinery that doesn't exist.
+        let ast = parse_one(
+            r#"(:wat::core::presence
+                 (:wat::algebra::Atom "a")
+                 (:wat::algebra::Atom "b"))"#,
+        )
+        .unwrap();
+        let err = eval(&ast, &Environment::new(), &SymbolTable::new()).unwrap_err();
+        assert!(matches!(
+            err,
+            RuntimeError::NoEncodingCtx { op } if op == ":wat::core::presence"
+        ));
+    }
+
+    #[test]
+    fn bind_obscures_child_at_vector_level() {
+        // Core claim: cosine(encode(p), encode(Bind(k, p))) is near zero —
+        // MAP bind orthogonalizes. The presence of p in Bind(k,p) is
+        // below the substrate noise floor.
+        let result = eval_with_ctx(
+            r#"(:wat::core::let*
+                 (((program :holon::HolonAST) (:wat::algebra::Atom "the-program"))
+                  ((key :holon::HolonAST) (:wat::algebra::Atom "the-key"))
+                  ((bound :holon::HolonAST) (:wat::algebra::Bind key program)))
+                 (:wat::core::presence program bound))"#,
+            1024,
+        )
+        .unwrap();
+        let noise_floor = 5.0 / (1024f64).sqrt(); // ≈ 0.156
+        match result {
+            Value::f64(x) => {
+                // Cosine is ternary-vector small, well below the 5σ floor.
+                assert!(
+                    x < noise_floor,
+                    "expected presence below noise floor {}, got {}",
+                    noise_floor,
+                    x
+                );
+            }
+            other => panic!("expected f64, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn bind_on_bind_recovers_child_at_vector_level() {
+        // Self-inverse: cosine(encode(p), encode(Bind(Bind(k,p), k))) is
+        // well above the noise floor. MAP's bind(bind(k,p), k) ≈ p on
+        // non-zero positions of k.
+        let result = eval_with_ctx(
+            r#"(:wat::core::let*
+                 (((program :holon::HolonAST) (:wat::algebra::Atom "the-program"))
+                  ((key :holon::HolonAST) (:wat::algebra::Atom "the-key"))
+                  ((bound :holon::HolonAST) (:wat::algebra::Bind key program))
+                  ((recovered :holon::HolonAST) (:wat::algebra::Bind bound key)))
+                 (:wat::core::presence program recovered))"#,
+            1024,
+        )
+        .unwrap();
+        let noise_floor = 5.0 / (1024f64).sqrt();
+        match result {
+            Value::f64(x) => {
+                assert!(
+                    x > noise_floor,
+                    "expected presence above noise floor {}, got {}",
+                    noise_floor,
+                    x
+                );
+            }
+            other => panic!("expected f64, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn config_noise_floor_accessor_returns_derived_value() {
+        let result = eval_with_ctx("(:wat::config::noise-floor)", 10000).unwrap();
+        let expected = 5.0 / 100.0; // = 0.05
+        match result {
+            Value::f64(x) => assert!((x - expected).abs() < 1e-12),
+            other => panic!("expected f64, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn config_dims_accessor_returns_committed_value() {
+        let result = eval_with_ctx("(:wat::config::dims)", 4096).unwrap();
+        assert!(matches!(result, Value::i64(4096)));
     }
 
     #[test]

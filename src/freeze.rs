@@ -46,10 +46,11 @@ use crate::macros::{expand_all, register_defmacros, MacroError, MacroRegistry};
 use crate::parser::{parse_all, ParseError};
 use crate::resolve::{resolve_references, ResolveError};
 use crate::runtime::{
-    apply_function, register_defines, Environment, RuntimeError, SymbolTable, Value,
+    apply_function, register_defines, EncodingCtx, Environment, RuntimeError, SymbolTable, Value,
 };
 use crate::types::{register_types, TypeEnv, TypeError};
 use std::fmt;
+use std::sync::Arc;
 
 /// The frozen startup world — all four registries bundled and
 /// owned. After construction, only `&self` read access is possible;
@@ -71,13 +72,23 @@ impl FrozenWorld {
     /// Construct a frozen world from the registries built during
     /// startup. Takes ownership of each — the caller cannot mutate
     /// them after this call.
+    ///
+    /// Also constructs an [`EncodingCtx`] from `config` and attaches it
+    /// to `symbols`, so runtime primitives that project holons into
+    /// their vectors (`:wat::core::presence`, `:wat::config::noise-floor`)
+    /// have access at dispatch. Per FOUNDATION 1718, presence is the
+    /// retrieval primitive; it is only reachable once freeze has
+    /// committed `dims` / `global_seed` / `noise_floor` and built the
+    /// `VectorManager` + `ScalarEncoder` + `AtomTypeRegistry`.
     pub fn freeze(
         config: Config,
         types: TypeEnv,
         macros: MacroRegistry,
-        symbols: SymbolTable,
+        mut symbols: SymbolTable,
         program: Vec<WatAST>,
     ) -> Self {
+        let ctx = Arc::new(EncodingCtx::from_config(&config));
+        symbols.set_encoding_ctx(ctx);
         FrozenWorld {
             config,
             types,

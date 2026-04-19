@@ -313,7 +313,21 @@ fn infer_list(
         match k.as_str() {
             ":wat::core::if" => return infer_if(args, env, locals, fresh, subst, errors),
             ":wat::core::let" => return infer_let(args, env, locals, fresh, subst, errors),
+            ":wat::core::let*" => return infer_let_star(args, env, locals, fresh, subst, errors),
             ":wat::core::vec" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::core::quote" => {
+                // Quote captures an unevaluated AST. The argument is
+                // DATA, not an expression — the type checker does not
+                // recurse into it. Return type is `:wat::WatAST`.
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: ":wat::core::quote".into(),
+                        expected: 1,
+                        got: args.len(),
+                    });
+                }
+                return Some(TypeExpr::Path(":wat::WatAST".into()));
+            }
             ":wat::core::and" | ":wat::core::or" => {
                 return infer_boolean_shortcircuit(args, env, locals, fresh, subst, errors);
             }
@@ -479,6 +493,48 @@ fn infer_let(
         // The binding's type in the body IS the declared type. This
         // is what the user committed to; the body must use `name` as
         // that type, not as whatever the RHS happened to produce.
+        extended.insert(name, declared_type);
+    }
+    infer(&args[1], env, &extended, fresh, subst, errors)
+}
+
+/// Sequential let — same typed-binding discipline as parallel `let`,
+/// but each RHS is checked with the cumulatively extended locals so
+/// later bindings may reference earlier ones.
+fn infer_let_star(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 2 {
+        return None;
+    }
+    let bindings = match &args[0] {
+        WatAST::List(items) => items,
+        _ => return None,
+    };
+    let mut extended = locals.clone();
+    for pair in bindings {
+        let (name, declared_type, rhs) = match extract_typed_binding(pair) {
+            Some(v) => v,
+            None => continue,
+        };
+        // RHS is checked against the CUMULATIVE extended locals — the
+        // difference from parallel let.
+        let rhs_ty = infer(rhs, env, &extended, fresh, subst, errors);
+        if let Some(rhs_ty) = rhs_ty {
+            if unify(&rhs_ty, &declared_type, subst).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::let*".into(),
+                    param: format!("binding '{}'", name),
+                    expected: format_type(&apply_subst(&declared_type, subst)),
+                    got: format_type(&apply_subst(&rhs_ty, subst)),
+                });
+            }
+        }
         extended.insert(name, declared_type);
     }
     infer(&args[1], env, &extended, fresh, subst, errors)
@@ -949,6 +1005,17 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: holon_ty(),
         },
     );
+    // atom-value — ∀T. :holon::HolonAST → :T. Dual of Atom. The caller's
+    // let-binding type ascription (or surrounding context) pins T; the
+    // runtime downcasts the payload and errors on type mismatch.
+    env.register(
+        ":wat::core::atom-value".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![holon_ty()],
+            ret: t_var(),
+        },
+    );
     env.register(
         ":wat::algebra::Bind".into(),
         TypeScheme {
@@ -991,6 +1058,43 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty(), f64_ty(), f64_ty()],
             ret: holon_ty(),
+        },
+    );
+
+    // Presence measurement — the retrieval primitive (FOUNDATION 1718).
+    // ∀. :holon::HolonAST -> :holon::HolonAST -> :f64
+    env.register(
+        ":wat::core::presence".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty(), holon_ty()],
+            ret: f64_ty(),
+        },
+    );
+
+    // Config accessors — nullary, read committed startup values.
+    env.register(
+        ":wat::config::dims".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::config::global-seed".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::config::noise-floor".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: f64_ty(),
         },
     );
 

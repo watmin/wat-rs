@@ -76,7 +76,8 @@ pub use macros::{
 pub use parser::{parse_all, parse_one, ParseError};
 pub use resolve::{is_reserved_prefix, resolve_references, ResolveError, UnresolvedReference};
 pub use runtime::{
-    eval, register_defines, EnvBuilder, Environment, Function, RuntimeError, SymbolTable, Value,
+    eval, register_defines, EncodingCtx, EnvBuilder, Environment, Function, RuntimeError,
+    SymbolTable, Value,
 };
 pub use types::{
     parse_type_expr, register_types, AliasDef, EnumDef, EnumVariant, NewtypeDef, StructDef,
