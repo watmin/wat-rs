@@ -39,7 +39,39 @@ use crate::ast::WatAST;
 use holon::HolonAST;
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+
+/// Kernel-owned stop flag read by `(:wat::kernel::stopped)`.
+///
+/// The wat-vm binary installs OS signal handlers for SIGINT and
+/// SIGTERM; both set this flag to `true`. User programs poll via the
+/// `:wat::kernel::stopped` form to decide whether to continue their
+/// main loops — whenever `true`, they drop their output senders
+/// and return, which cascades clean shutdown through the channel
+/// disconnects.
+///
+/// Lives under `:wat::kernel::` (not `:wat::config::`) because
+/// config is user-set and frozen after startup; the stop flag
+/// mutates at runtime under kernel control.
+pub static KERNEL_STOPPED: AtomicBool = AtomicBool::new(false);
+
+/// Set the kernel stop flag to `true`. Called by the wat-vm CLI's
+/// signal handler. After `true` is set, any user program polling
+/// `(:wat::kernel::stopped)` will observe it and can begin clean
+/// shutdown.
+pub fn request_kernel_stop() {
+    KERNEL_STOPPED.store(true, Ordering::SeqCst);
+}
+
+/// Reset the kernel stop flag. Used only by test harnesses that
+/// exercise the flag within a single process — the flag is a
+/// process-lifetime static and test ordering can otherwise leak
+/// state between tests.
+#[cfg(test)]
+pub fn reset_kernel_stop() {
+    KERNEL_STOPPED.store(false, Ordering::SeqCst);
+}
 
 /// Runtime value.
 ///
@@ -272,6 +304,12 @@ pub enum RuntimeError {
     /// names the specific failure (mismatched digest, invalid
     /// signature, unsupported algorithm, malformed payload).
     EvalVerificationFailed { err: crate::hash::HashError },
+    /// A `:wat::kernel::recv` call on a channel whose sender has been
+    /// dropped, or a `:wat::kernel::send` on a channel whose receiver
+    /// has been dropped. MVP `recv` returns `:String` and errors on
+    /// disconnect; when `:Option<T>` + match lands, recv disconnect
+    /// becomes a first-class `:None` instead of an error.
+    ChannelDisconnected { op: String },
 }
 
 impl fmt::Display for RuntimeError {
@@ -323,6 +361,11 @@ impl fmt::Display for RuntimeError {
             RuntimeError::EvalVerificationFailed { err } => {
                 write!(f, "eval verification failed: {}", err)
             }
+            RuntimeError::ChannelDisconnected { op } => write!(
+                f,
+                "{}: channel disconnected (counterparty dropped); MVP recv returns :String and errors on disconnect — :Option<T> lands with match",
+                op
+            ),
         }
     }
 }
@@ -703,6 +746,11 @@ fn dispatch_keyword_head(
         ":wat::core::eval-edn!" => eval_form_edn(args, env, sym),
         ":wat::core::eval-digest!" => eval_form_digest(args, env, sym),
         ":wat::core::eval-signed!" => eval_form_signed(args, env, sym),
+
+        // Kernel primitives — channel IO + stop flag.
+        ":wat::kernel::stopped" => eval_kernel_stopped(args),
+        ":wat::kernel::send" => eval_kernel_send(args, env, sym),
+        ":wat::kernel::recv" => eval_kernel_recv(args, env, sym),
 
         // Anything else: user-defined function lookup.
         other => {
@@ -1367,6 +1415,102 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
 // The mutation-form refusal (FOUNDATION line 663) runs inside every
 // path: an AST that contains a `define` / `defmacro` / `struct` / etc.
 // is rejected before anything executes.
+
+// ─── Kernel primitives: stopped / send / recv ───────────────────────────
+
+/// `(:wat::kernel::stopped)` — nullary accessor; returns the kernel
+/// stop flag as a `:bool`. The wat-vm's signal handler sets the flag
+/// on SIGINT / SIGTERM; user programs poll it in their loops.
+fn eval_kernel_stopped(args: &[WatAST]) -> Result<Value, RuntimeError> {
+    if !args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::stopped".into(),
+            expected: 0,
+            got: args.len(),
+        });
+    }
+    Ok(Value::bool(KERNEL_STOPPED.load(Ordering::SeqCst)))
+}
+
+/// `(:wat::kernel::send sender value)` — blocks until the value is
+/// accepted by the channel; returns `:()`. Per 058-029 / FOUNDATION
+/// the type scheme is `∀T. crossbeam_channel::Sender<T> -> T -> :()`;
+/// the MVP wat-vm wires String-typed channels for stdio so the
+/// concrete call shape is `Sender<String> -> String -> :()`.
+fn eval_kernel_send(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::send".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let sender = match eval(&args[0], env, sym)? {
+        Value::crossbeam_channel__Sender(s) => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::send".into(),
+                expected: "crossbeam_channel::Sender",
+                got: other.type_name(),
+            });
+        }
+    };
+    let msg = match eval(&args[1], env, sym)? {
+        Value::String(s) => (*s).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::send".into(),
+                expected: "String",
+                got: other.type_name(),
+            });
+        }
+    };
+    sender
+        .send(msg)
+        .map_err(|_| RuntimeError::ChannelDisconnected {
+            op: ":wat::kernel::send".into(),
+        })?;
+    Ok(Value::Unit)
+}
+
+/// `(:wat::kernel::recv receiver)` — blocks until the receiver
+/// produces a value or its sender is dropped. MVP returns `:String`
+/// directly and raises `ChannelDisconnected` on sender drop; the
+/// target shape is `∀T. Receiver<T> -> Option<T>` which requires
+/// runtime `Option<T>` + pattern-matching support (future slice).
+fn eval_kernel_recv(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::recv".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let receiver = match eval(&args[0], env, sym)? {
+        Value::crossbeam_channel__Receiver(r) => r,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::recv".into(),
+                expected: "crossbeam_channel::Receiver",
+                got: other.type_name(),
+            });
+        }
+    };
+    match receiver.recv() {
+        Ok(s) => Ok(Value::String(Arc::new(s))),
+        Err(_) => Err(RuntimeError::ChannelDisconnected {
+            op: ":wat::kernel::recv".into(),
+        }),
+    }
+}
 
 fn eval_form_ast(
     args: &[WatAST],

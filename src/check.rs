@@ -993,6 +993,45 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: holon_ty(),
         },
     );
+
+    // Kernel primitives.
+    // (:wat::kernel::stopped) → :bool.
+    env.register(
+        ":wat::kernel::stopped".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: bool_ty(),
+        },
+    );
+    // (:wat::kernel::send sender value) — ∀T. Sender<T> -> T -> :().
+    env.register(
+        ":wat::kernel::send".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![
+                TypeExpr::Parametric {
+                    head: "crossbeam_channel::Sender".into(),
+                    args: vec![t_var()],
+                },
+                t_var(),
+            ],
+            ret: TypeExpr::Tuple(vec![]),
+        },
+    );
+    // (:wat::kernel::recv receiver) — MVP: ∀T. Receiver<T> -> T (target
+    // :Option<T> per FOUNDATION, lands when Option+match runtime lands).
+    env.register(
+        ":wat::kernel::recv".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![TypeExpr::Parametric {
+                head: "crossbeam_channel::Receiver".into(),
+                args: vec![t_var()],
+            }],
+            ret: t_var(),
+        },
+    );
 }
 
 #[cfg(test)]
