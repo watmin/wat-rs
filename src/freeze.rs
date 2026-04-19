@@ -46,7 +46,7 @@
 //!   `AtomTypeRegistry` with a `WatAST` canonicalizer registered)
 //!   built from the committed [`Config`] and attached to the
 //!   [`SymbolTable`]. Runtime primitives that need to project holons
-//!   into their vectors (`:wat::core::presence`,
+//!   into their vectors (`:wat::algebra::cosine`,
 //!   `:wat::config::noise-floor`) reach it via dispatch.
 
 use crate::ast::WatAST;
@@ -89,7 +89,7 @@ impl FrozenWorld {
     ///
     /// Also constructs an [`EncodingCtx`] from `config` and attaches it
     /// to `symbols`, so runtime primitives that project holons into
-    /// their vectors (`:wat::core::presence`, `:wat::config::noise-floor`)
+    /// their vectors (`:wat::algebra::cosine`, `:wat::config::noise-floor`)
     /// have access at dispatch. Per FOUNDATION 1718, presence is the
     /// retrieval primitive; it is only reachable once freeze has
     /// committed `dims` / `global_seed` / `noise_floor` and built the

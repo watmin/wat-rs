@@ -101,7 +101,7 @@ fn echo_program_reads_stdin_writes_stdout() {
 ///
 /// The VECTOR side of the proof — measuring that `Bind(k, program-atom)`
 /// obscures the program at the vector level and self-inverse recovers
-/// it — needs the `:wat::core::presence` primitive and lives in its
+/// it — needs the `:wat::algebra::cosine` primitive and lives in its
 /// own CLI test (added separately).
 const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
 (:wat::config::set-dims! 1024)
@@ -174,12 +174,12 @@ fn programs_are_atoms_hello_world() {
 /// 3. `(:wat::algebra::Bind key-atom program-atom)` composes the Atom
 ///    with a key, producing a Bind tree whose encoded vector is
 ///    ROUGHLY ORTHOGONAL to the program-atom's vector. Below the 5σ
-///    noise floor. `(:wat::core::presence program-atom bound)` returns
+///    noise floor. `(:wat::algebra::cosine program-atom bound)` returns
 ///    a small scalar — binarized via `>` against noise-floor yields
 ///    "None". The printed "None" IS the proof.
 /// 4. `(:wat::algebra::Bind bound key-atom)` — MAP self-inverse at the
 ///    vector level: `bind(bind(k,p), k) ≈ p` on non-zero positions.
-///    `(:wat::core::presence program-atom recovered)` returns a large
+///    `(:wat::algebra::cosine program-atom recovered)` returns a large
 ///    scalar — binarizes to "Some". The printed "Some" is the proof
 ///    the algebra recovered the signal.
 /// 5. `(:wat::core::atom-value program-atom)` extracts the WatAST
@@ -215,7 +215,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
 
      ;; Vector-level proof #1: program-atom's signal is GONE from bound.
      ((bound-score :f64)
-       (:wat::core::presence program-atom bound))
+       (:wat::algebra::cosine program-atom bound))
      ((_ :())
        (:wat::kernel::send stdout
          (:wat::core::if
@@ -229,7 +229,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
 
      ;; Vector-level proof #2: program-atom's signal is BACK in recovered.
      ((recov-score :f64)
-       (:wat::core::presence program-atom recovered))
+       (:wat::algebra::cosine program-atom recovered))
      ((_ :())
        (:wat::kernel::send stdout
          (:wat::core::if
@@ -475,8 +475,8 @@ fn stdlib_subtract_macro_expands_in_user_program() {
              ((b :holon::HolonAST) (:wat::algebra::Atom "bob"))
              ((c :holon::HolonAST) (:wat::algebra::Atom "charlie"))
              ((diff :holon::HolonAST) (:wat::std::Subtract a b))
-             ((self-score :f64) (:wat::core::presence a diff))
-             ((other-score :f64) (:wat::core::presence c diff))
+             ((self-score :f64) (:wat::algebra::cosine a diff))
+             ((other-score :f64) (:wat::algebra::cosine c diff))
              ((_ :()) (:wat::kernel::send stdout (:my::test::verdict self-score))))
             (:wat::kernel::send stdout (:my::test::verdict other-score))))
     "#;
@@ -541,8 +541,8 @@ fn stdlib_circular_macro_near_and_far() {
             (((h0  :holon::HolonAST) (:wat::std::Circular  0.0 24.0))
              ((h23 :holon::HolonAST) (:wat::std::Circular 23.0 24.0))
              ((h12 :holon::HolonAST) (:wat::std::Circular 12.0 24.0))
-             ((near-score :f64) (:wat::core::presence h0 h23))
-             ((far-score  :f64) (:wat::core::presence h0 h12))
+             ((near-score :f64) (:wat::algebra::cosine h0 h23))
+             ((far-score  :f64) (:wat::algebra::cosine h0 h12))
              ((_ :()) (:wat::kernel::send stdout (:my::test::verdict near-score))))
             (:wat::kernel::send stdout (:my::test::verdict far-score))))
     "#;
@@ -605,8 +605,8 @@ fn stdlib_reject_project_gram_schmidt_duo() {
              ((y :holon::HolonAST) (:wat::algebra::Atom "y"))
              ((residual :holon::HolonAST) (:wat::std::Reject x y))
              ((shadow :holon::HolonAST) (:wat::std::Project x y))
-             ((rej-score :f64) (:wat::core::presence y residual))
-             ((proj-score :f64) (:wat::core::presence y shadow))
+             ((rej-score :f64) (:wat::algebra::cosine y residual))
+             ((proj-score :f64) (:wat::algebra::cosine y shadow))
              ((_ :()) (:wat::kernel::send stdout (:my::test::verdict proj-score))))
             (:wat::kernel::send stdout (:my::test::verdict rej-score))))
     "#;
@@ -668,8 +668,8 @@ fn stdlib_sequential_is_order_sensitive() {
              ((c :holon::HolonAST) (:wat::algebra::Atom "c"))
              ((abc :holon::HolonAST) (:wat::std::Sequential (:wat::core::list a b c)))
              ((acb :holon::HolonAST) (:wat::std::Sequential (:wat::core::list a c b)))
-             ((same :f64) (:wat::core::presence abc abc))
-             ((reorder :f64) (:wat::core::presence abc acb))
+             ((same :f64) (:wat::algebra::cosine abc abc))
+             ((reorder :f64) (:wat::algebra::cosine abc acb))
              ((_ :()) (:wat::kernel::send stdout (:my::test::verdict same))))
             (:wat::kernel::send stdout (:my::test::verdict reorder))))
     "#;
@@ -730,8 +730,8 @@ fn stdlib_trigram_bundles_sequential_windows() {
               (:wat::std::Sequential (:wat::core::list a b c)))
              ((full :holon::HolonAST)
               (:wat::std::Trigram (:wat::core::list a b c d)))
-             ((participant :f64) (:wat::core::presence window-1 full))
-             ((outsider :f64) (:wat::core::presence z full))
+             ((participant :f64) (:wat::algebra::cosine window-1 full))
+             ((outsider :f64) (:wat::algebra::cosine z full))
              ((_ :()) (:wat::kernel::send stdout (:my::test::verdict participant))))
             (:wat::kernel::send stdout (:my::test::verdict outsider))))
     "#;

@@ -1706,14 +1706,25 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Presence measurement — the retrieval primitive (FOUNDATION 1718).
-    // ∀. :holon::HolonAST -> :holon::HolonAST -> :f64
+    // Cosine measurement — the retrieval scalar (FOUNDATION 1718 +
+    // OPEN-QUESTIONS line 419). Algebra-substrate operation (input is
+    // holons, not raw numbers).
+    //   (:wat::algebra::cosine    target ref) -> :f64
+    //   (:wat::algebra::presence? target ref) -> :bool (cosine > noise-floor)
     env.register(
-        ":wat::core::presence".into(),
+        ":wat::algebra::cosine".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty()],
             ret: f64_ty(),
+        },
+    );
+    env.register(
+        ":wat::algebra::presence?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty(), holon_ty()],
+            ret: bool_ty(),
         },
     );
 
@@ -1746,7 +1757,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Kernel primitives.
     // (:wat::kernel::stopped) → :bool.
     env.register(
-        ":wat::kernel::stopped".into(),
+        ":wat::kernel::stopped?".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![],

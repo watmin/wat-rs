@@ -43,11 +43,11 @@ use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-/// Kernel-owned stop flag read by `(:wat::kernel::stopped)`.
+/// Kernel-owned stop flag read by `(:wat::kernel::stopped?)`.
 ///
 /// The wat-vm binary installs OS signal handlers for SIGINT and
 /// SIGTERM; both set this flag to `true`. User programs poll via the
-/// `:wat::kernel::stopped` form to decide whether to continue their
+/// `:wat::kernel::stopped?` form to decide whether to continue their
 /// main loops — whenever `true`, they drop their output senders
 /// and return, which cascades clean shutdown through the channel
 /// disconnects.
@@ -59,7 +59,7 @@ pub static KERNEL_STOPPED: AtomicBool = AtomicBool::new(false);
 
 /// Set the kernel stop flag to `true`. Called by the wat-vm CLI's
 /// signal handler. After `true` is set, any user program polling
-/// `(:wat::kernel::stopped)` will observe it and can begin clean
+/// `(:wat::kernel::stopped?)` will observe it and can begin clean
 /// shutdown.
 pub fn request_kernel_stop() {
     KERNEL_STOPPED.store(true, Ordering::SeqCst);
@@ -333,7 +333,7 @@ impl EnvBuilder {
 ///
 /// Constructed once from [`Config`] at freeze and attached to the
 /// frozen [`SymbolTable`]. Used by vector-level primitives like
-/// `:wat::core::presence` (FOUNDATION 1718), which measure cosine
+/// `:wat::algebra::cosine` (FOUNDATION 1718), which measure cosine
 /// similarity between encoded holons against the substrate noise floor.
 ///
 /// Holds `Arc`s so it can be cloned cheaply by the runtime when a
@@ -463,7 +463,7 @@ impl SymbolTable {
     }
 
     /// Borrow the encoding context, if one is attached. Runtime
-    /// primitives that require encoding (`:wat::core::presence`) call
+    /// primitives that require encoding (`:wat::algebra::cosine`) call
     /// this and raise [`RuntimeError::NoEncodingCtx`] on `None`.
     pub fn encoding_ctx(&self) -> Option<&Arc<EncodingCtx>> {
         self.encoding_ctx.as_ref()
@@ -518,7 +518,7 @@ pub enum RuntimeError {
     /// shape — so the only surviving producer of this variant is
     /// send-after-disconnect.
     ChannelDisconnected { op: String },
-    /// A vector-level primitive (`:wat::core::presence`,
+    /// A vector-level primitive (`:wat::algebra::cosine`,
     /// `:wat::config::noise-floor`, etc.) was invoked but the
     /// [`SymbolTable`] has no attached [`EncodingCtx`]. Reachable from
     /// test harnesses that don't go through freeze; the frozen startup
@@ -1042,7 +1042,8 @@ fn dispatch_keyword_head(
         // Presence — the retrieval primitive per FOUNDATION 1718.
         // Cosine between encoded target and encoded reference. Returns
         // scalar :f64; the caller binarizes at the noise floor.
-        ":wat::core::presence" => eval_presence(args, env, sym),
+        ":wat::algebra::cosine" => eval_algebra_cosine(args, env, sym),
+        ":wat::algebra::presence?" => eval_algebra_presence_q(args, env, sym),
         ":wat::algebra::dot" => eval_algebra_dot(args, env, sym),
 
         // Constrained runtime eval — four forms, matching the load
@@ -1053,7 +1054,7 @@ fn dispatch_keyword_head(
         ":wat::core::eval-signed!" => eval_form_signed(args, env, sym),
 
         // Kernel primitives — channel IO + stop flag + user signals.
-        ":wat::kernel::stopped" => eval_kernel_stopped(args),
+        ":wat::kernel::stopped?" => eval_kernel_stopped(args),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym),
         ":wat::kernel::recv" => eval_kernel_recv(args, env, sym),
         ":wat::kernel::try-recv" => eval_kernel_try_recv(args, env, sym),
@@ -2494,35 +2495,65 @@ fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, RuntimeError> {
     }
 }
 
-/// `(:wat::core::presence target reference) -> :f64` — the retrieval
-/// primitive per FOUNDATION 1718.
+/// `(:wat::algebra::cosine target reference) -> :f64` — raw cosine
+/// measurement between two encoded holons. Per FOUNDATION 1718 +
+/// OPEN-QUESTIONS line 419: algebra-substrate operation (input is
+/// holons, not raw numbers). Sibling to `:wat::algebra::dot` — this
+/// one normalizes.
 ///
-/// Encodes both holons via the frozen [`EncodingCtx`] and returns the
-/// cosine similarity in `[-1, +1]`. The algebra does NOT binarize — the
-/// caller compares against `(:wat::config::noise-floor)` (or any
-/// threshold of its own choosing) to derive a verdict.
-///
-/// Use cases: membership (`member?`), engram matching, discriminant
-/// similarity, "is this atom present in this composite holon?"
-fn eval_presence(
+/// Encodes both holons via the frozen [`EncodingCtx`] and returns a
+/// value in `[-1, +1]`. The algebra does NOT binarize — callers that
+/// want a verdict reach for [`eval_algebra_presence_q`] (alias
+/// `presence?`), which compares against the committed noise floor.
+fn eval_algebra_cosine(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::core::presence".into(),
+            op: ":wat::algebra::cosine".into(),
             expected: 2,
             got: args.len(),
         });
     }
-    let target = require_holon(":wat::core::presence", eval(&args[0], env, sym)?)?;
-    let reference = require_holon(":wat::core::presence", eval(&args[1], env, sym)?)?;
-    let ctx = require_encoding_ctx(":wat::core::presence", sym)?;
+    let target = require_holon(":wat::algebra::cosine", eval(&args[0], env, sym)?)?;
+    let reference = require_holon(":wat::algebra::cosine", eval(&args[1], env, sym)?)?;
+    let ctx = require_encoding_ctx(":wat::algebra::cosine", sym)?;
 
     let vt = encode(&target, &ctx.vm, &ctx.scalar, &ctx.registry);
     let vr = encode(&reference, &ctx.vm, &ctx.scalar, &ctx.registry);
     Ok(Value::f64(Similarity::cosine(&vt, &vr)))
+}
+
+/// `(:wat::algebra::presence? target reference) -> :bool` — boolean
+/// verdict: is `target` present in `reference` above the 5σ noise
+/// floor? Encodes both, computes cosine, returns
+/// `cosine > :wat::config::noise-floor`.
+///
+/// The `?` suffix is the predicate convention (2026-04-19 naming
+/// stance). Callers that want the raw scalar reach for
+/// `:wat::algebra::cosine`.
+fn eval_algebra_presence_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::algebra::presence?".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let target = require_holon(":wat::algebra::presence?", eval(&args[0], env, sym)?)?;
+    let reference = require_holon(":wat::algebra::presence?", eval(&args[1], env, sym)?)?;
+    let ctx = require_encoding_ctx(":wat::algebra::presence?", sym)?;
+
+    let vt = encode(&target, &ctx.vm, &ctx.scalar, &ctx.registry);
+    let vr = encode(&reference, &ctx.vm, &ctx.scalar, &ctx.registry);
+    let cosine = Similarity::cosine(&vt, &vr);
+    Ok(Value::bool(cosine > ctx.config.noise_floor))
 }
 
 /// `(:wat::algebra::dot x y) -> :f64` — scalar dot product of two
@@ -2652,16 +2683,16 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
 
 // ─── Kernel primitives: stopped / send / recv ───────────────────────────
 
-/// `(:wat::kernel::stopped)` — nullary accessor; returns the kernel
+/// `(:wat::kernel::stopped?)` — nullary predicate; returns the kernel
 /// stop flag as a `:bool`. The wat-vm's signal handler sets the flag
 /// on SIGINT / SIGTERM; user programs poll it in their loops.
 ///
-/// Grandfathered bare name; Step 1.5 in `docs/058-backlog.md` will
-/// rename this to `stopped?` when the naming-convention sweep runs.
+/// `?` suffix per the 2026-04-19 naming-convention stance —
+/// predicates end in `?`.
 fn eval_kernel_stopped(args: &[WatAST]) -> Result<Value, RuntimeError> {
     if !args.is_empty() {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::kernel::stopped".into(),
+            op: ":wat::kernel::stopped?".into(),
             expected: 0,
             got: args.len(),
         });
@@ -4330,7 +4361,7 @@ mod tests {
     #[test]
     fn presence_of_atom_in_itself_is_one() {
         let result = eval_with_ctx(
-            r#"(:wat::core::presence
+            r#"(:wat::algebra::cosine
                  (:wat::algebra::Atom "hello")
                  (:wat::algebra::Atom "hello"))"#,
             1024,
@@ -4413,11 +4444,70 @@ mod tests {
     }
 
     #[test]
+    fn presence_q_true_for_self() {
+        // presence? is the boolean verdict — cosine > noise floor.
+        // An atom against itself: cosine = 1.0, well above the floor.
+        let result = eval_with_ctx(
+            r#"(:wat::algebra::presence?
+                 (:wat::algebra::Atom "alice")
+                 (:wat::algebra::Atom "alice"))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(matches!(result, Value::bool(true)));
+    }
+
+    #[test]
+    fn presence_q_false_for_unrelated() {
+        let result = eval_with_ctx(
+            r#"(:wat::algebra::presence?
+                 (:wat::algebra::Atom "alice")
+                 (:wat::algebra::Atom "charlie"))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(matches!(result, Value::bool(false)));
+    }
+
+    #[test]
+    fn cosine_of_atom_with_itself_is_one() {
+        // The renamed primitive (algebra::cosine) returns the same
+        // scalar the old :wat::core::presence did.
+        let result = eval_with_ctx(
+            r#"(:wat::algebra::cosine
+                 (:wat::algebra::Atom "self")
+                 (:wat::algebra::Atom "self"))"#,
+            1024,
+        )
+        .unwrap();
+        match result {
+            Value::f64(x) => assert!((x - 1.0).abs() < 1e-9, "got {}", x),
+            v => panic!("expected f64, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn stopped_q_reads_kernel_flag() {
+        // The renamed primitive — stopped? per the `?` convention.
+        reset_kernel_stop();
+        assert!(matches!(
+            eval_expr("(:wat::kernel::stopped?)").unwrap(),
+            Value::bool(false)
+        ));
+        request_kernel_stop();
+        assert!(matches!(
+            eval_expr("(:wat::kernel::stopped?)").unwrap(),
+            Value::bool(true)
+        ));
+        reset_kernel_stop();
+    }
+
+    #[test]
     fn presence_requires_encoding_ctx() {
         // Without a frozen SymbolTable, presence must error — can't
         // reach into encoding machinery that doesn't exist.
         let ast = parse_one(
-            r#"(:wat::core::presence
+            r#"(:wat::algebra::cosine
                  (:wat::algebra::Atom "a")
                  (:wat::algebra::Atom "b"))"#,
         )
@@ -4425,7 +4515,7 @@ mod tests {
         let err = eval(&ast, &Environment::new(), &SymbolTable::new()).unwrap_err();
         assert!(matches!(
             err,
-            RuntimeError::NoEncodingCtx { op } if op == ":wat::core::presence"
+            RuntimeError::NoEncodingCtx { op } if op == ":wat::algebra::cosine"
         ));
     }
 
@@ -4439,7 +4529,7 @@ mod tests {
                  (((program :holon::HolonAST) (:wat::algebra::Atom "the-program"))
                   ((key :holon::HolonAST) (:wat::algebra::Atom "the-key"))
                   ((bound :holon::HolonAST) (:wat::algebra::Bind key program)))
-                 (:wat::core::presence program bound))"#,
+                 (:wat::algebra::cosine program bound))"#,
             1024,
         )
         .unwrap();
@@ -4469,7 +4559,7 @@ mod tests {
                   ((key :holon::HolonAST) (:wat::algebra::Atom "the-key"))
                   ((bound :holon::HolonAST) (:wat::algebra::Bind key program))
                   ((recovered :holon::HolonAST) (:wat::algebra::Bind bound key)))
-                 (:wat::core::presence program recovered))"#,
+                 (:wat::algebra::cosine program recovered))"#,
             1024,
         )
         .unwrap();

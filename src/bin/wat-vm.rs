@@ -24,7 +24,7 @@
 //!
 //! **Terminal signals (SIGINT, SIGTERM)** route to `request_kernel_stop()`
 //! — the stop flag is set-once and irreversible. User programs poll
-//! `(:wat::kernel::stopped)` in their loops and cascade shutdown by
+//! `(:wat::kernel::stopped?)` in their loops and cascade shutdown by
 //! dropping their root producers.
 //!
 //! **Non-terminal user signals (SIGUSR1, SIGUSR2, SIGHUP)** each route
