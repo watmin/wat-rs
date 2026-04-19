@@ -1000,6 +1000,7 @@ fn dispatch_keyword_head(
         // Cosine between encoded target and encoded reference. Returns
         // scalar :f64; the caller binarizes at the noise floor.
         ":wat::core::presence" => eval_presence(args, env, sym),
+        ":wat::algebra::dot" => eval_algebra_dot(args, env, sym),
 
         // Constrained runtime eval — four forms, matching the load
         // pipeline's discipline on source interface and verification.
@@ -2155,6 +2156,32 @@ fn eval_presence(
     let vt = encode(&target, &ctx.vm, &ctx.scalar, &ctx.registry);
     let vr = encode(&reference, &ctx.vm, &ctx.scalar, &ctx.registry);
     Ok(Value::f64(Similarity::cosine(&vt, &vr)))
+}
+
+/// `(:wat::algebra::dot x y) -> :f64` — scalar dot product of two
+/// encoded holons. Per 058-005: measurement primitive, not a HolonAST
+/// variant (scalar-out, not vector-out). Sibling to `presence`:
+/// presence returns cosine (dot normalized by magnitudes); dot is the
+/// raw bilinear value, used by Gram-Schmidt macros (Reject, Project)
+/// that need the unnormalized coefficient.
+fn eval_algebra_dot(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::algebra::dot".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let x = require_holon(":wat::algebra::dot", eval(&args[0], env, sym)?)?;
+    let y = require_holon(":wat::algebra::dot", eval(&args[1], env, sym)?)?;
+    let ctx = require_encoding_ctx(":wat::algebra::dot", sym)?;
+    let vx = encode(&x, &ctx.vm, &ctx.scalar, &ctx.registry);
+    let vy = encode(&y, &ctx.vm, &ctx.scalar, &ctx.registry);
+    Ok(Value::f64(Similarity::dot(&vx, &vy)))
 }
 
 fn require_numeric(op: &str, v: Value) -> Result<f64, RuntimeError> {
@@ -3946,6 +3973,76 @@ mod tests {
             Value::f64(x) => assert!((x - 1.0).abs() < 1e-9, "expected ≈1.0, got {}", x),
             other => panic!("expected f64, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn dot_of_atom_with_itself_is_large_positive() {
+        // dot(v, v) = |v|² — positive and equal to the number of
+        // non-zero dimensions in v's encoding. The exact count
+        // depends on the substrate's ternary content; we just
+        // assert it's well above sqrt(d) (the noise scale).
+        let result = eval_with_ctx(
+            r#"(:wat::algebra::dot
+                 (:wat::algebra::Atom "alice")
+                 (:wat::algebra::Atom "alice"))"#,
+            1024,
+        )
+        .unwrap();
+        match result {
+            Value::f64(x) => {
+                // Expect |v|² > 5*sqrt(d) (~160 at d=1024).
+                assert!(x > 5.0 * (1024f64).sqrt(), "got {}", x);
+            }
+            other => panic!("expected f64, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn dot_of_unrelated_atoms_vs_self_orders_correctly() {
+        // dot(a, a) >> dot(a, b) for independent atoms. The exact
+        // magnitudes are substrate-dependent; the ordering is the
+        // load-bearing invariant for Gram-Schmidt (Reject / Project).
+        let self_dot = match eval_with_ctx(
+            r#"(:wat::algebra::dot
+                 (:wat::algebra::Atom "alice")
+                 (:wat::algebra::Atom "alice"))"#,
+            1024,
+        )
+        .unwrap()
+        {
+            Value::f64(x) => x,
+            other => panic!("expected f64, got {:?}", other),
+        };
+        let cross_dot = match eval_with_ctx(
+            r#"(:wat::algebra::dot
+                 (:wat::algebra::Atom "alice")
+                 (:wat::algebra::Atom "charlie"))"#,
+            1024,
+        )
+        .unwrap()
+        {
+            Value::f64(x) => x,
+            other => panic!("expected f64, got {:?}", other),
+        };
+        assert!(
+            self_dot > cross_dot.abs() * 3.0,
+            "self dot {} should dwarf cross dot {}",
+            self_dot,
+            cross_dot
+        );
+    }
+
+    #[test]
+    fn dot_wrong_arity() {
+        let ast = parse_one(r#"(:wat::algebra::dot (:wat::algebra::Atom "a"))"#).unwrap();
+        let err = eval(&ast, &Environment::new(), &test_sym_with_ctx(1024)).unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    #[test]
+    fn dot_refuses_non_holon() {
+        let err = eval_with_ctx(r#"(:wat::algebra::dot 1 2)"#, 1024).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
     #[test]

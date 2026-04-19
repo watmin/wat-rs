@@ -1838,6 +1838,18 @@ fn register_builtins(env: &mut CheckEnv) {
             ]),
         },
     );
+    // Algebra measurement: dot product. Per 058-005 new measurement
+    // primitive. Scalar-returning sibling of cosine; used by the
+    // Gram-Schmidt stdlib macros (Reject, Project).
+    env.register(
+        ":wat::algebra::dot".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty(), holon_ty()],
+            ret: f64_ty(),
+        },
+    );
+
     // Stdlib math — single-method Rust calls per FOUNDATION-CHANGELOG
     // 2026-04-18. All unary :f64 -> :f64 except pi which is :() -> :f64.
     // Packaged here so Log / Circular expansions get proper checking.

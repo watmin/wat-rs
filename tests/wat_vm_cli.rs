@@ -568,3 +568,67 @@ fn stdlib_circular_macro_near_and_far() {
         stdout
     );
 }
+
+/// Reject + Project — the Gram-Schmidt duo. Reject(x,y) carries
+/// x's component ORTHOGONAL to y; Project(x,y) carries x's component
+/// ALONG y. The geometry is the load-bearing invariant for the DDoS
+/// sidecar's anomaly detection (Challenge 010, F1=1.000).
+///
+/// Test logic:
+///   - presence(y, Reject(x, y))  → below floor (by construction)
+///   - presence(y, Project(x, y)) → above floor (projection preserves
+///                                    direction along y)
+///
+/// Exercises both macros AND both branches of the noise-floor
+/// discriminator in one program. Assertion is exact.
+#[test]
+fn stdlib_reject_project_gram_schmidt_duo() {
+    let program = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:my::test::verdict
+                             (score :f64)
+                             -> :String)
+          (:wat::core::if
+            (:wat::core::> score (:wat::config::noise-floor))
+            "above\n"
+            "below\n"))
+
+        (:wat::core::define (:user::main
+                             (stdin  :crossbeam_channel::Receiver<String>)
+                             (stdout :crossbeam_channel::Sender<String>)
+                             (stderr :crossbeam_channel::Sender<String>)
+                             -> :())
+          (:wat::core::let*
+            (((x :holon::HolonAST) (:wat::algebra::Atom "x"))
+             ((y :holon::HolonAST) (:wat::algebra::Atom "y"))
+             ((residual :holon::HolonAST) (:wat::std::Reject x y))
+             ((shadow :holon::HolonAST) (:wat::std::Project x y))
+             ((rej-score :f64) (:wat::core::presence y residual))
+             ((proj-score :f64) (:wat::core::presence y shadow))
+             ((_ :()) (:wat::kernel::send stdout (:my::test::verdict proj-score))))
+            (:wat::kernel::send stdout (:my::test::verdict rej-score))))
+    "#;
+    let path = write_temp(program);
+    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let output = Command::new(bin)
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn");
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    // Project(x,y) preserves y's direction → above floor.
+    // Reject(x,y) strips it  → below floor.
+    assert_eq!(
+        stdout, "above\nbelow\n",
+        "Project(x,y) should align with y; Reject(x,y) should be orthogonal; got {:?}",
+        stdout
+    );
+}
