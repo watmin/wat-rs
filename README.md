@@ -48,7 +48,7 @@ implemented and tested end-to-end:
 
 1. Parse
 2. Entry-file shape check + config pass (`set-dims!`, `set-capacity-mode!`,
-   `set-global-seed!`)
+   `set-global-seed!`, `set-noise-floor!`)
 3. Recursive `load!` / `digest-load!` / `signed-load!` resolution
 4. `defmacro` registration + quasiquote expansion (Racket sets-of-scopes
    hygiene, Flatt 2016)
@@ -61,13 +61,29 @@ implemented and tested end-to-end:
 9. Canonical-EDN hashing + SHA-256 source-file integrity + Ed25519
    signature verification
 10. Freeze — `FrozenWorld` bundles config + types + macros + symbols;
-    Rust borrow checker is the immutability gate
+    Rust borrow checker is the immutability gate; `EncodingCtx` (VM +
+    ScalarEncoder + AtomTypeRegistry with `WatAST` canonicalizer) is
+    constructed from Config and attached to `SymbolTable` at freeze
 11. Invoke `:user::main` with three crossbeam channels
 12. Constrained eval — four forms (`eval-ast!`, `eval-edn!`,
     `eval-digest!`, `eval-signed!`) with the same verification discipline
     as load
 
-**353 tests passing; zero warnings.** Full test surface: library units,
+**Programs-as-holons operational.** `:wat::core::quote` + parametric
+`:wat::algebra::Atom` + `:wat::core::atom-value` carry wat programs as
+first-class data in the algebra. `:wat::core::presence` (FOUNDATION
+1718) is the retrieval primitive — cosine between encoded holons,
+returning scalar `:f64` the caller binarizes against the 5σ noise
+floor committed at config pass. The vector-level proof runs end-to-end:
+
+```
+$ echo watmin | wat-vm presence-proof.wat
+None       ; presence(program-atom, Bind(k, program-atom)) below floor
+Some       ; presence(program-atom, Bind(Bind(k,p), k)) above floor
+watmin     ; (eval-ast! (atom-value program-atom)) fires the echo
+```
+
+**372 tests passing; zero warnings.** Full test surface: library units,
 integration tests, and end-to-end CLI tests that spawn the built `wat-vm`
 binary and exercise it with real OS stdin/stdout.
 
@@ -84,7 +100,10 @@ binary and exercise it with real OS stdin/stdout.
   entry points. Reader macros (`` ` `` / `,` / `,@`) rewrite to
   `:wat::core::quasiquote` / `unquote` / `unquote-splicing`.
 - [`config`] — entry-file discipline + `set-*!` setter commit. Required
-  fields (`dims`, `capacity-mode`) + optional `global-seed` (default 42).
+  fields (`dims`, `capacity-mode`); optional `global-seed` (default 42)
+  and `noise-floor` (default `5.0 / sqrt(dims)` — the 5σ substrate
+  noise floor per FOUNDATION 1718). Each optional field overridable
+  exactly once.
 - [`load`] — recursive load-form resolution with `:wat::load::*` source
   interfaces and `:wat::verify::*` payload + algorithm keywords. Three
   load forms (`load!` / `digest-load!` / `signed-load!`). Cycle detection,
@@ -101,11 +120,23 @@ binary and exercise it with real OS stdin/stdout.
 - [`hash`] — canonical-EDN serialization + SHA-256 + Ed25519 verification.
 - [`lower`] — `WatAST` algebra-core subtree → `holon::HolonAST`.
 - [`runtime`] — AST walker, `:wat::core::*` / `:wat::algebra::*` dispatch,
-  `:wat::kernel::stopped` / `send` / `recv`, four eval forms, `Value`
-  enum with namespace-honest variant names (`Value::crossbeam_channel__Sender`,
-  `Value::holon__HolonAST`, `Value::wat__core__lambda`, …).
+  `:wat::kernel::stopped` / `send` / `recv`, four eval forms. Programs-as-holons
+  surface: `:wat::core::quote` captures unevaluated AST as `:wat::WatAST`;
+  `:wat::algebra::Atom` accepts `Value::wat__WatAST` payloads (canonicalizer
+  registered in `AtomTypeRegistry`); `:wat::core::atom-value` structurally
+  reads an Atom's payload field; `:wat::core::let*` for sequential
+  binding. Retrieval: `:wat::core::presence target reference -> :f64`
+  (cosine between encoded holons; FOUNDATION 1718). Config accessors:
+  `:wat::config::dims`, `:wat::config::global-seed`,
+  `:wat::config::noise-floor`. `EncodingCtx` (VM + ScalarEncoder +
+  registry + Config) attached to `SymbolTable` at freeze so primitives
+  needing projection reach it via dispatch. `Value` enum with
+  namespace-honest variant names (`Value::crossbeam_channel__Sender`,
+  `Value::holon__HolonAST`, `Value::wat__WatAST`,
+  `Value::wat__core__lambda`, …).
 - [`freeze`] — `FrozenWorld`, `startup_from_source`, `invoke_user_main`,
-  `eval_*_in_frozen`.
+  `eval_*_in_frozen`. Constructs `EncodingCtx` from `Config` at freeze
+  and attaches it to the `SymbolTable`.
 
 ## `wat-vm` binary
 
@@ -193,6 +224,12 @@ Full rename table in `FOUNDATION-CHANGELOG.md` (entry dated 2026-04-19,
 
 Phase 1 is complete. Further work is additive:
 
+- **058 retrofit.** The shipped surface diverges from 058-001 in one
+  place: this impl's `atom-value` returns `:T` exact (structural field
+  read on Atom; errors on non-Atom variants); 058-001's written spec
+  has `-> :Option<T>`. Reconcile in a follow-up amendment; add
+  `:wat::core::quote` to FOUNDATION's core forms list; document
+  `:wat::core::let*` as implemented.
 - **Multi-line stdin.** `:Option<T>` runtime + `match` form → graceful EOF
   for `recv`.
 - **More kernel primitives.** `:wat::kernel::spawn` / `select` / `drop` /
