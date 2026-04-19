@@ -1243,6 +1243,26 @@ mod tests {
         assert!(matches!(err, crate::types::TypeError::AnyBanned { .. }));
     }
 
+    // ─── :Union retired ─────────────────────────────────────────────────
+
+    #[test]
+    fn union_parametric_rejected_at_parse() {
+        let err = parse_type_expr(":Union<i64,String>").unwrap_err();
+        assert!(matches!(err, crate::types::TypeError::UnionRetired { .. }));
+    }
+
+    #[test]
+    fn union_bare_path_rejected_at_parse() {
+        let err = parse_type_expr(":Union").unwrap_err();
+        assert!(matches!(err, crate::types::TypeError::UnionRetired { .. }));
+    }
+
+    #[test]
+    fn union_nested_rejected_at_parse() {
+        let err = parse_type_expr(":Vec<Union<i64,String>>").unwrap_err();
+        assert!(matches!(err, crate::types::TypeError::UnionRetired { .. }));
+    }
+
     // ─── Multiple errors reported together ──────────────────────────────
 
     #[test]

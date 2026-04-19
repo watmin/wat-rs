@@ -188,8 +188,15 @@ pub enum TypeError {
     MalformedTypeExpr { raw: String, reason: String },
     /// User source wrote `:Any` (as a bare path or parametric head).
     /// 058-030 forbids the escape hatch; every apparent use has a
-    /// principled alternative (`:Holon`, `:Union<T,U>`, parametric T).
+    /// principled alternative (`:Holon`, parametric T, or a named
+    /// enum).
     AnyBanned { raw: String },
+    /// User source wrote `:Union<T,U,V>`. Retired 2026-04-19 per the
+    /// colon-quote sweep — Rust has no anonymous union, so the
+    /// honest replacement is a user-declared
+    /// `(:wat::core::enum ...)` with named variants. Every coproduct
+    /// carries a discriminator; dispatch is explicit.
+    UnionRetired { raw: String },
 }
 
 impl fmt::Display for TypeError {
@@ -221,7 +228,12 @@ impl fmt::Display for TypeError {
             }
             TypeError::AnyBanned { raw } => write!(
                 f,
-                ":Any is not part of the type system (058-030); use :Holon for any algebra value, :Union<T,U,V> for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: {}",
+                ":Any is not part of the type system (058-030); use :Holon for any algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: {}",
+                raw
+            ),
+            TypeError::UnionRetired { raw } => write!(
+                f,
+                ":Union<T,U,V> was retired 2026-04-19 — Rust has no anonymous union; declare a named enum with :wat::core::enum and use that type. Every coproduct gets a discriminator; dispatch is explicit. Offending expression: {}",
                 raw
             ),
         }
@@ -546,47 +558,55 @@ fn parse_declared_name(
 
 /// Parse a type-expression keyword into a structured [`TypeExpr`].
 ///
-/// Refuses `:Any` at any position (bare path or parametric head) per
-/// 058-030's closed-type-universe discipline. Every apparent need for
-/// `:Any` has a principled named alternative (`:Holon` for algebra
-/// values, `:Union<T,U,V>` for closed heterogeneous sets, parametric
-/// `T`/`K`/`V` for generics).
+/// Refuses banned forms at any position:
+///
+/// - `:Any` — 058-030's closed-type-universe discipline. Use
+///   `:Holon`, parametric `T`/`K`/`V`, or a named enum.
+/// - `:Union<T,U,V>` — retired 2026-04-19. Rust has no anonymous
+///   union; declare a named `:wat::core::enum` instead.
 pub fn parse_type_expr(kw: &str) -> Result<TypeExpr, TypeError> {
     let stripped = kw.strip_prefix(':').ok_or_else(|| TypeError::MalformedTypeExpr {
         raw: kw.into(),
         reason: "type expression keyword must begin with ':'".into(),
     })?;
     let expr = parse_type_inner(stripped, kw)?;
-    reject_any(&expr, kw)?;
+    reject_banned(&expr, kw)?;
     Ok(expr)
 }
 
-/// Walk a parsed [`TypeExpr`] and raise [`TypeError::AnyBanned`] if
-/// `:Any` appears anywhere. Protects the type universe's closure.
-fn reject_any(expr: &TypeExpr, raw: &str) -> Result<(), TypeError> {
+/// Walk a parsed [`TypeExpr`] and raise an error if any banned form
+/// appears: `:Any`, `:Union<...>`. Protects the type universe's
+/// closure.
+fn reject_banned(expr: &TypeExpr, raw: &str) -> Result<(), TypeError> {
     match expr {
         TypeExpr::Path(p) => {
             if p == ":Any" {
                 return Err(TypeError::AnyBanned { raw: raw.into() });
+            }
+            if p == ":Union" {
+                return Err(TypeError::UnionRetired { raw: raw.into() });
             }
         }
         TypeExpr::Parametric { head, args } => {
             if head == "Any" {
                 return Err(TypeError::AnyBanned { raw: raw.into() });
             }
+            if head == "Union" {
+                return Err(TypeError::UnionRetired { raw: raw.into() });
+            }
             for a in args {
-                reject_any(a, raw)?;
+                reject_banned(a, raw)?;
             }
         }
         TypeExpr::Fn { args, ret } => {
             for a in args {
-                reject_any(a, raw)?;
+                reject_banned(a, raw)?;
             }
-            reject_any(ret, raw)?;
+            reject_banned(ret, raw)?;
         }
         TypeExpr::Tuple(elements) => {
             for e in elements {
-                reject_any(e, raw)?;
+                reject_banned(e, raw)?;
             }
         }
         TypeExpr::Var(_) => {
