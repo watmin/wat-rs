@@ -29,14 +29,25 @@
 //!
 //! # What freeze is NOT
 //!
-//! - It doesn't invoke `:user::main` — that's task #140.
-//! - It doesn't wire the CLI binary — task #141.
-//! - It doesn't construct a `VectorManager` / `ScalarEncoder` /
-//!   `AtomTypeRegistry` from the [`Config`]; those are runtime-layer
-//!   concerns the caller (wat-vm binary) handles after freeze.
-//! - It doesn't perform full-program signature verification — that's
-//!   optionally done by the CLI caller over the frozen AST before
-//!   freeze completes, using [`crate::hash::verify_program_signature`].
+//! - It doesn't invoke `:user::main` — that's the wat-vm binary's job.
+//! - It doesn't perform signature verification at the whole-program
+//!   level. Signature verification is per-form — inside
+//!   `(:wat::core::signed-load! ...)` at startup and
+//!   `(:wat::core::eval-signed! ...)` at runtime. Each form carries
+//!   its own `sig` / `pubkey` payloads and verifies its own SHA-256
+//!   of canonical-EDN via [`crate::hash::verify_program_signature`].
+//!   There is no CLI flag for a "full-program" signature; a program's
+//!   verification surface is its collection of signed-* forms. See
+//!   FOUNDATION's cryptographic-provenance section.
+//!
+//! What freeze DOES construct, beyond the four registries:
+//!
+//! - An [`EncodingCtx`] (`VectorManager` + `ScalarEncoder` +
+//!   `AtomTypeRegistry` with a `WatAST` canonicalizer registered)
+//!   built from the committed [`Config`] and attached to the
+//!   [`SymbolTable`]. Runtime primitives that need to project holons
+//!   into their vectors (`:wat::core::presence`,
+//!   `:wat::config::noise-floor`) reach it via dispatch.
 
 use crate::ast::WatAST;
 use crate::check::{check_program, CheckErrors};

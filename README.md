@@ -224,22 +224,20 @@ Full rename table in `FOUNDATION-CHANGELOG.md` (entry dated 2026-04-19,
 
 Phase 1 is complete. Further work is additive:
 
-- **058 retrofit.** The shipped surface diverges from 058-001 in one
-  place: this impl's `atom-value` returns `:T` exact (structural field
-  read on Atom; errors on non-Atom variants); 058-001's written spec
-  has `-> :Option<T>`. Reconcile in a follow-up amendment; add
-  `:wat::core::quote` to FOUNDATION's core forms list; document
-  `:wat::core::let*` as implemented.
 - **Multi-line stdin.** `:Option<T>` runtime + `match` form → graceful EOF
   for `recv`.
 - **More kernel primitives.** `:wat::kernel::spawn` / `select` / `drop` /
   `try-recv` for richer concurrency; matches FOUNDATION's eight-primitive
   kernel surface.
-- **Full-program signature verification on the CLI.** `wat-vm --signed
-  <algo> --sig <b64> --pubkey <b64>` verifies the post-expand AST before
-  `:user::main` runs.
 - **Compile path.** Emit Rust source from the frozen world; `rustc`
   produces a native binary with `wat`'s frontend as its builder.
+
+Signature verification is **per-form, not per-invocation.** It lives at
+`:wat::core::signed-load!` (startup) and `:wat::core::eval-signed!`
+(runtime). A program may invoke any number of either, each with its own
+key and signature. There is no `wat-vm --signed` / `--sig` / `--pubkey`
+CLI flag; a program's verification surface is its collection of
+signed-* forms. See FOUNDATION's cryptographic-provenance section.
 
 ## See also
 

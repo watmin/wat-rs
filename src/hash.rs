@@ -230,11 +230,20 @@ pub fn verify_ast_signature(
     verify_hash_signature(&hash, algo, sig_b64, pubkey_b64)
 }
 
-/// Verify a signature over a flat form list (a full expanded program).
+/// Verify a signature over a flat form list.
 ///
 /// Computes the SHA-256 of the canonical-EDN of `forms` and dispatches
-/// to the named signature algorithm. Used by the wat-vm CLI (task #141)
-/// to verify a whole program's provenance after load+expand.
+/// to the named signature algorithm. Used per-form by
+/// `(:wat::core::signed-load! ...)` (the payload is a loaded file's
+/// parsed form list) and `(:wat::core::eval-signed! ...)` (the payload
+/// is a runtime AST resolved from the source interface). Each call
+/// verifies one form's provenance independently.
+///
+/// There is no CLI-level invocation of this function; signature
+/// verification is per-form by design — a program is a collection of
+/// forms with independent provenance needs, and one CLI-level
+/// signature cannot cover that structure. See FOUNDATION's
+/// cryptographic-provenance section.
 pub fn verify_program_signature(
     forms: &[WatAST],
     algo: &str,
