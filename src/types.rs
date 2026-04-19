@@ -69,6 +69,12 @@ pub enum TypeExpr {
     /// is a monotonically-increasing id allocated by the checker's
     /// `FreshGen`.
     Var(u64),
+    /// A tuple type — `:(T,U)`, `:(i64,String,bool)`. The empty
+    /// tuple `:()` is the unit type (0-tuple). A single-element
+    /// keyword like `:(T)` is grouping (flattened to `T`), not a
+    /// 1-tuple; write `:(T,)` with a trailing comma for the 1-tuple.
+    /// Semantics and written syntax match Rust's tuple types exactly.
+    Tuple(Vec<TypeExpr>),
 }
 
 /// Struct declaration — named product type.
@@ -578,6 +584,11 @@ fn reject_any(expr: &TypeExpr, raw: &str) -> Result<(), TypeError> {
             }
             reject_any(ret, raw)?;
         }
+        TypeExpr::Tuple(elements) => {
+            for e in elements {
+                reject_any(e, raw)?;
+            }
+        }
         TypeExpr::Var(_) => {
             // Fresh vars are synthetic; never appear at parse time.
         }
@@ -588,6 +599,18 @@ fn reject_any(expr: &TypeExpr, raw: &str) -> Result<(), TypeError> {
 /// Parse the content of a type keyword after the leading ':' has been
 /// stripped. `original` is the full keyword string for error reporting.
 fn parse_type_inner(s: &str, original: &str) -> Result<TypeExpr, TypeError> {
+    // Tuple literal — `(T,U,...)`. Must appear at the start; inner
+    // types respect top-level comma splitting.
+    if let Some(rest) = s.strip_prefix('(') {
+        if !rest.ends_with(')') {
+            return Err(TypeError::MalformedTypeExpr {
+                raw: original.into(),
+                reason: "tuple-literal type must close with ')'".into(),
+            });
+        }
+        let inside = &rest[..rest.len() - 1];
+        return parse_tuple_body(inside, original);
+    }
     // `fn(args)->ret` function type — detect at the start.
     if let Some(body) = s.strip_prefix("fn(") {
         return parse_fn_body(body, original);
@@ -608,6 +631,33 @@ fn parse_type_inner(s: &str, original: &str) -> Result<TypeExpr, TypeError> {
     }
     // Plain path.
     Ok(TypeExpr::Path(format!(":{}", s)))
+}
+
+/// Parse the body of a tuple-literal type.
+///
+/// - Empty body `` → unit (0-tuple): `Tuple(vec![])`.
+/// - Single type with no trailing comma: Rust grouping — returns the
+///   inner type directly (NOT wrapped in Tuple).
+/// - Trailing comma or multiple elements: `Tuple(vec![...])`.
+///
+/// Matches Rust's tuple-type syntax exactly.
+fn parse_tuple_body(inside: &str, original: &str) -> Result<TypeExpr, TypeError> {
+    let trimmed = inside.trim();
+    if trimmed.is_empty() {
+        return Ok(TypeExpr::Tuple(Vec::new()));
+    }
+    let has_trailing_comma = trimmed.ends_with(',');
+    let effective = if has_trailing_comma {
+        trimmed[..trimmed.len() - 1].trim_end()
+    } else {
+        trimmed
+    };
+    let elements = parse_type_list(effective, original)?;
+    if elements.len() == 1 && !has_trailing_comma {
+        // `:(T)` is grouping — return the inner type unwrapped.
+        return Ok(elements.into_iter().next().unwrap());
+    }
+    Ok(TypeExpr::Tuple(elements))
 }
 
 fn parse_fn_body(body: &str, original: &str) -> Result<TypeExpr, TypeError> {
@@ -1048,5 +1098,80 @@ mod tests {
             }
             _ => panic!(),
         }
+    }
+
+    // ─── Tuple literal types ────────────────────────────────────────────
+
+    #[test]
+    fn type_expr_tuple_unit() {
+        // :() is the unit / 0-tuple.
+        let t = parse_type_expr(":()").unwrap();
+        match t {
+            TypeExpr::Tuple(elements) => assert!(elements.is_empty()),
+            other => panic!("expected Tuple([]), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn type_expr_tuple_pair() {
+        let t = parse_type_expr(":(i64,String)").unwrap();
+        match t {
+            TypeExpr::Tuple(elements) => {
+                assert_eq!(elements.len(), 2);
+                assert_eq!(elements[0], TypeExpr::Path(":i64".into()));
+                assert_eq!(elements[1], TypeExpr::Path(":String".into()));
+            }
+            other => panic!("expected Tuple(i64,String), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn type_expr_tuple_triple() {
+        let t = parse_type_expr(":(Holon,Holon,Holon)").unwrap();
+        match t {
+            TypeExpr::Tuple(elements) => assert_eq!(elements.len(), 3),
+            other => panic!("expected 3-tuple, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn type_expr_tuple_one_element_is_grouping() {
+        // :(T) is Rust grouping — flattens to T (not a 1-tuple).
+        let t = parse_type_expr(":(i64)").unwrap();
+        assert_eq!(t, TypeExpr::Path(":i64".into()));
+    }
+
+    #[test]
+    fn type_expr_tuple_one_element_trailing_comma_is_tuple() {
+        // :(T,) is the explicit 1-tuple.
+        let t = parse_type_expr(":(i64,)").unwrap();
+        match t {
+            TypeExpr::Tuple(elements) => {
+                assert_eq!(elements.len(), 1);
+                assert_eq!(elements[0], TypeExpr::Path(":i64".into()));
+            }
+            other => panic!("expected 1-tuple, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn type_expr_tuple_with_nested_parametric() {
+        // :(Vec<i64>,HashMap<String,i64>) — nested commas at depth > 0
+        // must not split the outer tuple.
+        let t = parse_type_expr(":(Vec<i64>,HashMap<String,i64>)").unwrap();
+        match t {
+            TypeExpr::Tuple(elements) => {
+                assert_eq!(elements.len(), 2);
+                assert!(matches!(elements[0], TypeExpr::Parametric { .. }));
+                assert!(matches!(elements[1], TypeExpr::Parametric { .. }));
+            }
+            other => panic!("expected 2-tuple of parametrics, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn type_expr_tuple_malformed_rejected() {
+        // Missing closing ')'.
+        assert!(parse_type_expr(":(i64,String").is_err());
     }
 }

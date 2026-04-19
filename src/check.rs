@@ -700,6 +700,15 @@ fn unify(a: &TypeExpr, b: &TypeExpr, subst: &mut Subst) -> Result<(), UnifyError
             }
             unify(r1, r2, subst)
         }
+        (TypeExpr::Tuple(e1), TypeExpr::Tuple(e2)) => {
+            if e1.len() != e2.len() {
+                return Err(UnifyError);
+            }
+            for (x, y) in e1.iter().zip(e2.iter()) {
+                unify(x, y, subst)?;
+            }
+            Ok(())
+        }
         _ => Err(UnifyError),
     }
 }
@@ -737,6 +746,9 @@ fn apply_subst(ty: &TypeExpr, subst: &Subst) -> TypeExpr {
             args: args.iter().map(|a| apply_subst(a, subst)).collect(),
             ret: Box::new(apply_subst(ret, subst)),
         },
+        TypeExpr::Tuple(elements) => TypeExpr::Tuple(
+            elements.iter().map(|e| apply_subst(e, subst)).collect(),
+        ),
     }
 }
 
@@ -750,6 +762,7 @@ fn occurs(id: u64, ty: &TypeExpr, subst: &Subst) -> bool {
         TypeExpr::Fn { args, ret } => {
             args.iter().any(|a| occurs(id, a, subst)) || occurs(id, ret, subst)
         }
+        TypeExpr::Tuple(elements) => elements.iter().any(|e| occurs(id, e, subst)),
     }
 }
 
@@ -793,6 +806,9 @@ fn rename(ty: &TypeExpr, mapping: &HashMap<String, TypeExpr>) -> TypeExpr {
             args: args.iter().map(|a| rename(a, mapping)).collect(),
             ret: Box::new(rename(ret, mapping)),
         },
+        TypeExpr::Tuple(elements) => {
+            TypeExpr::Tuple(elements.iter().map(|e| rename(e, mapping)).collect())
+        }
         TypeExpr::Var(_) => ty.clone(),
     }
 }
@@ -810,6 +826,16 @@ fn format_type(t: &TypeExpr) -> String {
             let in_parts: Vec<_> = args.iter().map(format_type_inner).collect();
             format!(":fn({})->{}", in_parts.join(","), format_type_inner(ret))
         }
+        TypeExpr::Tuple(elements) => {
+            let inner: Vec<_> = elements.iter().map(format_type_inner).collect();
+            if elements.len() == 1 {
+                // 1-tuple requires trailing comma to disambiguate
+                // from parenthesization.
+                format!(":({},)", inner[0])
+            } else {
+                format!(":({})", inner.join(","))
+            }
+        }
         TypeExpr::Var(id) => format!(":?{}", id),
     }
 }
@@ -824,6 +850,14 @@ fn format_type_inner(t: &TypeExpr) -> String {
         TypeExpr::Fn { args, ret } => {
             let in_parts: Vec<_> = args.iter().map(format_type_inner).collect();
             format!("fn({})->{}", in_parts.join(","), format_type_inner(ret))
+        }
+        TypeExpr::Tuple(elements) => {
+            let inner: Vec<_> = elements.iter().map(format_type_inner).collect();
+            if elements.len() == 1 {
+                format!("({},)", inner[0])
+            } else {
+                format!("({})", inner.join(","))
+            }
         }
         TypeExpr::Var(id) => format!("?{}", id),
     }

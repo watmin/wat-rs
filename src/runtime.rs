@@ -456,7 +456,7 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
         type_params,
         params,
         param_types,
-        ret_type: ret_type.unwrap_or_else(|| crate::types::TypeExpr::Path(":()".into())),
+        ret_type: ret_type.unwrap_or_else(|| crate::types::TypeExpr::Tuple(Vec::new())),
     })
 }
 
