@@ -40,7 +40,7 @@ pub enum WatAST {
     StringLit(String),
 
     /// Keyword token, as in `:foo`, `:wat::algebra::Atom`,
-    /// `:Vec<Holon>`, `:fn(T,U)->R`. The leading `:` is part of the
+    /// `:Vec<holon::HolonAST>`, `:fn(T,U)->R`. The leading `:` is part of the
     /// stored string. Used both as keyword literals (payloads for wat
     /// keyword atoms) and as keyword-path references (heads of calls,
     /// type annotations). Distinguished by context at later passes.

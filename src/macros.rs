@@ -527,7 +527,7 @@ mod tests {
     fn alias_macro_expands_to_primitive() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::vocab::Concurrent (xs :AST<List<Holon>>) -> :AST<Holon>)
+            (:wat::core::defmacro (:my::vocab::Concurrent (xs :AST<List<holon::HolonAST>>) -> :AST<holon::HolonAST>)
               `(:wat::algebra::Bundle ,xs))
             (:my::vocab::Concurrent (:wat::core::vec a b c))
             "#,
@@ -550,7 +550,7 @@ mod tests {
     fn subtract_macro_expansion() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::vocab::Subtract (x :AST<Holon>) (y :AST<Holon>) -> :AST<Holon>)
+            (:wat::core::defmacro (:my::vocab::Subtract (x :AST<holon::HolonAST>) (y :AST<holon::HolonAST>) -> :AST<holon::HolonAST>)
               `(:wat::algebra::Blend ,x ,y 1 -1))
             (:my::vocab::Subtract foo bar)
             "#,
@@ -576,7 +576,7 @@ mod tests {
     fn splice_list_arg_into_template() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::vocab::SumAll (xs :AST<List<Holon>>) -> :AST<Holon>)
+            (:wat::core::defmacro (:my::vocab::SumAll (xs :AST<List<holon::HolonAST>>) -> :AST<holon::HolonAST>)
               `(:wat::algebra::Bundle ,@xs))
             (:my::vocab::SumAll (a b c))
             "#,

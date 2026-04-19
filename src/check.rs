@@ -3,7 +3,7 @@
 //! This slice implements real parametric polymorphism per 058-030:
 //!
 //! - [`TypeScheme`] carries `type_params` — the list of names that are
-//!   universally quantified (e.g., `["T"]` for `∀T. T -> :Holon`).
+//!   universally quantified (e.g., `["T"]` for `∀T. T -> :holon::HolonAST`).
 //! - Every call site **instantiates** the scheme with fresh unification
 //!   variables ([`TypeExpr::Var`]), accumulates a substitution by
 //!   unifying each argument type with its (instantiated) parameter
@@ -14,7 +14,7 @@
 //!   types. The body must type-check for any choice of T.
 //! - Built-in schemes use real polymorphism: `list` is `∀T. T* ->
 //!   List<T>`; `= < > <= >=` are `∀T. T -> T -> :bool`; `Atom` is
-//!   `∀T. T -> :Holon`.
+//!   `∀T. T -> :holon::HolonAST`.
 //! - `:Any` is banned everywhere — the type universe is closed
 //!   ([058-030](https://…/058-030-types/PROPOSAL.md), §591). User
 //!   source containing `:Any` halts at parse (see
@@ -292,7 +292,7 @@ fn infer(
         WatAST::FloatLit(_) => Some(TypeExpr::Path(":f64".into())),
         WatAST::BoolLit(_) => Some(TypeExpr::Path(":bool".into())),
         WatAST::StringLit(_) => Some(TypeExpr::Path(":String".into())),
-        WatAST::Keyword(_) => Some(TypeExpr::Path(":Keyword".into())),
+        WatAST::Keyword(_) => Some(TypeExpr::Path(":wat::core::keyword".into())),
         WatAST::Symbol(ident) => locals.get(&ident.name).cloned(),
         WatAST::List(items) => infer_list(items, env, locals, fresh, subst, errors),
     }
@@ -896,7 +896,7 @@ fn register_builtins(env: &mut CheckEnv) {
     let i64_ty = || TypeExpr::Path(":i64".into());
     let f64_ty = || TypeExpr::Path(":f64".into());
     let bool_ty = || TypeExpr::Path(":bool".into());
-    let holon_ty = || TypeExpr::Path(":Holon".into());
+    let holon_ty = || TypeExpr::Path(":holon::HolonAST".into());
     let t_var = || TypeExpr::Path(":T".into());
 
     // Arithmetic — i64 × i64 → i64. No implicit promotion.
@@ -940,7 +940,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Algebra-core UpperCalls.
-    // Atom — ∀T. T → :Holon. Accepts any payload type.
+    // Atom — ∀T. T → :holon::HolonAST. Accepts any payload type.
     env.register(
         ":wat::algebra::Atom".into(),
         TypeScheme {
@@ -957,7 +957,7 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: holon_ty(),
         },
     );
-    // Bundle takes :Vec<Holon> → :Holon.
+    // Bundle takes :Vec<holon::HolonAST> → :holon::HolonAST.
     env.register(
         ":wat::algebra::Bundle".into(),
         TypeScheme {
@@ -1098,8 +1098,8 @@ mod tests {
 
     #[test]
     fn bundle_of_list_of_holons_passes() {
-        // Bundle takes :Vec<Holon>. A list of (Atom ...) calls
-        // returns :Vec<Holon>, so Bundle(list(Atoms...)) type-checks.
+        // Bundle takes :Vec<holon::HolonAST>. A list of (Atom ...) calls
+        // returns :Vec<holon::HolonAST>, so Bundle(list(Atoms...)) type-checks.
         assert!(check(
             r#"(:wat::algebra::Bundle (:wat::core::vec
                  (:wat::algebra::Atom 1)
@@ -1110,7 +1110,7 @@ mod tests {
 
     #[test]
     fn bundle_of_list_of_ints_rejected() {
-        // Bundle wants :Vec<Holon>, but this is :Vec<i64>.
+        // Bundle wants :Vec<holon::HolonAST>, but this is :Vec<i64>.
         let err = check(r#"(:wat::algebra::Bundle (:wat::core::vec 1 2 3))"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
@@ -1349,8 +1349,8 @@ mod tests {
     #[test]
     fn type_expr_parse_and_unify() {
         let mut s = Subst::new();
-        let a = parse_type_expr(":Holon").unwrap();
-        let b = parse_type_expr(":Holon").unwrap();
+        let a = parse_type_expr(":holon::HolonAST").unwrap();
+        let b = parse_type_expr(":holon::HolonAST").unwrap();
         assert!(unify(&a, &b, &mut s).is_ok());
     }
 }

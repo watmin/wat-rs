@@ -464,8 +464,8 @@ mod tests {
     #[test]
     fn keyword_parametric_type() {
         assert_eq!(
-            lex(":Vec<Holon>").unwrap(),
-            vec![Token::Keyword(":Vec<Holon>".into())]
+            lex(":Vec<holon::HolonAST>").unwrap(),
+            vec![Token::Keyword(":Vec<holon::HolonAST>".into())]
         );
         assert_eq!(
             lex(":HashMap<K,V>").unwrap(),
@@ -542,8 +542,8 @@ mod tests {
             vec![Token::Keyword(":(i64,String)".into())]
         );
         assert_eq!(
-            lex(":(Holon,Holon,Holon)").unwrap(),
-            vec![Token::Keyword(":(Holon,Holon,Holon)".into())]
+            lex(":(Holon,holon::HolonAST,Holon)").unwrap(),
+            vec![Token::Keyword(":(Holon,holon::HolonAST,Holon)".into())]
         );
     }
 
@@ -564,8 +564,8 @@ mod tests {
             vec![Token::Keyword(":Vec<T>".into())]
         );
         assert_eq!(
-            lex(":Vec<Holon>").unwrap(),
-            vec![Token::Keyword(":Vec<Holon>".into())]
+            lex(":Vec<holon::HolonAST>").unwrap(),
+            vec![Token::Keyword(":Vec<holon::HolonAST>".into())]
         );
     }
 

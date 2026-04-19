@@ -466,7 +466,7 @@ mod tests {
         let src = r#"
             (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defmacro (:my::vocab::Double (x :AST<Holon>) -> :AST<Holon>)
+            (:wat::core::defmacro (:my::vocab::Double (x :AST<holon::HolonAST>) -> :AST<holon::HolonAST>)
               `(:wat::algebra::Blend ,x ,x 1 1))
         "#;
         let world = startup(src).expect("startup");
@@ -591,7 +591,7 @@ mod tests {
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");
-        assert!(matches!(result, Value::Int(42)));
+        assert!(matches!(result, Value::i64(42)));
     }
 
     #[test]
@@ -607,7 +607,7 @@ mod tests {
         "#;
         let world = startup(src).expect("startup");
         let result = invoke_user_main(&world, Vec::new()).expect("main runs");
-        assert!(matches!(result, Value::Int(42)));
+        assert!(matches!(result, Value::i64(42)));
     }
 
     #[test]
@@ -646,8 +646,8 @@ mod tests {
               (:wat::core::+ x 1))
         "#;
         let world = startup(src).expect("startup");
-        let result = invoke_user_main(&world, vec![Value::Int(41)]).expect("main runs");
-        assert!(matches!(result, Value::Int(42)));
+        let result = invoke_user_main(&world, vec![Value::i64(41)]).expect("main runs");
+        assert!(matches!(result, Value::i64(42)));
     }
 
     // ─── Constrained eval ───────────────────────────────────────────────
@@ -669,7 +669,7 @@ mod tests {
         let ast = crate::parser::parse_one("(:my::app::triple 7)").unwrap();
         let env = Environment::new();
         let result = eval_in_frozen(&ast, &world, &env).expect("eval ok");
-        assert!(matches!(result, Value::Int(21)));
+        assert!(matches!(result, Value::i64(21)));
     }
 
     #[test]
@@ -686,7 +686,7 @@ mod tests {
         .unwrap();
         let env = Environment::new();
         let result = eval_in_frozen(&ast, &world, &env).expect("eval ok");
-        assert!(matches!(result, Value::Holon(_)));
+        assert!(matches!(result, Value::holon__HolonAST(_)));
     }
 
     #[test]
@@ -720,7 +720,7 @@ mod tests {
         "#,
         );
         let ast = crate::parser::parse_one(
-            r#"(:wat::core::defmacro (:evil::M (x :AST<Holon>) -> :AST<Holon>) x)"#,
+            r#"(:wat::core::defmacro (:evil::M (x :AST<holon::HolonAST>) -> :AST<holon::HolonAST>) x)"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
@@ -890,7 +890,7 @@ mod tests {
         let result =
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
                 .expect("eval ok");
-        assert!(matches!(result, Value::Int(42)));
+        assert!(matches!(result, Value::i64(42)));
     }
 
     #[test]
@@ -970,7 +970,7 @@ mod tests {
             &pk,
         )
         .expect("eval ok");
-        assert!(matches!(result, Value::Int(42)));
+        assert!(matches!(result, Value::i64(42)));
     }
 
     #[test]

@@ -42,48 +42,70 @@ use std::fmt;
 use std::sync::Arc;
 
 /// Runtime value.
+///
+/// **Variant names encode their Rust or conceptual origin path via
+/// `__` as the namespace separator.** `crossbeam_channel::Sender`
+/// becomes `crossbeam_channel__Sender`; only internal `::` is encoded
+/// (leading `::` is never written in Rust paths and not encoded here).
+/// Prelude types (`bool`, `i64`, `f64`, `String`, `Vec`, `()`) stay
+/// short because that's what Rust users write — wat follows Rust's
+/// prelude convention.
+///
+/// `type_name()` returns the full `::`-separated path users write in
+/// wat source. Every Value carries its honest identity; error messages
+/// say what the user would recognize.
 #[derive(Debug, Clone)]
+#[allow(non_camel_case_types, non_snake_case)]
 pub enum Value {
-    Bool(bool),
-    Int(i64),
-    Float(f64),
+    bool(bool),
+    i64(i64),
+    f64(f64),
     String(Arc<String>),
-    /// Keyword literal — leading ':' included.
-    Keyword(Arc<String>),
-    /// A composed HolonAST (the wat algebra's AST tier, carried at runtime).
-    Holon(Arc<HolonAST>),
-    /// A callable — either a `define`-registered function or a `lambda`
-    /// closure.
-    Function(Arc<Function>),
-    /// A list of values — used by `:wat::core::vec`.
-    List(Arc<Vec<Value>>),
-    /// `:()` — unit. Returned by expressions with no meaningful value
-    /// (not used widely in this slice).
+    /// A `Vec<Value>` — constructed by `:wat::core::vec`.
+    Vec(Arc<Vec<Value>>),
+    /// The empty tuple / Rust unit `()`. Named `Unit` since `()` isn't
+    /// a legal identifier.
     Unit,
+    /// Keyword literal — leading `:` included. Wat-source type
+    /// `:wat::core::keyword`.
+    wat__core__keyword(Arc<String>),
+    /// A callable — `define`-registered function or `lambda` closure.
+    /// Per 058-029: `define` = `lambda` + startup-time symbol-table
+    /// registration. Static type is `:fn(A,B,...)->R`; the variant
+    /// records HOW it was produced.
+    wat__core__lambda(Arc<Function>),
+    /// A composed `holon::HolonAST` — the algebra AST tier carried
+    /// at runtime.
+    holon__HolonAST(Arc<HolonAST>),
     /// A parsed wat AST carried as a first-class runtime value. Used
-    /// by `:wat::core::eval-ast!` and adjacent forms where a program
-    /// has already crossed the trust boundary (parsed by our own
-    /// pipeline, extracted from an `Atom<WatAST>`, constructed by
-    /// Rust, etc.) and is ready to evaluate. Distinct from
+    /// by `:wat::core::eval-ast!` and adjacent forms. Distinct from
     /// [`Value::String`] (raw EDN text that still needs parsing) and
-    /// from [`Value::Holon`] (algebra AST, possibly with an Atom
-    /// wrapper).
-    Ast(Arc<WatAST>),
+    /// from [`Value::holon__HolonAST`] (algebra AST).
+    wat__WatAST(Arc<WatAST>),
+    /// A channel sender handle. String-typed for the MVP wat-vm; the
+    /// variant encodes the full `crossbeam_channel::Sender` path —
+    /// wat-rs takes a direct dep on `crossbeam-channel` and does not
+    /// hide it.
+    crossbeam_channel__Sender(Arc<crossbeam_channel::Sender<String>>),
+    /// A channel receiver handle. String-typed for the MVP.
+    crossbeam_channel__Receiver(Arc<crossbeam_channel::Receiver<String>>),
 }
 
 impl Value {
     pub fn type_name(&self) -> &'static str {
         match self {
-            Value::Bool(_) => "bool",
-            Value::Int(_) => "i64",
-            Value::Float(_) => "f64",
+            Value::bool(_) => "bool",
+            Value::i64(_) => "i64",
+            Value::f64(_) => "f64",
             Value::String(_) => "String",
-            Value::Keyword(_) => "Keyword",
-            Value::Holon(_) => "Holon",
-            Value::Function(_) => "Function",
-            Value::List(_) => "Vec",
+            Value::Vec(_) => "Vec",
             Value::Unit => "()",
-            Value::Ast(_) => "Ast",
+            Value::wat__core__keyword(_) => "wat::core::keyword",
+            Value::wat__core__lambda(_) => "wat::core::lambda",
+            Value::holon__HolonAST(_) => "holon::HolonAST",
+            Value::wat__WatAST(_) => "wat::WatAST",
+            Value::crossbeam_channel__Sender(_) => "crossbeam_channel::Sender",
+            Value::crossbeam_channel__Receiver(_) => "crossbeam_channel::Receiver",
         }
     }
 }
@@ -578,11 +600,11 @@ pub fn eval(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     match ast {
-        WatAST::IntLit(n) => Ok(Value::Int(*n)),
-        WatAST::FloatLit(x) => Ok(Value::Float(*x)),
-        WatAST::BoolLit(b) => Ok(Value::Bool(*b)),
+        WatAST::IntLit(n) => Ok(Value::i64(*n)),
+        WatAST::FloatLit(x) => Ok(Value::f64(*x)),
+        WatAST::BoolLit(b) => Ok(Value::bool(*b)),
         WatAST::StringLit(s) => Ok(Value::String(Arc::new(s.clone()))),
-        WatAST::Keyword(k) => Ok(Value::Keyword(Arc::new(k.clone()))),
+        WatAST::Keyword(k) => Ok(Value::wat__core__keyword(Arc::new(k.clone()))),
         WatAST::Symbol(ident) => env
             .lookup(ident.as_str())
             .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone())),
@@ -712,7 +734,7 @@ fn eval_lambda(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError
     let sig = &args[0];
     let body = &args[1];
     let (params, param_types, ret_type) = parse_lambda_signature(sig)?;
-    Ok(Value::Function(Arc::new(Function {
+    Ok(Value::wat__core__lambda(Arc::new(Function {
         name: None,
         params,
         type_params: Vec::new(),
@@ -917,8 +939,8 @@ fn eval_if(
     }
     let cond_val = eval(&args[0], env, sym)?;
     match cond_val {
-        Value::Bool(true) => eval(&args[1], env, sym),
-        Value::Bool(false) => eval(&args[2], env, sym),
+        Value::bool(true) => eval(&args[1], env, sym),
+        Value::bool(false) => eval(&args[2], env, sym),
         other => Err(RuntimeError::BadCondition {
             got: other.type_name(),
         }),
@@ -949,14 +971,14 @@ where
     let a = eval(&args[0], env, sym)?;
     let b = eval(&args[1], env, sym)?;
     match (a, b) {
-        (Value::Int(x), Value::Int(y)) => Ok(Value::Int(int_op(x, y)?)),
-        (Value::Float(x), Value::Float(y)) => Ok(Value::Float(float_op(x, y)?)),
-        (Value::Int(x), Value::Float(y)) => Ok(Value::Float(float_op(x as f64, y)?)),
-        (Value::Float(x), Value::Int(y)) => Ok(Value::Float(float_op(x, y as f64)?)),
+        (Value::i64(x), Value::i64(y)) => Ok(Value::i64(int_op(x, y)?)),
+        (Value::f64(x), Value::f64(y)) => Ok(Value::f64(float_op(x, y)?)),
+        (Value::i64(x), Value::f64(y)) => Ok(Value::f64(float_op(x as f64, y)?)),
+        (Value::f64(x), Value::i64(y)) => Ok(Value::f64(float_op(x, y as f64)?)),
         (a, b) => Err(RuntimeError::TypeMismatch {
             op: head.into(),
             expected: "numeric (i64 or f64)",
-            got: if !matches!(a, Value::Int(_) | Value::Float(_)) {
+            got: if !matches!(a, Value::i64(_) | Value::f64(_)) {
                 a.type_name()
             } else {
                 b.type_name()
@@ -982,17 +1004,17 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
     let a = eval(&args[0], env, sym)?;
     let b = eval(&args[1], env, sym)?;
     let order = match (&a, &b) {
-        (Value::Int(x), Value::Int(y)) => x.cmp(y),
-        (Value::Float(x), Value::Float(y)) => x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal),
-        (Value::Int(x), Value::Float(y)) => (*x as f64)
+        (Value::i64(x), Value::i64(y)) => x.cmp(y),
+        (Value::f64(x), Value::f64(y)) => x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal),
+        (Value::i64(x), Value::f64(y)) => (*x as f64)
             .partial_cmp(y)
             .unwrap_or(std::cmp::Ordering::Equal),
-        (Value::Float(x), Value::Int(y)) => x
+        (Value::f64(x), Value::i64(y)) => x
             .partial_cmp(&(*y as f64))
             .unwrap_or(std::cmp::Ordering::Equal),
         (Value::String(x), Value::String(y)) => x.cmp(y),
-        (Value::Bool(x), Value::Bool(y)) => x.cmp(y),
-        (Value::Keyword(x), Value::Keyword(y)) => x.cmp(y),
+        (Value::bool(x), Value::bool(y)) => x.cmp(y),
+        (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => x.cmp(y),
         _ => {
             return Err(RuntimeError::TypeMismatch {
                 op: head.into(),
@@ -1001,7 +1023,7 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
             });
         }
     };
-    Ok(Value::Bool(pred(order)))
+    Ok(Value::bool(pred(order)))
 }
 
 fn eval_not(
@@ -1017,7 +1039,7 @@ fn eval_not(
         });
     }
     match eval(&args[0], env, sym)? {
-        Value::Bool(b) => Ok(Value::Bool(!b)),
+        Value::bool(b) => Ok(Value::bool(!b)),
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::not".into(),
             expected: "bool",
@@ -1034,8 +1056,8 @@ fn eval_and(
     // Short-circuit: false wins.
     for arg in args {
         match eval(arg, env, sym)? {
-            Value::Bool(false) => return Ok(Value::Bool(false)),
-            Value::Bool(true) => continue,
+            Value::bool(false) => return Ok(Value::bool(false)),
+            Value::bool(true) => continue,
             other => {
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::core::and".into(),
@@ -1045,7 +1067,7 @@ fn eval_and(
             }
         }
     }
-    Ok(Value::Bool(true))
+    Ok(Value::bool(true))
 }
 
 fn eval_or(
@@ -1055,8 +1077,8 @@ fn eval_or(
 ) -> Result<Value, RuntimeError> {
     for arg in args {
         match eval(arg, env, sym)? {
-            Value::Bool(true) => return Ok(Value::Bool(true)),
-            Value::Bool(false) => continue,
+            Value::bool(true) => return Ok(Value::bool(true)),
+            Value::bool(false) => continue,
             other => {
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::core::or".into(),
@@ -1066,7 +1088,7 @@ fn eval_or(
             }
         }
     }
-    Ok(Value::Bool(false))
+    Ok(Value::bool(false))
 }
 
 fn eval_list_ctor(
@@ -1078,7 +1100,7 @@ fn eval_list_ctor(
         .iter()
         .map(|a| eval(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Value::List(Arc::new(items)))
+    Ok(Value::Vec(Arc::new(items)))
 }
 
 // ─── Algebra-core UpperCall runtime construction ────────────────────────
@@ -1103,12 +1125,12 @@ fn value_to_atom(v: Value) -> Result<Value, RuntimeError> {
     // Atomize a runtime value: wrap it in an Atom Holon whose payload
     // registry dispatches on the value's concrete Rust type.
     let holon = match v {
-        Value::Int(n) => HolonAST::atom(n),
-        Value::Float(x) => HolonAST::atom(x),
-        Value::Bool(b) => HolonAST::atom(b),
+        Value::i64(n) => HolonAST::atom(n),
+        Value::f64(x) => HolonAST::atom(x),
+        Value::bool(b) => HolonAST::atom(b),
         Value::String(s) => HolonAST::atom((*s).clone()),
-        Value::Keyword(k) => HolonAST::keyword(&k),
-        Value::Holon(h) => HolonAST::atom((*h).clone()),
+        Value::wat__core__keyword(k) => HolonAST::keyword(&k),
+        Value::holon__HolonAST(h) => HolonAST::atom((*h).clone()),
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::algebra::Atom".into(),
@@ -1117,7 +1139,7 @@ fn value_to_atom(v: Value) -> Result<Value, RuntimeError> {
             });
         }
     };
-    Ok(Value::Holon(Arc::new(holon)))
+    Ok(Value::holon__HolonAST(Arc::new(holon)))
 }
 
 fn eval_algebra_bind(
@@ -1134,7 +1156,7 @@ fn eval_algebra_bind(
     }
     let a = require_holon(":wat::algebra::Bind", eval(&args[0], env, sym)?)?;
     let b = require_holon(":wat::algebra::Bind", eval(&args[1], env, sym)?)?;
-    Ok(Value::Holon(Arc::new(HolonAST::bind((*a).clone(), (*b).clone()))))
+    Ok(Value::holon__HolonAST(Arc::new(HolonAST::bind((*a).clone(), (*b).clone()))))
 }
 
 fn eval_algebra_bundle(
@@ -1150,11 +1172,11 @@ fn eval_algebra_bundle(
         });
     }
     let list = match eval(&args[0], env, sym)? {
-        Value::List(l) => l,
+        Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::algebra::Bundle".into(),
-                expected: "List<Holon> from (:wat::core::vec ...)",
+                expected: "List<holon::HolonAST> from (:wat::core::vec ...)",
                 got: other.type_name(),
             });
         }
@@ -1166,7 +1188,7 @@ fn eval_algebra_bundle(
                 .map(|h| (*h).clone())
         })
         .collect();
-    Ok(Value::Holon(Arc::new(HolonAST::bundle(children?))))
+    Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(children?))))
 }
 
 fn eval_algebra_permute(
@@ -1183,7 +1205,7 @@ fn eval_algebra_permute(
     }
     let child = require_holon(":wat::algebra::Permute", eval(&args[0], env, sym)?)?;
     let k = match eval(&args[1], env, sym)? {
-        Value::Int(n) => i32::try_from(n).map_err(|_| RuntimeError::TypeMismatch {
+        Value::i64(n) => i32::try_from(n).map_err(|_| RuntimeError::TypeMismatch {
             op: ":wat::algebra::Permute".into(),
             expected: "i32 step (integer fitting in i32)",
             got: "i64 out of range",
@@ -1196,7 +1218,7 @@ fn eval_algebra_permute(
             });
         }
     };
-    Ok(Value::Holon(Arc::new(HolonAST::permute((*child).clone(), k))))
+    Ok(Value::holon__HolonAST(Arc::new(HolonAST::permute((*child).clone(), k))))
 }
 
 fn eval_algebra_thermometer(
@@ -1214,7 +1236,7 @@ fn eval_algebra_thermometer(
     let v = require_numeric(":wat::algebra::Thermometer", eval(&args[0], env, sym)?)?;
     let mn = require_numeric(":wat::algebra::Thermometer", eval(&args[1], env, sym)?)?;
     let mx = require_numeric(":wat::algebra::Thermometer", eval(&args[2], env, sym)?)?;
-    Ok(Value::Holon(Arc::new(HolonAST::thermometer(v, mn, mx))))
+    Ok(Value::holon__HolonAST(Arc::new(HolonAST::thermometer(v, mn, mx))))
 }
 
 fn eval_algebra_blend(
@@ -1233,12 +1255,12 @@ fn eval_algebra_blend(
     let b = require_holon(":wat::algebra::Blend", eval(&args[1], env, sym)?)?;
     let w1 = require_numeric(":wat::algebra::Blend", eval(&args[2], env, sym)?)?;
     let w2 = require_numeric(":wat::algebra::Blend", eval(&args[3], env, sym)?)?;
-    Ok(Value::Holon(Arc::new(HolonAST::blend((*a).clone(), (*b).clone(), w1, w2))))
+    Ok(Value::holon__HolonAST(Arc::new(HolonAST::blend((*a).clone(), (*b).clone(), w1, w2))))
 }
 
 fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, RuntimeError> {
     match v {
-        Value::Holon(h) => Ok(h),
+        Value::holon__HolonAST(h) => Ok(h),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Holon",
@@ -1249,8 +1271,8 @@ fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, RuntimeError> {
 
 fn require_numeric(op: &str, v: Value) -> Result<f64, RuntimeError> {
     match v {
-        Value::Int(n) => Ok(n as f64),
-        Value::Float(x) => Ok(x),
+        Value::i64(n) => Ok(n as f64),
+        Value::f64(x) => Ok(x),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "numeric",
@@ -1268,7 +1290,7 @@ fn apply_value(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let func = match callee {
-        Value::Function(f) => f.clone(),
+        Value::wat__core__lambda(f) => f.clone(),
         other => {
             return Err(RuntimeError::NotCallable {
                 got: other.type_name(),
@@ -1362,7 +1384,7 @@ fn eval_form_ast(
     }
     let value = eval(&args[0], env, sym)?;
     let ast = match value {
-        Value::Ast(a) => a,
+        Value::wat__WatAST(a) => a,
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::eval-ast!".into(),
@@ -1722,21 +1744,21 @@ mod tests {
 
     #[test]
     fn int_literal() {
-        assert!(matches!(eval_expr("42").unwrap(), Value::Int(42)));
+        assert!(matches!(eval_expr("42").unwrap(), Value::i64(42)));
     }
 
     #[test]
     fn float_literal() {
         match eval_expr("3.14").unwrap() {
-            Value::Float(x) => assert_eq!(x, 3.14),
+            Value::f64(x) => assert_eq!(x, 3.14),
             v => panic!("expected float, got {:?}", v),
         }
     }
 
     #[test]
     fn bool_literals() {
-        assert!(matches!(eval_expr("true").unwrap(), Value::Bool(true)));
-        assert!(matches!(eval_expr("false").unwrap(), Value::Bool(false)));
+        assert!(matches!(eval_expr("true").unwrap(), Value::bool(true)));
+        assert!(matches!(eval_expr("false").unwrap(), Value::bool(false)));
     }
 
     #[test]
@@ -1753,7 +1775,7 @@ mod tests {
     fn add_ints() {
         assert!(matches!(
             eval_expr("(:wat::core::+ 2 3)").unwrap(),
-            Value::Int(5)
+            Value::i64(5)
         ));
     }
 
@@ -1761,14 +1783,14 @@ mod tests {
     fn subtract_ints() {
         assert!(matches!(
             eval_expr("(:wat::core::- 10 4)").unwrap(),
-            Value::Int(6)
+            Value::i64(6)
         ));
     }
 
     #[test]
     fn multiply_mixed_promotes_to_float() {
         match eval_expr("(:wat::core::* 3 2.0)").unwrap() {
-            Value::Float(x) => assert_eq!(x, 6.0),
+            Value::f64(x) => assert_eq!(x, 6.0),
             v => panic!("expected float, got {:?}", v),
         }
     }
@@ -1787,11 +1809,11 @@ mod tests {
     fn equality() {
         assert!(matches!(
             eval_expr("(:wat::core::= 3 3)").unwrap(),
-            Value::Bool(true)
+            Value::bool(true)
         ));
         assert!(matches!(
             eval_expr("(:wat::core::= 3 4)").unwrap(),
-            Value::Bool(false)
+            Value::bool(false)
         ));
     }
 
@@ -1799,11 +1821,11 @@ mod tests {
     fn less_than() {
         assert!(matches!(
             eval_expr("(:wat::core::< 2 3)").unwrap(),
-            Value::Bool(true)
+            Value::bool(true)
         ));
         assert!(matches!(
             eval_expr("(:wat::core::< 3 2)").unwrap(),
-            Value::Bool(false)
+            Value::bool(false)
         ));
     }
 
@@ -1813,7 +1835,7 @@ mod tests {
     fn and_short_circuits() {
         assert!(matches!(
             eval_expr("(:wat::core::and true false true)").unwrap(),
-            Value::Bool(false)
+            Value::bool(false)
         ));
     }
 
@@ -1821,7 +1843,7 @@ mod tests {
     fn or_short_circuits() {
         assert!(matches!(
             eval_expr("(:wat::core::or false false true false)").unwrap(),
-            Value::Bool(true)
+            Value::bool(true)
         ));
     }
 
@@ -1829,7 +1851,7 @@ mod tests {
     fn not_bool() {
         assert!(matches!(
             eval_expr("(:wat::core::not true)").unwrap(),
-            Value::Bool(false)
+            Value::bool(false)
         ));
     }
 
@@ -1839,7 +1861,7 @@ mod tests {
     fn if_true_branch() {
         assert!(matches!(
             eval_expr("(:wat::core::if true 1 2)").unwrap(),
-            Value::Int(1)
+            Value::i64(1)
         ));
     }
 
@@ -1847,7 +1869,7 @@ mod tests {
     fn if_false_branch() {
         assert!(matches!(
             eval_expr("(:wat::core::if false 1 2)").unwrap(),
-            Value::Int(2)
+            Value::i64(2)
         ));
     }
 
@@ -1866,7 +1888,7 @@ mod tests {
                 r#"(:wat::core::let (((x :i64) 2) ((y :i64) 3)) (:wat::core::+ x y))"#
             )
             .unwrap(),
-            Value::Int(5)
+            Value::i64(5)
         ));
     }
 
@@ -1878,7 +1900,7 @@ mod tests {
                 r#"(:wat::core::let (((x :i64) 1)) (:wat::core::let (((x :i64) 100)) x))"#
             )
             .unwrap(),
-            Value::Int(100)
+            Value::i64(100)
         ));
     }
 
@@ -1910,7 +1932,7 @@ mod tests {
             "#,
         )
         .unwrap();
-        assert!(matches!(result, Value::Int(42)));
+        assert!(matches!(result, Value::i64(42)));
     }
 
     #[test]
@@ -1925,7 +1947,7 @@ mod tests {
             "#,
         )
         .unwrap();
-        assert!(matches!(result, Value::Int(120)));
+        assert!(matches!(result, Value::i64(120)));
     }
 
     #[test]
@@ -1968,7 +1990,7 @@ mod tests {
                 3 4)"#,
         )
         .unwrap();
-        assert!(matches!(result, Value::Int(7)));
+        assert!(matches!(result, Value::i64(7)));
     }
 
     #[test]
@@ -1981,7 +2003,7 @@ mod tests {
                  (adder 5))"#,
         )
         .unwrap();
-        assert!(matches!(result, Value::Int(15)));
+        assert!(matches!(result, Value::i64(15)));
     }
 
     #[test]
@@ -1998,7 +2020,7 @@ mod tests {
         )
         .unwrap();
         // Expected: f captured n=100, so f(1) = 1 + 100 = 101 regardless of inner rebind.
-        assert!(matches!(result, Value::Int(101)));
+        assert!(matches!(result, Value::i64(101)));
     }
 
     // ─── Algebra-core runtime construction ──────────────────────────────
@@ -2006,7 +2028,7 @@ mod tests {
     #[test]
     fn algebra_atom_from_literal() {
         let v = eval_expr(r#"(:wat::algebra::Atom "role")"#).unwrap();
-        assert!(matches!(v, Value::Holon(_)));
+        assert!(matches!(v, Value::holon__HolonAST(_)));
     }
 
     #[test]
@@ -2017,7 +2039,7 @@ mod tests {
         )
         .unwrap();
         match v {
-            Value::Holon(h) => {
+            Value::holon__HolonAST(h) => {
                 let recovered: Option<&i64> = holon::atom_value(&h);
                 assert_eq!(recovered, Some(&42_i64));
             }
@@ -2033,7 +2055,7 @@ mod tests {
                  (:wat::algebra::Atom "filler"))"#,
         )
         .unwrap();
-        assert!(matches!(v, Value::Holon(_)));
+        assert!(matches!(v, Value::holon__HolonAST(_)));
     }
 
     #[test]
@@ -2046,7 +2068,7 @@ mod tests {
                    (:wat::algebra::Atom "c")))"#,
         )
         .unwrap();
-        assert!(matches!(v, Value::Holon(_)));
+        assert!(matches!(v, Value::holon__HolonAST(_)));
     }
 
     #[test]
@@ -2060,7 +2082,7 @@ mod tests {
                  (:wat::core::- 0 1))"#,
         )
         .unwrap();
-        assert!(matches!(v, Value::Holon(_)));
+        assert!(matches!(v, Value::holon__HolonAST(_)));
     }
 
     #[test]
@@ -2079,7 +2101,7 @@ mod tests {
         // A small program that defines a helper and uses it to build a Holon.
         let result = run(
             r#"
-            (:wat::core::define (:my::app::encode-pair (a :String) (b :String) -> :Holon)
+            (:wat::core::define (:my::app::encode-pair (a :String) (b :String) -> :holon::HolonAST)
               (:wat::algebra::Bind
                 (:wat::algebra::Atom a)
                 (:wat::algebra::Atom b)))
@@ -2087,7 +2109,7 @@ mod tests {
             "#,
         )
         .unwrap();
-        assert!(matches!(result, Value::Holon(_)));
+        assert!(matches!(result, Value::holon__HolonAST(_)));
     }
 
     // ─── Four eval forms (wat-source callable) ──────────────────────────
@@ -2102,7 +2124,7 @@ mod tests {
         let form = parse_one(body).expect("parse body");
         let env = Environment::new().child().bind(
             "program",
-            Value::Ast(Arc::new(ast_to_bind)),
+            Value::wat__WatAST(Arc::new(ast_to_bind)),
         ).build();
         eval(&form, &env, &SymbolTable::new())
     }
@@ -2112,7 +2134,7 @@ mod tests {
         let program = parse_one("(:wat::core::+ 40 2)").unwrap();
         let result =
             run_with_ast_local("(:wat::core::eval-ast! program)", program).unwrap();
-        assert!(matches!(result, Value::Int(42)));
+        assert!(matches!(result, Value::i64(42)));
     }
 
     #[test]
@@ -2145,7 +2167,7 @@ mod tests {
             r#"(:wat::core::eval-edn! :wat::eval::string "(:wat::core::+ 40 2)")"#,
         )
         .unwrap();
-        assert!(matches!(result, Value::Int(42)));
+        assert!(matches!(result, Value::i64(42)));
     }
 
     #[test]
@@ -2192,7 +2214,7 @@ mod tests {
             source, hex
         );
         let result = eval_expr(&form).unwrap();
-        assert!(matches!(result, Value::Int(2)));
+        assert!(matches!(result, Value::i64(2)));
     }
 
     #[test]
@@ -2247,7 +2269,7 @@ mod tests {
             source, sig_b64, pk_b64
         );
         let result = eval_expr(&form).unwrap();
-        assert!(matches!(result, Value::Int(42)));
+        assert!(matches!(result, Value::i64(42)));
     }
 
     #[test]
@@ -2321,7 +2343,7 @@ mod tests {
         );
         let result = eval_expr(&form).expect("eval");
         let _ = std::fs::remove_file(&path);
-        assert!(matches!(result, Value::Int(21)));
+        assert!(matches!(result, Value::i64(21)));
     }
 
     #[test]
@@ -2351,6 +2373,6 @@ mod tests {
         let result = eval_expr(&form).expect("eval");
         let _ = std::fs::remove_file(&source_path);
         let _ = std::fs::remove_file(&digest_path);
-        assert!(matches!(result, Value::Int(42)));
+        assert!(matches!(result, Value::i64(42)));
     }
 }

@@ -36,13 +36,13 @@ Implication: every wat keyword-path should be a literal Rust path (no translatio
 | `:Option<T>`, `:Result<T,E>` | 1:1 |
 | `:HashMap<K,V>`, `:HashSet<T>` | 1:1 |
 | `:fn(T,U)->R` | Rust `fn(T,U)->R` (function-pointer syntax) |
-| `:Holon`, `:Keyword`, `:AST<T>` | wat-originated (no Rust parallel; owned honestly) |
+| `:holon::HolonAST`, `:wat::core::keyword`, `:AST<T>` | wat-originated (no Rust parallel; owned honestly) |
 
 ## Union — why named enum is the honest replacement
 
 **Current (with `:Union<T,U,V>`):**
 ```scheme
-(:wat::core::define (:my::handle (x :Union<i64,String,bool>) -> :Holon)
+(:wat::core::define (:my::handle (x :Union<i64,String,bool>) -> :holon::HolonAST)
   ...)
 
 (my::handle 42)      ; implicit variant — which one is 42?
@@ -59,7 +59,7 @@ Implication: every wat keyword-path should be a literal Rust path (no translatio
   (IsBool   (b :bool)))
 
 ;; Use it.
-(:wat::core::define (:my::handle (x :my::IntStringBool) -> :Holon)
+(:wat::core::define (:my::handle (x :my::IntStringBool) -> :holon::HolonAST)
   ...)
 
 ;; Callers tag the variant.
@@ -84,7 +84,7 @@ The named-enum approach is objectively better: every coproduct has a discriminat
 - Fourth shape in `parse_type_expr`: a keyword starting `:(` opens a tuple.
 - `:()` stays (unit = 0-tuple).
 - Grammar: the `(` must immediately follow the `:` (no whitespace).
-- Tests: `:(i64,String)`, `:(Holon,Holon,Holon)`, `:()`.
+- Tests: `:(i64,String)`, `:(Holon,holon::HolonAST,Holon)`, `:()`.
 
 ### Track B — Reserved-prefix migration
 
