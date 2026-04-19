@@ -376,6 +376,9 @@ fn infer_list(
             ":wat::kernel::drop" => {
                 return infer_drop(args, env, locals, fresh, subst, errors);
             }
+            ":wat::kernel::spawn" => {
+                return infer_spawn(args, env, locals, fresh, subst, errors);
+            }
             ":wat::core::and" | ":wat::core::or" => {
                 return infer_boolean_shortcircuit(args, env, locals, fresh, subst, errors);
             }
@@ -794,6 +797,87 @@ fn infer_let_star(
     infer(&args[1], env, &extended, fresh, subst, errors)
 }
 
+/// Type-check `(:wat::kernel::spawn :fn::path arg1 arg2 ...)`.
+/// Variadic in the args (one per function parameter) — rank-1 HM
+/// can't express variadic schemes, so spawn is special-cased. First
+/// argument must be a keyword-path; remaining args are checked
+/// against the named function's parameter types looked up in the
+/// CheckEnv. Return type is `:ProgramHandle<R>` where R is the
+/// function's declared return type.
+fn infer_spawn(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.is_empty() {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::kernel::spawn".into(),
+            expected: 1,
+            got: 0,
+        });
+        return Some(TypeExpr::Parametric {
+            head: "wat::kernel::ProgramHandle".into(),
+            args: vec![fresh.fresh()],
+        });
+    }
+    let fn_path = match &args[0] {
+        WatAST::Keyword(k) => k.clone(),
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::kernel::spawn".into(),
+                reason: "first argument must be a function keyword path".into(),
+            });
+            return Some(TypeExpr::Parametric {
+                head: "wat::kernel::ProgramHandle".into(),
+                args: vec![fresh.fresh()],
+            });
+        }
+    };
+    let scheme = match env.get(&fn_path) {
+        Some(s) => s.clone(),
+        None => {
+            // Function not registered — may be a primitive / future
+            // slice / driver. Produce a ProgramHandle<?> so the call
+            // site keeps checking.
+            for arg in &args[1..] {
+                let _ = infer(arg, env, locals, fresh, subst, errors);
+            }
+            return Some(TypeExpr::Parametric {
+                head: "wat::kernel::ProgramHandle".into(),
+                args: vec![fresh.fresh()],
+            });
+        }
+    };
+    let (param_types, ret_type) = instantiate(&scheme, fresh);
+    let spawn_args = &args[1..];
+    if spawn_args.len() != param_types.len() {
+        errors.push(CheckError::ArityMismatch {
+            callee: format!(":wat::kernel::spawn {}", fn_path),
+            expected: param_types.len(),
+            got: spawn_args.len(),
+        });
+    }
+    for (i, (arg, expected)) in spawn_args.iter().zip(&param_types).enumerate() {
+        if let Some(arg_ty) = infer(arg, env, locals, fresh, subst, errors) {
+            if unify(&arg_ty, expected, subst).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: format!(":wat::kernel::spawn {}", fn_path),
+                    param: format!("#{}", i + 1),
+                    expected: format_type(&apply_subst(expected, subst)),
+                    got: format_type(&apply_subst(&arg_ty, subst)),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Parametric {
+        head: "wat::kernel::ProgramHandle".into(),
+        args: vec![apply_subst(&ret_type, subst)],
+    })
+}
+
 /// Type-check `(:wat::kernel::drop handle)`. The handle is either a
 /// `Sender<T>` or `Receiver<T>` — rank-1 HM can't express a union, so
 /// this is special-cased: accept either parametric head, produce `:()`.
@@ -954,11 +1038,19 @@ fn process_let_binding(
         WatAST::List(items) if items.len() == 2 => items,
         _ => return, // runtime parser surfaces the shape error
     };
+    let rhs = &kv[1];
+    // Bare-single: `(name rhs)` — binder is a symbol. Infer the RHS's
+    // type and bind the name to it.
+    if let WatAST::Symbol(ident) = &kv[0] {
+        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst, errors)
+            .unwrap_or_else(|| fresh.fresh());
+        out_scope.insert(ident.name.clone(), apply_subst(&rhs_ty, subst));
+        return;
+    }
     let binder = match &kv[0] {
         WatAST::List(inner) => inner,
         _ => return,
     };
-    let rhs = &kv[1];
 
     let is_typed_single = binder.len() == 2
         && matches!(&binder[0], WatAST::Symbol(_))
@@ -1645,6 +1737,19 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Option".into(),
                 args: vec![t_var()],
             },
+        },
+    );
+    // (:wat::kernel::join handle) — ∀R. ProgramHandle<R> -> R.
+    let r_var = || TypeExpr::Path(":R".into());
+    env.register(
+        ":wat::kernel::join".into(),
+        TypeScheme {
+            type_params: vec!["R".into()],
+            params: vec![TypeExpr::Parametric {
+                head: "wat::kernel::ProgramHandle".into(),
+                args: vec![r_var()],
+            }],
+            ret: r_var(),
         },
     );
     // Tuple accessors — scoped to 2-tuples in this slice.

@@ -178,6 +178,16 @@ pub enum Value {
     /// `((a b ...) rhs)` binder shape. The unit type `:()` stays on
     /// [`Value::Unit`] — tuples start at arity 1.
     Tuple(Arc<Vec<Value>>),
+    /// A spawned program's handle — `:ProgramHandle<R>` per
+    /// FOUNDATION. Returned by `:wat::kernel::spawn`; consumed by
+    /// `:wat::kernel::join` which blocks until the program exits and
+    /// yields its final `R` value. Structurally a one-shot result
+    /// channel: the spawned thread sends its `Result<Value, _>` on
+    /// the receiver end once; `join` does `recv`. No Mutex — the
+    /// channel itself is the synchronization. If the thread panics
+    /// before sending, the sender drops, and `join` reports the
+    /// panic via `ChannelDisconnected`.
+    wat__kernel__ProgramHandle(Arc<crossbeam_channel::Receiver<Result<Value, RuntimeError>>>),
 }
 
 impl Value {
@@ -197,6 +207,7 @@ impl Value {
             Value::crossbeam_channel__Receiver(_) => "crossbeam_channel::Receiver",
             Value::Option(_) => "Option",
             Value::Tuple(_) => "tuple",
+            Value::wat__kernel__ProgramHandle(_) => "wat::kernel::ProgramHandle",
         }
     }
 }
@@ -418,7 +429,7 @@ impl fmt::Debug for EncodingCtx {
 /// pipeline. Test harnesses (`SymbolTable::new()`) leave it `None`;
 /// primitives that require encoding (presence, encode) error cleanly if
 /// invoked without a frozen context.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SymbolTable {
     pub functions: HashMap<String, Arc<Function>>,
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
@@ -981,6 +992,8 @@ fn dispatch_keyword_head(
         ":wat::kernel::recv" => eval_kernel_recv(args, env, sym),
         ":wat::kernel::try-recv" => eval_kernel_try_recv(args, env, sym),
         ":wat::kernel::drop" => eval_kernel_drop(args, env, sym),
+        ":wat::kernel::spawn" => eval_kernel_spawn(args, env, sym),
+        ":wat::kernel::join" => eval_kernel_join(args, env, sym),
         ":wat::kernel::make-bounded-queue" => eval_make_bounded_queue(args, env, sym),
         ":wat::kernel::make-unbounded-queue" => eval_make_unbounded_queue(args),
         ":wat::kernel::sigusr1?" => {
@@ -1275,20 +1288,23 @@ fn destructure_tuple(
 /// type expressions are caught at this layer.
 /// One let / let* binding form.
 ///
-/// Two spec'd shapes:
+/// Three spec'd shapes:
 ///
-/// - **Single, typed** — `((name :Type) rhs)`. The canonical form:
-///   every single binding declares its type. Used throughout the
-///   startup pipeline's code paths.
+/// - **Single, typed** — `((name :Type) rhs)`. The canonical form
+///   when the user wants to commit the binding's type explicitly.
+/// - **Single, bare** — `(name rhs)`. Type is inferred from the RHS.
+///   Per FOUNDATION's observer-style example — used pervasively when
+///   the RHS is a primitive or user call whose return type is already
+///   declared.
 /// - **Destructure** — `((a b c ...) rhs)`. RHS must evaluate to a
-///   tuple of matching arity; each element binds to the matching name
-///   in the outer scope. Names are untyped individually; their types
-///   come from the tuple's element types via inference.
+///   tuple of matching arity; each element binds to the matching
+///   name. Names are untyped individually; their types come from the
+///   tuple's element types via inference.
 enum LetBinding<'a> {
     Single {
         name: String,
         #[allow(dead_code)]
-        declared_type: crate::types::TypeExpr,
+        declared_type: Option<crate::types::TypeExpr>,
         rhs: &'a WatAST,
     },
     Destructure {
@@ -1304,28 +1320,34 @@ fn parse_let_binding(pair: &WatAST) -> Result<LetBinding<'_>, RuntimeError> {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
                 reason: format!(
-                    "each binding must be ((name :Type) rhs) or ((a b ...) rhs); got {}",
+                    "each binding must be ((name :Type) rhs), (name rhs), or ((a b ...) rhs); got {}",
                     ast_variant_name(other)
                 ),
             });
         }
     };
+    // Bare-single: `(name rhs)` — first element is a symbol.
+    if let WatAST::Symbol(ident) = &kv[0] {
+        return Ok(LetBinding::Single {
+            name: ident.name.clone(),
+            declared_type: None,
+            rhs: &kv[1],
+        });
+    }
+    // Otherwise the first element must be a list (typed-single OR destructure).
     let binder = match &kv[0] {
         WatAST::List(inner) => inner,
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
                 reason: format!(
-                    "binding's binder must be a list; got {}",
+                    "binding's binder must be a symbol or a list; got {}",
                     ast_variant_name(other)
                 ),
             });
         }
     };
-    // Distinguish typed-single from destructure by checking the shape
-    // of the inner list. Typed-single is exactly `(symbol keyword)` —
-    // a bare symbol followed by a type keyword. Anything else is
-    // destructure (list of bare symbols).
+    // Typed-single: `(symbol keyword)`.
     let is_typed_single = binder.len() == 2
         && matches!(&binder[0], WatAST::Symbol(_))
         && matches!(&binder[1], WatAST::Keyword(_));
@@ -1340,7 +1362,7 @@ fn parse_let_binding(pair: &WatAST) -> Result<LetBinding<'_>, RuntimeError> {
         };
         return Ok(LetBinding::Single {
             name,
-            declared_type,
+            declared_type: Some(declared_type),
             rhs: &kv[1],
         });
     }
@@ -2518,6 +2540,101 @@ fn eval_kernel_drop(
     }
 }
 
+/// `(:wat::kernel::spawn :fn::path arg1 arg2 ...)` — spawn a function
+/// on its own OS thread. First argument is a keyword-path naming a
+/// registered `:wat::core::define`d function; remaining args are
+/// evaluated in the caller's env and passed to the spawned thread.
+///
+/// Returns a `:ProgramHandle<R>` — structurally an Arc'd crossbeam
+/// receiver over a one-shot channel. The spawned thread runs the
+/// function and sends its `Result<Value, RuntimeError>` on that
+/// channel; `join` blocks for the result. No Mutex; the channel is
+/// the synchronization point.
+///
+/// The spawned thread gets its own clone of the `SymbolTable` — a
+/// shallow HashMap clone whose values are `Arc<Function>` (cheap
+/// refcount bumps) plus an `Arc<EncodingCtx>` clone. Thread-local
+/// access to the frozen symbol table; no shared mutation.
+fn eval_kernel_spawn(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::spawn".into(),
+            expected: 1, // minimum — function-path keyword
+            got: 0,
+        });
+    }
+    let fn_path = match &args[0] {
+        WatAST::Keyword(k) => k.clone(),
+        _ => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::kernel::spawn".into(),
+                reason: "first argument must be a function keyword path (e.g., :my::app::worker)".into(),
+            });
+        }
+    };
+    let func = match sym.get(&fn_path) {
+        Some(f) => f.clone(),
+        None => return Err(RuntimeError::UnknownFunction(fn_path)),
+    };
+    let mut arg_values = Vec::with_capacity(args.len() - 1);
+    for a in &args[1..] {
+        arg_values.push(eval(a, env, sym)?);
+    }
+    let thread_sym = sym.clone();
+    let (tx, rx) = crossbeam_channel::bounded::<Result<Value, RuntimeError>>(1);
+    std::thread::spawn(move || {
+        let result = apply_function(&func, arg_values, &thread_sym);
+        let _ = tx.send(result);
+    });
+    Ok(Value::wat__kernel__ProgramHandle(Arc::new(rx)))
+}
+
+/// `(:wat::kernel::join handle)` — block until the spawned program
+/// exits and yield its final value. Typed
+/// `∀R. ProgramHandle<R> -> R`.
+///
+/// If the spawned thread returned a `Value`, pass it through. If it
+/// raised a `RuntimeError`, propagate as if it had been raised
+/// locally. If the thread panicked, `rx.recv` fails
+/// (sender dropped without sending) and we report
+/// `ChannelDisconnected` — the OS-level panic has already printed to
+/// stderr.
+fn eval_kernel_join(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::join".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let handle = match eval(&args[0], env, sym)? {
+        Value::wat__kernel__ProgramHandle(rx) => rx,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::join".into(),
+                expected: "wat::kernel::ProgramHandle",
+                got: other.type_name(),
+            });
+        }
+    };
+    match handle.recv() {
+        Ok(Ok(v)) => Ok(v),
+        Ok(Err(e)) => Err(e),
+        Err(_) => Err(RuntimeError::ChannelDisconnected {
+            op: ":wat::kernel::join (spawned thread panicked before yielding a result)"
+                .into(),
+        }),
+    }
+}
+
 fn eval_form_ast(
     args: &[WatAST],
     env: &Environment,
@@ -3055,11 +3172,14 @@ mod tests {
     }
 
     #[test]
-    fn untyped_let_binding_rejected() {
-        // The old `(name rhs)` shape is no longer legal; every binding
-        // must declare its type via `((name :Type) rhs)`.
-        let err = eval_expr(r#"(:wat::core::let ((x 1)) x)"#).unwrap_err();
-        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    fn bare_single_let_binding_accepted() {
+        // `(name rhs)` is the bare-single shape — type inferred from
+        // the RHS. Per FOUNDATION's observer-style example, used
+        // pervasively when the RHS's return type is already declared.
+        match eval_expr(r#"(:wat::core::let ((x 1)) x)"#).unwrap() {
+            Value::i64(1) => {}
+            v => panic!("expected 1, got {:?}", v),
+        }
     }
 
     #[test]
@@ -4080,5 +4200,63 @@ mod tests {
     fn try_recv_wrong_arity() {
         let err = eval_expr("(:wat::kernel::try-recv)").unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    // ─── spawn + join ──────────────────────────────────────────────────
+
+    #[test]
+    fn spawn_runs_function_on_new_thread_and_join_returns_its_value() {
+        // Register a function, spawn it with args, join the handle,
+        // confirm the function's return value surfaces.
+        let src = r#"
+            (:wat::core::define (:my::sum (a :i64) (b :i64) -> :i64)
+              (:wat::core::+ a b))
+            (:wat::kernel::join (:wat::kernel::spawn :my::sum 3 4))
+        "#;
+        match run(src).unwrap() {
+            Value::i64(7) => {}
+            v => panic!("expected 7, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn spawn_refuses_unknown_function() {
+        let err = eval_expr("(:wat::kernel::spawn :no::such::function)").unwrap_err();
+        assert!(matches!(err, RuntimeError::UnknownFunction(_)));
+    }
+
+    #[test]
+    fn spawn_refuses_non_keyword_head() {
+        let err = eval_expr("(:wat::kernel::spawn 42)").unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn join_refuses_non_program_handle() {
+        let err = eval_expr("(:wat::kernel::join 42)").unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn spawn_and_join_produce_queue_roundtrip_across_threads() {
+        // Producer thread sends, consumer thread (the main) recv + match.
+        // Proves the typed pipe survives the spawn.
+        let src = r#"
+            (:wat::core::define (:my::producer
+                                 (tx :crossbeam_channel::Sender<i64>)
+                                 -> :())
+              (:wat::kernel::send tx 99))
+            (:wat::core::let*
+              (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
+               (handle (:wat::kernel::spawn :my::producer tx))
+               ((_ :()) (:wat::kernel::join handle)))
+              (:wat::core::match (:wat::kernel::recv rx)
+                ((Some v) v)
+                (:None 0)))
+        "#;
+        match run(src).unwrap() {
+            Value::i64(99) => {}
+            v => panic!("expected 99, got {:?}", v),
+        }
     }
 }
