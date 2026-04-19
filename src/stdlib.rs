@@ -70,6 +70,10 @@ const STDLIB_FILES: &[StdlibFile] = &[
         path: "wat/std/Trigram.wat",
         source: include_str!("../wat/std/Trigram.wat"),
     },
+    StdlibFile {
+        path: "wat/std/program/Console.wat",
+        source: include_str!("../wat/std/program/Console.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.

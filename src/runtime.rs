@@ -923,12 +923,15 @@ fn eval_list(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let head = items
-        .first()
-        .ok_or_else(|| RuntimeError::MalformedForm {
-            head: "<empty>".into(),
-            reason: "empty list in expression position".into(),
-        })?;
+    // `()` evaluates to Unit. Natural reading: the empty list /
+    // empty tuple IS the unit value. Lets `(if cond do-work ())`
+    // cleanly express "if else unit" without awkward placeholder
+    // calls. Matches the type-level `:()` keyword (unit type) at
+    // the value level.
+    let head = match items.first() {
+        Some(h) => h,
+        None => return Ok(Value::Unit),
+    };
     let rest = &items[1..];
 
     match head {
@@ -1021,6 +1024,7 @@ fn dispatch_keyword_head(
         // List construction
         ":wat::core::vec" => eval_list_ctor(args, env, sym),
         ":wat::core::list" => eval_list_ctor(args, env, sym),
+        ":wat::core::tuple" => eval_tuple_ctor(args, env, sym),
         ":wat::core::length" => eval_vec_length(args, env, sym),
         ":wat::core::empty?" => eval_vec_empty(args, env, sym),
         ":wat::core::reverse" => eval_vec_reverse(args, env, sym),
@@ -1030,6 +1034,7 @@ fn dispatch_keyword_head(
         ":wat::core::map" => eval_vec_map(args, env, sym),
         ":wat::core::foldl" => eval_vec_foldl(args, env, sym),
         ":wat::std::list::window" => eval_list_window(args, env, sym),
+        ":wat::std::list::remove-at" => eval_list_remove_at(args, env, sym),
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
         ":wat::algebra::Atom" => eval_algebra_atom(args, env, sym),
@@ -1682,6 +1687,30 @@ fn eval_list_ctor(
     Ok(Value::Vec(Arc::new(items)))
 }
 
+/// `(:wat::core::tuple a b c ...)` — build a heterogeneous tuple
+/// `Value::Tuple`. Arity 1+; the 0-tuple is the unit `:()` handled
+/// elsewhere. Ships 2026-04-19 to support wat-source programs that
+/// need to RETURN tuples (earlier slices saw tuples only as
+/// primitive return values; Path-B Console needs to construct
+/// `(pool, driver-handle)` in wat source).
+fn eval_tuple_ctor(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.is_empty() {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::tuple".into(),
+            reason: "tuple must have at least one element; the 0-tuple is :() (Unit)".into(),
+        });
+    }
+    let items = args
+        .iter()
+        .map(|a| eval(a, env, sym))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Value::Tuple(Arc::new(items)))
+}
+
 /// Require a `Vec` argument. Used by list primitives that take one
 /// Vec as their sole / first arg.
 fn require_vec(op: &'static str, v: Value) -> Result<Arc<Vec<Value>>, RuntimeError> {
@@ -1926,6 +1955,39 @@ fn eval_list_window(
         .windows(n)
         .map(|w| Value::Vec(Arc::new(w.to_vec())))
         .collect();
+    Ok(Value::Vec(Arc::new(out)))
+}
+
+/// `(:wat::std::list::remove-at xs i)` → `Vec<T>`. New Vec with
+/// the element at `i` removed. Out-of-range index returns the Vec
+/// unchanged (rather than erroring) — matches the inline select
+/// loop's "drop the disconnected receiver if it happens to be at
+/// index i" idiom without requiring a pre-check. Negative i also
+/// no-ops.
+fn eval_list_remove_at(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::std::list::remove-at".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::std::list::remove-at", eval(&args[0], env, sym)?)?;
+    let i = require_i64(":wat::std::list::remove-at", eval(&args[1], env, sym)?)?;
+    if i < 0 || (i as usize) >= xs.len() {
+        return Ok(Value::Vec(xs));
+    }
+    let target = i as usize;
+    let mut out = Vec::with_capacity(xs.len() - 1);
+    for (idx, v) in xs.iter().enumerate() {
+        if idx != target {
+            out.push(v.clone());
+        }
+    }
     Ok(Value::Vec(Arc::new(out)))
 }
 

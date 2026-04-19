@@ -694,6 +694,73 @@ fn stdlib_sequential_is_order_sensitive() {
     );
 }
 
+/// Console stdlib — the Path-B hello-world. End-to-end proof that:
+///   - stdlib-define registration works (Console + Console/loop +
+///     Console/send are wat-source defines registered at startup)
+///   - the tuple constructor produces a destructurable pair
+///   - HandlePool's claim-or-panic cycle runs to completion
+///   - spawn/join route a wat function across threads
+///   - select + remove-at drop disconnected receivers cleanly
+///
+/// **Shutdown shape.** `console`'s binding must go out of scope
+/// BEFORE the join, or the Arc it holds keeps the underlying
+/// crossbeam sender alive and the driver's select sees no disconnect.
+/// The nested let* below splits: the inner let* owns `console`;
+/// when its body returns, the inner env drops, the sender's Arc
+/// hits zero, the paired receiver in the driver sees :None,
+/// Console/loop removes it, the rxs list empties, the driver
+/// thread returns Unit, and the outer `(join driver)` unblocks.
+/// Matches the lab's `drop(handles); driver.join()` pattern — the
+/// cascade runs the shutdown.
+///
+/// Expected stdout exactly: "hello via Console".
+#[test]
+fn stdlib_console_hello_world() {
+    let program = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main
+                             (stdin  :crossbeam_channel::Receiver<String>)
+                             (stdout :crossbeam_channel::Sender<String>)
+                             (stderr :crossbeam_channel::Sender<String>)
+                             -> :())
+          (:wat::core::let*
+            (;; Build Console over BOTH stdio streams. One writer.
+             ;; After this point, the good program ignores stdout /
+             ;; stderr bindings — Console is the sole gateway.
+             ((pool console-driver)
+              (:wat::std::program::Console stdout stderr 1))
+             ;; Phase 1 — do the Console work in an INNER scope so
+             ;; the client handle drops before we reach the join.
+             ((_ :())
+              (:wat::core::let*
+                (((console :crossbeam_channel::Sender<(i64,String)>)
+                  (:wat::kernel::HandlePool::pop pool))
+                 ((_2 :()) (:wat::kernel::HandlePool::finish pool)))
+                (:wat::std::program::Console/out console "hello via Console"))))
+            ;; Phase 2 — inner scope done, console's Arc released,
+            ;; Console/loop sees its rx disconnect and exits.
+            (:wat::kernel::join console-driver)))
+    "#;
+    let path = write_temp(program);
+    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let output = Command::new(bin)
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn wat-vm");
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        output.status.success(),
+        "wat-vm exit {:?}, stderr: {}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(stdout, "hello via Console", "got: {:?}", stdout);
+}
+
 /// Trigram(a,b,c,d) = Bundle([Sequential(a,b,c), Sequential(b,c,d)]).
 /// Presence of the first trigram's Sequential encoding against the
 /// full Trigram should be above the noise floor — it's a participant

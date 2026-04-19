@@ -324,7 +324,12 @@ fn infer_list(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    let head = items.first()?;
+    // `()` — empty list — is the unit value. Type :() per the
+    // existing TypeExpr::Tuple([]) encoding.
+    let head = match items.first() {
+        Some(h) => h,
+        None => return Some(TypeExpr::Tuple(vec![])),
+    };
 
     if let WatAST::Keyword(k) = head {
         let args = &items[1..];
@@ -334,6 +339,7 @@ fn infer_list(
             ":wat::core::let*" => return infer_let_star(args, env, locals, fresh, subst, errors),
             ":wat::core::vec" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::core::tuple" => return infer_tuple_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::quote" => {
                 // Quote captures an unevaluated AST. The argument is
                 // DATA, not an expression — the type checker does not
@@ -1181,6 +1187,33 @@ fn process_let_binding(
     for (name, ev) in names.into_iter().zip(elem_vars.into_iter()) {
         out_scope.insert(name, apply_subst(&ev, subst));
     }
+}
+
+/// Type-check `(:wat::core::tuple a b c ...)`. Heterogeneous — each
+/// arg contributes its own inferred type, and the return type is the
+/// concrete tuple shape. Variadic; rank-1 HM can't express a
+/// per-position scheme, so special-cased.
+fn infer_tuple_constructor(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.is_empty() {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::tuple".into(),
+            reason: "tuple must have at least one element".into(),
+        });
+        return Some(TypeExpr::Tuple(vec![fresh.fresh()]));
+    }
+    let mut elements = Vec::with_capacity(args.len());
+    for arg in args {
+        let ty = infer(arg, env, locals, fresh, subst, errors).unwrap_or_else(|| fresh.fresh());
+        elements.push(apply_subst(&ty, subst));
+    }
+    Some(TypeExpr::Tuple(elements))
 }
 
 fn infer_list_constructor(
@@ -2047,6 +2080,14 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: acc_var(),
+        },
+    );
+    env.register(
+        ":wat::std::list::remove-at".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), i64_ty()],
+            ret: vec_of(t_var()),
         },
     );
     env.register(

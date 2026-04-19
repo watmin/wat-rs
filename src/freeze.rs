@@ -60,7 +60,8 @@ use crate::parser::{parse_all, ParseError};
 use crate::stdlib::{stdlib_forms, StdlibError};
 use crate::resolve::{resolve_references, ResolveError};
 use crate::runtime::{
-    apply_function, register_defines, EncodingCtx, Environment, RuntimeError, SymbolTable, Value,
+    apply_function, register_defines, register_stdlib_defines, EncodingCtx, Environment,
+    RuntimeError, SymbolTable, Value,
 };
 use crate::types::{register_types, TypeEnv, TypeError};
 use std::fmt;
@@ -269,16 +270,26 @@ pub fn startup_from_source(
     //    first; user defmacros layer on top and can shadow (subject
     //    to the reserved-prefix gate) or reference stdlib forms.
     let mut macros = MacroRegistry::new();
-    let _stdlib_residue = register_stdlib_defmacros(stdlib, &mut macros)?;
+    let stdlib_post_macros = register_stdlib_defmacros(stdlib, &mut macros)?;
     let post_macro_reg = register_defmacros(loaded, &mut macros)?;
-    let expanded = expand_all(post_macro_reg, &macros)?;
+    // Expand BOTH stdlib non-defmacro residue and user forms against
+    // the combined macro registry. Stdlib functions are authored
+    // against stdlib defmacros too — e.g., :wat::std::program::Console's
+    // body uses :wat::std::Subtract / list helpers / etc.
+    let expanded_stdlib = expand_all(stdlib_post_macros, &macros)?;
+    let expanded_user = expand_all(post_macro_reg, &macros)?;
 
     // 5. Type declarations.
     let mut types = TypeEnv::new();
-    let post_types = register_types(expanded, &mut types)?;
+    let stdlib_post_types = register_types(expanded_stdlib, &mut types)?;
+    let post_types = register_types(expanded_user, &mut types)?;
 
-    // 6. Function definitions.
+    // 6. Function definitions. Stdlib defines bypass the reserved-
+    //    prefix gate (they live under :wat::std::* by design); user
+    //    defines still go through register_defines where the gate
+    //    blocks mis-namespaced user source.
     let mut symbols = SymbolTable::new();
+    let _stdlib_function_residue = register_stdlib_defines(stdlib_post_types, &mut symbols)?;
     let residue = register_defines(post_types, &mut symbols)?;
 
     // 7. Name resolution.
