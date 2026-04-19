@@ -31,6 +31,7 @@ pub mod identifier;
 pub mod lexer;
 pub mod load;
 pub mod lower;
+pub mod macros;
 pub mod parser;
 pub mod runtime;
 
@@ -43,6 +44,9 @@ pub use load::{
     SourceLoader, VerificationMode,
 };
 pub use lower::{lower, LowerError};
+pub use macros::{
+    expand_all, register_defmacros, MacroDef, MacroError, MacroRegistry,
+};
 pub use parser::{parse_all, parse_one, ParseError};
 pub use runtime::{
     eval, register_defines, EnvBuilder, Environment, Function, RuntimeError, SymbolTable, Value,
