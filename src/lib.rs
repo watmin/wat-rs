@@ -31,6 +31,7 @@ pub mod lexer;
 pub mod load;
 pub mod lower;
 pub mod parser;
+pub mod runtime;
 
 pub use ast::WatAST;
 pub use config::{collect_entry_file, CapacityMode, Config, ConfigError};
@@ -41,6 +42,9 @@ pub use load::{
 };
 pub use lower::{lower, LowerError};
 pub use parser::{parse_all, parse_one, ParseError};
+pub use runtime::{
+    eval, register_defines, EnvBuilder, Environment, Function, RuntimeError, SymbolTable, Value,
+};
 
 use holon::{encode, AtomTypeRegistry, ScalarEncoder, Vector, VectorManager};
 
