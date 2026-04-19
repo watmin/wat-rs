@@ -34,6 +34,7 @@ pub mod lower;
 pub mod macros;
 pub mod parser;
 pub mod runtime;
+pub mod types;
 
 pub use ast::WatAST;
 pub use config::{collect_entry_file, CapacityMode, Config, ConfigError};
@@ -50,6 +51,10 @@ pub use macros::{
 pub use parser::{parse_all, parse_one, ParseError};
 pub use runtime::{
     eval, register_defines, EnvBuilder, Environment, Function, RuntimeError, SymbolTable, Value,
+};
+pub use types::{
+    parse_type_expr, register_types, AliasDef, EnumDef, EnumVariant, NewtypeDef, StructDef,
+    TypeDef, TypeEnv, TypeError, TypeExpr,
 };
 
 use holon::{encode, AtomTypeRegistry, ScalarEncoder, Vector, VectorManager};
