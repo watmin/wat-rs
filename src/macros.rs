@@ -78,8 +78,11 @@ impl MacroRegistry {
         self.macros.get(name)
     }
 
-    /// Register a macro. Errors on duplicate.
+    /// Register a macro. Errors on duplicate or reserved prefix.
     pub fn register(&mut self, def: MacroDef) -> Result<(), MacroError> {
+        if crate::resolve::is_reserved_prefix(&def.name) {
+            return Err(MacroError::ReservedPrefix(def.name));
+        }
         if self.macros.contains_key(&def.name) {
             return Err(MacroError::DuplicateMacro(def.name));
         }
@@ -93,6 +96,8 @@ impl MacroRegistry {
 pub enum MacroError {
     /// Two `(:wat/core/defmacro ...)` forms registered the same name.
     DuplicateMacro(String),
+    /// A user macro declared under a reserved `:wat/...` prefix.
+    ReservedPrefix(String),
     /// A `defmacro` form was malformed.
     MalformedDefmacro { reason: String },
     /// The macro's body wasn't a quasiquote template — this slice only
@@ -121,6 +126,11 @@ impl fmt::Display for MacroError {
             MacroError::DuplicateMacro(n) => {
                 write!(f, "duplicate macro registration: {}", n)
             }
+            MacroError::ReservedPrefix(n) => write!(
+                f,
+                "cannot declare macro {} — reserved prefix (:wat/core/, :wat/kernel/, :wat/algebra/, :wat/std/, :wat/config/); user macros must use their own prefix",
+                n
+            ),
             MacroError::MalformedDefmacro { reason } => {
                 write!(f, "malformed defmacro: {}", reason)
             }
@@ -539,9 +549,9 @@ mod tests {
     fn subtract_macro_expansion() {
         let forms = expand(
             r#"
-            (:wat/core/defmacro (:wat/std/Subtract (x :AST<Holon>) (y :AST<Holon>) -> :AST<Holon>)
+            (:wat/core/defmacro (:my/vocab/Subtract (x :AST<Holon>) (y :AST<Holon>) -> :AST<Holon>)
               `(:wat/algebra/Blend ,x ,y 1 -1))
-            (:wat/std/Subtract foo bar)
+            (:my/vocab/Subtract foo bar)
             "#,
         )
         .unwrap();
@@ -735,6 +745,15 @@ mod tests {
     }
 
     // ─── Error paths ────────────────────────────────────────────────────
+
+    #[test]
+    fn reserved_prefix_macro_rejected() {
+        let err = expand(
+            r#"(:wat/core/defmacro (:wat/std/MyMacro (x :AST) -> :AST) `,x)"#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, MacroError::ReservedPrefix(_)));
+    }
 
     #[test]
     fn duplicate_defmacro_rejected() {

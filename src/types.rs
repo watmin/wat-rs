@@ -148,7 +148,7 @@ impl TypeEnv {
 
     pub fn register(&mut self, def: TypeDef) -> Result<(), TypeError> {
         let name = def.name().to_string();
-        if is_reserved_prefix(&name) {
+        if crate::resolve::is_reserved_prefix(&name) {
             return Err(TypeError::ReservedPrefix { name });
         }
         if self.types.contains_key(&name) {
@@ -202,17 +202,6 @@ impl fmt::Display for TypeError {
 }
 
 impl std::error::Error for TypeError {}
-
-fn is_reserved_prefix(name: &str) -> bool {
-    // Strip leading ':' for the check — reserved prefixes apply to the
-    // keyword-path content.
-    let stripped = name.strip_prefix(':').unwrap_or(name);
-    stripped.starts_with("wat/core/")
-        || stripped.starts_with("wat/kernel/")
-        || stripped.starts_with("wat/algebra/")
-        || stripped.starts_with("wat/std/")
-        || stripped.starts_with("wat/config/")
-}
 
 /// Walk `forms`, register every type declaration, return the remaining
 /// forms in order.

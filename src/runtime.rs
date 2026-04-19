@@ -203,6 +203,7 @@ pub enum RuntimeError {
     ParamShadowsBuiltin(String),
     DivisionByZero,
     DuplicateDefine(String),
+    ReservedPrefix(String),
     /// `:wat/core/define` / `:wat/core/lambda` found in expression
     /// position at runtime. Define is a top-level registration form;
     /// lambda is fine in expression position. A caught-in-eval define
@@ -237,6 +238,11 @@ impl fmt::Display for RuntimeError {
             RuntimeError::DuplicateDefine(p) => {
                 write!(f, "duplicate define: {} already registered", p)
             }
+            RuntimeError::ReservedPrefix(p) => write!(
+                f,
+                "cannot define {} — reserved prefix (:wat/core/, :wat/kernel/, :wat/algebra/, :wat/std/, :wat/config/); user defines must use their own prefix",
+                p
+            ),
             RuntimeError::DefineInExpressionPosition => write!(
                 f,
                 ":wat/core/define is a top-level registration form, not an expression"
@@ -258,6 +264,9 @@ pub fn register_defines(
     for form in forms {
         if is_define_form(&form) {
             let (path, func) = parse_define_form(form)?;
+            if crate::resolve::is_reserved_prefix(&path) {
+                return Err(RuntimeError::ReservedPrefix(path));
+            }
             if sym.functions.contains_key(&path) {
                 return Err(RuntimeError::DuplicateDefine(path));
             }
@@ -1263,6 +1272,15 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(result, Value::Int(120)));
+    }
+
+    #[test]
+    fn reserved_prefix_define_rejected() {
+        let err = run(
+            r#"(:wat/core/define (:wat/algebra/Bogus (x :i64) -> :i64) x)"#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, RuntimeError::ReservedPrefix(_)));
     }
 
     #[test]

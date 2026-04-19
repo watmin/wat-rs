@@ -33,6 +33,7 @@ pub mod load;
 pub mod lower;
 pub mod macros;
 pub mod parser;
+pub mod resolve;
 pub mod runtime;
 pub mod types;
 
@@ -49,6 +50,7 @@ pub use macros::{
     expand_all, register_defmacros, MacroDef, MacroError, MacroRegistry,
 };
 pub use parser::{parse_all, parse_one, ParseError};
+pub use resolve::{is_reserved_prefix, resolve_references, ResolveError, UnresolvedReference};
 pub use runtime::{
     eval, register_defines, EnvBuilder, Environment, Function, RuntimeError, SymbolTable, Value,
 };
