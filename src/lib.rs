@@ -28,12 +28,17 @@
 pub mod ast;
 pub mod config;
 pub mod lexer;
+pub mod load;
 pub mod lower;
 pub mod parser;
 
 pub use ast::WatAST;
 pub use config::{collect_entry_file, CapacityMode, Config, ConfigError};
 pub use lexer::LexError;
+pub use load::{
+    resolve_loads, FsLoader, InMemoryLoader, LoadError, LoadFetchError, LoadSpec, LoadedSource,
+    SourceLoader, VerificationMode,
+};
 pub use lower::{lower, LowerError};
 pub use parser::{parse_all, parse_one, ParseError};
 
