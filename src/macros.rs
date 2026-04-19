@@ -627,18 +627,19 @@ mod tests {
         let forms = expand(
             r#"
             (:wat/core/defmacro (:my/vocab/WithTmp (body :AST) -> :AST)
-              `(:wat/core/let ((tmp 1)) ,body))
+              `(:wat/core/let (((tmp :i64) 1)) ,body))
             (:my/vocab/WithTmp tmp)
             "#,
         )
         .unwrap();
-        // Expansion: (:wat/core/let ((tmp[macro-scope] 1)) tmp[user-empty])
+        // Expansion: (:wat/core/let (((tmp[macro-scope] :i64) 1)) tmp[user-empty])
         // The two `tmp`s must have DIFFERENT Identifiers.
         let list = match &forms[0] {
             WatAST::List(items) => items,
             _ => panic!("expected list"),
         };
-        // ((tmp 1)) — extract the binding's tmp Identifier.
+        // (((tmp :i64) 1)) — drill through the bindings list, the
+        // binding, and the typed-name pair to reach tmp.
         let bindings = match &list[1] {
             WatAST::List(bs) => bs,
             _ => panic!("expected bindings list"),
@@ -647,7 +648,11 @@ mod tests {
             WatAST::List(b) => b,
             _ => panic!("expected binding pair"),
         };
-        let template_tmp = match &first_binding[0] {
+        let typed_name = match &first_binding[0] {
+            WatAST::List(tn) => tn,
+            _ => panic!("expected (name :Type) pair"),
+        };
+        let template_tmp = match &typed_name[0] {
             WatAST::Symbol(i) => i,
             _ => panic!("expected Symbol"),
         };
@@ -708,7 +713,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat/core/defmacro (:my/twice (x :AST) -> :AST)
-              `(:wat/core/let ((t ,x)) t))
+              `(:wat/core/let (((t :i64) ,x)) t))
             (:my/twice 1)
             (:my/twice 2)
             "#,
@@ -732,7 +737,12 @@ mod tests {
             } else {
                 panic!()
             };
-            if let WatAST::Symbol(i) = &pair[0] {
+            let typed_name = if let WatAST::List(tn) = &pair[0] {
+                tn.clone()
+            } else {
+                panic!()
+            };
+            if let WatAST::Symbol(i) = &typed_name[0] {
                 i.clone()
             } else {
                 panic!()

@@ -317,7 +317,7 @@ fn infer_list(
             ":wat/core/and" | ":wat/core/or" => {
                 return infer_boolean_shortcircuit(args, env, locals, fresh, subst, errors);
             }
-            ":wat/core/lambda" => return None,
+            ":wat/core/lambda" => return infer_lambda(args, env, locals, fresh, subst, errors),
             ":wat/core/define"
             | ":wat/core/struct"
             | ":wat/core/enum"
@@ -392,8 +392,10 @@ fn infer_list(
         return Some(apply_subst(&ret_type, subst));
     }
 
-    // Non-keyword head: bare-symbol application or inline lambda. Not
-    // typed at this layer; still recurse for nested call checks.
+    // Non-keyword head (bare symbol or inline expression). Not typed
+    // at this layer pending your call on explicit let-binding type
+    // annotations. Recurse into args so nested keyword-headed calls
+    // still get checked.
     for item in items {
         let _ = infer(item, env, locals, fresh, subst, errors);
     }
@@ -449,21 +451,59 @@ fn infer_let(
     if args.len() != 2 {
         return None;
     }
+    let bindings = match &args[0] {
+        WatAST::List(items) => items,
+        _ => return None,
+    };
+    // Every let binding is `((name :Type) rhs)` — typed discipline,
+    // no untyped form. The runtime parser also rejects untyped
+    // bindings; the checker trusts that but still verifies declared
+    // type agrees with inferred RHS type.
     let mut extended = locals.clone();
-    if let WatAST::List(bindings) = &args[0] {
-        for pair in bindings {
-            if let WatAST::List(kv) = pair {
-                if kv.len() == 2 {
-                    if let WatAST::Symbol(name) = &kv[0] {
-                        if let Some(t) = infer(&kv[1], env, locals, fresh, subst, errors) {
-                            extended.insert(name.name.clone(), apply_subst(&t, subst));
-                        }
-                    }
-                }
+    for pair in bindings {
+        let (name, declared_type, rhs) = match extract_typed_binding(pair) {
+            Some(v) => v,
+            None => continue, // malformed shape — runtime catches it
+        };
+        let rhs_ty = infer(rhs, env, locals, fresh, subst, errors);
+        if let Some(rhs_ty) = rhs_ty {
+            if unify(&rhs_ty, &declared_type, subst).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat/core/let".into(),
+                    param: format!("binding '{}'", name),
+                    expected: format_type(&apply_subst(&declared_type, subst)),
+                    got: format_type(&apply_subst(&rhs_ty, subst)),
+                });
             }
         }
+        // The binding's type in the body IS the declared type. This
+        // is what the user committed to; the body must use `name` as
+        // that type, not as whatever the RHS happened to produce.
+        extended.insert(name, declared_type);
     }
     infer(&args[1], env, &extended, fresh, subst, errors)
+}
+
+/// Extract `((name :Type) rhs)` structure. Returns None on malformed
+/// shape (runtime parser surfaces the error; check silently skips).
+fn extract_typed_binding(pair: &WatAST) -> Option<(String, TypeExpr, &WatAST)> {
+    let kv = match pair {
+        WatAST::List(items) if items.len() == 2 => items,
+        _ => return None,
+    };
+    let typed_name = match &kv[0] {
+        WatAST::List(inner) if inner.len() == 2 => inner,
+        _ => return None,
+    };
+    let name = match &typed_name[0] {
+        WatAST::Symbol(ident) => ident.name.clone(),
+        _ => return None,
+    };
+    let declared = match &typed_name[1] {
+        WatAST::Keyword(k) => crate::types::parse_type_expr(k).ok()?,
+        _ => return None,
+    };
+    Some((name, declared, &kv[1]))
 }
 
 fn infer_list_constructor(
@@ -494,6 +534,98 @@ fn infer_list_constructor(
         head: "List".into(),
         args: vec![apply_subst(&elem_var, subst)],
     })
+}
+
+/// A lambda expression's type is `:fn(<param types>) -> <return type>`.
+/// The signature is mandatory per 058-029 — every param and the
+/// return are annotated. The body is checked against the declared
+/// return type (same discipline as `check_function_body`).
+fn infer_lambda(
+    args: &[WatAST],
+    env: &CheckEnv,
+    outer_locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 2 {
+        return None;
+    }
+    let sig = &args[0];
+    let body = &args[1];
+    let (param_names, param_types, ret_type) = parse_lambda_signature_for_check(sig).ok()?;
+
+    // Check body against declared return type under extended locals.
+    let mut body_locals = outer_locals.clone();
+    for (name, ty) in param_names.iter().zip(param_types.iter()) {
+        body_locals.insert(name.clone(), ty.clone());
+    }
+    let body_ty = infer(body, env, &body_locals, fresh, subst, errors);
+    if let Some(body_ty) = body_ty {
+        if unify(&body_ty, &ret_type, subst).is_err() {
+            errors.push(CheckError::ReturnTypeMismatch {
+                function: "<lambda>".into(),
+                expected: format_type(&apply_subst(&ret_type, subst)),
+                got: format_type(&apply_subst(&body_ty, subst)),
+            });
+        }
+    }
+
+    Some(TypeExpr::Fn {
+        args: param_types,
+        ret: Box::new(ret_type),
+    })
+}
+
+/// Mirror of [`crate::runtime::parse_lambda_signature`] shape for the
+/// check pass — returns (names, types, ret). Errors are silenced; if
+/// the lambda is malformed, runtime parsing catches it and the
+/// checker simply returns None.
+fn parse_lambda_signature_for_check(
+    sig: &WatAST,
+) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), ()> {
+    let items = match sig {
+        WatAST::List(items) => items,
+        _ => return Err(()),
+    };
+    let mut names = Vec::new();
+    let mut types = Vec::new();
+    let mut ret: Option<TypeExpr> = None;
+    let mut saw_arrow = false;
+    for item in items {
+        if saw_arrow {
+            if ret.is_some() {
+                return Err(());
+            }
+            match item {
+                WatAST::Keyword(k) => {
+                    ret = Some(crate::types::parse_type_expr(k).map_err(|_| ())?);
+                }
+                _ => return Err(()),
+            }
+            continue;
+        }
+        match item {
+            WatAST::Symbol(s) if s.as_str() == "->" => saw_arrow = true,
+            WatAST::List(pair) => {
+                if pair.len() != 2 {
+                    return Err(());
+                }
+                let name = match &pair[0] {
+                    WatAST::Symbol(s) => s.name.clone(),
+                    _ => return Err(()),
+                };
+                let ty = match &pair[1] {
+                    WatAST::Keyword(k) => crate::types::parse_type_expr(k).map_err(|_| ())?,
+                    _ => return Err(()),
+                };
+                names.push(name);
+                types.push(ty);
+            }
+            _ => return Err(()),
+        }
+    }
+    Ok((names, types, ret.ok_or(())?))
 }
 
 fn infer_boolean_shortcircuit(
@@ -989,6 +1121,65 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::ReturnTypeMismatch { .. })));
+    }
+
+    // ─── Typed-let discipline ───────────────────────────────────────────
+
+    #[test]
+    fn typed_let_binding_matches_rhs() {
+        assert!(check(
+            r#"(:wat/core/let (((x :i64) 42)) (:wat/core/+ x 1))"#
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn typed_let_binding_wrong_type_rejected() {
+        // Declared :i64 but RHS is :String — unification fails.
+        let err = check(
+            r#"(:wat/core/let (((x :i64) "hello")) x)"#,
+        )
+        .unwrap_err();
+        assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn typed_let_binding_multiple() {
+        assert!(check(
+            r#"(:wat/core/let
+                 (((x :i64) 1)
+                  ((y :i64) 2)
+                  ((z :i64) 3))
+                 (:wat/core/+ (:wat/core/+ x y) z))"#
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn typed_let_binding_with_lambda_value() {
+        // A lambda bound to a let with :fn(i64)->i64 declaration.
+        // Declared type matches lambda's own signature, so it passes.
+        assert!(check(
+            r#"(:wat/core/let
+                 (((doubler :fn(i64)->i64)
+                   (:wat/core/lambda ((x :i64) -> :i64)
+                     (:wat/core/+ x x))))
+                 true)"#
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn typed_let_binding_lambda_declared_wrong_rejected() {
+        // Declared :fn(i64)->bool but lambda produces :fn(i64)->i64.
+        let err = check(
+            r#"(:wat/core/let
+                 (((f :fn(i64)->bool)
+                   (:wat/core/lambda ((x :i64) -> :i64) x)))
+                 true)"#,
+        )
+        .unwrap_err();
+        assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
     // ─── :Any ban ───────────────────────────────────────────────────────

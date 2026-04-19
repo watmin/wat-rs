@@ -764,7 +764,7 @@ fn eval_let(
         return Err(RuntimeError::MalformedForm {
             head: ":wat/core/let".into(),
             reason: format!(
-                "expected (:wat/core/let ((n1 e1) ...) body); got {} args",
+                "expected (:wat/core/let (((n1 :T1) e1) ...) body); got {} args",
                 args.len()
             ),
         });
@@ -777,40 +777,84 @@ fn eval_let(
         _ => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat/core/let".into(),
-                reason: "bindings must be a list of (name expr) pairs".into(),
+                reason: "bindings must be a list of ((name :Type) expr) pairs".into(),
             })
         }
     };
 
     let mut builder = env.child();
     for pair in binding_pairs {
-        match pair {
-            WatAST::List(kv) if kv.len() == 2 => {
-                let name = match &kv[0] {
-                    WatAST::Symbol(ident) => ident.name.clone(),
-                    other => {
-                        return Err(RuntimeError::MalformedForm {
-                            head: ":wat/core/let".into(),
-                            reason: format!(
-                                "binding name must be a bare symbol; got {}",
-                                ast_variant_name(other)
-                            ),
-                        });
-                    }
-                };
-                let value = eval(&kv[1], env, sym)?; // eval in OUTER env, not cumulative let*
-                builder = builder.bind(name, value);
-            }
-            _ => {
-                return Err(RuntimeError::MalformedForm {
-                    head: ":wat/core/let".into(),
-                    reason: "each binding must be (name expr)".into(),
-                });
-            }
-        }
+        let (name, _declared_type, rhs) = parse_let_binding(pair)?;
+        // Runtime ignores the declared type — type checking ran before
+        // eval. Parsing it here enforces the grammar: an untyped
+        // binding like `(x 42)` halts here rather than being allowed.
+        let value = eval(rhs, env, sym)?; // eval in OUTER env, not cumulative let*
+        builder = builder.bind(name, value);
     }
     let scope = builder.build();
     eval(body, &scope, sym)
+}
+
+/// Parse a single let binding. Per the typed-let discipline, every
+/// binding is `((name :Type) rhs)` — a 2-list whose first element is
+/// itself a 2-list `(name :Type)` and whose second is the RHS
+/// expression. Untyped `(name rhs)` is refused.
+///
+/// Returns `(name, declared_type, rhs)`. Declared type is validated
+/// via [`crate::types::parse_type_expr`] so `:Any` and malformed
+/// type expressions are caught at this layer.
+fn parse_let_binding(
+    pair: &WatAST,
+) -> Result<(String, crate::types::TypeExpr, &WatAST), RuntimeError> {
+    let kv = match pair {
+        WatAST::List(items) if items.len() == 2 => items,
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat/core/let".into(),
+                reason: format!(
+                    "each binding must be ((name :Type) rhs); got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    };
+    let typed_name = match &kv[0] {
+        WatAST::List(inner) if inner.len() == 2 => inner,
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat/core/let".into(),
+                reason: format!(
+                    "binding's name-and-type must be (name :Type); got {}. Every let binding declares its type — no untyped form.",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    };
+    let name = match &typed_name[0] {
+        WatAST::Symbol(ident) => ident.name.clone(),
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat/core/let".into(),
+                reason: format!(
+                    "binding name must be a bare symbol; got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    };
+    let declared_type = match &typed_name[1] {
+        WatAST::Keyword(k) => parse_type_keyword(k)?,
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat/core/let".into(),
+                reason: format!(
+                    "binding type must be a type keyword; got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    };
+    Ok((name, declared_type, &kv[1]))
 }
 
 fn eval_if(
@@ -1396,7 +1440,7 @@ mod tests {
     fn let_binds_parallel() {
         assert!(matches!(
             eval_expr(
-                r#"(:wat/core/let ((x 2) (y 3)) (:wat/core/+ x y))"#
+                r#"(:wat/core/let (((x :i64) 2) ((y :i64) 3)) (:wat/core/+ x y))"#
             )
             .unwrap(),
             Value::Int(5)
@@ -1408,11 +1452,27 @@ mod tests {
         // Inner let shadows the outer x.
         assert!(matches!(
             eval_expr(
-                r#"(:wat/core/let ((x 1)) (:wat/core/let ((x 100)) x))"#
+                r#"(:wat/core/let (((x :i64) 1)) (:wat/core/let (((x :i64) 100)) x))"#
             )
             .unwrap(),
             Value::Int(100)
         ));
+    }
+
+    #[test]
+    fn untyped_let_binding_rejected() {
+        // The old `(name rhs)` shape is no longer legal; every binding
+        // must declare its type via `((name :Type) rhs)`.
+        let err = eval_expr(r#"(:wat/core/let ((x 1)) x)"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn let_binding_with_any_type_rejected() {
+        // :Any is banned by parse_type_expr; a let binding declaring
+        // :Any halts with a typed-form error.
+        let err = eval_expr(r#"(:wat/core/let (((x :Any) 1)) x)"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
     }
 
     // ─── Define + function call ─────────────────────────────────────────
@@ -1492,8 +1552,9 @@ mod tests {
     fn closure_captures_let_binding() {
         let result = eval_expr(
             r#"(:wat/core/let
-                 ((adder (:wat/core/lambda ((x :i64) -> :i64)
-                           (:wat/core/+ x 10))))
+                 (((adder :fn(i64)->i64)
+                   (:wat/core/lambda ((x :i64) -> :i64)
+                     (:wat/core/+ x 10))))
                  (adder 5))"#,
         )
         .unwrap();
@@ -1505,10 +1566,11 @@ mod tests {
         // The lambda captures `n` from the outer let; even when invoked
         // from a deeper scope, it sees the captured value.
         let result = eval_expr(
-            r#"(:wat/core/let ((n 100))
-                 (:wat/core/let ((f (:wat/core/lambda ((x :i64) -> :i64)
-                                      (:wat/core/+ x n))))
-                   (:wat/core/let ((n 999))
+            r#"(:wat/core/let (((n :i64) 100))
+                 (:wat/core/let (((f :fn(i64)->i64)
+                                  (:wat/core/lambda ((x :i64) -> :i64)
+                                    (:wat/core/+ x n))))
+                   (:wat/core/let (((n :i64) 999))
                      (f 1))))"#,
         )
         .unwrap();
@@ -1528,7 +1590,7 @@ mod tests {
     fn algebra_atom_from_bound_variable() {
         // (Atom x) where x is a let-bound integer — runtime construction.
         let v = eval_expr(
-            r#"(:wat/core/let ((x 42)) (:wat/algebra/Atom x))"#,
+            r#"(:wat/core/let (((x :i64) 42)) (:wat/algebra/Atom x))"#,
         )
         .unwrap();
         match v {
