@@ -1169,8 +1169,9 @@ fn eval_let(
         let binding = parse_let_binding(pair)?;
         match binding {
             LetBinding::Single { name, rhs, .. } => {
-                // Runtime ignores the declared type — type checking ran
-                // before eval. Parsing it here enforces the grammar.
+                // Runtime ignores the declared type — the type checker
+                // already validated it. Parsing it above enforced that
+                // it exists (typed-let discipline).
                 let value = eval(rhs, env, sym)?; // eval in OUTER env, not cumulative let*
                 builder = builder.bind(name, value);
             }
@@ -1288,23 +1289,23 @@ fn destructure_tuple(
 /// type expressions are caught at this layer.
 /// One let / let* binding form.
 ///
-/// Three spec'd shapes:
+/// Two spec'd shapes — both honest about types. Bare-single
+/// `(name rhs)` is NOT accepted: every bound name's type must be
+/// derivable from a declaration somewhere in the program, not from
+/// the checker guessing at a literal.
 ///
-/// - **Single, typed** — `((name :Type) rhs)`. The canonical form
-///   when the user wants to commit the binding's type explicitly.
-/// - **Single, bare** — `(name rhs)`. Type is inferred from the RHS.
-///   Per FOUNDATION's observer-style example — used pervasively when
-///   the RHS is a primitive or user call whose return type is already
-///   declared.
-/// - **Destructure** — `((a b c ...) rhs)`. RHS must evaluate to a
-///   tuple of matching arity; each element binds to the matching
-///   name. Names are untyped individually; their types come from the
-///   tuple's element types via inference.
+/// - **Single, typed** — `((name :Type) rhs)`. The canonical form.
+///   Name's type is declared explicitly at the binding site.
+/// - **Destructure** — `((a b c ...) rhs)`. RHS must have a declared
+///   tuple return type (from a primitive or user function); each
+///   binder name receives the matching tuple-element type from that
+///   declaration. Structural destructure — types flow from the RHS's
+///   declared shape through the pattern; no inference from literals.
 enum LetBinding<'a> {
     Single {
         name: String,
         #[allow(dead_code)]
-        declared_type: Option<crate::types::TypeExpr>,
+        declared_type: crate::types::TypeExpr,
         rhs: &'a WatAST,
     },
     Destructure {
@@ -1320,28 +1321,19 @@ fn parse_let_binding(pair: &WatAST) -> Result<LetBinding<'_>, RuntimeError> {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
                 reason: format!(
-                    "each binding must be ((name :Type) rhs), (name rhs), or ((a b ...) rhs); got {}",
+                    "each binding must be ((name :Type) rhs) or ((a b ...) rhs); got {}",
                     ast_variant_name(other)
                 ),
             });
         }
     };
-    // Bare-single: `(name rhs)` — first element is a symbol.
-    if let WatAST::Symbol(ident) = &kv[0] {
-        return Ok(LetBinding::Single {
-            name: ident.name.clone(),
-            declared_type: None,
-            rhs: &kv[1],
-        });
-    }
-    // Otherwise the first element must be a list (typed-single OR destructure).
     let binder = match &kv[0] {
         WatAST::List(inner) => inner,
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
                 reason: format!(
-                    "binding's binder must be a symbol or a list; got {}",
+                    "binding's binder must be a list — ((name :Type) rhs) or ((a b ...) rhs); got {}. Bare `(name rhs)` is refused: every name must have a declared type, not one inferred from a literal.",
                     ast_variant_name(other)
                 ),
             });
@@ -1362,7 +1354,7 @@ fn parse_let_binding(pair: &WatAST) -> Result<LetBinding<'_>, RuntimeError> {
         };
         return Ok(LetBinding::Single {
             name,
-            declared_type: Some(declared_type),
+            declared_type,
             rhs: &kv[1],
         });
     }
@@ -3172,14 +3164,12 @@ mod tests {
     }
 
     #[test]
-    fn bare_single_let_binding_accepted() {
-        // `(name rhs)` is the bare-single shape — type inferred from
-        // the RHS. Per FOUNDATION's observer-style example, used
-        // pervasively when the RHS's return type is already declared.
-        match eval_expr(r#"(:wat::core::let ((x 1)) x)"#).unwrap() {
-            Value::i64(1) => {}
-            v => panic!("expected 1, got {:?}", v),
-        }
+    fn bare_single_let_binding_rejected() {
+        // `(name rhs)` is NOT accepted. Every bound name's type must
+        // be declared at the binding site — the shape is
+        // `((name :Type) rhs)` or destructure `((a b ...) rhs)`.
+        let err = eval_expr(r#"(:wat::core::let ((x 1)) x)"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
     }
 
     #[test]
@@ -4248,7 +4238,8 @@ mod tests {
               (:wat::kernel::send tx 99))
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
-               (handle (:wat::kernel::spawn :my::producer tx))
+               ((handle :wat::kernel::ProgramHandle<()>)
+                (:wat::kernel::spawn :my::producer tx))
                ((_ :()) (:wat::kernel::join handle)))
               (:wat::core::match (:wat::kernel::recv rx)
                 ((Some v) v)

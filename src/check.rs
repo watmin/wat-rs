@@ -1038,19 +1038,11 @@ fn process_let_binding(
         WatAST::List(items) if items.len() == 2 => items,
         _ => return, // runtime parser surfaces the shape error
     };
-    let rhs = &kv[1];
-    // Bare-single: `(name rhs)` — binder is a symbol. Infer the RHS's
-    // type and bind the name to it.
-    if let WatAST::Symbol(ident) = &kv[0] {
-        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst, errors)
-            .unwrap_or_else(|| fresh.fresh());
-        out_scope.insert(ident.name.clone(), apply_subst(&rhs_ty, subst));
-        return;
-    }
     let binder = match &kv[0] {
         WatAST::List(inner) => inner,
-        _ => return,
+        _ => return, // bare `(name rhs)` refused at runtime; check silently skips
     };
+    let rhs = &kv[1];
 
     let is_typed_single = binder.len() == 2
         && matches!(&binder[0], WatAST::Symbol(_))
