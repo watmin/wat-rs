@@ -154,13 +154,15 @@ pub enum Value {
     /// [`Value::String`] (raw EDN text that still needs parsing) and
     /// from [`Value::holon__HolonAST`] (algebra AST).
     wat__WatAST(Arc<WatAST>),
-    /// A channel sender handle. String-typed for the MVP wat-vm; the
-    /// variant encodes the full `crossbeam_channel::Sender` path —
-    /// wat takes a direct dep on `crossbeam-channel` and does not
-    /// hide it.
-    crossbeam_channel__Sender(Arc<crossbeam_channel::Sender<String>>),
-    /// A channel receiver handle. String-typed for the MVP.
-    crossbeam_channel__Receiver(Arc<crossbeam_channel::Receiver<String>>),
+    /// A channel sender handle. Carries `Value` — any wat runtime
+    /// value can travel through a queue. The variant encodes the full
+    /// `crossbeam_channel::Sender` path; wat takes a direct dep on
+    /// `crossbeam-channel` and does not hide it. Type-level
+    /// parameterization (`Sender<T>`) lives in the type checker; the
+    /// runtime transports `Value` generically.
+    crossbeam_channel__Sender(Arc<crossbeam_channel::Sender<Value>>),
+    /// A channel receiver handle. Carries `Value`; see `Sender`.
+    crossbeam_channel__Receiver(Arc<crossbeam_channel::Receiver<Value>>),
     /// An `:Option<T>` value — `:None` or `(Some v)`. Built-in
     /// parametric enum per 058-030; used as the return type of
     /// `:wat::kernel::recv` / `try-recv` / `select` and of structural
@@ -2134,10 +2136,10 @@ fn eval_config_noise_floor(
 }
 
 /// `(:wat::kernel::send sender value)` — blocks until the value is
-/// accepted by the channel; returns `:()`. Per 058-029 / FOUNDATION
-/// the type scheme is `∀T. crossbeam_channel::Sender<T> -> T -> :()`;
-/// the MVP wat-vm wires String-typed channels for stdio so the
-/// concrete call shape is `Sender<String> -> String -> :()`.
+/// accepted by the channel; returns `:()`. Type scheme
+/// `∀T. crossbeam_channel::Sender<T> -> T -> :()`. The runtime
+/// transports any `Value` through the channel; the type checker
+/// enforces that the declared `Sender<T>` matches the value's type.
 fn eval_kernel_send(
     args: &[WatAST],
     env: &Environment,
@@ -2160,16 +2162,7 @@ fn eval_kernel_send(
             });
         }
     };
-    let msg = match eval(&args[1], env, sym)? {
-        Value::String(s) => (*s).clone(),
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: ":wat::kernel::send".into(),
-                expected: "String",
-                got: other.type_name(),
-            });
-        }
-    };
+    let msg = eval(&args[1], env, sym)?;
     sender
         .send(msg)
         .map_err(|_| RuntimeError::ChannelDisconnected {
@@ -2206,7 +2199,7 @@ fn eval_kernel_recv(
         }
     };
     match receiver.recv() {
-        Ok(s) => Ok(Value::Option(Arc::new(Some(Value::String(Arc::new(s)))))),
+        Ok(v) => Ok(Value::Option(Arc::new(Some(v)))),
         Err(_) => Ok(Value::Option(Arc::new(None))),
     }
 }

@@ -199,11 +199,11 @@ fn format_type_inner(t: &TypeExpr) -> String {
 
 // ─── Stdio wiring ──────────────────────────────────────────────────────
 
-/// Spawn the stdin reader thread. Reads one line from OS stdin, sends
-/// it on the returned sender, and exits. The sender drops on thread
-/// exit, causing a second `recv` in the user program to see
-/// disconnect.
-fn spawn_stdin_reader(tx: crossbeam_channel::Sender<String>) -> thread::JoinHandle<()> {
+/// Spawn the stdin reader thread. Reads one line from OS stdin, wraps
+/// it as `Value::String`, sends it on the returned sender, and exits.
+/// The sender drops on thread exit, causing a second `recv` in the
+/// user program to see `:None`.
+fn spawn_stdin_reader(tx: crossbeam_channel::Sender<Value>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let stdin = io::stdin();
         let mut buf = String::new();
@@ -218,7 +218,7 @@ fn spawn_stdin_reader(tx: crossbeam_channel::Sender<String>) -> thread::JoinHand
                     buf.pop();
                 }
             }
-            let _ = tx.send(buf);
+            let _ = tx.send(Value::String(Arc::new(buf)));
         }
         // tx dropped on return → receiver sees disconnect
     })
@@ -226,13 +226,19 @@ fn spawn_stdin_reader(tx: crossbeam_channel::Sender<String>) -> thread::JoinHand
 
 /// Spawn a writer thread that forwards everything from `rx` to the
 /// given OS stdio handle. The thread exits when the receiver sees
-/// disconnected (all senders dropped).
+/// disconnected (all senders dropped). Accepts `Value::String`
+/// messages and writes their bytes directly; any other variant is
+/// silently discarded (typed stdio contract enforced at check time).
 fn spawn_stdio_writer(
-    rx: crossbeam_channel::Receiver<String>,
+    rx: crossbeam_channel::Receiver<Value>,
     target: StdioTarget,
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
-        for msg in rx.iter() {
+        for v in rx.iter() {
+            let msg: Arc<String> = match v {
+                Value::String(s) => s,
+                _ => continue,
+            };
             match target {
                 StdioTarget::Stdout => {
                     let out = io::stdout();
@@ -302,10 +308,12 @@ fn main() -> ExitCode {
 
     // Create the three stdio channels. stdin: wat-vm's reader writes,
     // user's :user::main reads. stdout/stderr: user writes, wat-vm's
-    // writers read.
-    let (stdin_tx, stdin_rx) = crossbeam_channel::unbounded::<String>();
-    let (stdout_tx, stdout_rx) = crossbeam_channel::unbounded::<String>();
-    let (stderr_tx, stderr_rx) = crossbeam_channel::unbounded::<String>();
+    // writers read. All three carry `Value` — stdio-flavored channels
+    // conventionally transport `Value::String`, but the transport
+    // itself is generic per the typed-pipe stance.
+    let (stdin_tx, stdin_rx) = crossbeam_channel::unbounded::<Value>();
+    let (stdout_tx, stdout_rx) = crossbeam_channel::unbounded::<Value>();
+    let (stderr_tx, stderr_rx) = crossbeam_channel::unbounded::<Value>();
 
     // Spawn stdio threads.
     let stdin_handle = spawn_stdin_reader(stdin_tx);
