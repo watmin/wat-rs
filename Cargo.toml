@@ -1,0 +1,12 @@
+[package]
+name = "wat-rs"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "The wat language — parser, type checker, macro expander, and runtime for the 058 algebra surface."
+repository = "https://github.com/watmin/wat-rs"
+
+[dependencies]
+holon = { path = "../holon-rs" }
+
+[dev-dependencies]
