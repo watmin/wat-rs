@@ -31,3 +31,70 @@ pub mod lower;
 pub mod parser;
 
 pub use ast::WatAST;
+pub use lexer::LexError;
+pub use lower::{lower, LowerError};
+pub use parser::{parse_all, parse_one, ParseError};
+
+use holon::{encode, AtomTypeRegistry, ScalarEncoder, Vector, VectorManager};
+
+/// Unified error type across the parse + lower pipeline.
+#[derive(Debug)]
+pub enum Error {
+    Parse(ParseError),
+    Lower(LowerError),
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Parse(e) => write!(f, "{}", e),
+            Error::Lower(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl From<ParseError> for Error {
+    fn from(e: ParseError) -> Self {
+        Error::Parse(e)
+    }
+}
+impl From<LowerError> for Error {
+    fn from(e: LowerError) -> Self {
+        Error::Lower(e)
+    }
+}
+
+/// Evaluate a wat source string containing a single algebra-core form and
+/// produce its encoded vector.
+///
+/// MVP-level convenience for the interpret path: parse → lower → encode.
+/// Only algebra-core UpperCalls are supported (no `define`, no `let`, no
+/// macros, no user-declared types in this slice). The source is expected
+/// to be a single top-level form.
+///
+/// # Example
+///
+/// ```ignore
+/// use wat_rs::eval_algebra_source;
+/// use holon::{AtomTypeRegistry, ScalarEncoder, VectorManager};
+///
+/// let vm = VectorManager::with_seed(10_000, 42);
+/// let se = ScalarEncoder::with_seed(10_000, 42);
+/// let reg = AtomTypeRegistry::with_builtins();
+///
+/// let src = r#"(:wat/algebra/Bind (:wat/algebra/Atom "role") (:wat/algebra/Atom "filler"))"#;
+/// let vector = eval_algebra_source(src, &vm, &se, &reg).unwrap();
+/// assert_eq!(vector.dimensions(), 10_000);
+/// ```
+pub fn eval_algebra_source(
+    src: &str,
+    vm: &VectorManager,
+    scalar: &ScalarEncoder,
+    registry: &AtomTypeRegistry,
+) -> Result<Vector, Error> {
+    let ast = parse_one(src)?;
+    let holon = lower(&ast)?;
+    Ok(encode(&holon, vm, scalar, registry))
+}
