@@ -89,6 +89,19 @@ impl MacroRegistry {
         self.macros.insert(def.name.clone(), def);
         Ok(())
     }
+
+    /// Register a TRUSTED stdlib macro. Bypasses the reserved-prefix
+    /// gate because stdlib forms live under `:wat::std::*` by design.
+    /// Still errors on duplicates. Intended for the baked stdlib
+    /// loader; user source paths through `register` where the prefix
+    /// check catches mis-namespaced user defmacros.
+    pub fn register_stdlib(&mut self, def: MacroDef) -> Result<(), MacroError> {
+        if self.macros.contains_key(&def.name) {
+            return Err(MacroError::DuplicateMacro(def.name));
+        }
+        self.macros.insert(def.name.clone(), def);
+        Ok(())
+    }
 }
 
 /// Errors during macro registration / expansion.
@@ -182,6 +195,27 @@ pub fn register_defmacros(
         if is_defmacro_form(&form) {
             let def = parse_defmacro_form(form)?;
             registry.register(def)?;
+        } else {
+            rest.push(form);
+        }
+    }
+    Ok(rest)
+}
+
+/// Stdlib-registration variant of [`register_defmacros`] that
+/// bypasses the `:wat::std::*` reserved-prefix gate. Called by the
+/// startup pipeline on the baked stdlib sources; user source still
+/// goes through [`register_defmacros`] so mis-namespaced user
+/// defmacros halt at startup.
+pub fn register_stdlib_defmacros(
+    forms: Vec<WatAST>,
+    registry: &mut MacroRegistry,
+) -> Result<Vec<WatAST>, MacroError> {
+    let mut rest = Vec::new();
+    for form in forms {
+        if is_defmacro_form(&form) {
+            let def = parse_defmacro_form(form)?;
+            registry.register_stdlib(def)?;
         } else {
             rest.push(form);
         }

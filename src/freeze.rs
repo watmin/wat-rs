@@ -53,8 +53,11 @@ use crate::ast::WatAST;
 use crate::check::{check_program, CheckErrors};
 use crate::config::{collect_entry_file, Config, ConfigError};
 use crate::load::{resolve_loads, LoadError, SourceLoader};
-use crate::macros::{expand_all, register_defmacros, MacroError, MacroRegistry};
+use crate::macros::{
+    expand_all, register_defmacros, register_stdlib_defmacros, MacroError, MacroRegistry,
+};
 use crate::parser::{parse_all, ParseError};
+use crate::stdlib::{stdlib_forms, StdlibError};
 use crate::resolve::{resolve_references, ResolveError};
 use crate::runtime::{
     apply_function, register_defines, EncodingCtx, Environment, RuntimeError, SymbolTable, Value,
@@ -146,6 +149,11 @@ pub enum StartupError {
     /// define during registration. Surfaces `register_defines`'s
     /// errors as-is.
     Runtime(RuntimeError),
+    /// A baked stdlib source failed to parse. Should never fire in
+    /// production — the stdlib is authored in-repo and its parsing is
+    /// validated by `cargo test` — but surfaces cleanly if someone
+    /// ships a malformed stdlib file.
+    Stdlib(StdlibError),
 }
 
 impl fmt::Display for StartupError {
@@ -159,6 +167,7 @@ impl fmt::Display for StartupError {
             StartupError::Resolve(e) => write!(f, "resolve: {}", e),
             StartupError::Check(e) => write!(f, "check:\n{}", e),
             StartupError::Runtime(e) => write!(f, "registration: {}", e),
+            StartupError::Stdlib(e) => write!(f, "stdlib: {}", e),
         }
     }
 }
@@ -205,6 +214,11 @@ impl From<RuntimeError> for StartupError {
         StartupError::Runtime(e)
     }
 }
+impl From<StdlibError> for StartupError {
+    fn from(e: StdlibError) -> Self {
+        StartupError::Stdlib(e)
+    }
+}
 
 /// Run the full startup pipeline against a single entry-source string
 /// and produce a [`FrozenWorld`]. The pipeline follows FOUNDATION.md's
@@ -243,8 +257,19 @@ pub fn startup_from_source(
     // 3. Recursive load resolution.
     let loaded = resolve_loads(post_config, base_canonical, loader)?;
 
-    // 4. Macro registration + expansion.
+    // 3a. Baked stdlib. Registered ahead of user code so any
+    //     `(:wat::std::Subtract …)` / `(:wat::std::Amplify …)` call
+    //     in user source resolves during step 4's macro expansion
+    //     without an explicit `load!`. Per FOUNDATION § "Where Each
+    //     Lives" (line 2088), `wat/std/*.wat` files ship one form
+    //     each whose keyword path matches the file path.
+    let stdlib = stdlib_forms()?;
+
+    // 4. Macro registration + expansion. Stdlib defmacros register
+    //    first; user defmacros layer on top and can shadow (subject
+    //    to the reserved-prefix gate) or reference stdlib forms.
     let mut macros = MacroRegistry::new();
+    let _stdlib_residue = register_stdlib_defmacros(stdlib, &mut macros)?;
     let post_macro_reg = register_defmacros(loaded, &mut macros)?;
     let expanded = expand_all(post_macro_reg, &macros)?;
 
