@@ -116,7 +116,7 @@ pub enum Value {
     wat__WatAST(Arc<WatAST>),
     /// A channel sender handle. String-typed for the MVP wat-vm; the
     /// variant encodes the full `crossbeam_channel::Sender` path —
-    /// wat-rs takes a direct dep on `crossbeam-channel` and does not
+    /// wat takes a direct dep on `crossbeam-channel` and does not
     /// hide it.
     crossbeam_channel__Sender(Arc<crossbeam_channel::Sender<String>>),
     /// A channel receiver handle. String-typed for the MVP.
@@ -2464,7 +2464,7 @@ mod tests {
         use std::io::Write;
         let dir = std::env::temp_dir();
         let path = dir.join(format!(
-            "wat-rs-eval-test-{}-{}.{}",
+            "wat-eval-test-{}-{}.{}",
             std::process::id(),
             // Unique per test via a nanos timestamp.
             std::time::SystemTime::now()

@@ -6,7 +6,7 @@
 //! just the substrate-through-source proof.
 
 use holon::{AtomTypeRegistry, ScalarEncoder, VectorManager};
-use wat_rs::eval_algebra_source;
+use wat::eval_algebra_source;
 
 const D: usize = 1024;
 
@@ -162,7 +162,7 @@ fn parse_error_surfaces_as_error() {
     // Unclosed paren.
     let err = eval_algebra_source("(:wat::algebra::Atom \"x\"", &vm, &se, &reg).unwrap_err();
     match err {
-        wat_rs::Error::Parse(_) => {} // expected
+        wat::Error::Parse(_) => {} // expected
         other => panic!("expected ParseError, got {:?}", other),
     }
 }
@@ -174,7 +174,7 @@ fn lower_error_surfaces_as_error() {
     let err =
         eval_algebra_source("(:wat::algebra::MadeUp 1)", &vm, &se, &reg).unwrap_err();
     match err {
-        wat_rs::Error::Lower(_) => {} // expected
+        wat::Error::Lower(_) => {} // expected
         other => panic!("expected LowerError, got {:?}", other),
     }
 }

@@ -1,12 +1,12 @@
-# wat-rs
+# wat
 
 The Rust implementation of the wat language — parser, type checker, macro
 expander, and runtime for the s-expression surface defined in the 058
 algebra-surface proposal batch (`holon-lab-trading/docs/proposals/2026/04/058-ast-algebra-surface/`).
 
-## What wat-rs is
+## What wat is
 
-`wat-rs` consumes wat source and produces vectors via holon-rs. Two paths:
+`wat` consumes wat source and produces vectors via holon-rs. Two paths:
 
 - **Interpret path (this crate's first job).** Parse → resolve → type-check
   → freeze → runtime AST walker. The runtime dispatches algebra-core
@@ -23,12 +23,12 @@ Both paths share the frontend. Only the tail differs.
 ```
 holon-rs  (algebra substrate — 6 core forms, encode, registry)
     ↑
-wat-rs    (this crate — wat frontend + interpret/compile runtime)
+wat       (this crate — wat frontend + interpret/compile runtime)
     ↑
 holon-lab-trading / holon-lab-ddos / any wat-consuming application
 ```
 
-Applications talk to wat-rs to load and run their wat programs; wat-rs
+Applications talk to wat to load and run their wat programs; wat
 talks to holon-rs for the algebra primitives.
 
 ## Status

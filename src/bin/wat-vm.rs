@@ -1,4 +1,4 @@
-//! `wat-vm` — the wat-rs command-line runner.
+//! `wat-vm` — the wat command-line runner.
 //!
 //! Reads an entry `.wat` file, runs the full startup pipeline, installs
 //! OS signal handlers (SIGINT + SIGTERM → kernel stop flag), wires
@@ -50,10 +50,10 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::thread;
 
-use wat_rs::freeze::{invoke_user_main, startup_from_source, FrozenWorld};
-use wat_rs::load::FsLoader;
-use wat_rs::runtime::{request_kernel_stop, Value};
-use wat_rs::types::TypeExpr;
+use wat::freeze::{invoke_user_main, startup_from_source, FrozenWorld};
+use wat::load::FsLoader;
+use wat::runtime::{request_kernel_stop, Value};
+use wat::types::TypeExpr;
 
 // ─── OS signal handlers ────────────────────────────────────────────────
 

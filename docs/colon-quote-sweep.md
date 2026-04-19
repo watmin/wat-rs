@@ -2,7 +2,7 @@
 
 **Created**: 2026-04-19
 **Priority**: HIGH — blocks further slice work
-**Scope**: wat-rs + holon-lab-trading wat/ + 058 proposal corpus
+**Scope**: wat + holon-lab-trading wat/ + 058 proposal corpus
 
 ## The insight
 
@@ -104,7 +104,7 @@ The named-enum approach is objectively better: every coproduct has a discriminat
 
 **C2: Drop `:Pair<T,U>` / `:Tuple<T,U,V>` from docs**
 - Requires A2.
-- Docs-only — wat-rs code doesn't emit these types directly.
+- Docs-only — wat code doesn't emit these types directly.
 
 **C3: Drop `:Union<T,U,V>`**
 - `parse_type_expr` refuses `:Union<...>` at the same layer as `:Any` with a dedicated `TypeError::UnionRetired` variant, message pointing at "declare a named enum."
@@ -113,7 +113,7 @@ The named-enum approach is objectively better: every coproduct has a discriminat
 **C4: Channel types — `:crossbeam_channel::Sender<T>` / `:crossbeam_channel::Receiver<T>`**
 - Replace `:QueueSender<T>` / `:QueueReceiver<T>` in proposal docs.
 - Decision: `crossbeam_channel` (the actual dep in trading-lab) over `std::sync::mpsc`.
-- Docs-only in wat-rs — kernel isn't implemented yet.
+- Docs-only in wat — kernel isn't implemented yet.
 
 ### Track D — Downstream sweep
 
@@ -145,7 +145,7 @@ Four entries (2026-04-19):
 - Find any leftover `:Vec<...>`, `:Pair<...>`, `:Tuple<...>`, `:Union<...>`, `:QueueSender<...>`, `:QueueReceiver<...>`.
 
 **E2: End-to-end smoke**
-- wat-rs: `cargo test` + `cargo test --release` clean.
+- wat: `cargo test` + `cargo test --release` clean.
 - holon-lab-trading: build + smoke (once wat files migrate).
 
 ## Commit plan

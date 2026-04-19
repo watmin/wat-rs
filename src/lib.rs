@@ -1,4 +1,4 @@
-//! wat-rs — the wat language frontend + runtime.
+//! wat — the wat language frontend + runtime.
 //!
 //! This crate implements the wat language as specified by the 058 algebra
 //! surface proposal batch in the holon-lab-trading repo. It depends on
@@ -125,7 +125,7 @@ impl From<LowerError> for Error {
 /// # Example
 ///
 /// ```
-/// use wat_rs::eval_algebra_source;
+/// use wat::eval_algebra_source;
 /// use holon::{AtomTypeRegistry, ScalarEncoder, VectorManager};
 ///
 /// let vm = VectorManager::with_seed(1_024, 42);
