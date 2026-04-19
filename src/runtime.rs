@@ -987,6 +987,16 @@ fn dispatch_keyword_head(
 
         // List construction
         ":wat::core::vec" => eval_list_ctor(args, env, sym),
+        ":wat::core::list" => eval_list_ctor(args, env, sym),
+        ":wat::core::length" => eval_vec_length(args, env, sym),
+        ":wat::core::empty?" => eval_vec_empty(args, env, sym),
+        ":wat::core::reverse" => eval_vec_reverse(args, env, sym),
+        ":wat::core::range" => eval_vec_range(args, env, sym),
+        ":wat::core::take" => eval_vec_take(args, env, sym),
+        ":wat::core::drop" => eval_vec_drop(args, env, sym),
+        ":wat::core::map" => eval_vec_map(args, env, sym),
+        ":wat::core::foldl" => eval_vec_foldl(args, env, sym),
+        ":wat::std::list::window" => eval_list_window(args, env, sym),
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
         ":wat::algebra::Atom" => eval_algebra_atom(args, env, sym),
@@ -1636,6 +1646,253 @@ fn eval_list_ctor(
         .map(|a| eval(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Value::Vec(Arc::new(items)))
+}
+
+/// Require a `Vec` argument. Used by list primitives that take one
+/// Vec as their sole / first arg.
+fn require_vec(op: &'static str, v: Value) -> Result<Arc<Vec<Value>>, RuntimeError> {
+    match v {
+        Value::Vec(xs) => Ok(xs),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "Vec",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// Require an `i64` argument. Used by list primitives whose second
+/// arg is a count / index.
+fn require_i64(op: &'static str, v: Value) -> Result<i64, RuntimeError> {
+    match v {
+        Value::i64(n) => Ok(n),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "i64",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::core::length xs)` → `:i64`. `xs.len() as i64`.
+fn eval_vec_length(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::length".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::core::length", eval(&args[0], env, sym)?)?;
+    Ok(Value::i64(xs.len() as i64))
+}
+
+/// `(:wat::core::empty? xs)` → `:bool`. Mirrors `slice::is_empty`.
+/// Per FOUNDATION-CHANGELOG 2026-04-18: the wat replacement for
+/// Scheme's `null?` (wat has no null).
+fn eval_vec_empty(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::empty?".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::core::empty?", eval(&args[0], env, sym)?)?;
+    Ok(Value::bool(xs.is_empty()))
+}
+
+/// `(:wat::core::reverse xs)` → `Vec<T>`. New Vec with elements
+/// reversed; input unchanged.
+fn eval_vec_reverse(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::reverse".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::core::reverse", eval(&args[0], env, sym)?)?;
+    let mut out = (*xs).clone();
+    out.reverse();
+    Ok(Value::Vec(Arc::new(out)))
+}
+
+/// `(:wat::core::range start end)` → `Vec<i64>`. Two-arg only; the
+/// spec-frozen shape maps to Rust's `start..end` exactly. Callers
+/// write `(range 0 n)` explicitly for 0..n.
+fn eval_vec_range(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::range".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let start = require_i64(":wat::core::range", eval(&args[0], env, sym)?)?;
+    let end = require_i64(":wat::core::range", eval(&args[1], env, sym)?)?;
+    let items: Vec<Value> = if start <= end {
+        (start..end).map(Value::i64).collect()
+    } else {
+        Vec::new()
+    };
+    Ok(Value::Vec(Arc::new(items)))
+}
+
+/// `(:wat::core::take xs n)` → `Vec<T>`. First `n` elements; if
+/// `n >= xs.len()`, returns the full Vec. Negative `n` clamps to 0
+/// (empty Vec).
+fn eval_vec_take(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::take".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::core::take", eval(&args[0], env, sym)?)?;
+    let n = require_i64(":wat::core::take", eval(&args[1], env, sym)?)?;
+    let cap = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
+    let out: Vec<Value> = xs.iter().take(cap).cloned().collect();
+    Ok(Value::Vec(Arc::new(out)))
+}
+
+/// `(:wat::core::drop xs n)` → `Vec<T>`. Skip first `n` elements. If
+/// `n >= xs.len()`, returns an empty Vec. Negative `n` clamps to 0
+/// (returns the full Vec).
+fn eval_vec_drop(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::drop".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::core::drop", eval(&args[0], env, sym)?)?;
+    let n = require_i64(":wat::core::drop", eval(&args[1], env, sym)?)?;
+    let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
+    let out: Vec<Value> = xs.iter().skip(skip).cloned().collect();
+    Ok(Value::Vec(Arc::new(out)))
+}
+
+/// `(:wat::core::map xs f)` → `Vec<U>`. Calls `f` on each element.
+/// `f` must be a callable Value (lambda or define-registered).
+fn eval_vec_map(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::map".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::core::map", eval(&args[0], env, sym)?)?;
+    let f = eval(&args[1], env, sym)?;
+    let func = match &f {
+        Value::wat__core__lambda(func) => func.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::map".into(),
+                expected: "wat::core::lambda",
+                got: other.type_name(),
+            });
+        }
+    };
+    let mut out = Vec::with_capacity(xs.len());
+    for x in xs.iter() {
+        out.push(apply_function(&func, vec![x.clone()], sym)?);
+    }
+    Ok(Value::Vec(Arc::new(out)))
+}
+
+/// `(:wat::core::foldl xs init f)` → acc. `f : (acc, item) → acc`.
+/// Left-associative: `f(f(f(init, x0), x1), x2)`. Sequential's
+/// driver. `foldr` deferred until a caller needs it.
+fn eval_vec_foldl(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::foldl".into(),
+            expected: 3,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::core::foldl", eval(&args[0], env, sym)?)?;
+    let mut acc = eval(&args[1], env, sym)?;
+    let f = eval(&args[2], env, sym)?;
+    let func = match &f {
+        Value::wat__core__lambda(func) => func.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::foldl".into(),
+                expected: "wat::core::lambda",
+                got: other.type_name(),
+            });
+        }
+    };
+    for x in xs.iter() {
+        acc = apply_function(&func, vec![acc, x.clone()], sym)?;
+    }
+    Ok(acc)
+}
+
+/// `(:wat::std::list::window xs n)` → `Vec<Vec<T>>`. Sliding window
+/// of size `n`; maps to Rust's `slice.windows(n)`. `n <= 0` returns
+/// an empty Vec. `n > xs.len()` returns an empty Vec (no full
+/// window fits) — matches Rust's behavior.
+fn eval_list_window(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::std::list::window".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::std::list::window", eval(&args[0], env, sym)?)?;
+    let n = require_i64(":wat::std::list::window", eval(&args[1], env, sym)?)?;
+    if n <= 0 {
+        return Ok(Value::Vec(Arc::new(Vec::new())));
+    }
+    let n = n as usize;
+    let out: Vec<Value> = xs
+        .windows(n)
+        .map(|w| Value::Vec(Arc::new(w.to_vec())))
+        .collect();
+    Ok(Value::Vec(Arc::new(out)))
 }
 
 /// `(:wat::core::quote <expr>)` — capture an unevaluated AST.
@@ -4560,6 +4817,193 @@ mod tests {
     fn make_bounded_queue_wrong_arity() {
         let err = eval_expr("(:wat::kernel::make-bounded-queue :i64)").unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    // ─── Vec/list primitives (Round 4a) ───────────────────────────────
+
+    #[test]
+    fn list_constructor_is_alias_for_vec() {
+        // Same runtime shape: both produce Value::Vec.
+        let v1 = eval_expr("(:wat::core::list 1 2 3)").unwrap();
+        let v2 = eval_expr("(:wat::core::vec 1 2 3)").unwrap();
+        match (v1, v2) {
+            (Value::Vec(a), Value::Vec(b)) => {
+                assert_eq!(a.len(), b.len());
+                for (x, y) in a.iter().zip(b.iter()) {
+                    match (x, y) {
+                        (Value::i64(xi), Value::i64(yi)) => assert_eq!(xi, yi),
+                        _ => panic!("expected matching i64 items"),
+                    }
+                }
+            }
+            _ => panic!("expected Vec values"),
+        }
+    }
+
+    #[test]
+    fn length_of_three_element_vec() {
+        match eval_expr("(:wat::core::length (:wat::core::list 1 2 3))").unwrap() {
+            Value::i64(3) => {}
+            v => panic!("expected 3, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn empty_true_on_empty_vec() {
+        match eval_expr("(:wat::core::empty? (:wat::core::list))").unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn empty_false_on_nonempty_vec() {
+        match eval_expr("(:wat::core::empty? (:wat::core::list 1))").unwrap() {
+            Value::bool(false) => {}
+            v => panic!("expected false, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn reverse_flips_order() {
+        match eval_expr("(:wat::core::reverse (:wat::core::list 1 2 3))").unwrap() {
+            Value::Vec(items) => {
+                let ns: Vec<_> = items
+                    .iter()
+                    .map(|v| match v {
+                        Value::i64(n) => *n,
+                        _ => panic!("expected i64"),
+                    })
+                    .collect();
+                assert_eq!(ns, vec![3, 2, 1]);
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn range_start_end() {
+        match eval_expr("(:wat::core::range 0 4)").unwrap() {
+            Value::Vec(items) => {
+                let ns: Vec<_> = items
+                    .iter()
+                    .map(|v| match v {
+                        Value::i64(n) => *n,
+                        _ => panic!("expected i64"),
+                    })
+                    .collect();
+                assert_eq!(ns, vec![0, 1, 2, 3]);
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn range_start_geq_end_is_empty() {
+        match eval_expr("(:wat::core::range 5 5)").unwrap() {
+            Value::Vec(items) => assert!(items.is_empty()),
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn take_first_n() {
+        match eval_expr("(:wat::core::take (:wat::core::list 1 2 3 4 5) 3)").unwrap() {
+            Value::Vec(items) => assert_eq!(items.len(), 3),
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn take_more_than_length_returns_full_vec() {
+        match eval_expr("(:wat::core::take (:wat::core::list 1 2) 99)").unwrap() {
+            Value::Vec(items) => assert_eq!(items.len(), 2),
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn drop_skips_first_n() {
+        match eval_expr("(:wat::core::drop (:wat::core::list 1 2 3 4 5) 2)").unwrap() {
+            Value::Vec(items) => {
+                assert_eq!(items.len(), 3);
+                match &items[0] {
+                    Value::i64(3) => {}
+                    v => panic!("expected 3, got {:?}", v),
+                }
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn map_doubles_every_element() {
+        let src = r#"
+            (:wat::core::map
+              (:wat::core::list 1 2 3)
+              (:wat::core::lambda ((x :i64) -> :i64) (:wat::core::i64::* x 2)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::Vec(items) => {
+                let ns: Vec<_> = items
+                    .iter()
+                    .map(|v| match v {
+                        Value::i64(n) => *n,
+                        _ => panic!("expected i64"),
+                    })
+                    .collect();
+                assert_eq!(ns, vec![2, 4, 6]);
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn foldl_sums_with_init() {
+        let src = r#"
+            (:wat::core::foldl
+              (:wat::core::list 1 2 3 4)
+              10
+              (:wat::core::lambda ((acc :i64) (x :i64) -> :i64)
+                (:wat::core::i64::+ acc x)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(20) => {}
+            v => panic!("expected 20, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn list_window_builds_sliding_windows() {
+        let src = r#"
+            (:wat::std::list::window (:wat::core::list 1 2 3 4) 2)
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::Vec(outer) => {
+                // Expect 3 windows of size 2.
+                assert_eq!(outer.len(), 3);
+                // First window = [1, 2].
+                match &outer[0] {
+                    Value::Vec(w) => {
+                        assert_eq!(w.len(), 2);
+                        match (&w[0], &w[1]) {
+                            (Value::i64(1), Value::i64(2)) => {}
+                            other => panic!("expected [1,2], got {:?}", other),
+                        }
+                    }
+                    v => panic!("expected Vec window, got {:?}", v),
+                }
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn list_window_bigger_than_length_is_empty() {
+        match eval_expr("(:wat::std::list::window (:wat::core::list 1 2) 5)").unwrap() {
+            Value::Vec(items) => assert!(items.is_empty()),
+            v => panic!("expected empty Vec, got {:?}", v),
+        }
     }
 
     // ─── try-recv + drop ───────────────────────────────────────────────

@@ -333,6 +333,7 @@ fn infer_list(
             ":wat::core::let" => return infer_let(args, env, locals, fresh, subst, errors),
             ":wat::core::let*" => return infer_let_star(args, env, locals, fresh, subst, errors),
             ":wat::core::vec" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::quote" => {
                 // Quote captures an unevaluated AST. The argument is
                 // DATA, not an expression — the type checker does not
@@ -1871,6 +1872,109 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: f64_ty(),
         },
     );
+    // List/Vec primitives — Round 4a, per docs/058-backlog.md.
+    //
+    //   length   : ∀T. Vec<T> -> :i64
+    //   empty?   : ∀T. Vec<T> -> :bool
+    //   reverse  : ∀T. Vec<T> -> Vec<T>
+    //   range    : :i64 × :i64 -> Vec<i64>   (two-arg; no overload)
+    //   take     : ∀T. Vec<T> × :i64 -> Vec<T>
+    //   drop     : ∀T. Vec<T> × :i64 -> Vec<T>
+    //   map      : ∀T,U. Vec<T> × fn(T)->U -> Vec<U>
+    //   foldl    : ∀T,Acc. Vec<T> × Acc × fn(Acc,T)->Acc -> Acc
+    //   window   : ∀T. Vec<T> × :i64 -> Vec<Vec<T>>   (at :wat::std::list::)
+    let u_var = || TypeExpr::Path(":U".into());
+    let acc_var = || TypeExpr::Path(":Acc".into());
+    let vec_of = |inner: TypeExpr| TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![inner],
+    };
+    env.register(
+        ":wat::core::length".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var())],
+            ret: i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::empty?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var())],
+            ret: bool_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::reverse".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var())],
+            ret: vec_of(t_var()),
+        },
+    );
+    env.register(
+        ":wat::core::range".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty(), i64_ty()],
+            ret: vec_of(i64_ty()),
+        },
+    );
+    env.register(
+        ":wat::core::take".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), i64_ty()],
+            ret: vec_of(t_var()),
+        },
+    );
+    env.register(
+        ":wat::core::drop".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), i64_ty()],
+            ret: vec_of(t_var()),
+        },
+    );
+    env.register(
+        ":wat::core::map".into(),
+        TypeScheme {
+            type_params: vec!["T".into(), "U".into()],
+            params: vec![
+                vec_of(t_var()),
+                TypeExpr::Fn {
+                    args: vec![t_var()],
+                    ret: Box::new(u_var()),
+                },
+            ],
+            ret: vec_of(u_var()),
+        },
+    );
+    env.register(
+        ":wat::core::foldl".into(),
+        TypeScheme {
+            type_params: vec!["T".into(), "Acc".into()],
+            params: vec![
+                vec_of(t_var()),
+                acc_var(),
+                TypeExpr::Fn {
+                    args: vec![acc_var(), t_var()],
+                    ret: Box::new(acc_var()),
+                },
+            ],
+            ret: acc_var(),
+        },
+    );
+    env.register(
+        ":wat::std::list::window".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), i64_ty()],
+            ret: vec_of(vec_of(t_var())),
+        },
+    );
+
     // Tuple accessors — scoped to 2-tuples in this slice.
     //   (:wat::core::first (pair :(A,B)))  -> :A
     //   (:wat::core::second (pair :(A,B))) -> :B
