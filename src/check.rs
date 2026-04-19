@@ -1366,6 +1366,38 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: bool_ty(),
         },
     );
+    // User-signal surface — 2026-04-19 stance: kernel measures, userland
+    // owns transitions. Six nullary primitives: three pollers return
+    // :bool; three resetters return :(). SIGINT / SIGTERM stay on the
+    // `stopped` flag above.
+    for path in [
+        ":wat::kernel::sigusr1?",
+        ":wat::kernel::sigusr2?",
+        ":wat::kernel::sighup?",
+    ] {
+        env.register(
+            path.into(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![],
+                ret: bool_ty(),
+            },
+        );
+    }
+    for path in [
+        ":wat::kernel::reset-sigusr1!",
+        ":wat::kernel::reset-sigusr2!",
+        ":wat::kernel::reset-sighup!",
+    ] {
+        env.register(
+            path.into(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![],
+                ret: TypeExpr::Tuple(vec![]),
+            },
+        );
+    }
     // (:wat::kernel::send sender value) — ∀T. Sender<T> -> T -> :().
     env.register(
         ":wat::kernel::send".into(),

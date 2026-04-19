@@ -162,21 +162,34 @@ waits for threads to drain, exits.
 Exact signature enforced at startup. Any deviation (different arity,
 different parameter types, different return type) halts with exit code 3.
 
-Signals: `SIGINT` and `SIGTERM` both route through one handler that sets
-a kernel stop flag. User programs poll the flag via `(:wat::kernel::stopped)`
-in their loops:
+Signals: the kernel measures; userland owns transitions.
+
+- **Terminal (SIGINT, SIGTERM)** → set the `stopped` flag irreversibly.
+  Userland polls `(:wat::kernel::stopped)` and cascades shutdown by
+  dropping its root producers.
+- **Non-terminal (SIGUSR1, SIGUSR2, SIGHUP)** → each flips its own
+  kernel-maintained boolean. Userland polls via
+  `(:wat::kernel::sigusr1?)` / `(sigusr2?)` / `(sighup?)` and clears
+  via the matching `(:wat::kernel::reset-sigusr1!)` / `(reset-sigusr2!)`
+  / `(reset-sighup!)`. Coalesced — five SIGHUPs in a burst read as one
+  "yes"; counter semantics is userland's problem if it needs them.
 
 ```scheme
 (:wat::core::let (((stop? :bool) (:wat::kernel::stopped)))
   (if stop?
       ()
       ...do-work...))
+
+;; Reload-on-SIGHUP pattern:
+(:wat::core::if (:wat::kernel::sighup?)
+    (:wat::core::let (((_ :()) (:my::app::reload-config)))
+      (:wat::kernel::reset-sighup!))
+    ())
 ```
 
 Stdin: one line read from OS stdin, sent to the stdin channel, sender
-dropped. A program that calls `(:wat::kernel::recv stdin)` once gets that
-line. Multi-line stdin needs `:Option<T>` at the runtime layer — future
-slice.
+dropped. A program that calls `(:wat::kernel::recv stdin)` gets back
+`(Some line)` for the line and `:None` once the sender drops.
 
 ### Exit codes
 

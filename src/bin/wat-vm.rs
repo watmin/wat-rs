@@ -20,12 +20,21 @@
 //! Any other shape (different arity, different parameter types,
 //! different return type) halts startup with exit code 3.
 //!
-//! # Kernel stop flag
+//! # Kernel signal state
 //!
-//! SIGINT and SIGTERM both route through the same handler — an
-//! `extern "C" fn` that calls `request_kernel_stop()`. The handler is
-//! minimal by design: one atomic write, no allocation, no I/O. User
-//! programs poll via `(:wat::kernel::stopped)` in their loops.
+//! **Terminal signals (SIGINT, SIGTERM)** route to `request_kernel_stop()`
+//! — the stop flag is set-once and irreversible. User programs poll
+//! `(:wat::kernel::stopped)` in their loops and cascade shutdown by
+//! dropping their root producers.
+//!
+//! **Non-terminal user signals (SIGUSR1, SIGUSR2, SIGHUP)** each route
+//! to their own flag setter. Userland polls `(sigusr1?)` / `(sigusr2?)`
+//! / `(sighup?)` and clears via `(reset-sigusr1!)` / `(reset-sigusr2!)`
+//! / `(reset-sighup!)`. The kernel measures; userland owns the
+//! transitions. Per the 2026-04-19 administrative stance.
+//!
+//! All handlers are `extern "C" fn` that do a single atomic write and
+//! return — no allocation, no I/O.
 //!
 //! # Exit codes
 //!
@@ -52,22 +61,45 @@ use std::thread;
 
 use wat::freeze::{invoke_user_main, startup_from_source, FrozenWorld};
 use wat::load::FsLoader;
-use wat::runtime::{request_kernel_stop, Value};
+use wat::runtime::{
+    request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2, Value,
+};
 use wat::types::TypeExpr;
 
 // ─── OS signal handlers ────────────────────────────────────────────────
 
-/// SIGINT / SIGTERM handler. Both signals route here; the handler
-/// writes the kernel stop flag and returns. One atomic write, no
-/// allocation — minimal handler surface per standard practice.
+/// SIGINT / SIGTERM handler. Both terminal signals route here; the
+/// handler writes the kernel stop flag and returns. One atomic write,
+/// no allocation — minimal handler surface per standard practice.
 extern "C" fn on_stop_signal(_sig: libc::c_int) {
     request_kernel_stop();
 }
 
-fn install_stop_signal_handlers() {
+/// SIGUSR1 handler. Flips the user-signal flag true; userland is
+/// responsible for polling and resetting.
+extern "C" fn on_sigusr1(_sig: libc::c_int) {
+    set_kernel_sigusr1();
+}
+
+/// SIGUSR2 handler. Flips the user-signal flag true; userland is
+/// responsible for polling and resetting.
+extern "C" fn on_sigusr2(_sig: libc::c_int) {
+    set_kernel_sigusr2();
+}
+
+/// SIGHUP handler. Flips the user-signal flag true; userland is
+/// responsible for polling and resetting.
+extern "C" fn on_sighup(_sig: libc::c_int) {
+    set_kernel_sighup();
+}
+
+fn install_signal_handlers() {
     unsafe {
         libc::signal(libc::SIGINT, on_stop_signal as *const () as libc::sighandler_t);
         libc::signal(libc::SIGTERM, on_stop_signal as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGUSR1, on_sigusr1 as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGUSR2, on_sigusr2 as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGHUP, on_sighup as *const () as libc::sighandler_t);
     }
 }
 
@@ -266,7 +298,7 @@ fn main() -> ExitCode {
     }
 
     // Install OS signal handlers.
-    install_stop_signal_handlers();
+    install_signal_handlers();
 
     // Create the three stdio channels. stdin: wat-vm's reader writes,
     // user's :user::main reads. stdout/stderr: user writes, wat-vm's

@@ -74,6 +74,45 @@ pub fn reset_kernel_stop() {
     KERNEL_STOPPED.store(false, Ordering::SeqCst);
 }
 
+/// Non-terminal user-signal flags — SIGUSR1, SIGUSR2, SIGHUP. Per the
+/// 2026-04-19 signal-model stance: the kernel MEASURES; userland owns
+/// the transitions. OS signal handlers set these true; wat programs
+/// poll via `(:wat::kernel::sigusr1?)` / `(sigusr2?)` / `(sighup?)`
+/// and clear via the matching `reset-*!` primitive.
+///
+/// Unlike [`KERNEL_STOPPED`] (terminal, set-once), these flags are
+/// designed to be flipped back to `false` from userland. The boolean
+/// is coalesced — five SIGHUPs in a burst read as one "yes" on the
+/// next poll. Callers that need counter semantics build that in
+/// userland.
+pub static KERNEL_SIGUSR1: AtomicBool = AtomicBool::new(false);
+pub static KERNEL_SIGUSR2: AtomicBool = AtomicBool::new(false);
+pub static KERNEL_SIGHUP: AtomicBool = AtomicBool::new(false);
+
+/// Set the SIGUSR1 flag. Called by the OS signal handler.
+pub fn set_kernel_sigusr1() {
+    KERNEL_SIGUSR1.store(true, Ordering::SeqCst);
+}
+
+/// Set the SIGUSR2 flag. Called by the OS signal handler.
+pub fn set_kernel_sigusr2() {
+    KERNEL_SIGUSR2.store(true, Ordering::SeqCst);
+}
+
+/// Set the SIGHUP flag. Called by the OS signal handler.
+pub fn set_kernel_sighup() {
+    KERNEL_SIGHUP.store(true, Ordering::SeqCst);
+}
+
+/// Reset all user-signal flags. Test-only — production uses the per-flag
+/// `reset-*!` wat primitives.
+#[cfg(test)]
+pub fn reset_user_signals() {
+    KERNEL_SIGUSR1.store(false, Ordering::SeqCst);
+    KERNEL_SIGUSR2.store(false, Ordering::SeqCst);
+    KERNEL_SIGHUP.store(false, Ordering::SeqCst);
+}
+
 /// Runtime value.
 ///
 /// **Variant names encode their Rust or conceptual origin path via
@@ -923,10 +962,28 @@ fn dispatch_keyword_head(
         ":wat::core::eval-digest!" => eval_form_digest(args, env, sym),
         ":wat::core::eval-signed!" => eval_form_signed(args, env, sym),
 
-        // Kernel primitives — channel IO + stop flag.
+        // Kernel primitives — channel IO + stop flag + user signals.
         ":wat::kernel::stopped" => eval_kernel_stopped(args),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym),
         ":wat::kernel::recv" => eval_kernel_recv(args, env, sym),
+        ":wat::kernel::sigusr1?" => {
+            eval_user_signal_query(args, ":wat::kernel::sigusr1?", &KERNEL_SIGUSR1)
+        }
+        ":wat::kernel::sigusr2?" => {
+            eval_user_signal_query(args, ":wat::kernel::sigusr2?", &KERNEL_SIGUSR2)
+        }
+        ":wat::kernel::sighup?" => {
+            eval_user_signal_query(args, ":wat::kernel::sighup?", &KERNEL_SIGHUP)
+        }
+        ":wat::kernel::reset-sigusr1!" => {
+            eval_user_signal_reset(args, ":wat::kernel::reset-sigusr1!", &KERNEL_SIGUSR1)
+        }
+        ":wat::kernel::reset-sigusr2!" => {
+            eval_user_signal_reset(args, ":wat::kernel::reset-sigusr2!", &KERNEL_SIGUSR2)
+        }
+        ":wat::kernel::reset-sighup!" => {
+            eval_user_signal_reset(args, ":wat::kernel::reset-sighup!", &KERNEL_SIGHUP)
+        }
 
         // Config accessors — read committed config fields at runtime.
         ":wat::config::dims" => eval_config_dims(args, sym),
@@ -1963,6 +2020,9 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
 /// `(:wat::kernel::stopped)` — nullary accessor; returns the kernel
 /// stop flag as a `:bool`. The wat-vm's signal handler sets the flag
 /// on SIGINT / SIGTERM; user programs poll it in their loops.
+///
+/// Grandfathered bare name; Step 1.5 in `docs/058-backlog.md` will
+/// rename this to `stopped?` when the naming-convention sweep runs.
 fn eval_kernel_stopped(args: &[WatAST]) -> Result<Value, RuntimeError> {
     if !args.is_empty() {
         return Err(RuntimeError::ArityMismatch {
@@ -1972,6 +2032,44 @@ fn eval_kernel_stopped(args: &[WatAST]) -> Result<Value, RuntimeError> {
         });
     }
     Ok(Value::bool(KERNEL_STOPPED.load(Ordering::SeqCst)))
+}
+
+/// Shared body for the three user-signal predicates — nullary, reads a
+/// given atomic flag. `op` is the wat-facing keyword path for error
+/// messages.
+fn eval_user_signal_query(
+    args: &[WatAST],
+    op: &str,
+    flag: &AtomicBool,
+) -> Result<Value, RuntimeError> {
+    if !args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: op.into(),
+            expected: 0,
+            got: args.len(),
+        });
+    }
+    Ok(Value::bool(flag.load(Ordering::SeqCst)))
+}
+
+/// Shared body for the three user-signal resetters — nullary, flips a
+/// given atomic flag back to `false`. Unlike the terminal stop flag
+/// (set-once), user-signal flags are designed to be toggled by userland
+/// after the signal's condition has been handled.
+fn eval_user_signal_reset(
+    args: &[WatAST],
+    op: &str,
+    flag: &AtomicBool,
+) -> Result<Value, RuntimeError> {
+    if !args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: op.into(),
+            expected: 0,
+            got: args.len(),
+        });
+    }
+    flag.store(false, Ordering::SeqCst);
+    Ok(Value::Unit)
 }
 
 // ─── Config accessors ─────────────────────────────────────────────────
@@ -3393,5 +3491,76 @@ mod tests {
         let _ = std::fs::remove_file(&source_path);
         let _ = std::fs::remove_file(&digest_path);
         assert!(matches!(result, Value::i64(42)));
+    }
+
+    // ─── User signals — kernel measures, userland owns transitions ─────
+    //
+    // The three user-signal flags are process-lifetime statics. Tests
+    // reset them at entry so test ordering doesn't leak state.
+
+    #[test]
+    fn sigusr1_query_reflects_flag_state() {
+        reset_user_signals();
+        match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
+            Value::bool(false) => {}
+            v => panic!("expected false, got {:?}", v),
+        }
+        set_kernel_sigusr1();
+        match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true, got {:?}", v),
+        }
+        reset_user_signals();
+    }
+
+    #[test]
+    fn sigusr2_and_sighup_independent() {
+        reset_user_signals();
+        set_kernel_sigusr2();
+        // sighup? must remain false even though sigusr2? is true.
+        match eval_expr("(:wat::kernel::sigusr2?)").unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected sigusr2 true, got {:?}", v),
+        }
+        match eval_expr("(:wat::kernel::sighup?)").unwrap() {
+            Value::bool(false) => {}
+            v => panic!("expected sighup false, got {:?}", v),
+        }
+        reset_user_signals();
+    }
+
+    #[test]
+    fn reset_sigusr1_flips_flag_false() {
+        reset_user_signals();
+        set_kernel_sigusr1();
+        let _ = eval_expr("(:wat::kernel::reset-sigusr1!)").expect("reset");
+        match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
+            Value::bool(false) => {}
+            v => panic!("expected false after reset, got {:?}", v),
+        }
+        reset_user_signals();
+    }
+
+    #[test]
+    fn reset_sighup_returns_unit() {
+        reset_user_signals();
+        set_kernel_sighup();
+        let v = eval_expr("(:wat::kernel::reset-sighup!)").expect("reset");
+        assert!(matches!(v, Value::Unit));
+        reset_user_signals();
+    }
+
+    #[test]
+    fn user_signal_predicates_refuse_arguments() {
+        reset_user_signals();
+        assert!(matches!(
+            eval_expr("(:wat::kernel::sigusr1? 1)"),
+            Err(RuntimeError::ArityMismatch { .. })
+        ));
+        assert!(matches!(
+            eval_expr("(:wat::kernel::reset-sigusr1! true)"),
+            Err(RuntimeError::ArityMismatch { .. })
+        ));
+        reset_user_signals();
     }
 }
