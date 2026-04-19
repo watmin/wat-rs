@@ -60,6 +60,15 @@ pub enum Value {
     /// `:()` — unit. Returned by expressions with no meaningful value
     /// (not used widely in this slice).
     Unit,
+    /// A parsed wat AST carried as a first-class runtime value. Used
+    /// by `:wat::core::eval-ast!` and adjacent forms where a program
+    /// has already crossed the trust boundary (parsed by our own
+    /// pipeline, extracted from an `Atom<WatAST>`, constructed by
+    /// Rust, etc.) and is ready to evaluate. Distinct from
+    /// [`Value::String`] (raw EDN text that still needs parsing) and
+    /// from [`Value::Holon`] (algebra AST, possibly with an Atom
+    /// wrapper).
+    Ast(Arc<WatAST>),
 }
 
 impl Value {
@@ -74,6 +83,7 @@ impl Value {
             Value::Function(_) => "Function",
             Value::List(_) => "Vec",
             Value::Unit => "()",
+            Value::Ast(_) => "Ast",
         }
     }
 }
@@ -664,6 +674,13 @@ fn dispatch_keyword_head(
         ":wat::algebra::Permute" => eval_algebra_permute(args, env, sym),
         ":wat::algebra::Thermometer" => eval_algebra_thermometer(args, env, sym),
         ":wat::algebra::Blend" => eval_algebra_blend(args, env, sym),
+
+        // Constrained runtime eval — four forms, matching the load
+        // pipeline's discipline on source interface and verification.
+        ":wat::core::eval-ast!" => eval_form_ast(args, env, sym),
+        ":wat::core::eval-edn!" => eval_form_edn(args, env, sym),
+        ":wat::core::eval-digest!" => eval_form_digest(args, env, sym),
+        ":wat::core::eval-signed!" => eval_form_signed(args, env, sym),
 
         // Anything else: user-defined function lookup.
         other => {
@@ -1307,6 +1324,378 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
     }
 }
 
+// ─── Four eval forms ────────────────────────────────────────────────────
+//
+// Mirror of the three load forms, with one extra on the AST side:
+//
+//   (:wat::core::eval-ast! <Value::Ast>)
+//   (:wat::core::eval-edn! :wat::eval::<iface> <locator>)
+//   (:wat::core::eval-digest! :wat::eval::<iface> <locator>
+//                              :wat::verify::digest-<algo>
+//                              :wat::verify::<iface> <payload>)
+//   (:wat::core::eval-signed! :wat::eval::<iface> <locator>
+//                              :wat::verify::signed-<algo>
+//                              :wat::verify::<iface> <sig>
+//                              :wat::verify::<iface> <pubkey>)
+//
+// `eval-ast!` takes a value that IS a parsed AST (already past any trust
+// boundary); the other three take EDN source text with optional
+// byte-level (digest) or meaning-level (signed) verification.
+//
+// The mutation-form refusal (FOUNDATION line 663) runs inside every
+// path: an AST that contains a `define` / `defmacro` / `struct` / etc.
+// is rejected before anything executes.
+
+fn eval_form_ast(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::eval-ast!".into(),
+            reason: format!(
+                "(:wat::core::eval-ast! <ast-value>) takes exactly 1 argument; got {}",
+                args.len()
+            ),
+        });
+    }
+    let value = eval(&args[0], env, sym)?;
+    let ast = match value {
+        Value::Ast(a) => a,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::eval-ast!".into(),
+                expected: "Ast",
+                got: other.type_name(),
+            });
+        }
+    };
+    run_constrained(&ast, env, sym)
+}
+
+fn eval_form_edn(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    // (:wat::core::eval-edn! :wat::eval::<iface> <locator>)
+    if args.len() != 2 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::eval-edn!".into(),
+            reason: format!(
+                "(:wat::core::eval-edn! :wat::eval::<iface> <locator>) takes exactly 2 arguments; got {}",
+                args.len()
+            ),
+        });
+    }
+    let source = resolve_eval_source(&args[0], &args[1], env, sym)?;
+    parse_and_run(&source, env, sym)
+}
+
+fn eval_form_digest(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    // (:wat::core::eval-digest! :wat::eval::<iface> <locator>
+    //                            :wat::verify::digest-<algo>
+    //                            :wat::verify::<iface> <hex>)
+    if args.len() != 5 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::eval-digest!".into(),
+            reason: format!(
+                "(:wat::core::eval-digest! :wat::eval::<iface> <locator> :wat::verify::digest-<algo> :wat::verify::<iface> <hex>) takes exactly 5 arguments; got {}",
+                args.len()
+            ),
+        });
+    }
+    let source = resolve_eval_source(&args[0], &args[1], env, sym)?;
+    let algo = parse_verify_algo_keyword(&args[2], "digest-", ":wat::core::eval-digest!")?;
+    let hex = resolve_verify_payload(&args[3], &args[4], env, sym)?;
+    // Verify hash of raw source bytes BEFORE parse (mirrors digest-load!).
+    crate::hash::verify_source_hash(source.as_bytes(), &algo, hex.trim()).map_err(
+        |err| RuntimeError::EvalVerificationFailed { err },
+    )?;
+    parse_and_run(&source, env, sym)
+}
+
+fn eval_form_signed(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    // (:wat::core::eval-signed! :wat::eval::<iface> <locator>
+    //                            :wat::verify::signed-<algo>
+    //                            :wat::verify::<iface> <sig>
+    //                            :wat::verify::<iface> <pubkey>)
+    if args.len() != 7 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::eval-signed!".into(),
+            reason: format!(
+                "(:wat::core::eval-signed! :wat::eval::<iface> <locator> :wat::verify::signed-<algo> :wat::verify::<iface> <sig> :wat::verify::<iface> <pubkey>) takes exactly 7 arguments; got {}",
+                args.len()
+            ),
+        });
+    }
+    let source = resolve_eval_source(&args[0], &args[1], env, sym)?;
+    let algo = parse_verify_algo_keyword(&args[2], "signed-", ":wat::core::eval-signed!")?;
+    let sig_b64 = resolve_verify_payload(&args[3], &args[4], env, sym)?;
+    let pk_b64 = resolve_verify_payload(&args[5], &args[6], env, sym)?;
+    // Parse FIRST (sig is over canonical-EDN of parsed AST, which we
+    // need the AST to compute — same discipline as signed-load!).
+    let ast = parse_program(&source, ":wat::core::eval-signed!")?;
+    crate::hash::verify_program_signature(&ast, &algo, sig_b64.trim(), pk_b64.trim())
+        .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+    // After verify, run each form under the mutation-refusal guard.
+    run_program(&ast, env, sym)
+}
+
+/// Resolve a `:wat::eval::<iface> <locator>` pair to a source string.
+fn resolve_eval_source(
+    iface_ast: &WatAST,
+    locator_ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<String, RuntimeError> {
+    let iface = match iface_ast {
+        WatAST::Keyword(k) => k.as_str(),
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::eval::<iface>".into(),
+                reason: format!(
+                    "eval source interface must be a :wat::eval::<iface> keyword; got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    };
+    match iface {
+        ":wat::eval::string" => match eval(locator_ast, env, sym)? {
+            Value::String(s) => Ok((*s).clone()),
+            other => Err(RuntimeError::TypeMismatch {
+                op: ":wat::eval::string".into(),
+                expected: "String",
+                got: other.type_name(),
+            }),
+        },
+        ":wat::eval::file-path" => match eval(locator_ast, env, sym)? {
+            Value::String(s) => std::fs::read_to_string(&*s).map_err(|e| {
+                RuntimeError::MalformedForm {
+                    head: ":wat::eval::file-path".into(),
+                    reason: format!("read {:?}: {}", s, e),
+                }
+            }),
+            other => Err(RuntimeError::TypeMismatch {
+                op: ":wat::eval::file-path".into(),
+                expected: "String",
+                got: other.type_name(),
+            }),
+        },
+        ":wat::eval::http-path" | ":wat::eval::s3-path" => {
+            Err(RuntimeError::MalformedForm {
+                head: iface.to_string(),
+                reason: format!(
+                    "eval source interface {} is reserved but not implemented in this build",
+                    iface
+                ),
+            })
+        }
+        other => Err(RuntimeError::MalformedForm {
+            head: iface.to_string(),
+            reason: format!(
+                "unknown eval source interface {}; expected :wat::eval::string or :wat::eval::file-path",
+                other
+            ),
+        }),
+    }
+}
+
+/// Resolve a `:wat::verify::<iface> <locator>` pair to a payload string.
+/// Parallels [`resolve_eval_source`] but in the verify namespace; used
+/// for digest hex and signature / pubkey base64 payloads.
+fn resolve_verify_payload(
+    iface_ast: &WatAST,
+    locator_ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<String, RuntimeError> {
+    let iface = match iface_ast {
+        WatAST::Keyword(k) => k.as_str(),
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::verify::<iface>".into(),
+                reason: format!(
+                    "verify payload interface must be a :wat::verify::<iface> keyword; got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    };
+    match iface {
+        ":wat::verify::string" => match eval(locator_ast, env, sym)? {
+            Value::String(s) => Ok((*s).clone()),
+            other => Err(RuntimeError::TypeMismatch {
+                op: ":wat::verify::string".into(),
+                expected: "String",
+                got: other.type_name(),
+            }),
+        },
+        ":wat::verify::file-path" => match eval(locator_ast, env, sym)? {
+            Value::String(s) => std::fs::read_to_string(&*s).map_err(|e| {
+                RuntimeError::MalformedForm {
+                    head: ":wat::verify::file-path".into(),
+                    reason: format!("read {:?}: {}", s, e),
+                }
+            }),
+            other => Err(RuntimeError::TypeMismatch {
+                op: ":wat::verify::file-path".into(),
+                expected: "String",
+                got: other.type_name(),
+            }),
+        },
+        ":wat::verify::http-path" | ":wat::verify::s3-path" => {
+            Err(RuntimeError::MalformedForm {
+                head: iface.to_string(),
+                reason: format!(
+                    "verify payload interface {} is reserved but not implemented in this build",
+                    iface
+                ),
+            })
+        }
+        other => Err(RuntimeError::MalformedForm {
+            head: iface.to_string(),
+            reason: format!(
+                "unknown verify payload interface {}; expected :wat::verify::string or :wat::verify::file-path",
+                other
+            ),
+        }),
+    }
+}
+
+/// Parse a `:wat::verify::<kind>-<algo>` keyword and extract the algo.
+/// `expected_kind` is `"digest-"` or `"signed-"` depending on which
+/// form called this.
+fn parse_verify_algo_keyword(
+    ast: &WatAST,
+    expected_kind: &str,
+    form: &str,
+) -> Result<String, RuntimeError> {
+    let kw = match ast {
+        WatAST::Keyword(k) => k.as_str(),
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: form.into(),
+                reason: format!(
+                    "verification algorithm must be a :wat::verify::<kind>-<algo> keyword; got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    };
+    let stripped = kw.strip_prefix(":wat::verify::").ok_or_else(|| {
+        RuntimeError::MalformedForm {
+            head: form.into(),
+            reason: format!(
+                "verification algorithm keyword must start with :wat::verify::; got {}",
+                kw
+            ),
+        }
+    })?;
+    let algo = stripped.strip_prefix(expected_kind).ok_or_else(|| {
+        RuntimeError::MalformedForm {
+            head: form.into(),
+            reason: format!(
+                "this form expects a :wat::verify::{}<algo> keyword; got {}",
+                expected_kind, kw
+            ),
+        }
+    })?;
+    if algo.is_empty() {
+        return Err(RuntimeError::MalformedForm {
+            head: form.into(),
+            reason: format!("no algorithm named after {}", expected_kind),
+        });
+    }
+    Ok(algo.to_string())
+}
+
+/// Parse a source string into one or more top-level forms.
+fn parse_program(source: &str, form: &str) -> Result<Vec<WatAST>, RuntimeError> {
+    crate::parser::parse_all(source).map_err(|e| RuntimeError::MalformedForm {
+        head: form.into(),
+        reason: format!("parse error: {}", e),
+    })
+}
+
+/// Parse a source string and evaluate all forms in sequence under the
+/// constrained-eval discipline. Returns the value of the last form
+/// (or Unit if the program was empty).
+fn parse_and_run(
+    source: &str,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let forms = parse_program(source, ":wat::core::eval-edn!")?;
+    run_program(&forms, env, sym)
+}
+
+/// Run a sequence of pre-parsed forms under the constrained-eval
+/// discipline: each form has mutation heads refused before execution.
+fn run_program(
+    forms: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let mut last = Value::Unit;
+    for form in forms {
+        last = run_constrained(form, env, sym)?;
+    }
+    Ok(last)
+}
+
+/// Refuse mutation forms in the given AST, then delegate to the
+/// normal `eval` dispatcher against the (frozen) symbol table.
+fn run_constrained(
+    ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    refuse_mutation_forms_in(ast)?;
+    eval(ast, env, sym)
+}
+
+fn refuse_mutation_forms_in(ast: &WatAST) -> Result<(), RuntimeError> {
+    if let WatAST::List(items) = ast {
+        if let Some(WatAST::Keyword(head)) = items.first() {
+            if is_mutation_head(head) {
+                return Err(RuntimeError::EvalForbidsMutationForm {
+                    head: head.clone(),
+                });
+            }
+        }
+        for child in items {
+            refuse_mutation_forms_in(child)?;
+        }
+    }
+    Ok(())
+}
+
+fn is_mutation_head(head: &str) -> bool {
+    matches!(
+        head,
+        ":wat::core::define"
+            | ":wat::core::defmacro"
+            | ":wat::core::struct"
+            | ":wat::core::enum"
+            | ":wat::core::newtype"
+            | ":wat::core::typealias"
+            | ":wat::core::load!"
+            | ":wat::core::digest-load!"
+            | ":wat::core::signed-load!"
+    ) || head.starts_with(":wat::config::set-")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1699,5 +2088,269 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(result, Value::Holon(_)));
+    }
+
+    // ─── Four eval forms (wat-source callable) ──────────────────────────
+
+    /// Helper: run a program with a pre-bound `program` local holding
+    /// a `Value::Ast` — simulates a caller that parsed or extracted
+    /// the AST before passing it to `eval-ast!`.
+    fn run_with_ast_local(
+        body: &str,
+        ast_to_bind: WatAST,
+    ) -> Result<Value, RuntimeError> {
+        let form = parse_one(body).expect("parse body");
+        let env = Environment::new().child().bind(
+            "program",
+            Value::Ast(Arc::new(ast_to_bind)),
+        ).build();
+        eval(&form, &env, &SymbolTable::new())
+    }
+
+    #[test]
+    fn eval_ast_bang_runs_a_parsed_program() {
+        let program = parse_one("(:wat::core::+ 40 2)").unwrap();
+        let result =
+            run_with_ast_local("(:wat::core::eval-ast! program)", program).unwrap();
+        assert!(matches!(result, Value::Int(42)));
+    }
+
+    #[test]
+    fn eval_ast_bang_refuses_mutation_form() {
+        let program = parse_one(
+            r#"(:wat::core::define (:evil (x :i64) -> :i64) x)"#,
+        )
+        .unwrap();
+        let err = run_with_ast_local("(:wat::core::eval-ast! program)", program)
+            .unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+    }
+
+    #[test]
+    fn eval_ast_bang_rejects_non_ast_value() {
+        // Binding a string as program; eval-ast! refuses because it
+        // only accepts Value::Ast (not Value::String).
+        let form = parse_one(r#"(:wat::core::eval-ast! "oops")"#).unwrap();
+        let err = eval(&form, &Environment::new(), &SymbolTable::new()).unwrap_err();
+        assert!(matches!(
+            err,
+            RuntimeError::TypeMismatch { op, expected: "Ast", got: "String" }
+                if op == ":wat::core::eval-ast!"
+        ));
+    }
+
+    #[test]
+    fn eval_edn_bang_inline_string_runs() {
+        let result = eval_expr(
+            r#"(:wat::core::eval-edn! :wat::eval::string "(:wat::core::+ 40 2)")"#,
+        )
+        .unwrap();
+        assert!(matches!(result, Value::Int(42)));
+    }
+
+    #[test]
+    fn eval_edn_bang_unknown_iface_refused() {
+        let err = eval_expr(
+            r#"(:wat::core::eval-edn! :wat::eval::unknown "foo")"#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn eval_edn_bang_reserved_unimplemented_iface_refused() {
+        let err = eval_expr(
+            r#"(:wat::core::eval-edn! :wat::eval::http-path "https://example.com/x")"#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn eval_edn_bang_refuses_mutation_inside_string() {
+        // The parsed AST from the string still walks through the
+        // mutation-form guard.
+        let err = eval_expr(
+            r#"(:wat::core::eval-edn! :wat::eval::string "(:wat::core::define (:evil (x :i64) -> :i64) x)")"#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+    }
+
+    #[test]
+    fn eval_digest_bang_valid_hex_runs() {
+        use sha2::Digest as _;
+        let source = r#"(:wat::core::+ 1 1)"#;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(source.as_bytes());
+        let hex = crate::hash::hex_encode(&hasher.finalize());
+        let form = format!(
+            r#"(:wat::core::eval-digest!
+                :wat::eval::string "{}"
+                :wat::verify::digest-sha256
+                :wat::verify::string "{}")"#,
+            source, hex
+        );
+        let result = eval_expr(&form).unwrap();
+        assert!(matches!(result, Value::Int(2)));
+    }
+
+    #[test]
+    fn eval_digest_bang_mismatch_refused() {
+        let wrong =
+            "0000000000000000000000000000000000000000000000000000000000000000";
+        let form = format!(
+            r#"(:wat::core::eval-digest!
+                :wat::eval::string "(:wat::core::+ 1 1)"
+                :wat::verify::digest-sha256
+                :wat::verify::string "{}")"#,
+            wrong
+        );
+        let err = eval_expr(&form).unwrap_err();
+        match err {
+            RuntimeError::EvalVerificationFailed { err } => {
+                assert!(matches!(err, crate::hash::HashError::Mismatch { .. }));
+            }
+            other => panic!("expected EvalVerificationFailed, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn eval_digest_bang_unknown_algo_refused() {
+        let form = r#"(:wat::core::eval-digest!
+            :wat::eval::string "(:wat::core::+ 1 1)"
+            :wat::verify::signed-ed25519
+            :wat::verify::string "abc")"#;
+        let err = eval_expr(form).unwrap_err();
+        // signed-ed25519 in a digest slot is a grammar error.
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn eval_signed_bang_valid_sig_runs() {
+        use base64::engine::general_purpose::STANDARD as B64;
+        use base64::Engine;
+        use ed25519_dalek::{Signer, SigningKey};
+        let source = r#"(:wat::core::+ 20 22)"#;
+        let sk = SigningKey::from_bytes(&[17u8; 32]);
+        let forms = parse_all(source).unwrap();
+        let hash = crate::hash::hash_canonical_program(&forms);
+        let sig = sk.sign(&hash);
+        let sig_b64 = B64.encode(sig.to_bytes());
+        let pk_b64 = B64.encode(sk.verifying_key().as_bytes());
+        let form = format!(
+            r#"(:wat::core::eval-signed!
+                :wat::eval::string "{}"
+                :wat::verify::signed-ed25519
+                :wat::verify::string "{}"
+                :wat::verify::string "{}")"#,
+            source, sig_b64, pk_b64
+        );
+        let result = eval_expr(&form).unwrap();
+        assert!(matches!(result, Value::Int(42)));
+    }
+
+    #[test]
+    fn eval_signed_bang_tampered_source_refused() {
+        use base64::engine::general_purpose::STANDARD as B64;
+        use base64::Engine;
+        use ed25519_dalek::{Signer, SigningKey};
+        let signed_source = r#"(:wat::core::+ 20 22)"#;
+        let tampered_source = r#"(:wat::core::+ 99 99)"#;
+        let sk = SigningKey::from_bytes(&[17u8; 32]);
+        let forms = parse_all(signed_source).unwrap();
+        let hash = crate::hash::hash_canonical_program(&forms);
+        let sig = sk.sign(&hash);
+        let sig_b64 = B64.encode(sig.to_bytes());
+        let pk_b64 = B64.encode(sk.verifying_key().as_bytes());
+        let form = format!(
+            r#"(:wat::core::eval-signed!
+                :wat::eval::string "{}"
+                :wat::verify::signed-ed25519
+                :wat::verify::string "{}"
+                :wat::verify::string "{}")"#,
+            tampered_source, sig_b64, pk_b64
+        );
+        let err = eval_expr(&form).unwrap_err();
+        match err {
+            RuntimeError::EvalVerificationFailed { err } => {
+                assert!(matches!(err, crate::hash::HashError::SignatureMismatch { .. }));
+            }
+            other => panic!("expected SignatureMismatch, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn eval_signed_bang_wrong_algo_kind_refused() {
+        // digest-sha256 in a signed slot is a grammar error.
+        let form = r#"(:wat::core::eval-signed!
+            :wat::eval::string "(:wat::core::+ 1 1)"
+            :wat::verify::digest-sha256
+            :wat::verify::string "sig"
+            :wat::verify::string "pk")"#;
+        let err = eval_expr(form).unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    // ─── File-path interface (real runtime I/O) ─────────────────────────
+
+    fn write_temp(contents: &str, suffix: &str) -> std::path::PathBuf {
+        use std::io::Write;
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!(
+            "wat-rs-eval-test-{}-{}.{}",
+            std::process::id(),
+            // Unique per test via a nanos timestamp.
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+            suffix
+        ));
+        let mut f = std::fs::File::create(&path).expect("create temp");
+        f.write_all(contents.as_bytes()).expect("write");
+        path
+    }
+
+    #[test]
+    fn eval_edn_bang_file_path_runs() {
+        let path = write_temp("(:wat::core::+ 10 11)", "wat");
+        let form = format!(
+            r#"(:wat::core::eval-edn! :wat::eval::file-path "{}")"#,
+            path.display()
+        );
+        let result = eval_expr(&form).expect("eval");
+        let _ = std::fs::remove_file(&path);
+        assert!(matches!(result, Value::Int(21)));
+    }
+
+    #[test]
+    fn eval_edn_bang_file_path_missing_errors() {
+        let form = r#"(:wat::core::eval-edn! :wat::eval::file-path "/nonexistent/path/abc.xyz")"#;
+        let err = eval_expr(form).unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn eval_digest_bang_sidecar_file_runs() {
+        use sha2::Digest as _;
+        let source = "(:wat::core::* 6 7)";
+        let source_path = write_temp(source, "wat");
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(source.as_bytes());
+        let hex = crate::hash::hex_encode(&hasher.finalize());
+        let digest_path = write_temp(&hex, "sha256");
+        let form = format!(
+            r#"(:wat::core::eval-digest!
+                :wat::eval::file-path "{}"
+                :wat::verify::digest-sha256
+                :wat::verify::file-path "{}")"#,
+            source_path.display(),
+            digest_path.display()
+        );
+        let result = eval_expr(&form).expect("eval");
+        let _ = std::fs::remove_file(&source_path);
+        let _ = std::fs::remove_file(&digest_path);
+        assert!(matches!(result, Value::Int(42)));
     }
 }

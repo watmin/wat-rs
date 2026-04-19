@@ -20,6 +20,8 @@
 //! - A `:wat::verify::*` keyword — either a verification algorithm
 //!   (`:wat::verify::digest-sha256`, `:wat::verify::signed-ed25519`) or a
 //!   payload-fetch interface (`:wat::verify::string`, `:wat::verify::file-path`).
+//! - A `:wat::eval::*` keyword — source-fetch selector for runtime
+//!   eval forms (`:wat::eval::string`, `:wat::eval::file-path`).
 //! - A user-registered `define`-function in the [`SymbolTable`].
 //!
 //! Anything else is an unresolved reference and halts startup with a
@@ -169,6 +171,7 @@ pub const RESERVED_PREFIXES: &[&str] = &[
     ":wat::config::",
     ":wat::load::",
     ":wat::verify::",
+    ":wat::eval::",
 ];
 
 pub fn is_reserved_prefix(keyword: &str) -> bool {
@@ -314,6 +317,8 @@ mod tests {
         assert!(is_reserved_prefix(":wat::verify::signed-ed25519"));
         assert!(is_reserved_prefix(":wat::verify::string"));
         assert!(is_reserved_prefix(":wat::verify::file-path"));
+        assert!(is_reserved_prefix(":wat::eval::string"));
+        assert!(is_reserved_prefix(":wat::eval::file-path"));
     }
 
     #[test]
