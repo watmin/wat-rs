@@ -44,18 +44,22 @@ use std::collections::HashSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-/// Verification mode attached to a `load!` form. Parse-accepted in this
-/// slice; verification lives in the hashing slice.
+/// Verification mode attached to a `load!` form.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VerificationMode {
     /// `(:wat/core/load! "path")` — trust the contents.
     Unverified,
-    /// `(:wat/core/load! "path" (md5 "hex..."))`.
-    Md5(String),
+    /// `(:wat/core/load! "path" (<algo> "hex..."))` where `algo` is
+    /// the hash-algorithm name (`sha256`, `md5`, ...) and the second
+    /// argument is the hex-encoded expected digest. Resolution verifies
+    /// via [`crate::hash::verify_source_hash`]; only algorithms supported
+    /// by that function will succeed.
+    Hash { algo: String, hex: String },
     /// `(:wat/core/load! "path" (signed <sig> <pub-key>))`.
     ///
-    /// In this slice `sig` and `pub_key` are captured as their printed
-    /// WatAST form; the hash-verify slice decides the real types.
+    /// Parse-accepted; signature verification is not yet implemented
+    /// (ed25519 / RSA dependency deferred). Resolution raises an error
+    /// if a signed mode is encountered at runtime.
     Signed { signature: String, pub_key: String },
 }
 
@@ -134,6 +138,11 @@ pub enum LoadError {
         path: String,
         err: ParseError,
     },
+    /// Cryptographic verification of the loaded source failed.
+    VerificationFailed {
+        path: String,
+        err: crate::hash::HashError,
+    },
 }
 
 impl fmt::Display for LoadError {
@@ -163,6 +172,9 @@ impl fmt::Display for LoadError {
             LoadError::Fetch(e) => write!(f, "{}", e),
             LoadError::Parse { path, err } => {
                 write!(f, "parse error in loaded file {}: {}", path, err)
+            }
+            LoadError::VerificationFailed { path, err } => {
+                write!(f, "verification failed for {}: {}", path, err)
             }
         }
     }
@@ -246,6 +258,11 @@ fn process_single_load(
         });
     }
 
+    // Verify cryptographic mode before parsing. A tampered file must
+    // not parse, so verification runs on the RAW bytes before any
+    // downstream step has a chance to trust them.
+    verify_load(&fetched, &spec.verification)?;
+
     visited.insert(fetched.canonical_path.clone());
     stack.push(fetched.canonical_path.clone());
 
@@ -266,6 +283,30 @@ fn process_single_load(
 
     stack.pop();
     Ok(())
+}
+
+/// Apply a `VerificationMode` to the fetched source. Unverified passes
+/// through. Hash modes dispatch via `crate::hash::verify_source_hash`.
+/// Signed modes are not yet implemented — this will refuse.
+fn verify_load(
+    fetched: &LoadedSource,
+    mode: &VerificationMode,
+) -> Result<(), LoadError> {
+    match mode {
+        VerificationMode::Unverified => Ok(()),
+        VerificationMode::Hash { algo, hex } => {
+            crate::hash::verify_source_hash(fetched.source.as_bytes(), algo, hex).map_err(
+                |err| LoadError::VerificationFailed {
+                    path: fetched.canonical_path.clone(),
+                    err,
+                },
+            )
+        }
+        VerificationMode::Signed { .. } => Err(LoadError::VerificationFailed {
+            path: fetched.canonical_path.clone(),
+            err: crate::hash::HashError::SignedNotImplemented,
+        }),
+    }
 }
 
 /// Attempt to interpret `form` as `(:wat/core/load! "path" [verification])`.
@@ -352,25 +393,6 @@ fn parse_verification_form(form: &WatAST) -> Result<VerificationMode, LoadError>
     let rest = &items[1..];
 
     match head_name {
-        "md5" => {
-            if rest.len() != 1 {
-                return Err(LoadError::MalformedLoadForm {
-                    reason: format!("(md5 ...) takes one hex-string argument; got {}", rest.len()),
-                });
-            }
-            let hex = match &rest[0] {
-                WatAST::StringLit(s) => s.clone(),
-                other => {
-                    return Err(LoadError::MalformedLoadForm {
-                        reason: format!(
-                            "(md5 ...) argument must be a string literal; got {}",
-                            variant_name(other)
-                        ),
-                    });
-                }
-            };
-            Ok(VerificationMode::Md5(hex))
-        }
         "signed" => {
             if rest.len() != 2 {
                 return Err(LoadError::MalformedLoadForm {
@@ -385,12 +407,37 @@ fn parse_verification_form(form: &WatAST) -> Result<VerificationMode, LoadError>
                 pub_key: render_placeholder(&rest[1]),
             })
         }
-        other => Err(LoadError::MalformedLoadForm {
-            reason: format!(
-                "unknown verification form: {}; expected md5 or signed",
-                other
-            ),
-        }),
+        algo => {
+            // Any other head is treated as a hash-algorithm name with a
+            // hex-string argument. Verification at load time dispatches
+            // on the algo name; unsupported algorithms (e.g., md5 until
+            // a crate dep is added) surface an UnsupportedAlgorithm error.
+            if rest.len() != 1 {
+                return Err(LoadError::MalformedLoadForm {
+                    reason: format!(
+                        "({} ...) takes one hex-string argument; got {}",
+                        algo,
+                        rest.len()
+                    ),
+                });
+            }
+            let hex = match &rest[0] {
+                WatAST::StringLit(s) => s.clone(),
+                other => {
+                    return Err(LoadError::MalformedLoadForm {
+                        reason: format!(
+                            "({} ...) argument must be a string literal; got {}",
+                            algo,
+                            variant_name(other)
+                        ),
+                    });
+                }
+            };
+            Ok(VerificationMode::Hash {
+                algo: algo.to_string(),
+                hex,
+            })
+        }
     }
 }
 
@@ -588,23 +635,49 @@ mod tests {
     }
 
     #[test]
-    fn load_with_md5_parse_accepted() {
-        let forms = resolve_mem(
-            r#"(:wat/core/load! "lib.wat" (md5 "abc123"))"#,
-            &[("lib.wat", r#"(:wat/algebra/Atom "ok")"#)],
-        )
-        .unwrap();
+    fn load_with_sha256_verified() {
+        use sha2::Digest;
+        // Compute the correct sha256 of the library source; verification
+        // passes. Any source+digest pair in agreement succeeds.
+        let source = r#"(:wat/algebra/Atom "ok")"#;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(source.as_bytes());
+        let digest = hasher.finalize();
+        let hex = crate::hash::hex_encode(&digest);
+        let entry = format!(r#"(:wat/core/load! "lib.wat" (sha256 "{}"))"#, hex);
+        let forms = resolve_mem(&entry, &[("lib.wat", source)]).unwrap();
         assert_eq!(forms.len(), 1);
     }
 
     #[test]
-    fn load_with_signed_parse_accepted() {
-        let forms = resolve_mem(
+    fn load_with_sha256_mismatch_rejected() {
+        let wrong = "0000000000000000000000000000000000000000000000000000000000000000";
+        let entry = format!(r#"(:wat/core/load! "lib.wat" (sha256 "{}"))"#, wrong);
+        let err = resolve_mem(&entry, &[("lib.wat", r#"(:wat/algebra/Atom "ok")"#)])
+            .unwrap_err();
+        assert!(matches!(err, LoadError::VerificationFailed { .. }));
+    }
+
+    #[test]
+    fn load_with_md5_unsupported() {
+        // MD5 is parse-accepted but the algorithm isn't supported in
+        // this build; verification returns UnsupportedAlgorithm.
+        let err = resolve_mem(
+            r#"(:wat/core/load! "lib.wat" (md5 "abc123"))"#,
+            &[("lib.wat", r#"(:wat/algebra/Atom "ok")"#)],
+        )
+        .unwrap_err();
+        assert!(matches!(err, LoadError::VerificationFailed { .. }));
+    }
+
+    #[test]
+    fn load_with_signed_not_yet_implemented() {
+        let err = resolve_mem(
             r#"(:wat/core/load! "lib.wat" (signed "sig-placeholder" "pubkey-placeholder"))"#,
             &[("lib.wat", r#"(:wat/algebra/Atom "ok")"#)],
         )
-        .unwrap();
-        assert_eq!(forms.len(), 1);
+        .unwrap_err();
+        assert!(matches!(err, LoadError::VerificationFailed { .. }));
     }
 
     // ─── Error cases ────────────────────────────────────────────────────
@@ -721,9 +794,21 @@ mod tests {
     }
 
     #[test]
-    fn unknown_verification_head_rejected() {
+    fn verification_form_wrong_arity_rejected() {
+        // A hash-algorithm verification form takes exactly one hex
+        // string argument. Two args is malformed.
         let err = resolve_mem(
-            r#"(:wat/core/load! "a.wat" (sha256 "hex"))"#,
+            r#"(:wat/core/load! "a.wat" (sha256 "hex1" "hex2"))"#,
+            &[("a.wat", "")],
+        )
+        .unwrap_err();
+        assert!(matches!(err, LoadError::MalformedLoadForm { .. }));
+    }
+
+    #[test]
+    fn verification_non_string_hex_rejected() {
+        let err = resolve_mem(
+            r#"(:wat/core/load! "a.wat" (sha256 42))"#,
             &[("a.wat", "")],
         )
         .unwrap_err();
