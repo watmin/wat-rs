@@ -38,12 +38,12 @@ const ECHO_PROGRAM: &str = r#"
 (:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:user::main
-                     (stdin  :crossbeam_channel::Receiver<String>)
-                     (stdout :crossbeam_channel::Sender<String>)
-                     (stderr :crossbeam_channel::Sender<String>)
+                     (stdin  :io::Stdin)
+                     (stdout :io::Stdout)
+                     (stderr :io::Stderr)
                      -> :())
-  (:wat::core::match (:wat::kernel::recv stdin)
-    ((Some line) (:wat::kernel::send stdout line))
+  (:wat::core::match (:wat::io::read-line stdin)
+    ((Some line) (:wat::io::write stdout line))
     (:None ())))
 "#;
 
@@ -108,15 +108,15 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
 (:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:user::main
-                     (stdin  :crossbeam_channel::Receiver<String>)
-                     (stdout :crossbeam_channel::Sender<String>)
-                     (stderr :crossbeam_channel::Sender<String>)
+                     (stdin  :io::Stdin)
+                     (stdout :io::Stdout)
+                     (stderr :io::Stderr)
                      -> :())
   (:wat::core::let*
     (((program :wat::WatAST)
        (:wat::core::quote
-         (:wat::core::match (:wat::kernel::recv stdin)
-           ((Some line) (:wat::kernel::send stdout line))
+         (:wat::core::match (:wat::io::read-line stdin)
+           ((Some line) (:wat::io::write stdout line))
            (:None ()))))
      ((program-atom :holon::HolonAST)
        (:wat::algebra::Atom program))
@@ -194,15 +194,15 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
 (:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:user::main
-                     (stdin  :crossbeam_channel::Receiver<String>)
-                     (stdout :crossbeam_channel::Sender<String>)
-                     (stderr :crossbeam_channel::Sender<String>)
+                     (stdin  :io::Stdin)
+                     (stdout :io::Stdout)
+                     (stderr :io::Stderr)
                      -> :())
   (:wat::core::let*
     (((program :wat::WatAST)
        (:wat::core::quote
-         (:wat::core::match (:wat::kernel::recv stdin)
-           ((Some line) (:wat::kernel::send stdout line))
+         (:wat::core::match (:wat::io::read-line stdin)
+           ((Some line) (:wat::io::write stdout line))
            (:None ()))))
      ((program-atom :holon::HolonAST)
        (:wat::algebra::Atom program))
@@ -217,7 +217,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
      ((bound-score :f64)
        (:wat::algebra::cosine program-atom bound))
      ((_ :())
-       (:wat::kernel::send stdout
+       (:wat::io::write stdout
          (:wat::core::if
            (:wat::core::> bound-score (:wat::config::noise-floor))
            "Some\n"
@@ -231,7 +231,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
      ((recov-score :f64)
        (:wat::algebra::cosine program-atom recovered))
      ((_ :())
-       (:wat::kernel::send stdout
+       (:wat::io::write stdout
          (:wat::core::if
            (:wat::core::> recov-score (:wat::config::noise-floor))
            "Some\n"
@@ -338,14 +338,14 @@ fn wrong_arity_user_main_rejected() {
 
 #[test]
 fn wrong_arg_type_user_main_rejected() {
-    // First arg typed :i64 instead of :crossbeam_channel::Receiver<String>.
+    // First arg typed :i64 instead of :io::Stdin.
     let program = r#"
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
         (:wat::core::define (:user::main
                              (stdin  :i64)
-                             (stdout :crossbeam_channel::Sender<String>)
-                             (stderr :crossbeam_channel::Sender<String>)
+                             (stdout :io::Stdout)
+                             (stderr :io::Stderr)
                              -> :())
           ())
     "#;
@@ -415,12 +415,12 @@ fn program_writes_multiple_times_to_stdout() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
         (:wat::core::define (:user::main
-                             (stdin  :crossbeam_channel::Receiver<String>)
-                             (stdout :crossbeam_channel::Sender<String>)
-                             (stderr :crossbeam_channel::Sender<String>)
+                             (stdin  :io::Stdin)
+                             (stdout :io::Stdout)
+                             (stderr :io::Stderr)
                              -> :())
-          (:wat::core::let (((first :()) (:wat::kernel::send stdout "hello ")))
-            (:wat::kernel::send stdout "world")))
+          (:wat::core::let (((first :()) (:wat::io::write stdout "hello ")))
+            (:wat::io::write stdout "world")))
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat-vm");
@@ -466,9 +466,9 @@ fn stdlib_subtract_macro_expands_in_user_program() {
             "below\n"))
 
         (:wat::core::define (:user::main
-                             (stdin  :crossbeam_channel::Receiver<String>)
-                             (stdout :crossbeam_channel::Sender<String>)
-                             (stderr :crossbeam_channel::Sender<String>)
+                             (stdin  :io::Stdin)
+                             (stdout :io::Stdout)
+                             (stderr :io::Stderr)
                              -> :())
           (:wat::core::let*
             (((a :holon::HolonAST) (:wat::algebra::Atom "alice"))
@@ -477,8 +477,8 @@ fn stdlib_subtract_macro_expands_in_user_program() {
              ((diff :holon::HolonAST) (:wat::std::Subtract a b))
              ((self-score :f64) (:wat::algebra::cosine a diff))
              ((other-score :f64) (:wat::algebra::cosine c diff))
-             ((_ :()) (:wat::kernel::send stdout (:my::test::verdict self-score))))
-            (:wat::kernel::send stdout (:my::test::verdict other-score))))
+             ((_ :()) (:wat::io::write stdout (:my::test::verdict self-score))))
+            (:wat::io::write stdout (:my::test::verdict other-score))))
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat-vm");
@@ -531,9 +531,9 @@ fn stdlib_circular_macro_near_and_far() {
             "below\n"))
 
         (:wat::core::define (:user::main
-                             (stdin  :crossbeam_channel::Receiver<String>)
-                             (stdout :crossbeam_channel::Sender<String>)
-                             (stderr :crossbeam_channel::Sender<String>)
+                             (stdin  :io::Stdin)
+                             (stdout :io::Stdout)
+                             (stderr :io::Stderr)
                              -> :())
           (:wat::core::let*
             ;; Period is 24 (hours). h0 is midnight; h23 is an hour away;
@@ -543,8 +543,8 @@ fn stdlib_circular_macro_near_and_far() {
              ((h12 :holon::HolonAST) (:wat::std::Circular 12.0 24.0))
              ((near-score :f64) (:wat::algebra::cosine h0 h23))
              ((far-score  :f64) (:wat::algebra::cosine h0 h12))
-             ((_ :()) (:wat::kernel::send stdout (:my::test::verdict near-score))))
-            (:wat::kernel::send stdout (:my::test::verdict far-score))))
+             ((_ :()) (:wat::io::write stdout (:my::test::verdict near-score))))
+            (:wat::io::write stdout (:my::test::verdict far-score))))
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat-vm");
@@ -596,9 +596,9 @@ fn stdlib_reject_project_gram_schmidt_duo() {
             "below\n"))
 
         (:wat::core::define (:user::main
-                             (stdin  :crossbeam_channel::Receiver<String>)
-                             (stdout :crossbeam_channel::Sender<String>)
-                             (stderr :crossbeam_channel::Sender<String>)
+                             (stdin  :io::Stdin)
+                             (stdout :io::Stdout)
+                             (stderr :io::Stderr)
                              -> :())
           (:wat::core::let*
             (((x :holon::HolonAST) (:wat::algebra::Atom "x"))
@@ -607,8 +607,8 @@ fn stdlib_reject_project_gram_schmidt_duo() {
              ((shadow :holon::HolonAST) (:wat::std::Project x y))
              ((rej-score :f64) (:wat::algebra::cosine y residual))
              ((proj-score :f64) (:wat::algebra::cosine y shadow))
-             ((_ :()) (:wat::kernel::send stdout (:my::test::verdict proj-score))))
-            (:wat::kernel::send stdout (:my::test::verdict rej-score))))
+             ((_ :()) (:wat::io::write stdout (:my::test::verdict proj-score))))
+            (:wat::io::write stdout (:my::test::verdict rej-score))))
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat-vm");
@@ -658,9 +658,9 @@ fn stdlib_sequential_is_order_sensitive() {
             "below\n"))
 
         (:wat::core::define (:user::main
-                             (stdin  :crossbeam_channel::Receiver<String>)
-                             (stdout :crossbeam_channel::Sender<String>)
-                             (stderr :crossbeam_channel::Sender<String>)
+                             (stdin  :io::Stdin)
+                             (stdout :io::Stdout)
+                             (stderr :io::Stderr)
                              -> :())
           (:wat::core::let*
             (((a :holon::HolonAST) (:wat::algebra::Atom "a"))
@@ -670,8 +670,8 @@ fn stdlib_sequential_is_order_sensitive() {
              ((acb :holon::HolonAST) (:wat::std::Sequential (:wat::core::list a c b)))
              ((same :f64) (:wat::algebra::cosine abc abc))
              ((reorder :f64) (:wat::algebra::cosine abc acb))
-             ((_ :()) (:wat::kernel::send stdout (:my::test::verdict same))))
-            (:wat::kernel::send stdout (:my::test::verdict reorder))))
+             ((_ :()) (:wat::io::write stdout (:my::test::verdict same))))
+            (:wat::io::write stdout (:my::test::verdict reorder))))
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat-vm");
@@ -721,9 +721,9 @@ fn stdlib_console_hello_world() {
         (:wat::config::set-capacity-mode! :error)
 
         (:wat::core::define (:user::main
-                             (stdin  :crossbeam_channel::Receiver<String>)
-                             (stdout :crossbeam_channel::Sender<String>)
-                             (stderr :crossbeam_channel::Sender<String>)
+                             (stdin  :io::Stdin)
+                             (stdout :io::Stdout)
+                             (stderr :io::Stderr)
                              -> :())
           (:wat::core::let*
             (;; Build Console over BOTH stdio streams. One writer.
@@ -783,9 +783,9 @@ fn stdlib_trigram_bundles_sequential_windows() {
             "below\n"))
 
         (:wat::core::define (:user::main
-                             (stdin  :crossbeam_channel::Receiver<String>)
-                             (stdout :crossbeam_channel::Sender<String>)
-                             (stderr :crossbeam_channel::Sender<String>)
+                             (stdin  :io::Stdin)
+                             (stdout :io::Stdout)
+                             (stderr :io::Stderr)
                              -> :())
           (:wat::core::let*
             (((a :holon::HolonAST) (:wat::algebra::Atom "a"))
@@ -799,8 +799,8 @@ fn stdlib_trigram_bundles_sequential_windows() {
               (:wat::std::Trigram (:wat::core::list a b c d)))
              ((participant :f64) (:wat::algebra::cosine window-1 full))
              ((outsider :f64) (:wat::algebra::cosine z full))
-             ((_ :()) (:wat::kernel::send stdout (:my::test::verdict participant))))
-            (:wat::kernel::send stdout (:my::test::verdict outsider))))
+             ((_ :()) (:wat::io::write stdout (:my::test::verdict participant))))
+            (:wat::io::write stdout (:my::test::verdict outsider))))
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat-vm");

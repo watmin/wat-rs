@@ -54,10 +54,9 @@
 //! Multi-line stdin needs `:Option<T>` at the runtime layer for
 //! graceful EOF — a future slice.
 
-use std::io::{self, BufRead, Write};
+use std::io;
 use std::process::ExitCode;
 use std::sync::Arc;
-use std::thread;
 
 use wat::freeze::{invoke_user_main, startup_from_source, FrozenWorld};
 use wat::load::FsLoader;
@@ -108,19 +107,15 @@ fn install_signal_handlers() {
 /// The exact signature `:user::main` must declare. Startup halts if
 /// the program's `:user::main` doesn't match.
 fn expected_user_main_signature() -> (Vec<TypeExpr>, TypeExpr) {
+    // 2026-04-19: stdio is passed as real IO handles, not crossbeam
+    // channels. Honest: the wat program gets the actual io::Stdin /
+    // io::Stdout / io::Stderr; the `(:wat::io::write ...)` and
+    // `(:wat::io::read-line ...)` primitives go straight to the OS
+    // stream (via std's internal locking). No bridge threads.
     let params = vec![
-        TypeExpr::Parametric {
-            head: "crossbeam_channel::Receiver".into(),
-            args: vec![TypeExpr::Path(":String".into())],
-        },
-        TypeExpr::Parametric {
-            head: "crossbeam_channel::Sender".into(),
-            args: vec![TypeExpr::Path(":String".into())],
-        },
-        TypeExpr::Parametric {
-            head: "crossbeam_channel::Sender".into(),
-            args: vec![TypeExpr::Path(":String".into())],
-        },
+        TypeExpr::Path(":io::Stdin".into()),
+        TypeExpr::Path(":io::Stdout".into()),
+        TypeExpr::Path(":io::Stderr".into()),
     ];
     let ret = TypeExpr::Tuple(vec![]);
     (params, ret)
@@ -197,74 +192,6 @@ fn format_type_inner(t: &TypeExpr) -> String {
     raw.strip_prefix(':').unwrap_or(&raw).to_string()
 }
 
-// ─── Stdio wiring ──────────────────────────────────────────────────────
-
-/// Spawn the stdin reader thread. Reads one line from OS stdin, wraps
-/// it as `Value::String`, sends it on the returned sender, and exits.
-/// The sender drops on thread exit, causing a second `recv` in the
-/// user program to see `:None`.
-fn spawn_stdin_reader(tx: crossbeam_channel::Sender<Value>) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        let stdin = io::stdin();
-        let mut buf = String::new();
-        // read_line returns Ok(0) on EOF; Ok(n) reads one line including
-        // the trailing newline (if present).
-        if stdin.lock().read_line(&mut buf).unwrap_or(0) > 0 {
-            // Strip trailing newline so the user program sees the line
-            // content, not the separator.
-            if buf.ends_with('\n') {
-                buf.pop();
-                if buf.ends_with('\r') {
-                    buf.pop();
-                }
-            }
-            let _ = tx.send(Value::String(Arc::new(buf)));
-        }
-        // tx dropped on return → receiver sees disconnect
-    })
-}
-
-/// Spawn a writer thread that forwards everything from `rx` to the
-/// given OS stdio handle. The thread exits when the receiver sees
-/// disconnected (all senders dropped). Accepts `Value::String`
-/// messages and writes their bytes directly; any other variant is
-/// silently discarded (typed stdio contract enforced at check time).
-fn spawn_stdio_writer(
-    rx: crossbeam_channel::Receiver<Value>,
-    target: StdioTarget,
-) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        for v in rx.iter() {
-            let msg: Arc<String> = match v {
-                Value::String(s) => s,
-                _ => continue,
-            };
-            match target {
-                StdioTarget::Stdout => {
-                    let out = io::stdout();
-                    let mut handle = out.lock();
-                    let _ = handle.write_all(msg.as_bytes());
-                    // Programs that want newlines send them in the
-                    // message. No automatic line-ending.
-                    let _ = handle.flush();
-                }
-                StdioTarget::Stderr => {
-                    let err = io::stderr();
-                    let mut handle = err.lock();
-                    let _ = handle.write_all(msg.as_bytes());
-                    let _ = handle.flush();
-                }
-            }
-        }
-    })
-}
-
-#[derive(Clone, Copy)]
-enum StdioTarget {
-    Stdout,
-    Stderr,
-}
-
 // ─── main ──────────────────────────────────────────────────────────────
 
 fn main() -> ExitCode {
@@ -306,36 +233,21 @@ fn main() -> ExitCode {
     // Install OS signal handlers.
     install_signal_handlers();
 
-    // Create the three stdio channels. stdin: wat-vm's reader writes,
-    // user's :user::main reads. stdout/stderr: user writes, wat-vm's
-    // writers read. All three carry `Value` — stdio-flavored channels
-    // conventionally transport `Value::String`, but the transport
-    // itself is generic per the typed-pipe stance.
-    let (stdin_tx, stdin_rx) = crossbeam_channel::unbounded::<Value>();
-    let (stdout_tx, stdout_rx) = crossbeam_channel::unbounded::<Value>();
-    let (stderr_tx, stderr_rx) = crossbeam_channel::unbounded::<Value>();
-
-    // Spawn stdio threads.
-    let stdin_handle = spawn_stdin_reader(stdin_tx);
-    let stdout_handle = spawn_stdio_writer(stdout_rx, StdioTarget::Stdout);
-    let stderr_handle = spawn_stdio_writer(stderr_rx, StdioTarget::Stderr);
-
-    // Invoke :user::main with the three channel values.
+    // Hand the wat program the REAL OS stdio handles. std's
+    // io::Stdin / Stdout / Stderr are thread-safe via their own
+    // `.lock()` methods; no bridge threads, no channels. The
+    // `(:wat::io::write ...)` and `(:wat::io::read-line ...)`
+    // primitives go straight to the OS stream.
     let args = vec![
-        Value::crossbeam_channel__Receiver(Arc::new(stdin_rx)),
-        Value::crossbeam_channel__Sender(Arc::new(stdout_tx)),
-        Value::crossbeam_channel__Sender(Arc::new(stderr_tx)),
+        Value::io__Stdin(Arc::new(io::stdin())),
+        Value::io__Stdout(Arc::new(io::stdout())),
+        Value::io__Stderr(Arc::new(io::stderr())),
     ];
     let main_result = invoke_user_main(&frozen, args);
 
-    // After main returns, the Arc<Sender>s inside the arg Values
-    // already dropped when `args` went out of scope inside
-    // invoke_user_main (the function took ownership). The
-    // stdout/stderr writer threads see their receivers disconnect
-    // and exit cleanly; we just wait for them.
-    let _ = stdin_handle.join();
-    let _ = stdout_handle.join();
-    let _ = stderr_handle.join();
+    // No bridge threads to join — stdio is owned directly by the
+    // wat program via std::io handles. On main's return, the Arc
+    // refs drop and the handles release their cloneable state.
 
     match main_result {
         Ok(_) => ExitCode::SUCCESS,

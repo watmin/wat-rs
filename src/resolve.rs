@@ -172,6 +172,7 @@ pub const RESERVED_PREFIXES: &[&str] = &[
     ":wat::load::",
     ":wat::verify::",
     ":wat::eval::",
+    ":wat::io::",
 ];
 
 pub fn is_reserved_prefix(keyword: &str) -> bool {

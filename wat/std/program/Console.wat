@@ -30,14 +30,14 @@
 
 ;; --- Driver loop ---
 ;;
-;; Select across N receivers, decode each message's tag, forward to
-;; the matching sink. Removes disconnected receivers. Exits when no
-;; receivers remain.
+;; Select across N receivers, decode each message's tag, write to
+;; the matching real IO handle. Removes disconnected receivers.
+;; Exits when no receivers remain.
 (:wat::core::define
   (:wat::std::program::Console/loop
     (rxs :Vec<crossbeam_channel::Receiver<(i64,String)>>)
-    (stdout :crossbeam_channel::Sender<String>)
-    (stderr :crossbeam_channel::Sender<String>)
+    (stdout :io::Stdout)
+    (stderr :io::Stderr)
     -> :())
   (:wat::core::if (:wat::core::empty? rxs)
     ()
@@ -52,8 +52,8 @@
             (((tag :i64) (:wat::core::first tagged))
              ((msg :String) (:wat::core::second tagged))
              ((_ :()) (:wat::core::if (:wat::core::= tag 0)
-                        (:wat::kernel::send stdout msg)
-                        (:wat::kernel::send stderr msg))))
+                        (:wat::io::write stdout msg)
+                        (:wat::io::write stderr msg))))
             (:wat::std::program::Console/loop rxs stdout stderr)))
         (:None
           (:wat::std::program::Console/loop
@@ -92,8 +92,8 @@
 ;; `(join driver)`. The drop cascade triggers the loop's clean exit.
 (:wat::core::define
   (:wat::std::program::Console
-    (stdout :crossbeam_channel::Sender<String>)
-    (stderr :crossbeam_channel::Sender<String>)
+    (stdout :io::Stdout)
+    (stderr :io::Stderr)
     (count :i64)
     -> :(wat::kernel::HandlePool<crossbeam_channel::Sender<(i64,String)>>,wat::kernel::ProgramHandle<()>))
   (:wat::core::let*

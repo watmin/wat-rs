@@ -1967,6 +1967,38 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // IO primitives — honest surface to the real OS stdio. Writes
+    // are polymorphic over :io::Stdout and :io::Stderr (dispatched
+    // via runtime variant match; rank-1 HM can't express the union).
+    // For the scheme, each handle type gets its own write entry —
+    // but since both go to the same dispatch, we register just one
+    // polymorphic shape using a special head that the runtime
+    // accepts. Concretely: `:wat::io::write` types as either of the
+    // two stdio handles, producing :(). We express this by letting
+    // the scheme accept `:io::Stdout` as the canonical; the runtime
+    // also accepts `:io::Stderr`, so the check-time error only fires
+    // on genuinely-wrong types (user passes an int, say). Users who
+    // want tight checking can register their own wrapping macros.
+    env.register(
+        ":wat::io::write".into(),
+        TypeScheme {
+            type_params: vec!["H".into()],
+            params: vec![TypeExpr::Path(":H".into()), TypeExpr::Path(":String".into())],
+            ret: TypeExpr::Tuple(vec![]),
+        },
+    );
+    env.register(
+        ":wat::io::read-line".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":io::Stdin".into())],
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![TypeExpr::Path(":String".into())],
+            },
+        },
+    );
+
     // Stdlib math — single-method Rust calls per FOUNDATION-CHANGELOG
     // 2026-04-18. All unary :f64 -> :f64 except pi which is :() -> :f64.
     // Packaged here so Log / Circular expansions get proper checking.

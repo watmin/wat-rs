@@ -163,6 +163,16 @@ pub enum Value {
     crossbeam_channel__Sender(Arc<crossbeam_channel::Sender<Value>>),
     /// A channel receiver handle. Carries `Value`; see `Sender`.
     crossbeam_channel__Receiver(Arc<crossbeam_channel::Receiver<Value>>),
+    /// The OS stdout handle. Rust's `std::io::Stdout` — thread-safe
+    /// handle to the shared global stdout stream. Writes go through
+    /// `handle.lock()` (std's internal lock); multiple threads
+    /// serialize naturally. No channel intermediary.
+    io__Stdout(Arc<std::io::Stdout>),
+    /// The OS stderr handle. Rust's `std::io::Stderr`.
+    io__Stderr(Arc<std::io::Stderr>),
+    /// The OS stdin handle. Rust's `std::io::Stdin`. `(read-line r)`
+    /// reads one line or returns `:None` on EOF.
+    io__Stdin(Arc<std::io::Stdin>),
     /// An `:Option<T>` value — `:None` or `(Some v)`. Built-in
     /// parametric enum per 058-030; used as the return type of
     /// `:wat::kernel::recv` / `try-recv` / `select` and of structural
@@ -216,6 +226,9 @@ impl Value {
             Value::wat__WatAST(_) => "wat::WatAST",
             Value::crossbeam_channel__Sender(_) => "crossbeam_channel::Sender",
             Value::crossbeam_channel__Receiver(_) => "crossbeam_channel::Receiver",
+            Value::io__Stdout(_) => "io::Stdout",
+            Value::io__Stderr(_) => "io::Stderr",
+            Value::io__Stdin(_) => "io::Stdin",
             Value::Option(_) => "Option",
             Value::Tuple(_) => "tuple",
             Value::wat__kernel__ProgramHandle(_) => "wat::kernel::ProgramHandle",
@@ -1035,6 +1048,8 @@ fn dispatch_keyword_head(
         ":wat::core::foldl" => eval_vec_foldl(args, env, sym),
         ":wat::std::list::window" => eval_list_window(args, env, sym),
         ":wat::std::list::remove-at" => eval_list_remove_at(args, env, sym),
+        ":wat::io::write" => eval_io_write(args, env, sym),
+        ":wat::io::read-line" => eval_io_read_line(args, env, sym),
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
         ":wat::algebra::Atom" => eval_algebra_atom(args, env, sym),
@@ -1989,6 +2004,102 @@ fn eval_list_remove_at(
         }
     }
     Ok(Value::Vec(Arc::new(out)))
+}
+
+/// `(:wat::io::write handle msg)` — write a String's bytes to an IO
+/// write handle. Polymorphic over `:io::Stdout` and `:io::Stderr`;
+/// rank-1 HM can't express the union, so dispatch is by runtime
+/// variant. Calls `handle.lock()` (std's internal sync) for the
+/// duration of the write + flush. No auto-newline — the caller
+/// writes `\n` explicitly.
+fn eval_io_write(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    use std::io::Write;
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::io::write".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let handle = eval(&args[0], env, sym)?;
+    let msg = match eval(&args[1], env, sym)? {
+        Value::String(s) => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::io::write".into(),
+                expected: "String",
+                got: other.type_name(),
+            });
+        }
+    };
+    match handle {
+        Value::io__Stdout(h) => {
+            let mut g = h.lock();
+            let _ = g.write_all(msg.as_bytes());
+            let _ = g.flush();
+        }
+        Value::io__Stderr(h) => {
+            let mut g = h.lock();
+            let _ = g.write_all(msg.as_bytes());
+            let _ = g.flush();
+        }
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::io::write".into(),
+                expected: "io::Stdout | io::Stderr",
+                got: other.type_name(),
+            });
+        }
+    }
+    Ok(Value::Unit)
+}
+
+/// `(:wat::io::read-line handle)` — read one line from an IO read
+/// handle (currently only `:io::Stdin`). Returns `:(Some line)` on a
+/// read or `:None` on EOF. The trailing `\n` / `\r\n` is stripped
+/// from the returned line.
+fn eval_io_read_line(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    use std::io::BufRead;
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::io::read-line".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let handle = eval(&args[0], env, sym)?;
+    match handle {
+        Value::io__Stdin(h) => {
+            let mut g = h.lock();
+            let mut buf = String::new();
+            match g.read_line(&mut buf) {
+                Ok(0) => Ok(Value::Option(Arc::new(None))),
+                Ok(_) => {
+                    if buf.ends_with('\n') {
+                        buf.pop();
+                        if buf.ends_with('\r') {
+                            buf.pop();
+                        }
+                    }
+                    Ok(Value::Option(Arc::new(Some(Value::String(Arc::new(buf))))))
+                }
+                Err(_) => Ok(Value::Option(Arc::new(None))),
+            }
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::io::read-line".into(),
+            expected: "io::Stdin",
+            got: other.type_name(),
+        }),
+    }
 }
 
 /// `(:wat::core::quote <expr>)` — capture an unevaluated AST.
