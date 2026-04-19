@@ -26,11 +26,13 @@
 //! (canonical-EDN + cryptographic verification), `runtime` (AST walker).
 
 pub mod ast;
+pub mod config;
 pub mod lexer;
 pub mod lower;
 pub mod parser;
 
 pub use ast::WatAST;
+pub use config::{collect_entry_file, CapacityMode, Config, ConfigError};
 pub use lexer::LexError;
 pub use lower::{lower, LowerError};
 pub use parser::{parse_all, parse_one, ParseError};
