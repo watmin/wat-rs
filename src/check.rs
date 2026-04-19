@@ -349,6 +349,30 @@ fn infer_list(
             ":wat::core::match" => {
                 return infer_match(args, env, locals, fresh, subst, errors);
             }
+            ":wat::kernel::make-bounded-queue" => {
+                return infer_make_queue(
+                    args,
+                    env,
+                    locals,
+                    fresh,
+                    subst,
+                    errors,
+                    ":wat::kernel::make-bounded-queue",
+                    /*with_capacity=*/ true,
+                );
+            }
+            ":wat::kernel::make-unbounded-queue" => {
+                return infer_make_queue(
+                    args,
+                    env,
+                    locals,
+                    fresh,
+                    subst,
+                    errors,
+                    ":wat::kernel::make-unbounded-queue",
+                    /*with_capacity=*/ false,
+                );
+            }
             ":wat::core::and" | ":wat::core::or" => {
                 return infer_boolean_shortcircuit(args, env, locals, fresh, subst, errors);
             }
@@ -765,6 +789,109 @@ fn infer_let_star(
         process_let_binding(pair, env, &cumulative, &mut extended, fresh, subst, errors, ":wat::core::let*");
     }
     infer(&args[1], env, &extended, fresh, subst, errors)
+}
+
+/// Type-check `(make-bounded-queue :T N)` / `(make-unbounded-queue :T)`.
+/// First argument is a type keyword (introspected directly, not
+/// inferred as a value); optional second argument is the capacity,
+/// which must unify to `:i64`. Return type is
+/// `:(Sender<T>, Receiver<T>)`.
+///
+/// Written as a special form because the `∀T. ...` shape expresses T
+/// through a type-keyword argument — the value-level checker can't
+/// extract T from `infer(args[0])` the way rank-1 HM would want.
+#[allow(clippy::too_many_arguments)]
+fn infer_make_queue(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+    form: &str,
+    with_capacity: bool,
+) -> Option<TypeExpr> {
+    let expected_arity = if with_capacity { 2 } else { 1 };
+    if args.len() != expected_arity {
+        errors.push(CheckError::ArityMismatch {
+            callee: form.into(),
+            expected: expected_arity,
+            got: args.len(),
+        });
+        // Still recurse into any extra args for nested checks.
+        for arg in args.iter().skip(1) {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        // Return a best-effort tuple with a fresh inner so the call
+        // site can continue checking.
+        let t = fresh.fresh();
+        return Some(TypeExpr::Tuple(vec![
+            TypeExpr::Parametric {
+                head: "crossbeam_channel::Sender".into(),
+                args: vec![t.clone()],
+            },
+            TypeExpr::Parametric {
+                head: "crossbeam_channel::Receiver".into(),
+                args: vec![t],
+            },
+        ]));
+    }
+    // Extract T from the type-keyword argument.
+    let t_ty = match &args[0] {
+        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(_) => {
+                errors.push(CheckError::MalformedForm {
+                    head: form.into(),
+                    reason: format!("first argument {} is not a valid type keyword", k),
+                });
+                fresh.fresh()
+            }
+        },
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: form.into(),
+                reason: format!(
+                    "first argument must be a type keyword; got {}",
+                    match other {
+                        WatAST::IntLit(_) => "int",
+                        WatAST::FloatLit(_) => "float",
+                        WatAST::BoolLit(_) => "bool",
+                        WatAST::StringLit(_) => "string",
+                        WatAST::Symbol(_) => "symbol",
+                        WatAST::List(_) => "list",
+                        WatAST::Keyword(_) => unreachable!(),
+                    }
+                ),
+            });
+            fresh.fresh()
+        }
+    };
+    // If bounded, check capacity unifies to :i64.
+    if with_capacity {
+        let cap_ty = infer(&args[1], env, locals, fresh, subst, errors);
+        if let Some(cap_ty) = cap_ty {
+            let i64_ty = TypeExpr::Path(":i64".into());
+            if unify(&cap_ty, &i64_ty, subst).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: form.into(),
+                    param: "capacity".into(),
+                    expected: "i64".into(),
+                    got: format_type(&apply_subst(&cap_ty, subst)),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Tuple(vec![
+        TypeExpr::Parametric {
+            head: "crossbeam_channel::Sender".into(),
+            args: vec![t_ty.clone()],
+        },
+        TypeExpr::Parametric {
+            head: "crossbeam_channel::Receiver".into(),
+            args: vec![t_ty],
+        },
+    ]))
 }
 
 /// Process one binding — single-typed or destructure. Infers the RHS

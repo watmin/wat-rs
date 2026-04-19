@@ -979,6 +979,8 @@ fn dispatch_keyword_head(
         ":wat::kernel::stopped" => eval_kernel_stopped(args),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym),
         ":wat::kernel::recv" => eval_kernel_recv(args, env, sym),
+        ":wat::kernel::make-bounded-queue" => eval_make_bounded_queue(args, env, sym),
+        ":wat::kernel::make-unbounded-queue" => eval_make_unbounded_queue(args),
         ":wat::kernel::sigusr1?" => {
             eval_user_signal_query(args, ":wat::kernel::sigusr1?", &KERNEL_SIGUSR1)
         }
@@ -2283,6 +2285,85 @@ fn eval_config_noise_floor(
     check_nullary(":wat::config::noise-floor", args)?;
     let ctx = require_encoding_ctx(":wat::config::noise-floor", sym)?;
     Ok(Value::f64(ctx.config.noise_floor))
+}
+
+/// `(:wat::kernel::make-bounded-queue :T capacity)` — creates a
+/// bounded crossbeam channel carrying `:T` values with the given
+/// capacity. Returns a `:(Sender<T>, Receiver<T>)` 2-tuple.
+///
+/// The first argument is a TYPE KEYWORD — not evaluated at runtime,
+/// only read for the type checker's benefit. The runtime transports
+/// any `Value`; `T` lives in the scheme only. Any non-keyword first
+/// argument is a structural error.
+///
+/// `bounded(1)` is the spec'd default rendezvous shape (FOUNDATION's
+/// Pipeline Discipline rule 4).
+fn eval_make_bounded_queue(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::make-bounded-queue".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    if !matches!(&args[0], WatAST::Keyword(_)) {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::kernel::make-bounded-queue".into(),
+            reason: "first argument must be a type keyword (e.g., :Candle)".into(),
+        });
+    }
+    let capacity = match eval(&args[1], env, sym)? {
+        Value::i64(n) if n >= 0 => n as usize,
+        Value::i64(n) => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::kernel::make-bounded-queue".into(),
+                reason: format!("capacity must be non-negative; got {}", n),
+            });
+        }
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::make-bounded-queue".into(),
+                expected: "i64",
+                got: other.type_name(),
+            });
+        }
+    };
+    let (tx, rx) = crossbeam_channel::bounded::<Value>(capacity);
+    Ok(Value::Tuple(Arc::new(vec![
+        Value::crossbeam_channel__Sender(Arc::new(tx)),
+        Value::crossbeam_channel__Receiver(Arc::new(rx)),
+    ])))
+}
+
+/// `(:wat::kernel::make-unbounded-queue :T)` — creates an unbounded
+/// crossbeam channel carrying `:T` values. Returns a
+/// `:(Sender<T>, Receiver<T>)` 2-tuple.
+///
+/// Like `make-bounded-queue` the first argument is a type keyword for
+/// the checker; the runtime transports any `Value`.
+fn eval_make_unbounded_queue(args: &[WatAST]) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::make-unbounded-queue".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    if !matches!(&args[0], WatAST::Keyword(_)) {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::kernel::make-unbounded-queue".into(),
+            reason: "argument must be a type keyword (e.g., :LearnSignal)".into(),
+        });
+    }
+    let (tx, rx) = crossbeam_channel::unbounded::<Value>();
+    Ok(Value::Tuple(Arc::new(vec![
+        Value::crossbeam_channel__Sender(Arc::new(tx)),
+        Value::crossbeam_channel__Receiver(Arc::new(rx)),
+    ])))
 }
 
 /// `(:wat::kernel::send sender value)` — blocks until the value is
@@ -3780,5 +3861,70 @@ mod tests {
         "#;
         let err = eval_with_binding(src, "v", Value::i64(42)).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    // ─── make-bounded-queue / make-unbounded-queue ─────────────────────
+
+    #[test]
+    fn make_bounded_queue_returns_sender_receiver_pair() {
+        let src = "(:wat::kernel::make-bounded-queue :i64 1)";
+        match eval_expr(src).unwrap() {
+            Value::Tuple(items) => {
+                assert_eq!(items.len(), 2);
+                assert!(matches!(&items[0], Value::crossbeam_channel__Sender(_)));
+                assert!(matches!(&items[1], Value::crossbeam_channel__Receiver(_)));
+            }
+            v => panic!("expected tuple, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn make_unbounded_queue_returns_sender_receiver_pair() {
+        let src = "(:wat::kernel::make-unbounded-queue :String)";
+        match eval_expr(src).unwrap() {
+            Value::Tuple(items) => {
+                assert_eq!(items.len(), 2);
+                assert!(matches!(&items[0], Value::crossbeam_channel__Sender(_)));
+                assert!(matches!(&items[1], Value::crossbeam_channel__Receiver(_)));
+            }
+            v => panic!("expected tuple, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn queue_roundtrip_via_destructure_and_send_recv() {
+        // Make a queue, destructure the pair, send a value, recv it,
+        // match to unwrap. End-to-end shape the real kernel primitives
+        // expose.
+        let src = r#"
+            (:wat::core::let*
+              (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
+               ((sent :()) (:wat::kernel::send tx 42)))
+              (:wat::core::match (:wat::kernel::recv rx)
+                ((Some v) v)
+                (:None 0)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(42) => {}
+            v => panic!("expected 42, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn make_bounded_queue_refuses_non_keyword_type_arg() {
+        let err = eval_expr("(:wat::kernel::make-bounded-queue 42 1)").unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn make_bounded_queue_refuses_negative_capacity() {
+        let err = eval_expr("(:wat::kernel::make-bounded-queue :i64 -1)").unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn make_bounded_queue_wrong_arity() {
+        let err = eval_expr("(:wat::kernel::make-bounded-queue :i64)").unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 }
