@@ -188,6 +188,17 @@ pub enum Value {
     /// before sending, the sender drops, and `join` reports the
     /// panic via `ChannelDisconnected`.
     wat__kernel__ProgramHandle(Arc<crossbeam_channel::Receiver<Result<Value, RuntimeError>>>),
+    /// A claim-or-panic handle pool — `:HandlePool<T>` per FOUNDATION.
+    /// Backing: a bounded crossbeam channel pre-filled with N handles
+    /// and its sender dropped immediately, so `is_empty` means the
+    /// pool has been fully drained. No Mutex — crossbeam's channel
+    /// primitives handle the concurrent `pop` calls lock-free.
+    /// `name` surfaces in error messages when a pop from empty or a
+    /// finish with orphans fires.
+    wat__kernel__HandlePool {
+        name: Arc<String>,
+        rx: Arc<crossbeam_channel::Receiver<Value>>,
+    },
 }
 
 impl Value {
@@ -208,6 +219,7 @@ impl Value {
             Value::Option(_) => "Option",
             Value::Tuple(_) => "tuple",
             Value::wat__kernel__ProgramHandle(_) => "wat::kernel::ProgramHandle",
+            Value::wat__kernel__HandlePool { .. } => "wat::kernel::HandlePool",
         }
     }
 }
@@ -995,6 +1007,9 @@ fn dispatch_keyword_head(
         ":wat::kernel::spawn" => eval_kernel_spawn(args, env, sym),
         ":wat::kernel::join" => eval_kernel_join(args, env, sym),
         ":wat::kernel::select" => eval_kernel_select(args, env, sym),
+        ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym),
+        ":wat::kernel::HandlePool::pop" => eval_handle_pool_pop(args, env, sym),
+        ":wat::kernel::HandlePool::finish" => eval_handle_pool_finish(args, env, sym),
         ":wat::kernel::make-bounded-queue" => eval_make_bounded_queue(args, env, sym),
         ":wat::kernel::make-unbounded-queue" => eval_make_unbounded_queue(args),
         ":wat::kernel::sigusr1?" => {
@@ -2531,6 +2546,147 @@ fn eval_kernel_drop(
             got: other.type_name(),
         }),
     }
+}
+
+/// `(:wat::kernel::HandlePool::new name handles)` — build a pool of
+/// N handles of the same type. `name` surfaces in error messages; the
+/// pool drains as callers `pop` and asserts empty at `finish`.
+///
+/// Implementation: a bounded crossbeam channel of size N pre-filled
+/// with the given handles, whose sender is dropped immediately so
+/// further puts are impossible. Consumers `pop` via `try_recv`;
+/// `finish` checks the channel is empty. No Mutex; the channel's
+/// lock-free multi-consumer semantics are the synchronization.
+fn eval_handle_pool_new(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::HandlePool::new".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let name = match eval(&args[0], env, sym)? {
+        Value::String(s) => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::HandlePool::new".into(),
+                expected: "String",
+                got: other.type_name(),
+            });
+        }
+    };
+    let handles = match eval(&args[1], env, sym)? {
+        Value::Vec(v) => v,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::HandlePool::new".into(),
+                expected: "Vec",
+                got: other.type_name(),
+            });
+        }
+    };
+    let n = handles.len();
+    // Zero-handle pools are legal — a pool with zero handles whose
+    // `finish` is called immediately asserts true vacuously. Callers
+    // that pre-count capacity may hit N=0 for degenerate cases.
+    let (tx, rx) = crossbeam_channel::bounded::<Value>(n.max(1));
+    for v in handles.iter() {
+        if tx.send(v.clone()).is_err() {
+            // The rx is local to this scope; send cannot fail.
+            unreachable!("newly-built channel receiver must be alive");
+        }
+    }
+    // Drop tx so the channel's is_empty discipline reads "fully
+    // drained" once every handle is popped.
+    drop(tx);
+    Ok(Value::wat__kernel__HandlePool {
+        name,
+        rx: Arc::new(rx),
+    })
+}
+
+/// `(:wat::kernel::HandlePool::pop pool)` — claim one handle. Returns
+/// the claimed value. If the pool is empty, returns a
+/// MalformedForm error naming the pool — callers are expected to
+/// pop exactly the count they committed to at construction.
+fn eval_handle_pool_pop(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::HandlePool::pop".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let (name, rx) = match eval(&args[0], env, sym)? {
+        Value::wat__kernel__HandlePool { name, rx } => (name, rx),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::HandlePool::pop".into(),
+                expected: "wat::kernel::HandlePool",
+                got: other.type_name(),
+            });
+        }
+    };
+    match rx.try_recv() {
+        Ok(v) => Ok(v),
+        Err(_) => Err(RuntimeError::MalformedForm {
+            head: ":wat::kernel::HandlePool::pop".into(),
+            reason: format!(
+                "{}: no handles left to claim (pool drained or mis-counted at construction)",
+                name
+            ),
+        }),
+    }
+}
+
+/// `(:wat::kernel::HandlePool::finish pool)` — assert the pool is
+/// empty and return `:()`. Callers call this at the end of wiring to
+/// catch orphaned handles BEFORE any thread runs. If handles remain
+/// (an orphan — typically a mis-counted handle budget at
+/// construction), returns a MalformedForm error naming the pool and
+/// the orphan count. This is the "claim or panic" discipline from
+/// FOUNDATION's Pipeline Discipline rule 2.
+fn eval_handle_pool_finish(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::HandlePool::finish".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let (name, rx) = match eval(&args[0], env, sym)? {
+        Value::wat__kernel__HandlePool { name, rx } => (name, rx),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::HandlePool::finish".into(),
+                expected: "wat::kernel::HandlePool",
+                got: other.type_name(),
+            });
+        }
+    };
+    let remaining = rx.len();
+    if remaining != 0 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::kernel::HandlePool::finish".into(),
+            reason: format!(
+                "{}: {} orphaned handle(s) — deadlock risk (every handle must be claimed before finish)",
+                name, remaining
+            ),
+        });
+    }
+    Ok(Value::Unit)
 }
 
 /// `(:wat::kernel::select receivers)` — fan-in over multiple receivers.
@@ -4361,6 +4517,79 @@ mod tests {
     fn select_refuses_non_receiver_element() {
         let src = r#"
             (:wat::kernel::select (:wat::core::vec 1 2 3))
+        "#;
+        let err = eval_expr(src).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    // ─── HandlePool ────────────────────────────────────────────────────
+
+    #[test]
+    fn handle_pool_pop_all_then_finish() {
+        let src = r#"
+            (:wat::core::let*
+              (((pool :wat::kernel::HandlePool<i64>)
+                (:wat::kernel::HandlePool::new "test" (:wat::core::vec 1 2 3)))
+               ((a :i64) (:wat::kernel::HandlePool::pop pool))
+               ((b :i64) (:wat::kernel::HandlePool::pop pool))
+               ((c :i64) (:wat::kernel::HandlePool::pop pool))
+               ((_ :()) (:wat::kernel::HandlePool::finish pool)))
+              (:wat::core::+ (:wat::core::+ a b) c))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(6) => {}
+            v => panic!("expected 6, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn handle_pool_pop_from_empty_errors() {
+        let src = r#"
+            (:wat::core::let*
+              (((pool :wat::kernel::HandlePool<i64>)
+                (:wat::kernel::HandlePool::new "empty" (:wat::core::vec)))
+               ((_ :i64) (:wat::kernel::HandlePool::pop pool)))
+              0)
+        "#;
+        let err = eval_expr(src).unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn handle_pool_finish_with_orphans_errors() {
+        let src = r#"
+            (:wat::core::let*
+              (((pool :wat::kernel::HandlePool<i64>)
+                (:wat::kernel::HandlePool::new "orphaned" (:wat::core::vec 1 2 3)))
+               ((_ :()) (:wat::kernel::HandlePool::finish pool)))
+              0)
+        "#;
+        let err = eval_expr(src).unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn handle_pool_name_surfaces_in_error() {
+        let src = r#"
+            (:wat::core::let*
+              (((pool :wat::kernel::HandlePool<i64>)
+                (:wat::kernel::HandlePool::new "named-pool" (:wat::core::vec)))
+               ((_ :i64) (:wat::kernel::HandlePool::pop pool)))
+              0)
+        "#;
+        let err = eval_expr(src).unwrap_err();
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("named-pool"),
+            "error should name the pool; got: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn handle_pool_refuses_non_string_name() {
+        let src = r#"
+            (:wat::kernel::HandlePool::new 42 (:wat::core::vec))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));

@@ -1744,6 +1744,49 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: r_var(),
         },
     );
+    // HandlePool — claim-or-panic discipline.
+    //   new    : ∀T. :String -> :Vec<T> -> :HandlePool<T>
+    //   pop    : ∀T. :HandlePool<T> -> :T
+    //   finish : ∀T. :HandlePool<T> -> :()
+    env.register(
+        ":wat::kernel::HandlePool::new".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![
+                TypeExpr::Path(":String".into()),
+                TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![t_var()],
+                },
+            ],
+            ret: TypeExpr::Parametric {
+                head: "wat::kernel::HandlePool".into(),
+                args: vec![t_var()],
+            },
+        },
+    );
+    env.register(
+        ":wat::kernel::HandlePool::pop".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![TypeExpr::Parametric {
+                head: "wat::kernel::HandlePool".into(),
+                args: vec![t_var()],
+            }],
+            ret: t_var(),
+        },
+    );
+    env.register(
+        ":wat::kernel::HandlePool::finish".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![TypeExpr::Parametric {
+                head: "wat::kernel::HandlePool".into(),
+                args: vec![t_var()],
+            }],
+            ret: TypeExpr::Tuple(vec![]),
+        },
+    );
     // (:wat::kernel::select receivers) — ∀T. Vec<Receiver<T>> -> :(i64, Option<T>).
     // Spec calls for :usize on the index; wat-rs returns :i64 until
     // :usize lands as a value variant.
