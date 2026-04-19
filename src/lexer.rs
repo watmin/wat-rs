@@ -64,7 +64,10 @@ pub enum Token {
     UnquoteSplicing,
 }
 
-/// Byte offset in the source. Kept for future span support.
+/// Byte offset into the source string. Used by [`LexError`] variants
+/// to point at the offending character. Full source spans (start..end
+/// pairs) are not tracked — a single offset is enough for the
+/// line/column reconstruction a diagnostic needs.
 pub type Position = usize;
 
 /// Lex error with byte offset.

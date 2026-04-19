@@ -18,12 +18,27 @@
 //!   keyword-path tokens, the colon-quoting rule, string/numeric/bool
 //!   literals, comments.
 //! - [`parser`] — tokens → `WatAST`.
+//! - [`config`] — entry-file discipline + `set-*!` setter commit.
+//! - [`load`] — recursive load-form resolution with `:wat/load/*` and
+//!   `:wat/verify/*` interface keywords.
+//! - [`identifier`] — `Identifier` with `BTreeSet<ScopeId>` scope sets
+//!   for Racket sets-of-scopes hygiene.
+//! - [`macros`] — `defmacro` with quasiquote + hygiene.
+//! - [`types`] — type declarations (`struct`, `enum`, `newtype`,
+//!   `typealias`) + `TypeEnv`.
+//! - [`resolve`] — post-expansion name resolution over the symbol
+//!   table and type environment.
+//! - [`check`] — rank-1 Hindley-Milner type check (slice 7b). Real
+//!   parametric polymorphism, substitution, instantiation; `:Any` is
+//!   banned per 058-030.
+//! - [`hash`] — canonical-EDN serialization + SHA-256 hashing +
+//!   Ed25519 signature verification.
 //! - [`lower`] — `WatAST` algebra-core subtree → `holon::HolonAST`.
+//! - [`runtime`] — AST-walker for `define` / `lambda` / `let` / `if`
+//!   + algebra-core dispatch.
 //!
-//! Future modules: `config` (set-*! + config pass), `load` (recursive
-//! load! resolution), `macro_expand` (defmacro hygiene), `types` (type
-//! env), `resolve` (name resolution), `check` (rank-1 HM), `hash`
-//! (canonical-EDN + cryptographic verification), `runtime` (AST walker).
+//! Not yet built: freeze pass (task #139), `:user/main` +
+//! constrained eval (task #140), `wat-vm` CLI binary (task #141).
 
 pub mod ast;
 pub mod check;

@@ -154,15 +154,34 @@ fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry
 /// This utility is shared across the registration functions that
 /// must refuse user-declarations under these prefixes (define,
 /// defmacro, type declarations).
+/// Reserved keyword prefixes the language owns. User definitions
+/// under these paths are refused at registration time (define /
+/// defmacro / type declarations).
+///
+/// Every consumer that renders an error message about reserved
+/// prefixes should read this list via [`reserved_prefix_list`] so
+/// the user-facing message stays in sync with [`is_reserved_prefix`].
+pub const RESERVED_PREFIXES: &[&str] = &[
+    ":wat/core/",
+    ":wat/kernel/",
+    ":wat/algebra/",
+    ":wat/std/",
+    ":wat/config/",
+    ":wat/load/",
+    ":wat/verify/",
+];
+
 pub fn is_reserved_prefix(keyword: &str) -> bool {
     let stripped = keyword.strip_prefix(':').unwrap_or(keyword);
-    stripped.starts_with("wat/core/")
-        || stripped.starts_with("wat/kernel/")
-        || stripped.starts_with("wat/algebra/")
-        || stripped.starts_with("wat/std/")
-        || stripped.starts_with("wat/config/")
-        || stripped.starts_with("wat/load/")
-        || stripped.starts_with("wat/verify/")
+    RESERVED_PREFIXES
+        .iter()
+        .any(|p| stripped.starts_with(p.strip_prefix(':').unwrap_or(p)))
+}
+
+/// Human-readable comma-joined list of reserved prefixes, for use in
+/// error messages. Source of truth: [`RESERVED_PREFIXES`].
+pub fn reserved_prefix_list() -> String {
+    RESERVED_PREFIXES.join(", ")
 }
 
 #[cfg(test)]

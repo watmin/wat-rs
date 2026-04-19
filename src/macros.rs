@@ -128,8 +128,9 @@ impl fmt::Display for MacroError {
             }
             MacroError::ReservedPrefix(n) => write!(
                 f,
-                "cannot declare macro {} — reserved prefix (:wat/core/, :wat/kernel/, :wat/algebra/, :wat/std/, :wat/config/); user macros must use their own prefix",
-                n
+                "cannot declare macro {} — reserved prefix ({}); user macros must use their own prefix",
+                n,
+                crate::resolve::reserved_prefix_list()
             ),
             MacroError::MalformedDefmacro { reason } => {
                 write!(f, "malformed defmacro: {}", reason)

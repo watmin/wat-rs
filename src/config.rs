@@ -27,12 +27,15 @@
 //!
 //! # What this module does NOT do
 //!
-//! - It does NOT enforce "setter in loaded file halts parse" — that
-//!   needs `load!` resolution, which lives in a future slice. When
-//!   `load!` lands, the loaded-file parser will reject setters.
 //! - It does NOT construct a `VectorManager` / `ScalarEncoder` /
 //!   `AtomTypeRegistry` from the config. That's a runtime concern
-//!   (a later slice). This module just collects the values.
+//!   (the runtime slice + wat-vm binary). This module just collects
+//!   the values.
+//!
+//! **The second half of entry-file discipline** — "setter in a loaded
+//! file halts parse" — is enforced by [`crate::load`], not here.
+//! Setters in a loaded file reach `load::reject_setters_in_loaded`
+//! and raise `LoadError::SetterInLoadedFile`.
 
 use crate::ast::WatAST;
 use std::fmt;
@@ -179,8 +182,7 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
         };
 
         // Make sure we haven't already passed the setter section.
-        if let Some(start) = remainder_start {
-            let _ = start;
+        if remainder_start.is_some() {
             return Err(ConfigError::SetterAfterNonSetter {
                 form_index: i,
                 setter_head,

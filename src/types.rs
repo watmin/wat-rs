@@ -23,9 +23,9 @@
 //! - Stores the result in a [`TypeEnv`], keyed by the bare declaration
 //!   name (no `<T>` in the key — parametric types are registered once;
 //!   call-site instantiation is the type checker's concern, task #137).
-//! - Rejects duplicate declarations and reserved-prefix names
-//!   (`:wat/core/`, `:wat/kernel/`, `:wat/algebra/`, `:wat/std/`,
-//!   `:wat/config/`).
+//! - Rejects duplicate declarations and reserved-prefix names. The
+//!   authoritative prefix list is
+//!   [`crate::resolve::RESERVED_PREFIXES`].
 //!
 //! # What's deferred
 //!
@@ -43,10 +43,14 @@ use std::fmt;
 /// A type expression — the shape that appears after `:` in a keyword.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeExpr {
-    /// A bare type path: `:f64`, `:Holon`, `:my/ns/Candle`, `:T` (type var).
-    /// The stored string DOES include a leading ':' when the expression
-    /// came from a keyword token; type-variable strings from inside a
-    /// `<>` parametric list do NOT have one.
+    /// A bare type path: `:f64`, `:Holon`, `:my/ns/Candle`. Lexically-
+    /// scoped type variables (`:T`, `:K`, `:V`) also appear as `Path`
+    /// when parsed — the type checker distinguishes them via the
+    /// enclosing scheme's / declaration's `type_params`.
+    ///
+    /// `:Any` is banned — the type universe is closed per 058-030's
+    /// rejection of the escape hatch. `parse_type_expr` refuses it at
+    /// the parse layer.
     Path(String),
     /// `:List<T>`, `:HashMap<K,V>`, `:my/ns/Container<Holon,f64>`.
     Parametric {
@@ -58,6 +62,13 @@ pub enum TypeExpr {
         args: Vec<TypeExpr>,
         ret: Box<TypeExpr>,
     },
+    /// Fresh unification variable — synthetic, NEVER produced by
+    /// parsing. The checker generates these during scheme
+    /// instantiation (one per `type_params` entry per call site) and
+    /// substitutes them away when unification succeeds. The integer
+    /// is a monotonically-increasing id allocated by the checker's
+    /// `FreshGen`.
+    Var(u64),
 }
 
 /// Struct declaration — named product type.
@@ -169,6 +180,10 @@ pub enum TypeError {
     MalformedField { reason: String },
     MalformedVariant { reason: String },
     MalformedTypeExpr { raw: String, reason: String },
+    /// User source wrote `:Any` (as a bare path or parametric head).
+    /// 058-030 forbids the escape hatch; every apparent use has a
+    /// principled alternative (`:Holon`, `:Union<T,U>`, parametric T).
+    AnyBanned { raw: String },
 }
 
 impl fmt::Display for TypeError {
@@ -179,8 +194,9 @@ impl fmt::Display for TypeError {
             }
             TypeError::ReservedPrefix { name } => write!(
                 f,
-                "type name {} uses a reserved prefix (:wat/core/, :wat/kernel/, :wat/algebra/, :wat/std/, :wat/config/); user types must use their own prefix",
-                name
+                "type name {} uses a reserved prefix ({}); user types must use their own prefix",
+                name,
+                crate::resolve::reserved_prefix_list()
             ),
             TypeError::MalformedDecl { head, reason } => {
                 write!(f, "malformed {} declaration: {}", head, reason)
@@ -197,6 +213,11 @@ impl fmt::Display for TypeError {
             TypeError::MalformedTypeExpr { raw, reason } => {
                 write!(f, "malformed type expression {:?}: {}", raw, reason)
             }
+            TypeError::AnyBanned { raw } => write!(
+                f,
+                ":Any is not part of the type system (058-030); use :Holon for any algebra value, :Union<T,U,V> for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: {}",
+                raw
+            ),
         }
     }
 }
@@ -518,12 +539,50 @@ fn parse_declared_name(
 }
 
 /// Parse a type-expression keyword into a structured [`TypeExpr`].
+///
+/// Refuses `:Any` at any position (bare path or parametric head) per
+/// 058-030's closed-type-universe discipline. Every apparent need for
+/// `:Any` has a principled named alternative (`:Holon` for algebra
+/// values, `:Union<T,U,V>` for closed heterogeneous sets, parametric
+/// `T`/`K`/`V` for generics).
 pub fn parse_type_expr(kw: &str) -> Result<TypeExpr, TypeError> {
     let stripped = kw.strip_prefix(':').ok_or_else(|| TypeError::MalformedTypeExpr {
         raw: kw.into(),
         reason: "type expression keyword must begin with ':'".into(),
     })?;
-    parse_type_inner(stripped, kw)
+    let expr = parse_type_inner(stripped, kw)?;
+    reject_any(&expr, kw)?;
+    Ok(expr)
+}
+
+/// Walk a parsed [`TypeExpr`] and raise [`TypeError::AnyBanned`] if
+/// `:Any` appears anywhere. Protects the type universe's closure.
+fn reject_any(expr: &TypeExpr, raw: &str) -> Result<(), TypeError> {
+    match expr {
+        TypeExpr::Path(p) => {
+            if p == ":Any" {
+                return Err(TypeError::AnyBanned { raw: raw.into() });
+            }
+        }
+        TypeExpr::Parametric { head, args } => {
+            if head == "Any" {
+                return Err(TypeError::AnyBanned { raw: raw.into() });
+            }
+            for a in args {
+                reject_any(a, raw)?;
+            }
+        }
+        TypeExpr::Fn { args, ret } => {
+            for a in args {
+                reject_any(a, raw)?;
+            }
+            reject_any(ret, raw)?;
+        }
+        TypeExpr::Var(_) => {
+            // Fresh vars are synthetic; never appear at parse time.
+        }
+    }
+    Ok(())
 }
 
 /// Parse the content of a type keyword after the leading ':' has been

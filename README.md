@@ -71,7 +71,11 @@ pending.
 - [x] Name resolution across the frozen symbol table — reserved prefix
       gate (`:wat/core/`, `:wat/kernel/`, `:wat/algebra/`, `:wat/std/`,
       `:wat/config/`).
-- [x] Slice 7a monomorphic type check — arity + obvious mismatches.
+- [x] Slice 7b rank-1 Hindley-Milner type check — parametric
+      polymorphism (list: `∀T. T*→List<T>`; comparison: `∀T. T→T→bool`;
+      Atom: `∀T. T→Holon`), substitution + occurs-check, user-define
+      body-vs-signature checks with rigid type variables. `:Any`
+      banned at parse time.
 - [x] Canonical-EDN hashing + SHA-256 source-file integrity.
 - [x] Ed25519 signed-load verification — per-file and full-program;
       signs SHA-256 of canonical-EDN.
@@ -83,8 +87,6 @@ pending.
 
 **Pending (ordered per FOUNDATION's startup pipeline):**
 
-- [ ] Slice 7b — real rank-1 HM with substitution + parametric
-      polymorphism (current check is monomorphic).
 - [ ] Freeze (symbol table, type env, macro registry, config).
 - [ ] Runtime + `:user/main` + constrained `eval`.
 - [ ] `wat-vm` CLI binary (incl. full-program signature verification

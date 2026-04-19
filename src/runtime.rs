@@ -85,6 +85,22 @@ impl Value {
 pub struct Function {
     pub name: Option<String>,
     pub params: Vec<String>,
+    /// Declared type-parameter list from the function name keyword
+    /// (e.g., `<T,U>` on `:my/ns/foo<T,U>`). Empty for monomorphic
+    /// functions. Names appearing in `param_types` / `ret_type` that
+    /// match an entry here are treated as type variables at check
+    /// time.
+    pub type_params: Vec<String>,
+    /// Declared parameter types, parallel to `params`. Populated from
+    /// the `(:wat/core/define (sig ...) body)` signature by
+    /// `parse_define_form`. Used by the type checker for call-site
+    /// unification and body-vs-signature checks. Empty only for
+    /// lambda values (type-untracked).
+    pub param_types: Vec<crate::types::TypeExpr>,
+    /// Declared return type. `:()` (unit) if the signature omitted a
+    /// return type. For lambdas, `:()` — the checker treats lambda
+    /// values as opaque function values in slice 7b.
+    pub ret_type: crate::types::TypeExpr,
     pub body: Arc<WatAST>,
     pub closed_env: Option<Environment>,
 }
@@ -240,8 +256,9 @@ impl fmt::Display for RuntimeError {
             }
             RuntimeError::ReservedPrefix(p) => write!(
                 f,
-                "cannot define {} — reserved prefix (:wat/core/, :wat/kernel/, :wat/algebra/, :wat/std/, :wat/config/); user defines must use their own prefix",
-                p
+                "cannot define {} — reserved prefix ({}); user defines must use their own prefix",
+                p,
+                crate::resolve::reserved_prefix_list()
             ),
             RuntimeError::DefineInExpressionPosition => write!(
                 f,
@@ -286,9 +303,20 @@ fn is_define_form(form: &WatAST) -> bool {
     )
 }
 
-/// Parse `(:wat/core/define (:name/path (p1 :T1) ... -> :R) body)` into
-/// `(path, Arc<Function>)`. Type annotations are captured implicitly
-/// and ignored until the type-checker slice.
+/// Parsed pieces of a define signature.
+struct ParsedDefineSignature {
+    canonical_name: String,
+    type_params: Vec<String>,
+    params: Vec<String>,
+    param_types: Vec<crate::types::TypeExpr>,
+    ret_type: crate::types::TypeExpr,
+}
+
+/// Parse `(:wat/core/define (:name/path<T,U> (p1 :T1) ... -> :R) body)`
+/// into `(path, Arc<Function>)`. Captures the declared name (with
+/// type-parameter list stripped from the keyword), parameter names
+/// and types, and return type so the type checker can run real
+/// signature checks.
 fn parse_define_form(form: WatAST) -> Result<(String, Arc<Function>), RuntimeError> {
     let items = match form {
         WatAST::List(items) => items,
@@ -311,21 +339,37 @@ fn parse_define_form(form: WatAST) -> Result<(String, Arc<Function>), RuntimeErr
     let signature = iter.next().expect("length checked above");
     let body = iter.next().expect("length checked above");
 
-    let (name, params) = parse_define_signature(signature)?;
+    let ParsedDefineSignature {
+        canonical_name,
+        type_params,
+        params,
+        param_types,
+        ret_type,
+    } = parse_define_signature(signature)?;
     Ok((
-        name.clone(),
+        canonical_name.clone(),
         Arc::new(Function {
-            name: Some(name),
+            name: Some(canonical_name),
             params,
+            type_params,
+            param_types,
+            ret_type,
             body: Arc::new(body),
             closed_env: None,
         }),
     ))
 }
 
-/// Signature is a List: `(:name/path (p1 :T1) ... -> :R)`. Extract the
-/// keyword path and parameter names. Ignore types (type checker slice).
-fn parse_define_signature(sig: WatAST) -> Result<(String, Vec<String>), RuntimeError> {
+/// Signature is a List: `(:name/path<T,U> (p1 :T1) ... -> :R)`.
+/// Extracts:
+/// - canonical_name (the keyword path with any `<T,U>` stripped, re-
+///   prefixed with ':' — matches the form used for symbol-table keys)
+/// - type_params (names from the `<...>` suffix, or empty)
+/// - params (parameter names)
+/// - param_types (parallel type expressions parsed via
+///   [`crate::types::parse_type_expr`])
+/// - ret_type (parsed type after `->`; defaults to `:()` if omitted)
+fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeError> {
     let items = match sig {
         WatAST::List(items) => items,
         _ => {
@@ -336,7 +380,7 @@ fn parse_define_signature(sig: WatAST) -> Result<(String, Vec<String>), RuntimeE
         }
     };
     let mut iter = items.into_iter();
-    let name = match iter.next() {
+    let name_kw = match iter.next() {
         Some(WatAST::Keyword(k)) => k,
         Some(other) => {
             return Err(RuntimeError::MalformedForm {
@@ -355,31 +399,45 @@ fn parse_define_signature(sig: WatAST) -> Result<(String, Vec<String>), RuntimeE
         }
     };
 
+    let (canonical_name, type_params) = split_name_and_type_params(&name_kw)?;
+
     let mut params = Vec::new();
+    let mut param_types = Vec::new();
+    let mut ret_type: Option<crate::types::TypeExpr> = None;
+    let mut saw_arrow = false;
     for item in iter {
+        if saw_arrow {
+            // Only one form may follow `->` — the return type keyword.
+            if ret_type.is_some() {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat/core/define".into(),
+                    reason: "signature has more than one return type after '->'".into(),
+                });
+            }
+            match item {
+                WatAST::Keyword(k) => {
+                    ret_type = Some(parse_type_keyword(&k)?);
+                }
+                other => {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat/core/define".into(),
+                        reason: format!(
+                            "return type after '->' must be a type keyword; got {}",
+                            ast_variant_name(&other)
+                        ),
+                    });
+                }
+            }
+            continue;
+        }
         match item {
-            WatAST::Symbol(ref s) if s.as_str() == "->" => break, // return-type arrow; rest is return type (ignored)
+            WatAST::Symbol(ref s) if s.as_str() == "->" => {
+                saw_arrow = true;
+            }
             WatAST::List(pair) => {
-                // (paramname :Type) — extract the paramname.
-                let paramname = match pair.into_iter().next() {
-                    Some(WatAST::Symbol(ident)) => ident.name,
-                    Some(other) => {
-                        return Err(RuntimeError::MalformedForm {
-                            head: ":wat/core/define".into(),
-                            reason: format!(
-                                "parameter name must be a bare symbol; got {}",
-                                ast_variant_name(&other)
-                            ),
-                        });
-                    }
-                    None => {
-                        return Err(RuntimeError::MalformedForm {
-                            head: ":wat/core/define".into(),
-                            reason: "empty parameter declaration".into(),
-                        });
-                    }
-                };
-                params.push(paramname);
+                let (pname, ptype) = parse_param_pair(pair)?;
+                params.push(pname);
+                param_types.push(ptype);
             }
             other => {
                 return Err(RuntimeError::MalformedForm {
@@ -393,7 +451,87 @@ fn parse_define_signature(sig: WatAST) -> Result<(String, Vec<String>), RuntimeE
         }
     }
 
-    Ok((name, params))
+    Ok(ParsedDefineSignature {
+        canonical_name,
+        type_params,
+        params,
+        param_types,
+        ret_type: ret_type.unwrap_or_else(|| crate::types::TypeExpr::Path(":()".into())),
+    })
+}
+
+/// `(p1 :T1)` → (`"p1"`, `TypeExpr`). Refuses malformed shapes.
+fn parse_param_pair(
+    pair: Vec<WatAST>,
+) -> Result<(String, crate::types::TypeExpr), RuntimeError> {
+    if pair.len() != 2 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat/core/define".into(),
+            reason: format!(
+                "parameter must be (name :Type); got {}-element list",
+                pair.len()
+            ),
+        });
+    }
+    let mut it = pair.into_iter();
+    let name = match it.next() {
+        Some(WatAST::Symbol(ident)) => ident.name,
+        Some(other) => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat/core/define".into(),
+                reason: format!(
+                    "parameter name must be a bare symbol; got {}",
+                    ast_variant_name(&other)
+                ),
+            });
+        }
+        None => unreachable!("length checked above"),
+    };
+    let type_kw = match it.next() {
+        Some(WatAST::Keyword(k)) => k,
+        Some(other) => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat/core/define".into(),
+                reason: format!(
+                    "parameter type must be a type keyword; got {}",
+                    ast_variant_name(&other)
+                ),
+            });
+        }
+        None => unreachable!("length checked above"),
+    };
+    let ty = parse_type_keyword(&type_kw)?;
+    Ok((name, ty))
+}
+
+fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, RuntimeError> {
+    crate::types::parse_type_expr(kw).map_err(|e| RuntimeError::MalformedForm {
+        head: ":wat/core/define".into(),
+        reason: e.to_string(),
+    })
+}
+
+/// Split a keyword like `:ns/foo<T,U>` into (`":ns/foo"`, `vec!["T","U"]`).
+/// A keyword with no `<` returns `(kw.to_string(), vec![])`.
+fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), RuntimeError> {
+    let lt_index = match kw.find('<') {
+        Some(i) => i,
+        None => return Ok((kw.to_string(), Vec::new())),
+    };
+    if !kw.ends_with('>') {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat/core/define".into(),
+            reason: format!("name keyword {:?} opens '<' but does not close '>'", kw),
+        });
+    }
+    let head = kw[..lt_index].to_string();
+    let inside = &kw[lt_index + 1..kw.len() - 1];
+    let params: Vec<String> = inside
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    Ok((head, params))
 }
 
 /// Evaluate a single form in the given scope.
@@ -529,47 +667,74 @@ fn eval_lambda(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError
     }
     let sig = &args[0];
     let body = &args[1];
-    let params = parse_lambda_signature(sig)?;
+    let (params, param_types, ret_type) = parse_lambda_signature(sig)?;
     Ok(Value::Function(Arc::new(Function {
         name: None,
         params,
+        type_params: Vec::new(),
+        param_types,
+        ret_type,
         body: Arc::new(body.clone()),
         closed_env: Some(env.clone()),
     })))
 }
 
-fn parse_lambda_signature(sig: &WatAST) -> Result<Vec<String>, RuntimeError> {
+/// Parse a lambda signature list `((p1 :T1) (p2 :T2) ... -> :R)`.
+///
+/// Per 058-029, lambdas carry the SAME typing discipline as `define`:
+/// every parameter is `(name :Type)` and the return type is required.
+/// No "untyped lambda" exists in wat — the language is strongly typed
+/// at every function boundary. This parser rejects a signature that
+/// omits a type annotation or the `-> :Return` tail.
+fn parse_lambda_signature(
+    sig: &WatAST,
+) -> Result<(Vec<String>, Vec<crate::types::TypeExpr>, crate::types::TypeExpr), RuntimeError> {
     let items = match sig {
         WatAST::List(items) => items,
         _ => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat/core/lambda".into(),
                 reason: "signature must be a list".into(),
-            })
+            });
         }
     };
     let mut params = Vec::new();
+    let mut param_types = Vec::new();
+    let mut ret_type: Option<crate::types::TypeExpr> = None;
+    let mut saw_arrow = false;
     for item in items {
-        match item {
-            WatAST::Symbol(s) if s.as_str() == "->" => break,
-            WatAST::List(pair) => match pair.first() {
-                Some(WatAST::Symbol(ident)) => params.push(ident.name.clone()),
-                Some(other) => {
+        if saw_arrow {
+            if ret_type.is_some() {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat/core/lambda".into(),
+                    reason: "signature has more than one return type after '->'".into(),
+                });
+            }
+            match item {
+                WatAST::Keyword(k) => {
+                    ret_type = Some(parse_type_keyword(k)?);
+                }
+                other => {
                     return Err(RuntimeError::MalformedForm {
                         head: ":wat/core/lambda".into(),
                         reason: format!(
-                            "parameter name must be a bare symbol; got {}",
+                            "return type after '->' must be a type keyword; got {}",
                             ast_variant_name(other)
                         ),
                     });
                 }
-                None => {
-                    return Err(RuntimeError::MalformedForm {
-                        head: ":wat/core/lambda".into(),
-                        reason: "empty parameter declaration".into(),
-                    });
-                }
-            },
+            }
+            continue;
+        }
+        match item {
+            WatAST::Symbol(s) if s.as_str() == "->" => {
+                saw_arrow = true;
+            }
+            WatAST::List(pair) => {
+                let (pname, ptype) = parse_param_pair(pair.clone())?;
+                params.push(pname);
+                param_types.push(ptype);
+            }
             other => {
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat/core/lambda".into(),
@@ -581,7 +746,13 @@ fn parse_lambda_signature(sig: &WatAST) -> Result<Vec<String>, RuntimeError> {
             }
         }
     }
-    Ok(params)
+    let ret_type = ret_type.ok_or_else(|| RuntimeError::MalformedForm {
+        head: ":wat/core/lambda".into(),
+        reason:
+            "lambda signature must end with '-> :Type' (typed return is required per 058-029)"
+                .into(),
+    })?;
+    Ok((params, param_types, ret_type))
 }
 
 fn eval_let(
