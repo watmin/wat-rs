@@ -2277,6 +2277,43 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: acc_var(),
         },
     );
+    env.register(
+        ":wat::core::foldr".into(),
+        TypeScheme {
+            type_params: vec!["T".into(), "Acc".into()],
+            params: vec![
+                vec_of(t_var()),
+                acc_var(),
+                TypeExpr::Fn {
+                    args: vec![t_var(), acc_var()],
+                    ret: Box::new(acc_var()),
+                },
+            ],
+            ret: acc_var(),
+        },
+    );
+    env.register(
+        ":wat::core::filter".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![
+                vec_of(t_var()),
+                TypeExpr::Fn {
+                    args: vec![t_var()],
+                    ret: Box::new(bool_ty()),
+                },
+            ],
+            ret: vec_of(t_var()),
+        },
+    );
+    env.register(
+        ":wat::std::list::zip".into(),
+        TypeScheme {
+            type_params: vec!["T".into(), "U".into()],
+            params: vec![vec_of(t_var()), vec_of(u_var())],
+            ret: vec_of(TypeExpr::Tuple(vec![t_var(), u_var()])),
+        },
+    );
     // get is special-cased in infer_list (polymorphic over HashMap
     // and HashSet). contains? (HashMap) and member? (HashSet) carry
     // their own narrow schemes.

@@ -1062,6 +1062,9 @@ fn dispatch_keyword_head(
         ":wat::core::drop" => eval_vec_drop(args, env, sym),
         ":wat::core::map" => eval_vec_map(args, env, sym),
         ":wat::core::foldl" => eval_vec_foldl(args, env, sym),
+        ":wat::core::foldr" => eval_vec_foldr(args, env, sym),
+        ":wat::core::filter" => eval_vec_filter(args, env, sym),
+        ":wat::std::list::zip" => eval_list_zip(args, env, sym),
         ":wat::std::list::window" => eval_list_window(args, env, sym),
         ":wat::std::list::remove-at" => eval_list_remove_at(args, env, sym),
         ":wat::std::HashMap" => eval_hashmap_ctor(args, env, sym),
@@ -1963,6 +1966,107 @@ fn eval_vec_foldl(
         acc = apply_function(&func, vec![acc, x.clone()], sym)?;
     }
     Ok(acc)
+}
+
+/// `(:wat::core::foldr xs init f)` → acc. Right-associative fold.
+/// `f(x0, f(x1, f(..., f(xn, init))))`. Iterates the Vec in reverse
+/// so the call stack is bounded by iteration, not recursion.
+fn eval_vec_foldr(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::foldr".into(),
+            expected: 3,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::core::foldr", eval(&args[0], env, sym)?)?;
+    let mut acc = eval(&args[1], env, sym)?;
+    let f = eval(&args[2], env, sym)?;
+    let func = match &f {
+        Value::wat__core__lambda(func) => func.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::foldr".into(),
+                expected: "wat::core::lambda",
+                got: other.type_name(),
+            });
+        }
+    };
+    for x in xs.iter().rev() {
+        acc = apply_function(&func, vec![x.clone(), acc], sym)?;
+    }
+    Ok(acc)
+}
+
+/// `(:wat::core::filter xs pred)` → `Vec<T>`. Keeps elements for
+/// which `pred` returns `:bool true`. `pred` signature: `T -> :bool`.
+fn eval_vec_filter(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::filter".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::core::filter", eval(&args[0], env, sym)?)?;
+    let f = eval(&args[1], env, sym)?;
+    let func = match &f {
+        Value::wat__core__lambda(func) => func.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::filter".into(),
+                expected: "wat::core::lambda",
+                got: other.type_name(),
+            });
+        }
+    };
+    let mut out = Vec::with_capacity(xs.len());
+    for x in xs.iter() {
+        match apply_function(&func, vec![x.clone()], sym)? {
+            Value::bool(true) => out.push(x.clone()),
+            Value::bool(false) => {}
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: ":wat::core::filter".into(),
+                    expected: "bool",
+                    got: other.type_name(),
+                });
+            }
+        }
+    }
+    Ok(Value::Vec(Arc::new(out)))
+}
+
+/// `(:wat::std::list::zip xs ys)` → `Vec<(T,U)>`. Short-circuits at
+/// the shorter input's length (matches Rust's `xs.iter().zip(ys)`).
+fn eval_list_zip(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::std::list::zip".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::std::list::zip", eval(&args[0], env, sym)?)?;
+    let ys = require_vec(":wat::std::list::zip", eval(&args[1], env, sym)?)?;
+    let n = xs.len().min(ys.len());
+    let mut out = Vec::with_capacity(n);
+    for (x, y) in xs.iter().zip(ys.iter()).take(n) {
+        out.push(Value::Tuple(Arc::new(vec![x.clone(), y.clone()])));
+    }
+    Ok(Value::Vec(Arc::new(out)))
 }
 
 /// `(:wat::std::list::window xs n)` → `Vec<Vec<T>>`. Sliding window
@@ -5789,6 +5893,112 @@ mod tests {
     fn hashset_rejects_composite_element() {
         let err = eval_expr(r#"(:wat::std::HashSet (:wat::core::list 1 2))"#).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    // ─── foldr / filter / zip ──────────────────────────────────────────
+
+    #[test]
+    fn foldr_is_right_associative() {
+        // (foldr [1 2 3] 0 -) = 1 - (2 - (3 - 0)) = 1 - (2 - 3) = 1 - (-1) = 2
+        let src = r#"
+            (:wat::core::foldr
+              (:wat::core::list 1 2 3)
+              0
+              (:wat::core::lambda ((x :i64) (acc :i64) -> :i64)
+                (:wat::core::i64::- x acc)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(2) => {}
+            v => panic!("expected 2, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn foldl_vs_foldr_differ_on_nonassoc_op() {
+        // (foldl [1 2 3] 0 -) = ((0 - 1) - 2) - 3 = -6
+        let src_l = r#"
+            (:wat::core::foldl
+              (:wat::core::list 1 2 3)
+              0
+              (:wat::core::lambda ((acc :i64) (x :i64) -> :i64)
+                (:wat::core::i64::- acc x)))
+        "#;
+        match eval_expr(src_l).unwrap() {
+            Value::i64(-6) => {}
+            v => panic!("expected -6, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn filter_keeps_true_predicates() {
+        let src = r#"
+            (:wat::core::filter
+              (:wat::core::list 1 2 3 4 5)
+              (:wat::core::lambda ((x :i64) -> :bool)
+                (:wat::core::> x 2)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::Vec(items) => {
+                let ns: Vec<_> = items
+                    .iter()
+                    .map(|v| match v {
+                        Value::i64(n) => *n,
+                        _ => panic!("expected i64"),
+                    })
+                    .collect();
+                assert_eq!(ns, vec![3, 4, 5]);
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn filter_refuses_non_bool_predicate() {
+        let src = r#"
+            (:wat::core::filter
+              (:wat::core::list 1 2 3)
+              (:wat::core::lambda ((x :i64) -> :i64) x))
+        "#;
+        let err = eval_expr(src).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn zip_pairs_shorter_length() {
+        let src = r#"
+            (:wat::std::list::zip
+              (:wat::core::list 1 2 3)
+              (:wat::core::list "a" "b"))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::Vec(items) => {
+                assert_eq!(items.len(), 2);
+                match &items[0] {
+                    Value::Tuple(t) => {
+                        assert_eq!(t.len(), 2);
+                        match (&t[0], &t[1]) {
+                            (Value::i64(1), Value::String(s)) => assert_eq!(&**s, "a"),
+                            other => panic!("expected (1,\"a\"); got {:?}", other),
+                        }
+                    }
+                    v => panic!("expected Tuple, got {:?}", v),
+                }
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn zip_empty_with_nonempty_is_empty() {
+        let src = r#"
+            (:wat::std::list::zip
+              (:wat::core::list)
+              (:wat::core::list 1 2 3))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::Vec(items) => assert!(items.is_empty()),
+            v => panic!("expected empty Vec, got {:?}", v),
+        }
     }
 
     #[test]
