@@ -979,6 +979,8 @@ fn dispatch_keyword_head(
         ":wat::kernel::stopped" => eval_kernel_stopped(args),
         ":wat::kernel::send" => eval_kernel_send(args, env, sym),
         ":wat::kernel::recv" => eval_kernel_recv(args, env, sym),
+        ":wat::kernel::try-recv" => eval_kernel_try_recv(args, env, sym),
+        ":wat::kernel::drop" => eval_kernel_drop(args, env, sym),
         ":wat::kernel::make-bounded-queue" => eval_make_bounded_queue(args, env, sym),
         ":wat::kernel::make-unbounded-queue" => eval_make_unbounded_queue(args),
         ":wat::kernel::sigusr1?" => {
@@ -2432,6 +2434,87 @@ fn eval_kernel_recv(
     match receiver.recv() {
         Ok(v) => Ok(Value::Option(Arc::new(Some(v)))),
         Err(_) => Ok(Value::Option(Arc::new(None))),
+    }
+}
+
+/// `(:wat::kernel::try-recv receiver)` — non-blocking receive. Typed
+/// `∀T. Receiver<T> -> :Option<T>`. Returns `(Some v)` if a value is
+/// ready, `:None` if the queue is empty OR the sender has dropped.
+/// Per FOUNDATION: both cases collapse to `:None` — callers that need
+/// to distinguish them wrap `try-recv` + `recv` differently, or use
+/// `select`.
+fn eval_kernel_try_recv(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::try-recv".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let receiver = match eval(&args[0], env, sym)? {
+        Value::crossbeam_channel__Receiver(r) => r,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::kernel::try-recv".into(),
+                expected: "crossbeam_channel::Receiver",
+                got: other.type_name(),
+            });
+        }
+    };
+    match receiver.try_recv() {
+        Ok(v) => Ok(Value::Option(Arc::new(Some(v)))),
+        Err(_) => Ok(Value::Option(Arc::new(None))),
+    }
+}
+
+/// `(:wat::kernel::drop handle)` — declares the caller is done with a
+/// sender or receiver. Typed `∀T. Sender<T> -> :()` and
+/// `∀T. Receiver<T> -> :()` (two registered schemes; runtime accepts
+/// either). Returns `:()`.
+///
+/// **Close semantics are scope-based.** Following the lab's
+/// single-owner discipline, a sender/receiver is held by exactly one
+/// program's let-scope; when that scope ends, the underlying
+/// crossbeam handle drops and the channel-end disconnects. This
+/// primitive exists as a READABILITY MARKER at the call site — "the
+/// program is done with this handle" — but it does not force the
+/// channel to close while other references remain. The for-each-drop
+/// idiom in FOUNDATION's shutdown cascade works because the
+/// enclosing let-scope ends immediately after, releasing the Vec of
+/// handles that the for-each iterated over.
+///
+/// A proper `consume` semantic (atomic take + underlying drop) is a
+/// future refactor if userland programs need it before scope-end.
+fn eval_kernel_drop(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::kernel::drop".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let handle = eval(&args[0], env, sym)?;
+    match handle {
+        Value::crossbeam_channel__Sender(_) | Value::crossbeam_channel__Receiver(_) => {
+            // Intentional no-op. The Arc we just evaluated into
+            // `handle` drops here at end-of-scope, decrementing the
+            // refcount by one. Close happens when the caller's
+            // enclosing scope releases its own binding.
+            Ok(Value::Unit)
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::kernel::drop".into(),
+            expected: "crossbeam_channel::Sender | crossbeam_channel::Receiver",
+            got: other.type_name(),
+        }),
     }
 }
 
@@ -3925,6 +4008,77 @@ mod tests {
     #[test]
     fn make_bounded_queue_wrong_arity() {
         let err = eval_expr("(:wat::kernel::make-bounded-queue :i64)").unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    // ─── try-recv + drop ───────────────────────────────────────────────
+
+    #[test]
+    fn try_recv_on_empty_queue_returns_none() {
+        let src = r#"
+            (:wat::core::let*
+              (((tx rx) (:wat::kernel::make-bounded-queue :i64 1)))
+              (:wat::core::match (:wat::kernel::try-recv rx)
+                ((Some _) false)
+                (:None true)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn try_recv_on_ready_queue_returns_some() {
+        let src = r#"
+            (:wat::core::let*
+              (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
+               ((_ :()) (:wat::kernel::send tx 7)))
+              (:wat::core::match (:wat::kernel::try-recv rx)
+                ((Some v) v)
+                (:None 0)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(7) => {}
+            v => panic!("expected 7, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn drop_accepts_sender_returns_unit() {
+        let src = r#"
+            (:wat::core::let*
+              (((tx rx) (:wat::kernel::make-bounded-queue :i64 1)))
+              (:wat::kernel::drop tx))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::Unit => {}
+            v => panic!("expected unit, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn drop_accepts_receiver_returns_unit() {
+        let src = r#"
+            (:wat::core::let*
+              (((tx rx) (:wat::kernel::make-bounded-queue :i64 1)))
+              (:wat::kernel::drop rx))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::Unit => {}
+            v => panic!("expected unit, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn drop_refuses_non_handle() {
+        let err = eval_expr("(:wat::kernel::drop 42)").unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn try_recv_wrong_arity() {
+        let err = eval_expr("(:wat::kernel::try-recv)").unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 }

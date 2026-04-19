@@ -373,6 +373,9 @@ fn infer_list(
                     /*with_capacity=*/ false,
                 );
             }
+            ":wat::kernel::drop" => {
+                return infer_drop(args, env, locals, fresh, subst, errors);
+            }
             ":wat::core::and" | ":wat::core::or" => {
                 return infer_boolean_shortcircuit(args, env, locals, fresh, subst, errors);
             }
@@ -789,6 +792,46 @@ fn infer_let_star(
         process_let_binding(pair, env, &cumulative, &mut extended, fresh, subst, errors, ":wat::core::let*");
     }
     infer(&args[1], env, &extended, fresh, subst, errors)
+}
+
+/// Type-check `(:wat::kernel::drop handle)`. The handle is either a
+/// `Sender<T>` or `Receiver<T>` — rank-1 HM can't express a union, so
+/// this is special-cased: accept either parametric head, produce `:()`.
+fn infer_drop(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::kernel::drop".into(),
+            expected: 1,
+            got: args.len(),
+        });
+        return Some(TypeExpr::Tuple(vec![]));
+    }
+    let arg_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    if let Some(ty) = arg_ty {
+        let resolved = apply_subst(&ty, subst);
+        let is_channel_handle = matches!(
+            &resolved,
+            TypeExpr::Parametric { head, .. }
+                if head == "crossbeam_channel::Sender"
+                    || head == "crossbeam_channel::Receiver"
+        );
+        if !is_channel_handle {
+            errors.push(CheckError::TypeMismatch {
+                callee: ":wat::kernel::drop".into(),
+                param: "#1".into(),
+                expected: "crossbeam_channel::Sender<T> | crossbeam_channel::Receiver<T>".into(),
+                got: format_type(&resolved),
+            });
+        }
+    }
+    Some(TypeExpr::Tuple(vec![]))
 }
 
 /// Type-check `(make-bounded-queue :T N)` / `(make-unbounded-queue :T)`.
@@ -1570,6 +1613,22 @@ fn register_builtins(env: &mut CheckEnv) {
                 t_var(),
             ],
             ret: TypeExpr::Tuple(vec![]),
+        },
+    );
+    // (:wat::kernel::try-recv receiver) — ∀T. Receiver<T> -> :Option<T>.
+    // Non-blocking; `:None` covers both empty and disconnected.
+    env.register(
+        ":wat::kernel::try-recv".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![TypeExpr::Parametric {
+                head: "crossbeam_channel::Receiver".into(),
+                args: vec![t_var()],
+            }],
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![t_var()],
+            },
         },
     );
     // (:wat::kernel::recv receiver) — ∀T. Receiver<T> -> :Option<T>.
