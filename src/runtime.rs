@@ -163,6 +163,15 @@ pub enum Value {
     crossbeam_channel__Sender(Arc<crossbeam_channel::Sender<Value>>),
     /// A channel receiver handle. Carries `Value`; see `Sender`.
     crossbeam_channel__Receiver(Arc<crossbeam_channel::Receiver<Value>>),
+    /// A `:HashMap<K,V>` — Rust std's `HashMap` backing, wrapped for
+    /// cheap Arc-cloning. Keys are serialized to type-tagged strings
+    /// at insertion so heterogeneous-K programs don't collide
+    /// (`"42"` vs `42` vs `:42`). Stored entries carry the ORIGINAL
+    /// key Value alongside the Value so lookups round-trip the
+    /// caller's key variant. Scoped to primitive keys in this slice
+    /// (i64, f64, bool, String, keyword); composite keys land when
+    /// a caller demands them.
+    wat__std__HashMap(Arc<std::collections::HashMap<String, (Value, Value)>>),
     /// The OS stdout handle. Rust's `std::io::Stdout` — thread-safe
     /// handle to the shared global stdout stream. Writes go through
     /// `handle.lock()` (std's internal lock); multiple threads
@@ -226,6 +235,7 @@ impl Value {
             Value::wat__WatAST(_) => "wat::WatAST",
             Value::crossbeam_channel__Sender(_) => "crossbeam_channel::Sender",
             Value::crossbeam_channel__Receiver(_) => "crossbeam_channel::Receiver",
+            Value::wat__std__HashMap(_) => "HashMap",
             Value::io__Stdout(_) => "io::Stdout",
             Value::io__Stderr(_) => "io::Stderr",
             Value::io__Stdin(_) => "io::Stdin",
@@ -1048,6 +1058,9 @@ fn dispatch_keyword_head(
         ":wat::core::foldl" => eval_vec_foldl(args, env, sym),
         ":wat::std::list::window" => eval_list_window(args, env, sym),
         ":wat::std::list::remove-at" => eval_list_remove_at(args, env, sym),
+        ":wat::std::HashMap" => eval_hashmap_ctor(args, env, sym),
+        ":wat::std::get" => eval_hashmap_get(args, env, sym),
+        ":wat::std::contains?" => eval_hashmap_contains(args, env, sym),
         ":wat::io::write" => eval_io_write(args, env, sym),
         ":wat::io::read-line" => eval_io_read_line(args, env, sym),
 
@@ -2097,6 +2110,114 @@ fn eval_io_read_line(
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::io::read-line".into(),
             expected: "io::Stdin",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// Canonicalize a Value to a type-tagged String key for HashMap
+/// storage. Type-tags prevent cross-type collision (`42` vs `"42"`).
+/// Scoped to primitive keys; composite keys (Vec, Tuple, HolonAST,
+/// etc.) error.
+fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
+    match v {
+        Value::String(s) => Ok(format!("S:{}", s)),
+        Value::i64(n) => Ok(format!("I:{}", n)),
+        Value::f64(x) => Ok(format!("F:{}", x.to_bits())),
+        Value::bool(b) => Ok(format!("B:{}", b)),
+        Value::wat__core__keyword(k) => Ok(format!("K:{}", k)),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "primitive key (i64, f64, bool, String, keyword)",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::std::HashMap k1 v1 k2 v2 ...)` — variadic constructor with
+/// alternating key/value args. Odd arg count errors. Duplicate keys:
+/// later entries overwrite earlier.
+fn eval_hashmap_ctor(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() % 2 != 0 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::std::HashMap".into(),
+            reason: format!(
+                "arity must be even (alternating key/value pairs); got {}",
+                args.len()
+            ),
+        });
+    }
+    let mut map = std::collections::HashMap::with_capacity(args.len() / 2);
+    for pair in args.chunks(2) {
+        let k = eval(&pair[0], env, sym)?;
+        let v = eval(&pair[1], env, sym)?;
+        let key = hashmap_key(":wat::std::HashMap", &k)?;
+        map.insert(key, (k, v));
+    }
+    Ok(Value::wat__std__HashMap(Arc::new(map)))
+}
+
+/// `(:wat::std::get m k)` — unified accessor. For `:HashMap<K,V>`,
+/// returns `(Some v)` on hit, `:None` on miss. Per FOUNDATION line
+/// 2634, the same primitive extends to `:Vec<T>` (index lookup) and
+/// `:HashSet<T>` (membership) when those land.
+fn eval_hashmap_get(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::std::get".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let k = eval(&args[1], env, sym)?;
+    match container {
+        Value::wat__std__HashMap(m) => {
+            let key = hashmap_key(":wat::std::get", &k)?;
+            match m.get(&key) {
+                Some((_stored_k, v)) => Ok(Value::Option(Arc::new(Some(v.clone())))),
+                None => Ok(Value::Option(Arc::new(None))),
+            }
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::std::get".into(),
+            expected: "HashMap",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::std::contains? m k)` — boolean membership test.
+fn eval_hashmap_contains(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::std::contains?".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let k = eval(&args[1], env, sym)?;
+    match container {
+        Value::wat__std__HashMap(m) => {
+            let key = hashmap_key(":wat::std::contains?", &k)?;
+            Ok(Value::bool(m.contains_key(&key)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::std::contains?".into(),
+            expected: "HashMap",
             got: other.type_name(),
         }),
     }
@@ -5437,6 +5558,102 @@ mod tests {
             }
             v => panic!("expected Vec, got {:?}", v),
         }
+    }
+
+    // ─── HashMap ───────────────────────────────────────────────────────
+
+    #[test]
+    fn hashmap_constructor_even_arity() {
+        let v = eval_expr(r#"(:wat::std::HashMap "a" 1 "b" 2)"#).unwrap();
+        match v {
+            Value::wat__std__HashMap(m) => {
+                assert_eq!(m.len(), 2);
+            }
+            v => panic!("expected HashMap, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn hashmap_constructor_odd_arity_errors() {
+        let err = eval_expr(r#"(:wat::std::HashMap "a" 1 "b")"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn hashmap_get_hit_returns_some() {
+        let src = r#"
+            (:wat::core::let*
+              (((m :HashMap<String,i64>) (:wat::std::HashMap "a" 10 "b" 20)))
+              (:wat::core::match (:wat::std::get m "a")
+                ((Some n) n)
+                (:None 0)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(10) => {}
+            v => panic!("expected 10, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn hashmap_get_miss_returns_none() {
+        let src = r#"
+            (:wat::core::let*
+              (((m :HashMap<String,i64>) (:wat::std::HashMap "a" 10)))
+              (:wat::core::match (:wat::std::get m "missing")
+                ((Some n) n)
+                (:None -1)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(-1) => {}
+            v => panic!("expected -1 (miss path), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn hashmap_contains_tracks_membership() {
+        let src = r#"
+            (:wat::core::let*
+              (((m :HashMap<String,i64>) (:wat::std::HashMap "a" 10)))
+              (:wat::std::contains? m "a"))
+        "#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
+        let src_missing = r#"
+            (:wat::core::let*
+              (((m :HashMap<String,i64>) (:wat::std::HashMap "a" 10)))
+              (:wat::std::contains? m "b"))
+        "#;
+        assert!(matches!(eval_expr(src_missing).unwrap(), Value::bool(false)));
+    }
+
+    #[test]
+    fn hashmap_int_and_string_keys_dont_collide() {
+        // "42" (String) and 42 (i64) should be distinct keys — type-tag
+        // prefix in the canonical key string prevents collision.
+        let src = r#"
+            (:wat::core::let*
+              (((m :HashMap<String,i64>)
+                (:wat::std::HashMap "42" 100)))
+              (:wat::std::contains? m 42))
+        "#;
+        // Map has one entry under String "42". Contains? with i64 key 42
+        // would stringify to "I:42" — different from "S:42" — no match.
+        match eval_expr(src).unwrap() {
+            Value::bool(false) => {}
+            v => panic!("expected false (no collision), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn hashmap_composite_key_errors() {
+        // Keys restricted to primitives in this slice.
+        let err = eval_expr(r#"(:wat::std::HashMap (:wat::core::list 1 2) "x")"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn hashmap_get_requires_hashmap_arg() {
+        let err = eval_expr(r#"(:wat::std::get 42 "k")"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
     #[test]

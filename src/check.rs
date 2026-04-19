@@ -340,6 +340,7 @@ fn infer_list(
             ":wat::core::vec" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::tuple" => return infer_tuple_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::std::HashMap" => return infer_hashmap_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::quote" => {
                 // Quote captures an unevaluated AST. The argument is
                 // DATA, not an expression — the type checker does not
@@ -1187,6 +1188,56 @@ fn process_let_binding(
     for (name, ev) in names.into_iter().zip(elem_vars.into_iter()) {
         out_scope.insert(name, apply_subst(&ev, subst));
     }
+}
+
+/// Type-check `(:wat::std::HashMap k1 v1 k2 v2 ...)`. Variadic
+/// alternating key/value pairs. All keys unify to a common `K`; all
+/// values unify to a common `V`. Result type is `:HashMap<K,V>`.
+fn infer_hashmap_constructor(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() % 2 != 0 {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::std::HashMap".into(),
+            reason: "arity must be even (alternating key/value)".into(),
+        });
+    }
+    let k_var = fresh.fresh();
+    let v_var = fresh.fresh();
+    for (i, chunk) in args.chunks(2).enumerate() {
+        if let Some(k_ty) = infer(&chunk[0], env, locals, fresh, subst, errors) {
+            if unify(&k_ty, &k_var, subst).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::std::HashMap".into(),
+                    param: format!("key #{}", i + 1),
+                    expected: format_type(&apply_subst(&k_var, subst)),
+                    got: format_type(&apply_subst(&k_ty, subst)),
+                });
+            }
+        }
+        if let Some(v_ty) = chunk
+            .get(1)
+            .and_then(|a| infer(a, env, locals, fresh, subst, errors))
+        {
+            if unify(&v_ty, &v_var, subst).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::std::HashMap".into(),
+                    param: format!("value #{}", i + 1),
+                    expected: format_type(&apply_subst(&v_var, subst)),
+                    got: format_type(&apply_subst(&v_ty, subst)),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Parametric {
+        head: "HashMap".into(),
+        args: vec![apply_subst(&k_var, subst), apply_subst(&v_var, subst)],
+    })
 }
 
 /// Type-check `(:wat::core::tuple a b c ...)`. Heterogeneous — each
@@ -2112,6 +2163,38 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: acc_var(),
+        },
+    );
+    // HashMap accessors — get returns Option<V>, contains? returns bool.
+    env.register(
+        ":wat::std::get".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![
+                TypeExpr::Parametric {
+                    head: "HashMap".into(),
+                    args: vec![TypeExpr::Path(":K".into()), TypeExpr::Path(":V".into())],
+                },
+                TypeExpr::Path(":K".into()),
+            ],
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![TypeExpr::Path(":V".into())],
+            },
+        },
+    );
+    env.register(
+        ":wat::std::contains?".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![
+                TypeExpr::Parametric {
+                    head: "HashMap".into(),
+                    args: vec![TypeExpr::Path(":K".into()), TypeExpr::Path(":V".into())],
+                },
+                TypeExpr::Path(":K".into()),
+            ],
+            ret: bool_ty(),
         },
     );
     env.register(
