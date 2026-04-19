@@ -400,10 +400,14 @@ fn infer_list(
                 return None;
             }
             _ if k.starts_with(":wat::config::set-") => return None,
-            _ if k.starts_with(":wat::kernel::") || k.starts_with(":wat::std::") => {
-                // Kernel / std paths don't have type schemes in this
-                // slice; still recurse into their args so inner calls
-                // get checked.
+            _ if (k.starts_with(":wat::kernel::") || k.starts_with(":wat::std::"))
+                && !k.starts_with(":wat::std::math::")
+                && env.get(k).is_none() =>
+            {
+                // Unknown kernel / std path with no registered scheme —
+                // accept and recurse. Math lives at `:wat::std::math::*`
+                // and has registered schemes; exclude it so the normal
+                // scheme lookup below kicks in.
                 for arg in args {
                     let _ = infer(arg, env, locals, fresh, subst, errors);
                 }
@@ -1808,6 +1812,27 @@ fn register_builtins(env: &mut CheckEnv) {
                     args: vec![t_var()],
                 },
             ]),
+        },
+    );
+    // Stdlib math — single-method Rust calls per FOUNDATION-CHANGELOG
+    // 2026-04-18. All unary :f64 -> :f64 except pi which is :() -> :f64.
+    // Packaged here so Log / Circular expansions get proper checking.
+    for name in ["ln", "log", "sin", "cos"] {
+        env.register(
+            format!(":wat::std::math::{}", name),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![f64_ty()],
+                ret: f64_ty(),
+            },
+        );
+    }
+    env.register(
+        ":wat::std::math::pi".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: f64_ty(),
         },
     );
     // Tuple accessors — scoped to 2-tuples in this slice.

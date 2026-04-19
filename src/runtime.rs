@@ -1036,6 +1036,17 @@ fn dispatch_keyword_head(
         ":wat::config::global-seed" => eval_config_global_seed(args, sym),
         ":wat::config::noise-floor" => eval_config_noise_floor(args, sym),
 
+        // Stdlib math — single-method Rust calls packaged at
+        // :wat::std::math::* per FOUNDATION-CHANGELOG 2026-04-18.
+        // Not at :wat::core:: because they're numeric utilities, not
+        // Lisp or algebra primitives; only stdlib macros (Log, Circular)
+        // need them, and userland picks them up the same way.
+        ":wat::std::math::ln" => eval_math_unary(args, env, sym, "ln", f64::ln),
+        ":wat::std::math::log" => eval_math_unary(args, env, sym, "log", f64::ln),
+        ":wat::std::math::sin" => eval_math_unary(args, env, sym, "sin", f64::sin),
+        ":wat::std::math::cos" => eval_math_unary(args, env, sym, "cos", f64::cos),
+        ":wat::std::math::pi" => eval_math_pi(args),
+
         // Anything else: user-defined function lookup.
         other => {
             let func = sym
@@ -2546,6 +2557,51 @@ fn eval_kernel_drop(
             got: other.type_name(),
         }),
     }
+}
+
+/// Shared implementation for the unary stdlib math calls —
+/// `:wat::std::math::ln`, `log`, `sin`, `cos`. Arity 1. Argument must
+/// evaluate to `:f64` (or `:i64` auto-promoted). `op_name` is the
+/// wat-facing short name for error messages.
+fn eval_math_unary(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    op_name: &str,
+    f: fn(f64) -> f64,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: format!(":wat::std::math::{}", op_name),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let x = match eval(&args[0], env, sym)? {
+        Value::f64(x) => x,
+        Value::i64(n) => n as f64,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: format!(":wat::std::math::{}", op_name),
+                expected: "f64",
+                got: other.type_name(),
+            });
+        }
+    };
+    Ok(Value::f64(f(x)))
+}
+
+/// `(:wat::std::math::pi)` — the mathematical constant π as `:f64`.
+/// Nullary. Backing: `std::f64::consts::PI`.
+fn eval_math_pi(args: &[WatAST]) -> Result<Value, RuntimeError> {
+    if !args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::std::math::pi".into(),
+            expected: 0,
+            got: args.len(),
+        });
+    }
+    Ok(Value::f64(std::f64::consts::PI))
 }
 
 /// `(:wat::kernel::HandlePool::new name handles)` — build a pool of
@@ -4584,6 +4640,78 @@ mod tests {
             "error should name the pool; got: {}",
             msg
         );
+    }
+
+    // ─── Stdlib math ───────────────────────────────────────────────────
+
+    #[test]
+    fn math_ln_of_e_is_one() {
+        // ln(e) = 1.
+        let src = "(:wat::std::math::ln 2.718281828459045)";
+        match eval_expr(src).unwrap() {
+            Value::f64(x) => assert!((x - 1.0).abs() < 1e-10, "got {}", x),
+            v => panic!("expected f64, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn math_log_is_natural_log() {
+        // `log` is the natural-log alias; matches ln for identical input.
+        let a = match eval_expr("(:wat::std::math::log 2.718281828459045)").unwrap() {
+            Value::f64(x) => x,
+            v => panic!("expected f64, got {:?}", v),
+        };
+        let b = match eval_expr("(:wat::std::math::ln 2.718281828459045)").unwrap() {
+            Value::f64(x) => x,
+            v => panic!("expected f64, got {:?}", v),
+        };
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn math_sin_pi_is_zero() {
+        let src = "(:wat::std::math::sin (:wat::std::math::pi))";
+        match eval_expr(src).unwrap() {
+            Value::f64(x) => assert!(x.abs() < 1e-10, "got {}", x),
+            v => panic!("expected f64, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn math_cos_zero_is_one() {
+        match eval_expr("(:wat::std::math::cos 0.0)").unwrap() {
+            Value::f64(x) => assert_eq!(x, 1.0),
+            v => panic!("expected f64, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn math_pi_is_std_const() {
+        match eval_expr("(:wat::std::math::pi)").unwrap() {
+            Value::f64(x) => assert_eq!(x, std::f64::consts::PI),
+            v => panic!("expected f64, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn math_ln_accepts_i64_promotion() {
+        // Integer arg gets promoted to f64 before the call.
+        match eval_expr("(:wat::std::math::ln 1)").unwrap() {
+            Value::f64(x) => assert_eq!(x, 0.0),
+            v => panic!("expected f64, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn math_ln_wrong_arity() {
+        let err = eval_expr("(:wat::std::math::ln 1.0 2.0)").unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    #[test]
+    fn math_ln_refuses_non_number() {
+        let err = eval_expr(r#"(:wat::std::math::ln "nope")"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
     #[test]
