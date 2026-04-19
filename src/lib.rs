@@ -26,6 +26,7 @@
 //! (canonical-EDN + cryptographic verification), `runtime` (AST walker).
 
 pub mod ast;
+pub mod check;
 pub mod config;
 pub mod identifier;
 pub mod lexer;
@@ -38,6 +39,7 @@ pub mod runtime;
 pub mod types;
 
 pub use ast::WatAST;
+pub use check::{check_program, CheckEnv, CheckError, CheckErrors, TypeScheme};
 pub use config::{collect_entry_file, CapacityMode, Config, ConfigError};
 pub use identifier::{fresh_scope, Identifier, ScopeId};
 pub use lexer::LexError;
