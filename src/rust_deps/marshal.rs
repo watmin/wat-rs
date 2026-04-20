@@ -225,6 +225,34 @@ impl_tuple_marshaling!(4, A => 0, B => 1, C => 2, D => 3);
 impl_tuple_marshaling!(5, A => 0, B => 1, C => 2, D => 3, E => 4);
 impl_tuple_marshaling!(6, A => 0, B => 1, C => 2, D => 3, E => 4, F => 5);
 
+// ─── Result<T, E> ────────────────────────────────────────────────────
+
+impl<T: ToWat, E: ToWat> ToWat for std::result::Result<T, E> {
+    fn to_wat(self) -> Value {
+        let inner = match self {
+            Ok(v) => Ok(v.to_wat()),
+            Err(e) => Err(e.to_wat()),
+        };
+        Value::Result(Arc::new(inner))
+    }
+}
+
+impl<T: FromWat, E: FromWat> FromWat for std::result::Result<T, E> {
+    fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
+        match v {
+            Value::Result(r) => match r.as_ref() {
+                Ok(inner) => Ok(Ok(T::from_wat(inner, op)?)),
+                Err(inner) => Ok(Err(E::from_wat(inner, op)?)),
+            },
+            other => Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected: "Result",
+                got: other.type_name(),
+            }),
+        }
+    }
+}
+
 // ─── Vec<T> ──────────────────────────────────────────────────────────
 
 impl<T: ToWat> ToWat for Vec<T> {
@@ -566,6 +594,37 @@ mod tests {
     fn tuple_from_non_tuple_value_fails() {
         let v = Value::i64(1);
         let err = <(i64, i64) as FromWat>::from_wat(&v, "test").unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn result_ok_roundtrip() {
+        let v: Value = std::result::Result::<i64, String>::Ok(7).to_wat();
+        let back: std::result::Result<i64, String> = FromWat::from_wat(&v, "test").unwrap();
+        assert_eq!(back, Ok(7));
+    }
+
+    #[test]
+    fn result_err_roundtrip() {
+        let v: Value = std::result::Result::<i64, String>::Err("boom".into()).to_wat();
+        let back: std::result::Result<i64, String> = FromWat::from_wat(&v, "test").unwrap();
+        assert_eq!(back, Err("boom".to_string()));
+    }
+
+    #[test]
+    fn result_nested_option_and_vec() {
+        let v: Value =
+            std::result::Result::<Option<i64>, Vec<String>>::Ok(Some(5)).to_wat();
+        let back: std::result::Result<Option<i64>, Vec<String>> =
+            FromWat::from_wat(&v, "test").unwrap();
+        assert_eq!(back, Ok(Some(5)));
+    }
+
+    #[test]
+    fn result_from_non_result_fails() {
+        let v = Value::i64(1);
+        let err =
+            <std::result::Result<i64, String> as FromWat>::from_wat(&v, "test").unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 

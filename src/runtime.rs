@@ -202,6 +202,13 @@ pub enum Value {
     /// here is the Rust host's own Option — wat's `:Option<T>`
     /// compiles to it directly.
     Option(Arc<std::option::Option<Value>>),
+    /// A `:Result<T,E>` value — `(Ok v)` or `(Err e)`. Built-in
+    /// parametric enum for fallible operations. Surfaced by Rust-dep
+    /// shims that wrap crates returning `std::result::Result` (rusqlite
+    /// and friends). Constructors are symbol-dispatched (`Ok` / `Err`
+    /// as bare identifiers, arity 1 each); consumers use
+    /// `(:wat::core::match ...)`.
+    Result(Arc<std::result::Result<Value, Value>>),
     /// An `n`-tuple — `:(T1,T2,...,Tn)`. Distinct from [`Value::Vec`]
     /// at the type level (heterogeneous vs homogeneous). Primarily
     /// produced by kernel primitives that return pairs
@@ -255,6 +262,7 @@ impl Value {
             Value::io__Stderr(_) => "io::Stderr",
             Value::io__Stdin(_) => "io::Stdin",
             Value::Option(_) => "Option",
+            Value::Result(_) => "Result",
             Value::Tuple(_) => "tuple",
             Value::wat__kernel__ProgramHandle(_) => "wat::kernel::ProgramHandle",
             Value::wat__kernel__HandlePool { .. } => "wat::kernel::HandlePool",
@@ -975,6 +983,8 @@ fn eval_list(
     match head {
         WatAST::Keyword(k) => dispatch_keyword_head(k, rest, env, sym),
         WatAST::Symbol(ident) if ident.as_str() == "Some" => eval_some_ctor(rest, env, sym),
+        WatAST::Symbol(ident) if ident.as_str() == "Ok" => eval_ok_ctor(rest, env, sym),
+        WatAST::Symbol(ident) if ident.as_str() == "Err" => eval_err_ctor(rest, env, sym),
         WatAST::Symbol(ident) => {
             // Bare symbol as head — look up a callable in the env.
             let callee = env
@@ -2630,6 +2640,44 @@ fn eval_some_ctor(
     Ok(Value::Option(Arc::new(Some(v))))
 }
 
+/// `(Ok <expr>)` — tagged constructor for the built-in `:Result<T,E>`
+/// enum. Reserved bare identifier. Arity 1. Evaluates `expr` and wraps
+/// in `Value::Result(Ok(_))`.
+fn eval_ok_ctor(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: "Ok".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    Ok(Value::Result(Arc::new(Ok(v))))
+}
+
+/// `(Err <expr>)` — tagged constructor for the built-in `:Result<T,E>`
+/// enum. Reserved bare identifier. Arity 1. Evaluates `expr` and wraps
+/// in `Value::Result(Err(_))`.
+fn eval_err_ctor(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: "Err".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    Ok(Value::Result(Arc::new(Err(v))))
+}
+
 /// `(:wat::core::match <scrutinee> <arm>...)` — pattern-match over
 /// enum values. MVP-scoped to `:Option<T>` (the only built-in enum);
 /// user-declared enums graduate in a later slice.
@@ -2758,6 +2806,70 @@ fn try_match_pattern(
                                 Ok(Some(outer.child().bind(binder, inner.clone()).build()))
                             }
                             None => Ok(None),
+                        },
+                        _ => Ok(None),
+                    }
+                }
+                WatAST::Symbol(ident) if ident.as_str() == "Ok" => {
+                    if items.len() != 2 {
+                        return Err(RuntimeError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "(Ok binder) takes exactly one field, got {}",
+                                items.len() - 1
+                            ),
+                        });
+                    }
+                    match value {
+                        Value::Result(r) => match &**r {
+                            Ok(inner) => {
+                                let binder = match &items[1] {
+                                    WatAST::Symbol(b) => b.as_str().to_string(),
+                                    other => {
+                                        return Err(RuntimeError::MalformedForm {
+                                            head: ":wat::core::match".into(),
+                                            reason: format!(
+                                                "(Ok _): binder must be a bare symbol, got {}",
+                                                ast_variant_name(other)
+                                            ),
+                                        });
+                                    }
+                                };
+                                Ok(Some(outer.child().bind(binder, inner.clone()).build()))
+                            }
+                            Err(_) => Ok(None),
+                        },
+                        _ => Ok(None),
+                    }
+                }
+                WatAST::Symbol(ident) if ident.as_str() == "Err" => {
+                    if items.len() != 2 {
+                        return Err(RuntimeError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "(Err binder) takes exactly one field, got {}",
+                                items.len() - 1
+                            ),
+                        });
+                    }
+                    match value {
+                        Value::Result(r) => match &**r {
+                            Err(inner) => {
+                                let binder = match &items[1] {
+                                    WatAST::Symbol(b) => b.as_str().to_string(),
+                                    other => {
+                                        return Err(RuntimeError::MalformedForm {
+                                            head: ":wat::core::match".into(),
+                                            reason: format!(
+                                                "(Err _): binder must be a bare symbol, got {}",
+                                                ast_variant_name(other)
+                                            ),
+                                        });
+                                    }
+                                };
+                                Ok(Some(outer.child().bind(binder, inner.clone()).build()))
+                            }
+                            Ok(_) => Ok(None),
                         },
                         _ => Ok(None),
                     }

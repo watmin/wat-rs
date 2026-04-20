@@ -528,6 +528,29 @@ fn rust_type_to_type_expr_tokens(ty: &Type, attr: &WatDispatchAttr) -> syn::Resu
                         "wat_dispatch: Vec<T> must have exactly one type argument",
                     ));
                 }
+                "Result" => {
+                    // Result<T, E> — recurse on both.
+                    if let PathArguments::AngleBracketed(ab) = &last.arguments {
+                        let mut generics = ab.args.iter().filter_map(|a| match a {
+                            GenericArgument::Type(t) => Some(t),
+                            _ => None,
+                        });
+                        if let (Some(t), Some(e)) = (generics.next(), generics.next()) {
+                            let t_ts = rust_type_to_type_expr_tokens(t, attr)?;
+                            let e_ts = rust_type_to_type_expr_tokens(e, attr)?;
+                            return Ok(quote! {
+                                ::wat::types::TypeExpr::Parametric {
+                                    head: "Result".into(),
+                                    args: vec![#t_ts, #e_ts],
+                                }
+                            });
+                        }
+                    }
+                    return Err(Error::new_spanned(
+                        ty,
+                        "wat_dispatch: Result<T,E> must have exactly two type arguments",
+                    ));
+                }
                 _ => {}
             }
         }

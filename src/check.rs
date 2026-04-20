@@ -517,6 +517,58 @@ fn infer_list(
                 args: vec![inner_ty],
             });
         }
+        // `(Ok expr)` — built-in tagged constructor of `:Result<T,E>`.
+        // Infers T from the argument; E is a fresh var for later
+        // unification against the match arms or declared type.
+        if ident.as_str() == "Ok" {
+            let args = &items[1..];
+            if args.len() != 1 {
+                errors.push(CheckError::ArityMismatch {
+                    callee: "Ok".into(),
+                    expected: 1,
+                    got: args.len(),
+                });
+                for arg in args {
+                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "Result".into(),
+                    args: vec![fresh.fresh(), fresh.fresh()],
+                });
+            }
+            let t_ty = infer(&args[0], env, locals, fresh, subst, errors)
+                .unwrap_or_else(|| fresh.fresh());
+            let e_var = fresh.fresh();
+            return Some(TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![t_ty, e_var],
+            });
+        }
+        // `(Err expr)` — dual. Infers E from the argument; T is fresh.
+        if ident.as_str() == "Err" {
+            let args = &items[1..];
+            if args.len() != 1 {
+                errors.push(CheckError::ArityMismatch {
+                    callee: "Err".into(),
+                    expected: 1,
+                    got: args.len(),
+                });
+                for arg in args {
+                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "Result".into(),
+                    args: vec![fresh.fresh(), fresh.fresh()],
+                });
+            }
+            let e_ty = infer(&args[0], env, locals, fresh, subst, errors)
+                .unwrap_or_else(|| fresh.fresh());
+            let t_var = fresh.fresh();
+            return Some(TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![t_var, e_ty],
+            });
+        }
     }
 
     // Non-keyword head (bare symbol or inline expression). Not typed
@@ -552,26 +604,32 @@ fn infer_match(
         });
         return None;
     }
-    // Scrutinee must be :Option<T>.
+
+    // Detect shape from the arms.
+    let arm_refs: Vec<&WatAST> = args[1..].iter().collect();
+    let shape = detect_match_shape(&arm_refs, fresh);
+
+    // Scrutinee must unify with the detected shape.
     let scrutinee_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    let inner_ty = fresh.fresh();
-    let expected_scrutinee = TypeExpr::Parametric {
-        head: "Option".into(),
-        args: vec![inner_ty.clone()],
-    };
+    let expected_scrutinee = shape.as_type();
     if let Some(sty) = &scrutinee_ty {
         if unify(sty, &expected_scrutinee, subst).is_err() {
             errors.push(CheckError::TypeMismatch {
                 callee: ":wat::core::match".into(),
                 param: "scrutinee".into(),
-                expected: "Option<T>".into(),
+                expected: match &shape {
+                    MatchShape::Option(_) => "Option<T>".into(),
+                    MatchShape::Result(_, _) => "Result<T,E>".into(),
+                },
                 got: format_type(&apply_subst(sty, subst)),
             });
         }
     }
 
-    let mut covers_none = false;
-    let mut covers_some = false;
+    let mut covers_option_none = false;
+    let mut covers_option_some = false;
+    let mut covers_result_ok = false;
+    let mut covers_result_err = false;
     let mut result_ty: Option<TypeExpr> = None;
 
     for (idx, arm) in args[1..].iter().enumerate() {
@@ -589,12 +647,16 @@ fn infer_match(
         let body = &arm_items[1];
 
         let mut arm_locals = locals.clone();
-        match pattern_coverage(pattern, &inner_ty, &mut arm_locals, errors) {
-            Some(Coverage::None) => covers_none = true,
-            Some(Coverage::Some) => covers_some = true,
+        match pattern_coverage(pattern, &shape, &mut arm_locals, errors) {
+            Some(Coverage::OptionNone) => covers_option_none = true,
+            Some(Coverage::OptionSome) => covers_option_some = true,
+            Some(Coverage::ResultOk) => covers_result_ok = true,
+            Some(Coverage::ResultErr) => covers_result_err = true,
             Some(Coverage::Wildcard) => {
-                covers_none = true;
-                covers_some = true;
+                covers_option_none = true;
+                covers_option_some = true;
+                covers_result_ok = true;
+                covers_result_err = true;
             }
             None => continue,
         }
@@ -616,51 +678,121 @@ fn infer_match(
         }
     }
 
-    if !(covers_none && covers_some) {
+    let exhaustive = match shape {
+        MatchShape::Option(_) => covers_option_none && covers_option_some,
+        MatchShape::Result(_, _) => covers_result_ok && covers_result_err,
+    };
+    if !exhaustive {
         errors.push(CheckError::MalformedForm {
             head: ":wat::core::match".into(),
-            reason: "non-exhaustive: :Option<T> needs arms for both :None and (Some _), or a wildcard".into(),
+            reason: match shape {
+                MatchShape::Option(_) => "non-exhaustive: :Option<T> needs arms for both :None and (Some _), or a wildcard".into(),
+                MatchShape::Result(_, _) => "non-exhaustive: :Result<T,E> needs arms for both (Ok _) and (Err _), or a wildcard".into(),
+            },
         });
     }
 
     result_ty.map(|t| apply_subst(&t, subst))
 }
 
-/// Coverage class for a match pattern under `:Option<T>`.
+/// Coverage class for a match pattern. Spans both `:Option<T>` and
+/// `:Result<T,E>`. Wildcard covers any shape.
 enum Coverage {
-    None,
-    Some,
+    OptionNone,
+    OptionSome,
+    ResultOk,
+    ResultErr,
     Wildcard,
 }
 
-/// Validate `pattern` against the inner type `T` (the argument of
-/// `:Option<T>`), push bindings into `bindings`, and report its
-/// coverage class.
+/// Which shape the match dispatches on. Determined by inspecting the
+/// first variant-constructor arm (Some/None → Option; Ok/Err → Result).
+#[derive(Clone, Debug)]
+enum MatchShape {
+    /// :Option<T> — inner_ty is T.
+    Option(TypeExpr),
+    /// :Result<T,E> — t_ty is T (Ok-inner), e_ty is E (Err-inner).
+    Result(TypeExpr, TypeExpr),
+}
+
+impl MatchShape {
+    fn as_type(&self) -> TypeExpr {
+        match self {
+            MatchShape::Option(t) => TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![t.clone()],
+            },
+            MatchShape::Result(t, e) => TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![t.clone(), e.clone()],
+            },
+        }
+    }
+}
+
+/// Scan the match arms to decide whether the scrutinee is Option or
+/// Result. First arm with a recognized variant-constructor pattern
+/// (Some/None/Ok/Err) wins. If no arm is definitive (all wildcards),
+/// defaults to Option with a fresh T (backward compat with the
+/// prior single-enum assumption).
+fn detect_match_shape(arms: &[&WatAST], fresh: &mut FreshGen) -> MatchShape {
+    for arm in arms {
+        if let WatAST::List(items) = arm {
+            if items.len() == 2 {
+                let pat = &items[0];
+                match pat {
+                    WatAST::Keyword(k) if k == ":None" => {
+                        return MatchShape::Option(fresh.fresh());
+                    }
+                    WatAST::List(pat_items) => {
+                        if let Some(WatAST::Symbol(ident)) = pat_items.first() {
+                            match ident.as_str() {
+                                "Some" => return MatchShape::Option(fresh.fresh()),
+                                "Ok" | "Err" => {
+                                    return MatchShape::Result(fresh.fresh(), fresh.fresh());
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    MatchShape::Option(fresh.fresh())
+}
+
+/// Validate `pattern` against the match shape, push bindings into
+/// `bindings`, and report its coverage class.
 fn pattern_coverage(
     pattern: &WatAST,
-    inner_ty: &TypeExpr,
+    shape: &MatchShape,
     bindings: &mut HashMap<String, TypeExpr>,
     errors: &mut Vec<CheckError>,
 ) -> Option<Coverage> {
     match pattern {
-        WatAST::Keyword(k) if k == ":None" => Some(Coverage::None),
+        WatAST::Keyword(k) if k == ":None" => match shape {
+            MatchShape::Option(_) => Some(Coverage::OptionNone),
+            MatchShape::Result(_, _) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: ":None pattern on a :Result<T,E> scrutinee".into(),
+                });
+                None
+            }
+        },
         WatAST::Keyword(k) => {
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::match".into(),
-                reason: format!("keyword pattern {} not recognized (only `:None` in this slice)", k),
+                reason: format!("keyword pattern {} not recognized (only `:None` is nullary)", k),
             });
             None
         }
         WatAST::Symbol(ident) if ident.as_str() == "_" => Some(Coverage::Wildcard),
         WatAST::Symbol(ident) => {
             // Bare name binds the whole scrutinee.
-            bindings.insert(
-                ident.as_str().to_string(),
-                TypeExpr::Parametric {
-                    head: "Option".into(),
-                    args: vec![inner_ty.clone()],
-                },
-            );
+            bindings.insert(ident.as_str().to_string(), shape.as_type());
             Some(Coverage::Wildcard)
         }
         WatAST::List(items) => {
@@ -674,40 +806,60 @@ fn pattern_coverage(
                     return None;
                 }
             };
-            match head {
-                WatAST::Symbol(ident) if ident.as_str() == "Some" => {
-                    if rest.len() != 1 {
-                        errors.push(CheckError::MalformedForm {
-                            head: ":wat::core::match".into(),
-                            reason: format!(
-                                "(Some _) takes exactly one field, got {}",
-                                rest.len()
-                            ),
-                        });
-                        return None;
-                    }
-                    match &rest[0] {
-                        WatAST::Symbol(b) => {
-                            bindings.insert(b.as_str().to_string(), inner_ty.clone());
-                            Some(Coverage::Some)
-                        }
-                        other => {
-                            errors.push(CheckError::MalformedForm {
-                                head: ":wat::core::match".into(),
-                                reason: format!(
-                                    "(Some _): binder must be a bare symbol, got {}",
-                                    ast_variant_name_check(other)
-                                ),
-                            });
-                            None
-                        }
-                    }
-                }
+            let ident = match head {
+                WatAST::Symbol(i) => i.as_str(),
                 other => {
                     errors.push(CheckError::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!(
                             "list pattern head must be a variant constructor; got {}",
+                            ast_variant_name_check(other)
+                        ),
+                    });
+                    return None;
+                }
+            };
+            let (ctor_name, coverage, expected_bind_ty) = match (ident, shape) {
+                ("Some", MatchShape::Option(t)) => ("Some", Coverage::OptionSome, t.clone()),
+                ("Ok", MatchShape::Result(t, _)) => ("Ok", Coverage::ResultOk, t.clone()),
+                ("Err", MatchShape::Result(_, e)) => ("Err", Coverage::ResultErr, e.clone()),
+                (other, _) => {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "variant constructor `{}` does not match scrutinee shape ({})",
+                            other,
+                            match shape {
+                                MatchShape::Option(_) => "Option<T>",
+                                MatchShape::Result(_, _) => "Result<T,E>",
+                            }
+                        ),
+                    });
+                    return None;
+                }
+            };
+            if rest.len() != 1 {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "({} _) takes exactly one field, got {}",
+                        ctor_name,
+                        rest.len()
+                    ),
+                });
+                return None;
+            }
+            match &rest[0] {
+                WatAST::Symbol(b) => {
+                    bindings.insert(b.as_str().to_string(), expected_bind_ty);
+                    Some(coverage)
+                }
+                other => {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "({} _): binder must be a bare symbol, got {}",
+                            ctor_name,
                             ast_variant_name_check(other)
                         ),
                     });
@@ -718,7 +870,10 @@ fn pattern_coverage(
         other => {
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::match".into(),
-                reason: format!("pattern must be keyword, symbol, or list; got {}", ast_variant_name_check(other)),
+                reason: format!(
+                    "pattern must be keyword, symbol, or list; got {}",
+                    ast_variant_name_check(other)
+                ),
             });
             None
         }
