@@ -20,6 +20,13 @@ Full design: `docs/wat-dispatch-macro-design-2026-04-19.md`.
   round-trip, and the generic `Value::RustOpaque` variant with
   `make_rust_opaque` / `rust_opaque_arc` / `downcast_ref_opaque`
   helpers. 12 round-trip + error-case tests.
+- **Task #193a** ✓ — Basic codegen: associated fns with primitive arg
+  / Option / Self-opaque return types. `wat-macros/src/codegen.rs`
+  emits per-method dispatch + scheme fns and a public `register()` fn
+  that wires into `RustDepsBuilder`. `tests/wat_dispatch_193a.rs`
+  fixture (`MathUtils`) proves end-to-end through the full startup
+  pipeline — 4 integration tests (add, Option Some, Option None,
+  type-mismatch rejection).
 
 ## Foundation the macro will use
 
@@ -42,9 +49,14 @@ Everything below exists today in `main` as of commit 4bb719f:
 
 _(nothing — ready for next task)_
 
-## Queue
+## In progress
 
-- **Task #193** 🔜 — Method-level codegen (dispatch/scheme/register).
+- **Task #193** 🔄 — Method-level codegen. 193a sub-slice ✓ (associated
+  fns with primitive arg/return types + Option + Self-opaque). 193b
+  next: add `self`/`&self`/`&mut self` receiver marshaling. 193c after
+  that: `Vec<T>` / tuple compound types.
+
+## Queue
   Target is `src/rust_deps/lru.rs`'s exact structure.
 - **Task #194** — Scope handling: `shared` / `thread_owned` / `owned_move`.
 - **Task #195** — Regenerate `src/rust_deps/lru.rs` via macro. Diff

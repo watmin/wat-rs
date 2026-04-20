@@ -23,8 +23,9 @@
 //! yet. Codegen lands in task #193; scope handling in #194.
 
 use proc_macro::TokenStream;
-use quote::quote;
 use syn::{parse_macro_input, Error, ItemImpl, LitStr};
+
+mod codegen;
 
 /// The scope modes a shim can declare for its returned `Self` type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -152,13 +153,10 @@ pub fn wat_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
     let parsed_attr = parse_macro_input!(attr as WatDispatchAttr);
     let parsed_impl = parse_macro_input!(item as ItemImpl);
 
-    // Bootstrap stage (task #192): attribute parsing validates; no
-    // codegen yet. The impl block passes through unchanged so downstream
-    // compilation can still succeed. Task #193 replaces this with
-    // actual dispatch/scheme/register generation.
-    let _ = parsed_attr;
-    let out = quote! { #parsed_impl };
-    out.into()
+    match codegen::emit(&parsed_attr, &parsed_impl) {
+        Ok(ts) => ts.into(),
+        Err(e) => e.to_compile_error().into(),
+    }
 }
 
 #[cfg(test)]

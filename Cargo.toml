@@ -19,3 +19,4 @@ libc = "0.2"
 lru = "0.12"
 
 [dev-dependencies]
+wat-macros = { path = "wat-macros" }
