@@ -15,6 +15,11 @@ Full design: `docs/wat-dispatch-macro-design-2026-04-19.md`.
 - **Task #192** ✓ — wat-macros bootstrap: `syn`/`quote`/`proc-macro2`
   deps, `WatDispatchAttr` parser with 8 unit tests covering path/scope
   parsing, defaults, ordering, and all error cases.
+- **Task #191** ✓ — `FromWat`/`ToWat` traits in `src/rust_deps/marshal.rs`.
+  Primitives (i64, f64, bool, String, (), Value pass-through), Option
+  round-trip, and the generic `Value::RustOpaque` variant with
+  `make_rust_opaque` / `rust_opaque_arc` / `downcast_ref_opaque`
+  helpers. 12 round-trip + error-case tests.
 
 ## Foundation the macro will use
 
@@ -39,9 +44,7 @@ _(nothing — ready for next task)_
 
 ## Queue
 
-- **Task #191** 🔜 — `FromWat`/`ToWat` traits + `Value::RustOpaque`
-  variant. In `src/rust_deps/marshal.rs`.
-- **Task #193** — Method-level codegen (dispatch/scheme/register).
+- **Task #193** 🔜 — Method-level codegen (dispatch/scheme/register).
   Target is `src/rust_deps/lru.rs`'s exact structure.
 - **Task #194** — Scope handling: `shared` / `thread_owned` / `owned_move`.
 - **Task #195** — Regenerate `src/rust_deps/lru.rs` via macro. Diff

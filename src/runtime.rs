@@ -182,7 +182,18 @@ pub enum Value {
     /// `crate::rust_deps::lru`. The wat-source `:wat::std::LocalCache`
     /// is a thin typealias/wrapper over this (058 FOUNDATION lines
     /// 1527-1543 — L1 caching). Zero Mutex.
+    ///
+    /// Scheduled for replacement by `Value::RustOpaque` once the
+    /// `#[wat_dispatch]` macro regenerates the lru shim (task #195).
     rust__lru__LruCache(Arc<crate::rust_deps::lru::LruCacheCell>),
+    /// Generic opaque handle to a Rust-shim-owned value. The
+    /// target-form for any `:rust::*` type that doesn't have its own
+    /// dedicated Value variant. The inner `RustOpaqueInner` carries a
+    /// `type_path` identifier plus an erased payload; shim dispatch
+    /// code downcasts via [`crate::rust_deps::downcast_ref_opaque`].
+    /// Used by the `#[wat_dispatch]` macro's generated code for all
+    /// Self-returning methods.
+    RustOpaque(Arc<crate::rust_deps::RustOpaqueInner>),
     /// The OS stdout handle. Rust's `std::io::Stdout` — thread-safe
     /// handle to the shared global stdout stream. Writes go through
     /// `handle.lock()` (std's internal lock); multiple threads
@@ -249,6 +260,7 @@ impl Value {
             Value::wat__std__HashMap(_) => "HashMap",
             Value::wat__std__HashSet(_) => "HashSet",
             Value::rust__lru__LruCache(_) => "rust::lru::LruCache",
+            Value::RustOpaque(inner) => inner.type_path,
             Value::io__Stdout(_) => "io::Stdout",
             Value::io__Stderr(_) => "io::Stderr",
             Value::io__Stdin(_) => "io::Stdin",
