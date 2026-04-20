@@ -10,7 +10,7 @@
 //! - A known `:wat::algebra::*` core form (`Atom`, `Bind`, `Bundle`,
 //!   `Permute`, `Thermometer`, `Blend`, `cosine`, `dot`).
 //! - A `:wat::kernel::*` primitive (queue / spawn / select / HandlePool /
-//!   signals) — accepted here; runtime not yet implementing kernel.
+//!   signals) — accepted here; the full kernel surface is live in runtime.
 //! - A `:wat::std::*` name — accepted here; stdlib macros expand to
 //!   core forms, but references that didn't expand (e.g., stdlib
 //!   programs) pass through.
@@ -34,9 +34,8 @@
 //!   call time via `UnboundSymbol`; a static scope walker can layer
 //!   on later if strict startup-time errors are wanted.
 //! - It does NOT check type-position references. That's the type
-//!   checker's job (task #137), which has access to the `TypeEnv`
-//!   and instantiation logic. This pass treats type annotations
-//!   and field types as opaque.
+//!   checker's job (see [`crate::check`]); this pass treats type
+//!   annotations and field types as opaque.
 //! - It does NOT transform the AST. Just validates references.
 
 use crate::ast::WatAST;

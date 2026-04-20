@@ -303,11 +303,12 @@ impl FromWat for Value {
 /// payload is an erased `Box<dyn Any>`, downcast by the shim's
 /// dispatch code.
 ///
-/// This is the wire format for ALL `:rust::*` types except those that
-/// have their own dedicated `Value` variant (currently only
-/// `Value::rust__lru__LruCache`, which gets replaced by the
-/// opaque-payload form when the macro regenerates the lru shim —
-/// task #195).
+/// This is the wire format for every `:rust::*` type reaching wat via
+/// the `#[wat_dispatch]` macro. Dedicated `Value` variants for
+/// specific Rust types are discouraged — they duplicate the opaque
+/// mechanism without buying anything. The one remaining dedicated
+/// variant (`Value::crossbeam_channel__*`) predates the opaque form
+/// and is specialized for the performance-sensitive channel path.
 pub struct RustOpaqueInner {
     /// Full keyword path of the wat-level type, e.g.
     /// `":rust::lru::LruCache"`. Used by `FromWat` impls to reject

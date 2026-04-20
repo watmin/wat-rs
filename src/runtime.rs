@@ -32,8 +32,12 @@
 //!
 //! # Types
 //!
-//! Parameter type annotations are PARSED but IGNORED in this slice.
-//! The type checker lands in task #137 and will walk the same AST.
+//! The runtime treats type annotations as opaque — parse-level
+//! validation rejects `:Any` and malformed type keywords, but no
+//! runtime-level type enforcement happens here. The type checker
+//! runs its own phase during the startup pipeline (see
+//! [`crate::check`]); by the time `eval` runs, every expression
+//! has already been type-verified.
 
 use crate::ast::WatAST;
 use crate::config::Config;
@@ -1469,8 +1473,6 @@ fn destructure_tuple(
 enum LetBinding<'a> {
     Single {
         name: String,
-        #[allow(dead_code)]
-        declared_type: crate::types::TypeExpr,
         rhs: &'a WatAST,
     },
     Destructure {
@@ -1513,13 +1515,16 @@ fn parse_let_binding(pair: &WatAST) -> Result<LetBinding<'_>, RuntimeError> {
             WatAST::Symbol(ident) => ident.name.clone(),
             _ => unreachable!(),
         };
-        let declared_type = match &binder[1] {
-            WatAST::Keyword(k) => parse_type_keyword(k)?,
-            _ => unreachable!(),
-        };
+        // Parse for validation side-effect — `:Any` and malformed type
+        // expressions surface here before runtime evaluation begins.
+        // The parsed type itself isn't consumed at runtime; the type
+        // checker handles the actual type-level work earlier in the
+        // startup pipeline.
+        if let WatAST::Keyword(k) = &binder[1] {
+            parse_type_keyword(k)?;
+        }
         return Ok(LetBinding::Single {
             name,
-            declared_type,
             rhs: &kv[1],
         });
     }
@@ -1993,8 +1998,8 @@ fn eval_vec_map(
 }
 
 /// `(:wat::core::foldl xs init f)` → acc. `f : (acc, item) → acc`.
-/// Left-associative: `f(f(f(init, x0), x1), x2)`. Sequential's
-/// driver. `foldr` deferred until a caller needs it.
+/// Left-associative: `f(f(f(init, x0), x1), x2)`. Sequential's driver.
+/// `:wat::core::foldr` ships alongside — see [`eval_vec_foldr`].
 fn eval_vec_foldl(
     args: &[WatAST],
     env: &Environment,

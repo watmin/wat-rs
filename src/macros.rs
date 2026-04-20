@@ -40,8 +40,8 @@
 //!   but the common case — and every 058 stdlib macro — uses
 //!   quasiquote alone.
 //! - Typed-macro checking (058-032). Macro parameters here are
-//!   positional AST arguments; the type checker (task #137) will
-//!   validate `:AST<T>` annotations against body positions.
+//!   positional AST arguments; the type checker validates `:AST<T>`
+//!   annotations against body positions in its own phase.
 
 use crate::ast::WatAST;
 use crate::identifier::{fresh_scope, ScopeId};

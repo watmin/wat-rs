@@ -22,19 +22,18 @@
 //!   `:my::ns::MyType`) into structured [`TypeExpr`] values.
 //! - Stores the result in a [`TypeEnv`], keyed by the bare declaration
 //!   name (no `<T>` in the key — parametric types are registered once;
-//!   call-site instantiation is the type checker's concern, task #137).
+//!   call-site instantiation is [`crate::check`]'s concern).
 //! - Rejects duplicate declarations and reserved-prefix names. The
 //!   authoritative prefix list is
 //!   [`crate::resolve::RESERVED_PREFIXES`].
 //!
 //! # What's deferred
 //!
-//! - Validation that field-type references resolve to declared types.
-//!   Requires a second pass (name resolution, task #136).
-//! - Parametric type instantiation at call sites (type checker,
-//!   task #137).
+//! - Validation that every field-type reference resolves to a declared
+//!   type. The name-resolution pass handles call heads but doesn't
+//!   yet walk nested field-position references.
 //! - Code generation for Rust-backed compiled binaries (wat-to-rust,
-//!   Track 2 of the 058 backlog).
+//!   Track 2 of the 058 backlog — not slated for wat-rs).
 
 use crate::ast::WatAST;
 use std::collections::HashMap;

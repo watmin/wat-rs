@@ -42,9 +42,13 @@
 //! - [`lower`] — `WatAST` algebra-core subtree → `holon::HolonAST`.
 //! - [`runtime`] — AST-walker for `define` / `lambda` / `let` / `if`
 //!   + algebra-core dispatch.
-//!
-//! Not yet built: freeze pass (task #139), `:user/main` +
-//! constrained eval (task #140), `wat-vm` CLI binary (task #141).
+//! - [`freeze`] — the 12-step startup pipeline that composes parse →
+//!   resolve → check → freeze into a single world.
+//! - [`rust_deps`] — `:rust::*` namespace registry + marshaling
+//!   traits (`FromWat` / `ToWat`) + `ThreadOwnedCell<T>` /
+//!   `OwnedMoveCell<T>` scope primitives.
+//! - [`stdlib`] — baked-in wat source files (Subtract, Console,
+//!   LocalCache, Cache, …) registered before user code parses.
 
 extern crate self as wat;
 

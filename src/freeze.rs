@@ -317,7 +317,7 @@ pub const USER_MAIN_PATH: &str = ":user::main";
 /// four channel values — `stdin`, `stdout`, `stderr`, `signals` —
 /// plus any additional typed state the deployment signature declares.
 /// This function is agnostic to the number / type of arguments; the
-/// caller (the wat-vm CLI binary, task #141) constructs the channel
+/// caller (the wat-vm CLI binary in `src/bin/wat-vm.rs`) constructs the channel
 /// [`Value`]s and passes them in. Arity mismatch is caught by
 /// [`apply_function`] and surfaces as `ArityMismatch`.
 pub fn invoke_user_main(

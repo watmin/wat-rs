@@ -45,16 +45,11 @@ impl WatLruCache {
         let cap_usize = if capacity > 0 {
             capacity as usize
         } else {
-            // The macro's dispatch fn doesn't check this — it's just a
-            // plain i64. Upstream wat error surfaces via a panic if we
-            // hit NonZeroUsize::new(0); the hand-written version had
-            // a pre-check that returned RuntimeError. With the macro
-            // path we move the check into new()'s body.
-            //
-            // TODO(194 or later): teach the macro to emit optional
-            // pre-dispatch guards (e.g. `where capacity > 0`) for
-            // this kind of invariant. For now: panic with a clear
-            // message — startup tests catch it.
+            // Capacity must be positive (lru::LruCache requires NonZero).
+            // The macro doesn't yet marshal method-internal errors back
+            // to wat as RuntimeError; until it does, invalid input
+            // surfaces as a panic. Startup integration tests catch the
+            // message before users see it in production.
             panic!(
                 ":rust::lru::LruCache::new: capacity must be positive; got {}",
                 capacity
@@ -72,34 +67,28 @@ impl WatLruCache {
     /// capacity. Key is canonicalized via `hashmap_key` so
     /// heterogeneous types don't collide.
     pub fn put(&mut self, k: Value, v: Value) {
-        let key = match hashmap_key(":rust::lru::LruCache::put", &k) {
-            Ok(key) => key,
-            Err(_) => {
-                // Same convention as new(): invalid keys panic from
-                // inside the method body. TODO: threading RuntimeError
-                // back through the macro dispatch path is scope for
-                // a later task.
-                panic!(
-                    ":rust::lru::LruCache::put: key must be a primitive (got {})",
-                    k.type_name()
-                );
-            }
-        };
+        // Non-primitive keys (HolonAST, Vec, handle values, …) panic:
+        // HashMap-style canonicalization only covers the primitive key
+        // domain. Same rationale as new() — errors-as-values round-trip
+        // lands when the macro's return-type marshaling supports it.
+        let key = hashmap_key(":rust::lru::LruCache::put", &k).unwrap_or_else(|_| {
+            panic!(
+                ":rust::lru::LruCache::put: key must be a primitive (got {})",
+                k.type_name()
+            )
+        });
         self.inner.put(key, v);
     }
 
     /// `:rust::lru::LruCache::get cache k` — returns `:Option<V>`. Hit
-    /// bumps the entry to MRU.
+    /// bumps the entry to MRU. Key constraint matches put().
     pub fn get(&mut self, k: Value) -> Option<Value> {
-        let key = match hashmap_key(":rust::lru::LruCache::get", &k) {
-            Ok(key) => key,
-            Err(_) => {
-                panic!(
-                    ":rust::lru::LruCache::get: key must be a primitive (got {})",
-                    k.type_name()
-                );
-            }
-        };
+        let key = hashmap_key(":rust::lru::LruCache::get", &k).unwrap_or_else(|_| {
+            panic!(
+                ":rust::lru::LruCache::get: key must be a primitive (got {})",
+                k.type_name()
+            )
+        });
         self.inner.get(&key).cloned()
     }
 }
