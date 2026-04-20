@@ -53,6 +53,7 @@ pub mod macros;
 pub mod parser;
 pub mod resolve;
 pub mod runtime;
+pub mod rust_deps;
 pub mod stdlib;
 pub mod types;
 

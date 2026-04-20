@@ -177,6 +177,12 @@ pub enum Value {
     /// return the stored variant on hit. Primitive elements only in
     /// this slice (matches HashMap's key scope).
     wat__std__HashSet(Arc<std::collections::HashMap<String, Value>>),
+    /// A `:rust::lru::LruCache<K,V>` — the wat-visible handle to the
+    /// `lru` crate's LruCache. Shim + thread-id scope guard live in
+    /// `crate::rust_deps::lru`. The wat-source `:wat::std::LocalCache`
+    /// is a thin typealias/wrapper over this (058 FOUNDATION lines
+    /// 1527-1543 — L1 caching). Zero Mutex.
+    rust__lru__LruCache(Arc<crate::rust_deps::lru::LruCacheCell>),
     /// The OS stdout handle. Rust's `std::io::Stdout` — thread-safe
     /// handle to the shared global stdout stream. Writes go through
     /// `handle.lock()` (std's internal lock); multiple threads
@@ -242,6 +248,7 @@ impl Value {
             Value::crossbeam_channel__Receiver(_) => "crossbeam_channel::Receiver",
             Value::wat__std__HashMap(_) => "HashMap",
             Value::wat__std__HashSet(_) => "HashSet",
+            Value::rust__lru__LruCache(_) => "rust::lru::LruCache",
             Value::io__Stdout(_) => "io::Stdout",
             Value::io__Stderr(_) => "io::Stderr",
             Value::io__Stdin(_) => "io::Stdin",
@@ -1145,6 +1152,19 @@ fn dispatch_keyword_head(
         ":wat::std::math::sin" => eval_math_unary(args, env, sym, "sin", f64::sin),
         ":wat::std::math::cos" => eval_math_unary(args, env, sym, "cos", f64::cos),
         ":wat::std::math::pi" => eval_math_pi(args),
+
+        // :rust::* — dispatch through the rust-deps registry. Each
+        // symbol's shim handles its own arg evaluation and marshaling.
+        other if other.starts_with(":rust::") => {
+            let registry = crate::rust_deps::get();
+            match registry.get_symbol(other) {
+                Some(sym_entry) => (sym_entry.dispatch)(args, env, sym),
+                None => Err(RuntimeError::UnknownFunction(format!(
+                    "{} is not registered in the rust-deps registry",
+                    other
+                ))),
+            }
+        }
 
         // Anything else: user-defined function lookup.
         other => {
@@ -2250,7 +2270,7 @@ fn eval_io_read_line(
 /// storage. Type-tags prevent cross-type collision (`42` vs `"42"`).
 /// Scoped to primitive keys; composite keys (Vec, Tuple, HolonAST,
 /// etc.) error.
-fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
+pub(crate) fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
     match v {
         Value::String(s) => Ok(format!("S:{}", s)),
         Value::i64(n) => Ok(format!("I:{}", n)),
@@ -5941,6 +5961,114 @@ mod tests {
     fn hashset_rejects_composite_element() {
         let err = eval_expr(r#"(:wat::std::HashSet :Vec<i64> (:wat::core::list :i64 1 2))"#).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    // ─── LocalCache (058 L1) ───────────────────────────────────────────
+
+    #[test]
+    fn local_cache_put_then_get_returns_some() {
+        let src = r#"
+            (:wat::core::let*
+              (((cache :rust::lru::LruCache<String,i64>)
+                (:rust::lru::LruCache::new 16))
+               ((_ :()) (:rust::lru::LruCache::put cache "answer" 42)))
+              (:wat::core::match (:rust::lru::LruCache::get cache "answer")
+                ((Some v) v)
+                (:None -1)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(42) => {}
+            v => panic!("expected 42, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn local_cache_miss_returns_none() {
+        let src = r#"
+            (:wat::core::let*
+              (((cache :rust::lru::LruCache<String,i64>)
+                (:rust::lru::LruCache::new 16)))
+              (:wat::core::match (:rust::lru::LruCache::get cache "missing")
+                ((Some v) v)
+                (:None -1)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(-1) => {}
+            v => panic!("expected -1 (miss), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn local_cache_evicts_at_capacity() {
+        // Capacity 2: after putting 3 entries, the first is evicted.
+        let src = r#"
+            (:wat::core::let*
+              (((cache :rust::lru::LruCache<i64,i64>)
+                (:rust::lru::LruCache::new 2))
+               ((_ :()) (:rust::lru::LruCache::put cache 1 10))
+               ((_ :()) (:rust::lru::LruCache::put cache 2 20))
+               ((_ :()) (:rust::lru::LruCache::put cache 3 30)))
+              (:wat::core::match (:rust::lru::LruCache::get cache 1)
+                ((Some v) v)
+                (:None -1)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(-1) => {}
+            v => panic!("expected -1 (evicted), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn local_cache_put_overwrites_existing_key() {
+        let src = r#"
+            (:wat::core::let*
+              (((cache :rust::lru::LruCache<String,i64>)
+                (:rust::lru::LruCache::new 16))
+               ((_ :()) (:rust::lru::LruCache::put cache "k" 1))
+               ((_ :()) (:rust::lru::LruCache::put cache "k" 99)))
+              (:wat::core::match (:rust::lru::LruCache::get cache "k")
+                ((Some v) v)
+                (:None -1)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(99) => {}
+            v => panic!("expected 99, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn local_cache_new_zero_capacity_errors() {
+        let err = eval_expr("(:rust::lru::LruCache::new 0)").unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn lru_cache_crossing_thread_boundary_errors() {
+        // Create an LruCache on the parent thread. Ship it via Arc
+        // into a spawned thread and try to get on the child thread.
+        // The thread-owner guard fires — no UB, no panic, just a
+        // clean RuntimeError surfaced from `with_mut`.
+        use crate::rust_deps::lru::LruCacheCell;
+        let cell = Arc::new(LruCacheCell::new(4));
+        cell.with_mut(":rust::lru::LruCache::put", |c| {
+            c.put("home".to_string(), Value::i64(1));
+        })
+        .unwrap();
+
+        let cell_clone = Arc::clone(&cell);
+        let handle = std::thread::spawn(move || {
+            cell_clone.with_mut(":rust::lru::LruCache::get", |c| c.get("home").cloned())
+        });
+        let child_result = handle.join().unwrap();
+        assert!(
+            matches!(child_result, Err(RuntimeError::MalformedForm { .. })),
+            "expected cross-thread access to error, got {:?}",
+            child_result
+        );
+        let parent_result = cell
+            .with_mut(":rust::lru::LruCache::get", |c| c.get("home").cloned())
+            .unwrap();
+        assert!(matches!(parent_result, Some(Value::i64(1))));
     }
 
     // ─── foldr / filter / zip ──────────────────────────────────────────
