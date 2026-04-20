@@ -227,17 +227,36 @@ fn emit_dispatch_fn(
                  to take `&self` with internal synchronization already baked in.",
             ));
         }
+        (Some(ReceiverKind::Owned), Scope::OwnedMove) => {
+            // By-value self under owned_move scope. Extract the T out
+            // of the OwnedMoveCell on the first use; subsequent
+            // invocations on the same handle error cleanly.
+            quote! {
+                let self_val = ::wat::runtime::eval(&args[0], env, sym)?;
+                let self_inner =
+                    ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path)?;
+                let self_cell: &::wat::rust_deps::OwnedMoveCell<#self_type> =
+                    ::wat::rust_deps::downcast_ref_opaque(&self_inner, TYPE_PATH, #wat_path)?;
+                let __self_owned = self_cell.take(#wat_path)?;
+                let result = __self_owned.#name(#(#arg_idents),*);
+            }
+        }
         (Some(ReceiverKind::Owned), _) => {
             return Err(Error::new(
                 proc_macro2::Span::call_site(),
-                "wat_dispatch 193b: by-value `self` receivers are not yet supported \
-                 (tracking under scope = \"owned_move\" in task #200)",
+                "wat_dispatch: by-value `self` receivers require scope = \"owned_move\" \
+                 (a consumed-after-use semantic). For shared or thread-owned mutable \
+                 state, use &self or &mut self respectively.",
             ));
         }
-        (Some(_), Scope::OwnedMove) => {
+        (Some(ReceiverKind::Ref), Scope::OwnedMove) |
+        (Some(ReceiverKind::RefMut), Scope::OwnedMove) => {
             return Err(Error::new(
                 proc_macro2::Span::call_site(),
-                "wat_dispatch: scope = \"owned_move\" not yet implemented (task #200)",
+                "wat_dispatch: scope = \"owned_move\" only accepts by-value `self` \
+                 receivers (the handle is consumed on use). &self / &mut self methods \
+                 don't fit the move semantics — use scope = \"shared\" or \
+                 scope = \"thread_owned\" instead.",
             ));
         }
     };
@@ -348,8 +367,10 @@ fn emit_return_marshal(
                 Ok(::wat::rust_deps::make_rust_opaque(TYPE_PATH, #inner))
             },
             Scope::OwnedMove => quote! {
-                // OwnedMove semantics land in task #194.
-                Ok(::wat::rust_deps::make_rust_opaque(TYPE_PATH, #inner))
+                Ok(::wat::rust_deps::make_rust_opaque(
+                    TYPE_PATH,
+                    ::wat::rust_deps::OwnedMoveCell::new(#inner),
+                ))
             },
         }
     };

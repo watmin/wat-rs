@@ -441,6 +441,70 @@ impl<T: Send> ThreadOwnedCell<T> {
     }
 }
 
+/// Single-use ownership-transfer cell. Generic backing for
+/// `scope = "owned_move"` — payloads that get consumed on first use
+/// (prepared-statement bindings, one-shot tokens, capabilities).
+///
+/// A `std::sync::atomic::AtomicBool` gate ensures exclusive consumption:
+/// only one caller's `take()` succeeds; subsequent callers get a clear
+/// "already consumed" error. Zero Mutex — the atomic gate is the
+/// synchronization.
+///
+/// # Safety
+///
+/// `take()` uses an atomic compare-and-swap (`swap(true, SeqCst)`) to
+/// gate access. The thread that observes `false → true` has exclusive
+/// permission to read the `UnsafeCell<Option<T>>`. After that, the
+/// cell is drained (`Option` becomes `None`) and no other thread or
+/// subsequent call can reach the `T`.
+pub struct OwnedMoveCell<T: Send> {
+    taken: std::sync::atomic::AtomicBool,
+    cell: std::cell::UnsafeCell<Option<T>>,
+}
+
+impl<T: Send> std::fmt::Debug for OwnedMoveCell<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "OwnedMoveCell {{ taken: {} }}",
+            self.taken.load(std::sync::atomic::Ordering::Acquire)
+        )
+    }
+}
+
+// Safety: the AtomicBool gate serializes access to the UnsafeCell.
+// Only one thread can observe the false→true transition; that thread
+// is the sole accessor. Subsequent accessors get an error without
+// touching the payload.
+unsafe impl<T: Send> Send for OwnedMoveCell<T> {}
+unsafe impl<T: Send> Sync for OwnedMoveCell<T> {}
+
+impl<T: Send> OwnedMoveCell<T> {
+    pub fn new(value: T) -> Self {
+        Self {
+            taken: std::sync::atomic::AtomicBool::new(false),
+            cell: std::cell::UnsafeCell::new(Some(value)),
+        }
+    }
+
+    /// Consume the payload. The first caller wins; every subsequent
+    /// caller receives `RuntimeError::MalformedForm`.
+    pub fn take(&self, op: &'static str) -> Result<T, RuntimeError> {
+        if self.taken.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            return Err(RuntimeError::MalformedForm {
+                head: op.into(),
+                reason: "owned-move handle already consumed".into(),
+            });
+        }
+        // Safety: the swap succeeded, so this thread holds exclusive
+        // access until the function returns.
+        unsafe { (*self.cell.get()).take() }.ok_or_else(|| RuntimeError::MalformedForm {
+            head: op.into(),
+            reason: "owned-move handle payload was unexpectedly None".into(),
+        })
+    }
+}
+
 /// Downcast an opaque Value's payload to a `&T` reference. The macro's
 /// dispatch code calls this for each `:rust::T` argument, bypassing
 /// the generic `FromWat` pathway (since opaque handles aren't cloneable
