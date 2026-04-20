@@ -1137,6 +1137,13 @@ fn dispatch_keyword_head(
             eval_user_signal_reset(args, ":wat::kernel::reset-sighup!", &KERNEL_SIGHUP)
         }
 
+        // :wat::core::use! — resolve-pass declaration, no-op at runtime.
+        // Validation happens during resolve; by the time eval runs, the
+        // declaration has done its job. Returns :() for the value
+        // position (if a user writes it inside an expression — unusual
+        // but not illegal).
+        ":wat::core::use!" => Ok(Value::Unit),
+
         // Config accessors — read committed config fields at runtime.
         ":wat::config::dims" => eval_config_dims(args, sym),
         ":wat::config::global-seed" => eval_config_global_seed(args, sym),

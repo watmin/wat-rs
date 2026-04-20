@@ -402,6 +402,13 @@ fn infer_list(
                 return infer_boolean_shortcircuit(args, env, locals, fresh, subst, errors);
             }
             ":wat::core::lambda" => return infer_lambda(args, env, locals, fresh, subst, errors),
+            ":wat::core::use!" => {
+                // use! is a resolve-pass declaration. It validates at
+                // resolve time; the type checker treats it as a no-op
+                // returning :(). The argument is a keyword path; we
+                // don't recurse into it.
+                return Some(TypeExpr::Tuple(vec![]));
+            }
             _ if k.starts_with(":rust::") => {
                 return dispatch_rust_scheme(k, args, env, locals, fresh, subst, errors);
             }

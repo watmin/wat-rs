@@ -89,8 +89,21 @@ pub fn resolve_references(
     _types: &TypeEnv,
 ) -> Result<(), ResolveError> {
     let mut unresolved = Vec::new();
+
+    // Pass 1: collect `(:wat::core::use! :rust::...)` top-level
+    // declarations. Validates against the rust-deps registry. Program-
+    // global scope for now (see docs/caching-design-2026-04-19.md —
+    // per-file enforcement is a planned upgrade).
+    let registry = crate::rust_deps::get();
+    let mut use_decls = crate::rust_deps::UseDeclarations::new();
     for form in forms {
-        check_form(form, sym, macros, &mut unresolved);
+        collect_use_declarations(form, registry, &mut use_decls, &mut unresolved);
+    }
+
+    // Pass 2: walk all call heads, including nested. Every :rust::* call
+    // head must be covered by one of the use! declarations from pass 1.
+    for form in forms {
+        check_form(form, sym, macros, &use_decls, &mut unresolved);
     }
     if unresolved.is_empty() {
         Ok(())
@@ -99,10 +112,52 @@ pub fn resolve_references(
     }
 }
 
+/// Scan top-level forms for `(:wat::core::use! :rust::...)` and record
+/// them in `use_decls`. Emits an `UnresolvedReference` if the requested
+/// symbol isn't in the build-time rust-deps registry.
+fn collect_use_declarations(
+    form: &WatAST,
+    registry: &crate::rust_deps::RustDepsRegistry,
+    use_decls: &mut crate::rust_deps::UseDeclarations,
+    unresolved: &mut Vec<UnresolvedReference>,
+) {
+    if let WatAST::List(items) = form {
+        if let Some(WatAST::Keyword(head)) = items.first() {
+            if head == ":wat::core::use!" {
+                // Expect exactly one keyword argument.
+                if items.len() != 2 {
+                    unresolved.push(UnresolvedReference {
+                        path: head.clone(),
+                        context:
+                            "(:wat::core::use! :rust::Path) expects exactly one keyword argument",
+                    });
+                    return;
+                }
+                if let WatAST::Keyword(path) = &items[1] {
+                    if !registry.has_type(path) {
+                        unresolved.push(UnresolvedReference {
+                            path: path.clone(),
+                            context: "rust symbol not available in wat-vm; declare it via its shim",
+                        });
+                        return;
+                    }
+                    use_decls.declare(path.clone());
+                } else {
+                    unresolved.push(UnresolvedReference {
+                        path: head.clone(),
+                        context: "(:wat::core::use! ...) argument must be a keyword path",
+                    });
+                }
+            }
+        }
+    }
+}
+
 fn check_form(
     form: &WatAST,
     sym: &SymbolTable,
     macros: &MacroRegistry,
+    use_decls: &crate::rust_deps::UseDeclarations,
     unresolved: &mut Vec<UnresolvedReference>,
 ) {
     if let WatAST::List(items) = form {
@@ -117,10 +172,28 @@ fn check_form(
                     },
                 });
             }
+
+            // Additional :rust::* enforcement: the call head must be
+            // covered by a `(:wat::core::use! :rust::Type)` declaration
+            // SOMEWHERE in the program. The declared type path prefixes
+            // the method path — `:rust::lru::LruCache::new` is covered
+            // by a use! of `:rust::lru::LruCache`.
+            if head.starts_with(":rust::") {
+                let covered = use_decls
+                    .list()
+                    .any(|decl| head == decl || head.starts_with(&format!("{}::", decl)));
+                if !covered {
+                    unresolved.push(UnresolvedReference {
+                        path: head.clone(),
+                        context:
+                            ":rust::* reference not covered by any (:wat::core::use! ...) declaration",
+                    });
+                }
+            }
         }
         // Recurse into all children.
         for child in items {
-            check_form(child, sym, macros, unresolved);
+            check_form(child, sym, macros, use_decls, unresolved);
         }
     }
 }
@@ -334,5 +407,72 @@ mod tests {
     fn bare_name_not_reserved() {
         assert!(!is_reserved_prefix(":foo"));
         assert!(!is_reserved_prefix(":42"));
+    }
+
+    // ─── use! declaration enforcement ───────────────────────────────────
+
+    #[test]
+    fn rust_call_with_use_declaration_resolves() {
+        assert!(resolve(
+            r#"
+            (:wat::core::use! :rust::lru::LruCache)
+            (:rust::lru::LruCache::new 16)
+            "#
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn rust_call_without_use_declaration_fails() {
+        let err = resolve(r#"(:rust::lru::LruCache::new 16)"#).unwrap_err();
+        let ResolveError::UnresolvedReferences(list) = err;
+        assert!(
+            list.iter()
+                .any(|u| u.path == ":rust::lru::LruCache::new"
+                    && u.context
+                        .contains("not covered by any (:wat::core::use! ...)")),
+            "expected use!-not-covered diagnostic; got {:?}",
+            list
+        );
+    }
+
+    #[test]
+    fn use_of_unknown_rust_symbol_fails() {
+        let err = resolve(r#"(:wat::core::use! :rust::imaginary::Thing)"#).unwrap_err();
+        let ResolveError::UnresolvedReferences(list) = err;
+        assert!(
+            list.iter()
+                .any(|u| u.path == ":rust::imaginary::Thing"
+                    && u.context.contains("not available in wat-vm")),
+            "expected not-available diagnostic; got {:?}",
+            list
+        );
+    }
+
+    #[test]
+    fn use_declaration_covers_all_methods_on_the_type() {
+        // One use! of the TYPE path enables all ::method paths on it.
+        assert!(resolve(
+            r#"
+            (:wat::core::use! :rust::lru::LruCache)
+            (:rust::lru::LruCache::new 16)
+            (:rust::lru::LruCache::put 1 2 3)
+            (:rust::lru::LruCache::get 1 2)
+            "#
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn multiple_use_declarations_are_idempotent() {
+        // Two use!s of the same path — idempotent set-insert, no error.
+        assert!(resolve(
+            r#"
+            (:wat::core::use! :rust::lru::LruCache)
+            (:wat::core::use! :rust::lru::LruCache)
+            (:rust::lru::LruCache::new 16)
+            "#
+        )
+        .is_ok());
     }
 }
