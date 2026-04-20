@@ -151,26 +151,31 @@ impl fmt::Display for CheckErrors {
 
 impl std::error::Error for CheckErrors {}
 
-/// Source of fresh [`TypeExpr::Var`] ids. Shared across the whole
-/// `check_program` run so ids never collide across call sites or
-/// function bodies.
+/// Cross-cutting context threaded through every `infer_*` helper.
+/// Owns two concerns that need global scope during a single
+/// `check_program` run:
 ///
-/// Also carries the **enclosing return-type stack** — pushed on entry
-/// to every function body and lambda body, popped on exit, consulted
-/// by `infer_try` to unify the propagated `E` with the enclosing
-/// function/lambda's own `Err` variant. The stack is LIFO so the
-/// innermost enclosing scope wins (matches Rust's `?`-operator
-/// semantics). Naming inaccuracy (FreshGen isn't strictly about fresh
-/// type variables anymore) is accepted for this slice — the struct
-/// earns a rename to `InferCtx` in a later refactor when more cross-
-/// cutting context accumulates.
+/// 1. **Fresh type-variable ids.** A monotonic counter that hands out
+///    unique `TypeExpr::Var(n)` ids so distinct unification variables
+///    never collide across call sites or function bodies.
+/// 2. **Enclosing return-type stack.** Pushed on entry to every
+///    function body and lambda body, popped on exit, consulted by
+///    `infer_try` to unify the propagated `E` with the enclosing
+///    function/lambda's own `Err` variant. LIFO so the innermost
+///    enclosing scope wins — matches Rust's `?`-operator scoping.
+///
+/// The parameter name in most call sites is still `fresh` by
+/// convention — the ctx's primary role was originally just fresh-var
+/// generation, and the shorter name reads naturally for that case.
+/// New concerns added here (scoped flags, effect rows, whatever) land
+/// as additional fields without further renames.
 #[derive(Debug, Default)]
-struct FreshGen {
+struct InferCtx {
     next: u64,
     enclosing_rets: Vec<TypeExpr>,
 }
 
-impl FreshGen {
+impl InferCtx {
     fn fresh(&mut self) -> TypeExpr {
         let v = TypeExpr::Var(self.next);
         self.next += 1;
@@ -252,7 +257,7 @@ pub fn check_program(
 ) -> Result<(), CheckErrors> {
     let env = CheckEnv::from_symbols(sym);
     let mut errors = Vec::new();
-    let mut fresh = FreshGen::default();
+    let mut fresh = InferCtx::default();
 
     // Check each user define's body against its declared return type.
     for (path, func) in &sym.functions {
@@ -278,7 +283,7 @@ fn check_function_body(
     func: &Function,
     scheme: &TypeScheme,
     env: &CheckEnv,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     errors: &mut Vec<CheckError>,
 ) {
     // Declared type parameters are RIGID inside the body — rigid
@@ -309,7 +314,7 @@ fn check_function_body(
 fn check_form(
     form: &WatAST,
     env: &CheckEnv,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     errors: &mut Vec<CheckError>,
 ) {
     let mut subst = Subst::new();
@@ -328,7 +333,7 @@ fn infer(
     ast: &WatAST,
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -354,7 +359,7 @@ fn infer_list(
     items: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -627,7 +632,7 @@ fn infer_match(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -770,7 +775,7 @@ impl MatchShape {
 /// (Some/None/Ok/Err) wins. If no arm is definitive (all wildcards),
 /// defaults to Option with a fresh T (backward compat with the
 /// prior single-enum assumption).
-fn detect_match_shape(arms: &[&WatAST], fresh: &mut FreshGen) -> MatchShape {
+fn detect_match_shape(arms: &[&WatAST], fresh: &mut InferCtx) -> MatchShape {
     for arm in arms {
         if let WatAST::List(items) = arm {
             if items.len() == 2 {
@@ -931,7 +936,7 @@ fn infer_if(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -969,7 +974,7 @@ fn infer_let(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -1014,7 +1019,7 @@ fn infer_try(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -1096,7 +1101,7 @@ fn infer_let_star(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -1130,7 +1135,7 @@ fn infer_spawn(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -1210,7 +1215,7 @@ fn infer_positional_accessor(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
     op: &str,
@@ -1270,7 +1275,7 @@ fn infer_drop(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -1317,7 +1322,7 @@ fn infer_make_queue(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
     form: &str,
@@ -1414,7 +1419,7 @@ fn process_let_binding(
     env: &CheckEnv,
     rhs_scope: &HashMap<String, TypeExpr>,
     out_scope: &mut HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
     form: &str,
@@ -1499,7 +1504,7 @@ fn infer_hashset_constructor(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -1561,7 +1566,7 @@ fn infer_get(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -1641,7 +1646,7 @@ fn infer_hashmap_constructor(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -1731,7 +1736,7 @@ fn infer_tuple_constructor(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -1754,7 +1759,7 @@ fn infer_list_constructor(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -1820,7 +1825,7 @@ fn infer_lambda(
     args: &[WatAST],
     env: &CheckEnv,
     outer_locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -1914,7 +1919,7 @@ fn infer_boolean_shortcircuit(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -2024,7 +2029,7 @@ fn dispatch_rust_scheme(
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
-    fresh: &mut FreshGen,
+    fresh: &mut InferCtx,
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
@@ -2055,7 +2060,7 @@ fn dispatch_rust_scheme(
 struct CheckSchemeCtx<'a> {
     env: &'a CheckEnv,
     locals: &'a HashMap<String, TypeExpr>,
-    fresh: &'a mut FreshGen,
+    fresh: &'a mut InferCtx,
     subst: &'a mut Subst,
     errors: &'a mut Vec<CheckError>,
 }
@@ -2145,7 +2150,7 @@ fn occurs(id: u64, ty: &TypeExpr, subst: &Subst) -> bool {
 
 /// Instantiate a scheme's universally-quantified type parameters with
 /// fresh unification variables. Produces monomorphic `(params, ret)`.
-fn instantiate(scheme: &TypeScheme, fresh: &mut FreshGen) -> (Vec<TypeExpr>, TypeExpr) {
+fn instantiate(scheme: &TypeScheme, fresh: &mut InferCtx) -> (Vec<TypeExpr>, TypeExpr) {
     if scheme.type_params.is_empty() {
         return (scheme.params.clone(), scheme.ret.clone());
     }

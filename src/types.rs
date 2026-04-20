@@ -66,7 +66,7 @@ pub enum TypeExpr {
     /// instantiation (one per `type_params` entry per call site) and
     /// substitutes them away when unification succeeds. The integer
     /// is a monotonically-increasing id allocated by the checker's
-    /// `FreshGen`.
+    /// `InferCtx`.
     Var(u64),
     /// A tuple type — `:(T,U)`, `:(i64,String,bool)`. The empty
     /// tuple `:()` is the unit type (0-tuple). A single-element
