@@ -402,6 +402,9 @@ fn infer_list(
                 return infer_boolean_shortcircuit(args, env, locals, fresh, subst, errors);
             }
             ":wat::core::lambda" => return infer_lambda(args, env, locals, fresh, subst, errors),
+            _ if k.starts_with(":rust::") => {
+                return dispatch_rust_scheme(k, args, env, locals, fresh, subst, errors);
+            }
             ":wat::core::define"
             | ":wat::core::struct"
             | ":wat::core::enum"
@@ -1706,6 +1709,101 @@ fn walk(ty: &TypeExpr, subst: &Subst) -> TypeExpr {
     }
 }
 
+// ─── Rust-deps scheme dispatch ───────────────────────────────────────
+
+/// Dispatch a `:rust::*` call to the shim's scheme function registered
+/// in the rust-deps registry. Wraps the checker's internal state in a
+/// [`CheckSchemeCtx`] that implements [`crate::rust_deps::SchemeCtx`],
+/// giving the shim a narrow interface that doesn't depend on this
+/// module's private types.
+#[allow(clippy::too_many_arguments)]
+fn dispatch_rust_scheme(
+    keyword: &str,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    let registry = crate::rust_deps::get();
+    let sym_entry = match registry.get_symbol(keyword) {
+        Some(s) => s,
+        None => {
+            errors.push(CheckError::UnknownCallee {
+                callee: keyword.to_string(),
+            });
+            return None;
+        }
+    };
+    let mut ctx = CheckSchemeCtx {
+        env,
+        locals,
+        fresh,
+        subst,
+        errors,
+    };
+    (sym_entry.scheme)(args, &mut ctx)
+}
+
+/// Adapter that presents the checker's internal state (`env`, `locals`,
+/// `fresh`, `subst`, `errors`) through the narrow
+/// [`crate::rust_deps::SchemeCtx`] trait. Lets shim authors write their
+/// scheme functions without depending on `check.rs`'s private types.
+struct CheckSchemeCtx<'a> {
+    env: &'a CheckEnv,
+    locals: &'a HashMap<String, TypeExpr>,
+    fresh: &'a mut FreshGen,
+    subst: &'a mut Subst,
+    errors: &'a mut Vec<CheckError>,
+}
+
+impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
+    fn fresh_var(&mut self) -> TypeExpr {
+        self.fresh.fresh()
+    }
+
+    fn infer(&mut self, ast: &WatAST) -> Option<TypeExpr> {
+        infer(ast, self.env, self.locals, self.fresh, self.subst, self.errors)
+    }
+
+    fn unify_types(&mut self, a: &TypeExpr, b: &TypeExpr) -> bool {
+        unify(a, b, self.subst).is_ok()
+    }
+
+    fn apply_subst(&self, t: &TypeExpr) -> TypeExpr {
+        apply_subst(t, self.subst)
+    }
+
+    fn push_type_mismatch(&mut self, callee: &str, param: &str, expected: String, got: String) {
+        self.errors.push(CheckError::TypeMismatch {
+            callee: callee.into(),
+            param: param.into(),
+            expected,
+            got,
+        });
+    }
+
+    fn push_arity_mismatch(&mut self, callee: &str, expected: usize, got: usize) {
+        self.errors.push(CheckError::ArityMismatch {
+            callee: callee.into(),
+            expected,
+            got,
+        });
+    }
+
+    fn push_malformed(&mut self, head: &str, reason: String) {
+        self.errors.push(CheckError::MalformedForm {
+            head: head.into(),
+            reason,
+        });
+    }
+
+    fn parse_type_keyword(&self, keyword: &str) -> Result<TypeExpr, crate::types::TypeError> {
+        crate::types::parse_type_expr(keyword)
+    }
+}
+
 /// Apply a substitution deeply — rewrites every `Var(id)` in `ty` to
 /// its bound target (transitively).
 fn apply_subst(ty: &TypeExpr, subst: &Subst) -> TypeExpr {
@@ -2610,6 +2708,66 @@ mod tests {
         // Bundle wants :Vec<holon::HolonAST>, but this is :Vec<i64>.
         let err = check(r#"(:wat::algebra::Bundle (:wat::core::vec :i64 1 2 3))"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
+    }
+
+    // ─── :rust::* dispatch via rust_deps registry ───────────────────────
+
+    #[test]
+    fn rust_lru_new_typechecks_via_let_annotation() {
+        // No explicit :T on ::new — K,V flow from the let annotation
+        // through the scheme's fresh vars via unification.
+        let result = check(
+            r#"(:wat::core::let*
+                 (((cache :rust::lru::LruCache<String,i64>)
+                   (:rust::lru::LruCache::new 16)))
+                 cache)"#,
+        );
+        assert!(result.is_ok(), "expected ok, got {:?}", result.err());
+    }
+
+    #[test]
+    fn rust_lru_put_typechecks_on_concrete_cache() {
+        assert!(check(
+            r#"(:wat::core::let*
+                 (((cache :rust::lru::LruCache<String,i64>)
+                   (:rust::lru::LruCache::new 16))
+                  ((_ :()) (:rust::lru::LruCache::put cache "k" 42)))
+                 cache)"#
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn rust_lru_get_typechecks_returns_option_of_value_type() {
+        assert!(check(
+            r#"(:wat::core::let*
+                 (((cache :rust::lru::LruCache<String,i64>)
+                   (:rust::lru::LruCache::new 16)))
+                 (:wat::core::match (:rust::lru::LruCache::get cache "k")
+                   ((Some v) v)
+                   (:None 0)))"#
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn rust_lru_put_wrong_key_type_rejected() {
+        // Cache is <String,i64>; putting i64 as key should fail.
+        let err = check(
+            r#"(:wat::core::let*
+                 (((cache :rust::lru::LruCache<String,i64>)
+                   (:rust::lru::LruCache::new 16))
+                  ((_ :()) (:rust::lru::LruCache::put cache 42 1)))
+                 cache)"#,
+        )
+        .unwrap_err();
+        assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn rust_unknown_symbol_rejected() {
+        let err = check("(:rust::imaginary::Crate::method 1 2)").unwrap_err();
+        assert!(err.0.iter().any(|e| matches!(e, CheckError::UnknownCallee { .. })));
     }
 
     // ─── User define signature checks ───────────────────────────────────

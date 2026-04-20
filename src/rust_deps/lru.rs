@@ -192,7 +192,7 @@ fn scheme_new(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<TypeExpr> {
         });
     }
     if let Some(cap_ty) = ctx.infer(&args[0]) {
-        if !ctx.unify_types(&cap_ty, &TypeExpr::Path("i64".into())) {
+        if !ctx.unify_types(&cap_ty, &TypeExpr::Path(":i64".into())) {
             ctx.push_type_mismatch(
                 ":rust::lru::LruCache::new",
                 "capacity",
