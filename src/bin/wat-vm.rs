@@ -1,8 +1,9 @@
 //! `wat-vm` — the wat command-line runner.
 //!
 //! Reads an entry `.wat` file, runs the full startup pipeline, installs
-//! OS signal handlers (SIGINT + SIGTERM → kernel stop flag), wires
-//! stdio over `crossbeam_channel`s, invokes `:user::main`, and exits.
+//! OS signal handlers (SIGINT + SIGTERM → kernel stop flag), passes the
+//! real `io::Stdin` / `io::Stdout` / `io::Stderr` handles to
+//! `:user::main`, and exits.
 //!
 //! # Contract
 //!
@@ -10,9 +11,9 @@
 //!
 //! ```scheme
 //! (:wat::core::define (:user::main
-//!                      (stdin  :crossbeam_channel::Receiver<String>)
-//!                      (stdout :crossbeam_channel::Sender<String>)
-//!                      (stderr :crossbeam_channel::Sender<String>)
+//!                      (stdin  :rust::std::io::Stdin)
+//!                      (stdout :rust::std::io::Stdout)
+//!                      (stderr :rust::std::io::Stderr)
 //!                      -> :())
 //!   ...)
 //! ```
@@ -45,14 +46,15 @@
 //! - `64` — usage error (wrong argv).
 //! - `66` — entry file read failed.
 //!
-//! # Stdin semantics (MVP)
+//! # Stdin semantics
 //!
-//! The stdin reader thread reads **one line** from OS stdin, sends it
-//! to the stdin channel, and drops the sender. A user program that
-//! calls `(:wat::kernel::recv stdin)` once gets that line back. A
-//! second call sees `ChannelDisconnected` and the program halts.
-//! Multi-line stdin needs `:Option<T>` at the runtime layer for
-//! graceful EOF — a future slice.
+//! `:user::main` receives the real `io::Stdin` handle (wrapped in
+//! `Arc<io::Stdin>`; std's internal locking keeps it safe across
+//! threads). Programs call `(:wat::io::read-line stdin)` to read one
+//! line at a time; each call returns `:(Some line)` on a successful
+//! read (trailing `\n` / `\r\n` stripped) or `:None` on EOF. No
+//! bridge thread, no channel drop — the wat runtime reads directly
+//! from the OS stream. Multi-line stdin is the default shape.
 
 use std::io;
 use std::process::ExitCode;
