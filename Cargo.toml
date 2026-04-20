@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "wat-macros"]
+
 [package]
 name = "wat"
 version = "0.1.0"

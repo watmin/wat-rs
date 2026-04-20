@@ -1,0 +1,15 @@
+[package]
+name = "wat-macros"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Procedural macros for wat-rs. `#[wat_dispatch]` generates Rust-to-wat shim code (dispatch, scheme, registration) from annotated impl blocks."
+repository = "https://github.com/watmin/wat-rs"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"
