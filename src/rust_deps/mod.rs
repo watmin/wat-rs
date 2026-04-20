@@ -26,7 +26,7 @@
 //! those defaults via Cargo, and add their own shims (rusqlite, aya, …)
 //! via the [`RustDepsBuilder`] pattern:
 //!
-//! ```ignore
+//! ```text
 //! let mut deps = wat::rust_deps::RustDepsBuilder::with_wat_rs_defaults();
 //! rusqlite_shim::register(&mut deps);   // consumer's shim
 //! wat::run_with(deps);
@@ -135,7 +135,7 @@ pub struct RustTypeDecl {
 
 /// Builder for a [`RustDepsRegistry`]. Consumer crates compose:
 ///
-/// ```ignore
+/// ```text
 /// let mut deps = RustDepsBuilder::with_wat_rs_defaults();
 /// my_shim::register(&mut deps);
 /// let registry = deps.build();

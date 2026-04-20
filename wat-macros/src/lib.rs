@@ -7,7 +7,7 @@
 //! namespace. See `wat-rs/docs/arc/2026/04/002-rust-interop-macro/MACRO-DESIGN.md`
 //! for the full design.
 //!
-//! ```ignore
+//! ```text
 //! #[wat_dispatch(path = ":rust::lru::LruCache", scope = "thread_owned")]
 //! impl<K: Hash + Eq, V: Clone> lru::LruCache<K, V> {
 //!     fn new(cap: i64) -> Self { ... }
