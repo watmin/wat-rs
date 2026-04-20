@@ -150,6 +150,27 @@ impl TypeEnv {
         Self::default()
     }
 
+    /// Build a `TypeEnv` seeded with wat-rs's own built-in type
+    /// declarations. This is the **self-trust** path: wat-rs is the
+    /// layer that DEFINES what lives under `:wat::*` prefixes, so it
+    /// calls [`Self::register_builtin`] directly — the reserved-prefix
+    /// check exists to protect wat PROGRAMS from accidentally claiming
+    /// those paths, not to protect wat-rs from itself. User source
+    /// continues to flow through [`Self::register`] where the gate
+    /// still applies.
+    ///
+    /// Current builtins:
+    /// - `:wat::algebra::CapacityExceeded` — the error type populated
+    ///   in the `Err` slot of a `:Result` returned by
+    ///   `:wat::algebra::Bundle` under `:error` mode when a frame
+    ///   exceeds Kanerva's capacity. Carries `(cost :i64)` and
+    ///   `(budget :i64)` in declaration order.
+    pub fn with_builtins() -> Self {
+        let mut env = Self::default();
+        register_builtin_types(&mut env);
+        env
+    }
+
     pub fn contains(&self, name: &str) -> bool {
         self.types.contains_key(name)
     }
@@ -173,6 +194,42 @@ impl TypeEnv {
         self.types.insert(name, def);
         Ok(())
     }
+
+    /// Privileged internal registration — bypasses the reserved-prefix
+    /// gate so wat-rs itself can seed `:wat::*` type declarations via
+    /// [`Self::with_builtins`]. Not exposed as `pub`: consumer crates
+    /// use `register` (or their own `#[wat_dispatch]`-generated shims
+    /// under `:rust::*`).
+    fn register_builtin(&mut self, def: TypeDef) {
+        let name = def.name().to_string();
+        debug_assert!(
+            !self.types.contains_key(&name),
+            "built-in type {} registered twice",
+            name
+        );
+        self.types.insert(name, def);
+    }
+}
+
+/// Seeds a fresh [`TypeEnv`] with wat-rs's own `:wat::*` declarations.
+/// Called exactly once, from [`TypeEnv::with_builtins`]. New builtins
+/// land here as the algebra grows; each entry documents why the
+/// declaration is `:wat::*`-scoped.
+fn register_builtin_types(env: &mut TypeEnv) {
+    // :wat::algebra::CapacityExceeded — populated in the Err slot of
+    // :wat::algebra::Bundle's :Result return when a frame's
+    // constituent count exceeds `floor(sqrt(dims))` (Kanerva's capacity
+    // budget). The two fields are honest: cost is what the Bundle was
+    // asked to hold; budget is what the substrate could hold. Both
+    // i64 because wat integer literals are i64.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::algebra::CapacityExceeded".into(),
+        type_params: vec![],
+        fields: vec![
+            ("cost".into(), TypeExpr::Path(":i64".into())),
+            ("budget".into(), TypeExpr::Path(":i64".into())),
+        ],
+    }));
 }
 
 /// Type-declaration errors.

@@ -242,6 +242,32 @@ pub enum Value {
         name: Arc<String>,
         rx: Arc<crossbeam_channel::Receiver<Value>>,
     },
+    /// An instance of a user-declared `:wat::core::struct` type — a
+    /// tagged positional tuple. `type_name` carries the struct's
+    /// keyword path (e.g., `:wat::algebra::CapacityExceeded`); `fields`
+    /// holds the values in declaration order. Produced by the
+    /// auto-generated `<struct>/new` constructor. Read via the
+    /// auto-generated `<struct>/<field>` accessors — both of which are
+    /// ordinary [`Function`] entries in the symbol table whose bodies
+    /// invoke the `:wat::core::struct-new` / `:wat::core::struct-field`
+    /// primitives. No field-by-name dispatch at runtime: accessors are
+    /// resolved at parse time like any other keyword-path call.
+    Struct(Arc<StructValue>),
+}
+
+/// The payload of a [`Value::Struct`] — the struct's fully-qualified
+/// declared type name plus its positional field values in declaration
+/// order. Cheap to clone (stored in an `Arc` at the Value level).
+#[derive(Debug, Clone)]
+pub struct StructValue {
+    /// Full keyword path of the struct type, e.g.
+    /// `:wat::algebra::CapacityExceeded`. Matches the declaration's
+    /// name verbatim; identity for type-tag comparisons.
+    pub type_name: String,
+    /// Field values in declaration order. Length matches the
+    /// `StructDef::fields` length at construction time; the type
+    /// checker enforces alignment.
+    pub fields: Vec<Value>,
 }
 
 impl Value {
@@ -270,6 +296,7 @@ impl Value {
             Value::Tuple(_) => "tuple",
             Value::wat__kernel__ProgramHandle(_) => "wat::kernel::ProgramHandle",
             Value::wat__kernel__HandlePool { .. } => "wat::kernel::HandlePool",
+            Value::Struct(_) => "Struct",
         }
     }
 }
@@ -717,6 +744,112 @@ pub fn register_stdlib_defines(
     Ok(rest)
 }
 
+/// Walk every `:wat::core::struct` declaration in `types` and
+/// synthesize its auto-generated constructor + per-field accessors
+/// into `sym`. Runs after both stdlib and user defines have been
+/// registered so any name collision with a user-supplied path raises
+/// `DuplicateDefine` at a sensible point in the pipeline.
+///
+/// **What's synthesized, per struct `:my::ns::T` with fields
+/// `(f1 :T1) (f2 :T2) ... (fn :Tn)`:**
+///
+/// - One constructor at keyword path `:my::ns::T/new`:
+///   ```text
+///   :fn(T1, T2, ..., Tn) -> :my::ns::T
+///   body: (:wat::core::struct-new :my::ns::T p1 p2 ... pn)
+///   ```
+/// - One accessor per field at `:my::ns::T/<field-name>`:
+///   ```text
+///   :fn(:my::ns::T) -> Ti
+///   body: (:wat::core::struct-field self i)
+///   ```
+///
+/// Users never write these; they invoke them by full keyword path.
+/// The checker picks them up through [`crate::check::CheckEnv::from_symbols`]
+/// as ordinary [`Function`] entries — no new scheme-registration path.
+///
+/// **Self-trust bypass.** Struct-method paths under `:wat::algebra::*`
+/// (the built-in `:wat::algebra::CapacityExceeded/…`) would otherwise
+/// hit the reserved-prefix check. This function skips the check: the
+/// paths it emits are derived mechanically from struct declarations
+/// the user / builtins authored legitimately, so emitting them under
+/// the same prefix is legitimate too.
+pub fn register_struct_methods(
+    types: &crate::types::TypeEnv,
+    sym: &mut SymbolTable,
+) -> Result<(), RuntimeError> {
+    use crate::identifier::Identifier;
+    use crate::types::TypeDef;
+
+    for (_name, def) in types.iter() {
+        let struct_def = match def {
+            TypeDef::Struct(s) => s,
+            _ => continue,
+        };
+
+        let struct_type = crate::types::TypeExpr::Path(struct_def.name.clone());
+
+        // Constructor — `<struct>/new`. One param per field, same
+        // order as declaration. Body invokes `:wat::core::struct-new`
+        // with the struct's type-name keyword and the params as
+        // symbols.
+        let constructor_path = format!("{}/new", struct_def.name);
+        let param_names: Vec<String> =
+            struct_def.fields.iter().map(|(n, _)| n.clone()).collect();
+        let param_types: Vec<crate::types::TypeExpr> = struct_def
+            .fields
+            .iter()
+            .map(|(_, t)| t.clone())
+            .collect();
+        let mut new_body_items = Vec::with_capacity(2 + struct_def.fields.len());
+        new_body_items.push(WatAST::Keyword(":wat::core::struct-new".into()));
+        new_body_items.push(WatAST::Keyword(struct_def.name.clone()));
+        for param_name in &param_names {
+            new_body_items.push(WatAST::Symbol(Identifier::bare(param_name.clone())));
+        }
+        let new_func = Function {
+            name: Some(constructor_path.clone()),
+            params: param_names.clone(),
+            type_params: struct_def.type_params.clone(),
+            param_types: param_types.clone(),
+            ret_type: struct_type.clone(),
+            body: Arc::new(WatAST::List(new_body_items)),
+            closed_env: None,
+        };
+        if sym.functions.contains_key(&constructor_path) {
+            return Err(RuntimeError::DuplicateDefine(constructor_path));
+        }
+        sym.functions.insert(constructor_path, Arc::new(new_func));
+
+        // Accessors — `<struct>/<field>` per field, positional body.
+        // The accessor's single param is called `self` by convention;
+        // the body references it as a symbol and the `struct-field`
+        // primitive reads by the index baked into the body.
+        for (index, (field_name, field_type)) in struct_def.fields.iter().enumerate() {
+            let accessor_path = format!("{}/{}", struct_def.name, field_name);
+            let accessor_body = WatAST::List(vec![
+                WatAST::Keyword(":wat::core::struct-field".into()),
+                WatAST::Symbol(Identifier::bare("self")),
+                WatAST::IntLit(index as i64),
+            ]);
+            let accessor_func = Function {
+                name: Some(accessor_path.clone()),
+                params: vec!["self".into()],
+                type_params: struct_def.type_params.clone(),
+                param_types: vec![struct_type.clone()],
+                ret_type: field_type.clone(),
+                body: Arc::new(accessor_body),
+                closed_env: None,
+            };
+            if sym.functions.contains_key(&accessor_path) {
+                return Err(RuntimeError::DuplicateDefine(accessor_path));
+            }
+            sym.functions.insert(accessor_path, Arc::new(accessor_func));
+        }
+    }
+    Ok(())
+}
+
 fn is_define_form(form: &WatAST) -> bool {
     matches!(
         form,
@@ -1042,6 +1175,8 @@ fn dispatch_keyword_head(
         ":wat::core::atom-value" => eval_atom_value(args, env, sym),
         ":wat::core::match" => eval_match(args, env, sym),
         ":wat::core::try" => eval_try(args, env, sym),
+        ":wat::core::struct-new" => eval_struct_new(args, env, sym),
+        ":wat::core::struct-field" => eval_struct_field(args, env, sym),
         ":wat::core::first" => {
             eval_positional_accessor(args, env, sym, ":wat::core::first", 0)
         }
@@ -2747,6 +2882,120 @@ fn eval_try(
             got: other.type_name(),
         }),
     }
+}
+
+/// `(:wat::core::struct-new <type-name-keyword> <v1> <v2> ...)` — the
+/// internal primitive every auto-generated `<struct>/new` constructor
+/// body invokes. Users do not call this directly; they call the
+/// per-struct constructor, which expands to a `struct-new` call with
+/// the right type name baked in.
+///
+/// Validates:
+/// - First arg is a keyword (the struct's type name).
+/// - Remaining args evaluate; their count becomes the field count.
+///
+/// Emits [`Value::Struct`] with the type name and positional fields.
+/// Arity vs field-count mismatch is enforced by the type checker at
+/// the `<struct>/new` scheme — this primitive trusts the caller.
+fn eval_struct_new(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::struct-new".into(),
+            expected: 1,
+            got: 0,
+        });
+    }
+    let type_name = match &args[0] {
+        WatAST::Keyword(k) => k.clone(),
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::struct-new".into(),
+                reason: format!(
+                    "first argument must be a keyword literal (the struct's type name); got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    };
+    let mut fields = Vec::with_capacity(args.len() - 1);
+    for arg in &args[1..] {
+        fields.push(eval(arg, env, sym)?);
+    }
+    Ok(Value::Struct(Arc::new(StructValue { type_name, fields })))
+}
+
+/// `(:wat::core::struct-field <struct-value> <field-index>)` — the
+/// internal primitive every auto-generated `<struct>/<field>` accessor
+/// body invokes. Users do not call this directly; they call the
+/// per-struct accessor (e.g., `:wat::algebra::CapacityExceeded/cost`),
+/// which expands to a `struct-field` call with the field's index
+/// baked in.
+///
+/// Validates:
+/// - First arg evaluates to a [`Value::Struct`].
+/// - Second arg is an integer literal in range `[0, fields.len())`.
+///
+/// Returns the field value by position. Bounds and type alignment are
+/// enforced by the type checker at the `<struct>/<field>` scheme —
+/// this primitive trusts the caller for well-typed programs, and
+/// raises `MalformedForm` for the ill-typed runtime path.
+fn eval_struct_field(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::struct-field".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let struct_val = eval(&args[0], env, sym)?;
+    let inner = match struct_val {
+        Value::Struct(s) => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::struct-field".into(),
+                expected: "Struct",
+                got: other.type_name(),
+            });
+        }
+    };
+    let index = match &args[1] {
+        WatAST::IntLit(n) if *n >= 0 => *n as usize,
+        WatAST::IntLit(n) => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::struct-field".into(),
+                reason: format!("field index must be non-negative; got {}", n),
+            });
+        }
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::struct-field".into(),
+                reason: format!(
+                    "second argument must be an integer literal (the field index); got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    };
+    if index >= inner.fields.len() {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::struct-field".into(),
+            reason: format!(
+                "field index {} out of range for struct {} with {} fields",
+                index,
+                inner.type_name,
+                inner.fields.len()
+            ),
+        });
+    }
+    Ok(inner.fields[index].clone())
 }
 
 /// `(:wat::core::match <scrutinee> <arm>...)` — pattern-match over

@@ -279,8 +279,12 @@ pub fn startup_from_source(
     let expanded_stdlib = expand_all(stdlib_post_macros, &macros)?;
     let expanded_user = expand_all(post_macro_reg, &macros)?;
 
-    // 5. Type declarations.
-    let mut types = TypeEnv::new();
+    // 5. Type declarations. Seeded with wat-rs's own :wat::*
+    //    built-in types (e.g., :wat::algebra::CapacityExceeded)
+    //    before stdlib and user source land; those declarations
+    //    cannot be re-declared by user code (the reserved-prefix
+    //    gate blocks at `TypeEnv::register`).
+    let mut types = TypeEnv::with_builtins();
     let stdlib_post_types = register_types(expanded_stdlib, &mut types)?;
     let post_types = register_types(expanded_user, &mut types)?;
 
@@ -291,6 +295,14 @@ pub fn startup_from_source(
     let mut symbols = SymbolTable::new();
     let _stdlib_function_residue = register_stdlib_defines(stdlib_post_types, &mut symbols)?;
     let residue = register_defines(post_types, &mut symbols)?;
+
+    // 6a. Struct auto-methods. For every `(:wat::core::struct ...)`
+    //     declaration (built-in + user), synthesize its `/new`
+    //     constructor and one `/<field>` accessor per field, all as
+    //     ordinary `Function` entries in the symbol table. Runs
+    //     after user defines so collisions with user-authored names
+    //     surface as `DuplicateDefine`.
+    crate::runtime::register_struct_methods(&types, &mut symbols)?;
 
     // 7. Name resolution.
     resolve_references(&residue, &symbols, &macros, &types)?;
