@@ -37,48 +37,59 @@ const CACHE_PROGRAM: &str = r#"
                      (stdout :rust::std::io::Stdout)
                      (stderr :rust::std::io::Stderr)
                      -> :())
+  ;; Outer scope holds only the driver-handles. The inner scope binds
+  ;; everything that keeps Console/Cache drivers alive (senders);
+  ;; when the inner scope exits, those handles drop, the drivers see
+  ;; the disconnect, and the outer `join`s flush-and-exit cleanly
+  ;; before wat-vm returns. Without this layering, wat-vm can exit
+  ;; while the Console driver still has queued stdout writes pending.
   (:wat::core::let*
-    ;; Console for checkpoint traces on stderr.
     (((con-state :(wat::kernel::HandlePool<rust::crossbeam_channel::Sender<(i64,String)>>,wat::kernel::ProgramHandle<()>))
       (:wat::std::program::Console stdout stderr 2))
-     ((con-pool :wat::kernel::HandlePool<rust::crossbeam_channel::Sender<(i64,String)>>)
-      (:wat::core::first con-state))
      ((con-drv :wat::kernel::ProgramHandle<()>)
       (:wat::core::second con-state))
-     ((diag :rust::crossbeam_channel::Sender<(i64,String)>)
-      (:wat::kernel::HandlePool::pop con-pool))
-     ((spare :rust::crossbeam_channel::Sender<(i64,String)>)
-      (:wat::kernel::HandlePool::pop con-pool))
-     ((_ :()) (:wat::kernel::HandlePool::finish con-pool))
-
-     ;; Cache driver.
      ((state :(wat::kernel::HandlePool<rust::crossbeam_channel::Sender<((i64,String,Option<i64>),rust::crossbeam_channel::Sender<Option<i64>>)>>,wat::kernel::ProgramHandle<()>))
       (:wat::std::program::Cache 16 1))
-     ((pool :wat::kernel::HandlePool<rust::crossbeam_channel::Sender<((i64,String,Option<i64>),rust::crossbeam_channel::Sender<Option<i64>>)>>)
-      (:wat::core::first state))
      ((driver :wat::kernel::ProgramHandle<()>)
       (:wat::core::second state))
-     ((req-tx :rust::crossbeam_channel::Sender<((i64,String,Option<i64>),rust::crossbeam_channel::Sender<Option<i64>>)>)
-      (:wat::kernel::HandlePool::pop pool))
-     ((_ :()) (:wat::kernel::HandlePool::finish pool))
-     ((reply-pair :(rust::crossbeam_channel::Sender<Option<i64>>,rust::crossbeam_channel::Receiver<Option<i64>>))
-      (:wat::kernel::make-bounded-queue :Option<i64> 1))
-     ((reply-tx :rust::crossbeam_channel::Sender<Option<i64>>)
-      (:wat::core::first reply-pair))
-     ((reply-rx :rust::crossbeam_channel::Receiver<Option<i64>>)
-      (:wat::core::second reply-pair))
 
-     ;; Put — send request, wait for ack.
-     ((_ :()) (:wat::std::program::Console/err diag "T1: about-to-put\n"))
-     ((_ :()) (:wat::std::program::Cache/put req-tx reply-tx reply-rx "answer" 42))
-     ((_ :()) (:wat::std::program::Console/err diag "T2: put-acked\n"))
+     ;; Inner work scope — owns the senders. When this let* returns,
+     ;; all senders drop, and con-drv / driver see their disconnects.
+     ((_ :())
+      (:wat::core::let*
+        (((con-pool :wat::kernel::HandlePool<rust::crossbeam_channel::Sender<(i64,String)>>)
+          (:wat::core::first con-state))
+         ((diag :rust::crossbeam_channel::Sender<(i64,String)>)
+          (:wat::kernel::HandlePool::pop con-pool))
+         ((spare :rust::crossbeam_channel::Sender<(i64,String)>)
+          (:wat::kernel::HandlePool::pop con-pool))
+         ((_ :()) (:wat::kernel::HandlePool::finish con-pool))
 
-     ;; Get — send request, wait for response.
-     ((got :Option<i64>) (:wat::std::program::Cache/get req-tx reply-tx reply-rx "answer"))
-     ((_ :()) (:wat::std::program::Console/err diag "T3: get-returned\n")))
-    (:wat::core::match got
-      ((Some v) (:wat::std::program::Console/out diag "hit\n"))
-      (:None    (:wat::std::program::Console/out diag "miss\n")))))
+         ((pool :wat::kernel::HandlePool<rust::crossbeam_channel::Sender<((i64,String,Option<i64>),rust::crossbeam_channel::Sender<Option<i64>>)>>)
+          (:wat::core::first state))
+         ((req-tx :rust::crossbeam_channel::Sender<((i64,String,Option<i64>),rust::crossbeam_channel::Sender<Option<i64>>)>)
+          (:wat::kernel::HandlePool::pop pool))
+         ((_ :()) (:wat::kernel::HandlePool::finish pool))
+         ((reply-pair :(rust::crossbeam_channel::Sender<Option<i64>>,rust::crossbeam_channel::Receiver<Option<i64>>))
+          (:wat::kernel::make-bounded-queue :Option<i64> 1))
+         ((reply-tx :rust::crossbeam_channel::Sender<Option<i64>>)
+          (:wat::core::first reply-pair))
+         ((reply-rx :rust::crossbeam_channel::Receiver<Option<i64>>)
+          (:wat::core::second reply-pair))
+
+         ((_ :()) (:wat::std::program::Console/err diag "T1: about-to-put\n"))
+         ((_ :()) (:wat::std::program::Cache/put req-tx reply-tx reply-rx "answer" 42))
+         ((_ :()) (:wat::std::program::Console/err diag "T2: put-acked\n"))
+         ((got :Option<i64>) (:wat::std::program::Cache/get req-tx reply-tx reply-rx "answer"))
+         ((_ :()) (:wat::std::program::Console/err diag "T3: get-returned\n")))
+        (:wat::core::match got
+          ((Some v) (:wat::std::program::Console/out diag "hit\n"))
+          (:None    (:wat::std::program::Console/out diag "miss\n")))))
+
+     ;; Inner scope ended — all senders dropped. Drain both drivers.
+     ((_ :()) (:wat::kernel::join driver))
+     ((_ :()) (:wat::kernel::join con-drv)))
+    ()))
 "#;
 
 #[test]
