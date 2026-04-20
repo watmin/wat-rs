@@ -253,14 +253,14 @@ impl Value {
             Value::wat__core__lambda(_) => "wat::core::lambda",
             Value::holon__HolonAST(_) => "holon::HolonAST",
             Value::wat__WatAST(_) => "wat::WatAST",
-            Value::crossbeam_channel__Sender(_) => "crossbeam_channel::Sender",
-            Value::crossbeam_channel__Receiver(_) => "crossbeam_channel::Receiver",
-            Value::wat__std__HashMap(_) => "HashMap",
-            Value::wat__std__HashSet(_) => "HashSet",
+            Value::crossbeam_channel__Sender(_) => "rust::crossbeam_channel::Sender",
+            Value::crossbeam_channel__Receiver(_) => "rust::crossbeam_channel::Receiver",
+            Value::wat__std__HashMap(_) => "rust::std::collections::HashMap",
+            Value::wat__std__HashSet(_) => "rust::std::collections::HashSet",
             Value::RustOpaque(inner) => inner.type_path,
-            Value::io__Stdout(_) => "io::Stdout",
-            Value::io__Stderr(_) => "io::Stderr",
-            Value::io__Stdin(_) => "io::Stdin",
+            Value::io__Stdout(_) => "rust::std::io::Stdout",
+            Value::io__Stderr(_) => "rust::std::io::Stderr",
+            Value::io__Stdin(_) => "rust::std::io::Stdin",
             Value::Option(_) => "Option",
             Value::Result(_) => "Result",
             Value::Tuple(_) => "tuple",
@@ -2233,7 +2233,7 @@ fn eval_io_write(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::io::write".into(),
-                expected: "io::Stdout | io::Stderr",
+                expected: "rust::std::io::Stdout | rust::std::io::Stderr",
                 got: other.type_name(),
             });
         }
@@ -2279,7 +2279,7 @@ fn eval_io_read_line(
         }
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::io::read-line".into(),
-            expected: "io::Stdin",
+            expected: "rust::std::io::Stdin",
             got: other.type_name(),
         }),
     }
@@ -3552,7 +3552,7 @@ fn eval_kernel_send(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::send".into(),
-                expected: "crossbeam_channel::Sender",
+                expected: "rust::crossbeam_channel::Sender",
                 got: other.type_name(),
             });
         }
@@ -3588,7 +3588,7 @@ fn eval_kernel_recv(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::recv".into(),
-                expected: "crossbeam_channel::Receiver",
+                expected: "rust::crossbeam_channel::Receiver",
                 got: other.type_name(),
             });
         }
@@ -3622,7 +3622,7 @@ fn eval_kernel_try_recv(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::try-recv".into(),
-                expected: "crossbeam_channel::Receiver",
+                expected: "rust::crossbeam_channel::Receiver",
                 got: other.type_name(),
             });
         }
@@ -3674,7 +3674,7 @@ fn eval_kernel_drop(
         }
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::kernel::drop".into(),
-            expected: "crossbeam_channel::Sender | crossbeam_channel::Receiver",
+            expected: "rust::crossbeam_channel::Sender | rust::crossbeam_channel::Receiver",
             got: other.type_name(),
         }),
     }
@@ -3917,7 +3917,7 @@ fn eval_kernel_select(
             other => {
                 return Err(RuntimeError::TypeMismatch {
                     op: ":wat::kernel::select".into(),
-                    expected: "crossbeam_channel::Receiver",
+                    expected: "rust::crossbeam_channel::Receiver",
                     got: other.type_name(),
                 });
             }
@@ -5941,7 +5941,7 @@ mod tests {
     fn hashmap_get_hit_returns_some() {
         let src = r#"
             (:wat::core::let*
-              (((m :HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10 "b" 20)))
+              (((m :rust::std::collections::HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10 "b" 20)))
               (:wat::core::match (:wat::std::get m "a")
                 ((Some n) n)
                 (:None 0)))
@@ -5956,7 +5956,7 @@ mod tests {
     fn hashmap_get_miss_returns_none() {
         let src = r#"
             (:wat::core::let*
-              (((m :HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10)))
+              (((m :rust::std::collections::HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10)))
               (:wat::core::match (:wat::std::get m "missing")
                 ((Some n) n)
                 (:None -1)))
@@ -5971,13 +5971,13 @@ mod tests {
     fn hashmap_contains_tracks_membership() {
         let src = r#"
             (:wat::core::let*
-              (((m :HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10)))
+              (((m :rust::std::collections::HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10)))
               (:wat::std::contains? m "a"))
         "#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
         let src_missing = r#"
             (:wat::core::let*
-              (((m :HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10)))
+              (((m :rust::std::collections::HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10)))
               (:wat::std::contains? m "b"))
         "#;
         assert!(matches!(eval_expr(src_missing).unwrap(), Value::bool(false)));
@@ -5989,7 +5989,7 @@ mod tests {
         // prefix in the canonical key string prevents collision.
         let src = r#"
             (:wat::core::let*
-              (((m :HashMap<String,i64>)
+              (((m :rust::std::collections::HashMap<String,i64>)
                 (:wat::std::HashMap :(String,i64) "42" 100)))
               (:wat::std::contains? m 42))
         "#;
@@ -6037,11 +6037,11 @@ mod tests {
     #[test]
     fn hashset_member_present_and_absent() {
         let present = r#"(:wat::core::let*
-            (((s :HashSet<String>) (:wat::std::HashSet :String "a" "b")))
+            (((s :rust::std::collections::HashSet<String>) (:wat::std::HashSet :String "a" "b")))
             (:wat::std::member? s "a"))"#;
         assert!(matches!(eval_expr(present).unwrap(), Value::bool(true)));
         let absent = r#"(:wat::core::let*
-            (((s :HashSet<String>) (:wat::std::HashSet :String "a" "b")))
+            (((s :rust::std::collections::HashSet<String>) (:wat::std::HashSet :String "a" "b")))
             (:wat::std::member? s "z"))"#;
         assert!(matches!(eval_expr(absent).unwrap(), Value::bool(false)));
     }
@@ -6052,7 +6052,7 @@ mod tests {
         // round-trips the caller's element through the Rust backing.
         let src = r#"
             (:wat::core::let*
-              (((s :HashSet<String>) (:wat::std::HashSet :String "apple" "banana")))
+              (((s :rust::std::collections::HashSet<String>) (:wat::std::HashSet :String "apple" "banana")))
               (:wat::core::match (:wat::std::get s "apple")
                 ((Some x) x)
                 (:None "missing")))
@@ -6067,7 +6067,7 @@ mod tests {
     fn hashset_get_miss_returns_none() {
         let src = r#"
             (:wat::core::let*
-              (((s :HashSet<String>) (:wat::std::HashSet :String "apple")))
+              (((s :rust::std::collections::HashSet<String>) (:wat::std::HashSet :String "apple")))
               (:wat::core::match (:wat::std::get s "banana")
                 ((Some x) x)
                 (:None "not-found")))
@@ -6305,7 +6305,7 @@ mod tests {
         // membership for the i64 42 (type-tagged canonical key).
         let src = r#"
             (:wat::core::let*
-              (((s :HashSet<String>) (:wat::std::HashSet :String "42")))
+              (((s :rust::std::collections::HashSet<String>) (:wat::std::HashSet :String "42")))
               (:wat::std::member? s 42))
         "#;
         match eval_expr(src).unwrap() {
@@ -6480,7 +6480,7 @@ mod tests {
     #[test]
     fn select_refuses_empty_vec() {
         let src = r#"
-            (:wat::kernel::select (:wat::core::vec :crossbeam_channel::Receiver<i64>))
+            (:wat::kernel::select (:wat::core::vec :rust::crossbeam_channel::Receiver<i64>))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, RuntimeError::MalformedForm { .. }));
@@ -6646,7 +6646,7 @@ mod tests {
         // Proves the typed pipe survives the spawn.
         let src = r#"
             (:wat::core::define (:my::producer
-                                 (tx :crossbeam_channel::Sender<i64>)
+                                 (tx :rust::crossbeam_channel::Sender<i64>)
                                  -> :())
               (:wat::kernel::send tx 99))
             (:wat::core::let*

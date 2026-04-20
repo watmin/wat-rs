@@ -113,9 +113,9 @@ fn expected_user_main_signature() -> (Vec<TypeExpr>, TypeExpr) {
     // `(:wat::io::read-line ...)` primitives go straight to the OS
     // stream (via std's internal locking). No bridge threads.
     let params = vec![
-        TypeExpr::Path(":io::Stdin".into()),
-        TypeExpr::Path(":io::Stdout".into()),
-        TypeExpr::Path(":io::Stderr".into()),
+        TypeExpr::Path(":rust::std::io::Stdin".into()),
+        TypeExpr::Path(":rust::std::io::Stdout".into()),
+        TypeExpr::Path(":rust::std::io::Stderr".into()),
     ];
     let ret = TypeExpr::Tuple(vec![]);
     (params, ret)

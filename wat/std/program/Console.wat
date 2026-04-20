@@ -35,9 +35,9 @@
 ;; Exits when no receivers remain.
 (:wat::core::define
   (:wat::std::program::Console/loop
-    (rxs :Vec<crossbeam_channel::Receiver<(i64,String)>>)
-    (stdout :io::Stdout)
-    (stderr :io::Stderr)
+    (rxs :Vec<rust::crossbeam_channel::Receiver<(i64,String)>>)
+    (stdout :rust::std::io::Stdout)
+    (stderr :rust::std::io::Stderr)
     -> :())
   (:wat::core::if (:wat::core::empty? rxs)
     ()
@@ -67,14 +67,14 @@
 ;; tuple themselves, they use Console/out or Console/err.
 (:wat::core::define
   (:wat::std::program::Console/out
-    (handle :crossbeam_channel::Sender<(i64,String)>)
+    (handle :rust::crossbeam_channel::Sender<(i64,String)>)
     (msg :String)
     -> :())
   (:wat::kernel::send handle (:wat::core::tuple 0 msg)))
 
 (:wat::core::define
   (:wat::std::program::Console/err
-    (handle :crossbeam_channel::Sender<(i64,String)>)
+    (handle :rust::crossbeam_channel::Sender<(i64,String)>)
     (msg :String)
     -> :())
   (:wat::kernel::send handle (:wat::core::tuple 1 msg)))
@@ -92,25 +92,25 @@
 ;; `(join driver)`. The drop cascade triggers the loop's clean exit.
 (:wat::core::define
   (:wat::std::program::Console
-    (stdout :io::Stdout)
-    (stderr :io::Stderr)
+    (stdout :rust::std::io::Stdout)
+    (stderr :rust::std::io::Stderr)
     (count :i64)
-    -> :(wat::kernel::HandlePool<crossbeam_channel::Sender<(i64,String)>>,wat::kernel::ProgramHandle<()>))
+    -> :(wat::kernel::HandlePool<rust::crossbeam_channel::Sender<(i64,String)>>,wat::kernel::ProgramHandle<()>))
   (:wat::core::let*
-    (((pairs :Vec<(crossbeam_channel::Sender<(i64,String)>,crossbeam_channel::Receiver<(i64,String)>)>)
+    (((pairs :Vec<(rust::crossbeam_channel::Sender<(i64,String)>,rust::crossbeam_channel::Receiver<(i64,String)>)>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda ((_i :i64) -> :(crossbeam_channel::Sender<(i64,String)>,crossbeam_channel::Receiver<(i64,String)>))
+        (:wat::core::lambda ((_i :i64) -> :(rust::crossbeam_channel::Sender<(i64,String)>,rust::crossbeam_channel::Receiver<(i64,String)>))
           (:wat::kernel::make-bounded-queue :(i64,String) 1))))
-     ((txs :Vec<crossbeam_channel::Sender<(i64,String)>>)
+     ((txs :Vec<rust::crossbeam_channel::Sender<(i64,String)>>)
       (:wat::core::map pairs
-        (:wat::core::lambda ((p :(crossbeam_channel::Sender<(i64,String)>,crossbeam_channel::Receiver<(i64,String)>)) -> :crossbeam_channel::Sender<(i64,String)>)
+        (:wat::core::lambda ((p :(rust::crossbeam_channel::Sender<(i64,String)>,rust::crossbeam_channel::Receiver<(i64,String)>)) -> :rust::crossbeam_channel::Sender<(i64,String)>)
           (:wat::core::first p))))
-     ((rxs :Vec<crossbeam_channel::Receiver<(i64,String)>>)
+     ((rxs :Vec<rust::crossbeam_channel::Receiver<(i64,String)>>)
       (:wat::core::map pairs
-        (:wat::core::lambda ((p :(crossbeam_channel::Sender<(i64,String)>,crossbeam_channel::Receiver<(i64,String)>)) -> :crossbeam_channel::Receiver<(i64,String)>)
+        (:wat::core::lambda ((p :(rust::crossbeam_channel::Sender<(i64,String)>,rust::crossbeam_channel::Receiver<(i64,String)>)) -> :rust::crossbeam_channel::Receiver<(i64,String)>)
           (:wat::core::second p))))
-     ((pool :wat::kernel::HandlePool<crossbeam_channel::Sender<(i64,String)>>)
+     ((pool :wat::kernel::HandlePool<rust::crossbeam_channel::Sender<(i64,String)>>)
       (:wat::kernel::HandlePool::new "Console" txs))
      ((driver :wat::kernel::ProgramHandle<()>)
       (:wat::kernel::spawn :wat::std::program::Console/loop rxs stdout stderr)))

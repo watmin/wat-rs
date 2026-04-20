@@ -38,9 +38,9 @@ const ECHO_PROGRAM: &str = r#"
 (:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:user::main
-                     (stdin  :io::Stdin)
-                     (stdout :io::Stdout)
-                     (stderr :io::Stderr)
+                     (stdin  :rust::std::io::Stdin)
+                     (stdout :rust::std::io::Stdout)
+                     (stderr :rust::std::io::Stderr)
                      -> :())
   (:wat::core::match (:wat::io::read-line stdin)
     ((Some line) (:wat::io::write stdout line))
@@ -108,9 +108,9 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
 (:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:user::main
-                     (stdin  :io::Stdin)
-                     (stdout :io::Stdout)
-                     (stderr :io::Stderr)
+                     (stdin  :rust::std::io::Stdin)
+                     (stdout :rust::std::io::Stdout)
+                     (stderr :rust::std::io::Stderr)
                      -> :())
   (:wat::core::let*
     (((program :wat::WatAST)
@@ -194,9 +194,9 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
 (:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:user::main
-                     (stdin  :io::Stdin)
-                     (stdout :io::Stdout)
-                     (stderr :io::Stderr)
+                     (stdin  :rust::std::io::Stdin)
+                     (stdout :rust::std::io::Stdout)
+                     (stderr :rust::std::io::Stderr)
                      -> :())
   (:wat::core::let*
     (((program :wat::WatAST)
@@ -338,14 +338,14 @@ fn wrong_arity_user_main_rejected() {
 
 #[test]
 fn wrong_arg_type_user_main_rejected() {
-    // First arg typed :i64 instead of :io::Stdin.
+    // First arg typed :i64 instead of :rust::std::io::Stdin.
     let program = r#"
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
         (:wat::core::define (:user::main
                              (stdin  :i64)
-                             (stdout :io::Stdout)
-                             (stderr :io::Stderr)
+                             (stdout :rust::std::io::Stdout)
+                             (stderr :rust::std::io::Stderr)
                              -> :())
           ())
     "#;
@@ -415,9 +415,9 @@ fn program_writes_multiple_times_to_stdout() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
         (:wat::core::define (:user::main
-                             (stdin  :io::Stdin)
-                             (stdout :io::Stdout)
-                             (stderr :io::Stderr)
+                             (stdin  :rust::std::io::Stdin)
+                             (stdout :rust::std::io::Stdout)
+                             (stderr :rust::std::io::Stderr)
                              -> :())
           (:wat::core::let (((first :()) (:wat::io::write stdout "hello ")))
             (:wat::io::write stdout "world")))
@@ -466,9 +466,9 @@ fn stdlib_subtract_macro_expands_in_user_program() {
             "below\n"))
 
         (:wat::core::define (:user::main
-                             (stdin  :io::Stdin)
-                             (stdout :io::Stdout)
-                             (stderr :io::Stderr)
+                             (stdin  :rust::std::io::Stdin)
+                             (stdout :rust::std::io::Stdout)
+                             (stderr :rust::std::io::Stderr)
                              -> :())
           (:wat::core::let*
             (((a :holon::HolonAST) (:wat::algebra::Atom "alice"))
@@ -531,9 +531,9 @@ fn stdlib_circular_macro_near_and_far() {
             "below\n"))
 
         (:wat::core::define (:user::main
-                             (stdin  :io::Stdin)
-                             (stdout :io::Stdout)
-                             (stderr :io::Stderr)
+                             (stdin  :rust::std::io::Stdin)
+                             (stdout :rust::std::io::Stdout)
+                             (stderr :rust::std::io::Stderr)
                              -> :())
           (:wat::core::let*
             ;; Period is 24 (hours). h0 is midnight; h23 is an hour away;
@@ -596,9 +596,9 @@ fn stdlib_reject_project_gram_schmidt_duo() {
             "below\n"))
 
         (:wat::core::define (:user::main
-                             (stdin  :io::Stdin)
-                             (stdout :io::Stdout)
-                             (stderr :io::Stderr)
+                             (stdin  :rust::std::io::Stdin)
+                             (stdout :rust::std::io::Stdout)
+                             (stderr :rust::std::io::Stderr)
                              -> :())
           (:wat::core::let*
             (((x :holon::HolonAST) (:wat::algebra::Atom "x"))
@@ -658,9 +658,9 @@ fn stdlib_sequential_is_order_sensitive() {
             "below\n"))
 
         (:wat::core::define (:user::main
-                             (stdin  :io::Stdin)
-                             (stdout :io::Stdout)
-                             (stderr :io::Stderr)
+                             (stdin  :rust::std::io::Stdin)
+                             (stdout :rust::std::io::Stdout)
+                             (stderr :rust::std::io::Stderr)
                              -> :())
           (:wat::core::let*
             (((a :holon::HolonAST) (:wat::algebra::Atom "a"))
@@ -721,9 +721,9 @@ fn stdlib_console_hello_world() {
         (:wat::config::set-capacity-mode! :error)
 
         (:wat::core::define (:user::main
-                             (stdin  :io::Stdin)
-                             (stdout :io::Stdout)
-                             (stderr :io::Stderr)
+                             (stdin  :rust::std::io::Stdin)
+                             (stdout :rust::std::io::Stdout)
+                             (stderr :rust::std::io::Stderr)
                              -> :())
           (:wat::core::let*
             (;; Build Console over BOTH stdio streams. One writer.
@@ -735,7 +735,7 @@ fn stdlib_console_hello_world() {
              ;; the client handle drops before we reach the join.
              ((_ :())
               (:wat::core::let*
-                (((console :crossbeam_channel::Sender<(i64,String)>)
+                (((console :rust::crossbeam_channel::Sender<(i64,String)>)
                   (:wat::kernel::HandlePool::pop pool))
                  ((_2 :()) (:wat::kernel::HandlePool::finish pool)))
                 (:wat::std::program::Console/out console "hello via Console"))))
@@ -780,15 +780,15 @@ fn stdlib_console_multi_writer() {
 
         (:wat::core::define
           (:my::worker
-            (console :crossbeam_channel::Sender<(i64,String)>)
+            (console :rust::crossbeam_channel::Sender<(i64,String)>)
             (msg :String)
             -> :())
           (:wat::std::program::Console/out console msg))
 
         (:wat::core::define (:user::main
-                             (stdin  :io::Stdin)
-                             (stdout :io::Stdout)
-                             (stderr :io::Stderr)
+                             (stdin  :rust::std::io::Stdin)
+                             (stdout :rust::std::io::Stdout)
+                             (stderr :rust::std::io::Stderr)
                              -> :())
           (:wat::core::let*
             (((pool console-driver)
@@ -799,11 +799,11 @@ fn stdlib_console_multi_writer() {
              ;; and Console/loop cascades shut.
              ((_ :())
               (:wat::core::let*
-                (((h0 :crossbeam_channel::Sender<(i64,String)>)
+                (((h0 :rust::crossbeam_channel::Sender<(i64,String)>)
                   (:wat::kernel::HandlePool::pop pool))
-                 ((h1 :crossbeam_channel::Sender<(i64,String)>)
+                 ((h1 :rust::crossbeam_channel::Sender<(i64,String)>)
                   (:wat::kernel::HandlePool::pop pool))
-                 ((h2 :crossbeam_channel::Sender<(i64,String)>)
+                 ((h2 :rust::crossbeam_channel::Sender<(i64,String)>)
                   (:wat::kernel::HandlePool::pop pool))
                  ((_0 :()) (:wat::kernel::HandlePool::finish pool))
                  ((w0 :wat::kernel::ProgramHandle<()>)
@@ -864,9 +864,9 @@ fn stdlib_trigram_bundles_sequential_windows() {
             "below\n"))
 
         (:wat::core::define (:user::main
-                             (stdin  :io::Stdin)
-                             (stdout :io::Stdout)
-                             (stderr :io::Stderr)
+                             (stdin  :rust::std::io::Stdin)
+                             (stdout :rust::std::io::Stdout)
+                             (stderr :rust::std::io::Stderr)
                              -> :())
           (:wat::core::let*
             (((a :holon::HolonAST) (:wat::algebra::Atom "a"))

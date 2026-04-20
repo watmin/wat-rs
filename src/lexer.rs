@@ -515,8 +515,8 @@ mod tests {
     fn keyword_crate_path() {
         // Rust crate paths embed directly — no translation.
         assert_eq!(
-            lex(":crossbeam_channel::Sender<T>").unwrap(),
-            vec![Token::Keyword(":crossbeam_channel::Sender<T>".into())]
+            lex(":rust::crossbeam_channel::Sender<T>").unwrap(),
+            vec![Token::Keyword(":rust::crossbeam_channel::Sender<T>".into())]
         );
         assert_eq!(
             lex(":std::sync::mpsc::Receiver<String>").unwrap(),

@@ -1154,14 +1154,14 @@ fn infer_drop(
         let is_channel_handle = matches!(
             &resolved,
             TypeExpr::Parametric { head, .. }
-                if head == "crossbeam_channel::Sender"
-                    || head == "crossbeam_channel::Receiver"
+                if head == "rust::crossbeam_channel::Sender"
+                    || head == "rust::crossbeam_channel::Receiver"
         );
         if !is_channel_handle {
             errors.push(CheckError::TypeMismatch {
                 callee: ":wat::kernel::drop".into(),
                 param: "#1".into(),
-                expected: "crossbeam_channel::Sender<T> | crossbeam_channel::Receiver<T>".into(),
+                expected: "rust::crossbeam_channel::Sender<T> | rust::crossbeam_channel::Receiver<T>".into(),
                 got: format_type(&resolved),
             });
         }
@@ -1205,11 +1205,11 @@ fn infer_make_queue(
         let t = fresh.fresh();
         return Some(TypeExpr::Tuple(vec![
             TypeExpr::Parametric {
-                head: "crossbeam_channel::Sender".into(),
+                head: "rust::crossbeam_channel::Sender".into(),
                 args: vec![t.clone()],
             },
             TypeExpr::Parametric {
-                head: "crossbeam_channel::Receiver".into(),
+                head: "rust::crossbeam_channel::Receiver".into(),
                 args: vec![t],
             },
         ]));
@@ -1262,11 +1262,11 @@ fn infer_make_queue(
     }
     Some(TypeExpr::Tuple(vec![
         TypeExpr::Parametric {
-            head: "crossbeam_channel::Sender".into(),
+            head: "rust::crossbeam_channel::Sender".into(),
             args: vec![t_ty.clone()],
         },
         TypeExpr::Parametric {
-            head: "crossbeam_channel::Receiver".into(),
+            head: "rust::crossbeam_channel::Receiver".into(),
             args: vec![t_ty],
         },
     ]))
@@ -2361,7 +2361,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![
                 TypeExpr::Parametric {
-                    head: "crossbeam_channel::Sender".into(),
+                    head: "rust::crossbeam_channel::Sender".into(),
                     args: vec![t_var()],
                 },
                 t_var(),
@@ -2376,7 +2376,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![TypeExpr::Parametric {
-                head: "crossbeam_channel::Receiver".into(),
+                head: "rust::crossbeam_channel::Receiver".into(),
                 args: vec![t_var()],
             }],
             ret: TypeExpr::Parametric {
@@ -2392,7 +2392,7 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![TypeExpr::Parametric {
-                head: "crossbeam_channel::Receiver".into(),
+                head: "rust::crossbeam_channel::Receiver".into(),
                 args: vec![t_var()],
             }],
             ret: TypeExpr::Parametric {
@@ -2467,7 +2467,7 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![TypeExpr::Parametric {
                 head: "Vec".into(),
                 args: vec![TypeExpr::Parametric {
-                    head: "crossbeam_channel::Receiver".into(),
+                    head: "rust::crossbeam_channel::Receiver".into(),
                     args: vec![t_var()],
                 }],
             }],
@@ -2493,17 +2493,11 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // IO primitives — honest surface to the real OS stdio. Writes
-    // are polymorphic over :io::Stdout and :io::Stderr (dispatched
-    // via runtime variant match; rank-1 HM can't express the union).
-    // For the scheme, each handle type gets its own write entry —
-    // but since both go to the same dispatch, we register just one
-    // polymorphic shape using a special head that the runtime
-    // accepts. Concretely: `:wat::io::write` types as either of the
-    // two stdio handles, producing :(). We express this by letting
-    // the scheme accept `:io::Stdout` as the canonical; the runtime
-    // also accepts `:io::Stderr`, so the check-time error only fires
-    // on genuinely-wrong types (user passes an int, say). Users who
-    // want tight checking can register their own wrapping macros.
+    // are polymorphic over :rust::std::io::Stdout and ::Stderr
+    // (dispatched via runtime variant match; rank-1 HM can't express
+    // the union). For the scheme, a single H type-parameter lets
+    // wat-level users pass either handle; the runtime rejects
+    // non-stdout/stderr values at dispatch time.
     env.register(
         ":wat::io::write".into(),
         TypeScheme {
@@ -2516,7 +2510,7 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::io::read-line".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![TypeExpr::Path(":io::Stdin".into())],
+            params: vec![TypeExpr::Path(":rust::std::io::Stdin".into())],
             ret: TypeExpr::Parametric {
                 head: "Option".into(),
                 args: vec![TypeExpr::Path(":String".into())],

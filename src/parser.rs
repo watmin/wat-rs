@@ -379,8 +379,8 @@ mod tests {
             kw(":wat::core::load!")
         );
         assert_eq!(
-            parse_one(":crossbeam_channel::Sender<T>").unwrap(),
-            kw(":crossbeam_channel::Sender<T>")
+            parse_one(":rust::crossbeam_channel::Sender<T>").unwrap(),
+            kw(":rust::crossbeam_channel::Sender<T>")
         );
     }
 
