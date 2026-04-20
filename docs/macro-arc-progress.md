@@ -1,109 +1,101 @@
 # Macro arc — live progress log
 
-Updated as work happens. If compaction hits mid-slice, read this to resume.
-Full design: `docs/wat-dispatch-macro-design-2026-04-19.md`.
+Updated as work happens. If compaction hits mid-slice, read this to
+resume. Full design: `docs/wat-dispatch-macro-design-2026-04-19.md`.
+Namespace principle: `docs/namespace-principle-2026-04-19.md`.
+Caching architecture: `docs/caching-design-2026-04-19.md`.
 
-## Completed
+## Completed — everything under the macro-arc + sweep umbrella
 
-- **Task #184** ✓ — typed `:wat::core::vec` / `::list` constructors (c7f27d3)
-- **Task #185** ✓ — typed `:wat::std::HashMap` / `::HashSet` (9d760aa)
-- **Task #186** ✓ — reverted in-runtime Cache scaffold (c7f27d3)
-- **Task #187** ✓ — LocalCache as pure wat source over `:rust::lru::LruCache`
-  (6a38366, 45ecf08, cac8f75, 4bb719f — four sub-commits)
-- **Task #190** ✓ — workspace conversion. Root Cargo.toml is now
-  `[workspace] + [package]`; `wat-macros/` sibling crate added.
-- **Task #192** ✓ — wat-macros bootstrap: `syn`/`quote`/`proc-macro2`
-  deps, `WatDispatchAttr` parser with 8 unit tests covering path/scope
-  parsing, defaults, ordering, and all error cases.
-- **Task #191** ✓ — `FromWat`/`ToWat` traits in `src/rust_deps/marshal.rs`.
-  Primitives (i64, f64, bool, String, (), Value pass-through), Option
-  round-trip, and the generic `Value::RustOpaque` variant with
-  `make_rust_opaque` / `rust_opaque_arc` / `downcast_ref_opaque`
-  helpers. 12 round-trip + error-case tests.
-- **Task #193a** ✓ — Basic codegen: associated fns with primitive arg
-  / Option / Self-opaque return types. `wat-macros/src/codegen.rs`
-  emits per-method dispatch + scheme fns and a public `register()` fn
-  that wires into `RustDepsBuilder`. `tests/wat_dispatch_193a.rs`
-  fixture (`MathUtils`) proves end-to-end through the full startup
-  pipeline — 4 integration tests (add, Option Some, Option None,
-  type-mismatch rejection).
+All tasks below shipped green with zero clippy warnings. Full
+workspace test suite passing at each checkpoint.
 
-## Foundation the macro will use
+### Typed constructors (prep)
+- **#184** — typed `:wat::core::vec` / `::list` constructors.
+- **#185** — typed `:wat::std::HashMap` / `::HashSet` constructors.
+- **#186** — reverted in-runtime Cache scaffold.
 
-Everything below exists today in `main` as of commit 4bb719f:
+### `:rust::` namespace + interop machinery
+- **#187** — LocalCache as pure wat source over `:rust::lru::LruCache`.
+  Runtime dispatch, check-pass scheme dispatch, `(:wat::core::use!)`
+  form, `wat/std/LocalCache.wat`.
+- **#190** — Cargo workspace conversion; `wat-macros/` sibling crate.
+- **#192** — `wat-macros` bootstrap: `#[wat_dispatch]` attribute
+  parser with 8 unit tests.
+- **#191** — `FromWat`/`ToWat` + `Value::RustOpaque` generic opaque
+  handle variant.
 
-- `:rust::` reserved prefix in `resolve.rs`.
-- `src/rust_deps/mod.rs` — `RustDepsBuilder`, `RustDepsRegistry`,
-  `SchemeCtx` trait, `UseDeclarations`.
-- `src/rust_deps/lru.rs` — hand-written shim with `LruCacheCell`
-  (thread-id guard), `dispatch_new/put/get`, `scheme_new/put/get`,
-  `register()` fn. This is the macro's byte-for-byte codegen target.
-- Runtime dispatch for `:rust::*` in `runtime.rs` via registry lookup.
-- Checker dispatch for `:rust::*` in `check.rs` via `CheckSchemeCtx`.
-- `(:wat::core::use!)` form validated at resolve pass, no-op at
-  runtime and check.
-- `wat/std/LocalCache.wat` — three thin defines over `:rust::lru::LruCache`.
-- End-to-end test: `freeze::tests::invoke_main_uses_std_local_cache_via_rust_lru_shim`.
+### The macro
+- **#193** — Method-level codegen: dispatch + scheme + register.
+  Covers associated fns, `&self`, `&mut self`, `self` (owned_move);
+  primitives, Option, Vec, Tuple, Result, Self-opaque returns;
+  `type_params` attribute for phantom generics; all three scope modes.
+- **#195** — Regenerated `src/rust_deps/lru.rs` via macro. Hand-written
+  `LruCacheCell` removed; `Value::RustOpaque` replaces the dedicated
+  `Value::rust__lru__LruCache` variant.
 
-## In progress
+### Marshaling expansions (rusqlite prep)
+- **#196 (E1)** — `Vec<T>` marshaling.
+- **#197 (E2)** — `Tuple<A,B,...>` marshaling, arities 1–6.
+- **#198 (E3)** — `:Result<T,E>` wat type + `(Ok v)` / `(Err e)`
+  constructors + match integration + marshaling.
+- **#199 (E4)** — `scope = "shared"` — plain Arc payload, &self
+  methods, cross-thread permitted.
+- **#200 (E5)** — `scope = "owned_move"` — `OwnedMoveCell<T>` with
+  AtomicBool gate for consumed-after-use handles.
 
-_(nothing — ready for next task)_
-
-## In progress
-
-_(nothing — macro arc core deliverables complete)_
-
-## Completed (continued)
-
-- **Task #193** ✓ (to-lru-regen scope) — Method-level codegen. 193a ✓
-  (associated fns + primitives + Option + Self-opaque). 193b ✓
-  (`self` receivers: `&self`/`&mut self` under `scope = "thread_owned"`;
-  `ThreadOwnedCell<T>` wrapping). `type_params` attribute added for
-  phantom generics. 193c (`Vec<T>`/tuple) deferred to when rusqlite
-  needs it.
-- **Task #195** ✓ — Regenerated lru shim via macro. Hand-written
-  `LruCacheCell` + `LruCacheDispatcher` code removed entirely;
-  `src/rust_deps/lru.rs` now annotates a `WatLruCache` newtype with
-  `#[wat_dispatch]` and forwards its `register` fn. `Value::RustOpaque`
-  replaced the dedicated `Value::rust__lru__LruCache` variant. All
-  existing integration tests (`wat/std/LocalCache.wat` end-to-end,
-  runtime put/get, eviction, overwrite, thread-crossing guard) still
-  green.
-
-Known regressions from hand-written → macro (tracked via inline
-comments in the code):
-- Wrong-key-type type-check diagnostic (hand-written unified K via
-  generics; macro sees `Value` param and accepts any). Runtime
-  canonicalization still enforces primitive keys. Lands when the
-  macro supports per-arg type hints like `#[wat_param = "K"]`.
-- Zero-capacity panic instead of RuntimeError. Lands when the macro
-  supports precondition hooks or Result<Self, RuntimeError> returns.
+### Honesty sweep
+- **#201 (H)** — All Rust-sourced types surfaced under `:rust::*`
+  with fully-qualified paths (`:rust::std::io::Stdin`, not
+  `:rust::io::Stdin`). `:wat::` and `:rust::` coexist as siblings.
 
 ## Queue
-  Target is `src/rust_deps/lru.rs`'s exact structure.
-- **Task #194** — Scope handling: `shared` / `thread_owned` / `owned_move`.
-- **Task #195** — Regenerate `src/rust_deps/lru.rs` via macro. Diff
-  against hand-written is the correctness proof.
 
-## Stalled / deferred
-
-- **Task #188** — Program Cache. Lands after L1 / macro arc.
-- **Task #189** — Backfill FOUNDATION.md. After macro arc lands.
+- **#188** 🔜 — Program Cache (L2) as pure wat source. Uses
+  `:wat::std::LocalCache` + queues + `spawn` + `select`. Completes
+  058 Step 5.
+- **#189** — Backfill 058 FOUNDATION.md with the session's arc.
+  Mechanical but important.
+- **Trading-lab migration** — rusqlite shim + wat driver. The
+  foundation is now ready.
 
 ## Critical decisions locked
 
-1. `:Result<T,E>` wat-level type — deferred until rusqlite forces it.
-   Added to marshaling traits when the first caller demands it.
-2. Variadic SQL params as `:Tuple<...>` — same deferral.
-3. Closures crossing wat↔Rust — bidirectional eval, deferred.
-4. `use!` scope — program-global now, per-file when multiple files
-   with distinct deps exist (wat-rs stdlib or holon-lab-trading).
+1. `:Result<T,E>` — shipped (E3).
+2. Variadic SQL params as tuples — shipped (E2).
+3. Closures crossing wat↔Rust — deferred; bidirectional eval is a
+   future slice, rusqlite's one-shot dispatch pattern works without.
+4. `(:wat::core::use!)` scope — program-global; per-file enforcement
+   is a planned upgrade.
 5. No implicit `self` — methods always take target as first positional.
 6. Type keyword in constructors — explicit (`:T` or `:(K,V)`) for
-   content-free constructors; inferred from let-annotation for rust-dep
-   primitives that have no natural type arg (lru's `::new` takes just `cap`).
+   content-free constructors; inferred from let-annotation for
+   rust-dep primitives with no natural type arg.
+7. Namespace: `:wat::` for language-native + wat-stdlib; `:rust::`
+   for imported Rust crates, fully qualified. Aliases are a user
+   concern.
 
-## Session stats
+## Where the foundation stands
 
-Six commits this session. 465 lib + 17 integration + 1 doc test green.
-Zero clippy warnings. Pushed.
+wat-rs is Clojure-on-JVM shaped — a hosted language over Rust. Any
+consumer crate (e.g. holon-lab-trading):
+
+```rust
+// Their Cargo.toml inherits wat-rs's deps automatically.
+
+// Their rusqlite_shim.rs:
+use wat_macros::wat_dispatch;
+
+#[wat_dispatch(path = ":rust::rusqlite::Connection", scope = "thread_owned")]
+impl WatSqliteConnection {
+    pub fn open(path: String) -> std::result::Result<Self, String> { ... }
+    pub fn execute(&mut self, sql: String, params: (i64, String))
+        -> std::result::Result<i64, String> { ... }
+    pub fn query_scalar(&mut self, sql: String, params: (i64,))
+        -> std::result::Result<Option<i64>, String> { ... }
+    pub fn query_all(&mut self, sql: String, params: (i64,))
+        -> std::result::Result<Vec<(i64, String)>, String> { ... }
+}
+```
+
+~30 lines per important method. Their wat-level driver stays pure wat.
