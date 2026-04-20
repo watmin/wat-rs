@@ -16,10 +16,10 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
     Error, FnArg, GenericArgument, Ident, ImplItem, ImplItemFn, ItemImpl, Pat, PathArguments,
-    ReturnType, Type,
+    Receiver, ReturnType, Type,
 };
 
-use crate::WatDispatchAttr;
+use crate::{Scope, WatDispatchAttr};
 
 /// Top-level codegen entry. Emits:
 ///   <original impl block>
@@ -135,9 +135,10 @@ fn emit_dispatch_fn(
     let dispatch_ident = format_ident!("dispatch_{}", name);
     let wat_path = method_wat_path(attr, method);
 
-    // Collect non-receiver args (193a scope: no `self` yet).
-    let args = collect_non_receiver_args(method)?;
-    let arity = args.len();
+    let (receiver, args) = split_receiver_and_args(method)?;
+
+    // Total wat-side arity: receiver (if any) + non-receiver args.
+    let arity = args.len() + if receiver.is_some() { 1 } else { 0 };
 
     // Arity guard.
     let arity_guard = quote! {
@@ -150,13 +151,14 @@ fn emit_dispatch_fn(
         }
     };
 
-    // Per-arg marshaling.
+    // Non-receiver arg bindings. Indices shift by 1 if a receiver is present.
+    let non_receiver_start = if receiver.is_some() { 1 } else { 0 };
     let arg_bindings: Vec<TokenStream> = args
         .iter()
         .enumerate()
         .map(|(i, (_pat, ty))| {
             let bind_ident = format_ident!("arg_{}", i);
-            let idx = i;
+            let idx = non_receiver_start + i;
             Ok(quote! {
                 let #bind_ident: #ty = <#ty as ::wat::rust_deps::FromWat>::from_wat(
                     &::wat::runtime::eval(&args[#idx], env, sym)?,
@@ -166,13 +168,68 @@ fn emit_dispatch_fn(
         })
         .collect::<syn::Result<_>>()?;
 
-    // Invocation: Self::method_name(arg_0, arg_1, ...)
-    let arg_idents: Vec<Ident> = (0..arity).map(|i| format_ident!("arg_{}", i)).collect();
-    let invocation = quote! {
-        let result = <#self_type>::#name(#(#arg_idents),*);
+    let arg_idents: Vec<Ident> = (0..args.len()).map(|i| format_ident!("arg_{}", i)).collect();
+
+    // Method invocation depends on receiver shape + scope.
+    let invocation = match (&receiver, attr.scope) {
+        (None, _) => {
+            // Associated fn.
+            quote! {
+                let result = <#self_type>::#name(#(#arg_idents),*);
+            }
+        }
+        (Some(ReceiverKind::RefMut), Scope::ThreadOwned) => {
+            // &mut self under thread-owned scope. args[0] is the opaque
+            // handle; downcast to &ThreadOwnedCell<Self>; call
+            // with_mut so the inner &mut Self can receive the method.
+            quote! {
+                let self_val = ::wat::runtime::eval(&args[0], env, sym)?;
+                let self_inner =
+                    ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path)?;
+                let self_cell: &::wat::rust_deps::ThreadOwnedCell<#self_type> =
+                    ::wat::rust_deps::downcast_ref_opaque(&self_inner, TYPE_PATH, #wat_path)?;
+                let result = self_cell.with_mut(#wat_path, |__self_ref| {
+                    __self_ref.#name(#(#arg_idents),*)
+                })?;
+            }
+        }
+        (Some(ReceiverKind::Ref), Scope::ThreadOwned) => {
+            // &self under thread-owned scope: with_ref instead.
+            quote! {
+                let self_val = ::wat::runtime::eval(&args[0], env, sym)?;
+                let self_inner =
+                    ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path)?;
+                let self_cell: &::wat::rust_deps::ThreadOwnedCell<#self_type> =
+                    ::wat::rust_deps::downcast_ref_opaque(&self_inner, TYPE_PATH, #wat_path)?;
+                let result = self_cell.with_ref(#wat_path, |__self_ref| {
+                    __self_ref.#name(#(#arg_idents),*)
+                })?;
+            }
+        }
+        (Some(ReceiverKind::Owned), _) => {
+            return Err(Error::new(
+                proc_macro2::Span::call_site(),
+                "wat_dispatch 193b: by-value `self` receivers are not yet supported \
+                 (tracking under scope = \"owned_move\" in task #194)",
+            ));
+        }
+        (Some(_), Scope::Shared) => {
+            return Err(Error::new(
+                proc_macro2::Span::call_site(),
+                "wat_dispatch 193b: `self` receivers under scope = \"shared\" are not \
+                 yet supported (shared semantics for mutable-self methods is ambiguous; \
+                 lands in task #194)",
+            ));
+        }
+        (Some(_), Scope::OwnedMove) => {
+            return Err(Error::new(
+                proc_macro2::Span::call_site(),
+                "wat_dispatch 194: scope = \"owned_move\" not yet implemented",
+            ));
+        }
     };
 
-    // Return marshaling. Inspect the method's return type. Self → opaque.
+    // Return marshaling.
     let return_marshal = emit_return_marshal(self_type, attr, &method.sig.output)?;
 
     Ok(quote! {
@@ -189,59 +246,89 @@ fn emit_dispatch_fn(
     })
 }
 
-/// Skip the receiver if present. 193a: error if receiver present.
-fn collect_non_receiver_args(method: &ImplItemFn) -> syn::Result<Vec<(Pat, Type)>> {
-    let mut out = Vec::new();
+/// Which receiver shape a method uses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReceiverKind {
+    /// `&self`
+    Ref,
+    /// `&mut self`
+    RefMut,
+    /// `self` (by value)
+    Owned,
+}
+
+type NonReceiverArgs = Vec<(Pat, Type)>;
+
+/// Partition a method's inputs into (optional receiver, non-receiver args).
+fn split_receiver_and_args(
+    method: &ImplItemFn,
+) -> syn::Result<(Option<ReceiverKind>, NonReceiverArgs)> {
+    let mut receiver: Option<ReceiverKind> = None;
+    let mut args = Vec::new();
     for input in method.sig.inputs.iter() {
         match input {
             FnArg::Receiver(r) => {
-                return Err(Error::new_spanned(
-                    r,
-                    "wat_dispatch 193a: methods with `self` receivers are not yet supported \
-                     (this sub-slice supports associated fns only; receiver marshaling \
-                     lands in 193b)",
-                ));
+                receiver = Some(classify_receiver(r)?);
             }
             FnArg::Typed(pt) => {
-                out.push(((*pt.pat).clone(), (*pt.ty).clone()));
+                args.push(((*pt.pat).clone(), (*pt.ty).clone()));
             }
         }
     }
-    Ok(out)
+    Ok((receiver, args))
+}
+
+fn classify_receiver(r: &Receiver) -> syn::Result<ReceiverKind> {
+    match (&r.reference, r.mutability.is_some()) {
+        (Some(_), true) => Ok(ReceiverKind::RefMut),
+        (Some(_), false) => Ok(ReceiverKind::Ref),
+        (None, _) => Ok(ReceiverKind::Owned),
+    }
 }
 
 /// Given the method's return type, emit code that turns a local `result`
 /// binding into a wat Value.
 ///
 ///   Return = ()         → Ok(::wat::runtime::Value::Unit)
-///   Return = Self       → Ok(make_rust_opaque(TYPE_PATH, result))
+///   Return = Self       → Ok(make_rust_opaque(TYPE_PATH, <wrapped>))
+///                         where <wrapped> depends on scope.
 ///   Return = anything   → Ok(<T as ToWat>::to_wat(result))
+///
+/// Under `scope = "thread_owned"`, a `Self` return is wrapped in a
+/// `ThreadOwnedCell<Self>` before the opaque payload — matches the
+/// hand-written lru shim's `LruCacheCell` shape.
 fn emit_return_marshal(
     self_type: &Type,
-    _attr: &WatDispatchAttr,
+    attr: &WatDispatchAttr,
     output: &ReturnType,
 ) -> syn::Result<TokenStream> {
+    let wrap_self_return = |inner: TokenStream| -> TokenStream {
+        match attr.scope {
+            Scope::ThreadOwned => quote! {
+                Ok(::wat::rust_deps::make_rust_opaque(
+                    TYPE_PATH,
+                    ::wat::rust_deps::ThreadOwnedCell::new(#inner),
+                ))
+            },
+            Scope::Shared => quote! {
+                Ok(::wat::rust_deps::make_rust_opaque(TYPE_PATH, #inner))
+            },
+            Scope::OwnedMove => quote! {
+                // OwnedMove semantics land in task #194.
+                Ok(::wat::rust_deps::make_rust_opaque(TYPE_PATH, #inner))
+            },
+        }
+    };
+
     match output {
         ReturnType::Default => Ok(quote! {
             let _ = result;
             Ok(::wat::runtime::Value::Unit)
         }),
         ReturnType::Type(_, ty) => {
-            // `Self` becomes an opaque-wrapped return.
-            if type_is_self(ty) {
-                return Ok(quote! {
-                    Ok(::wat::rust_deps::make_rust_opaque(TYPE_PATH, result))
-                });
+            if type_is_self(ty) || types_equal(ty, self_type) {
+                return Ok(wrap_self_return(quote! { result }));
             }
-            // If the return type is the concrete self-type (e.g.
-            // explicitly writing `MathUtils` instead of `Self`), also
-            // wrap as opaque.
-            if types_equal(ty, self_type) {
-                return Ok(quote! {
-                    Ok(::wat::rust_deps::make_rust_opaque(TYPE_PATH, result))
-                });
-            }
-            // Default path: call ToWat on the return.
             Ok(quote! {
                 Ok(<#ty as ::wat::rust_deps::ToWat>::to_wat(result))
             })
@@ -271,16 +358,42 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
     let scheme_ident = format_ident!("scheme_{}", name);
     let wat_path = method_wat_path(attr, method);
 
-    let args = collect_non_receiver_args(method)?;
-    let arity = args.len();
+    let (receiver, args) = split_receiver_and_args(method)?;
+    let receiver_arity = if receiver.is_some() { 1 } else { 0 };
+    let arity = args.len() + receiver_arity;
 
-    // Per-arg: emit the TypeExpr that represents the declared Rust
-    // type, then infer + unify.
+    // Self-arg check, if method has a receiver. For no-generics impls
+    // (193b scope), the self-type parses from a wat annotation as
+    // `TypeExpr::Path(":rust::...")` — we emit that form so unification
+    // matches. Generic self-types (Parametric with args) land with
+    // generics support (later sub-slice).
+    let attr_path_lit = attr.path.clone();
+    let self_arg_check = if receiver.is_some() {
+        quote! {
+            {
+                let expected_ty = ::wat::types::TypeExpr::Path(#attr_path_lit.into());
+                if let Some(got_ty) = ctx.infer(&args[0]) {
+                    if !ctx.unify_types(&got_ty, &expected_ty) {
+                        ctx.push_type_mismatch(
+                            #wat_path,
+                            "self",
+                            format!("{:?}", ctx.apply_subst(&expected_ty)),
+                            format!("{:?}", ctx.apply_subst(&got_ty)),
+                        );
+                    }
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    // Per-non-receiver-arg: emit TypeExpr + infer + unify.
     let arg_checks: Vec<TokenStream> = args
         .iter()
         .enumerate()
         .map(|(i, (_pat, ty))| {
-            let idx = i;
+            let idx = receiver_arity + i;
             let expected_ty_ts = rust_type_to_type_expr_tokens(ty, &attr.path)?;
             let param_name_ts = format!("#{}", i + 1);
             Ok(quote! {
@@ -318,6 +431,7 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
                 ctx.push_arity_mismatch(#wat_path, #arity, args.len());
                 return Some(#fallback_ty);
             }
+            #self_arg_check
             #(#arg_checks)*
             Some(#return_ty_ts)
         }
@@ -332,15 +446,12 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
 ///   wat::runtime::Value         → fresh var (checker treats as poly)
 fn rust_type_to_type_expr_tokens(ty: &Type, attr_path: &str) -> syn::Result<TokenStream> {
     if type_is_self(ty) {
-        // Strip the leading ':' from the attr path (TypeExpr::Parametric
-        // stores the head WITHOUT the colon — see existing call sites
-        // in runtime.rs which use strings like "rust::lru::LruCache").
-        let head = attr_path.trim_start_matches(':').to_string();
+        // No-generics self-type (193b scope): parse as `Path`, matching
+        // how the type parser produces Path for plain keyword paths
+        // without `<...>`. Generic self-types land later.
+        let full_path = attr_path.to_string();
         return Ok(quote! {
-            ::wat::types::TypeExpr::Parametric {
-                head: #head.into(),
-                args: vec![],
-            }
+            ::wat::types::TypeExpr::Path(#full_path.into())
         });
     }
 

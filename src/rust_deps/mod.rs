@@ -57,7 +57,10 @@ use crate::runtime::{Environment, RuntimeError, SymbolTable, Value};
 pub mod lru;
 pub mod marshal;
 
-pub use marshal::{downcast_ref_opaque, make_rust_opaque, rust_opaque_arc, FromWat, RustOpaqueInner, ToWat};
+pub use marshal::{
+    downcast_ref_opaque, make_rust_opaque, rust_opaque_arc, FromWat, RustOpaqueInner,
+    ThreadOwnedCell, ToWat,
+};
 
 /// A Rust shim's dispatch function. Called when a wat program invokes
 /// a method path registered by the shim. The `args` are the raw

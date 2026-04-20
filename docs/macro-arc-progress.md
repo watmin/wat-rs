@@ -51,10 +51,11 @@ _(nothing — ready for next task)_
 
 ## In progress
 
-- **Task #193** 🔄 — Method-level codegen. 193a sub-slice ✓ (associated
-  fns with primitive arg/return types + Option + Self-opaque). 193b
-  next: add `self`/`&self`/`&mut self` receiver marshaling. 193c after
-  that: `Vec<T>` / tuple compound types.
+- **Task #193** 🔄 — Method-level codegen. 193a ✓ (associated fns +
+  primitives + Option + Self-opaque). 193b ✓ (`self` receivers:
+  `&self`/`&mut self` under `scope = "thread_owned"`; `ThreadOwnedCell<T>`
+  wrapping; Counter integration test). 193c deferred: `Vec<T>` / tuple
+  compound types (needed for rusqlite; not needed for lru regeneration).
 
 ## Queue
   Target is `src/rust_deps/lru.rs`'s exact structure.

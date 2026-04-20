@@ -255,6 +255,85 @@ pub fn rust_opaque_arc(
     }
 }
 
+/// Wrapper for single-thread-owned mutable state. Generic version of
+/// the hand-written `LruCacheCell` pattern. The `#[wat_dispatch]`
+/// macro uses this to wrap `Self` returns when the annotated impl
+/// block declares `scope = "thread_owned"`.
+///
+/// Ownership invariant: every `.with_mut` / `.with_ref` call asserts
+/// `thread::current().id() == self.owner` before dereferencing the
+/// `UnsafeCell`. Cross-thread access errors with a clear
+/// `MalformedForm`. Zero Mutex.
+///
+/// # Safety
+///
+/// The `unsafe impl Send + Sync` is upheld by the thread-id guard.
+/// Only one thread can reach the `UnsafeCell`; the interpreter is
+/// single-threaded within that thread and the `with_*` closures do
+/// not re-enter Value evaluation against the same cell.
+pub struct ThreadOwnedCell<T: Send> {
+    owner: std::thread::ThreadId,
+    cell: std::cell::UnsafeCell<T>,
+}
+
+impl<T: Send> std::fmt::Debug for ThreadOwnedCell<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ThreadOwnedCell {{ owner: {:?} }}", self.owner)
+    }
+}
+
+// Safety: see type-level docs.
+unsafe impl<T: Send> Send for ThreadOwnedCell<T> {}
+unsafe impl<T: Send> Sync for ThreadOwnedCell<T> {}
+
+impl<T: Send> ThreadOwnedCell<T> {
+    /// Create a new cell bound to the current thread.
+    pub fn new(inner: T) -> Self {
+        Self {
+            owner: std::thread::current().id(),
+            cell: std::cell::UnsafeCell::new(inner),
+        }
+    }
+
+    fn ensure_owner(&self, op: &'static str) -> Result<(), RuntimeError> {
+        if std::thread::current().id() != self.owner {
+            return Err(RuntimeError::MalformedForm {
+                head: op.into(),
+                reason: format!(
+                    "thread-owned value crossed thread boundary \
+                     (owner: {:?}, current: {:?})",
+                    self.owner,
+                    std::thread::current().id()
+                ),
+            });
+        }
+        Ok(())
+    }
+
+    /// Borrow the inner value mutably after asserting ownership.
+    pub fn with_mut<R>(
+        &self,
+        op: &'static str,
+        f: impl FnOnce(&mut T) -> R,
+    ) -> Result<R, RuntimeError> {
+        self.ensure_owner(op)?;
+        // Safety: thread-owner invariant checked above.
+        Ok(unsafe { f(&mut *self.cell.get()) })
+    }
+
+    /// Borrow the inner value immutably after asserting ownership.
+    /// (Kept for `&self` methods under `scope = "thread_owned"`.)
+    pub fn with_ref<R>(
+        &self,
+        op: &'static str,
+        f: impl FnOnce(&T) -> R,
+    ) -> Result<R, RuntimeError> {
+        self.ensure_owner(op)?;
+        // Safety: thread-owner invariant checked above.
+        Ok(unsafe { f(&*self.cell.get()) })
+    }
+}
+
 /// Downcast an opaque Value's payload to a `&T` reference. The macro's
 /// dispatch code calls this for each `:rust::T` argument, bypassing
 /// the generic `FromWat` pathway (since opaque handles aren't cloneable
