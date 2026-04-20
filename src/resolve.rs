@@ -214,7 +214,7 @@ mod tests {
     fn algebra_core_calls_resolve() {
         assert!(resolve(r#"(:wat::algebra::Atom "x")"#).is_ok());
         assert!(resolve(r#"(:wat::algebra::Bind (:wat::algebra::Atom "r") (:wat::algebra::Atom "f"))"#).is_ok());
-        assert!(resolve(r#"(:wat::algebra::Bundle (:wat::core::vec (:wat::algebra::Atom "a")))"#).is_ok());
+        assert!(resolve(r#"(:wat::algebra::Bundle (:wat::core::vec :holon::HolonAST (:wat::algebra::Atom "a")))"#).is_ok());
     }
 
     #[test]

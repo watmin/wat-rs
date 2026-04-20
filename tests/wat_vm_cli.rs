@@ -577,7 +577,7 @@ fn stdlib_circular_macro_near_and_far() {
 /// Test logic:
 ///   - presence(y, Reject(x, y))  → below floor (by construction)
 ///   - presence(y, Project(x, y)) → above floor (projection preserves
-///                                    direction along y)
+///     direction along y)
 ///
 /// Exercises both macros AND both branches of the noise-floor
 /// discriminator in one program. Assertion is exact.
@@ -666,8 +666,8 @@ fn stdlib_sequential_is_order_sensitive() {
             (((a :holon::HolonAST) (:wat::algebra::Atom "a"))
              ((b :holon::HolonAST) (:wat::algebra::Atom "b"))
              ((c :holon::HolonAST) (:wat::algebra::Atom "c"))
-             ((abc :holon::HolonAST) (:wat::std::Sequential (:wat::core::list a b c)))
-             ((acb :holon::HolonAST) (:wat::std::Sequential (:wat::core::list a c b)))
+             ((abc :holon::HolonAST) (:wat::std::Sequential (:wat::core::list :holon::HolonAST a b c)))
+             ((acb :holon::HolonAST) (:wat::std::Sequential (:wat::core::list :holon::HolonAST a c b)))
              ((same :f64) (:wat::algebra::cosine abc abc))
              ((reorder :f64) (:wat::algebra::cosine abc acb))
              ((_ :()) (:wat::io::write stdout (:my::test::verdict same))))
@@ -875,9 +875,9 @@ fn stdlib_trigram_bundles_sequential_windows() {
              ((d :holon::HolonAST) (:wat::algebra::Atom "d"))
              ((z :holon::HolonAST) (:wat::algebra::Atom "unrelated-z"))
              ((window-1 :holon::HolonAST)
-              (:wat::std::Sequential (:wat::core::list a b c)))
+              (:wat::std::Sequential (:wat::core::list :holon::HolonAST a b c)))
              ((full :holon::HolonAST)
-              (:wat::std::Trigram (:wat::core::list a b c d)))
+              (:wat::std::Trigram (:wat::core::list :holon::HolonAST a b c d)))
              ((participant :f64) (:wat::algebra::cosine window-1 full))
              ((outsider :f64) (:wat::algebra::cosine z full))
              ((_ :()) (:wat::io::write stdout (:my::test::verdict participant))))

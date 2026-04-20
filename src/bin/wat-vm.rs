@@ -168,15 +168,15 @@ fn format_type(t: &TypeExpr) -> String {
     match t {
         TypeExpr::Path(p) => p.clone(),
         TypeExpr::Parametric { head, args } => {
-            let inner: Vec<_> = args.iter().map(|a| format_type_inner(a)).collect();
+            let inner: Vec<_> = args.iter().map(format_type_inner).collect();
             format!(":{}<{}>", head, inner.join(","))
         }
         TypeExpr::Fn { args, ret } => {
-            let in_parts: Vec<_> = args.iter().map(|a| format_type_inner(a)).collect();
+            let in_parts: Vec<_> = args.iter().map(format_type_inner).collect();
             format!(":fn({})->{}", in_parts.join(","), format_type_inner(ret))
         }
         TypeExpr::Tuple(elements) => {
-            let inner: Vec<_> = elements.iter().map(|e| format_type_inner(e)).collect();
+            let inner: Vec<_> = elements.iter().map(format_type_inner).collect();
             if elements.len() == 1 {
                 format!(":({},)", inner[0])
             } else {

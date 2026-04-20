@@ -406,7 +406,7 @@ mod tests {
 
     #[test]
     fn float_positive() {
-        assert_eq!(lex("3.14").unwrap(), vec![Token::Float(3.14)]);
+        assert_eq!(lex("2.5").unwrap(), vec![Token::Float(2.5)]);
     }
 
     #[test]

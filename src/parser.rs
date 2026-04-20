@@ -185,7 +185,7 @@ mod tests {
     fn atom_literals() {
         assert_eq!(parse_one("42").unwrap(), WatAST::IntLit(42));
         assert_eq!(parse_one("-1").unwrap(), WatAST::IntLit(-1));
-        assert_eq!(parse_one("3.14").unwrap(), WatAST::FloatLit(3.14));
+        assert_eq!(parse_one("2.5").unwrap(), WatAST::FloatLit(2.5));
         assert_eq!(parse_one("true").unwrap(), WatAST::BoolLit(true));
         assert_eq!(parse_one("false").unwrap(), WatAST::BoolLit(false));
         assert_eq!(parse_one("\"hello\"").unwrap(), str_lit("hello"));

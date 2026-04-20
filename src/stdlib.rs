@@ -26,7 +26,7 @@ pub struct StdlibFile {
 /// registration order during startup — later files may reference
 /// earlier ones (defmacros are available as soon as they register).
 pub fn stdlib_files() -> &'static [StdlibFile] {
-    &STDLIB_FILES
+    STDLIB_FILES
 }
 
 const STDLIB_FILES: &[StdlibFile] = &[

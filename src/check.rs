@@ -1313,7 +1313,7 @@ fn infer_hashmap_constructor(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    if args.len() % 2 != 0 {
+    if !args.len().is_multiple_of(2) {
         errors.push(CheckError::MalformedForm {
             head: ":wat::std::HashMap".into(),
             reason: "arity must be even (alternating key/value)".into(),
@@ -1387,17 +1387,49 @@ fn infer_list_constructor(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    // :wat::core::vec — `∀T. T* -> List<T>`. All args must unify to a
-    // common element type.
-    let elem_var = fresh.fresh();
-    for (i, arg) in args.iter().enumerate() {
+    // :wat::core::vec / :wat::core::list — `(vec :T x1 x2 ...) -> Vec<T>`.
+    // First arg is a type keyword (read, not inferred); remaining args
+    // must unify with T. Explicit typing is required even for non-empty
+    // literals — the shape never depends on content or context.
+    if args.is_empty() {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::core::vec".into(),
+            expected: 1,
+            got: 0,
+        });
+        let t = fresh.fresh();
+        return Some(TypeExpr::Parametric {
+            head: "Vec".into(),
+            args: vec![t],
+        });
+    }
+    let elem_ty = match &args[0] {
+        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(_) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::vec".into(),
+                    reason: format!("first argument {} is not a valid type keyword", k),
+                });
+                fresh.fresh()
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::vec".into(),
+                reason: "first argument must be a type keyword (e.g., :i64)".into(),
+            });
+            fresh.fresh()
+        }
+    };
+    for (i, arg) in args[1..].iter().enumerate() {
         let arg_ty = infer(arg, env, locals, fresh, subst, errors);
         if let Some(arg_ty) = arg_ty {
-            if unify(&arg_ty, &elem_var, subst).is_err() {
+            if unify(&arg_ty, &elem_ty, subst).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::core::vec".into(),
-                    param: format!("#{}", i + 1),
-                    expected: format_type(&apply_subst(&elem_var, subst)),
+                    param: format!("#{}", i + 2),
+                    expected: format_type(&apply_subst(&elem_ty, subst)),
                     got: format_type(&apply_subst(&arg_ty, subst)),
                 });
             }
@@ -1405,7 +1437,7 @@ fn infer_list_constructor(
     }
     Some(TypeExpr::Parametric {
         head: "Vec".into(),
-        args: vec![apply_subst(&elem_var, subst)],
+        args: vec![apply_subst(&elem_ty, subst)],
     })
 }
 
@@ -1753,9 +1785,7 @@ fn derive_scheme_from_function(func: &Function) -> Option<TypeScheme> {
     // `runtime::Function` carries declared type-parameters, parameter
     // types, and the return type since slice 7b. Lambdas (name = None)
     // leave param_types empty and aren't statically typed here.
-    if func.name.is_none() {
-        return None;
-    }
+    func.name.as_ref()?;
     Some(TypeScheme {
         type_params: func.type_params.clone(),
         params: func.param_types.clone(),
@@ -2481,13 +2511,13 @@ mod tests {
 
     #[test]
     fn list_same_type_passes() {
-        assert!(check("(:wat::core::vec 1 2 3)").is_ok());
-        assert!(check(r#"(:wat::core::vec "a" "b")"#).is_ok());
+        assert!(check("(:wat::core::vec :i64 1 2 3)").is_ok());
+        assert!(check(r#"(:wat::core::vec :String "a" "b")"#).is_ok());
     }
 
     #[test]
     fn list_mixed_types_rejected() {
-        let err = check(r#"(:wat::core::vec 1 "two" 3)"#).unwrap_err();
+        let err = check(r#"(:wat::core::vec :i64 1 "two" 3)"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
@@ -2496,7 +2526,7 @@ mod tests {
         // Bundle takes :Vec<holon::HolonAST>. A list of (Atom ...) calls
         // returns :Vec<holon::HolonAST>, so Bundle(list(Atoms...)) type-checks.
         assert!(check(
-            r#"(:wat::algebra::Bundle (:wat::core::vec
+            r#"(:wat::algebra::Bundle (:wat::core::vec :holon::HolonAST
                  (:wat::algebra::Atom 1)
                  (:wat::algebra::Atom 2)))"#
         )
@@ -2506,7 +2536,7 @@ mod tests {
     #[test]
     fn bundle_of_list_of_ints_rejected() {
         // Bundle wants :Vec<holon::HolonAST>, but this is :Vec<i64>.
-        let err = check(r#"(:wat::algebra::Bundle (:wat::core::vec 1 2 3))"#).unwrap_err();
+        let err = check(r#"(:wat::algebra::Bundle (:wat::core::vec :i64 1 2 3))"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 

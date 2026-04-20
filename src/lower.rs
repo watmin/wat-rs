@@ -202,7 +202,9 @@ fn lower_bind(args: &[WatAST]) -> Result<HolonAST, LowerError> {
 }
 
 fn lower_bundle(args: &[WatAST]) -> Result<HolonAST, LowerError> {
-    // Expect exactly one argument: a (:wat::core::vec ...) form.
+    // Expect exactly one argument: a (:wat::core::vec :T item ...) form.
+    // Typed form per 2026-04-19: the :T arg after the keyword is skipped
+    // at lower time (it's for the checker).
     if args.len() != 1 {
         return Err(LowerError::BundleShape);
     }
@@ -210,7 +212,15 @@ fn lower_bundle(args: &[WatAST]) -> Result<HolonAST, LowerError> {
         WatAST::List(items) => {
             let head = items.first().ok_or(LowerError::BundleShape)?;
             match head {
-                WatAST::Keyword(k) if k == ":wat::core::vec" => &items[1..],
+                WatAST::Keyword(k) if k == ":wat::core::vec" => {
+                    if items.len() < 2 {
+                        return Err(LowerError::BundleShape);
+                    }
+                    if !matches!(&items[1], WatAST::Keyword(_)) {
+                        return Err(LowerError::BundleShape);
+                    }
+                    &items[2..]
+                }
                 _ => return Err(LowerError::BundleShape),
             }
         }
@@ -299,10 +309,10 @@ mod tests {
 
     #[test]
     fn lower_atom_float() {
-        let ast = parse_one("(:wat::algebra::Atom 3.14)").unwrap();
+        let ast = parse_one("(:wat::algebra::Atom 2.5)").unwrap();
         let holon = lower(&ast).unwrap();
         let recovered: Option<&f64> = atom_value(&holon);
-        assert_eq!(recovered, Some(&3.14_f64));
+        assert_eq!(recovered, Some(&2.5_f64));
     }
 
     #[test]
@@ -338,7 +348,7 @@ mod tests {
     #[test]
     fn lower_bundle() {
         let ast = parse_one(
-            r#"(:wat::algebra::Bundle (:wat::core::vec (:wat::algebra::Atom "a") (:wat::algebra::Atom "b") (:wat::algebra::Atom "c")))"#,
+            r#"(:wat::algebra::Bundle (:wat::core::vec :holon::HolonAST (:wat::algebra::Atom "a") (:wat::algebra::Atom "b") (:wat::algebra::Atom "c")))"#,
         )
         .unwrap();
         let holon = lower(&ast).unwrap();

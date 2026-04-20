@@ -1714,12 +1714,31 @@ fn eval_or(
     Ok(Value::bool(false))
 }
 
+/// `(:wat::core::vec :T x1 x2 ...)` / `(:wat::core::list :T x1 x2 ...)` —
+/// typed list/vec constructor. First argument is a TYPE KEYWORD read by
+/// the type checker; the runtime transports any `Value`. Remaining args
+/// are element values. Matches the `make-bounded-queue` precedent for
+/// resource-like constructors — explicit `:T` is required even when
+/// elements could drive inference, so the shape never depends on context.
 fn eval_list_ctor(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let items = args
+    if args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::vec".into(),
+            expected: 1,
+            got: 0,
+        });
+    }
+    if !matches!(&args[0], WatAST::Keyword(_)) {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::vec".into(),
+            reason: "first argument must be a type keyword (e.g., :i64)".into(),
+        });
+    }
+    let items = args[1..]
         .iter()
         .map(|a| eval(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
@@ -2254,7 +2273,7 @@ fn eval_hashmap_ctor(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    if args.len() % 2 != 0 {
+    if !args.len().is_multiple_of(2) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::std::HashMap".into(),
             reason: format!(
@@ -2280,6 +2299,7 @@ fn eval_hashmap_ctor(
 ///   - `:HashSet<T>`   × `:T` → `:Option<T>` (Some of the stored
 ///     element on membership, None on miss — round-trips the
 ///     caller's value)
+///
 /// Vec index-get graduates when a caller demands it.
 fn eval_get(
     args: &[WatAST],
@@ -3101,7 +3121,7 @@ pub fn apply_function(
     }
     // Build the call env: parent is the closed env (lambda) or a fresh
     // root (define — the body resolves global names via sym).
-    let parent = func.closed_env.clone().unwrap_or_else(Environment::new);
+    let parent = func.closed_env.clone().unwrap_or_default();
     let mut builder = parent.child();
     for (name, value) in func.params.iter().zip(args.into_iter()) {
         builder = builder.bind(name.clone(), value);
@@ -4224,8 +4244,8 @@ mod tests {
 
     #[test]
     fn float_literal() {
-        match eval_expr("3.14").unwrap() {
-            Value::f64(x) => assert_eq!(x, 3.14),
+        match eval_expr("2.5").unwrap() {
+            Value::f64(x) => assert_eq!(x, 2.5),
             v => panic!("expected float, got {:?}", v),
         }
     }
@@ -4554,7 +4574,7 @@ mod tests {
     fn algebra_bundle_via_list_ctor() {
         let v = eval_expr(
             r#"(:wat::algebra::Bundle
-                 (:wat::core::vec
+                 (:wat::core::vec :holon::HolonAST
                    (:wat::algebra::Atom "a")
                    (:wat::algebra::Atom "b")
                    (:wat::algebra::Atom "c")))"#,
@@ -5487,8 +5507,8 @@ mod tests {
     #[test]
     fn list_constructor_is_alias_for_vec() {
         // Same runtime shape: both produce Value::Vec.
-        let v1 = eval_expr("(:wat::core::list 1 2 3)").unwrap();
-        let v2 = eval_expr("(:wat::core::vec 1 2 3)").unwrap();
+        let v1 = eval_expr("(:wat::core::list :i64 1 2 3)").unwrap();
+        let v2 = eval_expr("(:wat::core::vec :i64 1 2 3)").unwrap();
         match (v1, v2) {
             (Value::Vec(a), Value::Vec(b)) => {
                 assert_eq!(a.len(), b.len());
@@ -5505,7 +5525,7 @@ mod tests {
 
     #[test]
     fn length_of_three_element_vec() {
-        match eval_expr("(:wat::core::length (:wat::core::list 1 2 3))").unwrap() {
+        match eval_expr("(:wat::core::length (:wat::core::list :i64 1 2 3))").unwrap() {
             Value::i64(3) => {}
             v => panic!("expected 3, got {:?}", v),
         }
@@ -5513,7 +5533,7 @@ mod tests {
 
     #[test]
     fn empty_true_on_empty_vec() {
-        match eval_expr("(:wat::core::empty? (:wat::core::list))").unwrap() {
+        match eval_expr("(:wat::core::empty? (:wat::core::list :i64))").unwrap() {
             Value::bool(true) => {}
             v => panic!("expected true, got {:?}", v),
         }
@@ -5521,7 +5541,7 @@ mod tests {
 
     #[test]
     fn empty_false_on_nonempty_vec() {
-        match eval_expr("(:wat::core::empty? (:wat::core::list 1))").unwrap() {
+        match eval_expr("(:wat::core::empty? (:wat::core::list :i64 1))").unwrap() {
             Value::bool(false) => {}
             v => panic!("expected false, got {:?}", v),
         }
@@ -5529,7 +5549,7 @@ mod tests {
 
     #[test]
     fn reverse_flips_order() {
-        match eval_expr("(:wat::core::reverse (:wat::core::list 1 2 3))").unwrap() {
+        match eval_expr("(:wat::core::reverse (:wat::core::list :i64 1 2 3))").unwrap() {
             Value::Vec(items) => {
                 let ns: Vec<_> = items
                     .iter()
@@ -5571,7 +5591,7 @@ mod tests {
 
     #[test]
     fn take_first_n() {
-        match eval_expr("(:wat::core::take (:wat::core::list 1 2 3 4 5) 3)").unwrap() {
+        match eval_expr("(:wat::core::take (:wat::core::list :i64 1 2 3 4 5) 3)").unwrap() {
             Value::Vec(items) => assert_eq!(items.len(), 3),
             v => panic!("expected Vec, got {:?}", v),
         }
@@ -5579,7 +5599,7 @@ mod tests {
 
     #[test]
     fn take_more_than_length_returns_full_vec() {
-        match eval_expr("(:wat::core::take (:wat::core::list 1 2) 99)").unwrap() {
+        match eval_expr("(:wat::core::take (:wat::core::list :i64 1 2) 99)").unwrap() {
             Value::Vec(items) => assert_eq!(items.len(), 2),
             v => panic!("expected Vec, got {:?}", v),
         }
@@ -5587,7 +5607,7 @@ mod tests {
 
     #[test]
     fn drop_skips_first_n() {
-        match eval_expr("(:wat::core::drop (:wat::core::list 1 2 3 4 5) 2)").unwrap() {
+        match eval_expr("(:wat::core::drop (:wat::core::list :i64 1 2 3 4 5) 2)").unwrap() {
             Value::Vec(items) => {
                 assert_eq!(items.len(), 3);
                 match &items[0] {
@@ -5603,7 +5623,7 @@ mod tests {
     fn map_doubles_every_element() {
         let src = r#"
             (:wat::core::map
-              (:wat::core::list 1 2 3)
+              (:wat::core::list :i64 1 2 3)
               (:wat::core::lambda ((x :i64) -> :i64) (:wat::core::i64::* x 2)))
         "#;
         match eval_expr(src).unwrap() {
@@ -5625,7 +5645,7 @@ mod tests {
     fn foldl_sums_with_init() {
         let src = r#"
             (:wat::core::foldl
-              (:wat::core::list 1 2 3 4)
+              (:wat::core::list :i64 1 2 3 4)
               10
               (:wat::core::lambda ((acc :i64) (x :i64) -> :i64)
                 (:wat::core::i64::+ acc x)))
@@ -5639,7 +5659,7 @@ mod tests {
     #[test]
     fn list_window_builds_sliding_windows() {
         let src = r#"
-            (:wat::std::list::window (:wat::core::list 1 2 3 4) 2)
+            (:wat::std::list::window (:wat::core::list :i64 1 2 3 4) 2)
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(outer) => {
@@ -5663,7 +5683,7 @@ mod tests {
 
     #[test]
     fn first_polymorphic_on_vec() {
-        match eval_expr("(:wat::core::first (:wat::core::list 10 20 30))").unwrap() {
+        match eval_expr("(:wat::core::first (:wat::core::list :i64 10 20 30))").unwrap() {
             Value::i64(10) => {}
             v => panic!("expected 10, got {:?}", v),
         }
@@ -5671,7 +5691,7 @@ mod tests {
 
     #[test]
     fn second_polymorphic_on_vec() {
-        match eval_expr("(:wat::core::second (:wat::core::list 10 20 30))").unwrap() {
+        match eval_expr("(:wat::core::second (:wat::core::list :i64 10 20 30))").unwrap() {
             Value::i64(20) => {}
             v => panic!("expected 20, got {:?}", v),
         }
@@ -5679,7 +5699,7 @@ mod tests {
 
     #[test]
     fn third_on_vec() {
-        match eval_expr("(:wat::core::third (:wat::core::list 10 20 30))").unwrap() {
+        match eval_expr("(:wat::core::third (:wat::core::list :i64 10 20 30))").unwrap() {
             Value::i64(30) => {}
             v => panic!("expected 30, got {:?}", v),
         }
@@ -5687,7 +5707,7 @@ mod tests {
 
     #[test]
     fn rest_drops_first() {
-        match eval_expr("(:wat::core::rest (:wat::core::list 1 2 3))").unwrap() {
+        match eval_expr("(:wat::core::rest (:wat::core::list :i64 1 2 3))").unwrap() {
             Value::Vec(items) => {
                 assert_eq!(items.len(), 2);
                 match (&items[0], &items[1]) {
@@ -5701,7 +5721,7 @@ mod tests {
 
     #[test]
     fn rest_of_empty_errors() {
-        let err = eval_expr("(:wat::core::rest (:wat::core::list))").unwrap_err();
+        let err = eval_expr("(:wat::core::rest (:wat::core::list :i64))").unwrap_err();
         assert!(matches!(err, RuntimeError::MalformedForm { .. }));
     }
 
@@ -5709,7 +5729,7 @@ mod tests {
     fn map_with_index_attaches_positions() {
         let src = r#"
             (:wat::std::list::map-with-index
-              (:wat::core::list 10 20 30)
+              (:wat::core::list :i64 10 20 30)
               (:wat::core::lambda ((x :i64) (i :i64) -> :i64)
                 (:wat::core::i64::+ x i)))
         "#;
@@ -5815,7 +5835,7 @@ mod tests {
     #[test]
     fn hashmap_composite_key_errors() {
         // Keys restricted to primitives in this slice.
-        let err = eval_expr(r#"(:wat::std::HashMap (:wat::core::list 1 2) "x")"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::std::HashMap (:wat::core::list :i64 1 2) "x")"#).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
@@ -5891,7 +5911,7 @@ mod tests {
 
     #[test]
     fn hashset_rejects_composite_element() {
-        let err = eval_expr(r#"(:wat::std::HashSet (:wat::core::list 1 2))"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::std::HashSet (:wat::core::list :i64 1 2))"#).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
@@ -5902,7 +5922,7 @@ mod tests {
         // (foldr [1 2 3] 0 -) = 1 - (2 - (3 - 0)) = 1 - (2 - 3) = 1 - (-1) = 2
         let src = r#"
             (:wat::core::foldr
-              (:wat::core::list 1 2 3)
+              (:wat::core::list :i64 1 2 3)
               0
               (:wat::core::lambda ((x :i64) (acc :i64) -> :i64)
                 (:wat::core::i64::- x acc)))
@@ -5918,7 +5938,7 @@ mod tests {
         // (foldl [1 2 3] 0 -) = ((0 - 1) - 2) - 3 = -6
         let src_l = r#"
             (:wat::core::foldl
-              (:wat::core::list 1 2 3)
+              (:wat::core::list :i64 1 2 3)
               0
               (:wat::core::lambda ((acc :i64) (x :i64) -> :i64)
                 (:wat::core::i64::- acc x)))
@@ -5933,7 +5953,7 @@ mod tests {
     fn filter_keeps_true_predicates() {
         let src = r#"
             (:wat::core::filter
-              (:wat::core::list 1 2 3 4 5)
+              (:wat::core::list :i64 1 2 3 4 5)
               (:wat::core::lambda ((x :i64) -> :bool)
                 (:wat::core::> x 2)))
         "#;
@@ -5956,7 +5976,7 @@ mod tests {
     fn filter_refuses_non_bool_predicate() {
         let src = r#"
             (:wat::core::filter
-              (:wat::core::list 1 2 3)
+              (:wat::core::list :i64 1 2 3)
               (:wat::core::lambda ((x :i64) -> :i64) x))
         "#;
         let err = eval_expr(src).unwrap_err();
@@ -5967,8 +5987,8 @@ mod tests {
     fn zip_pairs_shorter_length() {
         let src = r#"
             (:wat::std::list::zip
-              (:wat::core::list 1 2 3)
-              (:wat::core::list "a" "b"))
+              (:wat::core::list :i64 1 2 3)
+              (:wat::core::list :String "a" "b"))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -5992,8 +6012,8 @@ mod tests {
     fn zip_empty_with_nonempty_is_empty() {
         let src = r#"
             (:wat::std::list::zip
-              (:wat::core::list)
-              (:wat::core::list 1 2 3))
+              (:wat::core::list :i64)
+              (:wat::core::list :i64 1 2 3))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => assert!(items.is_empty()),
@@ -6018,7 +6038,7 @@ mod tests {
 
     #[test]
     fn list_window_bigger_than_length_is_empty() {
-        match eval_expr("(:wat::std::list::window (:wat::core::list 1 2) 5)").unwrap() {
+        match eval_expr("(:wat::std::list::window (:wat::core::list :i64 1 2) 5)").unwrap() {
             Value::Vec(items) => assert!(items.is_empty()),
             v => panic!("expected empty Vec, got {:?}", v),
         }
@@ -6182,7 +6202,7 @@ mod tests {
     #[test]
     fn select_refuses_empty_vec() {
         let src = r#"
-            (:wat::kernel::select (:wat::core::vec))
+            (:wat::kernel::select (:wat::core::vec :crossbeam_channel::Receiver<i64>))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, RuntimeError::MalformedForm { .. }));
@@ -6191,7 +6211,7 @@ mod tests {
     #[test]
     fn select_refuses_non_receiver_element() {
         let src = r#"
-            (:wat::kernel::select (:wat::core::vec 1 2 3))
+            (:wat::kernel::select (:wat::core::vec :i64 1 2 3))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
@@ -6204,7 +6224,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((pool :wat::kernel::HandlePool<i64>)
-                (:wat::kernel::HandlePool::new "test" (:wat::core::vec 1 2 3)))
+                (:wat::kernel::HandlePool::new "test" (:wat::core::vec :i64 1 2 3)))
                ((a :i64) (:wat::kernel::HandlePool::pop pool))
                ((b :i64) (:wat::kernel::HandlePool::pop pool))
                ((c :i64) (:wat::kernel::HandlePool::pop pool))
@@ -6222,7 +6242,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((pool :wat::kernel::HandlePool<i64>)
-                (:wat::kernel::HandlePool::new "empty" (:wat::core::vec)))
+                (:wat::kernel::HandlePool::new "empty" (:wat::core::vec :i64)))
                ((_ :i64) (:wat::kernel::HandlePool::pop pool)))
               0)
         "#;
@@ -6235,7 +6255,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((pool :wat::kernel::HandlePool<i64>)
-                (:wat::kernel::HandlePool::new "orphaned" (:wat::core::vec 1 2 3)))
+                (:wat::kernel::HandlePool::new "orphaned" (:wat::core::vec :i64 1 2 3)))
                ((_ :()) (:wat::kernel::HandlePool::finish pool)))
               0)
         "#;
@@ -6248,7 +6268,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((pool :wat::kernel::HandlePool<i64>)
-                (:wat::kernel::HandlePool::new "named-pool" (:wat::core::vec)))
+                (:wat::kernel::HandlePool::new "named-pool" (:wat::core::vec :i64)))
                ((_ :i64) (:wat::kernel::HandlePool::pop pool)))
               0)
         "#;
@@ -6336,7 +6356,7 @@ mod tests {
     #[test]
     fn handle_pool_refuses_non_string_name() {
         let src = r#"
-            (:wat::kernel::HandlePool::new 42 (:wat::core::vec))
+            (:wat::kernel::HandlePool::new 42 (:wat::core::vec :i64))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));

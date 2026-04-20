@@ -344,13 +344,13 @@ pub fn invoke_user_main(
 /// > 3. Every argument's type must match the called function's signature.
 /// > 4. Eval cannot register or replace any definition.
 ///
-/// Rule (4) is enforced by pre-walking the AST and refusing any of
-/// the ten mutation-inducing heads before evaluation starts. The
-/// other three rules are enforced by the existing runtime + resolve
-/// + check passes (which already ran at startup) — once the AST is
-/// confirmed mutation-free, the standard [`crate::runtime::eval`]
-/// handles function lookup and argument dispatch against the frozen
-/// symbol table.
+/// The fourth rule is enforced by pre-walking the AST and refusing
+/// any of the ten mutation-inducing heads before evaluation starts.
+/// The other three rules are enforced by the existing runtime,
+/// resolve, and check passes (which already ran at startup) — once
+/// the AST is confirmed mutation-free, the standard
+/// [`crate::runtime::eval`] handles function lookup and argument
+/// dispatch against the frozen symbol table.
 ///
 /// Use this for: dynamic holon composition, rule-like pattern-match
 /// systems, received holon-programs over the network. An attacker

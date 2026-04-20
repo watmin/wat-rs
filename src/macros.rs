@@ -382,7 +382,7 @@ fn expand_macro_call(
         .params
         .iter()
         .cloned()
-        .zip(args.into_iter())
+        .zip(args)
         .collect();
 
     let macro_scope = fresh_scope();
@@ -563,12 +563,12 @@ mod tests {
             r#"
             (:wat::core::defmacro (:my::vocab::Concurrent (xs :AST<List<holon::HolonAST>>) -> :AST<holon::HolonAST>)
               `(:wat::algebra::Bundle ,xs))
-            (:my::vocab::Concurrent (:wat::core::vec a b c))
+            (:my::vocab::Concurrent (:wat::core::vec :holon::HolonAST a b c))
             "#,
         )
         .unwrap();
         assert_eq!(forms.len(), 1);
-        // Expansion: (:wat::algebra::Bundle (:wat::core::vec a b c))
+        // Expansion: (:wat::algebra::Bundle (:wat::core::vec :holon::HolonAST a b c))
         match &forms[0] {
             WatAST::List(items) => {
                 assert_eq!(items.len(), 2);
