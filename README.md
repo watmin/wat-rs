@@ -103,11 +103,25 @@ the full Rust ownership surface: `shared` (plain `Arc<T>`), `thread_owned`
 (`ThreadOwnedCell<T>` with a thread-id guard — zero Mutex), and
 `owned_move` (`OwnedMoveCell<T>` — consumed on first use).
 
-**490 library-unit tests + 50+ integration tests pass; zero clippy
+**Capacity-guard arc operational.** `:wat::algebra::Bundle` enforces
+Kanerva's per-frame capacity at dispatch time and returns
+`:Result<holon::HolonAST, :wat::algebra::CapacityExceeded>`; authors
+choose `:silent` / `:warn` / `:error` / `:abort` at startup via
+`:wat::config::set-capacity-mode!`. Paired with two supporting forms
+that shipped in the same arc: `:wat::core::try` for error-propagation
+without try/catch, and first-class struct runtime (auto-generated
+`<struct-path>/new` constructors and `<struct-path>/<field>` accessors
+from any `:wat::core::struct` declaration). See
+[Capacity guard](#capacity-guard--bundles-result-return) below for the
+canonical pattern.
+
+**490 library-unit tests + 70+ integration tests pass; zero clippy
 warnings.** Full test surface: library units, macro-feature integration
 (`wat_dispatch_193a`/`193b`/`e1_vec`/`e2_tuple`/`e3_result`/`e4_shared`/
-`e5_owned_move`), `wat_vm_cache` (the nested-driver shutdown proof), and
-`wat_vm_cli` (end-to-end spawns of the built binary against real OS stdio).
+`e5_owned_move`), `wat_core_try` (13 cases), `wat_structs` (9 cases),
+`wat_bundle_capacity` (9 cases across the four modes), `wat_vm_cache`
+(the nested-driver shutdown proof), and `wat_vm_cli` (end-to-end spawns
+of the built binary against real OS stdio).
 
 ## Module tour
 
@@ -372,6 +386,93 @@ Stream programs:
   `:wat::kernel::HandlePool`; tag 0 = stdout, tag 1 = stderr. A well-formed
   program routes all output through Console handles and leaves the raw
   stdout/stderr bindings alone.
+
+## Capacity guard — Bundle's Result return
+
+`:wat::algebra::Bundle` enforces Kanerva's per-frame capacity bound at
+dispatch time. Every program picks a `:capacity-mode` at startup; the
+Bundle dispatcher consults it when a frame's constituent count exceeds
+`floor(sqrt(dims))` and behaves per the committed policy.
+
+**Budget.** `floor(sqrt(dims))` — at d=10k → 100, at d=4k → 64, at
+d=1k → 32. The wat algebra is AST-primary (no codebook to distinguish
+against), so the classical `d/(2·ln K)` bound has no `K` term;
+`sqrt(d)` is what keeps a single bundled element's presence
+comfortably above the 5σ noise floor.
+
+**Return type (every mode).**
+```
+:wat::algebra::Bundle : :Vec<holon::HolonAST>
+                     -> :Result<holon::HolonAST, :wat::algebra::CapacityExceeded>
+```
+
+**Four modes** (`:wat::config::set-capacity-mode!`):
+
+| Mode | Under budget | Over budget |
+|---|---|---|
+| `:silent` | `Ok(h)` | `Ok(h)` — degraded vector, no check, no diagnostic |
+| `:warn`   | `Ok(h)` | `Ok(h)` — degraded vector plus `eprintln!` cost/budget/dims |
+| `:error`  | `Ok(h)` | `Err(CapacityExceeded { cost, budget })` |
+| `:abort`  | `Ok(h)` | `panic!` with diagnostic — fail-closed, no cleanup |
+
+**`:wat::algebra::CapacityExceeded`** is a built-in struct:
+
+```scheme
+(:wat::core::struct :wat::algebra::CapacityExceeded
+  (cost   :i64)   ;; the constituent count the Bundle was asked to hold
+  (budget :i64))  ;; floor(sqrt(dims)) at the dispatcher
+```
+
+Auto-generated accessors `:wat::algebra::CapacityExceeded/cost` and
+`/budget` read each field. No user declaration required — wat-rs seeds
+this via `TypeEnv::with_builtins()`.
+
+**The canonical program shape** uses `:wat::core::try` to propagate
+Err through a Result-returning helper and `match` to handle at the
+caller:
+
+```scheme
+(:wat::config::set-dims! 10000)
+(:wat::config::set-capacity-mode! :error)
+
+(:wat::core::define (:app::build
+                    (items :Vec<holon::HolonAST>)
+                    -> :Result<holon::HolonAST, wat::algebra::CapacityExceeded>)
+  (Ok (:wat::core::try (:wat::algebra::Bundle items))))
+
+(:wat::core::define (:user::main
+                     (stdin  :rust::std::io::Stdin)
+                     (stdout :rust::std::io::Stdout)
+                     (stderr :rust::std::io::Stderr)
+                     -> :())
+  (:wat::core::match (:app::build huge-list)
+    ((Ok _) ())
+    ((Err e)
+      (:wat::io::write stderr
+        (format-overflow
+          (:wat::algebra::CapacityExceeded/cost e)
+          (:wat::algebra::CapacityExceeded/budget e))))))
+```
+
+Every stdlib macro whose expansion ends in `:wat::algebra::Bundle`
+inherits the Result wrap — `:wat::std::Ngram`, `:wat::std::Bigram`,
+`:wat::std::Trigram`. Callers match or `try` at the call site.
+
+**Two supporting forms** that shipped in the same arc:
+
+- **`:wat::core::try`** — unwrap `Ok v` or short-circuit the innermost
+  enclosing Result-returning function/lambda with `Err e`. Not
+  try/catch; no handler block. Matches Rust's `?`-operator scoping.
+- **Struct runtime** — `(:wat::core::struct :my::ns::T (f1 :T1) ...)`
+  declarations auto-generate `:my::ns::T/new` constructors and
+  `:my::ns::T/<field>` accessors at registration time. Users invoke
+  them by full keyword path. No named-argument construction, no
+  field-by-bare-keyword dispatch — positional construction plus
+  accessor keyword-paths, symmetric on both sides via `let` bindings.
+
+Full design: the INSCRIPTION 2026-04-19 entries across
+`058-003-bundle-list-signature`, `058-030-types`, and the new
+`058-033-try` proposal, rolled up in FOUNDATION-CHANGELOG.
 
 ## Namespace discipline
 
