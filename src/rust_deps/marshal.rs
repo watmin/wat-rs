@@ -170,6 +170,61 @@ impl<T: FromWat> FromWat for Option<T> {
     }
 }
 
+// ─── Tuples (A,), (A,B), (A,B,C), (A,B,C,D), (A,B,C,D,E), (A,B,C,D,E,F) ─
+//
+// Rust tuples map directly to `Value::Tuple(Arc<Vec<Value>>)`. Each
+// element is marshaled through its own `ToWat`/`FromWat` impl. Arity
+// is checked at unmarshal time; an arity-mismatch surfaces as a
+// `MalformedForm` error naming both expected and actual arities.
+//
+// The macro expands one (ToWat, FromWat) pair per listed arity.
+
+macro_rules! impl_tuple_marshaling {
+    ( $arity:expr, $( $name:ident => $idx:tt ),+ ) => {
+        impl<$( $name: ToWat ),+> ToWat for ( $( $name, )+ ) {
+            fn to_wat(self) -> Value {
+                Value::Tuple(Arc::new(vec![
+                    $( self.$idx.to_wat() ),+
+                ]))
+            }
+        }
+
+        impl<$( $name: FromWat ),+> FromWat for ( $( $name, )+ ) {
+            fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
+                match v {
+                    Value::Tuple(items) => {
+                        if items.len() != $arity {
+                            return Err(RuntimeError::MalformedForm {
+                                head: op.into(),
+                                reason: format!(
+                                    "expected tuple of arity {}; got arity {}",
+                                    $arity,
+                                    items.len()
+                                ),
+                            });
+                        }
+                        Ok((
+                            $( $name::from_wat(&items[$idx], op)?, )+
+                        ))
+                    }
+                    other => Err(RuntimeError::TypeMismatch {
+                        op: op.into(),
+                        expected: "Tuple",
+                        got: other.type_name(),
+                    }),
+                }
+            }
+        }
+    };
+}
+
+impl_tuple_marshaling!(1, A => 0);
+impl_tuple_marshaling!(2, A => 0, B => 1);
+impl_tuple_marshaling!(3, A => 0, B => 1, C => 2);
+impl_tuple_marshaling!(4, A => 0, B => 1, C => 2, D => 3);
+impl_tuple_marshaling!(5, A => 0, B => 1, C => 2, D => 3, E => 4);
+impl_tuple_marshaling!(6, A => 0, B => 1, C => 2, D => 3, E => 4, F => 5);
+
 // ─── Vec<T> ──────────────────────────────────────────────────────────
 
 impl<T: ToWat> ToWat for Vec<T> {
@@ -463,6 +518,54 @@ mod tests {
     fn vec_from_wrong_value_type_fails() {
         let v = Value::i64(5);
         let err = <Vec<i64> as FromWat>::from_wat(&v, "test").unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn tuple_2_roundtrip() {
+        let v: Value = (42i64, "hello".to_string()).to_wat();
+        let back: (i64, String) = FromWat::from_wat(&v, "test").unwrap();
+        assert_eq!(back, (42, "hello".to_string()));
+    }
+
+    #[test]
+    fn tuple_3_roundtrip() {
+        let v: Value = (1i64, true, 2.5f64).to_wat();
+        let back: (i64, bool, f64) = FromWat::from_wat(&v, "test").unwrap();
+        assert_eq!(back, (1, true, 2.5));
+    }
+
+    #[test]
+    fn tuple_4_roundtrip() {
+        let v: Value = (1i64, 2i64, 3i64, 4i64).to_wat();
+        let back: (i64, i64, i64, i64) = FromWat::from_wat(&v, "test").unwrap();
+        assert_eq!(back, (1, 2, 3, 4));
+    }
+
+    #[test]
+    fn tuple_nested_with_option_vec() {
+        let v: Value = (Some(7i64), vec![1i64, 2, 3]).to_wat();
+        let back: (Option<i64>, Vec<i64>) = FromWat::from_wat(&v, "test").unwrap();
+        assert_eq!(back, (Some(7), vec![1, 2, 3]));
+    }
+
+    #[test]
+    fn tuple_arity_mismatch_rejected() {
+        let v: Value = (1i64, 2i64, 3i64).to_wat();
+        let err = <(i64, i64) as FromWat>::from_wat(&v, "test").unwrap_err();
+        match err {
+            RuntimeError::MalformedForm { reason, .. } => {
+                assert!(reason.contains("arity 2"));
+                assert!(reason.contains("arity 3"));
+            }
+            other => panic!("expected MalformedForm, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn tuple_from_non_tuple_value_fails() {
+        let v = Value::i64(1);
+        let err = <(i64, i64) as FromWat>::from_wat(&v, "test").unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 

@@ -533,11 +533,25 @@ fn rust_type_to_type_expr_tokens(ty: &Type, attr: &WatDispatchAttr) -> syn::Resu
         }
     }
 
-    // () → empty tuple.
+    // Tuples: (), (A,), (A, B), (A, B, C), ...
+    //
+    // The unit tuple () becomes TypeExpr::Tuple([]). Non-empty tuples
+    // recurse on each element. Arity up to 6 is supported by the
+    // marshaling-trait impls (see src/rust_deps/marshal.rs); we emit
+    // the TypeExpr for any arity here — the checker doesn't care about
+    // the trait-bound limit.
     if let Type::Tuple(tup) = ty {
         if tup.elems.is_empty() {
             return Ok(quote! { ::wat::types::TypeExpr::Tuple(vec![]) });
         }
+        let inner: Vec<TokenStream> = tup
+            .elems
+            .iter()
+            .map(|e| rust_type_to_type_expr_tokens(e, attr))
+            .collect::<syn::Result<_>>()?;
+        return Ok(quote! {
+            ::wat::types::TypeExpr::Tuple(vec![#(#inner),*])
+        });
     }
 
     Err(Error::new_spanned(
