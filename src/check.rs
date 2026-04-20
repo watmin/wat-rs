@@ -154,9 +154,20 @@ impl std::error::Error for CheckErrors {}
 /// Source of fresh [`TypeExpr::Var`] ids. Shared across the whole
 /// `check_program` run so ids never collide across call sites or
 /// function bodies.
+///
+/// Also carries the **enclosing return-type stack** — pushed on entry
+/// to every function body and lambda body, popped on exit, consulted
+/// by `infer_try` to unify the propagated `E` with the enclosing
+/// function/lambda's own `Err` variant. The stack is LIFO so the
+/// innermost enclosing scope wins (matches Rust's `?`-operator
+/// semantics). Naming inaccuracy (FreshGen isn't strictly about fresh
+/// type variables anymore) is accepted for this slice — the struct
+/// earns a rename to `InferCtx` in a later refactor when more cross-
+/// cutting context accumulates.
 #[derive(Debug, Default)]
 struct FreshGen {
     next: u64,
+    enclosing_rets: Vec<TypeExpr>,
 }
 
 impl FreshGen {
@@ -164,6 +175,24 @@ impl FreshGen {
         let v = TypeExpr::Var(self.next);
         self.next += 1;
         v
+    }
+
+    /// Push the declared return type of a function/lambda we are about
+    /// to check. Paired with [`pop_enclosing_ret`].
+    fn push_enclosing_ret(&mut self, ret: TypeExpr) {
+        self.enclosing_rets.push(ret);
+    }
+
+    /// Pop the most recently pushed return type. Caller is responsible
+    /// for pairing pushes and pops at scope boundaries.
+    fn pop_enclosing_ret(&mut self) {
+        self.enclosing_rets.pop();
+    }
+
+    /// Innermost enclosing return type, if any. `None` outside any
+    /// function/lambda body (top-level `check_form` invocations).
+    fn enclosing_ret(&self) -> Option<&TypeExpr> {
+        self.enclosing_rets.last()
     }
 }
 
@@ -258,7 +287,12 @@ fn check_function_body(
     // distinguishes rigid names from fresh unification Vars.
     let locals = build_locals(&func.params, &scheme.params);
     let mut subst = Subst::new();
+    // Push this function's declared return type so `infer_try`, if it
+    // recurses into the body, can unify its propagated `Err` with this
+    // function's own `Result<_, E>` shape.
+    fresh.push_enclosing_ret(scheme.ret.clone());
     let body_ty = infer(&func.body, env, &locals, fresh, &mut subst, errors);
+    fresh.pop_enclosing_ret();
     // Unify body type with declared return type. If unification fails,
     // produce a ReturnTypeMismatch.
     if let Some(body_ty) = body_ty {
@@ -337,6 +371,7 @@ fn infer_list(
             ":wat::core::if" => return infer_if(args, env, locals, fresh, subst, errors),
             ":wat::core::let" => return infer_let(args, env, locals, fresh, subst, errors),
             ":wat::core::let*" => return infer_let_star(args, env, locals, fresh, subst, errors),
+            ":wat::core::try" => return infer_try(args, env, locals, fresh, subst, errors),
             ":wat::core::vec" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::tuple" => return infer_tuple_constructor(args, env, locals, fresh, subst, errors),
@@ -953,6 +988,105 @@ fn infer_let(
         process_let_binding(pair, env, locals, &mut extended, fresh, subst, errors, ":wat::core::let");
     }
     infer(&args[1], env, &extended, fresh, subst, errors)
+}
+
+/// `(:wat::core::try <result-expr>)` — the error-propagation form.
+///
+/// Type rules:
+/// 1. Exactly one argument. Otherwise `ArityMismatch`.
+/// 2. The innermost enclosing function/lambda must declare its return
+///    type as `:Result<_, E>`. Otherwise `MalformedForm` — `try` has
+///    nowhere to propagate to.
+/// 3. The argument's type must unify with `:Result<T, E>` where `E` is
+///    the enclosing function's `Err` variant. Mismatched `E` surfaces
+///    as `TypeMismatch` (strict equality per the 2026-04-19 stance —
+///    no auto-conversion, no From-trait analogue). Polymorphic error
+///    handling is expressed via explicit enum-wrap at the boundary.
+/// 4. On success, the form's type is `T` — the `Ok`-inner of the
+///    argument's `Result`.
+///
+/// Runtime behavior (see `crate::runtime::eval_try`):
+/// - `Ok(v)` → evaluates to `v`.
+/// - `Err(e)` → raises `RuntimeError::TryPropagate(e)`; the innermost
+///   `apply_function` packages it as the function's own `Err(e)`
+///   return value.
+fn infer_try(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut FreshGen,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::core::try".into(),
+            expected: 1,
+            got: args.len(),
+        });
+        // Still infer the arg(s) so any internal errors surface.
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return None;
+    }
+
+    // The enclosing function's return type must exist and must itself
+    // be `Result<_, E>`. Otherwise `try` has no propagation target.
+    let enclosing = match fresh.enclosing_ret().cloned() {
+        Some(r) => r,
+        None => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::try".into(),
+                reason: "used outside any function or lambda body; `try` requires an enclosing Result-returning scope to propagate into".into(),
+            });
+            let _ = infer(&args[0], env, locals, fresh, subst, errors);
+            return None;
+        }
+    };
+    let enclosing_err_ty = match &enclosing {
+        TypeExpr::Parametric { head, args: type_args }
+            if head == "Result" && type_args.len() == 2 =>
+        {
+            type_args[1].clone()
+        }
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::try".into(),
+                reason: format!(
+                    "enclosing function returns {}; `try` requires the enclosing function to return :Result<T,E>",
+                    format_type(other)
+                ),
+            });
+            let _ = infer(&args[0], env, locals, fresh, subst, errors);
+            return None;
+        }
+    };
+
+    // Argument must unify with Result<fresh_T, enclosing_err_ty>.
+    // Building the expected type this way enforces both that the arg
+    // is a Result and that its Err variant matches the enclosing
+    // function's Err variant in one unification.
+    let arg_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let fresh_t = fresh.fresh();
+    let expected = TypeExpr::Parametric {
+        head: "Result".into(),
+        args: vec![fresh_t.clone(), enclosing_err_ty],
+    };
+    if unify(&arg_ty, &expected, subst).is_err() {
+        errors.push(CheckError::TypeMismatch {
+            callee: ":wat::core::try".into(),
+            param: "arg".into(),
+            expected: format_type(&apply_subst(&expected, subst)),
+            got: format_type(&apply_subst(&arg_ty, subst)),
+        });
+        return None;
+    }
+
+    // The try expression's type is T — the Ok-inner of the argument's
+    // Result, now refined by unification with the enclosing function's
+    // shape.
+    Some(apply_subst(&fresh_t, subst))
 }
 
 /// Sequential let — same binding shapes as parallel `let`, but each
@@ -1702,7 +1836,13 @@ fn infer_lambda(
     for (name, ty) in param_names.iter().zip(param_types.iter()) {
         body_locals.insert(name.clone(), ty.clone());
     }
+    // Push this lambda's declared return type onto the enclosing-ret
+    // stack so `try` inside the body propagates to the lambda's
+    // boundary (matches Rust's `?`-operator scoping — short-circuits
+    // the innermost fn or closure, not the outer function).
+    fresh.push_enclosing_ret(ret_type.clone());
     let body_ty = infer(body, env, &body_locals, fresh, subst, errors);
+    fresh.pop_enclosing_ret();
     if let Some(body_ty) = body_ty {
         if unify(&body_ty, &ret_type, subst).is_err() {
             errors.push(CheckError::ReturnTypeMismatch {

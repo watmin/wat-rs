@@ -579,6 +579,19 @@ pub enum RuntimeError {
     /// type checker's job; this variant fires only when the check was
     /// bypassed or hasn't caught up with a new pattern form.
     PatternMatchFailed { value_type: &'static str },
+    /// Internal control-flow signal raised by `:wat::core::try` on an
+    /// `Err` value. Carries the `Err` payload up to the innermost
+    /// enclosing function/lambda boundary; [`apply_function`] catches
+    /// it and converts it into the function's own `Err(e)` return.
+    ///
+    /// This variant should never escape to `:user::main` — the type
+    /// checker guarantees every `try` appears inside a Result-returning
+    /// function, so every TryPropagate hits an `apply_function` catch
+    /// before unwinding further. If this variant does reach the binary,
+    /// it indicates either a checker bug or a `try` used inside
+    /// constrained eval (which doesn't have an enclosing function for
+    /// propagation — that's a planned follow-up slice).
+    TryPropagate(Value),
 }
 
 impl fmt::Display for RuntimeError {
@@ -644,6 +657,10 @@ impl fmt::Display for RuntimeError {
                 f,
                 ":wat::core::match: no arm matched scrutinee of type {}; exhaustiveness should be caught at type-check time",
                 value_type
+            ),
+            RuntimeError::TryPropagate(_) => write!(
+                f,
+                ":wat::core::try: internal error — an Err propagation escaped its enclosing Result-returning function. The type checker should prevent this; reaching it indicates a checker gap or a try used in a context without a Result return type.",
             ),
         }
     }
@@ -1024,6 +1041,7 @@ fn dispatch_keyword_head(
         ":wat::core::quote" => eval_quote(args),
         ":wat::core::atom-value" => eval_atom_value(args, env, sym),
         ":wat::core::match" => eval_match(args, env, sym),
+        ":wat::core::try" => eval_try(args, env, sym),
         ":wat::core::first" => {
             eval_positional_accessor(args, env, sym, ":wat::core::first", 0)
         }
@@ -2683,6 +2701,54 @@ fn eval_err_ctor(
     Ok(Value::Result(Arc::new(Err(v))))
 }
 
+/// `(:wat::core::try <result-expr>)` — unwrap a `:Result<T,E>` to its
+/// inner `T`, or short-circuit the enclosing Result-returning function
+/// with `Err(e)`.
+///
+/// Semantics on the inner Result:
+/// - `(Ok v)` — evaluates to `v`; execution continues.
+/// - `(Err e)` — raises [`RuntimeError::TryPropagate(e)`]. The walker
+///   unwinds through `let*` / `match` / `if` / any nested form until it
+///   reaches the innermost enclosing [`apply_function`], which catches
+///   the signal and packages it as the function's own `Err(e)` return
+///   value.
+///
+/// The type checker guarantees the enclosing function is Result-typed
+/// and that the propagated `E` matches. This dispatcher assumes both
+/// and does not re-verify at runtime.
+///
+/// Type error (not a checker guarantee — the runtime still guards):
+/// arg is not a `Value::Result`. Caller surfaces `TypeMismatch`.
+fn eval_try(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::try".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    match v {
+        Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
+            Ok(std::result::Result::Ok(ok)) => Ok(ok),
+            Ok(std::result::Result::Err(e)) => Err(RuntimeError::TryPropagate(e)),
+            Err(shared) => match &*shared {
+                std::result::Result::Ok(ok) => Ok(ok.clone()),
+                std::result::Result::Err(e) => Err(RuntimeError::TryPropagate(e.clone())),
+            },
+        },
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::try".into(),
+            expected: "Result<T,E>",
+            got: other.type_name(),
+        }),
+    }
+}
+
 /// `(:wat::core::match <scrutinee> <arm>...)` — pattern-match over
 /// enum values. MVP-scoped to `:Option<T>` (the only built-in enum);
 /// user-declared enums graduate in a later slice.
@@ -3301,7 +3367,16 @@ pub fn apply_function(
         builder = builder.bind(name.clone(), value);
     }
     let call_env = builder.build();
-    eval(&func.body, &call_env, sym)
+    // Catch `TryPropagate` at the function-call boundary: `:wat::core::try`
+    // raises it on an `Err` value to short-circuit the body; we convert
+    // that into the function's own `Err(e)` return. The type checker
+    // guarantees this function's declared return type is `:Result<_,E>`
+    // when its body contains a `try`, so wrapping in `Value::Result(Err)`
+    // is type-correct by construction.
+    match eval(&func.body, &call_env, sym) {
+        Err(RuntimeError::TryPropagate(e)) => Ok(Value::Result(Arc::new(Err(e)))),
+        other => other,
+    }
 }
 
 fn ast_variant_name(ast: &WatAST) -> &'static str {
