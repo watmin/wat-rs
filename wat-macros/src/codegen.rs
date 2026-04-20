@@ -510,6 +510,24 @@ fn rust_type_to_type_expr_tokens(ty: &Type, attr: &WatDispatchAttr) -> syn::Resu
                         "wat_dispatch: Option<T> must have exactly one type argument",
                     ));
                 }
+                "Vec" => {
+                    // Vec<T> — recurse on T.
+                    if let PathArguments::AngleBracketed(ab) = &last.arguments {
+                        if let Some(GenericArgument::Type(inner)) = ab.args.first() {
+                            let inner_ts = rust_type_to_type_expr_tokens(inner, attr)?;
+                            return Ok(quote! {
+                                ::wat::types::TypeExpr::Parametric {
+                                    head: "Vec".into(),
+                                    args: vec![#inner_ts],
+                                }
+                            });
+                        }
+                    }
+                    return Err(Error::new_spanned(
+                        ty,
+                        "wat_dispatch: Vec<T> must have exactly one type argument",
+                    ));
+                }
                 _ => {}
             }
         }

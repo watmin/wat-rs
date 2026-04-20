@@ -170,6 +170,30 @@ impl<T: FromWat> FromWat for Option<T> {
     }
 }
 
+// ─── Vec<T> ──────────────────────────────────────────────────────────
+
+impl<T: ToWat> ToWat for Vec<T> {
+    fn to_wat(self) -> Value {
+        Value::Vec(Arc::new(self.into_iter().map(T::to_wat).collect()))
+    }
+}
+
+impl<T: FromWat> FromWat for Vec<T> {
+    fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
+        match v {
+            Value::Vec(items) => items
+                .iter()
+                .map(|x| T::from_wat(x, op))
+                .collect::<Result<Vec<_>, _>>(),
+            other => Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected: "Vec",
+                got: other.type_name(),
+            }),
+        }
+    }
+}
+
 // ─── Pass-through for Value ──────────────────────────────────────────
 //
 // Shims that want to take a wat Value unchanged (e.g., LruCache's
@@ -405,6 +429,41 @@ mod tests {
         let v: Value = Option::<i64>::None.to_wat();
         let back: Option<i64> = FromWat::from_wat(&v, "test").unwrap();
         assert_eq!(back, None);
+    }
+
+    #[test]
+    fn vec_of_i64_roundtrip() {
+        let v: Value = vec![1i64, 2, 3].to_wat();
+        let back: Vec<i64> = FromWat::from_wat(&v, "test").unwrap();
+        assert_eq!(back, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn vec_of_strings_roundtrip() {
+        let v: Value = vec!["a".to_string(), "b".to_string()].to_wat();
+        let back: Vec<String> = FromWat::from_wat(&v, "test").unwrap();
+        assert_eq!(back, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn empty_vec_roundtrip() {
+        let v: Value = Vec::<i64>::new().to_wat();
+        let back: Vec<i64> = FromWat::from_wat(&v, "test").unwrap();
+        assert!(back.is_empty());
+    }
+
+    #[test]
+    fn vec_of_options_roundtrip() {
+        let v: Value = vec![Some(1i64), None, Some(3)].to_wat();
+        let back: Vec<Option<i64>> = FromWat::from_wat(&v, "test").unwrap();
+        assert_eq!(back, vec![Some(1), None, Some(3)]);
+    }
+
+    #[test]
+    fn vec_from_wrong_value_type_fails() {
+        let v = Value::i64(5);
+        let err = <Vec<i64> as FromWat>::from_wat(&v, "test").unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
     #[test]
