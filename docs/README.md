@@ -30,6 +30,15 @@ to run the binary. For the *why*, read the proposal.
 
 ## Also in this directory
 
+**[`USER-GUIDE.md`](./USER-GUIDE.md)** — if you're BUILDING an
+application on wat, start here. Crate setup, first program, mental
+model, writing functions, structs, algebra forms, concurrency
+primitives, pipelines, Rust interop via `#[wat_dispatch]`, caching
+tiers, stdio discipline, error handling, common gotchas. Concrete
+examples throughout. The guide is alive — it evolves as the trading
+lab (first real wat application) gets rebuilt. Where the guide lies,
+the rebuild teaches us, and the guide gets updated.
+
 **[`ZERO-MUTEX.md`](./ZERO-MUTEX.md)** — the concurrency architecture,
 stated plainly. wat-vm runs dozens of threads, serializes writes to
 stdout across every program that wants to print, owns LRU caches hit
