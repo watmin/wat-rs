@@ -1,0 +1,268 @@
+//! End-to-end tests for `:wat::algebra::Bundle`'s capacity guard.
+//!
+//! Bundle's return type is always
+//! `:Result<holon::HolonAST, :wat::algebra::CapacityExceeded>`. The
+//! `:wat::config::capacity-mode` setter picks what the runtime does
+//! when a Bundle's constituent count exceeds `floor(sqrt(dims))`:
+//!
+//! - `:silent` → always `Ok(h)`. No check. Degraded vector produced.
+//! - `:warn`   → always `Ok(h)`. `eprintln!` diagnostic when over.
+//! - `:error`  → `Ok(h)` under; `Err(CapacityExceeded{cost, budget})`
+//!   over — caller holds the error, program continues.
+//! - `:abort`  → `Ok(h)` under; `panic!()` over — fail-closed.
+//!
+//! At `d=1024`, `budget = floor(sqrt(1024)) = 32`. The tests below
+//! pick list sizes deliberately on either side.
+
+use wat::freeze::{invoke_user_main, startup_from_source};
+use wat::load::InMemoryLoader;
+use wat::runtime::Value;
+
+fn run(src: &str) -> Value {
+    let l = InMemoryLoader::new();
+    let world = startup_from_source(src, None, &l).expect("startup should succeed");
+    invoke_user_main(&world, Vec::new()).expect("main should run")
+}
+
+/// Emit `n` distinct `(:wat::algebra::Atom "i")` calls inside a
+/// `(:wat::core::list :holon::HolonAST ...)` literal — used to pack
+/// Bundle with exactly `n` constituents.
+fn atoms_list(n: usize) -> String {
+    let mut s = String::from("(:wat::core::list :holon::HolonAST");
+    for i in 0..n {
+        s.push_str(&format!(" (:wat::algebra::Atom \"atom-{}\")", i));
+    }
+    s.push(')');
+    s
+}
+
+// ─── Under budget: Ok across all modes ───────────────────────────────
+
+#[test]
+fn bundle_under_budget_returns_ok_under_error_mode() {
+    // d=1024 → budget=32. Bundle 5 atoms — well under. Ok(h) expected.
+    let src = format!(
+        r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
+          (:wat::algebra::Bundle {}))
+        "#,
+        atoms_list(5)
+    );
+    match run(&src) {
+        Value::Result(r) => match &*r {
+            Ok(Value::holon__HolonAST(_)) => {}
+            other => panic!("expected Ok(holon::HolonAST); got {:?}", other),
+        },
+        other => panic!("expected Value::Result; got {:?}", other),
+    }
+}
+
+#[test]
+fn bundle_under_budget_returns_ok_under_silent_mode() {
+    let src = format!(
+        r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :silent)
+
+        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
+          (:wat::algebra::Bundle {}))
+        "#,
+        atoms_list(5)
+    );
+    match run(&src) {
+        Value::Result(r) => match &*r {
+            Ok(Value::holon__HolonAST(_)) => {}
+            other => panic!("expected Ok(holon::HolonAST); got {:?}", other),
+        },
+        other => panic!("expected Value::Result; got {:?}", other),
+    }
+}
+
+// ─── Over budget under :error — populates CapacityExceeded ───────────
+
+#[test]
+fn bundle_over_budget_under_error_mode_returns_err_struct() {
+    // d=1024 → budget=32. Bundle 33 atoms — one over. Err fires.
+    let src = format!(
+        r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
+          (:wat::algebra::Bundle {}))
+        "#,
+        atoms_list(33)
+    );
+    match run(&src) {
+        Value::Result(r) => match &*r {
+            Err(Value::Struct(sv)) => {
+                assert_eq!(sv.type_name, ":wat::algebra::CapacityExceeded");
+                assert_eq!(sv.fields.len(), 2, "CapacityExceeded has cost + budget");
+                // cost first field, budget second — per struct declaration order.
+                match (&sv.fields[0], &sv.fields[1]) {
+                    (Value::i64(cost), Value::i64(budget)) => {
+                        assert_eq!(*cost, 33, "cost is the constituent count");
+                        assert_eq!(*budget, 32, "budget is floor(sqrt(1024))");
+                    }
+                    other => panic!("expected (i64, i64) fields; got {:?}", other),
+                }
+            }
+            other => panic!("expected Err(Struct); got {:?}", other),
+        },
+        other => panic!("expected Value::Result; got {:?}", other),
+    }
+}
+
+#[test]
+fn bundle_err_cost_and_budget_readable_via_accessors() {
+    // Round-trip through user wat: the program reads cost and budget
+    // from the CapacityExceeded instance via the auto-generated
+    // accessors and computes their difference.
+    let src = format!(
+        r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::match (:wat::algebra::Bundle {})
+            ((Ok _) 0)
+            ((Err e)
+              (:wat::core::i64::-
+                (:wat::algebra::CapacityExceeded/cost e)
+                (:wat::algebra::CapacityExceeded/budget e)))))
+        "#,
+        atoms_list(40)
+    );
+    match run(&src) {
+        Value::i64(n) => assert_eq!(n, 40 - 32, "40-atom bundle over budget 32 → diff 8"),
+        other => panic!("expected i64 8; got {:?}", other),
+    }
+}
+
+// ─── Over budget under :silent — still Ok, degraded vector ───────────
+
+#[test]
+fn bundle_over_budget_under_silent_mode_still_returns_ok() {
+    // :silent deliberately skips the check. Bundle returns Ok with the
+    // (degraded) vector even though cost > budget. Author opted in.
+    let src = format!(
+        r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :silent)
+
+        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
+          (:wat::algebra::Bundle {}))
+        "#,
+        atoms_list(200)
+    );
+    match run(&src) {
+        Value::Result(r) => match &*r {
+            Ok(Value::holon__HolonAST(_)) => {}
+            other => panic!("expected Ok(holon::HolonAST) even over budget under :silent; got {:?}", other),
+        },
+        other => panic!("expected Value::Result; got {:?}", other),
+    }
+}
+
+// ─── Over budget under :warn — Ok with diagnostic ────────────────────
+
+#[test]
+fn bundle_over_budget_under_warn_mode_still_returns_ok() {
+    // :warn prints to stderr but still produces Ok. We can't easily
+    // capture stderr from invoke_user_main inside this test — the
+    // stderr check lives in a full CLI-spawning test if we add one
+    // later. Here we verify the return shape only.
+    let src = format!(
+        r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :warn)
+
+        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
+          (:wat::algebra::Bundle {}))
+        "#,
+        atoms_list(100)
+    );
+    match run(&src) {
+        Value::Result(r) => match &*r {
+            Ok(Value::holon__HolonAST(_)) => {}
+            other => panic!("expected Ok(holon::HolonAST) under :warn; got {:?}", other),
+        },
+        other => panic!("expected Value::Result; got {:?}", other),
+    }
+}
+
+// ─── Over budget under :abort — panic ────────────────────────────────
+
+#[test]
+fn bundle_over_budget_under_abort_mode_panics() {
+    // :abort fails closed — the process terminates before any bad
+    // vector escapes. invoke_user_main propagates the panic; we catch
+    // via std::panic::catch_unwind to assert the panic path fires.
+    let src = format!(
+        r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :abort)
+
+        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
+          (:wat::algebra::Bundle {}))
+        "#,
+        atoms_list(50)
+    );
+    let caught = std::panic::catch_unwind(|| run(&src));
+    assert!(caught.is_err(), ":abort + over budget must panic");
+}
+
+// ─── Try form propagates Bundle's Err ────────────────────────────────
+
+#[test]
+fn try_propagates_bundle_err_across_function_boundary() {
+    // Helper returns Result. Its body calls Bundle and `try`s the
+    // result. Main calls the helper and matches. This is the cleanest
+    // handler shape once `try` is available for Bundle's Result.
+    let src = format!(
+        r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:app::build-composite
+                            (items :Vec<holon::HolonAST>)
+                            -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
+          (Ok (:wat::core::try (:wat::algebra::Bundle items))))
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::match (:app::build-composite {})
+            ((Ok _) 0)
+            ((Err e) (:wat::algebra::CapacityExceeded/cost e))))
+        "#,
+        atoms_list(50)
+    );
+    match run(&src) {
+        Value::i64(50) => {}
+        other => panic!("expected i64 50 (the cost); got {:?}", other),
+    }
+}
+
+// ─── Check-time refusals ─────────────────────────────────────────────
+
+#[test]
+fn bundle_return_type_mismatch_rejected_at_check() {
+    // main's return type is :holon::HolonAST but Bundle returns
+    // :Result<holon::HolonAST, CapacityExceeded>. Must fail at check.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :holon::HolonAST)
+          (:wat::algebra::Bundle (:wat::core::list :holon::HolonAST
+            (:wat::algebra::Atom "a")
+            (:wat::algebra::Atom "b"))))
+    "#;
+    let l = InMemoryLoader::new();
+    match startup_from_source(src, None, &l) {
+        Err(_) => {}
+        Ok(_) => panic!("expected check failure — Bundle is Result-typed, caller declared :holon::HolonAST"),
+    }
+}

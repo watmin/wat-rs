@@ -14,11 +14,16 @@
 ;; Edge cases per Q2: n <= 0 produces an empty bundle (zero vector);
 ;; n > xs.len() produces an empty bundle (no window fits).
 
+;; Returns the Bundle's raw Result — caller handles capacity. Per
+;; the 2026-04-19 Bundle-Result slice: every stdlib form that expands
+;; to Bundle inherits Bundle's Result wrap. Callers either match
+;; explicitly or propagate with `:wat::core::try`.
+
 (:wat::core::defmacro
   (:wat::std::Ngram
     (n :AST<i64>)
     (xs :AST<List<holon::HolonAST>>)
-    -> :AST<holon::HolonAST>)
+    -> :AST<Result<holon::HolonAST,wat::algebra::CapacityExceeded>>)
   `(:wat::algebra::Bundle
      (:wat::core::map
        (:wat::std::list::window ,xs ,n)

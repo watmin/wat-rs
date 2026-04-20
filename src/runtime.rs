@@ -3357,6 +3357,32 @@ fn eval_algebra_bind(
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::bind((*a).clone(), (*b).clone()))))
 }
 
+/// `(:wat::algebra::Bundle <list-of-holons>)` — superposition, with
+/// Kanerva-capacity enforcement per the committed capacity-mode.
+///
+/// Return type is `:Result<:holon::HolonAST, :wat::algebra::CapacityExceeded>`.
+/// Always. Under every mode. Callers are forced by the type system to
+/// acknowledge the possibility of failure — either matching on the
+/// Result explicitly or propagating with `:wat::core::try`.
+///
+/// Capacity math: `budget = floor(sqrt(dims))` per the lab's prior-art
+/// trimming convention (`src/encoding/rhythm.rs` in holon-lab-trading).
+/// At d=10_000 → budget 100; at d=4_096 → 64; at d=1_024 → 32. Matches
+/// FOUNDATION's empirical "~100 at d=10k" statement exactly. There is
+/// no codebook factor — under AST-primary, the only physical bound is
+/// the noise floor, and `sqrt(d)` is the safe-side item count.
+///
+/// Modes (`:wat::config::CapacityMode`):
+/// - `:silent` — always `Ok(h)`. No check. Author opted into risk.
+/// - `:warn`   — always `Ok(h)`. `eprintln!` the cost/budget/dims
+///   triple when over budget. The substrate still produces the
+///   degraded vector; the author sees the diagnostic.
+/// - `:error`  — `Ok(h)` under budget; `Err(CapacityExceeded{cost,
+///   budget})` over. The program continues with the Err value; the
+///   type system requires the caller to handle it.
+/// - `:abort`  — `Ok(h)` under budget; `panic!` over, carrying the
+///   cost/budget/dims diagnostic. Fail-closed: the bad frame never
+///   leaves this dispatcher. No unwinding of user state.
 fn eval_algebra_bundle(
     args: &[WatAST],
     env: &Environment,
@@ -3379,14 +3405,61 @@ fn eval_algebra_bundle(
             });
         }
     };
-    let children: Result<Vec<HolonAST>, _> = list
+    let children: Vec<HolonAST> = list
         .iter()
         .map(|v| {
             require_holon(":wat::algebra::Bundle list element", v.clone())
                 .map(|h| (*h).clone())
         })
-        .collect();
-    Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(children?))))
+        .collect::<Result<Vec<HolonAST>, _>>()?;
+
+    // Capacity arithmetic needs `dims` and the committed mode; both
+    // live on the frozen `EncodingCtx` attached to the symbol table.
+    // Without a ctx we cannot compute the budget — match the pattern
+    // the other config-consuming primitives use and surface
+    // NoEncodingCtx.
+    let ctx = require_encoding_ctx(":wat::algebra::Bundle", sym)?;
+    let dims = ctx.config.dims;
+    let budget = (dims as f64).sqrt().floor() as usize;
+    let cost = children.len();
+    let mode = ctx.config.capacity_mode;
+
+    // Build the Bundle AST up front — under every non-Abort mode we
+    // return it wrapped; only `:abort` + overflow skips this step.
+    let bundle_ast = HolonAST::bundle(children);
+
+    if cost > budget {
+        match mode {
+            crate::config::CapacityMode::Silent => {
+                // Measure but don't surface. Author opted out of checks;
+                // the degraded vector is the expected consequence.
+            }
+            crate::config::CapacityMode::Warn => {
+                eprintln!(
+                    ":wat::algebra::Bundle: capacity exceeded — cost {} > budget {} at dims {}",
+                    cost, budget, dims
+                );
+            }
+            crate::config::CapacityMode::Error => {
+                let err = Value::Struct(Arc::new(StructValue {
+                    type_name: ":wat::algebra::CapacityExceeded".into(),
+                    fields: vec![Value::i64(cost as i64), Value::i64(budget as i64)],
+                }));
+                return Ok(Value::Result(Arc::new(Err(err))));
+            }
+            crate::config::CapacityMode::Abort => {
+                // Fail-closed. No unwinding; the process is done.
+                panic!(
+                    ":wat::algebra::Bundle: capacity exceeded under :abort — cost {} > budget {} at dims {}",
+                    cost, budget, dims
+                );
+            }
+        }
+    }
+
+    // Ok path — under budget OR under `:silent`/`:warn` over budget.
+    let ok = Value::holon__HolonAST(Arc::new(bundle_ast));
+    Ok(Value::Result(Arc::new(Ok(ok))))
 }
 
 fn eval_algebra_permute(
@@ -5070,15 +5143,27 @@ mod tests {
 
     #[test]
     fn algebra_bundle_via_list_ctor() {
-        let v = eval_expr(
+        // Bundle now returns Result<holon::HolonAST, CapacityExceeded>
+        // under every mode — end-to-end tests in `tests/wat_bundle_*`
+        // exercise the four capacity-mode paths. This unit test
+        // confirms the Ok wrap happens at cost <= budget (at d=1024,
+        // budget=32 and we Bundle 3 atoms).
+        let v = eval_with_ctx(
             r#"(:wat::algebra::Bundle
                  (:wat::core::vec :holon::HolonAST
                    (:wat::algebra::Atom "a")
                    (:wat::algebra::Atom "b")
                    (:wat::algebra::Atom "c")))"#,
+            1024,
         )
         .unwrap();
-        assert!(matches!(v, Value::holon__HolonAST(_)));
+        match v {
+            Value::Result(r) => match &*r {
+                Ok(Value::holon__HolonAST(_)) => {}
+                other => panic!("expected Ok(holon::HolonAST); got {:?}", other),
+            },
+            other => panic!("expected Value::Result; got {:?}", other),
+        }
     }
 
     #[test]

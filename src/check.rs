@@ -2372,7 +2372,15 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: holon_ty(),
         },
     );
-    // Bundle takes :Vec<holon::HolonAST> → :holon::HolonAST.
+    // Bundle takes :Vec<holon::HolonAST> and returns
+    // :Result<holon::HolonAST, :wat::algebra::CapacityExceeded>.
+    // The Result wrap is the forcing function for the capacity guard:
+    // authors are required by the type system to acknowledge the
+    // failure case — either matching explicitly or propagating via
+    // `:wat::core::try`. Under `:silent`/`:warn` the Err arm is
+    // unreachable but still syntactically present (a reminder that
+    // Bundle has a capacity bound); under `:error` it fires; under
+    // `:abort` the process panics before returning.
     env.register(
         ":wat::algebra::Bundle".into(),
         TypeScheme {
@@ -2381,7 +2389,13 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Vec".into(),
                 args: vec![holon_ty()],
             }],
-            ret: holon_ty(),
+            ret: TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![
+                    holon_ty(),
+                    TypeExpr::Path(":wat::algebra::CapacityExceeded".into()),
+                ],
+            },
         },
     );
     env.register(

@@ -876,8 +876,16 @@ fn stdlib_trigram_bundles_sequential_windows() {
              ((z :holon::HolonAST) (:wat::algebra::Atom "unrelated-z"))
              ((window-1 :holon::HolonAST)
               (:wat::std::Sequential (:wat::core::list :holon::HolonAST a b c)))
+             ;; Trigram expands to a Bundle, which now returns
+             ;; :Result<holon::HolonAST, wat::algebra::CapacityExceeded>.
+             ;; Unwrap explicitly — the Err arm is unreachable here
+             ;; (4 atoms at d=1024 is well under budget=32) but the
+             ;; type system requires us to acknowledge it.
              ((full :holon::HolonAST)
-              (:wat::std::Trigram (:wat::core::list :holon::HolonAST a b c d)))
+              (:wat::core::match
+                (:wat::std::Trigram (:wat::core::list :holon::HolonAST a b c d))
+                ((Ok h) h)
+                ((Err _) a)))
              ((participant :f64) (:wat::algebra::cosine window-1 full))
              ((outsider :f64) (:wat::algebra::cosine z full))
              ((_ :()) (:wat::io::write stdout (:my::test::verdict participant))))
