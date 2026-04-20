@@ -27,3 +27,44 @@ Start with:
 
 This crate's `README.md` (one level up) documents what has landed and how
 to run the binary. For the *why*, read the proposal.
+
+## Also in this directory
+
+**[`ZERO-MUTEX.md`](./ZERO-MUTEX.md)** — the concurrency architecture,
+stated plainly. wat-vm runs dozens of threads, serializes writes to
+stdout across every program that wants to print, owns LRU caches hit
+concurrently from multiple clients, composes pipeline stages in real
+parallel — and has **zero Mutex**. Not fewer. Not mostly. Zero.
+
+The doc names the three tiers (immutable `Arc<T>`; `ThreadOwnedCell<T>`;
+program-owned message-addressed via channels) that cover every situation
+a Mutex would conventionally answer, walks through every "I need a
+Mutex" scenario and shows which tier claims it, and names the honest
+caveats (atomics, `OnceLock`, `Arc` are not the tiers but not violations
+either). Read it before writing your first concurrent wat program.
+Read it before reaching for a lock.
+
+## Arc docs — dated slice design notes
+
+Living planning and postmortem notes for individual slices of work,
+organized as `arc/YYYY/MM/NNN-slug/`:
+
+- **`arc/2026/04/001-caching-stack/`** — the L1/L2 caching design
+  (LocalCache + Cache program) and the deadlock postmortem where
+  `ThreadOwnedCell` clarified its ownership story.
+- **`arc/2026/04/002-rust-interop-macro/`** — the `#[wat_dispatch]`
+  proc-macro design, the `:rust::` namespace principle, and the
+  progress log that tracked the macro arc through its e-block
+  features (Vec, Tuple, Result, shared / owned_move scopes).
+- **`arc/2026/04/003-tail-call-optimization/`** — the design for TCO
+  in the evaluator. Trampoline in `apply_function`; tail-position
+  threading; Scheme + Erlang references. Prerequisite for long-running
+  driver loops (Console/loop, Cache/loop-step, future pipeline stages).
+- **`arc/2026/04/004-lazy-sequences-and-pipelines/`** — the CSP
+  pipeline stdlib design + `:rust::std::iter::Iterator` surfacing.
+  The Ruby Enumerator pattern mapped to Rust's two-level answer
+  (Iterator for in-process lazy; channel `Receiver::into_iter` for
+  cross-thread). Depends on 003.
+
+These docs are living — revised as slices ship. Superseded content
+stays in git history rather than being deleted.
