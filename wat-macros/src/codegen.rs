@@ -206,25 +206,38 @@ fn emit_dispatch_fn(
                 })?;
             }
         }
+        (Some(ReceiverKind::Ref), Scope::Shared) => {
+            // &self under shared scope. args[0] is the opaque handle;
+            // downcast to &Self directly (no guard). Plain &Self call.
+            quote! {
+                let self_val = ::wat::runtime::eval(&args[0], env, sym)?;
+                let self_inner =
+                    ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path)?;
+                let self_ref: &#self_type =
+                    ::wat::rust_deps::downcast_ref_opaque(&self_inner, TYPE_PATH, #wat_path)?;
+                let result = self_ref.#name(#(#arg_idents),*);
+            }
+        }
+        (Some(ReceiverKind::RefMut), Scope::Shared) => {
+            return Err(Error::new(
+                proc_macro2::Span::call_site(),
+                "wat_dispatch: scope = \"shared\" cannot take `&mut self` methods \
+                 (shared handles lack interior mutability). Use \
+                 scope = \"thread_owned\" for mutable state, or refactor the method \
+                 to take `&self` with internal synchronization already baked in.",
+            ));
+        }
         (Some(ReceiverKind::Owned), _) => {
             return Err(Error::new(
                 proc_macro2::Span::call_site(),
                 "wat_dispatch 193b: by-value `self` receivers are not yet supported \
-                 (tracking under scope = \"owned_move\" in task #194)",
-            ));
-        }
-        (Some(_), Scope::Shared) => {
-            return Err(Error::new(
-                proc_macro2::Span::call_site(),
-                "wat_dispatch 193b: `self` receivers under scope = \"shared\" are not \
-                 yet supported (shared semantics for mutable-self methods is ambiguous; \
-                 lands in task #194)",
+                 (tracking under scope = \"owned_move\" in task #200)",
             ));
         }
         (Some(_), Scope::OwnedMove) => {
             return Err(Error::new(
                 proc_macro2::Span::call_site(),
-                "wat_dispatch 194: scope = \"owned_move\" not yet implemented",
+                "wat_dispatch: scope = \"owned_move\" not yet implemented (task #200)",
             ));
         }
     };
