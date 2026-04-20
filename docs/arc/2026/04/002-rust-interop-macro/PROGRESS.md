@@ -1,9 +1,9 @@
 # Macro arc — live progress log
 
 Updated as work happens. If compaction hits mid-slice, read this to
-resume. Full design: `docs/wat-dispatch-macro-design-2026-04-19.md`.
-Namespace principle: `docs/namespace-principle-2026-04-19.md`.
-Caching architecture: `docs/caching-design-2026-04-19.md`.
+resume. Full design: `MACRO-DESIGN.md` (sibling).
+Namespace principle: `NAMESPACE-PRINCIPLE.md` (sibling).
+Caching architecture: `../001-caching-stack/DESIGN.md`.
 
 ## Completed — everything under the macro-arc + sweep umbrella
 

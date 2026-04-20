@@ -1,7 +1,7 @@
 //! Marshaling between wat `Value` and Rust types.
 //!
 //! The `#[wat_dispatch]` macro (see
-//! `docs/wat-dispatch-macro-design-2026-04-19.md`) emits calls into
+//! `docs/arc/2026/04/002-rust-interop-macro/MACRO-DESIGN.md`) emits calls into
 //! these traits to convert arguments (wat → Rust) and returns
 //! (Rust → wat). The traits are userland-extensible — a shim author
 //! can implement `ToWat` / `FromWat` for any type their shim exposes.

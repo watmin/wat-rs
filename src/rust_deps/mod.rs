@@ -38,7 +38,7 @@
 //! `(:wat::core::use! :rust::<crate>::<Type>)`. Current implementation:
 //! program-global set-insert (one declaration anywhere in the program
 //! enables it everywhere). Per-file enforcement is a planned upgrade
-//! (tracked in docs/caching-design-2026-04-19.md) pending a caller
+//! (tracked in docs/arc/2026/04/001-caching-stack/DESIGN.md) pending a caller
 //! that has multiple files with distinct rust deps.
 //!
 //! # Zero Mutex

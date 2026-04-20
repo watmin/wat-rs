@@ -4,7 +4,7 @@
 //!
 //! Annotates a Rust `impl` block and generates the shim code that
 //! exposes the type's methods to wat source via the `:rust::*`
-//! namespace. See `wat-rs/docs/wat-dispatch-macro-design-2026-04-19.md`
+//! namespace. See `wat-rs/docs/arc/2026/04/002-rust-interop-macro/MACRO-DESIGN.md`
 //! for the full design.
 //!
 //! ```ignore
