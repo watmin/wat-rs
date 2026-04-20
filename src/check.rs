@@ -1192,8 +1192,10 @@ fn process_let_binding(
     }
 }
 
-/// Type-check `(:wat::std::HashSet x1 x2 x3 ...)`. Variadic; all
-/// elements unify to a common T; return `:HashSet<T>`.
+/// Type-check `(:wat::std::HashSet :T x1 x2 ...)`. First arg is a
+/// type keyword; remaining args are elements, each unifying with T.
+/// Explicit typing required (matches the vec/list / make-queue
+/// resource-constructor discipline — shape never depends on context).
 fn infer_hashset_constructor(
     args: &[WatAST],
     env: &CheckEnv,
@@ -1202,14 +1204,43 @@ fn infer_hashset_constructor(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    let t_var = fresh.fresh();
-    for (i, arg) in args.iter().enumerate() {
+    if args.is_empty() {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::std::HashSet".into(),
+            expected: 1,
+            got: 0,
+        });
+        return Some(TypeExpr::Parametric {
+            head: "HashSet".into(),
+            args: vec![fresh.fresh()],
+        });
+    }
+    let t_ty = match &args[0] {
+        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(_) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::std::HashSet".into(),
+                    reason: format!("first argument {} is not a valid type keyword", k),
+                });
+                fresh.fresh()
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::std::HashSet".into(),
+                reason: "first argument must be a type keyword (e.g., :i64)".into(),
+            });
+            fresh.fresh()
+        }
+    };
+    for (i, arg) in args[1..].iter().enumerate() {
         if let Some(ty) = infer(arg, env, locals, fresh, subst, errors) {
-            if unify(&ty, &t_var, subst).is_err() {
+            if unify(&ty, &t_ty, subst).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::std::HashSet".into(),
                     param: format!("element #{}", i + 1),
-                    expected: format_type(&apply_subst(&t_var, subst)),
+                    expected: format_type(&apply_subst(&t_ty, subst)),
                     got: format_type(&apply_subst(&ty, subst)),
                 });
             }
@@ -1217,7 +1248,7 @@ fn infer_hashset_constructor(
     }
     Some(TypeExpr::Parametric {
         head: "HashSet".into(),
-        args: vec![apply_subst(&t_var, subst)],
+        args: vec![apply_subst(&t_ty, subst)],
     })
 }
 
@@ -1302,9 +1333,11 @@ fn infer_get(
     })
 }
 
-/// Type-check `(:wat::std::HashMap k1 v1 k2 v2 ...)`. Variadic
-/// alternating key/value pairs. All keys unify to a common `K`; all
-/// values unify to a common `V`. Result type is `:HashMap<K,V>`.
+/// Type-check `(:wat::std::HashMap :(K,V) k1 v1 k2 v2 ...)`. First arg
+/// is a tuple-type keyword `:(K,V)` encoding both parameters; the
+/// remaining args are alternating key/value pairs. Keys unify with K,
+/// values with V. Explicit typing required (matches vec/list / make-queue
+/// resource-constructor discipline).
 fn infer_hashmap_constructor(
     args: &[WatAST],
     env: &CheckEnv,
@@ -1313,42 +1346,81 @@ fn infer_hashmap_constructor(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    if !args.len().is_multiple_of(2) {
-        errors.push(CheckError::MalformedForm {
-            head: ":wat::std::HashMap".into(),
-            reason: "arity must be even (alternating key/value)".into(),
+    if args.is_empty() {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::std::HashMap".into(),
+            expected: 1,
+            got: 0,
+        });
+        return Some(TypeExpr::Parametric {
+            head: "HashMap".into(),
+            args: vec![fresh.fresh(), fresh.fresh()],
         });
     }
-    let k_var = fresh.fresh();
-    let v_var = fresh.fresh();
-    for (i, chunk) in args.chunks(2).enumerate() {
-        if let Some(k_ty) = infer(&chunk[0], env, locals, fresh, subst, errors) {
-            if unify(&k_ty, &k_var, subst).is_err() {
+    let (k_ty, v_ty) = match &args[0] {
+        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+            Ok(TypeExpr::Tuple(ts)) if ts.len() == 2 => (ts[0].clone(), ts[1].clone()),
+            Ok(other) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::std::HashMap".into(),
+                    reason: format!(
+                        "first argument must be a tuple type :(K,V); got {}",
+                        format_type(&other)
+                    ),
+                });
+                (fresh.fresh(), fresh.fresh())
+            }
+            Err(_) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::std::HashMap".into(),
+                    reason: format!("first argument {} is not a valid type keyword", k),
+                });
+                (fresh.fresh(), fresh.fresh())
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::std::HashMap".into(),
+                reason: "first argument must be a tuple type keyword :(K,V)".into(),
+            });
+            (fresh.fresh(), fresh.fresh())
+        }
+    };
+    let pairs = &args[1..];
+    if !pairs.len().is_multiple_of(2) {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::std::HashMap".into(),
+            reason: "arity after :(K,V) must be even (alternating key/value)".into(),
+        });
+    }
+    for (i, chunk) in pairs.chunks(2).enumerate() {
+        if let Some(k_arg_ty) = infer(&chunk[0], env, locals, fresh, subst, errors) {
+            if unify(&k_arg_ty, &k_ty, subst).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::std::HashMap".into(),
                     param: format!("key #{}", i + 1),
-                    expected: format_type(&apply_subst(&k_var, subst)),
-                    got: format_type(&apply_subst(&k_ty, subst)),
+                    expected: format_type(&apply_subst(&k_ty, subst)),
+                    got: format_type(&apply_subst(&k_arg_ty, subst)),
                 });
             }
         }
-        if let Some(v_ty) = chunk
+        if let Some(v_arg_ty) = chunk
             .get(1)
             .and_then(|a| infer(a, env, locals, fresh, subst, errors))
         {
-            if unify(&v_ty, &v_var, subst).is_err() {
+            if unify(&v_arg_ty, &v_ty, subst).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::std::HashMap".into(),
                     param: format!("value #{}", i + 1),
-                    expected: format_type(&apply_subst(&v_var, subst)),
-                    got: format_type(&apply_subst(&v_ty, subst)),
+                    expected: format_type(&apply_subst(&v_ty, subst)),
+                    got: format_type(&apply_subst(&v_arg_ty, subst)),
                 });
             }
         }
     }
     Some(TypeExpr::Parametric {
         head: "HashMap".into(),
-        args: vec![apply_subst(&k_var, subst), apply_subst(&v_var, subst)],
+        args: vec![apply_subst(&k_ty, subst), apply_subst(&v_ty, subst)],
     })
 }
 

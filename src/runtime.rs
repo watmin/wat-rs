@@ -2265,25 +2265,40 @@ fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
     }
 }
 
-/// `(:wat::std::HashMap k1 v1 k2 v2 ...)` — variadic constructor with
-/// alternating key/value args. Odd arg count errors. Duplicate keys:
-/// later entries overwrite earlier.
+/// `(:wat::std::HashMap :(K,V) k1 v1 k2 v2 ...)` — first arg is a
+/// tuple-type keyword read by the checker; remaining args are
+/// alternating key/value pairs. Odd pair count errors. Duplicate
+/// keys: later entries overwrite earlier.
 fn eval_hashmap_ctor(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    if !args.len().is_multiple_of(2) {
+    if args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::std::HashMap".into(),
+            expected: 1,
+            got: 0,
+        });
+    }
+    if !matches!(&args[0], WatAST::Keyword(_)) {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::std::HashMap".into(),
+            reason: "first argument must be a tuple type keyword :(K,V)".into(),
+        });
+    }
+    let pairs = &args[1..];
+    if !pairs.len().is_multiple_of(2) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::std::HashMap".into(),
             reason: format!(
-                "arity must be even (alternating key/value pairs); got {}",
-                args.len()
+                "arity after :(K,V) must be even (alternating key/value pairs); got {}",
+                pairs.len()
             ),
         });
     }
-    let mut map = std::collections::HashMap::with_capacity(args.len() / 2);
-    for pair in args.chunks(2) {
+    let mut map = std::collections::HashMap::with_capacity(pairs.len() / 2);
+    for pair in pairs.chunks(2) {
         let k = eval(&pair[0], env, sym)?;
         let v = eval(&pair[1], env, sym)?;
         let key = hashmap_key(":wat::std::HashMap", &k)?;
@@ -2338,16 +2353,29 @@ fn eval_get(
     }
 }
 
-/// `(:wat::std::HashSet x1 x2 x3 ...)` — variadic constructor.
-/// Duplicate elements collapse (last stored wins on the exact
-/// canonical key).
+/// `(:wat::std::HashSet :T x1 x2 x3 ...)` — first arg is a type
+/// keyword read by the checker; remaining args are elements. Duplicate
+/// elements collapse (last stored wins on the exact canonical key).
 fn eval_hashset_ctor(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let mut set = std::collections::HashMap::with_capacity(args.len());
-    for a in args {
+    if args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::std::HashSet".into(),
+            expected: 1,
+            got: 0,
+        });
+    }
+    if !matches!(&args[0], WatAST::Keyword(_)) {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::std::HashSet".into(),
+            reason: "first argument must be a type keyword (e.g., :i64)".into(),
+        });
+    }
+    let mut set = std::collections::HashMap::with_capacity(args.len() - 1);
+    for a in &args[1..] {
         let v = eval(a, env, sym)?;
         let key = hashmap_key(":wat::std::HashSet", &v)?;
         set.insert(key, v);
@@ -5753,7 +5781,7 @@ mod tests {
 
     #[test]
     fn hashmap_constructor_even_arity() {
-        let v = eval_expr(r#"(:wat::std::HashMap "a" 1 "b" 2)"#).unwrap();
+        let v = eval_expr(r#"(:wat::std::HashMap :(String,i64) "a" 1 "b" 2)"#).unwrap();
         match v {
             Value::wat__std__HashMap(m) => {
                 assert_eq!(m.len(), 2);
@@ -5764,7 +5792,7 @@ mod tests {
 
     #[test]
     fn hashmap_constructor_odd_arity_errors() {
-        let err = eval_expr(r#"(:wat::std::HashMap "a" 1 "b")"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::std::HashMap :(String,i64) "a" 1 "b")"#).unwrap_err();
         assert!(matches!(err, RuntimeError::MalformedForm { .. }));
     }
 
@@ -5772,7 +5800,7 @@ mod tests {
     fn hashmap_get_hit_returns_some() {
         let src = r#"
             (:wat::core::let*
-              (((m :HashMap<String,i64>) (:wat::std::HashMap "a" 10 "b" 20)))
+              (((m :HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10 "b" 20)))
               (:wat::core::match (:wat::std::get m "a")
                 ((Some n) n)
                 (:None 0)))
@@ -5787,7 +5815,7 @@ mod tests {
     fn hashmap_get_miss_returns_none() {
         let src = r#"
             (:wat::core::let*
-              (((m :HashMap<String,i64>) (:wat::std::HashMap "a" 10)))
+              (((m :HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10)))
               (:wat::core::match (:wat::std::get m "missing")
                 ((Some n) n)
                 (:None -1)))
@@ -5802,13 +5830,13 @@ mod tests {
     fn hashmap_contains_tracks_membership() {
         let src = r#"
             (:wat::core::let*
-              (((m :HashMap<String,i64>) (:wat::std::HashMap "a" 10)))
+              (((m :HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10)))
               (:wat::std::contains? m "a"))
         "#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
         let src_missing = r#"
             (:wat::core::let*
-              (((m :HashMap<String,i64>) (:wat::std::HashMap "a" 10)))
+              (((m :HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10)))
               (:wat::std::contains? m "b"))
         "#;
         assert!(matches!(eval_expr(src_missing).unwrap(), Value::bool(false)));
@@ -5821,7 +5849,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((m :HashMap<String,i64>)
-                (:wat::std::HashMap "42" 100)))
+                (:wat::std::HashMap :(String,i64) "42" 100)))
               (:wat::std::contains? m 42))
         "#;
         // Map has one entry under String "42". Contains? with i64 key 42
@@ -5835,7 +5863,7 @@ mod tests {
     #[test]
     fn hashmap_composite_key_errors() {
         // Keys restricted to primitives in this slice.
-        let err = eval_expr(r#"(:wat::std::HashMap (:wat::core::list :i64 1 2) "x")"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::std::HashMap :(Vec<i64>,String) (:wat::core::list :i64 1 2) "x")"#).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
@@ -5849,7 +5877,7 @@ mod tests {
 
     #[test]
     fn hashset_constructor() {
-        let v = eval_expr(r#"(:wat::std::HashSet "a" "b" "c")"#).unwrap();
+        let v = eval_expr(r#"(:wat::std::HashSet :String "a" "b" "c")"#).unwrap();
         match v {
             Value::wat__std__HashSet(s) => assert_eq!(s.len(), 3),
             v => panic!("expected HashSet, got {:?}", v),
@@ -5858,7 +5886,7 @@ mod tests {
 
     #[test]
     fn hashset_collapses_duplicates() {
-        let v = eval_expr(r#"(:wat::std::HashSet "a" "a" "b")"#).unwrap();
+        let v = eval_expr(r#"(:wat::std::HashSet :String "a" "a" "b")"#).unwrap();
         match v {
             Value::wat__std__HashSet(s) => assert_eq!(s.len(), 2),
             v => panic!("expected HashSet, got {:?}", v),
@@ -5868,11 +5896,11 @@ mod tests {
     #[test]
     fn hashset_member_present_and_absent() {
         let present = r#"(:wat::core::let*
-            (((s :HashSet<String>) (:wat::std::HashSet "a" "b")))
+            (((s :HashSet<String>) (:wat::std::HashSet :String "a" "b")))
             (:wat::std::member? s "a"))"#;
         assert!(matches!(eval_expr(present).unwrap(), Value::bool(true)));
         let absent = r#"(:wat::core::let*
-            (((s :HashSet<String>) (:wat::std::HashSet "a" "b")))
+            (((s :HashSet<String>) (:wat::std::HashSet :String "a" "b")))
             (:wat::std::member? s "z"))"#;
         assert!(matches!(eval_expr(absent).unwrap(), Value::bool(false)));
     }
@@ -5883,7 +5911,7 @@ mod tests {
         // round-trips the caller's element through the Rust backing.
         let src = r#"
             (:wat::core::let*
-              (((s :HashSet<String>) (:wat::std::HashSet "apple" "banana")))
+              (((s :HashSet<String>) (:wat::std::HashSet :String "apple" "banana")))
               (:wat::core::match (:wat::std::get s "apple")
                 ((Some x) x)
                 (:None "missing")))
@@ -5898,7 +5926,7 @@ mod tests {
     fn hashset_get_miss_returns_none() {
         let src = r#"
             (:wat::core::let*
-              (((s :HashSet<String>) (:wat::std::HashSet "apple")))
+              (((s :HashSet<String>) (:wat::std::HashSet :String "apple")))
               (:wat::core::match (:wat::std::get s "banana")
                 ((Some x) x)
                 (:None "not-found")))
@@ -5911,7 +5939,7 @@ mod tests {
 
     #[test]
     fn hashset_rejects_composite_element() {
-        let err = eval_expr(r#"(:wat::std::HashSet (:wat::core::list :i64 1 2))"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::std::HashSet :Vec<i64> (:wat::core::list :i64 1 2))"#).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
@@ -6027,7 +6055,7 @@ mod tests {
         // membership for the i64 42 (type-tagged canonical key).
         let src = r#"
             (:wat::core::let*
-              (((s :HashSet<String>) (:wat::std::HashSet "42")))
+              (((s :HashSet<String>) (:wat::std::HashSet :String "42")))
               (:wat::std::member? s 42))
         "#;
         match eval_expr(src).unwrap() {
