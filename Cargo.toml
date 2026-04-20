@@ -17,6 +17,6 @@ base64 = "0.22"
 crossbeam-channel = "0.5"
 libc = "0.2"
 lru = "0.12"
+wat-macros = { path = "wat-macros" }
 
 [dev-dependencies]
-wat-macros = { path = "wat-macros" }

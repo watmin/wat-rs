@@ -1,5 +1,11 @@
 //! wat — the wat language frontend + runtime.
 //!
+//! Self-reference: `extern crate self as wat;` makes the crate
+//! accessible by its own name from within. The `#[wat_dispatch]`
+//! macro emits `::wat::...` paths in its generated code, which
+//! resolve identically whether the macro is invoked inside this
+//! crate or from a downstream consumer.
+//!
 //! This crate implements the wat language as specified by the 058 algebra
 //! surface proposal batch in the holon-lab-trading repo. It depends on
 //! `holon` (holon-rs) for the algebra substrate — the 6 core forms
@@ -39,6 +45,8 @@
 //!
 //! Not yet built: freeze pass (task #139), `:user/main` +
 //! constrained eval (task #140), `wat-vm` CLI binary (task #141).
+
+extern crate self as wat;
 
 pub mod ast;
 pub mod check;

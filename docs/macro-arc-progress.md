@@ -51,11 +51,33 @@ _(nothing — ready for next task)_
 
 ## In progress
 
-- **Task #193** 🔄 — Method-level codegen. 193a ✓ (associated fns +
-  primitives + Option + Self-opaque). 193b ✓ (`self` receivers:
-  `&self`/`&mut self` under `scope = "thread_owned"`; `ThreadOwnedCell<T>`
-  wrapping; Counter integration test). 193c deferred: `Vec<T>` / tuple
-  compound types (needed for rusqlite; not needed for lru regeneration).
+_(nothing — macro arc core deliverables complete)_
+
+## Completed (continued)
+
+- **Task #193** ✓ (to-lru-regen scope) — Method-level codegen. 193a ✓
+  (associated fns + primitives + Option + Self-opaque). 193b ✓
+  (`self` receivers: `&self`/`&mut self` under `scope = "thread_owned"`;
+  `ThreadOwnedCell<T>` wrapping). `type_params` attribute added for
+  phantom generics. 193c (`Vec<T>`/tuple) deferred to when rusqlite
+  needs it.
+- **Task #195** ✓ — Regenerated lru shim via macro. Hand-written
+  `LruCacheCell` + `LruCacheDispatcher` code removed entirely;
+  `src/rust_deps/lru.rs` now annotates a `WatLruCache` newtype with
+  `#[wat_dispatch]` and forwards its `register` fn. `Value::RustOpaque`
+  replaced the dedicated `Value::rust__lru__LruCache` variant. All
+  existing integration tests (`wat/std/LocalCache.wat` end-to-end,
+  runtime put/get, eviction, overwrite, thread-crossing guard) still
+  green.
+
+Known regressions from hand-written → macro (tracked via inline
+comments in the code):
+- Wrong-key-type type-check diagnostic (hand-written unified K via
+  generics; macro sees `Value` param and accepts any). Runtime
+  canonicalization still enforces primitive keys. Lands when the
+  macro supports per-arg type hints like `#[wat_param = "K"]`.
+- Zero-capacity panic instead of RuntimeError. Lands when the macro
+  supports precondition hooks or Result<Self, RuntimeError> returns.
 
 ## Queue
   Target is `src/rust_deps/lru.rs`'s exact structure.

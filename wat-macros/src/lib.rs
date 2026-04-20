@@ -56,13 +56,7 @@ impl Scope {
 }
 
 /// Parsed `#[wat_dispatch(...)]` attribute arguments.
-///
-/// Fields are read by the codegen stage (task #193). The bootstrap
-/// stage (#192) only parses; the structure is validated and then
-/// ignored. Keep the fields here so the attribute-parse tests can
-/// exercise them ahead of codegen.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub(crate) struct WatDispatchAttr {
     /// The wat-level path the type is surfaced under, e.g.
     /// `:rust::lru::LruCache`. Required.
@@ -70,16 +64,21 @@ pub(crate) struct WatDispatchAttr {
     /// Scope mode for Self-returning methods. Defaults to `shared`
     /// when omitted.
     pub scope: Scope,
+    /// Phantom type-parameter names, e.g. `["K", "V"]` for LruCache.
+    /// When non-empty, the macro emits the self-type as
+    /// `TypeExpr::Parametric { head: <path>, args: [fresh_var; N] }`
+    /// so wat-level annotations with `<K,V>` can unify. Empty = emit
+    /// `TypeExpr::Path(<path>)`, used for types without phantom
+    /// generics.
+    pub type_params: Vec<String>,
 }
 
 impl syn::parse::Parse for WatDispatchAttr {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        // Expect: path = "...", [scope = "..."]
-        //
-        // Both keys use `name = "value"` syntax; string-literal values.
-        // We don't impose ordering.
+        // Expect: path = "...", [scope = "..."], [type_params = "..."]
         let mut path: Option<String> = None;
         let mut scope: Scope = Scope::Shared;
+        let mut type_params: Vec<String> = Vec::new();
 
         let pairs = input.parse_terminated(KeyValue::parse, syn::Token![,])?;
         for kv in pairs {
@@ -105,11 +104,20 @@ impl syn::parse::Parse for WatDispatchAttr {
                         )
                     })?;
                 }
+                "type_params" => {
+                    let s = kv.value.value();
+                    // Comma-separated list of identifiers, e.g. "K,V".
+                    type_params = s
+                        .split(',')
+                        .map(|p| p.trim().to_string())
+                        .filter(|p| !p.is_empty())
+                        .collect();
+                }
                 other => {
                     return Err(Error::new_spanned(
                         &kv.key,
                         format!(
-                            "unknown wat_dispatch argument `{}`; expected: path, scope",
+                            "unknown wat_dispatch argument `{}`; expected: path, scope, type_params",
                             other
                         ),
                     ));
@@ -124,7 +132,11 @@ impl syn::parse::Parse for WatDispatchAttr {
             )
         })?;
 
-        Ok(WatDispatchAttr { path, scope })
+        Ok(WatDispatchAttr {
+            path,
+            scope,
+            type_params,
+        })
     }
 }
 

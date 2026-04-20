@@ -259,6 +259,27 @@ enum ReceiverKind {
 
 type NonReceiverArgs = Vec<(Pat, Type)>;
 
+/// Emit the TypeExpr for `Self` based on `attr.type_params`. Empty
+/// type_params → `Path(":rust::...")`. Non-empty → Parametric with a
+/// fresh var per param (phantom generics like `<K,V>` on LruCache).
+fn emit_self_type_expr(attr: &WatDispatchAttr) -> TokenStream {
+    if attr.type_params.is_empty() {
+        let full_path = attr.path.clone();
+        return quote! {
+            ::wat::types::TypeExpr::Path(#full_path.into())
+        };
+    }
+    let head = attr.path.trim_start_matches(':').to_string();
+    let n = attr.type_params.len();
+    let fresh_vars: Vec<TokenStream> = (0..n).map(|_| quote! { ctx.fresh_var() }).collect();
+    quote! {
+        ::wat::types::TypeExpr::Parametric {
+            head: #head.into(),
+            args: vec![#(#fresh_vars),*],
+        }
+    }
+}
+
 /// Partition a method's inputs into (optional receiver, non-receiver args).
 fn split_receiver_and_args(
     method: &ImplItemFn,
@@ -367,11 +388,11 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
     // `TypeExpr::Path(":rust::...")` — we emit that form so unification
     // matches. Generic self-types (Parametric with args) land with
     // generics support (later sub-slice).
-    let attr_path_lit = attr.path.clone();
+    let self_expected_ts = emit_self_type_expr(attr);
     let self_arg_check = if receiver.is_some() {
         quote! {
             {
-                let expected_ty = ::wat::types::TypeExpr::Path(#attr_path_lit.into());
+                let expected_ty = #self_expected_ts;
                 if let Some(got_ty) = ctx.infer(&args[0]) {
                     if !ctx.unify_types(&got_ty, &expected_ty) {
                         ctx.push_type_mismatch(
@@ -394,7 +415,7 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
         .enumerate()
         .map(|(i, (_pat, ty))| {
             let idx = receiver_arity + i;
-            let expected_ty_ts = rust_type_to_type_expr_tokens(ty, &attr.path)?;
+            let expected_ty_ts = rust_type_to_type_expr_tokens(ty, attr)?;
             let param_name_ts = format!("#{}", i + 1);
             Ok(quote! {
                 {
@@ -417,7 +438,7 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
     // Return-type expression.
     let return_ty_ts = match &method.sig.output {
         ReturnType::Default => quote! { ::wat::types::TypeExpr::Tuple(vec![]) },
-        ReturnType::Type(_, ty) => rust_type_to_type_expr_tokens(ty, &attr.path)?,
+        ReturnType::Type(_, ty) => rust_type_to_type_expr_tokens(ty, attr)?,
     };
 
     let fallback_ty = quote! { ::wat::types::TypeExpr::Tuple(vec![]) };
@@ -444,15 +465,9 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
 ///   Self, concrete self-type    → TypeExpr::Parametric { head: <attr.path stripped>, args: [] }
 ///   Option<T>                   → TypeExpr::Parametric { head: "Option", args: [<T>] }
 ///   wat::runtime::Value         → fresh var (checker treats as poly)
-fn rust_type_to_type_expr_tokens(ty: &Type, attr_path: &str) -> syn::Result<TokenStream> {
+fn rust_type_to_type_expr_tokens(ty: &Type, attr: &WatDispatchAttr) -> syn::Result<TokenStream> {
     if type_is_self(ty) {
-        // No-generics self-type (193b scope): parse as `Path`, matching
-        // how the type parser produces Path for plain keyword paths
-        // without `<...>`. Generic self-types land later.
-        let full_path = attr_path.to_string();
-        return Ok(quote! {
-            ::wat::types::TypeExpr::Path(#full_path.into())
-        });
+        return Ok(emit_self_type_expr(attr));
     }
 
     if let Type::Path(p) = ty {
@@ -481,7 +496,7 @@ fn rust_type_to_type_expr_tokens(ty: &Type, attr_path: &str) -> syn::Result<Toke
                     // Option<T> — recurse on T.
                     if let PathArguments::AngleBracketed(ab) = &last.arguments {
                         if let Some(GenericArgument::Type(inner)) = ab.args.first() {
-                            let inner_ts = rust_type_to_type_expr_tokens(inner, attr_path)?;
+                            let inner_ts = rust_type_to_type_expr_tokens(inner, attr)?;
                             return Ok(quote! {
                                 ::wat::types::TypeExpr::Parametric {
                                     head: "Option".into(),
