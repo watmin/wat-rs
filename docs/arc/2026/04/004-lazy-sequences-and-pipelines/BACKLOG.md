@@ -89,11 +89,15 @@ Items are ordered by readiness + dependency. "Blockers as they arise" is the ope
 
 ---
 
-## 5. `pipeline` composer — BLOCKED on substrate work
+## 5. `pipeline` composer — REJECTED (doesn't earn its slot)
 
-**Status:** requires language-level additions beyond variadic
-defmacro. The fog was real. Captured here as a concrete finding
-for the next substrate slice, not as something to patch around.
+**Status:** after walking it, the right answer is not "blocked on
+substrate work" — it's **`let*` already IS the pipeline**. The
+design doc's sketched one-liner was marketed as eliminating
+threading boilerplate, but the "boilerplate" was type information,
+not ceremony. Removing it would trade wat's typed-binding discipline
+(058-030) for conciseness, and wat has consistently picked
+honesty over brevity.
 
 **What I tried** (after items 1–4 shipped):
 
@@ -164,22 +168,51 @@ This doesn't earn its slot in the stdlib. Shipping it would be
 clutter. We keep the explicit `let*` form and ship the composer
 when the substrate catches up.
 
-**Current idiomatic shape (what the app uses).** Manual `let*`
-chain — this is what every test in `tests/wat_stream.rs` already
-demonstrates. Users compose pipelines as explicit bindings;
-terminal combinators (`for-each`, `collect`, `fold`) join the
-final handle. The drop cascade handles shutdown.
+**The sharper reading — `let*` IS the pipeline.** The tests in
+`tests/wat_stream.rs` already demonstrate the idiom:
 
-**Lesson captured**: absence is signal, again. This time the gap
-pointed at macro-body expressiveness — the same shape of finding
-as `reduce` (two half-passes that should have been one), but at
-the macro system's surface instead of the type checker's. A future
-slice "058-034 macro-body expressions" (or similar) unblocks this.
-Until it ships, the let* form is the honest answer and pipeline
-stays aspirational.
+```scheme
+(:wat::core::let*
+  (((source   :wat::std::stream::Stream<i64>) (spawn-producer ...))
+   ((doubled  :wat::std::stream::Stream<i64>) (stream::map source ...)))
+  (:wat::std::stream::collect doubled))
+```
 
-**Inscription target:** no current artifact. When the substrate
-slice lands, a `058-035-pipeline-composer` inscription can follow.
+There is nothing to eliminate here. Each binding carries:
+
+- A **name** that makes the stage reachable by its semantic role.
+- A **type** that documents what's flowing at that point AND lets
+  the checker verify the connection.
+- A **RHS** that's the stage constructor.
+
+The `source → doubled → collect` chain is explicit, typed, and
+composes concurrent stages in the order a human reads. A macro
+that produced the same thing would just rename `let*`.
+
+An auto-threading version `(pipeline src (map :f) (chunks 50) sink)`
+would DROP the type annotations and synthesize them. But that's
+exactly the discipline 058-030's typed-let decision was
+protecting — forcing the author to think about shape at every
+stage. Hiding that behind a macro trades wat's honesty for
+conciseness. Rejected on those grounds, not on implementation
+cost.
+
+**Lesson captured**: this is a different absence than `reduce`.
+Reduce was a gap we'd worked around — the substrate needed to
+catch up. Pipeline is the opposite — the "gap" pointed at a
+feature that, on inspection, **shouldn't exist**. The honest move
+isn't to build the substrate work that makes pipeline possible; it
+is to recognize that `let*` already does the job well, and that
+"ergonomics" arguments for a new form must be measured against
+what's lost (here: type annotations at each stage).
+
+When a design doc sketches a one-liner, asking "what would be
+eliminated?" and checking whether those eliminated things had
+actual value is its own discipline. Sometimes the verbose form is
+the honest form.
+
+**Inscription target:** none. Pipeline as a stdlib form is
+REJECTED here; the BACKLOG entry is the audit record.
 
 ---
 
