@@ -395,21 +395,53 @@ bypasses the gate.
 
 ---
 
-## Pass 2 — cross-reference to follow
+## Deferred — paths referenced but not yet shipped
 
-Next pass: grep every doc + test for `:wat::*` / `:rust::*`
-references, compare to this inventory, identify
-**referenced-but-not-shipped** candidates. Known to flag:
+Each ships when a concrete caller demands it. Until then, the
+surface stays small per stdlib-as-blueprint discipline
+(`CONVENTIONS.md`).
 
-- `:wat::core::cons` — mentioned in the seed doc; not present here.
-- `:wat::std::string::concat` — mentioned in USER-GUIDE; not present.
-- `:wat::std::string::format` — mentioned in USER-GUIDE; not present.
-- `:wat::std::format` — older USER-GUIDE; probably dead reference.
-- `:wat::core::conj` — preliminary note flagged missing; **CORRECTION: shipped 2026-04-20**, inscribed in 058-026. Removed from missing list.
-- `:wat::std::list::pairwise-map` — referenced by Ngram.wat; need to verify whether `:wat::std::list::window` + `:wat::core::map` covers it.
+### Core + std
+
+| Path | Status | Source of reference |
+|---|---|---|
+| `:wat::core::cons` | seed-doc reference; no caller | early notes |
+| `:wat::core::when` | FOUNDATION-listed host-inherited Lisp form; body will be tail-carrying when it ships | FOUNDATION + arc 003 DESIGN |
+| `:wat::std::cached-encode` | design-deferred; users wrap encode with `LocalCache::get/put` explicitly | arc 001 DESIGN |
+| `:wat::std::list::pairwise-map` | referenced by `Ngram.wat`; verify whether `window` + `map` covers the use | `wat/std/Ngram.wat` |
+| `:wat::config::capacity-mode` accessor | mode is read internally by `Bundle`; expose only if user code needs to observe it | FOUNDATION |
+
+### Stream combinators (arc 004 deferred set)
+
+The arc 004 INSCRIPTION shipped the core set (map, filter, chunks,
+for-each, collect, fold, spawn-producer). These were sketched in
+the DESIGN but deferred:
+
+| Path | Shape | Status |
+|---|---|---|
+| `:wat::std::stream::chunks-by` | N:1, key-change boundary | deferred |
+| `:wat::std::stream::window` | N:1, sliding window | deferred |
+| `:wat::std::stream::time-window` | N:1, time-bucket boundary — requires clock primitive | deferred |
+| `:wat::std::stream::flat-map` | 1:N | deferred |
+| `:wat::std::stream::first` | terminal, take-N | deferred |
+| `:wat::std::stream::inspect` | 1:1 side-effect pass-through | deferred |
+| `:wat::std::stream::from-iterator` | alternate constructor | deferred |
+| `:wat::std::stream::from-fn` | alternate constructor | deferred |
+| `:wat::std::stream::from-receiver` | alternate constructor | deferred |
+| `:rust::std::iter::Iterator<T>` surfacing | in-process lazy adapter chain via `#[wat_dispatch]` | deferred |
 
 ---
 
-*Pass 1 complete. 100+ primitives inventoried. The catalog is
-the ground truth; FOUNDATION names the why, this file names the
-what and where. Pass 2 closes the doc-vs-code gap.*
+## Rejected — paths with audit trail
+
+| Path | Why rejected | Record |
+|---|---|---|
+| `:wat::std::stream::pipeline` | `let*` already IS the pipeline. The "boilerplate" the composer would eliminate was per-stage type annotations — information, not ceremony. Captured as `feedback_verbose_is_honest` | arc 004 INSCRIPTION, `BACKLOG.md` pipeline-rejection section |
+| `:wat::core::presence` | Lives at `:wat::algebra::presence?` — an algebra measurement, not a core form. Old USER-GUIDE and README referenced the wrong namespace; fixed during this audit | arc 005 Pass 3 commit `f955cf2` |
+
+---
+
+*Pass 1 + Pass 5 complete. 100+ primitives inventoried,
+deferred and rejected paths cataloged with their audit
+trails. FOUNDATION names the why; this file names the what
+and where; the INSCRIPTION is the shipped contract.*
