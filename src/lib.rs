@@ -56,6 +56,7 @@ pub mod assertion;
 pub mod ast;
 pub mod check;
 pub mod config;
+pub mod harness;
 pub mod freeze;
 pub mod hash;
 pub mod identifier;
@@ -80,6 +81,7 @@ pub use freeze::{
     eval_digest_in_frozen, eval_in_frozen, eval_signed_in_frozen, invoke_user_main,
     startup_from_forms, startup_from_source, FrozenWorld, StartupError, USER_MAIN_PATH,
 };
+pub use harness::{Harness, HarnessError, Outcome};
 pub use hash::{canonical_edn_wat, hash_canonical_ast, hex_encode, verify_source_hash, HashError};
 pub use identifier::{fresh_scope, Identifier, ScopeId};
 pub use lexer::LexError;
