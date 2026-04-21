@@ -195,16 +195,6 @@ pub enum Value {
     /// Used by the `#[wat_dispatch]` macro's generated code for all
     /// Self-returning methods.
     RustOpaque(Arc<crate::rust_deps::RustOpaqueInner>),
-    /// The OS stdout handle. Rust's `std::io::Stdout` — thread-safe
-    /// handle to the shared global stdout stream. Writes go through
-    /// `handle.lock()` (std's internal lock); multiple threads
-    /// serialize naturally. No channel intermediary.
-    io__Stdout(Arc<std::io::Stdout>),
-    /// The OS stderr handle. Rust's `std::io::Stderr`.
-    io__Stderr(Arc<std::io::Stderr>),
-    /// The OS stdin handle. Rust's `std::io::Stdin`. `(read-line r)`
-    /// reads one line or returns `:None` on EOF.
-    io__Stdin(Arc<std::io::Stdin>),
     /// Abstract byte-source handle — `:wat::io::IOReader`. Wraps any
     /// `WatReader` implementation (real stdin, in-memory `StringIoReader`,
     /// …). Arc 008 slice 2.
@@ -303,9 +293,6 @@ impl Value {
             Value::wat__std__HashMap(_) => "rust::std::collections::HashMap",
             Value::wat__std__HashSet(_) => "rust::std::collections::HashSet",
             Value::RustOpaque(inner) => inner.type_path,
-            Value::io__Stdout(_) => "rust::std::io::Stdout",
-            Value::io__Stderr(_) => "rust::std::io::Stderr",
-            Value::io__Stdin(_) => "rust::std::io::Stdin",
             Value::io__IOReader(_) => "wat::io::IOReader",
             Value::io__IOWriter(_) => "wat::io::IOWriter",
             Value::Option(_) => "Option",
@@ -1692,9 +1679,6 @@ fn dispatch_keyword_head(
         ":wat::std::get" => eval_get(args, env, sym),
         ":wat::std::contains?" => eval_hashmap_contains(args, env, sym),
         ":wat::std::member?" => eval_hashset_member(args, env, sym),
-        ":wat::io::write" => eval_io_write(args, env, sym),
-        ":wat::io::read-line" => eval_io_read_line(args, env, sym),
-
         // :wat::io::IOReader / :wat::io::IOWriter — abstract IO
         // substrate (arc 008 slice 2). Two wat-level types; multiple
         // concrete backings (real stdio, StringIo). Byte-oriented
@@ -1710,6 +1694,9 @@ fn dispatch_keyword_head(
         ":wat::io::IOWriter/to-string" => crate::io::eval_iowriter_to_string(args, env, sym),
         ":wat::io::IOWriter/write" => crate::io::eval_iowriter_write(args, env, sym),
         ":wat::io::IOWriter/write-all" => crate::io::eval_iowriter_write_all(args, env, sym),
+        ":wat::io::IOWriter/write-string" => crate::io::eval_iowriter_write_string(args, env, sym),
+        ":wat::io::IOWriter/print" => crate::io::eval_iowriter_print(args, env, sym),
+        ":wat::io::IOWriter/println" => crate::io::eval_iowriter_println(args, env, sym),
         ":wat::io::IOWriter/writeln" => crate::io::eval_iowriter_writeln(args, env, sym),
         ":wat::io::IOWriter/flush" => crate::io::eval_iowriter_flush(args, env, sym),
 
@@ -2916,102 +2903,6 @@ fn eval_list_remove_at(
         }
     }
     Ok(Value::Vec(Arc::new(out)))
-}
-
-/// `(:wat::io::write handle msg)` — write a String's bytes to an IO
-/// write handle. Polymorphic over `:io::Stdout` and `:io::Stderr`;
-/// rank-1 HM can't express the union, so dispatch is by runtime
-/// variant. Calls `handle.lock()` (std's internal sync) for the
-/// duration of the write + flush. No auto-newline — the caller
-/// writes `\n` explicitly.
-fn eval_io_write(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    use std::io::Write;
-    if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
-            op: ":wat::io::write".into(),
-            expected: 2,
-            got: args.len(),
-        });
-    }
-    let handle = eval(&args[0], env, sym)?;
-    let msg = match eval(&args[1], env, sym)? {
-        Value::String(s) => s,
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: ":wat::io::write".into(),
-                expected: "String",
-                got: other.type_name(),
-            });
-        }
-    };
-    match handle {
-        Value::io__Stdout(h) => {
-            let mut g = h.lock();
-            let _ = g.write_all(msg.as_bytes());
-            let _ = g.flush();
-        }
-        Value::io__Stderr(h) => {
-            let mut g = h.lock();
-            let _ = g.write_all(msg.as_bytes());
-            let _ = g.flush();
-        }
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: ":wat::io::write".into(),
-                expected: "rust::std::io::Stdout | rust::std::io::Stderr",
-                got: other.type_name(),
-            });
-        }
-    }
-    Ok(Value::Unit)
-}
-
-/// `(:wat::io::read-line handle)` — read one line from an IO read
-/// handle (currently only `:io::Stdin`). Returns `:(Some line)` on a
-/// read or `:None` on EOF. The trailing `\n` / `\r\n` is stripped
-/// from the returned line.
-fn eval_io_read_line(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    use std::io::BufRead;
-    if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
-            op: ":wat::io::read-line".into(),
-            expected: 1,
-            got: args.len(),
-        });
-    }
-    let handle = eval(&args[0], env, sym)?;
-    match handle {
-        Value::io__Stdin(h) => {
-            let mut g = h.lock();
-            let mut buf = String::new();
-            match g.read_line(&mut buf) {
-                Ok(0) => Ok(Value::Option(Arc::new(None))),
-                Ok(_) => {
-                    if buf.ends_with('\n') {
-                        buf.pop();
-                        if buf.ends_with('\r') {
-                            buf.pop();
-                        }
-                    }
-                    Ok(Value::Option(Arc::new(Some(Value::String(Arc::new(buf))))))
-                }
-                Err(_) => Ok(Value::Option(Arc::new(None))),
-            }
-        }
-        other => Err(RuntimeError::TypeMismatch {
-            op: ":wat::io::read-line".into(),
-            expected: "rust::std::io::Stdin",
-            got: other.type_name(),
-        }),
-    }
 }
 
 /// Canonicalize a Value to a type-tagged String key for HashMap

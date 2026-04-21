@@ -49,8 +49,8 @@
 (:wat::core::define
   (:wat::std::program::Console/loop
     (rxs :Vec<wat::std::program::Console::Rx>)
-    (stdout :rust::std::io::Stdout)
-    (stderr :rust::std::io::Stderr)
+    (stdout :wat::io::IOWriter)
+    (stderr :wat::io::IOWriter)
     -> :())
   (:wat::core::if (:wat::core::empty? rxs) -> :()
     ()
@@ -65,9 +65,9 @@
           (:wat::core::let*
             (((tag :i64) (:wat::core::first tagged))
              ((msg :String) (:wat::core::second tagged))
-             ((_ :()) (:wat::core::if (:wat::core::= tag 0) -> :()
-                        (:wat::io::write stdout msg)
-                        (:wat::io::write stderr msg))))
+             ((_ :i64) (:wat::core::if (:wat::core::= tag 0) -> :i64
+                        (:wat::io::IOWriter/write-string stdout msg)
+                        (:wat::io::IOWriter/write-string stderr msg))))
             (:wat::std::program::Console/loop rxs stdout stderr)))
         (:None
           (:wat::std::program::Console/loop
@@ -121,8 +121,8 @@
 ;; `(join driver)`. The drop cascade triggers the loop's clean exit.
 (:wat::core::define
   (:wat::std::program::Console
-    (stdout :rust::std::io::Stdout)
-    (stderr :rust::std::io::Stderr)
+    (stdout :wat::io::IOWriter)
+    (stderr :wat::io::IOWriter)
     (count :i64)
     -> :(wat::kernel::HandlePool<wat::std::program::Console::Tx>,wat::kernel::ProgramHandle<()>))
   (:wat::core::let*

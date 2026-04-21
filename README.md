@@ -96,7 +96,7 @@ watmin     ; (eval-ast! (atom-value program-atom)) fires the echo
 
 **Rust interop operational.** The `:rust::` namespace carries any
 consumer-registered Rust type: `:rust::lru::LruCache<K,V>` ships as a
-default, `:rust::std::io::Stdin` / `Stdout` / `Stderr` are kernel-wired for
+default, `:wat::io::IOReader` / `Stdout` / `Stderr` are kernel-wired for
 `:user::main`, and application crates layer their own (`:rust::rusqlite::`,
 `:rust::parquet::`, …) through `#[wat_dispatch]`. Three scope modes cover
 the full Rust ownership surface: `shared` (plain `Arc<T>`), `thread_owned`
@@ -158,7 +158,7 @@ of the built binary against real OS stdio).
 - [`runtime`] — AST walker, `:wat::core::*` / `:wat::algebra::*` dispatch,
   `:wat::kernel::*` (stopped?, send, recv, try-recv, drop, spawn, join,
   select, HandlePool, make-bounded-queue, make-unbounded-queue, user-signal
-  query + reset), `:wat::io::write` / `:wat::io::read-line`, four eval
+  query + reset), `:wat::io::IOReader/*` / `:wat::io::IOWriter/*`, four eval
   forms. Programs-as-holons surface: `:wat::core::quote` captures
   unevaluated AST as `:wat::WatAST`; `:wat::algebra::Atom` accepts
   `Value::wat__WatAST` payloads; `:wat::core::atom-value` structurally
@@ -186,7 +186,7 @@ wat programs reach into Rust through the `:rust::` namespace. A path like
 type; the wat runtime calls into the shim the consumer registered.
 
 Namespaces are **fully qualified and honest**: a wat program names a Rust
-type by its full Rust path, not a short alias. `:rust::std::io::Stdin`
+type by its full Rust path, not a short alias. `:wat::io::IOReader`
 (not `:rust::Stdin`). `:rust::crossbeam_channel::Sender<T>` (not
 `:rust::Sender<T>`). `:wat::` and `:rust::` are sibling namespaces, both
 rooted at the colon, and a wat program declares which `:rust::*` paths it
@@ -290,9 +290,9 @@ handlers, passes real `io::Stdin` / `io::Stdout` / `io::Stderr` to
 
 ```scheme
 (:wat::core::define (:user::main
-                     (stdin  :rust::std::io::Stdin)
-                     (stdout :rust::std::io::Stdout)
-                     (stderr :rust::std::io::Stderr)
+                     (stdin  :wat::io::IOReader)
+                     (stdout :wat::io::IOWriter)
+                     (stderr :wat::io::IOWriter)
                      -> :())
   ...body...)
 ```
@@ -300,8 +300,8 @@ handlers, passes real `io::Stdin` / `io::Stdout` / `io::Stderr` to
 Exact signature enforced at startup. Any deviation (different arity,
 different parameter types, different return type) halts with exit code 3.
 
-The program reads lines with `(:wat::io::read-line stdin)` and writes with
-`(:wat::io::write stdout msg)` / `(:wat::io::write stderr msg)`. Both
+The program reads lines with `(:wat::io::IOReader/read-line stdin)` and writes with
+`(:wat::io::IOWriter/print stdout msg)` / `(:wat::io::IOWriter/print stderr msg)`. Both
 primitives go straight to the OS stream (std's internal locking handles
 concurrent writers). No bridge threads, no tagged-tuple hops in the hot
 path — honest stdio.
@@ -336,17 +336,17 @@ Signals: the kernel measures; userland owns transitions.
 (:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
 
-(:wat::core::use! :rust::std::io::Stdin)
-(:wat::core::use! :rust::std::io::Stdout)
-(:wat::core::use! :rust::std::io::Stderr)
+(:wat::core::use! :wat::io::IOReader)
+(:wat::core::use! :wat::io::IOWriter)
+(:wat::core::use! :wat::io::IOWriter)
 
 (:wat::core::define (:user::main
-                     (stdin  :rust::std::io::Stdin)
-                     (stdout :rust::std::io::Stdout)
-                     (stderr :rust::std::io::Stderr)
+                     (stdin  :wat::io::IOReader)
+                     (stdout :wat::io::IOWriter)
+                     (stderr :wat::io::IOWriter)
                      -> :())
-  (:wat::core::match (:wat::io::read-line stdin) -> :()
-    ((Some line) (:wat::io::write stdout line))
+  (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
+    ((Some line) (:wat::io::IOWriter/print stdout line))
     (:None ())))
 ```
 
@@ -441,14 +441,14 @@ caller:
   (Ok (:wat::core::try (:wat::algebra::Bundle items))))
 
 (:wat::core::define (:user::main
-                     (stdin  :rust::std::io::Stdin)
-                     (stdout :rust::std::io::Stdout)
-                     (stderr :rust::std::io::Stderr)
+                     (stdin  :wat::io::IOReader)
+                     (stdout :wat::io::IOWriter)
+                     (stderr :wat::io::IOWriter)
                      -> :())
   (:wat::core::match (:app::build huge-list) -> :()
     ((Ok _) ())
     ((Err e)
-      (:wat::io::write stderr
+      (:wat::io::IOWriter/print stderr
         (format-overflow
           (:wat::algebra::CapacityExceeded/cost e)
           (:wat::algebra::CapacityExceeded/budget e))))))

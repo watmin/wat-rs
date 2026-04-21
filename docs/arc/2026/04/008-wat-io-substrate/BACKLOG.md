@@ -30,13 +30,18 @@ substituted for in-memory buffers).
 | 2 | type registration (`:wat::io::IOReader`, `:wat::io::IOWriter` as opaque types) | **done** (transparent via TypeExpr::Path) | this slice |
 | 2 | type schemes in check.rs | **done** | this slice |
 | 2 | slice 2 tests | **done** (15 tests in `tests/wat_io.rs`) | this slice |
-| 3 | update `validate_user_main_signature` — new three-IO contract | pending | — |
-| 3 | CLI (`bin/wat-vm.rs`) wraps real stdio as IO Values | pending | — |
-| 3 | retire `Value::io__Stdin/Stdout/Stderr` variants | pending | — |
-| 3 | retire old `:wat::io::write` / `:wat::io::read-line` primitives (replaced) | pending | — |
-| 3 | migrate every wat file declaring `:user::main` (trading lab, test wat files) | pending | — |
-| 3 | USER-GUIDE update — new IO section replaces old io::write/read-line | pending | — |
-| 3 | arc 008 INSCRIPTION | pending | — |
+| 3 | update `validate_user_main_signature` — new three-IO contract | **done** | this slice |
+| 3 | CLI (`bin/wat-vm.rs`) wraps real stdio as IO Values | **done** | this slice |
+| 3 | retire `Value::io__Stdin/Stdout/Stderr` variants | **done** | this slice |
+| 3 | retire old `:wat::io::write` / `:wat::io::read-line` primitives | **done** | this slice |
+| 3 | migrate Console.wat stdlib to IOWriter | **done** | this slice |
+| 3 | migrate wat-rs test wat files | **done** (`wat_vm_cli.rs` + `wat_vm_cache.rs`) | this slice |
+| 3 | unit-returning conveniences `print` / `println` added (ergonomic) | **done** | this slice |
+| 3 | lexer UTF-8 correctness bug fixed (out-of-scope surprise; `lex_string` was byte-at-a-time) | **done** | this slice |
+| 3 | USER-GUIDE update — new IO section replaces old io::write/read-line | **done** | this slice |
+| 3 | README update | **done** | this slice |
+| 3 | INVENTORY update — retired old primitives marked; new primitives added | **done** | this slice |
+| 3 | arc 008 INSCRIPTION | **done** | this slice |
 
 ---
 
@@ -87,6 +92,24 @@ substituted for in-memory buffers).
   ship when demanded. Adds zero lines to the primitive zoo today;
   arithmetic is one edit away when needed. 9 tests passing; 498+
   unit tests + all integration tests green.
+- **2026-04-21** — Slice 3 shipped. `:user::main` contract migrated
+  from `(Stdin, Stdout, Stderr) -> ()` to
+  `(IOReader, IOWriter, IOWriter) -> ()`. CLI + Console.wat + every
+  wat test file updated. Old primitives (`:wat::io::write`,
+  `:wat::io::read-line`) + variants (`io__Stdin`, `io__Stdout`,
+  `io__Stderr`) retired. Added unit-returning conveniences
+  `:wat::io::IOWriter/print` + `/println` — writes without /
+  with newline, discards byte count. Ruby `print` / `puts`
+  ergonomic parallel. Test migration pattern settled: arms that
+  previously bound write's `:()` return now bind `print`'s `:()`
+  (or the count-returning `write-string`'s `:i64`). All 25 test
+  suites green; 499+ unit + integration tests. **UTF-8 lexer bug
+  caught and fixed** (out-of-scope surprise during writing
+  `héllo` test): `lex_string` iterated bytes, treated each as
+  Latin-1 char, silently corrupted multi-byte UTF-8 literals.
+  Fix uses `char_indices()`. Wat's claim that `:String` is UTF-8
+  is now honest. Arc 008 complete; arc 007 slice 2a resumes
+  immediately after.
 - **2026-04-21** — Slice 2 shipped. `:wat::io::IOReader` +
   `:wat::io::IOWriter` exist as opaque wat types.
   `Value::io__IOReader` / `io__IOWriter` variants hold

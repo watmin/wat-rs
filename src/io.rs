@@ -672,6 +672,61 @@ pub fn eval_iowriter_write_all(
     Ok(Value::Unit)
 }
 
+/// `(:wat::io::IOWriter/write-string <writer> <String>)` → `:i64`
+/// (bytes written, no trailing newline). UTF-8 encodes the String and
+/// writes its bytes via `write_all`. Companion to `writeln` — same
+/// shape but without the implicit `\n`. Matches the semantics of the
+/// pre-arc-008 `:wat::io::write` on real Stdout/Stderr.
+pub fn eval_iowriter_write_string(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOWriter/write-string";
+    arity(op, args, 2)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
+    let s = expect_string(op, eval(&args[1], env, sym)?)?;
+    let bytes = s.as_bytes();
+    let n = bytes.len();
+    writer.write_all(bytes)?;
+    Ok(Value::i64(n as i64))
+}
+
+/// `(:wat::io::IOWriter/print <writer> <String>)` → `:()`. Unit-
+/// returning convenience over `write-string`; discards the byte
+/// count. Use when you want "write this and move on" — matches
+/// Ruby's `$stdout.print`.
+pub fn eval_iowriter_print(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOWriter/print";
+    arity(op, args, 2)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
+    let s = expect_string(op, eval(&args[1], env, sym)?)?;
+    writer.write_all(s.as_bytes())?;
+    Ok(Value::Unit)
+}
+
+/// `(:wat::io::IOWriter/println <writer> <String>)` → `:()`. Unit-
+/// returning convenience over `writeln`; writes `s` + `\n` and
+/// discards the byte count. Matches Ruby's `$stdout.puts`.
+pub fn eval_iowriter_println(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOWriter/println";
+    arity(op, args, 2)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
+    let s = expect_string(op, eval(&args[1], env, sym)?)?;
+    let mut bytes = s.as_bytes().to_vec();
+    bytes.push(b'\n');
+    writer.write_all(&bytes)?;
+    Ok(Value::Unit)
+}
+
 /// `(:wat::io::IOWriter/writeln <writer> <String>)` → `:i64` (bytes
 /// written, including the trailing `\n`).
 pub fn eval_iowriter_writeln(

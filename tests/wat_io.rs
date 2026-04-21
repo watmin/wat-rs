@@ -269,6 +269,43 @@ fn io_writer_write_all_then_to_bytes_round_trips() {
 }
 
 #[test]
+fn io_writer_write_string_does_not_add_newline() {
+    // write-string writes bytes as-is; no implicit \n (unlike writeln).
+    // Matches the semantics of pre-arc-008 :wat::io::write on real
+    // Stdout/Stderr — caller controls newlines.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Option<String>)
+          (:wat::core::let*
+            (((w :wat::io::IOWriter) (:wat::io::IOWriter/new))
+             ((_ :i64) (:wat::io::IOWriter/write-string w "hello "))
+             ((_ :i64) (:wat::io::IOWriter/write-string w "world")))
+            (:wat::io::IOWriter/to-string w)))
+    "#;
+    assert_eq!(unwrap_some_string(run(src)), "hello world");
+}
+
+#[test]
+fn io_writer_write_string_returns_byte_count() {
+    // "héllo" is 6 UTF-8 bytes (é is 2 bytes). This passes only when
+    // the lexer preserves multi-byte UTF-8 in string literals — arc
+    // 008 slice 3 fixed the byte-at-a-time bug that previously
+    // re-encoded each byte as a Latin-1 char.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::let*
+            (((w :wat::io::IOWriter) (:wat::io::IOWriter/new)))
+            (:wat::io::IOWriter/write-string w "héllo")))
+    "#;
+    assert!(matches!(run(src), Value::i64(6)));
+}
+
+#[test]
 fn io_writer_flush_is_ok_for_string_writer() {
     let src = r#"
         (:wat::config::set-dims! 1024)

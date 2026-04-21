@@ -48,13 +48,14 @@
 //!
 //! # Stdin semantics
 //!
-//! `:user::main` receives the real `io::Stdin` handle (wrapped in
-//! `Arc<io::Stdin>`; std's internal locking keeps it safe across
-//! threads). Programs call `(:wat::io::read-line stdin)` to read one
-//! line at a time; each call returns `:(Some line)` on a successful
-//! read (trailing `\n` / `\r\n` stripped) or `:None` on EOF. No
-//! bridge thread, no channel drop — the wat runtime reads directly
-//! from the OS stream. Multi-line stdin is the default shape.
+//! `:user::main` receives a `:wat::io::IOReader` for stdin backed by
+//! Rust's `io::Stdin`, and two `:wat::io::IOWriter`s for stdout and
+//! stderr backed by `io::Stdout` / `io::Stderr`. Programs call
+//! `(:wat::io::IOReader/read-line stdin)` to read one line at a time;
+//! each call returns `:(Some line)` on a successful read (trailing
+//! `\n` / `\r\n` stripped) or `:None` on EOF. The IOReader/IOWriter
+//! trait objects hide the backing — under wat-vm it's real OS stdio;
+//! under `run-sandboxed` (arc 007) it's a StringIo stand-in.
 
 use std::io;
 use std::process::ExitCode;
@@ -109,15 +110,16 @@ fn install_signal_handlers() {
 /// The exact signature `:user::main` must declare. Startup halts if
 /// the program's `:user::main` doesn't match.
 fn expected_user_main_signature() -> (Vec<TypeExpr>, TypeExpr) {
-    // 2026-04-19: stdio is passed as real IO handles, not crossbeam
-    // channels. Honest: the wat program gets the actual io::Stdin /
-    // io::Stdout / io::Stderr; the `(:wat::io::write ...)` and
-    // `(:wat::io::read-line ...)` primitives go straight to the OS
-    // stream (via std's internal locking). No bridge threads.
+    // Arc 008 (2026-04-21): stdio is passed as abstract IO values —
+    // :wat::io::IOReader for stdin, :wat::io::IOWriter for stdout /
+    // stderr. At production: the CLI wraps real std::io::Stdin /
+    // Stdout / Stderr in IO-trait-objects. At test: run-sandboxed
+    // passes StringIo stand-ins that look identical at the wat surface.
+    // Ruby StringIO model made operational.
     let params = vec![
-        TypeExpr::Path(":rust::std::io::Stdin".into()),
-        TypeExpr::Path(":rust::std::io::Stdout".into()),
-        TypeExpr::Path(":rust::std::io::Stderr".into()),
+        TypeExpr::Path(":wat::io::IOReader".into()),
+        TypeExpr::Path(":wat::io::IOWriter".into()),
+        TypeExpr::Path(":wat::io::IOWriter".into()),
     ];
     let ret = TypeExpr::Tuple(vec![]);
     (params, ret)
@@ -240,15 +242,23 @@ fn main() -> ExitCode {
     // Install OS signal handlers.
     install_signal_handlers();
 
-    // Hand the wat program the REAL OS stdio handles. std's
-    // io::Stdin / Stdout / Stderr are thread-safe via their own
-    // `.lock()` methods; no bridge threads, no channels. The
-    // `(:wat::io::write ...)` and `(:wat::io::read-line ...)`
-    // primitives go straight to the OS stream.
+    // Hand the wat program abstract IO values backed by the real OS
+    // stdio handles. The IOReader / IOWriter abstraction (arc 008)
+    // wraps std's Stdin / Stdout / Stderr in trait objects; at the
+    // wat surface, the same code runs whether these are real-fd or
+    // string-buffer-backed (e.g., under run-sandboxed). Rust stdlib's
+    // internal locking handles concurrent access; wat-rs introduces
+    // no Mutex.
+    let reader_stdin: Arc<dyn wat::io::WatReader> =
+        Arc::new(wat::io::RealStdin::new(Arc::new(io::stdin())));
+    let writer_stdout: Arc<dyn wat::io::WatWriter> =
+        Arc::new(wat::io::RealStdout::new(Arc::new(io::stdout())));
+    let writer_stderr: Arc<dyn wat::io::WatWriter> =
+        Arc::new(wat::io::RealStderr::new(Arc::new(io::stderr())));
     let args = vec![
-        Value::io__Stdin(Arc::new(io::stdin())),
-        Value::io__Stdout(Arc::new(io::stdout())),
-        Value::io__Stderr(Arc::new(io::stderr())),
+        Value::io__IOReader(reader_stdin),
+        Value::io__IOWriter(writer_stdout),
+        Value::io__IOWriter(writer_stderr),
     ];
     let main_result = invoke_user_main(&frozen, args);
 

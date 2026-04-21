@@ -102,11 +102,11 @@ fn main() -> ExitCode {
 (:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:user::main
-                     (stdin  :rust::std::io::Stdin)
-                     (stdout :rust::std::io::Stdout)
-                     (stderr :rust::std::io::Stderr)
+                     (stdin  :wat::io::IOReader)
+                     (stdout :wat::io::IOWriter)
+                     (stderr :wat::io::IOWriter)
                      -> :())
-  (:wat::io::write stdout "hello from wat\n"))
+  (:wat::io::IOWriter/print stdout "hello from wat\n"))
 ```
 
 **That's it.** `cargo run` and you get `hello from wat` on stdout.
@@ -158,15 +158,15 @@ A slightly richer first program:
 (:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:user::main
-                     (stdin  :rust::std::io::Stdin)
-                     (stdout :rust::std::io::Stdout)
-                     (stderr :rust::std::io::Stderr)
+                     (stdin  :wat::io::IOReader)
+                     (stdout :wat::io::IOWriter)
+                     (stderr :wat::io::IOWriter)
                      -> :())
-  (:wat::core::match (:wat::io::read-line stdin) -> :()
+  (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
     ((Some line)
-      (:wat::io::write stdout line))
+      (:wat::io::IOWriter/print stdout line))
     (:None
-      (:wat::io::write stderr "no input\n"))))
+      (:wat::io::IOWriter/print stderr "no input\n"))))
 ```
 
 ```
@@ -175,9 +175,9 @@ watmin
 ```
 
 Everything you need to read that program:
-- `:wat::io::read-line` returns `:Option<String>` — `(Some line)` on a read, `:None` on EOF.
+- `:wat::io::IOReader/read-line` returns `:Option<String>` — `(Some line)` on a read, `:None` on EOF.
 - `:wat::core::match` decomposes the Option. Exhaustive — both arms required, or use `_` wildcard.
-- `:wat::io::write` takes a stdout or stderr handle and a `:String`.
+- `:wat::io::IOWriter/print` takes a stdout or stderr handle and a `:String`.
 
 ---
 
@@ -189,12 +189,12 @@ Every wat program lives in a coordinate with two axes.
 
 1. **Algebra core** (`:wat::algebra::*`) — six primitives that produce holon vectors: `Atom`, `Bind`, `Bundle`, `Permute`, `Thermometer`, `Blend`. Plus two scalar-returning measurements: `cosine`, `dot`. These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
 2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `try`, `struct`, `enum`, `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, arithmetic/comparison operators. The forms you need to WRITE programs.
-3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `join`, `HandlePool`, `stopped?`, signal query+reset. Plus `:wat::io::read-line` / `write`. The things that move bytes between processes.
+3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `join`, `HandlePool`, `stopped?`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes between processes.
 
 ### Axis 2 — two namespaces
 
 - **`:wat::*`** — forms and types defined by the wat language itself. Every form you'll call that does work provided by wat-rs lives here.
-- **`:rust::*`** — types surfaced from Rust crates via `#[wat_dispatch]`. `:rust::std::io::Stdin`, `:rust::crossbeam_channel::Sender<T>`, `:rust::lru::LruCache<K,V>`, and whatever your consumer crate adds. Every Rust type's path is its actual Rust path — no short aliases.
+- **`:rust::*`** — types surfaced from Rust crates via `#[wat_dispatch]`. `:wat::io::IOReader`, `:rust::crossbeam_channel::Sender<T>`, `:rust::lru::LruCache<K,V>`, and whatever your consumer crate adds. Every Rust type's path is its actual Rust path — no short aliases.
 
 A program declares which Rust types it intends to use via `(:wat::core::use! :rust::some::Type)` — a per-program opt-in. User source cannot claim any name under `:wat::*` or `:rust::*`; those prefixes are wat-rs's.
 
@@ -687,12 +687,12 @@ driver serializes access without locks.
 
 ## 11. Stdio — Console is the gateway
 
-`:user::main` receives three real OS handles: `:rust::std::io::Stdin`,
-`:rust::std::io::Stdout`, `:rust::std::io::Stderr`. You CAN write
+`:user::main` receives three real OS handles: `:wat::io::IOReader`,
+`:wat::io::IOWriter`, `:wat::io::IOWriter`. You CAN write
 directly to them:
 
 ```scheme
-(:wat::io::write stdout "hello\n")
+(:wat::io::IOWriter/print stdout "hello\n")
 ```
 
 …but **the moment you spawn a second program that also writes**,
@@ -707,9 +707,9 @@ stream. One writer, serialized, no garbled output.
 
 ```scheme
 (:wat::core::define (:user::main
-                    (stdin :rust::std::io::Stdin)
-                    (stdout :rust::std::io::Stdout)
-                    (stderr :rust::std::io::Stderr)
+                    (stdin :wat::io::IOReader)
+                    (stdout :wat::io::IOWriter)
+                    (stderr :wat::io::IOWriter)
                     -> :())
   (:wat::core::let*
     ;; One Console for the whole program
@@ -879,8 +879,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::length` / `empty?` / `reverse` / `take` / `drop` | list ops | various |
 | `:wat::core::i64::+/-/*//` / `f64::+/-/*//` | `a b` | arithmetic |
 | `:wat::core::>` / `=` / `<` / `>=` / `<=` | `a b` | `:bool` |
-| `:wat::io::read-line` | `stdin` | `:Option<String>` |
-| `:wat::io::write` | `handle string` | `:()` |
+| `:wat::io::IOReader/read-line` | `stdin` | `:Option<String>` |
+| `:wat::io::IOWriter/print` | `handle string` | `:()` |
 | `:wat::kernel::spawn` | `<fn-path> args...` | `:ProgramHandle<R>` |
 | `:wat::kernel::join` | `handle` | `R` |
 | `:wat::kernel::make-bounded-queue` | `:T n` | `:(Sender<T>, Receiver<T>)` |

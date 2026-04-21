@@ -2661,6 +2661,30 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
+        ":wat::io::IOWriter/write-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![iowriter_ty(), string_ty()],
+            ret: i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOWriter/print".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![iowriter_ty(), string_ty()],
+            ret: unit_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOWriter/println".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![iowriter_ty(), string_ty()],
+            ret: unit_ty(),
+        },
+    );
+    env.register(
         ":wat::io::IOWriter/writeln".to_string(),
         TypeScheme {
             type_params: vec![],
@@ -3135,31 +3159,11 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // IO primitives — honest surface to the real OS stdio. Writes
-    // are polymorphic over :rust::std::io::Stdout and ::Stderr
-    // (dispatched via runtime variant match; rank-1 HM can't express
-    // the union). For the scheme, a single H type-parameter lets
-    // wat-level users pass either handle; the runtime rejects
-    // non-stdout/stderr values at dispatch time.
-    env.register(
-        ":wat::io::write".into(),
-        TypeScheme {
-            type_params: vec!["H".into()],
-            params: vec![TypeExpr::Path(":H".into()), TypeExpr::Path(":String".into())],
-            ret: TypeExpr::Tuple(vec![]),
-        },
-    );
-    env.register(
-        ":wat::io::read-line".into(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![TypeExpr::Path(":rust::std::io::Stdin".into())],
-            ret: TypeExpr::Parametric {
-                head: "Option".into(),
-                args: vec![TypeExpr::Path(":String".into())],
-            },
-        },
-    );
+    // IO primitives — see `:wat::io::IOReader/*` + `:wat::io::IOWriter/*`
+    // registered above. Arc 008 retired the earlier `:wat::io::write`
+    // and `:wat::io::read-line` primitives (which dispatched on
+    // `Value::io__Stdin/Stdout/Stderr` directly) in favour of the
+    // abstract IOReader/IOWriter surface.
 
     // Stdlib math — single-method Rust calls per FOUNDATION-CHANGELOG
     // 2026-04-18. All unary :f64 -> :f64 except pi which is :() -> :f64.

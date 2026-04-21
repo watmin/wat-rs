@@ -227,8 +227,24 @@ measurements.
 
 | Path | Signature | Source |
 |---|---|---|
-| `:wat::io::write` | `<Stdout | Stderr> × :String -> :()` | `runtime.rs::eval_io_write` |
-| `:wat::io::read-line` | `:Stdin -> :Option<String>` | `runtime.rs::eval_io_read_line` |
+| `:wat::io::IOReader/from-bytes` | `:Vec<u8> -> :wat::io::IOReader` (arc 008 slice 2) | `io.rs::eval_ioreader_from_bytes` |
+| `:wat::io::IOReader/from-string` | `:String -> :wat::io::IOReader` (arc 008 slice 2) | `io.rs::eval_ioreader_from_string` |
+| `:wat::io::IOReader/read` | `:IOReader × :i64 -> :Option<Vec<u8>>` | `io.rs::eval_ioreader_read` |
+| `:wat::io::IOReader/read-all` | `:IOReader -> :Vec<u8>` | `io.rs::eval_ioreader_read_all` |
+| `:wat::io::IOReader/read-line` | `:IOReader -> :Option<String>` | `io.rs::eval_ioreader_read_line` |
+| `:wat::io::IOReader/rewind` | `:IOReader -> :()` | `io.rs::eval_ioreader_rewind` |
+| `:wat::io::IOWriter/new` | `() -> :wat::io::IOWriter` | `io.rs::eval_iowriter_new` |
+| `:wat::io::IOWriter/to-bytes` | `:IOWriter -> :Vec<u8>` | `io.rs::eval_iowriter_to_bytes` |
+| `:wat::io::IOWriter/to-string` | `:IOWriter -> :Option<String>` | `io.rs::eval_iowriter_to_string` |
+| `:wat::io::IOWriter/write` | `:IOWriter × :Vec<u8> -> :i64` | `io.rs::eval_iowriter_write` |
+| `:wat::io::IOWriter/write-all` | `:IOWriter × :Vec<u8> -> :()` | `io.rs::eval_iowriter_write_all` |
+| `:wat::io::IOWriter/write-string` | `:IOWriter × :String -> :i64` | `io.rs::eval_iowriter_write_string` |
+| `:wat::io::IOWriter/print` | `:IOWriter × :String -> :()` (unit-returning convenience) | `io.rs::eval_iowriter_print` |
+| `:wat::io::IOWriter/println` | `:IOWriter × :String -> :()` (unit-returning + `\n`) | `io.rs::eval_iowriter_println` |
+| `:wat::io::IOWriter/writeln` | `:IOWriter × :String -> :i64` (adds `\n`) | `io.rs::eval_iowriter_writeln` |
+| `:wat::io::IOWriter/flush` | `:IOWriter -> :()` | `io.rs::eval_iowriter_flush` |
+| ~~`:wat::io::write`~~ | **retired 2026-04-21 (arc 008 slice 3)** — superseded by `:wat::io::IOWriter/print` and siblings | — |
+| ~~`:wat::io::read-line`~~ | **retired 2026-04-21 (arc 008 slice 3)** — superseded by `:wat::io::IOReader/read-line` | — |
 
 ---
 

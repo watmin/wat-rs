@@ -232,23 +232,27 @@ fn is_symbol_break(c: char) -> bool {
 }
 
 /// Lex a string literal starting at `start` (pointing at the opening `"`).
+///
+/// Iterates characters (not bytes) so multi-byte UTF-8 sequences
+/// round-trip into the output `String` unchanged. The previous
+/// byte-at-a-time implementation corrupted non-ASCII input by treating
+/// each individual byte as a Latin-1 `char` and re-encoding it as
+/// UTF-8; `"héllo"` (6 bytes in source) became 8 bytes in the
+/// resulting String. Arc 008 slice 3.
 fn lex_string(src: &str, start: usize) -> Result<(String, usize), LexError> {
-    let bytes = src.as_bytes();
-    debug_assert_eq!(bytes[start] as char, '"');
+    debug_assert_eq!(&src[start..start + 1], "\"");
     let mut out = String::new();
-    let mut i = start + 1;
+    let rest = &src[start + 1..];
+    let mut chars = rest.char_indices();
 
-    while i < bytes.len() {
-        let c = bytes[i] as char;
+    while let Some((offset, c)) = chars.next() {
         if c == '"' {
-            return Ok((out, i + 1));
+            // Byte position in `src` one past the closing quote.
+            return Ok((out, start + 1 + offset + c.len_utf8()));
         }
         if c == '\\' {
-            i += 1;
-            if i >= bytes.len() {
-                return Err(LexError::UnterminatedString(start));
-            }
-            let esc = bytes[i] as char;
+            let (esc_offset, esc) =
+                chars.next().ok_or(LexError::UnterminatedString(start))?;
             match esc {
                 '"' => out.push('"'),
                 '\\' => out.push('\\'),
@@ -256,13 +260,11 @@ fn lex_string(src: &str, start: usize) -> Result<(String, usize), LexError> {
                 't' => out.push('\t'),
                 'r' => out.push('\r'),
                 '0' => out.push('\0'),
-                _ => return Err(LexError::UnknownEscape(esc, i)),
+                _ => return Err(LexError::UnknownEscape(esc, start + 1 + esc_offset)),
             }
-            i += 1;
             continue;
         }
         out.push(c);
-        i += 1;
     }
 
     Err(LexError::UnterminatedString(start))
@@ -443,6 +445,27 @@ mod tests {
             lex("\"oops"),
             Err(LexError::UnterminatedString(_))
         ));
+    }
+
+    #[test]
+    fn string_preserves_multibyte_utf8() {
+        // "héllo" is 6 UTF-8 bytes (h=1, é=2, l=1, l=1, o=1). The
+        // lexer must round-trip it byte-exact — the pre-arc-008 byte-
+        // at-a-time loop corrupted it to 8 bytes by treating each
+        // byte as a Latin-1 char and re-encoding. Arc 008 slice 3.
+        let got = lex("\"héllo\"").unwrap();
+        assert_eq!(got, vec![Token::Str("héllo".into())]);
+        if let Token::Str(s) = &got[0] {
+            assert_eq!(s.as_bytes().len(), 6, "héllo should be 6 UTF-8 bytes");
+        }
+
+        // CJK and emoji exercise 3- and 4-byte sequences.
+        let got = lex("\"日本語 🦀\"").unwrap();
+        assert_eq!(got, vec![Token::Str("日本語 🦀".into())]);
+
+        // Escape handling adjacent to multi-byte chars.
+        let got = lex(r#""héllo\nworld""#).unwrap();
+        assert_eq!(got, vec![Token::Str("héllo\nworld".into())]);
     }
 
     #[test]

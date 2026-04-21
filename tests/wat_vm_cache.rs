@@ -33,9 +33,9 @@ const CACHE_PROGRAM: &str = r#"
 (:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:user::main
-                     (stdin  :rust::std::io::Stdin)
-                     (stdout :rust::std::io::Stdout)
-                     (stderr :rust::std::io::Stderr)
+                     (stdin  :wat::io::IOReader)
+                     (stdout :wat::io::IOWriter)
+                     (stderr :wat::io::IOWriter)
                      -> :())
   ;; Outer scope holds only the driver-handles. The inner scope binds
   ;; everything that keeps Console/Cache drivers alive (senders);
