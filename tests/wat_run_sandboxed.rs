@@ -204,6 +204,319 @@ fn print_without_newline_does_not_split_into_lines() {
     assert_eq!(stdout, vec!["abc".to_string()]);
 }
 
+// ─── Failure capture (slice 2b) ─────────────────────────────────────────
+
+fn unwrap_run_result_with_failure(v: Value) -> (Vec<String>, Vec<String>, Option<String>) {
+    match v {
+        Value::Struct(sv) => {
+            assert_eq!(sv.type_name, ":wat::kernel::RunResult");
+            assert_eq!(sv.fields.len(), 3);
+            let stdout = as_vec_string(&sv.fields[0]);
+            let stderr = as_vec_string(&sv.fields[1]);
+            let failure_msg = match &sv.fields[2] {
+                Value::Option(opt) => match &**opt {
+                    Some(Value::Struct(fs)) => {
+                        assert_eq!(fs.type_name, ":wat::kernel::Failure");
+                        // fields[0] is message :String
+                        match &fs.fields[0] {
+                            Value::String(s) => Some((**s).clone()),
+                            _ => panic!("Failure.message not a String"),
+                        }
+                    }
+                    Some(other) => panic!("Failure field not Struct: {:?}", other),
+                    None => None,
+                },
+                _ => panic!("failure field not Option"),
+            };
+            (stdout, stderr, failure_msg)
+        }
+        other => panic!("expected Struct; got {:?}", other),
+    }
+}
+
+#[test]
+fn parse_error_in_source_surfaces_as_failure() {
+    // Inner source is unterminated — the lexer's UnterminatedString
+    // surfaces as a startup error, captured into Failure.
+    let src = r##"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+          (:wat::kernel::run-sandboxed
+            "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) \"unclosed"
+            (:wat::core::vec :String)
+            :None))
+    "##;
+    let (stdout, stderr, failure) = unwrap_run_result_with_failure(run(src));
+    assert!(stdout.is_empty());
+    assert!(stderr.is_empty());
+    let msg = failure.expect("expected startup failure");
+    assert!(
+        msg.contains("startup") || msg.contains("Unterminated") || msg.contains("parse"),
+        "unexpected failure message: {}",
+        msg
+    );
+}
+
+#[test]
+fn main_signature_mismatch_surfaces_as_failure() {
+    // Inner main takes no IO params — mismatch against the expected
+    // three-IO contract. Captured as Failure.
+    let src = r##"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+          (:wat::kernel::run-sandboxed
+            "(:wat::config::set-dims! 1024)
+             (:wat::config::set-capacity-mode! :error)
+             (:wat::core::define (:user::main -> :()) ())"
+            (:wat::core::vec :String)
+            :None))
+    "##;
+    let (_, _, failure) = unwrap_run_result_with_failure(run(src));
+    let msg = failure.expect("expected signature-mismatch failure");
+    assert!(
+        msg.contains(":user::main"),
+        "failure should mention :user::main; got {}",
+        msg
+    );
+}
+
+#[test]
+fn missing_user_main_surfaces_as_failure() {
+    let src = r##"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+          (:wat::kernel::run-sandboxed
+            "(:wat::config::set-dims! 1024)
+             (:wat::config::set-capacity-mode! :error)"
+            (:wat::core::vec :String)
+            :None))
+    "##;
+    let (_, _, failure) = unwrap_run_result_with_failure(run(src));
+    let msg = failure.expect("expected missing-main failure");
+    assert!(
+        msg.contains(":user::main"),
+        "failure should mention missing :user::main; got {}",
+        msg
+    );
+}
+
+#[test]
+fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
+    // Inner main writes "before panic" to stdout, then triggers a
+    // real Rust-level panic via :wat::algebra::Bundle under :abort
+    // mode with a list exceeding the capacity budget. Outer caller
+    // sees RunResult with stdout=["before panic"] + Failure with
+    // "panic" in the message.
+    //
+    // At dims=1024, sqrt(dims) = 32. A 40-element Bundle list
+    // overshoots; :abort mode panics.
+    let src = r##"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+          (:wat::kernel::run-sandboxed
+            "(:wat::config::set-dims! 1024)
+             (:wat::config::set-capacity-mode! :abort)
+             (:wat::core::define (:user::main
+                                  (stdin  :wat::io::IOReader)
+                                  (stdout :wat::io::IOWriter)
+                                  (stderr :wat::io::IOWriter)
+                                  -> :())
+               (:wat::core::let*
+                 (((_ :()) (:wat::io::IOWriter/println stdout \"before panic\"))
+                  ((_ :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
+                   (:wat::algebra::Bundle
+                     (:wat::core::list :holon::HolonAST
+                       (:wat::algebra::Atom \"a\") (:wat::algebra::Atom \"b\") (:wat::algebra::Atom \"c\")
+                       (:wat::algebra::Atom \"d\") (:wat::algebra::Atom \"e\") (:wat::algebra::Atom \"f\")
+                       (:wat::algebra::Atom \"g\") (:wat::algebra::Atom \"h\") (:wat::algebra::Atom \"i\")
+                       (:wat::algebra::Atom \"j\") (:wat::algebra::Atom \"k\") (:wat::algebra::Atom \"l\")
+                       (:wat::algebra::Atom \"m\") (:wat::algebra::Atom \"n\") (:wat::algebra::Atom \"o\")
+                       (:wat::algebra::Atom \"p\") (:wat::algebra::Atom \"q\") (:wat::algebra::Atom \"r\")
+                       (:wat::algebra::Atom \"s\") (:wat::algebra::Atom \"t\") (:wat::algebra::Atom \"u\")
+                       (:wat::algebra::Atom \"v\") (:wat::algebra::Atom \"w\") (:wat::algebra::Atom \"x\")
+                       (:wat::algebra::Atom \"y\") (:wat::algebra::Atom \"z\") (:wat::algebra::Atom \"0\")
+                       (:wat::algebra::Atom \"1\") (:wat::algebra::Atom \"2\") (:wat::algebra::Atom \"3\")
+                       (:wat::algebra::Atom \"4\") (:wat::algebra::Atom \"5\") (:wat::algebra::Atom \"6\")
+                       (:wat::algebra::Atom \"7\") (:wat::algebra::Atom \"8\") (:wat::algebra::Atom \"9\")
+                       (:wat::algebra::Atom \"a2\") (:wat::algebra::Atom \"b2\") (:wat::algebra::Atom \"c2\")
+                       (:wat::algebra::Atom \"d2\")))))
+                 ()))"
+            (:wat::core::vec :String)
+            :None))
+    "##;
+    let (stdout, _, failure) = unwrap_run_result_with_failure(run(src));
+    // Stdout captured BEFORE the panic should survive.
+    assert_eq!(
+        stdout,
+        vec!["before panic".to_string()],
+        "partial output before panic should be preserved"
+    );
+    let msg = failure.expect("expected panic failure");
+    assert!(
+        msg.contains("panic") || msg.contains("capacity") || msg.contains("Bundle"),
+        "failure message should mention panic / capacity / Bundle; got {}",
+        msg
+    );
+}
+
+// ─── Scope enforcement (slice 2b) ───────────────────────────────────────
+
+/// RAII test dir under std::env::temp_dir. Cleanup on drop.
+struct ScopeDir {
+    path: std::path::PathBuf,
+}
+
+impl ScopeDir {
+    fn new() -> Self {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "wat-sandbox-scope-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&path).unwrap();
+        Self { path }
+    }
+
+    fn write(&self, name: &str, contents: &str) -> std::path::PathBuf {
+        let file_path = self.path.join(name);
+        std::fs::write(&file_path, contents).unwrap();
+        file_path
+    }
+}
+
+impl Drop for ScopeDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
+
+#[test]
+fn scoped_file_eval_inside_scope_succeeds() {
+    // Write a wat source to a temp dir; point run-sandboxed's scope
+    // at that dir; use :wat::eval::file-path inside the sandbox to
+    // read it. The ScopedLoader allows the read because the target
+    // is inside the canonical root.
+    let scope = ScopeDir::new();
+    let inner_source_path = scope.write("fortytwo.wat", "(:wat::core::i64::+ 40 2)");
+    let inner_src = format!(
+        r#"(:wat::config::set-dims! 1024)
+         (:wat::config::set-capacity-mode! :error)
+         (:wat::core::define (:user::main
+                              (stdin  :wat::io::IOReader)
+                              (stdout :wat::io::IOWriter)
+                              (stderr :wat::io::IOWriter)
+                              -> :())
+           (:wat::core::match
+             (:wat::core::eval-edn! :wat::eval::file-path "{path}")
+             -> :()
+             ((Ok h) (:wat::io::IOWriter/println stdout "ok"))
+             ((Err _) (:wat::io::IOWriter/println stderr "err"))))"#,
+        path = inner_source_path.display()
+    );
+
+    let scope_path = scope.path.canonicalize().unwrap();
+    let src = format!(
+        r##"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+          (:wat::kernel::run-sandboxed
+            {inner_src:?}
+            (:wat::core::vec :String)
+            (Some {scope:?})))
+        "##,
+        inner_src = inner_src,
+        scope = scope_path.display().to_string(),
+    );
+    let (stdout, stderr, failure) = unwrap_run_result_with_failure(run(&src));
+    assert_eq!(
+        stdout,
+        vec!["ok".to_string()],
+        "in-scope file read should succeed; stderr was {:?}; failure={:?}",
+        stderr,
+        failure
+    );
+    assert!(
+        failure.is_none(),
+        "expected no failure; got {:?}",
+        failure
+    );
+}
+
+#[test]
+fn scoped_file_eval_outside_scope_surfaces_as_err() {
+    // Create a file OUTSIDE the scope; attempt to read it via
+    // :wat::eval::file-path. ScopedLoader's containment check
+    // rejects; wat-rs surfaces this as an Err in the eval-edn!
+    // Result; the sandboxed program matches on Err and writes to
+    // stderr. The sandbox itself succeeds — the "failure" here is
+    // at the wat level (the Err arm), not a sandbox-caught failure.
+    // This is the honest shape: the sandbox ran the program; the
+    // program observed its own capability boundary.
+    let scope = ScopeDir::new();
+    let outside = ScopeDir::new();
+    let outside_file = outside.write("leak.txt", "secrets");
+
+    let inner_src = format!(
+        r#"(:wat::config::set-dims! 1024)
+         (:wat::config::set-capacity-mode! :error)
+         (:wat::core::define (:user::main
+                              (stdin  :wat::io::IOReader)
+                              (stdout :wat::io::IOWriter)
+                              (stderr :wat::io::IOWriter)
+                              -> :())
+           (:wat::core::match
+             (:wat::core::eval-edn! :wat::eval::file-path "{path}")
+             -> :()
+             ((Ok _) (:wat::io::IOWriter/println stdout "leaked"))
+             ((Err _) (:wat::io::IOWriter/println stderr "blocked"))))"#,
+        path = outside_file.display()
+    );
+
+    let scope_path = scope.path.canonicalize().unwrap();
+    let src = format!(
+        r##"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :wat::kernel::RunResult)
+          (:wat::kernel::run-sandboxed
+            {inner_src:?}
+            (:wat::core::vec :String)
+            (Some {scope:?})))
+        "##,
+        inner_src = inner_src,
+        scope = scope_path.display().to_string(),
+    );
+    let (stdout, stderr, _failure) = unwrap_run_result_with_failure(run(&src));
+    // The sandbox blocked the read — matched Err arm → stderr "blocked".
+    assert_eq!(
+        stderr,
+        vec!["blocked".to_string()],
+        "out-of-scope read should route to Err; stdout was {:?}",
+        stdout
+    );
+    // stdout should NOT contain "leaked".
+    assert!(
+        !stdout.contains(&"leaked".to_string()),
+        "out-of-scope read should not reach the Ok arm; stdout: {:?}",
+        stdout
+    );
+}
+
 // ─── Multiple stdin lines ────────────────────────────────────────────────
 
 #[test]
