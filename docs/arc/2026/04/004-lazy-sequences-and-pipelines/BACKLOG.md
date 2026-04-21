@@ -89,17 +89,97 @@ Items are ordered by readiness + dependency. "Blockers as they arise" is the ope
 
 ---
 
-## 5. `pipeline` composer
+## 5. `pipeline` composer — BLOCKED on substrate work
 
-**Status:** genuine design fog. Revisit after items 3 and 4 are in code.
+**Status:** requires language-level additions beyond variadic
+defmacro. The fog was real. Captured here as a concrete finding
+for the next substrate slice, not as something to patch around.
 
-**Depends on:** 3 (need real combinators to compose) + 4 (variadic).
+**What I tried** (after items 1–4 shipped):
 
-**The fog:** the user's sketch `(pipeline source (stream::map :f) (stream::chunks 50) sink)` has each "stage" missing its upstream argument. The macro has to rewrite each stage form by prepending the threaded upstream. Doable in principle — each stage is a list `(head ...args)` and the macro emits `(head __prev ...args)` — but edge cases (stages that aren't in call form, inline lambdas, sinks that take the whole stream) have not been walked through.
+1. **Variadic splice, no threading.** `(pipeline src & stages) →
+   (,@stages ,src)` — flat list, not nested. Can't thread the
+   upstream into each stage's first-arg position. Splicing puts
+   rest-args in ONE position; the template has a fixed shape.
 
-Expect the shape to clarify from writing real pipelines the verbose way first (item 3 + manual `let*`), which reveals what the composer has to produce.
+2. **AST-rewrite each stage.** For each rest-arg `(head ...args)`,
+   emit `(head upstream ...args)`. **Blocked**: quasiquote templates
+   don't destructure args. There's no way to pattern-match a
+   parameter's shape and reconstruct it with an inserted element.
 
-**Inscription target:** TBD. Likely a new `058-035-pipeline-composer` or an amendment to the stream stdlib inscription.
+3. **Recursive macro expansion.** `(pipeline src stage rest...)` →
+   `(pipeline (apply-stage stage src) ...rest)` with a base case for
+   empty `rest`. **Blocked**: templates can't branch on
+   rest-length. One macro = one definition; no arity overloading.
+   Empty vs non-empty splicing produces the same template shape.
+
+4. **Homogeneous Vec of stage lambdas + runtime fold.** Each stage
+   is a `Stream → Stream` lambda; fold them over the source.
+   **Blocked**: stages have different types per iteration
+   (`Stream<T> → Stream<U>`, then `Stream<U> → Stream<Vec<U>>`).
+   A homogeneous Vec can't express heterogeneous stage signatures
+   under wat's rank-1 HM type system without a polymorphic
+   placeholder the type system doesn't offer.
+
+5. **Placeholder substitution** (`$` for upstream in each stage,
+   macro walks and substitutes). **Blocked**: template walker
+   substitutes named parameters only; no generic symbol-rewrite
+   primitive.
+
+**The substrate work pipeline needs.** One of the following, as its
+own inscription-class slice:
+
+- **Lisp-evaluated macro bodies** (a second defmacro form beyond
+  quasiquote-only, where the body is arbitrary wat evaluated at
+  parse time, with AST-construction primitives like `cons` /
+  `car` / `cdr` on WatAST values). This is classical Common Lisp
+  `defmacro`. 058-031 explicitly limited bodies to quasiquote
+  templates "this slice"; pipeline is the forcing function that
+  reveals the limit.
+- **Typed-let inference** (let bindings that infer their type
+  from the RHS instead of requiring a declared type). Without
+  this, even if AST rewriting worked, each threaded `let*` binding
+  would still need a type annotation that depends on stage N's
+  output type — which we don't have syntactically in the macro.
+  058-030's "typed-let discipline" was a deliberate choice;
+  pipeline reveals its pragmatic cost.
+- **Heterogeneous tuples as iterable** (fold over a tuple whose
+  elements have different types, under a type-indexed family).
+  This is dependent-types territory — a very large language slice.
+
+**What's expressible today as a SIMPLE sugar.** A `pipeline` macro
+that takes an already-threaded list of typed bindings and emits the
+`let*` ceremony — no auto-threading. But this is just a rename of
+`let*` with no ergonomic win; the threading is still explicit:
+
+```scheme
+(pipeline
+  ((s0 :Stream<T>)        (spawn-producer producer))
+  ((s1 :Stream<T>)        (stream::map s0 f))
+  ((s2 :Stream<Vec<T>>)   (stream::chunks s1 50))
+  ((_  :())               (stream::for-each s2 handler)))
+```
+
+This doesn't earn its slot in the stdlib. Shipping it would be
+clutter. We keep the explicit `let*` form and ship the composer
+when the substrate catches up.
+
+**Current idiomatic shape (what the app uses).** Manual `let*`
+chain — this is what every test in `tests/wat_stream.rs` already
+demonstrates. Users compose pipelines as explicit bindings;
+terminal combinators (`for-each`, `collect`, `fold`) join the
+final handle. The drop cascade handles shutdown.
+
+**Lesson captured**: absence is signal, again. This time the gap
+pointed at macro-body expressiveness — the same shape of finding
+as `reduce` (two half-passes that should have been one), but at
+the macro system's surface instead of the type checker's. A future
+slice "058-034 macro-body expressions" (or similar) unblocks this.
+Until it ships, the let* form is the honest answer and pipeline
+stays aspirational.
+
+**Inscription target:** no current artifact. When the substrate
+slice lands, a `058-035-pipeline-composer` inscription can follow.
 
 ---
 
