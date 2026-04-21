@@ -123,6 +123,13 @@ fn install_signal_handlers() {
 // ─── main ──────────────────────────────────────────────────────────────
 
 fn main() -> ExitCode {
+    // Silence the default panic handler for assertion-failed! payloads.
+    // Those panics are expected — the outer sandbox catches them and
+    // surfaces structured Failures. Without this hook, every
+    // deliberate failure test prints a "thread X panicked" line to
+    // stderr before the sandbox intercepts.
+    wat::assertion::install_silent_assertion_panic_hook();
+
     let argv: Vec<String> = std::env::args().collect();
     let prog = argv.first().map(String::as_str).unwrap_or("wat");
 
@@ -382,18 +389,18 @@ fn run_tests_command(entry: &str) -> ExitCode {
 
 /// Resolve a CLI path argument into a list of `.wat` files.
 /// - File path → `vec![path]`.
-/// - Directory → every `.wat` in its direct children (non-recursive).
+/// - Directory → every `.wat` under it recursively (depth-first). The
+///   traversal matches Cargo's tests/ convention: one top-level
+///   `wat test <dir>` invocation picks up every .wat file in the tree,
+///   including subdirectory layouts like `wat-tests/std/*.wat`.
 fn discover_wat_files(path: &std::path::Path) -> io::Result<Vec<std::path::PathBuf>> {
     let meta = std::fs::metadata(path)?;
     if meta.is_file() {
         return Ok(vec![path.to_path_buf()]);
     }
     if meta.is_dir() {
-        let mut out: Vec<std::path::PathBuf> = std::fs::read_dir(path)?
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("wat"))
-            .collect();
+        let mut out: Vec<std::path::PathBuf> = Vec::new();
+        collect_wat_files_recursive(path, &mut out)?;
         out.sort();
         return Ok(out);
     }
@@ -401,6 +408,25 @@ fn discover_wat_files(path: &std::path::Path) -> io::Result<Vec<std::path::PathB
         io::ErrorKind::InvalidInput,
         "path is neither file nor directory",
     ))
+}
+
+fn collect_wat_files_recursive(
+    dir: &std::path::Path,
+    out: &mut Vec<std::path::PathBuf>,
+) -> io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            collect_wat_files_recursive(&path, out)?;
+        } else if file_type.is_file()
+            && path.extension().and_then(|e| e.to_str()) == Some("wat")
+        {
+            out.push(path);
+        }
+    }
+    Ok(())
 }
 
 /// Iterate `frozen.symbols().functions` and return every key whose

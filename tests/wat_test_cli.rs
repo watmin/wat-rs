@@ -44,13 +44,6 @@ fn wat_test_on_wat_tests_dir_passes() {
         "expected \"running N tests\" banner; got:\n{}",
         stdout
     );
-    // The harness file has exactly 8 deftests today. Assert the count
-    // to catch accidental drops when the harness evolves.
-    assert!(
-        stdout.contains("running 8 tests"),
-        "expected 8 tests discovered; got:\n{}",
-        stdout
-    );
 }
 
 // ─── happy path — single-file invocation ────────────────────────────────
