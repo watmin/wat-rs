@@ -53,8 +53,17 @@ use std::fmt;
 pub struct MacroDef {
     /// Full keyword-path of the macro (e.g. `:wat::std::Subtract`).
     pub name: String,
-    /// Parameter names in order. Macros use positional binding.
+    /// Fixed-arity parameter names in order. Positional binding.
     pub params: Vec<String>,
+    /// Optional rest-parameter name. When present, the macro accepts
+    /// `args.len() >= params.len()` at expansion; the first N args
+    /// bind to `params` as usual, and the REMAINING args are bundled
+    /// into a `WatAST::List` and bound to this name. A template's
+    /// `,@rest-name` unquote-splicing then drops the list's elements
+    /// into the surrounding form at expansion. Syntax at declaration:
+    /// `(:wat::core::defmacro (:name (p1 :AST<T1>) ... & (rest :AST<Vec<R>>) -> :AST<Ret>) body)`.
+    /// The `&` marker separates fixed params from the rest-binder.
+    pub rest_param: Option<String>,
     /// The template — typically `(:wat::core::quasiquote ...)`.
     pub body: WatAST,
 }
@@ -254,11 +263,18 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     let signature = iter.next().expect("length checked");
     let body = iter.next().expect("length checked");
 
-    let (name, params) = parse_defmacro_signature(signature)?;
-    Ok(MacroDef { name, params, body })
+    let (name, params, rest_param) = parse_defmacro_signature(signature)?;
+    Ok(MacroDef {
+        name,
+        params,
+        rest_param,
+        body,
+    })
 }
 
-fn parse_defmacro_signature(sig: WatAST) -> Result<(String, Vec<String>), MacroError> {
+fn parse_defmacro_signature(
+    sig: WatAST,
+) -> Result<(String, Vec<String>, Option<String>), MacroError> {
     let items = match sig {
         WatAST::List(items) => items,
         _ => {
@@ -282,9 +298,27 @@ fn parse_defmacro_signature(sig: WatAST) -> Result<(String, Vec<String>), MacroE
         }
     };
     let mut params = Vec::new();
+    let mut rest_param: Option<String> = None;
+    let mut saw_rest_marker = false;
     for item in iter {
         match item {
             WatAST::Symbol(ref s) if s.as_str() == "->" => break,
+            // `&` marker — the next binder is the rest-param. Only one
+            // rest-binder is allowed; additional params after it are
+            // rejected (same as Common Lisp's `&rest` discipline).
+            WatAST::Symbol(ref s) if s.as_str() == "&" => {
+                if saw_rest_marker {
+                    return Err(MacroError::MalformedDefmacro {
+                        reason: "duplicate `&` rest-marker in macro signature".into(),
+                    });
+                }
+                if rest_param.is_some() {
+                    return Err(MacroError::MalformedDefmacro {
+                        reason: "`&` must precede its rest-binder".into(),
+                    });
+                }
+                saw_rest_marker = true;
+            }
             WatAST::List(pair) => {
                 let paramname = match pair.into_iter().next() {
                     Some(WatAST::Symbol(ident)) => ident.name,
@@ -294,7 +328,16 @@ fn parse_defmacro_signature(sig: WatAST) -> Result<(String, Vec<String>), MacroE
                         })
                     }
                 };
-                params.push(paramname);
+                if saw_rest_marker {
+                    if rest_param.is_some() {
+                        return Err(MacroError::MalformedDefmacro {
+                            reason: "only one rest-binder is allowed after `&`".into(),
+                        });
+                    }
+                    rest_param = Some(paramname);
+                } else {
+                    params.push(paramname);
+                }
             }
             _ => {
                 return Err(MacroError::MalformedDefmacro {
@@ -303,7 +346,12 @@ fn parse_defmacro_signature(sig: WatAST) -> Result<(String, Vec<String>), MacroE
             }
         }
     }
-    Ok((name, params))
+    if saw_rest_marker && rest_param.is_none() {
+        return Err(MacroError::MalformedDefmacro {
+            reason: "`&` rest-marker with no binder".into(),
+        });
+    }
+    Ok((name, params, rest_param))
 }
 
 // ─── Expansion ──────────────────────────────────────────────────────────
@@ -366,24 +414,50 @@ fn expand_form(
 /// Expand a single macro call. Allocates a fresh [`ScopeId`], walks the
 /// template substituting parameters with argument ASTs, adds the macro
 /// scope to every template-origin symbol, returns the expansion.
+///
+/// Variadic macros (MacroDef with `rest_param: Some(_)`) accept
+/// `args.len() >= params.len()`. The first N args bind positionally to
+/// the fixed params; the rest are wrapped in a `WatAST::List` and
+/// bound to the rest-name. The template's `,@rest-name` splice drops
+/// those elements into the surrounding list context at expansion.
 fn expand_macro_call(
     def: &MacroDef,
     args: Vec<WatAST>,
 ) -> Result<WatAST, MacroError> {
-    if args.len() != def.params.len() {
-        return Err(MacroError::ArityMismatch {
-            name: def.name.clone(),
-            expected: def.params.len(),
-            got: args.len(),
-        });
+    let fixed_arity = def.params.len();
+    match &def.rest_param {
+        None => {
+            if args.len() != fixed_arity {
+                return Err(MacroError::ArityMismatch {
+                    name: def.name.clone(),
+                    expected: fixed_arity,
+                    got: args.len(),
+                });
+            }
+        }
+        Some(_) => {
+            if args.len() < fixed_arity {
+                return Err(MacroError::ArityMismatch {
+                    name: def.name.clone(),
+                    expected: fixed_arity,
+                    got: args.len(),
+                });
+            }
+        }
     }
 
-    let bindings: HashMap<String, WatAST> = def
-        .params
-        .iter()
-        .cloned()
-        .zip(args)
-        .collect();
+    let mut bindings: HashMap<String, WatAST> = HashMap::new();
+    let mut iter = args.into_iter();
+    for param in &def.params {
+        bindings.insert(
+            param.clone(),
+            iter.next().expect("arity checked above"),
+        );
+    }
+    if let Some(rest_name) = &def.rest_param {
+        let rest: Vec<WatAST> = iter.collect();
+        bindings.insert(rest_name.clone(), WatAST::List(rest));
+    }
 
     let macro_scope = fresh_scope();
     expand_template(&def.body, &bindings, macro_scope, &def.name)
