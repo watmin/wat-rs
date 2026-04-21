@@ -441,6 +441,17 @@ fn infer_list(
                 }
                 return Some(TypeExpr::Path(":wat::WatAST".into()));
             }
+            ":wat::core::forms" => {
+                // Variadic sibling of quote. Every positional arg is
+                // DATA, captured as `:wat::WatAST`. The checker does
+                // not recurse into any of them. Return type is
+                // `:Vec<wat::WatAST>` regardless of arity (including
+                // zero, which produces an empty Vec).
+                return Some(TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                });
+            }
             ":wat::core::match" => {
                 return infer_match(args, env, locals, fresh, subst, errors);
             }

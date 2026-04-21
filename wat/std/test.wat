@@ -130,6 +130,39 @@
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed src stdin (Some scope)))
 
+;; ─── run-ast + program — AST-entry test sandbox ──────────────────────
+;;
+;; The string-entry path (:wat::test::run above) is what fuzzers /
+;; programs-built-at-runtime use. For hand-written tests, the AST-
+;; entry path is the honest move — no escape hell, no nested quoting,
+;; the inner program reads as s-expressions.
+;;
+;; Usage:
+;;
+;;   (:wat::test::run-ast
+;;     (:wat::test::program
+;;       (:wat::config::set-dims! 1024)
+;;       (:wat::config::set-capacity-mode! :error)
+;;       (:wat::core::define (:user::main ...) <body>))
+;;     (:wat::core::vec :String))
+;;
+;; `:wat::test::program` expands to `:wat::core::forms` — the
+;; variadic-quote substrate. Each top-level form captured as
+;; `:wat::WatAST`; the result is `:Vec<wat::WatAST>` ready to hand
+;; to `:wat::kernel::run-sandboxed-ast`.
+
+(:wat::core::defmacro
+  (:wat::test::program & (forms :AST<Vec<wat::WatAST>>)
+    -> :AST<Vec<wat::WatAST>>)
+  `(:wat::core::forms ,@forms))
+
+(:wat::core::define
+  (:wat::test::run-ast
+    (forms :Vec<wat::WatAST>)
+    (stdin :Vec<String>)
+    -> :wat::kernel::RunResult)
+  (:wat::kernel::run-sandboxed-ast forms stdin :None))
+
 ;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b) ───────
 ;;
 ;; Registers a named zero-arg test function that returns RunResult.

@@ -1633,6 +1633,7 @@ fn dispatch_keyword_head(
         ":wat::core::let*" => eval_let_star(args, env, sym),
         ":wat::core::if" => eval_if(args, env, sym),
         ":wat::core::quote" => eval_quote(args),
+        ":wat::core::forms" => Ok(eval_forms(args)?),
         ":wat::core::atom-value" => eval_atom_value(args, env, sym),
         ":wat::core::match" => eval_match(args, env, sym),
         ":wat::core::try" => eval_try(args, env, sym),
@@ -3285,6 +3286,30 @@ fn eval_quote(args: &[WatAST]) -> Result<Value, RuntimeError> {
         });
     }
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
+}
+
+/// `(:wat::core::forms f1 f2 ... fn)` → `:Vec<wat::WatAST>`.
+///
+/// Variadic sibling of `quote`. Takes N unevaluated forms and returns
+/// a Vec of `:wat::WatAST` values — one per form, each captured as
+/// data. Semantically equivalent to
+/// `(vec :wat::WatAST (quote f1) (quote f2) ... (quote fn))` but
+/// without the per-form quote ceremony.
+///
+/// Use case: building program-as-data payloads for
+/// `:wat::kernel::run-sandboxed-ast`, `:wat::core::eval-ast!`, or
+/// any consumer of AST sequences. The test stdlib's `:wat::test::
+/// program` macro expands directly to this.
+///
+/// Like `quote`, this is a special form — arguments are NOT
+/// evaluated. The type checker returns `:Vec<wat::WatAST>`
+/// unconditionally; see `check.rs::infer_list` for the handling.
+fn eval_forms(args: &[WatAST]) -> Result<Value, RuntimeError> {
+    let items: Vec<Value> = args
+        .iter()
+        .map(|a| Value::wat__WatAST(Arc::new(a.clone())))
+        .collect();
+    Ok(Value::Vec(Arc::new(items)))
 }
 
 /// `(:wat::core::first xs)` / `second` / `third` — positional
