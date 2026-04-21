@@ -81,6 +81,22 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   The Ruby Enumerator pattern mapped to Rust's two-level answer
   (Iterator for in-process lazy; channel `Receiver::into_iter` for
   cross-thread). Depends on 003.
+- **`arc/2026/04/007-wat-tests-wat/`** — the self-hosted testing
+  arc. ScopedLoader capability gate, `:wat::kernel::run-sandboxed`
+  + its hermetic subprocess sibling, `:wat::test::*` stdlib with
+  panic-and-catch assertions, AST-entry sandbox + `deftest`
+  defmacro, `wat test <path>` CLI with random-order discovery,
+  `wat::Harness` thin Rust embedding wrapper. Migrated every
+  stdlib test from Rust to `wat-tests/` along the way. Shipped
+  alongside the `wat-vm` → `wat` and `program` → `service`
+  renames.
+- **`arc/2026/04/008-wat-io-substrate/`** — `:u8` primitive +
+  `:wat::io::IOReader` / `IOWriter` abstract types +
+  StringIoReader / StringIoWriter for in-memory testing + byte-
+  honest read/write primitives. UTF-8 lexer correctness fix
+  caught mid-migration. Prerequisite for arc 007 slice 2 —
+  without substitutable stdio, the sandbox couldn't construct
+  `:user::main`'s arguments.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.

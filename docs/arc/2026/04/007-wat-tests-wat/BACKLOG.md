@@ -32,14 +32,19 @@
 | 3 | `:wat::test::run` / `run-in-scope` wrappers | **done** | `f03d821` |
 | 3 | Substrate precursor: `:wat::core::string::*` + `:wat::core::regex::*` (8 primitives) | **done** | `97a1ec5` |
 | 3 | `:wat::core::=` extended to structural equality (Vec/Tuple/Option/Result/Struct) | **done** | `f03d821` |
-| 3b | `startup_from_forms` — split startup pipeline at parse boundary | pending | — |
-| 3b | `:wat::kernel::run-sandboxed-ast` primitive (AST-entry sandbox) | pending | — |
-| 3b | `:wat::test::deftest` defmacro — Clojure-style ergonomic shell | pending | — |
-| 3b | Integration test — deftest expands to a working named test fn | pending | — |
-| 4 | `wat test <path>` subcommand (discovery + runner) | pending | — |
-| 4 | cargo-test-style report formatting | pending | — |
-| 5 | `wat::Harness` Rust API | pending | — |
-| 5 | crate-root re-export from `lib.rs` | pending | — |
+| 3b | `startup_from_forms` — split startup pipeline at parse boundary | **done** | `5c74eef` |
+| 3b | `:wat::kernel::run-sandboxed-ast` primitive (AST-entry sandbox) | **done** | `5c74eef` |
+| 3b | `:wat::test::deftest` defmacro — Clojure-style ergonomic shell | **done** | `5c74eef` |
+| 3b | Integration test — deftest expands to a working named test fn | **done** | `5c74eef` |
+| rename | `wat-vm` → `wat` across binary + tests + docs (29 files) | **done** | `2bbf0ae` |
+| 4 | `wat test <path>` subcommand (discovery + runner, recursive) | **done** | `92042be` |
+| 4 | cargo-test-style report formatting + random-order shuffle | **done** | `92042be` |
+| 5 | `wat::Harness` Rust API (thin wrapper, ~130 lines) | **done** | `f0b1d1c` |
+| 5 | crate-root re-export from `lib.rs` | **done** | `f0b1d1c` |
+| migration | `:wat::test::*` tests → `wat-tests/std/test.wat` + recursive discovery | **done** | `cb8e7fa` |
+| migration | Algebra stdlib tests → `wat-tests/std/{Subtract,Circular,Reject,Sequential,Trigram}.wat` | **done** | `dc25693` |
+| migration | Console + Cache tests → `wat-tests/std/service/{Console,Cache}.wat` (via hermetic) | **done** | `d258581` |
+| rename | `wat/std/program/` → `wat/std/service/` | **done** | `7b47ddc` |
 
 ---
 
