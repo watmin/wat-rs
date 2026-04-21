@@ -2750,6 +2750,30 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // :wat::kernel::assertion-failed! — arc 007 slice 3. Raises via
+    // panic_any(AssertionPayload) so run-sandboxed's catch_unwind can
+    // downcast and populate Failure.actual / Failure.expected. Declared
+    // return type is :() since wat has no `!` / never type; the body
+    // never returns.
+    env.register(
+        ":wat::kernel::assertion-failed!".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                string_ty(),
+                TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![string_ty()],
+                },
+                TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![string_ty()],
+                },
+            ],
+            ret: unit_ty(),
+        },
+    );
+
     // Integer arithmetic — strict i64 × i64 → i64 under the
     // `:wat::core::i64::*` namespace.
     for op in &[

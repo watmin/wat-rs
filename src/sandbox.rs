@@ -20,6 +20,7 @@
 //!   slice) enforces the three-IO `:user::main` contract the CLI also
 //!   enforces; sandboxed programs must match.
 
+use crate::assertion::AssertionPayload;
 use crate::ast::WatAST;
 use crate::freeze::{
     invoke_user_main, startup_from_source, validate_user_main_signature,
@@ -174,14 +175,8 @@ pub fn eval_kernel_run_sandboxed(
 
     let failure_from_invoke: Option<Value> = match invoke_outcome {
         Ok(Ok(_returned)) => None,
-        Ok(Err(runtime_err)) => Some(failure_from_message(format!(
-            "runtime-error: {:?}",
-            runtime_err
-        ))),
-        Err(payload) => Some(failure_from_message(format!(
-            "panic: {}",
-            panic_payload_to_string(&payload)
-        ))),
+        Ok(Err(runtime_err)) => Some(failure_from_runtime_err(runtime_err)),
+        Err(payload) => Some(failure_from_panic_payload(payload)),
     };
 
     // 7. Snapshot the writers. Partial output is preserved whether or
@@ -211,36 +206,86 @@ pub fn eval_kernel_run_sandboxed(
     Ok(build_run_result(stdout_lines, stderr_lines, failure_from_invoke))
 }
 
-/// Extract a human-readable string from a panic payload.
-/// Rust panics usually carry a `&'static str` (from `panic!("...")`) or
-/// a `String` (from `panic!("{}", ...)`). Slice 3's assertion primitives
-/// may panic with a custom `AssertionPayload` struct; when that's
-/// plumbed, this downcast chain extends to pull actual/expected out.
-fn panic_payload_to_string(payload: &Box<dyn std::any::Any + Send>) -> String {
+/// Build a `:wat::kernel::Failure` Value from a caught panic payload.
+///
+/// Downcast chain tries in order:
+/// 1. [`AssertionPayload`] — slice 3's assertion-failed! primitive.
+///    Populates `message`, `actual`, `expected`. `location` / `frames`
+///    still unpopulated (future slices — would require a `std::panic::
+///    set_hook` / `Backtrace::capture` coordination the sandbox doesn't
+///    yet install).
+/// 2. `&'static str` — `panic!("literal")`.
+/// 3. `String` — `panic!("{}", ...)`.
+/// 4. Fallback — unknown payload type, message-only with a generic note.
+fn failure_from_panic_payload(payload: Box<dyn std::any::Any + Send>) -> Value {
+    // 1. AssertionPayload — downcast out of the Box and keep the owned
+    //    fields. Using `downcast::<T>()` transfers ownership; if it
+    //    fails we get the original Box back to try the next arm.
+    let payload = match payload.downcast::<AssertionPayload>() {
+        Ok(boxed) => {
+            let AssertionPayload {
+                message,
+                actual,
+                expected,
+            } = *boxed;
+            return build_failure(message, actual, expected);
+        }
+        Err(p) => p,
+    };
+    // 2 & 3. String-ish payloads from plain `panic!()`.
     if let Some(s) = payload.downcast_ref::<&'static str>() {
-        return (*s).to_string();
+        return build_failure(format!("panic: {}", s), None, None);
     }
     if let Some(s) = payload.downcast_ref::<String>() {
-        return s.clone();
+        return build_failure(format!("panic: {}", s), None, None);
     }
-    "non-string panic payload".to_string()
+    // 4. Fallback — payload type we don't recognize.
+    build_failure("panic: non-string payload".into(), None, None)
 }
 
-/// Build a `:wat::kernel::Failure` Value with only the `message` field
-/// populated; location / frames / actual / expected are left empty /
-/// None for slice 2b. Later slices populate those from a panic hook +
-/// Backtrace + assertion payloads.
-fn failure_from_message(message: String) -> Value {
+/// Build a `:wat::kernel::Failure` Value from a RuntimeError that
+/// escaped `invoke_user_main`. In-process assertion-failed! always
+/// travels via panic (see assertion.rs), so this arm's
+/// AssertionFailed case is reachable only if a non-sandbox harness
+/// surfaced one through a direct Rust path — preserved for symmetry.
+fn failure_from_runtime_err(err: RuntimeError) -> Value {
+    match err {
+        RuntimeError::AssertionFailed {
+            message,
+            actual,
+            expected,
+        } => build_failure(message, actual, expected),
+        other => build_failure(format!("runtime-error: {:?}", other), None, None),
+    }
+}
+
+/// Build a `:wat::kernel::Failure` Value from its primitive fields.
+/// `location` and `frames` remain unpopulated for now — a future
+/// slice installs a panic hook to capture Location and opts into
+/// `Backtrace::capture` for frames.
+fn build_failure(message: String, actual: Option<String>, expected: Option<String>) -> Value {
+    let opt_string = |v: Option<String>| match v {
+        Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s))))),
+        None => Value::Option(Arc::new(None)),
+    };
     Value::Struct(Arc::new(StructValue {
         type_name: ":wat::kernel::Failure".into(),
         fields: vec![
             Value::String(Arc::new(message)),
-            Value::Option(Arc::new(None)),
-            Value::Vec(Arc::new(Vec::new())),
-            Value::Option(Arc::new(None)),
-            Value::Option(Arc::new(None)),
+            Value::Option(Arc::new(None)), // location
+            Value::Vec(Arc::new(Vec::new())), // frames
+            opt_string(actual),
+            opt_string(expected),
         ],
     }))
+}
+
+/// Simple message-only Failure for non-panic / non-runtime-error paths
+/// (startup failure, main-signature mismatch, tempfile write error in
+/// hermetic mode, etc.). All of these know a plain message; none of them
+/// have meaningful actual/expected.
+fn failure_from_message(message: String) -> Value {
+    build_failure(message, None, None)
 }
 
 /// Build the RunResult struct value.

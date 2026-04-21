@@ -1686,7 +1686,7 @@ fn dispatch_keyword_head(
         }),
 
         // Comparison — return :bool
-        ":wat::core::=" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Equal),
+        ":wat::core::=" => eval_eq(head, args, env, sym),
         ":wat::core::<" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Less),
         ":wat::core::>" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Greater),
         ":wat::core::<=" => eval_compare(head, args, env, sym, |o| {
@@ -1780,6 +1780,9 @@ fn dispatch_keyword_head(
         ":wat::kernel::run-sandboxed" => crate::sandbox::eval_kernel_run_sandboxed(args, env, sym),
         ":wat::kernel::run-sandboxed-hermetic" => {
             crate::sandbox::eval_kernel_run_sandboxed_hermetic(args, env, sym)
+        }
+        ":wat::kernel::assertion-failed!" => {
+            crate::assertion::eval_kernel_assertion_failed(args, env, sym)
         }
         ":wat::kernel::make-bounded-queue" => eval_make_bounded_queue(args, env, sym),
         ":wat::kernel::make-unbounded-queue" => eval_make_unbounded_queue(args),
@@ -2377,6 +2380,110 @@ where
             expected: "f64",
             got: other.type_name(),
         }),
+    }
+}
+
+/// `:wat::core::=` — structural equality. Composites (Vec, Tuple,
+/// Option, Result, Struct) compare element-/field-wise; primitives
+/// fall through to the `eval_compare` path. Split from `eval_compare`
+/// because equality generalizes cleanly over composite values while
+/// ordering (`<`, `>`, `<=`, `>=`) does not — a Vec of structs has no
+/// canonical ordering worth inventing here.
+fn eval_eq(
+    head: &str,
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: head.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let a = eval(&args[0], env, sym)?;
+    let b = eval(&args[1], env, sym)?;
+    match values_equal(&a, &b) {
+        Some(eq) => Ok(Value::bool(eq)),
+        None => Err(RuntimeError::TypeMismatch {
+            op: head.into(),
+            expected: "matching comparable pair",
+            got: a.type_name(),
+        }),
+    }
+}
+
+/// Structural equality on [`Value`] — returns `Some(bool)` for pairs
+/// whose types support equality, `None` for pairs whose shapes aren't
+/// comparable at all (e.g., comparing a `Value::Function` to anything;
+/// two values of different top-level kinds; a struct to a tuple).
+///
+/// f64 uses `PartialEq`; `NaN == NaN` is false (Rust's standard
+/// IEEE-754 semantics). Callers who need exact bit equality should
+/// encode through an integer representation.
+fn values_equal(a: &Value, b: &Value) -> Option<bool> {
+    match (a, b) {
+        (Value::i64(x), Value::i64(y)) => Some(x == y),
+        (Value::u8(x), Value::u8(y)) => Some(x == y),
+        (Value::f64(x), Value::f64(y)) => Some(x == y),
+        (Value::String(x), Value::String(y)) => Some(x == y),
+        (Value::bool(x), Value::bool(y)) => Some(x == y),
+        (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x == y),
+        (Value::Unit, Value::Unit) => Some(true),
+        (Value::Vec(xs), Value::Vec(ys)) => {
+            if xs.len() != ys.len() {
+                return Some(false);
+            }
+            for (x, y) in xs.iter().zip(ys.iter()) {
+                match values_equal(x, y) {
+                    Some(true) => continue,
+                    Some(false) => return Some(false),
+                    None => return None,
+                }
+            }
+            Some(true)
+        }
+        (Value::Tuple(xs), Value::Tuple(ys)) => {
+            if xs.len() != ys.len() {
+                return Some(false);
+            }
+            for (x, y) in xs.iter().zip(ys.iter()) {
+                match values_equal(x, y) {
+                    Some(true) => continue,
+                    Some(false) => return Some(false),
+                    None => return None,
+                }
+            }
+            Some(true)
+        }
+        (Value::Option(x), Value::Option(y)) => match (&**x, &**y) {
+            (None, None) => Some(true),
+            (Some(_), None) | (None, Some(_)) => Some(false),
+            (Some(xv), Some(yv)) => values_equal(xv, yv),
+        },
+        (Value::Result(x), Value::Result(y)) => match (&**x, &**y) {
+            (Ok(xv), Ok(yv)) => values_equal(xv, yv),
+            (Err(xv), Err(yv)) => values_equal(xv, yv),
+            _ => Some(false),
+        },
+        (Value::Struct(x), Value::Struct(y)) => {
+            if x.type_name != y.type_name {
+                return Some(false);
+            }
+            if x.fields.len() != y.fields.len() {
+                return Some(false);
+            }
+            for (xf, yf) in x.fields.iter().zip(y.fields.iter()) {
+                match values_equal(xf, yf) {
+                    Some(true) => continue,
+                    Some(false) => return Some(false),
+                    None => return None,
+                }
+            }
+            Some(true)
+        }
+        _ => None,
     }
 }
 

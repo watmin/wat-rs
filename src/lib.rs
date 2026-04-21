@@ -52,6 +52,7 @@
 
 extern crate self as wat;
 
+pub mod assertion;
 pub mod ast;
 pub mod check;
 pub mod config;
