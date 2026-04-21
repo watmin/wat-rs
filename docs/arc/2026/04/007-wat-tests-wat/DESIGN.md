@@ -420,6 +420,144 @@ patterns surface.
 
 ---
 
+## Slice 3b — AST-entry sandbox + `deftest` defmacro
+
+Slice 3 shipped the assertion primitives + a thin `:wat::test::run`
+wrapper. It works, but every call site pays the same tax:
+
+```
+(:wat::test::run
+  "(:wat::config::set-dims! 1024)
+   (:wat::config::set-capacity-mode! :error)
+   (:wat::core::define (:user::main
+                        (stdin  :wat::io::IOReader)
+                        (stdout :wat::io::IOWriter)
+                        (stderr :wat::io::IOWriter)
+                        -> :())
+     (:wat::test::assert-eq 42 42))"
+  (:wat::core::vec :String))
+```
+
+Four things repeat: config preamble (two setters), `:user::main`
+declaration with three IO args, scaffolding to close the define, the
+literal string quoting of all of it. The test body — the part the
+author actually cares about — is buried. Clojure's `deftest`
+demonstrates the answer: source-level rewrite so the author writes just
+the body and gets the scaffolding for free.
+
+### Why this isn't slice 3
+
+Slice 3 is about the assertion primitives themselves — the substrate
+that makes "wat can verify wat" true. Slice 3b is about ergonomics on
+top: the same substrate, a different surface. Splitting the slice keeps
+the primitive story clean and records the ergonomic move as the
+deliberate follow-up it is.
+
+### The ugly path — serialize-and-reparse
+
+A naive `deftest` macro could serialize its quasi-quoted body back to a
+source string and feed that to `:wat::test::run`:
+
+```
+`(:wat::test::run
+  ,(:wat::core::ast->source `(... config + define + ,body ...))
+  ...)
+```
+
+Works. Two problems:
+1. **Honest waste.** The data is already AST — the macro has it in
+   hand. Serializing to a string only to have the sandbox re-parse the
+   string back to AST is the `/temper` ward's exact concern: efficient-
+   looking code doing the same work twice.
+2. **Lossy.** Whitespace, comments, and formatting details the
+   serializer doesn't preserve become observable in failure messages.
+   The typed AST stays typed; source-text round-trips lose structure.
+
+### The honest path — AST-entry sandbox
+
+Split the startup pipeline at the parse boundary. `startup_from_source`
+currently does parse + resolve + type-check + freeze in one motion. We
+expose the post-parse entry:
+
+```rust
+pub fn startup_from_forms(
+    forms: Vec<WatAST>,
+    config: Option<&Config>,
+    loader: Arc<dyn SourceLoader>,
+) -> Result<FrozenWorld, StartupError>;
+```
+
+`startup_from_source` becomes `parse_all → startup_from_forms`. No new
+logic — a boundary exposed.
+
+Add a new kernel primitive that accepts AST directly:
+
+```
+(:wat::kernel::run-sandboxed-ast
+  (forms :Vec<AST<()>>)
+  (stdin :Vec<String>)
+  (scope :Option<String>)
+  -> :wat::kernel::RunResult)
+```
+
+Signature mirrors `run-sandboxed` except the first parameter is a
+`Vec<AST<()>>` instead of a `:String`. Internally routes through
+`startup_from_forms` with the loader derived from `scope` the same way
+`run-sandboxed` does. Everything else — catch_unwind, drain-and-join,
+Failure downcast — is shared.
+
+### What slice 3b adds
+
+Three Rust surfaces:
+- `startup_from_forms` — the split entry point, public for callers.
+- `:wat::kernel::run-sandboxed-ast` — the AST-entry primitive.
+- Scheme registration in `check.rs`.
+
+One wat surface:
+- `:wat::test::deftest` — defmacro in `wat/std/test.wat` that expands
+  to a `:wat::core::define` registering a named test function.
+
+### `deftest` shape
+
+Tentative — firms up when the macro lands:
+
+```
+(:wat::test::deftest my-test-name 1024 :error
+  (:wat::test::assert-eq 42 42))
+```
+
+Expands (simplified) to:
+
+```
+(:wat::core::define
+  (my-test-name -> :wat::kernel::RunResult)
+  (:wat::kernel::run-sandboxed-ast
+    (:wat::core::vec :AST<()>
+      `(:wat::config::set-dims! 1024)
+      `(:wat::config::set-capacity-mode! :error)
+      `(:wat::core::define (:user::main
+                            (stdin  :wat::io::IOReader)
+                            (stdout :wat::io::IOWriter)
+                            (stderr :wat::io::IOWriter)
+                            -> :())
+         (:wat::test::assert-eq 42 42)))
+    (:wat::core::vec :String)
+    :None))
+```
+
+The test becomes a named zero-arg function returning `RunResult`.
+Callers invoke it directly; slice 4's test discoverer iterates all
+such names and aggregates results.
+
+### Composability unlocked
+
+Callers that generate tests dynamically (property-based testing,
+fuzzers, template expansion) hand a `Vec<AST<()>>` to
+`run-sandboxed-ast` directly without the macro. The primitive is
+the substrate; the macro is sugar.
+
+---
+
 ## Slice 4 — `wat-vm test` CLI subcommand
 
 The test runner. Discovers `.wat` files, runs each, reports.
