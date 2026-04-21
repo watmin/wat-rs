@@ -34,16 +34,22 @@
   :wat::std::stream::Stream<T>
   :(rust::crossbeam_channel::Receiver<T>,wat::kernel::ProgramHandle<()>))
 
+;; Producer<T> — the function shape spawn-producer accepts: takes the
+;; Sender end of a bounded queue, writes values, returns when done.
+(:wat::core::typealias
+  :wat::std::stream::Producer<T>
+  :fn(rust::crossbeam_channel::Sender<T>)->())
+
 ;; --- spawn-producer ---
 ;;
-;; Accepts a producer function of signature
-;; `:fn(Sender<T>) -> :()` — it writes values to the sender until
-;; done, then returns. Spawn wires the bounded(1) queue and returns
-;; the Stream<T> to the caller. Caller consumes via a combinator or
-;; a direct recv loop.
+;; Accepts a producer function of signature `Producer<T>`
+;; (i.e., `:fn(Sender<T>) -> :()`) — it writes values to the sender
+;; until done, then returns. Spawn wires the bounded(1) queue and
+;; returns the Stream<T> to the caller. Caller consumes via a
+;; combinator or a direct recv loop.
 (:wat::core::define
   (:wat::std::stream::spawn-producer<T>
-    (producer :fn(rust::crossbeam_channel::Sender<T>)->())
+    (producer :wat::std::stream::Producer<T>)
     -> :wat::std::stream::Stream<T>)
   (:wat::core::let*
     (((pair :(rust::crossbeam_channel::Sender<T>,rust::crossbeam_channel::Receiver<T>))

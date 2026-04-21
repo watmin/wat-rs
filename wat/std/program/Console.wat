@@ -28,6 +28,19 @@
 ;; Ints inline in Console/out and Console/err below; named here for
 ;; reader clarity. 0 = stdout, 1 = stderr. No enum yet; tuples suffice.
 
+;; --- Message typealias ---
+;;
+;; A Console message is (tag :i64, msg :String). This alias makes
+;; every signature in the file name the shape once; `reduce` walks
+;; through at unify + shape-inspection sites, so Message and its
+;; tuple expansion are interchangeable everywhere.
+(:wat::core::typealias :wat::std::program::Console::Message
+  :(i64,String))
+(:wat::core::typealias :wat::std::program::Console::Tx
+  :rust::crossbeam_channel::Sender<wat::std::program::Console::Message>)
+(:wat::core::typealias :wat::std::program::Console::Rx
+  :rust::crossbeam_channel::Receiver<wat::std::program::Console::Message>)
+
 ;; --- Driver loop ---
 ;;
 ;; Select across N receivers, decode each message's tag, write to
@@ -35,17 +48,18 @@
 ;; Exits when no receivers remain.
 (:wat::core::define
   (:wat::std::program::Console/loop
-    (rxs :Vec<rust::crossbeam_channel::Receiver<(i64,String)>>)
+    (rxs :Vec<wat::std::program::Console::Rx>)
     (stdout :rust::std::io::Stdout)
     (stderr :rust::std::io::Stderr)
     -> :())
   (:wat::core::if (:wat::core::empty? rxs) -> :()
     ()
     (:wat::core::let*
-      (((chosen :(i64,Option<(i64,String)>))
+      (((chosen :(i64,Option<wat::std::program::Console::Message>))
         (:wat::kernel::select rxs))
        ((idx :i64) (:wat::core::first chosen))
-       ((maybe :Option<(i64,String)>) (:wat::core::second chosen)))
+       ((maybe :Option<wat::std::program::Console::Message>)
+        (:wat::core::second chosen)))
       (:wat::core::match maybe -> :()
         ((Some tagged)
           (:wat::core::let*
@@ -63,18 +77,18 @@
 
 ;; --- Client helpers ---
 ;;
-;; Each handle is a Sender<(i64,String)>; callers don't build the
-;; tuple themselves, they use Console/out or Console/err.
-;; Console/out and Console/err are fire-and-forget from the client's
-;; perspective: if the Console driver has already shut down, the
-;; write has nowhere to go and we swallow silently rather than
-;; surface a late-lifecycle error. `send` returns :Option<()> after
-;; the 2026-04-20 symmetrization; both arms of the match collapse to
-;; :(). A program that WANTS disconnect awareness uses the primitive
-;; `send` directly on its console handle.
+;; Each handle is a Console::Tx; callers don't build the tuple
+;; themselves, they use Console/out or Console/err.
+;; These are fire-and-forget from the client's perspective: if the
+;; Console driver has already shut down, the write has nowhere to
+;; go and we swallow silently rather than surface a late-lifecycle
+;; error. `send` returns :Option<()> after the 2026-04-20
+;; symmetrization; both arms of the match collapse to :(). A program
+;; that WANTS disconnect awareness uses the primitive `send` directly
+;; on its console handle.
 (:wat::core::define
   (:wat::std::program::Console/out
-    (handle :rust::crossbeam_channel::Sender<(i64,String)>)
+    (handle :wat::std::program::Console::Tx)
     (msg :String)
     -> :())
   (:wat::core::match
@@ -85,7 +99,7 @@
 
 (:wat::core::define
   (:wat::std::program::Console/err
-    (handle :rust::crossbeam_channel::Sender<(i64,String)>)
+    (handle :wat::std::program::Console::Tx)
     (msg :String)
     -> :())
   (:wat::core::match
@@ -110,22 +124,24 @@
     (stdout :rust::std::io::Stdout)
     (stderr :rust::std::io::Stderr)
     (count :i64)
-    -> :(wat::kernel::HandlePool<rust::crossbeam_channel::Sender<(i64,String)>>,wat::kernel::ProgramHandle<()>))
+    -> :(wat::kernel::HandlePool<wat::std::program::Console::Tx>,wat::kernel::ProgramHandle<()>))
   (:wat::core::let*
-    (((pairs :Vec<(rust::crossbeam_channel::Sender<(i64,String)>,rust::crossbeam_channel::Receiver<(i64,String)>)>)
+    (((pairs :Vec<(wat::std::program::Console::Tx,wat::std::program::Console::Rx)>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda ((_i :i64) -> :(rust::crossbeam_channel::Sender<(i64,String)>,rust::crossbeam_channel::Receiver<(i64,String)>))
-          (:wat::kernel::make-bounded-queue :(i64,String) 1))))
-     ((txs :Vec<rust::crossbeam_channel::Sender<(i64,String)>>)
+        (:wat::core::lambda ((_i :i64) -> :(wat::std::program::Console::Tx,wat::std::program::Console::Rx))
+          (:wat::kernel::make-bounded-queue :wat::std::program::Console::Message 1))))
+     ((txs :Vec<wat::std::program::Console::Tx>)
       (:wat::core::map pairs
-        (:wat::core::lambda ((p :(rust::crossbeam_channel::Sender<(i64,String)>,rust::crossbeam_channel::Receiver<(i64,String)>)) -> :rust::crossbeam_channel::Sender<(i64,String)>)
+        (:wat::core::lambda ((p :(wat::std::program::Console::Tx,wat::std::program::Console::Rx))
+                            -> :wat::std::program::Console::Tx)
           (:wat::core::first p))))
-     ((rxs :Vec<rust::crossbeam_channel::Receiver<(i64,String)>>)
+     ((rxs :Vec<wat::std::program::Console::Rx>)
       (:wat::core::map pairs
-        (:wat::core::lambda ((p :(rust::crossbeam_channel::Sender<(i64,String)>,rust::crossbeam_channel::Receiver<(i64,String)>)) -> :rust::crossbeam_channel::Receiver<(i64,String)>)
+        (:wat::core::lambda ((p :(wat::std::program::Console::Tx,wat::std::program::Console::Rx))
+                            -> :wat::std::program::Console::Rx)
           (:wat::core::second p))))
-     ((pool :wat::kernel::HandlePool<rust::crossbeam_channel::Sender<(i64,String)>>)
+     ((pool :wat::kernel::HandlePool<wat::std::program::Console::Tx>)
       (:wat::kernel::HandlePool::new "Console" txs))
      ((driver :wat::kernel::ProgramHandle<()>)
       (:wat::kernel::spawn :wat::std::program::Console/loop rxs stdout stderr)))
