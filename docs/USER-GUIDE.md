@@ -117,6 +117,35 @@ logic lives in wat source. You add more wat files via
 `(:wat::core::load!)` from `main.wat`; you add more Rust-crate
 shims with `#[wat_dispatch]` (section 10 below).
 
+### Capability boundary — the Loader
+
+Wat's file-I/O is a **capability**, not a global. The host picks
+which `Loader` a frozen world gets; every `(:wat::core::load!)`
+at startup and every `(:wat::core::eval-edn!
+:wat::eval::file-path ...)` at runtime routes through that
+Loader. No wat program can reach past its host-provided Loader
+to `std::fs` directly.
+
+Three implementations ship in `wat::load`:
+
+- **`InMemoryLoader`** — no filesystem. Hosts pre-register the
+  files the program may see. Use for tests, sealed sandboxes,
+  fixture-driven development.
+- **`FsLoader`** — unrestricted. Reads any file on disk the host
+  process has OS-level permission for. The CLI (`wat-vm`) uses
+  this; reach for it when the wat program is trusted host code.
+- **`ScopedLoader`** — clamped to a root directory. Canonical-
+  path containment check on every read; rejects `../` traversal,
+  absolute-path escape, and symlinks pointing outside the scope.
+  Use when running a wat program as untrusted code that still
+  needs *some* filesystem access.
+
+Choosing the Loader IS choosing the program's filesystem
+capability. If the host hands a frozen world a `ScopedLoader`
+rooted at `/var/app/data`, the wat program cannot read
+`/etc/passwd` no matter what it writes. The Loader is the only
+gate; it is honest by construction.
+
 ---
 
 ## 2. Your first real program — stdin echo

@@ -15,8 +15,8 @@
 | 1 | `:wat::eval::file-path` routes through loader (slice 1b) | **done** | this slice |
 | 1 | `:wat::verify::file-path` routes through loader (slice 1c) | **done** | this slice |
 | 1 | `RuntimeError::NoSourceLoader` variant + `eval_expr_with_fs` test helper | **done** | this slice |
-| 1 | `ScopedLoader` impl | pending | — |
-| 1 | USER-GUIDE capability-boundary section | pending | — |
+| 1 | `ScopedLoader` impl + `LoadFetchError::OutOfScope` + 7 tests | **done** | this slice |
+| 1 | USER-GUIDE capability-boundary section | **done** | this slice |
 | 2 | `:wat::kernel::run-sandboxed` primitive | pending | — |
 | 2 | `RunResult` struct registration | pending | — |
 | 2 | panic-catch isolation | pending | — |

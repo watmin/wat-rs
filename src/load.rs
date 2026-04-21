@@ -193,6 +193,11 @@ pub enum LoadFetchError {
     NotFound(String),
     /// Loader-specific I/O or resolution error; prose describes.
     Other { path: String, reason: String },
+    /// Path resolves to a location outside the loader's allowed scope.
+    /// Raised by [`ScopedLoader`] when the canonical target of a
+    /// request escapes the loader's root (e.g., `../../etc/passwd` or
+    /// a symlink pointing outside the scope).
+    OutOfScope { path: String, scope: String },
 }
 
 impl fmt::Display for LoadFetchError {
@@ -202,6 +207,11 @@ impl fmt::Display for LoadFetchError {
             LoadFetchError::Other { path, reason } => {
                 write!(f, "load: failed to read {}: {}", path, reason)
             }
+            LoadFetchError::OutOfScope { path, scope } => write!(
+                f,
+                "load: path {} escapes scope {}",
+                path, scope
+            ),
         }
     }
 }
@@ -837,6 +847,105 @@ impl SourceLoader for FsLoader {
     }
 }
 
+/// Scope-restricted filesystem loader. Resolves every path request
+/// against `canonical_root` and refuses reads whose canonical target
+/// falls outside the root — rejects `../` traversal, absolute-path
+/// escape, and symlinks pointing out of scope.
+///
+/// Construction canonicalizes the root once; all subsequent containment
+/// checks use the canonical root. This catches the case where the root
+/// itself is a symlink (we resolve once, consistently).
+///
+/// TOCTOU note: the canonicalize-then-read sequence has a small window
+/// where a symlink could be swapped between the check and the actual
+/// read. This is the same window [`FsLoader`] has today. Stronger
+/// guarantees (openat + O_NOFOLLOW) are a follow-up if a production
+/// caller demands; v1 matches FsLoader's model.
+#[derive(Debug, Clone)]
+pub struct ScopedLoader {
+    canonical_root: PathBuf,
+}
+
+impl ScopedLoader {
+    /// Construct a new ScopedLoader rooted at `root`. Canonicalizes the
+    /// path; fails if the root doesn't exist or isn't reachable.
+    pub fn new(root: impl AsRef<Path>) -> Result<Self, LoadFetchError> {
+        let root = root.as_ref();
+        let canonical_root = std::fs::canonicalize(root).map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => LoadFetchError::NotFound(root.display().to_string()),
+            _ => LoadFetchError::Other {
+                path: root.display().to_string(),
+                reason: e.to_string(),
+            },
+        })?;
+        Ok(Self { canonical_root })
+    }
+
+    /// The canonical root this loader clamps to. Exposed for diagnostics
+    /// and for tests.
+    pub fn root(&self) -> &Path {
+        &self.canonical_root
+    }
+
+    /// Resolve and containment-check a single path. Returns the canonical
+    /// target inside the scope, or a `LoadFetchError`.
+    fn resolve_within_scope(
+        &self,
+        path: &str,
+        base_canonical: Option<&str>,
+    ) -> Result<PathBuf, LoadFetchError> {
+        let resolved = resolve_relative(path, base_canonical);
+        // Paths that don't exist yet can't be canonicalized. Source
+        // reads require an existing file; not-found is a legitimate
+        // error signal. Canonicalize first so containment is checked
+        // against the real target (handles intermediate symlinks).
+        let canonical = std::fs::canonicalize(&resolved).map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => LoadFetchError::NotFound(path.to_string()),
+            _ => LoadFetchError::Other {
+                path: resolved.display().to_string(),
+                reason: e.to_string(),
+            },
+        })?;
+        if !canonical.starts_with(&self.canonical_root) {
+            return Err(LoadFetchError::OutOfScope {
+                path: canonical.display().to_string(),
+                scope: self.canonical_root.display().to_string(),
+            });
+        }
+        Ok(canonical)
+    }
+}
+
+impl SourceLoader for ScopedLoader {
+    fn fetch_source_file(
+        &self,
+        path: &str,
+        base_canonical: Option<&str>,
+    ) -> Result<LoadedSource, LoadFetchError> {
+        let canonical = self.resolve_within_scope(path, base_canonical)?;
+        let source = std::fs::read_to_string(&canonical).map_err(|e| LoadFetchError::Other {
+            path: canonical.display().to_string(),
+            reason: e.to_string(),
+        })?;
+        Ok(LoadedSource {
+            canonical_path: canonical.display().to_string(),
+            source,
+        })
+    }
+
+    fn fetch_payload_file(
+        &self,
+        path: &str,
+        base_canonical: Option<&str>,
+    ) -> Result<String, LoadFetchError> {
+        let canonical = self.resolve_within_scope(path, base_canonical)?;
+        std::fs::read_to_string(&canonical).map_err(|e| LoadFetchError::Other {
+            path: canonical.display().to_string(),
+            reason: e.to_string(),
+        })
+    }
+}
+
 fn resolve_relative(path: &str, base_canonical: Option<&str>) -> PathBuf {
     let requested = Path::new(path);
     if requested.is_absolute() {
@@ -1294,5 +1403,137 @@ mod tests {
                        (:wat::core::load! :wat::load::string "(:wat::algebra::Atom \"x\")")"#;
         let err = resolve_mem(entry, &[]).unwrap_err();
         assert!(matches!(err, LoadError::DuplicateLoad { .. }));
+    }
+
+    // ─── ScopedLoader ────────────────────────────────────────────────────
+
+    /// RAII wrapper around a unique test directory under std::env::temp_dir.
+    /// Dropped at end of scope; best-effort recursive delete.
+    struct ScopeDir {
+        path: PathBuf,
+    }
+
+    impl ScopeDir {
+        fn new() -> Self {
+            let mut path = std::env::temp_dir();
+            path.push(format!(
+                "wat-scope-test-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            std::fs::create_dir_all(&path).expect("create scope dir");
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for ScopeDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn make_scope_dir() -> ScopeDir {
+        ScopeDir::new()
+    }
+
+    #[test]
+    fn scoped_loader_reads_in_scope_file() {
+        let dir = make_scope_dir();
+        let file_path = dir.path().join("a.wat");
+        std::fs::write(&file_path, "hello").unwrap();
+        let loader = ScopedLoader::new(dir.path()).expect("scope");
+        let loaded = loader
+            .fetch_source_file(&file_path.to_string_lossy(), None)
+            .expect("in-scope read");
+        assert_eq!(loaded.source, "hello");
+    }
+
+    #[test]
+    fn scoped_loader_reads_payload_in_scope() {
+        let dir = make_scope_dir();
+        let file_path = dir.path().join("digest.txt");
+        std::fs::write(&file_path, "abc123").unwrap();
+        let loader = ScopedLoader::new(dir.path()).expect("scope");
+        let payload = loader
+            .fetch_payload_file(&file_path.to_string_lossy(), None)
+            .expect("in-scope payload read");
+        assert_eq!(payload, "abc123");
+    }
+
+    #[test]
+    fn scoped_loader_rejects_absolute_path_escape() {
+        // A second temp dir OUTSIDE the scope.
+        let scope = make_scope_dir();
+        let outside = make_scope_dir();
+        let outside_file = outside.path().join("leak.txt");
+        std::fs::write(&outside_file, "secrets").unwrap();
+        let loader = ScopedLoader::new(scope.path()).expect("scope");
+        let err = loader
+            .fetch_source_file(&outside_file.to_string_lossy(), None)
+            .expect_err("should reject");
+        assert!(matches!(err, LoadFetchError::OutOfScope { .. }));
+    }
+
+    #[test]
+    fn scoped_loader_rejects_dotdot_escape() {
+        // Create scope/subdir/here; ask for `../../etc/passwd` style.
+        let scope = make_scope_dir();
+        let sub = scope.path().join("sub");
+        std::fs::create_dir(&sub).unwrap();
+        let loader = ScopedLoader::new(&sub).expect("scope");
+        // Request a path via relative traversal escaping the sub-scope.
+        // The path still resolves to something real on disk (the parent
+        // temp dir), but that's outside `sub`.
+        let escape = format!("{}/..", sub.display());
+        let err = loader
+            .fetch_source_file(&escape, None)
+            .expect_err("should reject");
+        assert!(
+            matches!(err, LoadFetchError::OutOfScope { .. }),
+            "got {:?}",
+            err
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn scoped_loader_rejects_symlink_escape() {
+        // symlink inside scope pointing to a file outside scope.
+        let scope = make_scope_dir();
+        let outside = make_scope_dir();
+        let secret = outside.path().join("secret.txt");
+        std::fs::write(&secret, "do-not-read").unwrap();
+        let link = scope.path().join("link");
+        std::os::unix::fs::symlink(&secret, &link).unwrap();
+        let loader = ScopedLoader::new(scope.path()).expect("scope");
+        let err = loader
+            .fetch_source_file(&link.to_string_lossy(), None)
+            .expect_err("should reject");
+        assert!(matches!(err, LoadFetchError::OutOfScope { .. }));
+    }
+
+    #[test]
+    fn scoped_loader_returns_not_found_for_missing_file() {
+        let scope = make_scope_dir();
+        let loader = ScopedLoader::new(scope.path()).expect("scope");
+        let missing = scope.path().join("missing.wat");
+        let err = loader
+            .fetch_source_file(&missing.to_string_lossy(), None)
+            .expect_err("should fail");
+        assert!(matches!(err, LoadFetchError::NotFound(_)), "got {:?}", err);
+    }
+
+    #[test]
+    fn scoped_loader_construction_fails_for_missing_root() {
+        let err = ScopedLoader::new("/nonexistent/path/that/does/not/exist-abc")
+            .expect_err("should fail");
+        assert!(matches!(err, LoadFetchError::NotFound(_)));
     }
 }
