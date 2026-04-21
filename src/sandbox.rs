@@ -23,7 +23,7 @@
 use crate::assertion::AssertionPayload;
 use crate::ast::WatAST;
 use crate::freeze::{
-    invoke_user_main, startup_from_source, validate_user_main_signature,
+    invoke_user_main, startup_from_forms, startup_from_source, validate_user_main_signature,
 };
 use crate::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
 use crate::load::{InMemoryLoader, ScopedLoader, SourceLoader};
@@ -203,6 +203,171 @@ pub fn eval_kernel_run_sandboxed(
     let stderr_lines = bytes_to_lines(OP, "stderr", stderr_bytes)?;
 
     // 9. Construct the RunResult struct value.
+    Ok(build_run_result(stdout_lines, stderr_lines, failure_from_invoke))
+}
+
+/// `(:wat::kernel::run-sandboxed-ast forms stdin scope)`
+/// → `:wat::kernel::RunResult`.
+///
+/// Arc 007 slice 3b — AST-entry sandbox. Same semantics as
+/// [`eval_kernel_run_sandboxed`] except the first argument is a
+/// `:Vec<wat::WatAST>` — already-parsed forms — instead of a `:String`
+/// of source text. Routes through
+/// [`crate::freeze::startup_from_forms`] directly, skipping the
+/// parse + re-serialize round trip a macro-authored sandbox invocation
+/// would otherwise pay.
+///
+/// Typical caller: the expansion of `:wat::test::deftest`, which
+/// quasiquotes its body into a Vec of AST fragments and hands them
+/// here. Also useful for any caller that already has AST in hand —
+/// dynamically-generated tests, fuzzers, compiler passes.
+pub fn eval_kernel_run_sandboxed_ast(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::run-sandboxed-ast";
+
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+        });
+    }
+
+    // 1. Evaluate + typecheck args.
+    //    forms: Vec<wat::WatAST> — every element must be an AST value.
+    let forms = match eval(&args[0], env, sym)? {
+        Value::Vec(items) => {
+            let mut out = Vec::with_capacity(items.len());
+            for item in items.iter() {
+                match item {
+                    Value::wat__WatAST(ast) => out.push((**ast).clone()),
+                    other => {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: OP.into(),
+                            expected: "wat::WatAST",
+                            got: other.type_name(),
+                        });
+                    }
+                }
+            }
+            out
+        }
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Vec<wat::WatAST>",
+                got: other.type_name(),
+            });
+        }
+    };
+
+    let stdin_lines = expect_vec_string(OP, eval(&args[1], env, sym)?)?;
+
+    let scope_opt = match eval(&args[2], env, sym)? {
+        Value::Option(opt) => match &*opt {
+            Some(Value::String(s)) => Some((**s).clone()),
+            Some(other) => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Option<String>",
+                    got: other.type_name(),
+                });
+            }
+            None => None,
+        },
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Option<String>",
+                got: other.type_name(),
+            });
+        }
+    };
+
+    // 2. Build the inner loader — same contract as run-sandboxed:
+    //    :None gives an empty InMemoryLoader; :Some path gives a
+    //    ScopedLoader clamped to the canonical root.
+    let loader: Arc<dyn SourceLoader> = match scope_opt {
+        Some(path) => {
+            let scoped = ScopedLoader::new(&path).map_err(|e| RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: format!("scope path {:?}: {}", path, e),
+            })?;
+            Arc::new(scoped)
+        }
+        None => Arc::new(InMemoryLoader::new()),
+    };
+
+    // 3. Freeze the inner world FROM AST. Resolve / type / macro-
+    //    expansion errors land in Failure; the caller may have
+    //    deliberately handed us an ill-typed program (a negative
+    //    test). Capture the same way run-sandboxed does.
+    let inner_world = match startup_from_forms(forms, None, loader) {
+        Ok(w) => w,
+        Err(e) => {
+            return Ok(build_run_result(
+                Vec::new(),
+                Vec::new(),
+                Some(failure_from_message(format!("startup: {}", e))),
+            ));
+        }
+    };
+
+    // 4. Enforce the three-IO main contract.
+    if let Err(msg) = validate_user_main_signature(&inner_world) {
+        return Ok(build_run_result(
+            Vec::new(),
+            Vec::new(),
+            Some(failure_from_message(format!(":user::main: {}", msg))),
+        ));
+    }
+
+    // 5-9. Stdio setup, invocation, snapshot, RunResult — identical to
+    //      the source-text path. See eval_kernel_run_sandboxed for the
+    //      inline commentary.
+    let stdin_data = stdin_lines.join("\n");
+    let reader: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(stdin_data));
+
+    let stdout_writer = Arc::new(StringIoWriter::new());
+    let stderr_writer = Arc::new(StringIoWriter::new());
+    let stdout_dyn: Arc<dyn WatWriter> = stdout_writer.clone();
+    let stderr_dyn: Arc<dyn WatWriter> = stderr_writer.clone();
+
+    let main_args = vec![
+        Value::io__IOReader(reader),
+        Value::io__IOWriter(stdout_dyn),
+        Value::io__IOWriter(stderr_dyn),
+    ];
+
+    let invoke_outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        invoke_user_main(&inner_world, main_args)
+    }));
+
+    let failure_from_invoke: Option<Value> = match invoke_outcome {
+        Ok(Ok(_returned)) => None,
+        Ok(Err(runtime_err)) => Some(failure_from_runtime_err(runtime_err)),
+        Err(payload) => Some(failure_from_panic_payload(payload)),
+    };
+
+    let stdout_bytes = stdout_writer
+        .snapshot_bytes()
+        .map_err(|e| RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!("snapshot stdout: {:?}", e),
+        })?;
+    let stderr_bytes = stderr_writer
+        .snapshot_bytes()
+        .map_err(|e| RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!("snapshot stderr: {:?}", e),
+        })?;
+
+    let stdout_lines = bytes_to_lines(OP, "stdout", stdout_bytes)?;
+    let stderr_lines = bytes_to_lines(OP, "stderr", stderr_bytes)?;
+
     Ok(build_run_result(stdout_lines, stderr_lines, failure_from_invoke))
 }
 

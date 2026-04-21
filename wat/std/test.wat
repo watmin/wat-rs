@@ -129,3 +129,53 @@
     (scope :String)
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed src stdin (Some scope)))
+
+;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b) ───────
+;;
+;; Registers a named zero-arg test function that returns RunResult.
+;; The body runs inside a fresh sandboxed world with the caller's dims
+;; + capacity-mode committed. When slice 4's test discoverer lands, it
+;; iterates registered functions and invokes each.
+;;
+;; Shape:
+;;
+;;   (:wat::test::deftest :my::test::two-plus-two 1024 :error
+;;     (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
+;;
+;; Expansion:
+;;
+;;   (:wat::core::define (:my::test::two-plus-two -> :wat::kernel::RunResult)
+;;     (:wat::kernel::run-sandboxed-ast
+;;       (:wat::core::vec :wat::WatAST
+;;         (:wat::core::quote (:wat::config::set-dims! 1024))
+;;         (:wat::core::quote (:wat::config::set-capacity-mode! :error))
+;;         (:wat::core::quote (:wat::core::define (:user::main
+;;                                                 (stdin  :wat::io::IOReader)
+;;                                                 (stdout :wat::io::IOWriter)
+;;                                                 (stderr :wat::io::IOWriter)
+;;                                                 -> :())
+;;                              <body>)))
+;;       (:wat::core::vec :String)
+;;       :None))
+(:wat::core::defmacro
+  (:wat::test::deftest
+    (name :AST<()>)
+    (dims :AST<i64>)
+    (mode :AST<wat::core::keyword>)
+    (body :AST<()>)
+    -> :AST<()>)
+  `(:wat::core::define (,name -> :wat::kernel::RunResult)
+     (:wat::kernel::run-sandboxed-ast
+       (:wat::core::vec :wat::WatAST
+         (:wat::core::quote (:wat::config::set-dims! ,dims))
+         (:wat::core::quote (:wat::config::set-capacity-mode! ,mode))
+         (:wat::core::quote
+           (:wat::core::define
+             (:user::main
+               (stdin  :wat::io::IOReader)
+               (stdout :wat::io::IOWriter)
+               (stderr :wat::io::IOWriter)
+               -> :())
+             ,body)))
+       (:wat::core::vec :String)
+       :None)))

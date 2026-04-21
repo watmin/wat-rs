@@ -251,9 +251,30 @@ pub fn startup_from_source(
     base_canonical: Option<&str>,
     loader: Arc<dyn SourceLoader>,
 ) -> Result<FrozenWorld, StartupError> {
-    // 1. Parse.
+    // 1. Parse. Post-parse the pipeline is shared with
+    //    `startup_from_forms` — callers that already hold AST (macros
+    //    expanding to sandboxed programs, dynamically-generated
+    //    tests, compiler passes) skip the parse + re-serialize round
+    //    trip by entering there directly.
     let entry_forms = parse_all(entry_src)?;
+    startup_from_forms(entry_forms, base_canonical, loader)
+}
 
+/// Post-parse entry to the startup pipeline: accepts already-parsed
+/// `Vec<WatAST>` forms and runs steps 2–9 (config → load → macros →
+/// types → defines → resolve → check → freeze).
+///
+/// Arc 007 slice 3b splits this out so `:wat::kernel::run-sandboxed-ast`
+/// can freeze a program the caller built as AST (e.g., the expansion
+/// of a `deftest` macro) without serializing back to source and
+/// re-parsing. Same pipeline, one boundary exposed — the
+/// source-text path now composes `parse_all` with this function
+/// rather than carrying the steps inline.
+pub fn startup_from_forms(
+    entry_forms: Vec<WatAST>,
+    base_canonical: Option<&str>,
+    loader: Arc<dyn SourceLoader>,
+) -> Result<FrozenWorld, StartupError> {
     // 2. Config pass + entry-file discipline.
     let (config, post_config) = collect_entry_file(entry_forms)?;
 

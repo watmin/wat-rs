@@ -2750,6 +2750,33 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // :wat::kernel::run-sandboxed-ast — arc 007 slice 3b. Same
+    // semantics as run-sandboxed but takes already-parsed forms as a
+    // Vec<wat::WatAST> instead of source text. Typical caller: the
+    // expansion of :wat::test::deftest, or any code that has AST in
+    // hand. See sandbox.rs for the implementation.
+    env.register(
+        ":wat::kernel::run-sandboxed-ast".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                },
+                TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![string_ty()],
+                },
+                TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![string_ty()],
+                },
+            ],
+            ret: TypeExpr::Path(":wat::kernel::RunResult".into()),
+        },
+    );
+
     // :wat::kernel::assertion-failed! — arc 007 slice 3. Raises via
     // panic_any(AssertionPayload) so run-sandboxed's catch_unwind can
     // downcast and populate Failure.actual / Failure.expected. Declared
