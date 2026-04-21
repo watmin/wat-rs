@@ -318,6 +318,52 @@
         up-rx tx size (:wat::core::vec :T))))
     (:wat::core::tuple rx handle)))
 
+;; --- take ---
+;;
+;; Stage, not terminal. Forwards the first `n` items from upstream,
+;; then exits. The worker's exit drops its Sender (downstream sees
+;; :None) and its Receiver (upstream's next send returns :None,
+;; upstream exits). Drop cascade fires naturally via spawn scope
+;; exit; no kernel-level force-drop needed. See arc 006 BACKLOG for
+;; the reasoning that forced the stage (vs terminal) framing.
+;;
+;; `n <= 0` emits nothing (worker exits immediately). Upstream
+;; ending before `n` is reached is fine — worker sees :None on recv,
+;; exits, downstream gets :None naturally.
+(:wat::core::define
+  (:wat::std::stream::take-worker<T>
+    (in :rust::crossbeam_channel::Receiver<T>)
+    (out :rust::crossbeam_channel::Sender<T>)
+    (remaining :i64)
+    -> :())
+  (:wat::core::if (:wat::core::<= remaining 0) -> :()
+    ()
+    (:wat::core::match (:wat::kernel::recv in) -> :()
+      ((Some v)
+        (:wat::core::let*
+          (((sent :Option<()>) (:wat::kernel::send out v)))
+          (:wat::core::match sent -> :()
+            ((Some _)
+              (:wat::std::stream::take-worker in out
+                (:wat::core::i64::- remaining 1)))
+            (:None ()))))
+      (:None ()))))
+
+(:wat::core::define
+  (:wat::std::stream::take<T>
+    (upstream :wat::std::stream::Stream<T>)
+    (n :i64)
+    -> :wat::std::stream::Stream<T>)
+  (:wat::core::let*
+    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
+     ((pair :(rust::crossbeam_channel::Sender<T>,rust::crossbeam_channel::Receiver<T>))
+      (:wat::kernel::make-bounded-queue :T 1))
+     ((tx :rust::crossbeam_channel::Sender<T>) (:wat::core::first pair))
+     ((rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::second pair))
+     ((handle :wat::kernel::ProgramHandle<()>)
+      (:wat::kernel::spawn :wat::std::stream::take-worker up-rx tx n)))
+    (:wat::core::tuple rx handle)))
+
 ;; --- flat-map ---
 ;;
 ;; 1:N expansion. For each upstream item, apply `f` to get a Vec<U>;

@@ -366,6 +366,122 @@ fn chunks_into_map_composes() {
     assert_eq!(collected_i64(src), vec![3, 7, 5]);
 }
 
+// ─── take ────────────────────────────────────────────────────────────
+
+#[test]
+fn take_cuts_off_at_n_with_producer_that_would_send_more() {
+    // Producer sends 10 items; take 3. The producer would keep
+    // going, but bounded(1) blocks it after take's worker exits;
+    // the next send returns :None so the producer exits too. This
+    // is the core test that take's drop cascade works.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::core::let*
+            (((source :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::spawn-producer
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send tx 1))
+                     ((_ :Option<()>) (:wat::kernel::send tx 2))
+                     ((_ :Option<()>) (:wat::kernel::send tx 3))
+                     ((_ :Option<()>) (:wat::kernel::send tx 4))
+                     ((_ :Option<()>) (:wat::kernel::send tx 5))
+                     ((_ :Option<()>) (:wat::kernel::send tx 6))
+                     ((_ :Option<()>) (:wat::kernel::send tx 7))
+                     ((_ :Option<()>) (:wat::kernel::send tx 8))
+                     ((_ :Option<()>) (:wat::kernel::send tx 9))
+                     ((_ :Option<()>) (:wat::kernel::send tx 10)))
+                    ()))))
+             ((taken :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::take source 3)))
+            (:wat::std::stream::collect taken)))
+    "#;
+    assert_eq!(collected_i64(src), vec![1, 2, 3]);
+}
+
+#[test]
+fn take_returns_all_when_n_exceeds_available() {
+    // Producer has 2 items; take 5. take sees :None before
+    // counter hits 0; exits cleanly; collect returns the 2 items.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::core::let*
+            (((source :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::spawn-producer
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send tx 100))
+                     ((_ :Option<()>) (:wat::kernel::send tx 200)))
+                    ()))))
+             ((taken :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::take source 5)))
+            (:wat::std::stream::collect taken)))
+    "#;
+    assert_eq!(collected_i64(src), vec![100, 200]);
+}
+
+#[test]
+fn take_zero_emits_nothing() {
+    // take 0 → worker exits immediately; downstream sees :None
+    // on first recv; collect returns empty.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::core::let*
+            (((source :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::spawn-producer
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send tx 1))
+                     ((_ :Option<()>) (:wat::kernel::send tx 2)))
+                    ()))))
+             ((taken :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::take source 0)))
+            (:wat::std::stream::collect taken)))
+    "#;
+    assert_eq!(collected_i64(src), Vec::<i64>::new());
+}
+
+#[test]
+fn take_composes_with_map() {
+    // source → map(+10) → take(2) → collect. Proves take's
+    // drop cascade propagates back through a map stage to the
+    // producer.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::core::let*
+            (((source :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::spawn-producer
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send tx 1))
+                     ((_ :Option<()>) (:wat::kernel::send tx 2))
+                     ((_ :Option<()>) (:wat::kernel::send tx 3))
+                     ((_ :Option<()>) (:wat::kernel::send tx 4))
+                     ((_ :Option<()>) (:wat::kernel::send tx 5)))
+                    ()))))
+             ((mapped :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::map source
+                (:wat::core::lambda ((n :i64) -> :i64)
+                  (:wat::core::i64::+ n 10))))
+             ((taken :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::take mapped 2)))
+            (:wat::std::stream::collect taken)))
+    "#;
+    assert_eq!(collected_i64(src), vec![11, 12]);
+}
+
 // ─── inspect ─────────────────────────────────────────────────────────
 
 #[test]

@@ -23,19 +23,14 @@ them closes obvious gaps a reader would ask about.
   Apply `f` for its effect; forward the original value unchanged.
   Debugging ergonomics.
 
-## Prompt on design question — ship after user resolves
+## Resolved — ship in this arc
 
-- **`:wat::std::stream::first`** — take N, then stop. Early-terminates
-  the upstream. Current wat has no way to force-release a let*
-  binding while it's in scope, and `:wat::kernel::drop` on channels
-  is a runtime no-op (comment in `runtime.rs::eval_kernel_drop`
-  confirms: "Close happens when the caller's enclosing scope
-  releases its own binding"). So the naive shape — drain N then
-  join — deadlocks against an infinite producer. Need shutdown
-  semantics: either an additive kernel primitive to force-drop, a
-  drain-and-discard pattern (only works for finite producers), or
-  a return shape that passes the handle back to the caller for
-  them to join after their own drop cascade.
+- **`:wat::std::stream::take`** (replacing the originally-named
+  `first`, slice 2 of arc 006). See the "What wat deliberately does
+  NOT have" section below for the substrate reasoning that forced
+  the rename.
+
+## Prompt on design question — ship after user resolves
 - **`:wat::std::stream::chunks-by`** — N:1 with key-fn boundary.
   Design question: emit on key-change (new key arrives) or
   key-end (upstream disconnects / last key ended)? Rust's
@@ -59,6 +54,57 @@ them closes obvious gaps a reader would ask about.
   handle optional (breaks symmetry with spawn-producer). None
   obviously right.
 
+## What wat deliberately does NOT have — and why take is a stage
+
+Recording the substrate gap we hit while designing `take`, so the
+next contributor doesn't re-derive it.
+
+**The gap:** wat has no way to force-release a let* binding while
+it's in scope. `:wat::kernel::drop` on a channel endpoint is a
+runtime no-op (see comment in `src/runtime.rs::eval_kernel_drop`:
+"Close happens when the caller's enclosing scope releases its own
+binding"). There is no `std::mem::drop` equivalent that invalidates
+a binding mid-function.
+
+**Why that matters:** a TERMINAL combinator with early termination
+(`first(stream, n) -> Vec<T>` read as "take n, then stop and return
+the Vec") deadlocks against an infinite producer. The caller still
+holds `stream`; stream's tuple holds the `Receiver` Arc; the Arc
+refcount never reaches zero; the producer never sees `:None` on
+send; we can't join its handle; the caller's function never returns.
+
+**Why that's intentional, not missing:** the scope discipline IS
+the shutdown discipline. If you could force-release one binding
+while others live, you'd invent a new class of bugs — "was this
+resource still alive when I expected it?" — that Rust's ownership
+model explicitly rules out. wat borrows that discipline. The
+absence of a force-drop is what absence-is-signal flags: the
+language is telling us the terminal shape is wrong for this
+problem.
+
+**The solve:** make `take` a STAGE, not a terminal. It returns
+`Stream<T>`, spawns a worker that counts down from `n`, forwards
+until exhausted. When the worker exits, its `Sender` and
+`Receiver` drop naturally (spawn-closure scope exit). The drop
+cascade fires the same way it does for every other stage (map,
+filter, chunks). No kernel change required.
+
+The pattern we'd have needed for `first(stream, n) -> Vec<T>` — an
+early-terminating terminal — is the one wat says "no" to. The
+pattern we landed on — `take(stream, n) -> Stream<T>`, then
+`collect`/`for-each` as the terminal — is the one wat says "yes"
+to. Different primitives, same user intent.
+
+This is the second concrete instance of **absence-is-signal**:
+
+1. **arc 004 `reduce`**: absence = real gap. Close it (one
+   canonical normalization pass).
+2. **arc 006 `first` terminal**: absence = feature that shouldn't
+   exist. Don't close it; reframe the combinator.
+
+Both instances captured in `CONVENTIONS.md`'s "When to add a
+primitive" section.
+
 ## Substrate-blocked — not this arc
 
 - **`:wat::std::stream::time-window`** — N:1 with time-bucket
@@ -78,9 +124,9 @@ them closes obvious gaps a reader would ask about.
 
 | Item | Status | Commit |
 |---|---|---|
-| flat-map | **shipped** | this slice |
-| inspect | **shipped** | this slice |
-| first | prompt-pending | — |
+| flat-map | **shipped** | slice 1 |
+| inspect | **shipped** | slice 1 |
+| take (ex-first) | **shipped** | slice 2 |
 | chunks-by | prompt-pending | — |
 | window | prompt-pending | — |
 | from-receiver | prompt-pending | — |

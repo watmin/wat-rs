@@ -356,6 +356,8 @@ as first-class keyword arguments.
 | `:wat::std::stream::inspect-worker` | internal worker | same |
 | `:wat::std::stream::flat-map` | `:Stream<T> × :fn(T)->Vec<U> -> :Stream<U>` (1:N expansion, arc 006) | same |
 | `:wat::std::stream::flat-map-worker` | internal worker | same |
+| `:wat::std::stream::take` | `:Stream<T> × :i64 -> :Stream<T>` (stage — forwards first n, exits via drop cascade, arc 006 slice 2) | same |
+| `:wat::std::stream::take-worker` | internal worker | same |
 
 ---
 
@@ -426,7 +428,7 @@ the DESIGN but deferred:
 | `:wat::std::stream::chunks-by` | N:1, key-change boundary | deferred (design question) |
 | `:wat::std::stream::window` | N:1, sliding window | deferred (design question) |
 | `:wat::std::stream::time-window` | N:1, time-bucket boundary | substrate-blocked (clock primitive) |
-| `:wat::std::stream::first` | terminal, take-N | deferred (shutdown-semantics question — arc 006 BACKLOG) |
+| `:wat::std::stream::first` (terminal form) | terminal, take-N returning Vec | **rejected** — reframed as `take` stage (arc 006 BACKLOG "What wat deliberately does NOT have") |
 | `:wat::std::stream::from-iterator` | alternate constructor | substrate-blocked (Iterator surfacing) |
 | `:wat::std::stream::from-fn` | alternate constructor | deferred (near-redundant with spawn-producer) |
 | `:wat::std::stream::from-receiver` | alternate constructor | deferred (handle-ownership question) |

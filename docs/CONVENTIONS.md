@@ -52,9 +52,22 @@ speculatively.
 Before adding a new form, two checks:
 
 **1. Absence is signal.** If the feature seems missing, ask *why*
-before patching. The gap often points at real substrate work —
-a one-site patch that should have been a substrate pass. (See
-arc 004's `reduce` — two half-passes that should have been one.)
+before patching. Absence points in one of two directions and you
+need to know which before reaching for code:
+
+- **Real gap, close it.** arc 004's `reduce` was a missing
+  canonical type-normalization pass — two half-passes existed that
+  every shape-inspection site had to chain manually. The substrate
+  work was the fix.
+- **Feature that shouldn't exist, reframe the combinator.** arc
+  006's `first(stream, n) -> Vec<T>` as a terminal would have
+  needed a force-drop primitive wat deliberately doesn't ship
+  (scope discipline IS shutdown discipline). Reframing as
+  `take(stream, n) -> Stream<T>` — a stage, not a terminal —
+  sidestepped the gap entirely. The missing primitive was the
+  language telling us the combinator shape was wrong.
+
+Ask which direction before patching.
 
 **2. Verbose is honest.** Before adding an "ergonomic" form,
 write out what it expands to and list what it ELIMINATES. For

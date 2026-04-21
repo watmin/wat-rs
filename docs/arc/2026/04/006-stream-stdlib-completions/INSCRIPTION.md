@@ -1,7 +1,9 @@
-# Arc 006 — Stream Stdlib Completions (Slice 1) — INSCRIPTION
+# Arc 006 — Stream Stdlib Completions — INSCRIPTION
 
-**Status:** first slice shipped 2026-04-20. Arc remains OPEN for
-the design-question + substrate-blocked items.
+**Status:** slices 1 + 2 shipped 2026-04-20. Arc remains OPEN for
+the three remaining design-question items (chunks-by, window,
+from-receiver) and the substrate-blocked set (time-window,
+from-iterator, Level 2 iterator surfacing).
 **Backlog:** [`BACKLOG.md`](./BACKLOG.md) — full classification of
 arc 004's deferred set.
 **This file:** completion marker for the trivial pattern-completion
@@ -92,14 +94,57 @@ second look at the deferred list split it into three shapes:
 This slice ships shape 1 only. Shapes 2 and 3 stay in the BACKLOG
 with their blocking conditions named.
 
+## Slice 2 — `:wat::std::stream::take` (ex-`first`, reframed as a stage)
+
+**The question:** `first(stream, n) -> Vec<T>` as a terminal
+deadlocks against an infinite producer — the caller still holds
+`stream`, the Receiver Arc never drops, the producer's send never
+returns `:None`, the join never completes. Current kernel `drop`
+on channels is a runtime no-op, and wat has no `std::mem::drop`
+equivalent to force-release a binding mid-function.
+
+**The resolution:** make it a stage, not a terminal. `take(stream,
+n) -> Stream<T>` spawns a worker that counts down from `n` and
+forwards each item. When the worker exits (either because `n`
+items passed through, or because upstream ended early), its `Sender`
+and `Receiver` drop naturally via spawn-closure scope exit. The
+drop cascade fires the same way it does for map, filter, chunks.
+No kernel change required. The pattern Rust's `iter.take(n).collect()`
+already has.
+
+**What this taught.** wat's absence of a force-drop isn't a gap
+to patch — it's a discipline. The scope discipline IS the shutdown
+discipline. A combinator that "needs" to invalidate a binding
+mid-function is probably the wrong shape; reframe it.
+
+Documented in the arc 006 BACKLOG's "What wat deliberately does
+NOT have" section. Captured as cross-session memory
+`feedback_scope_is_shutdown`. Second concrete instance of
+**absence-is-signal** — paired with arc 004's `reduce` (absence =
+real gap, close it) as the other direction (absence = feature
+that shouldn't exist, reframe the combinator).
+
+### Tests
+
+4 new in `tests/wat_stream.rs`:
+
+- `take_cuts_off_at_n_with_producer_that_would_send_more` — the
+  core drop-cascade test. Producer would send 10; take 3;
+  collect returns exactly 3. The bounded(1) queue + take's exit
+  conspire to stop the producer via `:None` on send.
+- `take_returns_all_when_n_exceeds_available` — upstream-ends-
+  early case. Producer sends 2; take 5; collect returns the 2.
+- `take_zero_emits_nothing` — `n == 0` edge case.
+- `take_composes_with_map` — drop cascade propagates through a
+  middle stage (source → map → take → collect).
+
+All 20 stream tests pass; full suite passes.
+
 ## What remains — pending prompts
 
-The following await user-resolution on their design questions, per
-the arc 006 BACKLOG:
+Three items still awaiting user-resolution on their design questions,
+per the arc 006 BACKLOG:
 
-- **`first`** — early-termination shutdown semantics. Current kernel
-  `drop` is no-op on channels; let* can't force-release a binding.
-  Need either an additive kernel primitive or a return-shape change.
 - **`chunks-by`** — key-change vs key-end boundary.
 - **`window`** — step / overlap / EOS partial-window behavior.
 - **`from-receiver`** — ProgramHandle ownership when wrapping an
