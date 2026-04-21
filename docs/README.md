@@ -105,6 +105,15 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   accept-by-name convention to every `:fn(...)`-typed parameter
   position. Forced by arc 006 slice 4's with-state ergonomics;
   benefits every higher-order combinator downstream.
+- **`arc/2026/04/010-variadic-quote/`** — `:wat::core::forms`, the
+  variadic sibling of `:wat::core::quote`. Takes N unevaluated
+  forms; returns `:Vec<wat::WatAST>` with each form captured as
+  data. Closes the per-form quote ceremony at every sandbox /
+  eval-ast / programs-as-atoms callsite. Paired with stdlib sugar
+  `:wat::test::program` (defmacro alias) + `:wat::test::run-ast`
+  (thin `run-sandboxed-ast` wrapper). Kills the escaped-string
+  nesting that nested sandbox tests used to carry. Sibling to
+  arc 009 in spirit: names are values; forms are values.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.

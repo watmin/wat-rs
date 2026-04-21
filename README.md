@@ -15,26 +15,27 @@ Ships:
 - `wat` — the library (this crate).
 - `wat-macros` — the sibling proc-macro crate. `#[wat_dispatch]` generates
   the shim code that surfaces a Rust `impl` block under `:rust::...`.
-- `wat-vm` — the CLI runner. `wat-vm <entry.wat>` reads the file, runs the
-  full startup pipeline, invokes `:user::main` with real stdio handles,
-  and exits. See [the contract](#user-main-contract) below.
+- `wat` — the CLI binary. Two invocation shapes:
+  - `wat <entry.wat>` — run a program. See [the `:user::main` contract](#usermain-contract) below.
+  - `wat test <path>` — run tests. Recurses a directory; random-ordered
+    per-file; cargo-test-style output. See [self-hosted testing](#self-hosted-testing).
 
 ## What wat is
 
 `wat` consumes wat source and produces vectors (via `holon`) and runtime
-effects (via the kernel primitives the wat-vm binary wires up).
+effects (via the kernel primitives the binary wires up).
 
-Two intended paths:
+**The INTERPRET path.** Parse → load-resolve → macro-expand → register
+types → register defines → resolve → type-check → freeze → invoke
+`:user::main`. The runtime dispatches algebra-core UpperCalls
+(`:wat::algebra::Atom`, `:wat::algebra::Bind`, …) to `holon::HolonAST`
+and encodes via `holon::encode`.
 
-- **Interpret path (shipped).** Parse → load-resolve → macro-expand →
-  register types → register defines → resolve → type-check → freeze →
-  invoke `:user::main`. The runtime dispatches algebra-core UpperCalls
-  (`:wat::algebra::Atom`, `:wat::algebra::Bind`, …) to `holon::HolonAST`
-  and encodes via `holon::encode`.
-- **Compile path (later).** Parse → resolve → type-check → emit Rust
-  source that `rustc` compiles to a native binary. Shares the frontend
-  with the interpret path; only the tail differs. Seed design in
-  `WAT-TO-RUST.md` in the 058 batch.
+A source-to-source COMPILE path was sketched in the 058 batch's
+`WAT-TO-RUST.md` but retired 2026-04-21. Rust-interop turned out to be
+covered by `#[wat_dispatch]` + `:rust::` namespace (arc 002, BOOK
+Chapter 18); native binary emission has no current caller. The sketch
+stays as historical record.
 
 ## Dependency stack
 
@@ -53,55 +54,45 @@ their own Rust crates to wat (e.g. rusqlite, parquet, aya) use
 
 ## Status
 
-**Phase 1 complete.** Every startup-pipeline step from FOUNDATION.md is
-implemented and tested end-to-end:
+**Every startup-pipeline step from FOUNDATION.md is implemented.** Every
+058 proposal that shipped has an INSCRIPTION record. Ten arcs landed
+between 2026-03 and 2026-04; each with a dated DESIGN / BACKLOG /
+INSCRIPTION triple under `docs/arc/2026/04/`.
 
-1. Parse
-2. Entry-file shape check + config pass (`set-dims!`, `set-capacity-mode!`,
-   `set-global-seed!`, `set-noise-floor!`)
-3. Recursive `load!` / `digest-load!` / `signed-load!` resolution
-4. `defmacro` registration + quasiquote expansion (Racket sets-of-scopes
-   hygiene, Flatt 2016)
-5. Type declarations (`struct` / `enum` / `newtype` / `typealias`, with
-   parametric names)
-6. `define` registration — functions + lambdas with typed signatures
-7. Name resolution across the symbol table and type environment
-8. Rank-1 Hindley-Milner type check (parametric polymorphism, substitution,
-   occurs-check; `:Any` banned)
-9. Canonical-EDN hashing + SHA-256 source-file integrity + Ed25519
-   signature verification
-10. Freeze — `FrozenWorld` bundles config + types + macros + symbols; Rust
-    borrow checker is the immutability gate; `EncodingCtx` (VM +
-    ScalarEncoder + AtomTypeRegistry with `WatAST` canonicalizer) is
-    constructed from Config and attached to `SymbolTable` at freeze
-11. Invoke `:user::main` with the real `io::Stdin` / `io::Stdout` /
-    `io::Stderr` handles
-12. Constrained eval — four forms (`eval-ast!`, `eval-edn!`,
-    `eval-digest!`, `eval-signed!`) with the same verification discipline
-    as load
+The language is self-hosted at the testing layer: `wat test wat-tests/`
+runs 31 wat tests across 8 files in 107ms, and the assertion primitives
+assert about the assertion primitives. Arc 007 — *wat tests wat* — was
+the proof point. DESIGN's closing line, *"if wat can test wat, the
+language is complete for its own verification,"* held.
 
 **Programs-as-holons operational.** `:wat::core::quote` + parametric
 `:wat::algebra::Atom` + `:wat::core::atom-value` carry wat programs as
-first-class data in the algebra. `:wat::algebra::presence?` (FOUNDATION 1718)
-is the retrieval primitive — cosine between encoded holons, returning
-scalar `:f64` the caller binarizes against the 5σ noise floor committed at
-config pass. The vector-level proof runs end-to-end:
-
-```
-$ echo watmin | wat-vm presence-proof.wat
-None       ; presence(program-atom, Bind(k, program-atom)) below floor
-Some       ; presence(program-atom, Bind(Bind(k,p), k)) above floor
-watmin     ; (eval-ast! (atom-value program-atom)) fires the echo
-```
+first-class data in the algebra. Arc 010's `:wat::core::forms` ships
+the variadic-quote substrate so AST-consuming callers compose without
+per-form quote ceremony. `:wat::algebra::presence?` (FOUNDATION 1718) is
+the retrieval primitive — cosine between encoded holons, returning
+scalar `:f64` the caller binarizes against the 5σ noise floor committed
+at config pass.
 
 **Rust interop operational.** The `:rust::` namespace carries any
-consumer-registered Rust type: `:rust::lru::LruCache<K,V>` ships as a
-default, `:wat::io::IOReader` / `Stdout` / `Stderr` are kernel-wired for
-`:user::main`, and application crates layer their own (`:rust::rusqlite::`,
-`:rust::parquet::`, …) through `#[wat_dispatch]`. Three scope modes cover
-the full Rust ownership surface: `shared` (plain `Arc<T>`), `thread_owned`
+consumer-registered Rust type. `:rust::lru::LruCache<K,V>` ships as a
+default; `:wat::io::IOReader` / `IOWriter` are abstract types the CLI
+wraps real OS stdio in and the sandbox wraps StringIo in (arc 008);
+application crates layer their own (`:rust::rusqlite::`, `:rust::parquet::`,
+…) through `#[wat_dispatch]`. Three scope modes cover the full Rust
+ownership surface: `shared` (plain `Arc<T>`), `thread_owned`
 (`ThreadOwnedCell<T>` with a thread-id guard — zero Mutex), and
 `owned_move` (`OwnedMoveCell<T>` — consumed on first use).
+
+**Self-hosted testing operational.** Arc 007 shipped `:wat::kernel::
+run-sandboxed` (in-process sandbox with `catch_unwind` panic isolation),
+`:wat::kernel::run-sandboxed-ast` (AST-entry path for macro-generated
+programs), and `:wat::kernel::run-sandboxed-hermetic` (subprocess
+isolation for services that spawn threads). The stdlib wraps them as
+`:wat::test::run`, `:wat::test::run-ast`, `:wat::test::deftest`
+(Clojure-style ergonomic shell), and six assertion primitives with
+panic-and-catch semantics. The `wat test <path>` CLI auto-discovers
+deftests by `test-` prefix + zero-arg `:wat::kernel::RunResult` return.
 
 **Capacity-guard arc operational.** `:wat::algebra::Bundle` enforces
 Kanerva's per-frame capacity at dispatch time and returns
@@ -112,72 +103,100 @@ that shipped in the same arc: `:wat::core::try` for error-propagation
 without try/catch, and first-class struct runtime (auto-generated
 `<struct-path>/new` constructors and `<struct-path>/<field>` accessors
 from any `:wat::core::struct` declaration). See
-[Capacity guard](#capacity-guard--bundles-result-return) below for the
-canonical pattern.
+[Capacity guard](#capacity-guard--bundles-result-return) below.
 
-**490 library-unit tests + 70+ integration tests pass; zero clippy
-warnings.** Full test surface: library units, macro-feature integration
-(`wat_dispatch_193a`/`193b`/`e1_vec`/`e2_tuple`/`e3_result`/`e4_shared`/
-`e5_owned_move`), `wat_core_try` (13 cases), `wat_structs` (9 cases),
-`wat_bundle_capacity` (9 cases across the four modes), `wat_vm_cache`
-(the nested-driver shutdown proof), and `wat_vm_cli` (end-to-end spawns
-of the built binary against real OS stdio).
+**Test surface: 731 Rust + 31 wat, zero regressions.** Library units,
+macro-feature integration (`wat_dispatch_193a`/`193b`/`e1_vec`/`e2_tuple`
+/`e3_result`/`e4_shared`/`e5_owned_move`), `wat_core_try` (13),
+`wat_structs` (9), `wat_bundle_capacity` (9), `wat_stream` (22),
+`wat_core_forms` (6), `wat_names_are_values` (5), `wat_harness` (7),
+`wat_run_sandboxed{,_ast}` + `wat_hermetic_round_trip`, `wat_test_cli` +
+`wat_cli` + `wat_cache`, zero clippy warnings. On the wat side: the
+`wat test wat-tests/` tree runs every stdlib-file test written in wat
+(Subtract, Circular, Reject/Project, Sequential, Trigram, test-harness
+self-tests, Console + Cache via hermetic sandbox, stream with-state).
 
 ## Module tour
 
 - [`lexer`] — s-expression tokenizer. `:` is the symbol-literal reader
   macro; internal `::` is Rust's path separator, allowed freely.
-  Paren-depth tracking handles `(…)` inside keyword bodies (`:fn(T,U)->R`,
-  `:(i64,String)`).
-- [`ast::WatAST`] — language-surface AST: `IntLit`, `FloatLit`, `BoolLit`,
-  `StringLit`, `Keyword`, `Symbol(Identifier)`, `List`. Symbols carry
-  `BTreeSet<ScopeId>` scope sets for hygiene.
+  Paren-depth tracking handles `(…)` inside keyword bodies
+  (`:fn(T,U)->R`, `:(i64,String)`). UTF-8-correct via `char_indices`
+  (arc 008 caught a pre-existing bug and fixed it).
+- [`ast::WatAST`] — language-surface AST: `IntLit`, `FloatLit`,
+  `BoolLit`, `StringLit`, `Keyword`, `Symbol(Identifier)`, `List`.
+  Symbols carry `BTreeSet<ScopeId>` scope sets for hygiene.
 - [`parser`] — recursive descent over tokens. `parse_one` / `parse_all`
   entry points. Reader macros (`` ` `` / `,` / `,@`) rewrite to
   `:wat::core::quasiquote` / `unquote` / `unquote-splicing`.
 - [`config`] — entry-file discipline + `set-*!` setter commit. Required
   fields (`dims`, `capacity-mode`); optional `global-seed` (default 42)
   and `noise-floor` (default `5.0 / sqrt(dims)` — the 5σ substrate noise
-  floor per FOUNDATION 1718). Each optional field overridable exactly once.
+  floor per FOUNDATION 1718). Each optional field overridable exactly
+  once.
 - [`load`] — recursive load-form resolution with `:wat::load::*` source
   interfaces and `:wat::verify::*` payload + algorithm keywords. Three
   load forms (`load!` / `digest-load!` / `signed-load!`). Cycle detection,
-  commit-once, setter-in-loaded-file refusal.
-- [`macros`] — `defmacro` + quasiquote + Racket sets-of-scopes hygiene.
-- [`types`] — type declarations, `TypeEnv`, `TypeExpr` (Path / Parametric /
-  Fn / Tuple / Var). `:Any` refused at parse.
+  commit-once. Capability-gated via `SourceLoader` (arc 007 slice 1) —
+  `ScopedLoader`, `FsLoader`, `InMemoryLoader` all impl.
+- [`macros`] — `defmacro` + quasiquote + Racket sets-of-scopes hygiene,
+  plus `&`-suffix variadic rest-params.
+- [`types`] — type declarations, `TypeEnv`, `TypeExpr` (Path / Parametric
+  / Fn / Tuple / Var). `:Any` refused at parse. `TypeEnv::with_builtins()`
+  seeds wat-rs's own `:wat::*` types (Failure, Location, Frame,
+  RunResult, CapacityExceeded, EvalError).
 - [`resolve`] — call-site reference validation; reserved-prefix gate
   (`:wat::core::`, `:wat::kernel::`, `:wat::algebra::`, `:wat::std::`,
   `:wat::config::`, `:wat::load::`, `:wat::verify::`, `:wat::eval::`,
-  `:wat::io::`, `:rust::`).
+  `:wat::io::`, `:wat::test::`, `:rust::`).
 - [`check`] — rank-1 HM. Built-in schemes for the wat core; the
   `:rust::*` surface registers schemes dynamically through
-  [`rust_deps::RustDepsRegistry`].
+  [`rust_deps::RustDepsRegistry`]. Structural equality across composite
+  values. Arc 009: keyword-as-value lift — a registered define's
+  keyword-path in expression position infers to `:fn(...)->Ret`.
 - [`hash`] — canonical-EDN serialization + SHA-256 + Ed25519 verification.
 - [`lower`] — `WatAST` algebra-core subtree → `holon::HolonAST`.
-- [`runtime`] — AST walker, `:wat::core::*` / `:wat::algebra::*` dispatch,
-  `:wat::kernel::*` (stopped?, send, recv, try-recv, drop, spawn, join,
-  select, HandlePool, make-bounded-queue, make-unbounded-queue, user-signal
-  query + reset), `:wat::io::IOReader/*` / `:wat::io::IOWriter/*`, four eval
-  forms. Programs-as-holons surface: `:wat::core::quote` captures
-  unevaluated AST as `:wat::WatAST`; `:wat::algebra::Atom` accepts
-  `Value::wat__WatAST` payloads; `:wat::core::atom-value` structurally
-  reads an Atom's payload field. `Value` enum with namespace-honest
-  variant names (`Value::io__Stdin`, `Value::holon__HolonAST`,
-  `Value::wat__WatAST`, `Value::crossbeam_channel__Sender`,
-  `Value::RustOpaque` for the generic `:rust::*` opaques, …).
-- [`freeze`] — `FrozenWorld`, `startup_from_source`, `invoke_user_main`,
-  `eval_*_in_frozen`. Constructs `EncodingCtx` from `Config` at freeze
-  and attaches it to the `SymbolTable`.
+- [`runtime`] — AST walker; dispatch for `:wat::core::*` / `:wat::algebra::*`
+  / `:wat::kernel::*` / `:wat::io::*` / `:wat::test::*` primitives; four
+  eval forms; `:wat::core::forms` (variadic quote, arc 010). Programs-
+  as-holons surface: `:wat::core::quote` captures unevaluated AST as
+  `:wat::WatAST`; `:wat::algebra::Atom` accepts `Value::wat__WatAST`
+  payloads; `:wat::core::atom-value` structurally reads the payload.
+  `Value` enum with namespace-honest variant names
+  (`Value::io__IOReader`, `Value::holon__HolonAST`, `Value::wat__WatAST`,
+  `Value::crossbeam_channel__Sender`, `Value::RustOpaque` for generic
+  `:rust::*` opaques, …).
+- [`io`] — the abstract IO trait objects (arc 008). `WatReader` /
+  `WatWriter` traits; `RealStdin` / `RealStdout` / `RealStderr` wrap
+  `std::io` handles; `StringIoReader` / `StringIoWriter` ThreadOwnedCell-
+  backed for in-memory testing. 15 primitives under the `<Type>/<method>`
+  convention.
+- [`assertion`] — arc 007 slice 3. `AssertionPayload` struct for
+  panic-and-catch. `:wat::kernel::assertion-failed!` primitive raises
+  via `panic_any`; the sandbox's `catch_unwind` downcasts and populates
+  `:wat::kernel::Failure.actual` / `.expected`.
+- [`sandbox`] — the three sandbox primitives: `run-sandboxed`,
+  `run-sandboxed-ast`, `run-sandboxed-hermetic`. Shared failure
+  downcast chain (`AssertionPayload` → structured; string panic →
+  message; runtime error → message).
+- [`harness`] — `wat::Harness` thin embedding wrapper for Rust programs
+  that host wat as a sub-language. Sugar over `startup_from_source` +
+  `StringIo` + `invoke_user_main` + `snapshot_bytes` (arc 007 slice 5).
+- [`freeze`] — `FrozenWorld`, `startup_from_source`, `startup_from_forms`
+  (arc 007 slice 3b — split at the parse boundary for AST-entry
+  callers), `invoke_user_main`, `eval_*_in_frozen`. Constructs
+  `EncodingCtx` from `Config` at freeze and attaches to the
+  `SymbolTable`.
 - [`rust_deps`] — the `:rust::*` namespace registry. `RustDepsBuilder`
   composes consumer shims over the wat-rs defaults; `FromWat` / `ToWat`
   traits marshal wat `Value` ↔ Rust types; `ThreadOwnedCell<T>` and
-  `OwnedMoveCell<T>` implement the `thread_owned` and `owned_move` scope
-  disciplines. See [Rust interop](#rust-interop).
+  `OwnedMoveCell<T>` implement the `thread_owned` and `owned_move`
+  scope disciplines. See [Rust interop](#rust-interop).
 - [`stdlib`] — baked-in wat source files, registered before user code
-  parses: `Subtract`, `Amplify`, `Log`, `Circular`, `Reject`, `Project`,
-  `Sequential`, `Ngram` / `Bigram` / `Trigram`, `LocalCache`, and the
-  two programs `program::Console` and `program::Cache<K,V>`.
+  parses. See [Stdlib](#stdlib).
+- [`string_ops`] — `:wat::core::string::*` + `:wat::core::regex::*`
+  primitives (arc 007 slice 3 precursor). Seven char-oriented string
+  ops plus regex match.
 
 ## Rust interop
 
@@ -186,11 +205,10 @@ wat programs reach into Rust through the `:rust::` namespace. A path like
 type; the wat runtime calls into the shim the consumer registered.
 
 Namespaces are **fully qualified and honest**: a wat program names a Rust
-type by its full Rust path, not a short alias. `:wat::io::IOReader`
-(not `:rust::Stdin`). `:rust::crossbeam_channel::Sender<T>` (not
-`:rust::Sender<T>`). `:wat::` and `:rust::` are sibling namespaces, both
-rooted at the colon, and a wat program declares which `:rust::*` paths it
-intends to use:
+type by its full Rust path, not a short alias.
+`:rust::crossbeam_channel::Sender<T>`, not `:rust::Sender<T>`.
+`:wat::` and `:rust::` are sibling namespaces, both rooted at the colon,
+and a wat program declares which `:rust::*` paths it intends to use:
 
 ```scheme
 (:wat::core::use! :rust::lru::LruCache)
@@ -204,55 +222,15 @@ program cannot reach into a crate it hasn't declared.
 
 The `#[wat_dispatch]` proc-macro (in `wat-macros`) generates the dispatch
 function, type-scheme function, and registry hook from an annotated
-`impl` block. Here is the complete shim for `:rust::lru::LruCache<K,V>`
-that ships in this crate:
+`impl` block. Three scope modes cover the full Rust ownership surface:
 
-```rust
-use wat_macros::wat_dispatch;
-use wat::rust_deps::RustDepsBuilder;
-
-pub struct WatLruCache {
-    inner: lru::LruCache<String, wat::runtime::Value>,
-}
-
-#[wat_dispatch(
-    path = ":rust::lru::LruCache",
-    scope = "thread_owned",
-    type_params = "K,V"
-)]
-impl WatLruCache {
-    pub fn new(capacity: i64) -> Self { /* ... */ }
-    pub fn put(&mut self, k: Value, v: Value) { /* ... */ }
-    pub fn get(&mut self, k: Value) -> Option<Value> { /* ... */ }
-}
-
-pub fn register(builder: &mut RustDepsBuilder) {
-    __wat_dispatch_WatLruCache::register(builder);
-}
-```
-
-The macro reads the `impl` block, generates one `dispatch_<m>` +
-`scheme_<m>` per method, wraps the register calls in a module named
-`__wat_dispatch_<TypeIdent>`, and leaves the original `impl` untouched.
-
-### Scope modes
-
-Rust ownership semantics that cross the wat boundary fall into three
-modes. The `scope` attribute picks one:
-
-- **`shared`** — plain `Arc<T>`. For immutable / shareable Rust values
-  (query results, frozen snapshots). `&self` methods only.
+- **`shared`** — plain `Arc<T>`. For immutable / shareable Rust values.
+  `&self` methods only.
 - **`thread_owned`** — `Arc<ThreadOwnedCell<T>>`. Every op asserts the
-  current thread is the owner before touching the interior; cross-thread
-  access errors cleanly. Zero Mutex — the guard is structural, not
-  contended. For mutable state with single-thread affinity
-  (`lru::LruCache`, `rusqlite::Connection` in some configs).
-- **`owned_move`** — `Arc<OwnedMoveCell<T>>`. Ownership transfers out of
-  the cell on first use via an atomic take; subsequent access errors.
-  For consumed-after-use handles (prepared-statement bindings, one-shot
-  tokens).
-
-### Consumer composition
+  current thread is the owner; zero Mutex; for mutable state with
+  single-thread affinity (`lru::LruCache`, `rusqlite::Connection`).
+- **`owned_move`** — `Arc<OwnedMoveCell<T>>`. Ownership transfers out on
+  first use via an atomic take. For consumed-after-use handles.
 
 An application that bundles its own shims composes them on top of the
 wat-rs defaults:
@@ -269,22 +247,25 @@ fn main() {
 }
 ```
 
-The registry is installed once before wat code runs; the wat-vm binary
-installs it lazily with defaults when no consumer has done so, which keeps
-unit tests running without setup.
+See `docs/arc/2026/04/002-rust-interop-macro/MACRO-DESIGN.md` for the
+full design and `NAMESPACE-PRINCIPLE.md` for the naming rule.
 
-See `docs/arc/2026/04/002-rust-interop-macro/MACRO-DESIGN.md` for the full
-design and `NAMESPACE-PRINCIPLE.md` for the naming rule.
+## `wat` binary
 
-## `wat-vm` binary
+Two invocation shapes on one binary:
 
 ```
-$ wat-vm <entry.wat>
+wat <entry.wat>      # run a program — INTERPRET path
+wat test <path>      # run tests — file or directory, recursive
 ```
 
-Reads the entry file, runs the full startup pipeline, installs OS signal
-handlers, passes real `io::Stdin` / `io::Stdout` / `io::Stderr` to
-`:user::main`, waits for the program to return, exits.
+Program mode reads the entry file, runs the full startup pipeline,
+installs OS signal handlers, passes real stdio (wrapped in the
+`:wat::io::IOReader` / `IOWriter` trait objects) to `:user::main`, and
+exits. Test mode discovers every top-level define whose path's last
+segment starts with `test-` and whose signature is
+`() -> :wat::kernel::RunResult`, shuffles them, invokes each, and
+reports cargo-test-style.
 
 ### `:user::main` contract
 
@@ -300,25 +281,25 @@ handlers, passes real `io::Stdin` / `io::Stdout` / `io::Stderr` to
 Exact signature enforced at startup. Any deviation (different arity,
 different parameter types, different return type) halts with exit code 3.
 
-The program reads lines with `(:wat::io::IOReader/read-line stdin)` and writes with
-`(:wat::io::IOWriter/print stdout msg)` / `(:wat::io::IOWriter/print stderr msg)`. Both
-primitives go straight to the OS stream (std's internal locking handles
-concurrent writers). No bridge threads, no tagged-tuple hops in the hot
-path — honest stdio.
+The program reads with `(:wat::io::IOReader/read-line stdin)` and writes
+with `(:wat::io::IOWriter/print stdout msg)` /
+`(:wat::io::IOWriter/println stdout msg)`. The IOReader / IOWriter trait
+objects hide the backing — under the CLI it's real OS stdio (with std's
+internal locking for thread safety); under `run-sandboxed` it's
+`StringIo` stand-ins for in-memory testing.
 
 Signals: the kernel measures; userland owns transitions.
 
-- **Terminal (SIGINT, SIGTERM)** → set the `stopped` flag irreversibly.
-  Userland polls `(:wat::kernel::stopped?)` and cascades shutdown by
-  dropping its root producers.
+- **Terminal (SIGINT, SIGTERM)** → set `stopped` irreversibly. Userland
+  polls `(:wat::kernel::stopped?)` and cascades shutdown by dropping its
+  root producers.
 - **Non-terminal (SIGUSR1, SIGUSR2, SIGHUP)** → each flips its own
   kernel-maintained boolean. Userland polls via
   `(:wat::kernel::sigusr1?)` / `(sigusr2?)` / `(sighup?)` and clears via
-  the matching `(:wat::kernel::reset-sigusr1!)` / `(reset-sigusr2!)` /
-  `(reset-sighup!)`. Coalesced — five SIGHUPs in a burst read as one
-  "yes"; counter semantics is userland's problem if it needs them.
+  the matching `(:wat::kernel::reset-sigusr1!)` etc. Coalesced — five
+  SIGHUPs in a burst read as one "yes".
 
-### Exit codes
+### Exit codes (program mode)
 
 | Code | Meaning |
 |---|---|
@@ -329,16 +310,12 @@ Signals: the kernel measures; userland owns transitions.
 | 64 | Usage error — wrong argv |
 | 66 | Entry file read failed |
 
-### Hello world (the test that proves it)
+### Hello world
 
 ```scheme
 ;; echo.wat
 (:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
-
-(:wat::core::use! :wat::io::IOReader)
-(:wat::core::use! :wat::io::IOWriter)
-(:wat::core::use! :wat::io::IOWriter)
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
@@ -351,13 +328,95 @@ Signals: the kernel measures; userland owns transitions.
 ```
 
 ```
-$ echo watmin | wat-vm echo.wat
+$ echo watmin | wat echo.wat
 watmin
 ```
 
-`read-line` returns `:Option<String>` — `(Some line)` on a payload,
-`:None` on EOF. `:wat::core::match` decomposes it; exhaustiveness on
-`:Option<T>` is a type-check-time requirement.
+## Self-hosted testing
+
+Every test of the wat stdlib is written in wat, in the `wat-tests/`
+directory, and runs through the test harness the stdlib itself defines.
+The assertion primitives assert about the assertion primitives.
+
+### Writing a test — `:wat::test::deftest`
+
+```scheme
+(:wat::test::deftest :my::app::test-two-plus-two 1024 :error
+  (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
+```
+
+`deftest` expands to a named zero-arg function returning `RunResult`.
+Config setters + the `:user::main` wrapper come from the macro; the
+body is the user's one line. Callers invoke it directly; `wat test`
+auto-discovers by name prefix + signature.
+
+### Running tests — `wat test`
+
+```
+$ wat test wat-tests/
+running 31 tests
+test stream.wat :: wat-tests::std::stream::test-chunks-exact-multiple ... ok (2ms)
+test test.wat :: wat-tests::std::test::test-assert-eq-on-i64 ......... ok (1ms)
+test service/Console.wat :: wat-tests::std::service::Console::test-hello-world ... ok (6ms)
+...
+test result: ok. 31 passed; 0 failed; finished in 107ms
+```
+
+Recursive directory traversal. Random-ordered per file (nanos-seeded
+xorshift64 inline — no `rand` dependency). Cargo-style output.
+
+### Fork/sandbox tests — `:wat::test::program` + `:wat::test::run-ast`
+
+Tests that need to sandbox an inner program (to capture its stdout,
+stderr, or failure) compose two stdlib forms:
+
+```scheme
+(:wat::test::deftest :my::test-captures-inner-output 1024 :error
+  (:wat::core::let*
+    (((r :wat::kernel::RunResult)
+      (:wat::test::run-ast
+        (:wat::test::program
+          (:wat::config::set-dims! 1024)
+          (:wat::config::set-capacity-mode! :error)
+          (:wat::core::define (:user::main ... -> :())
+            (:wat::io::IOWriter/println stdout "hello-from-inside")))
+        (:wat::core::vec :String)))
+     ((lines :Vec<String>) (:wat::kernel::RunResult/stdout r)))
+    (:wat::test::assert-eq (:wat::core::first lines) "hello-from-inside")))
+```
+
+`:wat::test::program` is a variadic defmacro that expands to
+`:wat::core::forms` (arc 010 — the variadic-quote substrate). Each
+top-level form passes through as AST data. No escape backslashes.
+Inner programs nest arbitrarily deep as pure s-expressions.
+
+### Services that spawn threads — `:wat::kernel::run-sandboxed-hermetic`
+
+In-process `:wat::test::run` and `:wat::test::run-ast` back onto
+`StringIo` stdio (ThreadOwnedCell-backed, single-thread). Services
+like Console and Cache spawn driver threads that write to stdio;
+writing from a spawned thread would panic the driver on the
+thread-owner check. Those tests use `run-sandboxed-hermetic` directly
+— a real subprocess with real thread-safe stdio.
+
+Decision rule: **spawns-and-writes → hermetic; stays-on-main-thread → in-process**.
+
+### Rust embedding — `wat::Harness`
+
+For Rust programs that host wat as a sub-language:
+
+```rust
+use wat::Harness;
+
+let h = Harness::from_source(src)?;
+let out = h.run(&["stdin line 1", "stdin line 2"])?;
+assert_eq!(out.stdout, vec!["captured".to_string()]);
+```
+
+Thin wrapper over `startup_from_source` + `invoke_user_main` + stdio
+snapshot (arc 007 slice 5). Not a sandbox — no panic isolation; callers
+that want that use `:wat::kernel::run-sandboxed` from inside their wat
+code.
 
 ## Stdlib
 
@@ -371,21 +430,29 @@ Algebra conveniences:
   `:wat::std::Sequential`, `:wat::std::Ngram` / `:wat::std::Bigram` /
   `:wat::std::Trigram`.
 
+Streams (arcs 003 + 004 + 006):
+- `:wat::std::stream::Stream<T>` typealias, `spawn-producer`,
+  `from-receiver`, `map`, `filter`, `inspect`, `chunks` (rewritten on
+  `with-state`), `flat-map`, `take`, `for-each`, `collect`, `fold`,
+  `with-state` (the Mealy-machine substrate — every stateful stage
+  reduces to an `(init, step, flush)` triple).
+
+Test harness (arcs 007 + 010):
+- `:wat::test::assert-eq`, `assert-contains`, `assert-stdout-is`,
+  `assert-stderr-matches`, `run`, `run-in-scope`, `run-ast`, `deftest`,
+  `program`.
+
 Caches (FOUNDATION § caching stack):
 - `:wat::std::LocalCache<K,V>` — L1. Three thin wrappers over
-  `:rust::lru::LruCache`. Single-thread-owned, no pipe, no queue. Fastest
-  memoization possible.
-- `:wat::std::program::Cache<K,V>` — L2. Driver thread owns its own
-  `LocalCache`; clients send tagged requests with a reply-to sender
-  embedded. Nested tuple protocol, allocates the cache **inside** the
-  driver thread (thread-owned values must not cross threads).
+  `:rust::lru::LruCache`. Single-thread-owned. Fastest memoization.
 
-Stream programs:
-- `:wat::std::program::Console` — the single gateway to stdout+stderr.
-  Owns the real IO handles, hands out pooled `Sender<(i64,String)>` via
-  `:wat::kernel::HandlePool`; tag 0 = stdout, tag 1 = stderr. A well-formed
-  program routes all output through Console handles and leaves the raw
-  stdout/stderr bindings alone.
+Services (long-running driver programs with client handles):
+- `:wat::std::service::Console` — the single gateway to stdout+stderr.
+  Hands out pooled `Sender<(i64,String)>` via `:wat::kernel::HandlePool`;
+  tag 0 = stdout, tag 1 = stderr.
+- `:wat::std::service::Cache<K,V>` — L2 shared cache. Driver thread owns
+  its `LocalCache`; clients send tagged requests with an embedded reply
+  channel.
 
 ## Capacity guard — Bundle's Result return
 
@@ -401,6 +468,7 @@ against), so the classical `d/(2·ln K)` bound has no `K` term;
 comfortably above the 5σ noise floor.
 
 **Return type (every mode).**
+
 ```
 :wat::algebra::Bundle : :Vec<holon::HolonAST>
                      -> :Result<holon::HolonAST, :wat::algebra::CapacityExceeded>
@@ -410,69 +478,26 @@ comfortably above the 5σ noise floor.
 
 | Mode | Under budget | Over budget |
 |---|---|---|
-| `:silent` | `Ok(h)` | `Ok(h)` — degraded vector, no check, no diagnostic |
-| `:warn`   | `Ok(h)` | `Ok(h)` — degraded vector plus `eprintln!` cost/budget/dims |
+| `:silent` | `Ok(h)` | `Ok(h)` — degraded vector, no diagnostic |
+| `:warn`   | `Ok(h)` | `Ok(h)` — degraded vector + `eprintln!` cost/budget/dims |
 | `:error`  | `Ok(h)` | `Err(CapacityExceeded { cost, budget })` |
-| `:abort`  | `Ok(h)` | `panic!` with diagnostic — fail-closed, no cleanup |
+| `:abort`  | `Ok(h)` | `panic!` with diagnostic — fail-closed |
 
-**`:wat::algebra::CapacityExceeded`** is a built-in struct:
+**`:wat::algebra::CapacityExceeded`** is a built-in struct with
+auto-generated `/cost` and `/budget` accessors.
 
-```scheme
-(:wat::core::struct :wat::algebra::CapacityExceeded
-  (cost   :i64)   ;; the constituent count the Bundle was asked to hold
-  (budget :i64))  ;; floor(sqrt(dims)) at the dispatcher
-```
-
-Auto-generated accessors `:wat::algebra::CapacityExceeded/cost` and
-`/budget` read each field. No user declaration required — wat-rs seeds
-this via `TypeEnv::with_builtins()`.
-
-**The canonical program shape** uses `:wat::core::try` to propagate
-Err through a Result-returning helper and `match` to handle at the
-caller:
+**Canonical program shape** uses `:wat::core::try`:
 
 ```scheme
-(:wat::config::set-dims! 10000)
-(:wat::config::set-capacity-mode! :error)
-
 (:wat::core::define (:app::build
                     (items :Vec<holon::HolonAST>)
                     -> :Result<holon::HolonAST, wat::algebra::CapacityExceeded>)
   (Ok (:wat::core::try (:wat::algebra::Bundle items))))
-
-(:wat::core::define (:user::main
-                     (stdin  :wat::io::IOReader)
-                     (stdout :wat::io::IOWriter)
-                     (stderr :wat::io::IOWriter)
-                     -> :())
-  (:wat::core::match (:app::build huge-list) -> :()
-    ((Ok _) ())
-    ((Err e)
-      (:wat::io::IOWriter/print stderr
-        (format-overflow
-          (:wat::algebra::CapacityExceeded/cost e)
-          (:wat::algebra::CapacityExceeded/budget e))))))
 ```
 
-Every stdlib macro whose expansion ends in `:wat::algebra::Bundle`
-inherits the Result wrap — `:wat::std::Ngram`, `:wat::std::Bigram`,
-`:wat::std::Trigram`. Callers match or `try` at the call site.
-
-**Two supporting forms** that shipped in the same arc:
-
-- **`:wat::core::try`** — unwrap `Ok v` or short-circuit the innermost
-  enclosing Result-returning function/lambda with `Err e`. Not
-  try/catch; no handler block. Matches Rust's `?`-operator scoping.
-- **Struct runtime** — `(:wat::core::struct :my::ns::T (f1 :T1) ...)`
-  declarations auto-generate `:my::ns::T/new` constructors and
-  `:my::ns::T/<field>` accessors at registration time. Users invoke
-  them by full keyword path. No named-argument construction, no
-  field-by-bare-keyword dispatch — positional construction plus
-  accessor keyword-paths, symmetric on both sides via `let` bindings.
-
-Full design: the INSCRIPTION 2026-04-19 entries across
-`058-003-bundle-list-signature`, `058-030-types`, and the new
-`058-033-try` proposal, rolled up in FOUNDATION-CHANGELOG.
+Every stdlib macro whose expansion ends in Bundle inherits the Result
+wrap — `:wat::std::Ngram`, `:wat::std::Bigram`, `:wat::std::Trigram`.
+Callers match or `try` at the call site.
 
 ## Namespace discipline
 
@@ -486,13 +511,13 @@ Two sibling namespaces, both rooted at the colon:
 - `:wat::*` — forms and types defined by the wat language itself
   (`:wat::core::*`, `:wat::algebra::*`, `:wat::kernel::*`, `:wat::std::*`,
   `:wat::config::*`, `:wat::load::*`, `:wat::verify::*`, `:wat::eval::*`,
-  `:wat::io::*`).
+  `:wat::io::*`, `:wat::test::*`).
 - `:rust::*` — forms and types surfaced from Rust crates
   (`:rust::std::io::*`, `:rust::crossbeam_channel::*`, `:rust::lru::*`,
   and whatever the consumer registered).
 
-Full honesty rule in `docs/arc/2026/04/002-rust-interop-macro/NAMESPACE-PRINCIPLE.md`
-and the FOUNDATION-CHANGELOG entry dated 2026-04-19 ("Namespace honesty").
+Full honesty rule in
+`docs/arc/2026/04/002-rust-interop-macro/NAMESPACE-PRINCIPLE.md`.
 
 ## Workspace layout
 
@@ -501,10 +526,11 @@ wat-rs/
 ├── Cargo.toml              # workspace + wat package
 ├── src/
 │   ├── lib.rs              # extern crate self as wat;
-│   ├── bin/wat-vm.rs       # CLI runner
+│   ├── bin/wat.rs          # CLI binary (program mode + test subcommand)
 │   ├── {lexer,parser,config,load,identifier,macros,
 │   │    types,resolve,check,hash,lower,runtime,
-│   │    freeze,stdlib}.rs  # pipeline stages
+│   │    freeze,stdlib,io,string_ops,assertion,
+│   │    sandbox,harness}.rs
 │   └── rust_deps/
 │       ├── mod.rs          # RustDepsBuilder, Registry, SchemeCtx,
 │       │                   # UseDeclarations, install(), get()
@@ -517,15 +543,25 @@ wat-rs/
 │   ├── Amplify.wat Subtract.wat Log.wat Circular.wat
 │   ├── Reject.wat Project.wat Sequential.wat
 │   ├── Ngram.wat Bigram.wat Trigram.wat LocalCache.wat
-│   └── program/
+│   ├── stream.wat test.wat
+│   └── service/
 │       ├── Console.wat
 │       └── Cache.wat
-├── tests/                  # integration suites
+├── wat-tests/              # tests written in wat, for wat
+│   ├── README.md
+│   └── std/
+│       ├── {Subtract,Circular,Reject,Sequential,Trigram,test,stream}.wat
+│       └── service/{Console,Cache}.wat
+├── tests/                  # Rust integration suites
 │   ├── mvp_end_to_end.rs
 │   ├── wat_dispatch_{193a,193b,e1_vec,e2_tuple,
 │   │                 e3_result,e4_shared,e5_owned_move}.rs
-│   ├── wat_vm_cache.rs
-│   └── wat_vm_cli.rs
+│   ├── wat_core_try.rs wat_structs.rs wat_bundle_capacity.rs
+│   ├── wat_stream.rs wat_core_forms.rs wat_names_are_values.rs
+│   ├── wat_harness.rs wat_run_sandboxed{,_ast}.rs
+│   ├── wat_hermetic_round_trip.rs wat_test_cli.rs
+│   ├── wat_cli.rs wat_cache.rs wat_io.rs wat_u8.rs
+│   └── ...
 └── docs/
     ├── README.md           # orientation
     ├── USER-GUIDE.md       # building on wat
@@ -537,31 +573,40 @@ wat-rs/
         ├── 003-tail-call-optimization/     # DESIGN + INSCRIPTION
         ├── 004-lazy-sequences-and-pipelines/ # DESIGN + INSCRIPTION + BACKLOG
         ├── 005-stdlib-naming-audit/        # DESIGN + INVENTORY + INSCRIPTION + CONVENTIONS
-        ├── 006-stream-stdlib-completions/  # BACKLOG + INSCRIPTION (open against with-state)
-        └── 007-wat-tests-wat/              # DESIGN + BACKLOG — self-hosted testing + filesystem sandbox
+        ├── 006-stream-stdlib-completions/  # BACKLOG + INSCRIPTION (with-state shipped)
+        ├── 007-wat-tests-wat/              # DESIGN + BACKLOG + INSCRIPTION
+        ├── 008-wat-io-substrate/           # DESIGN + BACKLOG + INSCRIPTION
+        ├── 009-names-are-values/           # BACKLOG + INSCRIPTION
+        └── 010-variadic-quote/             # BACKLOG + INSCRIPTION
 ```
 
 ## What's next
 
-Phase 1 is complete. Further work is additive:
+The substrate is complete for its stated bar. Further work is
+caller-demanded per `stdlib-as-blueprint` discipline:
 
-- **More consumer shims.** holon-lab-trading needs `:rust::rusqlite::` for
-  the candle DB and `:rust::parquet::` for archive reads. Each follows
-  the `#[wat_dispatch]` pattern demonstrated by `wat-rs/src/rust_deps/lru.rs`.
-- **Compile path.** Emit Rust source from the frozen world; `rustc`
-  produces a native binary with `wat`'s frontend as its builder.
-- **Macro return-type marshaling of `Result<T,E>`.** Today's macro
-  surfaces invalid Rust inputs as panics because `RuntimeError` round-trip
-  isn't yet plumbed through the return path; shim authors work around this
-  by validating arguments in wat source. Lands when the next macro slice
-  closes the gap.
+- **More consumer shims.** holon-lab-trading needs `:rust::rusqlite::`
+  for the candle DB and `:rust::parquet::` for archive reads. Each
+  follows the `#[wat_dispatch]` pattern.
+- **Stream library follow-ups.** Arc 006 still holds open `chunks-by`,
+  `window`, `dedupe`, `sessionize`, `time-window`, and `from-iterator`
+  / Level 2 iterator surfacing. Each ships as library code on
+  `with-state` when a concrete caller cites use.
+- **Arc 007 follow-ups** named in its INSCRIPTION: `Failure.location` +
+  `.frames` population via panic-hook + `Backtrace::capture`, parallel
+  test execution, `:rust::*` capability allowlist, richer assertion
+  payloads via generic `show<T>`. Each waits for demand.
+- **UX pass on the trading lab.** When holon-lab-trading rewrites its
+  wat programs against this crate, every ceremonial shape it hits is
+  a candidate for a substrate follow-up — the same way arc 010's
+  variadic-quote fell out of writing fork/sandbox tests.
 
 Signature verification is **per-form, not per-invocation.** It lives at
 `:wat::core::signed-load!` (startup) and `:wat::core::eval-signed!`
 (runtime). A program may invoke any number of either, each with its own
-key and signature. There is no `wat-vm --signed` / `--sig` / `--pubkey`
-CLI flag; a program's verification surface is its collection of `signed-*`
-forms. See FOUNDATION's cryptographic-provenance section.
+key and signature. There is no `wat --signed` / `--sig` / `--pubkey`
+CLI flag; a program's verification surface is its collection of
+`signed-*` forms. See FOUNDATION's cryptographic-provenance section.
 
 ## See also
 
@@ -569,10 +614,10 @@ forms. See FOUNDATION's cryptographic-provenance section.
   crate evaluates against.
 - `../holon-lab-trading/docs/proposals/2026/04/058-ast-algebra-surface/FOUNDATION.md`
   — the language specification.
-- `../holon-lab-trading/docs/058-backlog.md` — the implementation arc.
+- `../holon-lab-trading/docs/proposals/2026/04/058-ast-algebra-surface/INDEX.md`
+  — reading guide for the 058 batch.
 - `../holon-lab-trading/BOOK.md` — the story.
+- `docs/README.md` — arc index + USER-GUIDE, CONVENTIONS, ZERO-MUTEX
+  pointers.
 - `docs/USER-GUIDE.md` — building applications on wat.
 - `docs/CONVENTIONS.md` — naming rules for new primitives.
-- `docs/arc/2026/04/001-caching-stack/DESIGN.md` — the L1/L2 cache design.
-- `docs/arc/2026/04/002-rust-interop-macro/MACRO-DESIGN.md` — the
-  `#[wat_dispatch]` design.
