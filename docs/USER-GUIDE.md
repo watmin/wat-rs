@@ -397,11 +397,18 @@ buffers trade throughput for latency.
 ### Send and receive
 
 ```scheme
-(:wat::kernel::send sender value)          ; → :()  — may block on bounded full
-(:wat::kernel::recv receiver)              ; → :Option<T>  — None on disconnect
-(:wat::kernel::try-recv receiver)          ; → :Option<T>  — None if empty OR disconnected
-(:wat::kernel::drop handle)                ; → :()  — close a sender or receiver
+(:wat::kernel::send sender value)          ; → :Option<()>  — Some(()) on sent; None on disconnect
+(:wat::kernel::recv receiver)              ; → :Option<T>   — Some(v) on recv; None on disconnect
+(:wat::kernel::try-recv receiver)          ; → :Option<T>   — None if empty OR disconnected
+(:wat::kernel::drop handle)                ; → :()          — close a sender or receiver
 ```
+
+Both channel endpoints report disconnect through the same `:Option`
+shape — `send` returns `:Option<()>` symmetric with `recv`'s
+`:Option<T>`. A producer matches on its send result to handle the
+"consumer went away" case cleanly; a stage that doesn't need
+disconnect awareness can `((_ :Option<()>) (:wat::kernel::send ...))`
+and ignore.
 
 Senders and receivers are **single-owner** — not cloneable. A sender
 belongs to exactly one producer; a receiver to one consumer. Match
@@ -476,7 +483,7 @@ coupling; backpressure is automatic.
     ((Some raw)
       (:wat::core::let*
         (((enriched :EnrichedCandle) (:my::app::enrich-candle raw))
-         ((_ :()) (:wat::kernel::send out enriched)))
+         ((_ :Option<()>) (:wat::kernel::send out enriched)))
         (:my::app::enrich in out)))    ;; tail call — recurse
     (:None ())))                        ;; upstream disconnected; done
 
@@ -493,14 +500,16 @@ coupling; backpressure is automatic.
         (((new-buffer :Vec<EnrichedCandle>) (:wat::core::conj buffer item)))
         (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size) -> :()
           (:wat::core::let*
-            (((_ :()) (:wat::kernel::send out new-buffer)))
+            (((_ :Option<()>) (:wat::kernel::send out new-buffer)))
             (:my::app::batch in out size (:wat::core::vec :EnrichedCandle)))
           (:my::app::batch in out size new-buffer))))
     (:None
       ;; upstream disconnected — flush any remaining items
       (:wat::core::if (:wat::core::empty? buffer) -> :()
         ()
-        (:wat::kernel::send out buffer)))))
+        (:wat::core::match (:wat::kernel::send out buffer) -> :()
+          ((Some _) ())
+          (:None ()))))))
 ```
 
 **Note the recursion.** Every stage is tail-recursive — each branch
@@ -843,7 +852,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::join` | `handle` | `R` |
 | `:wat::kernel::make-bounded-queue` | `:T n` | `:(Sender<T>, Receiver<T>)` |
 | `:wat::kernel::make-unbounded-queue` | `:T` | `:(Sender<T>, Receiver<T>)` |
-| `:wat::kernel::send` | `sender value` | `:()` |
+| `:wat::kernel::send` | `sender value` | `:Option<()>` — `(Some ())` on sent, `:None` on disconnect |
 | `:wat::kernel::recv` / `try-recv` | `receiver` | `:Option<T>` |
 | `:wat::kernel::select` | `receivers` | `:(i64, Option<T>)` |
 | `:wat::kernel::drop` | `handle` | `:()` |

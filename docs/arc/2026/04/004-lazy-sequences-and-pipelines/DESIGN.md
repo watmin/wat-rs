@@ -259,7 +259,7 @@ typed, no special event.
         (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) batch-size) -> :()
           (:wat::core::let*
             (((sent :Option<()>)
-              (:wat::kernel::send-or-stop output new-buffer)))
+              (:wat::kernel::send output new-buffer)))
             (:wat::core::match sent -> :()
               (:None ())                          ;; consumer dropped; we're done
               ((Some _)
@@ -270,7 +270,9 @@ typed, no special event.
       ;; End of upstream stream. Flush remaining items if any.
       (:wat::core::if (:wat::core::empty? buffer) -> :()
         ()
-        (:wat::kernel::send output buffer)))))
+        (:wat::core::match (:wat::kernel::send output buffer) -> :()
+          ((Some _) ())
+          (:None ()))))))
 ```
 
 **Three ergonomic points visible in that code:**
@@ -278,9 +280,14 @@ typed, no special event.
 1. **TCO is load-bearing.** Every recursive continuation is in tail
    position. Without TCO (arc 003), a batcher processing 100k items
    overflows the Rust stack.
-2. **`send-or-stop` as a graceful exit.** Per arc's companion note,
-   returns `:Option<()>` on send; `:None` means consumer dropped.
-   Lets the stage exit cleanly without raising RuntimeError.
+2. **`send` is symmetric with `recv` on disconnect.** Both return
+   `:Option` — `recv`'s `:Option<T>` carries the payload, `send`'s
+   `:Option<()>` carries the ack. `:None` means the other endpoint
+   went away. The stage matches on the send result to exit cleanly
+   without raising. (Earlier drafts of this doc proposed a separate
+   `send-or-stop` primitive; that was retired 2026-04-20 in favor of
+   making `send` itself Option-returning — one primitive, one rule,
+   symmetric with `recv`.)
 3. **Explicit state threading.** The `buffer` parameter carries the
    accumulator across recursive calls. Every stage that needs state
    does this. Not hidden; explicit; typed. The lambda has no closed
@@ -294,7 +301,7 @@ stdlib work is to wrap this idiom so the author writes:
 ```
 
 …and gets the batcher as a spawned program. No inlined state
-recursion, no explicit send-or-stop, no flush code. The builder's
+recursion, no explicit send-match, no flush code. The builder's
 intent expressed directly.
 
 ---
@@ -317,9 +324,9 @@ Source program:
 ```
 
 Consumer sees a stream of items. Page boundaries invisible. When
-the consumer stops pulling, the producer's next `send` fails (or
-returns `:None` under send-or-stop), the producer drops its cursor,
-program exits.
+the consumer stops pulling, the producer's next `send` returns
+`:None`, the producer drops its cursor (Rust-level Drop on its
+owned state), program exits.
 
 ```scheme
 (:wat::core::define (:my::app::paginated-ddb-source
@@ -347,7 +354,7 @@ the consumer pulls items without seeing page boundaries. The
 network I/O happens ONLY when the buffer is empty and the producer
 thread runs. Backpressure from slow consumer naturally throttles the
 producer; if the consumer stops, the producer exits on the next
-`send-or-stop`'s `:None` return.
+`send`'s `:None` return.
 
 This is what `wat was built to host`. The primitives are already
 sufficient; the stdlib work is to make the pattern a one-liner.
@@ -469,7 +476,7 @@ decides it's done.
 **The discipline:**
 
 1. Consumer drops its Receiver when it's done pulling.
-2. Next time the producer calls `send-or-stop`, gets `:None`.
+2. Next time the producer calls `send`, it returns `:None`.
 3. Producer matches on `:None` and returns `:()` — program exit.
 4. Producer's join handle resolves; any open resources (DDB cursor,
    file handle, socket) dropped via Rust's Drop. No explicit cleanup
@@ -505,8 +512,11 @@ without arc-003.
 
 **Order of implementation locked:**
 
-1. arc-003 (TCO) ships first.
-2. `:wat::kernel::send-or-stop` ships (small kernel addition).
+1. arc-003 (TCO) ships first. ✅ shipped 2026-04-20.
+2. `:wat::kernel::send` symmetrized to return `:Option<()>` — earlier
+   drafts of this doc proposed a separate `send-or-stop` primitive;
+   that was retired in favor of making `send` itself Option-returning,
+   symmetric with `recv`. ✅ shipped 2026-04-20.
 3. arc-004 stdlib primitives land on top.
 
 ---

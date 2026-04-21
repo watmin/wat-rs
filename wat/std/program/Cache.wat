@@ -69,7 +69,11 @@
                       (((_ :()) (:wat::std::LocalCache::put cache key v)))
                       :None))
                   (:None :None))))
-             ((_ :()) (:wat::kernel::send reply-to resp)))
+             ;; reply-to may have been dropped (client no longer
+             ;; interested). `send` now returns :Option<()>; either
+             ;; outcome leaves the driver free to carry on — we
+             ;; swallow :None.
+             ((_ :Option<()>) (:wat::kernel::send reply-to resp)))
             (:wat::std::program::Cache/loop-step cache req-rxs)))
         (:None
           (:wat::std::program::Cache/loop-step
@@ -94,7 +98,11 @@
       (:wat::core::tuple 0 key :None))
      ((req :((i64,K,Option<V>),rust::crossbeam_channel::Sender<Option<V>>))
       (:wat::core::tuple body reply-tx))
-     ((_ :()) (:wat::kernel::send req-tx req)))
+     ;; If the driver dropped before we wrote, `send` returns :None.
+     ;; The subsequent `recv` will then also see the reply-tx dropped
+     ;; and return :None, so either way we fall through to the
+     ;; :None arm below — caller observes "miss."
+     ((_ :Option<()>) (:wat::kernel::send req-tx req)))
     (:wat::core::match (:wat::kernel::recv reply-rx) -> :Option<V>
       ((Some resp) resp)
       (:None :None))))
@@ -112,7 +120,10 @@
       (:wat::core::tuple 1 key (Some value)))
      ((req :((i64,K,Option<V>),rust::crossbeam_channel::Sender<Option<V>>))
       (:wat::core::tuple body reply-tx))
-     ((_ :()) (:wat::kernel::send req-tx req))
+     ;; Same swallow as Cache/get above: either send lands and the
+     ;; recv acks, or the driver is gone and both short-circuit
+     ;; through :None. Callers receive :() either way.
+     ((_ :Option<()>) (:wat::kernel::send req-tx req))
      ((_ :Option<Option<V>>) (:wat::kernel::recv reply-rx)))
     ()))
 

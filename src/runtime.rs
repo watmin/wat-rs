@@ -589,11 +589,16 @@ pub enum RuntimeError {
     /// names the specific failure (mismatched digest, invalid
     /// signature, unsupported algorithm, malformed payload).
     EvalVerificationFailed { err: crate::hash::HashError },
-    /// A `:wat::kernel::send` on a channel whose receiver has been
-    /// dropped. `recv` itself no longer errors on disconnect — it
-    /// returns `:None` per FOUNDATION's `∀T. Receiver<T> -> Option<T>`
-    /// shape — so the only surviving producer of this variant is
-    /// send-after-disconnect.
+    /// Raised when `:wat::kernel::join` reaps a spawned program
+    /// whose thread panicked before yielding a result — the internal
+    /// handle channel's Sender was dropped without sending, so the
+    /// join's `recv` sees disconnected.
+    ///
+    /// User channels (`:wat::kernel::send` / `recv` / `try-recv`)
+    /// are symmetric on disconnect — both endpoints report it via
+    /// `:Option` rather than via this error, so no call path in the
+    /// user-level channel primitives produces this variant. It
+    /// remains only for the join-on-panic case.
     ChannelDisconnected { op: String },
     /// A vector-level primitive (`:wat::algebra::cosine`,
     /// `:wat::config::noise-floor`, etc.) was invoked but the
@@ -4420,10 +4425,21 @@ fn eval_make_unbounded_queue(args: &[WatAST]) -> Result<Value, RuntimeError> {
 }
 
 /// `(:wat::kernel::send sender value)` — blocks until the value is
-/// accepted by the channel; returns `:()`. Type scheme
-/// `∀T. crossbeam_channel::Sender<T> -> T -> :()`. The runtime
-/// transports any `Value` through the channel; the type checker
-/// enforces that the declared `Sender<T>` matches the value's type.
+/// accepted by the channel OR every receiver has been dropped.
+/// Returns `:Option<()>`: `(Some ())` on a successful send,
+/// `:None` when the receiver is gone. Type scheme
+/// `∀T. crossbeam_channel::Sender<T> -> T -> :Option<()>`.
+///
+/// Symmetric with `recv` — both endpoints report disconnect through
+/// the same `:Option` shape. Producers write
+/// `(match (send tx v) -> :() ((Some _) (loop ...)) (:None ()))`
+/// to flush state and exit cleanly when the consumer drops. Prior
+/// behavior (raising `ChannelDisconnected` on the send path) is
+/// retired — it forced callers to either `try` or panic, which
+/// breaks the clean shutdown cascade the stream stdlib wants. The
+/// runtime transports any `Value` through the channel; the type
+/// checker enforces that the declared `Sender<T>` matches the
+/// value's type.
 fn eval_kernel_send(
     args: &[WatAST],
     env: &Environment,
@@ -4447,12 +4463,10 @@ fn eval_kernel_send(
         }
     };
     let msg = eval(&args[1], env, sym)?;
-    sender
-        .send(msg)
-        .map_err(|_| RuntimeError::ChannelDisconnected {
-            op: ":wat::kernel::send".into(),
-        })?;
-    Ok(Value::Unit)
+    match sender.send(msg) {
+        Ok(()) => Ok(Value::Option(Arc::new(Some(Value::Unit)))),
+        Err(_) => Ok(Value::Option(Arc::new(None))),
+    }
 }
 
 /// `(:wat::kernel::recv receiver)` — blocks until the receiver
@@ -6718,7 +6732,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
-               ((sent :()) (:wat::kernel::send tx 42)))
+               ((sent :Option<()>) (:wat::kernel::send tx 42)))
               (:wat::core::match (:wat::kernel::recv rx) -> :i64
                 ((Some v) v)
                 (:None 0)))
@@ -7420,7 +7434,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
-               ((_ :()) (:wat::kernel::send tx 7)))
+               ((_ :Option<()>) (:wat::kernel::send tx 7)))
               (:wat::core::match (:wat::kernel::try-recv rx) -> :i64
                 ((Some v) v)
                 (:None 0)))
@@ -7724,7 +7738,9 @@ mod tests {
             (:wat::core::define (:my::producer
                                  (tx :rust::crossbeam_channel::Sender<i64>)
                                  -> :())
-              (:wat::kernel::send tx 99))
+              (:wat::core::match (:wat::kernel::send tx 99) -> :()
+                ((Some _) ())
+                (:None ())))
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
                ((handle :wat::kernel::ProgramHandle<()>)

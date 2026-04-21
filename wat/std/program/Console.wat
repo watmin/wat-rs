@@ -65,19 +65,34 @@
 ;;
 ;; Each handle is a Sender<(i64,String)>; callers don't build the
 ;; tuple themselves, they use Console/out or Console/err.
+;; Console/out and Console/err are fire-and-forget from the client's
+;; perspective: if the Console driver has already shut down, the
+;; write has nowhere to go and we swallow silently rather than
+;; surface a late-lifecycle error. `send` returns :Option<()> after
+;; the 2026-04-20 symmetrization; both arms of the match collapse to
+;; :(). A program that WANTS disconnect awareness uses the primitive
+;; `send` directly on its console handle.
 (:wat::core::define
   (:wat::std::program::Console/out
     (handle :rust::crossbeam_channel::Sender<(i64,String)>)
     (msg :String)
     -> :())
-  (:wat::kernel::send handle (:wat::core::tuple 0 msg)))
+  (:wat::core::match
+    (:wat::kernel::send handle (:wat::core::tuple 0 msg))
+    -> :()
+    ((Some _) ())
+    (:None ())))
 
 (:wat::core::define
   (:wat::std::program::Console/err
     (handle :rust::crossbeam_channel::Sender<(i64,String)>)
     (msg :String)
     -> :())
-  (:wat::kernel::send handle (:wat::core::tuple 1 msg)))
+  (:wat::core::match
+    (:wat::kernel::send handle (:wat::core::tuple 1 msg))
+    -> :()
+    ((Some _) ())
+    (:None ())))
 
 ;; --- Console setup ---
 ;;

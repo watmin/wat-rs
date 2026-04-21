@@ -163,9 +163,10 @@ believe actually ship today (to be verified by the actual audit):
 - `:wat::core::conj` / `cons` interplay — wat already has `cons`;
   does it work as expected? The docs mention it but I haven't
   traced its semantics recently.
-- Arc docs reference future primitives like
-  `:wat::kernel::send-or-stop` (for lazy pipelines, arc 004) — these
-  are PLANNED; the audit should flag them clearly.
+- Arc 004 will add a family of `:wat::std::stream::*` combinators on
+  top of the existing kernel primitives; the audit should flag the
+  PLANNED entries so the inventory doesn't claim them shipped until
+  they actually land.
 
 ---
 
@@ -246,10 +247,9 @@ with concrete shipping deliverables. Arc 005 is a hygiene slice —
 high value for the substrate's long-term health but not blocking
 for the trading-lab rebuild. Doing hygiene before the structural
 work would mean redoing the audit after each of 003 and 004 adds
-new primitives (TCO doesn't, but lazy pipelines adds
-`:wat::std::stream::*`, `:wat::kernel::send-or-stop`, probably
-`:rust::std::iter::Iterator::*`). Audit LAST so the catalog is
-complete.
+new primitives (TCO didn't add surface; lazy pipelines will add
+`:wat::std::stream::*` and probably `:rust::std::iter::Iterator::*`).
+Audit LAST so the catalog is complete.
 
 That said, if gaps in the guide are actively blocking the trading
 lab rebuild before 003 + 004 land, pull this slice forward. Ship

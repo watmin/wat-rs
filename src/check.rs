@@ -2711,7 +2711,11 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
-    // (:wat::kernel::send sender value) — ∀T. Sender<T> -> T -> :().
+    // (:wat::kernel::send sender value) — ∀T. Sender<T> × T -> :Option<()>.
+    // `(Some ())` on a successful send; `:None` when the receiver has
+    // been dropped. Symmetric with `recv`'s Option-return; disconnect
+    // on either endpoint is a value, not an error. See FOUNDATION-
+    // CHANGELOG (wat-rs slice; pending) and runtime's `eval_kernel_send`.
     env.register(
         ":wat::kernel::send".into(),
         TypeScheme {
@@ -2723,7 +2727,10 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
                 t_var(),
             ],
-            ret: TypeExpr::Tuple(vec![]),
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![TypeExpr::Tuple(vec![])],
+            },
         },
     );
     // (:wat::kernel::try-recv receiver) — ∀T. Receiver<T> -> :Option<T>.
