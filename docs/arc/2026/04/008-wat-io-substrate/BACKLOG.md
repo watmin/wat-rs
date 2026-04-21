@@ -19,17 +19,17 @@ substituted for in-memory buffers).
 | 1 | `:wat::core::u8` range-checked cast primitive | **done** | this slice |
 | 1 | `:wat::core::u8::+/-/*//` arithmetic (wrapping) | **deferred** — no caller demand yet; stdlib-as-blueprint | — |
 | 1 | slice 1 tests | **done** (9 tests in `tests/wat_u8.rs`) | this slice |
-| 2 | `WatReader` + `WatWriter` traits | pending | — |
-| 2 | `Value::io__IOReader` + `Value::io__IOWriter` variants | pending | — |
-| 2 | `RealStdin` / `RealStdout` / `RealStderr` impls (wrap Rust handles) | pending | — |
-| 2 | `StringIoReader` + `StringIoWriter` impls (ThreadOwnedCell-backed) | pending | — |
-| 2 | byte-level primitives: read / read-all / write / write-all | pending | — |
-| 2 | char-level primitives: read-line / writeln | pending | — |
-| 2 | common: flush / rewind | pending | — |
-| 2 | construction: `IOReader/from-bytes` + `from-string`; `IOWriter/new` + `to-bytes` + `to-string` | pending | — |
-| 2 | type registration (`:wat::io::IOReader`, `:wat::io::IOWriter` as opaque types) | pending | — |
-| 2 | type schemes in check.rs | pending | — |
-| 2 | slice 2 tests | pending | — |
+| 2 | `WatReader` + `WatWriter` traits (in new `src/io.rs`) | **done** | this slice |
+| 2 | `Value::io__IOReader` + `Value::io__IOWriter` variants | **done** | this slice |
+| 2 | `RealStdin` / `RealStdout` / `RealStderr` impls (wrap Rust handles) | **done** (not yet wired into CLI — slice 3) | this slice |
+| 2 | `StringIoReader` + `StringIoWriter` impls (ThreadOwnedCell-backed) | **done** | this slice |
+| 2 | byte-level primitives: read / read-all / write / write-all | **done** under `IOReader/` + `IOWriter/` prefix | this slice |
+| 2 | char-level primitives: read-line / writeln | **done** | this slice |
+| 2 | common: flush / rewind | **done** | this slice |
+| 2 | construction: `IOReader/from-bytes` + `from-string`; `IOWriter/new` + `to-bytes` + `to-string` | **done** | this slice |
+| 2 | type registration (`:wat::io::IOReader`, `:wat::io::IOWriter` as opaque types) | **done** (transparent via TypeExpr::Path) | this slice |
+| 2 | type schemes in check.rs | **done** | this slice |
+| 2 | slice 2 tests | **done** (15 tests in `tests/wat_io.rs`) | this slice |
 | 3 | update `validate_user_main_signature` — new three-IO contract | pending | — |
 | 3 | CLI (`bin/wat-vm.rs`) wraps real stdio as IO Values | pending | — |
 | 3 | retire `Value::io__Stdin/Stdout/Stderr` variants | pending | — |
@@ -87,6 +87,33 @@ substituted for in-memory buffers).
   ship when demanded. Adds zero lines to the primitive zoo today;
   arithmetic is one edit away when needed. 9 tests passing; 498+
   unit tests + all integration tests green.
+- **2026-04-21** — Slice 2 shipped. `:wat::io::IOReader` +
+  `:wat::io::IOWriter` exist as opaque wat types.
+  `Value::io__IOReader` / `io__IOWriter` variants hold
+  `Arc<dyn WatReader|WatWriter + Send + Sync + Debug>`. Four concrete
+  impls in `src/io.rs`: `RealStdin`/`Stdout`/`Stderr` (wrap Rust
+  handles; not yet wired to CLI — that's slice 3),
+  `StringIoReader`/`StringIoWriter` (ThreadOwnedCell-backed; zero
+  Mutex; single-thread-owned).
+  **Primitives use `<Type>/<method>` naming** for this slice — chose
+  this over short-form (`:wat::io::read`) because short-form conflicts
+  with the existing `:wat::io::write` / `:wat::io::read-line` that
+  operate on the old `io__Stdin`/`Stdout`/`Stderr` variants. Slice 3
+  may rename once old primitives retire. 13 primitives: IOReader
+  construction (from-bytes, from-string) + ops (read, read-all,
+  read-line, rewind); IOWriter construction (new) + snapshots
+  (to-bytes, to-string) + ops (write, write-all, writeln, flush).
+  Byte-level is the floor; char-level uses UTF-8 encode/decode.
+  **WatWriter trait has `snapshot() -> Option<Vec<u8>>`** — defaults
+  None (real stdio can't snapshot); StringIoWriter overrides Some.
+  Let the trait answer "can I be captured?" rather than downcasting
+  at dispatch.
+  **Bug caught in check schemes:** had `head: ":Vec"` with leading
+  colon; format_type prepends its own colon, producing `"::Vec<u8>"`
+  in error messages. Fix: head strings in check.rs schemes don't
+  include the leading colon. Existing `"Vec"` / `"Option"` usage
+  elsewhere in check.rs confirmed as convention. 15 tests passing;
+  full suite (25 suites, 498+ unit + integration) green.
 
 ---
 

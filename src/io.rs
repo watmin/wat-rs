@@ -1,0 +1,704 @@
+//! wat IO substrate — `:wat::io::IOReader` + `:wat::io::IOWriter` abstractions.
+//!
+//! Wat needs substitutable stdio: in production, a wat program receives
+//! real OS Stdin/Stdout/Stderr; in tests, the same program receives
+//! string-buffer stand-ins. Both must fit a single wat-level type so the
+//! source is identical. Ruby's StringIO model.
+//!
+//! Rust's `Read` / `Write` are separate traits — different
+//! responsibilities. Wat mirrors that split: `IOReader` is what stdin
+//! fits; `IOWriter` is what stdout / stderr fit. A wat program that
+//! tries to write to stdin fails at check time, not runtime.
+//!
+//! Concrete impls (in this module):
+//!
+//! - [`RealStdin`] / [`RealStdout`] / [`RealStderr`] — wrap Rust's
+//!   stdlib `std::io::Stdin` / `Stdout` / `Stderr` via `Arc`. Rust's
+//!   stdlib handles its own internal locking; wat-rs introduces no
+//!   new Mutex.
+//! - [`StringIoReader`] / [`StringIoWriter`] — `ThreadOwnedCell`-backed
+//!   in-memory stand-ins. Single-thread-owned; cross-thread use panics
+//!   with the owner-check error (matches the tier-2 `LocalCache`
+//!   pattern). Zero Mutex. All IO calls synchronous on caller's thread
+//!   — no channel round-trip, no driver spawn.
+//!
+//! This substrate is arc 008; arc 007's `run-sandboxed` and
+//! `:wat::test::*` sit on top.
+
+use crate::ast::WatAST;
+use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
+use crate::rust_deps::ThreadOwnedCell;
+use std::sync::Arc;
+
+// ─── Traits ──────────────────────────────────────────────────────────────
+
+/// A source of bytes. Wat-level type `:wat::io::IOReader`.
+pub trait WatReader: Send + Sync + std::fmt::Debug {
+    /// Read up to `n` bytes. Returns `Ok(None)` on EOF, `Ok(Some(bytes))`
+    /// with the actual bytes (may be fewer than `n`). I/O errors and
+    /// owner-check failures surface as `RuntimeError`.
+    fn read(&self, n: usize) -> Result<Option<Vec<u8>>, RuntimeError>;
+
+    /// Read until EOF. Returns every byte in order.
+    fn read_all(&self) -> Result<Vec<u8>, RuntimeError>;
+
+    /// Read one line (up to and including `\n`, which is consumed but
+    /// not returned). Returns `Ok(None)` on EOF. The string is
+    /// UTF-8-decoded; invalid bytes surface as a `MalformedForm` error.
+    fn read_line(&self) -> Result<Option<String>, RuntimeError>;
+
+    /// Reset the read cursor to the start of the backing source. No-op
+    /// for real stdin (real fds aren't rewindable); meaningful for
+    /// `StringIoReader`.
+    fn rewind(&self) -> Result<(), RuntimeError>;
+}
+
+/// A sink for bytes. Wat-level type `:wat::io::IOWriter`.
+pub trait WatWriter: Send + Sync + std::fmt::Debug {
+    /// Write up to `bytes.len()` bytes. Returns the count actually
+    /// written. Matches Rust `Write::write` semantics (fd-honest
+    /// partial writes).
+    fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError>;
+
+    /// Write all `bytes`. Loops internally if a single write is
+    /// partial. Matches Rust `Write::write_all`.
+    fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError>;
+
+    /// Flush any buffered output.
+    fn flush(&self) -> Result<(), RuntimeError>;
+
+    /// Clone the writer's accumulated bytes, if the impl backs to an
+    /// in-memory buffer. `None` for real stdio (the OS pipe's past is
+    /// not inspectable). `Some(bytes)` for `StringIoWriter`.
+    /// Used by `:wat::io::IOWriter/to-bytes` and
+    /// `/to-string` — callers that need to capture what the sandboxed
+    /// program wrote.
+    fn snapshot(&self) -> Option<Vec<u8>> {
+        None
+    }
+}
+
+// ─── Real stdio wrappers ─────────────────────────────────────────────────
+
+/// Wraps Rust's `std::io::Stdin`. Thread-safe via Rust stdlib's internal
+/// locking; wat-rs introduces no Mutex.
+#[derive(Debug)]
+pub struct RealStdin {
+    pub(crate) inner: Arc<std::io::Stdin>,
+}
+
+impl RealStdin {
+    pub fn new(inner: Arc<std::io::Stdin>) -> Self {
+        Self { inner }
+    }
+}
+
+impl WatReader for RealStdin {
+    fn read(&self, n: usize) -> Result<Option<Vec<u8>>, RuntimeError> {
+        use std::io::Read;
+        let mut buf = vec![0u8; n];
+        let mut guard = self.inner.lock();
+        match guard.read(&mut buf) {
+            Ok(0) => Ok(None),
+            Ok(k) => {
+                buf.truncate(k);
+                Ok(Some(buf))
+            }
+            Err(e) => Err(RuntimeError::MalformedForm {
+                head: ":wat::io::read".into(),
+                reason: format!("stdin read: {}", e),
+            }),
+        }
+    }
+
+    fn read_all(&self) -> Result<Vec<u8>, RuntimeError> {
+        use std::io::Read;
+        let mut buf = Vec::new();
+        let mut guard = self.inner.lock();
+        guard.read_to_end(&mut buf).map_err(|e| RuntimeError::MalformedForm {
+            head: ":wat::io::read-all".into(),
+            reason: format!("stdin read: {}", e),
+        })?;
+        Ok(buf)
+    }
+
+    fn read_line(&self) -> Result<Option<String>, RuntimeError> {
+        use std::io::BufRead;
+        let mut guard = self.inner.lock();
+        let mut buf = String::new();
+        match guard.read_line(&mut buf) {
+            Ok(0) => Ok(None),
+            Ok(_) => {
+                if buf.ends_with('\n') {
+                    buf.pop();
+                    if buf.ends_with('\r') {
+                        buf.pop();
+                    }
+                }
+                Ok(Some(buf))
+            }
+            Err(e) => Err(RuntimeError::MalformedForm {
+                head: ":wat::io::read-line".into(),
+                reason: format!("stdin read-line: {}", e),
+            }),
+        }
+    }
+
+    fn rewind(&self) -> Result<(), RuntimeError> {
+        // Real stdin is not rewindable — this is a no-op per the trait
+        // contract. If a test program calls rewind on real stdin it's
+        // probably a portability bug, but the no-op matches Rust's
+        // `Stdin::rewind` absence.
+        Ok(())
+    }
+}
+
+/// Wraps Rust's `std::io::Stdout`.
+#[derive(Debug)]
+pub struct RealStdout {
+    pub(crate) inner: Arc<std::io::Stdout>,
+}
+
+impl RealStdout {
+    pub fn new(inner: Arc<std::io::Stdout>) -> Self {
+        Self { inner }
+    }
+}
+
+impl WatWriter for RealStdout {
+    fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
+        use std::io::Write;
+        let mut guard = self.inner.lock();
+        guard.write(bytes).map_err(|e| RuntimeError::MalformedForm {
+            head: ":wat::io::write".into(),
+            reason: format!("stdout write: {}", e),
+        })
+    }
+
+    fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError> {
+        use std::io::Write;
+        let mut guard = self.inner.lock();
+        guard.write_all(bytes).map_err(|e| RuntimeError::MalformedForm {
+            head: ":wat::io::write-all".into(),
+            reason: format!("stdout write-all: {}", e),
+        })
+    }
+
+    fn flush(&self) -> Result<(), RuntimeError> {
+        use std::io::Write;
+        let mut guard = self.inner.lock();
+        guard.flush().map_err(|e| RuntimeError::MalformedForm {
+            head: ":wat::io::flush".into(),
+            reason: format!("stdout flush: {}", e),
+        })
+    }
+}
+
+/// Wraps Rust's `std::io::Stderr`.
+#[derive(Debug)]
+pub struct RealStderr {
+    pub(crate) inner: Arc<std::io::Stderr>,
+}
+
+impl RealStderr {
+    pub fn new(inner: Arc<std::io::Stderr>) -> Self {
+        Self { inner }
+    }
+}
+
+impl WatWriter for RealStderr {
+    fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
+        use std::io::Write;
+        let mut guard = self.inner.lock();
+        guard.write(bytes).map_err(|e| RuntimeError::MalformedForm {
+            head: ":wat::io::write".into(),
+            reason: format!("stderr write: {}", e),
+        })
+    }
+
+    fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError> {
+        use std::io::Write;
+        let mut guard = self.inner.lock();
+        guard.write_all(bytes).map_err(|e| RuntimeError::MalformedForm {
+            head: ":wat::io::write-all".into(),
+            reason: format!("stderr write-all: {}", e),
+        })
+    }
+
+    fn flush(&self) -> Result<(), RuntimeError> {
+        use std::io::Write;
+        let mut guard = self.inner.lock();
+        guard.flush().map_err(|e| RuntimeError::MalformedForm {
+            head: ":wat::io::flush".into(),
+            reason: format!("stderr flush: {}", e),
+        })
+    }
+}
+
+// ─── In-memory stand-ins (ThreadOwnedCell-backed; zero Mutex) ───────────
+
+/// Read state for [`StringIoReader`] — backing bytes + current cursor.
+#[derive(Debug)]
+struct ReaderState {
+    bytes: Vec<u8>,
+    cursor: usize,
+}
+
+/// `:wat::io::IOReader` impl backed by an in-memory `Vec<u8>`. Pre-seed
+/// from `from_bytes` or `from_string` at construction; subsequent
+/// `read` / `read_line` / `read_all` / `rewind` ops mutate the cursor
+/// under a `ThreadOwnedCell` — single-thread-owned; cross-thread use
+/// panics with the owner-check error.
+#[derive(Debug)]
+pub struct StringIoReader {
+    state: ThreadOwnedCell<ReaderState>,
+}
+
+impl StringIoReader {
+    pub fn from_bytes(bytes: Vec<u8>) -> Self {
+        Self {
+            state: ThreadOwnedCell::new(ReaderState { bytes, cursor: 0 }),
+        }
+    }
+
+    pub fn from_string(s: String) -> Self {
+        Self::from_bytes(s.into_bytes())
+    }
+}
+
+impl WatReader for StringIoReader {
+    fn read(&self, n: usize) -> Result<Option<Vec<u8>>, RuntimeError> {
+        self.state.with_mut(":wat::io::read", |s| {
+            if s.cursor >= s.bytes.len() {
+                return None;
+            }
+            let end = std::cmp::min(s.cursor + n, s.bytes.len());
+            let out = s.bytes[s.cursor..end].to_vec();
+            s.cursor = end;
+            Some(out)
+        })
+    }
+
+    fn read_all(&self) -> Result<Vec<u8>, RuntimeError> {
+        self.state.with_mut(":wat::io::read-all", |s| {
+            let out = s.bytes[s.cursor..].to_vec();
+            s.cursor = s.bytes.len();
+            out
+        })
+    }
+
+    fn read_line(&self) -> Result<Option<String>, RuntimeError> {
+        // Find next \n from cursor. Consume it. Decode as UTF-8.
+        let bytes = self.state.with_mut(":wat::io::read-line", |s| {
+            if s.cursor >= s.bytes.len() {
+                return None;
+            }
+            // Search for newline.
+            let rest = &s.bytes[s.cursor..];
+            let line_end = rest.iter().position(|&b| b == b'\n');
+            let (line_bytes, advance) = match line_end {
+                Some(idx) => (&rest[..idx], idx + 1),
+                None => (rest, rest.len()),
+            };
+            let bytes = line_bytes.to_vec();
+            s.cursor += advance;
+            Some(bytes)
+        })?;
+        match bytes {
+            None => Ok(None),
+            Some(mut b) => {
+                // Strip trailing \r if the line was \r\n.
+                if b.last() == Some(&b'\r') {
+                    b.pop();
+                }
+                match String::from_utf8(b) {
+                    Ok(s) => Ok(Some(s)),
+                    Err(e) => Err(RuntimeError::MalformedForm {
+                        head: ":wat::io::read-line".into(),
+                        reason: format!("invalid UTF-8 in line: {}", e),
+                    }),
+                }
+            }
+        }
+    }
+
+    fn rewind(&self) -> Result<(), RuntimeError> {
+        self.state.with_mut(":wat::io::rewind", |s| {
+            s.cursor = 0;
+        })
+    }
+}
+
+/// `:wat::io::IOWriter` impl backed by an in-memory `Vec<u8>`. Appends
+/// on every write. `ThreadOwnedCell`-backed; single-thread-owned.
+/// Readable via [`StringIoWriter::snapshot_bytes`] — intended for test
+/// harnesses that invoke the writer, then capture what was written.
+#[derive(Debug)]
+pub struct StringIoWriter {
+    buf: ThreadOwnedCell<Vec<u8>>,
+}
+
+impl Default for StringIoWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StringIoWriter {
+    pub fn new() -> Self {
+        Self {
+            buf: ThreadOwnedCell::new(Vec::new()),
+        }
+    }
+
+    /// Clone the accumulated bytes. Owner-check enforced.
+    pub fn snapshot_bytes(&self) -> Result<Vec<u8>, RuntimeError> {
+        self.buf
+            .with_ref(":wat::io::IOWriter::snapshot", |b| b.clone())
+    }
+
+    /// UTF-8 decode the accumulated bytes into a `String`. Returns
+    /// `None` on invalid UTF-8. Owner-check enforced.
+    pub fn snapshot_string(&self) -> Result<Option<String>, RuntimeError> {
+        let bytes = self.snapshot_bytes()?;
+        Ok(String::from_utf8(bytes).ok())
+    }
+}
+
+impl WatWriter for StringIoWriter {
+    fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
+        let n = bytes.len();
+        self.buf.with_mut(":wat::io::write", |b| {
+            b.extend_from_slice(bytes);
+        })?;
+        Ok(n)
+    }
+
+    fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError> {
+        self.buf.with_mut(":wat::io::write-all", |b| {
+            b.extend_from_slice(bytes);
+        })
+    }
+
+    fn flush(&self) -> Result<(), RuntimeError> {
+        // In-memory buffer — nothing to flush.
+        Ok(())
+    }
+
+    fn snapshot(&self) -> Option<Vec<u8>> {
+        // Owner-check enforced; returns None if called from the wrong
+        // thread (same honest failure as all other ops).
+        self.buf.with_ref(":wat::io::IOWriter/snapshot", |b| b.clone()).ok()
+    }
+}
+
+// ─── Primitive handlers ──────────────────────────────────────────────────
+//
+// These are invoked from `runtime::eval`'s dispatch match on the head
+// keyword; the runtime arm is a one-line call into here.
+
+fn arity(op: &str, args: &[WatAST], n: usize) -> Result<(), RuntimeError> {
+    if args.len() != n {
+        return Err(RuntimeError::ArityMismatch {
+            op: op.into(),
+            expected: n,
+            got: args.len(),
+        });
+    }
+    Ok(())
+}
+
+fn expect_reader(op: &str, v: Value) -> Result<Arc<dyn WatReader>, RuntimeError> {
+    match v {
+        Value::io__IOReader(r) => Ok(r),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "wat::io::IOReader",
+            got: other.type_name(),
+        }),
+    }
+}
+
+fn expect_writer(op: &str, v: Value) -> Result<Arc<dyn WatWriter>, RuntimeError> {
+    match v {
+        Value::io__IOWriter(w) => Ok(w),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "wat::io::IOWriter",
+            got: other.type_name(),
+        }),
+    }
+}
+
+fn expect_i64(op: &str, v: Value) -> Result<i64, RuntimeError> {
+    match v {
+        Value::i64(n) => Ok(n),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "i64",
+            got: other.type_name(),
+        }),
+    }
+}
+
+fn expect_string(op: &str, v: Value) -> Result<Arc<String>, RuntimeError> {
+    match v {
+        Value::String(s) => Ok(s),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "String",
+            got: other.type_name(),
+        }),
+    }
+}
+
+fn expect_vec_u8(op: &str, v: Value) -> Result<Vec<u8>, RuntimeError> {
+    match v {
+        Value::Vec(items) => {
+            let mut out = Vec::with_capacity(items.len());
+            for (i, item) in items.iter().enumerate() {
+                match item {
+                    Value::u8(b) => out.push(*b),
+                    other => {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: op.into(),
+                            expected: "u8",
+                            got: other.type_name(),
+                        });
+                    }
+                }
+                let _ = i;
+            }
+            Ok(out)
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "Vec<u8>",
+            got: other.type_name(),
+        }),
+    }
+}
+
+fn bytes_to_vec_u8_value(bytes: Vec<u8>) -> Value {
+    Value::Vec(Arc::new(bytes.into_iter().map(Value::u8).collect()))
+}
+
+// ─── IOReader construction ──────────────────────────────────────────────
+
+/// `(:wat::io::IOReader/from-bytes <Vec<u8>>)` → `:wat::io::IOReader`.
+pub fn eval_ioreader_from_bytes(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOReader/from-bytes";
+    arity(op, args, 1)?;
+    let bytes = expect_vec_u8(op, eval(&args[0], env, sym)?)?;
+    let reader: Arc<dyn WatReader> = Arc::new(StringIoReader::from_bytes(bytes));
+    Ok(Value::io__IOReader(reader))
+}
+
+/// `(:wat::io::IOReader/from-string <String>)` → `:wat::io::IOReader`.
+pub fn eval_ioreader_from_string(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOReader/from-string";
+    arity(op, args, 1)?;
+    let s = expect_string(op, eval(&args[0], env, sym)?)?;
+    let reader: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string((*s).clone()));
+    Ok(Value::io__IOReader(reader))
+}
+
+// ─── IOReader ops ────────────────────────────────────────────────────────
+
+/// `(:wat::io::IOReader/read <reader> <i64>)` → `:Option<Vec<u8>>`.
+pub fn eval_ioreader_read(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOReader/read";
+    arity(op, args, 2)?;
+    let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
+    let n = expect_i64(op, eval(&args[1], env, sym)?)?;
+    if n < 0 {
+        return Err(RuntimeError::MalformedForm {
+            head: op.into(),
+            reason: format!("negative byte count: {}", n),
+        });
+    }
+    let result = reader.read(n as usize)?;
+    Ok(Value::Option(Arc::new(result.map(bytes_to_vec_u8_value))))
+}
+
+/// `(:wat::io::IOReader/read-all <reader>)` → `:Vec<u8>`.
+pub fn eval_ioreader_read_all(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOReader/read-all";
+    arity(op, args, 1)?;
+    let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
+    let bytes = reader.read_all()?;
+    Ok(bytes_to_vec_u8_value(bytes))
+}
+
+/// `(:wat::io::IOReader/read-line <reader>)` → `:Option<String>`.
+pub fn eval_ioreader_read_line(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOReader/read-line";
+    arity(op, args, 1)?;
+    let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
+    let line = reader.read_line()?;
+    Ok(Value::Option(Arc::new(
+        line.map(|s| Value::String(Arc::new(s))),
+    )))
+}
+
+/// `(:wat::io::IOReader/rewind <reader>)` → `:()`.
+pub fn eval_ioreader_rewind(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOReader/rewind";
+    arity(op, args, 1)?;
+    let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
+    reader.rewind()?;
+    Ok(Value::Unit)
+}
+
+// ─── IOWriter construction + snapshot ───────────────────────────────────
+
+/// `(:wat::io::IOWriter/new)` → `:wat::io::IOWriter` (empty).
+pub fn eval_iowriter_new(
+    args: &[WatAST],
+    _env: &Environment,
+    _sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOWriter/new";
+    arity(op, args, 0)?;
+    let writer: Arc<dyn WatWriter> = Arc::new(StringIoWriter::new());
+    Ok(Value::io__IOWriter(writer))
+}
+
+/// `(:wat::io::IOWriter/to-bytes <writer>)` → `:Vec<u8>`. Clones the
+/// accumulated buffer. Only valid for `StringIoWriter` — real stdio
+/// doesn't snapshot (returns MalformedForm).
+pub fn eval_iowriter_to_bytes(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOWriter/to-bytes";
+    arity(op, args, 1)?;
+    let writer_value = eval(&args[0], env, sym)?;
+    let writer = expect_writer(op, writer_value)?;
+    let bytes = snapshot_writer(op, &writer)?;
+    Ok(bytes_to_vec_u8_value(bytes))
+}
+
+/// `(:wat::io::IOWriter/to-string <writer>)` → `:Option<String>`. UTF-8
+/// decode of the accumulated buffer; `:None` if not valid UTF-8.
+pub fn eval_iowriter_to_string(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOWriter/to-string";
+    arity(op, args, 1)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
+    let bytes = snapshot_writer(op, &writer)?;
+    let decoded = String::from_utf8(bytes).ok();
+    Ok(Value::Option(Arc::new(
+        decoded.map(|s| Value::String(Arc::new(s))),
+    )))
+}
+
+/// Helper: snapshot a writer's accumulated bytes. Only meaningful for
+/// `StringIoWriter`; real stdio refuses.
+fn snapshot_writer(
+    op: &str,
+    writer: &Arc<dyn WatWriter>,
+) -> Result<Vec<u8>, RuntimeError> {
+    // Downcast via a capability method: StringIoWriter supports
+    // snapshotting; real-stdio writers don't. We expose it via the
+    // trait itself — there's no need to downcast at dispatch time
+    // if every impl answers "can I be snapshotted?" honestly.
+    //
+    // Simplest: extend WatWriter with an optional `snapshot` method
+    // that defaults to returning NotSupported. StringIoWriter
+    // overrides.
+    writer.snapshot().ok_or_else(|| RuntimeError::MalformedForm {
+        head: op.into(),
+        reason: "writer does not support snapshot (only StringIoWriter does)"
+            .into(),
+    })
+}
+
+// ─── IOWriter ops ────────────────────────────────────────────────────────
+
+/// `(:wat::io::IOWriter/write <writer> <Vec<u8>>)` → `:i64` (bytes written).
+pub fn eval_iowriter_write(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOWriter/write";
+    arity(op, args, 2)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
+    let bytes = expect_vec_u8(op, eval(&args[1], env, sym)?)?;
+    let n = writer.write(&bytes)?;
+    Ok(Value::i64(n as i64))
+}
+
+/// `(:wat::io::IOWriter/write-all <writer> <Vec<u8>>)` → `:()`.
+pub fn eval_iowriter_write_all(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOWriter/write-all";
+    arity(op, args, 2)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
+    let bytes = expect_vec_u8(op, eval(&args[1], env, sym)?)?;
+    writer.write_all(&bytes)?;
+    Ok(Value::Unit)
+}
+
+/// `(:wat::io::IOWriter/writeln <writer> <String>)` → `:i64` (bytes
+/// written, including the trailing `\n`).
+pub fn eval_iowriter_writeln(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOWriter/writeln";
+    arity(op, args, 2)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
+    let s = expect_string(op, eval(&args[1], env, sym)?)?;
+    let mut bytes = s.as_bytes().to_vec();
+    bytes.push(b'\n');
+    let n = bytes.len();
+    writer.write_all(&bytes)?;
+    Ok(Value::i64(n as i64))
+}
+
+/// `(:wat::io::IOWriter/flush <writer>)` → `:()`.
+pub fn eval_iowriter_flush(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOWriter/flush";
+    arity(op, args, 1)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
+    writer.flush()?;
+    Ok(Value::Unit)
+}

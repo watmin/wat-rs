@@ -58,6 +58,7 @@ pub mod config;
 pub mod freeze;
 pub mod hash;
 pub mod identifier;
+pub mod io;
 pub mod lexer;
 pub mod load;
 pub mod lower;

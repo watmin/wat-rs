@@ -205,6 +205,14 @@ pub enum Value {
     /// The OS stdin handle. Rust's `std::io::Stdin`. `(read-line r)`
     /// reads one line or returns `:None` on EOF.
     io__Stdin(Arc<std::io::Stdin>),
+    /// Abstract byte-source handle — `:wat::io::IOReader`. Wraps any
+    /// `WatReader` implementation (real stdin, in-memory `StringIoReader`,
+    /// …). Arc 008 slice 2.
+    io__IOReader(Arc<dyn crate::io::WatReader>),
+    /// Abstract byte-sink handle — `:wat::io::IOWriter`. Wraps any
+    /// `WatWriter` implementation (real stdout/stderr, in-memory
+    /// `StringIoWriter`, …). Arc 008 slice 2.
+    io__IOWriter(Arc<dyn crate::io::WatWriter>),
     /// An `:Option<T>` value — `:None` or `(Some v)`. Built-in
     /// parametric enum per 058-030; used as the return type of
     /// `:wat::kernel::recv` / `try-recv` / `select` and of structural
@@ -298,6 +306,8 @@ impl Value {
             Value::io__Stdout(_) => "rust::std::io::Stdout",
             Value::io__Stderr(_) => "rust::std::io::Stderr",
             Value::io__Stdin(_) => "rust::std::io::Stdin",
+            Value::io__IOReader(_) => "wat::io::IOReader",
+            Value::io__IOWriter(_) => "wat::io::IOWriter",
             Value::Option(_) => "Option",
             Value::Result(_) => "Result",
             Value::Tuple(_) => "tuple",
@@ -1684,6 +1694,24 @@ fn dispatch_keyword_head(
         ":wat::std::member?" => eval_hashset_member(args, env, sym),
         ":wat::io::write" => eval_io_write(args, env, sym),
         ":wat::io::read-line" => eval_io_read_line(args, env, sym),
+
+        // :wat::io::IOReader / :wat::io::IOWriter — abstract IO
+        // substrate (arc 008 slice 2). Two wat-level types; multiple
+        // concrete backings (real stdio, StringIo). Byte-oriented
+        // primitives with char-level conveniences.
+        ":wat::io::IOReader/from-bytes" => crate::io::eval_ioreader_from_bytes(args, env, sym),
+        ":wat::io::IOReader/from-string" => crate::io::eval_ioreader_from_string(args, env, sym),
+        ":wat::io::IOReader/read" => crate::io::eval_ioreader_read(args, env, sym),
+        ":wat::io::IOReader/read-all" => crate::io::eval_ioreader_read_all(args, env, sym),
+        ":wat::io::IOReader/read-line" => crate::io::eval_ioreader_read_line(args, env, sym),
+        ":wat::io::IOReader/rewind" => crate::io::eval_ioreader_rewind(args, env, sym),
+        ":wat::io::IOWriter/new" => crate::io::eval_iowriter_new(args, env, sym),
+        ":wat::io::IOWriter/to-bytes" => crate::io::eval_iowriter_to_bytes(args, env, sym),
+        ":wat::io::IOWriter/to-string" => crate::io::eval_iowriter_to_string(args, env, sym),
+        ":wat::io::IOWriter/write" => crate::io::eval_iowriter_write(args, env, sym),
+        ":wat::io::IOWriter/write-all" => crate::io::eval_iowriter_write_all(args, env, sym),
+        ":wat::io::IOWriter/writeln" => crate::io::eval_iowriter_writeln(args, env, sym),
+        ":wat::io::IOWriter/flush" => crate::io::eval_iowriter_flush(args, env, sym),
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
         ":wat::algebra::Atom" => eval_algebra_atom(args, env, sym),

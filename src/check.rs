@@ -2548,6 +2548,135 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // :wat::io::IOReader + :wat::io::IOWriter abstract IO substrate.
+    // Arc 008 slice 2. Two opaque wat types; multiple concrete
+    // backings (real stdio, StringIo). Byte-oriented primitives with
+    // char-level conveniences.
+    let string_ty = || TypeExpr::Path(":String".into());
+    let unit_ty = || TypeExpr::Tuple(vec![]);
+    let vec_u8_ty = || TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![u8_ty()],
+    };
+    let opt_vec_u8_ty = || TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![vec_u8_ty()],
+    };
+    let opt_string_ty = || TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![string_ty()],
+    };
+    let ioreader_ty = || TypeExpr::Path(":wat::io::IOReader".into());
+    let iowriter_ty = || TypeExpr::Path(":wat::io::IOWriter".into());
+
+    // IOReader — construction + ops.
+    env.register(
+        ":wat::io::IOReader/from-bytes".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![vec_u8_ty()],
+            ret: ioreader_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOReader/from-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: ioreader_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOReader/read".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![ioreader_ty(), i64_ty()],
+            ret: opt_vec_u8_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOReader/read-all".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![ioreader_ty()],
+            ret: vec_u8_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOReader/read-line".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![ioreader_ty()],
+            ret: opt_string_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOReader/rewind".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![ioreader_ty()],
+            ret: unit_ty(),
+        },
+    );
+
+    // IOWriter — construction + ops + snapshot.
+    env.register(
+        ":wat::io::IOWriter/new".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: iowriter_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOWriter/to-bytes".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![iowriter_ty()],
+            ret: vec_u8_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOWriter/to-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![iowriter_ty()],
+            ret: opt_string_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOWriter/write".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![iowriter_ty(), vec_u8_ty()],
+            ret: i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOWriter/write-all".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![iowriter_ty(), vec_u8_ty()],
+            ret: unit_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOWriter/writeln".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![iowriter_ty(), string_ty()],
+            ret: i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::IOWriter/flush".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![iowriter_ty()],
+            ret: unit_ty(),
+        },
+    );
+
     // Integer arithmetic — strict i64 × i64 → i64 under the
     // `:wat::core::i64::*` namespace.
     for op in &[
