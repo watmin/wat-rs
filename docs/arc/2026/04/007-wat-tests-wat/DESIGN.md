@@ -101,6 +101,59 @@ Concretely:
    A sandboxed program's loader is its ceiling." Matches Chapter 16's
    voice about announced capabilities.
 
+### Why loader-on-SymbolTable — convergence with prior art
+
+Before committing to this shape, a check against the inspiration
+languages. Every serious language faces the same problem: how does
+a runtime primitive access startup-bound capabilities (I/O handles,
+loaders, etc.) at dispatch? Names differ; the shape is the same.
+
+- **Common Lisp.** Special variables `*standard-input*`,
+  `*standard-output*`, `*error-output*`, `*readtable*`, `*package*`
+  — bound at image startup, accessed by `write-char` / `read` at
+  runtime.
+- **Scheme.** R7RS parameter objects `current-input-port`,
+  `current-output-port`, `current-error-port` via `make-parameter`
+  + `parameterize`. Plus first-class environments historically
+  carrying eval-time capabilities (SICP's environment model).
+- **Clojure.** Dynamic vars `*out*`, `*in*`, `*err*`,
+  `*compile-path*`, `*print-length*`. `*out*` bound at JVM startup
+  to `System/out`; `println` reads it at dispatch. The trading
+  lab's Hickey lineage already put wat in this line.
+- **Rust.** The compiler's `rustc_interface::Compiler` holds a
+  `Session` carrying `SourceMap`, `diagnostic_emitter`, `file_loader`,
+  `target_spec` — startup-bound, passed down through compiler
+  passes, accessed by subsystems at dispatch. `SymbolTable.source_loader`
+  mirrors this almost 1:1, down to the name. Closest precedent.
+  Also: Tokio's `Handle::current()`, `std::thread::LocalKey`.
+- **Ruby.** `$stdin`, `$stdout`, `$stderr`, `ENV`, `$LOAD_PATH` —
+  startup-bound globals used by `require` / `load` / `puts`.
+  `Kernel#require` reads `$LOAD_PATH`.
+- **Haskell.** `ReaderT env IO a` — the dominant production
+  pattern. `env` is a record built at `main` holding DB pools,
+  loggers, filesystem access. Primitives access via `ask` / `asks`.
+  Plus `System.IO`'s runtime-bound `stdin` / `stdout` / `stderr`.
+- **Agda.** Evaluator calls into a backend-provided primitive
+  table. `IO.Primitive.readFile` is program-facing; the compiler
+  backend supplies the implementation. Most abstract version of
+  the same shape.
+
+**The shape is universal because it's what the substrate permits.**
+A language that needs I/O primitives must carry SOMETHING
+representing "how to do I/O" from program entry to where primitives
+execute. Dynamic scope / monad threading / globals / startup
+contexts / backend dispatch — all valid instantiations of the same
+structural answer. Wat picks the startup-context-structure variant
+because `FrozenWorld` already IS one, and `SymbolTable.encoding_ctx`
+established the pattern one capability ago.
+
+Second convergence this session (the first was `with-state`
+matching Mealy 1955 / Elixir `Stream.transform/3` / Rust
+scan-with-emit / Haskell `mapAccumL`). Same signal: when the right
+shape for a problem is universal across languages with otherwise-
+different philosophies, it's because the shape is what the
+substrate permits — not a style choice.
+
 ### What slice 1 deliberately does NOT solve
 
 The `:rust::*` surfacing is a separate capability. A sandboxed test

@@ -48,6 +48,18 @@
   to its own arc. Slice 1 closes filesystem; network + process
   isolation is a bigger design surface. Documented in
   DESIGN.md's out-of-scope section.
+- **2026-04-21** — Loader-attachment shape: **SymbolTable**
+  (alongside `encoding_ctx`). Rejected new RuntimeContext struct
+  (would invent a second capability-carrier abstraction when one
+  already exists). Rejected removing `:wat::eval::file-path`
+  entirely (pushes the problem to a new primitive). Verified
+  against prior art: Common Lisp, Scheme, Clojure, Rust compiler's
+  Session, Ruby globals, Haskell ReaderT, Agda backend-table — all
+  carry startup-bound runtime capabilities via some structure
+  accessible to primitives at dispatch. Second convergence this
+  session (first was `with-state` matching Mealy 1955 / Elixir /
+  Rust / Haskell). See DESIGN.md's "Why loader-on-SymbolTable"
+  section.
 - **2026-04-21** — Parallel test execution: DEFERRED. V1 of
   `wat-vm test` runs serial. Parallelism is a follow-up once
   usage patterns expose which tests can safely run
