@@ -109,8 +109,11 @@ use case needing direct pipes without fork+exec.
 
 ## 2. `:wat::kernel::fork-with-forms` + `ForkedChild` + `ChildHandle` + `wait-child`
 
-**Status:** obvious in shape; three sub-problems have fog that
-resolves when code lands.
+**Status:** **slice 2 core shipped 2026-04-21** — commit `bd68a4e`.
+`fork-with-forms`, `ForkedChild` struct, and `ChildHandle`
+opaque type land together. `wait-child` lands in the next
+commit (still pending; structural sub-fog 2c about double-reap
+awaits that slice).
 
 **Problem:** `Command::spawn` paired with `--current-exe` gives
 hermetic the process isolation it needs, but at the cost of
@@ -222,6 +225,56 @@ inscribes the fork primitives alongside the kernel tier (arc 006
 any future subprocess use case that wants "a fresh wat
 evaluation on top of the same runtime" (daemon parallelism,
 replay runners, test-per-process harnesses).
+
+**What shipped for slice 2 core (2026-04-21, commit `bd68a4e`):**
+- `src/fork.rs` — new module. `ChildHandleInner` (pid + reaped
+  AtomicBool, Drop SIGKILLs + reaps if never waited);
+  `make_pipe` helper; `close_inherited_fds_above_stdio`;
+  `eval_kernel_fork_with_forms`; `child_branch` (never-returns,
+  full in-child pipeline).
+- `Value::wat__kernel__ChildHandle(Arc<ChildHandleInner>)`
+  variant in `runtime.rs` + type_name arm.
+- Dispatch arm `":wat::kernel::fork-with-forms"` in `runtime.rs`.
+- `:wat::kernel::ForkedChild` StructDef in `types.rs` with four
+  fields (handle, stdin, stdout, stderr). Auto-generated `/new`
+  + per-field accessors land at freeze via
+  `register_struct_methods`.
+- Type scheme for `fork-with-forms` in `check.rs` —
+  `:Vec<wat::WatAST>` → `:wat::kernel::ForkedChild`.
+- 3 integration tests in `tests/wat_fork.rs` covering parent-
+  reads-child-stdout, parent-reads-child-stderr, parent-writes-
+  child-stdin-and-echo.
+
+**Sub-fogs resolved:**
+
+- **2a — close-inherited-fds strategy.** `/proc/self/fd` (Linux)
+  or `/dev/fd` (macOS) iteration. First pass tried to close
+  fds mid-iteration; the dir-reader's own fd was in the listing,
+  closing it mid-walk panicked glibc's `closedir`. Fix: collect
+  candidate fds from the listing, let the iterator drop cleanly,
+  then close the collected fds (the iterator's fd is already
+  closed by then — subsequent `close()` returns EBADF which we
+  ignore). "Collect first, close after" is the honest pattern
+  for fd-iteration-during-teardown.
+
+- **2b — exit-code convention.** Five codes pinned and exposed
+  as `pub const` in `src/fork.rs`:
+  - `EXIT_SUCCESS` = 0
+  - `EXIT_RUNTIME_ERROR` = 1
+  - `EXIT_PANIC` = 2
+  - `EXIT_STARTUP_ERROR` = 3
+  - `EXIT_MAIN_SIGNATURE` = 4
+  Slice 3's hermetic reconstruction will import these. Signal
+  termination encodes separately (kernel semantics); slice 3
+  will handle `WIFSIGNALED(status)` as its own failure kind.
+
+**Caught in passing:**
+- `:wat::io::IOWriter/writeln` returns `:i64` (byte count), not
+  `:()`. A `:user::main` with `-> :()` signature can't use
+  writeln as its tail expression. Use `IOWriter/println`
+  (returns `:()`) for unit-returning main bodies, or bind
+  writeln's return via `let*` and return `()` explicitly.
+  Caught by the first round of integration tests.
 
 ---
 
