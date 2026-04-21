@@ -117,6 +117,43 @@ Expect the shape to clarify from writing real pipelines the verbose way first (i
 
 ---
 
+## Known gap — alias expansion at shape-inspection sites
+
+**Status:** lurking; not blocking. Deferred until a real use case surfaces.
+
+`expand_alias` is called inside `unify` (post 2026-04-20) and inside
+`infer_positional_accessor` (post 2026-04-20, discovered when
+`first`/`second` on `:wat::std::stream::Stream<T>` tuples first
+landed). Other places in `src/check.rs` inspect type SHAPE directly
+after `apply_subst` without expanding aliases:
+
+- `infer_let` / `infer_let_star` — destructure-binder branch inspects
+  the RHS for Tuple shape.
+- `infer_hashmap_constructor` / `infer_hashset_constructor` — match
+  on `Parametric { head: "HashMap", ... }` / `"HashSet"`.
+- `infer_get` — tuple-index branch.
+- `infer_drop` — matches parametric heads `Sender` / `Receiver`.
+
+A typealias over any of these shapes (e.g.,
+`(typealias :my::Row :HashMap<String,i64>)`) would parse and
+register, unify-based operations would work, but a shape-direct site
+would report "expected HashMap, got :my::Row" instead of seeing
+through the alias.
+
+**Fix pattern when it bites**: in the offending infer_* function,
+replace `apply_subst(&ty, subst)` with
+`expand_alias(&apply_subst(&ty, subst), env.types())` at the
+structural-match site. One line per site; same idiom as
+`infer_positional_accessor`.
+
+**Why deferred**: no current code hits it. The Stream<T> / LocalCache
+cases that motivated alias expansion are fully covered (unify path
++ first/second). Sweeping every shape-inspection site proactively is
+risk-averse engineering for a hypothetical problem; fixing each as
+it surfaces is a one-line edit with a clear diagnostic trail.
+
+---
+
 ## What this backlog does NOT include
 
 - **Level 2 iterator surfacing** (`:rust::std::iter::Iterator<T>` via `#[wat_dispatch]`). The DESIGN.md mentions it as the in-process-lazy flavor. Deferred until a real use case demands it — crossbeam-channel streams cover the cross-process flavor and can compose with in-process transforms if we need them.
