@@ -293,50 +293,151 @@
 ;; the partial accumulator if non-empty. This is the canonical
 ;; stateful-stage pattern: state threads through the tail-recursive
 ;; worker as a parameter (no mutation; the recursion carries it).
+;; --- with-state ---
+;;
+;; The Mealy-machine stream stage. Every stateful stage reducer
+;; (chunks, chunks-by, chunks-while, window, dedupe, distinct-until-
+;; changed, sessionize, rate-limit, running-stats, ...) is a triple
+;; (init, step, flush) over with-state.
+;;
+;;   init  :Acc
+;;   step  :fn(Acc,T) -> :(Acc, Vec<U>)
+;;   flush :fn(Acc)   -> :Vec<U>
+;;
+;; Worker semantics: each upstream item threads through `step`, which
+;; returns the new state and zero-or-more items to emit. On upstream
+;; EOS, `flush` is called on the final state and its Vec<U> is
+;; drained downstream before the worker exits.
+;;
+;; Convergence with prior art — Elixir's Stream.transform/3, Rust's
+;; scan-with-emit, Haskell's mapAccumL, Mealy's 1955 sequential-
+;; circuit state machine. Arc 006 BACKLOG's resolution named this
+;; shape as the substrate every stateful-stage combinator wants.
+
 (:wat::core::define
-  (:wat::std::stream::chunks-worker<T>
+  (:wat::std::stream::drain-items<U>
+    (out :rust::crossbeam_channel::Sender<U>)
+    (items :Vec<U>)
+    -> :Option<()>)
+  ;; Tail-recursive helper: send every item in `items`, stop early
+  ;; (returning :None) if the consumer dropped. Returns (Some ()) on
+  ;; full drain; returns :None if any send failed, signaling the
+  ;; caller to exit.
+  (:wat::core::if (:wat::core::empty? items) -> :Option<()>
+    (Some ())
+    (:wat::core::let*
+      (((item :U) (:wat::core::first items))
+       ((rest-items :Vec<U>) (:wat::core::rest items))
+       ((sent :Option<()>) (:wat::kernel::send out item)))
+      (:wat::core::match sent -> :Option<()>
+        ((Some _)
+          (:wat::std::stream::drain-items out rest-items))
+        (:None :None)))))
+
+(:wat::core::define
+  (:wat::std::stream::with-state-worker<T,U,Acc>
     (in :rust::crossbeam_channel::Receiver<T>)
-    (out :rust::crossbeam_channel::Sender<Vec<T>>)
-    (size :i64)
-    (buffer :Vec<T>)
+    (out :rust::crossbeam_channel::Sender<U>)
+    (step :fn(Acc,T)->(Acc,Vec<U>))
+    (flush :fn(Acc)->Vec<U>)
+    (acc :Acc)
     -> :())
   (:wat::core::match (:wat::kernel::recv in) -> :()
     ((Some item)
       (:wat::core::let*
-        (((new-buffer :Vec<T>) (:wat::core::conj buffer item)))
-        (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size) -> :()
-          (:wat::core::let*
-            (((sent :Option<()>) (:wat::kernel::send out new-buffer)))
-            (:wat::core::match sent -> :()
-              ((Some _)
-                (:wat::std::stream::chunks-worker in out size
-                  (:wat::core::vec :T)))
-              (:None ())))
-          (:wat::std::stream::chunks-worker in out size new-buffer))))
+        (((stepped :(Acc,Vec<U>)) (step acc item))
+         ((new-acc :Acc) (:wat::core::first stepped))
+         ((to-emit :Vec<U>) (:wat::core::second stepped))
+         ((drain-result :Option<()>)
+          (:wat::std::stream::drain-items out to-emit)))
+        (:wat::core::match drain-result -> :()
+          ((Some _)
+            (:wat::std::stream::with-state-worker in out step flush new-acc))
+          (:None ()))))
     (:None
-      ;; Upstream disconnected. Flush the partial accumulator if
-      ;; non-empty; consumer-dropped is swallowed.
-      (:wat::core::if (:wat::core::empty? buffer) -> :()
-        ()
-        (:wat::core::match (:wat::kernel::send out buffer) -> :()
-          ((Some _) ())
-          (:None ()))))))
+      ;; Upstream disconnected. Flush final state; drain whatever it
+      ;; produced. Consumer-dropped during flush is swallowed silently
+      ;; — same behavior chunks had for its final partial buffer.
+      (:wat::core::let*
+        (((final-emits :Vec<U>) (flush acc))
+         ((_ :Option<()>)
+          (:wat::std::stream::drain-items out final-emits)))
+        ()))))
+
+(:wat::core::define
+  (:wat::std::stream::with-state<T,U,Acc>
+    (upstream :wat::std::stream::Stream<T>)
+    (init :Acc)
+    (step :fn(Acc,T)->(Acc,Vec<U>))
+    (flush :fn(Acc)->Vec<U>)
+    -> :wat::std::stream::Stream<U>)
+  (:wat::core::let*
+    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
+     ((pair :(rust::crossbeam_channel::Sender<U>,rust::crossbeam_channel::Receiver<U>))
+      (:wat::kernel::make-bounded-queue :U 1))
+     ((tx :rust::crossbeam_channel::Sender<U>) (:wat::core::first pair))
+     ((rx :rust::crossbeam_channel::Receiver<U>) (:wat::core::second pair))
+     ((handle :wat::kernel::ProgramHandle<()>)
+      (:wat::kernel::spawn :wat::std::stream::with-state-worker
+        up-rx tx step flush init)))
+    (:wat::core::tuple rx handle)))
+
+;; --- chunks (rewritten on top of with-state) ---
+;;
+;; Surface-reduction proof of the with-state decomposition. The N:1
+;; batcher's triple:
+;;
+;;   init  = empty Vec<T>
+;;   step  = (buf, item) ->
+;;             if len(buf)+1 == size: (empty, [buf++[item]])
+;;             else:                  (buf++[item], [])
+;;   flush = buf -> if empty: [] else: [buf]
+;;
+;; Arc 006 inscription note: the pre-with-state chunks-worker was a
+;; standalone tail-recursive state machine. Same semantics, different
+;; factoring — the state transitions now live in step/flush lambdas
+;; instead of in-worker branches.
+
+(:wat::core::define
+  (:wat::std::stream::chunks-step<T>
+    (buffer :Vec<T>)
+    (item :T)
+    (size :i64)
+    -> :(Vec<T>,Vec<Vec<T>>))
+  (:wat::core::let*
+    (((new-buffer :Vec<T>) (:wat::core::conj buffer item)))
+    (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size)
+      -> :(Vec<T>,Vec<Vec<T>>)
+      (:wat::core::tuple
+        (:wat::core::vec :T)
+        (:wat::core::conj (:wat::core::vec :Vec<T>) new-buffer))
+      (:wat::core::tuple
+        new-buffer
+        (:wat::core::vec :Vec<T>)))))
+
+(:wat::core::define
+  (:wat::std::stream::chunks-flush<T>
+    (buffer :Vec<T>)
+    -> :Vec<Vec<T>>)
+  (:wat::core::if (:wat::core::empty? buffer) -> :Vec<Vec<T>>
+    (:wat::core::vec :Vec<T>)
+    (:wat::core::conj (:wat::core::vec :Vec<T>) buffer)))
 
 (:wat::core::define
   (:wat::std::stream::chunks<T>
     (upstream :wat::std::stream::Stream<T>)
     (size :i64)
     -> :wat::std::stream::Stream<Vec<T>>)
-  (:wat::core::let*
-    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
-     ((pair :(rust::crossbeam_channel::Sender<Vec<T>>,rust::crossbeam_channel::Receiver<Vec<T>>))
-      (:wat::kernel::make-bounded-queue :Vec<T> 1))
-     ((tx :rust::crossbeam_channel::Sender<Vec<T>>) (:wat::core::first pair))
-     ((rx :rust::crossbeam_channel::Receiver<Vec<T>>) (:wat::core::second pair))
-     ((handle :wat::kernel::ProgramHandle<()>)
-      (:wat::kernel::spawn :wat::std::stream::chunks-worker
-        up-rx tx size (:wat::core::vec :T))))
-    (:wat::core::tuple rx handle)))
+  ;; chunks-step takes (buf, item, size) — three args — but with-state
+  ;; wants (buf, item). The `size` parameter has to close over the
+  ;; chunks caller's argument, so step is genuinely a lambda capturing
+  ;; `size`, not a pass-through. chunks-flush takes (buf) exactly, so
+  ;; it passes by name directly (arc 009 — names are values).
+  (:wat::std::stream::with-state upstream
+    (:wat::core::vec :T)
+    (:wat::core::lambda ((buf :Vec<T>) (item :T) -> :(Vec<T>,Vec<Vec<T>>))
+      (:wat::std::stream::chunks-step buf item size))
+    :wat::std::stream::chunks-flush))
 
 ;; --- take ---
 ;;

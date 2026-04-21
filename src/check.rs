@@ -380,6 +380,20 @@ fn infer(
             head: "Option".into(),
             args: vec![fresh.fresh()],
         }),
+        // Arc 009 — names are values. If the keyword is a registered
+        // function (user define, stdlib define, or builtin primitive),
+        // instantiate its scheme and return a `:fn(...)->Ret` type so
+        // the keyword can be passed to any `:fn(...)`-typed parameter.
+        // Mirrors `infer_spawn`'s long-standing keyword-path path,
+        // generalized to every expression position.
+        WatAST::Keyword(k) if env.get(k).is_some() => {
+            let scheme = env.get(k).expect("guard").clone();
+            let (params, ret) = instantiate(&scheme, fresh);
+            Some(TypeExpr::Fn {
+                args: params,
+                ret: Box::new(ret),
+            })
+        }
         WatAST::Keyword(_) => Some(TypeExpr::Path(":wat::core::keyword".into())),
         WatAST::Symbol(ident) => locals.get(&ident.name).cloned(),
         WatAST::List(items) => infer_list(items, env, locals, fresh, subst, errors),

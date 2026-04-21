@@ -97,6 +97,14 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   caught mid-migration. Prerequisite for arc 007 slice 2 —
   without substitutable stdio, the sandbox couldn't construct
   `:user::main`'s arguments.
+- **`arc/2026/04/009-names-are-values/`** — the fn-by-name lift.
+  A registered define's keyword-path in value position now
+  evaluates to a callable `Value::wat__core__lambda`, and the
+  type checker infers a `:fn(...)->Ret` scheme for the same
+  position. Generalizes `:wat::kernel::spawn`'s long-standing
+  accept-by-name convention to every `:fn(...)`-typed parameter
+  position. Forced by arc 006 slice 4's with-state ergonomics;
+  benefits every higher-order combinator downstream.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.

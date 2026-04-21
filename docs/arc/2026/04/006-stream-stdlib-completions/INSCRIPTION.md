@@ -1,9 +1,12 @@
 # Arc 006 — Stream Stdlib Completions — INSCRIPTION
 
-**Status:** slices 1 + 2 + 3 shipped 2026-04-20; chunks-by and
-window resolved at substrate level (blocked on with-state shipping).
-Arc remains OPEN only for the substrate-blocked set (with-state
-itself, time-window, from-iterator, Level 2 iterator surfacing).
+**Status:** slices 1 + 2 + 3 shipped 2026-04-20; slice 4 (with-state
+substrate + chunks-on-with-state surface-reduction proof) shipped
+2026-04-21 alongside arc 009 (names are values), which closed the
+fn-by-name gap that with-state's ergonomics depended on. Arc
+remains OPEN only for `chunks-by`, `window`, time-window,
+from-iterator, and Level 2 iterator surfacing — all library-code
+follow-ups over the now-shipped with-state.
 **Backlog:** [`BACKLOG.md`](./BACKLOG.md) — full classification of
 arc 004's deferred set.
 **This file:** completion marker for the trivial pattern-completion
@@ -221,3 +224,77 @@ caller-supplied (init, step, flush) triple. Convergence with Elixir's
 Stream.transform/3, Rust's scan-with-emit, Haskell's mapAccumL,
 George Mealy 1955. Shipping it proves the decomposition by rewriting
 `chunks` on top and reducing the primitive surface.
+
+---
+
+## Slice 4 — `with-state` + chunks on top (2026-04-21)
+
+The paused slice resumed. The Mealy-machine stream stage landed
+alongside two helpers and a `chunks` rewrite that proves the
+decomposition.
+
+### What shipped
+
+- `:wat::std::stream::with-state<T,U,Acc>` — the substrate primitive.
+  Signature: `:Stream<T> × :Acc × :fn(Acc,T)->(Acc,Vec<U>) × :fn(Acc)->Vec<U> -> :Stream<U>`.
+  Worker threads `Acc` through upstream items, draining each step's
+  `Vec<U>` emissions downstream; at EOS, flushes the final state and
+  drains; exits. Tail-recursive, standard spawn-with-bounded(1) shape
+  mirroring map / filter / chunks.
+- `:wat::std::stream::drain-items<U>` — tail-recursive helper that
+  sends every item in a `Vec<U>` downstream, stopping early on
+  `:None` (consumer dropped). Returns `:Option<()>` so the worker can
+  decide whether to continue or exit.
+- `:wat::std::stream::with-state-worker<T,U,Acc>` — the spawn target.
+- `:wat::std::stream::chunks-step<T>` + `:wat::std::stream::chunks-flush<T>`
+  — the chunks reducer triple in explicit form. `chunks-step` is
+  `(buf, item, size) -> (new-buf, emits-if-any)`; `chunks-flush` is
+  `(buf) -> [buf] | []`.
+- `:wat::std::stream::chunks<T>` — rewritten as a `with-state` call.
+  The former standalone chunks-worker retired. Same behavior (22/22
+  existing stream tests pass unchanged); cleaner factoring.
+- `wat-tests/std/stream.wat` — six deftests covering chunks
+  (exact-multiple, partial-flush, empty-upstream), with-state directly
+  (dedupe-adjacent, buffer-all-at-eos), and a names-are-values sanity
+  check.
+
+### Convergence held
+
+Every named stateful-stage pattern reduces to a with-state triple:
+chunks (buffer + size-threshold emit), chunks-by (buffer + key-fn
+boundary emit), window (buffer + stride-threshold + partial EOS
+policy), dedupe (last-seen + equality suppress), distinct-until-
+changed (same shape as dedupe, different equality), rate-limit
+(counter + clock-threshold), running-stats (aggregator that never
+emits per-step). All land as library code on `with-state` when a
+caller demands them.
+
+### Dependency that landed beside it — arc 009
+
+`with-state`'s ergonomics required passing named defines to its
+`step` and `flush` parameters. Shipping without arc 009 (names-are-
+values) would have forced every caller to wrap each named function
+in a pass-through lambda — honest-but-wasteful ceremony the verbose-
+is-honest ward would have flagged. Arc 009 closed the gap at the
+substrate (eval + check both lift registered keywords to function
+values); `chunks`'s rewrite on with-state passes `chunks-flush` by
+bare name; wat-tests'es three with-state direct tests do the same.
+Two arcs shipped as a pair.
+
+### What this slice does NOT add
+
+- **`chunks-by`, `window`, `dedupe`, `sessionize`, etc.** The substrate
+  carries them. Each lands as library wat on top of with-state when
+  a concrete caller cites use. Arc 006 still OPEN for those.
+- **Terminal variants of with-state.** `fold-with-state`, for example,
+  would run the Mealy machine to completion and return the final
+  accumulator without a Stream output. Not shipped; caller-demanded.
+
+### What arc 006 still holds open
+
+- `chunks-by`, `window`, `dedupe`, `distinct-until-changed`,
+  `sessionize` — library combinators on with-state.
+- `time-window` — needs a clock source; own arc when a caller
+  surfaces.
+- `from-iterator` + Level 2 iterator surfacing — stream-from-`:rust::
+  std::iter::Iterator` bridge; design question still open.

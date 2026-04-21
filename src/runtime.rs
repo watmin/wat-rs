@@ -1559,6 +1559,17 @@ pub fn eval(
             if k == ":None" {
                 return Ok(Value::Option(Arc::new(None)));
             }
+            // Arc 009 — names are values. If the keyword is a registered
+            // user/stdlib define, lift it to a callable Function value.
+            // Parallels `:wat::kernel::spawn`'s long-standing accept-by-
+            // name convention — generalized here so every `:fn(...)`-
+            // typed parameter accepts a bare keyword-path reference.
+            // Primitives (kernel/algebra/config/io) stay call-only at
+            // runtime; they can pass the type check but won't evaluate
+            // to a Function until a caller demands that extension.
+            if let Some(func) = sym.get(k) {
+                return Ok(Value::wat__core__lambda(func.clone()));
+            }
             Ok(Value::wat__core__keyword(Arc::new(k.clone())))
         }
         WatAST::Symbol(ident) => env
