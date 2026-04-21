@@ -64,6 +64,16 @@
   session (first was `with-state` matching Mealy 1955 / Elixir /
   Rust / Haskell). See DESIGN.md's "Why loader-on-SymbolTable"
   section.
+- **2026-04-21** — Rust-runtime state isolation: OUT OF SCOPE for
+  this arc, **scaffolded for future**. In-process sandboxes share
+  `static` / `lazy_static` / `OnceLock` state across sandboxes and
+  the outer process (same model as `cargo test`). True process-level
+  isolation requires subprocess-per-test — named as a future
+  "hermetic-mode" arc. Arc 007 bakes four scaffolding decisions
+  (serializable TestResult, single-test addressability, CLI contract
+  room for `--hermetic` + `--run-one`, parallel exit-code semantics)
+  so hermetic lands as a clean extension, not a breaking change.
+  See DESIGN.md "Scaffolding for hermetic-mode (future arc)".
 - **2026-04-21** — Parallel test execution: DEFERRED. V1 of
   `wat-vm test` runs serial. Parallelism is a follow-up once
   usage patterns expose which tests can safely run

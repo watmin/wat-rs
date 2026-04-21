@@ -154,22 +154,117 @@ shape for a problem is universal across languages with otherwise-
 different philosophies, it's because the shape is what the
 substrate permits — not a style choice.
 
-### What slice 1 deliberately does NOT solve
+### What sandbox isolation does NOT guarantee
 
-The `:rust::*` surfacing is a separate capability. A sandboxed test
-that `use!`s `:rust::std::net::TcpStream` bypasses filesystem
-entirely and makes a network connection. A test that `use!`s
-`:rust::std::process::Command` can spawn processes. Fully-sealed
-sandbox needs a per-world allowlist of `:rust::*` types.
+Arc 007 gates **wat-level** capabilities. It gates filesystem via
+the Loader (slice 1) and will gate signal-mutation via privileged
+primitives (slice 2). It does NOT — cannot — isolate Rust-level
+process state shared across sandboxes running in the same Rust
+process.
 
-That's a bigger slice with its own design questions (static
-allowlist in source? capability object passed to run-sandboxed?
-deny-by-default or allow-by-default?). Deferred until a real
-caller demands it. Slice 1 closes the filesystem hole; the
-`:rust::*` hole is documented in the arc's "out of scope" section.
+Specifically **not isolated by this sandbox**:
+
+- **Rust `static` / `lazy_static` / `OnceLock` state** in wat-rs
+  itself or in any crate behind a `#[wat_dispatch]` shim. If a
+  shim method touches `static COUNTER: AtomicU64`, sandboxed wat
+  can increment it; the next sandbox sees the incremented value.
+- **Thread pools, connection pools, caches** held in any crate
+  the host registered via `#[wat_dispatch]`. The shim surface is
+  a dispatcher; the backing state is process-global.
+- **Environment variables** set via `std::env::set_var` through
+  any shim that exposes it. Process-global.
+- **File handles, sockets, memory-mapped files** held in shim-
+  internal registries or global collections.
+- **Thread-local state set by wat code.** Wat's own kernel runs
+  in multiple threads; between `:wat::kernel::spawn` calls,
+  thread-locals set by one sandbox's worker could be observed
+  by the next.
+
+**This is the same model `cargo test` has.** Tests run in one
+process, share `static` state, and depend on the honor system
+for hermeticity. Rust's ecosystem response is `#[serial]`,
+per-test teardown, and subprocess test runners like `trybuild` —
+language conventions, not language features. Wat inherits the
+model.
+
+**Full process-level isolation requires subprocess-per-test.**
+That's a named future arc — see "Scaffolding for hermetic-mode"
+below. Until it lands, wat-test hosts whose shims have mutable
+process-global state must either (a) not use them in tests that
+need isolation, (b) tear down the state explicitly between
+tests, or (c) wait for the hermetic arc.
+
+### Deferred to its own arc — `:rust::*` capability allowlist
+
+Even more specific: a sandboxed test can today call any
+`#[wat_dispatch]`-registered shim the host provides. A test
+that `use!`s `:rust::std::net::TcpStream` makes a network
+connection. A test that `use!`s `:rust::std::process::Command`
+forks a process. Network/process capability isolation would
+require a per-world allowlist of `:rust::*` types, enforced at
+`use!` time. Not arc 007 scope. Deferred until a real caller
+demands it; the pattern would be host-provides-allowlist + the
+frozen world refuses `use!` of paths outside the list.
+
+Even with that allowlist, process-state leakage (above) still
+stands. The allowlist is about reducing *attack surface*;
+hermetic is about eliminating *state leakage*. Different
+concerns, different arcs.
+
+### Scaffolding for hermetic-mode (future arc)
+
+Arc 007 ships in-process testing. A future arc will add
+subprocess-per-test isolation under `wat-vm test --hermetic`.
+To make that arc a clean extension rather than a breaking
+change, arc 007 bakes four scaffolding decisions into its
+deliverables:
+
+1. **Serializable `TestResult` shape.** Every test produces a
+   structure that has a stable, serializable representation —
+   either a derive-based serde shape or a documented JSON
+   layout. The in-process runner builds these directly; the
+   hermetic runner will deserialize them from a child
+   subprocess's stdout. Fields pinned now: `{ name, passed: bool,
+   elapsed_ms, failure: Option<{ message, location? }> }`.
+   Slice 3 defines. Slice 4 uses.
+
+2. **Single-test addressability.** Every test has a stable ID.
+   In v1 (one-file-is-one-test): ID = file path. Future case-
+   level granularity extends to `<file-path>::<case-name>`. The
+   CLI contract supports `--run-one <id>` (not implemented in
+   arc 007 but reserved).
+
+3. **`wat-vm test` CLI contract** leaves room for future flags
+   without breaking the in-process default:
+   - `wat-vm test <path>` — run all tests under path, in-process,
+     cargo-test-style report. (Arc 007 ships this.)
+   - `wat-vm test --hermetic <path>` — subprocess per test.
+     (Future arc.)
+   - `wat-vm test --run-one <id>` — single-test subprocess entry
+     point. Emits a single `TestResult` JSON to stdout.
+     (Future arc; the hermetic runner uses this.)
+   Choose flag names now so future code doesn't collide with v1.
+
+4. **Exit-code parallelism.** Aggregate runner exits 0 iff all
+   tests passed, non-zero if any failed. Single-test runner (when
+   implemented) exits 0 iff the test passed, non-zero if failed.
+   Parallel semantics between modes means a hermetic child's
+   exit code IS the test's pass/fail signal.
+
+These cost almost nothing to bake in during slice 3/4. Deferring
+them risks breaking-change churn when hermetic lands.
+
+**The hermetic arc itself is NOT this arc.** When it lands:
+- Add `--hermetic` flag and `--run-one <id>` entry point
+- Child emits `TestResult` as JSON on stdout; parent parses
+- Startup cost: ~10-50ms/test; acceptable for CI where isolation
+  matters more than per-test speed
+- In-process mode stays default — fast, matches cargo-test
+  semantics, the 90% case
 
 Stdlib-as-blueprint on sandbox capabilities too — each capability
-gate ships when a concrete caller demands.
+gate, and the subprocess-runner mode itself, ships when a
+concrete caller demands.
 
 ---
 
