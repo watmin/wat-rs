@@ -56,6 +56,7 @@ pub mod assertion;
 pub mod ast;
 pub mod check;
 pub mod config;
+pub mod fork;
 pub mod harness;
 pub mod freeze;
 pub mod hash;

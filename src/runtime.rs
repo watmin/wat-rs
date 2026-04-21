@@ -246,6 +246,13 @@ pub enum Value {
         name: Arc<String>,
         rx: Arc<crossbeam_channel::Receiver<Value>>,
     },
+    /// A handle to a child process spawned via
+    /// `:wat::kernel::fork-with-forms` (arc 012 slice 2). Opaque from
+    /// wat's POV — produced by fork, consumed by
+    /// `:wat::kernel::wait-child`. `Drop` SIGKILLs + reaps if the
+    /// caller never waited, keeping zombies out of the process
+    /// table.
+    wat__kernel__ChildHandle(Arc<crate::fork::ChildHandleInner>),
     /// An instance of a user-declared `:wat::core::struct` type — a
     /// tagged positional tuple. `type_name` carries the struct's
     /// keyword path (e.g., `:wat::algebra::CapacityExceeded`); `fields`
@@ -300,6 +307,7 @@ impl Value {
             Value::Tuple(_) => "tuple",
             Value::wat__kernel__ProgramHandle(_) => "wat::kernel::ProgramHandle",
             Value::wat__kernel__HandlePool { .. } => "wat::kernel::HandlePool",
+            Value::wat__kernel__ChildHandle(_) => "wat::kernel::ChildHandle",
             Value::Struct(_) => "Struct",
         }
     }
@@ -1805,6 +1813,7 @@ fn dispatch_keyword_head(
         ":wat::kernel::make-bounded-queue" => eval_make_bounded_queue(args, env, sym),
         ":wat::kernel::make-unbounded-queue" => eval_make_unbounded_queue(args),
         ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args),
+        ":wat::kernel::fork-with-forms" => crate::fork::eval_kernel_fork_with_forms(args, env, sym),
         ":wat::kernel::sigusr1?" => {
             eval_user_signal_query(args, ":wat::kernel::sigusr1?", &KERNEL_SIGUSR1)
         }

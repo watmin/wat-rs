@@ -3217,6 +3217,22 @@ fn register_builtins(env: &mut CheckEnv) {
             ]),
         },
     );
+    // (:wat::kernel::fork-with-forms forms) → :wat::kernel::ForkedChild.
+    // Arc 012 slice 2. Forks the current wat process (COW-inheriting
+    // the loaded substrate), runs the caller's forms as a fresh
+    // :user::main in the child, returns the ForkedChild struct
+    // holding the child's handle + stdio pipe ends.
+    env.register(
+        ":wat::kernel::fork-with-forms".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Parametric {
+                head: "Vec".into(),
+                args: vec![TypeExpr::Path(":wat::WatAST".into())],
+            }],
+            ret: TypeExpr::Path(":wat::kernel::ForkedChild".into()),
+        },
+    );
     // User-signal surface — 2026-04-19 stance: kernel measures, userland
     // owns transitions. Six nullary primitives: three pollers return
     // :bool; three resetters return :(). SIGINT / SIGTERM stay on the

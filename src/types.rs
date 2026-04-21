@@ -416,6 +416,40 @@ fn register_builtin_types(env: &mut TypeEnv) {
             ),
         ],
     }));
+
+    // :wat::kernel::ForkedChild — return type of
+    // `:wat::kernel::fork-with-forms` (arc 012 slice 2). Holds the
+    // child's pid-bearing handle plus the three parent-side pipe
+    // ends. Fields:
+    //   - handle — opaque ChildHandle; feeds into wait-child.
+    //   - stdin  — parent writes, child reads fd 0.
+    //   - stdout — parent reads, child wrote fd 1.
+    //   - stderr — parent reads, child wrote fd 2.
+    //
+    // Auto-generated `ForkedChild/new` + per-field accessors land
+    // in the symbol table at freeze time via register_struct_methods.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::kernel::ForkedChild".into(),
+        type_params: vec![],
+        fields: vec![
+            (
+                "handle".into(),
+                TypeExpr::Path(":wat::kernel::ChildHandle".into()),
+            ),
+            (
+                "stdin".into(),
+                TypeExpr::Path(":wat::io::IOWriter".into()),
+            ),
+            (
+                "stdout".into(),
+                TypeExpr::Path(":wat::io::IOReader".into()),
+            ),
+            (
+                "stderr".into(),
+                TypeExpr::Path(":wat::io::IOReader".into()),
+            ),
+        ],
+    }));
 }
 
 /// Type-declaration errors.
