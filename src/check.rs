@@ -628,6 +628,14 @@ fn infer_list(
 /// arm matches `:None` (either the `:None` pattern or a wildcard) and
 /// at least one arm matches `(Some _)` (either the `Some` pattern or
 /// a wildcard).
+/// `(:wat::core::match scrutinee -> :T arm1 arm2 ...)` — typed match.
+///
+/// Per the 2026-04-20 INSCRIPTION, match now requires an explicit
+/// `-> :T` declaration between the scrutinee and the arms. Every
+/// arm body is checked against `:T` independently so divergent
+/// arms produce a per-arm TypeMismatch naming the declared type.
+/// The old no-annotation form is refused with a migration-hint
+/// MalformedForm.
 fn infer_match(
     args: &[WatAST],
     env: &CheckEnv,
@@ -636,17 +644,57 @@ fn infer_match(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    if args.len() < 2 {
-        errors.push(CheckError::ArityMismatch {
-            callee: ":wat::core::match".into(),
-            expected: 2,
-            got: args.len(),
+    // Pre-inscription shape detection: if args[1] isn't `->`, this
+    // is the old form. Surface a migration-hint error before the
+    // standard arity check so authors see the right guidance.
+    if args.len() >= 2
+        && !matches!(&args[1], WatAST::Symbol(s) if s.as_str() == "->")
+    {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: "`:wat::core::match` now requires `-> :T` between scrutinee and arms; write (:wat::core::match scrut -> :T (pat body) ...)".into(),
         });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
         return None;
     }
+    if args.len() < 4 {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: format!(
+                "expected (:wat::core::match scrut -> :T arm1 arm2 ...) — at least 4 args; got {}",
+                args.len()
+            ),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return None;
+    }
+    // Parse the declared `:T`.
+    let declared_ty = match &args[2] {
+        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(e) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!("declared type {:?} failed to parse: {}", k, e),
+                });
+                return None;
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: "expected type keyword after `->`".into(),
+            });
+            return None;
+        }
+    };
 
-    // Detect shape from the arms.
-    let arm_refs: Vec<&WatAST> = args[1..].iter().collect();
+    // Detect shape from the arms (arms begin at args[3..]).
+    let arm_refs: Vec<&WatAST> = args[3..].iter().collect();
     let shape = detect_match_shape(&arm_refs, fresh);
 
     // Scrutinee must unify with the detected shape.
@@ -670,9 +718,8 @@ fn infer_match(
     let mut covers_option_some = false;
     let mut covers_result_ok = false;
     let mut covers_result_err = false;
-    let mut result_ty: Option<TypeExpr> = None;
 
-    for (idx, arm) in args[1..].iter().enumerate() {
+    for (idx, arm) in args[3..].iter().enumerate() {
         let arm_items = match arm {
             WatAST::List(items) if items.len() == 2 => items,
             _ => {
@@ -701,20 +748,17 @@ fn infer_match(
             None => continue,
         }
 
+        // Each arm body checked against the declared `:T` independently.
         let arm_ty = infer(body, env, &arm_locals, fresh, subst, errors);
-        match (&result_ty, arm_ty) {
-            (None, Some(t)) => result_ty = Some(t),
-            (Some(rt), Some(t)) => {
-                if unify(rt, &t, subst).is_err() {
-                    errors.push(CheckError::TypeMismatch {
-                        callee: ":wat::core::match".into(),
-                        param: format!("arm #{}", idx + 1),
-                        expected: format_type(&apply_subst(rt, subst)),
-                        got: format_type(&apply_subst(&t, subst)),
-                    });
-                }
+        if let Some(t) = arm_ty {
+            if unify(&t, &declared_ty, subst).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::match".into(),
+                    param: format!("arm #{}", idx + 1),
+                    expected: format_type(&apply_subst(&declared_ty, subst)),
+                    got: format_type(&apply_subst(&t, subst)),
+                });
             }
-            _ => {}
         }
     }
 
@@ -732,7 +776,7 @@ fn infer_match(
         });
     }
 
-    result_ty.map(|t| apply_subst(&t, subst))
+    Some(apply_subst(&declared_ty, subst))
 }
 
 /// Coverage class for a match pattern. Spans both `:Option<T>` and
@@ -932,6 +976,18 @@ fn ast_variant_name_check(ast: &WatAST) -> &'static str {
     }
 }
 
+/// `(:wat::core::if cond -> :T then else)` — typed conditional per
+/// the 2026-04-20 INSCRIPTION.
+///
+/// Arity: 5 args exactly. Positions: [cond, `->`, `:T`, then, else].
+/// The declared `:T` is the expected type for BOTH branches; each
+/// branch body is checked against it independently so the error
+/// message names WHICH branch diverged (rather than "branches
+/// didn't unify" which doesn't name the author's intent).
+///
+/// The old 3-arg form is refused with a migration-hint MalformedForm
+/// at resolve time via the runtime's eval_if; by the time we reach
+/// infer_if with the wrong arity, we emit MalformedForm and bail.
 fn infer_if(
     args: &[WatAST],
     env: &CheckEnv,
@@ -940,34 +996,97 @@ fn infer_if(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
-    if args.len() != 3 {
+    if args.len() == 3 {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::if".into(),
+            reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into(),
+        });
+        // Still recurse into the body so inner errors surface too.
+        let _ = infer(&args[0], env, locals, fresh, subst, errors);
+        let _ = infer(&args[1], env, locals, fresh, subst, errors);
+        let _ = infer(&args[2], env, locals, fresh, subst, errors);
         return None;
     }
+    if args.len() != 5 {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::if".into(),
+            reason: format!(
+                "expected (:wat::core::if cond -> :T then else) — 5 args; got {}",
+                args.len()
+            ),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return None;
+    }
+    // Validate the `->` marker and parse the declared type.
+    match &args[1] {
+        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::if".into(),
+                reason: "expected `->` between cond and type".into(),
+            });
+            return None;
+        }
+    }
+    let declared_ty = match &args[2] {
+        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(e) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::if".into(),
+                    reason: format!("declared type {:?} failed to parse: {}", k, e),
+                });
+                return None;
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::if".into(),
+                reason: "expected type keyword after `->`".into(),
+            });
+            return None;
+        }
+    };
     // Condition must be :bool.
     let cond_ty = infer(&args[0], env, locals, fresh, subst, errors);
     if let Some(c) = cond_ty {
-        let _ = unify(&c, &TypeExpr::Path(":bool".into()), subst);
-    }
-    // Branches must agree.
-    let then_ty = infer(&args[1], env, locals, fresh, subst, errors);
-    let else_ty = infer(&args[2], env, locals, fresh, subst, errors);
-    match (then_ty, else_ty) {
-        (Some(t), Some(e)) => {
-            if unify(&t, &e, subst).is_ok() {
-                Some(apply_subst(&t, subst))
-            } else {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::if".into(),
-                    param: "branches".into(),
-                    expected: format_type(&apply_subst(&t, subst)),
-                    got: format_type(&apply_subst(&e, subst)),
-                });
-                None
-            }
+        if unify(&c, &TypeExpr::Path(":bool".into()), subst).is_err() {
+            errors.push(CheckError::TypeMismatch {
+                callee: ":wat::core::if".into(),
+                param: "cond".into(),
+                expected: ":bool".into(),
+                got: format_type(&apply_subst(&c, subst)),
+            });
         }
-        (Some(t), None) | (None, Some(t)) => Some(apply_subst(&t, subst)),
-        (None, None) => None,
     }
+    // Each branch body checked against the declared `:T` independently.
+    // Errors name the branch so the author sees where the divergence is.
+    let then_ty = infer(&args[3], env, locals, fresh, subst, errors);
+    if let Some(t) = then_ty {
+        if unify(&t, &declared_ty, subst).is_err() {
+            errors.push(CheckError::TypeMismatch {
+                callee: ":wat::core::if".into(),
+                param: "then-branch".into(),
+                expected: format_type(&apply_subst(&declared_ty, subst)),
+                got: format_type(&apply_subst(&t, subst)),
+            });
+        }
+    }
+    let else_ty = infer(&args[4], env, locals, fresh, subst, errors);
+    if let Some(e) = else_ty {
+        if unify(&e, &declared_ty, subst).is_err() {
+            errors.push(CheckError::TypeMismatch {
+                callee: ":wat::core::if".into(),
+                param: "else-branch".into(),
+                expected: format_type(&apply_subst(&declared_ty, subst)),
+                got: format_type(&apply_subst(&e, subst)),
+            });
+        }
+    }
+    Some(apply_subst(&declared_ty, subst))
 }
 
 fn infer_let(
@@ -3137,7 +3256,7 @@ mod tests {
             r#"(:wat::core::let*
                  (((cache :rust::lru::LruCache<String,i64>)
                    (:rust::lru::LruCache::new 16)))
-                 (:wat::core::match (:rust::lru::LruCache::get cache "k")
+                 (:wat::core::match (:rust::lru::LruCache::get cache "k") -> :i64
                    ((Some v) v)
                    (:None 0)))"#
         )

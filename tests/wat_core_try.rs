@@ -160,7 +160,7 @@ fn try_inside_match_arm_propagates() {
         (:wat::core::define (:app::describe
                              (o :Option<Result<i64,String>>)
                              -> :Result<i64,String>)
-          (:wat::core::match o
+          (:wat::core::match o -> :Result<i64,String>
             ((Some r) (Ok (:wat::core::try r)))
             (:None (Err "missing"))))
 

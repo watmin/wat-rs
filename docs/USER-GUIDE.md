@@ -129,7 +129,7 @@ A slightly richer first program:
                      (stdout :rust::std::io::Stdout)
                      (stderr :rust::std::io::Stderr)
                      -> :())
-  (:wat::core::match (:wat::io::read-line stdin)
+  (:wat::core::match (:wat::io::read-line stdin) -> :()
     ((Some line)
       (:wat::io::write stdout line))
     (:None
@@ -224,20 +224,23 @@ earlier ones. Body after the bindings is the result.
 ### `match` — pattern destructure
 
 ```scheme
-(:wat::core::match some-option
+(:wat::core::match some-option -> :i64
   ((Some v) (:wat::core::i64::* v 2))
   (:None 0))
 
-(:wat::core::match some-result
+(:wat::core::match some-result -> :i64
   ((Ok v) v)
   ((Err e) (:my::app::handle-err e)))
 
-(:wat::core::match tuple-pair
+(:wat::core::match tuple-pair -> :i64
   ((a b) (:wat::core::i64::+ a b)))
 ```
 
-Works on `:Option<T>`, `:Result<T,E>`, and tuples. Exhaustiveness
-is checked at startup — miss an arm, startup fails.
+Works on `:Option<T>`, `:Result<T,E>`, and tuples. The `-> :T`
+annotation declares the arms' common result type — every arm body
+is checked against `T` independently, so a mismatch points at the
+offending arm, not at the unifier. Exhaustiveness is checked at
+startup — miss an arm, startup fails.
 
 ### `try` — error propagation
 
@@ -254,15 +257,19 @@ enclosing function with `Err e`. NOT try/catch — each function in a
 chain either `try`s (propagate) or `match`es (handle explicitly).
 Details in section 12.
 
-### `if` — boolean branch
+### `if` — typed boolean branch
 
 ```scheme
-(:wat::core::if (:wat::core::> x 0)
+(:wat::core::if (:wat::core::> x 0) -> :String
   "positive"
   "non-positive")
 ```
 
-Condition must be `:bool`. Both branches must produce the same type.
+Condition must be `:bool`. The `-> :T` annotation declares the
+branch type; then and else bodies are each checked against `T`
+independently. The annotation is required — a bare
+`(:wat::core::if cond then else)` fails at startup with a
+MalformedForm error pointing at the missing `-> :T`.
 
 ---
 
@@ -465,7 +472,7 @@ coupling; backpressure is automatic.
                     (in  :Receiver<RawCandle>)
                     (out :Sender<EnrichedCandle>)
                     -> :())
-  (:wat::core::match (:wat::kernel::recv in)
+  (:wat::core::match (:wat::kernel::recv in) -> :()
     ((Some raw)
       (:wat::core::let*
         (((enriched :EnrichedCandle) (:my::app::enrich-candle raw))
@@ -480,18 +487,18 @@ coupling; backpressure is automatic.
                     (size :i64)
                     (buffer :Vec<EnrichedCandle>)
                     -> :())
-  (:wat::core::match (:wat::kernel::recv in)
+  (:wat::core::match (:wat::kernel::recv in) -> :()
     ((Some item)
       (:wat::core::let*
         (((new-buffer :Vec<EnrichedCandle>) (:wat::core::conj buffer item)))
-        (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size)
+        (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size) -> :()
           (:wat::core::let*
             (((_ :()) (:wat::kernel::send out new-buffer)))
             (:my::app::batch in out size (:wat::core::vec :EnrichedCandle)))
           (:my::app::batch in out size new-buffer))))
     (:None
       ;; upstream disconnected — flush any remaining items
-      (:wat::core::if (:wat::core::empty? buffer)
+      (:wat::core::if (:wat::core::empty? buffer) -> :()
         ()
         (:wat::kernel::send out buffer)))))
 ```
@@ -686,7 +693,7 @@ stay honest.
 ### `:Option<T>` — absence
 
 ```scheme
-(:wat::core::match (:wat::kernel::recv receiver)
+(:wat::core::match (:wat::kernel::recv receiver) -> :()
   ((Some v) (... handle v ...))
   (:None (... handle disconnection ...)))
 ```
@@ -697,7 +704,7 @@ Constructors are bare: `(Ok v)`, `(Err e)`. Consumers match or `try`.
 
 ```scheme
 ;; MATCH — explicit handling
-(:wat::core::match (:my::app::fallible-compute x)
+(:wat::core::match (:my::app::fallible-compute x) -> :U
   ((Ok v) v)
   ((Err e) (:my::app::recover-from e)))
 
@@ -721,7 +728,7 @@ determine the runtime behavior when Kanerva's per-frame bound
                     -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
   (Ok (:wat::core::try (:wat::algebra::Bundle items))))
 
-(:wat::core::match (:my::app::build huge-list)
+(:wat::core::match (:my::app::build huge-list) -> :String
   ((Ok h) (... use h ...))
   ((Err e)
     (:wat::std::format "overflow: cost {} > budget {}"
@@ -815,8 +822,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::define` | `((name (p :T) ... -> :R) body)` | registers function |
 | `:wat::core::lambda` | `(((p :T) ... -> :R) body)` | `:fn(T,...)->R` |
 | `:wat::core::let*` | `(((b :T) rhs) ...) body` | body's type |
-| `:wat::core::match` | `scrutinee arm1 arm2 ...` | arm result |
-| `:wat::core::if` | `cond then else` | branch result |
+| `:wat::core::match` | `scrutinee -> :T arm1 arm2 ...` | arm result (type `T`) |
+| `:wat::core::if` | `cond -> :T then else` | branch result (type `T`) |
 | `:wat::core::try` | `<result-expr>` | Ok-inner type |
 | `:wat::core::struct` | `(:path (f :T) ...)` | declares struct |
 | `:wat::core::enum` | `(:path v1 v2 (v3 (f :T)) ...)` | declares enum |

@@ -345,7 +345,7 @@ Signals: the kernel measures; userland owns transitions.
                      (stdout :rust::std::io::Stdout)
                      (stderr :rust::std::io::Stderr)
                      -> :())
-  (:wat::core::match (:wat::io::read-line stdin)
+  (:wat::core::match (:wat::io::read-line stdin) -> :()
     ((Some line) (:wat::io::write stdout line))
     (:None ())))
 ```
@@ -445,7 +445,7 @@ caller:
                      (stdout :rust::std::io::Stdout)
                      (stderr :rust::std::io::Stderr)
                      -> :())
-  (:wat::core::match (:app::build huge-list)
+  (:wat::core::match (:app::build huge-list) -> :()
     ((Ok _) ())
     ((Err e)
       (:wat::io::write stderr

@@ -43,7 +43,7 @@ fn result_ok_matched() {
         (:wat::core::use! :rust::test::Fallible)
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:rust::test::Fallible::non_negative 42)
+          (:wat::core::match (:rust::test::Fallible::non_negative 42) -> :i64
             ((Ok v) v)
             ((Err _) -1)))
     "#;
@@ -62,7 +62,7 @@ fn result_err_matched() {
         (:wat::core::use! :rust::test::Fallible)
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:rust::test::Fallible::non_negative -1)
+          (:wat::core::match (:rust::test::Fallible::non_negative -1) -> :i64
             ((Ok _) 0)
             ((Err _) 99)))
     "#;
@@ -81,7 +81,7 @@ fn user_built_ok_value() {
         (:wat::config::set-capacity-mode! :error)
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (Ok 7)
+          (:wat::core::match (Ok 7) -> :i64
             ((Ok v) v)
             ((Err _) -1)))
     "#;
@@ -98,7 +98,7 @@ fn user_built_err_value() {
         (:wat::config::set-capacity-mode! :error)
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (Err "x")
+          (:wat::core::match (Err "x") -> :i64
             ((Ok _) 0)
             ((Err _) 11)))
     "#;

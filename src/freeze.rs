@@ -722,7 +722,7 @@ mod tests {
                 (((cache :rust::lru::LruCache<String,i64>)
                   (:wat::std::LocalCache::new 16))
                  ((_ :()) (:wat::std::LocalCache::put cache "answer" 42)))
-                (:wat::core::match (:wat::std::LocalCache::get cache "answer")
+                (:wat::core::match (:wat::std::LocalCache::get cache "answer") -> :i64
                   ((Some v) v)
                   (:None -1))))
         "#;

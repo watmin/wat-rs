@@ -20,10 +20,10 @@ evaluator needs to recognize it.
 ```scheme
 (:wat::core::define
   (:wat::std::program::Console/loop (rxs ...) (stdout ...) (stderr ...) -> :())
-  (:wat::core::if (:wat::core::empty? rxs)
+  (:wat::core::if (:wat::core::empty? rxs) -> :()
     ()
     (:wat::core::let* (...)
-      (:wat::core::match maybe
+      (:wat::core::match maybe -> :()
         ((Some tagged)
           (:wat::core::let* (...)
             (:wat::std::program::Console/loop rxs stdout stderr)))    ; ← tail call
@@ -127,8 +127,8 @@ Positions that carry tail-position through:
 | `(:wat::core::lambda (...) body)` | `body` |
 | `(:wat::core::let ((...) rhs) body)` | `body` (the RHS is NOT tail) |
 | `(:wat::core::let* ((b1 rhs1) (b2 rhs2) ...) body)` | `body` (every RHS is NOT tail) |
-| `(:wat::core::if cond then else)` | `then` and `else` (cond NOT tail) |
-| `(:wat::core::match scrutinee (pat1 body1) ...)` | every `body_i` (scrutinee NOT tail) |
+| `(:wat::core::if cond -> :T then else)` | `then` and `else` (cond NOT tail) |
+| `(:wat::core::match scrutinee -> :T (pat1 body1) ...)` | every `body_i` (scrutinee NOT tail) |
 | `(:wat::core::when cond body)` | `body` (cond NOT tail) |
 
 Positions that are **never tail**:
@@ -195,7 +195,7 @@ wrap it. The typical pattern:
 
 ```scheme
 (:wat::core::define (:my::loop (state :S) -> :Result<T,E>)
-  (:wat::core::if (done? state)
+  (:wat::core::if (done? state) -> :Result<T,E>
     (Ok (extract state))                      ; base case — NOT tail
     (:my::loop (advance state))))             ; recursive — TAIL, no Ok wrap needed
                                               ;  because :my::loop itself returns Result
@@ -442,7 +442,7 @@ the correct value.
 
 ```scheme
 (:wat::core::define (:app::loop (n :i64) (acc :i64) -> :i64)
-  (:wat::core::if (:wat::core::= n 0)
+  (:wat::core::if (:wat::core::= n 0) -> :i64
     acc
     (:app::loop (:wat::core::- n 1) (:wat::core::+ acc 1))))
 

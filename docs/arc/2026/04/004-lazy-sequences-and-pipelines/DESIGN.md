@@ -251,16 +251,16 @@ typed, no special event.
                      (batch-size :i64)
                      (buffer :Vec<Item>)
                      -> :())
-  (:wat::core::match (:wat::kernel::recv input)
+  (:wat::core::match (:wat::kernel::recv input) -> :()
     ((Some item)
       (:wat::core::let*
         (((new-buffer :Vec<Item>)
           (:wat::core::conj buffer item)))
-        (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) batch-size)
+        (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) batch-size) -> :()
           (:wat::core::let*
             (((sent :Option<()>)
               (:wat::kernel::send-or-stop output new-buffer)))
-            (:wat::core::match sent
+            (:wat::core::match sent -> :()
               (:None ())                          ;; consumer dropped; we're done
               ((Some _)
                 (:my::app::batcher input output batch-size
@@ -268,7 +268,7 @@ typed, no special event.
           (:my::app::batcher input output batch-size new-buffer))))  ;; tail — needs TCO
     (:None
       ;; End of upstream stream. Flush remaining items if any.
-      (:wat::core::if (:wat::core::empty? buffer)
+      (:wat::core::if (:wat::core::empty? buffer) -> :()
         ()
         (:wat::kernel::send output buffer)))))
 ```
@@ -331,10 +331,10 @@ program exits.
      ((items :Vec<Item>) (:my::app::PageResult/items page))
      ((next-cursor :Option<Cursor>) (:my::app::PageResult/next-cursor page))
      ((sent :Option<()>) (:my::app::push-all out items)))
-    (:wat::core::match sent
+    (:wat::core::match sent -> :()
       (:None ())                                         ;; consumer dropped
       ((Some _)
-        (:wat::core::match next-cursor
+        (:wat::core::match next-cursor -> :()
           (:None ())                                     ;; last page; EOS
           ((Some c)
             (:my::app::paginated-ddb-source

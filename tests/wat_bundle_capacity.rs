@@ -127,7 +127,7 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
         (:wat::config::set-capacity-mode! :error)
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:wat::algebra::Bundle {})
+          (:wat::core::match (:wat::algebra::Bundle {}) -> :i64
             ((Ok _) 0)
             ((Err e)
               (:wat::core::i64::-
@@ -233,7 +233,7 @@ fn try_propagates_bundle_err_across_function_boundary() {
           (Ok (:wat::core::try (:wat::algebra::Bundle items))))
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:app::build-composite {})
+          (:wat::core::match (:app::build-composite {}) -> :i64
             ((Ok _) 0)
             ((Err e) (:wat::algebra::CapacityExceeded/cost e))))
         "#,

@@ -42,7 +42,7 @@ const ECHO_PROGRAM: &str = r#"
                      (stdout :rust::std::io::Stdout)
                      (stderr :rust::std::io::Stderr)
                      -> :())
-  (:wat::core::match (:wat::io::read-line stdin)
+  (:wat::core::match (:wat::io::read-line stdin) -> :()
     ((Some line) (:wat::io::write stdout line))
     (:None ())))
 "#;
@@ -115,7 +115,7 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
   (:wat::core::let*
     (((program :wat::WatAST)
        (:wat::core::quote
-         (:wat::core::match (:wat::io::read-line stdin)
+         (:wat::core::match (:wat::io::read-line stdin) -> :()
            ((Some line) (:wat::io::write stdout line))
            (:None ()))))
      ((program-atom :holon::HolonAST)
@@ -126,7 +126,7 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here
     ;; (the quoted program is well-formed and non-mutating).
-    (:wat::core::match (:wat::core::eval-ast! reveal)
+    (:wat::core::match (:wat::core::eval-ast! reveal) -> :()
       ((Ok _) ())
       ((Err _) ()))))
 "#;
@@ -207,7 +207,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
   (:wat::core::let*
     (((program :wat::WatAST)
        (:wat::core::quote
-         (:wat::core::match (:wat::io::read-line stdin)
+         (:wat::core::match (:wat::io::read-line stdin) -> :()
            ((Some line) (:wat::io::write stdout line))
            (:None ()))))
      ((program-atom :holon::HolonAST)
@@ -226,6 +226,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
        (:wat::io::write stdout
          (:wat::core::if
            (:wat::core::> bound-score (:wat::config::noise-floor))
+           -> :String
            "Some\n"
            "None\n")))
 
@@ -240,6 +241,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
        (:wat::io::write stdout
          (:wat::core::if
            (:wat::core::> recov-score (:wat::config::noise-floor))
+           -> :String
            "Some\n"
            "None\n")))
 
@@ -252,7 +254,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here —
     ;; the quoted echo program is well-formed and non-mutating.
-    (:wat::core::match (:wat::core::eval-ast! reveal)
+    (:wat::core::match (:wat::core::eval-ast! reveal) -> :()
       ((Ok _) ())
       ((Err _) ()))))
 "#;
@@ -474,6 +476,7 @@ fn stdlib_subtract_macro_expands_in_user_program() {
                              -> :String)
           (:wat::core::if
             (:wat::core::> score (:wat::config::noise-floor))
+            -> :String
             "above\n"
             "below\n"))
 
@@ -539,6 +542,7 @@ fn stdlib_circular_macro_near_and_far() {
                              -> :String)
           (:wat::core::if
             (:wat::core::> score (:wat::config::noise-floor))
+            -> :String
             "above\n"
             "below\n"))
 
@@ -604,6 +608,7 @@ fn stdlib_reject_project_gram_schmidt_duo() {
                              -> :String)
           (:wat::core::if
             (:wat::core::> score (:wat::config::noise-floor))
+            -> :String
             "above\n"
             "below\n"))
 
@@ -666,6 +671,7 @@ fn stdlib_sequential_is_order_sensitive() {
                              -> :String)
           (:wat::core::if
             (:wat::core::> score (:wat::config::noise-floor))
+            -> :String
             "above\n"
             "below\n"))
 
@@ -872,6 +878,7 @@ fn stdlib_trigram_bundles_sequential_windows() {
                              -> :String)
           (:wat::core::if
             (:wat::core::> score (:wat::config::noise-floor))
+            -> :String
             "above\n"
             "below\n"))
 
@@ -896,6 +903,7 @@ fn stdlib_trigram_bundles_sequential_windows() {
              ((full :holon::HolonAST)
               (:wat::core::match
                 (:wat::std::Trigram (:wat::core::list :holon::HolonAST a b c d))
+                -> :holon::HolonAST
                 ((Ok h) h)
                 ((Err _) a)))
              ((participant :f64) (:wat::algebra::cosine window-1 full))

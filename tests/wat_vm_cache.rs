@@ -82,7 +82,7 @@ const CACHE_PROGRAM: &str = r#"
          ((_ :()) (:wat::std::program::Console/err diag "T2: put-acked\n"))
          ((got :Option<i64>) (:wat::std::program::Cache/get req-tx reply-tx reply-rx "answer"))
          ((_ :()) (:wat::std::program::Console/err diag "T3: get-returned\n")))
-        (:wat::core::match got
+        (:wat::core::match got -> :()
           ((Some v) (:wat::std::program::Console/out diag "hit\n"))
           (:None    (:wat::std::program::Console/out diag "miss\n")))))
 

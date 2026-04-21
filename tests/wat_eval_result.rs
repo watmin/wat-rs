@@ -161,7 +161,7 @@ fn try_propagates_eval_err_through_helper() {
             (((bad :wat::WatAST)
               (:wat::core::quote
                 (:wat::core::define (:injected (x :i64) -> :i64) x))))
-            (:wat::core::match (:app::run-dynamic bad)
+            (:wat::core::match (:app::run-dynamic bad) -> :String
               ((Ok _) "should-not-reach")
               ((Err e) (:wat::core::EvalError/kind e)))))
     "#;
@@ -188,7 +188,7 @@ fn eval_err_exposes_both_kind_and_message() {
                 (:wat::core::define (:injected (x :i64) -> :i64) x)))
              ((r :Result<holon::HolonAST,wat::core::EvalError>)
               (:wat::core::eval-ast! bad)))
-            (:wat::core::match r
+            (:wat::core::match r -> :(String,String)
               ((Ok _)
                 (:wat::core::tuple "unreachable" "unreachable"))
               ((Err e)

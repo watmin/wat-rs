@@ -39,19 +39,19 @@
     (stdout :rust::std::io::Stdout)
     (stderr :rust::std::io::Stderr)
     -> :())
-  (:wat::core::if (:wat::core::empty? rxs)
+  (:wat::core::if (:wat::core::empty? rxs) -> :()
     ()
     (:wat::core::let*
       (((chosen :(i64,Option<(i64,String)>))
         (:wat::kernel::select rxs))
        ((idx :i64) (:wat::core::first chosen))
        ((maybe :Option<(i64,String)>) (:wat::core::second chosen)))
-      (:wat::core::match maybe
+      (:wat::core::match maybe -> :()
         ((Some tagged)
           (:wat::core::let*
             (((tag :i64) (:wat::core::first tagged))
              ((msg :String) (:wat::core::second tagged))
-             ((_ :()) (:wat::core::if (:wat::core::= tag 0)
+             ((_ :()) (:wat::core::if (:wat::core::= tag 0) -> :()
                         (:wat::io::write stdout msg)
                         (:wat::io::write stderr msg))))
             (:wat::std::program::Console/loop rxs stdout stderr)))

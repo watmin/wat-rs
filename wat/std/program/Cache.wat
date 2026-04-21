@@ -43,7 +43,7 @@
     (cache :rust::lru::LruCache<K,V>)
     (req-rxs :Vec<rust::crossbeam_channel::Receiver<((i64,K,Option<V>),rust::crossbeam_channel::Sender<Option<V>>)>>)
     -> :())
-  (:wat::core::if (:wat::core::empty? req-rxs)
+  (:wat::core::if (:wat::core::empty? req-rxs) -> :()
     ()
     (:wat::core::let*
       (((chosen :(i64,Option<((i64,K,Option<V>),rust::crossbeam_channel::Sender<Option<V>>)>))
@@ -51,7 +51,7 @@
        ((idx :i64) (:wat::core::first chosen))
        ((maybe :Option<((i64,K,Option<V>),rust::crossbeam_channel::Sender<Option<V>>)>)
         (:wat::core::second chosen)))
-      (:wat::core::match maybe
+      (:wat::core::match maybe -> :()
         ((Some req)
           (:wat::core::let*
             (((body :(i64,K,Option<V>)) (:wat::core::first req))
@@ -61,9 +61,9 @@
              ((key :K) (:wat::core::second body))
              ((put-val :Option<V>) (:wat::core::third body))
              ((resp :Option<V>)
-              (:wat::core::if (:wat::core::= tag 0)
+              (:wat::core::if (:wat::core::= tag 0) -> :Option<V>
                 (:wat::std::LocalCache::get cache key)
-                (:wat::core::match put-val
+                (:wat::core::match put-val -> :Option<V>
                   ((Some v)
                     (:wat::core::let*
                       (((_ :()) (:wat::std::LocalCache::put cache key v)))
@@ -95,7 +95,7 @@
      ((req :((i64,K,Option<V>),rust::crossbeam_channel::Sender<Option<V>>))
       (:wat::core::tuple body reply-tx))
      ((_ :()) (:wat::kernel::send req-tx req)))
-    (:wat::core::match (:wat::kernel::recv reply-rx)
+    (:wat::core::match (:wat::kernel::recv reply-rx) -> :Option<V>
       ((Some resp) resp)
       (:None :None))))
 

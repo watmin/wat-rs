@@ -1709,24 +1709,65 @@ fn parse_let_binding(pair: &WatAST) -> Result<LetBinding<'_>, RuntimeError> {
     })
 }
 
+/// `(:wat::core::if cond -> :T then else)` — typed conditional per
+/// the 2026-04-20 INSCRIPTION. Both branches must produce `:T`; the
+/// annotation is check-time only (runtime ignores it but validates
+/// the form's arity).
+///
+/// Arity: exactly 5 args. Positions: [cond, `->`, `:T`, then, else].
+/// The old 3-arg form is refused with a migration-hint error; this
+/// is a hard break, no deprecation.
 fn eval_if(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    if args.len() != 3 {
+    if args.len() == 3 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::if".into(),
+            reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into(),
+        });
+    }
+    if args.len() != 5 {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::if".into(),
             reason: format!(
-                "expected (:wat::core::if cond then else); got {} args",
+                "expected (:wat::core::if cond -> :T then else) — 5 args; got {}",
                 args.len()
             ),
         });
     }
+    // Validate the `-> :T` shape at runtime too — belt-and-suspenders
+    // for programs that reach the dispatcher without the checker
+    // having run.
+    match &args[1] {
+        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::if".into(),
+                reason: format!(
+                    "expected `->` at position 2; got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    }
+    match &args[2] {
+        WatAST::Keyword(_) => {}
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::if".into(),
+                reason: format!(
+                    "expected type keyword at position 3 (after `->`); got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    }
     let cond_val = eval(&args[0], env, sym)?;
     match cond_val {
-        Value::bool(true) => eval(&args[1], env, sym),
-        Value::bool(false) => eval(&args[2], env, sym),
+        Value::bool(true) => eval(&args[3], env, sym),
+        Value::bool(false) => eval(&args[4], env, sym),
         other => Err(RuntimeError::BadCondition {
             got: other.type_name(),
         }),
@@ -3014,20 +3055,65 @@ fn eval_struct_field(
 /// the scrutinee, returns `PatternMatchFailed`. (Exhaustiveness is
 /// enforced statically by the type checker; this runtime error fires
 /// only when the type check hasn't run.)
+/// `(:wat::core::match scrutinee -> :T arm1 arm2 ...)` — typed
+/// pattern match per the 2026-04-20 INSCRIPTION. Every arm body must
+/// produce `:T`; mismatches are reported per-arm. The annotation is
+/// check-time only at runtime (validated for shape, ignored for
+/// dispatch).
+///
+/// Arity: at least 4 args (scrutinee, `->`, `:T`, one arm). The old
+/// no-annotation form — `(match scrutinee arm1 ...)` — is refused
+/// with a migration-hint MalformedForm. Hard break, no deprecation.
 fn eval_match(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    if args.len() < 2 {
-        return Err(RuntimeError::ArityMismatch {
-            op: ":wat::core::match".into(),
-            expected: 2,
-            got: args.len(),
+    if args.len() < 4 {
+        // Two bad-shape possibilities to distinguish:
+        //   - Pre-inscription `(match scrutinee arm1)` — 2 args, no `->`
+        //   - Too few args overall
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: if args.len() >= 2
+                && !matches!(
+                    args.get(1),
+                    Some(WatAST::Symbol(s)) if s.as_str() == "->"
+                )
+            {
+                "`:wat::core::match` now requires `-> :T` between scrutinee and arms; write (:wat::core::match scrut -> :T (pat body) ...)".into()
+            } else {
+                format!(
+                    "expected (:wat::core::match scrut -> :T arm1 arm2 ...) — at least 4 args; got {}",
+                    args.len()
+                )
+            },
         });
     }
+    // Validate the `-> :T` shape.
+    match &args[1] {
+        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        _ => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: "expected `->` after scrutinee (write `-> :T` between scrutinee and arms)".into(),
+            });
+        }
+    }
+    match &args[2] {
+        WatAST::Keyword(_) => {}
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: format!(
+                    "expected type keyword after `->`; got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    }
     let scrutinee = eval(&args[0], env, sym)?;
-    for arm in &args[1..] {
+    for arm in &args[3..] {
         let arm_items = match arm {
             WatAST::List(items) => items,
             other => {
@@ -5050,7 +5136,7 @@ mod tests {
     #[test]
     fn if_true_branch() {
         assert!(matches!(
-            eval_expr("(:wat::core::if true 1 2)").unwrap(),
+            eval_expr("(:wat::core::if true -> :i64 1 2)").unwrap(),
             Value::i64(1)
         ));
     }
@@ -5058,7 +5144,7 @@ mod tests {
     #[test]
     fn if_false_branch() {
         assert!(matches!(
-            eval_expr("(:wat::core::if false 1 2)").unwrap(),
+            eval_expr("(:wat::core::if false -> :i64 1 2)").unwrap(),
             Value::i64(2)
         ));
     }
@@ -5066,7 +5152,7 @@ mod tests {
     #[test]
     fn if_non_bool_rejected() {
         assert!(matches!(
-            eval_expr("(:wat::core::if 42 1 2)"),
+            eval_expr("(:wat::core::if 42 -> :i64 1 2)"),
             Err(RuntimeError::BadCondition { .. })
         ));
     }
@@ -5131,7 +5217,7 @@ mod tests {
         let result = run(
             r#"
             (:wat::core::define (:my::app::fact (n :i64) -> :i64)
-              (:wat::core::if (:wat::core::= n 0)
+              (:wat::core::if (:wat::core::= n 0) -> :i64
                   1
                   (:wat::core::i64::* n (:my::app::fact (:wat::core::i64::- n 1)))))
             (:my::app::fact 5)
@@ -6232,7 +6318,7 @@ mod tests {
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
                ((sent :()) (:wat::kernel::send tx 42)))
-              (:wat::core::match (:wat::kernel::recv rx)
+              (:wat::core::match (:wat::kernel::recv rx) -> :i64
                 ((Some v) v)
                 (:None 0)))
         "#;
@@ -6531,7 +6617,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((m :rust::std::collections::HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10 "b" 20)))
-              (:wat::core::match (:wat::std::get m "a")
+              (:wat::core::match (:wat::std::get m "a") -> :i64
                 ((Some n) n)
                 (:None 0)))
         "#;
@@ -6546,7 +6632,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((m :rust::std::collections::HashMap<String,i64>) (:wat::std::HashMap :(String,i64) "a" 10)))
-              (:wat::core::match (:wat::std::get m "missing")
+              (:wat::core::match (:wat::std::get m "missing") -> :i64
                 ((Some n) n)
                 (:None -1)))
         "#;
@@ -6642,7 +6728,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((s :rust::std::collections::HashSet<String>) (:wat::std::HashSet :String "apple" "banana")))
-              (:wat::core::match (:wat::std::get s "apple")
+              (:wat::core::match (:wat::std::get s "apple") -> :String
                 ((Some x) x)
                 (:None "missing")))
         "#;
@@ -6657,7 +6743,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((s :rust::std::collections::HashSet<String>) (:wat::std::HashSet :String "apple")))
-              (:wat::core::match (:wat::std::get s "banana")
+              (:wat::core::match (:wat::std::get s "banana") -> :String
                 ((Some x) x)
                 (:None "not-found")))
         "#;
@@ -6682,7 +6768,7 @@ mod tests {
               (((cache :rust::lru::LruCache<String,i64>)
                 (:rust::lru::LruCache::new 16))
                ((_ :()) (:rust::lru::LruCache::put cache "answer" 42)))
-              (:wat::core::match (:rust::lru::LruCache::get cache "answer")
+              (:wat::core::match (:rust::lru::LruCache::get cache "answer") -> :i64
                 ((Some v) v)
                 (:None -1)))
         "#;
@@ -6698,7 +6784,7 @@ mod tests {
             (:wat::core::let*
               (((cache :rust::lru::LruCache<String,i64>)
                 (:rust::lru::LruCache::new 16)))
-              (:wat::core::match (:rust::lru::LruCache::get cache "missing")
+              (:wat::core::match (:rust::lru::LruCache::get cache "missing") -> :i64
                 ((Some v) v)
                 (:None -1)))
         "#;
@@ -6718,7 +6804,7 @@ mod tests {
                ((_ :()) (:rust::lru::LruCache::put cache 1 10))
                ((_ :()) (:rust::lru::LruCache::put cache 2 20))
                ((_ :()) (:rust::lru::LruCache::put cache 3 30)))
-              (:wat::core::match (:rust::lru::LruCache::get cache 1)
+              (:wat::core::match (:rust::lru::LruCache::get cache 1) -> :i64
                 ((Some v) v)
                 (:None -1)))
         "#;
@@ -6736,7 +6822,7 @@ mod tests {
                 (:rust::lru::LruCache::new 16))
                ((_ :()) (:rust::lru::LruCache::put cache "k" 1))
                ((_ :()) (:rust::lru::LruCache::put cache "k" 99)))
-              (:wat::core::match (:rust::lru::LruCache::get cache "k")
+              (:wat::core::match (:rust::lru::LruCache::get cache "k") -> :i64
                 ((Some v) v)
                 (:None -1)))
         "#;
@@ -6918,7 +7004,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1)))
-              (:wat::core::match (:wat::kernel::try-recv rx)
+              (:wat::core::match (:wat::kernel::try-recv rx) -> :bool
                 ((Some _) false)
                 (:None true)))
         "#;
@@ -6934,7 +7020,7 @@ mod tests {
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
                ((_ :()) (:wat::kernel::send tx 7)))
-              (:wat::core::match (:wat::kernel::try-recv rx)
+              (:wat::core::match (:wat::kernel::try-recv rx) -> :i64
                 ((Some v) v)
                 (:None 0)))
         "#;
@@ -7243,7 +7329,7 @@ mod tests {
                ((handle :wat::kernel::ProgramHandle<()>)
                 (:wat::kernel::spawn :my::producer tx))
                ((_ :()) (:wat::kernel::join handle)))
-              (:wat::core::match (:wat::kernel::recv rx)
+              (:wat::core::match (:wat::kernel::recv rx) -> :i64
                 ((Some v) v)
                 (:None 0)))
         "#;

@@ -90,7 +90,7 @@ fn option_some_via_macro_generated_shim() {
         (:wat::core::use! :rust::test::MathUtils)
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:rust::test::MathUtils::maybe_double 21)
+          (:wat::core::match (:rust::test::MathUtils::maybe_double 21) -> :i64
             ((Some v) v)
             (:None -1)))
     "#;
@@ -110,7 +110,7 @@ fn option_none_via_macro_generated_shim() {
         (:wat::core::use! :rust::test::MathUtils)
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:rust::test::MathUtils::maybe_double 0)
+          (:wat::core::match (:rust::test::MathUtils::maybe_double 0) -> :i64
             ((Some v) v)
             (:None -1)))
     "#;

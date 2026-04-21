@@ -24,7 +24,7 @@
      (((positioned :Vec<holon::HolonAST>)
        (:wat::std::list::map-with-index ,items
          (:wat::core::lambda ((item :holon::HolonAST) (i :i64) -> :holon::HolonAST)
-           (:wat::core::if (:wat::core::= i 0)
+           (:wat::core::if (:wat::core::= i 0) -> :holon::HolonAST
              item
              (:wat::algebra::Permute item i))))))
      (:wat::core::foldl
