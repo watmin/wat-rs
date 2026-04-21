@@ -392,6 +392,220 @@ impl WatWriter for StringIoWriter {
     }
 }
 
+// ─── Pipe-backed IOReader / IOWriter (arc 012 slice 1) ───────────────────
+//
+// fd-backed IO that bypasses Rust's `std::io::Read` / `Write` layers
+// entirely. `PipeReader` / `PipeWriter` wrap an `OwnedFd` and call
+// `libc::read(2)` / `write(2)` / `close(2)` directly.
+//
+// Why direct syscalls: `RealStdin` and friends wrap `std::io::Stdin`,
+// which holds a reentrant Mutex internally. If arc 012's fork primitive
+// ever inherited one of those locks held by a parent thread, the child
+// would deadlock on any subsequent stdio call. Pipe-backed IO sidesteps
+// the entire stdlib lock graph — nothing to inherit, nothing to
+// deadlock on.
+//
+// Dual role: the `:wat::kernel::pipe` primitive produces these around
+// a fresh `pipe(2)` pair (parent-side pipe ends). The
+// `:wat::kernel::fork-with-forms` primitive (slice 2) produces them
+// around the child's dup2'd fd 0 / 1 / 2 via
+// `from_owned_fd(OwnedFd::from_raw_fd(0))` etc. Same type, different
+// owning fd.
+
+use std::os::fd::{AsRawFd, OwnedFd};
+
+/// `:wat::io::IOReader` backed by a raw fd. Wraps an `OwnedFd`;
+/// `Drop` calls `close(2)` via `OwnedFd`'s stdlib impl. Read paths
+/// call `libc::read(2)` directly — no `std::io::Read` detour, no
+/// lock inheritance across fork.
+#[derive(Debug)]
+pub struct PipeReader {
+    fd: OwnedFd,
+}
+
+impl PipeReader {
+    /// Take ownership of an already-opened readable fd. Caller
+    /// guarantees the fd is valid and readable (a pipe read-end or
+    /// a redirected stdio fd). `Drop` will close it.
+    pub fn from_owned_fd(fd: OwnedFd) -> Self {
+        Self { fd }
+    }
+}
+
+impl WatReader for PipeReader {
+    fn read(&self, n: usize) -> Result<Option<Vec<u8>>, RuntimeError> {
+        let mut buf = vec![0u8; n];
+        loop {
+            let ret = unsafe {
+                libc::read(self.fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, n)
+            };
+            if ret < 0 {
+                let err = std::io::Error::last_os_error();
+                if err.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::io::read".into(),
+                    reason: format!("pipe read: {}", err),
+                });
+            }
+            if ret == 0 {
+                return Ok(None);
+            }
+            buf.truncate(ret as usize);
+            return Ok(Some(buf));
+        }
+    }
+
+    fn read_all(&self) -> Result<Vec<u8>, RuntimeError> {
+        let mut out = Vec::new();
+        let mut buf = [0u8; 4096];
+        loop {
+            let ret = unsafe {
+                libc::read(
+                    self.fd.as_raw_fd(),
+                    buf.as_mut_ptr() as *mut _,
+                    buf.len(),
+                )
+            };
+            if ret < 0 {
+                let err = std::io::Error::last_os_error();
+                if err.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::io::read-all".into(),
+                    reason: format!("pipe read: {}", err),
+                });
+            }
+            if ret == 0 {
+                return Ok(out);
+            }
+            out.extend_from_slice(&buf[..ret as usize]);
+        }
+    }
+
+    fn read_line(&self) -> Result<Option<String>, RuntimeError> {
+        // Byte-at-a-time until `\n` or EOF. Pipes are kernel-buffered;
+        // an extra read(2) per byte is cheap, and avoids maintaining a
+        // user-level read-ahead buffer (which would need interior
+        // mutability and undermine the plain `OwnedFd` shape).
+        let mut bytes = Vec::new();
+        let mut one = [0u8; 1];
+        loop {
+            let ret = unsafe {
+                libc::read(self.fd.as_raw_fd(), one.as_mut_ptr() as *mut _, 1)
+            };
+            if ret < 0 {
+                let err = std::io::Error::last_os_error();
+                if err.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::io::read-line".into(),
+                    reason: format!("pipe read: {}", err),
+                });
+            }
+            if ret == 0 {
+                if bytes.is_empty() {
+                    return Ok(None);
+                }
+                if bytes.last() == Some(&b'\r') {
+                    bytes.pop();
+                }
+                return String::from_utf8(bytes)
+                    .map(Some)
+                    .map_err(|e| RuntimeError::MalformedForm {
+                        head: ":wat::io::read-line".into(),
+                        reason: format!("invalid UTF-8 in line: {}", e),
+                    });
+            }
+            if one[0] == b'\n' {
+                if bytes.last() == Some(&b'\r') {
+                    bytes.pop();
+                }
+                return String::from_utf8(bytes)
+                    .map(Some)
+                    .map_err(|e| RuntimeError::MalformedForm {
+                        head: ":wat::io::read-line".into(),
+                        reason: format!("invalid UTF-8 in line: {}", e),
+                    });
+            }
+            bytes.push(one[0]);
+        }
+    }
+
+    fn rewind(&self) -> Result<(), RuntimeError> {
+        Err(RuntimeError::MalformedForm {
+            head: ":wat::io::rewind".into(),
+            reason: "pipe fds are not rewindable".into(),
+        })
+    }
+}
+
+/// `:wat::io::IOWriter` backed by a raw fd. Wraps an `OwnedFd`;
+/// `Drop` calls `close(2)`. Write paths call `libc::write(2)`
+/// directly — no `std::io::Write` detour, no lock inheritance
+/// across fork.
+#[derive(Debug)]
+pub struct PipeWriter {
+    fd: OwnedFd,
+}
+
+impl PipeWriter {
+    /// Take ownership of an already-opened writable fd. Caller
+    /// guarantees the fd is valid and writable.
+    pub fn from_owned_fd(fd: OwnedFd) -> Self {
+        Self { fd }
+    }
+}
+
+impl WatWriter for PipeWriter {
+    fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
+        loop {
+            let ret = unsafe {
+                libc::write(
+                    self.fd.as_raw_fd(),
+                    bytes.as_ptr() as *const _,
+                    bytes.len(),
+                )
+            };
+            if ret < 0 {
+                let err = std::io::Error::last_os_error();
+                if err.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::io::write".into(),
+                    reason: format!("pipe write: {}", err),
+                });
+            }
+            return Ok(ret as usize);
+        }
+    }
+
+    fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError> {
+        let mut remaining = bytes;
+        while !remaining.is_empty() {
+            let n = self.write(remaining)?;
+            if n == 0 {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::io::write-all".into(),
+                    reason: "pipe write returned 0 bytes".into(),
+                });
+            }
+            remaining = &remaining[n..];
+        }
+        Ok(())
+    }
+
+    fn flush(&self) -> Result<(), RuntimeError> {
+        // Pipes have no user-level buffer. Kernel-buffered bytes
+        // become readable to the peer as soon as write(2) returns.
+        Ok(())
+    }
+}
+
 // ─── Primitive handlers ──────────────────────────────────────────────────
 //
 // These are invoked from `runtime::eval`'s dispatch match on the head
@@ -756,4 +970,133 @@ pub fn eval_iowriter_flush(
     let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
     writer.flush()?;
     Ok(Value::Unit)
+}
+
+// ─── Unit tests for pipe-backed IO (arc 012 slice 1) ─────────────────────
+
+#[cfg(test)]
+mod pipe_tests {
+    use super::*;
+    use std::os::fd::FromRawFd;
+
+    /// Build a fresh `pipe(2)` pair wrapped as our typed ends.
+    fn make_pipe() -> (PipeWriter, PipeReader) {
+        let mut fds = [0i32; 2];
+        let ret = unsafe { libc::pipe(fds.as_mut_ptr()) };
+        assert_eq!(
+            ret,
+            0,
+            "libc::pipe failed: {}",
+            std::io::Error::last_os_error()
+        );
+        let reader_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+        let writer_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+        (
+            PipeWriter::from_owned_fd(writer_fd),
+            PipeReader::from_owned_fd(reader_fd),
+        )
+    }
+
+    #[test]
+    fn round_trip_bytes() {
+        let (w, r) = make_pipe();
+        w.write_all(b"hello").expect("write");
+        drop(w); // close writer so read_all sees EOF
+        let got = r.read_all().expect("read_all");
+        assert_eq!(got, b"hello");
+    }
+
+    #[test]
+    fn read_returns_partial() {
+        let (w, r) = make_pipe();
+        w.write_all(b"abcdef").expect("write");
+        // Ask for 3 of 6 available bytes — read(n) returns what's ready.
+        let got = r.read(3).expect("read").expect("not EOF");
+        assert_eq!(got, b"abc");
+        let got = r.read(3).expect("read").expect("not EOF");
+        assert_eq!(got, b"def");
+    }
+
+    #[test]
+    fn read_all_eof_when_writer_dropped() {
+        let (w, r) = make_pipe();
+        w.write_all(b"once").expect("write");
+        drop(w);
+        let got = r.read_all().expect("read_all");
+        assert_eq!(got, b"once");
+        // Re-reading after EOF returns empty.
+        let again = r.read_all().expect("read_all again");
+        assert_eq!(again, Vec::<u8>::new());
+    }
+
+    #[test]
+    fn read_returns_none_on_eof() {
+        let (w, r) = make_pipe();
+        drop(w);
+        let got = r.read(16).expect("read");
+        assert!(got.is_none(), "expected None on EOF; got {:?}", got);
+    }
+
+    #[test]
+    fn read_line_lf() {
+        let (w, r) = make_pipe();
+        w.write_all(b"first\nsecond\n").expect("write");
+        drop(w);
+        assert_eq!(r.read_line().expect("line1"), Some("first".to_string()));
+        assert_eq!(r.read_line().expect("line2"), Some("second".to_string()));
+        assert_eq!(r.read_line().expect("eof"), None);
+    }
+
+    #[test]
+    fn read_line_crlf_stripped() {
+        let (w, r) = make_pipe();
+        w.write_all(b"win\r\nline\r\n").expect("write");
+        drop(w);
+        assert_eq!(r.read_line().expect("line1"), Some("win".to_string()));
+        assert_eq!(r.read_line().expect("line2"), Some("line".to_string()));
+        assert_eq!(r.read_line().expect("eof"), None);
+    }
+
+    #[test]
+    fn read_line_no_trailing_newline() {
+        let (w, r) = make_pipe();
+        w.write_all(b"bare").expect("write");
+        drop(w);
+        assert_eq!(r.read_line().expect("bare"), Some("bare".to_string()));
+        assert_eq!(r.read_line().expect("eof"), None);
+    }
+
+    #[test]
+    fn rewind_is_error() {
+        let (_w, r) = make_pipe();
+        let err = r.rewind().expect_err("pipe rewind must error");
+        match err {
+            RuntimeError::MalformedForm { head, .. } => {
+                assert_eq!(head, ":wat::io::rewind");
+            }
+            other => panic!("expected MalformedForm; got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn write_returns_count() {
+        let (w, r) = make_pipe();
+        let n = w.write(b"abc").expect("write");
+        assert_eq!(n, 3);
+        drop(w);
+        assert_eq!(r.read_all().expect("read_all"), b"abc");
+    }
+
+    #[test]
+    fn flush_is_ok() {
+        let (w, _r) = make_pipe();
+        w.flush().expect("flush");
+    }
+
+    #[test]
+    fn send_sync_bounds() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<PipeReader>();
+        assert_send_sync::<PipeWriter>();
+    }
 }
