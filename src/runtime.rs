@@ -619,6 +619,28 @@ pub enum RuntimeError {
     /// constrained eval (which doesn't have an enclosing function for
     /// propagation — that's a planned follow-up slice).
     TryPropagate(Value),
+    /// Internal tail-call signal raised by `eval_tail` when it
+    /// recognizes a user-defined function call in tail position.
+    /// Carries the next function and its already-evaluated args up
+    /// to the enclosing [`apply_function`]'s trampoline loop, which
+    /// reassigns `cur_func`/`cur_args` and re-iterates without
+    /// recursing into eval — constant Rust stack across arbitrary
+    /// tail-recursion depth.
+    ///
+    /// Stage 1 of the TCO arc (see `docs/arc/2026/04/003-*`) covers
+    /// user-defined functions registered in the `SymbolTable`
+    /// (`define`-registered). Lambda self/mutual-tail-calls land in
+    /// Stage 2. A lambda's body that itself tail-calls a named
+    /// define is already covered — the signal fires at the named
+    /// call, `apply_function`'s loop catches it just as it does for
+    /// a named-define self-recursion.
+    ///
+    /// Like [`TryPropagate`], this variant must never surface to
+    /// user code. Reaching it in production is a bug.
+    TailCall {
+        func: Arc<Function>,
+        args: Vec<Value>,
+    },
 }
 
 impl fmt::Display for RuntimeError {
@@ -688,6 +710,10 @@ impl fmt::Display for RuntimeError {
             RuntimeError::TryPropagate(_) => write!(
                 f,
                 ":wat::core::try: internal error — an Err propagation escaped its enclosing Result-returning function. The type checker should prevent this; reaching it indicates a checker gap or a try used in a context without a Result return type.",
+            ),
+            RuntimeError::TailCall { .. } => write!(
+                f,
+                "TCO: internal error — a tail-call signal escaped its enclosing apply_function. The evaluator should catch TailCall at every function boundary; reaching the user with one unwound indicates an interpreter bug.",
             ),
         }
     }
@@ -1089,6 +1115,295 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), Runtime
     Ok((head, params))
 }
 
+/// Evaluate `ast` in **tail position** with respect to the innermost
+/// enclosing [`apply_function`]. When a user-defined function call
+/// appears here, emit [`RuntimeError::TailCall`] instead of recursing
+/// through `apply_function`; the enclosing loop catches the signal,
+/// reassigns `cur_func`/`cur_args`, and re-iterates without stack
+/// growth. Everything else delegates to [`eval`].
+///
+/// The tail-carrying forms (`if`, `match`, `let`, `let*`) have sibling
+/// tail-aware helpers (`eval_if_tail`, `eval_match_tail`,
+/// `eval_let_tail`, `eval_let_star_tail`) that reuse the same
+/// validation as their non-tail twins but dispatch the body through
+/// `eval_tail` rather than `eval`.
+///
+/// Detection for user-defined-function calls keys on
+/// `sym.functions.contains_key(head)` — that's the
+/// `define`-registered universe. Bare-symbol heads (local
+/// lambdas / lambda-valued params) fall through to `eval`, which is
+/// Stage 2's extension point.
+fn eval_tail(
+    ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let items = match ast {
+        WatAST::List(items) if !items.is_empty() => items,
+        _ => return eval(ast, env, sym),
+    };
+    let head = match &items[0] {
+        WatAST::Keyword(k) => k.as_str(),
+        _ => return eval(ast, env, sym),
+    };
+    let args = &items[1..];
+    match head {
+        ":wat::core::if" => eval_if_tail(args, env, sym),
+        ":wat::core::match" => eval_match_tail(args, env, sym),
+        ":wat::core::let" => eval_let_tail(args, env, sym),
+        ":wat::core::let*" => eval_let_star_tail(args, env, sym),
+        // A user-defined function call in tail position — signal.
+        // The head must resolve in sym.functions; anything else
+        // (kernel/algebra/config primitive, :rust:: shim, Some/Ok/Err
+        // constructors) runs through regular eval.
+        other if sym.functions.contains_key(other) => {
+            let func = sym.get(other).expect("contains_key above").clone();
+            let vals = args
+                .iter()
+                .map(|a| eval(a, env, sym))
+                .collect::<Result<Vec<_>, _>>()?;
+            Err(RuntimeError::TailCall { func, args: vals })
+        }
+        _ => eval(ast, env, sym),
+    }
+}
+
+/// Tail-position twin of [`eval_if`]. Same validation; the selected
+/// branch body is evaluated via [`eval_tail`] instead of [`eval`].
+fn eval_if_tail(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() == 3 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::if".into(),
+            reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into(),
+        });
+    }
+    if args.len() != 5 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::if".into(),
+            reason: format!(
+                "expected (:wat::core::if cond -> :T then else) — 5 args; got {}",
+                args.len()
+            ),
+        });
+    }
+    match &args[1] {
+        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::if".into(),
+                reason: format!(
+                    "expected `->` at position 2; got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    }
+    match &args[2] {
+        WatAST::Keyword(_) => {}
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::if".into(),
+                reason: format!(
+                    "expected type keyword at position 3 (after `->`); got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    }
+    let cond_val = eval(&args[0], env, sym)?;
+    match cond_val {
+        Value::bool(true) => eval_tail(&args[3], env, sym),
+        Value::bool(false) => eval_tail(&args[4], env, sym),
+        other => Err(RuntimeError::BadCondition {
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// Tail-position twin of [`eval_let`]. Bindings evaluate in the outer
+/// env (as with the non-tail form); the body runs through
+/// [`eval_tail`] so a tail-call inside it propagates.
+fn eval_let_tail(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::let".into(),
+            reason: format!(
+                "expected (:wat::core::let (((n1 :T1) e1) ...) body); got {} args",
+                args.len()
+            ),
+        });
+    }
+    let bindings_form = &args[0];
+    let body = &args[1];
+    let binding_pairs = match bindings_form {
+        WatAST::List(items) => items,
+        _ => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::let".into(),
+                reason: "bindings must be a list of ((name :Type) expr) pairs".into(),
+            })
+        }
+    };
+    let mut builder = env.child();
+    for pair in binding_pairs {
+        let binding = parse_let_binding(pair)?;
+        match binding {
+            LetBinding::Single { name, rhs, .. } => {
+                let value = eval(rhs, env, sym)?;
+                builder = builder.bind(name, value);
+            }
+            LetBinding::Destructure { names, rhs } => {
+                let value = eval(rhs, env, sym)?;
+                let elements = destructure_tuple(&value, names.len(), ":wat::core::let")?;
+                for (name, elem) in names.into_iter().zip(elements.into_iter()) {
+                    builder = builder.bind(name, elem);
+                }
+            }
+        }
+    }
+    let scope = builder.build();
+    eval_tail(body, &scope, sym)
+}
+
+/// Tail-position twin of [`eval_let_star`]. Bindings accumulate
+/// sequentially (each RHS sees prior bindings); the body runs through
+/// [`eval_tail`] so a tail-call inside it propagates.
+fn eval_let_star_tail(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::let*".into(),
+            reason: format!(
+                "expected (:wat::core::let* (((n1 :T1) e1) ...) body); got {} args",
+                args.len()
+            ),
+        });
+    }
+    let bindings_form = &args[0];
+    let body = &args[1];
+    let binding_pairs = match bindings_form {
+        WatAST::List(items) => items,
+        _ => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::let*".into(),
+                reason: "bindings must be a list of ((name :Type) expr) pairs".into(),
+            })
+        }
+    };
+    let mut scope = env.clone();
+    for pair in binding_pairs {
+        let binding = parse_let_binding(pair)?;
+        match binding {
+            LetBinding::Single { name, rhs, .. } => {
+                let value = eval(rhs, &scope, sym)?;
+                scope = scope.child().bind(name, value).build();
+            }
+            LetBinding::Destructure { names, rhs } => {
+                let value = eval(rhs, &scope, sym)?;
+                let elements = destructure_tuple(&value, names.len(), ":wat::core::let*")?;
+                let mut builder = scope.child();
+                for (name, elem) in names.into_iter().zip(elements.into_iter()) {
+                    builder = builder.bind(name, elem);
+                }
+                scope = builder.build();
+            }
+        }
+    }
+    eval_tail(body, &scope, sym)
+}
+
+/// Tail-position twin of [`eval_match`]. The matched arm's body is
+/// evaluated via [`eval_tail`] — a tail-call inside an arm body
+/// propagates through to `apply_function`'s trampoline.
+fn eval_match_tail(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() < 4 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::match".into(),
+            reason: if args.len() >= 2
+                && !matches!(
+                    args.get(1),
+                    Some(WatAST::Symbol(s)) if s.as_str() == "->"
+                )
+            {
+                "`:wat::core::match` now requires `-> :T` between scrutinee and arms; write (:wat::core::match scrut -> :T (pat body) ...)".into()
+            } else {
+                format!(
+                    "expected (:wat::core::match scrut -> :T arm1 arm2 ...) — at least 4 args; got {}",
+                    args.len()
+                )
+            },
+        });
+    }
+    match &args[1] {
+        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        _ => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: "expected `->` after scrutinee (write `-> :T` between scrutinee and arms)".into(),
+            });
+        }
+    }
+    match &args[2] {
+        WatAST::Keyword(_) => {}
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: format!(
+                    "expected type keyword after `->`; got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    }
+    let scrutinee = eval(&args[0], env, sym)?;
+    for arm in &args[3..] {
+        let arm_items = match arm {
+            WatAST::List(items) => items,
+            other => {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "each arm must be a list `(pattern body)`, got {}",
+                        ast_variant_name(other)
+                    ),
+                });
+            }
+        };
+        if arm_items.len() != 2 {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::match".into(),
+                reason: format!(
+                    "each arm must have exactly (pattern body); got {} elements",
+                    arm_items.len()
+                ),
+            });
+        }
+        let pattern = &arm_items[0];
+        let body = &arm_items[1];
+        if let Some(arm_env) = try_match_pattern(pattern, &scrutinee, env)? {
+            return eval_tail(body, &arm_env, sym);
+        }
+    }
+    Err(RuntimeError::PatternMatchFailed {
+        value_type: scrutinee.type_name(),
+    })
+}
+
 /// Evaluate a single form in the given scope.
 pub fn eval(
     ast: &WatAST,
@@ -1352,7 +1667,7 @@ fn dispatch_keyword_head(
                 .iter()
                 .map(|a| eval(a, env, sym))
                 .collect::<Result<Vec<_>, _>>()?;
-            apply_function(&func, vals, sym)
+            apply_function(func, vals, sym)
         }
     }
 }
@@ -2186,7 +2501,7 @@ fn eval_vec_map(
     };
     let mut out = Vec::with_capacity(xs.len());
     for x in xs.iter() {
-        out.push(apply_function(&func, vec![x.clone()], sym)?);
+        out.push(apply_function(func.clone(), vec![x.clone()], sym)?);
     }
     Ok(Value::Vec(Arc::new(out)))
 }
@@ -2220,7 +2535,7 @@ fn eval_vec_foldl(
         }
     };
     for x in xs.iter() {
-        acc = apply_function(&func, vec![acc, x.clone()], sym)?;
+        acc = apply_function(func.clone(), vec![acc, x.clone()], sym)?;
     }
     Ok(acc)
 }
@@ -2254,7 +2569,7 @@ fn eval_vec_foldr(
         }
     };
     for x in xs.iter().rev() {
-        acc = apply_function(&func, vec![x.clone(), acc], sym)?;
+        acc = apply_function(func.clone(), vec![x.clone(), acc], sym)?;
     }
     Ok(acc)
 }
@@ -2287,7 +2602,7 @@ fn eval_vec_filter(
     };
     let mut out = Vec::with_capacity(xs.len());
     for x in xs.iter() {
-        match apply_function(&func, vec![x.clone()], sym)? {
+        match apply_function(func.clone(), vec![x.clone()], sym)? {
             Value::bool(true) => out.push(x.clone()),
             Value::bool(false) => {}
             other => {
@@ -2808,7 +3123,7 @@ fn eval_list_map_with_index(
     let mut out = Vec::with_capacity(xs.len());
     for (i, x) in xs.iter().enumerate() {
         out.push(apply_function(
-            &func,
+            func.clone(),
             vec![x.clone(), Value::i64(i as i64)],
             sym,
         )?);
@@ -3745,7 +4060,7 @@ fn apply_value(
         .iter()
         .map(|a| eval(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
-    apply_function(&func, vals, sym)
+    apply_function(func, vals, sym)
 }
 
 /// Apply a function to a list of argument values, evaluated under the
@@ -3755,35 +4070,72 @@ fn apply_value(
 /// Public so the freeze module's `:user::main` invocation and
 /// constrained-eval paths can apply pre-registered functions from a
 /// frozen world without duplicating the param-binding logic.
+///
+/// ## Tail-call trampoline (TCO, Stage 1 — named defines)
+///
+/// The body runs inside a loop that catches
+/// [`RuntimeError::TailCall`]. When `eval_tail` recognizes a
+/// user-defined function call in tail position it emits `TailCall`
+/// carrying the next function and its already-evaluated args; this
+/// loop reassigns `cur_func`/`cur_args` and re-iterates without
+/// recursing. Rust stack stays constant across arbitrary
+/// tail-recursion depth (`Console/loop`, `Cache/loop-step`, any
+/// `gen_server`-shaped driver). See
+/// `docs/arc/2026/04/003-tail-call-optimization/DESIGN.md` for the
+/// full treatment.
+///
+/// Lambda self-tail-calls still consume stack in Stage 1 — the
+/// evaluator's user-function-call detection keys on
+/// `sym.functions`, which holds named defines only. A lambda body
+/// that tail-calls a *named* define IS covered: the signal fires
+/// at the named call, this loop catches it exactly as it does for
+/// a define calling itself. Stage 2 extends detection to
+/// lambda-valued calls.
 pub fn apply_function(
-    func: &Function,
+    func: Arc<Function>,
     args: Vec<Value>,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    if args.len() != func.params.len() {
-        return Err(RuntimeError::ArityMismatch {
-            op: func.name.clone().unwrap_or_else(|| "<lambda>".into()),
-            expected: func.params.len(),
-            got: args.len(),
-        });
-    }
-    // Build the call env: parent is the closed env (lambda) or a fresh
-    // root (define — the body resolves global names via sym).
-    let parent = func.closed_env.clone().unwrap_or_default();
-    let mut builder = parent.child();
-    for (name, value) in func.params.iter().zip(args.into_iter()) {
-        builder = builder.bind(name.clone(), value);
-    }
-    let call_env = builder.build();
-    // Catch `TryPropagate` at the function-call boundary: `:wat::core::try`
-    // raises it on an `Err` value to short-circuit the body; we convert
-    // that into the function's own `Err(e)` return. The type checker
-    // guarantees this function's declared return type is `:Result<_,E>`
-    // when its body contains a `try`, so wrapping in `Value::Result(Err)`
-    // is type-correct by construction.
-    match eval(&func.body, &call_env, sym) {
-        Err(RuntimeError::TryPropagate(e)) => Ok(Value::Result(Arc::new(Err(e)))),
-        other => other,
+    let mut cur_func = func;
+    let mut cur_args = args;
+    loop {
+        if cur_args.len() != cur_func.params.len() {
+            return Err(RuntimeError::ArityMismatch {
+                op: cur_func.name.clone().unwrap_or_else(|| "<lambda>".into()),
+                expected: cur_func.params.len(),
+                got: cur_args.len(),
+            });
+        }
+        // Build the call env: parent is the closed env (lambda) or a
+        // fresh root (define — the body resolves global names via sym).
+        let parent = cur_func.closed_env.clone().unwrap_or_default();
+        let mut builder = parent.child();
+        for (name, value) in cur_func.params.iter().zip(cur_args.drain(..)) {
+            builder = builder.bind(name.clone(), value);
+        }
+        let call_env = builder.build();
+        // Evaluate the body in tail position. `eval_tail` is the
+        // tail-aware sibling of `eval`; it emits `RuntimeError::TailCall`
+        // when it meets a user-defined function call at the tail — the
+        // match below converts that signal into loop continuation.
+        //
+        // `TryPropagate` keeps its legacy behavior: wrap in the
+        // function's own `Err(e)` return. The type checker guarantees
+        // this function's declared return type is `:Result<_,E>`
+        // whenever its body contains a `try`, so the wrap is
+        // type-correct by construction.
+        match eval_tail(&cur_func.body, &call_env, sym) {
+            Ok(v) => return Ok(v),
+            Err(RuntimeError::TailCall { func: next, args: next_args }) => {
+                cur_func = next;
+                cur_args = next_args;
+                continue;
+            }
+            Err(RuntimeError::TryPropagate(e)) => {
+                return Ok(Value::Result(Arc::new(Err(e))));
+            }
+            Err(other) => return Err(other),
+        }
     }
 }
 
@@ -4472,7 +4824,7 @@ fn eval_kernel_spawn(
     let thread_sym = sym.clone();
     let (tx, rx) = crossbeam_channel::bounded::<Result<Value, RuntimeError>>(1);
     std::thread::spawn(move || {
-        let result = apply_function(&func, arg_values, &thread_sym);
+        let result = apply_function(func, arg_values, &thread_sym);
         let _ = tx.send(result);
     });
     Ok(Value::wat__kernel__ProgramHandle(Arc::new(rx)))

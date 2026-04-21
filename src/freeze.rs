@@ -339,7 +339,8 @@ pub fn invoke_user_main(
     let main_func = frozen
         .symbols()
         .get(USER_MAIN_PATH)
-        .ok_or(RuntimeError::UserMainMissing)?;
+        .ok_or(RuntimeError::UserMainMissing)?
+        .clone();
     apply_function(main_func, args, frozen.symbols())
 }
 
