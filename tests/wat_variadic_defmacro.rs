@@ -18,13 +18,13 @@
 //! - Multiple `&` markers rejected at registration.
 //! - Rest-param without a following binder rejected.
 
+use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
 
 fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
-    let loader = InMemoryLoader::new();
-    startup_from_source(src, None, &loader)
+    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
 }
 
 fn run(src: &str) -> Value {

@@ -101,9 +101,11 @@ impl FrozenWorld {
         macros: MacroRegistry,
         mut symbols: SymbolTable,
         program: Vec<WatAST>,
+        loader: Arc<dyn crate::load::SourceLoader>,
     ) -> Self {
         let ctx = Arc::new(EncodingCtx::from_config(&config));
         symbols.set_encoding_ctx(ctx);
+        symbols.set_source_loader(loader);
         FrozenWorld {
             config,
             types,
@@ -247,7 +249,7 @@ impl From<StdlibError> for StartupError {
 pub fn startup_from_source(
     entry_src: &str,
     base_canonical: Option<&str>,
-    loader: &dyn SourceLoader,
+    loader: Arc<dyn SourceLoader>,
 ) -> Result<FrozenWorld, StartupError> {
     // 1. Parse.
     let entry_forms = parse_all(entry_src)?;
@@ -255,8 +257,10 @@ pub fn startup_from_source(
     // 2. Config pass + entry-file discipline.
     let (config, post_config) = collect_entry_file(entry_forms)?;
 
-    // 3. Recursive load resolution.
-    let loaded = resolve_loads(post_config, base_canonical, loader)?;
+    // 3. Recursive load resolution. The loader survives into the
+    //    runtime as well — see step 9 — so `resolve_loads` borrows
+    //    via `&*loader` (Arc deref) rather than owning.
+    let loaded = resolve_loads(post_config, base_canonical, &*loader)?;
 
     // 3a. Baked stdlib. Registered ahead of user code so any
     //     `(:wat::std::Subtract …)` / `(:wat::std::Amplify …)` call
@@ -310,8 +314,18 @@ pub fn startup_from_source(
     // 8. Type check.
     check_program(&residue, &symbols, &types)?;
 
-    // 9. Freeze.
-    Ok(FrozenWorld::freeze(config, types, macros, symbols, residue))
+    // 9. Freeze. The loader moves into the frozen world's
+    //    SymbolTable so runtime primitives (`:wat::eval::file-path`,
+    //    `:wat::verify::file-path`) can route through the same
+    //    capability that handled startup loads.
+    Ok(FrozenWorld::freeze(
+        config,
+        types,
+        macros,
+        symbols,
+        residue,
+        loader,
+    ))
 }
 
 // ─── :user::main invocation ─────────────────────────────────────────────
@@ -481,8 +495,7 @@ mod tests {
 
     /// Helper: start from an entry string with no loaded files.
     fn startup(entry: &str) -> Result<FrozenWorld, StartupError> {
-        let loader = InMemoryLoader::new();
-        startup_from_source(entry, None, &loader)
+        startup_from_source(entry, None, Arc::new(InMemoryLoader::new()))
     }
 
     // ─── Happy path ─────────────────────────────────────────────────────
@@ -645,7 +658,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::load! :wat::load::file-path "lib.wat")
         "#;
-        let world = startup_from_source(entry, None, &loader).expect("startup");
+        let world = startup_from_source(entry, None, Arc::new(loader)).expect("startup");
         assert!(world.symbols().get(":lib::square").is_some());
     }
 

@@ -1,5 +1,6 @@
 //! E3 — :Result<T,E> marshaling + (Ok v)/(Err e) construction + match.
 
+use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
@@ -48,7 +49,7 @@ fn result_ok_matched() {
             ((Err _) -1)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(42)), "got {:?}", result);
 }
@@ -67,7 +68,7 @@ fn result_err_matched() {
             ((Err _) 99)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(99)), "got {:?}", result);
 }
@@ -86,7 +87,7 @@ fn user_built_ok_value() {
             ((Err _) -1)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(7)), "got {:?}", result);
 }
@@ -103,7 +104,7 @@ fn user_built_err_value() {
             ((Err _) 11)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(11)), "got {:?}", result);
 }

@@ -512,16 +512,42 @@ impl fmt::Debug for EncodingCtx {
     }
 }
 
-/// Keyword-path ↦ Function registry + optional encoding context.
+/// Keyword-path ↦ Function registry + runtime capabilities.
 ///
-/// The `encoding_ctx` field is populated at freeze time by the startup
-/// pipeline. Test harnesses (`SymbolTable::new()`) leave it `None`;
-/// primitives that require encoding (presence, encode) error cleanly if
-/// invoked without a frozen context.
-#[derive(Debug, Default, Clone)]
+/// The `encoding_ctx` and `source_loader` fields are populated at
+/// freeze time by the startup pipeline. Test harnesses
+/// (`SymbolTable::new()`) leave them `None`; primitives that require
+/// the capability (presence / encode for ctx, `:wat::eval::file-path`
+/// for loader) error cleanly if invoked without one attached.
+///
+/// Runtime-capability attachment follows the pattern established by
+/// Rust's compiler `Session`, Common Lisp special variables,
+/// Clojure dynamic vars, and Haskell `ReaderT`. See arc 007 DESIGN.md.
+#[derive(Clone)]
 pub struct SymbolTable {
     pub functions: HashMap<String, Arc<Function>>,
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
+    pub source_loader: Option<Arc<dyn crate::load::SourceLoader>>,
+}
+
+impl Default for SymbolTable {
+    fn default() -> Self {
+        Self {
+            functions: HashMap::new(),
+            encoding_ctx: None,
+            source_loader: None,
+        }
+    }
+}
+
+impl std::fmt::Debug for SymbolTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SymbolTable")
+            .field("functions", &self.functions.len())
+            .field("encoding_ctx", &self.encoding_ctx.is_some())
+            .field("source_loader", &self.source_loader.is_some())
+            .finish()
+    }
 }
 
 impl SymbolTable {
@@ -544,6 +570,22 @@ impl SymbolTable {
     /// this and raise [`RuntimeError::NoEncodingCtx`] on `None`.
     pub fn encoding_ctx(&self) -> Option<&Arc<EncodingCtx>> {
         self.encoding_ctx.as_ref()
+    }
+
+    /// Attach a source loader. Called once at freeze time by
+    /// [`crate::freeze::FrozenWorld::freeze`], mirrors
+    /// [`SymbolTable::set_encoding_ctx`].
+    pub fn set_source_loader(&mut self, loader: Arc<dyn crate::load::SourceLoader>) {
+        self.source_loader = Some(loader);
+    }
+
+    /// Borrow the source loader, if one is attached. Runtime primitives
+    /// that read files (`:wat::eval::file-path`,
+    /// `:wat::verify::file-path`) call this and raise an error on
+    /// `None` — a host that didn't attach a loader doesn't have the
+    /// capability.
+    pub fn source_loader(&self) -> Option<&Arc<dyn crate::load::SourceLoader>> {
+        self.source_loader.as_ref()
     }
 }
 

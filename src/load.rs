@@ -168,7 +168,7 @@ pub struct LoadedSource {
 /// Abstract fetcher for file-path interfaces. `:wat::load::string` and
 /// `:wat::verify::string` are handled in the driver and never call the
 /// trait — the trait exists only for interfaces that need IO.
-pub trait SourceLoader {
+pub trait SourceLoader: Send + Sync {
     /// Fetch source code from a filesystem path.
     fn fetch_source_file(
         &self,

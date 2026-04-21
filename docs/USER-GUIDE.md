@@ -66,10 +66,13 @@ fn main() -> ExitCode {
     // my_rusqlite_shim::register(&mut deps);  // add as you need them
     wat::rust_deps::install(deps.build()).expect("rust_deps install once");
 
-    // 2. Parse + freeze your entry wat file.
+    // 2. Parse + freeze your entry wat file. The loader is shared
+    //    through the frozen world — runtime primitives like
+    //    :wat::eval::file-path route through the same capability
+    //    that handled startup loads.
     let src = include_str!("../wat/main.wat");
-    let loader = wat::load::FsLoader::new();
-    let world = match wat::freeze::startup_from_source(src, None, &loader) {
+    let loader: Arc<dyn wat::load::SourceLoader> = Arc::new(wat::load::FsLoader);
+    let world = match wat::freeze::startup_from_source(src, None, loader) {
         Ok(w) => w,
         Err(e) => {
             eprintln!("startup: {}", e);

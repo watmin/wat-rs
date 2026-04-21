@@ -216,9 +216,14 @@ fn main() -> ExitCode {
         .ok()
         .map(|p| p.display().to_string());
 
-    // Full startup pipeline.
-    let loader = FsLoader;
-    let frozen = match startup_from_source(&source, canonical.as_deref(), &loader) {
+    // Full startup pipeline. The loader is shared through the frozen
+    // world — runtime primitives like :wat::eval::file-path route
+    // file reads through it, same capability that handled startup loads.
+    let frozen = match startup_from_source(
+        &source,
+        canonical.as_deref(),
+        std::sync::Arc::new(FsLoader),
+    ) {
         Ok(f) => f,
         Err(e) => {
             eprintln!("wat-vm: startup: {}", e);

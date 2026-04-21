@@ -1,6 +1,7 @@
 //! End-to-end validation of Vec<T> marshaling through `#[wat_dispatch]`.
 //! Fixture exposes associated fns that accept and return Vec<i64>.
 
+use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
@@ -49,7 +50,7 @@ fn sum_vec_via_macro() {
           (:rust::test::VecUtils::sum (:wat::core::vec :i64 10 20 30)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(60)), "got {:?}", result);
 }
@@ -67,7 +68,7 @@ fn reverse_vec_via_macro() {
             (:rust::test::VecUtils::reverse (:wat::core::vec :i64 1 2 3))))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(3)), "got {:?}", result);
 }
@@ -85,7 +86,7 @@ fn sort_vec_via_macro() {
             (:rust::test::VecUtils::sort (:wat::core::vec :i64 5 2 8 1))))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(1)), "got {:?}", result);
 }
@@ -102,7 +103,7 @@ fn empty_vec_via_macro() {
           (:rust::test::VecUtils::sum (:wat::core::vec :i64)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(0)), "got {:?}", result);
 }

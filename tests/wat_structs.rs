@@ -15,18 +15,14 @@
 //! entries; authors invoke them by full keyword path. Destructuring
 //! is not part of this slice — accessors + let bindings do the work.
 
+use std::sync::Arc;
 use wat::check::CheckError;
 use wat::freeze::{invoke_user_main, startup_from_source, StartupError};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
 
-fn loader() -> InMemoryLoader {
-    InMemoryLoader::new()
-}
-
 fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
-    let l = loader();
-    startup_from_source(src, None, &l)
+    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
 }
 
 fn run(src: &str) -> Value {

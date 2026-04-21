@@ -5,6 +5,7 @@
 //! `ThreadOwnedCell<Self>` by the macro-generated code. Thread-boundary
 //! crossings panic with a clean `MalformedForm` error.
 
+use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
@@ -60,7 +61,7 @@ fn counter_increments_and_reads_via_macro_generated_shim() {
             (:rust::test::Counter::read c)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(13)), "got {:?}", result);
 }
@@ -80,7 +81,7 @@ fn counter_ref_read_preserves_state() {
             (:rust::test::Counter::read c)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(42)), "got {:?}", result);
 }

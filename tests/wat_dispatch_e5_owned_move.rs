@@ -4,6 +4,7 @@
 //! subsequent attempts error with "owned-move handle already consumed".
 //! Models prepared-statement bindings, one-time tokens, capabilities.
 
+use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
@@ -50,7 +51,7 @@ fn ticket_redeems_once_successfully() {
             (:rust::test::Ticket::redeem t)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(777)), "got {:?}", result);
 }
@@ -70,7 +71,7 @@ fn ticket_second_redemption_errors() {
             (:rust::test::Ticket::redeem t)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let err = invoke_user_main(&world, Vec::new()).unwrap_err();
     // The second redeem attempts to consume the already-drained cell;
     // OwnedMoveCell::take returns MalformedForm.

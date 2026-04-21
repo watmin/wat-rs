@@ -16,13 +16,13 @@
 //! - Empty producer terminates cleanly.
 //! - for-each drives the pipeline to completion and returns :().
 
+use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
 
 fn run(src: &str) -> Value {
-    let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("startup");
     invoke_user_main(&world, Vec::new()).expect("main")
 }
 

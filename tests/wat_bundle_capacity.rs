@@ -14,13 +14,14 @@
 //! At `d=1024`, `budget = floor(sqrt(1024)) = 32`. The tests below
 //! pick list sizes deliberately on either side.
 
+use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
 
 fn run(src: &str) -> Value {
-    let l = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &l).expect("startup should succeed");
+    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+        .expect("startup should succeed");
     invoke_user_main(&world, Vec::new()).expect("main should run")
 }
 
@@ -260,8 +261,7 @@ fn bundle_return_type_mismatch_rejected_at_check() {
             (:wat::algebra::Atom "a")
             (:wat::algebra::Atom "b"))))
     "#;
-    let l = InMemoryLoader::new();
-    match startup_from_source(src, None, &l) {
+    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
         Err(_) => {}
         Ok(_) => panic!("expected check failure — Bundle is Result-typed, caller declared :holon::HolonAST"),
     }

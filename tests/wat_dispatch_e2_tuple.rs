@@ -1,5 +1,6 @@
 //! E2 — tuple marshaling through `#[wat_dispatch]`.
 
+use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
@@ -47,7 +48,7 @@ fn sum2_via_macro() {
           (:rust::test::TupleUtils::sum2 (:wat::core::tuple 20 22)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(42)), "got {:?}", result);
 }
@@ -64,7 +65,7 @@ fn pair_of_returns_tuple() {
           (:wat::core::first (:rust::test::TupleUtils::pair_of 7 13)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(7)), "got {:?}", result);
 }
@@ -82,7 +83,7 @@ fn heterogeneous_triple_via_macro() {
             (:wat::core::tuple 1 "row" true)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     match result {
         Value::String(s) => assert_eq!(&*s, "1/row/true"),

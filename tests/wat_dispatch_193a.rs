@@ -6,6 +6,7 @@
 //! produces working shim code for associated fns with primitive
 //! arg/return types.
 
+use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
@@ -75,7 +76,7 @@ fn add_two_i64s_via_macro_generated_shim() {
           (:rust::test::MathUtils::add 40 2))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(42)), "got {:?}", result);
 }
@@ -95,7 +96,7 @@ fn option_some_via_macro_generated_shim() {
             (:None -1)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(42)), "got {:?}", result);
 }
@@ -115,7 +116,7 @@ fn option_none_via_macro_generated_shim() {
             (:None -1)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(-1)), "got {:?}", result);
 }
@@ -133,7 +134,7 @@ fn type_check_rejects_wrong_arg_types() {
           (:rust::test::MathUtils::add "not-an-int" 2))
     "#;
     let loader = InMemoryLoader::new();
-    let result = startup_from_source(src, None, &loader);
+    let result = startup_from_source(src, None, Arc::new(loader));
     assert!(result.is_err(), "expected type error; got {:?}", result.ok());
 }
 

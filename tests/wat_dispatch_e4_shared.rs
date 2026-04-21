@@ -5,6 +5,7 @@
 //! time. Useful for immutable-after-construction Rust values (query
 //! rows, cryptographic keys, configuration snapshots).
 
+use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
 use wat::load::InMemoryLoader;
 use wat::runtime::Value;
@@ -58,7 +59,7 @@ fn shared_handle_reads_message() {
             (:rust::test::Greeting::message g)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     match result {
         Value::String(s) => assert_eq!(&*s, "hello"),
@@ -81,7 +82,7 @@ fn shared_handle_reads_year() {
             (:rust::test::Greeting::year g)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, &loader).expect("startup");
+    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(2026)), "got {:?}", result);
 }
@@ -109,7 +110,7 @@ fn shared_handle_survives_thread_crossing() {
           (:rust::test::Greeting::new "crossed" 1999))
     "#;
     let loader = InMemoryLoader::new();
-    let world = wat::freeze::startup_from_source(src_make, None, &loader).expect("startup");
+    let world = wat::freeze::startup_from_source(src_make, None, Arc::new(loader)).expect("startup");
     let greeting_value =
         wat::freeze::invoke_user_main(&world, Vec::new()).expect("main");
 
