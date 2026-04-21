@@ -1128,11 +1128,20 @@ fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), Runtime
 /// validation as their non-tail twins but dispatch the body through
 /// `eval_tail` rather than `eval`.
 ///
-/// Detection for user-defined-function calls keys on
-/// `sym.functions.contains_key(head)` — that's the
-/// `define`-registered universe. Bare-symbol heads (local
-/// lambdas / lambda-valued params) fall through to `eval`, which is
-/// Stage 2's extension point.
+/// Three tail-call shapes are detected (Stage 2 covers all three):
+///
+/// 1. **Keyword head** resolving in `sym.functions` — a
+///    `define`-registered named function (Stage 1's original scope).
+/// 2. **Bare-symbol head** resolving to a lambda value in `env` —
+///    lambda-valued params and let-bound lambdas. Enables
+///    Y-combinator-lite self-recursion (lambda passed as argument)
+///    without a letrec mechanism.
+/// 3. **Inline-lambda-literal head** `((lambda ...) args)` — the
+///    head evaluates to a lambda value directly.
+///
+/// Non-lambda, non-registered, non-form heads delegate to [`eval`]
+/// so error handling (NotCallable, UnboundSymbol, primitive
+/// dispatch, `Some`/`Ok`/`Err` constructors) is unchanged.
 fn eval_tail(
     ast: &WatAST,
     env: &Environment,
@@ -1142,30 +1151,70 @@ fn eval_tail(
         WatAST::List(items) if !items.is_empty() => items,
         _ => return eval(ast, env, sym),
     };
-    let head = match &items[0] {
-        WatAST::Keyword(k) => k.as_str(),
-        _ => return eval(ast, env, sym),
-    };
     let args = &items[1..];
-    match head {
-        ":wat::core::if" => eval_if_tail(args, env, sym),
-        ":wat::core::match" => eval_match_tail(args, env, sym),
-        ":wat::core::let" => eval_let_tail(args, env, sym),
-        ":wat::core::let*" => eval_let_star_tail(args, env, sym),
-        // A user-defined function call in tail position — signal.
-        // The head must resolve in sym.functions; anything else
-        // (kernel/algebra/config primitive, :rust:: shim, Some/Ok/Err
-        // constructors) runs through regular eval.
-        other if sym.functions.contains_key(other) => {
-            let func = sym.get(other).expect("contains_key above").clone();
-            let vals = args
-                .iter()
-                .map(|a| eval(a, env, sym))
-                .collect::<Result<Vec<_>, _>>()?;
-            Err(RuntimeError::TailCall { func, args: vals })
+    match &items[0] {
+        WatAST::Keyword(k) => {
+            let head = k.as_str();
+            match head {
+                ":wat::core::if" => eval_if_tail(args, env, sym),
+                ":wat::core::match" => eval_match_tail(args, env, sym),
+                ":wat::core::let" => eval_let_tail(args, env, sym),
+                ":wat::core::let*" => eval_let_star_tail(args, env, sym),
+                // A user-defined function call in tail position — signal.
+                // Head resolves in sym.functions; anything else (kernel/
+                // algebra/config primitive, :rust:: shim) runs through
+                // regular eval.
+                other if sym.functions.contains_key(other) => {
+                    let func = sym.get(other).expect("contains_key above").clone();
+                    emit_tail_call(func, args, env, sym)
+                }
+                _ => eval(ast, env, sym),
+            }
         }
+        // Bare-symbol head: a lambda-valued local binding. `Some`,
+        // `Ok`, `Err` are constructor symbols that are NEVER bound in
+        // env, so `env.lookup` returns None for them and we delegate
+        // to eval (which special-cases the three constructors).
+        WatAST::Symbol(ident) => {
+            if let Some(Value::wat__core__lambda(f)) = env.lookup(ident.as_str()) {
+                emit_tail_call(f, args, env, sym)
+            } else {
+                eval(ast, env, sym)
+            }
+        }
+        // Inline lambda-literal head `((lambda ...) args)`. Evaluate
+        // the head non-tail; if the value is a lambda, signal tail
+        // call; otherwise delegate to `apply_value` with the
+        // already-evaluated callee so we don't re-evaluate.
+        WatAST::List(_) => {
+            let callee = eval(&items[0], env, sym)?;
+            match callee {
+                Value::wat__core__lambda(f) => emit_tail_call(f, args, env, sym),
+                other => apply_value(&other, args, env, sym),
+            }
+        }
+        // Literal head (int/float/bool/string) — not callable; let
+        // eval raise the right error.
         _ => eval(ast, env, sym),
     }
+}
+
+/// Evaluate `raw_args` non-tail and emit a [`RuntimeError::TailCall`]
+/// carrying `func`. Shared helper for all three tail-call shapes
+/// (named define, bare-symbol lambda, inline-lambda literal). Arity
+/// is enforced by [`apply_function`]'s trampoline loop on its next
+/// iteration.
+fn emit_tail_call(
+    func: Arc<Function>,
+    raw_args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let vals = raw_args
+        .iter()
+        .map(|a| eval(a, env, sym))
+        .collect::<Result<Vec<_>, _>>()?;
+    Err(RuntimeError::TailCall { func, args: vals })
 }
 
 /// Tail-position twin of [`eval_if`]. Same validation; the selected

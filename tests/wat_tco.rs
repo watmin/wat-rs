@@ -246,19 +246,17 @@ fn try_inside_tail_recursive_function_propagates_err() {
     }
 }
 
-// ─── Stage 2 boundary marker ──────────────────────────────────────────
+// ─── Stage 2: lambda-valued tail calls ────────────────────────────────
 
 #[test]
-fn lambda_self_tail_call_stage2_placeholder() {
-    // Stage 1 detects tail calls by `sym.functions.contains_key` —
-    // named defines only. A tail-recursive LAMBDA (called through a
-    // bare-symbol head resolving to a lambda value) still goes through
-    // apply_function and burns Rust stack frames. Stage 2 extends
-    // detection to lambda values.
+fn lambda_tail_call_via_let_bound_symbol() {
+    // Stage 2 detection path 1: bare-symbol head in tail position
+    // resolves to a lambda value in env. `f` is let-bound; calling
+    // `(f 42)` at main's tail fires eval_tail's env.lookup lambda
+    // check, emits TailCall, trampoline runs the lambda body.
     //
-    // This test is a marker: a modest-depth lambda recursion that
-    // works today (not via TCO, via plain stack). When Stage 2 lands,
-    // we'll raise the depth to confirm TCO now applies.
+    // Single depth — proves the detection path, not the depth. The
+    // million-depth case comes via mutual alternation below.
     let src = r#"
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
@@ -272,3 +270,93 @@ fn lambda_self_tail_call_stage2_placeholder() {
     "#;
     assert!(matches!(run(src), Value::i64(42)));
 }
+
+#[test]
+fn inline_lambda_literal_tail_call() {
+    // Stage 2 detection path 2: the head is itself a list
+    // `(lambda ...)`. Evaluated non-tail; the resulting lambda value
+    // triggers a TailCall emission from the List head arm.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :i64)
+          ((:wat::core::lambda ((n :i64) -> :i64)
+             (:wat::core::i64::* n 2))
+           21))
+    "#;
+    assert!(matches!(run(src), Value::i64(42)));
+}
+
+#[test]
+fn named_define_tail_calls_lambda_param() {
+    // `:app::invoke`'s body is `(f n)` — a bare-symbol tail call
+    // where `f` is a parameter whose value is a lambda. Stage 2
+    // detects via env.lookup and TailCall fires with the lambda's
+    // Arc<Function>.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:app::invoke
+                             (f :fn(i64)->i64)
+                             (n :i64)
+                             -> :i64)
+          (f n))
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::let*
+            (((double :fn(i64)->i64)
+              (:wat::core::lambda ((x :i64) -> :i64)
+                (:wat::core::i64::* x 2))))
+            (:app::invoke double 21)))
+    "#;
+    assert!(matches!(run(src), Value::i64(42)));
+}
+
+#[test]
+fn inline_lambda_named_alternation_at_high_depth() {
+    // The high-depth test that requires BOTH stages. `:app::go`
+    // (named) recursion is Stage 1 TCO; each call creates a FRESH
+    // inline lambda literal in tail position and invokes it
+    // `((:wat::core::lambda ...) state n)` — Stage 2 TCO on the
+    // List-head path. The lambda body, running inside the
+    // trampoline's next iteration, tail-calls go again (Stage 1).
+    //
+    // Without Stage 2, the inline-lambda tail call burns one Rust
+    // frame per iteration — overflows well before 100k. Constant
+    // stack at 100k proves Stage 2 detection fires on the
+    // inline-lambda-literal head.
+    //
+    // (The lambda is re-constructed each iteration — that's heap
+    // allocation, not stack. The test doesn't care about allocation
+    // rate; it cares that stack stays flat.)
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:app::go (state :i64) (n :i64) -> :i64)
+          (:wat::core::if (:wat::core::= n 0) -> :i64
+            state
+            ((:wat::core::lambda ((s :i64) (k :i64) -> :i64)
+               (:app::go (:wat::core::i64::+ s 1) (:wat::core::i64::- k 1)))
+             state n)))
+
+        (:wat::core::define (:user::main -> :i64)
+          (:app::go 0 100000))
+    "#;
+    assert!(matches!(run(src), Value::i64(100_000)));
+}
+
+// ─── What Stage 2 does NOT do ─────────────────────────────────────────
+
+// Mutual recursion between two let-bound LAMBDAS (lambda A tail-calls
+// lambda B, lambda B tail-calls lambda A, both bound in the same
+// `let*` block) requires letrec-style binding — each lambda's closure
+// must see the other name. wat's `let*` evaluates RHSes sequentially
+// in the prefix scope; a lambda bound first can't close over a name
+// bound later, and the reverse direction can only reach backward.
+// No test here because the language doesn't offer the binding form.
+// Mutual recursion across NAMED defines works (see
+// `mutual_recursion_between_two_defines` above) because the static
+// symbol table serves as the letrec env.
