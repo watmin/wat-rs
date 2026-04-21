@@ -5,10 +5,11 @@ This guide shows you how.
 
 **Who this is for.** Application authors — people writing programs
 ON wat, not contributors extending the language itself. For
-internals, see `ZERO-MUTEX.md` (concurrency architecture), the
-`arc/` directory (per-slice design notes), and the 058 proposal
-batch in `holon-lab-trading/docs/proposals/` (the language
-specification and its reasoning).
+internals, see `CONVENTIONS.md` (naming rules for new primitives),
+`ZERO-MUTEX.md` (concurrency architecture), the `arc/` directory
+(per-slice design notes), and the 058 proposal batch in
+`holon-lab-trading/docs/proposals/` (the language specification
+and its reasoning).
 
 **What wat is.** A Lisp-family language for holon algebra, hosted
 on Rust. Same pattern as Clojure on the JVM: wat is a full language

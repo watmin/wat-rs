@@ -39,6 +39,13 @@ examples throughout. The guide is alive — it evolves as the trading
 lab (first real wat application) gets rebuilt. Where the guide lies,
 the rebuild teaches us, and the guide gets updated.
 
+**[`CONVENTIONS.md`](./CONVENTIONS.md)** — naming rules for adding
+new primitives. Privileged prefixes, namespace roles
+(core/config/algebra/kernel/io/std/rust), case and suffix rules,
+and the two lessons that gate new additions (absence is signal;
+verbose is honest). Read before proposing a new `:wat::*` or
+`:wat::std::*` primitive.
+
 **[`ZERO-MUTEX.md`](./ZERO-MUTEX.md)** — the concurrency architecture,
 stated plainly. wat-vm runs dozens of threads, serializes writes to
 stdout across every program that wants to print, owns LRU caches hit

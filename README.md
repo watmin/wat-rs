@@ -528,9 +528,15 @@ wat-rs/
 │   └── wat_vm_cli.rs
 └── docs/
     ├── README.md           # orientation
+    ├── USER-GUIDE.md       # building on wat
+    ├── CONVENTIONS.md      # naming rules for new primitives
+    ├── ZERO-MUTEX.md       # the concurrency architecture
     └── arc/2026/04/
-        ├── 001-caching-stack/          # DESIGN + DEADLOCK-POSTMORTEM
-        └── 002-rust-interop-macro/     # MACRO-DESIGN + NAMESPACE-PRINCIPLE + PROGRESS
+        ├── 001-caching-stack/              # DESIGN + DEADLOCK-POSTMORTEM
+        ├── 002-rust-interop-macro/         # MACRO-DESIGN + NAMESPACE-PRINCIPLE + PROGRESS
+        ├── 003-tail-call-optimization/     # DESIGN + INSCRIPTION
+        ├── 004-lazy-sequences-and-pipelines/ # DESIGN + INSCRIPTION + BACKLOG
+        └── 005-stdlib-naming-audit/        # DESIGN + INVENTORY
 ```
 
 ## What's next
@@ -563,6 +569,8 @@ forms. See FOUNDATION's cryptographic-provenance section.
   — the language specification.
 - `../holon-lab-trading/docs/058-backlog.md` — the implementation arc.
 - `../holon-lab-trading/BOOK.md` — the story.
+- `docs/USER-GUIDE.md` — building applications on wat.
+- `docs/CONVENTIONS.md` — naming rules for new primitives.
 - `docs/arc/2026/04/001-caching-stack/DESIGN.md` — the L1/L2 cache design.
 - `docs/arc/2026/04/002-rust-interop-macro/MACRO-DESIGN.md` — the
   `#[wat_dispatch]` design.
