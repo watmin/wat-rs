@@ -74,6 +74,19 @@
   room for `--hermetic` + `--run-one`, parallel exit-code semantics)
   so hermetic lands as a clean extension, not a breaking change.
   See DESIGN.md "Scaffolding for hermetic-mode (future arc)".
+- **2026-04-21** — `Failure` shape pinned. `Option<String>` was a
+  lazy shorthand; the real `Failure` value has `message`,
+  `location: Option<Location>`, `backtrace: Option<String>`,
+  `actual: Option<String>`, `expected: Option<String>`. Flat struct
+  with optional fields — slice 2b ships the first three; slice 3
+  populates actual/expected from assertion payloads. Every field is
+  a primitive, JSON-serializable for hermetic-mode. See DESIGN.md's
+  "Structured failure" section.
+- **2026-04-21** — RunResult.returned field DROPPED. Strict three-
+  channel `:user::main` always returns `:()`; the field would be
+  dead weight today. Slice 2a ships RunResult with just
+  `{ stdout, stderr }`. Slice 2b extends to add `failure`. Re-add
+  `returned` when a real caller needs a non-Unit return shape.
 - **2026-04-21** — Parallel test execution: DEFERRED. V1 of
   `wat-vm test` runs serial. Parallelism is a follow-up once
   usage patterns expose which tests can safely run

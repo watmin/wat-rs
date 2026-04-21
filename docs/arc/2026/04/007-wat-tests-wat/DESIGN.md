@@ -290,8 +290,61 @@ Where:
 - `scope` — optional filesystem root path. `:Some "path"` creates
   a `ScopedLoader`; `:None` creates an `InMemoryLoader` with no
   disk access at all.
-- `RunResult` — struct `{ returned :holon::HolonAST, stdout
-  :Vec<String>, stderr :Vec<String> }`.
+- `RunResult` — struct. Slice 2a ships `{ stdout :Vec<String>,
+  stderr :Vec<String> }`. Slice 2b adds `failure :Option<Failure>`
+  when `catch_unwind` integration lands. (The originally-sketched
+  `returned :holon::HolonAST` field is dropped — strict three-channel
+  `:user::main` always returns `:()`, so the field would be dead
+  weight. Re-add when a real caller needs a non-Unit return shape.)
+
+### Structured failure — `:wat::kernel::Failure` (slice 2b)
+
+When slice 2b lands `catch_unwind`, the caught payload surfaces
+as a structured `Failure` value, not a bare string. Shape pinned
+now so slice 2b and slice 3 share one vocabulary:
+
+```
+struct Failure {
+  message  :String                 ;; extracted from catch_unwind payload
+  location :Option<Location>       ;; file:line:col where panic originated
+  backtrace :Option<String>        ;; present iff RUST_BACKTRACE is set
+  actual   :Option<String>         ;; assertion-specific (slice 3 populates)
+  expected :Option<String>         ;; assertion-specific (slice 3 populates)
+}
+
+struct Location {
+  file :String
+  line :i64
+  col  :i64
+}
+```
+
+**Where each field comes from:**
+- `message` — `catch_unwind`'s `Box<dyn Any + Send>` downcast.
+  First try `&'static str`, then `String`. In slice 3, assertion
+  payloads panic with a custom struct; `run-sandboxed` also tries
+  that downcast and pulls message + actual + expected out of it.
+- `location` — a panic hook installed around the `catch_unwind`
+  scope snapshots `PanicHookInfo::location()` into a thread-local
+  before the unwinder converts the panic. Captured as `Location`
+  struct.
+- `backtrace` — `std::backtrace::Backtrace::capture()`. Respects
+  `RUST_BACKTRACE` by design — status is `Captured` when env is
+  set, `Disabled` otherwise. We only populate the field when
+  status is `Captured`, so users opt in via the standard Rust
+  convention.
+- `actual` / `expected` — None for plain `panic!()`. Populated
+  when slice 3's `:wat::test::assert-*` panics with a custom
+  `AssertionPayload` Rust struct; `run-sandboxed` downcasts and
+  reads the fields.
+
+**Why a flat struct with optional fields rather than an enum.**
+An enum `Failure = Panic | Assertion | RuntimeError` would be
+type-distinct but requires slice 2 to know slice 3's shapes.
+Flat-with-options lets slice 2 ship minimally (message +
+location + backtrace) and slice 3 fill in the assertion fields
+without touching the type declaration. Every field is a primitive
+or sub-struct — JSON-serializable for hermetic-mode.
 
 ### Non-obvious implementation details
 
