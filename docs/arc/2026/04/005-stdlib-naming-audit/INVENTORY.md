@@ -352,6 +352,10 @@ as first-class keyword arguments.
 | `:wat::std::stream::collect-drain` | internal recursion | same |
 | `:wat::std::stream::fold` | `:Stream<T> × :Acc × :fn(Acc,T)->Acc -> :Acc` (terminal) | same |
 | `:wat::std::stream::fold-drain` | internal recursion | same |
+| `:wat::std::stream::inspect` | `:Stream<T> × :fn(T)->() -> :Stream<T>` (1:1 pass-through with side effect, arc 006) | same |
+| `:wat::std::stream::inspect-worker` | internal worker | same |
+| `:wat::std::stream::flat-map` | `:Stream<T> × :fn(T)->Vec<U> -> :Stream<U>` (1:N expansion, arc 006) | same |
+| `:wat::std::stream::flat-map-worker` | internal worker | same |
 
 ---
 
@@ -419,16 +423,14 @@ the DESIGN but deferred:
 
 | Path | Shape | Status |
 |---|---|---|
-| `:wat::std::stream::chunks-by` | N:1, key-change boundary | deferred |
-| `:wat::std::stream::window` | N:1, sliding window | deferred |
-| `:wat::std::stream::time-window` | N:1, time-bucket boundary — requires clock primitive | deferred |
-| `:wat::std::stream::flat-map` | 1:N | deferred |
-| `:wat::std::stream::first` | terminal, take-N | deferred |
-| `:wat::std::stream::inspect` | 1:1 side-effect pass-through | deferred |
-| `:wat::std::stream::from-iterator` | alternate constructor | deferred |
-| `:wat::std::stream::from-fn` | alternate constructor | deferred |
-| `:wat::std::stream::from-receiver` | alternate constructor | deferred |
-| `:rust::std::iter::Iterator<T>` surfacing | in-process lazy adapter chain via `#[wat_dispatch]` | deferred |
+| `:wat::std::stream::chunks-by` | N:1, key-change boundary | deferred (design question) |
+| `:wat::std::stream::window` | N:1, sliding window | deferred (design question) |
+| `:wat::std::stream::time-window` | N:1, time-bucket boundary | substrate-blocked (clock primitive) |
+| `:wat::std::stream::first` | terminal, take-N | deferred (shutdown-semantics question — arc 006 BACKLOG) |
+| `:wat::std::stream::from-iterator` | alternate constructor | substrate-blocked (Iterator surfacing) |
+| `:wat::std::stream::from-fn` | alternate constructor | deferred (near-redundant with spawn-producer) |
+| `:wat::std::stream::from-receiver` | alternate constructor | deferred (handle-ownership question) |
+| `:rust::std::iter::Iterator<T>` surfacing | in-process lazy adapter chain via `#[wat_dispatch]` | substrate-blocked (own arc) |
 
 ---
 

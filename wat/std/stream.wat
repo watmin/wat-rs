@@ -196,6 +196,45 @@
       (:wat::kernel::spawn :wat::std::stream::filter-worker up-rx tx pred)))
     (:wat::core::tuple rx handle)))
 
+;; --- inspect ---
+;;
+;; 1:1 side-effect pass-through. Spawns a worker that pulls from
+;; upstream, calls `f` for its effect (return type :()), and forwards
+;; the ORIGINAL value unchanged. Same shape as map except the worker
+;; ignores f's return and sends v instead of (f v). Debugging
+;; ergonomics: drop an inspect into a pipeline to log / count / trace
+;; without perturbing the values.
+(:wat::core::define
+  (:wat::std::stream::inspect-worker<T>
+    (in :rust::crossbeam_channel::Receiver<T>)
+    (out :rust::crossbeam_channel::Sender<T>)
+    (f :fn(T)->())
+    -> :())
+  (:wat::core::match (:wat::kernel::recv in) -> :()
+    ((Some v)
+      (:wat::core::let*
+        (((_ :()) (f v))
+         ((sent :Option<()>) (:wat::kernel::send out v)))
+        (:wat::core::match sent -> :()
+          ((Some _) (:wat::std::stream::inspect-worker in out f))
+          (:None ()))))
+    (:None ())))
+
+(:wat::core::define
+  (:wat::std::stream::inspect<T>
+    (upstream :wat::std::stream::Stream<T>)
+    (f :fn(T)->())
+    -> :wat::std::stream::Stream<T>)
+  (:wat::core::let*
+    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
+     ((pair :(rust::crossbeam_channel::Sender<T>,rust::crossbeam_channel::Receiver<T>))
+      (:wat::kernel::make-bounded-queue :T 1))
+     ((tx :rust::crossbeam_channel::Sender<T>) (:wat::core::first pair))
+     ((rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::second pair))
+     ((handle :wat::kernel::ProgramHandle<()>)
+      (:wat::kernel::spawn :wat::std::stream::inspect-worker up-rx tx f)))
+    (:wat::core::tuple rx handle)))
+
 ;; --- fold ---
 ;;
 ;; Terminal. General reduction: every item folds into an accumulator
@@ -277,4 +316,53 @@
      ((handle :wat::kernel::ProgramHandle<()>)
       (:wat::kernel::spawn :wat::std::stream::chunks-worker
         up-rx tx size (:wat::core::vec :T))))
+    (:wat::core::tuple rx handle)))
+
+;; --- flat-map ---
+;;
+;; 1:N expansion. For each upstream item, apply `f` to get a Vec<U>;
+;; emit each element downstream. Empty result emits nothing for that
+;; input (0:1 sub-case). Symmetric with chunks (N:1).
+;;
+;; State machine: the worker carries a `pending` buffer of items
+;; produced by the most recent (f v) expansion that haven't been
+;; sent yet. When pending is empty, pull the next upstream item and
+;; expand. When pending has items, send the first and recurse with
+;; the rest. One function, state threaded through the parameter —
+;; the same pattern chunks uses for its accumulator.
+(:wat::core::define
+  (:wat::std::stream::flat-map-worker<T,U>
+    (in :rust::crossbeam_channel::Receiver<T>)
+    (out :rust::crossbeam_channel::Sender<U>)
+    (f :fn(T)->Vec<U>)
+    (pending :Vec<U>)
+    -> :())
+  (:wat::core::if (:wat::core::empty? pending) -> :()
+    (:wat::core::match (:wat::kernel::recv in) -> :()
+      ((Some v)
+        (:wat::std::stream::flat-map-worker in out f (f v)))
+      (:None ()))
+    (:wat::core::let*
+      (((item :U) (:wat::core::first pending))
+       ((rest-items :Vec<U>) (:wat::core::rest pending))
+       ((sent :Option<()>) (:wat::kernel::send out item)))
+      (:wat::core::match sent -> :()
+        ((Some _)
+          (:wat::std::stream::flat-map-worker in out f rest-items))
+        (:None ())))))
+
+(:wat::core::define
+  (:wat::std::stream::flat-map<T,U>
+    (upstream :wat::std::stream::Stream<T>)
+    (f :fn(T)->Vec<U>)
+    -> :wat::std::stream::Stream<U>)
+  (:wat::core::let*
+    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
+     ((pair :(rust::crossbeam_channel::Sender<U>,rust::crossbeam_channel::Receiver<U>))
+      (:wat::kernel::make-bounded-queue :U 1))
+     ((tx :rust::crossbeam_channel::Sender<U>) (:wat::core::first pair))
+     ((rx :rust::crossbeam_channel::Receiver<U>) (:wat::core::second pair))
+     ((handle :wat::kernel::ProgramHandle<()>)
+      (:wat::kernel::spawn :wat::std::stream::flat-map-worker
+        up-rx tx f (:wat::core::vec :U))))
     (:wat::core::tuple rx handle)))

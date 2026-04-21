@@ -536,7 +536,8 @@ wat-rs/
         ├── 002-rust-interop-macro/         # MACRO-DESIGN + NAMESPACE-PRINCIPLE + PROGRESS
         ├── 003-tail-call-optimization/     # DESIGN + INSCRIPTION
         ├── 004-lazy-sequences-and-pipelines/ # DESIGN + INSCRIPTION + BACKLOG
-        └── 005-stdlib-naming-audit/        # DESIGN + INVENTORY + INSCRIPTION
+        ├── 005-stdlib-naming-audit/        # DESIGN + INVENTORY + INSCRIPTION + CONVENTIONS
+        └── 006-stream-stdlib-completions/  # BACKLOG + INSCRIPTION (open against pending prompts)
 ```
 
 ## What's next

@@ -365,3 +365,152 @@ fn chunks_into_map_composes() {
     "#;
     assert_eq!(collected_i64(src), vec![3, 7, 5]);
 }
+
+// ─── inspect ─────────────────────────────────────────────────────────
+
+#[test]
+fn inspect_passes_values_through_unchanged() {
+    // inspect with a no-op side effect — values must reach collect
+    // identical to the source. Validates the pipeline shape even
+    // before the effect is observable.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::core::let*
+            (((source :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::spawn-producer
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send tx 10))
+                     ((_ :Option<()>) (:wat::kernel::send tx 20))
+                     ((_ :Option<()>) (:wat::kernel::send tx 30)))
+                    ()))))
+             ((inspected :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::inspect source
+                (:wat::core::lambda ((_n :i64) -> :()) ()))))
+            (:wat::std::stream::collect inspected)))
+    "#;
+    assert_eq!(collected_i64(src), vec![10, 20, 30]);
+}
+
+#[test]
+fn inspect_composes_between_map_and_collect() {
+    // source → map(+1) → inspect(noop) → map(*10) → collect.
+    // Four stages; inspect in the middle must be a transparent
+    // pass-through — output = (n+1)*10 per input.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::core::let*
+            (((s0 :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::spawn-producer
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send tx 1))
+                     ((_ :Option<()>) (:wat::kernel::send tx 2))
+                     ((_ :Option<()>) (:wat::kernel::send tx 3)))
+                    ()))))
+             ((s1 :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::map s0
+                (:wat::core::lambda ((n :i64) -> :i64)
+                  (:wat::core::i64::+ n 1))))
+             ((s2 :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::inspect s1
+                (:wat::core::lambda ((_n :i64) -> :()) ())))
+             ((s3 :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::map s2
+                (:wat::core::lambda ((n :i64) -> :i64)
+                  (:wat::core::i64::* n 10)))))
+            (:wat::std::stream::collect s3)))
+    "#;
+    assert_eq!(collected_i64(src), vec![20, 30, 40]);
+}
+
+// ─── flat-map ────────────────────────────────────────────────────────
+
+#[test]
+fn flat_map_expands_each_input_to_two_outputs() {
+    // 1:N — each n becomes [n, n*10]. 3 inputs → 6 outputs.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::core::let*
+            (((source :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::spawn-producer
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send tx 1))
+                     ((_ :Option<()>) (:wat::kernel::send tx 2))
+                     ((_ :Option<()>) (:wat::kernel::send tx 3)))
+                    ()))))
+             ((expanded :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::flat-map source
+                (:wat::core::lambda ((n :i64) -> :Vec<i64>)
+                  (:wat::core::vec :i64 n (:wat::core::i64::* n 10))))))
+            (:wat::std::stream::collect expanded)))
+    "#;
+    assert_eq!(collected_i64(src), vec![1, 10, 2, 20, 3, 30]);
+}
+
+#[test]
+fn flat_map_empty_expansion_emits_nothing() {
+    // 1:0 sub-case — each expansion returns an empty Vec; no
+    // downstream emissions. collect returns empty Vec.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::core::let*
+            (((source :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::spawn-producer
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send tx 1))
+                     ((_ :Option<()>) (:wat::kernel::send tx 2)))
+                    ()))))
+             ((expanded :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::flat-map source
+                (:wat::core::lambda ((_n :i64) -> :Vec<i64>)
+                  (:wat::core::vec :i64)))))
+            (:wat::std::stream::collect expanded)))
+    "#;
+    assert_eq!(collected_i64(src), Vec::<i64>::new());
+}
+
+#[test]
+fn flat_map_mixed_expansion_sizes() {
+    // Variable expansion — 3 inputs produce [3 items, 0 items, 2 items]
+    // → total 5 outputs in input order.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::core::let*
+            (((source :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::spawn-producer
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send tx 1))
+                     ((_ :Option<()>) (:wat::kernel::send tx 2))
+                     ((_ :Option<()>) (:wat::kernel::send tx 3)))
+                    ()))))
+             ((expanded :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::flat-map source
+                (:wat::core::lambda ((n :i64) -> :Vec<i64>)
+                  (:wat::core::if (:wat::core::= n 1) -> :Vec<i64>
+                    (:wat::core::vec :i64 100 101 102)
+                    (:wat::core::if (:wat::core::= n 2) -> :Vec<i64>
+                      (:wat::core::vec :i64)
+                      (:wat::core::vec :i64 300 301)))))))
+            (:wat::std::stream::collect expanded)))
+    "#;
+    assert_eq!(collected_i64(src), vec![100, 101, 102, 300, 301]);
+}
