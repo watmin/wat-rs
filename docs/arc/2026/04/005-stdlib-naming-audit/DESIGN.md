@@ -106,7 +106,7 @@ Rules under review:
      `:wat::core::*` primitives
    - `:wat::std::math::*` — math primitives
    - `:wat::std::string::*` — string ops (new)
-   - `:wat::std::program::*` — spawnable programs (Console, Cache)
+   - `:wat::std::service::*` — spawnable programs (Console, Cache)
    - Top-level `:wat::std::Foo` — named algebra macros (Amplify,
      Subtract, Log, Circular, Reject, Project, Sequential,
      Ngram/Bigram/Trigram, LocalCache)

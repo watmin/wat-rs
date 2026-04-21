@@ -21,8 +21,8 @@ wat/std/Project.wat            (tested alongside Reject)
 wat/std/Sequential.wat       ↔ wat-tests/std/Sequential.wat
 wat/std/Trigram.wat          ↔ wat-tests/std/Trigram.wat
 wat/std/test.wat             ↔ wat-tests/std/test.wat
-wat/std/program/Console.wat  ↔ wat-tests/std/program/Console.wat
-wat/std/program/Cache.wat    ↔ wat-tests/std/program/Cache.wat
+wat/std/service/Console.wat  ↔ wat-tests/std/service/Console.wat
+wat/std/service/Cache.wat    ↔ wat-tests/std/service/Cache.wat
 ```
 
 The stdlib module under test dictates the path. A future addition to

@@ -37,7 +37,7 @@ in any file that references it.
   - `(:wat::std::HashMap :(K,V) k1 v1 ...)` — wat-level variadic
     constructor that produces a `:rust::std::collections::HashMap<K,V>`.
   - `(:wat::std::LocalCache::new cap)` — wat wrapper over `:rust::lru::LruCache`.
-  - `:wat::std::program::Console` — wat-source program using `:rust::std::io::*` handles.
+  - `:wat::std::service::Console` — wat-source program using `:rust::std::io::*` handles.
 
 ## Why
 

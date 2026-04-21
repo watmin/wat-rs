@@ -459,7 +459,7 @@ sharing means threading the endpoint through spawn args.
 ```
 
 The caller owns the select loop — remove disconnected receivers from
-the list, exit when the list is empty. `:wat::std::program::Console`'s
+the list, exit when the list is empty. `:wat::std::service::Console`'s
 driver is the canonical example.
 
 ### Spawning programs
@@ -671,7 +671,7 @@ through channels.
 
 ```scheme
 (:wat::core::let*
-  (((pool driver) (:wat::std::program::Cache :(String,i64) 1024 8))
+  (((pool driver) (:wat::std::service::Cache :(String,i64) 1024 8))
    ((client1 :Sender<Req>) (:wat::kernel::HandlePool::pop pool))
    ((client2 :Sender<Req>) (:wat::kernel::HandlePool::pop pool))
    (... eight clients ...)
@@ -713,13 +713,13 @@ stream. One writer, serialized, no garbled output.
                     -> :())
   (:wat::core::let*
     ;; One Console for the whole program
-    (((pool console-driver) (:wat::std::program::Console stdout stderr 4))
+    (((pool console-driver) (:wat::std::service::Console stdout stderr 4))
      ((main-sender :Sender<(i64,String)>) (:wat::kernel::HandlePool::pop pool))
      (... three more pops for three workers ...)
      ((_ :()) (:wat::kernel::HandlePool::finish pool)))
     ;; After this, ignore the raw stdout/stderr bindings —
     ;; everything goes through Console.
-    (:wat::std::program::Console/out main-sender "main started")
+    (:wat::std::service::Console/out main-sender "main started")
     (... spawn workers with their handles ...)
     (:wat::kernel::join console-driver)))
 ```
@@ -891,8 +891,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::drop` | `handle` | `:()` |
 | `:wat::kernel::stopped?` / `sigusr1?` / ... | `()` | `:bool` |
 | `:wat::kernel::HandlePool::new` / `pop` / `finish` | various | pool ops |
-| `:wat::std::program::Console` | `stdout stderr n` | `(HandlePool, Driver)` |
-| `:wat::std::program::Cache` | `:(K,V) capacity count` | `(HandlePool, Driver)` |
+| `:wat::std::service::Console` | `stdout stderr n` | `(HandlePool, Driver)` |
+| `:wat::std::service::Cache` | `:(K,V) capacity count` | `(HandlePool, Driver)` |
 | `:wat::std::LocalCache::new` / `put` / `get` | various | per-program LRU |
 | `:wat::algebra::Atom` | `<literal>` | `:holon::HolonAST` |
 | `:wat::algebra::Bind` | `a b` | `:holon::HolonAST` |

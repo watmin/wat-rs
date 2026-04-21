@@ -2,8 +2,8 @@
 
 **Status:** planned. Not yet implemented.
 **Motivation:** long-running driver loops written in tail-recursive
-form (`:wat::std::program::Console/loop`,
-`:wat::std::program::Cache/loop-step`, any future `gen_server`-shaped
+form (`:wat::std::service::Console/loop`,
+`:wat::std::service::Cache/loop-step`, any future `gen_server`-shaped
 wat program) currently consume one Rust stack frame per recursive
 call. A Console driver processing 10k messages burns 10k frames; at
 the default 8MB thread stack this eventually overflows.
@@ -15,20 +15,20 @@ evaluator needs to recognize it.
 
 ## The problem, shown
 
-`wat/std/program/Console.wat`, simplified:
+`wat/std/service/Console.wat`, simplified:
 
 ```scheme
 (:wat::core::define
-  (:wat::std::program::Console/loop (rxs ...) (stdout ...) (stderr ...) -> :())
+  (:wat::std::service::Console/loop (rxs ...) (stdout ...) (stderr ...) -> :())
   (:wat::core::if (:wat::core::empty? rxs) -> :()
     ()
     (:wat::core::let* (...)
       (:wat::core::match maybe -> :()
         ((Some tagged)
           (:wat::core::let* (...)
-            (:wat::std::program::Console/loop rxs stdout stderr)))    ; ← tail call
+            (:wat::std::service::Console/loop rxs stdout stderr)))    ; ← tail call
         (:None
-          (:wat::std::program::Console/loop
+          (:wat::std::service::Console/loop
             (:wat::std::list::remove-at rxs idx)
             stdout stderr))))))                                       ; ← tail call
 ```

@@ -60,7 +60,7 @@ Items are ordered by readiness + dependency. "Blockers as they arise" is the ope
 
 **Stream<T> representation:** typealias over `:(rust::crossbeam_channel::Receiver<T>, wat::kernel::ProgramHandle<()>)` — once item 1 lands. The tuple mirrors the existing Console / Cache "(usable endpoint, driver handle)" convention one-for-one.
 
-**Composition discipline (for the first slice):** manual `let*` chain by the caller. Each combinator binds a new `(rx, h)` pair; caller joins handles in reverse dependency order at pipeline shutdown. Same discipline `wat/std/program/Console.wat`'s Console setup uses today.
+**Composition discipline (for the first slice):** manual `let*` chain by the caller. Each combinator binds a new `(rx, h)` pair; caller joins handles in reverse dependency order at pipeline shutdown. Same discipline `wat/std/service/Console.wat`'s Console setup uses today.
 
 **Inscription target:** new `058-034-stream-stdlib` (or similar) — inscribes the first slice of the stream stdlib surface that actually shipped.
 

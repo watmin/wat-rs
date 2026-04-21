@@ -299,7 +299,7 @@ pub fn startup_from_forms(
     let post_macro_reg = register_defmacros(loaded, &mut macros)?;
     // Expand BOTH stdlib non-defmacro residue and user forms against
     // the combined macro registry. Stdlib functions are authored
-    // against stdlib defmacros too — e.g., :wat::std::program::Console's
+    // against stdlib defmacros too — e.g., :wat::std::service::Console's
     // body uses :wat::std::Subtract / list helpers / etc.
     let expanded_stdlib = expand_all(stdlib_post_macros, &macros)?;
     let expanded_user = expand_all(post_macro_reg, &macros)?;

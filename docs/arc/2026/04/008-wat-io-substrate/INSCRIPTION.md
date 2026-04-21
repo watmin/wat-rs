@@ -87,7 +87,7 @@ add boilerplate everywhere. Added:
 These are convenience wrappers over `write-all`; the fd-honest
 count-returning primitives stay for callers who need them.
 
-**Console.wat migrated.** `:wat::std::program::Console/loop` takes
+**Console.wat migrated.** `:wat::std::service::Console/loop` takes
 `:wat::io::IOWriter` for stdout and stderr; dispatch uses
 `:wat::io::IOWriter/write-string` (preserves no-implicit-newline
 semantics the old `:wat::io::write` had).

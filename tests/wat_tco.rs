@@ -69,7 +69,7 @@ fn self_recursion_via_if_at_million_depth() {
 
 #[test]
 fn self_recursion_via_match_at_high_depth() {
-    // Models `:wat::std::program::Console/loop`: match an Option, in
+    // Models `:wat::std::service::Console/loop`: match an Option, in
     // the Some arm do work and recurse tail; in the None arm exit. The
     // forcing-function case the user named. Uses :wat::std::list::take
     // to hand back Option<i64> values from a Vec.

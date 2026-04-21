@@ -69,8 +69,8 @@ wins — it's the honest record.
 
 ## What it unlocks
 
-`:wat::std::program::Console/loop`,
-`:wat::std::program::Cache/loop-step`, and every future
+`:wat::std::service::Console/loop`,
+`:wat::std::service::Cache/loop-step`, and every future
 `gen_server`-shaped driver now run in constant Rust stack. The
 wat source was already written in tail-recursive shape; the
 evaluator now recognizes it.

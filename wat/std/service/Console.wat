@@ -1,4 +1,4 @@
-;; :wat::std::program::Console — the sole gateway to the world's
+;; :wat::std::service::Console — the sole gateway to the world's
 ;; stdio. User direction 2026-04-19: "the console /should/ be the
 ;; only way to print to the world... anyone who wants console access
 ;; /must/ be provisioned a pair of pipes and invoke console through
@@ -34,12 +34,12 @@
 ;; every signature in the file name the shape once; `reduce` walks
 ;; through at unify + shape-inspection sites, so Message and its
 ;; tuple expansion are interchangeable everywhere.
-(:wat::core::typealias :wat::std::program::Console::Message
+(:wat::core::typealias :wat::std::service::Console::Message
   :(i64,String))
-(:wat::core::typealias :wat::std::program::Console::Tx
-  :rust::crossbeam_channel::Sender<wat::std::program::Console::Message>)
-(:wat::core::typealias :wat::std::program::Console::Rx
-  :rust::crossbeam_channel::Receiver<wat::std::program::Console::Message>)
+(:wat::core::typealias :wat::std::service::Console::Tx
+  :rust::crossbeam_channel::Sender<wat::std::service::Console::Message>)
+(:wat::core::typealias :wat::std::service::Console::Rx
+  :rust::crossbeam_channel::Receiver<wat::std::service::Console::Message>)
 
 ;; --- Driver loop ---
 ;;
@@ -47,18 +47,18 @@
 ;; the matching real IO handle. Removes disconnected receivers.
 ;; Exits when no receivers remain.
 (:wat::core::define
-  (:wat::std::program::Console/loop
-    (rxs :Vec<wat::std::program::Console::Rx>)
+  (:wat::std::service::Console/loop
+    (rxs :Vec<wat::std::service::Console::Rx>)
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
     -> :())
   (:wat::core::if (:wat::core::empty? rxs) -> :()
     ()
     (:wat::core::let*
-      (((chosen :(i64,Option<wat::std::program::Console::Message>))
+      (((chosen :(i64,Option<wat::std::service::Console::Message>))
         (:wat::kernel::select rxs))
        ((idx :i64) (:wat::core::first chosen))
-       ((maybe :Option<wat::std::program::Console::Message>)
+       ((maybe :Option<wat::std::service::Console::Message>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :()
         ((Some tagged)
@@ -68,9 +68,9 @@
              ((_ :i64) (:wat::core::if (:wat::core::= tag 0) -> :i64
                         (:wat::io::IOWriter/write-string stdout msg)
                         (:wat::io::IOWriter/write-string stderr msg))))
-            (:wat::std::program::Console/loop rxs stdout stderr)))
+            (:wat::std::service::Console/loop rxs stdout stderr)))
         (:None
-          (:wat::std::program::Console/loop
+          (:wat::std::service::Console/loop
             (:wat::std::list::remove-at rxs idx)
             stdout
             stderr))))))
@@ -87,8 +87,8 @@
 ;; that WANTS disconnect awareness uses the primitive `send` directly
 ;; on its console handle.
 (:wat::core::define
-  (:wat::std::program::Console/out
-    (handle :wat::std::program::Console::Tx)
+  (:wat::std::service::Console/out
+    (handle :wat::std::service::Console::Tx)
     (msg :String)
     -> :())
   (:wat::core::match
@@ -98,8 +98,8 @@
     (:None ())))
 
 (:wat::core::define
-  (:wat::std::program::Console/err
-    (handle :wat::std::program::Console::Tx)
+  (:wat::std::service::Console/err
+    (handle :wat::std::service::Console::Tx)
     (msg :String)
     -> :())
   (:wat::core::match
@@ -120,29 +120,29 @@
 ;; drops all handles (end of their scope), then calls
 ;; `(join driver)`. The drop cascade triggers the loop's clean exit.
 (:wat::core::define
-  (:wat::std::program::Console
+  (:wat::std::service::Console
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
     (count :i64)
-    -> :(wat::kernel::HandlePool<wat::std::program::Console::Tx>,wat::kernel::ProgramHandle<()>))
+    -> :(wat::kernel::HandlePool<wat::std::service::Console::Tx>,wat::kernel::ProgramHandle<()>))
   (:wat::core::let*
-    (((pairs :Vec<(wat::std::program::Console::Tx,wat::std::program::Console::Rx)>)
+    (((pairs :Vec<(wat::std::service::Console::Tx,wat::std::service::Console::Rx)>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda ((_i :i64) -> :(wat::std::program::Console::Tx,wat::std::program::Console::Rx))
-          (:wat::kernel::make-bounded-queue :wat::std::program::Console::Message 1))))
-     ((txs :Vec<wat::std::program::Console::Tx>)
+        (:wat::core::lambda ((_i :i64) -> :(wat::std::service::Console::Tx,wat::std::service::Console::Rx))
+          (:wat::kernel::make-bounded-queue :wat::std::service::Console::Message 1))))
+     ((txs :Vec<wat::std::service::Console::Tx>)
       (:wat::core::map pairs
-        (:wat::core::lambda ((p :(wat::std::program::Console::Tx,wat::std::program::Console::Rx))
-                            -> :wat::std::program::Console::Tx)
+        (:wat::core::lambda ((p :(wat::std::service::Console::Tx,wat::std::service::Console::Rx))
+                            -> :wat::std::service::Console::Tx)
           (:wat::core::first p))))
-     ((rxs :Vec<wat::std::program::Console::Rx>)
+     ((rxs :Vec<wat::std::service::Console::Rx>)
       (:wat::core::map pairs
-        (:wat::core::lambda ((p :(wat::std::program::Console::Tx,wat::std::program::Console::Rx))
-                            -> :wat::std::program::Console::Rx)
+        (:wat::core::lambda ((p :(wat::std::service::Console::Tx,wat::std::service::Console::Rx))
+                            -> :wat::std::service::Console::Rx)
           (:wat::core::second p))))
-     ((pool :wat::kernel::HandlePool<wat::std::program::Console::Tx>)
+     ((pool :wat::kernel::HandlePool<wat::std::service::Console::Tx>)
       (:wat::kernel::HandlePool::new "Console" txs))
      ((driver :wat::kernel::ProgramHandle<()>)
-      (:wat::kernel::spawn :wat::std::program::Console/loop rxs stdout stderr)))
+      (:wat::kernel::spawn :wat::std::service::Console/loop rxs stdout stderr)))
     (:wat::core::tuple pool driver)))

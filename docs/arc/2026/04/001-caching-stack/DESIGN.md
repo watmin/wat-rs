@@ -9,7 +9,7 @@ Three pieces in the proposal (FOUNDATION lines 1527-1565):
 1. **`:wat::std::LocalCache<K,V>`** — `wat/std/LocalCache.wat`. In-program
    cache, single-threaded, owned as a binding. No pipe, no thread, no queue.
    Fastest memoization.
-2. **`:wat::std::program::Cache<K,V>`** — `wat/std/program/Cache.wat`.
+2. **`:wat::std::service::Cache<K,V>`** — `wat/std/service/Cache.wat`.
    Spawnable program whose driver thread owns an LRU; other programs talk
    to it via queues. The program IS the synchronization point. A program
    wrapping its own LocalCache behind a select loop.
@@ -134,7 +134,7 @@ need it for LocalCache).
   (lines 1527-1565 on caching, 2127-2128 on stdlib file paths).
 - `holon-lab-trading/src/encoding/encode.rs` (L1 shape).
 - `holon-lab-trading/src/programs/stdlib/cache.rs` (L2 shape).
-- `wat-rs/wat/std/program/Console.wat` (constructor-convention reference).
+- `wat-rs/wat/std/service/Console.wat` (constructor-convention reference).
 
 Until a contradiction surfaces, proposal 058 is correct. When we find
 a mismatch in impl, we update the proposal — we don't deviate silently.

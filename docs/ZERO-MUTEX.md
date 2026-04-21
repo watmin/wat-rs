@@ -180,7 +180,7 @@ proven concurrency pattern that is not a lock.
 
 **The substrate examples:**
 
-- **`:wat::std::program::Console`** — owns the real `io::Stdout`
+- **`:wat::std::service::Console`** — owns the real `io::Stdout`
   and `io::Stderr` handles. Every program that wants to print
   gets a `Sender<(i64, String)>` from a HandlePool and sends
   tagged messages. The Console driver runs a select loop across
@@ -188,7 +188,7 @@ proven concurrency pattern that is not a lock.
   No lock on stdout; no garbled output; concurrent writers
   serialize through the driver's single-threaded body. The
   "Console is the lock, except there's no lock" case.
-- **`:wat::std::program::Cache<K,V>`** — the L2 caching program.
+- **`:wat::std::service::Cache<K,V>`** — the L2 caching program.
   Owns its own LocalCache internally (on the driver's thread,
   using tier-2 ThreadOwnedCell). Clients send tagged requests —
   `(GET, k, :None)` or `(PUT, k, (Some v))` — paired with a
@@ -294,7 +294,7 @@ goes in wat-rs.
 (`Arc<HashMap<...>>`, immutable). Is it one program's private hash
 map? Tier 2 (`ThreadOwnedCell<HashMap<...>>`). Is it shared across
 programs? Tier 3 — wrap it in a program with a mailbox
-(`:wat::std::program::Cache<K,V>` is the template).
+(`:wat::std::service::Cache<K,V>` is the template).
 
 **"I have a shared connection pool."**
 → Tier 3. The pool itself is a program that hands out connections
@@ -304,7 +304,7 @@ dropped. No lock on the pool; the HandlePool mechanism handles
 distribution lock-free.
 
 **"I have a complex cache with multiple readers and writers."**
-→ Tier 3. `:wat::std::program::Cache<K,V>` or a specialization.
+→ Tier 3. `:wat::std::service::Cache<K,V>` or a specialization.
 Multiple clients; one program owns the data; requests/replies
 through channels.
 

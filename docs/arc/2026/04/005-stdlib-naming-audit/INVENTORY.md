@@ -327,27 +327,27 @@ as first-class keyword arguments.
 | `:wat::std::LocalCache::put` | `:LocalCache<K,V> × K × V -> :()` | same |
 | `:wat::std::LocalCache::get` | `:LocalCache<K,V> × K -> :Option<V>` | same |
 
-### `:wat::std::program::*` — spawnable programs
+### `:wat::std::service::*` — spawnable programs
 
 | Path | Kind | Source |
 |---|---|---|
-| `:wat::std::program::Console` | setup function `(stdout × stderr × count)` → `(HandlePool, driver-handle)` | `wat/std/program/Console.wat` |
-| `:wat::std::program::Console/loop` | driver function | same |
-| `:wat::std::program::Console/out` | client helper | same |
-| `:wat::std::program::Console/err` | client helper | same |
-| `:wat::std::program::Console::Message` | typealias `:(i64,String)` | same |
-| `:wat::std::program::Console::Tx` | typealias `:Sender<Message>` | same |
-| `:wat::std::program::Console::Rx` | typealias `:Receiver<Message>` | same |
-| `:wat::std::program::Cache<K,V>` | setup function `(capacity × count)` → `(HandlePool, driver-handle)` | `wat/std/program/Cache.wat` |
-| `:wat::std::program::Cache/loop` | driver function | same |
-| `:wat::std::program::Cache/loop-step` | inner loop | same |
-| `:wat::std::program::Cache/get` | client helper | same |
-| `:wat::std::program::Cache/put` | client helper | same |
-| `:wat::std::program::Cache::Body<K,V>` | typealias `:(i64,K,Option<V>)` | same |
-| `:wat::std::program::Cache::ReplyTx<V>` | typealias `:Sender<Option<V>>` | same |
-| `:wat::std::program::Cache::Request<K,V>` | typealias `:(Body, ReplyTx)` | same |
-| `:wat::std::program::Cache::ReqTx<K,V>` | typealias `:Sender<Request>` | same |
-| `:wat::std::program::Cache::ReqRx<K,V>` | typealias `:Receiver<Request>` | same |
+| `:wat::std::service::Console` | setup function `(stdout × stderr × count)` → `(HandlePool, driver-handle)` | `wat/std/service/Console.wat` |
+| `:wat::std::service::Console/loop` | driver function | same |
+| `:wat::std::service::Console/out` | client helper | same |
+| `:wat::std::service::Console/err` | client helper | same |
+| `:wat::std::service::Console::Message` | typealias `:(i64,String)` | same |
+| `:wat::std::service::Console::Tx` | typealias `:Sender<Message>` | same |
+| `:wat::std::service::Console::Rx` | typealias `:Receiver<Message>` | same |
+| `:wat::std::service::Cache<K,V>` | setup function `(capacity × count)` → `(HandlePool, driver-handle)` | `wat/std/service/Cache.wat` |
+| `:wat::std::service::Cache/loop` | driver function | same |
+| `:wat::std::service::Cache/loop-step` | inner loop | same |
+| `:wat::std::service::Cache/get` | client helper | same |
+| `:wat::std::service::Cache/put` | client helper | same |
+| `:wat::std::service::Cache::Body<K,V>` | typealias `:(i64,K,Option<V>)` | same |
+| `:wat::std::service::Cache::ReplyTx<V>` | typealias `:Sender<Option<V>>` | same |
+| `:wat::std::service::Cache::Request<K,V>` | typealias `:(Body, ReplyTx)` | same |
+| `:wat::std::service::Cache::ReqTx<K,V>` | typealias `:Sender<Request>` | same |
+| `:wat::std::service::Cache::ReqRx<K,V>` | typealias `:Receiver<Request>` | same |
 
 ### `:wat::std::stream::*` — CSP pipeline stdlib (058-034 INSCRIPTION)
 
