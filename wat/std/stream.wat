@@ -158,3 +158,123 @@
       (:wat::std::stream::collect-drain rx (:wat::core::vec :T)))
      ((_ :()) (:wat::kernel::join handle)))
     items))
+
+;; --- filter ---
+;;
+;; 1:0..1. Spawns a worker that pulls from upstream; for each item,
+;; calls the predicate; forwards only items for which it returned true.
+;; Same tail-recursive shape as map. Empty downstream drops.
+(:wat::core::define
+  (:wat::std::stream::filter-worker<T>
+    (in :rust::crossbeam_channel::Receiver<T>)
+    (out :rust::crossbeam_channel::Sender<T>)
+    (pred :fn(T)->bool)
+    -> :())
+  (:wat::core::match (:wat::kernel::recv in) -> :()
+    ((Some v)
+      (:wat::core::if (pred v) -> :()
+        (:wat::core::let*
+          (((sent :Option<()>) (:wat::kernel::send out v)))
+          (:wat::core::match sent -> :()
+            ((Some _) (:wat::std::stream::filter-worker in out pred))
+            (:None ())))
+        (:wat::std::stream::filter-worker in out pred)))
+    (:None ())))
+
+(:wat::core::define
+  (:wat::std::stream::filter<T>
+    (upstream :wat::std::stream::Stream<T>)
+    (pred :fn(T)->bool)
+    -> :wat::std::stream::Stream<T>)
+  (:wat::core::let*
+    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
+     ((pair :(rust::crossbeam_channel::Sender<T>,rust::crossbeam_channel::Receiver<T>))
+      (:wat::kernel::make-bounded-queue :T 1))
+     ((tx :rust::crossbeam_channel::Sender<T>) (:wat::core::first pair))
+     ((rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::second pair))
+     ((handle :wat::kernel::ProgramHandle<()>)
+      (:wat::kernel::spawn :wat::std::stream::filter-worker up-rx tx pred)))
+    (:wat::core::tuple rx handle)))
+
+;; --- fold ---
+;;
+;; Terminal. General reduction: every item folds into an accumulator
+;; with the caller's function. Generalizes collect (which is
+;; `fold init=[] f=conj`) and gives sum / count / any / all as
+;; one-liners. Joins the handle; returns the final accumulator.
+(:wat::core::define
+  (:wat::std::stream::fold-drain<T,Acc>
+    (rx :rust::crossbeam_channel::Receiver<T>)
+    (acc :Acc)
+    (f :fn(Acc,T)->Acc)
+    -> :Acc)
+  (:wat::core::match (:wat::kernel::recv rx) -> :Acc
+    ((Some v)
+      (:wat::std::stream::fold-drain rx (f acc v) f))
+    (:None acc)))
+
+(:wat::core::define
+  (:wat::std::stream::fold<T,Acc>
+    (stream :wat::std::stream::Stream<T>)
+    (init :Acc)
+    (f :fn(Acc,T)->Acc)
+    -> :Acc)
+  (:wat::core::let*
+    (((rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first stream))
+     ((handle :wat::kernel::ProgramHandle<()>) (:wat::core::second stream))
+     ((result :Acc) (:wat::std::stream::fold-drain rx init f))
+     ((_ :()) (:wat::kernel::join handle)))
+    result))
+
+;; --- chunks ---
+;;
+;; N:1 batcher. Accumulates items into a Vec until it holds `size`
+;; entries, then emits the Vec as one downstream item and starts a
+;; fresh accumulator. At end-of-stream (upstream :None), flushes
+;; the partial accumulator if non-empty. This is the canonical
+;; stateful-stage pattern: state threads through the tail-recursive
+;; worker as a parameter (no mutation; the recursion carries it).
+(:wat::core::define
+  (:wat::std::stream::chunks-worker<T>
+    (in :rust::crossbeam_channel::Receiver<T>)
+    (out :rust::crossbeam_channel::Sender<Vec<T>>)
+    (size :i64)
+    (buffer :Vec<T>)
+    -> :())
+  (:wat::core::match (:wat::kernel::recv in) -> :()
+    ((Some item)
+      (:wat::core::let*
+        (((new-buffer :Vec<T>) (:wat::core::conj buffer item)))
+        (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size) -> :()
+          (:wat::core::let*
+            (((sent :Option<()>) (:wat::kernel::send out new-buffer)))
+            (:wat::core::match sent -> :()
+              ((Some _)
+                (:wat::std::stream::chunks-worker in out size
+                  (:wat::core::vec :T)))
+              (:None ())))
+          (:wat::std::stream::chunks-worker in out size new-buffer))))
+    (:None
+      ;; Upstream disconnected. Flush the partial accumulator if
+      ;; non-empty; consumer-dropped is swallowed.
+      (:wat::core::if (:wat::core::empty? buffer) -> :()
+        ()
+        (:wat::core::match (:wat::kernel::send out buffer) -> :()
+          ((Some _) ())
+          (:None ()))))))
+
+(:wat::core::define
+  (:wat::std::stream::chunks<T>
+    (upstream :wat::std::stream::Stream<T>)
+    (size :i64)
+    -> :wat::std::stream::Stream<Vec<T>>)
+  (:wat::core::let*
+    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
+     ((pair :(rust::crossbeam_channel::Sender<Vec<T>>,rust::crossbeam_channel::Receiver<Vec<T>>))
+      (:wat::kernel::make-bounded-queue :Vec<T> 1))
+     ((tx :rust::crossbeam_channel::Sender<Vec<T>>) (:wat::core::first pair))
+     ((rx :rust::crossbeam_channel::Receiver<Vec<T>>) (:wat::core::second pair))
+     ((handle :wat::kernel::ProgramHandle<()>)
+      (:wat::kernel::spawn :wat::std::stream::chunks-worker
+        up-rx tx size (:wat::core::vec :T))))
+    (:wat::core::tuple rx handle)))

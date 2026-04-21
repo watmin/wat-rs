@@ -160,3 +160,208 @@ fn for_each_returns_unit_on_finite_producer() {
     "#;
     assert!(matches!(run(src), Value::Unit));
 }
+
+// ─── filter ──────────────────────────────────────────────────────────
+
+#[test]
+fn filter_keeps_only_passing_values() {
+    // 1..=6, keep evens → [2, 4, 6].
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::core::let*
+            (((source :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::spawn-producer
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send tx 1))
+                     ((_ :Option<()>) (:wat::kernel::send tx 2))
+                     ((_ :Option<()>) (:wat::kernel::send tx 3))
+                     ((_ :Option<()>) (:wat::kernel::send tx 4))
+                     ((_ :Option<()>) (:wat::kernel::send tx 5))
+                     ((_ :Option<()>) (:wat::kernel::send tx 6)))
+                    ()))))
+             ((evens :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::filter source
+                (:wat::core::lambda ((n :i64) -> :bool)
+                  (:wat::core::= (:wat::core::i64::/ (:wat::core::i64::* n 2) 2)
+                                 n)))))
+            (:wat::std::stream::collect evens)))
+    "#;
+    // Identity check inside the lambda — (n*2)/2 == n is always true.
+    // Swap in a real parity check:
+    let src = src.replace(
+        "(:wat::core::= (:wat::core::i64::/ (:wat::core::i64::* n 2) 2)\n                                 n)",
+        "(:wat::core::= (:wat::core::i64::* (:wat::core::i64::/ n 2) 2) n)",
+    );
+    assert_eq!(collected_i64(&src), vec![2, 4, 6]);
+}
+
+// ─── fold ────────────────────────────────────────────────────────────
+
+#[test]
+fn fold_sums_the_stream() {
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::std::stream::fold
+            (:wat::std::stream::spawn-producer
+              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                (:wat::core::let*
+                  (((_ :Option<()>) (:wat::kernel::send tx 10))
+                   ((_ :Option<()>) (:wat::kernel::send tx 20))
+                   ((_ :Option<()>) (:wat::kernel::send tx 30)))
+                  ())))
+            0
+            (:wat::core::lambda ((acc :i64) (x :i64) -> :i64)
+              (:wat::core::i64::+ acc x))))
+    "#;
+    assert!(matches!(run(src), Value::i64(60)));
+}
+
+#[test]
+fn fold_with_empty_stream_returns_init() {
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::std::stream::fold
+            (:wat::std::stream::spawn-producer
+              (:wat::core::lambda ((_tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                ()))
+            42
+            (:wat::core::lambda ((acc :i64) (x :i64) -> :i64)
+              (:wat::core::i64::+ acc x))))
+    "#;
+    assert!(matches!(run(src), Value::i64(42)));
+}
+
+// ─── chunks ──────────────────────────────────────────────────────────
+
+#[test]
+fn chunks_groups_by_size_flushes_remainder() {
+    // 7 items, size 3 → [[1,2,3], [4,5,6], [7]]. The partial final
+    // chunk flushes on upstream disconnect — the core pattern for
+    // every future stateful-stage with EOS cleanup.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<Vec<i64>>)
+          (:wat::std::stream::collect
+            (:wat::std::stream::chunks
+              (:wat::std::stream::spawn-producer
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send tx 1))
+                     ((_ :Option<()>) (:wat::kernel::send tx 2))
+                     ((_ :Option<()>) (:wat::kernel::send tx 3))
+                     ((_ :Option<()>) (:wat::kernel::send tx 4))
+                     ((_ :Option<()>) (:wat::kernel::send tx 5))
+                     ((_ :Option<()>) (:wat::kernel::send tx 6))
+                     ((_ :Option<()>) (:wat::kernel::send tx 7)))
+                    ())))
+              3)))
+    "#;
+    match run(src) {
+        Value::Vec(outer) => {
+            let got: Vec<Vec<i64>> = outer
+                .iter()
+                .map(|inner| match inner {
+                    Value::Vec(items) => items
+                        .iter()
+                        .map(|v| match v {
+                            Value::i64(n) => *n,
+                            other => panic!("inner expected i64; got {:?}", other),
+                        })
+                        .collect(),
+                    other => panic!("outer expected Vec; got {:?}", other),
+                })
+                .collect();
+            assert_eq!(
+                got,
+                vec![vec![1, 2, 3], vec![4, 5, 6], vec![7]],
+                "chunks should emit full chunks followed by the partial flush"
+            );
+        }
+        other => panic!("expected Vec of Vecs; got {:?}", other),
+    }
+}
+
+#[test]
+fn chunks_with_exact_multiple_emits_no_partial_flush() {
+    // 6 items, size 3 → [[1,2,3], [4,5,6]]. No partial flush.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<Vec<i64>>)
+          (:wat::std::stream::collect
+            (:wat::std::stream::chunks
+              (:wat::std::stream::spawn-producer
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send tx 1))
+                     ((_ :Option<()>) (:wat::kernel::send tx 2))
+                     ((_ :Option<()>) (:wat::kernel::send tx 3))
+                     ((_ :Option<()>) (:wat::kernel::send tx 4))
+                     ((_ :Option<()>) (:wat::kernel::send tx 5))
+                     ((_ :Option<()>) (:wat::kernel::send tx 6)))
+                    ())))
+              3)))
+    "#;
+    match run(src) {
+        Value::Vec(outer) => {
+            let got: Vec<Vec<i64>> = outer
+                .iter()
+                .map(|inner| match inner {
+                    Value::Vec(items) => items
+                        .iter()
+                        .map(|v| match v {
+                            Value::i64(n) => *n,
+                            other => panic!("{:?}", other),
+                        })
+                        .collect(),
+                    other => panic!("{:?}", other),
+                })
+                .collect();
+            assert_eq!(got, vec![vec![1, 2, 3], vec![4, 5, 6]]);
+        }
+        other => panic!("{:?}", other),
+    }
+}
+
+#[test]
+fn chunks_into_map_composes() {
+    // 5 items, size 2, then map each batch to its sum.
+    // [[1,2], [3,4], [5]] → [3, 7, 5].
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::std::stream::collect
+            (:wat::std::stream::map
+              (:wat::std::stream::chunks
+                (:wat::std::stream::spawn-producer
+                  (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                    (:wat::core::let*
+                      (((_ :Option<()>) (:wat::kernel::send tx 1))
+                       ((_ :Option<()>) (:wat::kernel::send tx 2))
+                       ((_ :Option<()>) (:wat::kernel::send tx 3))
+                       ((_ :Option<()>) (:wat::kernel::send tx 4))
+                       ((_ :Option<()>) (:wat::kernel::send tx 5)))
+                      ())))
+                2)
+              (:wat::core::lambda ((batch :Vec<i64>) -> :i64)
+                (:wat::core::foldl batch 0
+                  (:wat::core::lambda ((acc :i64) (x :i64) -> :i64)
+                    (:wat::core::i64::+ acc x)))))))
+    "#;
+    assert_eq!(collected_i64(src), vec![3, 7, 5]);
+}
