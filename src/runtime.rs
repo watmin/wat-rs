@@ -648,6 +648,13 @@ pub enum RuntimeError {
     /// test harnesses that don't go through freeze; the frozen startup
     /// pipeline always installs one.
     NoEncodingCtx { op: String },
+    /// A file-reading primitive (`:wat::eval::file-path`,
+    /// `:wat::verify::file-path`) was invoked but the [`SymbolTable`]
+    /// has no attached source loader. The frozen startup pipeline
+    /// attaches the loader handed to `startup_from_source`; test
+    /// harnesses that build a SymbolTable directly must call
+    /// [`SymbolTable::set_source_loader`] to grant file-I/O capability.
+    NoSourceLoader { op: String },
     /// A `(:wat::core::match scrutinee ...)` ran with no arm whose
     /// pattern matches the scrutinee's shape. Exhaustiveness is the
     /// type checker's job; this variant fires only when the check was
@@ -747,6 +754,11 @@ impl fmt::Display for RuntimeError {
             RuntimeError::NoEncodingCtx { op } => write!(
                 f,
                 "{}: no encoding context attached to SymbolTable; presence / config accessors need a frozen EncodingCtx. Call via the freeze pipeline rather than a bare SymbolTable::new().",
+                op
+            ),
+            RuntimeError::NoSourceLoader { op } => write!(
+                f,
+                "{}: no source loader attached to SymbolTable; file-reading primitives require a loader. Call via the freeze pipeline, or set_source_loader on the test SymbolTable.",
                 op
             ),
             RuntimeError::PatternMatchFailed { value_type } => write!(
@@ -5258,12 +5270,19 @@ fn resolve_eval_source(
             }),
         },
         ":wat::eval::file-path" => match eval(locator_ast, env, sym)? {
-            Value::String(s) => std::fs::read_to_string(&*s).map_err(|e| {
-                RuntimeError::MalformedForm {
-                    head: ":wat::eval::file-path".into(),
-                    reason: format!("read {:?}: {}", s, e),
-                }
-            }),
+            Value::String(s) => {
+                let loader = sym.source_loader().ok_or_else(|| {
+                    RuntimeError::NoSourceLoader {
+                        op: ":wat::eval::file-path".into(),
+                    }
+                })?;
+                loader.fetch_source_file(&s, None)
+                    .map(|loaded| loaded.source)
+                    .map_err(|e| RuntimeError::MalformedForm {
+                        head: ":wat::eval::file-path".into(),
+                        reason: format!("read {:?}: {:?}", s, e),
+                    })
+            }
             other => Err(RuntimeError::TypeMismatch {
                 op: ":wat::eval::file-path".into(),
                 expected: "String",
@@ -5320,12 +5339,18 @@ fn resolve_verify_payload(
             }),
         },
         ":wat::verify::file-path" => match eval(locator_ast, env, sym)? {
-            Value::String(s) => std::fs::read_to_string(&*s).map_err(|e| {
-                RuntimeError::MalformedForm {
-                    head: ":wat::verify::file-path".into(),
-                    reason: format!("read {:?}: {}", s, e),
-                }
-            }),
+            Value::String(s) => {
+                let loader = sym.source_loader().ok_or_else(|| {
+                    RuntimeError::NoSourceLoader {
+                        op: ":wat::verify::file-path".into(),
+                    }
+                })?;
+                loader.fetch_payload_file(&s, None)
+                    .map_err(|e| RuntimeError::MalformedForm {
+                        head: ":wat::verify::file-path".into(),
+                        reason: format!("read {:?}: {:?}", s, e),
+                    })
+            }
             other => Err(RuntimeError::TypeMismatch {
                 op: ":wat::verify::file-path".into(),
                 expected: "String",
@@ -5537,6 +5562,22 @@ mod tests {
             .expect("macro expansion");
         let ast = expanded.into_iter().next().expect("one form in, one form out");
         eval(&ast, &Environment::new(), stdlib_sym)
+    }
+
+    /// Same as [`eval_expr`] but clones the shared stdlib SymbolTable
+    /// and attaches a real filesystem loader. Tests that exercise
+    /// `:wat::eval::file-path` or `:wat::verify::file-path` need the
+    /// capability explicitly — arc 007 closed the direct-fs bypass,
+    /// so the loader must be announced per call site.
+    fn eval_expr_with_fs(src: &str) -> Result<Value, RuntimeError> {
+        let (stdlib_sym, macros) = stdlib_loaded();
+        let mut sym = stdlib_sym.clone();
+        sym.set_source_loader(std::sync::Arc::new(crate::load::FsLoader));
+        let ast = parse_one(src).expect("parse ok");
+        let expanded = crate::macros::expand_all(vec![ast], macros)
+            .expect("macro expansion");
+        let ast = expanded.into_iter().next().expect("one form in, one form out");
+        eval(&ast, &Environment::new(), &sym)
     }
 
     // ─── Literals ───────────────────────────────────────────────────────
@@ -6636,7 +6677,7 @@ mod tests {
             r#"(:wat::core::eval-edn! :wat::eval::file-path "{}")"#,
             path.display()
         );
-        let result = eval_expr(&form).expect("eval");
+        let result = eval_expr_with_fs(&form).expect("eval");
         let _ = std::fs::remove_file(&path);
         let inner = eval_ok_inner(result);
         assert!(matches!(inner, Value::i64(21)));
@@ -6645,7 +6686,7 @@ mod tests {
     #[test]
     fn eval_edn_bang_file_path_missing_errors() {
         let form = r#"(:wat::core::eval-edn! :wat::eval::file-path "/nonexistent/path/abc.xyz")"#;
-        let result = eval_expr(form).unwrap();
+        let result = eval_expr_with_fs(form).unwrap();
         let (kind, _) = eval_err_kind_and_message(result);
         assert_eq!(kind, "malformed-form");
     }
@@ -6667,7 +6708,7 @@ mod tests {
             source_path.display(),
             digest_path.display()
         );
-        let result = eval_expr(&form).expect("eval");
+        let result = eval_expr_with_fs(&form).expect("eval");
         let _ = std::fs::remove_file(&source_path);
         let _ = std::fs::remove_file(&digest_path);
         let inner = eval_ok_inner(result);

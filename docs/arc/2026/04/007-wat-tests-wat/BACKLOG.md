@@ -10,7 +10,11 @@
 
 | Slice | Item | Status | Commit |
 |---|---|---|---|
-| 1 | file-I/O audit — confirm all reads go through Loader | pending | — |
+| 1 | file-I/O audit — confirm all reads go through Loader | **done** | audit pass |
+| 1 | SourceLoader trait + source_loader field on SymbolTable (slice 1a) | **done** | `1a17e2c` |
+| 1 | `:wat::eval::file-path` routes through loader (slice 1b) | **done** | this slice |
+| 1 | `:wat::verify::file-path` routes through loader (slice 1c) | **done** | this slice |
+| 1 | `RuntimeError::NoSourceLoader` variant + `eval_expr_with_fs` test helper | **done** | this slice |
 | 1 | `ScopedLoader` impl | pending | — |
 | 1 | USER-GUIDE capability-boundary section | pending | — |
 | 2 | `:wat::kernel::run-sandboxed` primitive | pending | — |
