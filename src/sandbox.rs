@@ -259,6 +259,223 @@ fn build_run_result(
     }))
 }
 
+// ─── hermetic mode — subprocess isolation ────────────────────────────────
+//
+// `run-sandboxed-hermetic` is `run-sandboxed`'s sibling that executes the
+// inner wat source in a SUBPROCESS. Unlike the in-process `run-sandboxed`,
+// the child has its own heap, its own statics, its own OnceLocks —
+// `cargo test`-style hermeticity. Panics in the child don't cross the
+// process boundary; Rust-runtime state the inner program mutates via
+// `:rust::*` shims stays in the child.
+//
+// Mechanism: same subprocess pattern the signal tests use (see
+// `runtime.rs::tests::in_signal_subprocess`). Parent spawns `wat-vm`
+// (a binary that already knows how to run wat programs from a file);
+// parent writes the source to a tempfile; parent pipes the caller-
+// supplied stdin into the child's stdin; parent captures the child's
+// stdout + stderr; parent parses the captured output into the usual
+// RunResult shape.
+//
+// Binary lookup: `WAT_HERMETIC_BINARY` env var takes precedence —
+// tests set it to `env!("CARGO_BIN_EXE_wat-vm")`. Without it, we fall
+// back to `std::env::current_exe()` — useful when the outer caller
+// IS wat-vm (production) but surprising otherwise. Callers that need
+// a specific binary should set the env var.
+//
+// Scope: deferred. A `:Some path` argument returns a Failure for this
+// first cut; wat-vm's startup uses an unscoped FsLoader and doesn't
+// yet accept a scope argument. When a real caller needs scope inside
+// a hermetic run, we teach wat-vm to read `WAT_HERMETIC_SCOPE` env
+// and use `ScopedLoader`. Until then: `:None` only.
+
+/// `(:wat::kernel::run-sandboxed-hermetic src stdin scope)`
+/// → `:wat::kernel::RunResult`.
+///
+/// Same signature as `run-sandboxed`, runs the inner program in a
+/// subprocess instead of in-process. Hermetic against Rust statics,
+/// OnceLocks, and panic state.
+pub fn eval_kernel_run_sandboxed_hermetic(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::run-sandboxed-hermetic";
+
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+        });
+    }
+
+    let src = match eval(&args[0], env, sym)? {
+        Value::String(s) => (*s).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "String",
+                got: other.type_name(),
+            });
+        }
+    };
+
+    let stdin_lines = expect_vec_string(OP, eval(&args[1], env, sym)?)?;
+
+    let scope_opt = match eval(&args[2], env, sym)? {
+        Value::Option(opt) => match &*opt {
+            Some(Value::String(s)) => Some((**s).clone()),
+            Some(other) => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Option<String>",
+                    got: other.type_name(),
+                });
+            }
+            None => None,
+        },
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Option<String>",
+                got: other.type_name(),
+            });
+        }
+    };
+
+    if scope_opt.is_some() {
+        return Ok(build_run_result(
+            Vec::new(),
+            Vec::new(),
+            Some(failure_from_message(
+                "scope not yet supported in hermetic mode (:None only for now)".into(),
+            )),
+        ));
+    }
+
+    // 1. Locate the wat-vm binary.
+    let binary = match std::env::var("WAT_HERMETIC_BINARY") {
+        Ok(path) => std::path::PathBuf::from(path),
+        Err(_) => match std::env::current_exe() {
+            Ok(p) => p,
+            Err(e) => {
+                return Ok(build_run_result(
+                    Vec::new(),
+                    Vec::new(),
+                    Some(failure_from_message(format!(
+                        "could not locate hermetic binary: WAT_HERMETIC_BINARY unset \
+                         and current_exe failed: {}",
+                        e
+                    ))),
+                ));
+            }
+        },
+    };
+
+    // 2. Write the source to a tempfile. Unique name via pid + nanos.
+    let tempfile = {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "wat-hermetic-{}-{}.wat",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        if let Err(e) = std::fs::write(&path, &src) {
+            return Ok(build_run_result(
+                Vec::new(),
+                Vec::new(),
+                Some(failure_from_message(format!(
+                    "write tempfile {:?}: {}",
+                    path, e
+                ))),
+            ));
+        }
+        path
+    };
+
+    // 3. Spawn the child. Inherits only what we explicitly set; we
+    //    pass the tempfile path as the wat-vm entry argument.
+    let mut child = match std::process::Command::new(&binary)
+        .arg(&tempfile)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            let _ = std::fs::remove_file(&tempfile);
+            return Ok(build_run_result(
+                Vec::new(),
+                Vec::new(),
+                Some(failure_from_message(format!(
+                    "spawn {:?}: {}",
+                    binary, e
+                ))),
+            ));
+        }
+    };
+
+    // 4. Write the stdin lines to the child's stdin and close it.
+    if let Some(stdin_handle) = child.stdin.as_mut() {
+        use std::io::Write;
+        let joined = if stdin_lines.is_empty() {
+            String::new()
+        } else {
+            format!("{}\n", stdin_lines.join("\n"))
+        };
+        let _ = stdin_handle.write_all(joined.as_bytes());
+    }
+    drop(child.stdin.take());
+
+    // 5. Wait for exit + collect output.
+    let output = match child.wait_with_output() {
+        Ok(o) => o,
+        Err(e) => {
+            let _ = std::fs::remove_file(&tempfile);
+            return Ok(build_run_result(
+                Vec::new(),
+                Vec::new(),
+                Some(failure_from_message(format!("wait: {}", e))),
+            ));
+        }
+    };
+    let _ = std::fs::remove_file(&tempfile);
+
+    let stdout_str = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr_str = String::from_utf8_lossy(&output.stderr).into_owned();
+    let stdout_lines = split_captured_lines(&stdout_str);
+    let stderr_lines = split_captured_lines(&stderr_str);
+
+    // 6. Translate non-zero exit to a failure carrying the exit code +
+    //    what came out on stderr. Zero exit = success, even if stderr
+    //    is non-empty (programs legitimately write to stderr).
+    let failure = if output.status.success() {
+        None
+    } else {
+        Some(failure_from_message(format!(
+            "hermetic child exited {:?}",
+            output.status
+        )))
+    };
+
+    Ok(build_run_result(stdout_lines, stderr_lines, failure))
+}
+
+fn split_captured_lines(s: &str) -> Vec<String> {
+    if s.is_empty() {
+        return Vec::new();
+    }
+    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
+    if s.ends_with('\n') {
+        lines.pop();
+    }
+    lines
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────
 
 fn expect_vec_string(op: &str, v: Value) -> Result<Vec<String>, RuntimeError> {

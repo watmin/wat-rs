@@ -322,21 +322,21 @@ fn register_builtin_types(env: &mut TypeEnv) {
             (
                 "file".into(),
                 TypeExpr::Parametric {
-                    head: ":Option".into(),
+                    head: "Option".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ),
             (
                 "line".into(),
                 TypeExpr::Parametric {
-                    head: ":Option".into(),
+                    head: "Option".into(),
                     args: vec![TypeExpr::Path(":i64".into())],
                 },
             ),
             (
                 "symbol".into(),
                 TypeExpr::Parametric {
-                    head: ":Option".into(),
+                    head: "Option".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ),
@@ -356,28 +356,28 @@ fn register_builtin_types(env: &mut TypeEnv) {
             (
                 "location".into(),
                 TypeExpr::Parametric {
-                    head: ":Option".into(),
+                    head: "Option".into(),
                     args: vec![TypeExpr::Path(":wat::kernel::Location".into())],
                 },
             ),
             (
                 "frames".into(),
                 TypeExpr::Parametric {
-                    head: ":Vec".into(),
+                    head: "Vec".into(),
                     args: vec![TypeExpr::Path(":wat::kernel::Frame".into())],
                 },
             ),
             (
                 "actual".into(),
                 TypeExpr::Parametric {
-                    head: ":Option".into(),
+                    head: "Option".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ),
             (
                 "expected".into(),
                 TypeExpr::Parametric {
-                    head: ":Option".into(),
+                    head: "Option".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ),
@@ -396,21 +396,21 @@ fn register_builtin_types(env: &mut TypeEnv) {
             (
                 "stdout".into(),
                 TypeExpr::Parametric {
-                    head: ":Vec".into(),
+                    head: "Vec".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ),
             (
                 "stderr".into(),
                 TypeExpr::Parametric {
-                    head: ":Vec".into(),
+                    head: "Vec".into(),
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ),
             (
                 "failure".into(),
                 TypeExpr::Parametric {
-                    head: ":Option".into(),
+                    head: "Option".into(),
                     args: vec![TypeExpr::Path(":wat::kernel::Failure".into())],
                 },
             ),

@@ -2729,6 +2729,27 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // :wat::kernel::run-sandboxed-hermetic — same signature, forks a
+    // subprocess via wat-vm. See sandbox.rs.
+    env.register(
+        ":wat::kernel::run-sandboxed-hermetic".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                string_ty(),
+                TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![string_ty()],
+                },
+                TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![string_ty()],
+                },
+            ],
+            ret: TypeExpr::Path(":wat::kernel::RunResult".into()),
+        },
+    );
+
     // Integer arithmetic — strict i64 × i64 → i64 under the
     // `:wat::core::i64::*` namespace.
     for op in &[
