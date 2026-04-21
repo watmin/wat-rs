@@ -848,8 +848,7 @@ impl MatchShape {
 /// Scan the match arms to decide whether the scrutinee is Option or
 /// Result. First arm with a recognized variant-constructor pattern
 /// (Some/None/Ok/Err) wins. If no arm is definitive (all wildcards),
-/// defaults to Option with a fresh T (backward compat with the
-/// prior single-enum assumption).
+/// defaults to Option with a fresh T.
 fn detect_match_shape(arms: &[&WatAST], fresh: &mut InferCtx) -> MatchShape {
     for arm in arms {
         if let WatAST::List(items) = arm {

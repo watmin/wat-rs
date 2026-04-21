@@ -4867,18 +4867,10 @@ fn eval_kernel_spawn(
             got: 0,
         });
     }
-    // Accept both shapes as the first argument, mirroring `apply_value`:
-    //
-    // - A keyword literal — look up in `sym.functions` (the classic
-    //   named-define path; backward-compatible).
-    // - Any expression that evaluates to a `Value::wat__core__lambda` —
-    //   let-bound lambdas, lambda-valued params, inline `(:wat::core::lambda ...)`.
-    //
-    // Both produce the same `Arc<Function>`; the trampoline inside
-    // `apply_function` already handles both variants (closed_env for
-    // lambdas, fresh root for defines). The relaxation removes the
-    // need for callers (stream combinators, generic workers) to
-    // work around spawn's keyword-only restriction.
+    // First argument: keyword path (look up in sym.functions) or any
+    // expression evaluating to a lambda value. Both produce an
+    // Arc<Function>; the trampoline inside apply_function handles
+    // closed_env for lambdas and fresh root for defines.
     let func = match &args[0] {
         WatAST::Keyword(k) => match sym.get(k) {
             Some(f) => f.clone(),
