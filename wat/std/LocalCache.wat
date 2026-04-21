@@ -15,10 +15,12 @@
 ;;       ((Some v) v)
 ;;       (:None 0)))
 ;;
-;; The cache's wat-level type IS `:rust::lru::LruCache<K,V>` — a
-;; later typealias can hide that under `:wat::std::LocalCache<K,V>`
-;; when wat's type checker supports alias expansion at unification.
-;; The functional surface (new/put/get) is stable regardless.
+;; The cache's wat-level type IS `:rust::lru::LruCache<K,V>`. Alias
+;; expansion at unification shipped 2026-04-20 (arc 004 prereq #1), so
+;; a `:wat::std::LocalCache<K,V>` typealias over the Rust backing is
+;; now possible — added as a built-in when the stdlib surface names
+;; demand it. The functional surface (new/put/get) is stable
+;; regardless.
 
 (:wat::core::use! :rust::lru::LruCache)
 

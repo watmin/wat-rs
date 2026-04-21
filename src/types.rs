@@ -191,6 +191,11 @@ impl TypeEnv {
         if self.types.contains_key(&name) {
             return Err(TypeError::DuplicateType { name });
         }
+        // Reject cyclic aliases BEFORE insertion so `expand_alias` can
+        // assume every alias in the registry is non-cyclic.
+        if let TypeDef::Alias(alias) = &def {
+            check_alias_no_cycle(&name, &alias.expr, self)?;
+        }
         self.types.insert(name, def);
         Ok(())
     }
@@ -285,6 +290,22 @@ pub enum TypeError {
     /// principled alternative (`:holon::HolonAST`, parametric T, or a named
     /// enum).
     AnyBanned { raw: String },
+    /// A typealias's expansion, traced through the currently-registered
+    /// aliases, reaches the alias's own name. Detected at registration
+    /// time so the wat-vm refuses to start rather than looping at
+    /// unification later. Example:
+    /// `(typealias :A :B) (typealias :B :A)` — the second registration
+    /// fires this error because walking `:B`'s expression reaches `:A`
+    /// which already expands to `:B`.
+    CyclicAlias { name: String },
+    /// A parametric typealias was referenced with the wrong number of
+    /// type arguments. Example: `(typealias :Pair<A,B> :(A,B))` used as
+    /// `:Pair<i64>` — declared 2 params, supplied 1.
+    AliasArityMismatch {
+        name: String,
+        expected: usize,
+        got: usize,
+    },
 }
 
 impl fmt::Display for TypeError {
@@ -318,6 +339,16 @@ impl fmt::Display for TypeError {
                 f,
                 ":Any is not part of the type system (058-030); use :holon::HolonAST for any algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: {}",
                 raw
+            ),
+            TypeError::CyclicAlias { name } => write!(
+                f,
+                "typealias {} forms a cycle through the current alias graph — refused at registration time so unification doesn't loop",
+                name
+            ),
+            TypeError::AliasArityMismatch { name, expected, got } => write!(
+                f,
+                "typealias {} declared with {} type parameter(s), used with {}",
+                name, expected, got
             ),
         }
     }
@@ -854,6 +885,170 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
         WatAST::Symbol(_) => "symbol",
         WatAST::List(_) => "list",
     }
+}
+
+// ─── Typealias expansion ─────────────────────────────────────────────
+//
+// 058-030 declares `:wat::core::typealias` as a structural alias:
+// `:Alias<K,V>` and its expansion are the SAME type. The runtime shape
+// below walks alias-headed expressions to their definitions,
+// substituting declared type parameters with call-site arguments, until
+// a non-alias root is reached. Called from `check::unify` before the
+// structural match so unification recognizes an alias and its
+// expansion as equivalent.
+
+/// Walk `expr`'s alias chain to its non-alias root. When the head of
+/// `expr` names a `TypeDef::Alias` in `env`, substitute the alias's
+/// type parameters with the call-site arguments and recurse. Stops
+/// when the root is not an alias, when the head is unresolved, or when
+/// the alias's arity does not match (the arity mismatch surfaces
+/// elsewhere as a type-check error; here we leave the expression as
+/// written so the downstream machinery sees the original form).
+///
+/// Purely-recursive aliases are prevented from looping by the
+/// registration-time cycle check in
+/// [`check_alias_no_cycle`]; expand_alias does not detect cycles
+/// itself — by contract, every alias in `env` has been proven
+/// non-cyclic at insertion.
+pub fn expand_alias(expr: &TypeExpr, env: &TypeEnv) -> TypeExpr {
+    let mut current = expr.clone();
+    loop {
+        match &current {
+            TypeExpr::Path(name) => match env.get(name) {
+                Some(TypeDef::Alias(alias)) if alias.type_params.is_empty() => {
+                    current = alias.expr.clone();
+                }
+                _ => return current,
+            },
+            TypeExpr::Parametric { head, args } => {
+                let qualified = format!(":{}", head);
+                match env.get(&qualified) {
+                    Some(TypeDef::Alias(alias))
+                        if alias.type_params.len() == args.len() =>
+                    {
+                        let mapping: std::collections::HashMap<String, TypeExpr> = alias
+                            .type_params
+                            .iter()
+                            .cloned()
+                            .zip(args.iter().cloned())
+                            .collect();
+                        current = substitute_type_params(&alias.expr, &mapping);
+                    }
+                    _ => return current,
+                }
+            }
+            _ => return current,
+        }
+    }
+}
+
+/// Substitute bare-path type-variable references with the caller's
+/// supplied type arguments. Type variables appear in declarations as
+/// `Path(":T")` (the ':' plus the declared type-param name); the
+/// `mapping` is keyed by the param name stripped of the leading colon.
+pub fn substitute_type_params(
+    expr: &TypeExpr,
+    mapping: &std::collections::HashMap<String, TypeExpr>,
+) -> TypeExpr {
+    match expr {
+        TypeExpr::Path(p) => {
+            if let Some(stripped) = p.strip_prefix(':') {
+                if let Some(replacement) = mapping.get(stripped) {
+                    return replacement.clone();
+                }
+            }
+            TypeExpr::Path(p.clone())
+        }
+        TypeExpr::Parametric { head, args } => TypeExpr::Parametric {
+            head: head.clone(),
+            args: args
+                .iter()
+                .map(|a| substitute_type_params(a, mapping))
+                .collect(),
+        },
+        TypeExpr::Fn { args, ret } => TypeExpr::Fn {
+            args: args
+                .iter()
+                .map(|a| substitute_type_params(a, mapping))
+                .collect(),
+            ret: Box::new(substitute_type_params(ret, mapping)),
+        },
+        TypeExpr::Tuple(elements) => TypeExpr::Tuple(
+            elements
+                .iter()
+                .map(|e| substitute_type_params(e, mapping))
+                .collect(),
+        ),
+        TypeExpr::Var(id) => TypeExpr::Var(*id),
+    }
+}
+
+/// Starting from the expansion of an alias named `target_name`, verify
+/// that the walk never reaches `target_name` itself through other
+/// aliases — otherwise registration would produce a cycle that
+/// `expand_alias` cannot exit. Called from [`TypeEnv::register`] before
+/// the new alias is inserted; the `env` passed is the registry as it
+/// stands before this registration.
+fn check_alias_no_cycle(
+    target_name: &str,
+    expr: &TypeExpr,
+    env: &TypeEnv,
+) -> Result<(), TypeError> {
+    let mut visiting = std::collections::HashSet::new();
+    check_alias_reaches(target_name, expr, env, &mut visiting)
+}
+
+fn check_alias_reaches(
+    target_name: &str,
+    expr: &TypeExpr,
+    env: &TypeEnv,
+    visiting: &mut std::collections::HashSet<String>,
+) -> Result<(), TypeError> {
+    match expr {
+        TypeExpr::Path(name) => {
+            if name == target_name {
+                return Err(TypeError::CyclicAlias {
+                    name: target_name.to_string(),
+                });
+            }
+            if let Some(TypeDef::Alias(alias)) = env.get(name) {
+                if visiting.insert(name.clone()) {
+                    check_alias_reaches(target_name, &alias.expr, env, visiting)?;
+                    visiting.remove(name);
+                }
+            }
+        }
+        TypeExpr::Parametric { head, args } => {
+            let qualified = format!(":{}", head);
+            if qualified == target_name {
+                return Err(TypeError::CyclicAlias {
+                    name: target_name.to_string(),
+                });
+            }
+            if let Some(TypeDef::Alias(alias)) = env.get(&qualified) {
+                if visiting.insert(qualified.clone()) {
+                    check_alias_reaches(target_name, &alias.expr, env, visiting)?;
+                    visiting.remove(&qualified);
+                }
+            }
+            for a in args {
+                check_alias_reaches(target_name, a, env, visiting)?;
+            }
+        }
+        TypeExpr::Fn { args, ret } => {
+            for a in args {
+                check_alias_reaches(target_name, a, env, visiting)?;
+            }
+            check_alias_reaches(target_name, ret, env, visiting)?;
+        }
+        TypeExpr::Tuple(elements) => {
+            for e in elements {
+                check_alias_reaches(target_name, e, env, visiting)?;
+            }
+        }
+        TypeExpr::Var(_) => {}
+    }
+    Ok(())
 }
 
 #[cfg(test)]

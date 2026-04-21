@@ -46,9 +46,10 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{Function, SymbolTable};
-use crate::types::{TypeEnv, TypeExpr};
+use crate::types::{expand_alias, TypeEnv, TypeExpr};
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
 
 /// A function's declared signature: universally-quantified type
 /// parameters, then parameter types and return type.
@@ -206,22 +207,28 @@ impl InferCtx {
 /// resolve a type to its canonical form.
 type Subst = HashMap<u64, TypeExpr>;
 
-/// The type-check environment: built-in + user function schemes.
-#[derive(Debug, Default)]
+/// The type-check environment: built-in + user function schemes plus
+/// a shared handle to the [`TypeEnv`] (user type declarations).
+/// Unification consults the type-env to expand typealiases to their
+/// structural definitions before the structural match.
+#[derive(Debug)]
 pub struct CheckEnv {
     schemes: HashMap<String, TypeScheme>,
+    types: Arc<TypeEnv>,
 }
 
 impl CheckEnv {
     pub fn new() -> Self {
-        Self::default()
+        Self::with_types(Arc::new(TypeEnv::with_builtins()))
     }
 
     /// Build an env with built-in schemes for `:wat::core::*` and
     /// `:wat::algebra::*` forms, then overlay user-define signatures
-    /// from `sym`.
-    pub fn from_symbols(sym: &SymbolTable) -> Self {
-        let mut env = Self::with_builtins();
+    /// from `sym`. `types` carries the registered user type
+    /// declarations (struct/enum/newtype/typealias) — unification uses
+    /// it to expand aliases.
+    pub fn from_symbols(sym: &SymbolTable, types: Arc<TypeEnv>) -> Self {
+        let mut env = Self::with_builtins_and_types(types);
         for (path, func) in &sym.functions {
             if let Some(scheme) = derive_scheme_from_function(func) {
                 env.register(path.clone(), scheme);
@@ -231,9 +238,20 @@ impl CheckEnv {
     }
 
     pub fn with_builtins() -> Self {
-        let mut env = Self::default();
+        Self::with_builtins_and_types(Arc::new(TypeEnv::with_builtins()))
+    }
+
+    pub fn with_builtins_and_types(types: Arc<TypeEnv>) -> Self {
+        let mut env = Self::with_types(types);
         register_builtins(&mut env);
         env
+    }
+
+    fn with_types(types: Arc<TypeEnv>) -> Self {
+        CheckEnv {
+            schemes: HashMap::new(),
+            types,
+        }
     }
 
     pub fn register(&mut self, name: String, scheme: TypeScheme) {
@@ -242,6 +260,19 @@ impl CheckEnv {
 
     pub fn get(&self, name: &str) -> Option<&TypeScheme> {
         self.schemes.get(name)
+    }
+
+    /// Handle to the user/builtin type declarations. Used by `unify`
+    /// to expand typealiases to their structural form before the
+    /// structural match.
+    pub fn types(&self) -> &TypeEnv {
+        &self.types
+    }
+}
+
+impl Default for CheckEnv {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -253,9 +284,9 @@ impl CheckEnv {
 pub fn check_program(
     forms: &[WatAST],
     sym: &SymbolTable,
-    _types: &TypeEnv,
+    types: &TypeEnv,
 ) -> Result<(), CheckErrors> {
-    let env = CheckEnv::from_symbols(sym);
+    let env = CheckEnv::from_symbols(sym, Arc::new(types.clone()));
     let mut errors = Vec::new();
     let mut fresh = InferCtx::default();
 
@@ -301,7 +332,7 @@ fn check_function_body(
     // Unify body type with declared return type. If unification fails,
     // produce a ReturnTypeMismatch.
     if let Some(body_ty) = body_ty {
-        if unify(&body_ty, &scheme.ret, &mut subst).is_err() {
+        if unify(&body_ty, &scheme.ret, &mut subst, env.types()).is_err() {
             errors.push(CheckError::ReturnTypeMismatch {
                 function: path.to_string(),
                 expected: format_type(&apply_subst(&scheme.ret, &subst)),
@@ -517,7 +548,7 @@ fn infer_list(
         for (i, (arg, expected)) in args.iter().zip(&param_types).enumerate() {
             let arg_ty = infer(arg, env, locals, fresh, subst, errors);
             if let Some(arg_ty) = arg_ty {
-                if unify(&arg_ty, expected, subst).is_err() {
+                if unify(&arg_ty, expected, subst, env.types()).is_err() {
                     errors.push(CheckError::TypeMismatch {
                         callee: k.clone(),
                         param: format!("#{}", i + 1),
@@ -701,7 +732,7 @@ fn infer_match(
     let scrutinee_ty = infer(&args[0], env, locals, fresh, subst, errors);
     let expected_scrutinee = shape.as_type();
     if let Some(sty) = &scrutinee_ty {
-        if unify(sty, &expected_scrutinee, subst).is_err() {
+        if unify(sty, &expected_scrutinee, subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
                 callee: ":wat::core::match".into(),
                 param: "scrutinee".into(),
@@ -751,7 +782,7 @@ fn infer_match(
         // Each arm body checked against the declared `:T` independently.
         let arm_ty = infer(body, env, &arm_locals, fresh, subst, errors);
         if let Some(t) = arm_ty {
-            if unify(&t, &declared_ty, subst).is_err() {
+            if unify(&t, &declared_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::core::match".into(),
                     param: format!("arm #{}", idx + 1),
@@ -1053,7 +1084,7 @@ fn infer_if(
     // Condition must be :bool.
     let cond_ty = infer(&args[0], env, locals, fresh, subst, errors);
     if let Some(c) = cond_ty {
-        if unify(&c, &TypeExpr::Path(":bool".into()), subst).is_err() {
+        if unify(&c, &TypeExpr::Path(":bool".into()), subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
                 callee: ":wat::core::if".into(),
                 param: "cond".into(),
@@ -1066,7 +1097,7 @@ fn infer_if(
     // Errors name the branch so the author sees where the divergence is.
     let then_ty = infer(&args[3], env, locals, fresh, subst, errors);
     if let Some(t) = then_ty {
-        if unify(&t, &declared_ty, subst).is_err() {
+        if unify(&t, &declared_ty, subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
                 callee: ":wat::core::if".into(),
                 param: "then-branch".into(),
@@ -1077,7 +1108,7 @@ fn infer_if(
     }
     let else_ty = infer(&args[4], env, locals, fresh, subst, errors);
     if let Some(e) = else_ty {
-        if unify(&e, &declared_ty, subst).is_err() {
+        if unify(&e, &declared_ty, subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
                 callee: ":wat::core::if".into(),
                 param: "else-branch".into(),
@@ -1197,7 +1228,7 @@ fn infer_try(
         head: "Result".into(),
         args: vec![fresh_t.clone(), enclosing_err_ty],
     };
-    if unify(&arg_ty, &expected, subst).is_err() {
+    if unify(&arg_ty, &expected, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
             callee: ":wat::core::try".into(),
             param: "arg".into(),
@@ -1308,7 +1339,7 @@ fn infer_spawn(
     }
     for (i, (arg, expected)) in spawn_args.iter().zip(&param_types).enumerate() {
         if let Some(arg_ty) = infer(arg, env, locals, fresh, subst, errors) {
-            if unify(&arg_ty, expected, subst).is_err() {
+            if unify(&arg_ty, expected, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: format!(":wat::kernel::spawn {}", fn_path),
                     param: format!("#{}", i + 1),
@@ -1508,7 +1539,7 @@ fn infer_make_queue(
         let cap_ty = infer(&args[1], env, locals, fresh, subst, errors);
         if let Some(cap_ty) = cap_ty {
             let i64_ty = TypeExpr::Path(":i64".into());
-            if unify(&cap_ty, &i64_ty, subst).is_err() {
+            if unify(&cap_ty, &i64_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: form.into(),
                     param: "capacity".into(),
@@ -1571,7 +1602,7 @@ fn process_let_binding(
         };
         let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst, errors);
         if let Some(rhs_ty) = rhs_ty {
-            if unify(&rhs_ty, &declared, subst).is_err() {
+            if unify(&rhs_ty, &declared, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: form.into(),
                     param: format!("binding '{}'", name),
@@ -1601,7 +1632,7 @@ fn process_let_binding(
     let tuple_ty = TypeExpr::Tuple(elem_vars.clone());
     let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst, errors);
     if let Some(rhs_ty) = rhs_ty {
-        if unify(&rhs_ty, &tuple_ty, subst).is_err() {
+        if unify(&rhs_ty, &tuple_ty, subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
                 callee: form.into(),
                 param: format!("destructure ({})", names.join(" ")),
@@ -1659,7 +1690,7 @@ fn infer_hashset_constructor(
     };
     for (i, arg) in args[1..].iter().enumerate() {
         if let Some(ty) = infer(arg, env, locals, fresh, subst, errors) {
-            if unify(&ty, &t_ty, subst).is_err() {
+            if unify(&ty, &t_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::std::HashSet".into(),
                     param: format!("element #{}", i + 1),
@@ -1709,7 +1740,7 @@ fn infer_get(
                 let k = apply_subst(&ta[0], subst);
                 let v = apply_subst(&ta[1], subst);
                 if let Some(key_ty) = key_ty {
-                    if unify(&key_ty, &k, subst).is_err() {
+                    if unify(&key_ty, &k, subst, env.types()).is_err() {
                         errors.push(CheckError::TypeMismatch {
                             callee: ":wat::std::get".into(),
                             param: "key".into(),
@@ -1726,7 +1757,7 @@ fn infer_get(
             TypeExpr::Parametric { head, args: ta } if head == "HashSet" && ta.len() == 1 => {
                 let t = apply_subst(&ta[0], subst);
                 if let Some(key_ty) = key_ty {
-                    if unify(&key_ty, &t, subst).is_err() {
+                    if unify(&key_ty, &t, subst, env.types()).is_err() {
                         errors.push(CheckError::TypeMismatch {
                             callee: ":wat::std::get".into(),
                             param: "element".into(),
@@ -1818,7 +1849,7 @@ fn infer_hashmap_constructor(
     }
     for (i, chunk) in pairs.chunks(2).enumerate() {
         if let Some(k_arg_ty) = infer(&chunk[0], env, locals, fresh, subst, errors) {
-            if unify(&k_arg_ty, &k_ty, subst).is_err() {
+            if unify(&k_arg_ty, &k_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::std::HashMap".into(),
                     param: format!("key #{}", i + 1),
@@ -1831,7 +1862,7 @@ fn infer_hashmap_constructor(
             .get(1)
             .and_then(|a| infer(a, env, locals, fresh, subst, errors))
         {
-            if unify(&v_arg_ty, &v_ty, subst).is_err() {
+            if unify(&v_arg_ty, &v_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::std::HashMap".into(),
                     param: format!("value #{}", i + 1),
@@ -1920,7 +1951,7 @@ fn infer_list_constructor(
     for (i, arg) in args[1..].iter().enumerate() {
         let arg_ty = infer(arg, env, locals, fresh, subst, errors);
         if let Some(arg_ty) = arg_ty {
-            if unify(&arg_ty, &elem_ty, subst).is_err() {
+            if unify(&arg_ty, &elem_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::core::vec".into(),
                     param: format!("#{}", i + 2),
@@ -1968,7 +1999,7 @@ fn infer_lambda(
     let body_ty = infer(body, env, &body_locals, fresh, subst, errors);
     fresh.pop_enclosing_ret();
     if let Some(body_ty) = body_ty {
-        if unify(&body_ty, &ret_type, subst).is_err() {
+        if unify(&body_ty, &ret_type, subst, env.types()).is_err() {
             errors.push(CheckError::ReturnTypeMismatch {
                 function: "<lambda>".into(),
                 expected: format_type(&apply_subst(&ret_type, subst)),
@@ -2046,7 +2077,7 @@ fn infer_boolean_shortcircuit(
     for (i, arg) in args.iter().enumerate() {
         let arg_ty = infer(arg, env, locals, fresh, subst, errors);
         if let Some(arg_ty) = arg_ty {
-            if unify(&arg_ty, &TypeExpr::Path(":bool".into()), subst).is_err() {
+            if unify(&arg_ty, &TypeExpr::Path(":bool".into()), subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::core::and/or".into(),
                     param: format!("#{}", i + 1),
@@ -2066,9 +2097,19 @@ struct UnifyError;
 
 /// Attempt to unify two type expressions under the given substitution.
 /// Extends `subst` on success; leaves it untouched on failure.
-fn unify(a: &TypeExpr, b: &TypeExpr, subst: &mut Subst) -> Result<(), UnifyError> {
-    let a = walk(a, subst);
-    let b = walk(b, subst);
+fn unify(
+    a: &TypeExpr,
+    b: &TypeExpr,
+    subst: &mut Subst,
+    types: &TypeEnv,
+) -> Result<(), UnifyError> {
+    // Walk substitutions, then peel typealiases on both sides so
+    // `:MyCache<K,V>` and its expansion `:rust::lru::LruCache<K,V>`
+    // unify structurally. `expand_alias` stops at the first non-alias
+    // root (or a head unresolved in the env) — callers see a
+    // structurally canonical form before the match below runs.
+    let a = expand_alias(&walk(a, subst), types);
+    let b = expand_alias(&walk(b, subst), types);
     match (&a, &b) {
         (TypeExpr::Var(x), TypeExpr::Var(y)) if x == y => Ok(()),
         (TypeExpr::Var(x), other) | (other, TypeExpr::Var(x)) => {
@@ -2093,7 +2134,7 @@ fn unify(a: &TypeExpr, b: &TypeExpr, subst: &mut Subst) -> Result<(), UnifyError
                 return Err(UnifyError);
             }
             for (x, y) in a1.iter().zip(a2.iter()) {
-                unify(x, y, subst)?;
+                unify(x, y, subst, types)?;
             }
             Ok(())
         }
@@ -2102,16 +2143,16 @@ fn unify(a: &TypeExpr, b: &TypeExpr, subst: &mut Subst) -> Result<(), UnifyError
                 return Err(UnifyError);
             }
             for (x, y) in a1.iter().zip(a2.iter()) {
-                unify(x, y, subst)?;
+                unify(x, y, subst, types)?;
             }
-            unify(r1, r2, subst)
+            unify(r1, r2, subst, types)
         }
         (TypeExpr::Tuple(e1), TypeExpr::Tuple(e2)) => {
             if e1.len() != e2.len() {
                 return Err(UnifyError);
             }
             for (x, y) in e1.iter().zip(e2.iter()) {
-                unify(x, y, subst)?;
+                unify(x, y, subst, types)?;
             }
             Ok(())
         }
@@ -2194,7 +2235,7 @@ impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
     }
 
     fn unify_types(&mut self, a: &TypeExpr, b: &TypeExpr) -> bool {
-        unify(a, b, self.subst).is_ok()
+        unify(a, b, self.subst, self.env.types()).is_ok()
     }
 
     fn apply_subst(&self, t: &TypeExpr) -> TypeExpr {
@@ -3430,7 +3471,8 @@ mod tests {
         assert!(unify(
             &TypeExpr::Path(":i64".into()),
             &TypeExpr::Path(":i64".into()),
-            &mut s
+            &mut s,
+            &TypeEnv::with_builtins(),
         )
         .is_ok());
     }
@@ -3441,7 +3483,8 @@ mod tests {
         assert!(unify(
             &TypeExpr::Path(":i64".into()),
             &TypeExpr::Path(":f64".into()),
-            &mut s
+            &mut s,
+            &TypeEnv::with_builtins(),
         )
         .is_err());
     }
@@ -3453,14 +3496,16 @@ mod tests {
         assert!(unify(
             &TypeExpr::Path(":T".into()),
             &TypeExpr::Path(":T".into()),
-            &mut s
+            &mut s,
+            &TypeEnv::with_builtins(),
         )
         .is_ok());
         let mut s = Subst::new();
         assert!(unify(
             &TypeExpr::Path(":T".into()),
             &TypeExpr::Path(":U".into()),
-            &mut s
+            &mut s,
+            &TypeEnv::with_builtins(),
         )
         .is_err());
     }
@@ -3470,7 +3515,7 @@ mod tests {
         let mut s = Subst::new();
         let var = TypeExpr::Var(0);
         let concrete = TypeExpr::Path(":i64".into());
-        unify(&var, &concrete, &mut s).expect("unify");
+        unify(&var, &concrete, &mut s, &TypeEnv::with_builtins()).expect("unify");
         assert_eq!(apply_subst(&var, &s), concrete);
     }
 
@@ -3486,7 +3531,7 @@ mod tests {
             head: "Option".into(),
             args: vec![TypeExpr::Path(":i64".into())],
         };
-        assert!(unify(&vec_int, &option_int, &mut s).is_err());
+        assert!(unify(&vec_int, &option_int, &mut s, &TypeEnv::with_builtins()).is_err());
     }
 
     #[test]
@@ -3500,7 +3545,7 @@ mod tests {
             args: vec![TypeExpr::Path(":i64".into())],
             ret: Box::new(TypeExpr::Path(":bool".into())),
         };
-        assert!(unify(&f1, &f2, &mut s).is_ok());
+        assert!(unify(&f1, &f2, &mut s, &TypeEnv::with_builtins()).is_ok());
     }
 
     #[test]
@@ -3511,7 +3556,7 @@ mod tests {
             head: "Vec".into(),
             args: vec![TypeExpr::Var(0)],
         };
-        assert!(unify(&TypeExpr::Var(0), &cyclic, &mut s).is_err());
+        assert!(unify(&TypeExpr::Var(0), &cyclic, &mut s, &TypeEnv::with_builtins()).is_err());
     }
 
     // ─── Parse + unify round-trip ───────────────────────────────────────
@@ -3521,6 +3566,6 @@ mod tests {
         let mut s = Subst::new();
         let a = parse_type_expr(":holon::HolonAST").unwrap();
         let b = parse_type_expr(":holon::HolonAST").unwrap();
-        assert!(unify(&a, &b, &mut s).is_ok());
+        assert!(unify(&a, &b, &mut s, &TypeEnv::with_builtins()).is_ok());
     }
 }
