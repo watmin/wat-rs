@@ -537,7 +537,8 @@ wat-rs/
         ├── 003-tail-call-optimization/     # DESIGN + INSCRIPTION
         ├── 004-lazy-sequences-and-pipelines/ # DESIGN + INSCRIPTION + BACKLOG
         ├── 005-stdlib-naming-audit/        # DESIGN + INVENTORY + INSCRIPTION + CONVENTIONS
-        └── 006-stream-stdlib-completions/  # BACKLOG + INSCRIPTION (open against pending prompts)
+        ├── 006-stream-stdlib-completions/  # BACKLOG + INSCRIPTION (open against with-state)
+        └── 007-wat-tests-wat/              # DESIGN + BACKLOG — self-hosted testing + filesystem sandbox
 ```
 
 ## What's next
