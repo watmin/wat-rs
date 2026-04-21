@@ -63,7 +63,7 @@ use crate::runtime::{
     apply_function, register_defines, register_stdlib_defines, EncodingCtx, Environment,
     RuntimeError, SymbolTable, Value,
 };
-use crate::types::{register_stdlib_types, register_types, TypeEnv, TypeError};
+use crate::types::{register_stdlib_types, register_types, TypeEnv, TypeError, TypeExpr};
 use std::fmt;
 use std::sync::Arc;
 
@@ -356,6 +356,112 @@ pub fn invoke_user_main(
         .ok_or(RuntimeError::UserMainMissing)?
         .clone();
     apply_function(main_func, args, frozen.symbols())
+}
+
+// ─── :user::main signature enforcement ──────────────────────────────────
+//
+// Moved here from `bin/wat-vm.rs` in arc 007 slice 2a so
+// `:wat::kernel::run-sandboxed` can reuse the same validator. The CLI
+// and the sandbox primitive enforce the same contract.
+
+/// The exact signature `:user::main` must declare. Startup halts if
+/// the program's `:user::main` doesn't match.
+///
+/// Arc 008 (2026-04-21): stdio is passed as abstract IO values —
+/// `:wat::io::IOReader` for stdin, `:wat::io::IOWriter` for stdout and
+/// stderr. Production (the CLI) wraps real `std::io::Stdin` / `Stdout`
+/// / `Stderr` in IO-trait-objects; tests (`run-sandboxed`) pass
+/// `StringIo` stand-ins that look identical at the wat surface. Same
+/// wat source runs in both. Ruby StringIO model made operational.
+pub fn expected_user_main_signature() -> (Vec<TypeExpr>, TypeExpr) {
+    let params = vec![
+        TypeExpr::Path(":wat::io::IOReader".into()),
+        TypeExpr::Path(":wat::io::IOWriter".into()),
+        TypeExpr::Path(":wat::io::IOWriter".into()),
+    ];
+    let ret = TypeExpr::Tuple(vec![]);
+    (params, ret)
+}
+
+/// Check that a frozen world's `:user::main` declares the expected
+/// three-IO signature. Returns `Err(message)` with a reader-friendly
+/// diagnostic naming the offending parameter or return type.
+pub fn validate_user_main_signature(frozen: &FrozenWorld) -> Result<(), String> {
+    let func = frozen.symbols().get(":user::main").ok_or_else(|| {
+        ":user::main not defined — a wat program needs an entry point".to_string()
+    })?;
+    let (expected_params, expected_ret) = expected_user_main_signature();
+    if func.param_types.len() != expected_params.len() {
+        return Err(format!(
+            ":user::main must take exactly {} parameters; got {}",
+            expected_params.len(),
+            func.param_types.len()
+        ));
+    }
+    for (i, (got, want)) in func
+        .param_types
+        .iter()
+        .zip(expected_params.iter())
+        .enumerate()
+    {
+        if got != want {
+            let slot = match i {
+                0 => "stdin",
+                1 => "stdout",
+                2 => "stderr",
+                _ => "extra",
+            };
+            return Err(format!(
+                ":user::main parameter #{} ({}) expected {}, got {}",
+                i + 1,
+                slot,
+                format_type_expr(want),
+                format_type_expr(got)
+            ));
+        }
+    }
+    if func.ret_type != expected_ret {
+        return Err(format!(
+            ":user::main return type expected :(), got {}",
+            format_type_expr(&func.ret_type)
+        ));
+    }
+    Ok(())
+}
+
+/// Reader-friendly rendering of a [`TypeExpr`] for diagnostic messages.
+/// Matches the surface form users write in wat source — same grammar
+/// the parser accepts.
+pub fn format_type_expr(t: &TypeExpr) -> String {
+    match t {
+        TypeExpr::Path(p) => p.clone(),
+        TypeExpr::Parametric { head, args } => {
+            let inner: Vec<_> = args.iter().map(format_type_expr_inner).collect();
+            format!(":{}<{}>", head, inner.join(","))
+        }
+        TypeExpr::Fn { args, ret } => {
+            let in_parts: Vec<_> = args.iter().map(format_type_expr_inner).collect();
+            format!(
+                ":fn({})->{}",
+                in_parts.join(","),
+                format_type_expr_inner(ret)
+            )
+        }
+        TypeExpr::Tuple(elements) => {
+            let inner: Vec<_> = elements.iter().map(format_type_expr_inner).collect();
+            if elements.len() == 1 {
+                format!(":({},)", inner[0])
+            } else {
+                format!(":({})", inner.join(","))
+            }
+        }
+        TypeExpr::Var(id) => format!(":?{}", id),
+    }
+}
+
+fn format_type_expr_inner(t: &TypeExpr) -> String {
+    let raw = format_type_expr(t);
+    raw.strip_prefix(':').unwrap_or(&raw).to_string()
 }
 
 // ─── Constrained eval ───────────────────────────────────────────────────

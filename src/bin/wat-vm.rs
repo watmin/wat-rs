@@ -61,12 +61,11 @@ use std::io;
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use wat::freeze::{invoke_user_main, startup_from_source, FrozenWorld};
+use wat::freeze::{invoke_user_main, startup_from_source, validate_user_main_signature};
 use wat::load::FsLoader;
 use wat::runtime::{
     request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2, Value,
 };
-use wat::types::TypeExpr;
 
 // ─── OS signal handlers ────────────────────────────────────────────────
 
@@ -103,97 +102,6 @@ fn install_signal_handlers() {
         libc::signal(libc::SIGUSR2, on_sigusr2 as *const () as libc::sighandler_t);
         libc::signal(libc::SIGHUP, on_sighup as *const () as libc::sighandler_t);
     }
-}
-
-// ─── :user::main signature enforcement ────────────────────────────────
-
-/// The exact signature `:user::main` must declare. Startup halts if
-/// the program's `:user::main` doesn't match.
-fn expected_user_main_signature() -> (Vec<TypeExpr>, TypeExpr) {
-    // Arc 008 (2026-04-21): stdio is passed as abstract IO values —
-    // :wat::io::IOReader for stdin, :wat::io::IOWriter for stdout /
-    // stderr. At production: the CLI wraps real std::io::Stdin /
-    // Stdout / Stderr in IO-trait-objects. At test: run-sandboxed
-    // passes StringIo stand-ins that look identical at the wat surface.
-    // Ruby StringIO model made operational.
-    let params = vec![
-        TypeExpr::Path(":wat::io::IOReader".into()),
-        TypeExpr::Path(":wat::io::IOWriter".into()),
-        TypeExpr::Path(":wat::io::IOWriter".into()),
-    ];
-    let ret = TypeExpr::Tuple(vec![]);
-    (params, ret)
-}
-
-fn validate_user_main_signature(frozen: &FrozenWorld) -> Result<(), String> {
-    let func = frozen.symbols().get(":user::main").ok_or_else(|| {
-        ":user::main not defined — a wat program needs an entry point".to_string()
-    })?;
-    let (expected_params, expected_ret) = expected_user_main_signature();
-    if func.param_types.len() != expected_params.len() {
-        return Err(format!(
-            ":user::main must take exactly {} parameters; got {}",
-            expected_params.len(),
-            func.param_types.len()
-        ));
-    }
-    for (i, (got, want)) in func
-        .param_types
-        .iter()
-        .zip(expected_params.iter())
-        .enumerate()
-    {
-        if got != want {
-            let slot = match i {
-                0 => "stdin",
-                1 => "stdout",
-                2 => "stderr",
-                _ => "extra",
-            };
-            return Err(format!(
-                ":user::main parameter #{} ({}) expected {}, got {}",
-                i + 1,
-                slot,
-                format_type(want),
-                format_type(got)
-            ));
-        }
-    }
-    if func.ret_type != expected_ret {
-        return Err(format!(
-            ":user::main return type expected :(), got {}",
-            format_type(&func.ret_type)
-        ));
-    }
-    Ok(())
-}
-
-fn format_type(t: &TypeExpr) -> String {
-    match t {
-        TypeExpr::Path(p) => p.clone(),
-        TypeExpr::Parametric { head, args } => {
-            let inner: Vec<_> = args.iter().map(format_type_inner).collect();
-            format!(":{}<{}>", head, inner.join(","))
-        }
-        TypeExpr::Fn { args, ret } => {
-            let in_parts: Vec<_> = args.iter().map(format_type_inner).collect();
-            format!(":fn({})->{}", in_parts.join(","), format_type_inner(ret))
-        }
-        TypeExpr::Tuple(elements) => {
-            let inner: Vec<_> = elements.iter().map(format_type_inner).collect();
-            if elements.len() == 1 {
-                format!(":({},)", inner[0])
-            } else {
-                format!(":({})", inner.join(","))
-            }
-        }
-        TypeExpr::Var(id) => format!(":?{}", id),
-    }
-}
-
-fn format_type_inner(t: &TypeExpr) -> String {
-    let raw = format_type(t);
-    raw.strip_prefix(':').unwrap_or(&raw).to_string()
 }
 
 // ─── main ──────────────────────────────────────────────────────────────
