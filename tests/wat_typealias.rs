@@ -126,6 +126,64 @@ fn alias_preserves_type_mismatches() {
     assert!(hit, "expected TypeMismatch; got {:?}", errs);
 }
 
+// ─── Alias at shape-inspection sites (post-reduce) ────────────────────
+
+#[test]
+fn alias_over_hashmap_passes_through_std_get() {
+    // `:my::Row` aliases HashMap<String,i64>. `:wat::std::get` inspects
+    // its container argument's shape (HashMap / HashSet). With alias
+    // reduction at the shape-inspection site, the alias resolves to
+    // its HashMap root and the call type-checks.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::typealias :my::Row :HashMap<String,i64>)
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::let*
+            (((row :my::Row) (:wat::std::HashMap :(String,i64) "a" 10 "b" 20))
+             ((got :Option<i64>) (:wat::std::get row "a")))
+            (:wat::core::match got -> :i64
+              ((Some v) v)
+              (:None -1))))
+    "#;
+    assert!(matches!(run(src), Value::i64(10)));
+}
+
+#[test]
+fn alias_over_fn_type_works_at_spawn() {
+    // `:my::Job` aliases :fn(Sender<i64>)->:(). The spawn-extract-Fn
+    // site at infer_spawn must see through the alias to find the Fn
+    // shape.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::typealias
+          :my::Job
+          :fn(rust::crossbeam_channel::Sender<i64>)->())
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::let*
+            (((job :my::Job)
+              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                (:wat::core::let*
+                  (((_ :Option<()>) (:wat::kernel::send tx 7)))
+                  ())))
+             ((pair :(rust::crossbeam_channel::Sender<i64>,rust::crossbeam_channel::Receiver<i64>))
+              (:wat::kernel::make-bounded-queue :i64 1))
+             ((tx :rust::crossbeam_channel::Sender<i64>) (:wat::core::first pair))
+             ((rx :rust::crossbeam_channel::Receiver<i64>) (:wat::core::second pair))
+             ((h :wat::kernel::ProgramHandle<()>) (:wat::kernel::spawn job tx))
+             ((_ :()) (:wat::kernel::join h)))
+            (:wat::core::match (:wat::kernel::recv rx) -> :i64
+              ((Some v) v)
+              (:None 0))))
+    "#;
+    assert!(matches!(run(src), Value::i64(7)));
+}
+
 // ─── Alias in return position unifies with its expansion ──────────────
 
 #[test]

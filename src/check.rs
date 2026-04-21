@@ -46,7 +46,7 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{Function, SymbolTable};
-use crate::types::{expand_alias, TypeEnv, TypeExpr};
+use crate::types::{TypeEnv, TypeExpr};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -1198,18 +1198,22 @@ fn infer_try(
             return None;
         }
     };
-    let enclosing_err_ty = match &enclosing {
+    // Reduce so a typealias over Result<T,E> is recognized as
+    // Result<T,E> here. (`:my::Res<T> = Result<T,String>` would
+    // otherwise be rejected as "not a Result" at this match.)
+    let enclosing_reduced = reduce(&enclosing, subst, env.types());
+    let enclosing_err_ty = match &enclosing_reduced {
         TypeExpr::Parametric { head, args: type_args }
             if head == "Result" && type_args.len() == 2 =>
         {
             type_args[1].clone()
         }
-        other => {
+        _ => {
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::try".into(),
                 reason: format!(
                     "enclosing function returns {}; `try` requires the enclosing function to return :Result<T,E>",
-                    format_type(other)
+                    format_type(&enclosing)
                 ),
             });
             let _ = infer(&args[0], env, locals, fresh, subst, errors);
@@ -1329,10 +1333,11 @@ fn infer_spawn(
             }
         },
         _ => {
-            // Non-keyword: infer as a value, expect `:fn(...)->R`.
+            // Non-keyword: infer as a value, expect `:fn(...)->R`. Use
+            // reduce so a typealias over an fn type still matches.
             let inferred = infer(&args[0], env, locals, fresh, subst, errors);
-            let fn_ty = match inferred {
-                Some(t) => apply_subst(&t, subst),
+            let surface_ty = match &inferred {
+                Some(t) => apply_subst(t, subst),
                 None => {
                     return Some(TypeExpr::Parametric {
                         head: "wat::kernel::ProgramHandle".into(),
@@ -1340,14 +1345,15 @@ fn infer_spawn(
                     });
                 }
             };
+            let fn_ty = reduce(&surface_ty, subst, env.types());
             match fn_ty {
                 TypeExpr::Fn { args: ps, ret } => (ps, *ret, ":wat::kernel::spawn <lambda>".to_string()),
-                other => {
+                _ => {
                     errors.push(CheckError::TypeMismatch {
                         callee: ":wat::kernel::spawn".into(),
                         param: "#1".into(),
                         expected: "function keyword path or fn(...) value".into(),
-                        got: format_type(&apply_subst(&other, subst)),
+                        got: format_type(&surface_ty),
                     });
                     for arg in &args[1..] {
                         let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -1412,13 +1418,10 @@ fn infer_positional_accessor(
     }
     let arg_ty = infer(&args[0], env, locals, fresh, subst, errors);
     if let Some(ty) = arg_ty {
-        // Expand typealiases before the structural shape match —
-        // `:wat::std::stream::Stream<T>` (alias over a tuple) must be
-        // recognized as a tuple here. Unify does this for every
-        // structural check; shape-inspection sites like this one
-        // must also.
-        let resolved = expand_alias(&apply_subst(&ty, subst), env.types());
-        match &resolved {
+        // Reduce to canonical structural form for the match; keep the
+        // surface-name form for error display.
+        let reduced = reduce(&ty, subst, env.types());
+        match &reduced {
             // Tuple: return element at `index`.
             TypeExpr::Tuple(elements) => {
                 if let Some(elem) = elements.get(index) {
@@ -1428,7 +1431,7 @@ fn infer_positional_accessor(
                         callee: op.into(),
                         param: "#1".into(),
                         expected: format!("tuple with ≥ {} element(s)", index + 1),
-                        got: format_type(&resolved),
+                        got: format_type(&apply_subst(&ty, subst)),
                     });
                     return Some(fresh.fresh());
                 }
@@ -1446,7 +1449,7 @@ fn infer_positional_accessor(
                     callee: op.into(),
                     param: "#1".into(),
                     expected: "tuple or Vec<T>".into(),
-                    got: format_type(&resolved),
+                    got: format_type(&apply_subst(&ty, subst)),
                 });
             }
         }
@@ -1475,9 +1478,11 @@ fn infer_drop(
     }
     let arg_ty = infer(&args[0], env, locals, fresh, subst, errors);
     if let Some(ty) = arg_ty {
-        let resolved = apply_subst(&ty, subst);
+        // Reduce for the shape match; keep the surface-name form for
+        // the error display.
+        let reduced = reduce(&ty, subst, env.types());
         let is_channel_handle = matches!(
-            &resolved,
+            &reduced,
             TypeExpr::Parametric { head, .. }
                 if head == "rust::crossbeam_channel::Sender"
                     || head == "rust::crossbeam_channel::Receiver"
@@ -1487,7 +1492,7 @@ fn infer_drop(
                 callee: ":wat::kernel::drop".into(),
                 param: "#1".into(),
                 expected: "rust::crossbeam_channel::Sender<T> | rust::crossbeam_channel::Receiver<T>".into(),
-                got: format_type(&resolved),
+                got: format_type(&apply_subst(&ty, subst)),
             });
         }
     }
@@ -1770,8 +1775,11 @@ fn infer_get(
     let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
     let key_ty = infer(&args[1], env, locals, fresh, subst, errors);
     if let Some(ct) = container_ty {
-        let resolved = apply_subst(&ct, subst);
-        match &resolved {
+        // Reduce for the shape match — a user typealias over HashMap
+        // / HashSet (e.g., `(typealias :my::Row :HashMap<String,i64>)`)
+        // must be recognized by its structural root here.
+        let reduced = reduce(&ct, subst, env.types());
+        match &reduced {
             TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
                 let k = apply_subst(&ta[0], subst);
                 let v = apply_subst(&ta[1], subst);
@@ -1812,7 +1820,7 @@ fn infer_get(
                     callee: ":wat::std::get".into(),
                     param: "container".into(),
                     expected: "HashMap<K,V> | HashSet<T>".into(),
-                    got: format_type(&resolved),
+                    got: format_type(&apply_subst(&ct, subst)),
                 });
             }
         }
@@ -2139,13 +2147,14 @@ fn unify(
     subst: &mut Subst,
     types: &TypeEnv,
 ) -> Result<(), UnifyError> {
-    // Walk substitutions, then peel typealiases on both sides so
-    // `:MyCache<K,V>` and its expansion `:rust::lru::LruCache<K,V>`
-    // unify structurally. `expand_alias` stops at the first non-alias
-    // root (or a head unresolved in the env) — callers see a
-    // structurally canonical form before the match below runs.
-    let a = expand_alias(&walk(a, subst), types);
-    let b = expand_alias(&walk(b, subst), types);
+    // Reduce both sides to canonical shape before the structural
+    // match — follow Var bindings AND expand typealiases at each
+    // level. The recursive unify-on-children calls reduce at their
+    // levels; combined, every position in both type trees is seen
+    // post-alias. `:MyCache<K,V>` and its expansion
+    // `:rust::lru::LruCache<K,V>` unify structurally as a result.
+    let a = reduce(&walk(a, subst), subst, types);
+    let b = reduce(&walk(b, subst), subst, types);
     match (&a, &b) {
         (TypeExpr::Var(x), TypeExpr::Var(y)) if x == y => Ok(()),
         (TypeExpr::Var(x), other) | (other, TypeExpr::Var(x)) => {
@@ -2307,8 +2316,16 @@ impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
     }
 }
 
-/// Apply a substitution deeply — rewrites every `Var(id)` in `ty` to
-/// its bound target (transitively).
+/// Apply the substitution map deeply — rewrites every `Var(id)` in
+/// `ty` to its bound target (transitively). **Does NOT expand
+/// typealiases.** `:MyAlias<i64>` stays `:MyAlias<i64>`.
+///
+/// Use this for **error display** — it preserves the surface name
+/// the user wrote, so `TypeMismatch` reads "expected
+/// `:wat::std::stream::Stream<i64>`", not the tuple expansion.
+///
+/// For **structural matching** against the canonical form of a type,
+/// call [`reduce`] instead.
 fn apply_subst(ty: &TypeExpr, subst: &Subst) -> TypeExpr {
     match ty {
         TypeExpr::Var(id) => match subst.get(id) {
@@ -2326,6 +2343,50 @@ fn apply_subst(ty: &TypeExpr, subst: &Subst) -> TypeExpr {
         },
         TypeExpr::Tuple(elements) => TypeExpr::Tuple(
             elements.iter().map(|e| apply_subst(e, subst)).collect(),
+        ),
+    }
+}
+
+/// Fully reduce a type to its **canonical structural form** — follow
+/// every Var substitution AND expand every typealias, at every level
+/// of the tree. This is the single normalization pass: any
+/// shape-inspection site (matching on `TypeExpr::Tuple`,
+/// `TypeExpr::Parametric { head, ... }`, `TypeExpr::Fn`, etc.) should
+/// call this before the match, so aliases never hide structure from
+/// the check.
+///
+/// Relationship to the other passes:
+///
+/// - [`apply_subst`] is "walk Vars, preserve alias names." Right for
+///   error messages (the surface name is what the user wrote).
+/// - [`crate::types::expand_alias`] is "peel aliases at one level,
+///   leave Vars." Right internally during unify to establish the
+///   root shape before unifying children.
+/// - `reduce` is both, recursively. Right for every shape-direct
+///   inspection where the alias is incidental and the structural
+///   root is what matters.
+///
+/// `unify`'s prologue also calls `reduce` — both sides see canonical
+/// shapes before the structural match below runs, and the recursive
+/// unify-on-children calls reduce at each level.
+fn reduce(ty: &TypeExpr, subst: &Subst, types: &TypeEnv) -> TypeExpr {
+    let expanded = crate::types::expand_alias(ty, types);
+    match expanded {
+        TypeExpr::Var(id) => match subst.get(&id) {
+            Some(inner) => reduce(inner, subst, types),
+            None => TypeExpr::Var(id),
+        },
+        TypeExpr::Path(_) => expanded,
+        TypeExpr::Parametric { head, args } => TypeExpr::Parametric {
+            head,
+            args: args.iter().map(|a| reduce(a, subst, types)).collect(),
+        },
+        TypeExpr::Fn { args, ret } => TypeExpr::Fn {
+            args: args.iter().map(|a| reduce(a, subst, types)).collect(),
+            ret: Box::new(reduce(&ret, subst, types)),
+        },
+        TypeExpr::Tuple(elements) => TypeExpr::Tuple(
+            elements.iter().map(|e| reduce(e, subst, types)).collect(),
         ),
     }
 }

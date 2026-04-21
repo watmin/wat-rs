@@ -117,40 +117,44 @@ Expect the shape to clarify from writing real pipelines the verbose way first (i
 
 ---
 
-## Known gap — alias expansion at shape-inspection sites
+## Resolved — the `reduce` pass
 
-**Status:** lurking; not blocking. Deferred until a real use case surfaces.
+**Status:** shipped 2026-04-20, same day it surfaced.
 
-`expand_alias` is called inside `unify` (post 2026-04-20) and inside
-`infer_positional_accessor` (post 2026-04-20, discovered when
-`first`/`second` on `:wat::std::stream::Stream<T>` tuples first
-landed). Other places in `src/check.rs` inspect type SHAPE directly
-after `apply_subst` without expanding aliases:
+The finding: `expand_alias` was only called from `unify`'s prologue
+and (via a one-off band-aid) `infer_positional_accessor`. The
+stream-stdlib slice tripped over the gap — `:wat::std::stream::Stream<T>`
+(alias over a tuple) failed to unwrap at first/second until a local
+patch landed. That patch papered over a structural flaw: wat-rs had
+two half-passes that every consumer had to chain manually, and the
+BACKLOG was noting the half-dozen shape-inspection sites that still
+didn't do the second half.
 
-- `infer_let` / `infer_let_star` — destructure-binder branch inspects
-  the RHS for Tuple shape.
-- `infer_hashmap_constructor` / `infer_hashset_constructor` — match
-  on `Parametric { head: "HashMap", ... }` / `"HashSet"`.
-- `infer_get` — tuple-index branch.
-- `infer_drop` — matches parametric heads `Sender` / `Receiver`.
+Mature type systems have **one** normalization pass. We now have it:
 
-A typealias over any of these shapes (e.g.,
-`(typealias :my::Row :HashMap<String,i64>)`) would parse and
-register, unify-based operations would work, but a shape-direct site
-would report "expected HashMap, got :my::Row" instead of seeing
-through the alias.
+```rust
+fn reduce(ty: &TypeExpr, subst: &Subst, types: &TypeEnv) -> TypeExpr
+```
 
-**Fix pattern when it bites**: in the offending infer_* function,
-replace `apply_subst(&ty, subst)` with
-`expand_alias(&apply_subst(&ty, subst), env.types())` at the
-structural-match site. One line per site; same idiom as
-`infer_positional_accessor`.
+`reduce` follows every Var substitution AND expands every typealias,
+recursively at every level. It's the canonical pre-match step for
+any shape-inspection code.
 
-**Why deferred**: no current code hits it. The Stream<T> / LocalCache
-cases that motivated alias expansion are fully covered (unify path
-+ first/second). Sweeping every shape-inspection site proactively is
-risk-averse engineering for a hypothetical problem; fixing each as
-it surfaces is a one-line edit with a clear diagnostic trail.
+**Discipline going forward**: at a shape-inspection site
+(matching on `TypeExpr::Tuple`, `TypeExpr::Parametric { head, ... }`,
+`TypeExpr::Fn`, etc.), call `reduce` to get the canonical form and
+`apply_subst` separately if you need the user's surface form for
+error display. Never match on `apply_subst`'s output directly —
+aliases will hide the shape.
+
+Sites updated in this pass: `unify` prologue,
+`infer_positional_accessor`, `infer_drop`, `infer_get` (HashMap /
+HashSet branches), `infer_try` (Result<T,E> extraction),
+`infer_spawn` (Fn-value extraction from the first arg).
+
+Regression tests: `tests/wat_typealias.rs::alias_over_hashmap_passes_through_std_get`
+and `alias_over_fn_type_works_at_spawn` exercise the sites the
+old half-passes would have missed.
 
 ---
 
