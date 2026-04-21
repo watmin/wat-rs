@@ -121,17 +121,17 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   serializer). Service tests (Console, Cache) no longer carry
   stringified inner programs — same AST shape as the in-process
   sandbox, just with subprocess isolation.
-- **`arc/2026/04/012-fork-and-pipes/`** — **planning.** Raw Unix
-  `fork(2)` + `pipe(2)` + `waitpid(2)` as kernel primitives,
-  retiring the binary-path coupling from hermetic sandboxing.
-  Three slices: (1) `:wat::kernel::pipe` + PipeReader/PipeWriter
-  with direct-syscall writes (no `std::io::stdout` Mutex
-  coupling); (2) `:wat::kernel::fork-with-forms` + ChildHandle
-  + `wait-child`, child runs `startup_from_forms` on inherited
-  AST; (3) reimplement `run-sandboxed-hermetic-ast` as ~20 lines
-  of wat stdlib on top, retire the Rust primitive. Unix-only by
-  design. DESIGN + BACKLOG written 2026-04-21; implementation
-  pending.
+- **`arc/2026/04/012-fork-and-pipes/`** — **in progress, slice 1
+  shipped.** Raw Unix `fork(2)` + `pipe(2)` + `waitpid(2)` as
+  kernel primitives, retiring the binary-path coupling from
+  hermetic sandboxing. Three slices: (1) **shipped** —
+  `:wat::kernel::pipe` + PipeReader/PipeWriter with direct-
+  syscall writes (no `std::io::stdout` Mutex coupling); (2) next
+  — `:wat::kernel::fork-with-forms` returning a `ForkedChild`
+  struct + `wait-child`, child runs `startup_from_forms` on
+  inherited AST; (3) after that — reimplement
+  `run-sandboxed-hermetic-ast` as ~20 lines of wat stdlib on
+  top, retire the Rust primitive. Unix-only by design.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.

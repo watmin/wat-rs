@@ -19,7 +19,9 @@ item lands.
 
 ## 1. `:wat::kernel::pipe` + `PipeReader` + `PipeWriter`
 
-**Status:** ready. Concrete approach in hand.
+**Status:** **shipped 2026-04-21.** Commits `4dd2305` (slice 1a —
+types + Rust unit tests) and `ee64f40` (slice 1b — primitive +
+integration tests).
 
 **Problem:** Rust's stdlib does not expose raw `pipe(2)` — only
 `Command::spawn`'s internal plumbing. wat-rs's existing
@@ -71,6 +73,37 @@ section). Arc 008 set the precedent — IO primitives are named in
 
 **Unblocks:** slice 2 (child's stdio wrappers), any future IPC
 use case needing direct pipes without fork+exec.
+
+**What shipped (2026-04-21):**
+- `PipeReader { fd: OwnedFd }` + `PipeWriter { fd: OwnedFd }` in
+  `src/io.rs`. Both impl `WatReader` / `WatWriter`; both `Send +
+  Sync`; `Drop` closes via `OwnedFd`. 11 Rust unit tests in
+  `io::pipe_tests` — round-trip, partial read, EOF on writer
+  dropped, LF + CRLF read-line, bare-line (no trailing `\n`),
+  rewind errors, write-return-count, flush, Send+Sync bounds.
+- `:wat::kernel::pipe` nullary primitive — dispatch arm in
+  `runtime.rs`, type scheme in `check.rs`. Returns
+  `Value::Tuple([IOWriter, IOReader])`, writer first.
+- 5 integration tests in `tests/wat_pipe.rs` — tuple-shape
+  destructuring, writeln→read-line, multi-writeln line-by-line,
+  write-string→read-exact-bytes, UTF-8 preservation.
+
+**What was deferred (decisions resolved by not-doing):**
+- `O_CLOEXEC` / `pipe2(2)` usage. This arc doesn't exec, so
+  close-on-exec doesn't affect the fd lifecycle (dup2 + close
+  manage it); plain `libc::pipe(2)` is the honest minimum.
+  A future exec-using arc (`spawn-process`) would revisit.
+- Rust stdlib's `std::fs::File::from_raw_fd` wrapper path. The
+  shortest path — `libc::read/write` on `fd.as_raw_fd()` —
+  sidesteps Rust's file-level buffering and locking layers
+  entirely. No surprise fork inheritance.
+
+**Caught in passing:**
+- Memory feedback entry on wat keyword-path types forbidding
+  interior whitespace (`:(A, B)` is a lexer error;
+  `:(A,B)` is required). Sibling to the existing colon-quoting
+  discipline. Integration tests caught this on first run; memory
+  saved so future sessions don't re-trip.
 
 ---
 
