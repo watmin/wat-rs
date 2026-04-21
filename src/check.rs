@@ -3204,6 +3204,19 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: bool_ty(),
         },
     );
+    // (:wat::kernel::pipe) → :(wat::io::IOWriter, wat::io::IOReader).
+    // Arc 012 slice 1b. Writer first (producer), reader second.
+    env.register(
+        ":wat::kernel::pipe".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Tuple(vec![
+                TypeExpr::Path(":wat::io::IOWriter".into()),
+                TypeExpr::Path(":wat::io::IOReader".into()),
+            ]),
+        },
+    );
     // User-signal surface — 2026-04-19 stance: kernel measures, userland
     // owns transitions. Six nullary primitives: three pollers return
     // :bool; three resetters return :(). SIGINT / SIGTERM stay on the

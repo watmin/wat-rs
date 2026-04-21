@@ -1804,6 +1804,7 @@ fn dispatch_keyword_head(
         }
         ":wat::kernel::make-bounded-queue" => eval_make_bounded_queue(args, env, sym),
         ":wat::kernel::make-unbounded-queue" => eval_make_unbounded_queue(args),
+        ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args),
         ":wat::kernel::sigusr1?" => {
             eval_user_signal_query(args, ":wat::kernel::sigusr1?", &KERNEL_SIGUSR1)
         }

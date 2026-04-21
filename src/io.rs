@@ -972,6 +972,45 @@ pub fn eval_iowriter_flush(
     Ok(Value::Unit)
 }
 
+// ─── :wat::kernel::pipe (arc 012 slice 1b) ───────────────────────────────
+
+/// `(:wat::kernel::pipe)` → `:(wat::io::IOWriter, wat::io::IOReader)`.
+///
+/// Creates a fresh Unix pipe via `libc::pipe(2)`. The write end comes
+/// first in the returned tuple (you write to produce, read to consume
+/// — same order a human says "producer then consumer"). Both ends are
+/// `PipeWriter` / `PipeReader` over an `OwnedFd`; `Drop` closes.
+///
+/// Arc 012 slice 1. Standalone useful (any IPC pattern that wants a
+/// byte stream between wat threads or into a child process);
+/// load-bearing for `:wat::kernel::fork-with-forms` (slice 2) which
+/// allocates three pipes per fork call.
+pub fn eval_kernel_pipe(args: &[WatAST]) -> Result<Value, RuntimeError> {
+    use std::os::fd::FromRawFd;
+    let op = ":wat::kernel::pipe";
+    arity(op, args, 0)?;
+    let mut fds = [0i32; 2];
+    let ret = unsafe { libc::pipe(fds.as_mut_ptr()) };
+    if ret != 0 {
+        let err = std::io::Error::last_os_error();
+        return Err(RuntimeError::MalformedForm {
+            head: op.into(),
+            reason: format!("pipe(2) syscall failed: {}", err),
+        });
+    }
+    // SAFETY: libc::pipe returned 0, so fds[0] (read) and fds[1]
+    // (write) are freshly-opened fds we now own; wrapping each in
+    // OwnedFd transfers that ownership. `Drop` will call close(2).
+    let reader_fd = unsafe { OwnedFd::from_raw_fd(fds[0]) };
+    let writer_fd = unsafe { OwnedFd::from_raw_fd(fds[1]) };
+    let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(writer_fd));
+    let reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(reader_fd));
+    Ok(Value::Tuple(Arc::new(vec![
+        Value::io__IOWriter(writer),
+        Value::io__IOReader(reader),
+    ])))
+}
+
 // ─── Unit tests for pipe-backed IO (arc 012 slice 1) ─────────────────────
 
 #[cfg(test)]
