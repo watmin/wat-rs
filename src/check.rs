@@ -2701,6 +2701,34 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // :wat::kernel::run-sandboxed — arc 007 slice 2a.
+    // (src: :String, stdin: :Vec<String>, scope: :Option<String>)
+    //   -> :wat::kernel::RunResult
+    //
+    // Runs wat source in a fresh frozen world with captured stdio.
+    // Scope None -> InMemoryLoader (no disk); Some path -> ScopedLoader
+    // rooted at path. Result carries stdout / stderr Vec<String> and
+    // an Option<Failure> (currently always :None on the happy path;
+    // slice 2b populates via catch_unwind).
+    env.register(
+        ":wat::kernel::run-sandboxed".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                string_ty(),
+                TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![string_ty()],
+                },
+                TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![string_ty()],
+                },
+            ],
+            ret: TypeExpr::Path(":wat::kernel::RunResult".into()),
+        },
+    );
+
     // Integer arithmetic — strict i64 × i64 → i64 under the
     // `:wat::core::i64::*` namespace.
     for op in &[
