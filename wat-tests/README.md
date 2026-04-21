@@ -3,28 +3,54 @@
 Tests written in wat, for wat. The sibling to `wat/` the way Cargo's
 `tests/` is the sibling to `src/`.
 
-Each `.wat` file in this directory uses `:wat::test::deftest` to
-register named test functions, and an explicit `:user::main` that
-invokes each test and writes its pass/fail line to stdout. Per
-`wat/std/test.wat`, a deftest expands to a zero-arg function
-returning `:wat::kernel::RunResult` — callers can invoke it directly
-and inspect the result.
+Each `.wat` file uses `:wat::test::deftest` to register named test
+functions. `wat test wat-tests/` auto-discovers every top-level
+`:wat::core::define` whose path's final `::`-segment starts with
+`test-` and whose signature is `() -> :wat::kernel::RunResult`,
+shuffles them, invokes each, and reports cargo-test-style.
 
-A Rust-side integration test (`tests/wat_tests_dir.rs`) loads every
-file in this directory, runs it, and asserts every stdout line
-matches the `PASS` convention. When arc 007 slice 4 lands (the
-`wat test` CLI subcommand), that subcommand will replace the
-Rust harness — it will auto-discover deftests without needing the
-hand-written `:user::main`.
+## Layout
 
-## Current files
+Mirrors `wat/std/` one-to-one:
 
-- `test-harness.wat` — exercises `:wat::test::*` itself (assert-eq,
-  assert-contains, assert-stdout-is, deftest).
+```
+wat/std/Subtract.wat         ↔ wat-tests/std/Subtract.wat
+wat/std/Circular.wat         ↔ wat-tests/std/Circular.wat
+wat/std/Reject.wat           ↔ wat-tests/std/Reject.wat
+wat/std/Project.wat            (tested alongside Reject)
+wat/std/Sequential.wat       ↔ wat-tests/std/Sequential.wat
+wat/std/Trigram.wat          ↔ wat-tests/std/Trigram.wat
+wat/std/test.wat             ↔ wat-tests/std/test.wat
+wat/std/program/Console.wat  ↔ wat-tests/std/program/Console.wat
+wat/std/program/Cache.wat    ↔ wat-tests/std/program/Cache.wat
+```
 
-## Convention
+The stdlib module under test dictates the path. A future addition to
+`wat/std/X.wat` expects its tests at `wat-tests/std/X.wat`.
 
-- Every registered test has a keyword path under `:wat-tests::*`.
-- Every test body writes "PASS" or the failure message to stdout.
-- A test file's `:user::main` writes lines in the form
-  `<test-name>:PASS` or `<test-name>:FAIL-<reason>`.
+## Running
+
+```
+wat test wat-tests/               # every .wat in tree, cargo-style report
+wat test wat-tests/std/           # just stdlib tests
+wat test wat-tests/std/test.wat   # single file
+```
+
+Discovery is recursive. Random order per-file (nanos-seeded xorshift
+Fisher-Yates) surfaces accidental order-dependencies.
+
+## In-process vs hermetic
+
+Simple tests use `:wat::test::run` (in-process sandbox with
+StringIoWriter-backed stdio — ThreadOwnedCell discipline means
+single-thread). Programs that spawn threads and write from them
+(Console, Cache) use `:wat::kernel::run-sandboxed-hermetic` directly
+— a subprocess with real thread-safe stdio.
+
+## Naming
+
+- Test function names: final segment **must** start with `test-` for
+  auto-discovery. Fixture functions that shouldn't run as tests use
+  a non-`test-` final segment.
+- File names: hyphenated if multi-word (`test-harness.wat`, not
+  `test_harness.wat`).

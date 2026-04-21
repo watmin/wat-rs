@@ -51,7 +51,7 @@ fn wat_test_on_wat_tests_dir_passes() {
 #[test]
 fn wat_test_on_single_file_passes() {
     let crate_root = env!("CARGO_MANIFEST_DIR");
-    let harness = format!("{}/wat-tests/test-harness.wat", crate_root);
+    let harness = format!("{}/wat-tests/std/test.wat", crate_root);
     let (status, stdout, _) = wat_test(&harness);
     assert!(status.success(), "single-file invocation should exit 0:\n{}", stdout);
     assert!(stdout.contains("test result: ok"));
