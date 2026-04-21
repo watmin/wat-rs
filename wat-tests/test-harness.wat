@@ -6,8 +6,8 @@
 ;; "<name>:FAIL" to stdout. A Rust runner (tests/wat_tests_dir.rs)
 ;; asserts every line ends in :PASS.
 ;;
-;; When wat-vm test lands (arc 007 slice 4), this same file becomes
-;; input to `wat-vm test wat-tests/` — the CLI discovers each
+;; When wat test lands (arc 007 slice 4), this same file becomes
+;; input to `wat test wat-tests/` — the CLI discovers each
 ;; deftest by iterating registered functions rather than requiring
 ;; the hand-written :user::main at the bottom.
 

@@ -47,7 +47,7 @@ verbose is honest). Read before proposing a new `:wat::*` or
 `:wat::std::*` primitive.
 
 **[`ZERO-MUTEX.md`](./ZERO-MUTEX.md)** — the concurrency architecture,
-stated plainly. wat-vm runs dozens of threads, serializes writes to
+stated plainly. wat runs dozens of threads, serializes writes to
 stdout across every program that wants to print, owns LRU caches hit
 concurrently from multiple clients, composes pipeline stages in real
 parallel — and has **zero Mutex**. Not fewer. Not mostly. Zero.

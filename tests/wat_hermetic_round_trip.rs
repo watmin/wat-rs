@@ -28,14 +28,14 @@ use wat::load::InMemoryLoader;
 use wat::runtime::Value;
 
 /// Set the hermetic-binary env var to point at the cargo-built
-/// wat-vm binary. Required before calling run-sandboxed-hermetic in
-/// tests; production callers can set it themselves or install wat-vm
+/// wat binary. Required before calling run-sandboxed-hermetic in
+/// tests; production callers can set it themselves or install wat
 /// at a canonical location.
 fn ensure_hermetic_binary() {
     // env!() is a compile-time macro giving the path cargo built the
-    // wat-vm binary to. Safe to set per-test; the value is identical
+    // wat binary to. Safe to set per-test; the value is identical
     // across parallel tests so the set_var race is benign.
-    std::env::set_var("WAT_HERMETIC_BINARY", env!("CARGO_BIN_EXE_wat-vm"));
+    std::env::set_var("WAT_HERMETIC_BINARY", env!("CARGO_BIN_EXE_wat"));
 }
 
 fn run(src: &str) -> Value {

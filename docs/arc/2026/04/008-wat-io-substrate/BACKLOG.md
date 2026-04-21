@@ -31,7 +31,7 @@ substituted for in-memory buffers).
 | 2 | type schemes in check.rs | **done** | this slice |
 | 2 | slice 2 tests | **done** (15 tests in `tests/wat_io.rs`) | this slice |
 | 3 | update `validate_user_main_signature` — new three-IO contract | **done** | this slice |
-| 3 | CLI (`bin/wat-vm.rs`) wraps real stdio as IO Values | **done** | this slice |
+| 3 | CLI (`bin/wat.rs`) wraps real stdio as IO Values | **done** | this slice |
 | 3 | retire `Value::io__Stdin/Stdout/Stderr` variants | **done** | this slice |
 | 3 | retire old `:wat::io::write` / `:wat::io::read-line` primitives | **done** | this slice |
 | 3 | migrate Console.wat stdlib to IOWriter | **done** | this slice |

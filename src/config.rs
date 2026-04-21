@@ -29,7 +29,7 @@
 //!
 //! - It does NOT construct a `VectorManager` / `ScalarEncoder` /
 //!   `AtomTypeRegistry` from the config. That's a runtime concern
-//!   (the runtime slice + wat-vm binary). This module just collects
+//!   (the runtime slice + wat binary). This module just collects
 //!   the values.
 //!
 //! **The second half of entry-file discipline** — "setter in a loaded
@@ -73,7 +73,7 @@ pub enum CapacityMode {
     Warn,
     /// Default — catchable `CapacityExceeded`.
     Error,
-    /// Production fail-closed — halt the wat-vm.
+    /// Production fail-closed — halt the wat.
     Abort,
 }
 

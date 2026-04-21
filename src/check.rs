@@ -2730,7 +2730,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // :wat::kernel::run-sandboxed-hermetic — same signature, forks a
-    // subprocess via wat-vm. See sandbox.rs.
+    // subprocess via wat. See sandbox.rs.
     env.register(
         ":wat::kernel::run-sandboxed-hermetic".to_string(),
         TypeScheme {

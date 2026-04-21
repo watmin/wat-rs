@@ -163,7 +163,7 @@ construct real stdio — it receives them from its main params.
   `(:IOReader, :IOWriter, :IOWriter) -> :()`. Update
   `validate_user_main_signature` in lib (moved per arc 007 slice 2
   plan; now lives alongside other sandbox plumbing).
-- **CLI wraps real Rust stdio as IO values.** `bin/wat-vm.rs` builds
+- **CLI wraps real Rust stdio as IO values.** `bin/wat.rs` builds
   `Arc<RealStdin>` / `Arc<RealStdout>` / `Arc<RealStderr>` and
   invokes main with the three Value::io__IOReader / io__IOWriter
   Values.
@@ -232,7 +232,7 @@ model know this limitation exists and read the discipline doc.
   IOWriter buffers into `RunResult.stdout` / `stderr`.
 - **Slice 3** — `:wat::test::assert-stdout-is` reads the IOWriter's
   captured output (via `to-string`), compares to expected.
-- **Slice 4** — `wat-vm test` CLI runs tests in-process using the IO
+- **Slice 4** — `wat test` CLI runs tests in-process using the IO
   abstraction; hermetic-mode future arc can serialize IOWriter
   contents across process boundaries.
 

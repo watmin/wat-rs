@@ -49,7 +49,7 @@ use std::sync::Arc;
 
 /// Kernel-owned stop flag read by `(:wat::kernel::stopped?)`.
 ///
-/// The wat-vm binary installs OS signal handlers for SIGINT and
+/// The wat binary installs OS signal handlers for SIGINT and
 /// SIGTERM; both set this flag to `true`. User programs poll via the
 /// `:wat::kernel::stopped?` form to decide whether to continue their
 /// main loops — whenever `true`, they drop their output senders
@@ -61,7 +61,7 @@ use std::sync::Arc;
 /// mutates at runtime under kernel control.
 pub static KERNEL_STOPPED: AtomicBool = AtomicBool::new(false);
 
-/// Set the kernel stop flag to `true`. Called by the wat-vm CLI's
+/// Set the kernel stop flag to `true`. Called by the wat CLI's
 /// signal handler. After `true` is set, any user program polling
 /// `(:wat::kernel::stopped?)` will observe it and can begin clean
 /// shutdown.
@@ -4439,7 +4439,7 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
 // ─── Kernel primitives: stopped / send / recv ───────────────────────────
 
 /// `(:wat::kernel::stopped?)` — nullary predicate; returns the kernel
-/// stop flag as a `:bool`. The wat-vm's signal handler sets the flag
+/// stop flag as a `:bool`. The wat's signal handler sets the flag
 /// on SIGINT / SIGTERM; user programs poll it in their loops.
 ///
 /// `?` suffix per the 2026-04-19 naming-convention stance —
@@ -6859,7 +6859,7 @@ mod tests {
     // entry: if set, run the body (we're the child); otherwise spawn
     // a child and assert on its exit status (we're the parent). Same
     // pattern `tests/wat_vm_cli.rs` uses to run programs in spawned
-    // wat-vm processes — just pointed at the test binary instead.
+    // wat processes — just pointed at the test binary instead.
 
     const WAT_SIGNAL_TEST_CHILD: &str = "WAT_SIGNAL_TEST_CHILD";
 

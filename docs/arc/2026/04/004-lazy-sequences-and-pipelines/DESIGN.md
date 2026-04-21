@@ -87,7 +87,7 @@ thread's schedule; channel-backed runs on a spawned thread with
 rendezvous suspension.
 
 **For the pipeline pattern the builder described, the cross-process
-flavor is the right fit.** Each stage is a wat-vm program; edges are
+flavor is the right fit.** Each stage is a wat program; edges are
 bounded queues; the backpressure behavior falls out of the queue's
 `bounded(1)` rendezvous; end-of-stream is sender-drops.
 

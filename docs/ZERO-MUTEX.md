@@ -1,6 +1,6 @@
 # Zero Mutex — wat-rs's Concurrency Architecture
 
-The wat-vm runs on dozens of OS threads. It serializes writes to
+The wat runs on dozens of OS threads. It serializes writes to
 stdout across every program that wants to print. It owns LRU caches
 that clients across the process hit concurrently. It composes
 streaming pipelines where every stage is its own thread doing real
@@ -60,7 +60,7 @@ The pipeline stdlib (arc 004) and TCO (arc 003) make this
 architecture ergonomic: driver loops run indefinitely without
 stack growth; pipeline stages compose with adapter fluency.
 Together they close the loop. The Mutex-free pattern, from the
-builder's Ruby services forward through this wat-vm implementation,
+builder's Ruby services forward through this wat implementation,
 stops being a discipline and becomes the path of least resistance.
 
 ---
@@ -395,7 +395,7 @@ job.
 
 ## The empirical demonstration
 
-The trading lab's wat-vm (production ancestor of this interpreter)
+The trading lab's wat (production ancestor of this interpreter)
 has run with 30+ threads, **zero Mutex**, for months of
 development and test runs. The program composes observers,
 brokers, treasury, Console, Cache, regime observers, paper-trade
@@ -429,7 +429,7 @@ stages whose interiors are tier-2 at most.
 
 An adopter who imports a third-party crate that uses Mutex
 internally is free to do so — the crate runs its Mutex inside its
-own module; the wat-vm interacts with the crate's public API
+own module; the wat interacts with the crate's public API
 through a `#[wat_dispatch]` shim that never sees the Mutex. The
 shim's scope (`shared`, `thread_owned`, or `owned_move`) determines
 how the crate's type travels through wat. The Mutex inside the

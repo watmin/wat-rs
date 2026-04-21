@@ -6,7 +6,7 @@
 ;;
 ;; Model:
 ;;   - Console owns BOTH stdout and stderr (the real crossbeam
-;;     senders the wat-vm passes to :user::main).
+;;     senders the wat passes to :user::main).
 ;;   - Each client gets ONE queue carrying tagged messages
 ;;     `(tag :i64, msg :String)` — tag 0 = stdout, tag 1 = stderr.
 ;;   - Users call the thin wrappers `Console/out` / `Console/err`

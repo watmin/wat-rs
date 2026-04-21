@@ -136,7 +136,7 @@ fn collect_use_declarations(
                     if !registry.has_type(path) {
                         unresolved.push(UnresolvedReference {
                             path: path.clone(),
-                            context: "rust symbol not available in wat-vm; declare it via its shim",
+                            context: "rust symbol not available in wat; declare it via its shim",
                         });
                         return;
                     }
@@ -442,7 +442,7 @@ mod tests {
         assert!(
             list.iter()
                 .any(|u| u.path == ":rust::imaginary::Thing"
-                    && u.context.contains("not available in wat-vm")),
+                    && u.context.contains("not available in wat")),
             "expected not-available diagnostic; got {:?}",
             list
         );

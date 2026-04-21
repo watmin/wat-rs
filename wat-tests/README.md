@@ -13,13 +13,13 @@ and inspect the result.
 A Rust-side integration test (`tests/wat_tests_dir.rs`) loads every
 file in this directory, runs it, and asserts every stdout line
 matches the `PASS` convention. When arc 007 slice 4 lands (the
-`wat-vm test` CLI subcommand), that subcommand will replace the
+`wat test` CLI subcommand), that subcommand will replace the
 Rust harness — it will auto-discover deftests without needing the
 hand-written `:user::main`.
 
 ## Current files
 
-- `test_harness.wat` — exercises `:wat::test::*` itself (assert-eq,
+- `test-harness.wat` — exercises `:wat::test::*` itself (assert-eq,
   assert-contains, assert-stdout-is, deftest).
 
 ## Convention

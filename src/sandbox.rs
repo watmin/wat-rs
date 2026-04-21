@@ -479,7 +479,7 @@ fn build_run_result(
 // `:rust::*` shims stays in the child.
 //
 // Mechanism: same subprocess pattern the signal tests use (see
-// `runtime.rs::tests::in_signal_subprocess`). Parent spawns `wat-vm`
+// `runtime.rs::tests::in_signal_subprocess`). Parent spawns `wat`
 // (a binary that already knows how to run wat programs from a file);
 // parent writes the source to a tempfile; parent pipes the caller-
 // supplied stdin into the child's stdin; parent captures the child's
@@ -487,15 +487,15 @@ fn build_run_result(
 // RunResult shape.
 //
 // Binary lookup: `WAT_HERMETIC_BINARY` env var takes precedence —
-// tests set it to `env!("CARGO_BIN_EXE_wat-vm")`. Without it, we fall
+// tests set it to `env!("CARGO_BIN_EXE_wat")`. Without it, we fall
 // back to `std::env::current_exe()` — useful when the outer caller
-// IS wat-vm (production) but surprising otherwise. Callers that need
+// IS wat (production) but surprising otherwise. Callers that need
 // a specific binary should set the env var.
 //
 // Scope: deferred. A `:Some path` argument returns a Failure for this
-// first cut; wat-vm's startup uses an unscoped FsLoader and doesn't
+// first cut; wat's startup uses an unscoped FsLoader and doesn't
 // yet accept a scope argument. When a real caller needs scope inside
-// a hermetic run, we teach wat-vm to read `WAT_HERMETIC_SCOPE` env
+// a hermetic run, we teach wat to read `WAT_HERMETIC_SCOPE` env
 // and use `ScopedLoader`. Until then: `:None` only.
 
 /// `(:wat::kernel::run-sandboxed-hermetic src stdin scope)`
@@ -563,7 +563,7 @@ pub fn eval_kernel_run_sandboxed_hermetic(
         ));
     }
 
-    // 1. Locate the wat-vm binary.
+    // 1. Locate the wat binary.
     let binary = match std::env::var("WAT_HERMETIC_BINARY") {
         Ok(path) => std::path::PathBuf::from(path),
         Err(_) => match std::env::current_exe() {
@@ -607,7 +607,7 @@ pub fn eval_kernel_run_sandboxed_hermetic(
     };
 
     // 3. Spawn the child. Inherits only what we explicitly set; we
-    //    pass the tempfile path as the wat-vm entry argument.
+    //    pass the tempfile path as the wat entry argument.
     let mut child = match std::process::Command::new(&binary)
         .arg(&tempfile)
         .stdin(std::process::Stdio::piped())

@@ -113,7 +113,7 @@ pub fn register(builder: &mut RustDepsBuilder) {
 ```
 
 The user then calls `lru_shim::register(&mut builder)` from their
-wat-vm's main — just like with the hand-written shim.
+wat's main — just like with the hand-written shim.
 
 ## Type marshaling
 

@@ -435,7 +435,7 @@ pub enum TypeError {
     AnyBanned { raw: String },
     /// A typealias's expansion, traced through the currently-registered
     /// aliases, reaches the alias's own name. Detected at registration
-    /// time so the wat-vm refuses to start rather than looping at
+    /// time so the wat refuses to start rather than looping at
     /// unification later. Example:
     /// `(typealias :A :B) (typealias :B :A)` — the second registration
     /// fires this error because walking `:B`'s expression reaches `:A`

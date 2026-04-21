@@ -1,4 +1,4 @@
-# Tail-Call Optimization in the wat-vm Evaluator — Design
+# Tail-Call Optimization in the wat Evaluator — Design
 
 **Status:** planned. Not yet implemented.
 **Motivation:** long-running driver loops written in tail-recursive

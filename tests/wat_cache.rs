@@ -16,7 +16,7 @@ use std::process::{Command, Stdio};
 fn write_temp(contents: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir();
     let path = dir.join(format!(
-        "wat-vm-cache-{}-{}.wat",
+        "wat-cache-{}-{}.wat",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -41,7 +41,7 @@ const CACHE_PROGRAM: &str = r#"
   ;; everything that keeps Console/Cache drivers alive (senders);
   ;; when the inner scope exits, those handles drop, the drivers see
   ;; the disconnect, and the outer `join`s flush-and-exit cleanly
-  ;; before wat-vm returns. Without this layering, wat-vm can exit
+  ;; before wat returns. Without this layering, wat can exit
   ;; while the Console driver still has queued stdout writes pending.
   (:wat::core::let*
     (((con-state :(wat::kernel::HandlePool<rust::crossbeam_channel::Sender<(i64,String)>>,wat::kernel::ProgramHandle<()>))
@@ -95,7 +95,7 @@ const CACHE_PROGRAM: &str = r#"
 #[test]
 fn cache_put_then_get_round_trip() {
     let path = write_temp(CACHE_PROGRAM);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let mut child = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
@@ -131,7 +131,7 @@ fn cache_put_then_get_round_trip() {
 
     assert!(
         out.status.success(),
-        "wat-vm exited non-zero.\nstdout: {}\nstderr: {}",
+        "wat exited non-zero.\nstdout: {}\nstderr: {}",
         stdout,
         stderr
     );

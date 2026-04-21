@@ -1,7 +1,7 @@
 //! The freeze pass — step 11 of the startup pipeline.
 //!
 //! Per FOUNDATION.md § "Freeze symbol table, type environment, macro
-//! registry, and config" (line 2379), the wat-vm starts up, runs its
+//! registry, and config" (line 2379), the wat starts up, runs its
 //! pipeline, and then **freezes** the four accumulated registries. After
 //! freeze:
 //!
@@ -29,7 +29,7 @@
 //!
 //! # What freeze is NOT
 //!
-//! - It doesn't invoke `:user::main` — that's the wat-vm binary's job.
+//! - It doesn't invoke `:user::main` — that's the wat binary's job.
 //! - It doesn't perform signature verification at the whole-program
 //!   level. Signature verification is per-form — inside
 //!   `(:wat::core::signed-load! ...)` at startup and
@@ -241,7 +241,7 @@ impl From<StdlibError> for StartupError {
 /// Hashing and signature verification on the full expanded program
 /// are NOT performed here — those are the CLI caller's responsibility
 /// and happen against the frozen program (or via a sidecar signature)
-/// in the wat-vm binary.
+/// in the wat binary.
 ///
 /// `base_canonical` is the entry file's canonical path when known
 /// (used for relative-path resolution of top-level `load!`s). Pass
@@ -364,7 +364,7 @@ pub const USER_MAIN_PATH: &str = ":user::main";
 /// four channel values — `stdin`, `stdout`, `stderr`, `signals` —
 /// plus any additional typed state the deployment signature declares.
 /// This function is agnostic to the number / type of arguments; the
-/// caller (the wat-vm CLI binary in `src/bin/wat-vm.rs`) constructs the channel
+/// caller (the wat CLI binary in `src/bin/wat.rs`) constructs the channel
 /// [`Value`]s and passes them in. Arity mismatch is caught by
 /// [`apply_function`] and surfaces as `ArityMismatch`.
 pub fn invoke_user_main(
@@ -381,7 +381,7 @@ pub fn invoke_user_main(
 
 // ─── :user::main signature enforcement ──────────────────────────────────
 //
-// Moved here from `bin/wat-vm.rs` in arc 007 slice 2a so
+// Moved here from `bin/wat.rs` in arc 007 slice 2a so
 // `:wat::kernel::run-sandboxed` can reuse the same validator. The CLI
 // and the sandbox primitive enforce the same contract.
 

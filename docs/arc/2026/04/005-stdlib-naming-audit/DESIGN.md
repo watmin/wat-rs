@@ -49,7 +49,7 @@ Grep every doc and test:
   `docs/ZERO-MUTEX.md`, `docs/arc/**/*.md`
 - The 058 proposal batch (`holon-lab-trading/docs/proposals/.../*.md`)
 - `tests/*.rs` — test fixtures reference primitives as strings
-- `src/bin/wat-vm.rs` — the binary's fixture/test wat programs
+- `src/bin/wat.rs` — the binary's fixture/test wat programs
 
 Emit: every `:wat::*` and `:rust::*` reference, with source
 location. Cross-reference against Pass 1's shipped set.

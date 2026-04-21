@@ -36,7 +36,7 @@
 | 3b | `:wat::kernel::run-sandboxed-ast` primitive (AST-entry sandbox) | pending | — |
 | 3b | `:wat::test::deftest` defmacro — Clojure-style ergonomic shell | pending | — |
 | 3b | Integration test — deftest expands to a working named test fn | pending | — |
-| 4 | `wat-vm test <path>` subcommand (discovery + runner) | pending | — |
+| 4 | `wat test <path>` subcommand (discovery + runner) | pending | — |
 | 4 | cargo-test-style report formatting | pending | — |
 | 5 | `wat::Harness` Rust API | pending | — |
 | 5 | crate-root re-export from `lib.rs` | pending | — |
@@ -97,7 +97,7 @@
   `{ stdout, stderr }`. Slice 2b extends to add `failure`. Re-add
   `returned` when a real caller needs a non-Unit return shape.
 - **2026-04-21** — Parallel test execution: DEFERRED. V1 of
-  `wat-vm test` runs serial. Parallelism is a follow-up once
+  `wat test` runs serial. Parallelism is a follow-up once
   usage patterns expose which tests can safely run
   concurrently.
 - **2026-04-21** — Hermetic mode BROUGHT FORWARD. The "future
@@ -105,7 +105,7 @@
   subprocess-isolation pattern already in the signal tests made
   the implementation cheap enough to land in slice 2c instead.
   `:wat::kernel::run-sandboxed-hermetic` ships alongside
-  `run-sandboxed`: no new CLI flag, no wat-vm mode switch — the
+  `run-sandboxed`: no new CLI flag, no wat mode switch — the
   primitive name picks the semantic. Round-trip test proves
   `(eval-edn! (RunResult/stdout (run-sandboxed-hermetic inner-src ...)))`
   works end-to-end: wat generates wat, wat runs wat, wat

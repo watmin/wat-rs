@@ -2,14 +2,14 @@
 //!
 //! Per FOUNDATION.md § "Where Each Lives" (line 2088), each
 //! `wat/std/*.wat` file ships one stdlib form whose keyword path
-//! matches the file path. The wat-vm's startup pipeline registers
+//! matches the file path. The wat's startup pipeline registers
 //! these forms BEFORE user entry forms reach macro expansion, so any
 //! user program can reference `:wat::std::Subtract`, `:wat::std::Amplify`,
 //! etc. without an explicit `load!`.
 //!
 //! Files live in the repo under `wat/std/` and are compiled into the
 //! binary at build time. The runtime has no filesystem dependency for
-//! the stdlib — every deployment of `wat-vm` carries the same stdlib
+//! the stdlib — every deployment of `wat` carries the same stdlib
 //! bits.
 
 use crate::ast::WatAST;

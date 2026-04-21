@@ -25,7 +25,7 @@ Five slices, ordered:
 3. **Slice 3 — `:wat::test::*` stdlib.** `assert-eq`, `assert-
    contains`, `assert-stdout-is`, etc. Pure wat, built on
    run-sandboxed.
-4. **Slice 4 — `wat-vm test` CLI subcommand.** Discovers `.wat`
+4. **Slice 4 — `wat test` CLI subcommand.** Discovers `.wat`
    test files, runs each, reports pass/fail/time.
 5. **Slice 5 — `wat::Harness` Rust API.** Embedder surface — for
    Rust programs that host wat as a sub-language. Reuses a frozen
@@ -214,7 +214,7 @@ concerns, different arcs.
 ### Scaffolding for hermetic-mode (future arc)
 
 Arc 007 ships in-process testing. A future arc will add
-subprocess-per-test isolation under `wat-vm test --hermetic`.
+subprocess-per-test isolation under `wat test --hermetic`.
 To make that arc a clean extension rather than a breaking
 change, arc 007 bakes four scaffolding decisions into its
 deliverables:
@@ -234,13 +234,13 @@ deliverables:
    CLI contract supports `--run-one <id>` (not implemented in
    arc 007 but reserved).
 
-3. **`wat-vm test` CLI contract** leaves room for future flags
+3. **`wat test` CLI contract** leaves room for future flags
    without breaking the in-process default:
-   - `wat-vm test <path>` — run all tests under path, in-process,
+   - `wat test <path>` — run all tests under path, in-process,
      cargo-test-style report. (Arc 007 ships this.)
-   - `wat-vm test --hermetic <path>` — subprocess per test.
+   - `wat test --hermetic <path>` — subprocess per test.
      (Future arc.)
-   - `wat-vm test --run-one <id>` — single-test subprocess entry
+   - `wat test --run-one <id>` — single-test subprocess entry
      point. Emits a single `TestResult` JSON to stdout.
      (Future arc; the hermetic runner uses this.)
    Choose flag names now so future code doesn't collide with v1.
@@ -367,7 +367,7 @@ Each worth flagging explicitly because they're easy to miss:
    SIGUSR1/2/HUP flags are process-global. A sandboxed test
    observes the outer process's signals. Usually fine (tests are
    fast), but timing-sensitive tests could flake if the outer
-   wat-vm gets signaled mid-test. Documented in USER-GUIDE;
+   wat gets signaled mid-test. Documented in USER-GUIDE;
    not fixable cheaply.
 
 4. **Main-signature: strict three-channel.** `run-sandboxed`
@@ -558,7 +558,7 @@ the substrate; the macro is sugar.
 
 ---
 
-## Slice 4 — `wat-vm test` CLI subcommand
+## Slice 4 — `wat test` CLI subcommand
 
 The test runner. Discovers `.wat` files, runs each, reports.
 
@@ -571,7 +571,7 @@ the discovery.
 ### Invocation
 
 ```
-$ wat-vm test tests/
+$ wat test tests/
 running 12 tests
 test tests/hello.wat ... ok (3ms)
 test tests/pipeline.wat ... ok (12ms)

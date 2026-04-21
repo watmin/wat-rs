@@ -1,4 +1,4 @@
-//! `wat-vm` — the wat command-line runner.
+//! `wat` — the wat command-line runner.
 //!
 //! Reads an entry `.wat` file, runs the full startup pipeline, installs
 //! OS signal handlers (SIGINT + SIGTERM → kernel stop flag), passes the
@@ -54,7 +54,7 @@
 //! `(:wat::io::IOReader/read-line stdin)` to read one line at a time;
 //! each call returns `:(Some line)` on a successful read (trailing
 //! `\n` / `\r\n` stripped) or `:None` on EOF. The IOReader/IOWriter
-//! trait objects hide the backing — under wat-vm it's real OS stdio;
+//! trait objects hide the backing — under wat it's real OS stdio;
 //! under `run-sandboxed` (arc 007) it's a StringIo stand-in.
 
 use std::io;
@@ -109,7 +109,7 @@ fn install_signal_handlers() {
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().collect();
     if argv.len() != 2 {
-        eprintln!("usage: {} <entry.wat>", argv.first().map(String::as_str).unwrap_or("wat-vm"));
+        eprintln!("usage: {} <entry.wat>", argv.first().map(String::as_str).unwrap_or("wat"));
         return ExitCode::from(64); // EX_USAGE
     }
     let entry_path = &argv[1];
@@ -118,7 +118,7 @@ fn main() -> ExitCode {
     let source = match std::fs::read_to_string(entry_path) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("wat-vm: read {}: {}", entry_path, e);
+            eprintln!("wat: read {}: {}", entry_path, e);
             return ExitCode::from(66); // EX_NOINPUT
         }
     };
@@ -136,14 +136,14 @@ fn main() -> ExitCode {
     ) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("wat-vm: startup: {}", e);
+            eprintln!("wat: startup: {}", e);
             return ExitCode::from(1);
         }
     };
 
     // Enforce :user::main's required signature.
     if let Err(e) = validate_user_main_signature(&frozen) {
-        eprintln!("wat-vm: {}", e);
+        eprintln!("wat: {}", e);
         return ExitCode::from(3);
     }
 
@@ -177,7 +177,7 @@ fn main() -> ExitCode {
     match main_result {
         Ok(_) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("wat-vm: runtime: {}", e);
+            eprintln!("wat: runtime: {}", e);
             // Specific disconnect errors are expected in MVP — still
             // exit 2 so test harnesses see the failure, but the
             // message above tells the user what happened.

@@ -132,7 +132,7 @@ Three implementations ship in `wat::load`:
   files the program may see. Use for tests, sealed sandboxes,
   fixture-driven development.
 - **`FsLoader`** — unrestricted. Reads any file on disk the host
-  process has OS-level permission for. The CLI (`wat-vm`) uses
+  process has OS-level permission for. The CLI (`wat`) uses
   this; reach for it when the wat program is trusted host code.
 - **`ScopedLoader`** — clamped to a root directory. Canonical-
   path containment check on every read; rejects `../` traversal,

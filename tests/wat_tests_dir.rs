@@ -1,6 +1,6 @@
 //! Runs every `.wat` file in `wat-tests/` and asserts each reports
 //! only `<name>:PASS` lines on stdout. The Rust-side runner for the
-//! wat-tests/ convention, to be replaced by `wat-vm test wat-tests/`
+//! wat-tests/ convention, to be replaced by `wat test wat-tests/`
 //! when arc 007 slice 4 lands.
 
 use std::sync::Arc;

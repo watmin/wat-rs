@@ -1,8 +1,8 @@
-//! End-to-end integration tests for the `wat-vm` binary.
+//! End-to-end integration tests for the `wat` binary.
 //!
 //! Each test spawns a real subprocess via [`std::process::Command`],
 //! feeds real OS stdin, reads real OS stdout/stderr, and asserts on
-//! both output and exit code. Uses `env!("CARGO_BIN_EXE_wat-vm")` so
+//! both output and exit code. Uses `env!("CARGO_BIN_EXE_wat")` so
 //! Cargo points us at the just-built binary.
 
 use std::io::Write;
@@ -13,7 +13,7 @@ use std::process::{Command, Stdio};
 fn write_temp(contents: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir();
     let path = dir.join(format!(
-        "wat-vm-test-{}-{}.wat",
+        "wat-test-{}-{}.wat",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -26,7 +26,7 @@ fn write_temp(contents: &str) -> std::path::PathBuf {
 }
 
 /// Minimal `:user::main` that echoes stdin to stdout — the
-/// hello-world of the wat-vm. Exercises:
+/// hello-world of the wat. Exercises:
 /// - signature enforcement (3 args)
 /// - kernel send
 /// - kernel recv (one-line stdin semantic)
@@ -50,14 +50,14 @@ const ECHO_PROGRAM: &str = r#"
 #[test]
 fn echo_program_reads_stdin_writes_stdout() {
     let path = write_temp(ECHO_PROGRAM);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let mut child = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn wat-vm");
+        .expect("spawn wat");
 
     // Pipe "watmin\n" to child stdin.
     child
@@ -74,7 +74,7 @@ fn echo_program_reads_stdin_writes_stdout() {
 
     assert!(
         output.status.success(),
-        "wat-vm exit {:?}, stderr: {}",
+        "wat exit {:?}, stderr: {}",
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
@@ -134,14 +134,14 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
 #[test]
 fn programs_are_atoms_hello_world() {
     let path = write_temp(PROGRAMS_ARE_ATOMS_PROGRAM);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let mut child = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn wat-vm");
+        .expect("spawn wat");
 
     child
         .stdin
@@ -156,7 +156,7 @@ fn programs_are_atoms_hello_world() {
 
     assert!(
         output.status.success(),
-        "wat-vm exit {:?}, stderr: {}",
+        "wat exit {:?}, stderr: {}",
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
@@ -262,14 +262,14 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
 #[test]
 fn presence_proof_hello_world() {
     let path = write_temp(PRESENCE_PROOF_PROGRAM);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let mut child = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn wat-vm");
+        .expect("spawn wat");
 
     child
         .stdin
@@ -284,7 +284,7 @@ fn presence_proof_hello_world() {
 
     assert!(
         output.status.success(),
-        "wat-vm exit {:?}, stderr: {}",
+        "wat exit {:?}, stderr: {}",
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
@@ -305,12 +305,12 @@ fn missing_user_main_rejected() {
         (:wat::config::set-capacity-mode! :error)
     "#;
     let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
         .output()
-        .expect("spawn wat-vm");
+        .expect("spawn wat");
     let _ = std::fs::remove_file(&path);
 
     let code = output.status.code();
@@ -326,19 +326,19 @@ fn missing_user_main_rejected() {
 #[test]
 fn wrong_arity_user_main_rejected() {
     // :user::main declared with zero args — signature check rejects
-    // (wat-vm requires 3 args).
+    // (wat requires 3 args).
     let program = r#"
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
         (:wat::core::define (:user::main -> :()) ())
     "#;
     let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
         .output()
-        .expect("spawn wat-vm");
+        .expect("spawn wat");
     let _ = std::fs::remove_file(&path);
 
     assert_eq!(output.status.code(), Some(3));
@@ -364,12 +364,12 @@ fn wrong_arg_type_user_main_rejected() {
           ())
     "#;
     let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
         .output()
-        .expect("spawn wat-vm");
+        .expect("spawn wat");
     let _ = std::fs::remove_file(&path);
 
     assert_eq!(output.status.code(), Some(3));
@@ -383,16 +383,16 @@ fn wrong_arg_type_user_main_rejected() {
 
 #[test]
 fn usage_error_no_argv() {
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin).stdin(Stdio::null()).output().expect("spawn");
     assert_eq!(output.status.code(), Some(64));
 }
 
 #[test]
 fn missing_entry_file_is_ex_noinput() {
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
-        .arg("/nonexistent/wat-vm-test-missing.wat")
+        .arg("/nonexistent/wat-test-missing.wat")
         .stdin(Stdio::null())
         .output()
         .expect("spawn");
@@ -406,7 +406,7 @@ fn startup_error_bubbles_up_as_exit_1() {
         (:wat::algebra::Atom 42)
     "#;
     let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
@@ -415,7 +415,7 @@ fn startup_error_bubbles_up_as_exit_1() {
     let _ = std::fs::remove_file(&path);
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("wat-vm: startup:"));
+    assert!(stderr.contains("wat: startup:"));
 }
 
 #[test]
@@ -437,7 +437,7 @@ fn program_writes_multiple_times_to_stdout() {
             (:wat::io::IOWriter/print stdout "world")))
     "#;
     let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
@@ -496,7 +496,7 @@ fn stdlib_subtract_macro_expands_in_user_program() {
             (:wat::io::IOWriter/print stdout (:my::test::verdict other-score))))
     "#;
     let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
@@ -563,7 +563,7 @@ fn stdlib_circular_macro_near_and_far() {
             (:wat::io::IOWriter/print stdout (:my::test::verdict far-score))))
     "#;
     let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
@@ -628,7 +628,7 @@ fn stdlib_reject_project_gram_schmidt_duo() {
             (:wat::io::IOWriter/print stdout (:my::test::verdict rej-score))))
     "#;
     let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
@@ -692,7 +692,7 @@ fn stdlib_sequential_is_order_sensitive() {
             (:wat::io::IOWriter/print stdout (:my::test::verdict reorder))))
     "#;
     let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
@@ -762,16 +762,16 @@ fn stdlib_console_hello_world() {
             (:wat::kernel::join console-driver)))
     "#;
     let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
         .output()
-        .expect("spawn wat-vm");
+        .expect("spawn wat");
     let _ = std::fs::remove_file(&path);
     assert!(
         output.status.success(),
-        "wat-vm exit {:?}, stderr: {}",
+        "wat exit {:?}, stderr: {}",
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
@@ -836,16 +836,16 @@ fn stdlib_console_multi_writer() {
             (:wat::kernel::join console-driver)))
     "#;
     let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())
         .output()
-        .expect("spawn wat-vm");
+        .expect("spawn wat");
     let _ = std::fs::remove_file(&path);
     assert!(
         output.status.success(),
-        "wat-vm exit {:?}, stderr: {}",
+        "wat exit {:?}, stderr: {}",
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
@@ -912,7 +912,7 @@ fn stdlib_trigram_bundles_sequential_windows() {
             (:wat::io::IOWriter/print stdout (:my::test::verdict outsider))))
     "#;
     let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat-vm");
+    let bin = env!("CARGO_BIN_EXE_wat");
     let output = Command::new(bin)
         .arg(&path)
         .stdin(Stdio::null())

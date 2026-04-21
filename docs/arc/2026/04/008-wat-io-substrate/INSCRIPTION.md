@@ -62,7 +62,7 @@ counts); char-level layered on top as UTF-8 convenience.
 
 The slice that makes arc 007 unblockable.
 
-**CLI + validate_user_main_signature migrated.** `bin/wat-vm.rs`
+**CLI + validate_user_main_signature migrated.** `bin/wat.rs`
 now wraps real OS stdio as `Value::io__IOReader` /
 `Value::io__IOWriter`:
 

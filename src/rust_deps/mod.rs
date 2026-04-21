@@ -188,7 +188,7 @@ impl Default for RustDepsBuilder {
 }
 
 /// The finalized, read-only registry of Rust symbols available to the
-/// wat-vm. Installed once at startup via [`install`]; consulted by the
+/// wat. Installed once at startup via [`install`]; consulted by the
 /// resolver (to validate `use!` decls), the type checker (to look up
 /// schemes), and the runtime (to dispatch `:rust::...` calls).
 pub struct RustDepsRegistry {
@@ -214,7 +214,7 @@ impl RustDepsRegistry {
     }
 }
 
-/// Global registry slot. Set once at wat-vm startup; read by every
+/// Global registry slot. Set once at wat startup; read by every
 /// subsequent phase. [`get`] lazily initializes with wat-rs defaults
 /// if nothing was installed — lets unit tests run without explicit
 /// setup.
@@ -223,7 +223,7 @@ static REGISTRY: OnceLock<RustDepsRegistry> = OnceLock::new();
 /// Install a consumer-built registry. Must be called before any wat
 /// code runs. Returns `Err` if a registry has already been installed
 /// (e.g., tests ran first with the default). Idempotent no-op wrapper
-/// suitable for the `main.rs` entry of a custom wat-vm.
+/// suitable for the `main.rs` entry of a custom wat.
 pub fn install(registry: RustDepsRegistry) -> Result<(), &'static str> {
     REGISTRY
         .set(registry)
