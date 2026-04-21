@@ -1274,13 +1274,21 @@ fn infer_let_star(
     infer(&args[1], env, &extended, fresh, subst, errors)
 }
 
-/// Type-check `(:wat::kernel::spawn :fn::path arg1 arg2 ...)`.
+/// Type-check `(:wat::kernel::spawn <fn> arg1 arg2 ...)`.
 /// Variadic in the args (one per function parameter) — rank-1 HM
-/// can't express variadic schemes, so spawn is special-cased. First
-/// argument must be a keyword-path; remaining args are checked
-/// against the named function's parameter types looked up in the
-/// CheckEnv. Return type is `:ProgramHandle<R>` where R is the
-/// function's declared return type.
+/// can't express variadic schemes, so spawn is special-cased.
+///
+/// The first argument may be either of two shapes, mirroring the
+/// runtime dispatch (see `eval_kernel_spawn`):
+///
+/// - A keyword-path literal → the function's declared scheme is
+///   looked up in `CheckEnv` and instantiated.
+/// - Any expression whose inferred type is `:fn(T1,T2,...)->R` → the
+///   parameter types and return type come from the inferred Fn type
+///   directly.
+///
+/// Either way, the remaining args are unified against the parameter
+/// types, and the spawn's return is `:ProgramHandle<R>`.
 fn infer_spawn(
     args: &[WatAST],
     env: &CheckEnv,
@@ -1300,39 +1308,63 @@ fn infer_spawn(
             args: vec![fresh.fresh()],
         });
     }
-    let fn_path = match &args[0] {
-        WatAST::Keyword(k) => k.clone(),
-        _ => {
-            errors.push(CheckError::MalformedForm {
-                head: ":wat::kernel::spawn".into(),
-                reason: "first argument must be a function keyword path".into(),
-            });
-            return Some(TypeExpr::Parametric {
-                head: "wat::kernel::ProgramHandle".into(),
-                args: vec![fresh.fresh()],
-            });
-        }
-    };
-    let scheme = match env.get(&fn_path) {
-        Some(s) => s.clone(),
-        None => {
-            // Function not registered — may be a primitive / future
-            // slice / driver. Produce a ProgramHandle<?> so the call
-            // site keeps checking.
-            for arg in &args[1..] {
-                let _ = infer(arg, env, locals, fresh, subst, errors);
+    // Resolve the first arg's signature — keyword path path or
+    // infer-and-extract-Fn path.
+    let (param_types, ret_type, callee_label) = match &args[0] {
+        WatAST::Keyword(fn_path) => match env.get(fn_path) {
+            Some(scheme) => {
+                let (ps, r) = instantiate(&scheme.clone(), fresh);
+                (ps, r, format!(":wat::kernel::spawn {}", fn_path))
             }
-            return Some(TypeExpr::Parametric {
-                head: "wat::kernel::ProgramHandle".into(),
-                args: vec![fresh.fresh()],
-            });
+            None => {
+                // Function not registered — may be a primitive / future
+                // slice / driver. Produce a ProgramHandle<?> so the call
+                // site keeps checking.
+                for arg in &args[1..] {
+                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "wat::kernel::ProgramHandle".into(),
+                    args: vec![fresh.fresh()],
+                });
+            }
+        },
+        _ => {
+            // Non-keyword: infer as a value, expect `:fn(...)->R`.
+            let inferred = infer(&args[0], env, locals, fresh, subst, errors);
+            let fn_ty = match inferred {
+                Some(t) => apply_subst(&t, subst),
+                None => {
+                    return Some(TypeExpr::Parametric {
+                        head: "wat::kernel::ProgramHandle".into(),
+                        args: vec![fresh.fresh()],
+                    });
+                }
+            };
+            match fn_ty {
+                TypeExpr::Fn { args: ps, ret } => (ps, *ret, ":wat::kernel::spawn <lambda>".to_string()),
+                other => {
+                    errors.push(CheckError::TypeMismatch {
+                        callee: ":wat::kernel::spawn".into(),
+                        param: "#1".into(),
+                        expected: "function keyword path or fn(...) value".into(),
+                        got: format_type(&apply_subst(&other, subst)),
+                    });
+                    for arg in &args[1..] {
+                        let _ = infer(arg, env, locals, fresh, subst, errors);
+                    }
+                    return Some(TypeExpr::Parametric {
+                        head: "wat::kernel::ProgramHandle".into(),
+                        args: vec![fresh.fresh()],
+                    });
+                }
+            }
         }
     };
-    let (param_types, ret_type) = instantiate(&scheme, fresh);
     let spawn_args = &args[1..];
     if spawn_args.len() != param_types.len() {
         errors.push(CheckError::ArityMismatch {
-            callee: format!(":wat::kernel::spawn {}", fn_path),
+            callee: callee_label.clone(),
             expected: param_types.len(),
             got: spawn_args.len(),
         });
@@ -1341,7 +1373,7 @@ fn infer_spawn(
         if let Some(arg_ty) = infer(arg, env, locals, fresh, subst, errors) {
             if unify(&arg_ty, expected, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
-                    callee: format!(":wat::kernel::spawn {}", fn_path),
+                    callee: callee_label.clone(),
                     param: format!("#{}", i + 1),
                     expected: format_type(&apply_subst(expected, subst)),
                     got: format_type(&apply_subst(&arg_ty, subst)),

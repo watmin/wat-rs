@@ -4863,22 +4863,37 @@ fn eval_kernel_spawn(
     if args.is_empty() {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::kernel::spawn".into(),
-            expected: 1, // minimum — function-path keyword
+            expected: 1, // minimum — function keyword path or lambda value
             got: 0,
         });
     }
-    let fn_path = match &args[0] {
-        WatAST::Keyword(k) => k.clone(),
-        _ => {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::kernel::spawn".into(),
-                reason: "first argument must be a function keyword path (e.g., :my::app::worker)".into(),
-            });
-        }
-    };
-    let func = match sym.get(&fn_path) {
-        Some(f) => f.clone(),
-        None => return Err(RuntimeError::UnknownFunction(fn_path)),
+    // Accept both shapes as the first argument, mirroring `apply_value`:
+    //
+    // - A keyword literal — look up in `sym.functions` (the classic
+    //   named-define path; backward-compatible).
+    // - Any expression that evaluates to a `Value::wat__core__lambda` —
+    //   let-bound lambdas, lambda-valued params, inline `(:wat::core::lambda ...)`.
+    //
+    // Both produce the same `Arc<Function>`; the trampoline inside
+    // `apply_function` already handles both variants (closed_env for
+    // lambdas, fresh root for defines). The relaxation removes the
+    // need for callers (stream combinators, generic workers) to
+    // work around spawn's keyword-only restriction.
+    let func = match &args[0] {
+        WatAST::Keyword(k) => match sym.get(k) {
+            Some(f) => f.clone(),
+            None => return Err(RuntimeError::UnknownFunction(k.clone())),
+        },
+        _ => match eval(&args[0], env, sym)? {
+            Value::wat__core__lambda(f) => f,
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: ":wat::kernel::spawn".into(),
+                    expected: "function keyword path or lambda value",
+                    got: other.type_name(),
+                });
+            }
+        },
     };
     let mut arg_values = Vec::with_capacity(args.len() - 1);
     for a in &args[1..] {
@@ -7507,9 +7522,13 @@ mod tests {
     }
 
     #[test]
-    fn spawn_refuses_non_keyword_head() {
+    fn spawn_refuses_non_callable_head() {
+        // Per the 2026-04-20 relaxation, spawn accepts a keyword path
+        // OR any expression that evaluates to a lambda value. An int
+        // literal is neither — `eval` produces Value::i64, the lambda
+        // extraction fails, TypeMismatch fires.
         let err = eval_expr("(:wat::kernel::spawn 42)").unwrap_err();
-        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
     #[test]
