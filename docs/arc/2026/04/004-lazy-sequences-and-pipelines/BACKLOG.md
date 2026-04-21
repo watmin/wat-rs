@@ -156,6 +156,41 @@ Regression tests: `tests/wat_typealias.rs::alias_over_hashmap_passes_through_std
 and `alias_over_fn_type_works_at_spawn` exercise the sites the
 old half-passes would have missed.
 
+### Lesson — write it down so we don't forget
+
+**When the shape you expect to find in the substrate isn't there,
+that's a direction indicator — not a gap to paper over.**
+
+Mature type systems have one normalization pass. Every consumer
+calls it; nobody can accidentally skip a step. wat-rs had two
+half-passes (`apply_subst` for Vars, `expand_alias` for typealiases)
+that every shape-inspection site had to chain manually — and half
+of them didn't. The asymmetry was invisible until the stream stdlib
+exposed it through a `first` / `second` call on `Stream<T>`.
+
+The cheap move was to patch `infer_positional_accessor` and write a
+BACKLOG note listing the remaining sites. That's what the first
+pass did. It would have worked — every future bite a one-line edit
+with a clear diagnostic trail.
+
+The honest move was to ask *why the gap existed at all*. A mature
+language has `reduce`. We had two half-passes because the substrate
+is under construction and the shape hadn't settled yet. Sitting
+with **"this feels like a core issue — we thought it would be here
+and it wasn't, that's a direction indication something we expected
+to find in a mature language wasn't there"** was the forcing
+question.
+
+**The pattern to keep**: when a feature you expect to find in the
+substrate isn't there, treat that absence as a signal. It doesn't
+mean we're wrong about what should be there; it means the substrate
+hasn't finished becoming what it needs to be, and the gap is
+pointing at the next piece of work. Ask *why* it's missing before
+you write a patch.
+
+This is how the "mature" comes in. Not by copying features from
+other languages — by sitting with the absences.
+
 ---
 
 ## What this backlog does NOT include
