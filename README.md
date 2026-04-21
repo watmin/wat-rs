@@ -70,9 +70,10 @@ language is complete for its own verification,"* held.
 first-class data in the algebra. Arc 010's `:wat::core::forms` ships
 the variadic-quote substrate so AST-consuming callers compose without
 per-form quote ceremony. `:wat::algebra::presence?` (FOUNDATION 1718) is
-the retrieval primitive — cosine between encoded holons, returning
-scalar `:f64` the caller binarizes against the 5σ noise floor committed
-at config pass.
+the retrieval primitive — cosine between encoded holons binarized
+against the 5σ noise floor committed at config pass; returns `:bool`.
+For the raw scalar, use `:wat::algebra::cosine` (returns `:f64`) and
+compare against `:wat::config::noise-floor` yourself.
 
 **Rust interop operational.** The `:rust::` namespace carries any
 consumer-registered Rust type. `:rust::lru::LruCache<K,V>` ships as a

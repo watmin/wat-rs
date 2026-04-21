@@ -499,63 +499,124 @@ Console and Cache stdlib programs do.
 
 ---
 
-## 8. Pipelines — the canonical streaming pattern
+## 8. Pipelines — streams with the stdlib
 
 A pipeline is N stages, each its own wat program, each reading from
 its upstream and writing to its downstream. Edges are `bounded(1)`
-channels. Each stage's state is local; channels are the only
-coupling; backpressure is automatic.
+channels. Each stage's state is local; channels are the only coupling;
+backpressure is automatic.
 
-```scheme
-;; Stage 1 — 1:1 transform
-(:wat::core::define (:my::app::enrich
-                    (in  :Receiver<RawCandle>)
-                    (out :Sender<EnrichedCandle>)
-                    -> :())
-  (:wat::core::match (:wat::kernel::recv in) -> :()
-    ((Some raw)
-      (:wat::core::let*
-        (((enriched :EnrichedCandle) (:my::app::enrich-candle raw))
-         ((_ :Option<()>) (:wat::kernel::send out enriched)))
-        (:my::app::enrich in out)))    ;; tail call — recurse
-    (:None ())))                        ;; upstream disconnected; done
+`:wat::std::stream::*` wraps the raw spawn-and-wire pattern into
+composable combinators. Every stage is a tail-recursive worker (arc
+003's TCO is what makes that run indefinitely); the stdlib handles
+the spawn + queue + drop-cascade plumbing.
 
-;; Stage 2 — N:1 batcher with end-of-stream flush
-(:wat::core::define (:my::app::batch
-                    (in  :Receiver<EnrichedCandle>)
-                    (out :Sender<Vec<EnrichedCandle>>)
-                    (size :i64)
-                    (buffer :Vec<EnrichedCandle>)
-                    -> :())
-  (:wat::core::match (:wat::kernel::recv in) -> :()
-    ((Some item)
-      (:wat::core::let*
-        (((new-buffer :Vec<EnrichedCandle>) (:wat::core::conj buffer item)))
-        (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size) -> :()
-          (:wat::core::let*
-            (((_ :Option<()>) (:wat::kernel::send out new-buffer)))
-            (:my::app::batch in out size (:wat::core::vec :EnrichedCandle)))
-          (:my::app::batch in out size new-buffer))))
-    (:None
-      ;; upstream disconnected — flush any remaining items
-      (:wat::core::if (:wat::core::empty? buffer) -> :()
-        ()
-        (:wat::core::match (:wat::kernel::send out buffer) -> :()
-          ((Some _) ())
-          (:None ()))))))
+### The combinators
+
+```
+Stream<T> = :(Receiver<T>, ProgramHandle<()>)
+
+spawn-producer  f                → Stream<T>     -- f writes to Sender<T>
+from-receiver   rx handle        → Stream<T>     -- wrap an existing pair
+
+map             stream f         → Stream<U>     -- 1:1 transform
+filter          stream pred      → Stream<T>     -- 1:0..1 keep predicate
+inspect         stream f         → Stream<T>     -- 1:1 side-effect, forward value
+flat-map        stream f         → Stream<U>     -- 1:N expansion
+chunks          stream size      → Stream<Vec<T>> -- N:1 batcher; flushes at EOS
+take            stream n         → Stream<T>     -- first n items, then exit
+with-state      stream init step flush → Stream<U>  -- Mealy-machine stage
+
+for-each        stream handler   → :()           -- terminal: drive to EOS
+collect         stream           → :Vec<T>       -- terminal: accumulate
+fold            stream init f    → :Acc          -- terminal: aggregate
 ```
 
-**Note the recursion.** Every stage is tail-recursive — each branch
-ends in either a self-call (continuing the loop) or a terminal
-action (flushing + exit). Arc 003's TCO is what lets these stages
-run indefinitely without stack growth.
+### Example: map + chunks + collect
 
-**The pipeline stdlib** (arc 004) will wrap this ceremony so you
-write stages more concisely. Until it ships, the pattern above is
-the shape.
+```scheme
+(:wat::core::use! :rust::crossbeam_channel::Sender)
 
-See `ZERO-MUTEX.md` sections on Tier 3 and the `arc/2026/04/004-*`
-doc for the full stream design.
+(:wat::core::define (:my::app::enrich-candle (raw :RawCandle) -> :EnrichedCandle)
+  ...)
+
+(:wat::core::define (:user::main
+                     (stdin :wat::io::IOReader)
+                     (stdout :wat::io::IOWriter)
+                     (stderr :wat::io::IOWriter)
+                     -> :())
+  (:wat::core::let*
+    (((raw :wat::std::stream::Stream<RawCandle>)
+      (:wat::std::stream::spawn-producer :my::app::candle-source))
+     ((enriched :wat::std::stream::Stream<EnrichedCandle>)
+      (:wat::std::stream::map raw :my::app::enrich-candle))
+     ((batched :wat::std::stream::Stream<Vec<EnrichedCandle>>)
+      (:wat::std::stream::chunks enriched 100))
+     ((collected :Vec<Vec<EnrichedCandle>>)
+      (:wat::std::stream::collect batched)))
+    ()))
+```
+
+Each stage is its own spawned worker. `bounded(1)` queues give
+backpressure. Consumer-drop cascades upstream naturally: when
+`collect` returns, its Receiver drops, the chunks stage sees `:None`
+on its next send, its Sender drops, map's next send returns `:None`,
+etc. — the whole pipeline shuts down cleanly without explicit
+coordination.
+
+**Named functions as stage arguments.** Arc 009 (names-are-values)
+lets you pass a registered define by bare keyword-path to any
+`:fn(...)`-typed slot. `(:wat::std::stream::map raw :my::app::enrich-candle)`
+works; no lambda wrapper needed.
+
+### `with-state` — custom stateful stages
+
+Every stateful stage reducer — chunks, dedupe, distinct-until-changed,
+window, sessionize, running-stats — is a `(init, step, flush)` triple
+over `with-state`:
+
+```
+step  : (Acc, T) -> (Acc, Vec<U>)   -- consume one T; produce updated Acc + items to emit
+flush : Acc      -> Vec<U>           -- final emission at upstream EOS
+```
+
+Example — **dedupe-adjacent** (collapse runs of equal items):
+
+```scheme
+(:wat::core::define (:my::dedupe-step (last :Option<i64>) (item :i64)
+                    -> :(Option<i64>,Vec<i64>))
+  (:wat::core::match last -> :(Option<i64>,Vec<i64>)
+    (:None (:wat::core::tuple (Some item) (:wat::core::vec :i64 item)))
+    ((Some prev)
+      (:wat::core::if (:wat::core::= prev item) -> :(Option<i64>,Vec<i64>)
+        (:wat::core::tuple last (:wat::core::vec :i64))         ;; duplicate; swallow
+        (:wat::core::tuple (Some item) (:wat::core::vec :i64 item))))))
+
+(:wat::core::define (:my::dedupe-flush (_ :Option<i64>) -> :Vec<i64>)
+  (:wat::core::vec :i64))   ;; nothing to emit at EOS
+
+;; in :user::main
+(:wat::std::stream::with-state stream :None
+  :my::dedupe-step
+  :my::dedupe-flush)
+```
+
+Convergence note: this is Elixir's `Stream.transform/3`, Rust's
+scan-with-emit, Haskell's `mapAccumL`, George Mealy's 1955 machine —
+same (init, step, flush) triple found by independent paths under the
+substrate pressure. See `arc/2026/04/006-stream-stdlib-completions/`
+for the decomposition story.
+
+### What the stdlib wraps
+
+If you want to see the machinery, `wat/std/stream.wat` is the source.
+Each combinator is a named tail-recursive worker plus a thin wrapper
+that spawns it with a bounded(1) queue. The manual pattern is still
+honest — if your use case needs something bespoke, write it directly.
+The stdlib just captures the shapes that recurred.
+
+See `ZERO-MUTEX.md` sections on Tier 3 and the `arc/2026/04/004-*` +
+`arc/2026/04/006-*` docs for the full stream design.
 
 ---
 
@@ -645,7 +706,7 @@ any of these types.
 
 ---
 
-## 10. Caching — LocalCache vs Cache program
+## 10. Caching — LocalCache vs Cache service
 
 ### LocalCache — per-program hot cache
 
@@ -783,7 +844,153 @@ table.
 
 ---
 
-## 13. Common gotchas
+## 13. Testing — wat tests wat
+
+`:wat::test::*` is the stdlib test harness. Tests are wat functions;
+the language verifies itself through the primitives it defines.
+
+### Convention
+
+Tests live in `wat-tests/` alongside your `wat/` source. Layout
+mirrors one-to-one: `wat/std/Subtract.wat` → `wat-tests/std/Subtract.wat`.
+
+Each test file uses `:wat::test::deftest` to register named test
+functions. `wat test wat-tests/` discovers them by name prefix and
+signature — any top-level define whose path's final segment starts
+with `test-` and whose signature is `() -> :wat::kernel::RunResult`
+is a test.
+
+### Writing a test — `deftest`
+
+```scheme
+(:wat::test::deftest :my::app::test-two-plus-two 1024 :error
+  (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
+```
+
+`deftest` takes:
+- **name** — the test's keyword path (last segment must start with
+  `test-` for auto-discovery)
+- **dims** — the `:wat::config::set-dims!` value for this test's
+  sandbox
+- **mode** — the `:wat::config::set-capacity-mode!` value
+- **body** — one expression; the test's actual logic
+
+It expands to a named zero-arg function that, when invoked, returns
+a `:wat::kernel::RunResult`. The `wat test` CLI invokes each
+discovered function, inspects the RunResult's failure slot, reports
+cargo-style.
+
+### Assertion primitives
+
+```
+:wat::test::assert-eq<T>          a b
+:wat::test::assert-contains       haystack needle     -- strings
+:wat::test::assert-stdout-is      run-result expected-lines
+:wat::test::assert-stderr-matches run-result pattern  -- regex, unanchored
+```
+
+All four are panic-and-catch. A failing assertion panics with an
+`AssertionPayload`; the deftest's surrounding sandbox catches it
+and populates the returned RunResult's `Failure` struct.
+
+### Running tests
+
+```
+$ wat test wat-tests/
+running 31 tests
+test stream.wat :: wat-tests::std::stream::test-chunks-exact-multiple ... ok (2ms)
+test test.wat :: wat-tests::std::test::test-assert-eq-on-i64 ......... ok (1ms)
+...
+test result: ok. 31 passed; 0 failed; finished in 107ms
+```
+
+- Recursive directory traversal
+- Random-ordered per file (surfaces accidental order-dependencies)
+- Cargo-style output; exit 0 all-pass, non-zero any fail
+- `wat test <file.wat>` works for single files too
+
+### Fork/sandbox tests — when you need an inner program
+
+Sometimes a test wants to verify how an INNER program behaves — its
+stdout, its stderr, its assertion-failure payload. Pair
+`:wat::test::run-ast` with `:wat::test::program`:
+
+```scheme
+(:wat::test::deftest :my::test-captures-inner-output 1024 :error
+  (:wat::core::let*
+    (((r :wat::kernel::RunResult)
+      (:wat::test::run-ast
+        (:wat::test::program
+          (:wat::config::set-dims! 1024)
+          (:wat::config::set-capacity-mode! :error)
+          (:wat::core::define
+            (:user::main
+              (stdin :wat::io::IOReader)
+              (stdout :wat::io::IOWriter)
+              (stderr :wat::io::IOWriter)
+              -> :())
+            (:wat::io::IOWriter/println stdout "hello-from-inside")))
+        (:wat::core::vec :String)))
+     ((lines :Vec<String>) (:wat::kernel::RunResult/stdout r)))
+    (:wat::test::assert-eq (:wat::core::first lines) "hello-from-inside")))
+```
+
+`:wat::test::program` is a variadic defmacro over `:wat::core::forms`
+— each top-level form passes through as AST data. No strings, no
+escape-hell. Inner programs nest arbitrarily deep as pure
+s-expressions.
+
+`:wat::test::run` (with a `:String` source argument) still exists
+for callers that build programs dynamically at runtime — fuzzers,
+template expansion, program-generating-programs. For hand-written
+tests, `run-ast + program` is the clean shape.
+
+### When to use hermetic — services that spawn threads
+
+In-process `:wat::test::run{-ast}` uses `StringIo` stdio under
+`ThreadOwnedCell` — single-thread discipline. Services like Console
+and Cache spawn driver threads; writing from a driver thread would
+trip the thread-owner check.
+
+For those tests, use `:wat::kernel::run-sandboxed-hermetic` directly
+— a fresh subprocess with real thread-safe stdio:
+
+```scheme
+(:wat::test::deftest :my::test-console-hello 1024 :error
+  (:wat::core::let*
+    (((r :wat::kernel::RunResult)
+      (:wat::kernel::run-sandboxed-hermetic
+        "...source text for subprocess..."
+        (:wat::core::vec :String)
+        :None))
+     ((lines :Vec<String>) (:wat::kernel::RunResult/stdout r)))
+    (:wat::test::assert-eq (:wat::core::first lines) "hello via Console")))
+```
+
+**Decision rule:** spawns-and-writes → hermetic. Stays-on-main-thread
+→ in-process.
+
+### Rust-side embedding — `wat::Harness`
+
+For Rust programs that host wat as a sub-language:
+
+```rust
+use wat::Harness;
+
+let h = Harness::from_source(src)?;
+let out = h.run(&["stdin line 1", "stdin line 2"])?;
+assert_eq!(out.stdout, vec!["captured".to_string()]);
+```
+
+Thin wrapper over `startup_from_source` + `invoke_user_main` + stdio
+snapshot. Good when you want wat at the library level rather than
+shelling out to the `wat` binary. Not a sandbox — no panic isolation;
+for containment, call `:wat::kernel::run-sandboxed` from inside your
+wat program. See `arc/2026/04/007-wat-tests-wat/INSCRIPTION.md`.
+
+---
+
+## 14. Common gotchas
 
 **Wrong-thread access on a thread_owned type.** If you pass a
 `LocalCache` (or any `thread_owned` value) across `spawn`, the
@@ -826,18 +1033,30 @@ if verification fails.
 
 ---
 
-## 14. Where to go next
+## 15. Where to go next
 
 - **`../README.md`** — the crate-level README. What's shipped,
   status, test counts, API highlights.
+- **`CONVENTIONS.md`** — naming rules for new primitives and the
+  three gates on adding one (stdlib-as-blueprint, absence-is-signal,
+  verbose-is-honest).
 - **`ZERO-MUTEX.md`** — the concurrency architecture stated as
   principle. The three tiers in depth; every "I need a Mutex"
-  scenario mapped to a tier; what Rust contributes over Ruby.
-- **`arc/2026/04/*/DESIGN.md`** — per-slice design notes:
-  - `001-caching-stack/` — LocalCache + Cache program
-  - `002-rust-interop-macro/` — `#[wat_dispatch]` internals
-  - `003-tail-call-optimization/` — the TCO design
+  scenario mapped to a tier.
+- **`arc/2026/04/*/`** — per-slice design + inscription notes:
+  - `001-caching-stack/` — LocalCache + Cache service
+  - `002-rust-interop-macro/` — `#[wat_dispatch]` internals +
+    namespace-honesty principle
+  - `003-tail-call-optimization/` — TCO trampoline
   - `004-lazy-sequences-and-pipelines/` — the stream stdlib design
+  - `005-stdlib-naming-audit/` — naming discipline
+  - `006-stream-stdlib-completions/` — with-state + chunks rewrite
+  - `007-wat-tests-wat/` — self-hosted testing (run-sandboxed,
+    `:wat::test::*`, `wat test` CLI, `wat::Harness`)
+  - `008-wat-io-substrate/` — `:u8`, `:wat::io::IOReader` / `IOWriter`,
+    StringIo stand-ins
+  - `009-names-are-values/` — pass a named define by bare keyword-path
+  - `010-variadic-quote/` — `:wat::core::forms` + `:wat::test::program`
 - **`holon-lab-trading/docs/proposals/2026/04/058-ast-algebra-surface/`**
   — FOUNDATION.md (the specification), 32 sub-proposals, the
   FOUNDATION-CHANGELOG. The source of truth for every design
@@ -901,7 +1120,37 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::algebra::Thermometer` | `value min max` | `:holon::HolonAST` |
 | `:wat::algebra::Blend` | `a b w1 w2` | `:holon::HolonAST` |
 | `:wat::algebra::cosine` / `dot` | `a b` | `:f64` |
-| `:wat::algebra::presence?` | `target reference-vec` | `:f64` |
+| `:wat::algebra::presence?` | `target reference` | `:bool` — cosine(target,ref) > noise-floor |
+| `:wat::core::quote` | `<form>` | `:wat::WatAST` — captures AST as data |
+| `:wat::core::forms` | `f1 f2 ... fn` | `:Vec<wat::WatAST>` — variadic quote |
+| `:wat::core::conj` | `vec item` | `:Vec<T>` — immutable append |
+| `:wat::core::eval-ast!` / `eval-edn!` | various | evaluates AST / parses+evaluates string |
+| `:wat::core::eval-digest!` / `eval-signed!` | verified | evaluates with SHA-256 / Ed25519 check |
+| `:wat::core::string::contains?` / `starts-with?` / `ends-with?` | `hay needle` | `:bool` |
+| `:wat::core::string::length` | `s` | `:i64` — char count |
+| `:wat::core::string::trim` | `s` | `:String` |
+| `:wat::core::string::split` / `join` | `hay sep` / `sep pieces` | `:Vec<String>` / `:String` |
+| `:wat::core::regex::matches?` | `pattern haystack` | `:bool` — unanchored |
+| `:wat::kernel::run-sandboxed` | `src stdin scope` | `:wat::kernel::RunResult` |
+| `:wat::kernel::run-sandboxed-ast` | `forms stdin scope` | `:wat::kernel::RunResult` |
+| `:wat::kernel::run-sandboxed-hermetic` | `src stdin scope` | `:wat::kernel::RunResult` — subprocess |
+| `:wat::kernel::assertion-failed!` | `message actual expected` | `:()` — panics with AssertionPayload |
+| `:wat::std::stream::spawn-producer` | `producer-fn` | `:Stream<T>` |
+| `:wat::std::stream::from-receiver` | `rx handle` | `:Stream<T>` |
+| `:wat::std::stream::map` / `filter` / `inspect` | `stream f` | `:Stream<U>` / `:Stream<T>` / `:Stream<T>` |
+| `:wat::std::stream::flat-map` | `stream f` | `:Stream<U>` |
+| `:wat::std::stream::chunks` | `stream size` | `:Stream<Vec<T>>` |
+| `:wat::std::stream::take` | `stream n` | `:Stream<T>` |
+| `:wat::std::stream::with-state` | `stream init step flush` | `:Stream<U>` |
+| `:wat::std::stream::for-each` | `stream handler` | `:()` — terminal |
+| `:wat::std::stream::collect` / `fold` | `stream` / `stream init f` | `:Vec<T>` / `:Acc` |
+| `:wat::test::deftest` | `name dims mode body` | registers named zero-arg RunResult-returning fn |
+| `:wat::test::assert-eq<T>` | `actual expected` | `:()` — panics on mismatch |
+| `:wat::test::assert-contains` | `haystack needle` | `:()` |
+| `:wat::test::assert-stdout-is` / `assert-stderr-matches` | `run-result expected` / `result regex` | `:()` |
+| `:wat::test::run` / `run-in-scope` | `src stdin` / `src stdin scope` | `:wat::kernel::RunResult` — string-entry |
+| `:wat::test::run-ast` | `forms stdin` | `:wat::kernel::RunResult` — AST-entry |
+| `:wat::test::program` | `f1 f2 ... fn` | `:Vec<wat::WatAST>` — macro → `:wat::core::forms` |
 
 ---
 
