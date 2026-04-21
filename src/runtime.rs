@@ -135,6 +135,12 @@ pub fn reset_user_signals() {
 pub enum Value {
     bool(bool),
     i64(i64),
+    /// `:u8` — unsigned 8-bit integer, 0..=255. Produced by
+    /// `:wat::core::u8` (range-checked cast from i64), consumed by
+    /// byte-oriented IO (`:wat::io::read`, `:wat::io::write`) and
+    /// `:Vec<u8>` carriers. Arithmetic is wrapping per Rust's
+    /// default u8 semantics. Slice 1 of arc 008.
+    u8(u8),
     f64(f64),
     String(Arc<String>),
     /// A `Vec<Value>` — constructed by `:wat::core::vec`.
@@ -275,6 +281,7 @@ impl Value {
         match self {
             Value::bool(_) => "bool",
             Value::i64(_) => "i64",
+            Value::u8(_) => "u8",
             Value::f64(_) => "f64",
             Value::String(_) => "String",
             Value::Vec(_) => "Vec",
@@ -1612,6 +1619,9 @@ fn dispatch_keyword_head(
         ":wat::core::rest" => eval_vec_rest(args, env, sym),
         ":wat::std::list::map-with-index" => eval_list_map_with_index(args, env, sym),
 
+        // :u8 range-checked cast from :i64. Arc 008 slice 1.
+        ":wat::core::u8" => eval_u8_cast(args, env, sym),
+
         // Integer arithmetic — strict i64. No promotion from f64.
         ":wat::core::i64::+" => eval_i64_arith(head, args, env, sym, |a, b| Ok(a + b)),
         ":wat::core::i64::-" => eval_i64_arith(head, args, env, sym, |a, b| Ok(a - b)),
@@ -2236,6 +2246,42 @@ where
     }
 }
 
+/// `:wat::core::u8 <i64-expr>` — range-checked cast from `:i64` to
+/// `:u8`. Arc 008 slice 1. Rejects values outside 0..=255 at runtime
+/// with a MalformedForm describing the offending value. The argument
+/// type is enforced statically; this primitive only runs if the
+/// checker saw an `:i64` at the call site.
+fn eval_u8_cast(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::u8".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    match v {
+        Value::i64(n) => {
+            if !(0..=255).contains(&n) {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::u8".into(),
+                    reason: format!("value {} out of :u8 range 0..=255", n),
+                });
+            }
+            Ok(Value::u8(n as u8))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::u8".into(),
+            expected: "i64",
+            got: other.type_name(),
+        }),
+    }
+}
+
 /// Float arith: `:wat::core::f64::{+,-,*,/}`. Strictly f64 × f64 →
 /// f64. No promotion; an i64 arg is a type error.
 fn eval_f64_arith<F>(
@@ -2290,6 +2336,7 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
     let b = eval(&args[1], env, sym)?;
     let order = match (&a, &b) {
         (Value::i64(x), Value::i64(y)) => x.cmp(y),
+        (Value::u8(x), Value::u8(y)) => x.cmp(y),
         (Value::f64(x), Value::f64(y)) => x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal),
         (Value::i64(x), Value::f64(y)) => (*x as f64)
             .partial_cmp(y)

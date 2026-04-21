@@ -2531,10 +2531,22 @@ fn derive_scheme_from_function(func: &Function) -> Option<TypeScheme> {
 
 fn register_builtins(env: &mut CheckEnv) {
     let i64_ty = || TypeExpr::Path(":i64".into());
+    let u8_ty = || TypeExpr::Path(":u8".into());
     let f64_ty = || TypeExpr::Path(":f64".into());
     let bool_ty = || TypeExpr::Path(":bool".into());
     let holon_ty = || TypeExpr::Path(":holon::HolonAST".into());
     let t_var = || TypeExpr::Path(":T".into());
+
+    // :u8 range-checked cast from :i64. Arc 008 slice 1. Runtime
+    // rejects out-of-range values (0..=255) with a MalformedForm.
+    env.register(
+        ":wat::core::u8".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty()],
+            ret: u8_ty(),
+        },
+    );
 
     // Integer arithmetic — strict i64 × i64 → i64 under the
     // `:wat::core::i64::*` namespace.

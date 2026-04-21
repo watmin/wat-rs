@@ -12,12 +12,13 @@ substituted for in-memory buffers).
 
 | Slice | Item | Status | Commit |
 |---|---|---|---|
-| 1 | `:u8` primitive type — parser | pending | — |
-| 1 | `:u8` primitive type — type checker | pending | — |
-| 1 | `Value::u8` variant + type_name | pending | — |
-| 1 | `:Vec<u8>` parametric plumbing | pending | — |
-| 1 | `:wat::core::u8::+/-/*//` arithmetic (wrapping) | pending | — |
-| 1 | slice 1 tests | pending | — |
+| 1 | `:u8` primitive type — parser | **done** (transparent via TypeExpr::Path) | this slice |
+| 1 | `:u8` primitive type — type checker | **done** (scheme for `:wat::core::u8` registered) | this slice |
+| 1 | `Value::u8` variant + type_name | **done** | this slice |
+| 1 | `:Vec<u8>` parametric plumbing | **done** (works via existing `:Vec<T>` infra) | this slice |
+| 1 | `:wat::core::u8` range-checked cast primitive | **done** | this slice |
+| 1 | `:wat::core::u8::+/-/*//` arithmetic (wrapping) | **deferred** — no caller demand yet; stdlib-as-blueprint | — |
+| 1 | slice 1 tests | **done** (9 tests in `tests/wat_u8.rs`) | this slice |
 | 2 | `WatReader` + `WatWriter` traits | pending | — |
 | 2 | `Value::io__IOReader` + `Value::io__IOWriter` variants | pending | — |
 | 2 | `RealStdin` / `RealStdout` / `RealStderr` impls (wrap Rust handles) | pending | — |
@@ -77,6 +78,15 @@ substituted for in-memory buffers).
   internally when you call `lock()`. That's Rust's stdlib's
   concurrency story, not wat's. Wat claims zero-Mutex in its own
   code; transitive deps have their own disciplines.
+- **2026-04-21** — Slice 1 shipped. `:u8` exists as a primitive
+  type. Cast primitive `:wat::core::u8` takes `:i64` and
+  range-checks at runtime (0..=255 or MalformedForm). Comparison
+  works via existing polymorphic `=`. `:Vec<u8>` construction works
+  via existing parametric plumbing. **`:wat::core::u8::+` and
+  siblings deferred** — no caller demand during slice 2 design;
+  ship when demanded. Adds zero lines to the primitive zoo today;
+  arithmetic is one edit away when needed. 9 tests passing; 498+
+  unit tests + all integration tests green.
 
 ---
 
