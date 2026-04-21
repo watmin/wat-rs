@@ -294,6 +294,128 @@ fn register_builtin_types(env: &mut TypeEnv) {
             ("message".into(), TypeExpr::Path(":String".into())),
         ],
     }));
+
+    // :wat::kernel::Location — a point in a source file. Populated by
+    // `:wat::kernel::run-sandboxed` when a panic carries a PanicInfo
+    // location, and by future assertion primitives whose failure-payload
+    // needs to cite file:line:col.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::kernel::Location".into(),
+        type_params: vec![],
+        fields: vec![
+            ("file".into(), TypeExpr::Path(":String".into())),
+            ("line".into(), TypeExpr::Path(":i64".into())),
+            ("col".into(), TypeExpr::Path(":i64".into())),
+        ],
+    }));
+
+    // :wat::kernel::Frame — one entry from a Rust backtrace. The wat-
+    // rs runtime populates these by iterating `std::backtrace::Backtrace`
+    // frames when a sandboxed program panics; only populated if
+    // `RUST_BACKTRACE` is enabled (otherwise the frames vec is empty).
+    // Each field is Option because Rust's backtrace symbol resolution
+    // can fail per-frame (stripped symbols, jit frames).
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::kernel::Frame".into(),
+        type_params: vec![],
+        fields: vec![
+            (
+                "file".into(),
+                TypeExpr::Parametric {
+                    head: ":Option".into(),
+                    args: vec![TypeExpr::Path(":String".into())],
+                },
+            ),
+            (
+                "line".into(),
+                TypeExpr::Parametric {
+                    head: ":Option".into(),
+                    args: vec![TypeExpr::Path(":i64".into())],
+                },
+            ),
+            (
+                "symbol".into(),
+                TypeExpr::Parametric {
+                    head: ":Option".into(),
+                    args: vec![TypeExpr::Path(":String".into())],
+                },
+            ),
+        ],
+    }));
+
+    // :wat::kernel::Failure — structured panic / assertion payload
+    // populated when a sandboxed `:user::main` fails. Slice 2b fills
+    // message / location / frames from `catch_unwind`; slice 3's
+    // `:wat::test::assert-*` primitives additionally populate actual /
+    // expected when the panic payload carries an AssertionPayload.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::kernel::Failure".into(),
+        type_params: vec![],
+        fields: vec![
+            ("message".into(), TypeExpr::Path(":String".into())),
+            (
+                "location".into(),
+                TypeExpr::Parametric {
+                    head: ":Option".into(),
+                    args: vec![TypeExpr::Path(":wat::kernel::Location".into())],
+                },
+            ),
+            (
+                "frames".into(),
+                TypeExpr::Parametric {
+                    head: ":Vec".into(),
+                    args: vec![TypeExpr::Path(":wat::kernel::Frame".into())],
+                },
+            ),
+            (
+                "actual".into(),
+                TypeExpr::Parametric {
+                    head: ":Option".into(),
+                    args: vec![TypeExpr::Path(":String".into())],
+                },
+            ),
+            (
+                "expected".into(),
+                TypeExpr::Parametric {
+                    head: ":Option".into(),
+                    args: vec![TypeExpr::Path(":String".into())],
+                },
+            ),
+        ],
+    }));
+
+    // :wat::kernel::RunResult — return type of
+    // `:wat::kernel::run-sandboxed`. `stdout` and `stderr` accumulate
+    // everything the sandboxed `:user::main` wrote through its stdio
+    // channels, line by line. `failure` is `:None` on success; slice 2b
+    // populates it with a `Failure` when `catch_unwind` catches.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::kernel::RunResult".into(),
+        type_params: vec![],
+        fields: vec![
+            (
+                "stdout".into(),
+                TypeExpr::Parametric {
+                    head: ":Vec".into(),
+                    args: vec![TypeExpr::Path(":String".into())],
+                },
+            ),
+            (
+                "stderr".into(),
+                TypeExpr::Parametric {
+                    head: ":Vec".into(),
+                    args: vec![TypeExpr::Path(":String".into())],
+                },
+            ),
+            (
+                "failure".into(),
+                TypeExpr::Parametric {
+                    head: ":Option".into(),
+                    args: vec![TypeExpr::Path(":wat::kernel::Failure".into())],
+                },
+            ),
+        ],
+    }));
 }
 
 /// Type-declaration errors.

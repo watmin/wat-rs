@@ -101,3 +101,14 @@ this detour. Once arc 007 ships slice 3, `with-state` can be
 implemented AND TESTED in wat — the first substantive use of
 the self-testing harness. That test file is the proof point
 for this arc.
+
+## Relationship to arc 008
+
+Arc 007 slice 2a PAUSED 2026-04-21 when implementation
+discovered that `:user::main` takes concrete
+`:rust::std::io::Stdin/Stdout/Stderr` — can't be substituted for
+in-memory buffers at run-sandboxed. Arc 008 opened as a
+prerequisite to introduce `:wat::io::IOReader` + `:wat::io::IOWriter`
+abstractions (Ruby StringIO model). After arc 008 ships, arc 007
+slice 2a resumes on the new IO substrate. See
+[`../008-wat-io-substrate/DESIGN.md`](../008-wat-io-substrate/DESIGN.md).

@@ -1,0 +1,94 @@
+# Arc 008 — wat IO substrate — Backlog
+
+**Opened:** 2026-04-21 (detour during arc 007 slice 2a when discovered
+that `:user::main` takes concrete stdio types that can't be
+substituted for in-memory buffers).
+**Design:** [`DESIGN.md`](./DESIGN.md).
+**Blocks:** arc 007 slice 2a onward.
+
+---
+
+## Tracking
+
+| Slice | Item | Status | Commit |
+|---|---|---|---|
+| 1 | `:u8` primitive type — parser | pending | — |
+| 1 | `:u8` primitive type — type checker | pending | — |
+| 1 | `Value::u8` variant + type_name | pending | — |
+| 1 | `:Vec<u8>` parametric plumbing | pending | — |
+| 1 | `:wat::core::u8::+/-/*//` arithmetic (wrapping) | pending | — |
+| 1 | slice 1 tests | pending | — |
+| 2 | `WatReader` + `WatWriter` traits | pending | — |
+| 2 | `Value::io__IOReader` + `Value::io__IOWriter` variants | pending | — |
+| 2 | `RealStdin` / `RealStdout` / `RealStderr` impls (wrap Rust handles) | pending | — |
+| 2 | `StringIoReader` + `StringIoWriter` impls (ThreadOwnedCell-backed) | pending | — |
+| 2 | byte-level primitives: read / read-all / write / write-all | pending | — |
+| 2 | char-level primitives: read-line / writeln | pending | — |
+| 2 | common: flush / rewind | pending | — |
+| 2 | construction: `IOReader/from-bytes` + `from-string`; `IOWriter/new` + `to-bytes` + `to-string` | pending | — |
+| 2 | type registration (`:wat::io::IOReader`, `:wat::io::IOWriter` as opaque types) | pending | — |
+| 2 | type schemes in check.rs | pending | — |
+| 2 | slice 2 tests | pending | — |
+| 3 | update `validate_user_main_signature` — new three-IO contract | pending | — |
+| 3 | CLI (`bin/wat-vm.rs`) wraps real stdio as IO Values | pending | — |
+| 3 | retire `Value::io__Stdin/Stdout/Stderr` variants | pending | — |
+| 3 | retire old `:wat::io::write` / `:wat::io::read-line` primitives (replaced) | pending | — |
+| 3 | migrate every wat file declaring `:user::main` (trading lab, test wat files) | pending | — |
+| 3 | USER-GUIDE update — new IO section replaces old io::write/read-line | pending | — |
+| 3 | arc 008 INSCRIPTION | pending | — |
+
+---
+
+## Decision log
+
+- **2026-04-21** — Opened arc 008 as prerequisite to arc 007 slice 2a.
+  Discovered that `:user::main` takes concrete `:rust::std::io::Stdin`
+  / `Stdout` / `Stderr` — can't be substituted for in-memory buffers.
+  ran-sandboxed needs substitutable stdio. Ruby StringIO is the
+  conceptual model; Rust's Read/Write traits are the structural
+  precedent; wat owns the abstraction (`:wat::io::IOReader` /
+  `IOWriter` are wat-level types, no matching std type in Rust).
+- **2026-04-21** — **Byte-level + char-level layered.** Option C
+  chosen (byte-oriented floor). `:u8` is slice 1 prereq. Byte
+  primitives (`read`, `write`) operate on `:Vec<u8>`; char primitives
+  (`read-line`, `writeln`) are UTF-8 decode/encode conveniences on
+  top. Rejected option B (char-only) — lost fd honesty and binary
+  capability; rejected option A (line-only) — too narrow.
+- **2026-04-21** — **IOReader + IOWriter split, NOT unified IO.**
+  Mirrors Rust's Read / Write trait separation. stdin typed
+  IOReader; stdout/stderr typed IOWriter. Rejected unified `IO` type
+  because it muddled the capability boundary — a program could try
+  to read from stdout and the type system wouldn't catch it.
+- **2026-04-21** — **ThreadOwnedCell for StringIo, no Mutex.**
+  Matches wat's zero-Mutex discipline. Rejected `Mutex<Vec<u8>>`
+  (laziness; wat has a tier-2 pattern for interior mutability).
+  Rejected program-with-driver-thread (adds channel round-trip per
+  IO call; overkill for single-thread test use). StringIo is
+  single-thread-owned; cross-thread use panics with the owner-check
+  error — same behavior `:wat::std::LocalCache` has. Multi-thread
+  stdio in tests requires real stdio (via CLI, not run-sandboxed)
+  or explicit channel-based IO — documented divergence.
+- **2026-04-21** — **No thread spawn for StringIo.** All IO calls
+  synchronous on caller's thread. Builder's direction: "closure
+  that captures state, blocking calls." Matches real fd semantics —
+  a read call blocks the caller until data or EOF.
+- **2026-04-21** — **Rust stdlib's internal locking is opaque to
+  wat.** Real stdio uses `std::io::StdoutLock` / equivalent
+  internally when you call `lock()`. That's Rust's stdlib's
+  concurrency story, not wat's. Wat claims zero-Mutex in its own
+  code; transitive deps have their own disciplines.
+
+---
+
+## What resumes after arc 008 closes
+
+Arc 007's slice 2a was paused when arc 008 scope was surfaced. After
+arc 008 ships:
+
+1. Slice 2a resumes — `run-sandboxed` constructs three StringIo
+   instances, invokes main with IOReader + IOWriter + IOWriter,
+   drains buffers into RunResult.stdout / stderr.
+2. Slices 2b / 3 / 4 / 5 / INSCRIPTION proceed per arc 007 backlog.
+
+This arc stays open only for its own work; arc 007 tracks its own
+completion independently.
