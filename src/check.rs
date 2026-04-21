@@ -2364,6 +2364,85 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: t_var(),
         },
     );
+
+    // The eval-family forms — per the 2026-04-20 INSCRIPTION adding
+    // :Result<holon::HolonAST, :wat::core::EvalError> as the uniform
+    // return type. Every dynamic evaluation failure (verification,
+    // parse, mutation-form refused, unknown function, type mismatch,
+    // etc.) becomes an Err value in the Result rather than an
+    // unwinding RuntimeError. `:wat::core::try` inside eval'd code
+    // continues to propagate as before — the TryPropagate signal
+    // passes through the dispatcher's wrap.
+    //
+    // Arg types keep the pre-inscription looseness (the structural
+    // keywords and payload strings aren't type-validated in fine
+    // detail) — the purpose of adding these schemes is to enforce
+    // the return shape at every call site, not to tighten arg
+    // checking. A future pass may narrow arg types as real misuse
+    // surfaces.
+    let eval_result_ty = || TypeExpr::Parametric {
+        head: "Result".into(),
+        args: vec![
+            holon_ty(),
+            TypeExpr::Path(":wat::core::EvalError".into()),
+        ],
+    };
+    let wat_ast_ty = || TypeExpr::Path(":wat::WatAST".into());
+    let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
+    let string_ty = || TypeExpr::Path(":String".into());
+
+    env.register(
+        ":wat::core::eval-ast!".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![wat_ast_ty()],
+            ret: eval_result_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::eval-edn!".into(),
+        TypeScheme {
+            type_params: vec![],
+            // :wat::eval::<iface>, <locator>
+            params: vec![keyword_ty(), string_ty()],
+            ret: eval_result_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::eval-digest!".into(),
+        TypeScheme {
+            type_params: vec![],
+            // :wat::eval::<iface>, <locator>,
+            // :wat::verify::digest-<algo>, :wat::verify::<iface>, <hex>
+            params: vec![
+                keyword_ty(),
+                string_ty(),
+                keyword_ty(),
+                keyword_ty(),
+                string_ty(),
+            ],
+            ret: eval_result_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::eval-signed!".into(),
+        TypeScheme {
+            type_params: vec![],
+            // :wat::eval::<iface>, <locator>,
+            // :wat::verify::signed-<algo>, :wat::verify::<iface>, <sig>,
+            // :wat::verify::<iface>, <pubkey>
+            params: vec![
+                keyword_ty(),
+                string_ty(),
+                keyword_ty(),
+                keyword_ty(),
+                string_ty(),
+                keyword_ty(),
+                string_ty(),
+            ],
+            ret: eval_result_ty(),
+        },
+    );
     env.register(
         ":wat::algebra::Bind".into(),
         TypeScheme {

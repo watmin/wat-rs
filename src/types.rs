@@ -230,6 +230,44 @@ fn register_builtin_types(env: &mut TypeEnv) {
             ("budget".into(), TypeExpr::Path(":i64".into())),
         ],
     }));
+
+    // :wat::core::EvalError — populated in the Err slot of a :Result
+    // returned by the eval-family forms (:wat::core::eval-ast! /
+    // eval-edn! / eval-digest! / eval-signed!) when dynamic evaluation
+    // fails. Carries a `kind` discriminator (short machine-readable
+    // variant name) and a `message` diagnostic (human-readable detail).
+    //
+    // `kind` values emitted by the dispatchers:
+    //   "verification-failed"   — digest or signature check failed
+    //   "parse-failed"          — EDN source couldn't be parsed
+    //   "mutation-form-refused" — AST contained define/defmacro/struct/
+    //                             enum/newtype/typealias/load! which
+    //                             constrained eval refuses (FOUNDATION
+    //                             line 663 invariant)
+    //   "unknown-function"      — AST referenced a function not in the
+    //                             frozen symbol table
+    //   "type-mismatch"         — arg types at a call site didn't match
+    //   "arity-mismatch"        — wrong number of args at a call site
+    //   "channel-disconnected"  — send to a dropped receiver inside
+    //                             eval'd code
+    //   "runtime-error"         — any other RuntimeError surfaced by
+    //                             the inner eval, with the variant's
+    //                             Display as the message
+    //
+    // Two auto-generated accessors land alongside:
+    //   :wat::core::EvalError/kind    — :fn(:EvalError) -> :String
+    //   :wat::core::EvalError/message — :fn(:EvalError) -> :String
+    // Plus the constructor :wat::core::EvalError/new for cases where
+    // user code wants to synthesize one (rare — normally produced by
+    // the runtime).
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::core::EvalError".into(),
+        type_params: vec![],
+        fields: vec![
+            ("kind".into(), TypeExpr::Path(":String".into())),
+            ("message".into(), TypeExpr::Path(":String".into())),
+        ],
+    }));
 }
 
 /// Type-declaration errors.

@@ -122,7 +122,13 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
        (:wat::algebra::Atom program))
      ((reveal :wat::WatAST)
        (:wat::core::atom-value program-atom)))
-    (:wat::core::eval-ast! reveal)))
+    ;; eval-ast! now returns :Result<holon::HolonAST, EvalError> per
+    ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
+    ;; declared return type of :(). Err arm is unreachable here
+    ;; (the quoted program is well-formed and non-mutating).
+    (:wat::core::match (:wat::core::eval-ast! reveal)
+      ((Ok _) ())
+      ((Err _) ()))))
 "#;
 
 #[test]
@@ -242,7 +248,13 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
      ;; dynamics; this line runs the actual program.
      ((reveal :wat::WatAST)
        (:wat::core::atom-value program-atom)))
-    (:wat::core::eval-ast! reveal)))
+    ;; eval-ast! now returns :Result<holon::HolonAST, EvalError> per
+    ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
+    ;; declared return type of :(). Err arm is unreachable here —
+    ;; the quoted echo program is well-formed and non-mutating.
+    (:wat::core::match (:wat::core::eval-ast! reveal)
+      ((Ok _) ())
+      ((Err _) ()))))
 "#;
 
 #[test]

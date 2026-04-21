@@ -4434,11 +4434,100 @@ fn eval_kernel_join(
     }
 }
 
+/// Map a [`RuntimeError`] to an [`EvalError`] struct value — the
+/// Err payload returned by the eval-family forms on any failure
+/// that isn't a control-flow signal.
+///
+/// Matches struct-field order `(kind, message)` from
+/// [`crate::types::TypeEnv::with_builtins`]'s registration of
+/// `:wat::core::EvalError`.
+fn runtime_error_to_eval_error_value(err: &RuntimeError) -> Value {
+    let (kind, message): (&'static str, String) = match err {
+        RuntimeError::EvalVerificationFailed { err } => {
+            ("verification-failed", format!("{}", err))
+        }
+        RuntimeError::EvalForbidsMutationForm { head } => (
+            "mutation-form-refused",
+            format!("eval refused mutation form: {}", head),
+        ),
+        RuntimeError::UnknownFunction(path) => {
+            ("unknown-function", format!("unknown function: {}", path))
+        }
+        RuntimeError::UnboundSymbol(name) => {
+            ("unbound-symbol", format!("unbound symbol: {}", name))
+        }
+        RuntimeError::TypeMismatch { op, expected, got } => (
+            "type-mismatch",
+            format!("{}: expected {}, got {}", op, expected, got),
+        ),
+        RuntimeError::ArityMismatch { op, expected, got } => (
+            "arity-mismatch",
+            format!("{}: expected {} args, got {}", op, expected, got),
+        ),
+        RuntimeError::ChannelDisconnected { op } => (
+            "channel-disconnected",
+            format!("{}: channel disconnected", op),
+        ),
+        RuntimeError::BadCondition { got } => {
+            ("bad-condition", format!("if/when condition not :bool; got {}", got))
+        }
+        RuntimeError::DivisionByZero => ("division-by-zero", "division by zero".into()),
+        RuntimeError::PatternMatchFailed { value_type } => (
+            "pattern-match-failed",
+            format!("no match arm fired for {} scrutinee", value_type),
+        ),
+        RuntimeError::MalformedForm { head, reason } => {
+            ("malformed-form", format!("{}: {}", head, reason))
+        }
+        RuntimeError::NotCallable { got } => {
+            ("not-callable", format!("not callable: {}", got))
+        }
+        // Control-flow signals (TryPropagate, and a future TailCall)
+        // must NOT pass through this helper — callers filter those out
+        // before reaching here. This arm exists to keep the match
+        // exhaustive and name the invariant in code.
+        RuntimeError::TryPropagate(_) => {
+            ("runtime-error", "internal: TryPropagate reached EvalError mapper (checker invariant violation)".into())
+        }
+        // Fallback for variants that don't deserve a dedicated kind.
+        other => ("runtime-error", format!("{}", other)),
+    };
+    Value::Struct(Arc::new(StructValue {
+        type_name: ":wat::core::EvalError".into(),
+        fields: vec![
+            Value::String(Arc::new(kind.into())),
+            Value::String(Arc::new(message)),
+        ],
+    }))
+}
+
+/// Wrap an inner evaluation's `Result<Value, RuntimeError>` as the
+/// `Value::Result<V, EvalError>` the eval-family forms return.
+///
+/// Preserves the `TryPropagate` control-flow signal so `:wat::core::try`
+/// inside eval'd code still propagates to the calling function. Every
+/// other runtime error becomes `Err(EvalError{...})` as a value.
+fn wrap_as_eval_result(inner: Result<Value, RuntimeError>) -> Result<Value, RuntimeError> {
+    match inner {
+        Ok(v) => Ok(Value::Result(Arc::new(Ok(v)))),
+        Err(RuntimeError::TryPropagate(_)) => inner, // pass through
+        Err(e) => {
+            let err_struct = runtime_error_to_eval_error_value(&e);
+            Ok(Value::Result(Arc::new(Err(err_struct))))
+        }
+    }
+}
+
 fn eval_form_ast(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
+    // Structural pre-check — NOT wrapped as EvalError. This is the
+    // caller's syntactic shape; the type checker should have caught
+    // it at startup. If it fires at runtime, it's a checker gap or
+    // eval-ast! reached from a path that skipped the check (unlikely
+    // but possible).
     if args.len() != 1 {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::eval-ast!".into(),
@@ -4448,18 +4537,24 @@ fn eval_form_ast(
             ),
         });
     }
-    let value = eval(&args[0], env, sym)?;
-    let ast = match value {
-        Value::wat__WatAST(a) => a,
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: ":wat::core::eval-ast!".into(),
-                expected: "Ast",
-                got: other.type_name(),
-            });
-        }
-    };
-    run_constrained(&ast, env, sym)
+    // From here, any RuntimeError (except TryPropagate) becomes an
+    // `EvalError` in the Err slot of the returned Value::Result. The
+    // value-extraction, mutation-form refusal, and the inner eval
+    // are all "dynamic evaluation" concerns.
+    wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
+        let value = eval(&args[0], env, sym)?;
+        let ast = match value {
+            Value::wat__WatAST(a) => a,
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: ":wat::core::eval-ast!".into(),
+                    expected: "Ast",
+                    got: other.type_name(),
+                });
+            }
+        };
+        run_constrained(&ast, env, sym)
+    })())
 }
 
 fn eval_form_edn(
@@ -4468,6 +4563,7 @@ fn eval_form_edn(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     // (:wat::core::eval-edn! :wat::eval::<iface> <locator>)
+    // Structural arity — pre-checked; EvalError wrap starts below.
     if args.len() != 2 {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::eval-edn!".into(),
@@ -4477,8 +4573,12 @@ fn eval_form_edn(
             ),
         });
     }
-    let source = resolve_eval_source(&args[0], &args[1], env, sym)?;
-    parse_and_run(&source, env, sym)
+    wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
+        // Source fetch: its errors (file-not-found, bad interface,
+        // locator type mismatch) are dynamic evaluation failures.
+        let source = resolve_eval_source(&args[0], &args[1], env, sym)?;
+        parse_and_run(&source, env, sym)
+    })())
 }
 
 fn eval_form_digest(
@@ -4489,6 +4589,7 @@ fn eval_form_digest(
     // (:wat::core::eval-digest! :wat::eval::<iface> <locator>
     //                            :wat::verify::digest-<algo>
     //                            :wat::verify::<iface> <hex>)
+    // Structural arity pre-check.
     if args.len() != 5 {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::eval-digest!".into(),
@@ -4498,14 +4599,18 @@ fn eval_form_digest(
             ),
         });
     }
-    let source = resolve_eval_source(&args[0], &args[1], env, sym)?;
-    let algo = parse_verify_algo_keyword(&args[2], "digest-", ":wat::core::eval-digest!")?;
-    let hex = resolve_verify_payload(&args[3], &args[4], env, sym)?;
-    // Verify hash of raw source bytes BEFORE parse (mirrors digest-load!).
-    crate::hash::verify_source_hash(source.as_bytes(), &algo, hex.trim()).map_err(
-        |err| RuntimeError::EvalVerificationFailed { err },
-    )?;
-    parse_and_run(&source, env, sym)
+    wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
+        let source = resolve_eval_source(&args[0], &args[1], env, sym)?;
+        let algo = parse_verify_algo_keyword(&args[2], "digest-", ":wat::core::eval-digest!")?;
+        let hex = resolve_verify_payload(&args[3], &args[4], env, sym)?;
+        // Verify hash of raw source bytes BEFORE parse (mirrors digest-load!).
+        // Verification failure becomes EvalError{kind="verification-failed"}
+        // via runtime_error_to_eval_error_value's match on
+        // EvalVerificationFailed.
+        crate::hash::verify_source_hash(source.as_bytes(), &algo, hex.trim())
+            .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+        parse_and_run(&source, env, sym)
+    })())
 }
 
 fn eval_form_signed(
@@ -4517,6 +4622,7 @@ fn eval_form_signed(
     //                            :wat::verify::signed-<algo>
     //                            :wat::verify::<iface> <sig>
     //                            :wat::verify::<iface> <pubkey>)
+    // Structural arity pre-check.
     if args.len() != 7 {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::eval-signed!".into(),
@@ -4526,17 +4632,19 @@ fn eval_form_signed(
             ),
         });
     }
-    let source = resolve_eval_source(&args[0], &args[1], env, sym)?;
-    let algo = parse_verify_algo_keyword(&args[2], "signed-", ":wat::core::eval-signed!")?;
-    let sig_b64 = resolve_verify_payload(&args[3], &args[4], env, sym)?;
-    let pk_b64 = resolve_verify_payload(&args[5], &args[6], env, sym)?;
-    // Parse FIRST (sig is over canonical-EDN of parsed AST, which we
-    // need the AST to compute — same discipline as signed-load!).
-    let ast = parse_program(&source, ":wat::core::eval-signed!")?;
-    crate::hash::verify_program_signature(&ast, &algo, sig_b64.trim(), pk_b64.trim())
-        .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
-    // After verify, run each form under the mutation-refusal guard.
-    run_program(&ast, env, sym)
+    wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
+        let source = resolve_eval_source(&args[0], &args[1], env, sym)?;
+        let algo = parse_verify_algo_keyword(&args[2], "signed-", ":wat::core::eval-signed!")?;
+        let sig_b64 = resolve_verify_payload(&args[3], &args[4], env, sym)?;
+        let pk_b64 = resolve_verify_payload(&args[5], &args[6], env, sym)?;
+        // Parse FIRST (sig is over canonical-EDN of parsed AST, which
+        // we need the AST to compute — same discipline as signed-load!).
+        let ast = parse_program(&source, ":wat::core::eval-signed!")?;
+        crate::hash::verify_program_signature(&ast, &algo, sig_b64.trim(), pk_b64.trim())
+            .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+        // After verify, run each form under the mutation-refusal guard.
+        run_program(&ast, env, sym)
+    })())
 }
 
 /// Resolve a `:wat::eval::<iface> <locator>` pair to a source string.
@@ -5208,6 +5316,11 @@ mod tests {
     }
 
     // ─── Four eval forms (wat-source callable) ──────────────────────────
+    //
+    // Per 2026-04-20 INSCRIPTION: eval-ast! / eval-edn! / eval-digest! /
+    // eval-signed! all return :Result<holon::HolonAST, :wat::core::EvalError>
+    // now. Test helpers below unwrap the Result wrap so the assertions
+    // against Ok values and Err-kind strings stay concise.
 
     /// Helper: run a program with a pre-bound `program` local holding
     /// a `Value::Ast` — simulates a caller that parsed or extracted
@@ -5224,12 +5337,65 @@ mod tests {
         eval(&form, &env, &SymbolTable::new())
     }
 
+    /// Unwrap the outer `Value::Result(Ok(v))` from an eval-family
+    /// call's return; panics with diagnostic if the value isn't a
+    /// Result, or if the Result is Err.
+    fn eval_ok_inner(v: Value) -> Value {
+        match v {
+            Value::Result(r) => match &*r {
+                Ok(inner) => inner.clone(),
+                Err(err) => panic!(
+                    "expected Ok from eval-family; got Err({:?})",
+                    err
+                ),
+            },
+            other => panic!(
+                "expected Value::Result from eval-family; got {:?}",
+                other
+            ),
+        }
+    }
+
+    /// Unwrap an eval-family Err and return its (kind, message) as
+    /// strings. Panics if the value isn't a Result or isn't Err or
+    /// isn't a Struct with the expected EvalError field shape.
+    fn eval_err_kind_and_message(v: Value) -> (String, String) {
+        match v {
+            Value::Result(r) => match &*r {
+                Err(err) => match err {
+                    Value::Struct(sv) => {
+                        assert_eq!(sv.type_name, ":wat::core::EvalError");
+                        let kind = match &sv.fields[0] {
+                            Value::String(s) => (**s).clone(),
+                            _ => panic!("EvalError.kind not String"),
+                        };
+                        let msg = match &sv.fields[1] {
+                            Value::String(s) => (**s).clone(),
+                            _ => panic!("EvalError.message not String"),
+                        };
+                        (kind, msg)
+                    }
+                    other => panic!("expected Struct(EvalError); got {:?}", other),
+                },
+                Ok(inner) => panic!(
+                    "expected Err from eval-family; got Ok({:?})",
+                    inner
+                ),
+            },
+            other => panic!(
+                "expected Value::Result from eval-family; got {:?}",
+                other
+            ),
+        }
+    }
+
     #[test]
     fn eval_ast_bang_runs_a_parsed_program() {
         let program = parse_one("(:wat::core::i64::+ 40 2)").unwrap();
         let result =
             run_with_ast_local("(:wat::core::eval-ast! program)", program).unwrap();
-        assert!(matches!(result, Value::i64(42)));
+        let inner = eval_ok_inner(result);
+        assert!(matches!(inner, Value::i64(42)));
     }
 
     #[test]
@@ -5238,22 +5404,24 @@ mod tests {
             r#"(:wat::core::define (:evil (x :i64) -> :i64) x)"#,
         )
         .unwrap();
-        let err = run_with_ast_local("(:wat::core::eval-ast! program)", program)
-            .unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        let result = run_with_ast_local("(:wat::core::eval-ast! program)", program)
+            .unwrap();
+        let (kind, _msg) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "mutation-form-refused");
     }
 
     #[test]
     fn eval_ast_bang_rejects_non_ast_value() {
         // Binding a string as program; eval-ast! refuses because it
-        // only accepts Value::Ast (not Value::String).
+        // only accepts Value::wat__WatAST (not Value::String).
+        // The refusal lands as Err(EvalError{kind="type-mismatch"}),
+        // NOT a RuntimeError unwind — the eval-family Result-wrap
+        // per the 2026-04-20 INSCRIPTION.
         let form = parse_one(r#"(:wat::core::eval-ast! "oops")"#).unwrap();
-        let err = eval(&form, &Environment::new(), &SymbolTable::new()).unwrap_err();
-        assert!(matches!(
-            err,
-            RuntimeError::TypeMismatch { op, expected: "Ast", got: "String" }
-                if op == ":wat::core::eval-ast!"
-        ));
+        let result = eval(&form, &Environment::new(), &SymbolTable::new()).unwrap();
+        let (kind, msg) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "type-mismatch");
+        assert!(msg.contains("eval-ast!"));
     }
 
     // ─── Programs-as-atoms roundtrip ────────────────────────────────────
@@ -5393,7 +5561,10 @@ mod tests {
                  (:wat::core::eval-ast! reveal))"#,
         )
         .unwrap();
-        assert!(matches!(result, Value::i64(42)));
+        // eval-ast! returns Value::Result now; unwrap Ok to get the
+        // evaluated value.
+        let inner = eval_ok_inner(result);
+        assert!(matches!(inner, Value::i64(42)));
     }
 
     // ─── Presence measurement (FOUNDATION 1718) ─────────────────────────
@@ -5665,36 +5836,40 @@ mod tests {
             r#"(:wat::core::eval-edn! :wat::eval::string "(:wat::core::i64::+ 40 2)")"#,
         )
         .unwrap();
-        assert!(matches!(result, Value::i64(42)));
+        let inner = eval_ok_inner(result);
+        assert!(matches!(inner, Value::i64(42)));
     }
 
     #[test]
     fn eval_edn_bang_unknown_iface_refused() {
-        let err = eval_expr(
+        let result = eval_expr(
             r#"(:wat::core::eval-edn! :wat::eval::unknown "foo")"#,
         )
-        .unwrap_err();
-        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+        .unwrap();
+        let (kind, _) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "malformed-form");
     }
 
     #[test]
     fn eval_edn_bang_reserved_unimplemented_iface_refused() {
-        let err = eval_expr(
+        let result = eval_expr(
             r#"(:wat::core::eval-edn! :wat::eval::http-path "https://example.com/x")"#,
         )
-        .unwrap_err();
-        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+        .unwrap();
+        let (kind, _) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "malformed-form");
     }
 
     #[test]
     fn eval_edn_bang_refuses_mutation_inside_string() {
         // The parsed AST from the string still walks through the
-        // mutation-form guard.
-        let err = eval_expr(
+        // mutation-form guard — now surfaced as EvalError data.
+        let result = eval_expr(
             r#"(:wat::core::eval-edn! :wat::eval::string "(:wat::core::define (:evil (x :i64) -> :i64) x)")"#,
         )
-        .unwrap_err();
-        assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
+        .unwrap();
+        let (kind, _) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "mutation-form-refused");
     }
 
     #[test]
@@ -5712,7 +5887,8 @@ mod tests {
             source, hex
         );
         let result = eval_expr(&form).unwrap();
-        assert!(matches!(result, Value::i64(2)));
+        let inner = eval_ok_inner(result);
+        assert!(matches!(inner, Value::i64(2)));
     }
 
     #[test]
@@ -5726,13 +5902,9 @@ mod tests {
                 :wat::verify::string "{}")"#,
             wrong
         );
-        let err = eval_expr(&form).unwrap_err();
-        match err {
-            RuntimeError::EvalVerificationFailed { err } => {
-                assert!(matches!(err, crate::hash::HashError::Mismatch { .. }));
-            }
-            other => panic!("expected EvalVerificationFailed, got {:?}", other),
-        }
+        let result = eval_expr(&form).unwrap();
+        let (kind, _) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "verification-failed");
     }
 
     #[test]
@@ -5741,9 +5913,11 @@ mod tests {
             :wat::eval::string "(:wat::core::i64::+ 1 1)"
             :wat::verify::signed-ed25519
             :wat::verify::string "abc")"#;
-        let err = eval_expr(form).unwrap_err();
-        // signed-ed25519 in a digest slot is a grammar error.
-        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+        let result = eval_expr(form).unwrap();
+        let (kind, _) = eval_err_kind_and_message(result);
+        // signed-ed25519 in a digest slot is a grammar error surfaced
+        // as malformed-form inside the wrap.
+        assert_eq!(kind, "malformed-form");
     }
 
     #[test]
@@ -5767,7 +5941,8 @@ mod tests {
             source, sig_b64, pk_b64
         );
         let result = eval_expr(&form).unwrap();
-        assert!(matches!(result, Value::i64(42)));
+        let inner = eval_ok_inner(result);
+        assert!(matches!(inner, Value::i64(42)));
     }
 
     #[test]
@@ -5791,13 +5966,9 @@ mod tests {
                 :wat::verify::string "{}")"#,
             tampered_source, sig_b64, pk_b64
         );
-        let err = eval_expr(&form).unwrap_err();
-        match err {
-            RuntimeError::EvalVerificationFailed { err } => {
-                assert!(matches!(err, crate::hash::HashError::SignatureMismatch { .. }));
-            }
-            other => panic!("expected SignatureMismatch, got {:?}", other),
-        }
+        let result = eval_expr(&form).unwrap();
+        let (kind, _) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "verification-failed");
     }
 
     #[test]
@@ -5808,8 +5979,9 @@ mod tests {
             :wat::verify::digest-sha256
             :wat::verify::string "sig"
             :wat::verify::string "pk")"#;
-        let err = eval_expr(form).unwrap_err();
-        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+        let result = eval_expr(form).unwrap();
+        let (kind, _) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "malformed-form");
     }
 
     // ─── File-path interface (real runtime I/O) ─────────────────────────
@@ -5841,14 +6013,16 @@ mod tests {
         );
         let result = eval_expr(&form).expect("eval");
         let _ = std::fs::remove_file(&path);
-        assert!(matches!(result, Value::i64(21)));
+        let inner = eval_ok_inner(result);
+        assert!(matches!(inner, Value::i64(21)));
     }
 
     #[test]
     fn eval_edn_bang_file_path_missing_errors() {
         let form = r#"(:wat::core::eval-edn! :wat::eval::file-path "/nonexistent/path/abc.xyz")"#;
-        let err = eval_expr(form).unwrap_err();
-        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+        let result = eval_expr(form).unwrap();
+        let (kind, _) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "malformed-form");
     }
 
     #[test]
@@ -5871,7 +6045,8 @@ mod tests {
         let result = eval_expr(&form).expect("eval");
         let _ = std::fs::remove_file(&source_path);
         let _ = std::fs::remove_file(&digest_path);
-        assert!(matches!(result, Value::i64(42)));
+        let inner = eval_ok_inner(result);
+        assert!(matches!(inner, Value::i64(42)));
     }
 
     // ─── User signals — kernel measures, userland owns transitions ─────
