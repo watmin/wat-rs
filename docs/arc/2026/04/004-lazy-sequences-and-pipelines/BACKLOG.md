@@ -211,6 +211,38 @@ eliminated?" and checking whether those eliminated things had
 actual value is its own discipline. Sometimes the verbose form is
 the honest form.
 
+### The discipline — written down so we don't forget
+
+When a "new ergonomic form" is proposed, before shipping it:
+
+1. **Write out what it expands to.** Literally: what does the
+   verbose form look like for a representative example?
+
+2. **List what the new form ELIMINATES.** Compare the two
+   syntactic shapes side by side. Every character the new form
+   saves is something it's hiding.
+
+3. **For each eliminated thing, ask: ceremony or information?**
+   - *Ceremony*: keystrokes the compiler could synthesize without
+     loss — paren-balancing boilerplate, repetitive imports,
+     re-referencing an identifier that just got bound.
+   - *Information*: names, types, explicit ordering, structural
+     cues the reader and the checker both rely on.
+
+4. **If it was information, the "ergonomics" argument is wrong.**
+   You're trading clarity for conciseness. The new form either
+   doesn't earn its slot or needs to be re-designed to preserve
+   the information.
+
+5. **If it was ceremony, the new form earns its slot.** Ship it.
+
+Applied to `pipeline`: step 1 shows the `let*` expansion. Step 2
+identifies the eliminated items — intermediate bindings and their
+type annotations. Step 3 names them as information, not ceremony
+(types document what flows at each stage; names make stages
+reachable; explicit ordering lets readers trace the chain).
+Step 4 fires: rejected.
+
 **Inscription target:** none. Pipeline as a stdlib form is
 REJECTED here; the BACKLOG entry is the audit record.
 
