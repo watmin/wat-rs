@@ -75,6 +75,10 @@ const STDLIB_FILES: &[StdlibFile] = &[
         source: include_str!("../wat/std/LocalCache.wat"),
     },
     StdlibFile {
+        path: "wat/std/stream.wat",
+        source: include_str!("../wat/std/stream.wat"),
+    },
+    StdlibFile {
         path: "wat/std/program/Console.wat",
         source: include_str!("../wat/std/program/Console.wat"),
     },

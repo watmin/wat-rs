@@ -1412,7 +1412,12 @@ fn infer_positional_accessor(
     }
     let arg_ty = infer(&args[0], env, locals, fresh, subst, errors);
     if let Some(ty) = arg_ty {
-        let resolved = apply_subst(&ty, subst);
+        // Expand typealiases before the structural shape match —
+        // `:wat::std::stream::Stream<T>` (alias over a tuple) must be
+        // recognized as a tuple here. Unify does this for every
+        // structural check; shape-inspection sites like this one
+        // must also.
+        let resolved = expand_alias(&apply_subst(&ty, subst), env.types());
         match &resolved {
             // Tuple: return element at `index`.
             TypeExpr::Tuple(elements) => {
@@ -3161,6 +3166,17 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var())],
+            ret: vec_of(t_var()),
+        },
+    );
+    // :wat::core::conj — immutable append.
+    // ∀T. Vec<T> × T -> Vec<T>. Returns a new Vec with the item
+    // appended; the input Vec is unchanged.
+    env.register(
+        ":wat::core::conj".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), t_var()],
             ret: vec_of(t_var()),
         },
     );

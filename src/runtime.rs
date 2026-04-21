@@ -1598,6 +1598,7 @@ fn dispatch_keyword_head(
         // List construction
         ":wat::core::vec" => eval_list_ctor(args, env, sym),
         ":wat::core::list" => eval_list_ctor(args, env, sym),
+        ":wat::core::conj" => eval_conj(args, env, sym),
         ":wat::core::tuple" => eval_tuple_ctor(args, env, sym),
         ":wat::core::length" => eval_vec_length(args, env, sym),
         ":wat::core::empty?" => eval_vec_empty(args, env, sym),
@@ -2350,6 +2351,37 @@ fn eval_list_ctor(
         .map(|a| eval(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Value::Vec(Arc::new(items)))
+}
+
+/// `(:wat::core::conj vec item)` → new Vec with `item` appended.
+/// Immutable append; wat has no mutation. The type checker enforces
+/// that `item` matches the Vec's element type.
+fn eval_conj(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::conj".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let vec = match eval(&args[0], env, sym)? {
+        Value::Vec(v) => v,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::core::conj".into(),
+                expected: "Vec",
+                got: other.type_name(),
+            });
+        }
+    };
+    let item = eval(&args[1], env, sym)?;
+    let mut out = (*vec).clone();
+    out.push(item);
+    Ok(Value::Vec(Arc::new(out)))
 }
 
 /// `(:wat::core::tuple a b c ...)` — build a heterogeneous tuple
