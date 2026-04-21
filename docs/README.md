@@ -114,6 +114,13 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   (thin `run-sandboxed-ast` wrapper). Kills the escaped-string
   nesting that nested sandbox tests used to carry. Sibling to
   arc 009 in spirit: names are values; forms are values.
+- **`arc/2026/04/011-hermetic-ast/`** — the AST-entry hermetic
+  sibling. `:wat::kernel::run-sandboxed-hermetic-ast` (primitive) +
+  `:wat::test::run-hermetic-ast` (stdlib wrapper) +
+  `wat_ast_to_source` / `wat_ast_program_to_source` (substrate
+  serializer). Service tests (Console, Cache) no longer carry
+  stringified inner programs — same AST shape as the in-process
+  sandbox, just with subprocess isolation.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.

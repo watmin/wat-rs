@@ -1793,6 +1793,9 @@ fn dispatch_keyword_head(
         ":wat::kernel::run-sandboxed-hermetic" => {
             crate::sandbox::eval_kernel_run_sandboxed_hermetic(args, env, sym)
         }
+        ":wat::kernel::run-sandboxed-hermetic-ast" => {
+            crate::sandbox::eval_kernel_run_sandboxed_hermetic_ast(args, env, sym)
+        }
         ":wat::kernel::run-sandboxed-ast" => {
             crate::sandbox::eval_kernel_run_sandboxed_ast(args, env, sym)
         }

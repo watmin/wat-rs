@@ -947,28 +947,53 @@ tests, `run-ast + program` is the clean shape.
 
 ### When to use hermetic — services that spawn threads
 
-In-process `:wat::test::run{-ast}` uses `StringIo` stdio under
+In-process `:wat::test::run-ast` uses `StringIo` stdio under
 `ThreadOwnedCell` — single-thread discipline. Services like Console
 and Cache spawn driver threads; writing from a driver thread would
 trip the thread-owner check.
 
-For those tests, use `:wat::kernel::run-sandboxed-hermetic` directly
-— a fresh subprocess with real thread-safe stdio:
+For those tests, use `:wat::test::run-hermetic-ast` — the AST-entry
+hermetic sandbox. Same shape as `run-ast`, different substrate: a
+fresh subprocess with real thread-safe stdio. Same surface as
+`run-ast` means no escape-hell either — the inner program reads as
+s-expressions:
 
 ```scheme
 (:wat::test::deftest :my::test-console-hello 1024 :error
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
-      (:wat::kernel::run-sandboxed-hermetic
-        "...source text for subprocess..."
-        (:wat::core::vec :String)
-        :None))
+      (:wat::test::run-hermetic-ast
+        (:wat::test::program
+          (:wat::config::set-dims! 1024)
+          (:wat::config::set-capacity-mode! :error)
+          (:wat::core::define (:user::main
+                               (stdin :wat::io::IOReader)
+                               (stdout :wat::io::IOWriter)
+                               (stderr :wat::io::IOWriter)
+                               -> :())
+            (:wat::core::let*
+              (((pool driver) (:wat::std::service::Console stdout stderr 1))
+               ((_ :())
+                (:wat::core::let*
+                  (((c :rust::crossbeam_channel::Sender<(i64,String)>)
+                    (:wat::kernel::HandlePool::pop pool))
+                   ((_2 :()) (:wat::kernel::HandlePool::finish pool)))
+                  (:wat::std::service::Console/out c "hello via Console"))))
+              (:wat::kernel::join driver))))
+        (:wat::core::vec :String)))
      ((lines :Vec<String>) (:wat::kernel::RunResult/stdout r)))
     (:wat::test::assert-eq (:wat::core::first lines) "hello via Console")))
 ```
 
+Under the covers, `run-hermetic-ast` serializes the forms to source
+text before handing the tempfile to the subprocess (the child can't
+share AST memory with the parent). The serialization is genuine work
+at the process boundary; the value of the primitive is that the user
+never sees it.
+
 **Decision rule:** spawns-and-writes → hermetic. Stays-on-main-thread
-→ in-process.
+→ in-process. Both have AST-entry siblings — strings are only for
+callers with runtime-generated source (fuzzers, template expansion).
 
 ### Rust-side embedding — `wat::Harness`
 
@@ -1134,6 +1159,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::run-sandboxed` | `src stdin scope` | `:wat::kernel::RunResult` |
 | `:wat::kernel::run-sandboxed-ast` | `forms stdin scope` | `:wat::kernel::RunResult` |
 | `:wat::kernel::run-sandboxed-hermetic` | `src stdin scope` | `:wat::kernel::RunResult` — subprocess |
+| `:wat::kernel::run-sandboxed-hermetic-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — AST-entry subprocess |
 | `:wat::kernel::assertion-failed!` | `message actual expected` | `:()` — panics with AssertionPayload |
 | `:wat::std::stream::spawn-producer` | `producer-fn` | `:Stream<T>` |
 | `:wat::std::stream::from-receiver` | `rx handle` | `:Stream<T>` |
@@ -1150,6 +1176,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::test::assert-stdout-is` / `assert-stderr-matches` | `run-result expected` / `result regex` | `:()` |
 | `:wat::test::run` / `run-in-scope` | `src stdin` / `src stdin scope` | `:wat::kernel::RunResult` — string-entry |
 | `:wat::test::run-ast` | `forms stdin` | `:wat::kernel::RunResult` — AST-entry |
+| `:wat::test::run-hermetic-ast` | `forms stdin` | `:wat::kernel::RunResult` — AST-entry subprocess |
 | `:wat::test::program` | `f1 f2 ... fn` | `:Vec<wat::WatAST>` — macro → `:wat::core::forms` |
 
 ---

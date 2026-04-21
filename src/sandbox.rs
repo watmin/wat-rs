@@ -531,36 +531,114 @@ pub fn eval_kernel_run_sandboxed_hermetic(
     };
 
     let stdin_lines = expect_vec_string(OP, eval(&args[1], env, sym)?)?;
+    let scope_opt = expect_option_string(OP, eval(&args[2], env, sym)?)?;
 
-    let scope_opt = match eval(&args[2], env, sym)? {
-        Value::Option(opt) => match &*opt {
-            Some(Value::String(s)) => Some((**s).clone()),
-            Some(other) => {
-                return Err(RuntimeError::TypeMismatch {
-                    op: OP.into(),
-                    expected: "Option<String>",
-                    got: other.type_name(),
-                });
+    Ok(run_hermetic_core(src, stdin_lines, scope_opt))
+}
+
+/// `(:wat::kernel::run-sandboxed-hermetic-ast forms stdin scope)`
+/// → `:wat::kernel::RunResult`.
+///
+/// AST-entry sibling of [`eval_kernel_run_sandboxed_hermetic`]. Takes
+/// `:Vec<wat::WatAST>` instead of a source string — the primitive
+/// serializes the forms via [`crate::ast::wat_ast_program_to_source`]
+/// before writing the tempfile the subprocess reads. Callers compose
+/// cleanly with `:wat::test::program` (arc 010's variadic-quote macro)
+/// and skip escape-hell entirely for hermetic tests.
+///
+/// The serialize step is genuine — the subprocess has its own heap and
+/// cannot share AST pointers. Hiding it inside the primitive keeps the
+/// user surface honest: hand AST in, get a `RunResult` out; no
+/// textual round-trip visible at the call site.
+pub fn eval_kernel_run_sandboxed_hermetic_ast(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::run-sandboxed-hermetic-ast";
+
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+        });
+    }
+
+    // Evaluate the Vec<wat::WatAST> — same path run-sandboxed-ast uses.
+    let forms = match eval(&args[0], env, sym)? {
+        Value::Vec(items) => {
+            let mut out = Vec::with_capacity(items.len());
+            for item in items.iter() {
+                match item {
+                    Value::wat__WatAST(ast) => out.push((**ast).clone()),
+                    other => {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: OP.into(),
+                            expected: "wat::WatAST",
+                            got: other.type_name(),
+                        });
+                    }
+                }
             }
-            None => None,
-        },
+            out
+        }
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
-                expected: "Option<String>",
+                expected: "Vec<wat::WatAST>",
                 got: other.type_name(),
             });
         }
     };
 
+    let stdin_lines = expect_vec_string(OP, eval(&args[1], env, sym)?)?;
+    let scope_opt = expect_option_string(OP, eval(&args[2], env, sym)?)?;
+
+    // Serialize the forms to source text for the subprocess to parse.
+    let src = crate::ast::wat_ast_program_to_source(&forms);
+
+    Ok(run_hermetic_core(src, stdin_lines, scope_opt))
+}
+
+/// Unpack an `:Option<String>` Value. Shared between the two hermetic
+/// primitives (and any future caller that needs the same scope slot).
+fn expect_option_string(op: &str, v: Value) -> Result<Option<String>, RuntimeError> {
+    match v {
+        Value::Option(opt) => match &*opt {
+            Some(Value::String(s)) => Ok(Some((**s).clone())),
+            Some(other) => Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected: "Option<String>",
+                got: other.type_name(),
+            }),
+            None => Ok(None),
+        },
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "Option<String>",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// Spawn `wat` as a subprocess, pipe `stdin_lines` in, wait for exit,
+/// capture stdout/stderr, translate into a `RunResult`. Shared
+/// machinery between the string-entry and AST-entry hermetic
+/// primitives — only the source-production step differs.
+fn run_hermetic_core(
+    src: String,
+    stdin_lines: Vec<String>,
+    scope_opt: Option<String>,
+) -> Value {
     if scope_opt.is_some() {
-        return Ok(build_run_result(
+        return build_run_result(
             Vec::new(),
             Vec::new(),
             Some(failure_from_message(
                 "scope not yet supported in hermetic mode (:None only for now)".into(),
             )),
-        ));
+        );
     }
 
     // 1. Locate the wat binary.
@@ -569,7 +647,7 @@ pub fn eval_kernel_run_sandboxed_hermetic(
         Err(_) => match std::env::current_exe() {
             Ok(p) => p,
             Err(e) => {
-                return Ok(build_run_result(
+                return build_run_result(
                     Vec::new(),
                     Vec::new(),
                     Some(failure_from_message(format!(
@@ -577,7 +655,7 @@ pub fn eval_kernel_run_sandboxed_hermetic(
                          and current_exe failed: {}",
                         e
                     ))),
-                ));
+                );
             }
         },
     };
@@ -594,14 +672,14 @@ pub fn eval_kernel_run_sandboxed_hermetic(
                 .unwrap_or(0)
         ));
         if let Err(e) = std::fs::write(&path, &src) {
-            return Ok(build_run_result(
+            return build_run_result(
                 Vec::new(),
                 Vec::new(),
                 Some(failure_from_message(format!(
                     "write tempfile {:?}: {}",
                     path, e
                 ))),
-            ));
+            );
         }
         path
     };
@@ -618,14 +696,14 @@ pub fn eval_kernel_run_sandboxed_hermetic(
         Ok(c) => c,
         Err(e) => {
             let _ = std::fs::remove_file(&tempfile);
-            return Ok(build_run_result(
+            return build_run_result(
                 Vec::new(),
                 Vec::new(),
                 Some(failure_from_message(format!(
                     "spawn {:?}: {}",
                     binary, e
                 ))),
-            ));
+            );
         }
     };
 
@@ -646,11 +724,11 @@ pub fn eval_kernel_run_sandboxed_hermetic(
         Ok(o) => o,
         Err(e) => {
             let _ = std::fs::remove_file(&tempfile);
-            return Ok(build_run_result(
+            return build_run_result(
                 Vec::new(),
                 Vec::new(),
                 Some(failure_from_message(format!("wait: {}", e))),
-            ));
+            );
         }
     };
     let _ = std::fs::remove_file(&tempfile);
@@ -672,7 +750,7 @@ pub fn eval_kernel_run_sandboxed_hermetic(
         )))
     };
 
-    Ok(build_run_result(stdout_lines, stderr_lines, failure))
+    build_run_result(stdout_lines, stderr_lines, failure)
 }
 
 fn split_captured_lines(s: &str) -> Vec<String> {

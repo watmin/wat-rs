@@ -163,6 +163,26 @@
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed-ast forms stdin :None))
 
+;; --- run-hermetic-ast — AST-entry hermetic sandbox ---
+;;
+;; Subprocess-isolated sibling of :wat::test::run-ast. Use for tests
+;; that exercise services spawning driver threads (Console, Cache) —
+;; in-process run-ast uses StringIo stdio (ThreadOwnedCell, single-
+;; thread) and cross-thread writes from a driver panic silently.
+;; hermetic-ast takes the same shape (forms + stdin) and runs the
+;; inner program in a fresh wat subprocess with real thread-safe
+;; stdio.
+;;
+;; The forms serialize to source text at the subprocess boundary;
+;; the kernel primitive (run-sandboxed-hermetic-ast) handles that
+;; inside so the user surface stays AST-native.
+(:wat::core::define
+  (:wat::test::run-hermetic-ast
+    (forms :Vec<wat::WatAST>)
+    (stdin :Vec<String>)
+    -> :wat::kernel::RunResult)
+  (:wat::kernel::run-sandboxed-hermetic-ast forms stdin :None))
+
 ;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b) ───────
 ;;
 ;; Registers a named zero-arg test function that returns RunResult.
