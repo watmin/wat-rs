@@ -39,6 +39,83 @@ fn collected_i64(src: &str) -> Vec<i64> {
     }
 }
 
+// ─── from-receiver ───────────────────────────────────────────────────
+
+#[test]
+fn from_receiver_wraps_raw_queue_into_stream() {
+    // Caller manages their own queue + spawn, then hands the pair
+    // to from-receiver to plug into the stream stdlib.
+    //
+    // The setup (make-queue, spawn, from-receiver) lives in a helper
+    // define so `tx` and `pair` drop when the helper returns. Only
+    // the returned Stream<T> (holding rx + handle) survives into
+    // main. This is the same scope-IS-shutdown discipline that
+    // forced take to be a stage — if main held tx across collect,
+    // collect would wait forever on a never-closing channel.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:test::build-stream -> :wat::std::stream::Stream<i64>)
+          (:wat::core::let*
+            (((pair :(rust::crossbeam_channel::Sender<i64>,rust::crossbeam_channel::Receiver<i64>))
+              (:wat::kernel::make-bounded-queue :i64 1))
+             ((tx :rust::crossbeam_channel::Sender<i64>) (:wat::core::first pair))
+             ((rx :rust::crossbeam_channel::Receiver<i64>) (:wat::core::second pair))
+             ((handle :wat::kernel::ProgramHandle<()>)
+              (:wat::kernel::spawn
+                (:wat::core::lambda ((s :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send s 10))
+                     ((_ :Option<()>) (:wat::kernel::send s 20))
+                     ((_ :Option<()>) (:wat::kernel::send s 30)))
+                    ()))
+                tx)))
+            (:wat::std::stream::from-receiver rx handle)))
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::std::stream::collect (:test::build-stream)))
+    "#;
+    assert_eq!(collected_i64(src), vec![10, 20, 30]);
+}
+
+#[test]
+fn from_receiver_composes_with_map() {
+    // from-receiver stream feeds into a map stage, then collect.
+    // Same helper-define pattern so tx drops before collect runs.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:test::build-stream -> :wat::std::stream::Stream<i64>)
+          (:wat::core::let*
+            (((pair :(rust::crossbeam_channel::Sender<i64>,rust::crossbeam_channel::Receiver<i64>))
+              (:wat::kernel::make-bounded-queue :i64 1))
+             ((tx :rust::crossbeam_channel::Sender<i64>) (:wat::core::first pair))
+             ((rx :rust::crossbeam_channel::Receiver<i64>) (:wat::core::second pair))
+             ((handle :wat::kernel::ProgramHandle<()>)
+              (:wat::kernel::spawn
+                (:wat::core::lambda ((s :rust::crossbeam_channel::Sender<i64>) -> :())
+                  (:wat::core::let*
+                    (((_ :Option<()>) (:wat::kernel::send s 1))
+                     ((_ :Option<()>) (:wat::kernel::send s 2))
+                     ((_ :Option<()>) (:wat::kernel::send s 3)))
+                    ()))
+                tx)))
+            (:wat::std::stream::from-receiver rx handle)))
+
+        (:wat::core::define (:user::main -> :Vec<i64>)
+          (:wat::core::let*
+            (((source :wat::std::stream::Stream<i64>) (:test::build-stream))
+             ((doubled :wat::std::stream::Stream<i64>)
+              (:wat::std::stream::map source
+                (:wat::core::lambda ((n :i64) -> :i64)
+                  (:wat::core::i64::* n 2)))))
+            (:wat::std::stream::collect doubled)))
+    "#;
+    assert_eq!(collected_i64(src), vec![2, 4, 6]);
+}
+
 // ─── spawn-producer + collect ─────────────────────────────────────────
 
 #[test]

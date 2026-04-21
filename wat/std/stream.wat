@@ -60,6 +60,26 @@
       (:wat::kernel::spawn producer tx)))
     (:wat::core::tuple rx handle)))
 
+;; --- from-receiver ---
+;;
+;; Wrap an externally-obtained `Receiver<T>` and its producer's
+;; `ProgramHandle<()>` into a `Stream<T>`. Trivial tuple-wrap; no
+;; worker spawned. Used when the caller already owns a spawned
+;; producer (or an equivalent thread) and wants to plug its output
+;; into the stream-stdlib combinators.
+;;
+;; Both arguments are required. Stream<T>'s typealias includes the
+;; handle so downstream `for-each` / `collect` / `fold` can join it.
+;; If the caller doesn't have a handle, they don't have a stream —
+;; they have a bare Receiver, and some other thread will never be
+;; joined, which is a broken shutdown story. Don't hide that.
+(:wat::core::define
+  (:wat::std::stream::from-receiver<T>
+    (rx :rust::crossbeam_channel::Receiver<T>)
+    (handle :wat::kernel::ProgramHandle<()>)
+    -> :wat::std::stream::Stream<T>)
+  (:wat::core::tuple rx handle))
+
 ;; --- map ---
 ;;
 ;; 1:1 transform. Spawns a worker that pulls from upstream, applies

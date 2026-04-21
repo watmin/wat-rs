@@ -358,6 +358,7 @@ as first-class keyword arguments.
 | `:wat::std::stream::flat-map-worker` | internal worker | same |
 | `:wat::std::stream::take` | `:Stream<T> × :i64 -> :Stream<T>` (stage — forwards first n, exits via drop cascade, arc 006 slice 2) | same |
 | `:wat::std::stream::take-worker` | internal worker | same |
+| `:wat::std::stream::from-receiver` | `:Receiver<T> × :ProgramHandle<()> -> :Stream<T>` (trivial tuple-wrap, arc 006 slice 3) | same |
 
 ---
 
@@ -425,13 +426,13 @@ the DESIGN but deferred:
 
 | Path | Shape | Status |
 |---|---|---|
-| `:wat::std::stream::chunks-by` | N:1, key-change boundary | deferred (design question) |
-| `:wat::std::stream::window` | N:1, sliding window | deferred (design question) |
+| `:wat::std::stream::chunks-by` | N:1, key-change boundary | **resolved** — ships as library on `with-state`, blocked on with-state |
+| `:wat::std::stream::window` | N:1, sliding window | **resolved** — ships as library on `with-state`, blocked on with-state |
+| `:wat::std::stream::with-state` | Mealy-machine substrate primitive `:Stream<T> × Acc × step × flush -> :Stream<U>` | pending implementation (arc 007 or later) |
 | `:wat::std::stream::time-window` | N:1, time-bucket boundary | substrate-blocked (clock primitive) |
 | `:wat::std::stream::first` (terminal form) | terminal, take-N returning Vec | **rejected** — reframed as `take` stage (arc 006 BACKLOG "What wat deliberately does NOT have") |
 | `:wat::std::stream::from-iterator` | alternate constructor | substrate-blocked (Iterator surfacing) |
 | `:wat::std::stream::from-fn` | alternate constructor | deferred (near-redundant with spawn-producer) |
-| `:wat::std::stream::from-receiver` | alternate constructor | deferred (handle-ownership question) |
 | `:rust::std::iter::Iterator<T>` surfacing | in-process lazy adapter chain via `#[wat_dispatch]` | substrate-blocked (own arc) |
 
 ---

@@ -31,20 +31,36 @@ them closes obvious gaps a reader would ask about.
   the rename.
 
 ## Prompt on design question — ship after user resolves
-- **`:wat::std::stream::chunks-by`** — N:1 with key-fn boundary.
-  Design question: emit on key-change (new key arrives) or
-  key-end (upstream disconnects / last key ended)? Rust's
-  `itertools::group_by` emits on key-change; Elixir's
-  `Stream.chunk_by` emits on key-change too. Probable answer is
-  key-change; confirm before shipping.
-- **`:wat::std::stream::window`** — sliding window. Design
-  questions: (a) step size (1 = every-item windows; N = stepped;
-  what's the default?); (b) overlap semantics (N-step-N is
-  chunks; 1-step-N is true sliding); (c) EOS behavior — emit
-  partial windows at end, or drop them, or only if consumer opts
-  in? `:wat::std::list::window` exists for in-process — match
-  its shape? (Need to re-check its semantics.)
-- **`:wat::std::stream::from-receiver`** — wrap an existing
+- **`:wat::std::stream::chunks-by`** — RESOLVED 2026-04-20 but
+  PAUSED. Decision: ship `:wat::std::stream::with-state` as the
+  substrate primitive (Mealy machine as a stream stage); let
+  `chunks`, `chunks-by`, `chunks-while`, `window`, `dedupe`,
+  `sessionize`, etc. all land as library compositions in wat on
+  top of it. Signature:
+  ```
+  (with-state stream init step flush) -> Stream<U>
+    step:  (Acc, T) -> (Acc, Vec<U>)
+    flush: (Acc)    -> Vec<U>
+  ```
+  Decomposition validated by convergence with prior art —
+  Elixir's `Stream.transform/3`, Rust's scan-with-emit,
+  Haskell's `mapAccumL`. Finding the same shape the greats found
+  is the signal the abstraction is real. Next slice: ship
+  with-state, rewrite `chunks` on top (surface reduction proof),
+  ship `chunks-by` as library code, then reassess window / dedupe.
+  **Paused for a detour the builder is about to show — see
+  `../007-detour-tbd/NOTES.md`.**
+- **`:wat::std::stream::window`** — RESOLVED 2026-04-20.
+  Ships as library code on `with-state`; step/overlap/EOS-behavior
+  become caller lambda parameters rather than stream-primitive
+  design questions. No primitive-level design remains.
+- **`:wat::std::stream::from-receiver`** — SHIPPED 2026-04-20
+  (arc 006 slice 3). `(from-receiver rx handle) -> Stream<T>` —
+  trivial tuple-wrap, no worker spawned. Caller provides both
+  arguments; if they don't have a handle they don't have a stream,
+  they have a bare Receiver whose producer will never be joined.
+  Don't hide that.
+- ~~Original prompt text:~~ wrap an existing
   `Receiver<T>` as a Stream. Design question: ownership of
   ProgramHandle. Stream's typealias is `(Receiver<T>,
   ProgramHandle<()>)`; if the receiver came from outside, there's
@@ -127,6 +143,9 @@ primitive" section.
 | flat-map | **shipped** | slice 1 |
 | inspect | **shipped** | slice 1 |
 | take (ex-first) | **shipped** | slice 2 |
+| from-receiver | **shipped** | slice 3 |
+| chunks-by | **resolved** via with-state | blocked on with-state |
+| window | **resolved** via with-state | blocked on with-state |
 | chunks-by | prompt-pending | — |
 | window | prompt-pending | — |
 | from-receiver | prompt-pending | — |

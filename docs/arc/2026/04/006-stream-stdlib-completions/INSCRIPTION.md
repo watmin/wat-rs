@@ -1,9 +1,9 @@
 # Arc 006 — Stream Stdlib Completions — INSCRIPTION
 
-**Status:** slices 1 + 2 shipped 2026-04-20. Arc remains OPEN for
-the three remaining design-question items (chunks-by, window,
-from-receiver) and the substrate-blocked set (time-window,
-from-iterator, Level 2 iterator surfacing).
+**Status:** slices 1 + 2 + 3 shipped 2026-04-20; chunks-by and
+window resolved at substrate level (blocked on with-state shipping).
+Arc remains OPEN only for the substrate-blocked set (with-state
+itself, time-window, from-iterator, Level 2 iterator surfacing).
 **Backlog:** [`BACKLOG.md`](./BACKLOG.md) — full classification of
 arc 004's deferred set.
 **This file:** completion marker for the trivial pattern-completion
@@ -140,18 +140,58 @@ that shouldn't exist, reframe the combinator).
 
 All 20 stream tests pass; full suite passes.
 
-## What remains — pending prompts
+## Slice 3 — `:wat::std::stream::from-receiver`
 
-Three items still awaiting user-resolution on their design questions,
-per the arc 006 BACKLOG:
+Trivial tuple-wrap. `(from-receiver rx handle) -> Stream<T>`. No
+worker spawned; just packages a caller-provided Receiver and the
+caller-provided ProgramHandle into the Stream<T> tuple alias.
 
-- **`chunks-by`** — key-change vs key-end boundary.
-- **`window`** — step / overlap / EOS partial-window behavior.
-- **`from-receiver`** — ProgramHandle ownership when wrapping an
-  external Receiver.
+**The design decision:** both arguments are required. Stream<T>'s
+typealias includes the handle because downstream terminators
+(`for-each`, `collect`, `fold`) join it. If the caller doesn't
+have a handle, they don't have a stream — they have a bare
+Receiver whose producer will never be joined. That's a broken
+shutdown story, and wat won't let the typealias paper over it.
+
+**What this re-taught.** The first test shape deadlocked: main's
+`let*` bound `tx` and `pair` before calling `collect` on the
+constructed stream; those bindings kept Senders alive through
+`collect`, which meant the channel never closed and `recv` never
+saw `:None`. The fix was to move the queue + spawn + `from-receiver`
+call into a helper `define` whose return is only the Stream<T>
+tuple; the helper's local bindings drop on return. Same scope-IS-
+shutdown discipline that forced `take` to be a stage. The
+discipline applies to tests too — you can't verify a stream
+combinator while holding Sender refs the combinator is waiting
+to see dropped. Test shape written up inside the test file's
+comments for future readers.
+
+## Resolved at substrate — ship on with-state
+
+Two more items from the original prompt list closed without
+shipping their own primitives:
+
+- **`:wat::std::stream::chunks-by`** — N:1 with key-fn boundary.
+  Decomposes to `with-state` with `init = (None, [])`, `step` that
+  accumulates on key-match and emits on key-change, `flush` that
+  emits the final partial. Library code. No primitive-level
+  design question remains.
+- **`:wat::std::stream::window`** — N:1 sliding. Decomposes to
+  `with-state` with `init = []`, `step` that appends and trims to
+  size, `flush` that decides EOS policy at the call site. Step
+  size, overlap, and partial-window behavior are caller lambda
+  parameters rather than stream-primitive design choices.
+
+Both ship in the slice that lands `with-state` — arc 007 or a
+slice 4 of arc 006. The primitive list grew by one (`with-state`)
+and the specialization list stays the same (chunks, chunks-by,
+window, dedupe, etc., all written once as wat functions on top).
 
 ## What remains — substrate-blocked
 
+- **`with-state`** — the Mealy-machine substrate primitive that
+  chunks-by, window, dedupe, sessionize decompose into. Pending
+  implementation; next slice or arc.
 - **`time-window`** — clock primitive.
 - **`from-iterator`** — iterator surfacing.
 - **Level 2 `:rust::std::iter::Iterator<T>` surfacing** — own arc.
@@ -169,6 +209,15 @@ future deferrals should land in the same three-bucket shape.
 
 ---
 
-**Arc 006 first slice — complete.** Arc remains OPEN against its
-pending prompts and substrate blocks. Next movement: user resolves
-any of first / chunks-by / window / from-receiver; slice 2 ships.
+**Arc 006 slices 1-3 — complete.** chunks-by and window closed at
+the substrate level (library code on with-state). Arc remains OPEN
+only against substrate-blocked items: shipping with-state itself,
+time-window (needs clock), from-iterator + Level 2 iterator
+surfacing (own arc).
+
+Next movement: with-state implementation — the Mealy-machine stream
+stage primitive that decomposes every stateful combinator into a
+caller-supplied (init, step, flush) triple. Convergence with Elixir's
+Stream.transform/3, Rust's scan-with-emit, Haskell's mapAccumL,
+George Mealy 1955. Shipping it proves the decomposition by rewriting
+`chunks` on top and reducing the primitive surface.
