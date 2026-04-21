@@ -200,6 +200,27 @@ impl TypeEnv {
         Ok(())
     }
 
+    /// Register a TRUSTED stdlib type declaration. Bypasses the
+    /// reserved-prefix gate because stdlib wat files live under
+    /// `:wat::std::*` by design — same privilege that
+    /// [`crate::macros::MacroRegistry::register_stdlib`] grants
+    /// stdlib defmacros. User source still goes through
+    /// [`Self::register`] where the prefix check catches
+    /// mis-namespaced user declarations.
+    ///
+    /// Duplicates and cyclic aliases are still rejected.
+    pub fn register_stdlib(&mut self, def: TypeDef) -> Result<(), TypeError> {
+        let name = def.name().to_string();
+        if self.types.contains_key(&name) {
+            return Err(TypeError::DuplicateType { name });
+        }
+        if let TypeDef::Alias(alias) = &def {
+            check_alias_no_cycle(&name, &alias.expr, self)?;
+        }
+        self.types.insert(name, def);
+        Ok(())
+    }
+
     /// Privileged internal registration — bypasses the reserved-prefix
     /// gate so wat-rs itself can seed `:wat::*` type declarations via
     /// [`Self::with_builtins`]. Not exposed as `pub`: consumer crates
@@ -368,6 +389,29 @@ pub fn register_types(
             Some(head) => {
                 let def = parse_type_decl(head, form)?;
                 env.register(def)?;
+            }
+            None => rest.push(form),
+        }
+    }
+    Ok(rest)
+}
+
+/// Stdlib-registration variant of [`register_types`] that bypasses the
+/// `:wat::*` reserved-prefix gate. Called by the startup pipeline on
+/// the baked stdlib sources so stdlib wat files can declare types
+/// (typealiases, structs, enums, newtypes) under `:wat::std::*`.
+/// Mirrors [`crate::macros::register_stdlib_defmacros`]'s privileged
+/// path.
+pub fn register_stdlib_types(
+    forms: Vec<WatAST>,
+    env: &mut TypeEnv,
+) -> Result<Vec<WatAST>, TypeError> {
+    let mut rest = Vec::with_capacity(forms.len());
+    for form in forms {
+        match classify_type_decl(&form) {
+            Some(head) => {
+                let def = parse_type_decl(head, form)?;
+                env.register_stdlib(def)?;
             }
             None => rest.push(form),
         }

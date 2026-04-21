@@ -63,7 +63,7 @@ use crate::runtime::{
     apply_function, register_defines, register_stdlib_defines, EncodingCtx, Environment,
     RuntimeError, SymbolTable, Value,
 };
-use crate::types::{register_types, TypeEnv, TypeError};
+use crate::types::{register_stdlib_types, register_types, TypeEnv, TypeError};
 use std::fmt;
 use std::sync::Arc;
 
@@ -285,7 +285,7 @@ pub fn startup_from_source(
     //    cannot be re-declared by user code (the reserved-prefix
     //    gate blocks at `TypeEnv::register`).
     let mut types = TypeEnv::with_builtins();
-    let stdlib_post_types = register_types(expanded_stdlib, &mut types)?;
+    let stdlib_post_types = register_stdlib_types(expanded_stdlib, &mut types)?;
     let post_types = register_types(expanded_user, &mut types)?;
 
     // 6. Function definitions. Stdlib defines bypass the reserved-
@@ -706,21 +706,22 @@ mod tests {
     }
 
     #[test]
-    fn invoke_main_uses_std_local_cache_via_rust_lru_shim() {
+    fn invoke_main_uses_std_local_cache() {
         // Full startup pipeline: stdlib's wat/std/LocalCache.wat
-        // loads; its use! declaration of :rust::lru::LruCache is
-        // validated against the rust-deps registry; the three
-        // wrapper defines become resolvable; :user::main exercises
-        // the full new/put/get round-trip.
+        // loads; its typealias declaration of
+        // :wat::std::LocalCache<K,V> registers; the three wrapper
+        // defines become resolvable; :user::main exercises the full
+        // new/put/get round-trip using the wat-native names.
         //
-        // This is the load-bearing end-to-end test for :rust::*
-        // + (:wat::core::use!) + wat-source stdlib composition.
+        // This is the load-bearing end-to-end test for stdlib
+        // composition — macro expansion, alias expansion, and
+        // :rust::* dispatch all converge here.
         let src = r#"
             (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::define (:user::main -> :i64)
               (:wat::core::let*
-                (((cache :rust::lru::LruCache<String,i64>)
+                (((cache :wat::std::LocalCache<String,i64>)
                   (:wat::std::LocalCache::new 16))
                  ((_ :()) (:wat::std::LocalCache::put cache "answer" 42)))
                 (:wat::core::match (:wat::std::LocalCache::get cache "answer") -> :i64

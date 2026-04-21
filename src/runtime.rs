@@ -5404,11 +5404,50 @@ fn is_mutation_head(head: &str) -> bool {
 mod tests {
     use super::*;
     use crate::parser::{parse_all, parse_one};
+    use std::sync::OnceLock;
+
+    /// The stdlib is the standard library — always available, without
+    /// ceremony. Test harnesses load it once per process via
+    /// `OnceLock`, then clone the resulting SymbolTable / MacroRegistry
+    /// / TypeEnv per test. This mirrors what `startup_from_source` does
+    /// at the stdlib phase, minus the user-source passes.
+    ///
+    /// Without this, `run` and `eval_expr` would hand back bare
+    /// `SymbolTable::new()` values where `:wat::std::*` names resolve
+    /// to `UnknownFunction` — dishonest framing of what "standard
+    /// library" means.
+    fn stdlib_loaded() -> &'static (SymbolTable, crate::macros::MacroRegistry) {
+        static LOADED: OnceLock<(SymbolTable, crate::macros::MacroRegistry)> = OnceLock::new();
+        LOADED.get_or_init(|| {
+            let stdlib = crate::stdlib::stdlib_forms().expect("stdlib parses");
+            let mut macros = crate::macros::MacroRegistry::new();
+            let stdlib_post_macros =
+                crate::macros::register_stdlib_defmacros(stdlib, &mut macros)
+                    .expect("stdlib defmacros register");
+            let expanded_stdlib = crate::macros::expand_all(stdlib_post_macros, &macros)
+                .expect("stdlib macro expansion");
+            let mut types = crate::types::TypeEnv::with_builtins();
+            let stdlib_post_types =
+                crate::types::register_stdlib_types(expanded_stdlib, &mut types)
+                    .expect("stdlib types register");
+            let mut symbols = SymbolTable::new();
+            let _ = register_stdlib_defines(stdlib_post_types, &mut symbols)
+                .expect("stdlib defines register");
+            register_struct_methods(&types, &mut symbols)
+                .expect("built-in struct methods register");
+            (symbols, macros)
+        })
+    }
 
     fn run(src: &str) -> Result<Value, RuntimeError> {
+        let (stdlib_sym, macros) = stdlib_loaded();
         let forms = parse_all(src).expect("parse ok");
-        let mut sym = SymbolTable::new();
-        let rest = register_defines(forms, &mut sym)?;
+        // Expand any stdlib-macro calls in the user source before
+        // registering defines and evaluating.
+        let expanded =
+            crate::macros::expand_all(forms, macros).expect("macro expansion");
+        let mut sym = stdlib_sym.clone();
+        let rest = register_defines(expanded, &mut sym)?;
         let env = Environment::new();
         let mut last = Value::Unit;
         for form in &rest {
@@ -5418,8 +5457,12 @@ mod tests {
     }
 
     fn eval_expr(src: &str) -> Result<Value, RuntimeError> {
+        let (stdlib_sym, macros) = stdlib_loaded();
         let ast = parse_one(src).expect("parse ok");
-        eval(&ast, &Environment::new(), &SymbolTable::new())
+        let expanded = crate::macros::expand_all(vec![ast], macros)
+            .expect("macro expansion");
+        let ast = expanded.into_iter().next().expect("one form in, one form out");
+        eval(&ast, &Environment::new(), stdlib_sym)
     }
 
     // ─── Literals ───────────────────────────────────────────────────────
@@ -7187,10 +7230,10 @@ mod tests {
     fn local_cache_put_then_get_returns_some() {
         let src = r#"
             (:wat::core::let*
-              (((cache :rust::lru::LruCache<String,i64>)
-                (:rust::lru::LruCache::new 16))
-               ((_ :()) (:rust::lru::LruCache::put cache "answer" 42)))
-              (:wat::core::match (:rust::lru::LruCache::get cache "answer") -> :i64
+              (((cache :wat::std::LocalCache<String,i64>)
+                (:wat::std::LocalCache::new 16))
+               ((_ :()) (:wat::std::LocalCache::put cache "answer" 42)))
+              (:wat::core::match (:wat::std::LocalCache::get cache "answer") -> :i64
                 ((Some v) v)
                 (:None -1)))
         "#;
@@ -7204,9 +7247,9 @@ mod tests {
     fn local_cache_miss_returns_none() {
         let src = r#"
             (:wat::core::let*
-              (((cache :rust::lru::LruCache<String,i64>)
-                (:rust::lru::LruCache::new 16)))
-              (:wat::core::match (:rust::lru::LruCache::get cache "missing") -> :i64
+              (((cache :wat::std::LocalCache<String,i64>)
+                (:wat::std::LocalCache::new 16)))
+              (:wat::core::match (:wat::std::LocalCache::get cache "missing") -> :i64
                 ((Some v) v)
                 (:None -1)))
         "#;
@@ -7221,12 +7264,12 @@ mod tests {
         // Capacity 2: after putting 3 entries, the first is evicted.
         let src = r#"
             (:wat::core::let*
-              (((cache :rust::lru::LruCache<i64,i64>)
-                (:rust::lru::LruCache::new 2))
-               ((_ :()) (:rust::lru::LruCache::put cache 1 10))
-               ((_ :()) (:rust::lru::LruCache::put cache 2 20))
-               ((_ :()) (:rust::lru::LruCache::put cache 3 30)))
-              (:wat::core::match (:rust::lru::LruCache::get cache 1) -> :i64
+              (((cache :wat::std::LocalCache<i64,i64>)
+                (:wat::std::LocalCache::new 2))
+               ((_ :()) (:wat::std::LocalCache::put cache 1 10))
+               ((_ :()) (:wat::std::LocalCache::put cache 2 20))
+               ((_ :()) (:wat::std::LocalCache::put cache 3 30)))
+              (:wat::core::match (:wat::std::LocalCache::get cache 1) -> :i64
                 ((Some v) v)
                 (:None -1)))
         "#;
@@ -7240,11 +7283,11 @@ mod tests {
     fn local_cache_put_overwrites_existing_key() {
         let src = r#"
             (:wat::core::let*
-              (((cache :rust::lru::LruCache<String,i64>)
-                (:rust::lru::LruCache::new 16))
-               ((_ :()) (:rust::lru::LruCache::put cache "k" 1))
-               ((_ :()) (:rust::lru::LruCache::put cache "k" 99)))
-              (:wat::core::match (:rust::lru::LruCache::get cache "k") -> :i64
+              (((cache :wat::std::LocalCache<String,i64>)
+                (:wat::std::LocalCache::new 16))
+               ((_ :()) (:wat::std::LocalCache::put cache "k" 1))
+               ((_ :()) (:wat::std::LocalCache::put cache "k" 99)))
+              (:wat::core::match (:wat::std::LocalCache::get cache "k") -> :i64
                 ((Some v) v)
                 (:None -1)))
         "#;

@@ -3185,20 +3185,51 @@ fn register_builtins(env: &mut CheckEnv) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::macros::{expand_all, register_defmacros, MacroRegistry};
+    use crate::macros::{
+        expand_all, register_defmacros, register_stdlib_defmacros, MacroRegistry,
+    };
     use crate::parser::parse_all;
-    use crate::runtime::{register_defines, SymbolTable};
-    use crate::types::{parse_type_expr, TypeEnv};
+    use crate::runtime::{
+        register_defines, register_stdlib_defines, register_struct_methods, SymbolTable,
+    };
+    use crate::types::{parse_type_expr, register_stdlib_types, TypeEnv};
+    use std::sync::OnceLock;
+
+    /// The stdlib is always part of the language. Test harnesses
+    /// preload it once per process via `OnceLock`, clone the resulting
+    /// state per test. This mirrors `startup_from_source`'s stdlib
+    /// passes without running user-source phases, so every check()
+    /// call sees `:wat::std::*` names, macros, and typealiases.
+    fn stdlib_loaded() -> &'static (SymbolTable, MacroRegistry, TypeEnv) {
+        static LOADED: OnceLock<(SymbolTable, MacroRegistry, TypeEnv)> = OnceLock::new();
+        LOADED.get_or_init(|| {
+            let stdlib = crate::stdlib::stdlib_forms().expect("stdlib parses");
+            let mut macros = MacroRegistry::new();
+            let stdlib_post_macros =
+                register_stdlib_defmacros(stdlib, &mut macros).expect("stdlib defmacros");
+            let expanded_stdlib =
+                expand_all(stdlib_post_macros, &macros).expect("stdlib macro expansion");
+            let mut types = TypeEnv::with_builtins();
+            let stdlib_post_types =
+                register_stdlib_types(expanded_stdlib, &mut types).expect("stdlib types");
+            let mut symbols = SymbolTable::new();
+            let _ = register_stdlib_defines(stdlib_post_types, &mut symbols)
+                .expect("stdlib defines");
+            register_struct_methods(&types, &mut symbols)
+                .expect("built-in struct methods");
+            (symbols, macros, types)
+        })
+    }
 
     fn check(src: &str) -> Result<(), CheckErrors> {
+        let (stdlib_sym, stdlib_macros, types) = stdlib_loaded();
         let forms = parse_all(src).expect("parse ok");
-        let mut macros = MacroRegistry::new();
+        let mut macros = stdlib_macros.clone();
         let rest = register_defmacros(forms, &mut macros).expect("register macros");
         let expanded = expand_all(rest, &macros).expect("expand");
-        let mut sym = SymbolTable::new();
+        let mut sym = stdlib_sym.clone();
         let rest = register_defines(expanded, &mut sym).expect("register defines");
-        let types = TypeEnv::new();
-        check_program(&rest, &sym, &types)
+        check_program(&rest, &sym, types)
     }
 
     // ─── Arity checking ─────────────────────────────────────────────────
@@ -3302,42 +3333,66 @@ mod tests {
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
-    // ─── :rust::* dispatch via rust_deps registry ───────────────────────
+    // ─── LocalCache wrappers + alias expansion ─────────────────────────
 
     #[test]
-    fn rust_lru_new_typechecks_via_let_annotation() {
+    fn local_cache_new_typechecks_via_let_annotation() {
         // No explicit :T on ::new — K,V flow from the let annotation
-        // through the scheme's fresh vars via unification.
+        // through the scheme's fresh vars via unification. The
+        // annotation uses the wat-native `:wat::std::LocalCache<K,V>`
+        // typealias; alias expansion at unify makes it equivalent to
+        // the Rust backing.
         let result = check(
             r#"(:wat::core::let*
-                 (((cache :rust::lru::LruCache<String,i64>)
-                   (:rust::lru::LruCache::new 16)))
+                 (((cache :wat::std::LocalCache<String,i64>)
+                   (:wat::std::LocalCache::new 16)))
                  cache)"#,
         );
         assert!(result.is_ok(), "expected ok, got {:?}", result.err());
     }
 
     #[test]
-    fn rust_lru_put_typechecks_on_concrete_cache() {
+    fn local_cache_put_typechecks_on_concrete_cache() {
         assert!(check(
             r#"(:wat::core::let*
-                 (((cache :rust::lru::LruCache<String,i64>)
-                   (:rust::lru::LruCache::new 16))
-                  ((_ :()) (:rust::lru::LruCache::put cache "k" 42)))
+                 (((cache :wat::std::LocalCache<String,i64>)
+                   (:wat::std::LocalCache::new 16))
+                  ((_ :()) (:wat::std::LocalCache::put cache "k" 42)))
                  cache)"#
         )
         .is_ok());
     }
 
     #[test]
-    fn rust_lru_get_typechecks_returns_option_of_value_type() {
+    fn local_cache_get_typechecks_returns_option_of_value_type() {
+        assert!(check(
+            r#"(:wat::core::let*
+                 (((cache :wat::std::LocalCache<String,i64>)
+                   (:wat::std::LocalCache::new 16)))
+                 (:wat::core::match (:wat::std::LocalCache::get cache "k") -> :i64
+                   ((Some v) v)
+                   (:None 0)))"#
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn local_cache_alias_interchangeable_with_rust_backing() {
+        // Declaring the cache with the wat-native name and using the
+        // Rust-backing name at the call site (or vice versa) must
+        // type-check — unify's alias expansion walks through.
+        assert!(check(
+            r#"(:wat::core::let*
+                 (((cache :wat::std::LocalCache<String,i64>)
+                   (:rust::lru::LruCache::new 16)))
+                 cache)"#
+        )
+        .is_ok());
         assert!(check(
             r#"(:wat::core::let*
                  (((cache :rust::lru::LruCache<String,i64>)
-                   (:rust::lru::LruCache::new 16)))
-                 (:wat::core::match (:rust::lru::LruCache::get cache "k") -> :i64
-                   ((Some v) v)
-                   (:None 0)))"#
+                   (:wat::std::LocalCache::new 16)))
+                 cache)"#
         )
         .is_ok());
     }

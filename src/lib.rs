@@ -94,8 +94,8 @@ pub use runtime::{
     Function, RuntimeError, StructValue, SymbolTable, Value,
 };
 pub use types::{
-    parse_type_expr, register_types, AliasDef, EnumDef, EnumVariant, NewtypeDef, StructDef,
-    TypeDef, TypeEnv, TypeError, TypeExpr,
+    parse_type_expr, register_stdlib_types, register_types, AliasDef, EnumDef, EnumVariant,
+    NewtypeDef, StructDef, TypeDef, TypeEnv, TypeError, TypeExpr,
 };
 
 use holon::{encode, AtomTypeRegistry, ScalarEncoder, Vector, VectorManager};
