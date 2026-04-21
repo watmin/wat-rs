@@ -2786,6 +2786,76 @@ fn register_builtins(env: &mut CheckEnv) {
         );
     }
 
+    // String basics — :wat::core::string::*. Per-type ops, char-
+    // oriented (length counts unicode scalars, not bytes). See
+    // src/string_ops.rs for the handlers.
+    for op in &[
+        ":wat::core::string::contains?",
+        ":wat::core::string::starts-with?",
+        ":wat::core::string::ends-with?",
+    ] {
+        env.register(
+            op.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![string_ty(), string_ty()],
+                ret: bool_ty(),
+            },
+        );
+    }
+    env.register(
+        ":wat::core::string::length".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::string::trim".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: string_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::string::split".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty(), string_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Vec".into(),
+                args: vec![string_ty()],
+            },
+        },
+    );
+    env.register(
+        ":wat::core::string::join".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                string_ty(),
+                TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![string_ty()],
+                },
+            ],
+            ret: string_ty(),
+        },
+    );
+
+    // Regex — :wat::core::regex::*. matches? is unanchored (pattern
+    // match anywhere in haystack); wrap with ^...$ for full-string.
+    env.register(
+        ":wat::core::regex::matches?".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty(), string_ty()],
+            ret: bool_ty(),
+        },
+    );
+
     // Comparison — ∀T. T → T → :bool. Operands must agree.
     for op in &[
         ":wat::core::=",

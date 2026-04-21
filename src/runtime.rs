@@ -699,6 +699,19 @@ pub enum RuntimeError {
         func: Arc<Function>,
         args: Vec<Value>,
     },
+    /// Raised by `:wat::kernel::assertion-failed!` when an assertion in
+    /// a `:wat::test::*` form (or any user code that calls the primitive
+    /// directly) fails. Intended to travel as a panic payload via the
+    /// [`crate::assertion::AssertionPayload`] struct and be caught by
+    /// `run-sandboxed`'s `catch_unwind`, where actual/expected land in
+    /// the `:wat::kernel::Failure`'s slots. Outside a sandbox, this
+    /// variant surfaces as an ordinary RuntimeError — reporting that
+    /// an assertion fired without a test harness to catch it.
+    AssertionFailed {
+        message: String,
+        actual: Option<String>,
+        expected: Option<String>,
+    },
 }
 
 impl fmt::Display for RuntimeError {
@@ -778,6 +791,16 @@ impl fmt::Display for RuntimeError {
                 f,
                 "TCO: internal error — a tail-call signal escaped its enclosing apply_function. The evaluator should catch TailCall at every function boundary; reaching the user with one unwound indicates an interpreter bug.",
             ),
+            RuntimeError::AssertionFailed { message, actual, expected } => {
+                write!(f, "assertion failed: {}", message)?;
+                if let Some(a) = actual {
+                    write!(f, "\n  actual:   {}", a)?;
+                }
+                if let Some(e) = expected {
+                    write!(f, "\n  expected: {}", e)?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -1630,6 +1653,26 @@ fn dispatch_keyword_head(
                 Ok(a / b)
             }
         }),
+        // String basics — per-type ops under :wat::core::string::*,
+        // following the :wat::core::i64::* precedent. Char-oriented.
+        ":wat::core::string::contains?" => {
+            crate::string_ops::eval_string_contains(args, env, sym)
+        }
+        ":wat::core::string::starts-with?" => {
+            crate::string_ops::eval_string_starts_with(args, env, sym)
+        }
+        ":wat::core::string::ends-with?" => {
+            crate::string_ops::eval_string_ends_with(args, env, sym)
+        }
+        ":wat::core::string::length" => crate::string_ops::eval_string_length(args, env, sym),
+        ":wat::core::string::trim" => crate::string_ops::eval_string_trim(args, env, sym),
+        ":wat::core::string::split" => crate::string_ops::eval_string_split(args, env, sym),
+        ":wat::core::string::join" => crate::string_ops::eval_string_join(args, env, sym),
+
+        // Regex — pattern matching. Lives in its own :wat::core::regex::*
+        // namespace since the regex crate is a distinct concern.
+        ":wat::core::regex::matches?" => crate::string_ops::eval_regex_matches(args, env, sym),
+
         // Float arithmetic — strict f64. No promotion from i64.
         ":wat::core::f64::+" => eval_f64_arith(head, args, env, sym, |a, b| Ok(a + b)),
         ":wat::core::f64::-" => eval_f64_arith(head, args, env, sym, |a, b| Ok(a - b)),
