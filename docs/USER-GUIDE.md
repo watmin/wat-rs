@@ -186,8 +186,8 @@ have a tier question to answer.
 ### `define` — named registration
 
 ```scheme
-(:wat::core::define (:my::app::greet (name :String) -> :String)
-  (:wat::std::string::concat "hello, " name))
+(:wat::core::define (:my::app::double (n :i64) -> :i64)
+  (:wat::core::i64::* n 2))
 ```
 
 Every parameter is typed. Return type is declared after `->`. Body
@@ -355,7 +355,7 @@ primitives at parse time:
 The presence retrieval primitive:
 
 ```scheme
-(:wat::core::presence target-holon reference-vector)
+(:wat::algebra::presence? target-holon reference-vector)
 ;; → :f64 cosine between encode(target) and reference
 ;; Caller binarizes against (:wat::config::noise-floor) if they want yes/no
 ```
@@ -737,10 +737,10 @@ determine the runtime behavior when Kanerva's per-frame bound
                     -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
   (Ok (:wat::core::try (:wat::algebra::Bundle items))))
 
-(:wat::core::match (:my::app::build huge-list) -> :String
-  ((Ok h) (... use h ...))
+(:wat::core::match (:my::app::build huge-list) -> :i64
+  ((Ok _h) 0)
   ((Err e)
-    (:wat::std::format "overflow: cost {} > budget {}"
+    (:wat::core::i64::-
       (:wat::algebra::CapacityExceeded/cost e)
       (:wat::algebra::CapacityExceeded/budget e))))
 ```
@@ -868,7 +868,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::algebra::Thermometer` | `value min max` | `:holon::HolonAST` |
 | `:wat::algebra::Blend` | `a b w1 w2` | `:holon::HolonAST` |
 | `:wat::algebra::cosine` / `dot` | `a b` | `:f64` |
-| `:wat::core::presence` | `target reference-vec` | `:f64` |
+| `:wat::algebra::presence?` | `target reference-vec` | `:f64` |
 
 ---
 

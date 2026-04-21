@@ -82,7 +82,7 @@ implemented and tested end-to-end:
 
 **Programs-as-holons operational.** `:wat::core::quote` + parametric
 `:wat::algebra::Atom` + `:wat::core::atom-value` carry wat programs as
-first-class data in the algebra. `:wat::core::presence` (FOUNDATION 1718)
+first-class data in the algebra. `:wat::algebra::presence?` (FOUNDATION 1718)
 is the retrieval primitive — cosine between encoded holons, returning
 scalar `:f64` the caller binarizes against the 5σ noise floor committed at
 config pass. The vector-level proof runs end-to-end:

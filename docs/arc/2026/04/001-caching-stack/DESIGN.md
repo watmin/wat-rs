@@ -13,8 +13,13 @@ Three pieces in the proposal (FOUNDATION lines 1527-1565):
    Spawnable program whose driver thread owns an LRU; other programs talk
    to it via queues. The program IS the synchronization point. A program
    wrapping its own LocalCache behind a select loop.
-3. **`:wat::std::cached-encode`** — `wat/std/cached-encode.wat`. Thin
-   function over `encode` + a cache handle (local or remote).
+3. **`:wat::std::cached-encode`** — DEFERRED. Originally planned
+   as a thin function over `encode` + a cache handle; not shipped
+   in the caching-stack slice. Users wrap their own encode calls
+   with a LocalCache::get/put pair when memoization matters. Ships
+   if a concrete caller demands the uniform wrapper; until then,
+   the explicit pattern at the call site is clearer than a
+   wrapper that hides the cache-hit decision.
 
 ## Lab prior art (`holon-lab-trading/src/`)
 

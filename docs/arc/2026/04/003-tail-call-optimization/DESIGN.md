@@ -129,7 +129,10 @@ Positions that carry tail-position through:
 | `(:wat::core::let* ((b1 rhs1) (b2 rhs2) ...) body)` | `body` (every RHS is NOT tail) |
 | `(:wat::core::if cond -> :T then else)` | `then` and `else` (cond NOT tail) |
 | `(:wat::core::match scrutinee -> :T (pat1 body1) ...)` | every `body_i` (scrutinee NOT tail) |
-| `(:wat::core::when cond body)` | `body` (cond NOT tail) |
+
+(`:wat::core::when` is listed in FOUNDATION as a host-inherited
+Lisp form; NOT shipped in wat-rs today. When it ships, its body
+is tail-carrying — cond is not.)
 
 Positions that are **never tail**:
 
