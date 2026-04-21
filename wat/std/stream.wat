@@ -410,7 +410,7 @@
       -> :(Vec<T>,Vec<Vec<T>>)
       (:wat::core::tuple
         (:wat::core::vec :T)
-        (:wat::core::conj (:wat::core::vec :Vec<T>) new-buffer))
+        (:wat::core::vec :Vec<T> new-buffer))
       (:wat::core::tuple
         new-buffer
         (:wat::core::vec :Vec<T>)))))
@@ -421,7 +421,7 @@
     -> :Vec<Vec<T>>)
   (:wat::core::if (:wat::core::empty? buffer) -> :Vec<Vec<T>>
     (:wat::core::vec :Vec<T>)
-    (:wat::core::conj (:wat::core::vec :Vec<T>) buffer)))
+    (:wat::core::vec :Vec<T> buffer)))
 
 (:wat::core::define
   (:wat::std::stream::chunks<T>

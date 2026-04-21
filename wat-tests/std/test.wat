@@ -27,14 +27,8 @@
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-vec 1024 :error
   (:wat::core::let*
-    (((a :Vec<String>)
-      (:wat::core::conj
-        (:wat::core::conj (:wat::core::vec :String) "x")
-        "y"))
-     ((b :Vec<String>)
-      (:wat::core::conj
-        (:wat::core::conj (:wat::core::vec :String) "x")
-        "y")))
+    (((a :Vec<String>) (:wat::core::vec :String "x" "y"))
+     ((b :Vec<String>) (:wat::core::vec :String "x" "y")))
     (:wat::test::assert-eq a b)))
 
 ;; ─── assert-eq — fail case surfaces message ───────────────────────────
@@ -117,10 +111,7 @@
               ((_ :()) (:wat::io::IOWriter/println stdout \"beta\")))
              ()))"
         (:wat::core::vec :String)))
-     ((expected :Vec<String>)
-      (:wat::core::conj
-        (:wat::core::conj (:wat::core::vec :String) "alpha")
-        "beta")))
+     ((expected :Vec<String>) (:wat::core::vec :String "alpha" "beta")))
     (:wat::test::assert-stdout-is inner expected)))
 
 ;; ─── assert-stderr-matches — pass + fail-reports-pattern ──────────────
@@ -195,8 +186,7 @@
                               -> :())
            (:wat::io::IOWriter/println stdout \"captured\"))"
         (:wat::core::vec :String)))
-     ((expected :Vec<String>)
-      (:wat::core::conj (:wat::core::vec :String) "captured")))
+     ((expected :Vec<String>) (:wat::core::vec :String "captured")))
     (:wat::test::assert-stdout-is r expected)))
 
 ;; deftest's self-test is redundant here — every other passing deftest
