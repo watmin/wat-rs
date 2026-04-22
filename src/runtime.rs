@@ -6899,41 +6899,58 @@ mod tests {
     //
     // wat's zero-Mutex discipline forbids reaching for `std::sync::Mutex`
     // (or any equivalent spin-gate) in our own code, even in tests.
-    // The honest isolation is subprocess-per-test: each signal test
-    // runs its body in a child process with fresh statics. No shared
+    // The honest isolation is per-test fork: each signal test runs its
+    // body in a child process with independent atomic state. No shared
     // mutable state; no race.
     //
-    // Mechanism: re-invoke the current test binary with
-    // `--exact <test-path> --nocapture`, setting the env var
-    // `WAT_SIGNAL_TEST_CHILD=1`. The test function checks the env at
-    // entry: if set, run the body (we're the child); otherwise spawn
-    // a child and assert on its exit status (we're the parent). Same
-    // pattern `tests/wat_vm_cli.rs` uses to run programs in spawned
-    // wat processes — just pointed at the test binary instead.
+    // Mechanism (arc 012 side quest, 2026-04-21): `libc::fork()`. Parent
+    // waits via `waitpid` + asserts exit 0. Child runs `body` inside
+    // `catch_unwind`; panic → `libc::_exit(1)` so the parent's assert
+    // fails with the panic visible in the child's inherited stderr.
+    // Replaces the previous re-invoke-current-exe-with-env-var
+    // mechanism, which coupled tests to `std::env::current_exe()` and
+    // spawned a fresh `std::process::Command` — the last test-code
+    // subprocess spawn in the src/ tree.
 
-    const WAT_SIGNAL_TEST_CHILD: &str = "WAT_SIGNAL_TEST_CHILD";
-
-    /// Run `body` in an isolated subprocess for signal tests.
-    /// `test_path` is the full `module::test_name` identifier passed to
-    /// cargo test's `--exact` filter. The parent spawns the current
-    /// test binary scoped to that one test; the child runs `body` to
-    /// completion.
-    fn in_signal_subprocess(test_path: &str, body: impl FnOnce()) {
-        if std::env::var(WAT_SIGNAL_TEST_CHILD).is_ok() {
-            body();
-            return;
+    /// Run `body` in an isolated forked process for signal tests.
+    /// The `test_path` parameter is unused under the fork mechanism;
+    /// kept at callsites for call-shape stability.
+    fn in_signal_subprocess(_test_path: &str, body: impl FnOnce()) {
+        let pid = unsafe { libc::fork() };
+        if pid < 0 {
+            panic!(
+                "fork failed: {}",
+                std::io::Error::last_os_error()
+            );
         }
-        let exe = std::env::current_exe().expect("current_exe");
-        let status = std::process::Command::new(exe)
-            .arg("--exact")
-            .arg(test_path)
-            .arg("--nocapture")
-            .env(WAT_SIGNAL_TEST_CHILD, "1")
-            .status()
-            .expect("spawn signal-test child");
+        if pid == 0 {
+            // Child — run body, exit 0 on success, 1 on panic. Use
+            // _exit so atexit handlers registered by the parent's
+            // cargo-test harness don't run (they'd flush / close
+            // duplicated resources the parent still owns).
+            let outcome = std::panic::catch_unwind(
+                std::panic::AssertUnwindSafe(body),
+            );
+            match outcome {
+                Ok(()) => unsafe { libc::_exit(0) },
+                Err(_panic) => {
+                    // Rust's default panic hook already wrote the
+                    // payload to stderr before catch_unwind caught.
+                    unsafe { libc::_exit(1) };
+                }
+            }
+        }
+        // Parent — wait + assert.
+        let mut status: libc::c_int = 0;
+        let waited = unsafe { libc::waitpid(pid, &mut status, 0) };
         assert!(
-            status.success(),
-            "signal-test child exited with failure: {:?}",
+            waited >= 0,
+            "waitpid failed: {}",
+            std::io::Error::last_os_error()
+        );
+        assert!(
+            libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0,
+            "signal-test child exited with failure (status={:#x})",
             status
         );
     }
