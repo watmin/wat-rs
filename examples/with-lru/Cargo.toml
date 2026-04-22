@@ -1,0 +1,14 @@
+[package]
+name = "with-lru-example"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Arc 013 reference binary — composes wat-rs + wat-lru + a user .wat program via the wat::main! macro. Walkable proof of the external-wat-crate mechanism."
+
+[[bin]]
+name = "with-lru-example"
+path = "src/main.rs"
+
+[dependencies]
+wat = { path = "../.." }
+wat-lru = { path = "../../crates/wat-lru" }
