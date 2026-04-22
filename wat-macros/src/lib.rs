@@ -171,6 +171,106 @@ pub fn wat_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
+// ─── wat::main! — arc 013 slice 3 ────────────────────────────────────────
+//
+// Declarative entry point for Rust binaries that embed wat programs.
+// Usage:
+//
+//     wat::main! {
+//         source: include_str!("program.wat"),
+//         deps: [wat_lru, wat_reqwest, wat_sqlite],
+//     }
+//
+// `source:` is an expression (typically `include_str!`). `deps:` is
+// an optional bracketed path list — each element is a crate (or path
+// to a module) exposing `pub fn stdlib_sources() -> &'static
+// [wat::stdlib::StdlibFile]`. Omit `deps:` or write `deps: []` for
+// no external deps.
+//
+// Expands to `fn main() -> Result<(), ::wat::harness::HarnessError>`
+// calling `::wat::compose_and_run(source, &[deps.stdlib_sources()...])`.
+//
+// Requires the consumer's Cargo.toml to have a dep named `wat` (the
+// crate isn't configurable here). Users renaming the wat dep write
+// their own main against the public Harness API.
+
+use proc_macro2::TokenStream as TokenStream2;
+use quote::quote;
+use syn::parse::{Parse, ParseStream};
+use syn::punctuated::Punctuated;
+use syn::Path;
+
+struct MainInput {
+    source: syn::Expr,
+    deps: Vec<Path>,
+}
+
+impl Parse for MainInput {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        // Required: `source: <expr>`
+        let source_key: syn::Ident = input.parse()?;
+        if source_key != "source" {
+            return Err(Error::new(source_key.span(), "expected `source:` first"));
+        }
+        input.parse::<syn::Token![:]>()?;
+        let source: syn::Expr = input.parse()?;
+
+        // Optional: `, deps: [path, path, ...]`
+        let mut deps: Vec<Path> = Vec::new();
+        if input.peek(syn::Token![,]) {
+            input.parse::<syn::Token![,]>()?;
+            if !input.is_empty() {
+                let deps_key: syn::Ident = input.parse()?;
+                if deps_key != "deps" {
+                    return Err(Error::new(
+                        deps_key.span(),
+                        "expected `deps:` after `source:`",
+                    ));
+                }
+                input.parse::<syn::Token![:]>()?;
+
+                let content;
+                syn::bracketed!(content in input);
+                let parsed: Punctuated<Path, syn::Token![,]> =
+                    content.parse_terminated(Path::parse_mod_style, syn::Token![,])?;
+                deps = parsed.into_iter().collect();
+
+                // Optional trailing comma after the bracketed list.
+                let _ = input.parse::<syn::Token![,]>();
+            }
+        }
+
+        if !input.is_empty() {
+            return Err(input.error("unexpected tokens after wat::main! args"));
+        }
+
+        Ok(MainInput { source, deps })
+    }
+}
+
+/// Declarative entry for wat-embedding Rust binaries. See module
+/// docs.
+#[proc_macro]
+pub fn main(input: TokenStream) -> TokenStream {
+    let MainInput { source, deps } = parse_macro_input!(input as MainInput);
+
+    let dep_calls: Vec<TokenStream2> = deps
+        .iter()
+        .map(|p| quote! { #p::stdlib_sources() })
+        .collect();
+
+    let expanded = quote! {
+        fn main() -> ::std::result::Result<(), ::wat::harness::HarnessError> {
+            ::wat::compose_and_run(
+                #source,
+                &[ #(#dep_calls),* ],
+            )
+        }
+    };
+
+    expanded.into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

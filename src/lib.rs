@@ -55,6 +55,7 @@ extern crate self as wat;
 pub mod assertion;
 pub mod ast;
 pub mod check;
+pub mod compose;
 pub mod config;
 pub mod fork;
 pub mod harness;
@@ -74,6 +75,9 @@ pub mod sandbox;
 pub mod stdlib;
 pub mod string_ops;
 pub mod types;
+
+pub use compose::compose_and_run;
+pub use wat_macros::main;
 
 pub use ast::WatAST;
 pub use check::{check_program, CheckEnv, CheckError, CheckErrors, TypeScheme};
