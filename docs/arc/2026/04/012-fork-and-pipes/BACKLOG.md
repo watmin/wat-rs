@@ -109,11 +109,9 @@ use case needing direct pipes without fork+exec.
 
 ## 2. `:wat::kernel::fork-with-forms` + `ForkedChild` + `ChildHandle` + `wait-child`
 
-**Status:** **slice 2 core shipped 2026-04-21** — commit `bd68a4e`.
-`fork-with-forms`, `ForkedChild` struct, and `ChildHandle`
-opaque type land together. `wait-child` lands in the next
-commit (still pending; structural sub-fog 2c about double-reap
-awaits that slice).
+**Status:** **slice 2 shipped 2026-04-21** — commits `bd68a4e`
+(core: fork-with-forms + ForkedChild + ChildHandle) and
+`16a5fe5` (wait-child). All three sub-fogs resolved.
 
 **Problem:** `Command::spawn` paired with `--current-exe` gives
 hermetic the process isolation it needs, but at the cost of
@@ -265,8 +263,17 @@ replay runners, test-per-process harnesses).
   - `EXIT_STARTUP_ERROR` = 3
   - `EXIT_MAIN_SIGNATURE` = 4
   Slice 3's hermetic reconstruction will import these. Signal
-  termination encodes separately (kernel semantics); slice 3
-  will handle `WIFSIGNALED(status)` as its own failure kind.
+  termination encodes as `128 + signum` via `WTERMSIG`
+  (shell convention — readable as a normal `:i64` exit code
+  alongside the EXIT_* slots without a separate discriminator).
+
+- **2c — double-wait-child behavior (resolved by `16a5fe5`).**
+  `ChildHandleInner` grew a `cached_exit: OnceLock<i64>`. First
+  `wait-child` runs `waitpid` + caches + flips reaped; subsequent
+  calls return the cached code. Idempotent — matches Rust
+  `Child::try_wait` semantics. `OnceLock` is the honest
+  primitive here (publish-once-read-many, not a lock); sits in
+  ZERO-MUTEX.md's named exceptions alongside atomics and Arc.
 
 **Caught in passing:**
 - `:wat::io::IOWriter/writeln` returns `:i64` (byte count), not

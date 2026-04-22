@@ -122,19 +122,19 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   stringified inner programs — same AST shape as the in-process
   sandbox, just with subprocess isolation.
 - **`arc/2026/04/012-fork-and-pipes/`** — **in progress, slice 2
-  core shipped.** Raw Unix `fork(2)` + `pipe(2)` + `waitpid(2)`
-  as kernel primitives, retiring the binary-path coupling from
+  shipped.** Raw Unix `fork(2)` + `pipe(2)` + `waitpid(2)` as
+  kernel primitives, retiring the binary-path coupling from
   hermetic sandboxing. Three slices: (1) **shipped** —
   `:wat::kernel::pipe` + PipeReader/PipeWriter with direct-
   syscall writes (no `std::io::stdout` Mutex coupling); (2)
-  **core shipped** — `:wat::kernel::fork-with-forms` returning
-  a `ForkedChild` struct + `ChildHandle` opaque type; child
-  runs `startup_from_forms` on inherited AST + invokes
-  `:user::main` inside `catch_unwind` + exits via `libc::_exit`
-  per the five-code convention; next is `wait-child`; (3) after
-  that — reimplement `run-sandboxed-hermetic-ast` as ~20 lines
-  of wat stdlib on top, retire the Rust primitive. Unix-only by
-  design.
+  **shipped** — `:wat::kernel::fork-with-forms` returning a
+  `ForkedChild` struct + `ChildHandle` opaque type; child runs
+  `startup_from_forms` on inherited AST + invokes `:user::main`
+  inside `catch_unwind` + exits via `libc::_exit` per the
+  five-code convention; `:wat::kernel::wait-child` is
+  idempotent via OnceLock-cached exit; (3) next — reimplement
+  `run-sandboxed-hermetic-ast` as ~20 lines of wat stdlib on
+  top, retire the Rust primitive. Unix-only by design.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.
