@@ -370,6 +370,29 @@ language surface.
 
 ---
 
+## Boss-scope side quests
+
+### Side quest: retire `in_signal_subprocess` (shipped 2026-04-21, `d74c2df`)
+
+`src/runtime.rs`'s `#[cfg(test)]` module had an
+`in_signal_subprocess` helper that re-invoked `current_exe()` +
+`--exact <test>` + `WAT_SIGNAL_TEST_CHILD=1` env var to isolate
+signal tests under cargo's parallel runner. The last surviving
+`std::process::Command::spawn` in `src/`.
+
+Retired in favor of `libc::fork()` — child runs the body inside
+`catch_unwind`, exits via `libc::_exit(0)` on success or `_exit(1)`
+on panic; parent waits via `waitpid` + asserts `WEXITSTATUS == 0`.
+Couplings removed: no `current_exe`, no `--exact` filter, no env
+var, no process reload.
+
+All 166 runtime unit tests pass (signal tests included). The fork
+mechanism's test-code application validates the same fork
+discipline slice 2's primitive uses — a smaller real-world
+validation before slice 3's hermetic retirement.
+
+---
+
 ## Open questions carried forward
 
 Resolve when the slice they depend on lands. Listed here so they
