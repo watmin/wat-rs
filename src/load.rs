@@ -484,11 +484,11 @@ fn verify_post_parse(
 /// Attempt to interpret `form` as one of the three load forms.
 fn match_load_form(form: &WatAST) -> Result<Option<LoadSpec>, LoadError> {
     let items = match form {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => return Ok(None),
     };
     let head = match items.first() {
-        Some(WatAST::Keyword(k)) => k.as_str(),
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
         _ => return Ok(None),
     };
 
@@ -565,7 +565,7 @@ fn parse_source_interface(
     locator_ast: &WatAST,
 ) -> Result<SourceInterface, LoadError> {
     let iface = match iface_ast {
-        WatAST::Keyword(k) => k.as_str(),
+        WatAST::Keyword(k, _) => k.as_str(),
         other => {
             return Err(LoadError::MalformedLoadForm {
                 reason: format!(
@@ -576,7 +576,7 @@ fn parse_source_interface(
         }
     };
     let locator = match locator_ast {
-        WatAST::StringLit(s) => s.clone(),
+        WatAST::StringLit(s, _) => s.clone(),
         other => {
             return Err(LoadError::MalformedLoadForm {
                 reason: format!(
@@ -612,7 +612,7 @@ fn parse_payload_interface(
     locator_ast: &WatAST,
 ) -> Result<PayloadInterface, LoadError> {
     let iface = match iface_ast {
-        WatAST::Keyword(k) => k.as_str(),
+        WatAST::Keyword(k, _) => k.as_str(),
         other => {
             return Err(LoadError::MalformedLoadForm {
                 reason: format!(
@@ -623,7 +623,7 @@ fn parse_payload_interface(
         }
     };
     let locator = match locator_ast {
-        WatAST::StringLit(s) => s.clone(),
+        WatAST::StringLit(s, _) => s.clone(),
         other => {
             return Err(LoadError::MalformedLoadForm {
                 reason: format!(
@@ -657,7 +657,7 @@ fn parse_payload_interface(
 /// (`"digest-"` or `"signed-"`) the form requires.
 fn parse_verify_algo(ast: &WatAST, expected_prefix: &str) -> Result<String, LoadError> {
     let keyword = match ast {
-        WatAST::Keyword(k) => k.as_str(),
+        WatAST::Keyword(k, _) => k.as_str(),
         other => {
             return Err(LoadError::MalformedLoadForm {
                 reason: format!(
@@ -710,8 +710,8 @@ fn reject_setters_in_loaded(forms: &[WatAST], path: &str) -> Result<(), LoadErro
 }
 
 fn scan_for_setter(form: &WatAST, path: &str) -> Result<(), LoadError> {
-    if let WatAST::List(items) = form {
-        if let Some(WatAST::Keyword(k)) = items.first() {
+    if let WatAST::List(items, _) = form {
+        if let Some(WatAST::Keyword(k, _)) = items.first() {
             if k.starts_with(":wat::config::set-") && k.ends_with('!') {
                 return Err(LoadError::SetterInLoadedFile {
                     loaded_path: path.to_string(),
@@ -728,13 +728,13 @@ fn scan_for_setter(form: &WatAST, path: &str) -> Result<(), LoadError> {
 
 fn variant_name(ast: &WatAST) -> &'static str {
     match ast {
-        WatAST::IntLit(_) => "int literal",
-        WatAST::FloatLit(_) => "float literal",
-        WatAST::BoolLit(_) => "bool literal",
-        WatAST::StringLit(_) => "string literal",
-        WatAST::Keyword(_) => "keyword",
-        WatAST::Symbol(_) => "symbol",
-        WatAST::List(_) => "list",
+        WatAST::IntLit(_, _) => "int literal",
+        WatAST::FloatLit(_, _) => "float literal",
+        WatAST::BoolLit(_, _) => "bool literal",
+        WatAST::StringLit(_, _) => "string literal",
+        WatAST::Keyword(_, _) => "keyword",
+        WatAST::Symbol(_, _) => "symbol",
+        WatAST::List(_, _) => "list",
     }
 }
 
@@ -1019,8 +1019,8 @@ mod tests {
         .unwrap();
         assert_eq!(forms.len(), 1);
         match &forms[0] {
-            WatAST::List(items) => match (&items[0], &items[1]) {
-                (WatAST::Keyword(k), WatAST::StringLit(s)) => {
+            WatAST::List(items, _) => match (&items[0], &items[1]) {
+                (WatAST::Keyword(k, _), WatAST::StringLit(s, _)) => {
                     assert_eq!(k, ":wat::algebra::Atom");
                     assert_eq!(s, "inlined");
                 }
@@ -1384,8 +1384,8 @@ mod tests {
         let tags: Vec<String> = forms
             .iter()
             .map(|f| {
-                if let WatAST::List(items) = f {
-                    if let Some(WatAST::StringLit(s)) = items.get(1) {
+                if let WatAST::List(items, _) = f {
+                    if let Some(WatAST::StringLit(s, _)) = items.get(1) {
                         return s.clone();
                     }
                 }

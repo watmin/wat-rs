@@ -44,6 +44,7 @@
 //!   annotations against body positions in its own phase.
 
 use crate::ast::WatAST;
+use crate::span::Span;
 use crate::identifier::{fresh_scope, ScopeId};
 use std::collections::HashMap;
 use std::fmt;
@@ -235,15 +236,15 @@ pub fn register_stdlib_defmacros(
 fn is_defmacro_form(form: &WatAST) -> bool {
     matches!(
         form,
-        WatAST::List(items)
-            if matches!(items.first(), Some(WatAST::Keyword(k)) if k == ":wat::core::defmacro")
+        WatAST::List(items, _)
+            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::defmacro")
     )
 }
 
 /// Parse `(:wat::core::defmacro (:name::path (p :AST<T>) ... -> :AST<R>) body)`.
 fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     let items = match form {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => {
             return Err(MacroError::MalformedDefmacro {
                 reason: "expected list form".into(),
@@ -276,7 +277,7 @@ fn parse_defmacro_signature(
     sig: WatAST,
 ) -> Result<(String, Vec<String>, Option<String>), MacroError> {
     let items = match sig {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => {
             return Err(MacroError::MalformedDefmacro {
                 reason: "signature must be a list".into(),
@@ -285,7 +286,7 @@ fn parse_defmacro_signature(
     };
     let mut iter = items.into_iter();
     let name = match iter.next() {
-        Some(WatAST::Keyword(k)) => k,
+        Some(WatAST::Keyword(k, _)) => k,
         Some(_other) => {
             return Err(MacroError::MalformedDefmacro {
                 reason: "macro name must be a keyword-path".into(),
@@ -302,11 +303,11 @@ fn parse_defmacro_signature(
     let mut saw_rest_marker = false;
     for item in iter {
         match item {
-            WatAST::Symbol(ref s) if s.as_str() == "->" => break,
+            WatAST::Symbol(ref s, _) if s.as_str() == "->" => break,
             // `&` marker — the next binder is the rest-param. Only one
             // rest-binder is allowed; additional params after it are
             // rejected (same as Common Lisp's `&rest` discipline).
-            WatAST::Symbol(ref s) if s.as_str() == "&" => {
+            WatAST::Symbol(ref s, _) if s.as_str() == "&" => {
                 if saw_rest_marker {
                     return Err(MacroError::MalformedDefmacro {
                         reason: "duplicate `&` rest-marker in macro signature".into(),
@@ -319,9 +320,9 @@ fn parse_defmacro_signature(
                 }
                 saw_rest_marker = true;
             }
-            WatAST::List(pair) => {
+            WatAST::List(pair, _) => {
                 let paramname = match pair.into_iter().next() {
-                    Some(WatAST::Symbol(ident)) => ident.name,
+                    Some(WatAST::Symbol(ident, _)) => ident.name,
                     _ => {
                         return Err(MacroError::MalformedDefmacro {
                             reason: "parameter name must be a bare symbol".into(),
@@ -384,7 +385,7 @@ fn expand_form(
     }
 
     match form {
-        WatAST::List(items) => {
+        WatAST::List(items, _) => {
             // Recurse into children first. This gives us the shape
             // (expanded-head expanded-args...) — any inner macro calls
             // resolved before we check the outer for a macro call.
@@ -395,7 +396,7 @@ fn expand_form(
             let expanded_children = expanded_children?;
 
             // Is the (now-expanded) head a registered macro?
-            if let Some(WatAST::Keyword(head)) = expanded_children.first() {
+            if let Some(WatAST::Keyword(head, _)) = expanded_children.first() {
                 if let Some(def) = registry.get(head) {
                     // Macro call — expand this call site.
                     let args = expanded_children[1..].to_vec();
@@ -405,7 +406,7 @@ fn expand_form(
                 }
             }
 
-            Ok(WatAST::List(expanded_children))
+            Ok(WatAST::List(expanded_children, Span::unknown()))
         }
         other => Ok(other),
     }
@@ -456,7 +457,7 @@ fn expand_macro_call(
     }
     if let Some(rest_name) = &def.rest_param {
         let rest: Vec<WatAST> = iter.collect();
-        bindings.insert(rest_name.clone(), WatAST::List(rest));
+        bindings.insert(rest_name.clone(), WatAST::List(rest, Span::unknown()));
     }
 
     let macro_scope = fresh_scope();
@@ -476,8 +477,8 @@ fn expand_template(
     macro_name: &str,
 ) -> Result<WatAST, MacroError> {
     let quasi_body = match template {
-        WatAST::List(items) if items.len() == 2 => match items.first() {
-            Some(WatAST::Keyword(k)) if k == ":wat::core::quasiquote" => &items[1],
+        WatAST::List(items, _) if items.len() == 2 => match items.first() {
+            Some(WatAST::Keyword(k, _)) if k == ":wat::core::quasiquote" => &items[1],
             _ => {
                 return Err(MacroError::UnsupportedBody {
                     name: macro_name.into(),
@@ -506,7 +507,7 @@ fn walk_template(
     macro_name: &str,
 ) -> Result<WatAST, MacroError> {
     match form {
-        WatAST::List(items) => {
+        WatAST::List(items, _) => {
             // Detect `(:wat::core::unquote X)` — substitute the argument.
             if let Some(arg) = match_unquote(items, ":wat::core::unquote") {
                 return unquote_argument(arg, bindings, macro_name);
@@ -515,7 +516,7 @@ fn walk_template(
             // Walk each child, handling unquote-splicing inline.
             let mut out = Vec::with_capacity(items.len());
             for child in items {
-                if let WatAST::List(child_items) = child {
+                if let WatAST::List(child_items, _) = child {
                     if let Some(splice_arg) =
                         match_unquote(child_items, ":wat::core::unquote-splicing")
                     {
@@ -526,11 +527,11 @@ fn walk_template(
                 }
                 out.push(walk_template(child, bindings, macro_scope, macro_name)?);
             }
-            Ok(WatAST::List(out))
+            Ok(WatAST::List(out, Span::unknown()))
         }
-        WatAST::Symbol(ident) => {
+        WatAST::Symbol(ident, _) => {
             // Template-origin symbol — add the macro scope to its scope set.
-            Ok(WatAST::Symbol(ident.add_scope(macro_scope)))
+            Ok(WatAST::Symbol(ident.add_scope(macro_scope), Span::unknown()))
         }
         // Literals and keywords pass through unchanged; keywords carry
         // no scope tracking.
@@ -544,7 +545,7 @@ fn match_unquote<'a>(items: &'a [WatAST], head_kw: &str) -> Option<&'a WatAST> {
         return None;
     }
     match items.first() {
-        Some(WatAST::Keyword(k)) if k == head_kw => items.get(1),
+        Some(WatAST::Keyword(k, _)) if k == head_kw => items.get(1),
         _ => None,
     }
 }
@@ -557,7 +558,7 @@ fn unquote_argument(
     macro_name: &str,
 ) -> Result<WatAST, MacroError> {
     match arg {
-        WatAST::Symbol(ident) => match bindings.get(&ident.name) {
+        WatAST::Symbol(ident, _) => match bindings.get(&ident.name) {
             Some(bound) => Ok(bound.clone()),
             None => Err(MacroError::UnboundMacroParam {
                 name: ident.name.clone(),
@@ -580,7 +581,7 @@ fn splice_argument(
     macro_name: &str,
 ) -> Result<Vec<WatAST>, MacroError> {
     let paramname = match arg {
-        WatAST::Symbol(ident) => &ident.name,
+        WatAST::Symbol(ident, _) => &ident.name,
         _ => {
             return Err(MacroError::MalformedTemplate {
                 reason: format!(
@@ -596,7 +597,7 @@ fn splice_argument(
             name: paramname.clone(),
         })?;
     match bound {
-        WatAST::List(items) => Ok(items.clone()),
+        WatAST::List(items, _) => Ok(items.clone()),
         other => Err(MacroError::SpliceNotList {
             name: paramname.clone(),
             got: ast_variant_name(other),
@@ -606,13 +607,13 @@ fn splice_argument(
 
 fn ast_variant_name(ast: &WatAST) -> &'static str {
     match ast {
-        WatAST::IntLit(_) => "int literal",
-        WatAST::FloatLit(_) => "float literal",
-        WatAST::BoolLit(_) => "bool literal",
-        WatAST::StringLit(_) => "string literal",
-        WatAST::Keyword(_) => "keyword",
-        WatAST::Symbol(_) => "symbol",
-        WatAST::List(_) => "list",
+        WatAST::IntLit(_, _) => "int literal",
+        WatAST::FloatLit(_, _) => "float literal",
+        WatAST::BoolLit(_, _) => "bool literal",
+        WatAST::StringLit(_, _) => "string literal",
+        WatAST::Keyword(_, _) => "keyword",
+        WatAST::Symbol(_, _) => "symbol",
+        WatAST::List(_, _) => "list",
     }
 }
 
@@ -644,9 +645,9 @@ mod tests {
         assert_eq!(forms.len(), 1);
         // Expansion: (:wat::algebra::Bundle (:wat::core::vec :holon::HolonAST a b c))
         match &forms[0] {
-            WatAST::List(items) => {
+            WatAST::List(items, _) => {
                 assert_eq!(items.len(), 2);
-                assert!(matches!(&items[0], WatAST::Keyword(k) if k == ":wat::algebra::Bundle"));
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::algebra::Bundle"));
             }
             _ => panic!("expected List after expansion"),
         }
@@ -666,13 +667,13 @@ mod tests {
         .unwrap();
         // (:wat::algebra::Blend foo bar 1 -1)
         match &forms[0] {
-            WatAST::List(items) => {
+            WatAST::List(items, _) => {
                 assert_eq!(items.len(), 5);
-                assert!(matches!(&items[0], WatAST::Keyword(k) if k == ":wat::algebra::Blend"));
-                assert!(matches!(&items[1], WatAST::Symbol(i) if i.as_str() == "foo"));
-                assert!(matches!(&items[2], WatAST::Symbol(i) if i.as_str() == "bar"));
-                assert!(matches!(items[3], WatAST::IntLit(1)));
-                assert!(matches!(items[4], WatAST::IntLit(-1)));
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::algebra::Blend"));
+                assert!(matches!(&items[1], WatAST::Symbol(i, _) if i.as_str() == "foo"));
+                assert!(matches!(&items[2], WatAST::Symbol(i, _) if i.as_str() == "bar"));
+                assert!(matches!(items[3], WatAST::IntLit(1, _)));
+                assert!(matches!(items[4], WatAST::IntLit(-1, _)));
             }
             _ => panic!("expected List"),
         }
@@ -692,12 +693,12 @@ mod tests {
         .unwrap();
         // (:wat::algebra::Bundle a b c) — the list elements are spliced in.
         match &forms[0] {
-            WatAST::List(items) => {
+            WatAST::List(items, _) => {
                 assert_eq!(items.len(), 4);
-                assert!(matches!(&items[0], WatAST::Keyword(k) if k == ":wat::algebra::Bundle"));
-                assert!(matches!(&items[1], WatAST::Symbol(i) if i.as_str() == "a"));
-                assert!(matches!(&items[2], WatAST::Symbol(i) if i.as_str() == "b"));
-                assert!(matches!(&items[3], WatAST::Symbol(i) if i.as_str() == "c"));
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::algebra::Bundle"));
+                assert!(matches!(&items[1], WatAST::Symbol(i, _) if i.as_str() == "a"));
+                assert!(matches!(&items[2], WatAST::Symbol(i, _) if i.as_str() == "b"));
+                assert!(matches!(&items[3], WatAST::Symbol(i, _) if i.as_str() == "c"));
             }
             _ => panic!("expected List"),
         }
@@ -719,10 +720,10 @@ mod tests {
         .unwrap();
         // (:wat::algebra::Atom 42) after fixpoint.
         match &forms[0] {
-            WatAST::List(items) => {
+            WatAST::List(items, _) => {
                 assert_eq!(items.len(), 2);
-                assert!(matches!(&items[0], WatAST::Keyword(k) if k == ":wat::algebra::Atom"));
-                assert!(matches!(items[1], WatAST::IntLit(42)));
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::algebra::Atom"));
+                assert!(matches!(items[1], WatAST::IntLit(42, _)));
             }
             _ => panic!("expected List"),
         }
@@ -743,30 +744,30 @@ mod tests {
         // Expansion: (:wat::core::let (((tmp[macro-scope] :i64) 1)) tmp[user-empty])
         // The two `tmp`s must have DIFFERENT Identifiers.
         let list = match &forms[0] {
-            WatAST::List(items) => items,
+            WatAST::List(items, _) => items,
             _ => panic!("expected list"),
         };
         // (((tmp :i64) 1)) — drill through the bindings list, the
         // binding, and the typed-name pair to reach tmp.
         let bindings = match &list[1] {
-            WatAST::List(bs) => bs,
+            WatAST::List(bs, _) => bs,
             _ => panic!("expected bindings list"),
         };
         let first_binding = match &bindings[0] {
-            WatAST::List(b) => b,
+            WatAST::List(b, _) => b,
             _ => panic!("expected binding pair"),
         };
         let typed_name = match &first_binding[0] {
-            WatAST::List(tn) => tn,
+            WatAST::List(tn, _) => tn,
             _ => panic!("expected (name :Type) pair"),
         };
         let template_tmp = match &typed_name[0] {
-            WatAST::Symbol(i) => i,
+            WatAST::Symbol(i, _) => i,
             _ => panic!("expected Symbol"),
         };
         // The body position's `tmp` — user-supplied argument, not macro-origin.
         let user_tmp = match &list[2] {
-            WatAST::Symbol(i) => i,
+            WatAST::Symbol(i, _) => i,
             _ => panic!("expected Symbol in body"),
         };
         assert_eq!(template_tmp.name, "tmp");
@@ -799,11 +800,11 @@ mod tests {
         )
         .unwrap();
         let list = match &forms[0] {
-            WatAST::List(items) => items,
+            WatAST::List(items, _) => items,
             _ => panic!("expected list"),
         };
         let v_arg = match &list[1] {
-            WatAST::Symbol(i) => i,
+            WatAST::Symbol(i, _) => i,
             _ => panic!("expected Symbol at arg position"),
         };
         // Argument identifier — no macro scope added.
@@ -830,27 +831,27 @@ mod tests {
         // Both expansions bind `t` in the template; each invocation should
         // tag its `t` with a FRESH scope. The two `t`s differ.
         let extract_binding_sym = |f: &WatAST| -> Identifier {
-            let outer = if let WatAST::List(items) = f {
+            let outer = if let WatAST::List(items, _) = f {
                 items.clone()
             } else {
                 panic!("expected list")
             };
-            let bindings = if let WatAST::List(b) = &outer[1] {
+            let bindings = if let WatAST::List(b, _) = &outer[1] {
                 b.clone()
             } else {
                 panic!()
             };
-            let pair = if let WatAST::List(b) = &bindings[0] {
+            let pair = if let WatAST::List(b, _) = &bindings[0] {
                 b.clone()
             } else {
                 panic!()
             };
-            let typed_name = if let WatAST::List(tn) = &pair[0] {
+            let typed_name = if let WatAST::List(tn, _) = &pair[0] {
                 tn.clone()
             } else {
                 panic!()
             };
-            if let WatAST::Symbol(i) = &typed_name[0] {
+            if let WatAST::Symbol(i, _) = &typed_name[0] {
                 i.clone()
             } else {
                 panic!()
@@ -933,7 +934,7 @@ mod tests {
     fn non_macro_forms_unchanged() {
         let forms = expand(r#"(:wat::algebra::Atom "hello") 42 "world""#).unwrap();
         assert_eq!(forms.len(), 3);
-        assert!(matches!(forms[1], WatAST::IntLit(42)));
-        assert!(matches!(&forms[2], WatAST::StringLit(s) if s == "world"));
+        assert!(matches!(forms[1], WatAST::IntLit(42, _)));
+        assert!(matches!(&forms[2], WatAST::StringLit(s, _) if s == "world"));
     }
 }

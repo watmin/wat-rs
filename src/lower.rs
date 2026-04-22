@@ -136,12 +136,12 @@ impl std::error::Error for LowerError {}
 /// Only algebra-core UpperCalls and their literal leaves are supported.
 pub fn lower(ast: &WatAST) -> Result<HolonAST, LowerError> {
     match ast {
-        WatAST::List(items) => lower_call(items),
-        WatAST::IntLit(_) | WatAST::FloatLit(_) | WatAST::BoolLit(_)
-        | WatAST::StringLit(_) | WatAST::Keyword(_) => Err(LowerError::UnsupportedForm(
+        WatAST::List(items, _) => lower_call(items),
+        WatAST::IntLit(_, _) | WatAST::FloatLit(_, _) | WatAST::BoolLit(_, _)
+        | WatAST::StringLit(_, _) | WatAST::Keyword(_, _) => Err(LowerError::UnsupportedForm(
             "bare literal outside of an (:wat::algebra::...) call".into(),
         )),
-        WatAST::Symbol(ident) => Err(LowerError::UnsupportedForm(format!(
+        WatAST::Symbol(ident, _) => Err(LowerError::UnsupportedForm(format!(
             "bare symbol '{}' (requires name resolution)",
             ident.as_str()
         ))),
@@ -153,7 +153,7 @@ pub fn lower(ast: &WatAST) -> Result<HolonAST, LowerError> {
 fn lower_call(items: &[WatAST]) -> Result<HolonAST, LowerError> {
     let head = items.first().ok_or(LowerError::MalformedCall)?;
     let head_name = match head {
-        WatAST::Keyword(k) => k.as_str(),
+        WatAST::Keyword(k, _) => k.as_str(),
         _ => return Err(LowerError::MalformedCall),
     };
     let args = &items[1..];
@@ -178,11 +178,11 @@ fn lower_atom(args: &[WatAST]) -> Result<HolonAST, LowerError> {
 
 fn atom_from_literal(lit: &WatAST) -> Result<HolonAST, LowerError> {
     match lit {
-        WatAST::IntLit(n) => Ok(HolonAST::atom(*n)),
-        WatAST::FloatLit(x) => Ok(HolonAST::atom(*x)),
-        WatAST::BoolLit(b) => Ok(HolonAST::atom(*b)),
-        WatAST::StringLit(s) => Ok(HolonAST::atom(s.clone())),
-        WatAST::Keyword(k) => {
+        WatAST::IntLit(n, _) => Ok(HolonAST::atom(*n)),
+        WatAST::FloatLit(x, _) => Ok(HolonAST::atom(*x)),
+        WatAST::BoolLit(b, _) => Ok(HolonAST::atom(*b)),
+        WatAST::StringLit(s, _) => Ok(HolonAST::atom(s.clone())),
+        WatAST::Keyword(k, _) => {
             // Stored as-is — the leading `:` is part of the canonical bytes,
             // so keywords and strings never collide (per holon-rs's Keyword
             // convention).
@@ -209,14 +209,14 @@ fn lower_bundle(args: &[WatAST]) -> Result<HolonAST, LowerError> {
         return Err(LowerError::BundleShape);
     }
     let list_items = match &args[0] {
-        WatAST::List(items) => {
+        WatAST::List(items, _) => {
             let head = items.first().ok_or(LowerError::BundleShape)?;
             match head {
-                WatAST::Keyword(k) if k == ":wat::core::vec" => {
+                WatAST::Keyword(k, _) if k == ":wat::core::vec" => {
                     if items.len() < 2 {
                         return Err(LowerError::BundleShape);
                     }
-                    if !matches!(&items[1], WatAST::Keyword(_)) {
+                    if !matches!(&items[1], WatAST::Keyword(_, _)) {
                         return Err(LowerError::BundleShape);
                     }
                     &items[2..]
@@ -236,7 +236,7 @@ fn lower_permute(args: &[WatAST]) -> Result<HolonAST, LowerError> {
     }
     let child = lower(&args[0])?;
     let k: i32 = match &args[1] {
-        WatAST::IntLit(n) => {
+        WatAST::IntLit(n, _) => {
             i32::try_from(*n).map_err(|_| LowerError::PermuteStepOverflow(*n))?
         }
         _ => return Err(LowerError::PermuteStepNotInt),
@@ -268,8 +268,8 @@ fn lower_blend(args: &[WatAST]) -> Result<HolonAST, LowerError> {
 /// Coerce an int or float literal to `f64`.
 fn numeric(ast: &WatAST) -> Option<f64> {
     match ast {
-        WatAST::IntLit(n) => Some(*n as f64),
-        WatAST::FloatLit(x) => Some(*x),
+        WatAST::IntLit(n, _) => Some(*n as f64),
+        WatAST::FloatLit(x, _) => Some(*x),
         _ => None,
     }
 }

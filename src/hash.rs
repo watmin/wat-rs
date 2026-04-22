@@ -114,31 +114,31 @@ pub fn canonical_edn_program(forms: &[WatAST]) -> Vec<u8> {
 
 fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>) {
     match ast {
-        WatAST::IntLit(n) => {
+        WatAST::IntLit(n, _) => {
             out.push(TAG_INT);
             out.extend_from_slice(&n.to_le_bytes());
         }
-        WatAST::FloatLit(x) => {
+        WatAST::FloatLit(x, _) => {
             out.push(TAG_FLOAT);
             out.extend_from_slice(&x.to_bits().to_le_bytes());
         }
-        WatAST::BoolLit(b) => {
+        WatAST::BoolLit(b, _) => {
             out.push(TAG_BOOL);
             out.push(*b as u8);
         }
-        WatAST::StringLit(s) => {
+        WatAST::StringLit(s, _) => {
             out.push(TAG_STRING);
             let bytes = s.as_bytes();
             out.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
             out.extend_from_slice(bytes);
         }
-        WatAST::Keyword(k) => {
+        WatAST::Keyword(k, _) => {
             out.push(TAG_KEYWORD);
             let bytes = k.as_bytes();
             out.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
             out.extend_from_slice(bytes);
         }
-        WatAST::Symbol(ident) => {
+        WatAST::Symbol(ident, _) => {
             out.push(TAG_SYMBOL);
             let name_bytes = ident.name.as_bytes();
             out.extend_from_slice(&(name_bytes.len() as u32).to_le_bytes());
@@ -148,7 +148,7 @@ fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>) {
                 out.extend_from_slice(&scope.0.to_le_bytes());
             }
         }
-        WatAST::List(items) => {
+        WatAST::List(items, _) => {
             out.push(TAG_LIST);
             out.extend_from_slice(&(items.len() as u32).to_le_bytes());
             for child in items {
@@ -553,8 +553,8 @@ mod tests {
 
     #[test]
     fn symbol_with_different_scopes_hashes_differently() {
-        let bare = WatAST::Symbol(Identifier::bare("tmp"));
-        let scoped = WatAST::Symbol(Identifier::bare("tmp").add_scope(fresh_scope()));
+        let bare = WatAST::symbol(Identifier::bare("tmp"));
+        let scoped = WatAST::symbol(Identifier::bare("tmp").add_scope(fresh_scope()));
         assert_ne!(hash_canonical_ast(&bare), hash_canonical_ast(&scoped));
     }
 

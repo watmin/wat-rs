@@ -305,8 +305,8 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
 /// "not a setter-shaped form").
 fn setter_head_of(form: &WatAST) -> Option<&str> {
     match form {
-        WatAST::List(items) => match items.first()? {
-            WatAST::Keyword(k) => Some(k),
+        WatAST::List(items, _) => match items.first()? {
+            WatAST::Keyword(k, _) => Some(k),
             _ => None,
         },
         _ => None,
@@ -317,14 +317,14 @@ fn setter_head_of(form: &WatAST) -> Option<&str> {
 /// (i.e. the argument slice).
 fn setter_args_of(form: &WatAST) -> Option<&[WatAST]> {
     match form {
-        WatAST::List(items) => items.get(1..),
+        WatAST::List(items, _) => items.get(1..),
         _ => None,
     }
 }
 
 fn parse_usize(ast: &WatAST, field: &'static str) -> Result<usize, ConfigError> {
     match ast {
-        WatAST::IntLit(n) => {
+        WatAST::IntLit(n, _) => {
             if *n < 0 {
                 return Err(ConfigError::BadValue {
                     field: field.into(),
@@ -346,7 +346,7 @@ fn parse_usize(ast: &WatAST, field: &'static str) -> Result<usize, ConfigError> 
 
 fn parse_u64(ast: &WatAST, field: &'static str) -> Result<u64, ConfigError> {
     match ast {
-        WatAST::IntLit(n) => {
+        WatAST::IntLit(n, _) => {
             if *n < 0 {
                 return Err(ConfigError::BadValue {
                     field: field.into(),
@@ -365,9 +365,9 @@ fn parse_u64(ast: &WatAST, field: &'static str) -> Result<u64, ConfigError> {
 
 fn parse_f64(ast: &WatAST, field: &'static str) -> Result<f64, ConfigError> {
     match ast {
-        WatAST::FloatLit(x) => Ok(*x),
+        WatAST::FloatLit(x, _) => Ok(*x),
         // Accept IntLit as a convenience — `(set-noise-floor! 0)` works.
-        WatAST::IntLit(n) => Ok(*n as f64),
+        WatAST::IntLit(n, _) => Ok(*n as f64),
         other => Err(ConfigError::BadType {
             field: field.into(),
             expected: "float or integer literal",
@@ -378,7 +378,7 @@ fn parse_f64(ast: &WatAST, field: &'static str) -> Result<f64, ConfigError> {
 
 fn parse_capacity_mode(ast: &WatAST) -> Result<CapacityMode, ConfigError> {
     match ast {
-        WatAST::Keyword(k) => match k.as_str() {
+        WatAST::Keyword(k, _) => match k.as_str() {
             ":silent" => Ok(CapacityMode::Silent),
             ":warn" => Ok(CapacityMode::Warn),
             ":error" => Ok(CapacityMode::Error),
@@ -401,13 +401,13 @@ fn parse_capacity_mode(ast: &WatAST) -> Result<CapacityMode, ConfigError> {
 
 fn variant_name(ast: &WatAST) -> &'static str {
     match ast {
-        WatAST::IntLit(_) => "int literal",
-        WatAST::FloatLit(_) => "float literal",
-        WatAST::BoolLit(_) => "bool literal",
-        WatAST::StringLit(_) => "string literal",
-        WatAST::Keyword(_) => "keyword",
-        WatAST::Symbol(_) => "symbol",
-        WatAST::List(_) => "list",
+        WatAST::IntLit(_, _) => "int literal",
+        WatAST::FloatLit(_, _) => "float literal",
+        WatAST::BoolLit(_, _) => "bool literal",
+        WatAST::StringLit(_, _) => "string literal",
+        WatAST::Keyword(_, _) => "keyword",
+        WatAST::Symbol(_, _) => "symbol",
+        WatAST::List(_, _) => "list",
     }
 }
 

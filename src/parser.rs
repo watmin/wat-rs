@@ -14,8 +14,10 @@
 
 use crate::ast::WatAST;
 use crate::identifier::Identifier;
-use crate::lexer::{lex, LexError, Token};
+use crate::lexer::{lex, LexError, SpannedToken, Token};
+use crate::span::Span;
 use std::fmt;
+use std::sync::Arc;
 
 /// Parse error.
 #[derive(Debug, Clone, PartialEq)]
@@ -58,9 +60,24 @@ impl From<LexError> for ParseError {
 /// Parse the input as a single top-level `WatAST` form.
 ///
 /// Errors if the input is empty, if it contains more than one top-level
-/// form, or if any lex/parse rule is violated.
+/// form, or if any lex/parse rule is violated. Uses `<test>` as the
+/// span file label — callers with a real path use
+/// [`parse_one_with_file`].
 pub fn parse_one(src: &str) -> Result<WatAST, ParseError> {
-    let tokens = lex(src)?;
+    parse_one_with_file(src, "<test>")
+}
+
+/// Parse the input as a sequence of top-level `WatAST` forms. Uses
+/// `<test>` as the span file label — callers with a real path use
+/// [`parse_all_with_file`].
+pub fn parse_all(src: &str) -> Result<Vec<WatAST>, ParseError> {
+    parse_all_with_file(src, "<test>")
+}
+
+/// [`parse_one`] with a span-label for diagnostics. Arc 016 slice 1.
+pub fn parse_one_with_file(src: &str, file: &str) -> Result<WatAST, ParseError> {
+    let file_arc = Arc::new(file.to_string());
+    let tokens = lex(src, file_arc)?;
     let mut cursor = Cursor::new(&tokens);
     let node = match cursor.parse_form()? {
         Some(node) => node,
@@ -72,9 +89,10 @@ pub fn parse_one(src: &str) -> Result<WatAST, ParseError> {
     Ok(node)
 }
 
-/// Parse the input as a sequence of top-level `WatAST` forms.
-pub fn parse_all(src: &str) -> Result<Vec<WatAST>, ParseError> {
-    let tokens = lex(src)?;
+/// [`parse_all`] with a span-label for diagnostics. Arc 016 slice 1.
+pub fn parse_all_with_file(src: &str, file: &str) -> Result<Vec<WatAST>, ParseError> {
+    let file_arc = Arc::new(file.to_string());
+    let tokens = lex(src, file_arc)?;
     let mut cursor = Cursor::new(&tokens);
     let mut out = Vec::new();
     while let Some(node) = cursor.parse_form()? {
@@ -85,20 +103,20 @@ pub fn parse_all(src: &str) -> Result<Vec<WatAST>, ParseError> {
 
 /// Internal token cursor.
 struct Cursor<'a> {
-    tokens: &'a [Token],
+    tokens: &'a [SpannedToken],
     pos: usize,
 }
 
 impl<'a> Cursor<'a> {
-    fn new(tokens: &'a [Token]) -> Self {
+    fn new(tokens: &'a [SpannedToken]) -> Self {
         Cursor { tokens, pos: 0 }
     }
 
-    fn peek(&self) -> Option<&'a Token> {
+    fn peek(&self) -> Option<&'a SpannedToken> {
         self.tokens.get(self.pos)
     }
 
-    fn advance(&mut self) -> Option<&'a Token> {
+    fn advance(&mut self) -> Option<&'a SpannedToken> {
         let tok = self.tokens.get(self.pos);
         if tok.is_some() {
             self.pos += 1;
@@ -109,36 +127,43 @@ impl<'a> Cursor<'a> {
     /// Parse one form. Returns `Ok(None)` if input is exhausted.
     /// Returns an error if the next token is an unexpected `)`.
     fn parse_form(&mut self) -> Result<Option<WatAST>, ParseError> {
-        let tok = match self.advance() {
+        let st = match self.advance() {
             Some(t) => t,
             None => return Ok(None),
         };
-        match tok {
+        let span = st.span.clone();
+        match &st.token {
             Token::LParen => {
                 let list = self.parse_list_body()?;
-                Ok(Some(WatAST::List(list)))
+                Ok(Some(WatAST::List(list, span)))
             }
             Token::RParen => Err(ParseError::UnexpectedRParen),
-            Token::Int(n) => Ok(Some(WatAST::IntLit(*n))),
-            Token::Float(x) => Ok(Some(WatAST::FloatLit(*x))),
-            Token::Bool(b) => Ok(Some(WatAST::BoolLit(*b))),
-            Token::Str(s) => Ok(Some(WatAST::StringLit(s.clone()))),
-            Token::Keyword(k) => Ok(Some(WatAST::Keyword(k.clone()))),
-            Token::Symbol(s) => Ok(Some(WatAST::Symbol(Identifier::bare(s.clone())))),
-            Token::Quasiquote => self.parse_reader_macro(":wat::core::quasiquote"),
-            Token::Unquote => self.parse_reader_macro(":wat::core::unquote"),
-            Token::UnquoteSplicing => self.parse_reader_macro(":wat::core::unquote-splicing"),
+            Token::Int(n) => Ok(Some(WatAST::IntLit(*n, span))),
+            Token::Float(x) => Ok(Some(WatAST::FloatLit(*x, span))),
+            Token::Bool(b) => Ok(Some(WatAST::BoolLit(*b, span))),
+            Token::Str(s) => Ok(Some(WatAST::StringLit(s.clone(), span))),
+            Token::Keyword(k) => Ok(Some(WatAST::Keyword(k.clone(), span))),
+            Token::Symbol(s) => Ok(Some(WatAST::Symbol(Identifier::bare(s.clone()), span))),
+            Token::Quasiquote => self.parse_reader_macro(":wat::core::quasiquote", span),
+            Token::Unquote => self.parse_reader_macro(":wat::core::unquote", span),
+            Token::UnquoteSplicing => self.parse_reader_macro(":wat::core::unquote-splicing", span),
         }
     }
 
     /// A reader macro (`` ` `` / `,` / `,@`) wraps the following form.
-    /// `` `X `` → `(:wat::core::quasiquote X)`, etc.
-    fn parse_reader_macro(&mut self, head_keyword: &str) -> Result<Option<WatAST>, ParseError> {
+    /// `` `X `` → `(:wat::core::quasiquote X)`, etc. The synthesized
+    /// head-keyword and list inherit the reader macro's span; the
+    /// inner form keeps its own.
+    fn parse_reader_macro(
+        &mut self,
+        head_keyword: &str,
+        span: Span,
+    ) -> Result<Option<WatAST>, ParseError> {
         let inner = self.parse_form()?.ok_or(ParseError::Empty)?;
-        Ok(Some(WatAST::List(vec![
-            WatAST::Keyword(head_keyword.to_string()),
-            inner,
-        ])))
+        Ok(Some(WatAST::List(
+            vec![WatAST::Keyword(head_keyword.to_string(), span.clone()), inner],
+            span,
+        )))
     }
 
     /// Parse the body of a list — `(` already consumed. Accumulates child
@@ -146,7 +171,7 @@ impl<'a> Cursor<'a> {
     fn parse_list_body(&mut self) -> Result<Vec<WatAST>, ParseError> {
         let mut children = Vec::new();
         loop {
-            match self.peek() {
+            match self.peek().map(|st| &st.token) {
                 Some(Token::RParen) => {
                     self.advance();
                     return Ok(children);
@@ -169,25 +194,28 @@ mod tests {
     use crate::ast::WatAST;
 
     fn kw(s: &str) -> WatAST {
-        WatAST::Keyword(s.to_string())
+        WatAST::keyword(s.to_string())
     }
     fn sym(s: &str) -> WatAST {
-        WatAST::Symbol(Identifier::bare(s))
+        WatAST::symbol(Identifier::bare(s))
     }
     fn str_lit(s: &str) -> WatAST {
-        WatAST::StringLit(s.to_string())
+        WatAST::string(s.to_string())
     }
     fn list(items: Vec<WatAST>) -> WatAST {
-        WatAST::List(items)
+        WatAST::list(items)
     }
 
     #[test]
     fn atom_literals() {
-        assert_eq!(parse_one("42").unwrap(), WatAST::IntLit(42));
-        assert_eq!(parse_one("-1").unwrap(), WatAST::IntLit(-1));
-        assert_eq!(parse_one("2.5").unwrap(), WatAST::FloatLit(2.5));
-        assert_eq!(parse_one("true").unwrap(), WatAST::BoolLit(true));
-        assert_eq!(parse_one("false").unwrap(), WatAST::BoolLit(false));
+        // Tests rely on WatAST's structural PartialEq, which uses
+        // Span::eq (always-true). Constructing expected with
+        // Span::unknown() still matches the parser's real spans.
+        assert_eq!(parse_one("42").unwrap(), WatAST::int(42));
+        assert_eq!(parse_one("-1").unwrap(), WatAST::int(-1));
+        assert_eq!(parse_one("2.5").unwrap(), WatAST::float(2.5));
+        assert_eq!(parse_one("true").unwrap(), WatAST::bool(true));
+        assert_eq!(parse_one("false").unwrap(), WatAST::bool(false));
         assert_eq!(parse_one("\"hello\"").unwrap(), str_lit("hello"));
         assert_eq!(parse_one(":foo").unwrap(), kw(":foo"));
         assert_eq!(parse_one("x").unwrap(), sym("x"));
@@ -244,9 +272,9 @@ mod tests {
             parse_one("(:wat::algebra::Thermometer 0.5 0.0 1.0)").unwrap(),
             list(vec![
                 kw(":wat::algebra::Thermometer"),
-                WatAST::FloatLit(0.5),
-                WatAST::FloatLit(0.0),
-                WatAST::FloatLit(1.0),
+                WatAST::FloatLit(0.5, Span::unknown()),
+                WatAST::FloatLit(0.0, Span::unknown()),
+                WatAST::FloatLit(1.0, Span::unknown()),
             ])
         );
     }
@@ -259,8 +287,8 @@ mod tests {
                 kw(":wat::algebra::Blend"),
                 sym("a"),
                 sym("b"),
-                WatAST::IntLit(1),
-                WatAST::IntLit(-1),
+                WatAST::IntLit(1, Span::unknown()),
+                WatAST::IntLit(-1, Span::unknown()),
             ])
         );
     }
@@ -272,7 +300,7 @@ mod tests {
         let src = "(:wat::core::define (:my::app::amplify (x :holon::HolonAST) (y :holon::HolonAST) (s :f64) -> :holon::HolonAST) (:wat::algebra::Blend x y 1 s))";
         let parsed = parse_one(src).unwrap();
         // First child must be the :wat::core::define keyword.
-        if let WatAST::List(items) = &parsed {
+        if let WatAST::List(items, _) = &parsed {
             assert_eq!(items[0], kw(":wat::core::define"));
         } else {
             panic!("expected top-level List");
@@ -302,7 +330,7 @@ mod tests {
             "#,
         )
         .unwrap();
-        assert_eq!(forms, vec![WatAST::IntLit(42), str_lit("hello")]);
+        assert_eq!(forms, vec![WatAST::IntLit(42, Span::unknown()), str_lit("hello")]);
     }
 
     #[test]

@@ -46,7 +46,20 @@
 //! Future extensions (not in MVP): character literals `#\a`,
 //! block comments.
 
+use crate::span::Span;
 use std::fmt;
+use std::sync::Arc;
+
+/// A lexed token paired with its source span.
+///
+/// Arc 016 slice 1. Emitted by [`lex`] for every token; the parser
+/// reads the span to attach to the AST node it constructs from the
+/// token.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpannedToken {
+    pub token: Token,
+    pub span: Span,
+}
 
 /// A single lexical token.
 #[derive(Debug, Clone, PartialEq)]
@@ -125,11 +138,20 @@ impl std::error::Error for LexError {}
 
 /// Tokenize a wat source string.
 ///
-/// Returns the full token stream or the first lex error encountered.
-pub fn lex(src: &str) -> Result<Vec<Token>, LexError> {
+/// Returns the full token stream (with per-token source spans) or the
+/// first lex error encountered. `file` labels every emitted span — use
+/// the source path when known, `<test>` / `<eval>` / `<synthetic>` for
+/// ad-hoc parses.
+pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> {
     let bytes = src.as_bytes();
     let mut tokens = Vec::new();
     let mut i = 0;
+    let line_starts = compute_line_starts(src);
+
+    let span_at = |pos: usize| -> Span {
+        let (line, col) = line_col(src, &line_starts, pos);
+        Span::new(file.clone(), line, col)
+    };
 
     while i < bytes.len() {
         let c = bytes[i] as char;
@@ -150,29 +172,30 @@ pub fn lex(src: &str) -> Result<Vec<Token>, LexError> {
 
         // Parens
         if c == '(' {
-            tokens.push(Token::LParen);
+            tokens.push(SpannedToken { token: Token::LParen, span: span_at(i) });
             i += 1;
             continue;
         }
         if c == ')' {
-            tokens.push(Token::RParen);
+            tokens.push(SpannedToken { token: Token::RParen, span: span_at(i) });
             i += 1;
             continue;
         }
 
         // Quasiquote reader macros — `, ,, ,@`.
         if c == '`' {
-            tokens.push(Token::Quasiquote);
+            tokens.push(SpannedToken { token: Token::Quasiquote, span: span_at(i) });
             i += 1;
             continue;
         }
         if c == ',' {
             // `,@` or just `,`.
+            let s = span_at(i);
             if i + 1 < bytes.len() && bytes[i + 1] as char == '@' {
-                tokens.push(Token::UnquoteSplicing);
+                tokens.push(SpannedToken { token: Token::UnquoteSplicing, span: s });
                 i += 2;
             } else {
-                tokens.push(Token::Unquote);
+                tokens.push(SpannedToken { token: Token::Unquote, span: s });
                 i += 1;
             }
             continue;
@@ -180,40 +203,69 @@ pub fn lex(src: &str) -> Result<Vec<Token>, LexError> {
 
         // String literal
         if c == '"' {
+            let start = i;
             let (s, next) = lex_string(src, i)?;
-            tokens.push(Token::Str(s));
+            tokens.push(SpannedToken { token: Token::Str(s), span: span_at(start) });
             i = next;
             continue;
         }
 
         // Keyword token
         if c == ':' {
+            let start = i;
             let (kw, next) = lex_keyword(src, i)?;
-            tokens.push(Token::Keyword(kw));
+            tokens.push(SpannedToken { token: Token::Keyword(kw), span: span_at(start) });
             i = next;
             continue;
         }
 
         // Numeric literal or symbol — disambiguate by leading char
         if c.is_ascii_digit() || (c == '-' && is_numeric_start_at(bytes, i + 1)) {
+            let start = i;
             let (tok, next) = lex_numeric_or_symbol(src, i)?;
-            tokens.push(tok);
+            tokens.push(SpannedToken { token: tok, span: span_at(start) });
             i = next;
             continue;
         }
 
         // Bare symbol — anything else until a break character
+        let start = i;
         let (sym, next) = lex_symbol(src, i);
         let tok = match sym.as_str() {
             "true" => Token::Bool(true),
             "false" => Token::Bool(false),
             _ => Token::Symbol(sym),
         };
-        tokens.push(tok);
+        tokens.push(SpannedToken { token: tok, span: span_at(start) });
         i = next;
     }
 
     Ok(tokens)
+}
+
+/// Precompute byte offsets of every line start (offset 0 + every byte
+/// after `\n`). Used by [`line_col`] for O(log n) line lookup.
+fn compute_line_starts(src: &str) -> Vec<usize> {
+    let mut out = vec![0usize];
+    for (i, b) in src.bytes().enumerate() {
+        if b == b'\n' {
+            out.push(i + 1);
+        }
+    }
+    out
+}
+
+/// Map a byte offset to 1-indexed (line, col). `col` counts chars from
+/// the start of the line (handles multi-byte UTF-8).
+fn line_col(src: &str, line_starts: &[usize], byte_pos: usize) -> (i64, i64) {
+    // Binary search for the greatest line_start <= byte_pos.
+    let line_idx = match line_starts.binary_search(&byte_pos) {
+        Ok(i) => i,
+        Err(i) => i.saturating_sub(1),
+    };
+    let line_start = line_starts[line_idx];
+    let col = src[line_start..byte_pos].chars().count();
+    ((line_idx + 1) as i64, (col + 1) as i64)
 }
 
 /// True if the byte at `i` starts a numeric literal (ascii digit or `.`
@@ -362,24 +414,32 @@ fn lex_symbol(src: &str, start: usize) -> (String, usize) {
 mod tests {
     use super::*;
 
+    /// Strip spans from a lex_tokens() result — lexer tests assert on token
+    /// shape, not positions. A dedicated arc-016 slice covers the
+    /// span-carrying behavior.
+    fn lex_tokens(src: &str) -> Result<Vec<Token>, LexError> {
+        let spanned = lex(src, Arc::new("<test>".to_string()))?;
+        Ok(spanned.into_iter().map(|s| s.token).collect())
+    }
+
     #[test]
     fn empty_input() {
-        assert_eq!(lex("").unwrap(), vec![]);
+        assert_eq!(lex_tokens("").unwrap(), vec![]);
     }
 
     #[test]
     fn whitespace_only() {
-        assert_eq!(lex("   \n\t ").unwrap(), vec![]);
+        assert_eq!(lex_tokens("   \n\t ").unwrap(), vec![]);
     }
 
     #[test]
     fn parens() {
         assert_eq!(
-            lex("()").unwrap(),
+            lex_tokens("()").unwrap(),
             vec![Token::LParen, Token::RParen]
         );
         assert_eq!(
-            lex("( )").unwrap(),
+            lex_tokens("( )").unwrap(),
             vec![Token::LParen, Token::RParen]
         );
     }
@@ -387,54 +447,54 @@ mod tests {
     #[test]
     fn line_comment() {
         assert_eq!(
-            lex("; a comment\n()").unwrap(),
+            lex_tokens("; a comment\n()").unwrap(),
             vec![Token::LParen, Token::RParen]
         );
         assert_eq!(
-            lex("(;; inline\n)").unwrap(),
+            lex_tokens("(;; inline\n)").unwrap(),
             vec![Token::LParen, Token::RParen]
         );
     }
 
     #[test]
     fn int_positive() {
-        assert_eq!(lex("42").unwrap(), vec![Token::Int(42)]);
+        assert_eq!(lex_tokens("42").unwrap(), vec![Token::Int(42)]);
     }
 
     #[test]
     fn int_negative() {
-        assert_eq!(lex("-1").unwrap(), vec![Token::Int(-1)]);
+        assert_eq!(lex_tokens("-1").unwrap(), vec![Token::Int(-1)]);
     }
 
     #[test]
     fn float_positive() {
-        assert_eq!(lex("2.5").unwrap(), vec![Token::Float(2.5)]);
+        assert_eq!(lex_tokens("2.5").unwrap(), vec![Token::Float(2.5)]);
     }
 
     #[test]
     fn float_negative() {
-        assert_eq!(lex("-0.5").unwrap(), vec![Token::Float(-0.5)]);
+        assert_eq!(lex_tokens("-0.5").unwrap(), vec![Token::Float(-0.5)]);
     }
 
     #[test]
     fn bool_literals() {
-        assert_eq!(lex("true").unwrap(), vec![Token::Bool(true)]);
-        assert_eq!(lex("false").unwrap(), vec![Token::Bool(false)]);
+        assert_eq!(lex_tokens("true").unwrap(), vec![Token::Bool(true)]);
+        assert_eq!(lex_tokens("false").unwrap(), vec![Token::Bool(false)]);
     }
 
     #[test]
     fn string_basic() {
-        assert_eq!(lex("\"hello\"").unwrap(), vec![Token::Str("hello".into())]);
+        assert_eq!(lex_tokens("\"hello\"").unwrap(), vec![Token::Str("hello".into())]);
     }
 
     #[test]
     fn string_escapes() {
         assert_eq!(
-            lex(r#""line1\nline2""#).unwrap(),
+            lex_tokens(r#""line1\nline2""#).unwrap(),
             vec![Token::Str("line1\nline2".into())]
         );
         assert_eq!(
-            lex(r#""quote \"mark\"""#).unwrap(),
+            lex_tokens(r#""quote \"mark\"""#).unwrap(),
             vec![Token::Str("quote \"mark\"".into())]
         );
     }
@@ -442,7 +502,7 @@ mod tests {
     #[test]
     fn string_unterminated() {
         assert!(matches!(
-            lex("\"oops"),
+            lex_tokens("\"oops"),
             Err(LexError::UnterminatedString(_))
         ));
     }
@@ -453,25 +513,25 @@ mod tests {
         // lexer must round-trip it byte-exact — the pre-arc-008 byte-
         // at-a-time loop corrupted it to 8 bytes by treating each
         // byte as a Latin-1 char and re-encoding. Arc 008 slice 3.
-        let got = lex("\"héllo\"").unwrap();
+        let got = lex_tokens("\"héllo\"").unwrap();
         assert_eq!(got, vec![Token::Str("héllo".into())]);
         if let Token::Str(s) = &got[0] {
             assert_eq!(s.as_bytes().len(), 6, "héllo should be 6 UTF-8 bytes");
         }
 
         // CJK and emoji exercise 3- and 4-byte sequences.
-        let got = lex("\"日本語 🦀\"").unwrap();
+        let got = lex_tokens("\"日本語 🦀\"").unwrap();
         assert_eq!(got, vec![Token::Str("日本語 🦀".into())]);
 
         // Escape handling adjacent to multi-byte chars.
-        let got = lex(r#""héllo\nworld""#).unwrap();
+        let got = lex_tokens(r#""héllo\nworld""#).unwrap();
         assert_eq!(got, vec![Token::Str("héllo\nworld".into())]);
     }
 
     #[test]
     fn keyword_simple() {
         assert_eq!(
-            lex(":foo").unwrap(),
+            lex_tokens(":foo").unwrap(),
             vec![Token::Keyword(":foo".into())]
         );
     }
@@ -479,7 +539,7 @@ mod tests {
     #[test]
     fn keyword_path() {
         assert_eq!(
-            lex(":wat::algebra::Atom").unwrap(),
+            lex_tokens(":wat::algebra::Atom").unwrap(),
             vec![Token::Keyword(":wat::algebra::Atom".into())]
         );
     }
@@ -487,15 +547,15 @@ mod tests {
     #[test]
     fn keyword_parametric_type() {
         assert_eq!(
-            lex(":Vec<holon::HolonAST>").unwrap(),
+            lex_tokens(":Vec<holon::HolonAST>").unwrap(),
             vec![Token::Keyword(":Vec<holon::HolonAST>".into())]
         );
         assert_eq!(
-            lex(":HashMap<K,V>").unwrap(),
+            lex_tokens(":HashMap<K,V>").unwrap(),
             vec![Token::Keyword(":HashMap<K,V>".into())]
         );
         assert_eq!(
-            lex(":fn(T,U)->R").unwrap(),
+            lex_tokens(":fn(T,U)->R").unwrap(),
             vec![Token::Keyword(":fn(T,U)->R".into())]
         );
     }
@@ -503,7 +563,7 @@ mod tests {
     #[test]
     fn keyword_ends_at_unmatched_closer() {
         // The `)` here closes the enclosing form, not the keyword.
-        let toks = lex("(:foo)").unwrap();
+        let toks = lex_tokens("(:foo)").unwrap();
         assert_eq!(
             toks,
             vec![
@@ -521,15 +581,15 @@ mod tests {
         // :: is the canonical namespace separator. The leading : is
         // the symbol-quote; everything after is literal Rust.
         assert_eq!(
-            lex(":wat::core::load!").unwrap(),
+            lex_tokens(":wat::core::load!").unwrap(),
             vec![Token::Keyword(":wat::core::load!".into())]
         );
         assert_eq!(
-            lex(":wat::algebra::Atom").unwrap(),
+            lex_tokens(":wat::algebra::Atom").unwrap(),
             vec![Token::Keyword(":wat::algebra::Atom".into())]
         );
         assert_eq!(
-            lex(":my::vocab::foo").unwrap(),
+            lex_tokens(":my::vocab::foo").unwrap(),
             vec![Token::Keyword(":my::vocab::foo".into())]
         );
     }
@@ -538,11 +598,11 @@ mod tests {
     fn keyword_crate_path() {
         // Rust crate paths embed directly — no translation.
         assert_eq!(
-            lex(":rust::crossbeam_channel::Sender<T>").unwrap(),
+            lex_tokens(":rust::crossbeam_channel::Sender<T>").unwrap(),
             vec![Token::Keyword(":rust::crossbeam_channel::Sender<T>".into())]
         );
         assert_eq!(
-            lex(":std::sync::mpsc::Receiver<String>").unwrap(),
+            lex_tokens(":std::sync::mpsc::Receiver<String>").unwrap(),
             vec![Token::Keyword(":std::sync::mpsc::Receiver<String>".into())]
         );
     }
@@ -552,7 +612,7 @@ mod tests {
         // The division operator's full path: :: separator + / name.
         // Unambiguous: separator is ::, name is /.
         assert_eq!(
-            lex(":wat::core::/").unwrap(),
+            lex_tokens(":wat::core::/").unwrap(),
             vec![Token::Keyword(":wat::core::/".into())]
         );
     }
@@ -561,11 +621,11 @@ mod tests {
     fn keyword_tuple_literal_type() {
         // :( opens a tuple-literal type expression.
         assert_eq!(
-            lex(":(i64,String)").unwrap(),
+            lex_tokens(":(i64,String)").unwrap(),
             vec![Token::Keyword(":(i64,String)".into())]
         );
         assert_eq!(
-            lex(":(Holon,holon::HolonAST,Holon)").unwrap(),
+            lex_tokens(":(Holon,holon::HolonAST,Holon)").unwrap(),
             vec![Token::Keyword(":(Holon,holon::HolonAST,Holon)".into())]
         );
     }
@@ -574,7 +634,7 @@ mod tests {
     fn keyword_unit_type() {
         // :() is the unit type — also the empty tuple.
         assert_eq!(
-            lex(":()").unwrap(),
+            lex_tokens(":()").unwrap(),
             vec![Token::Keyword(":()".into())]
         );
     }
@@ -583,11 +643,11 @@ mod tests {
     fn keyword_vec_parametric() {
         // :Vec<T> — Rust's collection name.
         assert_eq!(
-            lex(":Vec<T>").unwrap(),
+            lex_tokens(":Vec<T>").unwrap(),
             vec![Token::Keyword(":Vec<T>".into())]
         );
         assert_eq!(
-            lex(":Vec<holon::HolonAST>").unwrap(),
+            lex_tokens(":Vec<holon::HolonAST>").unwrap(),
             vec![Token::Keyword(":Vec<holon::HolonAST>".into())]
         );
     }
@@ -597,7 +657,7 @@ mod tests {
         // `:wat::core::>` — the greater-than function at a keyword path.
         // The trailing `>` has no matching `<`, so it's a plain char.
         assert_eq!(
-            lex(":wat::core::>").unwrap(),
+            lex_tokens(":wat::core::>").unwrap(),
             vec![Token::Keyword(":wat::core::>".into())]
         );
     }
@@ -607,7 +667,7 @@ mod tests {
         // `:fn(T,U)->R` — the `->` arrow has a `>` at angle_depth 0,
         // which must be pushed as a plain char, not treated as a closer.
         assert_eq!(
-            lex(":fn(T,U)->R").unwrap(),
+            lex_tokens(":fn(T,U)->R").unwrap(),
             vec![Token::Keyword(":fn(T,U)->R".into())]
         );
     }
@@ -617,21 +677,21 @@ mod tests {
         // `:HashMap<String,fn(i32)->i32>` — the outer `<>` nests a
         // `fn(...)->...` type. The `->` is inside the `<>`.
         assert_eq!(
-            lex(":HashMap<String,fn(i32)->i32>").unwrap(),
+            lex_tokens(":HashMap<String,fn(i32)->i32>").unwrap(),
             vec![Token::Keyword(":HashMap<String,fn(i32)->i32>".into())]
         );
     }
 
     #[test]
     fn symbol_bare() {
-        assert_eq!(lex("x").unwrap(), vec![Token::Symbol("x".into())]);
-        assert_eq!(lex("hello").unwrap(), vec![Token::Symbol("hello".into())]);
+        assert_eq!(lex_tokens("x").unwrap(), vec![Token::Symbol("x".into())]);
+        assert_eq!(lex_tokens("hello").unwrap(), vec![Token::Symbol("hello".into())]);
     }
 
     #[test]
     fn symbol_with_dashes() {
         assert_eq!(
-            lex("my-var").unwrap(),
+            lex_tokens("my-var").unwrap(),
             vec![Token::Symbol("my-var".into())]
         );
     }
@@ -639,7 +699,7 @@ mod tests {
     #[test]
     fn algebra_core_call_tokens() {
         // The MVP target: tokenize the hello-world algebra-core call.
-        let toks = lex(r#"(:wat::algebra::Bind (:wat::algebra::Atom "role") (:wat::algebra::Atom "filler"))"#).unwrap();
+        let toks = lex_tokens(r#"(:wat::algebra::Bind (:wat::algebra::Atom "role") (:wat::algebra::Atom "filler"))"#).unwrap();
         assert_eq!(
             toks,
             vec![
@@ -660,7 +720,7 @@ mod tests {
 
     #[test]
     fn thermometer_numeric_args() {
-        let toks = lex("(:wat::algebra::Thermometer 0.5 0.0 1.0)").unwrap();
+        let toks = lex_tokens("(:wat::algebra::Thermometer 0.5 0.0 1.0)").unwrap();
         assert_eq!(
             toks,
             vec![
@@ -676,7 +736,7 @@ mod tests {
 
     #[test]
     fn blend_with_negative_weight() {
-        let toks = lex("(:wat::algebra::Blend a b 1 -1)").unwrap();
+        let toks = lex_tokens("(:wat::algebra::Blend a b 1 -1)").unwrap();
         assert_eq!(
             toks,
             vec![

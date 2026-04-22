@@ -369,14 +369,14 @@ fn infer(
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
     match ast {
-        WatAST::IntLit(_) => Some(TypeExpr::Path(":i64".into())),
-        WatAST::FloatLit(_) => Some(TypeExpr::Path(":f64".into())),
-        WatAST::BoolLit(_) => Some(TypeExpr::Path(":bool".into())),
-        WatAST::StringLit(_) => Some(TypeExpr::Path(":String".into())),
+        WatAST::IntLit(_, _) => Some(TypeExpr::Path(":i64".into())),
+        WatAST::FloatLit(_, _) => Some(TypeExpr::Path(":f64".into())),
+        WatAST::BoolLit(_, _) => Some(TypeExpr::Path(":bool".into())),
+        WatAST::StringLit(_, _) => Some(TypeExpr::Path(":String".into())),
         // `:None` — nullary constructor of the built-in :Option<T> enum.
         // Infers as `:Option<T>` with a fresh T; unification against the
         // expected type sharpens T at the use site.
-        WatAST::Keyword(k) if k == ":None" => Some(TypeExpr::Parametric {
+        WatAST::Keyword(k, _) if k == ":None" => Some(TypeExpr::Parametric {
             head: "Option".into(),
             args: vec![fresh.fresh()],
         }),
@@ -386,7 +386,7 @@ fn infer(
         // the keyword can be passed to any `:fn(...)`-typed parameter.
         // Mirrors `infer_spawn`'s long-standing keyword-path path,
         // generalized to every expression position.
-        WatAST::Keyword(k) if env.get(k).is_some() => {
+        WatAST::Keyword(k, _) if env.get(k).is_some() => {
             let scheme = env.get(k).expect("guard").clone();
             let (params, ret) = instantiate(&scheme, fresh);
             Some(TypeExpr::Fn {
@@ -394,9 +394,9 @@ fn infer(
                 ret: Box::new(ret),
             })
         }
-        WatAST::Keyword(_) => Some(TypeExpr::Path(":wat::core::keyword".into())),
-        WatAST::Symbol(ident) => locals.get(&ident.name).cloned(),
-        WatAST::List(items) => infer_list(items, env, locals, fresh, subst, errors),
+        WatAST::Keyword(_, _) => Some(TypeExpr::Path(":wat::core::keyword".into())),
+        WatAST::Symbol(ident, _) => locals.get(&ident.name).cloned(),
+        WatAST::List(items, _) => infer_list(items, env, locals, fresh, subst, errors),
     }
 }
 
@@ -415,7 +415,7 @@ fn infer_list(
         None => return Some(TypeExpr::Tuple(vec![])),
     };
 
-    if let WatAST::Keyword(k) = head {
+    if let WatAST::Keyword(k, _) = head {
         let args = &items[1..];
         match k.as_str() {
             ":wat::core::if" => return infer_if(args, env, locals, fresh, subst, errors),
@@ -590,7 +590,7 @@ fn infer_list(
     // Bare `Some` as call head — built-in tagged constructor of
     // `:Option<T>`. `(Some expr)` infers as `:Option<T>` where T is the
     // argument's type.
-    if let WatAST::Symbol(ident) = head {
+    if let WatAST::Symbol(ident, _) = head {
         if ident.as_str() == "Some" {
             let args = &items[1..];
             if args.len() != 1 {
@@ -705,7 +705,7 @@ fn infer_match(
     // is the old form. Surface a migration-hint error before the
     // standard arity check so authors see the right guidance.
     if args.len() >= 2
-        && !matches!(&args[1], WatAST::Symbol(s) if s.as_str() == "->")
+        && !matches!(&args[1], WatAST::Symbol(s, _) if s.as_str() == "->")
     {
         errors.push(CheckError::MalformedForm {
             head: ":wat::core::match".into(),
@@ -731,7 +731,7 @@ fn infer_match(
     }
     // Parse the declared `:T`.
     let declared_ty = match &args[2] {
-        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
                 errors.push(CheckError::MalformedForm {
@@ -778,7 +778,7 @@ fn infer_match(
 
     for (idx, arm) in args[3..].iter().enumerate() {
         let arm_items = match arm {
-            WatAST::List(items) if items.len() == 2 => items,
+            WatAST::List(items, _) if items.len() == 2 => items,
             _ => {
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -877,15 +877,15 @@ impl MatchShape {
 /// defaults to Option with a fresh T.
 fn detect_match_shape(arms: &[&WatAST], fresh: &mut InferCtx) -> MatchShape {
     for arm in arms {
-        if let WatAST::List(items) = arm {
+        if let WatAST::List(items, _) = arm {
             if items.len() == 2 {
                 let pat = &items[0];
                 match pat {
-                    WatAST::Keyword(k) if k == ":None" => {
+                    WatAST::Keyword(k, _) if k == ":None" => {
                         return MatchShape::Option(fresh.fresh());
                     }
-                    WatAST::List(pat_items) => {
-                        if let Some(WatAST::Symbol(ident)) = pat_items.first() {
+                    WatAST::List(pat_items, _) => {
+                        if let Some(WatAST::Symbol(ident, _)) = pat_items.first() {
                             match ident.as_str() {
                                 "Some" => return MatchShape::Option(fresh.fresh()),
                                 "Ok" | "Err" => {
@@ -912,7 +912,7 @@ fn pattern_coverage(
     errors: &mut Vec<CheckError>,
 ) -> Option<Coverage> {
     match pattern {
-        WatAST::Keyword(k) if k == ":None" => match shape {
+        WatAST::Keyword(k, _) if k == ":None" => match shape {
             MatchShape::Option(_) => Some(Coverage::OptionNone),
             MatchShape::Result(_, _) => {
                 errors.push(CheckError::MalformedForm {
@@ -922,20 +922,20 @@ fn pattern_coverage(
                 None
             }
         },
-        WatAST::Keyword(k) => {
+        WatAST::Keyword(k, _) => {
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::match".into(),
                 reason: format!("keyword pattern {} not recognized (only `:None` is nullary)", k),
             });
             None
         }
-        WatAST::Symbol(ident) if ident.as_str() == "_" => Some(Coverage::Wildcard),
-        WatAST::Symbol(ident) => {
+        WatAST::Symbol(ident, _) if ident.as_str() == "_" => Some(Coverage::Wildcard),
+        WatAST::Symbol(ident, _) => {
             // Bare name binds the whole scrutinee.
             bindings.insert(ident.as_str().to_string(), shape.as_type());
             Some(Coverage::Wildcard)
         }
-        WatAST::List(items) => {
+        WatAST::List(items, _) => {
             let (head, rest) = match items.split_first() {
                 Some(pair) => pair,
                 None => {
@@ -947,7 +947,7 @@ fn pattern_coverage(
                 }
             };
             let ident = match head {
-                WatAST::Symbol(i) => i.as_str(),
+                WatAST::Symbol(i, _) => i.as_str(),
                 other => {
                     errors.push(CheckError::MalformedForm {
                         head: ":wat::core::match".into(),
@@ -990,7 +990,7 @@ fn pattern_coverage(
                 return None;
             }
             match &rest[0] {
-                WatAST::Symbol(b) => {
+                WatAST::Symbol(b, _) => {
                     bindings.insert(b.as_str().to_string(), expected_bind_ty);
                     Some(coverage)
                 }
@@ -1022,13 +1022,13 @@ fn pattern_coverage(
 
 fn ast_variant_name_check(ast: &WatAST) -> &'static str {
     match ast {
-        WatAST::IntLit(_) => "int",
-        WatAST::FloatLit(_) => "float",
-        WatAST::BoolLit(_) => "bool",
-        WatAST::StringLit(_) => "string",
-        WatAST::Keyword(_) => "keyword",
-        WatAST::Symbol(_) => "symbol",
-        WatAST::List(_) => "list",
+        WatAST::IntLit(_, _) => "int",
+        WatAST::FloatLit(_, _) => "float",
+        WatAST::BoolLit(_, _) => "bool",
+        WatAST::StringLit(_, _) => "string",
+        WatAST::Keyword(_, _) => "keyword",
+        WatAST::Symbol(_, _) => "symbol",
+        WatAST::List(_, _) => "list",
     }
 }
 
@@ -1078,7 +1078,7 @@ fn infer_if(
     }
     // Validate the `->` marker and parse the declared type.
     match &args[1] {
-        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::if".into(),
@@ -1088,7 +1088,7 @@ fn infer_if(
         }
     }
     let declared_ty = match &args[2] {
-        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
                 errors.push(CheckError::MalformedForm {
@@ -1178,7 +1178,7 @@ fn infer_cond(
         return None;
     }
     match &args[0] {
-        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::cond".into(),
@@ -1188,7 +1188,7 @@ fn infer_cond(
         }
     }
     let declared_ty = match &args[1] {
-        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(e) => {
                 errors.push(CheckError::MalformedForm {
@@ -1212,8 +1212,8 @@ fn infer_cond(
     // so users get the diagnostic before the runtime sees it.
     let last = &arms[arms.len() - 1];
     let last_items = match last {
-        WatAST::List(xs) if xs.len() == 2 => xs,
-        WatAST::List(xs) => {
+        WatAST::List(xs, _) if xs.len() == 2 => xs,
+        WatAST::List(xs, _) => {
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::cond".into(),
                 reason: format!(
@@ -1231,7 +1231,7 @@ fn infer_cond(
             return None;
         }
     };
-    let last_is_else = matches!(&last_items[0], WatAST::Keyword(k) if k == ":else");
+    let last_is_else = matches!(&last_items[0], WatAST::Keyword(k, _) if k == ":else");
     if !last_is_else {
         errors.push(CheckError::MalformedForm {
             head: ":wat::core::cond".into(),
@@ -1241,8 +1241,8 @@ fn infer_cond(
 
     for (i, arm) in arms.iter().enumerate() {
         let items = match arm {
-            WatAST::List(xs) if xs.len() == 2 => xs,
-            WatAST::List(xs) => {
+            WatAST::List(xs, _) if xs.len() == 2 => xs,
+            WatAST::List(xs, _) => {
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::cond".into(),
                     reason: format!(
@@ -1267,7 +1267,7 @@ fn infer_cond(
         };
         let is_last = i + 1 == arms.len();
         let is_else_arm =
-            is_last && matches!(&items[0], WatAST::Keyword(k) if k == ":else");
+            is_last && matches!(&items[0], WatAST::Keyword(k, _) if k == ":else");
 
         if !is_else_arm {
             // Test must unify with :bool.
@@ -1316,7 +1316,7 @@ fn infer_let(
         return None;
     }
     let bindings = match &args[0] {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => return None,
     };
     // Each binding is either typed-single `((name :Type) rhs)` or
@@ -1447,7 +1447,7 @@ fn infer_let_star(
         return None;
     }
     let bindings = match &args[0] {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => return None,
     };
     let mut extended = locals.clone();
@@ -1499,7 +1499,7 @@ fn infer_spawn(
     // Resolve the first arg's signature — keyword path path or
     // infer-and-extract-Fn path.
     let (param_types, ret_type, callee_label) = match &args[0] {
-        WatAST::Keyword(fn_path) => match env.get(fn_path) {
+        WatAST::Keyword(fn_path, _) => match env.get(fn_path) {
             Some(scheme) => {
                 let (ps, r) = instantiate(&scheme.clone(), fresh);
                 (ps, r, format!(":wat::kernel::spawn {}", fn_path))
@@ -1731,7 +1731,7 @@ fn infer_make_queue(
     }
     // Extract T from the type-keyword argument.
     let t_ty = match &args[0] {
-        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(_) => {
                 errors.push(CheckError::MalformedForm {
@@ -1747,13 +1747,13 @@ fn infer_make_queue(
                 reason: format!(
                     "first argument must be a type keyword; got {}",
                     match other {
-                        WatAST::IntLit(_) => "int",
-                        WatAST::FloatLit(_) => "float",
-                        WatAST::BoolLit(_) => "bool",
-                        WatAST::StringLit(_) => "string",
-                        WatAST::Symbol(_) => "symbol",
-                        WatAST::List(_) => "list",
-                        WatAST::Keyword(_) => unreachable!(),
+                        WatAST::IntLit(_, _) => "int",
+                        WatAST::FloatLit(_, _) => "float",
+                        WatAST::BoolLit(_, _) => "bool",
+                        WatAST::StringLit(_, _) => "string",
+                        WatAST::Symbol(_, _) => "symbol",
+                        WatAST::List(_, _) => "list",
+                        WatAST::Keyword(_, _) => unreachable!(),
                     }
                 ),
             });
@@ -1801,26 +1801,26 @@ fn process_let_binding(
     form: &str,
 ) {
     let kv = match pair {
-        WatAST::List(items) if items.len() == 2 => items,
+        WatAST::List(items, _) if items.len() == 2 => items,
         _ => return, // runtime parser surfaces the shape error
     };
     let binder = match &kv[0] {
-        WatAST::List(inner) => inner,
+        WatAST::List(inner, _) => inner,
         _ => return, // bare `(name rhs)` refused at runtime; check silently skips
     };
     let rhs = &kv[1];
 
     let is_typed_single = binder.len() == 2
-        && matches!(&binder[0], WatAST::Symbol(_))
-        && matches!(&binder[1], WatAST::Keyword(_));
+        && matches!(&binder[0], WatAST::Symbol(_, _))
+        && matches!(&binder[1], WatAST::Keyword(_, _));
 
     if is_typed_single {
         let name = match &binder[0] {
-            WatAST::Symbol(ident) => ident.name.clone(),
+            WatAST::Symbol(ident, _) => ident.name.clone(),
             _ => return,
         };
         let declared = match &binder[1] {
-            WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+            WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
                 Ok(t) => t,
                 Err(_) => return,
             },
@@ -1847,7 +1847,7 @@ fn process_let_binding(
     let mut names = Vec::with_capacity(binder.len());
     for item in binder {
         match item {
-            WatAST::Symbol(ident) => names.push(ident.name.clone()),
+            WatAST::Symbol(ident, _) => names.push(ident.name.clone()),
             _ => return, // runtime parser surfaces the shape error
         }
     }
@@ -1896,7 +1896,7 @@ fn infer_hashset_constructor(
         });
     }
     let t_ty = match &args[0] {
-        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(_) => {
                 errors.push(CheckError::MalformedForm {
@@ -2041,7 +2041,7 @@ fn infer_hashmap_constructor(
         });
     }
     let (k_ty, v_ty) = match &args[0] {
-        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(TypeExpr::Tuple(ts)) if ts.len() == 2 => (ts[0].clone(), ts[1].clone()),
             Ok(other) => {
                 errors.push(CheckError::MalformedForm {
@@ -2159,7 +2159,7 @@ fn infer_list_constructor(
         });
     }
     let elem_ty = match &args[0] {
-        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
             Ok(t) => t,
             Err(_) => {
                 errors.push(CheckError::MalformedForm {
@@ -2251,7 +2251,7 @@ fn parse_lambda_signature_for_check(
     sig: &WatAST,
 ) -> Result<(Vec<String>, Vec<TypeExpr>, TypeExpr), ()> {
     let items = match sig {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => return Err(()),
     };
     let mut names = Vec::new();
@@ -2264,7 +2264,7 @@ fn parse_lambda_signature_for_check(
                 return Err(());
             }
             match item {
-                WatAST::Keyword(k) => {
+                WatAST::Keyword(k, _) => {
                     ret = Some(crate::types::parse_type_expr(k).map_err(|_| ())?);
                 }
                 _ => return Err(()),
@@ -2272,17 +2272,17 @@ fn parse_lambda_signature_for_check(
             continue;
         }
         match item {
-            WatAST::Symbol(s) if s.as_str() == "->" => saw_arrow = true,
-            WatAST::List(pair) => {
+            WatAST::Symbol(s, _) if s.as_str() == "->" => saw_arrow = true,
+            WatAST::List(pair, _) => {
                 if pair.len() != 2 {
                     return Err(());
                 }
                 let name = match &pair[0] {
-                    WatAST::Symbol(s) => s.name.clone(),
+                    WatAST::Symbol(s, _) => s.name.clone(),
                     _ => return Err(()),
                 };
                 let ty = match &pair[1] {
-                    WatAST::Keyword(k) => crate::types::parse_type_expr(k).map_err(|_| ())?,
+                    WatAST::Keyword(k, _) => crate::types::parse_type_expr(k).map_err(|_| ())?,
                     _ => return Err(()),
                 };
                 names.push(name);

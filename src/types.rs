@@ -576,8 +576,8 @@ pub fn register_stdlib_types(
 }
 
 fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
-    if let WatAST::List(items) = form {
-        if let Some(WatAST::Keyword(k)) = items.first() {
+    if let WatAST::List(items, _) = form {
+        if let Some(WatAST::Keyword(k, _)) = items.first() {
             match k.as_str() {
                 ":wat::core::struct" => return Some("struct"),
                 ":wat::core::enum" => return Some("enum"),
@@ -592,7 +592,7 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
 
 fn parse_type_decl(head: &str, form: WatAST) -> Result<TypeDef, TypeError> {
     let items = match form {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => {
             return Err(TypeError::MalformedDecl {
                 head: head.into(),
@@ -668,7 +668,7 @@ fn parse_newtype(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
     let inner_kw = iter.next().unwrap();
     let (name, type_params) = parse_declared_name("newtype", &name_kw)?;
     let inner = match inner_kw {
-        WatAST::Keyword(k) => parse_type_expr(&k)?,
+        WatAST::Keyword(k, _) => parse_type_expr(&k)?,
         other => {
             return Err(TypeError::MalformedDecl {
                 head: "newtype".into(),
@@ -701,7 +701,7 @@ fn parse_typealias(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
     let expr_kw = iter.next().unwrap();
     let (name, type_params) = parse_declared_name("typealias", &name_kw)?;
     let expr = match expr_kw {
-        WatAST::Keyword(k) => parse_type_expr(&k)?,
+        WatAST::Keyword(k, _) => parse_type_expr(&k)?,
         other => {
             return Err(TypeError::MalformedDecl {
                 head: "typealias".into(),
@@ -722,7 +722,7 @@ fn parse_typealias(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
 /// `(field-name :Type)` — typed field form used by structs + tagged enum variants.
 fn parse_field(form: WatAST) -> Result<(String, TypeExpr), TypeError> {
     let items = match form {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => {
             return Err(TypeError::MalformedField {
                 reason: "field must be a (name :Type) list".into(),
@@ -739,7 +739,7 @@ fn parse_field(form: WatAST) -> Result<(String, TypeExpr), TypeError> {
     }
     let mut iter = items.into_iter();
     let name = match iter.next().unwrap() {
-        WatAST::Symbol(ident) => ident.name,
+        WatAST::Symbol(ident, _) => ident.name,
         other => {
             return Err(TypeError::MalformedField {
                 reason: format!(
@@ -750,7 +750,7 @@ fn parse_field(form: WatAST) -> Result<(String, TypeExpr), TypeError> {
         }
     };
     let ty = match iter.next().unwrap() {
-        WatAST::Keyword(k) => parse_type_expr(&k)?,
+        WatAST::Keyword(k, _) => parse_type_expr(&k)?,
         other => {
             return Err(TypeError::MalformedField {
                 reason: format!(
@@ -767,7 +767,7 @@ fn parse_field(form: WatAST) -> Result<(String, TypeExpr), TypeError> {
 /// `(tagged-variant (field :Type) ...)`.
 fn parse_enum_variant(form: WatAST) -> Result<EnumVariant, TypeError> {
     match form {
-        WatAST::Keyword(k) => {
+        WatAST::Keyword(k, _) => {
             let name = k
                 .strip_prefix(':')
                 .ok_or_else(|| TypeError::MalformedVariant {
@@ -776,14 +776,14 @@ fn parse_enum_variant(form: WatAST) -> Result<EnumVariant, TypeError> {
                 .to_string();
             Ok(EnumVariant::Unit(name))
         }
-        WatAST::List(items) => {
+        WatAST::List(items, _) => {
             let mut iter = items.into_iter();
             let name_sym = iter.next().ok_or_else(|| TypeError::MalformedVariant {
                 reason: "tagged variant must have a name".into(),
             })?;
             let name = match name_sym {
-                WatAST::Symbol(ident) => ident.name,
-                WatAST::Keyword(k) => k
+                WatAST::Symbol(ident, _) => ident.name,
+                WatAST::Keyword(k, _) => k
                     .strip_prefix(':')
                     .map(str::to_string)
                     .unwrap_or(k),
@@ -820,7 +820,7 @@ fn parse_declared_name(
     form: &WatAST,
 ) -> Result<(String, Vec<String>), TypeError> {
     let raw = match form {
-        WatAST::Keyword(k) => k.clone(),
+        WatAST::Keyword(k, _) => k.clone(),
         other => {
             return Err(TypeError::MalformedDecl {
                 head: head.into(),
@@ -1077,13 +1077,13 @@ fn find_matching_close(s: &str, open: char, close: char) -> Option<usize> {
 
 fn ast_variant_name(ast: &WatAST) -> &'static str {
     match ast {
-        WatAST::IntLit(_) => "int literal",
-        WatAST::FloatLit(_) => "float literal",
-        WatAST::BoolLit(_) => "bool literal",
-        WatAST::StringLit(_) => "string literal",
-        WatAST::Keyword(_) => "keyword",
-        WatAST::Symbol(_) => "symbol",
-        WatAST::List(_) => "list",
+        WatAST::IntLit(_, _) => "int literal",
+        WatAST::FloatLit(_, _) => "float literal",
+        WatAST::BoolLit(_, _) => "bool literal",
+        WatAST::StringLit(_, _) => "string literal",
+        WatAST::Keyword(_, _) => "keyword",
+        WatAST::Symbol(_, _) => "symbol",
+        WatAST::List(_, _) => "list",
     }
 }
 

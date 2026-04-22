@@ -73,6 +73,7 @@ pub mod runtime;
 pub mod rust_deps;
 pub mod sandbox;
 pub mod source;
+pub mod span;
 pub(crate) mod stdlib;
 pub mod string_ops;
 pub mod test_runner;
@@ -80,6 +81,7 @@ pub mod types;
 
 pub use compose::compose_and_run;
 pub use source::WatSource;
+pub use span::Span;
 pub use wat_macros::{main, test_suite};
 
 pub use ast::WatAST;

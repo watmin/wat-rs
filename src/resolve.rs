@@ -120,8 +120,8 @@ fn collect_use_declarations(
     use_decls: &mut crate::rust_deps::UseDeclarations,
     unresolved: &mut Vec<UnresolvedReference>,
 ) {
-    if let WatAST::List(items) = form {
-        if let Some(WatAST::Keyword(head)) = items.first() {
+    if let WatAST::List(items, _) = form {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
             if head == ":wat::core::use!" {
                 // Expect exactly one keyword argument.
                 if items.len() != 2 {
@@ -132,7 +132,7 @@ fn collect_use_declarations(
                     });
                     return;
                 }
-                if let WatAST::Keyword(path) = &items[1] {
+                if let WatAST::Keyword(path, _) = &items[1] {
                     if !registry.has_type(path) {
                         unresolved.push(UnresolvedReference {
                             path: path.clone(),
@@ -159,8 +159,8 @@ fn check_form(
     use_decls: &crate::rust_deps::UseDeclarations,
     unresolved: &mut Vec<UnresolvedReference>,
 ) {
-    if let WatAST::List(items) = form {
-        if let Some(WatAST::Keyword(head)) = items.first() {
+    if let WatAST::List(items, _) = form {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
             if !is_resolvable_call_head(head, sym, macros) {
                 unresolved.push(UnresolvedReference {
                     path: head.clone(),

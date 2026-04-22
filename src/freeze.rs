@@ -594,8 +594,8 @@ pub fn eval_signed_in_frozen(
 /// `typealias`, the three `load!` variants, and any
 /// `:wat::config::set-*!` setter.
 fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
-    if let WatAST::List(items) = ast {
-        if let Some(WatAST::Keyword(head)) = items.first() {
+    if let WatAST::List(items, _) = ast {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
             if is_mutation_form(head) {
                 return Err(RuntimeError::EvalForbidsMutationForm {
                     head: head.clone(),

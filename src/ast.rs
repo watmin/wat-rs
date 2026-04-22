@@ -21,23 +21,29 @@
 //! carry no scope tracking — hygiene only matters for bare names.
 
 use crate::identifier::Identifier;
+use crate::span::Span;
 
 /// The parsed source tree. One variant per terminal kind plus a `List`
 /// variant for any parenthesized form.
+///
+/// Every variant carries a trailing [`Span`] with the source location
+/// the node was parsed from. Span comparison is structural-transparent
+/// (see [`crate::span`] module docs) — two nodes with the same
+/// structure but different spans compare equal and hash identically.
 #[derive(Debug, Clone, PartialEq)]
 pub enum WatAST {
     /// Integer literal, as in `42`, `-1`, `0`. Fits in `i64`.
-    IntLit(i64),
+    IntLit(i64, Span),
 
     /// Floating-point literal, as in `3.14`, `-0.5`, `1e10`.
-    FloatLit(f64),
+    FloatLit(f64, Span),
 
     /// Boolean literal, as in `true` or `false`.
-    BoolLit(bool),
+    BoolLit(bool, Span),
 
     /// String literal, as in `"hello"` — quotes stripped, escape sequences
     /// applied.
-    StringLit(String),
+    StringLit(String, Span),
 
     /// Keyword token, as in `:foo`, `:wat::algebra::Atom`,
     /// `:Vec<holon::HolonAST>`, `:fn(T,U)->R`. The leading `:` is part of the
@@ -47,19 +53,58 @@ pub enum WatAST {
     ///
     /// Keywords carry no scope tracking — their full-path spelling
     /// already disambiguates `:my::app::foo` from `:my::macro::foo`.
-    Keyword(String),
+    Keyword(String, Span),
 
     /// Bare identifier, as in `x`, `role`, `tmp`. Used in `let` bindings,
     /// `lambda` parameter names, `match` patterns — the only places the
     /// language admits bare names. The `Identifier` carries a scope
     /// set for macro hygiene (empty on fresh parse).
-    Symbol(Identifier),
+    Symbol(Identifier, Span),
 
     /// Parenthesized form `(head arg1 arg2 ...)`. Also covers
     /// empty list `()`. The first child is typically the head —
     /// a `Keyword` for language or algebra calls, a `Symbol` for
     /// bare-scoped lambda/let invocation.
-    List(Vec<WatAST>),
+    List(Vec<WatAST>, Span),
+}
+
+impl WatAST {
+    /// Borrow the span this node was parsed from.
+    pub fn span(&self) -> &Span {
+        match self {
+            WatAST::IntLit(_, s)
+            | WatAST::FloatLit(_, s)
+            | WatAST::BoolLit(_, s)
+            | WatAST::StringLit(_, s)
+            | WatAST::Keyword(_, s)
+            | WatAST::Symbol(_, s)
+            | WatAST::List(_, s) => s,
+        }
+    }
+
+    /// Convenience constructors with [`Span::unknown`] — for
+    /// synthetic forms / tests / runtime-constructed ASTs.
+    pub fn int(n: i64) -> Self {
+        WatAST::IntLit(n, Span::unknown())
+    }
+    pub fn float(x: f64) -> Self {
+        WatAST::FloatLit(x, Span::unknown())
+    }
+    pub fn bool(b: bool) -> Self {
+        WatAST::BoolLit(b, Span::unknown())
+    }
+    pub fn string(s: impl Into<String>) -> Self {
+        WatAST::StringLit(s.into(), Span::unknown())
+    }
+    pub fn keyword(k: impl Into<String>) -> Self {
+        WatAST::Keyword(k.into(), Span::unknown())
+    }
+    pub fn symbol(ident: Identifier) -> Self {
+        WatAST::Symbol(ident, Span::unknown())
+    }
+    pub fn list(items: Vec<WatAST>) -> Self {
+        WatAST::List(items, Span::unknown())
+    }
 }
 
 // wat_ast_to_source / wat_ast_program_to_source — RETIRED in arc

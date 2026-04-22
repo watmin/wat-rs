@@ -40,6 +40,7 @@
 //! has already been type-verified.
 
 use crate::ast::WatAST;
+use crate::span::Span;
 use crate::config::Config;
 use holon::{encode, AtomTypeRegistry, HolonAST, ScalarEncoder, Similarity, VectorManager};
 use std::collections::HashMap;
@@ -470,27 +471,27 @@ fn canonical_wat_ast(ast: &WatAST) -> Vec<u8> {
 
 fn write_wat_ast(ast: &WatAST, out: &mut Vec<u8>) {
     match ast {
-        WatAST::IntLit(n) => {
+        WatAST::IntLit(n, _) => {
             out.push(0);
             out.extend_from_slice(&n.to_le_bytes());
         }
-        WatAST::FloatLit(x) => {
+        WatAST::FloatLit(x, _) => {
             out.push(1);
             out.extend_from_slice(&x.to_le_bytes());
         }
-        WatAST::BoolLit(b) => {
+        WatAST::BoolLit(b, _) => {
             out.push(2);
             out.push(if *b { 1 } else { 0 });
         }
-        WatAST::StringLit(s) => {
+        WatAST::StringLit(s, _) => {
             out.push(3);
             write_bytes(s.as_bytes(), out);
         }
-        WatAST::Keyword(k) => {
+        WatAST::Keyword(k, _) => {
             out.push(4);
             write_bytes(k.as_bytes(), out);
         }
-        WatAST::Symbol(ident) => {
+        WatAST::Symbol(ident, _) => {
             out.push(5);
             write_bytes(ident.name.as_bytes(), out);
             // Scope IDs — sorted (BTreeSet already provides order).
@@ -499,7 +500,7 @@ fn write_wat_ast(ast: &WatAST, out: &mut Vec<u8>) {
                 out.extend_from_slice(&sid.0.to_le_bytes());
             }
         }
-        WatAST::List(items) => {
+        WatAST::List(items, _) => {
             out.push(6);
             out.extend_from_slice(&(items.len() as u64).to_le_bytes());
             for child in items {
@@ -922,10 +923,10 @@ pub fn register_struct_methods(
             .map(|(_, t)| t.clone())
             .collect();
         let mut new_body_items = Vec::with_capacity(2 + struct_def.fields.len());
-        new_body_items.push(WatAST::Keyword(":wat::core::struct-new".into()));
-        new_body_items.push(WatAST::Keyword(struct_def.name.clone()));
+        new_body_items.push(WatAST::Keyword(":wat::core::struct-new".into(), Span::unknown()));
+        new_body_items.push(WatAST::Keyword(struct_def.name.clone(), Span::unknown()));
         for param_name in &param_names {
-            new_body_items.push(WatAST::Symbol(Identifier::bare(param_name.clone())));
+            new_body_items.push(WatAST::Symbol(Identifier::bare(param_name.clone()), Span::unknown()));
         }
         let new_func = Function {
             name: Some(constructor_path.clone()),
@@ -933,7 +934,7 @@ pub fn register_struct_methods(
             type_params: struct_def.type_params.clone(),
             param_types: param_types.clone(),
             ret_type: struct_type.clone(),
-            body: Arc::new(WatAST::List(new_body_items)),
+            body: Arc::new(WatAST::List(new_body_items, Span::unknown())),
             closed_env: None,
         };
         if sym.functions.contains_key(&constructor_path) {
@@ -948,10 +949,10 @@ pub fn register_struct_methods(
         for (index, (field_name, field_type)) in struct_def.fields.iter().enumerate() {
             let accessor_path = format!("{}/{}", struct_def.name, field_name);
             let accessor_body = WatAST::List(vec![
-                WatAST::Keyword(":wat::core::struct-field".into()),
-                WatAST::Symbol(Identifier::bare("self")),
-                WatAST::IntLit(index as i64),
-            ]);
+                WatAST::Keyword(":wat::core::struct-field".into(), Span::unknown()),
+                WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
+                WatAST::IntLit(index as i64, Span::unknown()),
+            ], Span::unknown());
             let accessor_func = Function {
                 name: Some(accessor_path.clone()),
                 params: vec!["self".into()],
@@ -973,8 +974,8 @@ pub fn register_struct_methods(
 fn is_define_form(form: &WatAST) -> bool {
     matches!(
         form,
-        WatAST::List(items)
-            if matches!(items.first(), Some(WatAST::Keyword(k)) if k == ":wat::core::define")
+        WatAST::List(items, _)
+            if matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::core::define")
     )
 }
 
@@ -994,7 +995,7 @@ struct ParsedDefineSignature {
 /// signature checks.
 fn parse_define_form(form: WatAST) -> Result<(String, Arc<Function>), RuntimeError> {
     let items = match form {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => return Err(RuntimeError::MalformedForm {
             head: ":wat::core::define".into(),
             reason: "expected list".into(),
@@ -1046,7 +1047,7 @@ fn parse_define_form(form: WatAST) -> Result<(String, Arc<Function>), RuntimeErr
 /// - ret_type (parsed type after `->`; defaults to `:()` if omitted)
 fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeError> {
     let items = match sig {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::define".into(),
@@ -1056,7 +1057,7 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
     };
     let mut iter = items.into_iter();
     let name_kw = match iter.next() {
-        Some(WatAST::Keyword(k)) => k,
+        Some(WatAST::Keyword(k, _)) => k,
         Some(other) => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::define".into(),
@@ -1090,7 +1091,7 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
                 });
             }
             match item {
-                WatAST::Keyword(k) => {
+                WatAST::Keyword(k, _) => {
                     ret_type = Some(parse_type_keyword(&k)?);
                 }
                 other => {
@@ -1106,10 +1107,10 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
             continue;
         }
         match item {
-            WatAST::Symbol(ref s) if s.as_str() == "->" => {
+            WatAST::Symbol(ref s, _) if s.as_str() == "->" => {
                 saw_arrow = true;
             }
-            WatAST::List(pair) => {
+            WatAST::List(pair, _) => {
                 let (pname, ptype) = parse_param_pair(pair)?;
                 params.push(pname);
                 param_types.push(ptype);
@@ -1150,7 +1151,7 @@ fn parse_param_pair(
     }
     let mut it = pair.into_iter();
     let name = match it.next() {
-        Some(WatAST::Symbol(ident)) => ident.name,
+        Some(WatAST::Symbol(ident, _)) => ident.name,
         Some(other) => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::define".into(),
@@ -1163,7 +1164,7 @@ fn parse_param_pair(
         None => unreachable!("length checked above"),
     };
     let type_kw = match it.next() {
-        Some(WatAST::Keyword(k)) => k,
+        Some(WatAST::Keyword(k, _)) => k,
         Some(other) => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::define".into(),
@@ -1242,12 +1243,12 @@ fn eval_tail(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     let items = match ast {
-        WatAST::List(items) if !items.is_empty() => items,
+        WatAST::List(items, _) if !items.is_empty() => items,
         _ => return eval(ast, env, sym),
     };
     let args = &items[1..];
     match &items[0] {
-        WatAST::Keyword(k) => {
+        WatAST::Keyword(k, _) => {
             let head = k.as_str();
             match head {
                 ":wat::core::if" => eval_if_tail(args, env, sym),
@@ -1270,7 +1271,7 @@ fn eval_tail(
         // `Ok`, `Err` are constructor symbols that are NEVER bound in
         // env, so `env.lookup` returns None for them and we delegate
         // to eval (which special-cases the three constructors).
-        WatAST::Symbol(ident) => {
+        WatAST::Symbol(ident, _) => {
             if let Some(Value::wat__core__lambda(f)) = env.lookup(ident.as_str()) {
                 emit_tail_call(f, args, env, sym)
             } else {
@@ -1281,7 +1282,7 @@ fn eval_tail(
         // the head non-tail; if the value is a lambda, signal tail
         // call; otherwise delegate to `apply_value` with the
         // already-evaluated callee so we don't re-evaluate.
-        WatAST::List(_) => {
+        WatAST::List(_, _) => {
             let callee = eval(&items[0], env, sym)?;
             match callee {
                 Value::wat__core__lambda(f) => emit_tail_call(f, args, env, sym),
@@ -1335,7 +1336,7 @@ fn eval_if_tail(
         });
     }
     match &args[1] {
-        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::if".into(),
@@ -1347,7 +1348,7 @@ fn eval_if_tail(
         }
     }
     match &args[2] {
-        WatAST::Keyword(_) => {}
+        WatAST::Keyword(_, _) => {}
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::if".into(),
@@ -1388,7 +1389,7 @@ fn eval_let_tail(
     let bindings_form = &args[0];
     let body = &args[1];
     let binding_pairs = match bindings_form {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
@@ -1437,7 +1438,7 @@ fn eval_let_star_tail(
     let bindings_form = &args[0];
     let body = &args[1];
     let binding_pairs = match bindings_form {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let*".into(),
@@ -1481,7 +1482,7 @@ fn eval_match_tail(
             reason: if args.len() >= 2
                 && !matches!(
                     args.get(1),
-                    Some(WatAST::Symbol(s)) if s.as_str() == "->"
+                    Some(WatAST::Symbol(s, _)) if s.as_str() == "->"
                 )
             {
                 "`:wat::core::match` now requires `-> :T` between scrutinee and arms; write (:wat::core::match scrut -> :T (pat body) ...)".into()
@@ -1494,7 +1495,7 @@ fn eval_match_tail(
         });
     }
     match &args[1] {
-        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::match".into(),
@@ -1503,7 +1504,7 @@ fn eval_match_tail(
         }
     }
     match &args[2] {
-        WatAST::Keyword(_) => {}
+        WatAST::Keyword(_, _) => {}
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::match".into(),
@@ -1517,7 +1518,7 @@ fn eval_match_tail(
     let scrutinee = eval(&args[0], env, sym)?;
     for arm in &args[3..] {
         let arm_items = match arm {
-            WatAST::List(items) => items,
+            WatAST::List(items, _) => items,
             other => {
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -1555,11 +1556,11 @@ pub fn eval(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     match ast {
-        WatAST::IntLit(n) => Ok(Value::i64(*n)),
-        WatAST::FloatLit(x) => Ok(Value::f64(*x)),
-        WatAST::BoolLit(b) => Ok(Value::bool(*b)),
-        WatAST::StringLit(s) => Ok(Value::String(Arc::new(s.clone()))),
-        WatAST::Keyword(k) => {
+        WatAST::IntLit(n, _) => Ok(Value::i64(*n)),
+        WatAST::FloatLit(x, _) => Ok(Value::f64(*x)),
+        WatAST::BoolLit(b, _) => Ok(Value::bool(*b)),
+        WatAST::StringLit(s, _) => Ok(Value::String(Arc::new(s.clone()))),
+        WatAST::Keyword(k, _) => {
             // `:None` is the nullary constructor of the built-in
             // `:Option<T>` enum (058-030). Special-cased here so users
             // can write `:None` in expression position to produce
@@ -1581,10 +1582,10 @@ pub fn eval(
             }
             Ok(Value::wat__core__keyword(Arc::new(k.clone())))
         }
-        WatAST::Symbol(ident) => env
+        WatAST::Symbol(ident, _) => env
             .lookup(ident.as_str())
             .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone())),
-        WatAST::List(items) => eval_list(items, env, sym),
+        WatAST::List(items, _) => eval_list(items, env, sym),
     }
 }
 
@@ -1605,18 +1606,18 @@ fn eval_list(
     let rest = &items[1..];
 
     match head {
-        WatAST::Keyword(k) => dispatch_keyword_head(k, rest, env, sym),
-        WatAST::Symbol(ident) if ident.as_str() == "Some" => eval_some_ctor(rest, env, sym),
-        WatAST::Symbol(ident) if ident.as_str() == "Ok" => eval_ok_ctor(rest, env, sym),
-        WatAST::Symbol(ident) if ident.as_str() == "Err" => eval_err_ctor(rest, env, sym),
-        WatAST::Symbol(ident) => {
+        WatAST::Keyword(k, _) => dispatch_keyword_head(k, rest, env, sym),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Some" => eval_some_ctor(rest, env, sym),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => eval_ok_ctor(rest, env, sym),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Err" => eval_err_ctor(rest, env, sym),
+        WatAST::Symbol(ident, _) => {
             // Bare symbol as head — look up a callable in the env.
             let callee = env
                 .lookup(ident.as_str())
                 .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone()))?;
             apply_value(&callee, rest, env, sym)
         }
-        WatAST::List(_) => {
+        WatAST::List(_, _) => {
             // Inline lambda call: ((lambda ...) arg1 arg2)
             let callee = eval(head, env, sym)?;
             apply_value(&callee, rest, env, sym)
@@ -1930,7 +1931,7 @@ fn parse_lambda_signature(
     sig: &WatAST,
 ) -> Result<(Vec<String>, Vec<crate::types::TypeExpr>, crate::types::TypeExpr), RuntimeError> {
     let items = match sig {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::lambda".into(),
@@ -1951,7 +1952,7 @@ fn parse_lambda_signature(
                 });
             }
             match item {
-                WatAST::Keyword(k) => {
+                WatAST::Keyword(k, _) => {
                     ret_type = Some(parse_type_keyword(k)?);
                 }
                 other => {
@@ -1967,10 +1968,10 @@ fn parse_lambda_signature(
             continue;
         }
         match item {
-            WatAST::Symbol(s) if s.as_str() == "->" => {
+            WatAST::Symbol(s, _) if s.as_str() == "->" => {
                 saw_arrow = true;
             }
-            WatAST::List(pair) => {
+            WatAST::List(pair, _) => {
                 let (pname, ptype) = parse_param_pair(pair.clone())?;
                 params.push(pname);
                 param_types.push(ptype);
@@ -2013,7 +2014,7 @@ fn eval_let(
     let body = &args[1];
 
     let binding_pairs = match bindings_form {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
@@ -2074,7 +2075,7 @@ fn eval_let_star(
     let body = &args[1];
 
     let binding_pairs = match bindings_form {
-        WatAST::List(items) => items,
+        WatAST::List(items, _) => items,
         _ => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let*".into(),
@@ -2172,7 +2173,7 @@ enum LetBinding<'a> {
 
 fn parse_let_binding(pair: &WatAST) -> Result<LetBinding<'_>, RuntimeError> {
     let kv = match pair {
-        WatAST::List(items) if items.len() == 2 => items,
+        WatAST::List(items, _) if items.len() == 2 => items,
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
@@ -2184,7 +2185,7 @@ fn parse_let_binding(pair: &WatAST) -> Result<LetBinding<'_>, RuntimeError> {
         }
     };
     let binder = match &kv[0] {
-        WatAST::List(inner) => inner,
+        WatAST::List(inner, _) => inner,
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let".into(),
@@ -2197,11 +2198,11 @@ fn parse_let_binding(pair: &WatAST) -> Result<LetBinding<'_>, RuntimeError> {
     };
     // Typed-single: `(symbol keyword)`.
     let is_typed_single = binder.len() == 2
-        && matches!(&binder[0], WatAST::Symbol(_))
-        && matches!(&binder[1], WatAST::Keyword(_));
+        && matches!(&binder[0], WatAST::Symbol(_, _))
+        && matches!(&binder[1], WatAST::Keyword(_, _));
     if is_typed_single {
         let name = match &binder[0] {
-            WatAST::Symbol(ident) => ident.name.clone(),
+            WatAST::Symbol(ident, _) => ident.name.clone(),
             _ => unreachable!(),
         };
         // Parse for validation side-effect — `:Any` and malformed type
@@ -2209,7 +2210,7 @@ fn parse_let_binding(pair: &WatAST) -> Result<LetBinding<'_>, RuntimeError> {
         // The parsed type itself isn't consumed at runtime; the type
         // checker handles the actual type-level work earlier in the
         // startup pipeline.
-        if let WatAST::Keyword(k) = &binder[1] {
+        if let WatAST::Keyword(k, _) = &binder[1] {
             parse_type_keyword(k)?;
         }
         return Ok(LetBinding::Single {
@@ -2221,7 +2222,7 @@ fn parse_let_binding(pair: &WatAST) -> Result<LetBinding<'_>, RuntimeError> {
     let mut names = Vec::with_capacity(binder.len());
     for item in binder {
         match item {
-            WatAST::Symbol(ident) => names.push(ident.name.clone()),
+            WatAST::Symbol(ident, _) => names.push(ident.name.clone()),
             other => {
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::core::let".into(),
@@ -2277,7 +2278,7 @@ fn eval_if(
     // for programs that reach the dispatcher without the checker
     // having run.
     match &args[1] {
-        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::if".into(),
@@ -2289,7 +2290,7 @@ fn eval_if(
         }
     }
     match &args[2] {
-        WatAST::Keyword(_) => {}
+        WatAST::Keyword(_, _) => {}
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::if".into(),
@@ -2331,12 +2332,12 @@ fn eval_cond(
     let arms = &args[2..];
     for (i, arm) in arms.iter().enumerate() {
         let items = match arm {
-            WatAST::List(xs) => xs,
+            WatAST::List(xs, _) => xs,
             _ => unreachable!("validate_cond_shape checked list"),
         };
         let is_last = i + 1 == arms.len();
         // `:else` arm — last-only; its body is always evaluated.
-        if let WatAST::Keyword(k) = &items[0] {
+        if let WatAST::Keyword(k, _) = &items[0] {
             if k == ":else" {
                 return eval(&items[1], env, sym);
             }
@@ -2379,11 +2380,11 @@ fn eval_cond_tail(
     let arms = &args[2..];
     for (i, arm) in arms.iter().enumerate() {
         let items = match arm {
-            WatAST::List(xs) => xs,
+            WatAST::List(xs, _) => xs,
             _ => unreachable!("validate_cond_shape checked list"),
         };
         let is_last = i + 1 == arms.len();
-        if let WatAST::Keyword(k) = &items[0] {
+        if let WatAST::Keyword(k, _) = &items[0] {
             if k == ":else" {
                 return eval_tail(&items[1], env, sym);
             }
@@ -2425,7 +2426,7 @@ fn validate_cond_shape(args: &[WatAST]) -> Result<(), RuntimeError> {
         });
     }
     match &args[0] {
-        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::cond".into(),
@@ -2437,7 +2438,7 @@ fn validate_cond_shape(args: &[WatAST]) -> Result<(), RuntimeError> {
         }
     }
     match &args[1] {
-        WatAST::Keyword(_) => {}
+        WatAST::Keyword(_, _) => {}
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::cond".into(),
@@ -2452,8 +2453,8 @@ fn validate_cond_shape(args: &[WatAST]) -> Result<(), RuntimeError> {
     // Each arm must be a 2-element list.
     for (i, arm) in arms.iter().enumerate() {
         match arm {
-            WatAST::List(xs) if xs.len() == 2 => {}
-            WatAST::List(xs) => {
+            WatAST::List(xs, _) if xs.len() == 2 => {}
+            WatAST::List(xs, _) => {
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::core::cond".into(),
                     reason: format!(
@@ -2478,11 +2479,11 @@ fn validate_cond_shape(args: &[WatAST]) -> Result<(), RuntimeError> {
     // Last arm must be `:else`.
     let last = &arms[arms.len() - 1];
     let last_items = match last {
-        WatAST::List(xs) => xs,
+        WatAST::List(xs, _) => xs,
         _ => unreachable!(),
     };
     match &last_items[0] {
-        WatAST::Keyword(k) if k == ":else" => Ok(()),
+        WatAST::Keyword(k, _) if k == ":else" => Ok(()),
         _ => Err(RuntimeError::MalformedForm {
             head: ":wat::core::cond".into(),
             reason: "last arm must be (:else body) — cond requires an explicit default".into(),
@@ -3024,7 +3025,7 @@ fn eval_list_ctor(
             got: 0,
         });
     }
-    if !matches!(&args[0], WatAST::Keyword(_)) {
+    if !matches!(&args[0], WatAST::Keyword(_, _)) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::vec".into(),
             reason: "first argument must be a type keyword (e.g., :i64)".into(),
@@ -3508,7 +3509,7 @@ fn eval_hashmap_ctor(
             got: 0,
         });
     }
-    if !matches!(&args[0], WatAST::Keyword(_)) {
+    if !matches!(&args[0], WatAST::Keyword(_, _)) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::std::HashMap".into(),
             reason: "first argument must be a tuple type keyword :(K,V)".into(),
@@ -3595,7 +3596,7 @@ fn eval_hashset_ctor(
             got: 0,
         });
     }
-    if !matches!(&args[0], WatAST::Keyword(_)) {
+    if !matches!(&args[0], WatAST::Keyword(_, _)) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::std::HashSet".into(),
             reason: "first argument must be a type keyword (e.g., :i64)".into(),
@@ -3964,7 +3965,7 @@ fn eval_struct_new(
         });
     }
     let type_name = match &args[0] {
-        WatAST::Keyword(k) => k.clone(),
+        WatAST::Keyword(k, _) => k.clone(),
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::struct-new".into(),
@@ -4021,8 +4022,8 @@ fn eval_struct_field(
         }
     };
     let index = match &args[1] {
-        WatAST::IntLit(n) if *n >= 0 => *n as usize,
-        WatAST::IntLit(n) => {
+        WatAST::IntLit(n, _) if *n >= 0 => *n as usize,
+        WatAST::IntLit(n, _) => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::struct-field".into(),
                 reason: format!("field index must be non-negative; got {}", n),
@@ -4091,7 +4092,7 @@ fn eval_match(
             reason: if args.len() >= 2
                 && !matches!(
                     args.get(1),
-                    Some(WatAST::Symbol(s)) if s.as_str() == "->"
+                    Some(WatAST::Symbol(s, _)) if s.as_str() == "->"
                 )
             {
                 "`:wat::core::match` now requires `-> :T` between scrutinee and arms; write (:wat::core::match scrut -> :T (pat body) ...)".into()
@@ -4105,7 +4106,7 @@ fn eval_match(
     }
     // Validate the `-> :T` shape.
     match &args[1] {
-        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::match".into(),
@@ -4114,7 +4115,7 @@ fn eval_match(
         }
     }
     match &args[2] {
-        WatAST::Keyword(_) => {}
+        WatAST::Keyword(_, _) => {}
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::match".into(),
@@ -4128,7 +4129,7 @@ fn eval_match(
     let scrutinee = eval(&args[0], env, sym)?;
     for arm in &args[3..] {
         let arm_items = match arm {
-            WatAST::List(items) => items,
+            WatAST::List(items, _) => items,
             other => {
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::core::match".into(),
@@ -4171,13 +4172,13 @@ fn try_match_pattern(
 ) -> Result<Option<Environment>, RuntimeError> {
     match pattern {
         // `:None` — matches Option(None) only.
-        WatAST::Keyword(k) if k == ":None" => match value {
+        WatAST::Keyword(k, _) if k == ":None" => match value {
             Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
         // Keyword patterns other than `:None` are not yet spec'd;
         // user-enum variants graduate in a later slice.
-        WatAST::Keyword(k) => Err(RuntimeError::MalformedForm {
+        WatAST::Keyword(k, _) => Err(RuntimeError::MalformedForm {
             head: ":wat::core::match".into(),
             reason: format!(
                 "keyword pattern {} not supported (only `:None` is recognized in this slice)",
@@ -4185,19 +4186,19 @@ fn try_match_pattern(
             ),
         }),
         // `_` wildcard — matches any value, no binding.
-        WatAST::Symbol(ident) if ident.as_str() == "_" => Ok(Some(outer.clone())),
+        WatAST::Symbol(ident, _) if ident.as_str() == "_" => Ok(Some(outer.clone())),
         // Bare identifier — binds the scrutinee to that name.
-        WatAST::Symbol(ident) => Ok(Some(
+        WatAST::Symbol(ident, _) => Ok(Some(
             outer.child().bind(ident.as_str().to_string(), value.clone()).build(),
         )),
         // `(Some binder)` — matches Option(Some(v)), binds `binder` to v.
-        WatAST::List(items) => {
+        WatAST::List(items, _) => {
             let head = items.first().ok_or_else(|| RuntimeError::MalformedForm {
                 head: ":wat::core::match".into(),
                 reason: "empty list pattern".into(),
             })?;
             match head {
-                WatAST::Symbol(ident) if ident.as_str() == "Some" => {
+                WatAST::Symbol(ident, _) if ident.as_str() == "Some" => {
                     if items.len() != 2 {
                         return Err(RuntimeError::MalformedForm {
                             head: ":wat::core::match".into(),
@@ -4211,7 +4212,7 @@ fn try_match_pattern(
                         Value::Option(opt) => match &**opt {
                             Some(inner) => {
                                 let binder = match &items[1] {
-                                    WatAST::Symbol(b) => b.as_str().to_string(),
+                                    WatAST::Symbol(b, _) => b.as_str().to_string(),
                                     other => {
                                         return Err(RuntimeError::MalformedForm {
                                             head: ":wat::core::match".into(),
@@ -4229,7 +4230,7 @@ fn try_match_pattern(
                         _ => Ok(None),
                     }
                 }
-                WatAST::Symbol(ident) if ident.as_str() == "Ok" => {
+                WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => {
                     if items.len() != 2 {
                         return Err(RuntimeError::MalformedForm {
                             head: ":wat::core::match".into(),
@@ -4243,7 +4244,7 @@ fn try_match_pattern(
                         Value::Result(r) => match &**r {
                             Ok(inner) => {
                                 let binder = match &items[1] {
-                                    WatAST::Symbol(b) => b.as_str().to_string(),
+                                    WatAST::Symbol(b, _) => b.as_str().to_string(),
                                     other => {
                                         return Err(RuntimeError::MalformedForm {
                                             head: ":wat::core::match".into(),
@@ -4261,7 +4262,7 @@ fn try_match_pattern(
                         _ => Ok(None),
                     }
                 }
-                WatAST::Symbol(ident) if ident.as_str() == "Err" => {
+                WatAST::Symbol(ident, _) if ident.as_str() == "Err" => {
                     if items.len() != 2 {
                         return Err(RuntimeError::MalformedForm {
                             head: ":wat::core::match".into(),
@@ -4275,7 +4276,7 @@ fn try_match_pattern(
                         Value::Result(r) => match &**r {
                             Err(inner) => {
                                 let binder = match &items[1] {
-                                    WatAST::Symbol(b) => b.as_str().to_string(),
+                                    WatAST::Symbol(b, _) => b.as_str().to_string(),
                                     other => {
                                         return Err(RuntimeError::MalformedForm {
                                             head: ":wat::core::match".into(),
@@ -4839,13 +4840,13 @@ pub fn apply_function(
 
 fn ast_variant_name(ast: &WatAST) -> &'static str {
     match ast {
-        WatAST::IntLit(_) => "int literal",
-        WatAST::FloatLit(_) => "float literal",
-        WatAST::BoolLit(_) => "bool literal",
-        WatAST::StringLit(_) => "string literal",
-        WatAST::Keyword(_) => "keyword",
-        WatAST::Symbol(_) => "symbol",
-        WatAST::List(_) => "list",
+        WatAST::IntLit(_, _) => "int literal",
+        WatAST::FloatLit(_, _) => "float literal",
+        WatAST::BoolLit(_, _) => "bool literal",
+        WatAST::StringLit(_, _) => "string literal",
+        WatAST::Keyword(_, _) => "keyword",
+        WatAST::Symbol(_, _) => "symbol",
+        WatAST::List(_, _) => "list",
     }
 }
 
@@ -5012,7 +5013,7 @@ fn eval_make_bounded_queue(
             got: args.len(),
         });
     }
-    if !matches!(&args[0], WatAST::Keyword(_)) {
+    if !matches!(&args[0], WatAST::Keyword(_, _)) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::kernel::make-bounded-queue".into(),
             reason: "first argument must be a type keyword (e.g., :Candle)".into(),
@@ -5055,7 +5056,7 @@ fn eval_make_unbounded_queue(args: &[WatAST]) -> Result<Value, RuntimeError> {
             got: args.len(),
         });
     }
-    if !matches!(&args[0], WatAST::Keyword(_)) {
+    if !matches!(&args[0], WatAST::Keyword(_, _)) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::kernel::make-unbounded-queue".into(),
             reason: "argument must be a type keyword (e.g., :LearnSignal)".into(),
@@ -5516,7 +5517,7 @@ fn eval_kernel_spawn(
     // Arc<Function>; the trampoline inside apply_function handles
     // closed_env for lambdas and fresh root for defines.
     let func = match &args[0] {
-        WatAST::Keyword(k) => match sym.get(k) {
+        WatAST::Keyword(k, _) => match sym.get(k) {
             Some(f) => f.clone(),
             None => return Err(RuntimeError::UnknownFunction(k.clone())),
         },
@@ -5807,7 +5808,7 @@ fn resolve_eval_source(
     sym: &SymbolTable,
 ) -> Result<String, RuntimeError> {
     let iface = match iface_ast {
-        WatAST::Keyword(k) => k.as_str(),
+        WatAST::Keyword(k, _) => k.as_str(),
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::eval::<iface>".into(),
@@ -5876,7 +5877,7 @@ fn resolve_verify_payload(
     sym: &SymbolTable,
 ) -> Result<String, RuntimeError> {
     let iface = match iface_ast {
-        WatAST::Keyword(k) => k.as_str(),
+        WatAST::Keyword(k, _) => k.as_str(),
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::verify::<iface>".into(),
@@ -5943,7 +5944,7 @@ fn parse_verify_algo_keyword(
     form: &str,
 ) -> Result<String, RuntimeError> {
     let kw = match ast {
-        WatAST::Keyword(k) => k.as_str(),
+        WatAST::Keyword(k, _) => k.as_str(),
         other => {
             return Err(RuntimeError::MalformedForm {
                 head: form.into(),
@@ -6027,8 +6028,8 @@ fn run_constrained(
 }
 
 fn refuse_mutation_forms_in(ast: &WatAST) -> Result<(), RuntimeError> {
-    if let WatAST::List(items) = ast {
-        if let Some(WatAST::Keyword(head)) = items.first() {
+    if let WatAST::List(items, _) = ast {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
             if is_mutation_head(head) {
                 return Err(RuntimeError::EvalForbidsMutationForm {
                     head: head.clone(),
@@ -6845,10 +6846,10 @@ mod tests {
             Value::wat__WatAST(ast) => {
                 // The captured AST should be a List whose head is :wat::core::i64::+
                 match &*ast {
-                    WatAST::List(items) => {
+                    WatAST::List(items, _) => {
                         assert!(matches!(
                             items.first(),
-                            Some(WatAST::Keyword(k)) if k == ":wat::core::i64::+"
+                            Some(WatAST::Keyword(k, _)) if k == ":wat::core::i64::+"
                         ));
                     }
                     other => panic!("expected List AST, got {:?}", other),
@@ -6899,10 +6900,10 @@ mod tests {
         .unwrap();
         match result {
             Value::wat__WatAST(ast) => match &*ast {
-                WatAST::List(items) => {
+                WatAST::List(items, _) => {
                     assert!(matches!(
                         items.first(),
-                        Some(WatAST::Keyword(k)) if k == ":wat::core::i64::+"
+                        Some(WatAST::Keyword(k, _)) if k == ":wat::core::i64::+"
                     ));
                 }
                 other => panic!("expected List AST, got {:?}", other),
