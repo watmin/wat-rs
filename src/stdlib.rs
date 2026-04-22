@@ -14,6 +14,7 @@
 
 use crate::ast::WatAST;
 use crate::parser::parse_all;
+use std::sync::OnceLock;
 
 /// One baked stdlib file: a logical path (for diagnostics) plus its
 /// source contents.
@@ -89,7 +90,16 @@ const STDLIB_FILES: &[StdlibFile] = &[
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.
-/// Called by [`crate::freeze::startup_from_source`] to register stdlib
+/// Includes BOTH the baked stdlib (compile-time `include_str!`) AND
+/// any dep sources a consumer crate installed via
+/// [`install_dep_sources`]. Every freeze pass (main, test, sandbox,
+/// fork) uses this function, so external wat crates' wat surface
+/// is uniformly available to any wat code running in the process —
+/// including code inside `:wat::kernel::run-sandboxed-ast` and
+/// `:wat::kernel::fork-with-forms`.
+///
+/// Called by [`crate::freeze::startup_from_source`] and
+/// [`crate::freeze::startup_from_forms`] to register stdlib
 /// defmacros ahead of user code.
 pub fn stdlib_forms() -> Result<Vec<WatAST>, StdlibError> {
     let mut all = Vec::new();
@@ -100,7 +110,50 @@ pub fn stdlib_forms() -> Result<Vec<WatAST>, StdlibError> {
         })?;
         all.extend(forms);
     }
+    for file in installed_dep_sources().iter().flat_map(|slice| slice.iter()) {
+        let forms = parse_all(file.source).map_err(|e| StdlibError::ParseFailed {
+            path: file.path,
+            source: format!("{}", e),
+        })?;
+        all.extend(forms);
+    }
     Ok(all)
+}
+
+/// Process-global slot holding the dep sources a consumer crate
+/// installed at startup. Once set, subsequent calls to
+/// [`install_dep_sources`] fail silently — matches
+/// [`crate::rust_deps::install`]'s OnceLock semantics. Arc 015 slice 3a.
+///
+/// Storing `&'static [StdlibFile]` directly works because
+/// external crates' `stdlib_sources()` returns a static slice;
+/// `StdlibFile`'s fields are both `&'static str` (baked via
+/// `include_str!`).
+static DEP_SOURCES: OnceLock<Vec<&'static [StdlibFile]>> = OnceLock::new();
+
+/// Install the dep sources a consumer crate wants available across
+/// the entire process — every subsequent freeze (main, test,
+/// sandbox, fork) sees them as part of [`stdlib_forms`]. Symmetric
+/// with [`crate::rust_deps::install`]: one-shot OnceLock; first
+/// caller wins.
+///
+/// Returns `Err` if dep sources were already installed. Idempotent
+/// callers can ignore the result (best-effort install).
+pub fn install_dep_sources(
+    sources: Vec<&'static [StdlibFile]>,
+) -> Result<(), &'static str> {
+    DEP_SOURCES
+        .set(sources)
+        .map_err(|_| "stdlib::install_dep_sources already called in this process")
+}
+
+/// Read the installed dep sources. Returns empty if no one has
+/// called [`install_dep_sources`].
+pub fn installed_dep_sources() -> &'static [&'static [StdlibFile]] {
+    match DEP_SOURCES.get() {
+        Some(v) => v.as_slice(),
+        None => &[],
+    }
 }
 
 /// Loader-level failure when a stdlib file can't be parsed.

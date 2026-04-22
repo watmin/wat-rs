@@ -58,11 +58,11 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::compose::DepRegistrar;
-use crate::freeze::{startup_from_source_with_deps, FrozenWorld};
+use crate::freeze::{startup_from_source, FrozenWorld};
 use crate::load::FsLoader;
 use crate::runtime::{apply_function, Function, Value};
 use crate::rust_deps::{self, RustDepsBuilder};
-use crate::stdlib::StdlibFile;
+use crate::stdlib::{self, StdlibFile};
 use crate::types::TypeExpr;
 
 /// Aggregated result of running every `.wat` file under a path.
@@ -127,21 +127,22 @@ pub struct TestSummary {
 /// [`run_and_assert`].
 pub fn run_tests_from_dir(
     path: &Path,
-    dep_sources: &[&[StdlibFile]],
+    dep_sources: &[&'static [StdlibFile]],
     dep_registrars: &[DepRegistrar],
 ) -> TestSummary {
     let mut summary = TestSummary::default();
     let run_start = Instant::now();
 
-    // Build + install the rust_deps registry with caller-supplied
-    // dep_registrars. Same pattern as compose_and_run: start from
-    // with_wat_rs_defaults() (empty post-slice-4b; future defaults
-    // layer in here), run each registrar, best-effort install.
+    // Install BOTH halves of the external-crate contract globally
+    // — symmetric OnceLocks, first-call-wins. After install, every
+    // test file's freeze and every nested `run-sandboxed-ast` /
+    // fork child transparently sees dep wat sources + Rust shims.
     let mut builder = RustDepsBuilder::with_wat_rs_defaults();
     for registrar in dep_registrars {
         registrar(&mut builder);
     }
     let _ = rust_deps::install(builder.build());
+    let _ = stdlib::install_dep_sources(dep_sources.to_vec());
 
     // 1. Resolve input — file or directory.
     let files = match discover_wat_files(path) {
@@ -185,9 +186,8 @@ pub fn run_tests_from_dir(
         let canonical = std::fs::canonicalize(file)
             .ok()
             .map(|p| p.display().to_string());
-        let frozen = match startup_from_source_with_deps(
+        let frozen = match startup_from_source(
             &src,
-            dep_sources,
             canonical.as_deref(),
             Arc::new(FsLoader),
         ) {
@@ -303,7 +303,7 @@ pub fn run_tests_from_dir(
 /// output with zero boilerplate.
 pub fn run_and_assert(
     path: &Path,
-    dep_sources: &[&[StdlibFile]],
+    dep_sources: &[&'static [StdlibFile]],
     dep_registrars: &[DepRegistrar],
 ) {
     let summary = run_tests_from_dir(path, dep_sources, dep_registrars);

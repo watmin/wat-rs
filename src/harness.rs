@@ -39,14 +39,13 @@
 
 use crate::compose::DepRegistrar;
 use crate::freeze::{
-    invoke_user_main, startup_from_source, startup_from_source_with_deps,
-    validate_user_main_signature, FrozenWorld, StartupError,
+    invoke_user_main, startup_from_source, validate_user_main_signature, FrozenWorld, StartupError,
 };
 use crate::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
 use crate::load::{InMemoryLoader, SourceLoader};
 use crate::rust_deps::{self, RustDepsBuilder};
 use crate::runtime::{RuntimeError, Value};
-use crate::stdlib::StdlibFile;
+use crate::stdlib::{self, StdlibFile};
 use std::sync::Arc;
 
 /// A frozen wat program ready to invoke. Clone is NOT derived: the
@@ -131,7 +130,7 @@ impl Harness {
     /// for details.
     pub fn from_source_with_deps(
         src: &str,
-        dep_sources: &[&[StdlibFile]],
+        dep_sources: &[&'static [StdlibFile]],
         dep_registrars: &[DepRegistrar],
     ) -> Result<Self, HarnessError> {
         Self::from_source_with_deps_and_loader(
@@ -147,22 +146,25 @@ impl Harness {
     /// `from_source*` variants on Harness are sugar over this one.
     pub fn from_source_with_deps_and_loader(
         src: &str,
-        dep_sources: &[&[StdlibFile]],
+        dep_sources: &[&'static [StdlibFile]],
         dep_registrars: &[DepRegistrar],
         loader: Arc<dyn SourceLoader>,
     ) -> Result<Self, HarnessError> {
-        // Build + install rust_deps registry. Starting from
-        // `with_wat_rs_defaults()` preserves baked-in defaults
-        // (LRU today; empty after slice 4b). Best-effort install;
-        // see compose_and_run docs for the OnceLock semantics.
+        // Install BOTH halves of the external-crate contract
+        // globally — symmetric OnceLocks. First caller in the
+        // process wins for each. After install, every subsequent
+        // freeze (main, test, sandbox, fork) transparently sees
+        // dep wat sources (via `stdlib::stdlib_forms()`) and dep
+        // Rust shims (via `rust_deps::get()`).
         let mut builder = RustDepsBuilder::with_wat_rs_defaults();
         for registrar in dep_registrars {
             registrar(&mut builder);
         }
         let _ = rust_deps::install(builder.build());
+        let _ = stdlib::install_dep_sources(dep_sources.to_vec());
 
-        let world = startup_from_source_with_deps(src, dep_sources, None, loader)
-            .map_err(HarnessError::Startup)?;
+        let world =
+            startup_from_source(src, None, loader).map_err(HarnessError::Startup)?;
         validate_user_main_signature(&world).map_err(HarnessError::MainSignature)?;
         Ok(Self { world })
     }

@@ -53,12 +53,12 @@ pub mod shim;
 pub fn stdlib_sources() -> &'static [wat::stdlib::StdlibFile] {
     static FILES: &[wat::stdlib::StdlibFile] = &[
         wat::stdlib::StdlibFile {
-            path: "wat-lru/lru.wat",
-            source: include_str!("../wat/lru.wat"),
+            path: "wat-lru/LocalCache.wat",
+            source: include_str!("../wat/LocalCache.wat"),
         },
         wat::stdlib::StdlibFile {
-            path: "wat-lru/service.wat",
-            source: include_str!("../wat/service.wat"),
+            path: "wat-lru/CacheService.wat",
+            source: include_str!("../wat/CacheService.wat"),
         },
     ];
     FILES

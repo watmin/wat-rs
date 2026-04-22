@@ -31,7 +31,7 @@
 //! expected inside the user's wat program.
 
 use crate::assertion::install_silent_assertion_panic_hook;
-use crate::freeze::{invoke_user_main, startup_from_source_with_deps, validate_user_main_signature};
+use crate::freeze::{invoke_user_main, startup_from_source, validate_user_main_signature};
 use crate::harness::HarnessError;
 use crate::io::{RealStderr, RealStdin, RealStdout, WatReader, WatWriter};
 use crate::load::InMemoryLoader;
@@ -39,7 +39,7 @@ use crate::rust_deps::{self, RustDepsBuilder};
 use crate::runtime::{
     request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2, Value,
 };
-use crate::stdlib::StdlibFile;
+use crate::stdlib::{self, StdlibFile};
 use std::io;
 use std::sync::Arc;
 
@@ -134,7 +134,7 @@ fn install_signal_handlers() {
 /// any wat code runs.
 pub fn compose_and_run(
     source: &str,
-    dep_sources: &[&[StdlibFile]],
+    dep_sources: &[&'static [StdlibFile]],
     dep_registrars: &[DepRegistrar],
 ) -> Result<(), HarnessError> {
     // Silence the default panic handler for assertion-failed!
@@ -144,19 +144,21 @@ pub fn compose_and_run(
     // a "thread X panicked" line before the sandbox intercepts.
     install_silent_assertion_panic_hook();
 
-    // Build the rust_deps registry from wat-rs defaults + each
-    // dep's register(). Using `with_wat_rs_defaults()` (not
-    // `new()`) preserves baked-in defaults (today: LRU; after
-    // slice 4b: empty). Best-effort install: first caller in the
-    // process wins per OnceLock semantics.
+    // Install the two halves of the external-crate contract
+    // globally, process-wide. Symmetric OnceLocks — first caller
+    // wins for both. After this, every freeze in the process
+    // (main, test, sandbox, fork) transparently sees:
+    // - dep wat sources via `wat::stdlib::stdlib_forms()`
+    // - dep Rust shims via `wat::rust_deps::get()`
     let mut builder = RustDepsBuilder::with_wat_rs_defaults();
     for registrar in dep_registrars {
         registrar(&mut builder);
     }
     let _ = rust_deps::install(builder.build());
+    let _ = stdlib::install_dep_sources(dep_sources.to_vec());
 
     let loader = Arc::new(InMemoryLoader::new());
-    let world = startup_from_source_with_deps(source, dep_sources, None, loader)
+    let world = startup_from_source(source, None, loader)
         .map_err(HarnessError::Startup)?;
 
     validate_user_main_signature(&world).map_err(HarnessError::MainSignature)?;
