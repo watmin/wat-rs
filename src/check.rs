@@ -3015,6 +3015,88 @@ fn register_builtins(env: &mut CheckEnv) {
         );
     }
 
+    // Scalar conversions — arc 014. :wat::core::<source>::to-<target>
+    // between the four scalar tiers (i64, f64, bool, String).
+    // Infallible ones return the target directly; fallible ones return
+    // :Option<T>. No implicit coercion — every conversion is an
+    // explicit named call at the call site.
+    let opt_i64_ty = || TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![i64_ty()],
+    };
+    let opt_f64_ty = || TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![f64_ty()],
+    };
+    let opt_bool_ty = || TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![bool_ty()],
+    };
+    env.register(
+        ":wat::core::i64::to-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty()],
+            ret: string_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::i64::to-f64".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty()],
+            ret: f64_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::f64::to-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![f64_ty()],
+            ret: string_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::f64::to-i64".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![f64_ty()],
+            ret: opt_i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::string::to-i64".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: opt_i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::string::to-f64".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: opt_f64_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::bool::to-string".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![bool_ty()],
+            ret: string_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::string::to-bool".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: opt_bool_ty(),
+        },
+    );
+
     // String basics — :wat::core::string::*. Per-type ops, char-
     // oriented (length counts unicode scalars, not bytes). See
     // src/string_ops.rs for the handlers.

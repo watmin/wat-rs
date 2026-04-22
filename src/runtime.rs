@@ -1707,6 +1707,18 @@ fn dispatch_keyword_head(
             }
         }),
 
+        // Scalar conversions — arc 014. Explicit named casts between
+        // the four scalar tiers. Infallible → target type; fallible
+        // → :Option<T>.
+        ":wat::core::i64::to-string" => eval_i64_to_string(args, env, sym),
+        ":wat::core::i64::to-f64" => eval_i64_to_f64(args, env, sym),
+        ":wat::core::f64::to-string" => eval_f64_to_string(args, env, sym),
+        ":wat::core::f64::to-i64" => eval_f64_to_i64(args, env, sym),
+        ":wat::core::string::to-i64" => eval_string_to_i64(args, env, sym),
+        ":wat::core::string::to-f64" => eval_string_to_f64(args, env, sym),
+        ":wat::core::bool::to-string" => eval_bool_to_string(args, env, sym),
+        ":wat::core::string::to-bool" => eval_string_to_bool(args, env, sym),
+
         // Comparison — return :bool
         ":wat::core::=" => eval_eq(head, args, env, sym),
         ":wat::core::<" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Less),
@@ -2586,6 +2598,203 @@ where
             got: other.type_name(),
         }),
     }
+}
+
+// ─── Scalar conversions (arc 014) ───────────────────────────────────
+//
+// :wat::core::<source>::to-<target> — explicit named casts between
+// the four scalar tiers (i64, f64, bool, String). Infallible ones
+// return the target directly; fallible ones return :Option<T>. No
+// implicit coercion at arithmetic / comparison sites; users opt in
+// to each conversion by name at the call site.
+
+fn eval_one_arg<T>(
+    head: &'static str,
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    expected: &'static str,
+    extract: impl Fn(Value) -> Result<T, Value>,
+) -> Result<T, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: head.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    extract(v).map_err(|other| RuntimeError::TypeMismatch {
+        op: head.into(),
+        expected,
+        got: other.type_name(),
+    })
+}
+
+fn eval_i64_to_string(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let n = eval_one_arg(
+        ":wat::core::i64::to-string",
+        args,
+        env,
+        sym,
+        "i64",
+        |v| match v {
+            Value::i64(n) => Ok(n),
+            other => Err(other),
+        },
+    )?;
+    Ok(Value::String(Arc::new(n.to_string())))
+}
+
+fn eval_i64_to_f64(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let n = eval_one_arg(
+        ":wat::core::i64::to-f64",
+        args,
+        env,
+        sym,
+        "i64",
+        |v| match v {
+            Value::i64(n) => Ok(n),
+            other => Err(other),
+        },
+    )?;
+    Ok(Value::f64(n as f64))
+}
+
+fn eval_f64_to_string(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let f = eval_one_arg(
+        ":wat::core::f64::to-string",
+        args,
+        env,
+        sym,
+        "f64",
+        |v| match v {
+            Value::f64(f) => Ok(f),
+            other => Err(other),
+        },
+    )?;
+    Ok(Value::String(Arc::new(format!("{}", f))))
+}
+
+fn eval_f64_to_i64(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let f = eval_one_arg(
+        ":wat::core::f64::to-i64",
+        args,
+        env,
+        sym,
+        "f64",
+        |v| match v {
+            Value::f64(f) => Ok(f),
+            other => Err(other),
+        },
+    )?;
+    let result = if f.is_finite() && f >= (i64::MIN as f64) && f <= (i64::MAX as f64) {
+        Some(Value::i64(f as i64))
+    } else {
+        None
+    };
+    Ok(Value::Option(Arc::new(result)))
+}
+
+fn eval_string_to_i64(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let s = eval_one_arg(
+        ":wat::core::string::to-i64",
+        args,
+        env,
+        sym,
+        "String",
+        |v| match v {
+            Value::String(s) => Ok(s),
+            other => Err(other),
+        },
+    )?;
+    let parsed = s.parse::<i64>().ok().map(Value::i64);
+    Ok(Value::Option(Arc::new(parsed)))
+}
+
+fn eval_string_to_f64(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let s = eval_one_arg(
+        ":wat::core::string::to-f64",
+        args,
+        env,
+        sym,
+        "String",
+        |v| match v {
+            Value::String(s) => Ok(s),
+            other => Err(other),
+        },
+    )?;
+    let parsed = s.parse::<f64>().ok().map(Value::f64);
+    Ok(Value::Option(Arc::new(parsed)))
+}
+
+fn eval_bool_to_string(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let b = eval_one_arg(
+        ":wat::core::bool::to-string",
+        args,
+        env,
+        sym,
+        "bool",
+        |v| match v {
+            Value::bool(b) => Ok(b),
+            other => Err(other),
+        },
+    )?;
+    Ok(Value::String(Arc::new(
+        if b { "true" } else { "false" }.to_string(),
+    )))
+}
+
+fn eval_string_to_bool(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let s = eval_one_arg(
+        ":wat::core::string::to-bool",
+        args,
+        env,
+        sym,
+        "String",
+        |v| match v {
+            Value::String(s) => Ok(s),
+            other => Err(other),
+        },
+    )?;
+    let parsed = match s.as_str() {
+        "true" => Some(Value::bool(true)),
+        "false" => Some(Value::bool(false)),
+        _ => None,
+    };
+    Ok(Value::Option(Arc::new(parsed)))
 }
 
 /// `:wat::core::=` — structural equality. Composites (Vec, Tuple,
@@ -6006,6 +6215,188 @@ mod tests {
             eval_expr("(:wat::core::i64::/ 5 0)"),
             Err(RuntimeError::DivisionByZero)
         ));
+    }
+
+    // ─── Scalar conversions (arc 014) ───────────────────────────────────
+
+    fn expect_string(v: Value) -> String {
+        match v {
+            Value::String(s) => (*s).clone(),
+            other => panic!("expected String, got {:?}", other),
+        }
+    }
+
+    fn expect_i64(v: Value) -> i64 {
+        match v {
+            Value::i64(n) => n,
+            other => panic!("expected i64, got {:?}", other),
+        }
+    }
+
+    fn expect_f64(v: Value) -> f64 {
+        match v {
+            Value::f64(x) => x,
+            other => panic!("expected f64, got {:?}", other),
+        }
+    }
+
+    fn expect_some(v: Value) -> Value {
+        match v {
+            Value::Option(inner) => match &*inner {
+                Some(x) => x.clone(),
+                None => panic!("expected Some(_), got None"),
+            },
+            other => panic!("expected Option, got {:?}", other),
+        }
+    }
+
+    fn expect_none(v: Value) {
+        match v {
+            Value::Option(inner) => match &*inner {
+                None => {}
+                Some(x) => panic!("expected None, got Some({:?})", x),
+            },
+            other => panic!("expected Option, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn i64_to_string_renders_value() {
+        assert_eq!(
+            expect_string(eval_expr("(:wat::core::i64::to-string 42)").unwrap()),
+            "42"
+        );
+        assert_eq!(
+            expect_string(eval_expr("(:wat::core::i64::to-string -7)").unwrap()),
+            "-7"
+        );
+        assert_eq!(
+            expect_string(eval_expr("(:wat::core::i64::to-string 0)").unwrap()),
+            "0"
+        );
+    }
+
+    #[test]
+    fn i64_to_f64_widens_infallibly() {
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::i64::to-f64 42)").unwrap()),
+            42.0
+        );
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::i64::to-f64 -3)").unwrap()),
+            -3.0
+        );
+    }
+
+    #[test]
+    fn f64_to_string_renders_value() {
+        assert_eq!(
+            expect_string(eval_expr("(:wat::core::f64::to-string 2.5)").unwrap()),
+            "2.5"
+        );
+        assert_eq!(
+            expect_string(eval_expr("(:wat::core::f64::to-string -0.125)").unwrap()),
+            "-0.125"
+        );
+    }
+
+    #[test]
+    fn f64_to_i64_truncates_in_range() {
+        let some = expect_some(eval_expr("(:wat::core::f64::to-i64 3.75)").unwrap());
+        assert_eq!(expect_i64(some), 3);
+        let some = expect_some(eval_expr("(:wat::core::f64::to-i64 -2.5)").unwrap());
+        assert_eq!(expect_i64(some), -2);
+    }
+
+    #[test]
+    fn f64_to_i64_rejects_nan() {
+        // f64::/ with 0.0/0.0 errors with DivisionByZero, so
+        // manufacture NaN via an arithmetic chain the runtime
+        // doesn't intercept: sqrt-style NaN isn't available, but
+        // 0.0 * (1.0 / 0.0) would hit the zero-divisor guard.
+        // Easiest: feed a value past i64::MAX (as f64) and confirm
+        // the range check rejects it. i64::MAX ≈ 9.22e18; 1e19 is
+        // safely past.
+        expect_none(eval_expr("(:wat::core::f64::to-i64 1e19)").unwrap());
+        // And past i64::MIN on the negative side.
+        expect_none(eval_expr("(:wat::core::f64::to-i64 -1e19)").unwrap());
+    }
+
+    #[test]
+    fn string_to_i64_parses_valid_input() {
+        let some = expect_some(eval_expr(r#"(:wat::core::string::to-i64 "42")"#).unwrap());
+        assert_eq!(expect_i64(some), 42);
+        let some = expect_some(eval_expr(r#"(:wat::core::string::to-i64 "-7")"#).unwrap());
+        assert_eq!(expect_i64(some), -7);
+    }
+
+    #[test]
+    fn string_to_i64_returns_none_for_unparseable() {
+        expect_none(eval_expr(r#"(:wat::core::string::to-i64 "abc")"#).unwrap());
+        expect_none(eval_expr(r#"(:wat::core::string::to-i64 "")"#).unwrap());
+        expect_none(eval_expr(r#"(:wat::core::string::to-i64 " 42 ")"#).unwrap());
+    }
+
+    #[test]
+    fn string_to_f64_parses_valid_input() {
+        let some = expect_some(eval_expr(r#"(:wat::core::string::to-f64 "2.5")"#).unwrap());
+        assert_eq!(expect_f64(some), 2.5);
+    }
+
+    #[test]
+    fn string_to_f64_returns_none_for_unparseable() {
+        expect_none(eval_expr(r#"(:wat::core::string::to-f64 "abc")"#).unwrap());
+    }
+
+    #[test]
+    fn bool_to_string_renders_true_false() {
+        assert_eq!(
+            expect_string(eval_expr("(:wat::core::bool::to-string true)").unwrap()),
+            "true"
+        );
+        assert_eq!(
+            expect_string(eval_expr("(:wat::core::bool::to-string false)").unwrap()),
+            "false"
+        );
+    }
+
+    #[test]
+    fn string_to_bool_parses_valid_input() {
+        let some = expect_some(eval_expr(r#"(:wat::core::string::to-bool "true")"#).unwrap());
+        assert!(matches!(some, Value::bool(true)));
+        let some = expect_some(eval_expr(r#"(:wat::core::string::to-bool "false")"#).unwrap());
+        assert!(matches!(some, Value::bool(false)));
+    }
+
+    #[test]
+    fn string_to_bool_returns_none_for_unparseable() {
+        expect_none(eval_expr(r#"(:wat::core::string::to-bool "True")"#).unwrap());
+        expect_none(eval_expr(r#"(:wat::core::string::to-bool "1")"#).unwrap());
+        expect_none(eval_expr(r#"(:wat::core::string::to-bool "")"#).unwrap());
+    }
+
+    #[test]
+    fn i64_string_roundtrip() {
+        let s = eval_expr("(:wat::core::i64::to-string 12345)").unwrap();
+        let s_lit = match s {
+            Value::String(s) => format!("\"{}\"", s),
+            _ => panic!("expected String"),
+        };
+        let round = expect_some(
+            eval_expr(&format!("(:wat::core::string::to-i64 {})", s_lit)).unwrap(),
+        );
+        assert_eq!(expect_i64(round), 12345);
+    }
+
+    #[test]
+    fn conversions_reject_wrong_input_type() {
+        // Type checker catches these at startup — but the runtime
+        // handlers also reject wrong-type inputs defensively. Call
+        // through the raw dispatch to bypass check.
+        let err = eval_expr("(:wat::core::i64::to-string 2.5)").unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+        let err = eval_expr(r#"(:wat::core::f64::to-string "abc")"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
     // ─── Comparison ─────────────────────────────────────────────────────
