@@ -89,6 +89,31 @@ that:
 4. Hands `:user::main` real OS stdio handles, invokes.
 5. Returns any startup or runtime error.
 
+**About `deps: [...]`.** Each entry is a **Rust path** — a Cargo
+crate or an in-scope module — that exposes two public functions:
+
+```rust
+pub fn wat_sources() -> &'static [wat::WatSource];
+pub fn register(builder: &mut wat::rust_deps::RustDepsBuilder);
+```
+
+`deps: [wat_lru]` expands to approximately:
+
+```rust
+::wat::compose_and_run(
+    source,
+    &[wat_lru::wat_sources()],
+    &[wat_lru::register],
+)
+```
+
+So `wat_lru` resolves by standard Cargo convention — the Cargo
+crate named `wat-lru` in your `Cargo.toml` becomes the Rust path
+`wat_lru` (dash-to-underscore, same as `serde_json` for
+`serde-json`). A local `mod shim;` becomes `shim`. Any Rust path
+with those two functions in scope works — you pick the addressing;
+the macro just calls through.
+
 You never write this boilerplate.
 
 ### Tests — one macro, same shape
@@ -127,8 +152,10 @@ so `cargo test` without flags gives you what you need to debug.
 
 ### When you need your own Rust types
 
-Add a `src/shim.rs` module with a `#[wat_dispatch]` impl and a
-`register()` fn:
+Add a `src/shim.rs` module that satisfies the same two-function
+contract as an external wat crate — `pub fn wat_sources()` + `pub
+fn register()` at the module root — with your `#[wat_dispatch]`
+impl registered inside:
 
 ```rust
 // src/shim.rs
