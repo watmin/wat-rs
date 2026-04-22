@@ -183,12 +183,12 @@ pub fn wat_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 //
 // `source:` is an expression (typically `include_str!`). `deps:` is
 // an optional bracketed path list — each element is a crate (or path
-// to a module) exposing `pub fn stdlib_sources() -> &'static
-// [wat::stdlib::StdlibFile]`. Omit `deps:` or write `deps: []` for
+// to a module) exposing `pub fn wat_sources() -> &'static
+// [wat::WatSource]`. Omit `deps:` or write `deps: []` for
 // no external deps.
 //
 // Expands to `fn main() -> Result<(), ::wat::harness::HarnessError>`
-// calling `::wat::compose_and_run(source, &[deps.stdlib_sources()...])`.
+// calling `::wat::compose_and_run(source, &[deps.wat_sources()...])`.
 //
 // Requires the consumer's Cargo.toml to have a dep named `wat` (the
 // crate isn't configurable here). Users renaming the wat dep write
@@ -254,12 +254,13 @@ impl Parse for MainInput {
 pub fn main(input: TokenStream) -> TokenStream {
     let MainInput { source, deps } = parse_macro_input!(input as MainInput);
 
-    // Each dep is called twice — once for stdlib_sources() (wat
+    // Each dep is called twice — once for wat_sources() (wat
     // source side), once for register (Rust shim side). The two-
-    // part external-crate contract per arc 013 slice 4a.
+    // part external-crate contract per arc 013 slice 4a (renamed
+    // from stdlib_sources in arc 015 slice 4).
     let stdlib_calls: Vec<TokenStream2> = deps
         .iter()
-        .map(|p| quote! { #p::stdlib_sources() })
+        .map(|p| quote! { #p::wat_sources() })
         .collect();
     let register_paths: Vec<TokenStream2> = deps
         .iter()
@@ -296,12 +297,12 @@ pub fn main(input: TokenStream) -> TokenStream {
 // relative to CARGO_MANIFEST_DIR — Cargo's convention for integration
 // tests' working directory is the crate root. `deps:` is an optional
 // bracketed path list — each element is a crate (or path to a module)
-// exposing `pub fn stdlib_sources()` and `pub fn register(...)` per
+// exposing `pub fn wat_sources()` and `pub fn register(...)` per
 // the arc 013 external-wat-crate contract. Omit or write `deps: []`
 // for no external deps.
 //
 // Expands to `#[test] fn wat_suite()` calling
-// `::wat::test_runner::run_and_assert(path, &[deps::stdlib_sources()...],
+// `::wat::test_runner::run_and_assert(path, &[deps::wat_sources()...],
 // &[deps::register...])`. On failure, the panic carries all
 // individual test failure summaries — cargo's `#[test]` harness
 // captures stdout + panic message and surfaces them.
@@ -366,7 +367,7 @@ pub fn test_suite(input: TokenStream) -> TokenStream {
 
     let stdlib_calls: Vec<TokenStream2> = deps
         .iter()
-        .map(|p| quote! { #p::stdlib_sources() })
+        .map(|p| quote! { #p::wat_sources() })
         .collect();
     let register_paths: Vec<TokenStream2> = deps
         .iter()

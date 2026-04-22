@@ -3,7 +3,7 @@
 //!
 //! The entire main() is the `wat::main!` macro expansion. The
 //! macro parses (source: ..., deps: [...]), pulls each dep's
-//! `stdlib_sources()` and `register()`, and routes through
+//! `wat_sources()` and `register()`, and routes through
 //! `wat::compose_and_run` with real OS stdio.
 //!
 //! This is what a downstream consumer (holon-lab-trading,

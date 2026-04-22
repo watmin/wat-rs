@@ -8,7 +8,7 @@
 ;; This is the minimal shape: put one entry into a LocalCache,
 ;; read it back, print hit/miss. The interesting bit is what the
 ;; wat::main! macro does BEHIND this — it wires wat-lru's
-;; stdlib_sources() + register() into Harness composition so the
+;; wat_sources() + register() into Harness composition so the
 ;; :user::wat::std::lru::LocalCache<K,V> path resolves, the Rust
 ;; shim dispatches, and the user code evaluates against a real
 ;; lru::LruCache.

@@ -1,6 +1,6 @@
 //! End-to-end proofs for `wat-lru`'s external-crate contract.
 //!
-//! Each test composes `wat-lru`'s `stdlib_sources()` + `register()`
+//! Each test composes `wat-lru`'s `wat_sources()` + `register()`
 //! with a user program that exercises `:user::wat::std::lru::LocalCache`,
 //! runs through `wat::Harness::from_source_with_deps`, and asserts
 //! on the captured stdout.
@@ -27,7 +27,7 @@ use wat::harness::{Harness, Outcome};
 fn run_with_lru(src: &str) -> Outcome {
     let h = Harness::from_source_with_deps(
         src,
-        &[wat_lru::stdlib_sources()],
+        &[wat_lru::wat_sources()],
         &[wat_lru::register],
     )
     .expect("freeze with wat-lru deps");

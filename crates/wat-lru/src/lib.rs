@@ -37,7 +37,7 @@
 //! ```
 //!
 //! The two-part external-crate contract per arc 013:
-//! - [`stdlib_sources`] — wat source files (the two `.wat` files
+//! - [`wat_sources`] — wat source files (the two `.wat` files
 //!   baked via `include_str!`).
 //! - [`register`] — Rust shim dispatch + schemes + type decls
 //!   (the `#[wat_dispatch]`-generated register fn for
@@ -46,17 +46,17 @@
 pub mod shim;
 
 /// wat source files this crate contributes. Returned in
-/// registration order: `lru.wat` (LocalCache wrapper) first,
-/// `service.wat` (multi-client CacheService on top of LocalCache)
+/// registration order: `LocalCache.wat` (LocalCache wrapper) first,
+/// `CacheService.wat` (multi-client CacheService on top of LocalCache)
 /// second. `wat::main!` / `wat::Harness::from_source_with_deps*`
-/// / `wat::compose_and_run` consume this slice.
-pub fn stdlib_sources() -> &'static [wat::stdlib::StdlibFile] {
-    static FILES: &[wat::stdlib::StdlibFile] = &[
-        wat::stdlib::StdlibFile {
+/// / `wat::compose_and_run` / `wat::test_suite!` consume this slice.
+pub fn wat_sources() -> &'static [wat::WatSource] {
+    static FILES: &[wat::WatSource] = &[
+        wat::WatSource {
             path: "wat-lru/LocalCache.wat",
             source: include_str!("../wat/LocalCache.wat"),
         },
-        wat::stdlib::StdlibFile {
+        wat::WatSource {
             path: "wat-lru/CacheService.wat",
             source: include_str!("../wat/CacheService.wat"),
         },

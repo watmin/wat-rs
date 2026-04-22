@@ -45,7 +45,7 @@ use crate::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
 use crate::load::{InMemoryLoader, SourceLoader};
 use crate::rust_deps::{self, RustDepsBuilder};
 use crate::runtime::{RuntimeError, Value};
-use crate::stdlib::{self, StdlibFile};
+use crate::source::{self, WatSource};
 use std::sync::Arc;
 
 /// A frozen wat program ready to invoke. Clone is NOT derived: the
@@ -110,11 +110,11 @@ impl Harness {
     /// Freeze wat source composed with external dep sources. Arc 013
     /// slice 2 (extended at slice 4a with `dep_registrars`).
     ///
-    /// `dep_sources` is a slice of `&[StdlibFile]` — one inner slice
+    /// `dep_sources` is a slice of `&[WatSource]` — one inner slice
     /// per dep crate. `dep_registrars` is a parallel slice of
     /// `fn(&mut RustDepsBuilder)` — each dep's Rust shim
     /// registration. `wat::main!` expands to a call through this
-    /// entry, passing `&[wat_lru::stdlib_sources(), …]` and
+    /// entry, passing `&[wat_lru::wat_sources(), …]` and
     /// `&[wat_lru::register, …]` respectively. Uses
     /// `InMemoryLoader` (no filesystem); callers that need a
     /// filesystem-capable loader use
@@ -130,7 +130,7 @@ impl Harness {
     /// for details.
     pub fn from_source_with_deps(
         src: &str,
-        dep_sources: &[&'static [StdlibFile]],
+        dep_sources: &[&'static [WatSource]],
         dep_registrars: &[DepRegistrar],
     ) -> Result<Self, HarnessError> {
         Self::from_source_with_deps_and_loader(
@@ -146,7 +146,7 @@ impl Harness {
     /// `from_source*` variants on Harness are sugar over this one.
     pub fn from_source_with_deps_and_loader(
         src: &str,
-        dep_sources: &[&'static [StdlibFile]],
+        dep_sources: &[&'static [WatSource]],
         dep_registrars: &[DepRegistrar],
         loader: Arc<dyn SourceLoader>,
     ) -> Result<Self, HarnessError> {
@@ -161,7 +161,7 @@ impl Harness {
             registrar(&mut builder);
         }
         let _ = rust_deps::install(builder.build());
-        let _ = stdlib::install_dep_sources(dep_sources.to_vec());
+        let _ = source::install_dep_sources(dep_sources.to_vec());
 
         let world =
             startup_from_source(src, None, loader).map_err(HarnessError::Startup)?;

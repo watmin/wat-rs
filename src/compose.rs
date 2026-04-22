@@ -13,7 +13,7 @@
 //!
 //! That macro expands to a `fn main() -> Result<(),
 //! wat::HarnessError>` that calls [`compose_and_run`] with the
-//! user's source + each dep's `stdlib_sources()` result. Every
+//! user's source + each dep's `wat_sources()` result. Every
 //! external-wat-crate binary reduces to that one declaration.
 //!
 //! Why this isn't just `wat::Harness::from_source_with_deps(...).
@@ -39,7 +39,7 @@ use crate::rust_deps::{self, RustDepsBuilder};
 use crate::runtime::{
     request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2, Value,
 };
-use crate::stdlib::{self, StdlibFile};
+use crate::source::{self, WatSource};
 use std::io;
 use std::sync::Arc;
 
@@ -95,7 +95,7 @@ fn install_signal_handlers() {
 ///
 /// **Two-part external-crate contract.** Each dep crate exposes
 /// both:
-/// 1. `pub fn stdlib_sources() -> &'static [StdlibFile]` — wat
+/// 1. `pub fn wat_sources() -> &'static [WatSource]` — wat
 ///    source, fed via `dep_sources`.
 /// 2. `pub fn register(&mut RustDepsBuilder)` — Rust shim, fed
 ///    via `dep_registrars` ([`DepRegistrar`] function-pointer
@@ -134,7 +134,7 @@ fn install_signal_handlers() {
 /// any wat code runs.
 pub fn compose_and_run(
     source: &str,
-    dep_sources: &[&'static [StdlibFile]],
+    dep_sources: &[&'static [WatSource]],
     dep_registrars: &[DepRegistrar],
 ) -> Result<(), HarnessError> {
     // Silence the default panic handler for assertion-failed!
@@ -148,14 +148,14 @@ pub fn compose_and_run(
     // globally, process-wide. Symmetric OnceLocks — first caller
     // wins for both. After this, every freeze in the process
     // (main, test, sandbox, fork) transparently sees:
-    // - dep wat sources via `wat::stdlib::stdlib_forms()`
+    // - dep wat sources via `wat::source::installed_dep_sources()` (+ baked via stdlib_forms)
     // - dep Rust shims via `wat::rust_deps::get()`
     let mut builder = RustDepsBuilder::with_wat_rs_defaults();
     for registrar in dep_registrars {
         registrar(&mut builder);
     }
     let _ = rust_deps::install(builder.build());
-    let _ = stdlib::install_dep_sources(dep_sources.to_vec());
+    let _ = source::install_dep_sources(dep_sources.to_vec());
 
     let loader = Arc::new(InMemoryLoader::new());
     let world = startup_from_source(source, None, loader)

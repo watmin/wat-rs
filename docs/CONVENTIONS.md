@@ -53,21 +53,21 @@ cannot coexist in one binary. Path collisions inside wat can
 only happen if two differently-named crates claim the same wat
 namespace — detectable, fail-loud at startup.
 
-**`stdlib_sources()` + `register()` is the contract.** A wat
+**`wat_sources()` + `register()` is the contract.** A wat
 crate that ships wat source + a Rust shim MUST expose:
 
 ```rust
-pub fn stdlib_sources() -> &'static [wat::stdlib::StdlibFile];
+pub fn wat_sources() -> &'static [wat::WatSource];
 pub fn register(&mut wat::rust_deps::RustDepsBuilder);
 ```
 
-Naming these exactly (not `wat_files()` or similar) preserves
-grep-ability across the ecosystem and lets `wat::main!` find
-them by convention.
+Naming these exactly (not `stdlib_sources()` or `wat_files()`
+or similar) preserves grep-ability across the ecosystem and
+lets `wat::main!` / `wat::test_suite!` find them by convention.
 
 **Reference:** `crates/wat-lru/` is the first external wat
 crate shipped. Its shape is the walkable template:
-`stdlib_sources()` returns its baked `.wat` files;
+`wat_sources()` returns its baked `.wat` files;
 `register()` forwards to `#[wat_dispatch]`-generated code that
 wires the Rust shim. `examples/with-lru/` shows the consumer
 shape — `wat::main! { source: ..., deps: [wat_lru] }` and a
@@ -86,6 +86,87 @@ user `.wat` program.
 wat inherits Cargo's authority (our deps ARE Cargo crates) and
 layers a convention on top of its own namespace space. No
 parallel registry needed.
+
+### Crate folder layouts (arc 015)
+
+Two walkable templates — one for publishable wat crates, one
+for consumer apps. Both use real `cargo` invocations; no
+separate wat build tool.
+
+#### Publishable wat crate
+
+```
+my-wat-crate/
+├── Cargo.toml           # [dependencies] wat + whatever Rust crate(s) this wraps
+├── src/
+│   ├── lib.rs           # pub fn wat_sources() + pub fn register()
+│   └── shim.rs          # optional — #[wat_dispatch] impl for wrapped Rust type(s)
+├── wat/                 # optional — baked .wat files (include_str!'d from lib.rs)
+│   └── *.wat
+├── wat-tests/           # optional — the crate's own deftests
+│   └── *.wat
+└── tests/
+    └── wat_suite.rs     # optional — one-line wat::test_suite!
+```
+
+Reference: `crates/wat-lru/`. Ships both sides of the contract
+(`wat_sources()` returns two baked `.wat` files via
+`include_str!`, `register()` forwards to `#[wat_dispatch]`-
+generated code), its own `wat-tests/` with deftests, and
+`tests/wat_suite.rs` invoking `wat::test_suite! { path:
+"wat-tests", deps: [wat_lru] }` — self-testing its published
+surface.
+
+#### Consumer binary
+
+```
+my-app/
+├── Cargo.toml           # [dependencies] wat + wat-lru + whatever wat crates
+├── src/
+│   ├── main.rs          # one-line: wat::main! { source: ..., deps: [...] }
+│   └── program.wat      # the user's program
+├── wat-tests/           # optional — the user's deftests
+│   └── *.wat
+└── tests/
+    └── tests.rs         # optional — one-line: wat::test_suite! { path: "wat-tests", deps: [...] }
+```
+
+Reference: `examples/with-lru/`. One Rust file invokes
+`wat::main!`; one wat file IS the program. For users that want
+their OWN `:rust::*` symbols (app-specific Rust types), add a
+`src/shim.rs` with `#[wat_dispatch]` impls + a `register()` fn,
+then add the shim module to the macros' `deps: [...]` list.
+
+### Three varieties of wat crate
+
+A wat crate satisfies the two-part contract (`wat_sources()`
++ `register()`), but either half can be trivial. Three shapes
+cover the space:
+
+| Variety | `wat_sources()` | `register()` | Example |
+|---|---|---|---|
+| **Wrapper** (wat surface around Rust types) | baked `.wat` files with typealiases + thin defines | adds `#[wat_dispatch]`'d types to builder | `wat-lru` — `LocalCache`/`CacheService` over `lru::LruCache` |
+| **Rust-surface** (direct `:rust::*` access) | `&[]` | adds `#[wat_dispatch]`'d types to builder | hypothetical `wat-regex` — users write `:rust::regex::Regex::matches` directly |
+| **Pure-wat** (wat-only code) | baked `.wat` files | `\|_\|{}` no-op | hypothetical `wat-extra-list-combinators` using only already-registered types |
+
+All three satisfy the same Rust-level trait — they differ only
+in what their two functions actually do. `wat::main!` and
+`wat::test_suite!` compose them identically.
+
+### Install-once discipline (arc 015 slice 3a)
+
+Both halves of the external-crate contract install
+process-globally via OnceLock — first caller wins. A test
+binary is one install; a consumer `main.rs` is one install.
+Tests needing different dep sets live in separate `tests/*.rs`
+files (Cargo compiles each to its own test binary).
+
+The win: once installed, every subsequent freeze (main, test,
+sandbox via `run-sandboxed-ast`, fork child via
+`run-hermetic-ast`) transparently sees the dep surface.
+`deftest` bodies can use `:user::wat::std::lru::LocalCache::*`
+because the inner sandbox's `startup_from_forms` pulls
+installed deps from the global state.
 
 ## Name formats
 

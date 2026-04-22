@@ -28,7 +28,7 @@
 //! use std::path::Path;
 //! let summary = wat::test_runner::run_tests_from_dir(
 //!     Path::new("wat-tests"),
-//!     &[wat_lru::stdlib_sources()],
+//!     &[wat_lru::wat_sources()],
 //!     &[wat_lru::register],
 //! );
 //! assert_eq!(summary.failed, 0);
@@ -62,7 +62,7 @@ use crate::freeze::{startup_from_source, FrozenWorld};
 use crate::load::FsLoader;
 use crate::runtime::{apply_function, Function, Value};
 use crate::rust_deps::{self, RustDepsBuilder};
-use crate::stdlib::{self, StdlibFile};
+use crate::source::{self, WatSource};
 use crate::types::TypeExpr;
 
 /// Aggregated result of running every `.wat` file under a path.
@@ -127,7 +127,7 @@ pub struct TestSummary {
 /// [`run_and_assert`].
 pub fn run_tests_from_dir(
     path: &Path,
-    dep_sources: &[&'static [StdlibFile]],
+    dep_sources: &[&'static [WatSource]],
     dep_registrars: &[DepRegistrar],
 ) -> TestSummary {
     let mut summary = TestSummary::default();
@@ -142,7 +142,7 @@ pub fn run_tests_from_dir(
         registrar(&mut builder);
     }
     let _ = rust_deps::install(builder.build());
-    let _ = stdlib::install_dep_sources(dep_sources.to_vec());
+    let _ = source::install_dep_sources(dep_sources.to_vec());
 
     // 1. Resolve input — file or directory.
     let files = match discover_wat_files(path) {
@@ -303,7 +303,7 @@ pub fn run_tests_from_dir(
 /// output with zero boilerplate.
 pub fn run_and_assert(
     path: &Path,
-    dep_sources: &[&'static [StdlibFile]],
+    dep_sources: &[&'static [WatSource]],
     dep_registrars: &[DepRegistrar],
 ) {
     let summary = run_tests_from_dir(path, dep_sources, dep_registrars);

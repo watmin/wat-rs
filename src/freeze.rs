@@ -261,7 +261,7 @@ pub fn startup_from_source(
 }
 
 // startup_from_source_with_deps retired in arc 015 slice 3a.
-// Dep sources now install globally via `wat::stdlib::install_dep_sources`
+// Dep sources now install globally via `wat::source::install_dep_sources`
 // before any freezing; `stdlib_forms()` concatenates baked + installed
 // so every freeze pass — including `:wat::kernel::run-sandboxed-ast`
 // and `:wat::kernel::fork-with-forms` children — sees dep surface

@@ -8,7 +8,7 @@
 //! `cargo test -p wat-lru` invokes the generated `#[test] fn
 //! wat_suite`, which runs `wat::test_runner::run_and_assert` against
 //! every `.wat` file under `wat-tests/` with wat-lru's
-//! `stdlib_sources()` + `register()` composed in. Test output
+//! `wat_sources()` + `register()` composed in. Test output
 //! appears under the `wat_suite` test banner.
 
 wat::test_suite! {

@@ -19,12 +19,12 @@
 //! crate owns its own test binary.
 
 use wat::harness::{Harness, Outcome};
-use wat::stdlib::StdlibFile;
+use wat::WatSource;
 
 /// Two in-memory dep "files" — stand-ins for what an external wat
-/// crate's `stdlib_sources()` would return. Both under `:user::*`
+/// crate's `wat_sources()` would return. Both under `:user::*`
 /// per arc 013's namespace convention.
-const DEP_A: &[StdlibFile] = &[StdlibFile {
+const DEP_A: &[WatSource] = &[WatSource {
     path: "test-harness-deps/a.wat",
     source: r#"
         (:wat::core::define
@@ -32,7 +32,7 @@ const DEP_A: &[StdlibFile] = &[StdlibFile {
           "A")
     "#,
 }];
-const DEP_B: &[StdlibFile] = &[StdlibFile {
+const DEP_B: &[WatSource] = &[WatSource {
     path: "test-harness-deps/b.wat",
     source: r#"
         (:wat::core::define
