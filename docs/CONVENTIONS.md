@@ -153,6 +153,26 @@ All three satisfy the same Rust-level trait — they differ only
 in what their two functions actually do. `wat::main!` and
 `wat::test_suite!` compose them identically.
 
+### Viewing per-wat-test output under `cargo test`
+
+`wat::test_suite!` expands to a `#[test] fn wat_suite()` that
+Cargo's libtest captures per convention: stdout from the
+outer `#[test]` is hidden on success, shown only on failure.
+By default you see `test wat_suite ... ok` and nothing about
+the N wat tests that ran inside.
+
+To see the runner's per-test output live:
+
+```bash
+cargo test -- --nocapture       # stream all output as it's produced
+cargo test -- --show-output     # print captured output after each test
+```
+
+Silent-on-success / loud-on-failure is standard Cargo
+convention. On failure, the panic payload already includes
+every failing test's summary, so `cargo test` without flags
+gives you what you need to debug.
+
 ### Install-once discipline (arc 015 slice 3a)
 
 Both halves of the external-crate contract install

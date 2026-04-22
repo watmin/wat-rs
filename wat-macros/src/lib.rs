@@ -307,6 +307,20 @@ pub fn main(input: TokenStream) -> TokenStream {
 // individual test failure summaries — cargo's `#[test]` harness
 // captures stdout + panic message and surfaces them.
 //
+// **Viewing per-wat-test output.** Cargo's default captures
+// stdout from successful `#[test] fn`s; you'll see only
+// `test wat_suite ... ok` at the outer layer. To see the inner
+// "running N tests / test file.wat :: name ... ok (Xms)" lines
+// that the runner prints, run with libtest's passthrough flags:
+//
+//     cargo test -- --nocapture       # stream output live
+//     cargo test -- --show-output     # print captured output after each test
+//
+// Standard Cargo convention — silent on success by default, loud
+// on failure. On failure the panic payload already includes every
+// failing test's summary, so `cargo test` alone gives you what
+// you need to debug.
+//
 // Cargo compiles each `tests/*.rs` file to its own test binary. One
 // binary = one consistent dep set (first-call-wins install). Multiple
 // test files with different dep sets live in separate
