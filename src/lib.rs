@@ -74,6 +74,7 @@ pub mod rust_deps;
 pub mod sandbox;
 pub mod stdlib;
 pub mod string_ops;
+pub mod test_runner;
 pub mod types;
 
 pub use compose::compose_and_run;
