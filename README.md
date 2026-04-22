@@ -242,23 +242,34 @@ function, type-scheme function, and registry hook from an annotated
 - **`owned_move`** — `Arc<OwnedMoveCell<T>>`. Ownership transfers out on
   first use via an atomic take. For consumed-after-use handles.
 
-An application that bundles its own shims composes them on top of the
-wat-rs defaults:
+An application that bundles its own shims composes them via the
+`wat::main!` macro's `deps:` list — each dep is a crate (or
+module) exposing `pub fn wat_sources()` and `pub fn register()`
+per the arc 013 external-wat-crate contract:
 
 ```rust
-use wat::rust_deps::{install, RustDepsBuilder};
-
-fn main() {
-    let mut deps = RustDepsBuilder::with_wat_rs_defaults();
-    rusqlite_shim::register(&mut deps);   // consumer's crate
-    parquet_shim::register(&mut deps);    // consumer's crate
-    install(deps.build()).expect("install rust_deps once");
-    // ...now run a wat program that can (:wat::core::use!) any of these...
+// src/main.rs — one line wires the substrate + all deps + user source
+wat::main! {
+    source: include_str!("program.wat"),
+    deps: [wat_lru, rusqlite_shim, parquet_shim],
 }
 ```
 
-See `docs/arc/2026/04/002-rust-interop-macro/MACRO-DESIGN.md` for the
-full design and `NAMESPACE-PRINCIPLE.md` for the naming rule.
+The macro expands to `fn main() -> Result<(), wat::HarnessError>`
+that installs both halves of each dep's contract
+(`wat::source::install_dep_sources` for wat source,
+`wat::rust_deps::install` for Rust shims), freezes the user source
+against the composed world, and invokes `:user::main` with real
+OS stdio. See `docs/USER-GUIDE.md` § 1 for the full consumer
+shape + test suite companion (`wat::test_suite!`).
+
+Reference crate: `crates/wat-lru/` — the first external wat crate
+(arc 013). Shows the publisher-side contract; `examples/with-lru/`
+shows the consumer-side shape. See
+`docs/arc/2026/04/002-rust-interop-macro/MACRO-DESIGN.md` for the
+full `#[wat_dispatch]` design and
+`docs/arc/2026/04/013-external-wat-crates/INSCRIPTION.md` for the
+external-crate architecture.
 
 ## `wat` binary
 
@@ -455,17 +466,19 @@ Test harness (arcs 007 + 010):
   `assert-stderr-matches`, `run`, `run-in-scope`, `run-ast`, `deftest`,
   `program`.
 
-Caches (FOUNDATION § caching stack):
-- `:wat::std::LocalCache<K,V>` — L1. Three thin wrappers over
-  `:rust::lru::LruCache`. Single-thread-owned. Fastest memoization.
+Caches (external — `crates/wat-lru/`; arc 013 externalization):
+- `:user::wat::std::lru::LocalCache<K,V>` — L1. Three thin wrappers
+  over `:rust::lru::LruCache`. Single-thread-owned. Fastest memoization.
+  Ships in the `wat-lru` sibling crate; consumers add `wat-lru =
+  "..."` to `Cargo.toml` + `deps: [wat_lru]` to their `wat::main!`.
+- `:user::wat::std::lru::CacheService<K,V>` — L2 shared cache.
+  Driver thread owns its `LocalCache`; clients send tagged requests
+  with an embedded reply channel. Also in `wat-lru`.
 
-Services (long-running driver programs with client handles):
+Services (long-running driver programs with client handles, baked):
 - `:wat::std::service::Console` — the single gateway to stdout+stderr.
   Hands out pooled `Sender<(i64,String)>` via `:wat::kernel::HandlePool`;
   tag 0 = stdout, tag 1 = stderr.
-- `:wat::std::service::Cache<K,V>` — L2 shared cache. Driver thread owns
-  its `LocalCache`; clients send tagged requests with an embedded reply
-  channel.
 
 ## Capacity guard — Bundle's Result return
 
@@ -542,55 +555,68 @@ wat-rs/
 │   ├── bin/wat.rs          # CLI binary (program mode + test subcommand)
 │   ├── {lexer,parser,config,load,identifier,macros,
 │   │    types,resolve,check,hash,lower,runtime,
-│   │    freeze,stdlib,io,string_ops,assertion,
-│   │    sandbox,harness}.rs
+│   │    freeze,stdlib,source,io,string_ops,assertion,
+│   │    sandbox,harness,compose,fork,test_runner}.rs
 │   └── rust_deps/
 │       ├── mod.rs          # RustDepsBuilder, Registry, SchemeCtx,
 │       │                   # UseDeclarations, install(), get()
-│       ├── marshal.rs      # FromWat/ToWat, ThreadOwnedCell,
-│       │                   # OwnedMoveCell, RustOpaqueInner
-│       └── lru.rs          # :rust::lru::LruCache shim (macro-generated)
+│       └── marshal.rs      # FromWat/ToWat, ThreadOwnedCell,
+│                           # OwnedMoveCell, RustOpaqueInner
 ├── wat-macros/             # sibling proc-macro crate
-│   └── src/{lib.rs,codegen.rs}
+│   └── src/{lib.rs,codegen.rs}  # #[wat_dispatch] + wat::main! + wat::test_suite!
 ├── wat/std/                # baked-in wat source files
 │   ├── Amplify.wat Subtract.wat Log.wat Circular.wat
 │   ├── Reject.wat Project.wat Sequential.wat
-│   ├── Ngram.wat Bigram.wat Trigram.wat LocalCache.wat
-│   ├── stream.wat test.wat
+│   ├── Ngram.wat Bigram.wat Trigram.wat
+│   ├── stream.wat hermetic.wat test.wat
 │   └── service/
-│       ├── Console.wat
-│       └── Cache.wat
-├── wat-tests/              # tests written in wat, for wat
+│       └── Console.wat     # Cache moved to wat-lru (arc 013)
+├── crates/wat-lru/         # external wat crate — LRU surface (arc 013)
+│   ├── Cargo.toml          # depends on wat + wat-macros + lru
+│   ├── src/{lib.rs,shim.rs}  # wat_sources(), register(), #[wat_dispatch] impl
+│   ├── wat/{LocalCache,CacheService}.wat
+│   ├── wat-tests/{LocalCache,CacheService}.wat  # deftests
+│   └── tests/wat_suite.rs  # one-line wat::test_suite!
+├── examples/with-lru/      # reference consumer binary (arc 013 slice 5)
+│   ├── Cargo.toml
+│   ├── src/{main.rs,program.wat}  # main.rs is one wat::main!
+│   └── tests/smoke.rs      # spawns the binary, asserts "hit"
+├── wat-tests/              # wat-rs's own baked-stdlib tests
 │   ├── README.md
 │   └── std/
 │       ├── {Subtract,Circular,Reject,Sequential,Trigram,test,stream}.wat
-│       └── service/{Console,Cache}.wat
+│       └── service/Console.wat
 ├── tests/                  # Rust integration suites
 │   ├── mvp_end_to_end.rs
 │   ├── wat_dispatch_{193a,193b,e1_vec,e2_tuple,
 │   │                 e3_result,e4_shared,e5_owned_move}.rs
 │   ├── wat_core_try.rs wat_structs.rs wat_bundle_capacity.rs
 │   ├── wat_stream.rs wat_core_forms.rs wat_names_are_values.rs
-│   ├── wat_harness.rs wat_run_sandboxed{,_ast}.rs
-│   ├── wat_hermetic_round_trip.rs wat_test_cli.rs
-│   ├── wat_cli.rs wat_cache.rs wat_io.rs wat_u8.rs
+│   ├── wat_harness.rs wat_harness_deps.rs
+│   ├── wat_run_sandboxed{,_ast}.rs wat_hermetic_round_trip.rs
+│   ├── wat_test_cli.rs wat_cli.rs wat_io.rs wat_u8.rs wat_fork.rs
 │   └── ...
 └── docs/
     ├── README.md           # orientation
-    ├── USER-GUIDE.md       # building on wat
-    ├── CONVENTIONS.md      # naming rules for new primitives
+    ├── USER-GUIDE.md       # building on wat (wat::main! + wat::test_suite!)
+    ├── CONVENTIONS.md      # naming + folder layouts + three varieties
     ├── ZERO-MUTEX.md       # the concurrency architecture
     └── arc/2026/04/
         ├── 001-caching-stack/              # DESIGN + DEADLOCK-POSTMORTEM
-        ├── 002-rust-interop-macro/         # MACRO-DESIGN + NAMESPACE-PRINCIPLE + PROGRESS
+        ├── 002-rust-interop-macro/         # MACRO-DESIGN + NAMESPACE-PRINCIPLE
         ├── 003-tail-call-optimization/     # DESIGN + INSCRIPTION
         ├── 004-lazy-sequences-and-pipelines/ # DESIGN + INSCRIPTION + BACKLOG
-        ├── 005-stdlib-naming-audit/        # DESIGN + INVENTORY + INSCRIPTION + CONVENTIONS
-        ├── 006-stream-stdlib-completions/  # BACKLOG + INSCRIPTION (with-state shipped)
+        ├── 005-stdlib-naming-audit/        # DESIGN + INVENTORY + INSCRIPTION
+        ├── 006-stream-stdlib-completions/  # BACKLOG + INSCRIPTION
         ├── 007-wat-tests-wat/              # DESIGN + BACKLOG + INSCRIPTION
         ├── 008-wat-io-substrate/           # DESIGN + BACKLOG + INSCRIPTION
         ├── 009-names-are-values/           # BACKLOG + INSCRIPTION
-        └── 010-variadic-quote/             # BACKLOG + INSCRIPTION
+        ├── 010-variadic-quote/             # BACKLOG + INSCRIPTION
+        ├── 011-hermetic-ast/               # DESIGN + BACKLOG + INSCRIPTION
+        ├── 012-fork-and-pipes/             # DESIGN + BACKLOG + INSCRIPTION
+        ├── 013-external-wat-crates/        # DESIGN + BACKLOG + INSCRIPTION
+        ├── 014-core-scalar-conversions/    # DESIGN + BACKLOG + INSCRIPTION
+        └── 015-wat-test-for-consumers/     # DESIGN + BACKLOG + INSCRIPTION
 ```
 
 ## What's next
