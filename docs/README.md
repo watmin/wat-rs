@@ -15,7 +15,7 @@ crate gets a slice to close the gap.
 Start with:
 
 1. `FOUNDATION.md` — the language specification proper. Algebra core (6
-   forms), language core (define / lambda / let / if / match), kernel
+   forms), language core (define / lambda / let / if / cond / match), kernel
    substrate (queue / send / recv / stopped / spawn / select), startup
    pipeline (parse → freeze in 12 steps), constrained eval, `:user::main`
    contract.

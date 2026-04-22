@@ -304,6 +304,38 @@ independently. The annotation is required — a bare
 `(:wat::core::if cond then else)` fails at startup with a
 MalformedForm error pointing at the missing `-> :T`.
 
+For three or more cascading branches, reach for `cond` below —
+each `-> :T` after the first is ceremony, not information.
+
+### `cond` — typed multi-way branch
+
+```scheme
+(:wat::core::cond -> :String
+  ((:wat::core::= code 0) "success")
+  ((:wat::core::= code 1) "runtime error")
+  ((:wat::core::= code 2) "panic")
+  ((:wat::core::= code 3) "startup error")
+  (:else                  "unknown"))
+```
+
+Multi-way conditional. Typed once at the head via `-> :T`. Each
+arm is `(test body)` where `test` unifies with `:bool` and `body`
+unifies with `:T`. Tests evaluate in order; the first truthy
+test's body becomes the result.
+
+**`:else` arm required as last** — no implicit unit, no runtime
+fall-through ambiguity. The type checker refuses a `cond` whose
+last arm isn't `(:else body)`.
+
+Reach for `cond` over chained `if` when you have three or more
+cascading branches. For a single binary branch, `if` is the
+honester primitive — a cond with one test-arm plus `:else` is
+just `if` with more ceremony.
+
+Tail-position is preserved through the selected arm — a
+tail-recursive function ending in `cond` trampolines correctly
+(same TCO discipline `if` inherits).
+
 ---
 
 ## 5. Structs
@@ -1110,6 +1142,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::let*` | `(((b :T) rhs) ...) body` | body's type |
 | `:wat::core::match` | `scrutinee -> :T arm1 arm2 ...` | arm result (type `T`) |
 | `:wat::core::if` | `cond -> :T then else` | branch result (type `T`) |
+| `:wat::core::cond` | `-> :T ((test) body) ... (:else body)` | arm result (type `T`) |
 | `:wat::core::try` | `<result-expr>` | Ok-inner type |
 | `:wat::core::struct` | `(:path (f :T) ...)` | declares struct |
 | `:wat::core::enum` | `(:path v1 v2 (v3 (f :T)) ...)` | declares enum |
