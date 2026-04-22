@@ -37,9 +37,11 @@ gap is worth reporting.
 
 ## 1. Setup — your first wat application crate
 
-A wat application is a small Rust crate whose job is to (a) register
-any Rust types you want to surface into wat, and (b) run your wat
-source. Here's the minimum shape:
+A wat application is a small Rust crate that delegates to two
+macros — `wat::main!` for the program, `wat::test_suite!` for
+tests. Most apps are **two Rust files** total (three if you ship
+your own `#[wat_dispatch]`'d types). Everything else is wat
+source.
 
 ```toml
 # Cargo.toml
@@ -49,73 +51,118 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-wat = { path = "../wat-rs" }       # or git / crates.io once published
-wat-macros = { path = "../wat-rs/wat-macros" }
+wat     = { path = "../wat-rs" }              # the substrate
+wat-lru = { path = "../wat-rs/crates/wat-lru" }  # optional — external wat crate for LRU
 ```
 
 ```rust
 // src/main.rs
-use std::process::ExitCode;
-use std::sync::Arc;
-
-fn main() -> ExitCode {
-    // 1. Build the Rust-deps registry — start with wat-rs's defaults
-    //    (the :rust::lru::LruCache shim and friends), then add your
-    //    own crate shims.
-    let mut deps = wat::rust_deps::RustDepsBuilder::with_wat_rs_defaults();
-    // my_rusqlite_shim::register(&mut deps);  // add as you need them
-    wat::rust_deps::install(deps.build()).expect("rust_deps install once");
-
-    // 2. Parse + freeze your entry wat file. The loader is shared
-    //    through the frozen world — runtime primitives like
-    //    :wat::eval::file-path route through the same capability
-    //    that handled startup loads.
-    let src = include_str!("../wat/main.wat");
-    let loader: Arc<dyn wat::load::SourceLoader> = Arc::new(wat::load::FsLoader);
-    let world = match wat::freeze::startup_from_source(src, None, loader) {
-        Ok(w) => w,
-        Err(e) => {
-            eprintln!("startup: {}", e);
-            return ExitCode::from(1);
-        }
-    };
-
-    // 3. Hand :user::main the three real OS stdio handles and invoke.
-    let args = vec![
-        wat::runtime::Value::io__Stdin(Arc::new(std::io::stdin())),
-        wat::runtime::Value::io__Stdout(Arc::new(std::io::stdout())),
-        wat::runtime::Value::io__Stderr(Arc::new(std::io::stderr())),
-    ];
-    match wat::freeze::invoke_user_main(&world, args) {
-        Ok(_) => ExitCode::SUCCESS,
-        Err(e) => {
-            eprintln!("runtime: {}", e);
-            ExitCode::from(2)
-        }
-    }
+wat::main! {
+    source: include_str!("program.wat"),
+    deps: [wat_lru],   // omit or `deps: []` if you use only baked stdlib
 }
 ```
 
 ```scheme
-;; wat/main.wat
+;; src/program.wat
 (:wat::config::set-dims! 10000)
 (:wat::config::set-capacity-mode! :error)
+
+(:wat::core::use! :rust::lru::LruCache)   ;; only when using wat-lru
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
                      (stdout :wat::io::IOWriter)
                      (stderr :wat::io::IOWriter)
                      -> :())
-  (:wat::io::IOWriter/print stdout "hello from wat\n"))
+  (:wat::io::IOWriter/println stdout "hello from wat"))
 ```
 
-**That's it.** `cargo run` and you get `hello from wat` on stdout.
+**That's it.** `cargo run` prints `hello from wat`.
 
-The Rust side owns three concerns: shim registration, startup, and
-delivery of the three OS stdio handles. Every line of application
-logic lives in wat source. You add more wat files via
-`(:wat::core::load!)` from `main.wat`; you add more Rust-crate
-shims with `#[wat_dispatch]` (section 10 below).
+The macro expands to a `fn main() -> Result<(), wat::HarnessError>`
+that:
+1. Builds the rust_deps registry from `wat-rs`'s defaults + each
+   dep's `register()`.
+2. Installs dep wat sources globally so every freeze sees them.
+3. Freezes your entry source with the composition applied.
+4. Hands `:user::main` real OS stdio handles, invokes.
+5. Returns any startup or runtime error.
+
+You never write this boilerplate.
+
+### Tests — one macro, same shape
+
+Put `.wat` test files under `wat-tests/` using the `deftest` form,
+then add one more Rust file:
+
+```rust
+// tests/tests.rs
+wat::test_suite! {
+    path: "wat-tests",
+    deps: [wat_lru],   // same deps the program uses
+}
+```
+
+```scheme
+;; wat-tests/hello.wat
+(:wat::config::set-dims! 1024)
+(:wat::config::set-capacity-mode! :error)
+
+(:wat::test::deftest :my-app::test-one-plus-one 1024 :error
+  (:wat::test::assert-eq (:wat::core::i64::+ 1 1) 2))
+```
+
+`cargo test` discovers + runs the suite. On success you see
+`test wat_suite ... ok` (Cargo convention — silent on success).
+For per-wat-test detail:
+
+```bash
+cargo test -- --nocapture       # stream output live
+cargo test -- --show-output     # print captured output after each test
+```
+
+On failure the panic payload carries every failing test's summary,
+so `cargo test` without flags gives you what you need to debug.
+
+### When you need your own Rust types
+
+Add a `src/shim.rs` module with a `#[wat_dispatch]` impl and a
+`register()` fn:
+
+```rust
+// src/shim.rs
+use wat::rust_deps::RustDepsBuilder;
+use wat::WatSource;
+
+#[wat_macros::wat_dispatch(path = ":rust::my_app::Thing", scope = "thread_owned")]
+impl Thing {
+    fn new(x: i64) -> Self { Thing { x } }
+    fn bump(&mut self) { self.x += 1; }
+}
+
+pub fn wat_sources() -> &'static [WatSource] { &[] }
+pub fn register(builder: &mut RustDepsBuilder) {
+    // #[wat_dispatch] auto-generates this fn's body; call it by the
+    // path your macro emitted.
+    Thing_register(builder);
+}
+```
+
+Then add the module to `main.rs` and the deps lists:
+
+```rust
+mod shim;
+wat::main! { source: include_str!("program.wat"), deps: [shim, wat_lru] }
+```
+
+That's the third Rust file — only when you genuinely need it.
+
+### Reference binary
+
+`wat-rs/examples/with-lru/` is the walkable template —
+`src/main.rs` is literally one `wat::main!` invocation; `tests/smoke.rs`
+exercises the built binary. Copy that shape.
 
 ### Capability boundary — the Loader
 
@@ -721,24 +768,34 @@ scope + receiver kind fails at build.
 lru's LruCache, most parsers, most IO handles. `shared` is for
 effectively-immutable snapshots; `owned_move` is for one-shot tokens.
 
-### Registering the shim
+### Packaging your shim for reuse
 
-In `main.rs`, before running wat code:
+A shim that's useful beyond one app — publishable — lives in its
+own Cargo crate. The crate exposes two `pub fn`s: `wat_sources()`
+and `register()`. See `crates/wat-lru/` for the walkable template
+(section 10 below covers what it provides and how consumers use
+it).
 
-```rust
-let mut deps = wat::rust_deps::RustDepsBuilder::with_wat_rs_defaults();
-rusqlite_shim::register(&mut deps);
-parquet_shim::register(&mut deps);
-my_custom_shim::register(&mut deps);
-wat::rust_deps::install(deps.build()).expect("install once");
-```
-
-Now every wat program this binary runs can `(:wat::core::use!)`
-any of these types.
+For one-app-only shims, put them in `src/shim.rs` alongside
+`main.rs` and add the module to your macros' `deps: [...]` list
+(see section 1).
 
 ---
 
-## 10. Caching — LocalCache vs Cache service
+## 10. Caching — LocalCache vs CacheService
+
+These live in the external crate `wat-lru` (arc 013 —
+`crates/wat-lru/` in the wat-rs workspace). Add it to your
+`Cargo.toml` and your macros' `deps:` list:
+
+```toml
+[dependencies]
+wat-lru = { path = "../wat-rs/crates/wat-lru" }
+```
+
+```rust
+wat::main! { source: include_str!("program.wat"), deps: [wat_lru] }
+```
 
 ### LocalCache — per-program hot cache
 
@@ -750,31 +807,36 @@ Lives in that program's thread; no channel overhead.
 
 (:wat::core::define (:my::app::worker -> :())
   (:wat::core::let*
-    (((cache :rust::lru::LruCache<String,i64>) (:wat::std::LocalCache::new 128)))
-    (... use cache via :wat::std::LocalCache::put / ::get ...)))
+    (((cache :user::wat::std::lru::LocalCache<String,i64>)
+      (:user::wat::std::lru::LocalCache::new 128)))
+    (... use cache via :user::wat::std::lru::LocalCache::put / ::get ...)))
 ```
 
 Tier 2 — thread-owned. The cache never leaves this program's thread.
 
-### Cache program — shared across programs
+### CacheService — shared across programs
 
-When multiple programs need to share a cache, spawn a Cache program.
+When multiple programs need to share a cache, spawn a CacheService.
 The program owns the cache on its own thread; clients send requests
 through channels.
 
 ```scheme
 (:wat::core::let*
-  (((pool driver) (:wat::std::service::Cache :(String,i64) 1024 8))
-   ((client1 :Sender<Req>) (:wat::kernel::HandlePool::pop pool))
-   ((client2 :Sender<Req>) (:wat::kernel::HandlePool::pop pool))
+  (((state :(wat::kernel::HandlePool<user::wat::std::lru::CacheService::ReqTx<String,i64>>,
+             wat::kernel::ProgramHandle<()>))
+    (:user::wat::std::lru::CacheService 1024 8))   ;; capacity 1024, 8 client handles
+   ((pool :wat::kernel::HandlePool<...>) (:wat::core::first state))
+   ((driver :wat::kernel::ProgramHandle<()>) (:wat::core::second state))
+   ((client1 :user::wat::std::lru::CacheService::ReqTx<String,i64>)
+    (:wat::kernel::HandlePool::pop pool))
    (... eight clients ...)
    ((_ :()) (:wat::kernel::HandlePool::finish pool)))
   ;; spawn workers, each using their client handle
   ...)
 ```
 
-Tier 3 — program-owned, message-addressed. The single-threaded Cache
-driver serializes access without locks.
+Tier 3 — program-owned, message-addressed. The single-threaded
+CacheService driver serializes access without locks.
 
 ---
 
@@ -1155,6 +1217,10 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::first` / `second` / `third` | `<tuple-or-vec>` | field value |
 | `:wat::core::length` / `empty?` / `reverse` / `take` / `drop` | list ops | various |
 | `:wat::core::i64::+/-/*//` / `f64::+/-/*//` | `a b` | arithmetic |
+| `:wat::core::i64::to-string` / `to-f64` | `n` | infallible — `:String` / `:f64` |
+| `:wat::core::f64::to-string` / `to-i64` | `x` | `:String` / `:Option<i64>` (NaN/inf/out-of-range → `:None`) |
+| `:wat::core::string::to-i64` / `to-f64` / `to-bool` | `s` | `:Option<T>` (unparseable → `:None`) |
+| `:wat::core::bool::to-string` | `b` | `"true"` / `"false"` |
 | `:wat::core::>` / `=` / `<` / `>=` / `<=` | `a b` | `:bool` |
 | `:wat::io::IOReader/read-line` | `stdin` | `:Option<String>` |
 | `:wat::io::IOWriter/print` | `handle string` | `:()` |
@@ -1169,8 +1235,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::stopped?` / `sigusr1?` / ... | `()` | `:bool` |
 | `:wat::kernel::HandlePool::new` / `pop` / `finish` | various | pool ops |
 | `:wat::std::service::Console` | `stdout stderr n` | `(HandlePool, Driver)` |
-| `:wat::std::service::Cache` | `:(K,V) capacity count` | `(HandlePool, Driver)` |
-| `:wat::std::LocalCache::new` / `put` / `get` | various | per-program LRU |
+| `:user::wat::std::lru::CacheService` (wat-lru) | `capacity count` | `(HandlePool, Driver)` |
+| `:user::wat::std::lru::LocalCache::new` / `put` / `get` (wat-lru) | various | per-program LRU |
 | `:wat::algebra::Atom` | `<literal>` | `:holon::HolonAST` |
 | `:wat::algebra::Bind` | `a b` | `:holon::HolonAST` |
 | `:wat::algebra::Bundle` | `list-of-holons` | `:Result<holon::HolonAST, CapacityExceeded>` |
