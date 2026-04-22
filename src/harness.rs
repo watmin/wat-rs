@@ -37,12 +37,14 @@
 //! # Ok::<(), wat::harness::HarnessError>(())
 //! ```
 
+use crate::compose::DepRegistrar;
 use crate::freeze::{
     invoke_user_main, startup_from_source, startup_from_source_with_deps,
     validate_user_main_signature, FrozenWorld, StartupError,
 };
 use crate::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
 use crate::load::{InMemoryLoader, SourceLoader};
+use crate::rust_deps::{self, RustDepsBuilder};
 use crate::runtime::{RuntimeError, Value};
 use crate::stdlib::StdlibFile;
 use std::sync::Arc;
@@ -107,12 +109,15 @@ impl Harness {
     }
 
     /// Freeze wat source composed with external dep sources. Arc 013
-    /// slice 2.
+    /// slice 2 (extended at slice 4a with `dep_registrars`).
     ///
     /// `dep_sources` is a slice of `&[StdlibFile]` — one inner slice
-    /// per dep crate. `wat::main!` (slice 3) expands to a call
-    /// through this entry, passing `&[wat_lru::stdlib_sources(), …]`.
-    /// Uses `InMemoryLoader` (no filesystem); callers that need a
+    /// per dep crate. `dep_registrars` is a parallel slice of
+    /// `fn(&mut RustDepsBuilder)` — each dep's Rust shim
+    /// registration. `wat::main!` expands to a call through this
+    /// entry, passing `&[wat_lru::stdlib_sources(), …]` and
+    /// `&[wat_lru::register, …]` respectively. Uses
+    /// `InMemoryLoader` (no filesystem); callers that need a
     /// filesystem-capable loader use
     /// [`Self::from_source_with_deps_and_loader`].
     ///
@@ -120,25 +125,42 @@ impl Harness {
     /// deps must declare under `:user::*` (typically
     /// `:user::wat::std::<crate>::*` per the arc 013 convention) or
     /// registration fails loud.
+    ///
+    /// **rust_deps install is first-call-wins.** Slice 4a's
+    /// OnceLock semantics apply. See [`crate::compose_and_run`]
+    /// for details.
     pub fn from_source_with_deps(
         src: &str,
         dep_sources: &[&[StdlibFile]],
+        dep_registrars: &[DepRegistrar],
     ) -> Result<Self, HarnessError> {
         Self::from_source_with_deps_and_loader(
             src,
             dep_sources,
+            dep_registrars,
             Arc::new(InMemoryLoader::new()),
         )
     }
 
-    /// Full-form entry with both external dep sources and a
-    /// caller-supplied loader. The other three `from_source*`
-    /// variants on Harness are sugar over this one.
+    /// Full-form entry with both external dep sources, dep
+    /// registrars, and a caller-supplied loader. The other three
+    /// `from_source*` variants on Harness are sugar over this one.
     pub fn from_source_with_deps_and_loader(
         src: &str,
         dep_sources: &[&[StdlibFile]],
+        dep_registrars: &[DepRegistrar],
         loader: Arc<dyn SourceLoader>,
     ) -> Result<Self, HarnessError> {
+        // Build + install rust_deps registry. Starting from
+        // `with_wat_rs_defaults()` preserves baked-in defaults
+        // (LRU today; empty after slice 4b). Best-effort install;
+        // see compose_and_run docs for the OnceLock semantics.
+        let mut builder = RustDepsBuilder::with_wat_rs_defaults();
+        for registrar in dep_registrars {
+            registrar(&mut builder);
+        }
+        let _ = rust_deps::install(builder.build());
+
         let world = startup_from_source_with_deps(src, dep_sources, None, loader)
             .map_err(HarnessError::Startup)?;
         validate_user_main_signature(&world).map_err(HarnessError::MainSignature)?;

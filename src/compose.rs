@@ -35,12 +35,21 @@ use crate::freeze::{invoke_user_main, startup_from_source_with_deps, validate_us
 use crate::harness::HarnessError;
 use crate::io::{RealStderr, RealStdin, RealStdout, WatReader, WatWriter};
 use crate::load::InMemoryLoader;
+use crate::rust_deps::{self, RustDepsBuilder};
 use crate::runtime::{
     request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2, Value,
 };
 use crate::stdlib::StdlibFile;
 use std::io;
 use std::sync::Arc;
+
+/// Function-pointer shape every external wat crate exposes for its
+/// Rust shim, per the arc 013 external-crate contract. Each
+/// `#[wat_dispatch]`-annotated impl emits a `pub fn register(&mut
+/// RustDepsBuilder)` that writes dispatch + scheme + type entries
+/// for that Rust type's method surface. `wat::main!` collects these
+/// from each dep and hands them here.
+pub type DepRegistrar = fn(&mut RustDepsBuilder);
 
 // ─── Signal handlers ─────────────────────────────────────────────────────
 
@@ -84,6 +93,22 @@ fn install_signal_handlers() {
 /// need per-call control (custom loader, test embedding, staged
 /// invocation) reach for [`crate::Harness`] directly.
 ///
+/// **Two-part external-crate contract.** Each dep crate exposes
+/// both:
+/// 1. `pub fn stdlib_sources() -> &'static [StdlibFile]` — wat
+///    source, fed via `dep_sources`.
+/// 2. `pub fn register(&mut RustDepsBuilder)` — Rust shim, fed
+///    via `dep_registrars` ([`DepRegistrar`] function-pointer
+///    slice).
+///
+/// Both halves are load-bearing: `dep_sources` contributes wat
+/// defines/macros/types; `dep_registrars` wires `#[wat_dispatch]`-
+/// generated dispatch into `wat::rust_deps::install()` so
+/// `:rust::<crate>::*` references resolve. A dep passed via
+/// `dep_sources` alone with no matching registrar won't have its
+/// `:rust::*` types available; a registrar with no source alone
+/// won't have wat-level wrappers.
+///
 /// **Signal handlers and the silent-assertion panic hook are
 /// installed at the top of this call** — same as the wat CLI.
 /// Idempotent: re-invocation reinstalls the same handlers. Callers
@@ -95,9 +120,22 @@ fn install_signal_handlers() {
 /// user's binary needs filesystem-capable loading, they write
 /// their own main using
 /// [`crate::Harness::from_source_with_deps_and_loader`].
+///
+/// **rust_deps install semantics (first-call-wins).** The registry
+/// is a process-global OnceLock. `compose_and_run` attempts to
+/// install the built registry; if another caller already
+/// installed one (e.g., a test running multiple `compose_and_run`
+/// calls or a prior `rust_deps::get()` lazy-initialized the
+/// defaults), the installation is best-effort and silently
+/// accepts whichever registry was installed first. User binaries
+/// call this once from `fn main()`, so the install succeeds. Test
+/// callers that need varying dep sets across one process must
+/// install the full superset via `rust_deps::install()` before
+/// any wat code runs.
 pub fn compose_and_run(
     source: &str,
     dep_sources: &[&[StdlibFile]],
+    dep_registrars: &[DepRegistrar],
 ) -> Result<(), HarnessError> {
     // Silence the default panic handler for assertion-failed!
     // payloads. The sandboxing primitives rely on
@@ -105,6 +143,17 @@ pub fn compose_and_run(
     // without this hook, each deliberate failure test prints
     // a "thread X panicked" line before the sandbox intercepts.
     install_silent_assertion_panic_hook();
+
+    // Build the rust_deps registry from wat-rs defaults + each
+    // dep's register(). Using `with_wat_rs_defaults()` (not
+    // `new()`) preserves baked-in defaults (today: LRU; after
+    // slice 4b: empty). Best-effort install: first caller in the
+    // process wins per OnceLock semantics.
+    let mut builder = RustDepsBuilder::with_wat_rs_defaults();
+    for registrar in dep_registrars {
+        registrar(&mut builder);
+    }
+    let _ = rust_deps::install(builder.build());
 
     let loader = Arc::new(InMemoryLoader::new());
     let world = startup_from_source_with_deps(source, dep_sources, None, loader)

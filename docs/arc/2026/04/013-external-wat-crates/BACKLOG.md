@@ -175,7 +175,88 @@ crate."
 
 ---
 
-## 4. Move LocalCache.wat + shim into wat-lru; repath surfaces
+## 4a. Add `dep_registrars` parameter to the substrate (slice split surfaced 2026-04-21)
+
+**Status:** **shipped 2026-04-21.** Commit lands this slice as `4a`.
+
+**Why the split.** Slices 2 and 3 handled only half the external-
+crate contract (`stdlib_sources()`). The Rust shim side
+(`register(&mut RustDepsBuilder)`) wasn't accounted for — tests
+still passed because wat-rs's `RustDepsBuilder::with_wat_rs_defaults()`
+bakes in LRU's `register()`. Slice 4's attempted motion surfaced
+this: once LRU leaves wat-rs, compose_and_run / Harness / wat::main!
+have no way for external crates to contribute their
+`#[wat_dispatch]`-generated dispatch. The gap was a design miss,
+not a motion concern. Factored out so the motion (4b) lands on a
+complete substrate.
+
+**Problem.** External wat crates expose a two-part contract:
+
+1. `pub fn stdlib_sources() -> &'static [StdlibFile]` — wat
+   source (slice 2 already wires).
+2. `pub fn register(&mut RustDepsBuilder)` — Rust shim
+   (`#[wat_dispatch]`-generated dispatch + schemes + type decls).
+   Slice 4a wires this.
+
+`wat::compose_and_run`, `Harness::from_source_with_deps*`, and the
+`wat::main!` macro all need a parameter for dep registrars so a
+user's `main.rs` can contribute them alongside stdlib sources.
+
+**Approach.**
+
+- `wat::compose::DepRegistrar` — public type alias for
+  `fn(&mut RustDepsBuilder)`. External crates' `register()` fns
+  satisfy this shape.
+- `wat::compose_and_run(source, dep_sources, dep_registrars)` —
+  adds `dep_registrars: &[DepRegistrar]` as third parameter.
+- `Harness::from_source_with_deps` and
+  `from_source_with_deps_and_loader` — same parameter added.
+- `wat::main!` emits register-path calls alongside
+  stdlib_sources calls: expansion becomes `::wat::compose_and_run(
+  source, &[deps.stdlib_sources()...], &[deps.register...])`.
+- Inside compose/Harness: build a fresh RustDepsBuilder starting
+  from `with_wat_rs_defaults()` (preserves baked defaults),
+  call each registrar, best-effort `rust_deps::install()`.
+  OnceLock semantics — first caller in the process wins.
+
+**Sub-fog 4a-install — rust_deps install-once semantics.**
+`rust_deps::install()` is a OnceLock — subsequent installs fail
+silently. For user binaries calling compose_and_run once from
+main(), this is fine. For tests that call Harness multiple times
+with different dep sets in one process, the first call wins; later
+calls silently use the first registry. If a test needs varying
+dep sets across one process, it must install the full superset
+via `rust_deps::install()` before any wat code runs. Documented
+in compose_and_run's docstring; not fixed at this slice.
+
+**Sub-fog 4a-default — base-from-defaults, not empty.**
+First-pass implementation built the registry from
+`RustDepsBuilder::new()` (empty). This wiped baked defaults when
+installed, causing LRU references in the still-baked
+`wat/std/LocalCache.wat` to fail check with `UnknownCallee
+:rust::lru::LruCache::*`. Fix: start from
+`RustDepsBuilder::with_wat_rs_defaults()` so dep registrars
+LAYER over the defaults rather than replacing them. After slice
+4b removes LRU from defaults, this code keeps working — the
+defaults become empty, and dep registrars fill the gap.
+
+**Tests.** `tests/wat_harness_deps.rs` grew one test
+(`harness_accepts_dep_registrar_for_rust_shim`) that installs a
+throwaway shim and verifies the registrar plumbing works. The
+four existing slice-2 tests updated to pass empty `&[]` for the
+new parameter.
+
+**Inscription target:** slice 4a's public API additions are Rust-
+host changes. USER-GUIDE gains a note under the external-crate
+section when arc 013 INSCRIPTION writes. No 058 change —
+`wat::compose_and_run` / `wat::main!` are Rust-facing.
+
+**Unblocks:** slice 4b can move LRU out of wat-rs without
+stranding any caller.
+
+---
+
+## 4b. Move LocalCache.wat + shim into wat-lru; repath surfaces
 
 **Status:** ready. Most code-motion of any slice.
 

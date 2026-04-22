@@ -254,16 +254,24 @@ impl Parse for MainInput {
 pub fn main(input: TokenStream) -> TokenStream {
     let MainInput { source, deps } = parse_macro_input!(input as MainInput);
 
-    let dep_calls: Vec<TokenStream2> = deps
+    // Each dep is called twice — once for stdlib_sources() (wat
+    // source side), once for register (Rust shim side). The two-
+    // part external-crate contract per arc 013 slice 4a.
+    let stdlib_calls: Vec<TokenStream2> = deps
         .iter()
         .map(|p| quote! { #p::stdlib_sources() })
+        .collect();
+    let register_paths: Vec<TokenStream2> = deps
+        .iter()
+        .map(|p| quote! { #p::register })
         .collect();
 
     let expanded = quote! {
         fn main() -> ::std::result::Result<(), ::wat::harness::HarnessError> {
             ::wat::compose_and_run(
                 #source,
-                &[ #(#dep_calls),* ],
+                &[ #(#stdlib_calls),* ],
+                &[ #(#register_paths),* ],
             )
         }
     };
