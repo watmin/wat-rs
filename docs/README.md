@@ -6,7 +6,7 @@ It lives at:
 **https://github.com/watmin/holon-lab-trading/tree/main/docs/proposals/2026/04/058-ast-algebra-surface**
 
 That directory is the 058 proposal batch — FOUNDATION.md, the
-FOUNDATION-CHANGELOG, thirty-two sub-proposals (058-001 through 058-032),
+FOUNDATION-CHANGELOG, thirty-six sub-proposals (058-001 through 058-036),
 and two rounds of reviewer notes (Hickey, Beckman). Every design decision
 that shaped `wat` is recorded there, with dates and reasoning. When this
 crate's behavior and the proposal disagree, the proposal wins — and this
@@ -135,20 +135,48 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   fork substrate is the single source of subprocess truth for
   wat-rs. Unix-only by design.
 
-- **`arc/2026/04/013-external-wat-crates/`** — **planning.**
-  Externalize `wat-lru` into a sibling crate (`crates/wat-lru/`)
-  as the proof that the external-wat-crate pattern is real.
-  LocalCache leaves the baked stdlib entirely; repaths from
-  `:wat::std::LocalCache` to `:user::wat::std::lru::LocalCache`
-  under the new namespace convention. `wat::Harness` grows an
-  API that accepts external stdlib sources; a `wat::main!`
-  proc-macro in `wat-macros` lets a user's `main.rs` compose
-  baked + dep stdlib + user source in one declaration.
-  `examples/with-lru/` serves as the walkable reference. Arc
-  thesis: Chapter 18's *"wat is the language, Rust is the
-  substrate"* operational at the ecosystem tier — many
-  Rust-backed wat crates coexisting in one binary. DESIGN +
-  BACKLOG written 2026-04-21; implementation pending.
+- **`arc/2026/04/013-external-wat-crates/`** — **shipped.**
+  Externalized `wat-lru` into a sibling crate
+  (`crates/wat-lru/`). LocalCache left the baked stdlib
+  entirely; repathed from `:wat::std::LocalCache` to
+  `:user::wat::std::lru::LocalCache` under the new namespace
+  convention. `wat::Harness::from_source_with_deps` accepts
+  external wat sources; `wat::main!` proc-macro composes
+  baked + dep + user source in one declaration.
+  `examples/with-lru/` is the walkable reference. Six slices,
+  17 commits across two repos, all landed 2026-04-21.
+  Chapter 18's *"wat is the language, Rust is the substrate"*
+  operational at the ecosystem tier — third parties can
+  publish wat crates; consumers compose them at the `main.rs`
+  level. wat-rs root has zero dependency on wat-lru — the
+  transitive-composition proof holds.
+
+- **`arc/2026/04/014-core-scalar-conversions/`** — **shipped.**
+  Cave-quest arc cut mid arc-013 slice 4b when
+  `:wat::core::i64::to-string` was needed for honest test
+  assertions. Eight primitives at
+  `:wat::core::<source>::to-<target>` — i64/f64/bool/string
+  conversions with `:Option<T>` for fallible paths (NaN / ±∞ /
+  out-of-range / unparseable → `:None`). No implicit coercion;
+  every conversion is explicit at the call site. First arc cut
+  from a paused slice; the shape is now precedent for future
+  cave-quest splits.
+
+- **`arc/2026/04/015-wat-test-for-consumers/`** — **shipped.**
+  Closed the last consumer-shape gap: `.wat` tests that
+  compose external wat crates, discovered + run by `cargo test`.
+  `wat::test_suite!` proc-macro mirrors `wat::main!` for tests;
+  `wat::test_runner` library is the callable substrate;
+  `wat::source::install_dep_sources` is the global OnceLock
+  (symmetric with `wat::rust_deps::install`) that lets every
+  freeze — main, test, sandbox via `run-sandboxed-ast`, fork
+  child via `run-hermetic-ast` — transparently see dep surface.
+  `StdlibFile` → `WatSource`, `stdlib_sources()` →
+  `wat_sources()` user-facing rename (no back-compat).
+  Two Rust files per consumer app (`src/main.rs` + `tests/tests.rs`);
+  three when shipping own `#[wat_dispatch]` shim. Five slices
+  (1, 2, 3, 3a, 4); second arc cut from a paused slice —
+  cave-quest discipline now standing practice.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.
