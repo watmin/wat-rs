@@ -536,70 +536,14 @@ pub fn eval_kernel_run_sandboxed_hermetic(
     Ok(run_hermetic_core(src, stdin_lines, scope_opt))
 }
 
-/// `(:wat::kernel::run-sandboxed-hermetic-ast forms stdin scope)`
-/// → `:wat::kernel::RunResult`.
-///
-/// AST-entry sibling of [`eval_kernel_run_sandboxed_hermetic`]. Takes
-/// `:Vec<wat::WatAST>` instead of a source string — the primitive
-/// serializes the forms via [`crate::ast::wat_ast_program_to_source`]
-/// before writing the tempfile the subprocess reads. Callers compose
-/// cleanly with `:wat::test::program` (arc 010's variadic-quote macro)
-/// and skip escape-hell entirely for hermetic tests.
-///
-/// The serialize step is genuine — the subprocess has its own heap and
-/// cannot share AST pointers. Hiding it inside the primitive keeps the
-/// user surface honest: hand AST in, get a `RunResult` out; no
-/// textual round-trip visible at the call site.
-pub fn eval_kernel_run_sandboxed_hermetic_ast(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::run-sandboxed-hermetic-ast";
-
-    if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 3,
-            got: args.len(),
-        });
-    }
-
-    // Evaluate the Vec<wat::WatAST> — same path run-sandboxed-ast uses.
-    let forms = match eval(&args[0], env, sym)? {
-        Value::Vec(items) => {
-            let mut out = Vec::with_capacity(items.len());
-            for item in items.iter() {
-                match item {
-                    Value::wat__WatAST(ast) => out.push((**ast).clone()),
-                    other => {
-                        return Err(RuntimeError::TypeMismatch {
-                            op: OP.into(),
-                            expected: "wat::WatAST",
-                            got: other.type_name(),
-                        });
-                    }
-                }
-            }
-            out
-        }
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: OP.into(),
-                expected: "Vec<wat::WatAST>",
-                got: other.type_name(),
-            });
-        }
-    };
-
-    let stdin_lines = expect_vec_string(OP, eval(&args[1], env, sym)?)?;
-    let scope_opt = expect_option_string(OP, eval(&args[2], env, sym)?)?;
-
-    // Serialize the forms to source text for the subprocess to parse.
-    let src = crate::ast::wat_ast_program_to_source(&forms);
-
-    Ok(run_hermetic_core(src, stdin_lines, scope_opt))
-}
+// eval_kernel_run_sandboxed_hermetic_ast — RETIRED in arc 012
+// slice 3. Shipped as wat stdlib in wat/std/hermetic.wat on top of
+// :wat::kernel::fork-with-forms + wait-child + struct-new. Same
+// keyword path + signature + return; only the implementation
+// layer moved. The AST-to-source serializer used by the former
+// subprocess boundary has no remaining caller in slice 3 (fork
+// inherits AST via COW) — its fate is pinned by the next task
+// (#269).
 
 /// Unpack an `:Option<String>` Value. Shared between the two hermetic
 /// primitives (and any future caller that needs the same scope slot).
