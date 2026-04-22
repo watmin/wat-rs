@@ -439,6 +439,133 @@
       (:wat::std::stream::chunks-step buf item size))
     :wat::std::stream::chunks-flush))
 
+;; --- chunks-by ---
+;;
+;; N:1 with key-fn boundary. Groups consecutive items sharing the
+;; same key into one Vec; emits when the key changes; flushes the
+;; final group at EOS. Clojure's `partition-by` shape; named in
+;; arc 006's INSCRIPTION as `init = (None, [])` over with-state.
+;;
+;; Equality on K uses :wat::core::= (polymorphic, structural over
+;; primitives and composite values).
+
+(:wat::core::define
+  (:wat::std::stream::chunks-by-step<T,K>
+    (state :(Option<K>,Vec<T>))
+    (item :T)
+    (key-fn :fn(T)->K)
+    -> :((Option<K>,Vec<T>),Vec<Vec<T>>))
+  (:wat::core::let*
+    (((last-key :Option<K>) (:wat::core::first state))
+     ((buffer :Vec<T>) (:wat::core::second state))
+     ((k :K) (key-fn item)))
+    (:wat::core::match last-key -> :((Option<K>,Vec<T>),Vec<Vec<T>>)
+      (:None
+        ;; First item — start the run, emit nothing yet.
+        (:wat::core::tuple
+          (:wat::core::tuple (Some k) (:wat::core::vec :T item))
+          (:wat::core::vec :Vec<T>)))
+      ((Some prev)
+        (:wat::core::if (:wat::core::= prev k)
+          -> :((Option<K>,Vec<T>),Vec<Vec<T>>)
+          ;; Same key — append to current run, emit nothing.
+          (:wat::core::tuple
+            (:wat::core::tuple (Some k) (:wat::core::conj buffer item))
+            (:wat::core::vec :Vec<T>))
+          ;; Key change — emit completed run, start new run.
+          (:wat::core::tuple
+            (:wat::core::tuple (Some k) (:wat::core::vec :T item))
+            (:wat::core::vec :Vec<T> buffer)))))))
+
+(:wat::core::define
+  (:wat::std::stream::chunks-by-flush<T,K>
+    (state :(Option<K>,Vec<T>))
+    -> :Vec<Vec<T>>)
+  (:wat::core::let*
+    (((buffer :Vec<T>) (:wat::core::second state)))
+    (:wat::core::if (:wat::core::empty? buffer) -> :Vec<Vec<T>>
+      (:wat::core::vec :Vec<T>)
+      (:wat::core::vec :Vec<T> buffer))))
+
+(:wat::core::define
+  (:wat::std::stream::chunks-by<T,K>
+    (upstream :wat::std::stream::Stream<T>)
+    (key-fn :fn(T)->K)
+    -> :wat::std::stream::Stream<Vec<T>>)
+  ;; init = (None, empty) — no key seen yet, no items buffered.
+  ;; step closes over key-fn; flush is size-agnostic so passes by name.
+  (:wat::std::stream::with-state upstream
+    (:wat::core::tuple :None (:wat::core::vec :T))
+    (:wat::core::lambda ((state :(Option<K>,Vec<T>)) (item :T)
+                         -> :((Option<K>,Vec<T>),Vec<Vec<T>>))
+      (:wat::std::stream::chunks-by-step state item key-fn))
+    :wat::std::stream::chunks-by-flush))
+
+;; --- window ---
+;;
+;; Sliding window, step=1. Emits every full-size window as items
+;; arrive. Matching arc 006's INSCRIPTION and the book's Ruby-example
+;; discipline (*don't silently drop data at EOS*), the flush rule is:
+;; emit the partial buffer ONLY if the stream was shorter than `size`
+;; (buffer was never emitted as a full window). In every other case
+;; the last full window was already emitted on the sliding path and
+;; flush stays empty.
+;;
+;; For step>1 or other sliding behaviors, callers author their own
+;; with-state directly. Same stdlib-as-blueprint discipline — the
+;; named combinator ships one honest choice; richer shapes earn their
+;; slots when real callers demand them.
+
+(:wat::core::define
+  (:wat::std::stream::window-step<T>
+    (buffer :Vec<T>)
+    (item :T)
+    (size :i64)
+    -> :(Vec<T>,Vec<Vec<T>>))
+  (:wat::core::let*
+    (((new-buf :Vec<T>) (:wat::core::conj buffer item))
+     ((new-len :i64) (:wat::core::length new-buf)))
+    (:wat::core::cond -> :(Vec<T>,Vec<Vec<T>>)
+      ;; Over-size — slide: drop first, emit trimmed window, keep trimmed.
+      ((:wat::core::> new-len size)
+        (:wat::core::let*
+          (((trimmed :Vec<T>) (:wat::core::rest new-buf)))
+          (:wat::core::tuple trimmed (:wat::core::vec :Vec<T> trimmed))))
+      ;; Exactly size — first full window. Emit and keep.
+      ((:wat::core::= new-len size)
+        (:wat::core::tuple new-buf (:wat::core::vec :Vec<T> new-buf)))
+      ;; Under-size — still warming up. No emit.
+      (:else
+        (:wat::core::tuple new-buf (:wat::core::vec :Vec<T>))))))
+
+(:wat::core::define
+  (:wat::std::stream::window-flush<T>
+    (buffer :Vec<T>)
+    (size :i64)
+    -> :Vec<Vec<T>>)
+  ;; Flush-partial IFF buffer contains items that were never emitted
+  ;; as a full window. That's exactly the case len(buf) < size AND
+  ;; len(buf) > 0. The len == size case means a full window was
+  ;; already emitted on the sliding path — nothing to flush.
+  (:wat::core::cond -> :Vec<Vec<T>>
+    ((:wat::core::empty? buffer) (:wat::core::vec :Vec<T>))
+    ((:wat::core::< (:wat::core::length buffer) size)
+      (:wat::core::vec :Vec<T> buffer))
+    (:else (:wat::core::vec :Vec<T>))))
+
+(:wat::core::define
+  (:wat::std::stream::window<T>
+    (upstream :wat::std::stream::Stream<T>)
+    (size :i64)
+    -> :wat::std::stream::Stream<Vec<T>>)
+  ;; Both step and flush close over size — two lambda wrappers.
+  (:wat::std::stream::with-state upstream
+    (:wat::core::vec :T)
+    (:wat::core::lambda ((buf :Vec<T>) (item :T) -> :(Vec<T>,Vec<Vec<T>>))
+      (:wat::std::stream::window-step buf item size))
+    (:wat::core::lambda ((buf :Vec<T>) -> :Vec<Vec<T>>)
+      (:wat::std::stream::window-flush buf size))))
+
 ;; --- take ---
 ;;
 ;; Stage, not terminal. Forwards the first `n` items from upstream,

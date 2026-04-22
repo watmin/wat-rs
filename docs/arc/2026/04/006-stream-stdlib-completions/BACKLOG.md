@@ -144,11 +144,9 @@ primitive" section.
 | inspect | **shipped** | slice 1 |
 | take (ex-first) | **shipped** | slice 2 |
 | from-receiver | **shipped** | slice 3 |
-| chunks-by | **resolved** via with-state | blocked on with-state |
-| window | **resolved** via with-state | blocked on with-state |
-| chunks-by | prompt-pending | — |
-| window | prompt-pending | — |
-| from-receiver | prompt-pending | — |
-| time-window | blocked | — |
-| from-iterator | blocked | — |
-| Level 2 iterator | blocked | — |
+| chunks-by | **shipped** on with-state | slice 5 |
+| window | **shipped** on with-state | slice 5 |
+| with-state | **shipped** (slice 4) | slice 4 |
+| time-window | substrate-blocked (clock) | — |
+| from-iterator | substrate-blocked (iterator surface) | — |
+| Level 2 iterator | substrate-blocked (own arc) | — |

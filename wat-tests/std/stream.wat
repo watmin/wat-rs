@@ -151,3 +151,144 @@
      ((doubled :Vec<i64>) (:wat::core::map source double))
      ((expected :Vec<i64>) (:wat::core::vec :i64 2 4 6)))
     (:wat::test::assert-eq doubled expected)))
+
+;; ─── chunks-by — key-boundary N:1 partitioning ────────────────────────
+
+(:wat::test::deftest :wat-tests::std::stream::test-chunks-by-runs-on-identity 1024 :error
+  ;; Stream [1 1 2 3 3 3 1] grouped by identity → [[1 1] [2] [3 3 3] [1]].
+  (:wat::core::let*
+    (((source :Vec<i64>) (:wat::core::vec :i64 1 1 2 3 3 3 1))
+     ((stream :wat::std::stream::Stream<i64>)
+      (:wat::std::stream::spawn-producer
+        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+          (:wat::core::foldl source ()
+            (:wat::core::lambda ((_ :()) (item :i64) -> :())
+              (:wat::core::match (:wat::kernel::send tx item) -> :()
+                ((Some _) ())
+                (:None ())))))))
+     ((id :fn(i64)->i64)
+      (:wat::core::lambda ((x :i64) -> :i64) x))
+     ((grouped :wat::std::stream::Stream<Vec<i64>>)
+      (:wat::std::stream::chunks-by stream id))
+     ((collected :Vec<Vec<i64>>) (:wat::std::stream::collect grouped))
+     ((expected :Vec<Vec<i64>>)
+      (:wat::core::vec :Vec<i64>
+        (:wat::core::vec :i64 1 1)
+        (:wat::core::vec :i64 2)
+        (:wat::core::vec :i64 3 3 3)
+        (:wat::core::vec :i64 1))))
+    (:wat::test::assert-eq collected expected)))
+
+(:wat::test::deftest :wat-tests::std::stream::test-chunks-by-all-distinct 1024 :error
+  ;; Stream [1 2 3] grouped by identity → [[1] [2] [3]] (each its own run).
+  (:wat::core::let*
+    (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3))
+     ((stream :wat::std::stream::Stream<i64>)
+      (:wat::std::stream::spawn-producer
+        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+          (:wat::core::foldl source ()
+            (:wat::core::lambda ((_ :()) (item :i64) -> :())
+              (:wat::core::match (:wat::kernel::send tx item) -> :()
+                ((Some _) ())
+                (:None ())))))))
+     ((id :fn(i64)->i64)
+      (:wat::core::lambda ((x :i64) -> :i64) x))
+     ((grouped :wat::std::stream::Stream<Vec<i64>>)
+      (:wat::std::stream::chunks-by stream id))
+     ((collected :Vec<Vec<i64>>) (:wat::std::stream::collect grouped))
+     ((expected :Vec<Vec<i64>>)
+      (:wat::core::vec :Vec<i64>
+        (:wat::core::vec :i64 1)
+        (:wat::core::vec :i64 2)
+        (:wat::core::vec :i64 3))))
+    (:wat::test::assert-eq collected expected)))
+
+(:wat::test::deftest :wat-tests::std::stream::test-chunks-by-empty-stream 1024 :error
+  ;; Empty stream → no groups emitted.
+  (:wat::core::let*
+    (((stream :wat::std::stream::Stream<i64>)
+      (:wat::std::stream::spawn-producer
+        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :()) ())))
+     ((id :fn(i64)->i64)
+      (:wat::core::lambda ((x :i64) -> :i64) x))
+     ((grouped :wat::std::stream::Stream<Vec<i64>>)
+      (:wat::std::stream::chunks-by stream id))
+     ((collected :Vec<Vec<i64>>) (:wat::std::stream::collect grouped))
+     ((num :i64) (:wat::core::length collected)))
+    (:wat::test::assert-eq num 0)))
+
+;; ─── window — sliding N-length windows, flush-partial-when-short ──────
+
+(:wat::test::deftest :wat-tests::std::stream::test-window-full-windows 1024 :error
+  ;; Stream [1 2 3 4 5], size 3 → [[1 2 3] [2 3 4] [3 4 5]].
+  (:wat::core::let*
+    (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3 4 5))
+     ((stream :wat::std::stream::Stream<i64>)
+      (:wat::std::stream::spawn-producer
+        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+          (:wat::core::foldl source ()
+            (:wat::core::lambda ((_ :()) (item :i64) -> :())
+              (:wat::core::match (:wat::kernel::send tx item) -> :()
+                ((Some _) ())
+                (:None ())))))))
+     ((windowed :wat::std::stream::Stream<Vec<i64>>)
+      (:wat::std::stream::window stream 3))
+     ((collected :Vec<Vec<i64>>) (:wat::std::stream::collect windowed))
+     ((expected :Vec<Vec<i64>>)
+      (:wat::core::vec :Vec<i64>
+        (:wat::core::vec :i64 1 2 3)
+        (:wat::core::vec :i64 2 3 4)
+        (:wat::core::vec :i64 3 4 5))))
+    (:wat::test::assert-eq collected expected)))
+
+(:wat::test::deftest :wat-tests::std::stream::test-window-short-stream-flushes-partial 1024 :error
+  ;; Stream [1 2], size 3 — never reached size, flush emits [[1 2]].
+  (:wat::core::let*
+    (((source :Vec<i64>) (:wat::core::vec :i64 1 2))
+     ((stream :wat::std::stream::Stream<i64>)
+      (:wat::std::stream::spawn-producer
+        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+          (:wat::core::foldl source ()
+            (:wat::core::lambda ((_ :()) (item :i64) -> :())
+              (:wat::core::match (:wat::kernel::send tx item) -> :()
+                ((Some _) ())
+                (:None ())))))))
+     ((windowed :wat::std::stream::Stream<Vec<i64>>)
+      (:wat::std::stream::window stream 3))
+     ((collected :Vec<Vec<i64>>) (:wat::std::stream::collect windowed))
+     ((expected :Vec<Vec<i64>>)
+      (:wat::core::vec :Vec<i64>
+        (:wat::core::vec :i64 1 2))))
+    (:wat::test::assert-eq collected expected)))
+
+(:wat::test::deftest :wat-tests::std::stream::test-window-exactly-size-no-flush 1024 :error
+  ;; Stream [1 2 3], size 3 — one full window emitted, flush empty.
+  (:wat::core::let*
+    (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3))
+     ((stream :wat::std::stream::Stream<i64>)
+      (:wat::std::stream::spawn-producer
+        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+          (:wat::core::foldl source ()
+            (:wat::core::lambda ((_ :()) (item :i64) -> :())
+              (:wat::core::match (:wat::kernel::send tx item) -> :()
+                ((Some _) ())
+                (:None ())))))))
+     ((windowed :wat::std::stream::Stream<Vec<i64>>)
+      (:wat::std::stream::window stream 3))
+     ((collected :Vec<Vec<i64>>) (:wat::std::stream::collect windowed))
+     ((expected :Vec<Vec<i64>>)
+      (:wat::core::vec :Vec<i64>
+        (:wat::core::vec :i64 1 2 3))))
+    (:wat::test::assert-eq collected expected)))
+
+(:wat::test::deftest :wat-tests::std::stream::test-window-empty-stream 1024 :error
+  ;; Empty stream → no windows emitted at all.
+  (:wat::core::let*
+    (((stream :wat::std::stream::Stream<i64>)
+      (:wat::std::stream::spawn-producer
+        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :()) ())))
+     ((windowed :wat::std::stream::Stream<Vec<i64>>)
+      (:wat::std::stream::window stream 3))
+     ((collected :Vec<Vec<i64>>) (:wat::std::stream::collect windowed))
+     ((num :i64) (:wat::core::length collected)))
+    (:wat::test::assert-eq num 0)))

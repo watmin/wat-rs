@@ -3,10 +3,12 @@
 **Status:** slices 1 + 2 + 3 shipped 2026-04-20; slice 4 (with-state
 substrate + chunks-on-with-state surface-reduction proof) shipped
 2026-04-21 alongside arc 009 (names are values), which closed the
-fn-by-name gap that with-state's ergonomics depended on. Arc
-remains OPEN only for `chunks-by`, `window`, time-window,
-from-iterator, and Level 2 iterator surfacing — all library-code
-follow-ups over the now-shipped with-state.
+fn-by-name gap that with-state's ergonomics depended on. Slice 5
+(chunks-by + window as library code on with-state) shipped
+2026-04-21. **Arc 006 closes.** Remaining items — time-window,
+from-iterator, Level 2 iterator surfacing — are substrate-blocked
+on primitives that don't exist yet (clock, iterator-trait surface)
+and earn their own arcs when callers demand.
 **Backlog:** [`BACKLOG.md`](./BACKLOG.md) — full classification of
 arc 004's deferred set.
 **This file:** completion marker for the trivial pattern-completion
@@ -190,11 +192,36 @@ slice 4 of arc 006. The primitive list grew by one (`with-state`)
 and the specialization list stays the same (chunks, chunks-by,
 window, dedupe, etc., all written once as wat functions on top).
 
+## Slice 5 — chunks-by + window on with-state (shipped 2026-04-21)
+
+The library-code thread that slice 4 unblocked. Both shipped as
+pure wat stdlib composing over with-state — no new primitives.
+
+**`:wat::std::stream::chunks-by<T,K>(stream, key-fn) -> Stream<Vec<T>>`** —
+N:1 with key-fn boundary. `init = (None, [])`; step threads the
+last-key-seen as `Option<K>` through the accumulator, appending
+on key-match and emitting on key-change; flush emits the final
+run. Clojure `partition-by` shape. K-equality via polymorphic
+`:wat::core::=`.
+
+**`:wat::std::stream::window<T>(stream, size) -> Stream<Vec<T>>`** —
+sliding, step=1. `init = []`; step appends, trims to size, emits
+full window on full buffer; flush emits partial IFF buffer was
+never emitted (stream was shorter than size — the Ruby-example
+discipline chapter 20 named: *don't silently drop data at EOS*).
+
+Step semantics captured via `:wat::core::cond` (three-way dispatch
+on `len(new-buf) > size` / `== size` / `< size`). Surface-reduction
+continuation of the factoring arc 012's slice-3 landed at language
+core.
+
+7 wat-level tests in `wat-tests/std/stream.wat`:
+- chunks-by: runs-on-identity, all-distinct, empty-stream
+- window: full-windows, short-stream-flushes-partial,
+  exactly-size-no-flush, empty-stream
+
 ## What remains — substrate-blocked
 
-- **`with-state`** — the Mealy-machine substrate primitive that
-  chunks-by, window, dedupe, sessionize decompose into. Pending
-  implementation; next slice or arc.
 - **`time-window`** — clock primitive.
 - **`from-iterator`** — iterator surfacing.
 - **Level 2 `:rust::std::iter::Iterator<T>` surfacing** — own arc.
