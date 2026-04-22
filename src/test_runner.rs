@@ -63,7 +63,6 @@ use crate::load::FsLoader;
 use crate::runtime::{apply_function, Function, Value};
 use crate::rust_deps::{self, RustDepsBuilder};
 use crate::source::{self, WatSource};
-use crate::span::Span;
 use crate::types::TypeExpr;
 
 /// Aggregated result of running every `.wat` file under a path.
@@ -243,7 +242,7 @@ pub fn run_tests_from_dir(
             print!("{} ", label);
             let start = Instant::now();
             let invoke = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                apply_function(func, Vec::new(), frozen.symbols(), Span::unknown())
+                apply_function(func, Vec::new(), frozen.symbols(), crate::rust_caller_span!())
             }));
             let elapsed_ms = start.elapsed().as_millis();
             match invoke {

@@ -3283,7 +3283,7 @@ fn eval_vec_map(
     };
     let mut out = Vec::with_capacity(xs.len());
     for x in xs.iter() {
-        out.push(apply_function(func.clone(), vec![x.clone()], sym, Span::unknown())?);
+        out.push(apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())?);
     }
     Ok(Value::Vec(Arc::new(out)))
 }
@@ -3317,7 +3317,7 @@ fn eval_vec_foldl(
         }
     };
     for x in xs.iter() {
-        acc = apply_function(func.clone(), vec![acc, x.clone()], sym, Span::unknown())?;
+        acc = apply_function(func.clone(), vec![acc, x.clone()], sym, crate::rust_caller_span!())?;
     }
     Ok(acc)
 }
@@ -3351,7 +3351,7 @@ fn eval_vec_foldr(
         }
     };
     for x in xs.iter().rev() {
-        acc = apply_function(func.clone(), vec![x.clone(), acc], sym, Span::unknown())?;
+        acc = apply_function(func.clone(), vec![x.clone(), acc], sym, crate::rust_caller_span!())?;
     }
     Ok(acc)
 }
@@ -3384,7 +3384,7 @@ fn eval_vec_filter(
     };
     let mut out = Vec::with_capacity(xs.len());
     for x in xs.iter() {
-        match apply_function(func.clone(), vec![x.clone()], sym, Span::unknown())? {
+        match apply_function(func.clone(), vec![x.clone()], sym, crate::rust_caller_span!())? {
             Value::bool(true) => out.push(x.clone()),
             Value::bool(false) => {}
             other => {
@@ -4771,7 +4771,7 @@ fn apply_value(
         .iter()
         .map(|a| eval(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
-    apply_function(func, vals, sym, Span::unknown())
+    apply_function(func, vals, sym, crate::rust_caller_span!())
 }
 
 /// Apply a function to a list of argument values, evaluated under the
@@ -5635,7 +5635,7 @@ fn eval_kernel_spawn(
     let thread_sym = sym.clone();
     let (tx, rx) = crossbeam_channel::bounded::<Result<Value, RuntimeError>>(1);
     std::thread::spawn(move || {
-        let result = apply_function(func, arg_values, &thread_sym, Span::unknown());
+        let result = apply_function(func, arg_values, &thread_sym, crate::rust_caller_span!());
         let _ = tx.send(result);
     });
     Ok(Value::wat__kernel__ProgramHandle(Arc::new(rx)))
@@ -6272,7 +6272,7 @@ mod tests {
         let func = sym.get(":my::app::failing-fn").expect("defined").clone();
 
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
-            || apply_function(func, Vec::new(), &sym, Span::unknown()),
+            || apply_function(func, Vec::new(), &sym, crate::rust_caller_span!()),
         ));
 
         let payload = match result {
@@ -6324,7 +6324,7 @@ mod tests {
             0,
             "stack must start empty"
         );
-        let v = apply_function(func, Vec::new(), &sym, Span::unknown())
+        let v = apply_function(func, Vec::new(), &sym, crate::rust_caller_span!())
             .expect("call");
         assert!(matches!(v, Value::i64(42)));
         assert_eq!(

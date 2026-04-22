@@ -55,11 +55,16 @@ pub struct Span {
 }
 
 impl Span {
-    /// Label for synthetic / runtime-constructed forms that have no
-    /// source location.
+    /// Sentinel span for internally-constructed forms that have no
+    /// source location (test helpers, runtime-built AST nodes). The
+    /// file label `<runtime>` surfaces in backtraces only when an
+    /// internal AST node reaches a call site — rare in practice,
+    /// since real runtime-initiated invocations use
+    /// [`crate::rust_caller_span`] which carries the Rust
+    /// `file!()`:`line!()`:`column!()` instead.
     pub fn unknown() -> Self {
         Span {
-            file: Arc::new("<synthetic>".to_string()),
+            file: Arc::new("<runtime>".to_string()),
             line: 0,
             col: 0,
         }
@@ -81,6 +86,32 @@ impl std::fmt::Display for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}:{}", self.file, self.line, self.col)
     }
+}
+
+/// Expand to a [`Span`] naming the call-site's Rust source
+/// location. Used when the wat runtime invokes a user function
+/// without a wat-source call site (test harness entry,
+/// `compose_and_run` entry, internal iteration in `map`/`foldl`/
+/// `fold`). Mirrors Rust's own backtrace convention — when a
+/// Rust panic prints a stack backtrace, stdlib frames carry
+/// `/rustc/.../library/core/.../function.rs:250:5` as their
+/// source location. wat does the same: runtime-initiated calls
+/// carry `wat-rs/src/<file>.rs:<line>:<col>` so a wat author
+/// debugging the runtime knows exactly which Rust file invoked
+/// their wat.
+///
+/// Arc 016 slice 3. Allocates a fresh `Arc<String>` per
+/// invocation; the cost is only paid on failure-path rendering
+/// (and fast, since it's in nanoseconds).
+#[macro_export]
+macro_rules! rust_caller_span {
+    () => {
+        $crate::span::Span::new(
+            ::std::sync::Arc::new(format!("wat-rs/{}", file!())),
+            line!() as i64,
+            column!() as i64,
+        )
+    };
 }
 
 // Equality: always true. Span contributes nothing to structural

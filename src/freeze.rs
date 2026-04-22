@@ -63,7 +63,6 @@ use crate::runtime::{
     apply_function, register_defines, register_stdlib_defines, EncodingCtx, Environment,
     RuntimeError, SymbolTable, Value,
 };
-use crate::span::Span;
 use crate::types::{register_stdlib_types, register_types, TypeEnv, TypeError, TypeExpr};
 use std::fmt;
 use std::sync::Arc;
@@ -390,7 +389,7 @@ pub fn invoke_user_main(
         .get(USER_MAIN_PATH)
         .ok_or(RuntimeError::UserMainMissing)?
         .clone();
-    apply_function(main_func, args, frozen.symbols(), Span::unknown())
+    apply_function(main_func, args, frozen.symbols(), crate::rust_caller_span!())
 }
 
 // ─── :user::main signature enforcement ──────────────────────────────────
