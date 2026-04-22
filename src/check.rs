@@ -2754,26 +2754,12 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // :wat::kernel::run-sandboxed-hermetic — same signature, forks a
-    // subprocess via wat. See sandbox.rs.
-    env.register(
-        ":wat::kernel::run-sandboxed-hermetic".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![
-                string_ty(),
-                TypeExpr::Parametric {
-                    head: "Vec".into(),
-                    args: vec![string_ty()],
-                },
-                TypeExpr::Parametric {
-                    head: "Option".into(),
-                    args: vec![string_ty()],
-                },
-            ],
-            ret: TypeExpr::Path(":wat::kernel::RunResult".into()),
-        },
-    );
+    // :wat::kernel::run-sandboxed-hermetic (string-entry) — retired
+    // in arc 012 slice 3. The AST-entry sibling
+    // (:wat::kernel::run-sandboxed-hermetic-ast) lives in wat stdlib
+    // on top of fork-with-forms; callers with raw source can parse
+    // at the Rust boundary or (future) via a :wat::core::parse
+    // primitive when a wat-level caller demands one.
 
     // :wat::kernel::run-sandboxed-ast — arc 007 slice 3b. Same
     // semantics as run-sandboxed but takes already-parsed forms as a

@@ -44,8 +44,11 @@ Fisher-Yates) surfaces accidental order-dependencies.
 Simple tests use `:wat::test::run` (in-process sandbox with
 StringIoWriter-backed stdio — ThreadOwnedCell discipline means
 single-thread). Programs that spawn threads and write from them
-(Console, Cache) use `:wat::kernel::run-sandboxed-hermetic` directly
-— a subprocess with real thread-safe stdio.
+(Console, Cache) use `:wat::test::run-hermetic-ast` — the wat
+stdlib wrapper that forks a child via `:wat::kernel::fork-with-forms`
+and runs the inner program with fd-backed thread-safe stdio
+(`PipeReader` / `PipeWriter`). See `wat/std/hermetic.wat` for the
+implementation.
 
 ## Naming
 

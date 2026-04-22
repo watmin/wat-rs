@@ -498,215 +498,26 @@ fn build_run_result(
 // a hermetic run, we teach wat to read `WAT_HERMETIC_SCOPE` env
 // and use `ScopedLoader`. Until then: `:None` only.
 
-/// `(:wat::kernel::run-sandboxed-hermetic src stdin scope)`
-/// → `:wat::kernel::RunResult`.
-///
-/// Same signature as `run-sandboxed`, runs the inner program in a
-/// subprocess instead of in-process. Hermetic against Rust statics,
-/// OnceLocks, and panic state.
-pub fn eval_kernel_run_sandboxed_hermetic(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::run-sandboxed-hermetic";
-
-    if args.len() != 3 {
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 3,
-            got: args.len(),
-        });
-    }
-
-    let src = match eval(&args[0], env, sym)? {
-        Value::String(s) => (*s).clone(),
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: OP.into(),
-                expected: "String",
-                got: other.type_name(),
-            });
-        }
-    };
-
-    let stdin_lines = expect_vec_string(OP, eval(&args[1], env, sym)?)?;
-    let scope_opt = expect_option_string(OP, eval(&args[2], env, sym)?)?;
-
-    Ok(run_hermetic_core(src, stdin_lines, scope_opt))
-}
-
-// eval_kernel_run_sandboxed_hermetic_ast — RETIRED in arc 012
-// slice 3. Shipped as wat stdlib in wat/std/hermetic.wat on top of
-// :wat::kernel::fork-with-forms + wait-child + struct-new. Same
-// keyword path + signature + return; only the implementation
-// layer moved. The AST-to-source serializer used by the former
-// subprocess boundary has no remaining caller in slice 3 (fork
-// inherits AST via COW) — its fate is pinned by the next task
-// (#269).
-
-/// Unpack an `:Option<String>` Value. Shared between the two hermetic
-/// primitives (and any future caller that needs the same scope slot).
-fn expect_option_string(op: &str, v: Value) -> Result<Option<String>, RuntimeError> {
-    match v {
-        Value::Option(opt) => match &*opt {
-            Some(Value::String(s)) => Ok(Some((**s).clone())),
-            Some(other) => Err(RuntimeError::TypeMismatch {
-                op: op.into(),
-                expected: "Option<String>",
-                got: other.type_name(),
-            }),
-            None => Ok(None),
-        },
-        other => Err(RuntimeError::TypeMismatch {
-            op: op.into(),
-            expected: "Option<String>",
-            got: other.type_name(),
-        }),
-    }
-}
-
-/// Spawn `wat` as a subprocess, pipe `stdin_lines` in, wait for exit,
-/// capture stdout/stderr, translate into a `RunResult`. Shared
-/// machinery between the string-entry and AST-entry hermetic
-/// primitives — only the source-production step differs.
-fn run_hermetic_core(
-    src: String,
-    stdin_lines: Vec<String>,
-    scope_opt: Option<String>,
-) -> Value {
-    if scope_opt.is_some() {
-        return build_run_result(
-            Vec::new(),
-            Vec::new(),
-            Some(failure_from_message(
-                "scope not yet supported in hermetic mode (:None only for now)".into(),
-            )),
-        );
-    }
-
-    // 1. Locate the wat binary.
-    let binary = match std::env::var("WAT_HERMETIC_BINARY") {
-        Ok(path) => std::path::PathBuf::from(path),
-        Err(_) => match std::env::current_exe() {
-            Ok(p) => p,
-            Err(e) => {
-                return build_run_result(
-                    Vec::new(),
-                    Vec::new(),
-                    Some(failure_from_message(format!(
-                        "could not locate hermetic binary: WAT_HERMETIC_BINARY unset \
-                         and current_exe failed: {}",
-                        e
-                    ))),
-                );
-            }
-        },
-    };
-
-    // 2. Write the source to a tempfile. Unique name via pid + nanos.
-    let tempfile = {
-        let mut path = std::env::temp_dir();
-        path.push(format!(
-            "wat-hermetic-{}-{}.wat",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos())
-                .unwrap_or(0)
-        ));
-        if let Err(e) = std::fs::write(&path, &src) {
-            return build_run_result(
-                Vec::new(),
-                Vec::new(),
-                Some(failure_from_message(format!(
-                    "write tempfile {:?}: {}",
-                    path, e
-                ))),
-            );
-        }
-        path
-    };
-
-    // 3. Spawn the child. Inherits only what we explicitly set; we
-    //    pass the tempfile path as the wat entry argument.
-    let mut child = match std::process::Command::new(&binary)
-        .arg(&tempfile)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-    {
-        Ok(c) => c,
-        Err(e) => {
-            let _ = std::fs::remove_file(&tempfile);
-            return build_run_result(
-                Vec::new(),
-                Vec::new(),
-                Some(failure_from_message(format!(
-                    "spawn {:?}: {}",
-                    binary, e
-                ))),
-            );
-        }
-    };
-
-    // 4. Write the stdin lines to the child's stdin and close it.
-    if let Some(stdin_handle) = child.stdin.as_mut() {
-        use std::io::Write;
-        let joined = if stdin_lines.is_empty() {
-            String::new()
-        } else {
-            format!("{}\n", stdin_lines.join("\n"))
-        };
-        let _ = stdin_handle.write_all(joined.as_bytes());
-    }
-    drop(child.stdin.take());
-
-    // 5. Wait for exit + collect output.
-    let output = match child.wait_with_output() {
-        Ok(o) => o,
-        Err(e) => {
-            let _ = std::fs::remove_file(&tempfile);
-            return build_run_result(
-                Vec::new(),
-                Vec::new(),
-                Some(failure_from_message(format!("wait: {}", e))),
-            );
-        }
-    };
-    let _ = std::fs::remove_file(&tempfile);
-
-    let stdout_str = String::from_utf8_lossy(&output.stdout).into_owned();
-    let stderr_str = String::from_utf8_lossy(&output.stderr).into_owned();
-    let stdout_lines = split_captured_lines(&stdout_str);
-    let stderr_lines = split_captured_lines(&stderr_str);
-
-    // 6. Translate non-zero exit to a failure carrying the exit code +
-    //    what came out on stderr. Zero exit = success, even if stderr
-    //    is non-empty (programs legitimately write to stderr).
-    let failure = if output.status.success() {
-        None
-    } else {
-        Some(failure_from_message(format!(
-            "hermetic child exited {:?}",
-            output.status
-        )))
-    };
-
-    build_run_result(stdout_lines, stderr_lines, failure)
-}
-
-fn split_captured_lines(s: &str) -> Vec<String> {
-    if s.is_empty() {
-        return Vec::new();
-    }
-    let mut lines: Vec<String> = s.split('\n').map(String::from).collect();
-    if s.ends_with('\n') {
-        lines.pop();
-    }
-    lines
-}
+// Arc 012 slice 3 — both hermetic Rust primitives are retired.
+//
+// - `eval_kernel_run_sandboxed_hermetic_ast` (AST-entry) was
+//   retired in the previous commit (0dfd9e0). Replaced by a wat
+//   stdlib define in wat/std/hermetic.wat on top of
+//   `:wat::kernel::fork-with-forms` + `wait-child`.
+//
+// - `eval_kernel_run_sandboxed_hermetic` (string-entry) retires
+//   here. The AST-entry path is the honest shape for hand-written
+//   tests (arc 010's `:wat::test::program` macro + arc 011's
+//   AST-entry hermetic wrapper). Any caller with raw source text
+//   can parse it themselves at the Rust boundary, or — when a wat-
+//   level caller demands — we add `:wat::core::parse` and a thin
+//   wat wrapper. No demand has surfaced yet.
+//
+// The subprocess-spawning machinery (`run_hermetic_core`,
+// `expect_option_string`, `split_captured_lines`) served only the
+// hermetic pair; dies with them. `failure_from_message` stays —
+// it's used by the IN-PROCESS sandbox primitives
+// (`run-sandboxed` and `run-sandboxed-ast`).
 
 // ─── helpers ─────────────────────────────────────────────────────────────
 

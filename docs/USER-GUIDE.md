@@ -1158,8 +1158,10 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::regex::matches?` | `pattern haystack` | `:bool` — unanchored |
 | `:wat::kernel::run-sandboxed` | `src stdin scope` | `:wat::kernel::RunResult` |
 | `:wat::kernel::run-sandboxed-ast` | `forms stdin scope` | `:wat::kernel::RunResult` |
-| `:wat::kernel::run-sandboxed-hermetic` | `src stdin scope` | `:wat::kernel::RunResult` — subprocess |
-| `:wat::kernel::run-sandboxed-hermetic-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — AST-entry subprocess |
+| `:wat::kernel::run-sandboxed-hermetic-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — forks a child via `:wat::kernel::fork-with-forms`; wat stdlib define in `wat/std/hermetic.wat` |
+| `:wat::kernel::pipe` | — | `:(IOWriter, IOReader)` — libc::pipe(2), PipeWriter first |
+| `:wat::kernel::fork-with-forms` | `forms` | `:wat::kernel::ForkedChild` — libc::fork(2) + three pipes |
+| `:wat::kernel::wait-child` | `handle` | `:i64` — waitpid, idempotent |
 | `:wat::kernel::assertion-failed!` | `message actual expected` | `:()` — panics with AssertionPayload |
 | `:wat::std::stream::spawn-producer` | `producer-fn` | `:Stream<T>` |
 | `:wat::std::stream::from-receiver` | `rx handle` | `:Stream<T>` |

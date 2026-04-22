@@ -86,14 +86,18 @@ ownership surface: `shared` (plain `Arc<T>`), `thread_owned`
 `owned_move` (`OwnedMoveCell<T>` — consumed on first use).
 
 **Self-hosted testing operational.** Arc 007 shipped `:wat::kernel::
-run-sandboxed` (in-process sandbox with `catch_unwind` panic isolation),
-`:wat::kernel::run-sandboxed-ast` (AST-entry path for macro-generated
-programs), and `:wat::kernel::run-sandboxed-hermetic` (subprocess
-isolation for services that spawn threads). The stdlib wraps them as
-`:wat::test::run`, `:wat::test::run-ast`, `:wat::test::deftest`
-(Clojure-style ergonomic shell), and six assertion primitives with
-panic-and-catch semantics. The `wat test <path>` CLI auto-discovers
-deftests by `test-` prefix + zero-arg `:wat::kernel::RunResult` return.
+run-sandboxed` (in-process sandbox with `catch_unwind` panic
+isolation) and `:wat::kernel::run-sandboxed-ast` (AST-entry path for
+macro-generated programs). Arc 011 added the AST-entry hermetic
+(`run-sandboxed-hermetic-ast`) for services that spawn threads.
+Arc 012 moved hermetic to wat stdlib on top of `:wat::kernel::
+fork-with-forms` + `wait-child` — no binary-path coupling, no
+tempfile. The stdlib wraps them as `:wat::test::run`,
+`:wat::test::run-ast`, `:wat::test::run-hermetic-ast`,
+`:wat::test::deftest` (Clojure-style ergonomic shell), and six
+assertion primitives with panic-and-catch semantics. The `wat test
+<path>` CLI auto-discovers deftests by `test-` prefix + zero-arg
+`:wat::kernel::RunResult` return.
 
 **Capacity-guard arc operational.** `:wat::algebra::Bundle` enforces
 Kanerva's per-frame capacity at dispatch time and returns
@@ -176,10 +180,15 @@ self-tests, Console + Cache via hermetic sandbox, stream with-state).
   panic-and-catch. `:wat::kernel::assertion-failed!` primitive raises
   via `panic_any`; the sandbox's `catch_unwind` downcasts and populates
   `:wat::kernel::Failure.actual` / `.expected`.
-- [`sandbox`] — the three sandbox primitives: `run-sandboxed`,
-  `run-sandboxed-ast`, `run-sandboxed-hermetic`. Shared failure
-  downcast chain (`AssertionPayload` → structured; string panic →
-  message; runtime error → message).
+- [`sandbox`] — the in-process sandbox primitives: `run-sandboxed`,
+  `run-sandboxed-ast`. Shared failure downcast chain
+  (`AssertionPayload` → structured; string panic → message; runtime
+  error → message). Arc 012 retired the hermetic Rust primitives
+  (string- and AST-entry); hermetic is now wat stdlib in
+  `wat/std/hermetic.wat` on top of `:wat::kernel::fork-with-forms`.
+- [`fork`] — the fork substrate (arc 012): `:wat::kernel::pipe`,
+  `fork-with-forms`, `wait-child`. `PipeReader` / `PipeWriter`
+  live in `io.rs` (same trait surface as `RealStdin` etc.).
 - [`harness`] — `wat::Harness` thin embedding wrapper for Rust programs
   that host wat as a sub-language. Sugar over `startup_from_source` +
   `StringIo` + `invoke_user_main` + `snapshot_bytes` (arc 007 slice 5).
@@ -391,14 +400,17 @@ stderr, or failure) compose two stdlib forms:
 top-level form passes through as AST data. No escape backslashes.
 Inner programs nest arbitrarily deep as pure s-expressions.
 
-### Services that spawn threads — `:wat::kernel::run-sandboxed-hermetic`
+### Services that spawn threads — `:wat::test::run-hermetic-ast`
 
 In-process `:wat::test::run` and `:wat::test::run-ast` back onto
 `StringIo` stdio (ThreadOwnedCell-backed, single-thread). Services
 like Console and Cache spawn driver threads that write to stdio;
 writing from a spawned thread would panic the driver on the
-thread-owner check. Those tests use `run-sandboxed-hermetic` directly
-— a real subprocess with real thread-safe stdio.
+thread-owner check. Those tests use `:wat::test::run-hermetic-ast`
+— the wat stdlib wrapper over `:wat::kernel::run-sandboxed-hermetic-ast`,
+which forks a child running fresh wat evaluation with fd-backed
+stdio (`PipeReader` / `PipeWriter`, thread-safe by kernel
+semantics).
 
 Decision rule: **spawns-and-writes → hermetic; stays-on-main-thread → in-process**.
 

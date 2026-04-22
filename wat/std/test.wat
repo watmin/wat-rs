@@ -165,17 +165,17 @@
 
 ;; --- run-hermetic-ast — AST-entry hermetic sandbox ---
 ;;
-;; Subprocess-isolated sibling of :wat::test::run-ast. Use for tests
-;; that exercise services spawning driver threads (Console, Cache) —
+;; Fork-isolated sibling of :wat::test::run-ast. Use for tests that
+;; exercise services spawning driver threads (Console, Cache) —
 ;; in-process run-ast uses StringIo stdio (ThreadOwnedCell, single-
 ;; thread) and cross-thread writes from a driver panic silently.
 ;; hermetic-ast takes the same shape (forms + stdin) and runs the
-;; inner program in a fresh wat subprocess with real thread-safe
-;; stdio.
+;; inner program in a forked child with real thread-safe stdio.
 ;;
-;; The forms serialize to source text at the subprocess boundary;
-;; the kernel primitive (run-sandboxed-hermetic-ast) handles that
-;; inside so the user surface stays AST-native.
+;; Arc 012 slice 3: the implementation lives in wat/std/hermetic.wat
+;; (pure wat stdlib on top of fork-with-forms + wait-child). The
+;; child inherits AST in memory via COW — no subprocess reload, no
+;; serialization, no binary-path coupling.
 (:wat::core::define
   (:wat::test::run-hermetic-ast
     (forms :Vec<wat::WatAST>)

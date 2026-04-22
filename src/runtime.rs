@@ -1798,9 +1798,6 @@ fn dispatch_keyword_head(
         ":wat::kernel::HandlePool::pop" => eval_handle_pool_pop(args, env, sym),
         ":wat::kernel::HandlePool::finish" => eval_handle_pool_finish(args, env, sym),
         ":wat::kernel::run-sandboxed" => crate::sandbox::eval_kernel_run_sandboxed(args, env, sym),
-        ":wat::kernel::run-sandboxed-hermetic" => {
-            crate::sandbox::eval_kernel_run_sandboxed_hermetic(args, env, sym)
-        }
         ":wat::kernel::run-sandboxed-ast" => {
             crate::sandbox::eval_kernel_run_sandboxed_ast(args, env, sym)
         }
