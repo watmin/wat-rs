@@ -56,7 +56,7 @@ use crate::load::{resolve_loads, LoadError, SourceLoader};
 use crate::macros::{
     expand_all, register_defmacros, register_stdlib_defmacros, MacroError, MacroRegistry,
 };
-use crate::parser::{parse_all, ParseError};
+use crate::parser::{parse_all_with_file, ParseError};
 use crate::stdlib::{stdlib_forms, StdlibError};
 use crate::resolve::{resolve_references, ResolveError};
 use crate::runtime::{
@@ -257,7 +257,11 @@ pub fn startup_from_source(
     //    expanding to sandboxed programs, dynamically-generated
     //    tests, compiler passes) skip the parse + re-serialize round
     //    trip by entering there directly.
-    let entry_forms = parse_all(entry_src)?;
+    //
+    // Span file label: use the canonical path when known; fall back
+    // to `<entry>` for in-memory / test sources. Arc 016 slice 1.
+    let file_label = base_canonical.unwrap_or("<entry>");
+    let entry_forms = parse_all_with_file(entry_src, file_label)?;
     startup_from_forms(entry_forms, base_canonical, loader)
 }
 

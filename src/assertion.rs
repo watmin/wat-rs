@@ -120,32 +120,10 @@ pub fn eval_kernel_assertion_failed(
     std::panic::panic_any(payload);
 }
 
-/// Install a process-wide panic hook that silences panics whose
-/// payload is an [`AssertionPayload`]. All other payloads fall through
-/// to the previously-installed hook.
-///
-/// Rationale: `assertion-failed!` uses `panic_any` to travel through
-/// `catch_unwind` with a structured payload — the outer sandbox
-/// catches it and surfaces it as a `Failure`. But Rust's default panic
-/// handler prints a "thread X panicked at …" line to stderr BEFORE
-/// `catch_unwind` intercepts, creating visual noise when a test
-/// deliberately exercises a failing-assertion branch. This silences
-/// exactly that noise without touching legitimate panics.
-///
-/// Called from the `wat` binary at startup. Idempotent — the hook
-/// chain only adds one layer per call, so calling twice simply stacks
-/// two silencers (both pass-through for non-AssertionPayload payloads).
-/// A library consumer that wants the same behavior can call this from
-/// their own program startup.
-pub fn install_silent_assertion_panic_hook() {
-    let previous = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        if let Some(_) = info.payload().downcast_ref::<AssertionPayload>() {
-            return;
-        }
-        previous(info);
-    }));
-}
+// install_silent_assertion_panic_hook retired in arc 016 slice 3.
+// The replacement is `wat::panic_hook::install` — writes Rust-style
+// failure output to stderr using wat-level location/frames instead
+// of silently swallowing the panic.
 
 /// Unwrap an `Option<String>` Value into a Rust `Option<String>`,
 /// refusing payloads with non-String `Some` variants.

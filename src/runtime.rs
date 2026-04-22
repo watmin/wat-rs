@@ -1594,12 +1594,13 @@ pub fn eval(
         WatAST::Symbol(ident, _) => env
             .lookup(ident.as_str())
             .ok_or_else(|| RuntimeError::UnboundSymbol(ident.name.clone())),
-        WatAST::List(items, _) => eval_list(items, env, sym),
+        WatAST::List(items, span) => eval_list(items, span, env, sym),
     }
 }
 
 fn eval_list(
     items: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -1615,7 +1616,7 @@ fn eval_list(
     let rest = &items[1..];
 
     match head {
-        WatAST::Keyword(k, _) => dispatch_keyword_head(k, rest, env, sym),
+        WatAST::Keyword(k, _) => dispatch_keyword_head(k, rest, list_span, env, sym),
         WatAST::Symbol(ident, _) if ident.as_str() == "Some" => eval_some_ctor(rest, env, sym),
         WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => eval_ok_ctor(rest, env, sym),
         WatAST::Symbol(ident, _) if ident.as_str() == "Err" => eval_err_ctor(rest, env, sym),
@@ -1641,6 +1642,7 @@ fn eval_list(
 fn dispatch_keyword_head(
     head: &str,
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -1898,7 +1900,7 @@ fn dispatch_keyword_head(
                 .iter()
                 .map(|a| eval(a, env, sym))
                 .collect::<Result<Vec<_>, _>>()?;
-            apply_function(func, vals, sym, Span::unknown())
+            apply_function(func, vals, sym, list_span.clone())
         }
     }
 }
@@ -6250,10 +6252,10 @@ mod tests {
     #[test]
     fn call_stack_populates_on_assertion() {
         use crate::assertion::AssertionPayload;
-        // Install the silent-assertion hook so the panic doesn't
-        // print a noisy "thread X panicked" line before catch_unwind
-        // intercepts.
-        crate::assertion::install_silent_assertion_panic_hook();
+        // Install the wat panic hook so the panic writes Rust-style
+        // failure output to stderr (harmlessly captured by cargo
+        // test) rather than Rust's default "thread X panicked" line.
+        crate::panic_hook::install();
 
         let src = r#"
             (:wat::config::set-dims! 1024)

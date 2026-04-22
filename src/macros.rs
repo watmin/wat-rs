@@ -385,7 +385,7 @@ fn expand_form(
     }
 
     match form {
-        WatAST::List(items, _) => {
+        WatAST::List(items, list_span) => {
             // Recurse into children first. This gives us the shape
             // (expanded-head expanded-args...) — any inner macro calls
             // resolved before we check the outer for a macro call.
@@ -398,15 +398,20 @@ fn expand_form(
             // Is the (now-expanded) head a registered macro?
             if let Some(WatAST::Keyword(head, _)) = expanded_children.first() {
                 if let Some(def) = registry.get(head) {
-                    // Macro call — expand this call site.
+                    // Macro call — expand this call site. Pass the
+                    // outer list's span so the expansion can inherit
+                    // it (call-site span, per arc 016 slice 1
+                    // DESIGN: generated forms inherit the caller's
+                    // span).
                     let args = expanded_children[1..].to_vec();
-                    let expanded = expand_macro_call(def, args)?;
+                    let expanded = expand_macro_call(def, args, list_span.clone())?;
                     // Re-expand the result to fixpoint.
                     return expand_form(expanded, registry, depth + 1);
                 }
             }
 
-            Ok(WatAST::List(expanded_children, Span::unknown()))
+            // Not a macro call — preserve the outer list's span.
+            Ok(WatAST::List(expanded_children, list_span))
         }
         other => Ok(other),
     }
@@ -424,6 +429,7 @@ fn expand_form(
 fn expand_macro_call(
     def: &MacroDef,
     args: Vec<WatAST>,
+    call_site_span: Span,
 ) -> Result<WatAST, MacroError> {
     let fixed_arity = def.params.len();
     match &def.rest_param {
@@ -457,11 +463,14 @@ fn expand_macro_call(
     }
     if let Some(rest_name) = &def.rest_param {
         let rest: Vec<WatAST> = iter.collect();
-        bindings.insert(rest_name.clone(), WatAST::List(rest, Span::unknown()));
+        // Rest-list wrapper inherits the call-site span — the
+        // `,@rest` splice drops these into the template's
+        // surrounding context.
+        bindings.insert(rest_name.clone(), WatAST::List(rest, call_site_span.clone()));
     }
 
     let macro_scope = fresh_scope();
-    expand_template(&def.body, &bindings, macro_scope, &def.name)
+    expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span)
 }
 
 /// Walk a macro template, substituting `,param` and `,@param` at
@@ -475,6 +484,7 @@ fn expand_template(
     bindings: &HashMap<String, WatAST>,
     macro_scope: ScopeId,
     macro_name: &str,
+    call_site_span: &Span,
 ) -> Result<WatAST, MacroError> {
     let quasi_body = match template {
         WatAST::List(items, _) if items.len() == 2 => match items.first() {
@@ -494,17 +504,26 @@ fn expand_template(
         }
     };
 
-    walk_template(quasi_body, bindings, macro_scope, macro_name)
+    walk_template(quasi_body, bindings, macro_scope, macro_name, call_site_span)
 }
 
 /// Walk a quasiquoted form, expanding `,x` unquotes to their argument
 /// ASTs, `,@x` unquote-splicing to their list elements, and tagging
 /// every template-origin symbol with the macro scope.
+///
+/// Arc 016 slice 1: template-origin nodes (those built from the
+/// defmacro's template, not from unquoted user args) inherit the
+/// `call_site_span` — the span of the macro INVOCATION in user
+/// source, not the template's span in the defmacro file. Matches
+/// Racket's sets-of-scopes approach: when a user reads a failure
+/// message, they want a pointer to their own code, not the
+/// library's template.
 fn walk_template(
     form: &WatAST,
     bindings: &HashMap<String, WatAST>,
     macro_scope: ScopeId,
     macro_name: &str,
+    call_site_span: &Span,
 ) -> Result<WatAST, MacroError> {
     match form {
         WatAST::List(items, _) => {
@@ -525,13 +544,22 @@ fn walk_template(
                         continue;
                     }
                 }
-                out.push(walk_template(child, bindings, macro_scope, macro_name)?);
+                out.push(walk_template(
+                    child,
+                    bindings,
+                    macro_scope,
+                    macro_name,
+                    call_site_span,
+                )?);
             }
-            Ok(WatAST::List(out, Span::unknown()))
+            Ok(WatAST::List(out, call_site_span.clone()))
         }
         WatAST::Symbol(ident, _) => {
             // Template-origin symbol — add the macro scope to its scope set.
-            Ok(WatAST::Symbol(ident.add_scope(macro_scope), Span::unknown()))
+            Ok(WatAST::Symbol(
+                ident.add_scope(macro_scope),
+                call_site_span.clone(),
+            ))
         }
         // Literals and keywords pass through unchanged; keywords carry
         // no scope tracking.

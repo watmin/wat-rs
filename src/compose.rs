@@ -30,7 +30,7 @@
 //! to the user-signal flags. `:wat::kernel::stopped?` works as
 //! expected inside the user's wat program.
 
-use crate::assertion::install_silent_assertion_panic_hook;
+use crate::panic_hook;
 use crate::freeze::{invoke_user_main, startup_from_source, validate_user_main_signature};
 use crate::harness::HarnessError;
 use crate::io::{RealStderr, RealStdin, RealStdout, WatReader, WatWriter};
@@ -142,7 +142,7 @@ pub fn compose_and_run(
     // `panic_any(AssertionPayload)` for failure propagation;
     // without this hook, each deliberate failure test prints
     // a "thread X panicked" line before the sandbox intercepts.
-    install_silent_assertion_panic_hook();
+    panic_hook::install();
 
     // Install the two halves of the external-crate contract
     // globally, process-wide. Symmetric OnceLocks — first caller

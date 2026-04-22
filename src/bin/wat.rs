@@ -126,7 +126,7 @@ fn main() -> ExitCode {
     // surfaces structured Failures. Without this hook, every
     // deliberate failure test prints a "thread X panicked" line to
     // stderr before the sandbox intercepts.
-    wat::assertion::install_silent_assertion_panic_hook();
+    wat::panic_hook::install();
 
     let argv: Vec<String> = std::env::args().collect();
     let prog = argv.first().map(String::as_str).unwrap_or("wat");

@@ -134,6 +134,11 @@ pub fn run_tests_from_dir(
     let mut summary = TestSummary::default();
     let run_start = Instant::now();
 
+    // Install the wat panic hook — arc 016 slice 3. Writes Rust-
+    // styled failure output to stderr when an assertion fires.
+    // Must run BEFORE any wat code; idempotent if already installed.
+    crate::panic_hook::install();
+
     // Install BOTH halves of the external-crate contract globally
     // — symmetric OnceLocks, first-call-wins. After install, every
     // test file's freeze and every nested `run-sandboxed-ast` /
