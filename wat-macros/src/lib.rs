@@ -279,6 +279,114 @@ pub fn main(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+// ─── wat::test_suite! — arc 015 slice 2 ──────────────────────────────────
+//
+// Declarative test-suite entry for Rust binaries / libraries that want
+// `cargo test` to discover and run a directory of `.wat` test files
+// with external-wat-crate composition.
+//
+// Usage (inside any `tests/*.rs` integration test file):
+//
+//     wat::test_suite! {
+//         path: "wat-tests",
+//         deps: [wat_lru, wat_reqwest, wat_sqlite],
+//     }
+//
+// `path:` is an expression (typically a string literal). It's resolved
+// relative to CARGO_MANIFEST_DIR — Cargo's convention for integration
+// tests' working directory is the crate root. `deps:` is an optional
+// bracketed path list — each element is a crate (or path to a module)
+// exposing `pub fn stdlib_sources()` and `pub fn register(...)` per
+// the arc 013 external-wat-crate contract. Omit or write `deps: []`
+// for no external deps.
+//
+// Expands to `#[test] fn wat_suite()` calling
+// `::wat::test_runner::run_and_assert(path, &[deps::stdlib_sources()...],
+// &[deps::register...])`. On failure, the panic carries all
+// individual test failure summaries — cargo's `#[test]` harness
+// captures stdout + panic message and surfaces them.
+//
+// Cargo compiles each `tests/*.rs` file to its own test binary. One
+// binary = one consistent dep set (first-call-wins install). Multiple
+// test files with different dep sets live in separate
+// `tests/*.rs` files; Cargo builds and runs each binary independently.
+
+struct TestSuiteInput {
+    path: syn::Expr,
+    deps: Vec<Path>,
+}
+
+impl Parse for TestSuiteInput {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        // Required: `path: <expr>`
+        let path_key: syn::Ident = input.parse()?;
+        if path_key != "path" {
+            return Err(Error::new(path_key.span(), "expected `path:` first"));
+        }
+        input.parse::<syn::Token![:]>()?;
+        let path: syn::Expr = input.parse()?;
+
+        // Optional: `, deps: [path, path, ...]`
+        let mut deps: Vec<Path> = Vec::new();
+        if input.peek(syn::Token![,]) {
+            input.parse::<syn::Token![,]>()?;
+            if !input.is_empty() {
+                let deps_key: syn::Ident = input.parse()?;
+                if deps_key != "deps" {
+                    return Err(Error::new(
+                        deps_key.span(),
+                        "expected `deps:` after `path:`",
+                    ));
+                }
+                input.parse::<syn::Token![:]>()?;
+
+                let content;
+                syn::bracketed!(content in input);
+                let parsed: Punctuated<Path, syn::Token![,]> =
+                    content.parse_terminated(Path::parse_mod_style, syn::Token![,])?;
+                deps = parsed.into_iter().collect();
+
+                let _ = input.parse::<syn::Token![,]>();
+            }
+        }
+
+        if !input.is_empty() {
+            return Err(input.error("unexpected tokens after wat::test_suite! args"));
+        }
+
+        Ok(TestSuiteInput { path, deps })
+    }
+}
+
+/// Declarative test-suite entry — expands to `#[test] fn wat_suite()`.
+/// See module docs.
+#[proc_macro]
+pub fn test_suite(input: TokenStream) -> TokenStream {
+    let TestSuiteInput { path, deps } = parse_macro_input!(input as TestSuiteInput);
+
+    let stdlib_calls: Vec<TokenStream2> = deps
+        .iter()
+        .map(|p| quote! { #p::stdlib_sources() })
+        .collect();
+    let register_paths: Vec<TokenStream2> = deps
+        .iter()
+        .map(|p| quote! { #p::register })
+        .collect();
+
+    let expanded = quote! {
+        #[test]
+        fn wat_suite() {
+            ::wat::test_runner::run_and_assert(
+                ::std::path::Path::new(#path),
+                &[ #(#stdlib_calls),* ],
+                &[ #(#register_paths),* ],
+            );
+        }
+    };
+
+    expanded.into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

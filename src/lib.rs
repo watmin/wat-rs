@@ -78,7 +78,7 @@ pub mod test_runner;
 pub mod types;
 
 pub use compose::compose_and_run;
-pub use wat_macros::main;
+pub use wat_macros::{main, test_suite};
 
 pub use ast::WatAST;
 pub use check::{check_program, CheckEnv, CheckError, CheckErrors, TypeScheme};
