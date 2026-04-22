@@ -38,12 +38,13 @@
 //! ```
 
 use crate::freeze::{
-    invoke_user_main, startup_from_source, validate_user_main_signature, FrozenWorld,
-    StartupError,
+    invoke_user_main, startup_from_source, startup_from_source_with_deps,
+    validate_user_main_signature, FrozenWorld, StartupError,
 };
 use crate::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
 use crate::load::{InMemoryLoader, SourceLoader};
 use crate::runtime::{RuntimeError, Value};
+use crate::stdlib::StdlibFile;
 use std::sync::Arc;
 
 /// A frozen wat program ready to invoke. Clone is NOT derived: the
@@ -101,6 +102,45 @@ impl Harness {
         loader: Arc<dyn SourceLoader>,
     ) -> Result<Self, HarnessError> {
         let world = startup_from_source(src, None, loader).map_err(HarnessError::Startup)?;
+        validate_user_main_signature(&world).map_err(HarnessError::MainSignature)?;
+        Ok(Self { world })
+    }
+
+    /// Freeze wat source composed with external dep sources. Arc 013
+    /// slice 2.
+    ///
+    /// `dep_sources` is a slice of `&[StdlibFile]` — one inner slice
+    /// per dep crate. `wat::main!` (slice 3) expands to a call
+    /// through this entry, passing `&[wat_lru::stdlib_sources(), …]`.
+    /// Uses `InMemoryLoader` (no filesystem); callers that need a
+    /// filesystem-capable loader use
+    /// [`Self::from_source_with_deps_and_loader`].
+    ///
+    /// Dep forms join the user tier at the reserved-prefix gate —
+    /// deps must declare under `:user::*` (typically
+    /// `:user::wat::std::<crate>::*` per the arc 013 convention) or
+    /// registration fails loud.
+    pub fn from_source_with_deps(
+        src: &str,
+        dep_sources: &[&[StdlibFile]],
+    ) -> Result<Self, HarnessError> {
+        Self::from_source_with_deps_and_loader(
+            src,
+            dep_sources,
+            Arc::new(InMemoryLoader::new()),
+        )
+    }
+
+    /// Full-form entry with both external dep sources and a
+    /// caller-supplied loader. The other three `from_source*`
+    /// variants on Harness are sugar over this one.
+    pub fn from_source_with_deps_and_loader(
+        src: &str,
+        dep_sources: &[&[StdlibFile]],
+        loader: Arc<dyn SourceLoader>,
+    ) -> Result<Self, HarnessError> {
+        let world = startup_from_source_with_deps(src, dep_sources, None, loader)
+            .map_err(HarnessError::Startup)?;
         validate_user_main_signature(&world).map_err(HarnessError::MainSignature)?;
         Ok(Self { world })
     }

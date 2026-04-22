@@ -57,7 +57,7 @@ use crate::macros::{
     expand_all, register_defmacros, register_stdlib_defmacros, MacroError, MacroRegistry,
 };
 use crate::parser::{parse_all, ParseError};
-use crate::stdlib::{stdlib_forms, StdlibError};
+use crate::stdlib::{self, stdlib_forms, StdlibError};
 use crate::resolve::{resolve_references, ResolveError};
 use crate::runtime::{
     apply_function, register_defines, register_stdlib_defines, EncodingCtx, Environment,
@@ -258,6 +258,45 @@ pub fn startup_from_source(
     //    trip by entering there directly.
     let entry_forms = parse_all(entry_src)?;
     startup_from_forms(entry_forms, base_canonical, loader)
+}
+
+/// Source-text entry with external dep sources composed in. Arc 013
+/// slice 2.
+///
+/// `dep_sources` is a slice of `&[StdlibFile]` — one inner slice per
+/// dep crate. Each dep crate exposes `pub fn stdlib_sources() ->
+/// &'static [StdlibFile]`; `wat::main!` (arc 013 slice 3) collects
+/// these into `&[dep1::stdlib_sources(), dep2::stdlib_sources(), …]`
+/// and hands them here (via Harness or directly via
+/// `wat::compose_and_run`).
+///
+/// Dep forms join the USER tier, not the stdlib tier — they go
+/// through the reserved-prefix gate same as any user source.
+/// That's correct: deps declare under `:user::wat::std::<crate>::*`
+/// (claim-by-convention; see arc 013 DESIGN), which passes the
+/// gate. An attempt by a dep to declare under `:wat::*` etc. fails
+/// loud at registration.
+///
+/// Concat order: `[entry_forms, dep_forms]`. Entry config directives
+/// at the top of entry_forms are discovered first by
+/// `collect_entry_file`; dep forms fall into the post-config body.
+/// A dep accidentally containing a config setter fires
+/// `ConfigError::SetterAfterNonSetter` — the right behavior (deps
+/// cannot declare config; that's entry-only).
+pub fn startup_from_source_with_deps(
+    entry_src: &str,
+    dep_sources: &[&[stdlib::StdlibFile]],
+    base_canonical: Option<&str>,
+    loader: Arc<dyn SourceLoader>,
+) -> Result<FrozenWorld, StartupError> {
+    let mut all_forms = parse_all(entry_src)?;
+    for dep in dep_sources {
+        for file in *dep {
+            let parsed = parse_all(file.source)?;
+            all_forms.extend(parsed);
+        }
+    }
+    startup_from_forms(all_forms, base_canonical, loader)
 }
 
 /// Post-parse entry to the startup pipeline: accepts already-parsed
