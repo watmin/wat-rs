@@ -258,9 +258,14 @@ stranding any caller.
 
 ## 4b. Move LocalCache.wat + shim into wat-lru; repath surfaces
 
-**Status:** **paused 2026-04-21** — code-motion landed; two
-wat-lru integration tests `#[ignore]`'d pending arc 014. Resumes
-when arc 014 ships `:wat::core::i64::to-string`.
+**Status:** **shipped 2026-04-21** — resumed after arc 014 (core
+scalar conversions) landed its three slices + INSCRIPTION same
+day. Motion landed in commit `e5648ee` (paused state); the two
+`#[ignore]`'d wat-lru integration tests un-ignored in arc 014
+slice 3 (commit `4e5c6dd`). Both pass; all four wat-lru
+integration tests green; workspace green. Cave-quest discipline
+vindicated — pausing and cutting arc 014 as its own arc kept
+both 013 and 014 honest, and set precedent for future splits.
 
 **Why the pause.** Slice 4b moved the LRU surface cleanly into
 `crates/wat-lru/` and proved externalization through four
