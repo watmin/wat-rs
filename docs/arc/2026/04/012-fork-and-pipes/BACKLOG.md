@@ -370,6 +370,23 @@ language surface.
 
 ---
 
+## src/ subprocess audit (2026-04-21)
+
+After all retirements landed, `grep -rn "std::process::Command\|Command::new\|Command::spawn\|process::exit"` in `src/` returned:
+
+**Zero actual uses.** Every match is either:
+- inside a retirement-history comment (`src/runtime.rs:6906`, `src/bin/wat.rs:226`),
+- `std::process::id()` — pid-getter for tempfile naming, not a spawn (`src/runtime.rs:6827`, `src/load.rs:1421`),
+- `std::process::ExitCode` — CLI binary return type (`src/bin/wat.rs:74`).
+
+All legitimate subprocess callsites have migrated to `libc::fork()` + `wait-child` or the wat-stdlib hermetic. The fork substrate (`src/fork.rs` + `src/io.rs` pipe types) is the single source of subprocess truth.
+
+Within-reason-keep survivors (not in `src/`): `tests/wat_cli.rs` and `tests/wat_test_cli.rs` spawn `$CARGO_BIN_EXE_wat` to test the wat binary's CLI surface end-to-end. The subject under test IS the binary — can't be replaced with fork.
+
+The boss is down.
+
+---
+
 ## Boss-scope side quests
 
 ### Side quest: retire `in_signal_subprocess` (shipped 2026-04-21, `d74c2df`)
