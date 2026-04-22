@@ -707,6 +707,12 @@ pub enum RuntimeError {
     TailCall {
         func: Arc<Function>,
         args: Vec<Value>,
+        /// Where in the caller this tail call was invoked — the List
+        /// AST node's span. Arc 016 slice 2. `apply_function`'s
+        /// trampoline uses this to update the call-stack frame in
+        /// place when iterating; callers via `emit_tail_call` carry
+        /// the span from the enclosing list form.
+        call_span: Span,
     },
     /// Raised by `:wat::kernel::assertion-failed!` when an assertion in
     /// a `:wat::test::*` form (or any user code that calls the primitive
@@ -1242,8 +1248,8 @@ fn eval_tail(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let items = match ast {
-        WatAST::List(items, _) if !items.is_empty() => items,
+    let (items, list_span) = match ast {
+        WatAST::List(items, span) if !items.is_empty() => (items, span.clone()),
         _ => return eval(ast, env, sym),
     };
     let args = &items[1..];
@@ -1262,7 +1268,7 @@ fn eval_tail(
                 // regular eval.
                 other if sym.functions.contains_key(other) => {
                     let func = sym.get(other).expect("contains_key above").clone();
-                    emit_tail_call(func, args, env, sym)
+                    emit_tail_call(func, args, env, sym, list_span)
                 }
                 _ => eval(ast, env, sym),
             }
@@ -1273,7 +1279,7 @@ fn eval_tail(
         // to eval (which special-cases the three constructors).
         WatAST::Symbol(ident, _) => {
             if let Some(Value::wat__core__lambda(f)) = env.lookup(ident.as_str()) {
-                emit_tail_call(f, args, env, sym)
+                emit_tail_call(f, args, env, sym, list_span)
             } else {
                 eval(ast, env, sym)
             }
@@ -1285,7 +1291,7 @@ fn eval_tail(
         WatAST::List(_, _) => {
             let callee = eval(&items[0], env, sym)?;
             match callee {
-                Value::wat__core__lambda(f) => emit_tail_call(f, args, env, sym),
+                Value::wat__core__lambda(f) => emit_tail_call(f, args, env, sym, list_span),
                 other => apply_value(&other, args, env, sym),
             }
         }
@@ -1299,18 +1305,21 @@ fn eval_tail(
 /// carrying `func`. Shared helper for all three tail-call shapes
 /// (named define, bare-symbol lambda, inline-lambda literal). Arity
 /// is enforced by [`apply_function`]'s trampoline loop on its next
-/// iteration.
+/// iteration. Arc 016 slice 2: carries `call_span` so the trampoline
+/// can refresh the call-stack frame with the new invocation's
+/// location.
 fn emit_tail_call(
     func: Arc<Function>,
     raw_args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    call_span: Span,
 ) -> Result<Value, RuntimeError> {
     let vals = raw_args
         .iter()
         .map(|a| eval(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
-    Err(RuntimeError::TailCall { func, args: vals })
+    Err(RuntimeError::TailCall { func, args: vals, call_span })
 }
 
 /// Tail-position twin of [`eval_if`]. Same validation; the selected
@@ -1889,7 +1898,7 @@ fn dispatch_keyword_head(
                 .iter()
                 .map(|a| eval(a, env, sym))
                 .collect::<Result<Vec<_>, _>>()?;
-            apply_function(func, vals, sym)
+            apply_function(func, vals, sym, Span::unknown())
         }
     }
 }
@@ -3272,7 +3281,7 @@ fn eval_vec_map(
     };
     let mut out = Vec::with_capacity(xs.len());
     for x in xs.iter() {
-        out.push(apply_function(func.clone(), vec![x.clone()], sym)?);
+        out.push(apply_function(func.clone(), vec![x.clone()], sym, Span::unknown())?);
     }
     Ok(Value::Vec(Arc::new(out)))
 }
@@ -3306,7 +3315,7 @@ fn eval_vec_foldl(
         }
     };
     for x in xs.iter() {
-        acc = apply_function(func.clone(), vec![acc, x.clone()], sym)?;
+        acc = apply_function(func.clone(), vec![acc, x.clone()], sym, Span::unknown())?;
     }
     Ok(acc)
 }
@@ -3340,7 +3349,7 @@ fn eval_vec_foldr(
         }
     };
     for x in xs.iter().rev() {
-        acc = apply_function(func.clone(), vec![x.clone(), acc], sym)?;
+        acc = apply_function(func.clone(), vec![x.clone(), acc], sym, Span::unknown())?;
     }
     Ok(acc)
 }
@@ -3373,7 +3382,7 @@ fn eval_vec_filter(
     };
     let mut out = Vec::with_capacity(xs.len());
     for x in xs.iter() {
-        match apply_function(func.clone(), vec![x.clone()], sym)? {
+        match apply_function(func.clone(), vec![x.clone()], sym, Span::unknown())? {
             Value::bool(true) => out.push(x.clone()),
             Value::bool(false) => {}
             other => {
@@ -3825,6 +3834,7 @@ fn eval_list_map_with_index(
             func.clone(),
             vec![x.clone(), Value::i64(i as i64)],
             sym,
+            Span::unknown(),
         )?);
     }
     Ok(Value::Vec(Arc::new(out)))
@@ -4759,7 +4769,7 @@ fn apply_value(
         .iter()
         .map(|a| eval(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
-    apply_function(func, vals, sym)
+    apply_function(func, vals, sym, Span::unknown())
 }
 
 /// Apply a function to a list of argument values, evaluated under the
@@ -4794,9 +4804,21 @@ pub fn apply_function(
     func: Arc<Function>,
     args: Vec<Value>,
     sym: &SymbolTable,
+    call_span: Span,
 ) -> Result<Value, RuntimeError> {
     let mut cur_func = func;
     let mut cur_args = args;
+    let mut cur_span = call_span;
+
+    // Arc 016 slice 2: push a frame onto the wat call stack for this
+    // invocation. The guard pops on drop — any exit path (Ok, Err,
+    // panic) cleans up the frame. Tail calls REPLACE the top frame
+    // in place (the current call is substituted by the next callee
+    // at the same stack depth), matching what a user reads as
+    // "recursion without stack growth."
+    let callee_name_initial = cur_func.name.clone().unwrap_or_else(|| "<lambda>".into());
+    let _frame_guard = FrameGuard::push(callee_name_initial, cur_span.clone());
+
     loop {
         if cur_args.len() != cur_func.params.len() {
             return Err(RuntimeError::ArityMismatch {
@@ -4825,9 +4847,14 @@ pub fn apply_function(
         // type-correct by construction.
         match eval_tail(&cur_func.body, &call_env, sym) {
             Ok(v) => return Ok(v),
-            Err(RuntimeError::TailCall { func: next, args: next_args }) => {
+            Err(RuntimeError::TailCall { func: next, args: next_args, call_span: next_span }) => {
                 cur_func = next;
                 cur_args = next_args;
+                cur_span = next_span;
+                // Replace the top frame with the new callee's info —
+                // tail calls don't deepen the stack; they substitute.
+                let next_name = cur_func.name.clone().unwrap_or_else(|| "<lambda>".into());
+                replace_top_frame(next_name, cur_span.clone());
                 continue;
             }
             Err(RuntimeError::TryPropagate(e)) => {
@@ -4836,6 +4863,73 @@ pub fn apply_function(
             Err(other) => return Err(other),
         }
     }
+}
+
+// ─── Wat call-stack for failure-diagnosis (arc 016 slice 2) ─────────
+//
+// A thread-local stack of (callee_path, call_span) frames. Pushed on
+// apply_function entry, popped on Drop, replaced on tail-call
+// iteration. Read by `:wat::kernel::assertion-failed!` to populate
+// `Failure.location` / `Failure.frames` with wat-level source
+// locations (not Rust-level).
+//
+// Out-of-process (fork-with-forms child): each process has its own
+// thread-local, initialized empty. The parent's stack doesn't carry
+// into the child (the child's freeze rebuilds from its own AST
+// forms).
+
+/// One entry on the wat call stack.
+#[derive(Debug, Clone)]
+pub struct FrameInfo {
+    pub callee_path: String,
+    pub call_span: Span,
+}
+
+thread_local! {
+    static CALL_STACK: std::cell::RefCell<Vec<FrameInfo>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Scope guard that pushes a frame on construction and pops on drop.
+/// Ensures the call stack unwinds cleanly on early return / panic.
+struct FrameGuard;
+
+impl FrameGuard {
+    fn push(callee_path: String, call_span: Span) -> Self {
+        CALL_STACK.with(|s| {
+            s.borrow_mut().push(FrameInfo { callee_path, call_span });
+        });
+        FrameGuard
+    }
+}
+
+impl Drop for FrameGuard {
+    fn drop(&mut self) {
+        CALL_STACK.with(|s| {
+            s.borrow_mut().pop();
+        });
+    }
+}
+
+/// Replace the top frame's contents in place — called on tail-call
+/// iteration inside apply_function's trampoline. The stack depth
+/// stays the same; the content substitutes.
+fn replace_top_frame(callee_path: String, call_span: Span) {
+    CALL_STACK.with(|s| {
+        if let Some(top) = s.borrow_mut().last_mut() {
+            *top = FrameInfo { callee_path, call_span };
+        }
+    });
+}
+
+/// Snapshot the current call stack (newest-first order). Used by
+/// `:wat::kernel::assertion-failed!` at panic time to populate the
+/// `AssertionPayload`'s `location` + `frames` fields.
+pub fn snapshot_call_stack() -> Vec<FrameInfo> {
+    CALL_STACK.with(|s| {
+        let stack = s.borrow();
+        stack.iter().rev().cloned().collect()
+    })
 }
 
 fn ast_variant_name(ast: &WatAST) -> &'static str {
@@ -5539,7 +5633,7 @@ fn eval_kernel_spawn(
     let thread_sym = sym.clone();
     let (tx, rx) = crossbeam_channel::bounded::<Result<Value, RuntimeError>>(1);
     std::thread::spawn(move || {
-        let result = apply_function(func, arg_values, &thread_sym);
+        let result = apply_function(func, arg_values, &thread_sym, Span::unknown());
         let _ = tx.send(result);
     });
     Ok(Value::wat__kernel__ProgramHandle(Arc::new(rx)))
@@ -6144,6 +6238,98 @@ mod tests {
     #[test]
     fn int_literal() {
         assert!(matches!(eval_expr("42").unwrap(), Value::i64(42)));
+    }
+
+    // ─── Arc 016 slice 2: call-stack population ─────────────────────────
+
+    /// When `assertion-failed!` fires inside a user-defined function,
+    /// the `AssertionPayload` carries the call's source span + the
+    /// stack of enclosing user-function frames. This is the mechanism
+    /// a later slice's panic hook uses to render Rust-style failure
+    /// output pointing at the user's `.wat` source.
+    #[test]
+    fn call_stack_populates_on_assertion() {
+        use crate::assertion::AssertionPayload;
+        // Install the silent-assertion hook so the panic doesn't
+        // print a noisy "thread X panicked" line before catch_unwind
+        // intercepts.
+        crate::assertion::install_silent_assertion_panic_hook();
+
+        let src = r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::core::define (:my::app::failing-fn -> :())
+              (:wat::kernel::assertion-failed! "stack test" :None :None))
+        "#;
+        let (stdlib_sym, macros) = stdlib_loaded();
+        let forms = parse_all(src).expect("parse");
+        let expanded =
+            crate::macros::expand_all(forms, macros).expect("expand");
+        let mut sym = stdlib_sym.clone();
+        let _ = register_defines(expanded, &mut sym).expect("register");
+        let func = sym.get(":my::app::failing-fn").expect("defined").clone();
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || apply_function(func, Vec::new(), &sym, Span::unknown()),
+        ));
+
+        let payload = match result {
+            Ok(_) => panic!("expected panic, got Ok"),
+            Err(p) => p,
+        };
+        let boxed = match payload.downcast::<AssertionPayload>() {
+            Ok(b) => *b,
+            Err(_) => panic!("expected AssertionPayload"),
+        };
+
+        // Location must be populated — the span of the call site
+        // that invoked failing-fn.
+        assert!(
+            boxed.location.is_some(),
+            "expected location to be populated; got None"
+        );
+        // Frames must contain at least one entry for failing-fn.
+        assert!(
+            !boxed.frames.is_empty(),
+            "expected at least one frame"
+        );
+        assert_eq!(
+            boxed.frames[0].callee_path, ":my::app::failing-fn",
+            "top frame should be the user-defined function"
+        );
+    }
+
+    /// Call stack must unwind cleanly on every exit path. After
+    /// `apply_function` returns, the stack should be empty. Tests the
+    /// FrameGuard's Drop behavior.
+    #[test]
+    fn call_stack_unwinds_on_ok() {
+        let src = r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::core::define (:my::app::plain-fn -> :i64) 42)
+        "#;
+        let (stdlib_sym, macros) = stdlib_loaded();
+        let forms = parse_all(src).expect("parse");
+        let expanded =
+            crate::macros::expand_all(forms, macros).expect("expand");
+        let mut sym = stdlib_sym.clone();
+        let _ = register_defines(expanded, &mut sym).expect("register");
+        let func = sym.get(":my::app::plain-fn").expect("defined").clone();
+
+        assert_eq!(
+            snapshot_call_stack().len(),
+            0,
+            "stack must start empty"
+        );
+        let v = apply_function(func, Vec::new(), &sym, Span::unknown())
+            .expect("call");
+        assert!(matches!(v, Value::i64(42)));
+        assert_eq!(
+            snapshot_call_stack().len(),
+            0,
+            "stack must unwind cleanly after Ok return"
+        );
     }
 
     #[test]

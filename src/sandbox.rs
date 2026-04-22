@@ -386,26 +386,32 @@ fn failure_from_panic_payload(payload: Box<dyn std::any::Any + Send>) -> Value {
     // 1. AssertionPayload — downcast out of the Box and keep the owned
     //    fields. Using `downcast::<T>()` transfers ownership; if it
     //    fails we get the original Box back to try the next arm.
+    //
+    // Arc 016 slice 2: AssertionPayload now carries `location` and
+    // `frames` from the wat call stack at panic time. Thread them
+    // through into the Failure Value.
     let payload = match payload.downcast::<AssertionPayload>() {
         Ok(boxed) => {
             let AssertionPayload {
                 message,
                 actual,
                 expected,
+                location,
+                frames,
             } = *boxed;
-            return build_failure(message, actual, expected);
+            return build_failure(message, actual, expected, location, frames);
         }
         Err(p) => p,
     };
     // 2 & 3. String-ish payloads from plain `panic!()`.
     if let Some(s) = payload.downcast_ref::<&'static str>() {
-        return build_failure(format!("panic: {}", s), None, None);
+        return build_failure(format!("panic: {}", s), None, None, None, Vec::new());
     }
     if let Some(s) = payload.downcast_ref::<String>() {
-        return build_failure(format!("panic: {}", s), None, None);
+        return build_failure(format!("panic: {}", s), None, None, None, Vec::new());
     }
     // 4. Fallback — payload type we don't recognize.
-    build_failure("panic: non-string payload".into(), None, None)
+    build_failure("panic: non-string payload".into(), None, None, None, Vec::new())
 }
 
 /// Build a `:wat::kernel::Failure` Value from a RuntimeError that
@@ -419,26 +425,72 @@ fn failure_from_runtime_err(err: RuntimeError) -> Value {
             message,
             actual,
             expected,
-        } => build_failure(message, actual, expected),
-        other => build_failure(format!("runtime-error: {:?}", other), None, None),
+        } => build_failure(message, actual, expected, None, Vec::new()),
+        other => build_failure(
+            format!("runtime-error: {:?}", other),
+            None,
+            None,
+            None,
+            Vec::new(),
+        ),
     }
 }
 
 /// Build a `:wat::kernel::Failure` Value from its primitive fields.
-/// `location` and `frames` remain unpopulated for now — a future
-/// slice installs a panic hook to capture Location and opts into
-/// `Backtrace::capture` for frames.
-fn build_failure(message: String, actual: Option<String>, expected: Option<String>) -> Value {
+/// Arc 016 slice 2 wires `location` (Option<Span>) and `frames`
+/// (Vec<FrameInfo>) into the corresponding Value slots so
+/// `:wat::kernel::Failure/location` and `/frames` accessors return
+/// meaningful wat-level source positions.
+fn build_failure(
+    message: String,
+    actual: Option<String>,
+    expected: Option<String>,
+    location: Option<crate::span::Span>,
+    frames: Vec<crate::runtime::FrameInfo>,
+) -> Value {
     let opt_string = |v: Option<String>| match v {
         Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s))))),
         None => Value::Option(Arc::new(None)),
     };
+    // Build the Location struct Value (or None) from the captured span.
+    let location_value = match location {
+        Some(span) => Value::Option(Arc::new(Some(Value::Struct(Arc::new(StructValue {
+            type_name: ":wat::kernel::Location".into(),
+            fields: vec![
+                Value::String(Arc::new((*span.file).clone())),
+                Value::i64(span.line),
+                Value::i64(span.col),
+            ],
+        }))))),
+        None => Value::Option(Arc::new(None)),
+    };
+    // Build the frames Vec of `:wat::kernel::Frame` structs.
+    let frame_values: Vec<Value> = frames
+        .into_iter()
+        .map(|f| {
+            Value::Struct(Arc::new(StructValue {
+                type_name: ":wat::kernel::Frame".into(),
+                fields: vec![
+                    // file — Option<String>
+                    Value::Option(Arc::new(Some(Value::String(Arc::new(
+                        (*f.call_span.file).clone(),
+                    ))))),
+                    // line — Option<i64>
+                    Value::Option(Arc::new(Some(Value::i64(f.call_span.line)))),
+                    // symbol — Option<String> (the callee path the user invoked)
+                    Value::Option(Arc::new(Some(Value::String(Arc::new(
+                        f.callee_path.clone(),
+                    ))))),
+                ],
+            }))
+        })
+        .collect();
     Value::Struct(Arc::new(StructValue {
         type_name: ":wat::kernel::Failure".into(),
         fields: vec![
             Value::String(Arc::new(message)),
-            Value::Option(Arc::new(None)), // location
-            Value::Vec(Arc::new(Vec::new())), // frames
+            location_value,
+            Value::Vec(Arc::new(frame_values)),
             opt_string(actual),
             opt_string(expected),
         ],
@@ -448,9 +500,9 @@ fn build_failure(message: String, actual: Option<String>, expected: Option<Strin
 /// Simple message-only Failure for non-panic / non-runtime-error paths
 /// (startup failure, main-signature mismatch, tempfile write error in
 /// hermetic mode, etc.). All of these know a plain message; none of them
-/// have meaningful actual/expected.
+/// have meaningful actual/expected/location/frames.
 fn failure_from_message(message: String) -> Value {
-    build_failure(message, None, None)
+    build_failure(message, None, None, None, Vec::new())
 }
 
 /// Build the RunResult struct value.

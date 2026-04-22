@@ -31,19 +31,31 @@
 //! is public for that reason.
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
+use crate::runtime::{eval, snapshot_call_stack, Environment, FrameInfo, RuntimeError, SymbolTable, Value};
+use crate::span::Span;
 
 /// Structured payload panic'd by [`eval_kernel_assertion_failed`] and
 /// downcast by the sandbox's catch_unwind handling.
 ///
-/// Fields mirror the `:wat::kernel::Failure` slots that slice 3
-/// populates — `message` always present, `actual` / `expected` optional
-/// because plain `panic!()` and raw runtime errors don't have them.
+/// Fields mirror the `:wat::kernel::Failure` slots — `message` always
+/// present, `actual` / `expected` optional (plain `panic!()` and raw
+/// runtime errors don't have them), `location` / `frames` populated
+/// from the wat call stack at panic time (arc 016 slice 2).
 #[derive(Debug, Clone)]
 pub struct AssertionPayload {
     pub message: String,
     pub actual: Option<String>,
     pub expected: Option<String>,
+    /// Span of the innermost user-function call — the author's
+    /// `assert-eq` (or wrapping) form's source location. `None` when
+    /// `assertion-failed!` fires outside any user-function call
+    /// context (a rare edge — the stack is empty when a panic
+    /// happens directly in the runtime wiring).
+    pub location: Option<Span>,
+    /// Full call stack at panic time, newest frame first. Each
+    /// frame is `(callee_path, call_span)` — the callee's keyword
+    /// path + where in the caller the invocation was written.
+    pub frames: Vec<FrameInfo>,
 }
 
 /// `(:wat::kernel::assertion-failed! message actual expected)` → `:()`.
@@ -88,10 +100,18 @@ pub fn eval_kernel_assertion_failed(
     let actual = eval_opt_string(OP, eval(&args[1], env, sym)?)?;
     let expected = eval_opt_string(OP, eval(&args[2], env, sym)?)?;
 
+    // Snapshot the wat call stack. Top frame = innermost user call
+    // (where the author wrote the assert). `location` is that top
+    // frame's call_span. `frames` is the full newest-first stack.
+    let frames = snapshot_call_stack();
+    let location = frames.first().map(|f| f.call_span.clone());
+
     let payload = AssertionPayload {
         message,
         actual,
         expected,
+        location,
+        frames,
     };
 
     // panic_any carries the typed payload through catch_unwind's
