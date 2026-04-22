@@ -4,7 +4,7 @@
 //! A user building a wat-powered binary writes this at the top of
 //! their `main.rs`:
 //!
-//! ```ignore
+//! ```text
 //! wat::main! {
 //!     source: include_str!("program.wat"),
 //!     deps: [wat_lru, wat_reqwest, wat_sqlite],

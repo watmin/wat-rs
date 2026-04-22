@@ -24,7 +24,7 @@
 //!
 //! Direct library use:
 //!
-//! ```ignore
+//! ```text
 //! use std::path::Path;
 //! let summary = wat::test_runner::run_tests_from_dir(
 //!     Path::new("wat-tests"),
@@ -36,7 +36,7 @@
 //!
 //! Via the macro (slice 2):
 //!
-//! ```ignore
+//! ```text
 //! wat::test_suite! {
 //!     path: "wat-tests",
 //!     deps: [wat_lru],

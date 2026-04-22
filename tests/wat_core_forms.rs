@@ -41,7 +41,7 @@ fn run(src: &str) -> Vec<String> {
 // ─── :wat::core::forms — basic behavior ─────────────────────────────────
 
 #[test]
-fn forms_captures_each_arg_as_watAST() {
+fn forms_captures_each_arg_as_wat_ast() {
     // Pass three unevaluated forms; expect a Vec<wat::WatAST> of length 3.
     let src = r##"
         (:wat::config::set-dims! 1024)
