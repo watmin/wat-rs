@@ -36,6 +36,13 @@ fn unwrap_some_string(v: Value) -> String {
     }
 }
 
+fn unwrap_i64(v: Value) -> i64 {
+    match v {
+        Value::i64(n) => n,
+        other => panic!("expected i64; got {:?}", other),
+    }
+}
+
 #[test]
 fn fork_child_writes_stdout_parent_reads_line() {
     // Parent forks a child whose :user::main writes one line to
@@ -93,6 +100,93 @@ fn fork_child_writes_stderr_parent_reads_line() {
             (:wat::io::IOReader/read-line err-r)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "diag-line");
+}
+
+#[test]
+fn wait_child_returns_zero_on_success() {
+    // Fork a trivial main that exits cleanly; wait-child must
+    // return EXIT_SUCCESS (0).
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::let*
+            (((child :wat::kernel::ForkedChild)
+              (:wat::kernel::fork-with-forms
+                (:wat::test::program
+                  (:wat::config::set-dims! 1024)
+                  (:wat::config::set-capacity-mode! :error)
+                  (:wat::core::define (:user::main
+                                       (stdin  :wat::io::IOReader)
+                                       (stdout :wat::io::IOWriter)
+                                       (stderr :wat::io::IOWriter)
+                                       -> :())
+                    ()))))
+             ((handle :wat::kernel::ChildHandle)
+              (:wat::kernel::ForkedChild/handle child)))
+            (:wat::kernel::wait-child handle)))
+    "#;
+    assert_eq!(unwrap_i64(run(src)), 0);
+}
+
+#[test]
+fn wait_child_is_idempotent() {
+    // Calling wait-child twice on the same handle must return the
+    // same cached code — sub-fog 2c resolution.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::let*
+            (((child :wat::kernel::ForkedChild)
+              (:wat::kernel::fork-with-forms
+                (:wat::test::program
+                  (:wat::config::set-dims! 1024)
+                  (:wat::config::set-capacity-mode! :error)
+                  (:wat::core::define (:user::main
+                                       (stdin  :wat::io::IOReader)
+                                       (stdout :wat::io::IOWriter)
+                                       (stderr :wat::io::IOWriter)
+                                       -> :())
+                    ()))))
+             ((handle :wat::kernel::ChildHandle)
+              (:wat::kernel::ForkedChild/handle child))
+             ((_first  :i64) (:wat::kernel::wait-child handle))
+             ;; Second call exercises the cached-exit path;
+             ;; if it errors or returns a different code, test
+             ;; fails via panic or bad return.
+             ((second :i64) (:wat::kernel::wait-child handle)))
+            second))
+    "#;
+    assert_eq!(unwrap_i64(run(src)), 0);
+}
+
+#[test]
+fn wait_child_surfaces_nonzero_exit_code() {
+    // Child's :user::main signature is WRONG — missing the two
+    // writer params. Child's startup_from_forms succeeds but
+    // validate_user_main_signature fails; child exits with
+    // EXIT_MAIN_SIGNATURE=4 per the convention. Parent's
+    // wait-child should return 4.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::let*
+            (((child :wat::kernel::ForkedChild)
+              (:wat::kernel::fork-with-forms
+                (:wat::test::program
+                  (:wat::config::set-dims! 1024)
+                  (:wat::config::set-capacity-mode! :error)
+                  (:wat::core::define (:user::main -> :i64) 42))))
+             ((handle :wat::kernel::ChildHandle)
+              (:wat::kernel::ForkedChild/handle child)))
+            (:wat::kernel::wait-child handle)))
+    "#;
+    assert_eq!(unwrap_i64(run(src)), 4);
 }
 
 #[test]

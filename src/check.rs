@@ -3233,6 +3233,18 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Path(":wat::kernel::ForkedChild".into()),
         },
     );
+    // (:wat::kernel::wait-child handle) → :i64. Blocks on waitpid;
+    // returns the child's exit code (WEXITSTATUS on normal exit,
+    // 128+signum on signal termination). Idempotent — repeated
+    // calls on the same handle return the cached code.
+    env.register(
+        ":wat::kernel::wait-child".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::kernel::ChildHandle".into())],
+            ret: TypeExpr::Path(":i64".into()),
+        },
+    );
     // User-signal surface — 2026-04-19 stance: kernel measures, userland
     // owns transitions. Six nullary primitives: three pollers return
     // :bool; three resetters return :(). SIGINT / SIGTERM stay on the

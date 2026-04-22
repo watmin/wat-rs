@@ -30,7 +30,7 @@ use crate::runtime::{eval, Environment, RuntimeError, StructValue, SymbolTable, 
 
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 /// Exit-code convention shared between slice 2 (this file — child
 /// exits with one of these) and slice 3 (hermetic stdlib define
@@ -45,13 +45,19 @@ pub const EXIT_MAIN_SIGNATURE: i32 = 4;
 
 /// The payload of a `Value::wat__kernel__ChildHandle`. Holds the
 /// child's pid plus a `reaped` flag set by
-/// `:wat::kernel::wait-child`. `Drop` sends `SIGKILL` and blocks on
-/// `waitpid` if the caller never waited — keeps zombies out of the
-/// process table.
+/// `:wat::kernel::wait-child`, plus a `cached_exit` OnceLock that
+/// caches the exit code so double-`wait-child` is idempotent
+/// (sub-fog 2c resolution).
+///
+/// `Drop` sends `SIGKILL` and blocks on `waitpid` if the caller
+/// never waited — keeps zombies out of the process table. Drop
+/// does not populate `cached_exit` because nobody can read it (the
+/// Arc is going away).
 #[derive(Debug)]
 pub struct ChildHandleInner {
     pub pid: libc::pid_t,
     pub reaped: AtomicBool,
+    pub cached_exit: OnceLock<i64>,
 }
 
 impl ChildHandleInner {
@@ -59,13 +65,8 @@ impl ChildHandleInner {
         Self {
             pid,
             reaped: AtomicBool::new(false),
+            cached_exit: OnceLock::new(),
         }
-    }
-
-    /// Mark the handle as reaped. Called by `wait-child` after a
-    /// successful `waitpid`.
-    pub fn mark_reaped(&self) {
-        self.reaped.store(true, Ordering::SeqCst);
     }
 }
 
@@ -83,6 +84,80 @@ impl Drop for ChildHandleInner {
             libc::waitpid(self.pid, &mut status, 0);
         }
     }
+}
+
+/// Extract an `:i64` exit code from the status word `waitpid(2)`
+/// fills. Normal exit returns `WEXITSTATUS` (0–255). Signal
+/// termination encodes as `128 + WTERMSIG`, matching the shell
+/// convention — readable alongside normal codes in the same `:i64`
+/// slot without a separate discriminator.
+fn extract_exit_code(status: libc::c_int) -> i64 {
+    if libc::WIFEXITED(status) {
+        libc::WEXITSTATUS(status) as i64
+    } else if libc::WIFSIGNALED(status) {
+        128 + libc::WTERMSIG(status) as i64
+    } else {
+        // WIFSTOPPED (only with WUNTRACED) — we don't pass
+        // WUNTRACED to waitpid, so this branch shouldn't fire.
+        -1
+    }
+}
+
+/// `(:wat::kernel::wait-child (handle :wat::kernel::ChildHandle)) ->
+/// :i64`.
+///
+/// Blocks on `waitpid(pid, …, 0)` until the child exits, returns
+/// the exit code. Idempotent — a second call on the same handle
+/// returns the cached code from the first call (sub-fog 2c).
+pub fn eval_kernel_wait_child(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::wait-child";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let handle = match eval(&args[0], env, sym)? {
+        Value::wat__kernel__ChildHandle(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::kernel::ChildHandle",
+                got: other.type_name(),
+            });
+        }
+    };
+
+    // Already reaped? Return the cached code. Same call returns
+    // same value — idempotent under repeated wait-child.
+    if let Some(&code) = handle.cached_exit.get() {
+        return Ok(Value::i64(code));
+    }
+
+    // Block on waitpid. The child may have already exited and be
+    // sitting as a zombie — waitpid reaps it in that case.
+    let mut status: libc::c_int = 0;
+    let ret = unsafe { libc::waitpid(handle.pid, &mut status, 0) };
+    if ret < 0 {
+        let err = std::io::Error::last_os_error();
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!("waitpid({}): {}", handle.pid, err),
+        });
+    }
+
+    let code = extract_exit_code(status);
+    // Cache first, then flip the reaped flag. A reader that sees
+    // reaped=true must be able to load cached_exit, so SeqCst on
+    // the flag fences against the OnceLock publish.
+    let _ = handle.cached_exit.set(code);
+    handle.reaped.store(true, Ordering::SeqCst);
+    Ok(Value::i64(code))
 }
 
 /// Allocate a pipe pair; returns `(read_end, write_end)` as OwnedFds.
