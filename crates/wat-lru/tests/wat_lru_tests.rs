@@ -43,7 +43,6 @@ const PRELUDE: &str = r#"
 "#;
 
 #[test]
-#[ignore = "arc 014 — awaits :wat::core::i64::to-string (scalar conversions)"]
 fn local_cache_put_then_get_returns_some() {
     let src = format!(
         r#"
@@ -125,7 +124,6 @@ fn local_cache_evicts_at_capacity() {
 }
 
 #[test]
-#[ignore = "arc 014 — awaits :wat::core::i64::to-string (scalar conversions)"]
 fn local_cache_put_overwrites_existing_key() {
     let src = format!(
         r#"
