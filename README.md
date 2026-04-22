@@ -616,7 +616,8 @@ wat-rs/
         ├── 012-fork-and-pipes/             # DESIGN + BACKLOG + INSCRIPTION
         ├── 013-external-wat-crates/        # DESIGN + BACKLOG + INSCRIPTION
         ├── 014-core-scalar-conversions/    # DESIGN + BACKLOG + INSCRIPTION
-        └── 015-wat-test-for-consumers/     # DESIGN + BACKLOG + INSCRIPTION
+        ├── 015-wat-test-for-consumers/     # DESIGN + BACKLOG + INSCRIPTION
+        └── 016-failure-location-and-frames/ # DESIGN + BACKLOG + INSCRIPTION
 ```
 
 ## What's next
@@ -631,10 +632,14 @@ caller-demanded per `stdlib-as-blueprint` discipline:
   `window`, `dedupe`, `sessionize`, `time-window`, and `from-iterator`
   / Level 2 iterator surfacing. Each ships as library code on
   `with-state` when a concrete caller cites use.
-- **Arc 007 follow-ups** named in its INSCRIPTION: `Failure.location` +
-  `.frames` population via panic-hook + `Backtrace::capture`, parallel
-  test execution, `:rust::*` capability allowlist, richer assertion
-  payloads via generic `show<T>`. Each waits for demand.
+- **Arc 007 follow-ups.** `Failure.location` + `.frames` population
+  shipped via arc 016 (2026-04-21). Different implementation than
+  the original sketch: wat-level call stack + wat-source spans on
+  every AST node, not `std::backtrace::Backtrace::capture()`. Panic
+  hook renders `cargo test`-shaped output gated on `RUST_BACKTRACE`.
+  Still open from arc 007: parallel test execution, `:rust::*`
+  capability allowlist, richer assertion payloads via generic
+  `show<T>`. Each waits for demand.
 - **UX pass on the trading lab.** When holon-lab-trading rewrites its
   wat programs against this crate, every ceremonial shape it hits is
   a candidate for a substrate follow-up — the same way arc 010's

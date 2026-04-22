@@ -392,11 +392,20 @@ assertion primitives. The language passed its own bar.
 Not part of arc 007, but named here as the honest ledger of what
 the arc *could* have done and deliberately didn't:
 
-- **Location + Frames population.** `:wat::kernel::Failure.location`
-  and `.frames` stay `:None` / empty. A future slice installs a
-  `std::panic::set_hook` that snapshots `PanicHookInfo::location()`
-  into a thread-local before `catch_unwind` intercepts, and uses
-  `std::backtrace::Backtrace::capture()` gated on `RUST_BACKTRACE`.
+- **Location + Frames population.** ✅ **Shipped 2026-04-21 as
+  arc 016** (`docs/arc/2026/04/016-failure-location-and-frames/`).
+  Different implementation than the sketch here — instead of
+  `std::backtrace::Backtrace::capture()` (which would surface
+  Rust stdlib frames) + `PanicHookInfo::location()` (which
+  points at the interpreter's source, not the user's wat), arc
+  016 maintains a **wat-level call stack** in `apply_function`
+  and threads **wat-source spans** onto every AST node at parse
+  time. Location + frames carry user `.wat` file/line/col;
+  runtime-initiated frames carry `wat-rs/src/*.rs` coordinates
+  captured via `file!()`/`line!()`/`column!()` at the call
+  site — same convention Rust uses for stdlib backtrace
+  frames. `RUST_BACKTRACE=1` gates the backtrace rendering;
+  output matches `cargo test`'s failure format line-for-line.
 - **Parallel test execution.** `wat test` runs serial. Random order
   surfaces inter-test accidents; parallel execution would surface a
   different class (shared filesystem, shared signal state, shared

@@ -1003,6 +1003,48 @@ test result: ok. 31 passed; 0 failed; finished in 107ms
 - Cargo-style output; exit 0 all-pass, non-zero any fail
 - `wat test <file.wat>` works for single files too
 
+### Failure output — Rust-styled, wat-located (arc 016)
+
+When a test fails, the panic hook writes a Rust-style block to
+stderr with **your wat source location** in the file:line:col slot:
+
+```
+thread 'main' panicked at wat-tests/LocalCache.wat:12:5:
+assert-eq failed
+  actual:   -1
+  expected: 42
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+```
+
+Format mirrors `cargo test`'s own failure output — same `thread ...
+panicked at`, same `note:` hint. If you run `cargo test` (through
+`wat::test_suite!`), this block appears under the test's captured
+stdout; under `wat test` CLI it goes straight to stderr.
+
+With `RUST_BACKTRACE=1` (standard Rust convention — one env var
+you already know), the block gains a `stack backtrace:` section
+showing the wat call chain + where each frame was invoked:
+
+```
+stack backtrace:
+   0: :wat::test::assert-eq at wat-tests/LocalCache.wat:12:5
+   1: :wat-lru::test-local-cache-put-then-get at wat-rs/src/test_runner.rs:246:68
+```
+
+Frame 0 = where your `assert-eq` fired inside your wat source.
+Frame 1 = where the runtime (in `wat-rs/src/test_runner.rs`)
+invoked your test function. The runtime frame points into
+wat-rs's Rust source — same way Rust's own stdlib frames point
+into `/rustc/.../library/core/...`. Honest about the layer
+boundary: your code is in `.wat`, the invoker is in `.rs`, every
+frame has a real `file:line:col`.
+
+**How to read the failure quickly:**
+- Top line's `file:line:col` → where your assert fired.
+- `actual:` / `expected:` → what went wrong.
+- Backtrace (optional) → how the runtime got there, if you need
+  to trace the call path.
+
 ### Fork/sandbox tests — when you need an inner program
 
 Sometimes a test wants to verify how an INNER program behaves — its

@@ -178,5 +178,20 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   (1, 2, 3, 3a, 4); second arc cut from a paused slice —
   cave-quest discipline now standing practice.
 
+- **`arc/2026/04/016-failure-location-and-frames/`** — **shipped.**
+  Wat test failures now render Rust-styled with wat-source
+  `file:line:col`. Every `WatAST` node carries a `Span { file,
+  line, col }` from parse; a thread-local call stack populates
+  at `apply_function` via RAII guard (tail calls replace the
+  top frame in place — constant stack depth for recursion); a
+  `std::panic::set_hook` writes `cargo test`-shaped output to
+  stderr, gated on `RUST_BACKTRACE` for the `stack backtrace:`
+  block. Runtime-initiated frames carry their Rust source
+  location (`file!()` / `line!()` / `column!()`) — same
+  convention Rust uses for stdlib frames in backtraces. No new
+  env var; no new format. Closes arc 007's "Location + Frames
+  population" follow-up six months after it opened. Four
+  slices + one polish pass, all 2026-04-21.
+
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.

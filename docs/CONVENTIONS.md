@@ -173,6 +173,26 @@ convention. On failure, the panic payload already includes
 every failing test's summary, so `cargo test` without flags
 gives you what you need to debug.
 
+### Failure output — Rust-styled, wat-located (arc 016)
+
+When an assertion fires, the panic hook writes Rust-styled
+output to stderr with **wat-source** `file:line:col`:
+
+```
+thread 'main' panicked at wat-tests/LocalCache.wat:12:5:
+assert-eq failed
+  actual:   -1
+  expected: 42
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+```
+
+Format mirrors `cargo test`'s assertion panics line-for-line.
+`RUST_BACKTRACE=1` adds a `stack backtrace:` section with the
+wat call chain — each frame carrying a real `file:line:col`
+(user frames point into your `.wat`, runtime frames point
+into `wat-rs/src/*.rs`, same convention Rust uses for stdlib
+frames). USER-GUIDE § "Failure output" has a worked example.
+
 ### Install-once discipline (arc 015 slice 3a)
 
 Both halves of the external-crate contract install
