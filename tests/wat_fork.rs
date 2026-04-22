@@ -164,6 +164,135 @@ fn wait_child_is_idempotent() {
 }
 
 #[test]
+fn wait_child_surfaces_startup_error_exit_code() {
+    // Child's body has a type mismatch — `i64::+` against a String
+    // arg. startup_from_forms's type-check phase fails; child
+    // exits with EXIT_STARTUP_ERROR=3.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::let*
+            (((child :wat::kernel::ForkedChild)
+              (:wat::kernel::fork-with-forms
+                (:wat::test::program
+                  (:wat::config::set-dims! 1024)
+                  (:wat::config::set-capacity-mode! :error)
+                  (:wat::core::define (:user::main
+                                       (stdin  :wat::io::IOReader)
+                                       (stdout :wat::io::IOWriter)
+                                       (stderr :wat::io::IOWriter)
+                                       -> :())
+                    (:wat::core::let*
+                      (((_ :i64) (:wat::core::i64::+ 1 "two")))
+                      ())))))
+             ((handle :wat::kernel::ChildHandle)
+              (:wat::kernel::ForkedChild/handle child)))
+            (:wat::kernel::wait-child handle)))
+    "#;
+    assert_eq!(unwrap_i64(run(src)), 3);
+}
+
+#[test]
+fn wait_child_surfaces_panic_exit_code() {
+    // Child's :user::main calls :wat::test::assert-eq with mismatched
+    // values — which invokes assertion-failed! via panic_any. The
+    // child's catch_unwind catches, maps to EXIT_PANIC=2.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::let*
+            (((child :wat::kernel::ForkedChild)
+              (:wat::kernel::fork-with-forms
+                (:wat::test::program
+                  (:wat::config::set-dims! 1024)
+                  (:wat::config::set-capacity-mode! :error)
+                  (:wat::core::define (:user::main
+                                       (stdin  :wat::io::IOReader)
+                                       (stdout :wat::io::IOWriter)
+                                       (stderr :wat::io::IOWriter)
+                                       -> :())
+                    (:wat::test::assert-eq 1 2)))))
+             ((handle :wat::kernel::ChildHandle)
+              (:wat::kernel::ForkedChild/handle child)))
+            (:wat::kernel::wait-child handle)))
+    "#;
+    assert_eq!(unwrap_i64(run(src)), 2);
+}
+
+#[test]
+fn wait_child_surfaces_runtime_error_exit_code() {
+    // Child's :user::main calls :wat::core::u8 with a value out of
+    // range; u8 cast raises a MalformedForm RuntimeError at eval
+    // time. invoke_user_main returns Err(runtime_err), child exits
+    // EXIT_RUNTIME_ERROR=1.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::let*
+            (((child :wat::kernel::ForkedChild)
+              (:wat::kernel::fork-with-forms
+                (:wat::test::program
+                  (:wat::config::set-dims! 1024)
+                  (:wat::config::set-capacity-mode! :error)
+                  (:wat::core::define (:user::main
+                                       (stdin  :wat::io::IOReader)
+                                       (stdout :wat::io::IOWriter)
+                                       (stderr :wat::io::IOWriter)
+                                       -> :())
+                    (:wat::core::let*
+                      (((_ :u8) (:wat::core::u8 300)))
+                      ())))))
+             ((handle :wat::kernel::ChildHandle)
+              (:wat::kernel::ForkedChild/handle child)))
+            (:wat::kernel::wait-child handle)))
+    "#;
+    assert_eq!(unwrap_i64(run(src)), 1);
+}
+
+#[test]
+fn multiple_sequential_forks_no_leak() {
+    // Parent forks three children in sequence, waits each, accumulates
+    // their exit codes. Proves no zombie / fd leaks across repeated
+    // fork+wait cycles from one parent.
+    let src = r#"
+        (:wat::config::set-dims! 1024)
+        (:wat::config::set-capacity-mode! :error)
+
+        (:wat::core::define (:my::one-fork -> :i64)
+          (:wat::core::let*
+            (((child :wat::kernel::ForkedChild)
+              (:wat::kernel::fork-with-forms
+                (:wat::test::program
+                  (:wat::config::set-dims! 1024)
+                  (:wat::config::set-capacity-mode! :error)
+                  (:wat::core::define (:user::main
+                                       (stdin  :wat::io::IOReader)
+                                       (stdout :wat::io::IOWriter)
+                                       (stderr :wat::io::IOWriter)
+                                       -> :())
+                    ()))))
+             ((handle :wat::kernel::ChildHandle)
+              (:wat::kernel::ForkedChild/handle child)))
+            (:wat::kernel::wait-child handle)))
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::let*
+            (((a :i64) (:my::one-fork))
+             ((b :i64) (:my::one-fork))
+             ((c :i64) (:my::one-fork)))
+            (:wat::core::i64::+ (:wat::core::i64::+ a b) c)))
+    "#;
+    // All three succeed (exit 0); sum is 0.
+    assert_eq!(unwrap_i64(run(src)), 0);
+}
+
+#[test]
 fn wait_child_surfaces_nonzero_exit_code() {
     // Child's :user::main signature is WRONG — missing the two
     // writer params. Child's startup_from_forms succeeds but
