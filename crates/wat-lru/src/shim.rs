@@ -1,27 +1,29 @@
-//! `:rust::lru::LruCache<K,V>` — regenerated via `#[wat_dispatch]`.
+//! `:rust::lru::LruCache<K,V>` shim — externalized from wat-rs in
+//! arc 013 slice 4b.
 //!
-//! Task #195 replaced the hand-written shim with a macro-annotated
-//! newtype `WatLruCache`. Behavior is identical to the hand-written
-//! version (scope-safe via `ThreadOwnedCell<WatLruCache>` thread-id
-//! guard, zero Mutex) — the macro generates the same dispatch,
-//! scheme, and registration code the hand-written version had.
+//! `#[wat_dispatch]` annotates a Rust `impl` block; the macro
+//! generates dispatch, scheme, and registration code. Behavior is
+//! identical to the pre-externalization version in wat-rs:
+//! scope-safe via `ThreadOwnedCell<WatLruCache>` thread-id guard,
+//! zero Mutex. The macro codegen uses `::wat::*` absolute paths so
+//! this compiles from an external crate without path rewriting.
 //!
 //! # Why a newtype
 //!
-//! `#[wat_dispatch]` annotates a Rust `impl` block. We can't annotate
-//! the upstream `lru::LruCache<K,V>` directly (orphan rule + generic
-//! handling), so we wrap it in `WatLruCache` with monomorphic
-//! `LruCache<String, Value>` storage — matching the hand-written
-//! convention of canonical-string keys. The wat-level `<K,V>` type
-//! parameters are phantom (declared via the attribute's
+//! `#[wat_dispatch]` annotates a Rust `impl` block. We can't
+//! annotate the upstream `lru::LruCache<K,V>` directly (orphan rule
+//! + generic handling), so we wrap it in `WatLruCache` with
+//! monomorphic `LruCache<String, Value>` storage — canonical-string
+//! keys matching wat's HashMap convention. The wat-level `<K,V>`
+//! type parameters are phantom (declared via the attribute's
 //! `type_params = "K,V"`) and enforced by the type checker; the
 //! runtime transports any `Value`.
 
 use lru::LruCache;
 use std::num::NonZeroUsize;
 
-use crate::runtime::{hashmap_key, Value};
-use crate::rust_deps::RustDepsBuilder;
+use wat::rust_deps::RustDepsBuilder;
+use wat::runtime::{hashmap_key, Value};
 
 use wat_macros::wat_dispatch;
 
@@ -93,8 +95,9 @@ impl WatLruCache {
     }
 }
 
-/// Entry point for wat-rs's default registry. Forwards to the
-/// macro-generated register fn.
+/// Registrar for `:rust::lru::LruCache`. Forwards to the macro-
+/// generated register fn. Called by wat-lru's `pub fn register()`
+/// at the crate root, which user binaries wire via `wat::main!`.
 pub fn register(builder: &mut RustDepsBuilder) {
     __wat_dispatch_WatLruCache::register(builder);
 }

@@ -54,7 +54,6 @@ use std::sync::OnceLock;
 use crate::ast::WatAST;
 use crate::runtime::{Environment, RuntimeError, SymbolTable, Value};
 
-pub mod lru;
 pub mod marshal;
 
 pub use marshal::{
@@ -153,11 +152,16 @@ impl RustDepsBuilder {
         }
     }
 
-    /// Start a builder pre-loaded with wat-rs's default shims (lru).
+    /// Start a builder pre-loaded with wat-rs's default shims.
+    ///
+    /// As of arc 013 slice 4b, wat-rs ships **zero** default
+    /// shims — LRU moved to the sibling crate `wat-lru`. This
+    /// method remains for API continuity (`compose_and_run` /
+    /// `Harness` call it before layering dep registrars on top);
+    /// it's a no-op alias for `new()` today. Future wat-rs
+    /// defaults, if any, would register here.
     pub fn with_wat_rs_defaults() -> Self {
-        let mut b = Self::new();
-        lru::register(&mut b);
-        b
+        Self::new()
     }
 
     /// Register a Rust symbol (one method path). Later calls with the

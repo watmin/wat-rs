@@ -3944,69 +3944,11 @@ mod tests {
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
-    // ─── LocalCache wrappers + alias expansion ─────────────────────────
-
-    #[test]
-    fn local_cache_new_typechecks_via_let_annotation() {
-        // No explicit :T on ::new — K,V flow from the let annotation
-        // through the scheme's fresh vars via unification. The
-        // annotation uses the wat-native `:wat::std::LocalCache<K,V>`
-        // typealias; alias expansion at unify makes it equivalent to
-        // the Rust backing.
-        let result = check(
-            r#"(:wat::core::let*
-                 (((cache :wat::std::LocalCache<String,i64>)
-                   (:wat::std::LocalCache::new 16)))
-                 cache)"#,
-        );
-        assert!(result.is_ok(), "expected ok, got {:?}", result.err());
-    }
-
-    #[test]
-    fn local_cache_put_typechecks_on_concrete_cache() {
-        assert!(check(
-            r#"(:wat::core::let*
-                 (((cache :wat::std::LocalCache<String,i64>)
-                   (:wat::std::LocalCache::new 16))
-                  ((_ :()) (:wat::std::LocalCache::put cache "k" 42)))
-                 cache)"#
-        )
-        .is_ok());
-    }
-
-    #[test]
-    fn local_cache_get_typechecks_returns_option_of_value_type() {
-        assert!(check(
-            r#"(:wat::core::let*
-                 (((cache :wat::std::LocalCache<String,i64>)
-                   (:wat::std::LocalCache::new 16)))
-                 (:wat::core::match (:wat::std::LocalCache::get cache "k") -> :i64
-                   ((Some v) v)
-                   (:None 0)))"#
-        )
-        .is_ok());
-    }
-
-    #[test]
-    fn local_cache_alias_interchangeable_with_rust_backing() {
-        // Declaring the cache with the wat-native name and using the
-        // Rust-backing name at the call site (or vice versa) must
-        // type-check — unify's alias expansion walks through.
-        assert!(check(
-            r#"(:wat::core::let*
-                 (((cache :wat::std::LocalCache<String,i64>)
-                   (:rust::lru::LruCache::new 16)))
-                 cache)"#
-        )
-        .is_ok());
-        assert!(check(
-            r#"(:wat::core::let*
-                 (((cache :rust::lru::LruCache<String,i64>)
-                   (:wat::std::LocalCache::new 16)))
-                 cache)"#
-        )
-        .is_ok());
-    }
+    // LocalCache / :rust::lru::LruCache check tests retired in
+    // arc 013 slice 4b — the wat-lru crate owns that surface now.
+    // Equivalent check coverage lives in
+    // crates/wat-lru/tests/wat_lru_tests.rs, exercised end-to-end
+    // via wat::Harness::from_source_with_deps with the dep wiring.
 
     // Wrong-key-type rejection was enforced by the hand-written lru
     // shim's scheme via unification of call-site K with the cache's

@@ -16,7 +16,6 @@ ed25519-dalek = "2"
 base64 = "0.22"
 crossbeam-channel = "0.5"
 libc = "0.2"
-lru = "0.12"
 regex = "1"
 wat-macros = { path = "wat-macros" }
 

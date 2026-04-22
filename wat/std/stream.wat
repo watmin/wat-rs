@@ -23,8 +23,11 @@
 ;; pulling until the receiver disconnects. They join their OWN stage
 ;; handle before returning; upstream handles the caller joins.
 
-(:wat::core::use! :rust::crossbeam_channel::Sender)
-(:wat::core::use! :rust::crossbeam_channel::Receiver)
+;; crossbeam_channel is wat substrate (the runtime's channel
+;; implementation), not an external Rust crate dependency. `use!`
+;; is for declaring intent to consume #[wat_dispatch]'d external
+;; libraries; substrate types the runtime already exposes don't
+;; need it.
 
 ;; Stream<T> — a live channel + the handle to the producer feeding
 ;; it. Same shape as the Console / Cache stdlib programs return

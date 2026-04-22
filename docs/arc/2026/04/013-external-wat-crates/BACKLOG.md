@@ -258,7 +258,105 @@ stranding any caller.
 
 ## 4b. Move LocalCache.wat + shim into wat-lru; repath surfaces
 
-**Status:** ready. Most code-motion of any slice.
+**Status:** **paused 2026-04-21** — code-motion landed; two
+wat-lru integration tests `#[ignore]`'d pending arc 014. Resumes
+when arc 014 ships `:wat::core::i64::to-string`.
+
+**Why the pause.** Slice 4b moved the LRU surface cleanly into
+`crates/wat-lru/` and proved externalization through four
+Harness-based integration tests. Two of those tests want to
+format an `i64` cache value into printed output for assertion —
+wat has no `i64 -> String` conversion. The absence isn't a
+wat-lru concern; it's a substrate gap. Two tests pass today
+(miss/evict — literal-string output only); two sit
+`#[ignore]`'d with a pointer to arc 014.
+
+**Cave-quest discipline.** The door we opened here demands a
+key we don't own yet. Rather than paper the tests with
+literal-only branches (which would hide the gap in slice 4b
+and force a cosmetic revisit later), we name the key, park the
+tests honestly, cut arc 014, return with the conversion and
+un-ignore.
+
+**What landed in slice 4b so far:**
+
+- `wat/std/LocalCache.wat` (retired) +
+  `wat/std/service/Cache.wat` (retired) → `crates/wat-lru/wat/lru.wat`
+  + `crates/wat-lru/wat/service.wat` with every path repathed
+  from `:wat::std::LocalCache` / `:wat::std::service::Cache` to
+  `:user::wat::std::lru::LocalCache` / `:user::wat::std::lru::CacheService`.
+- `#[wat_dispatch]` Rust shim moved: `src/rust_deps/lru.rs`
+  (retired) → `crates/wat-lru/src/shim.rs`. Imports shifted from
+  `crate::runtime::{hashmap_key, Value}` → `wat::runtime::*` and
+  `crate::rust_deps::RustDepsBuilder` → `wat::rust_deps::RustDepsBuilder`.
+  `hashmap_key`'s visibility lifted from `pub(crate)` to `pub`
+  so the shim can reach it across the crate boundary.
+- `crates/wat-lru/src/lib.rs`: `stdlib_sources()` returns both
+  baked `.wat` files; `register()` forwards to the shim's
+  wat_dispatch-generated registrar.
+- `lru = "0.12"` moved from wat-rs's `Cargo.toml` to
+  `crates/wat-lru/Cargo.toml`. **wat-rs root has zero
+  dependency on wat-lru** — verified.
+- `STDLIB_FILES` in `src/stdlib.rs` dropped the two retired
+  entries. `with_wat_rs_defaults()` emptied to `Self::new()` —
+  per slice 4a's sub-fog, callers now layer registrars on top
+  of empty defaults, which the 4a-default fix anticipated.
+- Internal wat-rs tests that exercised the retired surface
+  retired (check.rs × 4, resolve.rs × 3, runtime.rs × 4,
+  freeze.rs × 1, tests/wat_harness_deps.rs × 1 probe). Each
+  replacement comment points to the wat-lru integration tests
+  (or names the retirement reason). `wat-tests/std/service/Cache.wat`
+  deleted — its fork-based hermetic pattern requires a
+  wat-lru-aware subprocess fork target, which arrives in
+  slice 5's `examples/with-lru/` binary.
+- `crates/wat-lru/tests/wat_lru_tests.rs` created — four
+  LocalCache surface tests via `Harness::from_source_with_deps(src,
+  &[wat_lru::stdlib_sources()], &[wat_lru::register])`. Two
+  pass; two `#[ignore]`'d pending arc 014.
+- `wat/std/stream.wat` + `crates/wat-lru/wat/service.wat` lost
+  their `(:wat::core::use! :rust::crossbeam_channel::*)`
+  declarations. Rationale codified in the resolved-decisions
+  entry below.
+
+**Sub-fog 4b-crossbeam — resolved 2026-04-21.** First
+wat-lru integration-test run surfaced the resolver rejecting
+`:rust::crossbeam_channel::Sender` / `Receiver` as unresolved
+when service.wat went through the user-tier resolve pass
+(dep sources are concatenated with entry forms in
+`startup_from_source_with_deps`, then resolve_references runs
+on the combined user residue). The original baked stdlib
+bypasses resolve so stream.wat's `use!` declarations for
+crossbeam always worked — cosmetically, with no registry entry
+backing them.
+
+**The resolved stance.** `use!` declares intent to consume an
+**external** `#[wat_dispatch]`'d Rust crate — something
+wat-rs's runtime did not provide. `:rust::crossbeam_channel::*`
+is wat substrate: the runtime owns `Value::crossbeam_channel__Sender`,
+the kernel exposes channel primitives (`:wat::kernel::make-bounded-queue`),
+the Cargo dep `crossbeam-channel = "0.5"` lives inside wat-rs's
+own manifest. Users never opt in; they call a kernel primitive
+and channels appear. That's substrate, not an external dep.
+
+Accordingly, `use!` for substrate-backed types is NOT required
+and was historically cosmetic. Removed from both stream.wat
+(cosmetic since baked stdlib bypasses resolve) and service.wat
+(load-bearing because dep sources hit user-tier resolve). The
+form remains for genuine external crates — e.g., wat-lru's own
+`(:wat::core::use! :rust::lru::LruCache)` in `lru.wat`.
+
+**Not resolved at this slice:** whether dep sources should
+flow through the stdlib pipeline (bypass resolve) rather than
+user tier. Named as a future consideration in DESIGN open
+questions; not load-bearing for slice 4b because no dep source
+in wat-lru has a `use!` for a substrate-only Rust type after
+the crossbeam cleanup. Surface again if a future dep legitimately
+needs substrate-level `use!`s that don't map to a real
+`#[wat_dispatch]` shim.
+
+**Next step on resume:** un-ignore the two tests once arc 014
+ships `:wat::core::i64::to-string`; they'll print their i64
+cache values and assert numerically.
 
 **Problem:** the actual externalization. `wat/std/LocalCache.wat`
 + the `#[wat_dispatch] impl` of `lru::LruCache<K,V>` + the

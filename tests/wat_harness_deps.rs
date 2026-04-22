@@ -106,51 +106,17 @@ fn harness_composes_multiple_deps() {
     assert_eq!(out.stdout, vec!["A".to_string(), "B".to_string()]);
 }
 
-#[test]
-fn harness_accepts_dep_registrar_for_rust_shim() {
-    // Slice 4a — verify that a registrar passed to
-    // from_source_with_deps actually runs. We install a shim that
-    // adds a no-op type decl; then check that rust_deps::get()
-    // reports it as present. Validates the registrar plumbing
-    // without needing a full #[wat_dispatch] shim in the test.
-    use wat::rust_deps::{self, RustDepsBuilder, RustTypeDecl};
-
-    fn probe_register(builder: &mut RustDepsBuilder) {
-        builder.register_type(RustTypeDecl {
-            path: ":rust::probe::Sentinel",
-        });
-    }
-
-    // Minimal user program (no wat-level uses of the probe; we're
-    // checking the registry contents, not dispatch).
-    let user = r#"
-        (:wat::config::set-dims! 1024)
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::core::define (:user::main
-                             (stdin  :wat::io::IOReader)
-                             (stdout :wat::io::IOWriter)
-                             (stderr :wat::io::IOWriter)
-                             -> :())
-          ())
-    "#;
-
-    let _h = Harness::from_source_with_deps(user, &[], &[probe_register])
-        .expect("freeze with registrar");
-
-    // After Harness built the registry, ours should be visible.
-    // (Earlier tests in this file may have installed a registry
-    // already — first-call-wins OnceLock semantics; if we're NOT
-    // first, the earlier registry is in use. Check either that
-    // our sentinel is there OR the earlier baked defaults are.)
-    let registry = rust_deps::get();
-    let baseline_has_lru = registry.has_type(":rust::lru::LruCache");
-    let ours_has_sentinel = registry.has_type(":rust::probe::Sentinel");
-    assert!(
-        baseline_has_lru || ours_has_sentinel,
-        "registry should have either the baked defaults or our sentinel; \
-         got neither — registrar plumbing failed"
-    );
-}
+// The slice-4a probe test (`harness_accepts_dep_registrar_for_rust_shim`)
+// retired in slice 4b. It tried to assert registrar effects through
+// `rust_deps::get()`'s global OnceLock, which is first-call-wins and
+// order-fragile across tests. Once slice 4b emptied
+// `with_wat_rs_defaults()`, the probe's "either the baked default or
+// our sentinel" fallback lost half its ground and the test became
+// order-dependent. The honest proof — a registrar's symbols reaching
+// real wat code through the full Harness path — lives in
+// crates/wat-lru/tests/, where one dedicated process builds one
+// registry with the full superset (exactly the pattern BACKLOG's
+// sub-fog 4a-install prescribes for tests with specific dep sets).
 
 #[test]
 fn harness_dep_declaring_under_wat_namespace_is_rejected() {

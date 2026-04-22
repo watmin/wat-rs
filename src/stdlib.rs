@@ -71,10 +71,6 @@ const STDLIB_FILES: &[StdlibFile] = &[
         source: include_str!("../wat/std/Trigram.wat"),
     },
     StdlibFile {
-        path: "wat/std/LocalCache.wat",
-        source: include_str!("../wat/std/LocalCache.wat"),
-    },
-    StdlibFile {
         path: "wat/std/stream.wat",
         source: include_str!("../wat/std/stream.wat"),
     },
@@ -89,10 +85,6 @@ const STDLIB_FILES: &[StdlibFile] = &[
     StdlibFile {
         path: "wat/std/service/Console.wat",
         source: include_str!("../wat/std/service/Console.wat"),
-    },
-    StdlibFile {
-        path: "wat/std/service/Cache.wat",
-        source: include_str!("../wat/std/service/Cache.wat"),
     },
 ];
 

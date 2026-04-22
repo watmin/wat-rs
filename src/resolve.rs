@@ -409,17 +409,16 @@ mod tests {
     }
 
     // ─── use! declaration enforcement ───────────────────────────────────
-
-    #[test]
-    fn rust_call_with_use_declaration_resolves() {
-        assert!(resolve(
-            r#"
-            (:wat::core::use! :rust::lru::LruCache)
-            (:rust::lru::LruCache::new 16)
-            "#
-        )
-        .is_ok());
-    }
+    //
+    // Success-path tests retired in arc 013 slice 4b — they used
+    // `:rust::lru::LruCache` as the fixture, which moved to the
+    // external `wat-lru` crate. End-to-end happy-path coverage
+    // for the use! mechanism (declaration + covers-all-methods +
+    // idempotent re-declaration) lives in
+    // crates/wat-lru/tests/wat_lru_tests.rs, where a real shim is
+    // registered via dep_registrars and exercised through wat
+    // source. Failure-path tests below don't need a registered
+    // type — the diagnostics fire regardless — so they stay.
 
     #[test]
     fn rust_call_without_use_declaration_fails() {
@@ -448,30 +447,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn use_declaration_covers_all_methods_on_the_type() {
-        // One use! of the TYPE path enables all ::method paths on it.
-        assert!(resolve(
-            r#"
-            (:wat::core::use! :rust::lru::LruCache)
-            (:rust::lru::LruCache::new 16)
-            (:rust::lru::LruCache::put 1 2 3)
-            (:rust::lru::LruCache::get 1 2)
-            "#
-        )
-        .is_ok());
-    }
-
-    #[test]
-    fn multiple_use_declarations_are_idempotent() {
-        // Two use!s of the same path — idempotent set-insert, no error.
-        assert!(resolve(
-            r#"
-            (:wat::core::use! :rust::lru::LruCache)
-            (:wat::core::use! :rust::lru::LruCache)
-            (:rust::lru::LruCache::new 16)
-            "#
-        )
-        .is_ok());
-    }
+    // use!-success paths previously checked against :rust::lru::LruCache
+    // retired in arc 013 slice 4b — that type no longer ships in the
+    // wat-rs default registry. Equivalent coverage lives in
+    // crates/wat-lru/tests/ where the shim is present.
+    // Failure-path tests above still exercise the resolver's own logic
+    // without depending on any specific shim.
 }

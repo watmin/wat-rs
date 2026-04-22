@@ -884,33 +884,9 @@ mod tests {
         assert!(matches!(err, RuntimeError::ArityMismatch { expected: 1, got: 0, .. }));
     }
 
-    #[test]
-    fn invoke_main_uses_std_local_cache() {
-        // Full startup pipeline: stdlib's wat/std/LocalCache.wat
-        // loads; its typealias declaration of
-        // :wat::std::LocalCache<K,V> registers; the three wrapper
-        // defines become resolvable; :user::main exercises the full
-        // new/put/get round-trip using the wat-native names.
-        //
-        // This is the load-bearing end-to-end test for stdlib
-        // composition — macro expansion, alias expansion, and
-        // :rust::* dispatch all converge here.
-        let src = r#"
-            (:wat::config::set-dims! 1024)
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::core::define (:user::main -> :i64)
-              (:wat::core::let*
-                (((cache :wat::std::LocalCache<String,i64>)
-                  (:wat::std::LocalCache::new 16))
-                 ((_ :()) (:wat::std::LocalCache::put cache "answer" 42)))
-                (:wat::core::match (:wat::std::LocalCache::get cache "answer") -> :i64
-                  ((Some v) v)
-                  (:None -1))))
-        "#;
-        let world = startup(src).expect("startup");
-        let result = invoke_user_main(&world, Vec::new()).expect("main runs");
-        assert!(matches!(result, Value::i64(42)));
-    }
+    // LocalCache stdlib-composition test retired in arc 013 slice 4b
+    // — the wat-lru sibling crate owns that surface now. End-to-end
+    // composition coverage lives in crates/wat-lru/tests/.
 
     #[test]
     fn invoke_main_passes_channel_value_through() {

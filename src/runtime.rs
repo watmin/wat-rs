@@ -3268,7 +3268,7 @@ fn eval_list_remove_at(
 /// storage. Type-tags prevent cross-type collision (`42` vs `"42"`).
 /// Scoped to primitive keys; composite keys (Vec, Tuple, HolonAST,
 /// etc.) error.
-pub(crate) fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
+pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
     match v {
         Value::String(s) => Ok(format!("S:{}", s)),
         Value::i64(n) => Ok(format!("I:{}", n)),
@@ -7770,87 +7770,9 @@ mod tests {
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
-    // ─── LocalCache (058 L1) ───────────────────────────────────────────
-
-    #[test]
-    fn local_cache_put_then_get_returns_some() {
-        let src = r#"
-            (:wat::core::let*
-              (((cache :wat::std::LocalCache<String,i64>)
-                (:wat::std::LocalCache::new 16))
-               ((_ :()) (:wat::std::LocalCache::put cache "answer" 42)))
-              (:wat::core::match (:wat::std::LocalCache::get cache "answer") -> :i64
-                ((Some v) v)
-                (:None -1)))
-        "#;
-        match eval_expr(src).unwrap() {
-            Value::i64(42) => {}
-            v => panic!("expected 42, got {:?}", v),
-        }
-    }
-
-    #[test]
-    fn local_cache_miss_returns_none() {
-        let src = r#"
-            (:wat::core::let*
-              (((cache :wat::std::LocalCache<String,i64>)
-                (:wat::std::LocalCache::new 16)))
-              (:wat::core::match (:wat::std::LocalCache::get cache "missing") -> :i64
-                ((Some v) v)
-                (:None -1)))
-        "#;
-        match eval_expr(src).unwrap() {
-            Value::i64(-1) => {}
-            v => panic!("expected -1 (miss), got {:?}", v),
-        }
-    }
-
-    #[test]
-    fn local_cache_evicts_at_capacity() {
-        // Capacity 2: after putting 3 entries, the first is evicted.
-        let src = r#"
-            (:wat::core::let*
-              (((cache :wat::std::LocalCache<i64,i64>)
-                (:wat::std::LocalCache::new 2))
-               ((_ :()) (:wat::std::LocalCache::put cache 1 10))
-               ((_ :()) (:wat::std::LocalCache::put cache 2 20))
-               ((_ :()) (:wat::std::LocalCache::put cache 3 30)))
-              (:wat::core::match (:wat::std::LocalCache::get cache 1) -> :i64
-                ((Some v) v)
-                (:None -1)))
-        "#;
-        match eval_expr(src).unwrap() {
-            Value::i64(-1) => {}
-            v => panic!("expected -1 (evicted), got {:?}", v),
-        }
-    }
-
-    #[test]
-    fn local_cache_put_overwrites_existing_key() {
-        let src = r#"
-            (:wat::core::let*
-              (((cache :wat::std::LocalCache<String,i64>)
-                (:wat::std::LocalCache::new 16))
-               ((_ :()) (:wat::std::LocalCache::put cache "k" 1))
-               ((_ :()) (:wat::std::LocalCache::put cache "k" 99)))
-              (:wat::core::match (:wat::std::LocalCache::get cache "k") -> :i64
-                ((Some v) v)
-                (:None -1)))
-        "#;
-        match eval_expr(src).unwrap() {
-            Value::i64(99) => {}
-            v => panic!("expected 99, got {:?}", v),
-        }
-    }
-
-    // Zero-capacity rejection was a pre-dispatch guard in the
-    // hand-written shim (returned RuntimeError::MalformedForm). The
-    // macro-regenerated version currently panics inside `new()`'s body
-    // because the macro has no way to inject pre-method validation.
-    // Lands when the macro gets a `#[wat_precondition]` hook or when
-    // the return-type story supports `Result<Self, RuntimeError>`
-    // unwrapping. Behavior equivalent: both forms refuse capacity=0;
-    // the new path just announces differently.
+    // LocalCache runtime tests retired in arc 013 slice 4b — the
+    // wat-lru sibling crate owns that surface now. End-to-end
+    // coverage lives in crates/wat-lru/tests/.
 
     #[test]
     fn thread_owned_cell_crossing_thread_boundary_errors() {
