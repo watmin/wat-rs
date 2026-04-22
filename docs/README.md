@@ -135,5 +135,20 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   fork substrate is the single source of subprocess truth for
   wat-rs. Unix-only by design.
 
+- **`arc/2026/04/013-external-wat-crates/`** — **planning.**
+  Externalize `wat-lru` into a sibling crate (`crates/wat-lru/`)
+  as the proof that the external-wat-crate pattern is real.
+  LocalCache leaves the baked stdlib entirely; repaths from
+  `:wat::std::LocalCache` to `:user::wat::std::lru::LocalCache`
+  under the new namespace convention. `wat::Harness` grows an
+  API that accepts external stdlib sources; a `wat::main!`
+  proc-macro in `wat-macros` lets a user's `main.rs` compose
+  baked + dep stdlib + user source in one declaration.
+  `examples/with-lru/` serves as the walkable reference. Arc
+  thesis: Chapter 18's *"wat is the language, Rust is the
+  substrate"* operational at the ecosystem tier — many
+  Rust-backed wat crates coexisting in one binary. DESIGN +
+  BACKLOG written 2026-04-21; implementation pending.
+
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.
