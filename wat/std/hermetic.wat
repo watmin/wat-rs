@@ -50,15 +50,12 @@
 ;; Failure.message. Keep in sync with src/fork.rs's EXIT_* consts.
 (:wat::core::define
   (:wat::kernel::exit-code-prefix (code :i64) -> :String)
-  (:wat::core::if (:wat::core::= code 1) -> :String
-    "[runtime error]"
-    (:wat::core::if (:wat::core::= code 2) -> :String
-      "[panic]"
-      (:wat::core::if (:wat::core::= code 3) -> :String
-        "[startup error]"
-        (:wat::core::if (:wat::core::= code 4) -> :String
-          "[:user::main signature]"
-          "[nonzero exit]")))))
+  (:wat::core::cond -> :String
+    ((:wat::core::= code 1) "[runtime error]")
+    ((:wat::core::= code 2) "[panic]")
+    ((:wat::core::= code 3) "[startup error]")
+    ((:wat::core::= code 4) "[:user::main signature]")
+    (:else                  "[nonzero exit]")))
 
 ;; Compose a Failure.message from the prefix + the child's stderr
 ;; lines joined with newlines.

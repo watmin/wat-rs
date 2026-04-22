@@ -419,6 +419,7 @@ fn infer_list(
         let args = &items[1..];
         match k.as_str() {
             ":wat::core::if" => return infer_if(args, env, locals, fresh, subst, errors),
+            ":wat::core::cond" => return infer_cond(args, env, locals, fresh, subst, errors),
             ":wat::core::let" => return infer_let(args, env, locals, fresh, subst, errors),
             ":wat::core::let*" => return infer_let_star(args, env, locals, fresh, subst, errors),
             ":wat::core::try" => return infer_try(args, env, locals, fresh, subst, errors),
@@ -1139,6 +1140,165 @@ fn infer_if(
                 expected: format_type(&apply_subst(&declared_ty, subst)),
                 got: format_type(&apply_subst(&e, subst)),
             });
+        }
+    }
+    Some(apply_subst(&declared_ty, subst))
+}
+
+/// `(:wat::core::cond -> :T arm1 arm2 ... (:else default))`.
+///
+/// Multi-way conditional; sibling of [`infer_if`]. Typed once at the
+/// head via `-> :T`; every arm's body type-unifies with `:T`. Each
+/// arm is a 2-element list `(test body)`; tests type-unify with
+/// `:bool`. The final arm must be `(:else body)` — enforced here
+/// and at runtime.
+///
+/// Per-arm error messages name which arm diverged (arm #N test /
+/// arm #N body / :else body), matching `infer_if`'s branch-specific
+/// diagnostics.
+fn infer_cond(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() < 3 {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::cond".into(),
+            reason: format!(
+                "expected (:wat::core::cond -> :T (:else body)) — at least 3 args; got {}",
+                args.len()
+            ),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return None;
+    }
+    match &args[0] {
+        WatAST::Symbol(s) if s.as_str() == "->" => {}
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::cond".into(),
+                reason: "expected `->` at position 1".into(),
+            });
+            return None;
+        }
+    }
+    let declared_ty = match &args[1] {
+        WatAST::Keyword(k) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(e) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::cond".into(),
+                    reason: format!("declared type {:?} failed to parse: {}", k, e),
+                });
+                return None;
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::cond".into(),
+                reason: "expected type keyword at position 2 (after `->`)".into(),
+            });
+            return None;
+        }
+    };
+
+    let arms = &args[2..];
+    // Validate last arm is `:else`. Report once at the checker layer
+    // so users get the diagnostic before the runtime sees it.
+    let last = &arms[arms.len() - 1];
+    let last_items = match last {
+        WatAST::List(xs) if xs.len() == 2 => xs,
+        WatAST::List(xs) => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::cond".into(),
+                reason: format!(
+                    "last arm must be (:else body); got {}-element list",
+                    xs.len()
+                ),
+            });
+            return None;
+        }
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::cond".into(),
+                reason: "last arm must be a list (:else body)".into(),
+            });
+            return None;
+        }
+    };
+    let last_is_else = matches!(&last_items[0], WatAST::Keyword(k) if k == ":else");
+    if !last_is_else {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::cond".into(),
+            reason: "last arm must be (:else body) — cond requires an explicit default".into(),
+        });
+    }
+
+    for (i, arm) in arms.iter().enumerate() {
+        let items = match arm {
+            WatAST::List(xs) if xs.len() == 2 => xs,
+            WatAST::List(xs) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::cond".into(),
+                    reason: format!(
+                        "arm #{} must be (test body); got {}-element list",
+                        i + 1,
+                        xs.len()
+                    ),
+                });
+                continue;
+            }
+            other => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::cond".into(),
+                    reason: format!(
+                        "arm #{} must be a list (test body); got {:?}",
+                        i + 1,
+                        other
+                    ),
+                });
+                continue;
+            }
+        };
+        let is_last = i + 1 == arms.len();
+        let is_else_arm =
+            is_last && matches!(&items[0], WatAST::Keyword(k) if k == ":else");
+
+        if !is_else_arm {
+            // Test must unify with :bool.
+            let test_ty = infer(&items[0], env, locals, fresh, subst, errors);
+            if let Some(t) = test_ty {
+                if unify(&t, &TypeExpr::Path(":bool".into()), subst, env.types()).is_err() {
+                    errors.push(CheckError::TypeMismatch {
+                        callee: ":wat::core::cond".into(),
+                        param: format!("arm #{} test", i + 1),
+                        expected: ":bool".into(),
+                        got: format_type(&apply_subst(&t, subst)),
+                    });
+                }
+            }
+        }
+        // Body must unify with declared_ty.
+        let body_ty = infer(&items[1], env, locals, fresh, subst, errors);
+        if let Some(b) = body_ty {
+            if unify(&b, &declared_ty, subst, env.types()).is_err() {
+                let param = if is_else_arm {
+                    ":else body".to_string()
+                } else {
+                    format!("arm #{} body", i + 1)
+                };
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::cond".into(),
+                    param,
+                    expected: format_type(&apply_subst(&declared_ty, subst)),
+                    got: format_type(&apply_subst(&b, subst)),
+                });
+            }
         }
     }
     Some(apply_subst(&declared_ty, subst))
