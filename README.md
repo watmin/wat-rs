@@ -618,7 +618,8 @@ wat-rs/
         ├── 014-core-scalar-conversions/    # DESIGN + BACKLOG + INSCRIPTION
         ├── 015-wat-test-for-consumers/     # DESIGN + BACKLOG + INSCRIPTION
         ├── 016-failure-location-and-frames/ # DESIGN + BACKLOG + INSCRIPTION
-        └── 017-loader-option-for-consumer-macros/ # DESIGN + BACKLOG + INSCRIPTION
+        ├── 017-loader-option-for-consumer-macros/ # DESIGN + BACKLOG + INSCRIPTION
+        └── 018-opinionated-defaults-and-test-rename/ # DESIGN + BACKLOG + INSCRIPTION
 ```
 
 ## What's next

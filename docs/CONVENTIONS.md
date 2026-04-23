@@ -193,6 +193,40 @@ wat call chain — each frame carrying a real `file:line:col`
 into `wat-rs/src/*.rs`, same convention Rust uses for stdlib
 frames). USER-GUIDE § "Failure output" has a worked example.
 
+### Consumer layout (arc 018)
+
+The opinionated default for consumer crates:
+
+```
+my-app/
+├── Cargo.toml
+├── src/
+│   └── main.rs        → wat::main! { deps: [...] }
+├── tests/
+│   └── test.rs        → wat::test! { deps: [...] }
+├── wat/
+│   ├── main.wat       → entry (config + :user::main)
+│   └── **/*.wat       → library tree, loaded recursively
+└── wat-tests/
+    └── **/*.wat       → test files
+```
+
+Two Rust files. Every other wat file lives under `wat/` or
+`wat-tests/`. The macros pick everything else up via the defaults.
+
+**Filenames**. `tests/test.rs` is a recommendation (symmetric with
+`wat::test!`), not Cargo-enforced — any `.rs` file under `tests/`
+is an integration test binary. Use whatever name; the
+recommendation exists so consumer crates feel the same to readers.
+
+**Overrides**. Pass `source:` / `path:` / `loader:` explicitly to
+any macro to opt out of that default. Full escape hatch is the
+manual `wat::Harness::from_source_with_deps_and_loader` path.
+
+References: `wat-rs/examples/with-lru/` and
+`wat-rs/examples/with-loader/` both follow the minimal layout
+post-arc-018.
+
 ### Binary vs library — files that commit config (arc 017)
 
 Every `.wat` file is either an **entry** or a **library**:

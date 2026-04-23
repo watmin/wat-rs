@@ -38,10 +38,25 @@ gap is worth reporting.
 ## 1. Setup — your first wat application crate
 
 A wat application is a small Rust crate that delegates to two
-macros — `wat::main!` for the program, `wat::test_suite!` for
-tests. Most apps are **two Rust files** total (three if you ship
-your own `#[wat_dispatch]`'d types). Everything else is wat
-source.
+macros — `wat::main!` for the program, `wat::test!` for tests.
+The minimal form is **two one-line macro invocations**, with
+opinionated defaults picked by Cargo-style convention.
+
+### The minimal consumer (arc 018)
+
+```
+my-app/
+├── Cargo.toml
+├── src/
+│   └── main.rs        → wat::main! { deps: [...] }
+├── tests/
+│   └── test.rs        → wat::test! { deps: [...] }
+├── wat/
+│   ├── main.wat       → entry (config + :user::main)
+│   └── **/*.wat       → library tree (loaded recursively)
+└── wat-tests/
+    └── **/*.wat       → test files
+```
 
 ```toml
 # Cargo.toml
@@ -51,24 +66,24 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-wat     = { path = "../wat-rs" }              # the substrate
-wat-lru = { path = "../wat-rs/crates/wat-lru" }  # optional — external wat crate for LRU
+wat     = { path = "../wat-rs" }
+wat-lru = { path = "../wat-rs/crates/wat-lru" }  # optional
 ```
 
 ```rust
 // src/main.rs
-wat::main! {
-    source: include_str!("program.wat"),
-    deps: [wat_lru],   // omit or `deps: []` if you use only baked stdlib
-}
+wat::main! { deps: [wat_lru] }
+```
+
+```rust
+// tests/test.rs
+wat::test! { deps: [wat_lru] }
 ```
 
 ```scheme
-;; src/program.wat
+;; wat/main.wat — commits startup config + defines :user::main
 (:wat::config::set-dims! 10000)
 (:wat::config::set-capacity-mode! :error)
-
-(:wat::core::use! :rust::lru::LruCache)   ;; only when using wat-lru
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
@@ -78,67 +93,79 @@ wat::main! {
   (:wat::io::IOWriter/println stdout "hello from wat"))
 ```
 
-**That's it.** `cargo run` prints `hello from wat`.
+**That's it.** `cargo run` prints `hello from wat`. `cargo test`
+runs every `.wat` under `wat-tests/`.
 
-The macro expands to a `fn main() -> Result<(), wat::HarnessError>`
-that:
-1. Builds the rust_deps registry from `wat-rs`'s defaults + each
-   dep's `register()`.
-2. Installs dep wat sources globally so every freeze sees them.
-3. Freezes your entry source with the composition applied.
-4. Hands `:user::main` real OS stdio handles, invokes.
-5. Returns any startup or runtime error.
+### What the defaults pick
 
-**About `deps: [...]`.** Each entry is a **Rust path** — a Cargo
-crate or an in-scope module — that exposes two public functions:
+`wat::main! { deps: [...] }` — opinionated defaults fire when the
+keys aren't present:
+
+- **`source:`** absent → `include_str!(<crate>/wat/main.wat)`
+- **`loader:`** absent AND source absent → `"wat"` (ScopedLoader
+  rooted at `<crate>/wat`; every `(:wat::core::load!
+  :wat::load::file-path "...")` from inside the wat tree resolves
+  there)
+
+`wat::test! { deps: [...] }` — same shape for tests:
+
+- **`path:`** absent → `"wat-tests"`
+- **`loader:`** absent AND path absent → `"wat-tests"` (ScopedLoader
+  rooted at `<crate>/wat-tests`)
+
+### Overrides
+
+Any explicit value wins. `wat::main! { source: include_str!("x.wat") }`
+keeps the pre-018 single-file behavior (InMemoryLoader). `wat::main!
+{ loader: "src/wat" }` picks a different root.
+
+### What the macro actually emits
+
+`wat::main! { deps: [wat_lru] }` expands to approximately:
+
+```rust
+fn main() -> Result<(), ::wat::harness::HarnessError> {
+    let loader_root = concat!(env!("CARGO_MANIFEST_DIR"), "/", "wat");
+    let loader = Arc::new(ScopedLoader::new(loader_root)?);
+    ::wat::compose_and_run_with_loader(
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/wat/main.wat")),
+        &[wat_lru::wat_sources()],
+        &[wat_lru::register],
+        loader,
+    )
+}
+```
+
+Every path is `CARGO_MANIFEST_DIR`-relative so `cargo run -p <crate>`
+from the workspace root resolves identically to running from the
+crate's own directory.
+
+### About `deps: [...]`
+
+Each entry is a **Rust path** — a Cargo crate or an in-scope
+module — that exposes two public functions:
 
 ```rust
 pub fn wat_sources() -> &'static [wat::WatSource];
 pub fn register(builder: &mut wat::rust_deps::RustDepsBuilder);
 ```
 
-`deps: [wat_lru]` expands to approximately:
-
-```rust
-::wat::compose_and_run(
-    source,
-    &[wat_lru::wat_sources()],
-    &[wat_lru::register],
-)
-```
-
 So `wat_lru` resolves by standard Cargo convention — the Cargo
 crate named `wat-lru` in your `Cargo.toml` becomes the Rust path
 `wat_lru` (dash-to-underscore, same as `serde_json` for
 `serde-json`). A local `mod shim;` becomes `shim`. Any Rust path
-with those two functions in scope works — you pick the addressing;
-the macro just calls through.
+with those two functions in scope works.
 
 You never write this boilerplate.
 
-### Multi-file wat programs — `loader: "..."` (arc 017)
+### Multi-file wat trees — entry vs. library, recursive loads
 
-For anything larger than a hello-world, your wat program wants a
-tree of files — types, vocab, domain, orchestration — not one long
-`program.wat`. `wat::main!` gains an optional `loader:` argument
-for this:
-
-```toml
-# Cargo.toml  (unchanged)
-[dependencies]
-wat = { path = "../wat-rs" }
-```
-
-```rust
-// src/main.rs
-wat::main! {
-    source: include_str!("program.wat"),
-    loader: "wat",           // ScopedLoader rooted at <crate>/wat
-}
-```
+The opinionated setup above IS the multi-file shape. `wat/main.wat`
+is the entry; `wat/**/*.wat` is the library tree, loaded
+recursively from `main.wat` downward.
 
 ```scheme
-;; src/program.wat — the ENTRY file. Commits config + hosts `:user::main`.
+;; wat/main.wat — the ENTRY. Commits config + defines :user::main.
 (:wat::config::set-dims! 10000)
 (:wat::config::set-capacity-mode! :error)
 
@@ -154,65 +181,70 @@ wat::main! {
 ```
 
 ```scheme
-;; wat/types.wat — a LIBRARY file. No config setters — loaded only.
+;; wat/types.wat — a LIBRARY. No config setters.
 (:wat::core::enum (:my-app::types::Mood :Happy :Sad))
 ```
 
 ```scheme
-;; wat/vocab.wat — a LIBRARY file. Can itself (load!) further files.
+;; wat/vocab.wat — a LIBRARY. Can itself (load!) further files.
 (:wat::core::load! :wat::load::file-path "types.wat")
 
 (:wat::core::define (:my-app::vocab::greeting -> :String)
   "hello from wat")
 ```
 
-**Paths**. `loader: "wat"` resolves relative to `CARGO_MANIFEST_DIR`
-at macro-expand time — stable regardless of whether you run via
-`cargo run` from workspace root or from the crate's own dir.
-Inside the wat, `(:wat::core::load! :wat::load::file-path "x.wat")`
-resolves against the importing file's directory (same as any
-module system); absolute paths and `../` traversal are allowed as
-long as the final canonical target stays inside the loader's
-scope root.
-
 **Entry vs. library.** An entry file commits startup config via
-`(:wat::config::set-*!)` forms. A library file does not — `(load!)`-
-ing a file with setters fails loud at startup ("setters belong in
-the entry file only"). The entry's frozen config propagates
-automatically to every loaded file.
+top-level `(:wat::config::set-*!)` forms. A library file does not
+— `(load!)`-ing a file with setters fails loud at startup
+("setters belong in the entry file only"). The entry's frozen
+config propagates automatically to every loaded file.
 
-**Recursive loads work** — the entry `(load!)`s a library, that
+**Recursive loads work.** The entry `(load!)`s a library, that
 library can `(load!)` another library, to arbitrary depth. Every
-loaded file's defines / types / macros land in the entry's frozen
+loaded-file's defines / types / macros land in the entry's frozen
 world.
 
-**Omit `loader:`** and the default is `InMemoryLoader` (no
-filesystem). That shape works for single-file programs built
-entirely inline via `include_str!`. `loader:` is the explicit
-capability declaration the consumer opts into.
+**Path resolution.** From inside a wat file, `(:wat::core::load!
+:wat::load::file-path "x.wat")` resolves against the *importing
+file's directory* (same as any module system). The loader's scope
+root (default `<crate>/wat`) is the containment check — absolute
+paths and `../` traversal are allowed as long as the final
+canonical target stays inside the scope. Paths in the entry file
+(which has no canonical location — it's `include_str!`'d) resolve
+against the scope root directly.
+
+**Overrides.** Pass `source:` to use an explicit entry; that flips
+the default loader to `InMemoryLoader` (no filesystem). Pass
+`loader: "src/wat"` (or any path string) to root the scope
+somewhere other than `wat/`.
 
 ### Tests — one macro, same shape
 
-Put `.wat` test files under `wat-tests/` using the `deftest` form,
-then add one more Rust file:
+Put `.wat` test files under `wat-tests/` using the `deftest` form;
+the test-side entry is one line of Rust:
 
 ```rust
-// tests/tests.rs
-wat::test_suite! {
-    path: "wat-tests",
-    deps: [wat_lru],       // same deps the program uses
-    loader: "wat-tests",   // optional — ScopedLoader for (load!) in test files
-}
+// tests/test.rs
+wat::test! { deps: [wat_lru] }    // same deps the program uses
 ```
 
-`loader:` mirrors `wat::main!` — same `CARGO_MANIFEST_DIR`-relative
-resolution; optional. Test files that commit config (top-level
-`(:wat::config::set-*!)`) are discovered and run; files without
-setters in the test dir are LIBRARIES (helpers loaded by tests)
-and test_runner silently skips freezing them standalone. Deftest
-bodies themselves run in hermetic sandboxes that don't inherit
-outer `(load!)`'d defines — pass helpers via `deps:` or inline
-them when a sandbox body needs them.
+All three args (`path:`, `deps:`, `loader:`) are optional. Defaults
+mirror `wat::main!`:
+
+- `path:` absent → `"wat-tests"`
+- `loader:` absent AND `path:` absent → `"wat-tests"` (ScopedLoader
+  at `<crate>/wat-tests`, so `(load!)` from inside test files
+  resolves against that scope)
+- `loader:` absent AND `path:` explicit → no loader (FsLoader —
+  preserves pre-018 behavior for custom test paths)
+
+Test files that commit config (top-level `(:wat::config::set-*!)`)
+are discovered and run; files without setters in the test dir are
+LIBRARIES (helpers loaded by tests) and the test runner silently
+skips freezing them standalone. Deftest bodies themselves run in
+hermetic sandboxes that don't inherit outer `(load!)`'d defines —
+pass helpers via `deps:` or inline them when a sandbox body needs
+them.
 
 ```scheme
 ;; wat-tests/hello.wat

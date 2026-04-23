@@ -211,5 +211,20 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   workspace back to zero warnings) to unblock the lab rewrite.
   2026-04-22.
 
+- **`arc/2026/04/018-opinionated-defaults-and-test-rename/`** —
+  **shipped.** The consumer story collapses to two one-line
+  macros. `wat::main! { deps: [...] }` with `wat/main.wat` as
+  the implicit entry and `"wat"` as the implicit loader root;
+  `wat::test! { deps: [...] }` (renamed from `wat::test_suite!`,
+  pre-publish clean rename) with `wat-tests/` as the implicit
+  path and loader. Explicit `source:` / `path:` / `loader:`
+  arguments always win. `examples/with-lru/` and
+  `examples/with-loader/` + wat-lru's self-tests migrated to
+  demonstrate the minimal form — each consumer is `src/main.rs`
+  (one `wat::main!` invocation) + `tests/test.rs` (one
+  `wat::test!`) + `wat/main.wat` + `wat-tests/**/*.wat`.
+  Convention-over-configuration applied to the consumer surface.
+  Three slices, same day as arc 017. 2026-04-22.
+
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.
