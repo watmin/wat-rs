@@ -419,7 +419,7 @@ fn scoped_file_eval_inside_scope_succeeds() {
                               (stderr :wat::io::IOWriter)
                               -> :())
            (:wat::core::match
-             (:wat::core::eval-edn! "{path}")
+             (:wat::core::eval-file! "{path}")
              -> :()
              ((Ok h) (:wat::io::IOWriter/println stdout "ok"))
              ((Err _) (:wat::io::IOWriter/println stderr "err"))))"#,
@@ -479,7 +479,7 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
                               (stderr :wat::io::IOWriter)
                               -> :())
            (:wat::core::match
-             (:wat::core::eval-edn! "{path}")
+             (:wat::core::eval-file! "{path}")
              -> :()
              ((Ok _) (:wat::io::IOWriter/println stdout "leaked"))
              ((Err _) (:wat::io::IOWriter/println stderr "blocked"))))"#,

@@ -109,15 +109,16 @@ fn eval_edn_bang_parse_failure_surfaces_as_err() {
 }
 
 #[test]
-fn eval_digest_bang_hash_mismatch_surfaces_as_err() {
+fn eval_digest_string_bang_hash_mismatch_surfaces_as_err() {
     // Provide a wrong SHA-256 digest; verification fails with
-    // kind="verification-failed".
+    // kind="verification-failed". Arc 028 slice 3: inline source
+    // variant is `eval-digest-string!` (mirrors `load-string!`).
     let src = r#"
         (:wat::config::set-capacity-mode! :error)
         (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::core::eval-digest!
+          (:wat::core::eval-digest-string!
  "(:wat::holon::Atom \"x\")"
             :wat::verify::digest-sha256
             :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"))
@@ -127,19 +128,24 @@ fn eval_digest_bang_hash_mismatch_surfaces_as_err() {
 }
 
 #[test]
-fn eval_edn_bang_unknown_interface_surfaces_as_err() {
-    // Unknown :wat::eval::<iface> keyword — structural but wrapped
-    // inside the eval's error surface; EvalError with
-    // kind="malformed-form".
+fn eval_edn_bang_wrong_arity_surfaces_as_err() {
+    // Arc 028 slice 3 retired the :wat::eval::* interface-keyword
+    // test — those keywords don't exist anymore. Arity mismatch is
+    // the new structural-error surface to guard.
     let src = r#"
         (:wat::config::set-capacity-mode! :error)
         (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::core::eval-edn! :wat::eval::nonexistent-iface "source"))
+          (:wat::core::eval-edn! "foo" "bar-extra"))
     "#;
-    let result = run(src);
-    assert_eq!(err_kind(&result), "malformed-form");
+    // Structural arity mismatch fires before the EvalError wrap; this
+    // shows up at startup (the type checker catches it as wrong-arity).
+    // The wrapper `run(...)` surfaces it as a startup failure — we
+    // expect the test to PANIC from the startup phase, not return a
+    // clean EvalError value. Use std::panic::catch_unwind.
+    let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(src)));
+    assert!(got.is_err(), "expected startup-time arity failure");
 }
 
 // ─── try-based propagation through a Result-returning helper ─────────
