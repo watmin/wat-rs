@@ -400,6 +400,19 @@ fn expand_form(
 
     match form {
         WatAST::List(items, list_span) => {
+            // Arc 029 slice 1: do NOT recurse into `(:wat::core::quasiquote
+            // ...)` bodies. They are macro templates, not call forms — any
+            // apparent "macro calls" inside them are deferred until the
+            // enclosing macro fires. Pre-emptive expansion would substitute
+            // still-wrapped unquote forms into downstream macros, corrupting
+            // the template. Applies at any nesting: once we're inside a
+            // quasiquote, the whole subtree is preserved untouched.
+            if let Some(WatAST::Keyword(head, _)) = items.first() {
+                if head == ":wat::core::quasiquote" {
+                    return Ok(WatAST::List(items, list_span));
+                }
+            }
+
             // Recurse into children first. This gives us the shape
             // (expanded-head expanded-args...) — any inner macro calls
             // resolved before we check the outer for a macro call.
