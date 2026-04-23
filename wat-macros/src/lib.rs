@@ -402,6 +402,13 @@ pub fn main(input: TokenStream) -> TokenStream {
 struct TestSuiteInput {
     path: syn::Expr,
     deps: Vec<Path>,
+    /// Arc 017 — optional `loader: "..."` string-literal arg.
+    /// Absent: macro expands to `run_and_assert` (FsLoader default
+    /// — unrestricted filesystem, backward compatible). Present:
+    /// expands to `run_and_assert_with_loader` with a ScopedLoader
+    /// rooted at CARGO_MANIFEST_DIR/<path>, clamping every test
+    /// file's `(load!)` to that scope.
+    loader: Option<LitStr>,
 }
 
 impl Parse for TestSuiteInput {
@@ -414,27 +421,51 @@ impl Parse for TestSuiteInput {
         input.parse::<syn::Token![:]>()?;
         let path: syn::Expr = input.parse()?;
 
-        // Optional: `, deps: [path, path, ...]`
+        // Optional trailing: `, deps: [...]` and/or `, loader: "..."`.
+        // Either order, each at most once.
         let mut deps: Vec<Path> = Vec::new();
-        if input.peek(syn::Token![,]) {
+        let mut loader: Option<LitStr> = None;
+
+        while input.peek(syn::Token![,]) {
             input.parse::<syn::Token![,]>()?;
-            if !input.is_empty() {
-                let deps_key: syn::Ident = input.parse()?;
-                if deps_key != "deps" {
+            if input.is_empty() {
+                break;
+            }
+            let key: syn::Ident = input.parse()?;
+            let key_str = key.to_string();
+            input.parse::<syn::Token![:]>()?;
+            match key_str.as_str() {
+                "deps" => {
+                    if !deps.is_empty() {
+                        return Err(Error::new(key.span(), "duplicate `deps:` arg"));
+                    }
+                    let content;
+                    syn::bracketed!(content in input);
+                    let parsed: Punctuated<Path, syn::Token![,]> =
+                        content.parse_terminated(Path::parse_mod_style, syn::Token![,])?;
+                    deps = parsed.into_iter().collect();
+                }
+                "loader" => {
+                    if loader.is_some() {
+                        return Err(Error::new(key.span(), "duplicate `loader:` arg"));
+                    }
+                    let lit: LitStr = input.parse().map_err(|e| {
+                        Error::new(
+                            e.span(),
+                            "`loader:` expects a string literal — the ScopedLoader root path",
+                        )
+                    })?;
+                    loader = Some(lit);
+                }
+                other => {
                     return Err(Error::new(
-                        deps_key.span(),
-                        "expected `deps:` after `path:`",
+                        key.span(),
+                        format!(
+                            "unknown `{}:` arg for wat::test_suite!; expected `deps:` or `loader:`",
+                            other
+                        ),
                     ));
                 }
-                input.parse::<syn::Token![:]>()?;
-
-                let content;
-                syn::bracketed!(content in input);
-                let parsed: Punctuated<Path, syn::Token![,]> =
-                    content.parse_terminated(Path::parse_mod_style, syn::Token![,])?;
-                deps = parsed.into_iter().collect();
-
-                let _ = input.parse::<syn::Token![,]>();
             }
         }
 
@@ -442,7 +473,11 @@ impl Parse for TestSuiteInput {
             return Err(input.error("unexpected tokens after wat::test_suite! args"));
         }
 
-        Ok(TestSuiteInput { path, deps })
+        Ok(TestSuiteInput {
+            path,
+            deps,
+            loader,
+        })
     }
 }
 
@@ -450,7 +485,11 @@ impl Parse for TestSuiteInput {
 /// See module docs.
 #[proc_macro]
 pub fn test_suite(input: TokenStream) -> TokenStream {
-    let TestSuiteInput { path, deps } = parse_macro_input!(input as TestSuiteInput);
+    let TestSuiteInput {
+        path,
+        deps,
+        loader,
+    } = parse_macro_input!(input as TestSuiteInput);
 
     let stdlib_calls: Vec<TokenStream2> = deps
         .iter()
@@ -461,15 +500,42 @@ pub fn test_suite(input: TokenStream) -> TokenStream {
         .map(|p| quote! { #p::register })
         .collect();
 
-    let expanded = quote! {
-        #[test]
-        fn wat_suite() {
-            ::wat::test_runner::run_and_assert(
-                ::std::path::Path::new(#path),
-                &[ #(#stdlib_calls),* ],
-                &[ #(#register_paths),* ],
-            );
-        }
+    let expanded = match loader {
+        None => quote! {
+            #[test]
+            fn wat_suite() {
+                ::wat::test_runner::run_and_assert(
+                    ::std::path::Path::new(#path),
+                    &[ #(#stdlib_calls),* ],
+                    &[ #(#register_paths),* ],
+                );
+            }
+        },
+        Some(loader_lit) => quote! {
+            #[test]
+            fn wat_suite() {
+                // Same CARGO_MANIFEST_DIR-relative convention as
+                // `wat::main! { ..., loader: "..." }` — stable
+                // regardless of cwd.
+                let __wat_loader_root = concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/",
+                    #loader_lit
+                );
+                let __wat_loader: ::std::sync::Arc<
+                    dyn ::wat::load::SourceLoader,
+                > = ::std::sync::Arc::new(
+                    ::wat::load::ScopedLoader::new(__wat_loader_root)
+                        .expect("wat::test_suite! loader path must exist"),
+                );
+                ::wat::test_runner::run_and_assert_with_loader(
+                    ::std::path::Path::new(#path),
+                    &[ #(#stdlib_calls),* ],
+                    &[ #(#register_paths),* ],
+                    __wat_loader,
+                );
+            }
+        },
     };
 
     expanded.into()

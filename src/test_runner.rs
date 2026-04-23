@@ -59,7 +59,7 @@ use std::time::Instant;
 
 use crate::compose::DepRegistrar;
 use crate::freeze::{startup_from_source, FrozenWorld};
-use crate::load::FsLoader;
+use crate::load::{FsLoader, SourceLoader};
 use crate::runtime::{apply_function, Function, Value};
 use crate::rust_deps::{self, RustDepsBuilder};
 use crate::source::{self, WatSource};
@@ -130,6 +130,27 @@ pub fn run_tests_from_dir(
     dep_sources: &[&'static [WatSource]],
     dep_registrars: &[DepRegistrar],
 ) -> TestSummary {
+    run_tests_from_dir_with_loader(
+        path,
+        dep_sources,
+        dep_registrars,
+        Arc::new(FsLoader),
+    )
+}
+
+/// Loader-parametric sibling of [`run_tests_from_dir`]. Same
+/// contract; the caller supplies the [`SourceLoader`] used to
+/// resolve `(:wat::core::load! ...)` from inside each test file's
+/// freeze. The `wat::test_suite! { ..., loader: "path" }` form
+/// (arc 017) expands to this function with a `ScopedLoader` rooted
+/// at the given path. Passing `Arc::new(FsLoader)` reproduces the
+/// default [`run_tests_from_dir`] behavior.
+pub fn run_tests_from_dir_with_loader(
+    path: &Path,
+    dep_sources: &[&'static [WatSource]],
+    dep_registrars: &[DepRegistrar],
+    loader: Arc<dyn SourceLoader>,
+) -> TestSummary {
     let mut summary = TestSummary::default();
     let run_start = Instant::now();
 
@@ -174,6 +195,16 @@ pub fn run_tests_from_dir(
     //    per-file startup failure surfaces as a single failure
     //    entry; the runner keeps going so the user sees all
     //    problems in one pass, cargo-test-style.
+    //
+    // **Entry vs. library** (arc 017). A `.wat` file in the test
+    // directory is an **entry** iff it commits startup config (a
+    // top-level `(:wat::config::set-*!)` form). Entries are frozen
+    // here and scanned for `test-*` defines. Files without config
+    // setters are **libraries** — intended to be `(:wat::core::load!
+    // :wat::load::file-path "...")`'d from entry files — and
+    // test_runner silently skips them at freeze time. This mirrors
+    // the binary-vs-library distinction `wat::main!` already uses
+    // (the entry commits config, loaded files must not).
     let mut per_file: Vec<(PathBuf, FrozenWorld, Vec<String>)> = Vec::new();
     for file in &files {
         let src = match std::fs::read_to_string(file) {
@@ -188,13 +219,19 @@ pub fn run_tests_from_dir(
                 continue;
             }
         };
+        // Skip library files — defined as files without a top-level
+        // config setter. A parse error here is left to the freeze
+        // below so the user sees the real error with full context.
+        if !source_has_config_setter(&src) {
+            continue;
+        }
         let canonical = std::fs::canonicalize(file)
             .ok()
             .map(|p| p.display().to_string());
         let frozen = match startup_from_source(
             &src,
             canonical.as_deref(),
-            Arc::new(FsLoader),
+            loader.clone(),
         ) {
             Ok(f) => f,
             Err(e) => {
@@ -311,7 +348,26 @@ pub fn run_and_assert(
     dep_sources: &[&'static [WatSource]],
     dep_registrars: &[DepRegistrar],
 ) {
-    let summary = run_tests_from_dir(path, dep_sources, dep_registrars);
+    run_and_assert_with_loader(
+        path,
+        dep_sources,
+        dep_registrars,
+        Arc::new(FsLoader),
+    )
+}
+
+/// Loader-parametric sibling of [`run_and_assert`]. What
+/// `wat::test_suite! { ..., loader: "path" }` expands to (arc 017).
+/// Panics with the joined failure summary if any test fails; the
+/// caller-supplied loader threads through every test file's freeze.
+pub fn run_and_assert_with_loader(
+    path: &Path,
+    dep_sources: &[&'static [WatSource]],
+    dep_registrars: &[DepRegistrar],
+    loader: Arc<dyn SourceLoader>,
+) {
+    let summary =
+        run_tests_from_dir_with_loader(path, dep_sources, dep_registrars, loader);
     if summary.no_tests_discovered {
         panic!(
             "wat test suite: no test- prefixed functions found under {}",
@@ -324,7 +380,7 @@ pub fn run_and_assert(
             summary.passed, summary.failed, summary.elapsed_ms
         );
         for fail in &summary.failure_summaries {
-            msg.push_str("\n");
+            msg.push('\n');
             msg.push_str(fail);
             msg.push('\n');
         }
@@ -352,6 +408,34 @@ fn discover_wat_files(path: &Path) -> std::io::Result<Vec<PathBuf>> {
         std::io::ErrorKind::InvalidInput,
         "path is neither file nor directory",
     ))
+}
+
+/// Arc 017 — a `.wat` file is an ENTRY (commits config + hosts tests)
+/// iff it has at least one top-level `(:wat::config::set-*!)` form.
+/// Files without any top-level setter are LIBRARIES — intended to be
+/// `(:wat::core::load! :wat::load::file-path "...")`'d from entries
+/// — and test_runner skips them at freeze time.
+///
+/// Implementation: parse the file's top-level forms with the lexer +
+/// parser and check each form's head keyword. Parse errors are NOT
+/// reported here — the caller proceeds to freeze, where the error
+/// surfaces with full diagnostic context. Treating parse-failed files
+/// as "not an entry" (and skipping) would mask real errors.
+fn source_has_config_setter(src: &str) -> bool {
+    let forms = match crate::parser::parse_all(src) {
+        Ok(f) => f,
+        // Parse error — let the caller's freeze path report it.
+        // Return `true` so we proceed to freeze.
+        Err(_) => return true,
+    };
+    forms.iter().any(|form| {
+        if let crate::ast::WatAST::List(items, _) = form {
+            if let Some(crate::ast::WatAST::Keyword(k, _)) = items.first() {
+                return k.starts_with(":wat::config::set-") && k.ends_with('!');
+            }
+        }
+        false
+    })
 }
 
 fn collect_wat_files_recursive(dir: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
