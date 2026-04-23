@@ -293,10 +293,11 @@ as first-class keyword arguments.
 
 | Path | Signature | Source |
 |---|---|---|
-| `:wat::std::HashMap` | `:(K,V) × k1 v1 k2 v2 … -> :HashMap<K,V>` constructor | `runtime.rs::eval_hashmap_ctor`; `check.rs::infer_hashmap_constructor` |
-| `:wat::std::HashSet` | `:T × items… -> :HashSet<T>` constructor | `runtime.rs::eval_hashset_ctor`; `check.rs::infer_hashset_constructor` |
-| `:wat::std::get` | polymorphic `get` on HashMap / HashSet / Vec | `runtime.rs::eval_std_get`; `check.rs::infer_get` |
-| `:wat::std::contains?` | HashMap key-membership test | `runtime.rs::eval_std_contains` |
+| `:wat::core::HashMap` | `:(K,V) × k1 v1 k2 v2 … -> :HashMap<K,V>` constructor | `runtime.rs::eval_hashmap_ctor`; `check.rs::infer_hashmap_constructor`. Moved from `:wat::std::*` → `:wat::core::*` in arc 021 (can't be written in wat). |
+| `:wat::core::HashSet` | `:T × items… -> :HashSet<T>` constructor | `runtime.rs::eval_hashset_ctor`; `check.rs::infer_hashset_constructor`. Moved from `:wat::std::*` in arc 021. |
+| `:wat::core::get` | polymorphic `get` on HashMap / HashSet / Vec | `runtime.rs::eval_std_get`; `check.rs::infer_get`. Moved from `:wat::std::*` in arc 021. |
+| `:wat::core::contains?` | HashMap key-membership test | `runtime.rs::eval_std_contains`. Moved from `:wat::std::*` in arc 021. |
+| `:wat::core::assoc` | `HashMap<K,V> × K × V -> HashMap<K,V>` — Clojure's `assoc`, values-up put | `runtime.rs::eval_assoc`; `check.rs::infer_assoc`. Added in arc 020. |
 | `:wat::std::member?` | HashSet element-membership test | `runtime.rs::eval_std_member` |
 
 ### `:wat::std::list::*` — list combinators

@@ -426,10 +426,10 @@ fn infer_list(
             ":wat::core::vec" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::tuple" => return infer_tuple_constructor(args, env, locals, fresh, subst, errors),
-            ":wat::std::HashMap" => return infer_hashmap_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::core::HashMap" => return infer_hashmap_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::assoc" => return infer_assoc(args, env, locals, fresh, subst, errors),
-            ":wat::std::HashSet" => return infer_hashset_constructor(args, env, locals, fresh, subst, errors),
-            ":wat::std::get" => return infer_get(args, env, locals, fresh, subst, errors),
+            ":wat::core::HashSet" => return infer_hashset_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::core::get" => return infer_get(args, env, locals, fresh, subst, errors),
             ":wat::core::quote" => {
                 // Quote captures an unevaluated AST. The argument is
                 // DATA, not an expression — the type checker does not
@@ -1873,7 +1873,7 @@ fn process_let_binding(
     }
 }
 
-/// Type-check `(:wat::std::HashSet :T x1 x2 ...)`. First arg is a
+/// Type-check `(:wat::core::HashSet :T x1 x2 ...)`. First arg is a
 /// type keyword; remaining args are elements, each unifying with T.
 /// Explicit typing required (matches the vec/list / make-queue
 /// resource-constructor discipline — shape never depends on context).
@@ -1887,7 +1887,7 @@ fn infer_hashset_constructor(
 ) -> Option<TypeExpr> {
     if args.is_empty() {
         errors.push(CheckError::ArityMismatch {
-            callee: ":wat::std::HashSet".into(),
+            callee: ":wat::core::HashSet".into(),
             expected: 1,
             got: 0,
         });
@@ -1901,7 +1901,7 @@ fn infer_hashset_constructor(
             Ok(t) => t,
             Err(_) => {
                 errors.push(CheckError::MalformedForm {
-                    head: ":wat::std::HashSet".into(),
+                    head: ":wat::core::HashSet".into(),
                     reason: format!("first argument {} is not a valid type keyword", k),
                 });
                 fresh.fresh()
@@ -1909,7 +1909,7 @@ fn infer_hashset_constructor(
         },
         _ => {
             errors.push(CheckError::MalformedForm {
-                head: ":wat::std::HashSet".into(),
+                head: ":wat::core::HashSet".into(),
                 reason: "first argument must be a type keyword (e.g., :i64)".into(),
             });
             fresh.fresh()
@@ -1919,7 +1919,7 @@ fn infer_hashset_constructor(
         if let Some(ty) = infer(arg, env, locals, fresh, subst, errors) {
             if unify(&ty, &t_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::std::HashSet".into(),
+                    callee: ":wat::core::HashSet".into(),
                     param: format!("element #{}", i + 1),
                     expected: format_type(&apply_subst(&t_ty, subst)),
                     got: format_type(&apply_subst(&ty, subst)),
@@ -1933,7 +1933,7 @@ fn infer_hashset_constructor(
     })
 }
 
-/// Type-check `(:wat::std::get container locator)`. Polymorphic over
+/// Type-check `(:wat::core::get container locator)`. Polymorphic over
 /// HashMap and HashSet; dispatch by arg shape. Rank-1 HM can't
 /// express the union at the SCHEME layer, so special-case: inspect
 /// the first arg's type and produce the matching return type.
@@ -1949,7 +1949,7 @@ fn infer_get(
 ) -> Option<TypeExpr> {
     if args.len() != 2 {
         errors.push(CheckError::ArityMismatch {
-            callee: ":wat::std::get".into(),
+            callee: ":wat::core::get".into(),
             expected: 2,
             got: args.len(),
         });
@@ -1972,7 +1972,7 @@ fn infer_get(
                 if let Some(key_ty) = key_ty {
                     if unify(&key_ty, &k, subst, env.types()).is_err() {
                         errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::std::get".into(),
+                            callee: ":wat::core::get".into(),
                             param: "key".into(),
                             expected: format_type(&apply_subst(&k, subst)),
                             got: format_type(&apply_subst(&key_ty, subst)),
@@ -1989,7 +1989,7 @@ fn infer_get(
                 if let Some(key_ty) = key_ty {
                     if unify(&key_ty, &t, subst, env.types()).is_err() {
                         errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::std::get".into(),
+                            callee: ":wat::core::get".into(),
                             param: "element".into(),
                             expected: format_type(&apply_subst(&t, subst)),
                             got: format_type(&apply_subst(&key_ty, subst)),
@@ -2003,7 +2003,7 @@ fn infer_get(
             }
             _ => {
                 errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::std::get".into(),
+                    callee: ":wat::core::get".into(),
                     param: "container".into(),
                     expected: "HashMap<K,V> | HashSet<T>".into(),
                     got: format_type(&apply_subst(&ct, subst)),
@@ -2089,7 +2089,7 @@ fn infer_assoc(
     })
 }
 
-/// Type-check `(:wat::std::HashMap :(K,V) k1 v1 k2 v2 ...)`. First arg
+/// Type-check `(:wat::core::HashMap :(K,V) k1 v1 k2 v2 ...)`. First arg
 /// is a tuple-type keyword `:(K,V)` encoding both parameters; the
 /// remaining args are alternating key/value pairs. Keys unify with K,
 /// values with V. Explicit typing required (matches vec/list / make-queue
@@ -2104,7 +2104,7 @@ fn infer_hashmap_constructor(
 ) -> Option<TypeExpr> {
     if args.is_empty() {
         errors.push(CheckError::ArityMismatch {
-            callee: ":wat::std::HashMap".into(),
+            callee: ":wat::core::HashMap".into(),
             expected: 1,
             got: 0,
         });
@@ -2118,7 +2118,7 @@ fn infer_hashmap_constructor(
             Ok(TypeExpr::Tuple(ts)) if ts.len() == 2 => (ts[0].clone(), ts[1].clone()),
             Ok(other) => {
                 errors.push(CheckError::MalformedForm {
-                    head: ":wat::std::HashMap".into(),
+                    head: ":wat::core::HashMap".into(),
                     reason: format!(
                         "first argument must be a tuple type :(K,V); got {}",
                         format_type(&other)
@@ -2128,7 +2128,7 @@ fn infer_hashmap_constructor(
             }
             Err(_) => {
                 errors.push(CheckError::MalformedForm {
-                    head: ":wat::std::HashMap".into(),
+                    head: ":wat::core::HashMap".into(),
                     reason: format!("first argument {} is not a valid type keyword", k),
                 });
                 (fresh.fresh(), fresh.fresh())
@@ -2136,7 +2136,7 @@ fn infer_hashmap_constructor(
         },
         _ => {
             errors.push(CheckError::MalformedForm {
-                head: ":wat::std::HashMap".into(),
+                head: ":wat::core::HashMap".into(),
                 reason: "first argument must be a tuple type keyword :(K,V)".into(),
             });
             (fresh.fresh(), fresh.fresh())
@@ -2145,7 +2145,7 @@ fn infer_hashmap_constructor(
     let pairs = &args[1..];
     if !pairs.len().is_multiple_of(2) {
         errors.push(CheckError::MalformedForm {
-            head: ":wat::std::HashMap".into(),
+            head: ":wat::core::HashMap".into(),
             reason: "arity after :(K,V) must be even (alternating key/value)".into(),
         });
     }
@@ -2153,7 +2153,7 @@ fn infer_hashmap_constructor(
         if let Some(k_arg_ty) = infer(&chunk[0], env, locals, fresh, subst, errors) {
             if unify(&k_arg_ty, &k_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::std::HashMap".into(),
+                    callee: ":wat::core::HashMap".into(),
                     param: format!("key #{}", i + 1),
                     expected: format_type(&apply_subst(&k_ty, subst)),
                     got: format_type(&apply_subst(&k_arg_ty, subst)),
@@ -2166,7 +2166,7 @@ fn infer_hashmap_constructor(
         {
             if unify(&v_arg_ty, &v_ty, subst, env.types()).is_err() {
                 errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::std::HashMap".into(),
+                    callee: ":wat::core::HashMap".into(),
                     param: format!("value #{}", i + 1),
                     expected: format_type(&apply_subst(&v_ty, subst)),
                     got: format_type(&apply_subst(&v_arg_ty, subst)),
@@ -3878,7 +3878,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // and HashSet). contains? (HashMap) and member? (HashSet) carry
     // their own narrow schemes.
     env.register(
-        ":wat::std::contains?".into(),
+        ":wat::core::contains?".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![

@@ -603,9 +603,9 @@ primitives at parse time:
 (:wat::std::Subtract x y)                  ; Blend x y 1 -1 — remove y from x
 (:wat::std::Reject x y)                    ; Gram-Schmidt reject step
 (:wat::std::Project x y)                   ; Gram-Schmidt project step
-(:wat::std::HashMap k1 v1 k2 v2 ...)       ; HashMap holon
+(:wat::core::HashMap k1 v1 k2 v2 ...)      ; HashMap (core collection)
 (:wat::std::Vec (...))                     ; Vec holon
-(:wat::std::HashSet (...))                 ; HashSet holon
+(:wat::core::HashSet (...))                ; HashSet (core collection)
 ```
 
 The presence retrieval primitive:

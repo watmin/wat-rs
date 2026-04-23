@@ -130,7 +130,7 @@ fn alias_preserves_type_mismatches() {
 
 #[test]
 fn alias_over_hashmap_passes_through_std_get() {
-    // `:my::Row` aliases HashMap<String,i64>. `:wat::std::get` inspects
+    // `:my::Row` aliases HashMap<String,i64>. `:wat::core::get` inspects
     // its container argument's shape (HashMap / HashSet). With alias
     // reduction at the shape-inspection site, the alias resolves to
     // its HashMap root and the call type-checks.
@@ -142,8 +142,8 @@ fn alias_over_hashmap_passes_through_std_get() {
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
-            (((row :my::Row) (:wat::std::HashMap :(String,i64) "a" 10 "b" 20))
-             ((got :Option<i64>) (:wat::std::get row "a")))
+            (((row :my::Row) (:wat::core::HashMap :(String,i64) "a" 10 "b" 20))
+             ((got :Option<i64>) (:wat::core::get row "a")))
             (:wat::core::match got -> :i64
               ((Some v) v)
               (:None -1))))

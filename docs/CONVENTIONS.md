@@ -20,7 +20,7 @@ Every other prefix is user territory.
 
 | Prefix | What lives here |
 |---|---|
-| `:wat::core::*` | Evaluator primitives — forms (`define`, `lambda`, `let*`, `if`, `match`), primitive types (`i64`, `bool`, `String`, ...), macros, eval-family, primitive-type operations (`i64::+`, `bool::and`), core collection constructors (`vec`, `list`, `cons`, `conj`). Cannot be written in wat. |
+| `:wat::core::*` | Evaluator primitives — forms (`define`, `lambda`, `let*`, `if`, `match`), primitive types (`i64`, `bool`, `String`, ...), macros, eval-family, primitive-type operations (`i64::+`, `bool::and`), core collections (`vec`, `list`, `cons`, `conj`, `HashMap`, `HashSet`, `get`, `contains?`, `assoc`). Cannot be written in wat. |
 | `:wat::config::*` | Runtime-committed configuration values (noise floor, dimensions). Read-only after config pass. |
 | `:wat::algebra::*` | VSA primitives — `Atom`, `Bundle`, `Unbundle`, `Amplify`, `Compose`, `cosine`, `presence?`, `Resonance`, `Thermometer`, `Blend`. |
 | `:wat::kernel::*` | CSP primitives — `spawn`, `send`, `recv`, `select`, `drop`, `join`, `make-bounded-queue`, `HandlePool`, signal handlers. |
@@ -28,6 +28,37 @@ Every other prefix is user territory.
 | `:wat::std::*` | Stdlib built on primitives. Each entry should be expressible (in principle) in wat itself, even if shipped as Rust for performance. `LocalCache`, `stream::*`, `program::Console`, `program::Cache`, `list::*`, `math::*`. |
 | `:rust::*` | Surfaced Rust types via `#[wat_dispatch]`. Paths mirror real Rust (`:rust::std::iter::Iterator`, `:rust::crossbeam_channel::Receiver`). |
 | `:user::*` | User composition space — community wat crates AND user program code. See "External wat crates" below. |
+
+### Core vs stdlib rubric (arc 021)
+
+The distinction the two tiers encode — load-bearing enough to
+name explicitly:
+
+- **`:wat::core::*` — evaluator primitives that CANNOT be written
+  in wat.** Arithmetic operators, primitive-type conversions,
+  control-flow forms, macro-definition forms, and the fundamental
+  collection types (Vec, HashMap, HashSet) with their constructors
+  + primitive accessors. These reach Rust internals (f64 math,
+  HashMap buckets, evaluator state) that wat has no way to
+  express. The `:wat::core::*` namespace is the "language as
+  defined by the Rust host."
+
+- **`:wat::std::*` — stdlib EXPRESSIBLE in wat, even if shipped
+  as Rust for performance.** Named compositions over core
+  (algebra idioms like `Circular`, `Log`, `Subtract`), services
+  implemented in wat source on top of kernel primitives (Console,
+  Cache), stream / list combinators, math transcendentals (in
+  principle Taylor-series'd in wat). The `:wat::std::*` namespace
+  is "the library built on the language."
+
+When adding a new primitive, ask: "could this be written as a wat
+function on top of what exists?" If no — it's core. If yes, even
+if shipped as Rust — it's std.
+
+Arc 021 corrected drift where HashMap / HashSet / get / contains?
+had been placed at `:wat::std::*` when they should have been at
+`:wat::core::*` (they reach Rust bucket internals; can't write in
+wat). `assoc` from arc 020 was already at core by this rule.
 
 ### External wat crates (arc 013)
 
