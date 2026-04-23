@@ -111,8 +111,8 @@ relative-path `(load!)` calls:
 
 ```scheme
 (:wat::test::deftest :trading::test::vocab::shared::time::test-foo 1024 :error
-  (:wat::core::load! :wat::load::file-path "../../wat/types/candle.wat")
-  (:wat::core::load! :wat::load::file-path "../../wat/vocab/shared/time.wat")
+  (:wat::load-file! "../../wat/types/candle.wat")
+  (:wat::load-file! "../../wat/vocab/shared/time.wat")
   ...)
 ```
 

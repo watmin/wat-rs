@@ -49,12 +49,12 @@ the loader's scope clamps at `wat-tests/`.
 
 ```scheme
 ;; Bare path — SCOPE-ROOT relative, unchanged from today.
-(:wat::core::load! :wat::load::file-path "helpers.wat")
+(:wat::load-file! "helpers.wat")
 
 ;; Dotted path — FILE relative, resolved against the
 ;; directory of the file containing this (load!) call.
-(:wat::core::load! :wat::load::file-path "./helpers.wat")
-(:wat::core::load! :wat::load::file-path "../shared/common.wat")
+(:wat::load-file! "./helpers.wat")
+(:wat::load-file! "../shared/common.wat")
 ```
 
 Resolution:
@@ -108,7 +108,7 @@ up and over into sibling trees:
 
 ```scheme
 ;; wat-tests/vocab/shared/time.wat:
-(:wat::core::load! :wat::load::file-path "../../wat/types/candle.wat")
+(:wat::load-file! "../../wat/types/candle.wat")
 ;; Resolves to CARGO_MANIFEST_DIR/wat/types/candle.wat. Legal —
 ;; stays within the crate-root scope clamp.
 ```
@@ -132,13 +132,13 @@ load lines total):
     (:wat::test::program
       (:wat::config::set-capacity-mode! :error)
       (:wat::config::set-dims! 1024)
-      (:wat::core::load! :wat::load::file-path "types/enums.wat")
-      (:wat::core::load! :wat::load::file-path "types/newtypes.wat")
-      (:wat::core::load! :wat::load::file-path "types/ohlcv.wat")
-      (:wat::core::load! :wat::load::file-path "types/distances.wat")
-      (:wat::core::load! :wat::load::file-path "types/pivot.wat")
-      (:wat::core::load! :wat::load::file-path "types/candle.wat")
-      (:wat::core::load! :wat::load::file-path "vocab/shared/time.wat")
+      (:wat::load-file! "types/enums.wat")
+      (:wat::load-file! "types/newtypes.wat")
+      (:wat::load-file! "types/ohlcv.wat")
+      (:wat::load-file! "types/distances.wat")
+      (:wat::load-file! "types/pivot.wat")
+      (:wat::load-file! "types/candle.wat")
+      (:wat::load-file! "vocab/shared/time.wat")
       (:wat::core::define (:user::main ...) -> :()) ...)
     (:wat::core::vec :String)
     (Some "wat")))
@@ -151,8 +151,8 @@ After arc 027:
   ;; deftest inherits the outer test binary's loader (arc 027 layer 3).
   ;; The outer loader is a ScopedLoader at CARGO_MANIFEST_DIR
   ;; (arc 027 layer 4).
-  (:wat::core::load! :wat::load::file-path "../../wat/types/candle.wat")
-  (:wat::core::load! :wat::load::file-path "../../wat/vocab/shared/time.wat")
+  (:wat::load-file! "../../wat/types/candle.wat")
+  (:wat::load-file! "../../wat/vocab/shared/time.wat")
   ;; Canonical-path dedup (arc 027 layer 2) means if any prior
   ;; test already loaded these, the second load is a no-op — just
   ;; makes the defines visible in this test's scope.
@@ -230,7 +230,7 @@ callable.
   `arc/2026/04/018-opinionated-defaults-and-test-rename/INSCRIPTION.md`
   — footers pointing at 027's refinements.
 - `docs/arc/2026/04/005-stdlib-naming-audit/INVENTORY.md` —
-  `:wat::core::load!` row may gain a note on relative paths.
+  `:wat::load-file!` row may gain a note on relative paths.
 - `holon-lab-trading/docs/proposals/.../FOUNDATION-CHANGELOG.md`
   — new row for arc 027.
 

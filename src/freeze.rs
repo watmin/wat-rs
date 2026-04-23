@@ -349,9 +349,10 @@ pub fn startup_from_forms(
     check_program(&residue, &symbols, &types)?;
 
     // 9. Freeze. The loader moves into the frozen world's
-    //    SymbolTable so runtime primitives (`:wat::eval::file-path`,
-    //    `:wat::verify::file-path`) can route through the same
-    //    capability that handled startup loads.
+    //    SymbolTable so runtime primitives (`:wat::eval-file!` and
+    //    the file-path variants of the verified eval/load forms,
+    //    `:wat::verify::file-path` payloads) can route through the
+    //    same capability that handled startup loads.
     Ok(FrozenWorld::freeze(
         config,
         types,

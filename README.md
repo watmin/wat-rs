@@ -15,10 +15,11 @@ Ships:
 - `wat` — the library (this crate).
 - `wat-macros` — the sibling proc-macro crate. `#[wat_dispatch]` generates
   the shim code that surfaces a Rust `impl` block under `:rust::...`.
-- `wat` — the CLI binary. Two invocation shapes:
-  - `wat <entry.wat>` — run a program. See [the `:user::main` contract](#usermain-contract) below.
-  - `wat test <path>` — run tests. Recurses a directory; random-ordered
-    per-file; cargo-test-style output. See [self-hosted testing](#self-hosted-testing).
+- `wat` — the CLI binary. `wat <entry.wat>` runs a program; see
+  [the `:user::main` contract](#usermain-contract) below. (A legacy
+  `wat test <path>` subcommand still ships — it predates the Cargo
+  integration — but `cargo test` through `wat::test! {}` is the
+  canonical test workflow. See [self-hosted testing](#self-hosted-testing).)
 
 ## What wat is
 
@@ -59,9 +60,10 @@ their own Rust crates to wat (e.g. rusqlite, parquet, aya) use
 between 2026-03 and 2026-04; each with a dated DESIGN / BACKLOG /
 INSCRIPTION triple under `docs/arc/2026/04/`.
 
-The language is self-hosted at the testing layer: `wat test wat-tests/`
-runs 31 wat tests across 8 files in 107ms, and the assertion primitives
-assert about the assertion primitives. Arc 007 — *wat tests wat* — was
+The language is self-hosted at the testing layer: `cargo test`
+(through `tests/test.rs` + `wat::test! {}`) runs the wat test tree
+alongside the Rust suite, and the assertion primitives assert about
+the assertion primitives. Arc 007 — *wat tests wat* — was
 the proof point. DESIGN's closing line, *"if wat can test wat, the
 language is complete for its own verification,"* held.
 
@@ -95,9 +97,9 @@ fork-with-forms` + `wait-child` — no binary-path coupling, no
 tempfile. The stdlib wraps them as `:wat::test::run`,
 `:wat::test::run-ast`, `:wat::test::run-hermetic-ast`,
 `:wat::test::deftest` (Clojure-style ergonomic shell), and six
-assertion primitives with panic-and-catch semantics. The `wat test
-<path>` CLI auto-discovers deftests by `test-` prefix + zero-arg
-`:wat::kernel::RunResult` return.
+assertion primitives with panic-and-catch semantics. `cargo test`
+(via `tests/test.rs` + `wat::test! {}`) auto-discovers deftests by
+`test-` prefix + zero-arg `:wat::kernel::RunResult` return.
 
 **Capacity-guard arc operational.** `:wat::algebra::Bundle` enforces
 Kanerva's per-frame capacity at dispatch time and returns
@@ -117,9 +119,10 @@ macro-feature integration (`wat_dispatch_193a`/`193b`/`e1_vec`/`e2_tuple`
 `wat_core_forms` (6), `wat_names_are_values` (5), `wat_harness` (7),
 `wat_run_sandboxed{,_ast}` + `wat_hermetic_round_trip`, `wat_test_cli` +
 `wat_cli` + `wat_cache`, zero clippy warnings. On the wat side: the
-`wat test wat-tests/` tree runs every stdlib-file test written in wat
-(Subtract, Circular, Reject/Project, Sequential, Trigram, test-harness
-self-tests, Console + Cache via hermetic sandbox, stream with-state).
+`wat-tests/` tree (run via `cargo test`) covers every stdlib-file test
+written in wat (Subtract, Circular, Reject/Project, Sequential,
+Trigram, test-harness self-tests, Console + Cache via hermetic
+sandbox, stream with-state).
 
 ## Module tour
 
@@ -139,11 +142,14 @@ self-tests, Console + Cache via hermetic sandbox, stream with-state).
   and `noise-floor` (default `5.0 / sqrt(dims)` — the 5σ substrate noise
   floor per FOUNDATION 1718). Each optional field overridable exactly
   once.
-- [`load`] — recursive load-form resolution with `:wat::load::*` source
-  interfaces and `:wat::verify::*` payload + algorithm keywords. Three
-  load forms (`load!` / `digest-load!` / `signed-load!`). Cycle detection,
-  commit-once. Capability-gated via `SourceLoader` (arc 007 slice 1) —
-  `ScopedLoader`, `FsLoader`, `InMemoryLoader` all impl.
+- [`load`] — recursive load-form resolution. Six load forms
+  (`load-file!` / `load-string!` / `digest-load!` / `digest-load-string!` /
+  `signed-load!` / `signed-load-string!`) — each takes its source
+  directly (path or inline string) as the first argument. Verification
+  payloads use `:wat::verify::*` keywords (`file-path` / `string` /
+  `digest-sha256` / `signed-ed25519`). Cycle detection, canonical-path
+  dedup (arc 027 slice 1). Capability-gated via `SourceLoader` (arc 007
+  slice 1) — `ScopedLoader`, `FsLoader`, `InMemoryLoader` all impl.
 - [`macros`] — `defmacro` + quasiquote + Racket sets-of-scopes hygiene,
   plus `&`-suffix variadic rest-params.
 - [`types`] — type declarations, `TypeEnv`, `TypeExpr` (Path / Parametric
@@ -151,9 +157,8 @@ self-tests, Console + Cache via hermetic sandbox, stream with-state).
   seeds wat-rs's own `:wat::*` types (Failure, Location, Frame,
   RunResult, CapacityExceeded, EvalError).
 - [`resolve`] — call-site reference validation; reserved-prefix gate
-  (`:wat::core::`, `:wat::kernel::`, `:wat::algebra::`, `:wat::std::`,
-  `:wat::config::`, `:wat::load::`, `:wat::verify::`, `:wat::eval::`,
-  `:wat::io::`, `:wat::test::`, `:rust::`).
+  (`:wat::*` catch-all covering every sub-namespace + root-level load/eval
+  forms, plus `:rust::*` — arc 028 consolidation).
 - [`check`] — rank-1 HM. Built-in schemes for the wat core; the
   `:rust::*` surface registers schemes dynamically through
   [`rust_deps::RustDepsRegistry`]. Structural equality across composite
@@ -273,20 +278,20 @@ external-crate architecture.
 
 ## `wat` binary
 
-Two invocation shapes on one binary:
-
 ```
 wat <entry.wat>      # run a program — INTERPRET path
-wat test <path>      # run tests — file or directory, recursive
 ```
 
 Program mode reads the entry file, runs the full startup pipeline,
 installs OS signal handlers, passes real stdio (wrapped in the
 `:wat::io::IOReader` / `IOWriter` trait objects) to `:user::main`, and
-exits. Test mode discovers every top-level define whose path's last
-segment starts with `test-` and whose signature is
-`() -> :wat::kernel::RunResult`, shuffles them, invokes each, and
-reports cargo-test-style.
+exits.
+
+A `wat test <path>` subcommand still ships as the pre-cargo-integration
+workflow, but the canonical test path is `cargo test` through
+`tests/test.rs` + `wat::test! {}` — Cargo is the authority. The CLI's
+test mode discovers the same `test-`-prefixed zero-arg defines
+returning `:wat::kernel::RunResult`.
 
 ### `:user::main` contract
 
@@ -368,23 +373,27 @@ The assertion primitives assert about the assertion primitives.
 
 `deftest` expands to a named zero-arg function returning `RunResult`.
 Config setters + the `:user::main` wrapper come from the macro; the
-body is the user's one line. Callers invoke it directly; `wat test`
-auto-discovers by name prefix + signature.
+body is the user's one line. Callers invoke it directly; the
+`wat::test!` runner auto-discovers by name prefix + signature.
 
-### Running tests — `wat test`
+### Running tests — `cargo test`
 
 ```
-$ wat test wat-tests/
+$ cargo test -- --nocapture
+running 1 test
 running 31 tests
 test stream.wat :: wat-tests::std::stream::test-chunks-exact-multiple ... ok (2ms)
 test test.wat :: wat-tests::std::test::test-assert-eq-on-i64 ......... ok (1ms)
 test service/Console.wat :: wat-tests::std::service::Console::test-hello-world ... ok (6ms)
 ...
 test result: ok. 31 passed; 0 failed; finished in 107ms
+test wat_suite ... ok
 ```
 
 Recursive directory traversal. Random-ordered per file (nanos-seeded
-xorshift64 inline — no `rand` dependency). Cargo-style output.
+xorshift64 inline — no `rand` dependency). Cargo-style output. The
+outer `wat_suite` line is libtest's wrapper; per-wat-test lines stream
+with `--nocapture` or print after the suite with `--show-output`.
 
 ### Fork/sandbox tests — `:wat::test::program` + `:wat::test::run-ast`
 
@@ -534,10 +543,13 @@ Errors read exactly like user-written declarations: *expected
 hiding what a value is or where a type comes from.
 
 Two sibling namespaces, both rooted at the colon:
-- `:wat::*` — forms and types defined by the wat language itself
-  (`:wat::core::*`, `:wat::algebra::*`, `:wat::kernel::*`, `:wat::std::*`,
-  `:wat::config::*`, `:wat::load::*`, `:wat::verify::*`, `:wat::eval::*`,
-  `:wat::io::*`, `:wat::test::*`).
+- `:wat::*` — forms and types defined by the wat language itself.
+  Sub-namespaces: `:wat::core::*` (evaluator primitives), `:wat::holon::*`
+  (algebra + measurements), `:wat::kernel::*` (concurrency), `:wat::std::*`
+  (stdlib), `:wat::config::*` (committed config), `:wat::verify::*`
+  (verification vocabulary), `:wat::io::*` (stdio), `:wat::test::*` (test
+  harness). Plus root-level substrate forms — `:wat::load-file!`,
+  `:wat::eval-ast!`, etc. (arc 028) — and the `:wat::WatAST` type.
 - `:rust::*` — forms and types surfaced from Rust crates
   (`:rust::std::io::*`, `:rust::crossbeam_channel::*`, `:rust::lru::*`,
   and whatever the consumer registered).

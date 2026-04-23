@@ -530,8 +530,9 @@ impl fmt::Debug for EncodingCtx {
 /// The `encoding_ctx` and `source_loader` fields are populated at
 /// freeze time by the startup pipeline. Test harnesses
 /// (`SymbolTable::new()`) leave them `None`; primitives that require
-/// the capability (presence / encode for ctx, `:wat::eval::file-path`
-/// for loader) error cleanly if invoked without one attached.
+/// the capability (presence / encode for ctx, `:wat::eval-file!` and
+/// the `-file-path` verified eval variants for loader) error cleanly
+/// if invoked without one attached.
 ///
 /// Runtime-capability attachment follows the pattern established by
 /// Rust's compiler `Session`, Common Lisp special variables,
@@ -584,10 +585,10 @@ impl SymbolTable {
     }
 
     /// Borrow the source loader, if one is attached. Runtime primitives
-    /// that read files (`:wat::eval::file-path`,
-    /// `:wat::verify::file-path`) call this and raise an error on
-    /// `None` — a host that didn't attach a loader doesn't have the
-    /// capability.
+    /// that read files (`:wat::eval-file!`, file-path variants of the
+    /// verified eval/load forms, `:wat::verify::file-path` payloads)
+    /// call this and raise an error on `None` — a host that didn't
+    /// attach a loader doesn't have the capability.
     pub fn source_loader(&self) -> Option<&Arc<dyn crate::load::SourceLoader>> {
         self.source_loader.as_ref()
     }
@@ -652,12 +653,13 @@ pub enum RuntimeError {
     /// test harnesses that don't go through freeze; the frozen startup
     /// pipeline always installs one.
     NoEncodingCtx { op: String },
-    /// A file-reading primitive (`:wat::eval::file-path`,
-    /// `:wat::verify::file-path`) was invoked but the [`SymbolTable`]
-    /// has no attached source loader. The frozen startup pipeline
-    /// attaches the loader handed to `startup_from_source`; test
-    /// harnesses that build a SymbolTable directly must call
-    /// [`SymbolTable::set_source_loader`] to grant file-I/O capability.
+    /// A file-reading primitive (`:wat::eval-file!`, file-path
+    /// variants of the verified eval/load forms, `:wat::verify::file-path`
+    /// payloads) was invoked but the [`SymbolTable`] has no attached
+    /// source loader. The frozen startup pipeline attaches the loader
+    /// handed to `startup_from_source`; test harnesses that build a
+    /// SymbolTable directly must call [`SymbolTable::set_source_loader`]
+    /// to grant file-I/O capability.
     NoSourceLoader { op: String },
     /// A `(:wat::core::match scrutinee ...)` ran with no arm whose
     /// pattern matches the scrutinee's shape. Exhaustiveness is the
@@ -5431,23 +5433,29 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
     }
 }
 
-// ─── Four eval forms ────────────────────────────────────────────────────
+// ─── Seven eval forms ────────────────────────────────────────────────────
 //
-// Mirror of the three load forms, with one extra on the AST side:
+// Mirror of the six load forms, with one extra on the AST side. Arc 028
+// dropped the `:wat::eval::<iface>` interface keyword — each form takes
+// its source (AST, inline string, or path) directly:
 //
-//   (:wat::eval-ast! <Value::Ast>)
-//   (:wat::eval-edn! :wat::eval::<iface> <locator>)
-//   (:wat::eval-digest! :wat::eval::<iface> <locator>
-//                              :wat::verify::digest-<algo>
-//                              :wat::verify::<iface> <payload>)
-//   (:wat::eval-signed! :wat::eval::<iface> <locator>
-//                              :wat::verify::signed-<algo>
-//                              :wat::verify::<iface> <sig>
-//                              :wat::verify::<iface> <pubkey>)
+//   (:wat::eval-ast!  <Value::Ast>)
+//   (:wat::eval-edn!  <source>)
+//   (:wat::eval-file! <path>)
+//   (:wat::eval-digest!        <path>   :wat::verify::digest-<algo>
+//                                       :wat::verify::<iface> <payload>)
+//   (:wat::eval-digest-string! <source> :wat::verify::digest-<algo>
+//                                       :wat::verify::<iface> <payload>)
+//   (:wat::eval-signed!        <path>   :wat::verify::signed-<algo>
+//                                       :wat::verify::<iface> <sig>
+//                                       :wat::verify::<iface> <pubkey>)
+//   (:wat::eval-signed-string! <source> :wat::verify::signed-<algo>
+//                                       :wat::verify::<iface> <sig>
+//                                       :wat::verify::<iface> <pubkey>)
 //
 // `eval-ast!` takes a value that IS a parsed AST (already past any trust
-// boundary); the other three take EDN source text with optional
-// byte-level (digest) or meaning-level (signed) verification.
+// boundary); the others take EDN source text (inline or via path) with
+// optional byte-level (digest) or meaning-level (signed) verification.
 //
 // The mutation-form refusal (FOUNDATION line 663) runs inside every
 // path: an AST that contains a `define` / `defmacro` / `struct` / etc.
@@ -6775,8 +6783,9 @@ mod tests {
 
     /// Same as [`eval_expr`] but clones the shared stdlib SymbolTable
     /// and attaches a real filesystem loader. Tests that exercise
-    /// `:wat::eval::file-path` or `:wat::verify::file-path` need the
-    /// capability explicitly — arc 007 closed the direct-fs bypass,
+    /// `:wat::eval-file!` or the file-path variants of the verified
+    /// eval/load forms (or `:wat::verify::file-path` payloads) need
+    /// the capability explicitly — arc 007 closed the direct-fs bypass,
     /// so the loader must be announced per call site.
     fn eval_expr_with_fs(src: &str) -> Result<Value, RuntimeError> {
         let (stdlib_sym, macros) = stdlib_loaded();

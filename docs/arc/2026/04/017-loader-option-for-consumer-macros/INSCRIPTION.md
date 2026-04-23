@@ -12,7 +12,7 @@
 `wat::main!` hard-wired `InMemoryLoader` via `compose_and_run`
 (`compose.rs:118-122`, pre-017). Consumer binaries with multi-file
 wat programs — the trading lab being the first real case — hit a
-wall: `(:wat::core::load! :wat::load::file-path "path")` from
+wall: `(:wat::load-file! "path")` from
 inside `program.wat` always returned `NotFound`.
 
 The builder's framing:

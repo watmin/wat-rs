@@ -25,8 +25,11 @@
 //!   literals, comments.
 //! - [`parser`] — tokens → `WatAST`.
 //! - [`config`] — entry-file discipline + `set-*!` setter commit.
-//! - [`load`] — recursive load-form resolution with `:wat::load::*` and
-//!   `:wat::verify::*` interface keywords.
+//! - [`load`] — recursive load-form resolution. Six load forms
+//!   (`load-file!` / `load-string!` / `digest-load!` / `digest-load-string!` /
+//!   `signed-load!` / `signed-load-string!`) — each takes its source
+//!   directly; verification payloads use `:wat::verify::*` keywords
+//!   (arc 028 iface drop).
 //! - [`identifier`] — `Identifier` with `BTreeSet<ScopeId>` scope sets
 //!   for Racket sets-of-scopes hygiene.
 //! - [`macros`] — `defmacro` with quasiquote + hygiene.

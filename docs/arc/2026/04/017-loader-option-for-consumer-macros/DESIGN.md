@@ -3,7 +3,7 @@
 **Status:** opened 2026-04-22.
 **Motivation:** `wat::main!` hard-wires `InMemoryLoader::new()`
 via `compose_and_run` (`compose.rs:118-122, 160`), so
-`(:wat::core::load! "path")` from inside a consumer's wat program
+`(:wat::load-file! "path")` from inside a consumer's wat program
 returns `NotFound`. The ~10,000-LoC trading lab — the first real
 multi-file consumer — cannot live in one inline `program.wat`.
 This arc gives the consumer macros the `ScopedLoader` surface

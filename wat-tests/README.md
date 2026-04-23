@@ -4,10 +4,11 @@ Tests written in wat, for wat. The sibling to `wat/` the way Cargo's
 `tests/` is the sibling to `src/`.
 
 Each `.wat` file uses `:wat::test::deftest` to register named test
-functions. `wat test wat-tests/` auto-discovers every top-level
-`:wat::core::define` whose path's final `::`-segment starts with
-`test-` and whose signature is `() -> :wat::kernel::RunResult`,
-shuffles them, invokes each, and reports cargo-test-style.
+functions. `cargo test` (via `tests/test.rs` and `wat::test! {}`)
+auto-discovers every top-level `:wat::core::define` whose path's final
+`::`-segment starts with `test-` and whose signature is `() ->
+:wat::kernel::RunResult`, shuffles them, invokes each, and reports
+cargo-test-style.
 
 ## Layout
 
@@ -31,17 +32,23 @@ The stdlib module under test dictates the path. A future addition to
 
 ## Running
 
-`cargo test` runs the full suite via `tests/test.rs`
-(`wat::test! {}`). For targeted invocation:
-
 ```
-wat test wat-tests/                # every .wat in tree, cargo-style report
-wat test wat-tests/holon/          # just holon algebra tests
-wat test wat-tests/std/test.wat    # single file
+cargo test                          # full suite via tests/test.rs (wat::test! {})
+cargo test -- --nocapture           # stream per-test output live
+cargo test wat_suite -- --show-output  # print output after the suite completes
 ```
 
-Discovery is recursive. Random order per-file (nanos-seeded xorshift
-Fisher-Yates) surfaces accidental order-dependencies.
+Cargo's libtest captures stdout from passing tests by default; the
+`wat::test!` runner's per-test report lines appear only on failure
+unless you opt into one of the flags above.
+
+Discovery is recursive from the `wat-tests/` root. Random order
+per-file (nanos-seeded xorshift Fisher-Yates) surfaces accidental
+order-dependencies.
+
+The `wat test <path>` CLI binary still ships — it was the original
+pre-cargo-integration workflow — but `cargo test` is the canonical
+entry point now.
 
 ## In-process vs hermetic
 

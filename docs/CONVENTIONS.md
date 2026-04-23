@@ -298,8 +298,8 @@ Every `.wat` file is either an **entry** or a **library**:
 - **Entry**: commits startup config via top-level
   `(:wat::config::set-*!)` forms. Hosts `:user::main` (for
   binaries) or `test-*` defines (for test files).
-- **Library**: no top-level config setters. Can be `(:wat::core::load!
-  :wat::load::file-path "...")`'d from entries (or from other
+- **Library**: no top-level config setters. Can be `(:wat::load-file!
+  (path argument) "...")`'d from entries (or from other
   libraries, recursively — the entry's frozen world collects every
   loaded-file's defines at arbitrary depth). Attempting to `load!`
   a file that contains setters fails loud at startup ("setters

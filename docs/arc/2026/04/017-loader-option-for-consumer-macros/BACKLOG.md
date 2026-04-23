@@ -53,14 +53,14 @@ shared between the two functions — factor once, call from both.
 
 **Proof:** new `examples/with-loader/` workspace member. Minimal
 multi-file wat tree:
-- `wat/main.wat` — entry. `(:wat::core::load! "types.wat")`,
+- `wat/main.wat` — entry. `(:wat::load-file! "types.wat")`,
   defines `:user::main`, prints a value pulled from the loaded
   types module.
 - `wat/types.wat` — stdlib-tier defines for the main file to
   reference.
 - `src/main.rs` — one `wat::main! { source: include_str!("program.wat"),
   loader: "wat" }`. (Actually — `source:` would be the entry; does
-  that include `main.wat` or the initial `(:wat::core::load!
+  that include `main.wat` or the initial `(:wat::load-file!
   "main.wat")`? Clarify at slice time.)
 - `tests/smoke.rs` — spawn the binary, assert expected stdout.
 

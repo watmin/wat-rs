@@ -201,7 +201,7 @@ pub fn run_tests_from_dir_with_loader(
     // top-level `(:wat::config::set-*!)` form). Entries are frozen
     // here and scanned for `test-*` defines. Files without config
     // setters are **libraries** — intended to be `(:wat::load-file!
-    // :wat::load::file-path "...")`'d from entry files — and
+    // "...")`'d from entry files — and
     // test_runner silently skips them at freeze time. This mirrors
     // the binary-vs-library distinction `wat::main!` already uses
     // (the entry commits config, loaded files must not).

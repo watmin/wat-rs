@@ -197,7 +197,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   **shipped.** `wat::main!` and `wat::test_suite!` each gain an
   optional `loader: "<path>"` argument that expands to a
   `ScopedLoader` rooted at `CARGO_MANIFEST_DIR/<path>` so
-  `(:wat::core::load! :wat::load::file-path "...")` works from
+  `(:wat::load-file! "...")` works from
   multi-file consumer programs. Absent preserves the pre-017
   defaults (InMemoryLoader for main, FsLoader for tests).
   `test_runner` learned **library-vs-entry discipline** — a

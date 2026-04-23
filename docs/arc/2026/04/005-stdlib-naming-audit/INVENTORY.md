@@ -53,9 +53,12 @@ location is also cited; when dispatch is special-cased, the
 | `:wat::core::quasiquote` | template form (used inside defmacro bodies) | `macros.rs::expand_template` |
 | `:wat::core::unquote` | `,x` splice-one inside quasiquote | `macros.rs::unquote_argument` |
 | `:wat::core::unquote-splicing` | `,@x` splice-list inside quasiquote | `macros.rs::splice_argument` |
-| `:wat::core::load!` | build-time module loader | `freeze.rs::resolve_loads` |
-| `:wat::digest-load!` | digest-verified load | `freeze.rs::resolve_loads` |
-| `:wat::signed-load!` | signature-verified load | `freeze.rs::resolve_loads` |
+| `:wat::load-file!` | build-time module loader (path) | `freeze.rs::resolve_loads` |
+| `:wat::load-string!` | build-time module loader (inline source) | `freeze.rs::resolve_loads` |
+| `:wat::digest-load!` | digest-verified load (path) | `freeze.rs::resolve_loads` |
+| `:wat::digest-load-string!` | digest-verified load (inline source) | `freeze.rs::resolve_loads` |
+| `:wat::signed-load!` | signature-verified load (path) | `freeze.rs::resolve_loads` |
+| `:wat::signed-load-string!` | signature-verified load (inline source) | `freeze.rs::resolve_loads` |
 
 ### Eval-family (runtime dynamic evaluation)
 
@@ -66,8 +69,11 @@ Return `:Result<wat::holon::HolonAST, :wat::core::EvalError>` per the
 |---|---|---|
 | `:wat::eval-ast!` | `:wat::WatAST -> :Result<wat::holon::HolonAST, EvalError>` | `runtime.rs::eval_form_ast` |
 | `:wat::eval-edn!` | EDN source → parse → eval | `runtime.rs::eval_form_edn` |
-| `:wat::eval-digest!` | digest-verified EDN eval | `runtime.rs::eval_form_digest` |
-| `:wat::eval-signed!` | signature-verified EDN eval | `runtime.rs::eval_form_signed` |
+| `:wat::eval-file!` | path → read → parse → eval | `runtime.rs::eval_form_file` |
+| `:wat::eval-digest!` | digest-verified EDN eval (path) | `runtime.rs::eval_form_digest` |
+| `:wat::eval-digest-string!` | digest-verified EDN eval (inline source) | `runtime.rs::eval_form_digest_string` |
+| `:wat::eval-signed!` | signature-verified EDN eval (path) | `runtime.rs::eval_form_signed` |
+| `:wat::eval-signed-string!` | signature-verified EDN eval (inline source) | `runtime.rs::eval_form_signed_string` |
 
 ### Arithmetic (strict, no promotion)
 
@@ -187,9 +193,11 @@ threshold (presence?, coincident? — arc 023).
 | `:wat::holon::presence?` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :bool` (cosine > noise-floor) | `runtime.rs::eval_algebra_presence_q` |
 | `:wat::holon::coincident?` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :bool` ((1 − cosine) < noise-floor — arc 023) | `runtime.rs::eval_algebra_coincident_q` |
 | `:wat::holon::eval-coincident?` | `:wat::WatAST × :wat::WatAST -> :Result<:bool, :wat::core::EvalError>` (arc 026 — eval both sides, atomize, coincident?) | `runtime.rs::eval_form_ast_coincident_q` |
-| `:wat::holon::eval-edn-coincident?` | 4 args (two EDN-source pairs) → `:Result<:bool, :wat::core::EvalError>` (arc 026) | `runtime.rs::eval_form_edn_coincident_q` |
-| `:wat::holon::eval-digest-coincident?` | 10 args (two `eval-digest!`-shaped 5-tuples) → `:Result<:bool, :wat::core::EvalError>` (arc 026 — SHA-256-verified each side) | `runtime.rs::eval_form_digest_coincident_q` |
-| `:wat::holon::eval-signed-coincident?` | 14 args (two `eval-signed!`-shaped 7-tuples) → `:Result<:bool, :wat::core::EvalError>` (arc 026 — Ed25519-verified each side) | `runtime.rs::eval_form_signed_coincident_q` |
+| `:wat::holon::eval-edn-coincident?` | 2 args (two EDN sources) → `:Result<:bool, :wat::core::EvalError>` (arc 026, arc 028) | `runtime.rs::eval_form_edn_coincident_q` |
+| `:wat::holon::eval-digest-coincident?` | 8 args (two `eval-digest!`-shaped path+verify blocks) → `:Result<:bool, :wat::core::EvalError>` (arc 026, arc 028 — SHA-256-verified each side) | `runtime.rs::eval_form_digest_coincident_q` |
+| `:wat::holon::eval-digest-string-coincident?` | 8 args (two inline-source+verify blocks) → `:Result<:bool, :wat::core::EvalError>` (arc 028) | `runtime.rs::eval_form_digest_string_coincident_q` |
+| `:wat::holon::eval-signed-coincident?` | 12 args (two `eval-signed!`-shaped path+verify blocks) → `:Result<:bool, :wat::core::EvalError>` (arc 026, arc 028 — Ed25519-verified each side) | `runtime.rs::eval_form_signed_coincident_q` |
+| `:wat::holon::eval-signed-string-coincident?` | 12 args (two inline-source+verify blocks) → `:Result<:bool, :wat::core::EvalError>` (arc 028) | `runtime.rs::eval_form_signed_string_coincident_q` |
 
 ---
 
@@ -254,16 +262,17 @@ threshold (presence?, coincident? — arc 023).
 
 ---
 
-## `:wat::load::*` / `:wat::verify::*` / `:wat::eval::*` — verification vocabulary
+## `:wat::verify::*` — verification vocabulary
 
-Used inside `load!` / `digest-load!` / `signed-load!` / `eval-*!`
-as first-class keyword arguments.
+Used inside `digest-load!` / `digest-load-string!` / `signed-load!` /
+`signed-load-string!` / `eval-digest!` / `eval-digest-string!` /
+`eval-signed!` / `eval-signed-string!` as first-class keyword
+arguments. The `:wat::load::*` and `:wat::eval::*` interface-keyword
+sub-namespaces retired in arc 028 — each load/eval form now takes
+its source (path or string) directly as the first argument.
 
 | Path | Role | Source |
 |---|---|---|
-| `:wat::load::file-path` | file-path loader mode | `freeze.rs::resolve_loads` |
-| `:wat::eval::file-path` | file-path eval source | `runtime.rs::eval_form_edn` |
-| `:wat::eval::string` | inline-string eval source | same |
 | `:wat::verify::digest-sha256` | digest algorithm marker | `freeze.rs::resolve_loads` |
 | `:wat::verify::signed-ed25519` | signature algorithm marker | same |
 | `:wat::verify::file-path` | file-path verification payload | same |
@@ -406,16 +415,13 @@ as first-class keyword arguments.
 
 From `src/resolve.rs::RESERVED_PREFIXES`:
 
-- `:wat::core::`
-- `:wat::kernel::`
-- `:wat::holon::`
-- `:wat::std::`
-- `:wat::config::`
-- `:wat::load::`
-- `:wat::verify::`
-- `:wat::eval::`
-- `:wat::io::`
+- `:wat::`  — catch-all for every sub-namespace (core, kernel, holon, std, config, verify, io, test, WatAST, load-*/eval-* root forms, etc.)
 - `:rust::`
+
+Per arc 028, the substrate now reserves the entire `:wat::*` tree
+via one catch-all rather than enumerating each sub-namespace. User
+source cannot define under `:wat::*`; the whole tree belongs to the
+substrate.
 
 User source may not `define` / `defmacro` / declare types under
 any of these. The stdlib path (wat/std/*.wat) goes through

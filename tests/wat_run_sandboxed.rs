@@ -459,8 +459,8 @@ fn scoped_file_eval_inside_scope_succeeds() {
 #[test]
 fn scoped_file_eval_outside_scope_surfaces_as_err() {
     // Create a file OUTSIDE the scope; attempt to read it via
-    // :wat::eval::file-path. ScopedLoader's containment check
-    // rejects; wat-rs surfaces this as an Err in the eval-edn!
+    // :wat::eval-file!. ScopedLoader's containment check
+    // rejects; wat-rs surfaces this as an Err in the eval-file!
     // Result; the sandboxed program matches on Err and writes to
     // stderr. The sandbox itself succeeds — the "failure" here is
     // at the wat level (the Err arm), not a sandbox-caught failure.

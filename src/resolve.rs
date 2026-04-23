@@ -5,8 +5,13 @@
 //!
 //! - A known `:wat::core::*` language form (define, lambda, let, if,
 //!   the builtin arithmetic / comparison / boolean ops, the list
-//!   constructor, the quasiquote forms, the type-declaration heads,
-//!   `load!`).
+//!   constructor, the quasiquote forms, the type-declaration heads).
+//! - A root-level substrate form: `:wat::load-file!` / `:wat::load-string!` /
+//!   `:wat::digest-load!` / `:wat::digest-load-string!` / `:wat::signed-load!` /
+//!   `:wat::signed-load-string!` / `:wat::eval-ast!` / `:wat::eval-edn!` /
+//!   `:wat::eval-file!` / `:wat::eval-digest!` / `:wat::eval-digest-string!` /
+//!   `:wat::eval-signed!` / `:wat::eval-signed-string!` (arc 028 — load/eval
+//!   hoisted from `:wat::core::*` with iface-keyword sub-namespaces retired).
 //! - A known `:wat::holon::*` core form (`Atom`, `Bind`, `Bundle`,
 //!   `Permute`, `Thermometer`, `Blend`, `cosine`, `dot`).
 //! - A `:wat::kernel::*` primitive (queue / spawn / select / HandlePool /
@@ -15,13 +20,9 @@
 //!   core forms, but references that didn't expand (e.g., stdlib
 //!   programs) pass through.
 //! - A `:wat::config::*` setter or accessor.
-//! - A `:wat::load::*` interface keyword (source-fetch selector for
-//!   `load!` / `digest-load!` / `signed-load!`).
 //! - A `:wat::verify::*` keyword — either a verification algorithm
 //!   (`:wat::verify::digest-sha256`, `:wat::verify::signed-ed25519`) or a
 //!   payload-fetch interface (`:wat::verify::string`, `:wat::verify::file-path`).
-//! - A `:wat::eval::*` keyword — source-fetch selector for runtime
-//!   eval forms (`:wat::eval::string`, `:wat::eval::file-path`).
 //! - A user-registered `define`-function in the [`SymbolTable`].
 //!
 //! Anything else is an unresolved reference and halts startup with a

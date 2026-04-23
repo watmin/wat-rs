@@ -49,8 +49,8 @@ Two renames, one arc:
 
 ```scheme
 ;; BEFORE (today):
-(:wat::core::load!        :wat::load::file-path "path/to/file.wat")
-(:wat::core::load!        :wat::load::string    "(source text)")
+(:wat::load-file! "path/to/file.wat")
+(:wat::load-string!    "(source text)")
 (:wat::digest-load! :wat::load::file-path "path"
                           :wat::verify::digest-sha256
                           :wat::verify::string "<hex>")
@@ -195,12 +195,12 @@ Target: `src/runtime.rs` dispatch table + `src/check.rs` scheme
 registrations + every call site in wat source.
 
 - Evaluator dispatch: change the match arms from
-  `":wat::core::load!"` to `":wat::load!"` etc.
+  `":wat::load-file!"` to `":wat::load!"` etc.
 - Type-check scheme registrations: same.
 - `src/check.rs` reserved-prefix gate: `:wat::load!` etc. become
   reserved under `:wat::*` directly (already covered — `:wat::*`
   is the full reserved-prefix root).
-- **Call-site migration.** Every `:wat::core::load!` in:
+- **Call-site migration.** Every `:wat::load-file!` in:
   - `wat/std/*.wat` — wat-rs stdlib
   - `wat-tests/*.wat` — wat-rs test suite
   - `src/*.rs` — any inline wat source strings in Rust
@@ -213,7 +213,7 @@ registrations + every call site in wat source.
   - Every arc INSCRIPTION in wat-rs that quotes these forms
 
 Migration is mechanical — sed across the workspace. Every `load!`
-usage changes from `:wat::core::load!` to `:wat::load!` etc.
+usage changes from `:wat::load-file!` to `:wat::load!` etc.
 
 ### Slice 5 — migrate old test-call shapes to new
 

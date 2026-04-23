@@ -76,8 +76,9 @@
 //!
 //! The [`SourceLoader`] trait abstracts file-path resolution so tests
 //! can drive resolution without touching disk. Production uses
-//! [`FsLoader`]; tests use [`InMemoryLoader`]. The `:wat::load::string`
-//! and `:wat::verify::string` interfaces are handled directly in the
+//! [`FsLoader`]; tests use [`InMemoryLoader`]. The inline-source forms
+//! (`load-string!` and the `-string` variants of digest/signed load)
+//! and `:wat::verify::string` payloads are handled directly in the
 //! driver and don't go through the trait.
 
 use crate::ast::WatAST;
@@ -162,9 +163,10 @@ pub struct LoadedSource {
     pub source: String,
 }
 
-/// Abstract fetcher for file-path interfaces. `:wat::load::string` and
-/// `:wat::verify::string` are handled in the driver and never call the
-/// trait — the trait exists only for interfaces that need IO.
+/// Abstract fetcher for file-path interfaces. Inline-source forms
+/// (`load-string!` and the `-string` siblings) and `:wat::verify::string`
+/// payloads are handled in the driver and never call the trait — the
+/// trait exists only for interfaces that need IO.
 pub trait SourceLoader: Send + Sync {
     /// Fetch source code from a filesystem path.
     fn fetch_source_file(
@@ -423,8 +425,9 @@ fn fetch_payload(
     }
 }
 
-/// Canonical path for a `:wat::load::string` source. Uses SHA-256 of the
-/// content so identical inlined sources still trip commit-once.
+/// Canonical path for an inline-source (`load-string!`) load. Uses
+/// SHA-256 of the content so identical inlined sources still dedup
+/// against the canonical-path set.
 fn synthetic_string_path(source: &str) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
@@ -802,7 +805,8 @@ impl InMemoryLoader {
         }
     }
 
-    /// Register a source file at `path` (for `:wat::load::file-path`).
+    /// Register a source file at `path` (for `load-file!` / the
+    /// file-path verified load variants).
     pub fn add_source(&mut self, path: impl Into<String>, contents: impl Into<String>) {
         self.source_files.insert(path.into(), contents.into());
     }
@@ -947,9 +951,9 @@ impl ScopedLoader {
     ///   case: `compose_and_run_with_loader` / the `wat::main!`
     ///   `loader:` argument passes `None` for the entry's base because
     ///   `include_str!`'d source has no disk location. Rooting base-less
-    ///   relative paths at the scope means `(load!
-    ///   :wat::load::file-path "helper.wat")` from the entry file finds
-    ///   `<scope>/helper.wat`, not `<cwd>/helper.wat`.
+    ///   relative paths at the scope means `(:wat::load-file! "helper.wat")`
+    ///   from the entry file finds `<scope>/helper.wat`, not
+    ///   `<cwd>/helper.wat`.
     ///
     /// Absolute paths bypass both regimes and are canonicalized as-is;
     /// the containment check then rejects anything outside the scope.

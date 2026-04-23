@@ -90,7 +90,7 @@ namespace move).
 Target: dispatch + scheme registrations + call-site sweep.
 
 - `src/runtime.rs` dispatch table — change match arms from
-  `":wat::core::load!"` → `":wat::load!"` for all nine forms.
+  `":wat::load-file!"` → `":wat::load!"` for all nine forms.
 - `src/check.rs` — scheme registrations (9 entries updated).
 - `src/check.rs` reserved-prefix check — `:wat::*` already
   reserved, so new names are already protected. No new
@@ -112,7 +112,7 @@ Target: dispatch + scheme registrations + call-site sweep.
 
 **Sub-fogs:**
 
-- **4a — sed pattern.** Literal `:wat::core::load!` →
+- **4a — sed pattern.** Literal `:wat::load-file!` →
   `:wat::load!`, same pattern for the other eight. No regex
   complexity; mechanical substitution. Grep first to verify
   count. Probably ~500-1000 occurrences total across both
@@ -162,6 +162,20 @@ remaining failures get specific edits.
 - Arc 027 paused after slice 1 (dedup landed). Arc 027 slices
   2–5 resume after arc 028 so the lab test migration uses the
   new naming.
-- Expected commit count: ~4 (slice 1+2 together, slice 3, slice
-  4 as its own big commit because of the global sweep, slice
-  6 for INSCRIPTION + docs).
+- **Closed 2026-04-23 same-day as opened.** Slices shipped:
+  - `beade60` + `920c120` — slices 1+3 (iface drop + family split
+    + string variants + signature-guard promotion).
+  - `aa5bc9f` (lab) — lab migration for slices 1+3.
+  - `8e9a40d` — slice 4 (hoist to `:wat::*` root + reserved-prefix
+    collapsed to `:wat::` + `:rust::`).
+  - `49ab0b6` (lab) — lab migration for slice 4.
+  - INSCRIPTION + doc sweep commit (this final one).
+- Slice 5 (straggler cleanup) folded into slices 1+3 and 4 as
+  they landed — caught each integration-test site needing a
+  different rename pattern. Nothing left standalone for slice 5.
+- Final scope broader than initial DESIGN — arc added the
+  string-verified variants (digest-load-string!, signed-load-string!,
+  eval-digest-string!, eval-signed-string!, and the two
+  eval-*-string-coincident? siblings) because existing tests
+  exercised inline-source verification and that's a genuine
+  deployment shape (builder's HTTP-Tokio handler scenario).
