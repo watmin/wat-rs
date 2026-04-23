@@ -392,6 +392,39 @@ its source (path or string) directly as the first argument.
 | `:wat::std::stream::take-worker` | internal worker | same |
 | `:wat::std::stream::from-receiver` | `:Receiver<T> × :ProgramHandle<()> -> :Stream<T>` (trivial tuple-wrap, arc 006 slice 3) | same |
 
+### `:wat::test::*` — self-hosted test harness (arc 007 + 029 + 031)
+
+Macro family + assertion primitives + runner helpers. Source:
+`wat/std/test.wat`. Signatures are post-arc-031 (mode/dims dropped
+— test files declare config once in the preamble; every sandbox
+inherits).
+
+| Path | Signature / Kind | Source |
+|---|---|---|
+| `:wat::test::deftest` | defmacro `(name prelude body)` → `:wat::core::define` of a zero-arg function returning `:wat::kernel::RunResult` | `wat/std/test.wat` |
+| `:wat::test::deftest-hermetic` | defmacro — sibling of `deftest` routed through fork-based `run-sandboxed-hermetic-ast` for tests that spawn driver threads | same |
+| `:wat::test::make-deftest` | defmacro `(name default-prelude)` — configured-deftest factory (arc 029); generates a bare-name macro that each test invokes as `(:name :test-name body)` | same |
+| `:wat::test::make-deftest-hermetic` | defmacro — sibling factory generating deftest-hermetic variants | same |
+| `:wat::test::assert-eq` | defmacro `(actual expected)` — panics via `:wat::kernel::assertion-failed!` on inequality | same |
+| `:wat::test::assert-contains` | defmacro `(haystack needle)` — string / vec containment | same |
+| `:wat::test::assert-stdout-is` | defmacro — assert captured stdout matches expected vec of lines | same |
+| `:wat::test::assert-stderr-matches` | defmacro — assert captured stderr contains regex pattern | same |
+| `:wat::test::run` | `:String × :Vec<String> -> :wat::kernel::RunResult` — string-source sandbox run | same |
+| `:wat::test::run-ast` | `:Vec<wat::WatAST> × :Vec<String> -> :wat::kernel::RunResult` — AST-entry sandbox run (arc 007 slice 3b) | same |
+| `:wat::test::run-hermetic-ast` | same signature as `run-ast`, fork-isolated (arc 012 + 011) | same |
+| `:wat::test::program` | defmacro — variadic alias for `:wat::core::forms` (arc 010); captures a list of forms as `Vec<wat::WatAST>` for passage to `run-ast` | same |
+
+Runner-internal kernel primitive surfaced by the assertion
+primitives:
+
+| Path | Signature | Source |
+|---|---|---|
+| `:wat::kernel::assertion-failed!` | `:String × :Vec<wat::kernel::Frame> -> :()` — panics with `AssertionPayload` the sandbox downcasts to a `Failure` struct | `runtime.rs::eval_kernel_assertion_failed` |
+
+Note: `:wat::test::*` macros are also consumed by external crates
+— `wat::test!` in `tests/*.rs` pulls `wat-tests/*.wat` files through
+the same harness.
+
 ---
 
 ## `:rust::*` — surfaced Rust types (via `#[wat_dispatch]`)
