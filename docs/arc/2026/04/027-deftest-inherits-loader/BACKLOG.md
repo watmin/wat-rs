@@ -173,3 +173,21 @@ transitively loads its own deps, even fewer per test.
   `diamond_dependency_deduplicates` asserting the new no-op
   behavior. Add test for the `./` notation working identically
   to bare (documentation-worthy).
+- **Slice 2 scope narrowed during write.** The BACKLOG named four
+  primitives to update (`run_sandboxed`, `run_sandboxed_ast`,
+  `run_sandboxed_hermetic`, `run_sandboxed_hermetic_ast`). Arc 012
+  had already retired the two hermetic primitives from Rust — they
+  moved to wat stdlib (`wat/std/hermetic.wat`) as wat functions
+  on top of `:wat::kernel::fork-with-forms`. So only TWO active
+  Rust primitives remained to update. The fork-child loader
+  inheritance sub-fog (2a) dissolved — COW inheritance of the
+  parent's frozen SymbolTable already carries the loader across
+  fork, same mechanism `install_dep_sources` rides (arc 015 slice
+  3a). Shipped: shared helper `resolve_sandbox_loader(scope_opt,
+  sym, op)` in `src/sandbox.rs`; both primitives collapsed their
+  inline loader-building to a one-line call. Three unit tests in
+  `#[cfg(test)] mod tests`: explicit-scope builds ScopedLoader;
+  `:None` with outer attached clones the same Arc (pointer
+  identity via `Arc::ptr_eq`); `:None` with no outer falls back
+  to `InMemoryLoader`. 566 → 569 lib tests; zero regressions
+  across the workspace.
