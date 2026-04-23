@@ -376,11 +376,12 @@ Everything you need to read that program:
 
 Every wat program lives in a coordinate with two axes.
 
-### Axis 1 — three layers
+### Axis 1 — four layers
 
-1. **Algebra core** (`:wat::holon::*`) — six primitives that produce holon vectors: `Atom`, `Bind`, `Bundle`, `Permute`, `Thermometer`, `Blend`. Plus two scalar-returning measurements: `cosine`, `dot`. These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
-2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `try`, `struct`, `enum`, `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, arithmetic/comparison operators. The forms you need to WRITE programs.
-3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `join`, `HandlePool`, `stopped?`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes between processes.
+1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
+2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `cond`, `try`, `struct`, `enum`, `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
+3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `join`, `HandlePool`, `stopped?`, `pipe`, `fork-with-forms`, `wait-child`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes between processes.
+4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), services (`:wat::std::service::Console`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel.
 
 ### Axis 2 — two namespaces
 
@@ -565,7 +566,12 @@ appears ONLY in type annotations. Only `/new` constructs; only
 
 ## 6. Algebra forms
 
-The six vector-producing primitives:
+Everything holon-algebra-shaped lives under `:wat::holon::*` — six
+AST-producing primitives, three measurements, the `HolonAST` type,
+the `CapacityExceeded` error type, and ten wat-written idioms that
+compose the primitives. File path matches namespace (`wat/holon/*.wat`).
+
+### The six AST-producing primitives
 
 ```scheme
 (:wat::holon::Atom "rsi")                ; seed a vector from a literal
@@ -574,23 +580,28 @@ The six vector-producing primitives:
 
 (:wat::holon::Bind role filler)          ; elementwise multiply — role-filler binding
 (:wat::holon::Bundle holons-vec)         ; sum + threshold — superposition
-                                           ;   returns :Result<wat::holon::HolonAST,
-                                           ;                   wat::holon::CapacityExceeded>
-                                           ;   (see section 12)
+                                         ;   returns :Result<wat::holon::HolonAST,
+                                         ;                   wat::holon::CapacityExceeded>
+                                         ;   (see section 12)
 (:wat::holon::Permute holon k)           ; circular shift — positional encoding
 (:wat::holon::Thermometer v min max)     ; gradient encoding of a scalar
 (:wat::holon::Blend a b w1 w2)           ; scalar-weighted binary combination
 ```
 
-Two scalar measurements (return `:f64`):
+### The three measurements
 
 ```scheme
-(:wat::holon::cosine a b)                ; cosine similarity
-(:wat::holon::dot a b)                   ; dot product, un-normalized
+(:wat::holon::cosine a b)                       ; → :f64  cosine similarity
+(:wat::holon::dot a b)                          ; → :f64  dot product, un-normalized
+(:wat::holon::presence? target reference)       ; → :bool cosine(target, reference) > noise-floor
+;; presence? binarizes internally against (:wat::config::noise-floor).
+;; Use cosine if you want the raw scalar.
 ```
 
-Stdlib forms you'll use constantly — each expands to algebra-core
-primitives at parse time:
+### The ten wat-written idioms
+
+Each shipped in `wat/holon/<Name>.wat`; each expands to algebra-core
+primitives at parse time (via defmacro or define):
 
 ```scheme
 (:wat::holon::Log v min max)                 ; Thermometer on (ln v)
@@ -603,17 +614,6 @@ primitives at parse time:
 (:wat::holon::Subtract x y)                  ; Blend x y 1 -1 — remove y from x
 (:wat::holon::Reject x y)                    ; Gram-Schmidt reject step
 (:wat::holon::Project x y)                   ; Gram-Schmidt project step
-(:wat::core::HashMap k1 v1 k2 v2 ...)      ; HashMap (core collection)
-(:wat::std::Vec (...))                     ; Vec holon
-(:wat::core::HashSet (...))                ; HashSet (core collection)
-```
-
-The presence retrieval primitive:
-
-```scheme
-(:wat::holon::presence? target-holon reference-vector)
-;; → :f64 cosine between encode(target) and reference
-;; Caller binarizes against (:wat::config::noise-floor) if they want yes/no
 ```
 
 Config accessors (every program has these):
@@ -1089,14 +1089,20 @@ the language verifies itself through the primitives it defines.
 
 ### Convention
 
-Tests live in `wat-tests/` alongside your `wat/` source. Layout
-mirrors one-to-one: `wat/holon/Subtract.wat` → `wat-tests/holon/Subtract.wat`.
+Tests live in `wat-tests/` alongside your `wat/` source. Each file
+under `wat/<ns>/X.wat` has a matching test file at
+`wat-tests/<ns>/X.wat` — wat-rs ships `wat-tests/holon/*.wat` for
+the algebra idioms, `wat-tests/std/*.wat` for stream + services +
+the test harness itself.
 
 Each test file uses `:wat::test::deftest` to register named test
-functions. `wat test wat-tests/` discovers them by name prefix and
-signature — any top-level define whose path's final segment starts
-with `test-` and whose signature is `() -> :wat::kernel::RunResult`
-is a test.
+functions. The runner discovers them by name prefix and signature
+— any top-level define whose path's final segment starts with
+`test-` and whose signature is `() -> :wat::kernel::RunResult` is
+a test.
+
+**Discovery is recursive.** Add a directory, add a test — no
+manifest, no registration step.
 
 ### Writing a test — `deftest`
 
@@ -1133,19 +1139,44 @@ and populates the returned RunResult's `Failure` struct.
 
 ### Running tests
 
+The opinionated path (arc 018) is `cargo test` — `tests/test.rs`
+carries `wat::test! {}` and the runner discovers every `.wat` file
+under `wat-tests/`:
+
 ```
-$ wat test wat-tests/
-running 31 tests
-test stream.wat :: wat-tests::std::stream::test-chunks-exact-multiple ... ok (2ms)
-test test.wat :: wat-tests::std::test::test-assert-eq-on-i64 ......... ok (1ms)
+$ cargo test
 ...
-test result: ok. 31 passed; 0 failed; finished in 107ms
+    Running tests/test.rs (target/debug/deps/test-...)
+
+running 1 test
+test wat_suite ... ok
 ```
 
-- Recursive directory traversal
-- Random-ordered per file (surfaces accidental order-dependencies)
-- Cargo-style output; exit 0 all-pass, non-zero any fail
-- `wat test <file.wat>` works for single files too
+With `-- --nocapture` you get the per-wat-test breakdown that the
+macro captures inside the cargo-level test:
+
+```
+$ cargo test -- --nocapture
+running 37 tests
+test stream.wat :: wat-tests::std::stream::test-chunks-exact-multiple ... ok (2ms)
+test Circular.wat :: wat-tests::holon::Circular::test-adjacent-hours-are-near ... ok (2ms)
+...
+test result: ok. 37 passed; 0 failed; finished in 133ms
+```
+
+The CLI equivalent bypasses cargo entirely — useful for targeted
+runs or CI shells that aren't cargo-based:
+
+```
+$ wat test wat-tests/               # recursive directory traversal
+$ wat test wat-tests/holon/         # just the algebra-idiom tests
+$ wat test wat-tests/std/test.wat   # single file
+```
+
+Both paths share one runner (`wat::run_tests_from_dir`) and emit
+the same cargo-style output. Random-ordered per file (surfaces
+accidental order-dependencies); exit 0 all-pass, non-zero any
+fail.
 
 ### Failure output — Rust-styled, wat-located (arc 016)
 
@@ -1162,7 +1193,7 @@ note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 
 Format mirrors `cargo test`'s own failure output — same `thread ...
 panicked at`, same `note:` hint. If you run `cargo test` (through
-`wat::test_suite!`), this block appears under the test's captured
+`wat::test!`), this block appears under the test's captured
 stdout; under `wat test` CLI it goes straight to stderr.
 
 With `RUST_BACKTRACE=1` (standard Rust convention — one env var
@@ -1363,10 +1394,11 @@ if verification fails.
   - `009-names-are-values/` — pass a named define by bare keyword-path
   - `010-variadic-quote/` — `:wat::core::forms` + `:wat::test::program`
 - **`holon-lab-trading/docs/proposals/2026/04/058-ast-algebra-surface/`**
-  — FOUNDATION.md (the specification), 32 sub-proposals, the
-  FOUNDATION-CHANGELOG. The source of truth for every design
-  decision that shaped the language. When this guide and
-  FOUNDATION disagree, FOUNDATION wins.
+  — FOUNDATION.md (the specification), 33 sub-proposals
+  (001–036, with 021–023 skipped), the FOUNDATION-CHANGELOG. The
+  source of truth for every design decision that shaped the
+  language. When this guide and FOUNDATION disagree, FOUNDATION
+  wins.
 - **`holon-lab-trading/BOOK.md`** — the narrative of how the
   language got built. Context on intent; decisions that were made
   under pressure and why.
