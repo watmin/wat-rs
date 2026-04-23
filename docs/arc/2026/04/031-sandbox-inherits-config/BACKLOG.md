@@ -49,22 +49,37 @@ Changes:
   whether the child re-reads it from the inherited world
   pointer. Explicit parameter is honester.
 
-## Slice 2 — deftest / deftest-hermetic drop mode + dims
+## Slice 2 — all four :wat::test::* macros drop mode + dims
 
-**Status: obvious in shape** (once slice 1 lands).
+**Status: ready** (once slice 1 lands). Originally split into
+slices 2 + 3 (deftest family first, then factory family). Merged
+at implementation time because the four macros are mechanically
+coupled — dropping mode/dims from `deftest` without the same
+drop in `make-deftest`'s inner template would leave the factory
+calling a non-existent 5-arg `deftest`. Landing them separately
+is impossible without a soft-break intermediate state. Honest
+combination.
 
-Targets: `wat/std/test.wat`, all deftest callsites across the
-workspace.
+Targets: `wat/std/test.wat`, all callsites across the workspace
+(deftest direct + make-deftest factory).
 
 Changes:
 - `:wat::test::deftest` signature shrinks from `(name mode dims
   prelude body)` to `(name prelude body)`. Template stops emitting
   `(set-capacity-mode! ,mode)` and `(set-dims! ,dims)`.
 - Same for `:wat::test::deftest-hermetic`.
-- Doc comments updated to show the new shape.
+- `:wat::test::make-deftest` signature shrinks from `(name mode
+  dims default-prelude)` to `(name default-prelude)`. Factory's
+  inner template calls the new 3-arg `deftest` (no `,,mode`,
+  no `,,dims`).
+- Same for `:wat::test::make-deftest-hermetic`.
+- Doc comments updated to show the new shapes.
 - All direct deftest callsites migrated: `(deftest :name :error 1024 () body)`
   → `(deftest :name () body)`. Arc 030 just swept these for the
   arg-order flip; same files touched again for the drop.
+- Lab time.wat factory call migrates:
+  `(make-deftest :deftest :error 1024 ((load!)))` →
+  `(make-deftest :deftest ((load!)))`.
 
 Files (from arc 030's 16-file callsite sweep):
 - `wat/std/test.wat` (the definition)
@@ -94,38 +109,9 @@ Files (from arc 030's 16-file callsite sweep):
   do — the test_runner requires entries to commit config). Lab's
   `test_scaffold.wat` likewise already has them.
 
-## Slice 3 — make-deftest / make-deftest-hermetic drop mode + dims
+## Slice 3 — INSCRIPTION + doc sweep
 
-**Status: obvious in shape** (once slice 2 lands).
-
-Targets: `wat/std/test.wat` (factory macros), lab test files that
-use the factory.
-
-Changes:
-- `:wat::test::make-deftest` signature shrinks from
-  `(name mode dims default-prelude)` to `(name default-prelude)`.
-  Factory-generated defmacro's template calls the now-simpler
-  `:wat::test::deftest` with just `(name prelude body)` shape.
-- Same for `:wat::test::make-deftest-hermetic`.
-- Nested-quasiquote template updates: `,,mode ,,dims ,,default-prelude`
-  → just `,,default-prelude`. Arc 029's `expand_form` quote-preserve
-  still applies; the nested `,,` resolution pattern is unchanged
-  beyond having one argument to resolve instead of three.
-- Doc comments updated.
-
-Lab migration:
-- `holon-lab-trading/wat-tests/vocab/shared/time.wat` preamble:
-  `(:wat::test::make-deftest :deftest :error 1024 ((...)))` →
-  `(:wat::test::make-deftest :deftest ((...)))`.
-
-**Sub-fogs:**
-- **3a — arc 029 wat-level test.** `tests/wat_make_deftest.rs`
-  asserts on the registered `:my-deftest` body shape. That shape
-  changes (fewer args). Update the assertion to match.
-
-## Slice 4 — INSCRIPTION + doc sweep
-
-**Status: obvious in shape** (once slices 1-3 land).
+**Status: obvious in shape** (once slices 1-2 land).
 
 Writing:
 - `docs/arc/2026/04/031-sandbox-inherits-config/INSCRIPTION.md` —
@@ -145,10 +131,14 @@ Writing:
   config-inheritance semantic for `run-sandboxed-ast`.
 
 **Sub-fogs:**
-- **4a — BOOK chapter?** Defer. Chapter 32 narrated the cold
+- **3a — BOOK chapter?** Defer. Chapter 32 narrated the cold
   boot; arcs 027-030 closed as code+docs without a dedicated
   chapter. Arc 031 can ride the same pattern unless it surfaces
   something chapter-worthy during implementation.
+- **3b — arc 029 wat-level test.** `tests/wat_make_deftest.rs`
+  asserts on the registered `:my-deftest` body shape. That shape
+  changes (fewer args after slice 2). Update the assertion to
+  match.
 
 ---
 

@@ -9,8 +9,9 @@
 //! This test builds a configured-deftest variant with a non-empty
 //! default-prelude, then runs macroexpand-1 on a call to it, and
 //! asserts the one-step expansion produces the expected
-//! `(:wat::test::deftest <name> <dims> <mode> <prelude> <body>)`
-//! shape with the prelude intact.
+//! `(:wat::test::deftest <name> <prelude> <body>)` shape with the
+//! prelude intact. Arc 031 slice 2 dropped the mode/dims args —
+//! tests inherit Config from the outer test binary's preamble.
 
 use wat::freeze::startup_from_source;
 use wat::load::InMemoryLoader;
@@ -24,7 +25,7 @@ fn diag_make_deftest_with_prelude_expansion() {
 (:wat::config::set-capacity-mode! :error)
 (:wat::config::set-dims! 1024)
 
-(:wat::test::make-deftest :my-deftest :error 1024
+(:wat::test::make-deftest :my-deftest
   ((:wat::load-file! "foo.wat")))
 
 ;; Expose the expansion result as the main function's return value.
@@ -97,7 +98,8 @@ fn diag_make_deftest_with_prelude_expansion() {
         other => panic!("expected wat::WatAST, got {:?}", other),
     };
 
-    // Expect (:wat::test::deftest :my-test :error 1024 <prelude> <body>)
+    // Expect (:wat::test::deftest :my-test <prelude> <body>). Arc 031
+    // slice 2: no more mode/dims args.
     let items = match &*ast {
         wat::ast::WatAST::List(items, _) => items,
         _ => panic!("expansion should be a list"),
@@ -108,5 +110,5 @@ fn diag_make_deftest_with_prelude_expansion() {
         "expansion should be a deftest call; got {:?}",
         items.first()
     );
-    assert_eq!(items.len(), 6, "expected 6 items (deftest + 5 args)");
+    assert_eq!(items.len(), 4, "expected 4 items (deftest + name + prelude + body)");
 }

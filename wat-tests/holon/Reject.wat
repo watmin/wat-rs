@@ -10,7 +10,7 @@
 (:wat::config::set-capacity-mode! :error)
 (:wat::config::set-dims! 1024)
 
-(:wat::test::deftest :wat-tests::holon::Reject::test-reject-strips-y-direction :error 1024
+(:wat::test::deftest :wat-tests::holon::Reject::test-reject-strips-y-direction
   ()
   (:wat::core::let*
     (((x :wat::holon::HolonAST) (:wat::holon::Atom "x"))
@@ -18,7 +18,7 @@
      ((residual :wat::holon::HolonAST) (:wat::holon::Reject x y)))
     (:wat::test::assert-eq (:wat::holon::presence? y residual) false)))
 
-(:wat::test::deftest :wat-tests::holon::Reject::test-project-preserves-y-direction :error 1024
+(:wat::test::deftest :wat-tests::holon::Reject::test-project-preserves-y-direction
   ()
   (:wat::core::let*
     (((x :wat::holon::HolonAST) (:wat::holon::Atom "x"))

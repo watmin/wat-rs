@@ -24,7 +24,7 @@
 ;;   - Drop cascade fires (inner scope exits → sender Arc drops →
 ;;     select sees disconnect → Console/loop exits → outer join unblocks)
 
-(:wat::test::deftest :wat-tests::std::service::Console::test-hello-world :error 1024
+(:wat::test::deftest :wat-tests::std::service::Console::test-hello-world
   ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
@@ -60,7 +60,7 @@
 ;; membership) rather than order — three workers across threads, the
 ;; scheduler picks write order.
 
-(:wat::test::deftest :wat-tests::std::service::Console::test-multi-writer :error 1024
+(:wat::test::deftest :wat-tests::std::service::Console::test-multi-writer
   ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)

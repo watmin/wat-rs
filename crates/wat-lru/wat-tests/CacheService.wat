@@ -18,7 +18,7 @@
 (:wat::config::set-capacity-mode! :error)
 (:wat::config::set-dims! 1024)
 
-(:wat::test::deftest :wat-lru::test-cache-service-put-then-get-round-trip :error 1024
+(:wat::test::deftest :wat-lru::test-cache-service-put-then-get-round-trip
   ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)

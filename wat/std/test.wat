@@ -183,24 +183,33 @@
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed-hermetic-ast forms stdin :None))
 
-;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b; arc 027 slice 4) ───────
+;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b; arc 027 slice 4; arc 031) ───
 ;;
 ;; Registers a named zero-arg test function that returns RunResult.
-;; The body runs inside a fresh sandboxed world with the caller's
-;; dims + capacity-mode committed. The `prelude` list splices startup
-;; forms (loads, type declarations, defmacros) BEFORE the auto-
-;; generated `:user::main`. Empty `()` prelude = no startup forms,
-;; the minimal shape.
+;; The body runs inside a sandboxed world that INHERITS the outer
+;; test file's committed dims + capacity-mode (arc 031). The
+;; `prelude` list splices startup forms (loads, type declarations,
+;; defmacros) BEFORE the auto-generated `:user::main`. Empty `()`
+;; prelude = no startup forms, the minimal shape.
+;;
+;; The test file's top-level preamble is the single declaration
+;; site for config:
+;;
+;;   (:wat::config::set-capacity-mode! :error)
+;;   (:wat::config::set-dims! 1024)
+;;
+;; Every deftest below inherits those values through the sandbox's
+;; Config-inheritance path. No per-test re-declaration.
 ;;
 ;; Shape — empty prelude:
 ;;
-;;   (:wat::test::deftest :my::test::two-plus-two :error 1024
+;;   (:wat::test::deftest :my::test::two-plus-two
 ;;     ()
 ;;     (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
 ;;
 ;; Shape — loads in prelude (arc 027 slice 4):
 ;;
-;;   (:wat::test::deftest :my::test::with-loads :error 1024
+;;   (:wat::test::deftest :my::test::with-loads
 ;;     ((:wat::load-file! "wat/types/candle.wat")
 ;;      (:wat::load-file! "wat/vocab/shared/time.wat"))
 ;;     (:wat::test::assert-eq ...))
@@ -210,8 +219,6 @@
 ;;   (:wat::core::define (:my::test::two-plus-two -> :wat::kernel::RunResult)
 ;;     (:wat::kernel::run-sandboxed-ast
 ;;       (:wat::core::forms
-;;         (:wat::config::set-dims! 1024)
-;;         (:wat::config::set-capacity-mode! :error)
 ;;         <prelude spliced here>
 ;;         (:wat::core::define (:user::main
 ;;                              (stdin  :wat::io::IOReader)
@@ -224,16 +231,12 @@
 (:wat::core::defmacro
   (:wat::test::deftest
     (name :AST<()>)
-    (mode :AST<wat::core::keyword>)
-    (dims :AST<i64>)
     (prelude :AST<()>)
     (body :AST<()>)
     -> :AST<()>)
   `(:wat::core::define (,name -> :wat::kernel::RunResult)
      (:wat::kernel::run-sandboxed-ast
        (:wat::core::forms
-         (:wat::config::set-capacity-mode! ,mode)
-         (:wat::config::set-dims! ,dims)
          ,@prelude
          (:wat::core::define
            (:user::main
@@ -255,20 +258,16 @@
 ;; thread) and cross-thread writes from a driver panic silently.
 ;; hermetic runs in a child with real thread-safe stdio (PipeReader /
 ;; PipeWriter; arc 012). The child inherits the caller's SymbolTable
-;; (including loaded deps) via COW.
+;; (including loaded deps) + committed Config (arc 031) via COW.
 (:wat::core::defmacro
   (:wat::test::deftest-hermetic
     (name :AST<()>)
-    (mode :AST<wat::core::keyword>)
-    (dims :AST<i64>)
     (prelude :AST<()>)
     (body :AST<()>)
     -> :AST<()>)
   `(:wat::core::define (,name -> :wat::kernel::RunResult)
      (:wat::kernel::run-sandboxed-hermetic-ast
        (:wat::core::forms
-         (:wat::config::set-capacity-mode! ,mode)
-         (:wat::config::set-dims! ,dims)
          ,@prelude
          (:wat::core::define
            (:user::main
@@ -280,15 +279,19 @@
        (:wat::core::vec :String)
        :None)))
 
-;; ─── make-deftest — configured-deftest factory (arc 029) ──────────────
+;; ─── make-deftest — configured-deftest factory (arc 029; arc 031) ─────
 ;;
-;; Register a new deftest variant whose dims / capacity-mode /
-;; default-prelude are baked in. Each test using the variant drops
-;; to just name + body.
+;; Register a new deftest variant whose default-prelude is baked in.
+;; Each test using the variant drops to just name + body. Dims and
+;; capacity-mode come from the test file's top-level preamble via
+;; arc 031's sandbox-inherits-config path.
 ;;
 ;; Preamble at the top of a test source file:
 ;;
-;;   (:wat::test::make-deftest :deftest :error 1024
+;;   (:wat::config::set-capacity-mode! :error)
+;;   (:wat::config::set-dims! 1024)
+;;
+;;   (:wat::test::make-deftest :deftest
 ;;     ((:wat::load-file! "wat/vocab/shared/time.wat")))
 ;;
 ;; Every test below:
@@ -304,20 +307,16 @@
 ;;
 ;; Expansion (outer → inner):
 ;;   outer generates (:wat::core::defmacro (,name ...) ...)
-;;   inner expands to (:wat::test::deftest <name> :error 1024
-;;                       ((load!)) <body>)
+;;   inner expands to (:wat::test::deftest <name> ((load!)) <body>)
 ;;
-;; Nested quasiquote mechanics (arc 029 slice 1): ,,dims / ,,mode /
-;; ,,default-prelude substitute AT OUTER expansion (the configured
-;; values land as literals in the generated defmacro's body).
-;; ,test-name and ,body preserve across the outer pass — they're
-;; the inner macro's own parameters and fire when the user calls
-;; the configured variant.
+;; Nested quasiquote mechanics (arc 029 slice 1): ,,default-prelude
+;; substitutes AT OUTER expansion (the configured forms land as
+;; literals in the generated defmacro's body). ,test-name and ,body
+;; preserve across the outer pass — they're the inner macro's own
+;; parameters and fire when the user calls the configured variant.
 (:wat::core::defmacro
   (:wat::test::make-deftest
     (name :AST<()>)
-    (mode :AST<wat::core::keyword>)
-    (dims :AST<i64>)
     (default-prelude :AST<()>)
     -> :AST<()>)
   `(:wat::core::defmacro
@@ -325,7 +324,7 @@
        (test-name :AST<()>)
        (body :AST<()>)
        -> :AST<()>)
-     `(:wat::test::deftest ,test-name ,,mode ,,dims ,,default-prelude ,body)))
+     `(:wat::test::deftest ,test-name ,,default-prelude ,body)))
 
 ;; ─── make-deftest-hermetic — fork-isolated configured variant ─────────
 ;;
@@ -335,8 +334,6 @@
 (:wat::core::defmacro
   (:wat::test::make-deftest-hermetic
     (name :AST<()>)
-    (mode :AST<wat::core::keyword>)
-    (dims :AST<i64>)
     (default-prelude :AST<()>)
     -> :AST<()>)
   `(:wat::core::defmacro
@@ -344,4 +341,4 @@
        (test-name :AST<()>)
        (body :AST<()>)
        -> :AST<()>)
-     `(:wat::test::deftest-hermetic ,test-name ,,mode ,,dims ,,default-prelude ,body)))
+     `(:wat::test::deftest-hermetic ,test-name ,,default-prelude ,body)))
