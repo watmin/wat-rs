@@ -351,10 +351,15 @@ fn process_single_load(
         return Err(LoadError::CycleDetected { cycle });
     }
 
+    // Arc 027 slice 1 — canonical-path dedup. A previously loaded
+    // file is skipped silently. Its defines are already in `out`
+    // from the first load; re-parsing would emit them a second time
+    // and trip freeze-layer duplicate-define detection. Matches every
+    // mature module system (Python import cache, Node require.cache,
+    // Rust use chains, TS module resolution). Cycle detection runs
+    // above; dedup never masks a cycle.
     if visited.contains(&fetched.canonical_path) {
-        return Err(LoadError::DuplicateLoad {
-            path: fetched.canonical_path,
-        });
+        return Ok(());
     }
 
     // Digest-mode verification runs PRE-PARSE against raw bytes.
@@ -779,9 +784,15 @@ impl SourceLoader for InMemoryLoader {
         path: &str,
         _base_canonical: Option<&str>,
     ) -> Result<LoadedSource, LoadFetchError> {
-        match self.source_files.get(path) {
+        // Arc 027 slice 1 — strip a leading `./` so the honest
+        // TypeScript-style notation works identically to bare in
+        // in-memory loaders. Filesystem loaders canonicalize the
+        // path which strips `./` as a side effect; this loader
+        // does key lookup so needs the normalization explicit.
+        let key = path.strip_prefix("./").unwrap_or(path);
+        match self.source_files.get(key) {
             Some(source) => Ok(LoadedSource {
-                canonical_path: path.to_string(),
+                canonical_path: key.to_string(),
                 source: source.clone(),
             }),
             None => Err(LoadFetchError::NotFound(path.to_string())),
@@ -793,7 +804,8 @@ impl SourceLoader for InMemoryLoader {
         path: &str,
         _base_canonical: Option<&str>,
     ) -> Result<String, LoadFetchError> {
-        match self.payload_files.get(path) {
+        let key = path.strip_prefix("./").unwrap_or(path);
+        match self.payload_files.get(key) {
             Some(contents) => Ok(contents.clone()),
             None => Err(LoadFetchError::NotFound(path.to_string())),
         }
@@ -1354,9 +1366,14 @@ mod tests {
         assert!(matches!(err, LoadError::CycleDetected { .. }));
     }
 
+    // Arc 027 slice 1 — what used to be `duplicate_load_halts` now
+    // tests that a diamond dependency loads `b.wat` ONCE. The second
+    // load in `c.wat` is a silent no-op (canonical-path dedup). The
+    // freeze-layer duplicate-define detection would fire if b.wat's
+    // forms appeared twice in `out`; this test proves they don't.
     #[test]
-    fn duplicate_load_halts() {
-        let err = resolve_mem(
+    fn diamond_dependency_deduplicates() {
+        let forms = resolve_mem(
             r#"(:wat::core::load! :wat::load::file-path "a.wat")"#,
             &[
                 (
@@ -1367,11 +1384,43 @@ mod tests {
                 ("c.wat", r#"(:wat::core::load! :wat::load::file-path "b.wat")"#),
             ],
         )
-        .unwrap_err();
-        match err {
-            LoadError::DuplicateLoad { path } => assert_eq!(path, "b.wat"),
-            other => panic!("expected DuplicateLoad, got {:?}", other),
-        }
+        .expect("diamond dep resolves silently");
+        // Only b.wat's single form should be present. `a.wat`,
+        // `c.wat` have no standalone forms.
+        assert_eq!(forms.len(), 1, "expected 1 form (b.wat's Atom), got {:?}", forms);
+    }
+
+    #[test]
+    fn explicit_dot_prefix_parity_with_bare() {
+        // Arc 027 — `./foo.wat` and `foo.wat` from a file that has
+        // base_canonical resolve identically. Document the honest-
+        // prefix notation at test tier.
+        let bare = resolve_mem(
+            r#"(:wat::core::load! :wat::load::file-path "entry.wat")"#,
+            &[
+                (
+                    "entry.wat",
+                    r#"(:wat::core::load! :wat::load::file-path "helper.wat")"#,
+                ),
+                ("helper.wat", r#"(:wat::holon::Atom "h")"#),
+            ],
+        )
+        .expect("bare path resolves");
+
+        let dotted = resolve_mem(
+            r#"(:wat::core::load! :wat::load::file-path "entry.wat")"#,
+            &[
+                (
+                    "entry.wat",
+                    r#"(:wat::core::load! :wat::load::file-path "./helper.wat")"#,
+                ),
+                ("helper.wat", r#"(:wat::holon::Atom "h")"#),
+            ],
+        )
+        .expect("./ prefix resolves");
+
+        assert_eq!(bare.len(), dotted.len());
+        assert_eq!(bare.len(), 1);
     }
 
     #[test]
@@ -1423,13 +1472,15 @@ mod tests {
     }
 
     #[test]
-    fn inline_string_duplicate_halts() {
-        // Two identical inline-string loads hash to the same synthetic
-        // canonical path, so commit-once fires.
+    fn inline_string_duplicate_deduplicates() {
+        // Arc 027 slice 1 — two identical inline-string loads hash to
+        // the same synthetic canonical path; the second load is a
+        // silent no-op under the new dedup semantic. The form inside
+        // `"x"` (a single `:wat::holon::Atom`) appears once in `out`.
         let entry = r#"(:wat::core::load! :wat::load::string "(:wat::holon::Atom \"x\")")
                        (:wat::core::load! :wat::load::string "(:wat::holon::Atom \"x\")")"#;
-        let err = resolve_mem(entry, &[]).unwrap_err();
-        assert!(matches!(err, LoadError::DuplicateLoad { .. }));
+        let forms = resolve_mem(entry, &[]).expect("dedup path succeeds");
+        assert_eq!(forms.len(), 1, "expected 1 form (single Atom), got {:?}", forms);
     }
 
     // ─── ScopedLoader ────────────────────────────────────────────────────
