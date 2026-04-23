@@ -51,7 +51,7 @@
 
 use crate::ast::WatAST;
 use crate::check::{check_program, CheckErrors};
-use crate::config::{collect_entry_file, Config, ConfigError};
+use crate::config::{collect_entry_file, collect_entry_file_with_inherit, Config, ConfigError};
 use crate::load::{resolve_loads, LoadError, SourceLoader};
 use crate::macros::{
     expand_all, register_defmacros, register_stdlib_defmacros, MacroError, MacroRegistry,
@@ -293,7 +293,37 @@ pub fn startup_from_forms(
 ) -> Result<FrozenWorld, StartupError> {
     // 2. Config pass + entry-file discipline.
     let (config, post_config) = collect_entry_file(entry_forms)?;
+    startup_from_forms_post_config(config, post_config, base_canonical, loader)
+}
 
+/// Sandbox-sibling of [`startup_from_forms`]: seeds the config pass from
+/// the caller's `inherit` baseline so sandbox forms that omit
+/// `(:wat::config::set-*!)` take the caller's committed values rather
+/// than erroring on required-field-missing.
+///
+/// Called by `:wat::kernel::run-sandboxed-ast`,
+/// `:wat::kernel::run-sandboxed-hermetic-ast`, and `:wat::kernel::fork-with-forms`
+/// children — each passes the active runtime's [`Config`] as `inherit`.
+/// Arc 031.
+pub fn startup_from_forms_with_inherit(
+    entry_forms: Vec<WatAST>,
+    base_canonical: Option<&str>,
+    loader: Arc<dyn SourceLoader>,
+    inherit: &Config,
+) -> Result<FrozenWorld, StartupError> {
+    let (config, post_config) = collect_entry_file_with_inherit(entry_forms, inherit)?;
+    startup_from_forms_post_config(config, post_config, base_canonical, loader)
+}
+
+/// Shared post-config pipeline (steps 3–9). Extracted so
+/// [`startup_from_forms`] and [`startup_from_forms_with_inherit`] share
+/// every stage after the config pass diverges.
+fn startup_from_forms_post_config(
+    config: Config,
+    post_config: Vec<WatAST>,
+    base_canonical: Option<&str>,
+    loader: Arc<dyn SourceLoader>,
+) -> Result<FrozenWorld, StartupError> {
     // 3. Recursive load resolution. The loader survives into the
     //    runtime as well — see step 9 — so `resolve_loads` borrows
     //    via `&*loader` (Arc deref) rather than owning.

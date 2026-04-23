@@ -23,7 +23,8 @@
 use crate::assertion::AssertionPayload;
 use crate::ast::WatAST;
 use crate::freeze::{
-    invoke_user_main, startup_from_forms, startup_from_source, validate_user_main_signature,
+    invoke_user_main, startup_from_forms, startup_from_forms_with_inherit, startup_from_source,
+    validate_user_main_signature,
 };
 use crate::io::{StringIoReader, StringIoWriter, WatReader, WatWriter};
 use crate::load::{InMemoryLoader, ScopedLoader, SourceLoader};
@@ -318,11 +319,22 @@ pub fn eval_kernel_run_sandboxed_ast(
     //    slice 2) — same contract as run-sandboxed.
     let loader = resolve_sandbox_loader(scope_opt, sym, OP)?;
 
-    // 3. Freeze the inner world FROM AST. Resolve / type / macro-
-    //    expansion errors land in Failure; the caller may have
-    //    deliberately handed us an ill-typed program (a negative
-    //    test). Capture the same way run-sandboxed does.
-    let inner_world = match startup_from_forms(forms, None, loader) {
+    // 3. Freeze the inner world FROM AST. Sandbox inherits the
+    //    caller's committed Config (arc 031) — if the inner forms
+    //    omit `(:wat::config::set-*!)` they take the caller's
+    //    values; if they include setters, the setters still
+    //    override. When the caller has no encoding context (test
+    //    harnesses that built a SymbolTable directly), fall back
+    //    to the non-inheriting path so inner forms carry their own
+    //    required setters. Resolve / type / macro-expansion errors
+    //    land in Failure; the caller may have deliberately handed
+    //    us an ill-typed program (a negative test). Capture the
+    //    same way run-sandboxed does.
+    let startup_result = match sym.encoding_ctx() {
+        Some(ctx) => startup_from_forms_with_inherit(forms, None, loader, &ctx.config),
+        None => startup_from_forms(forms, None, loader),
+    };
+    let inner_world = match startup_result {
         Ok(w) => w,
         Err(e) => {
             return Ok(build_run_result(

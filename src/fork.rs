@@ -21,8 +21,10 @@
 //!   `/proc/self/fd` / `/dev/fd` iteration).
 
 use crate::ast::WatAST;
+use crate::config::Config;
 use crate::freeze::{
-    invoke_user_main, startup_from_forms, validate_user_main_signature,
+    invoke_user_main, startup_from_forms, startup_from_forms_with_inherit,
+    validate_user_main_signature,
 };
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use crate::load::InMemoryLoader;
@@ -324,6 +326,11 @@ pub fn eval_kernel_fork_with_forms(
         }
     };
 
+    // Snapshot caller's Config before fork so the child can inherit
+    // it through COW (arc 031). None when sym has no encoding context
+    // (test harnesses that built a SymbolTable directly).
+    let inherit_config: Option<Config> = sym.encoding_ctx().map(|ctx| ctx.config);
+
     // Three pipes for stdin/stdout/stderr.
     let (stdin_r, stdin_w) = make_pipe(OP)?;
     let (stdout_r, stdout_w) = make_pipe(OP)?;
@@ -353,6 +360,7 @@ pub fn eval_kernel_fork_with_forms(
         // ── CHILD BRANCH ─────────────────────────────────────────
         child_branch(
             forms,
+            inherit_config,
             stdin_r_raw,
             stdout_w_raw,
             stderr_w_raw,
@@ -391,6 +399,7 @@ pub fn eval_kernel_fork_with_forms(
 /// copies cleanly after dup2.
 fn child_branch(
     forms: Vec<WatAST>,
+    inherit_config: Option<Config>,
     stdin_r_raw: i32,
     stdout_w_raw: i32,
     stderr_w_raw: i32,
@@ -436,7 +445,16 @@ fn child_branch(
     // Scope-through-fork is deferred per DESIGN.
     let loader = Arc::new(InMemoryLoader::new());
 
-    let world = match startup_from_forms(forms, None, loader) {
+    // Arc 031: inherit the caller's Config through fork's COW so the
+    // child's sandboxed forms can omit `(:wat::config::set-*!)`. When
+    // no inherit is available (caller had no encoding context), fall
+    // back to the non-inheriting path — forms must carry their own
+    // required setters.
+    let startup_result = match &inherit_config {
+        Some(cfg) => startup_from_forms_with_inherit(forms, None, loader, cfg),
+        None => startup_from_forms(forms, None, loader),
+    };
+    let world = match startup_result {
         Ok(w) => w,
         Err(e) => {
             write_direct_to_stderr(&format!("startup: {}\n", e));

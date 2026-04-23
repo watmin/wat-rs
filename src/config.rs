@@ -187,17 +187,55 @@ impl std::error::Error for ConfigError {}
 ///
 /// Enforces:
 /// - Every setter precedes every non-setter (entry-file discipline).
-/// - Each field committed at most once.
+/// - Each field committed at most once in the forms.
 /// - Required fields (`dims`, `capacity-mode`) set; `global-seed`
 ///   defaults to 42 if unset.
 /// - Argument arity and type match each setter's schema.
 pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), ConfigError> {
-    let mut dims: Option<usize> = None;
-    let mut capacity_mode: Option<CapacityMode> = None;
-    let mut global_seed: Option<u64> = None;
-    let mut noise_floor: Option<f64> = None;
-    let mut presence_sigma: Option<i64> = None;
-    let mut coincident_sigma: Option<i64> = None;
+    collect_entry_file_inner(forms, None)
+}
+
+/// Same as [`collect_entry_file`], but seeded from an inherited baseline
+/// [`Config`]. Setters absent from the forms take their value from
+/// `inherit`; present setters still override (and duplicate-field
+/// checking still applies to the forms themselves). Required-field
+/// checking dissolves because `inherit` already has every field set.
+///
+/// Used by sandbox freezes (`:wat::kernel::run-sandboxed-ast`,
+/// `run-sandboxed-hermetic-ast`, fork children) so a sandbox that
+/// omits setters inherits the caller's committed config — same
+/// scope-inheritance move arc 027 made for the source loader.
+pub fn collect_entry_file_with_inherit(
+    forms: Vec<WatAST>,
+    inherit: &Config,
+) -> Result<(Config, Vec<WatAST>), ConfigError> {
+    collect_entry_file_inner(forms, Some(inherit))
+}
+
+fn collect_entry_file_inner(
+    forms: Vec<WatAST>,
+    inherit: Option<&Config>,
+) -> Result<(Config, Vec<WatAST>), ConfigError> {
+    // When `inherit` is set, each field starts at the inherited value.
+    // Setters in `forms` override; duplicate-in-forms still errors.
+    let mut dims: Option<usize> = inherit.map(|c| c.dims);
+    let mut capacity_mode: Option<CapacityMode> = inherit.map(|c| c.capacity_mode);
+    let mut global_seed: Option<u64> = inherit.map(|c| c.global_seed);
+    let mut noise_floor: Option<f64> = inherit.map(|c| c.noise_floor);
+    let mut presence_sigma: Option<i64> = inherit.map(|c| c.presence_sigma);
+    let mut coincident_sigma: Option<i64> = inherit.map(|c| c.coincident_sigma);
+
+    // Separate tracker: has this field's setter appeared in THIS forms
+    // list? Distinct from `.is_some()` because inheritance pre-seeds
+    // the Some. A setter is permitted once per forms list; inheritance
+    // does not count as a prior set.
+    let mut set_dims = false;
+    let mut set_capacity_mode = false;
+    let mut set_global_seed = false;
+    let mut set_noise_floor = false;
+    let mut set_presence_sigma = false;
+    let mut set_coincident_sigma = false;
+
     let mut remainder_start: Option<usize> = None;
 
     for (i, form) in forms.iter().enumerate() {
@@ -224,9 +262,10 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
 
         match setter_head.as_str() {
             ":wat::config::set-dims!" => {
-                if dims.is_some() {
+                if set_dims {
                     return Err(ConfigError::DuplicateField { field: "dims".into() });
                 }
+                set_dims = true;
                 if args.len() != 1 {
                     return Err(ConfigError::BadArity {
                         head: setter_head,
@@ -237,11 +276,12 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
                 dims = Some(parse_usize(&args[0], "dims")?);
             }
             ":wat::config::set-capacity-mode!" => {
-                if capacity_mode.is_some() {
+                if set_capacity_mode {
                     return Err(ConfigError::DuplicateField {
                         field: "capacity-mode".into(),
                     });
                 }
+                set_capacity_mode = true;
                 if args.len() != 1 {
                     return Err(ConfigError::BadArity {
                         head: setter_head,
@@ -252,11 +292,12 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
                 capacity_mode = Some(parse_capacity_mode(&args[0])?);
             }
             ":wat::config::set-global-seed!" => {
-                if global_seed.is_some() {
+                if set_global_seed {
                     return Err(ConfigError::DuplicateField {
                         field: "global-seed".into(),
                     });
                 }
+                set_global_seed = true;
                 if args.len() != 1 {
                     return Err(ConfigError::BadArity {
                         head: setter_head,
@@ -267,11 +308,12 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
                 global_seed = Some(parse_u64(&args[0], "global-seed")?);
             }
             ":wat::config::set-noise-floor!" => {
-                if noise_floor.is_some() {
+                if set_noise_floor {
                     return Err(ConfigError::DuplicateField {
                         field: "noise-floor".into(),
                     });
                 }
+                set_noise_floor = true;
                 if args.len() != 1 {
                     return Err(ConfigError::BadArity {
                         head: setter_head,
@@ -282,11 +324,12 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
                 noise_floor = Some(parse_f64(&args[0], "noise-floor")?);
             }
             ":wat::config::set-presence-sigma!" => {
-                if presence_sigma.is_some() {
+                if set_presence_sigma {
                     return Err(ConfigError::DuplicateField {
                         field: "presence-sigma".into(),
                     });
                 }
+                set_presence_sigma = true;
                 if args.len() != 1 {
                     return Err(ConfigError::BadArity {
                         head: setter_head,
@@ -297,11 +340,12 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
                 presence_sigma = Some(parse_positive_i64(&args[0], "presence-sigma")?);
             }
             ":wat::config::set-coincident-sigma!" => {
-                if coincident_sigma.is_some() {
+                if set_coincident_sigma {
                     return Err(ConfigError::DuplicateField {
                         field: "coincident-sigma".into(),
                     });
                 }
+                set_coincident_sigma = true;
                 if args.len() != 1 {
                     return Err(ConfigError::BadArity {
                         head: setter_head,
@@ -1024,5 +1068,138 @@ mod tests {
         )
         .unwrap();
         assert_eq!(cfg_a, cfg_b);
+    }
+
+    // ─── Arc 031 — collect_entry_file_with_inherit ──────────────────
+
+    fn parent_config() -> Config {
+        // A fully-populated parent config for inheritance tests. Built
+        // via the non-inheriting collector so the exact default-derivation
+        // rules (noise_floor, presence_sigma, coincident_sigma) match
+        // what production callers would carry in.
+        let (cfg, _) = collect(
+            r#"
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
+            "#,
+        )
+        .unwrap();
+        cfg
+    }
+
+    fn collect_inherit(src: &str, inherit: &Config) -> Result<(Config, Vec<WatAST>), ConfigError> {
+        let forms = parse_all(src).expect("parse succeeds");
+        collect_entry_file_with_inherit(forms, inherit)
+    }
+
+    #[test]
+    fn inherit_empty_forms_takes_every_parent_field() {
+        let parent = parent_config();
+        let (cfg, rest) = collect_inherit("", &parent).unwrap();
+        assert_eq!(cfg, parent);
+        assert!(rest.is_empty());
+    }
+
+    #[test]
+    fn inherit_with_no_setters_but_body_still_inherits() {
+        let parent = parent_config();
+        // Body-only form — no setters at all. Would normally error with
+        // RequiredFieldMissing; with inheritance, it's fine.
+        let (cfg, rest) = collect_inherit(
+            r#"
+            (:wat::core::define (:user::main -> :())
+              ())
+            "#,
+            &parent,
+        )
+        .unwrap();
+        assert_eq!(cfg.dims, parent.dims);
+        assert_eq!(cfg.capacity_mode, parent.capacity_mode);
+        assert_eq!(rest.len(), 1);
+    }
+
+    #[test]
+    fn inherit_setter_overrides_single_field() {
+        let parent = parent_config();
+        let (cfg, _) = collect_inherit(
+            r#"
+            (:wat::config::set-dims! 4096)
+            "#,
+            &parent,
+        )
+        .unwrap();
+        assert_eq!(cfg.dims, 4096, "explicit setter overrides inherited");
+        assert_eq!(cfg.capacity_mode, parent.capacity_mode, "unset fields still inherit");
+    }
+
+    #[test]
+    fn inherit_both_setters_override_everything_explicit() {
+        let parent = parent_config();
+        // Parent has :error + 1024; forms set :warn + 4096.
+        let (cfg, _) = collect_inherit(
+            r#"
+            (:wat::config::set-capacity-mode! :warn)
+            (:wat::config::set-dims! 4096)
+            "#,
+            &parent,
+        )
+        .unwrap();
+        assert_eq!(cfg.dims, 4096);
+        assert_eq!(cfg.capacity_mode, CapacityMode::Warn);
+    }
+
+    #[test]
+    fn inherit_duplicate_setter_in_forms_still_errors() {
+        // Inheritance pre-seeds dims, but that's not a prior "set" in
+        // the forms. A single setter overrides cleanly; a SECOND setter
+        // for the same field in the forms trips DuplicateField.
+        let parent = parent_config();
+        let err = collect_inherit(
+            r#"
+            (:wat::config::set-dims! 4096)
+            (:wat::config::set-dims! 8192)
+            "#,
+            &parent,
+        )
+        .unwrap_err();
+        assert!(matches!(err, ConfigError::DuplicateField { ref field, .. } if field == "dims"));
+    }
+
+    #[test]
+    fn inherit_preserves_derived_fields_when_not_overridden() {
+        // Parent at d=1024 has presence_sigma=15, coincident_sigma=1,
+        // noise_floor=1/32. Child with no sigma/noise setters should
+        // take all three from parent unchanged.
+        let parent = parent_config();
+        let (cfg, _) = collect_inherit("", &parent).unwrap();
+        assert_eq!(cfg.presence_sigma, parent.presence_sigma);
+        assert_eq!(cfg.coincident_sigma, parent.coincident_sigma);
+        assert!((cfg.noise_floor - parent.noise_floor).abs() < 1e-12);
+        assert!((cfg.presence_floor - parent.presence_floor).abs() < 1e-12);
+        assert!((cfg.coincident_floor - parent.coincident_floor).abs() < 1e-12);
+    }
+
+    #[test]
+    fn inherit_dims_override_recomputes_nothing_automatically() {
+        // Corollary: overriding dims DOES NOT recompute the
+        // noise_floor default. Inheritance carries the parent's
+        // noise_floor as-is. If the caller wants the new dims' 1σ
+        // floor, they must also set-noise-floor! explicitly. This
+        // matches "inheritance is a baseline, setters override per
+        // field" semantics — simpler than a recompute-on-cascade
+        // rule.
+        let parent = parent_config();
+        let (cfg, _) = collect_inherit(
+            r#"
+            (:wat::config::set-dims! 4096)
+            "#,
+            &parent,
+        )
+        .unwrap();
+        assert_eq!(cfg.dims, 4096);
+        assert!(
+            (cfg.noise_floor - parent.noise_floor).abs() < 1e-12,
+            "noise_floor inherits parent's 1/sqrt(1024), does not recompute for 4096"
+        );
     }
 }
