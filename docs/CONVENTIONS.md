@@ -70,8 +70,41 @@ crate shipped. Its shape is the walkable template:
 `wat_sources()` returns its baked `.wat` files;
 `register()` forwards to `#[wat_dispatch]`-generated code that
 wires the Rust shim. `examples/with-lru/` shows the consumer
-shape — `wat::main! { source: ..., deps: [wat_lru] }` and a
-user `.wat` program.
+shape — `wat::main! { deps: [wat_lru] }` and a `wat/main.wat`.
+
+### App-owned top-level roots (arc 018)
+
+`:user::*` is the recommended root for community crates and
+generic user code. A project with **durable identity** — its
+own repo, its own Cargo crate, its own namespace authority —
+may claim a top-level prefix outside `:user::*` if the tradeoffs
+favor it. Examples:
+
+- `:trading::*` — holon-lab-trading.
+- `:ddos::*` — the kernel-level DDoS detector (future).
+- `:mtg::*` — the MTG experiment (future).
+
+**The substrate permits this.** Only `:wat::*` sub-prefixes and
+`:rust::*` are in the reserved-prefix list (see
+`src/resolve.rs::RESERVED_PREFIXES`). Every other top-level
+prefix is user territory.
+
+**When to claim a top-level root vs `:user::<app>::*`:**
+
+- **Top-level** when the keyword path will appear at every call
+  site inside the project and a segment saved on every path
+  matters. A 10,000-LoC project with thousands of keyword paths
+  saves one segment per path = honest ergonomic improvement.
+- **`:user::<app>::*`** for scratch work, proofs-of-concept, or
+  projects that might collide with someone else's top-level
+  claim. The `:user::` prefix is the safe sandbox.
+
+**Collision handling** is the same as under `:user::*` — Cargo
+gives global crate-name uniqueness at the build boundary;
+startup registration fails loud on duplicate defines. A project
+that ships its Cargo crate as `holon-lab-trading` and claims
+`:trading::*` cannot collide with anyone else's `:trading::*`
+because the crate naming prevents it.
 
 **Convergence with prior art:**
 
