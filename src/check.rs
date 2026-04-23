@@ -3680,6 +3680,63 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: bool_ty(),
         },
     );
+    // eval-coincident? family — arc 026. Each variant mirrors its
+    // eval-*! parent's arg shape, applied per-side (2 sides per
+    // variant). Return is uniform Result<bool, EvalError> — any
+    // failure on either side arrives as Err<EvalError>.
+    let eval_coincident_ret = || TypeExpr::Parametric {
+        head: "Result".into(),
+        args: vec![
+            bool_ty(),
+            TypeExpr::Path(":wat::core::EvalError".into()),
+        ],
+    };
+    // slice 1 — base (AST). Takes two WatAST args (quote-captured).
+    env.register(
+        ":wat::holon::eval-coincident?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![wat_ast_ty(), wat_ast_ty()],
+            ret: eval_coincident_ret(),
+        },
+    );
+    // slice 2 — EDN. Two (iface, locator) pairs — 4 args total.
+    env.register(
+        ":wat::holon::eval-edn-coincident?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![keyword_ty(), string_ty(), keyword_ty(), string_ty()],
+            ret: eval_coincident_ret(),
+        },
+    );
+    // slice 3 — digest. Two (iface, locator, algo, payload-iface, hex)
+    // tuples — 10 args total.
+    env.register(
+        ":wat::holon::eval-digest-coincident?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                keyword_ty(), string_ty(), keyword_ty(), keyword_ty(), string_ty(),
+                keyword_ty(), string_ty(), keyword_ty(), keyword_ty(), string_ty(),
+            ],
+            ret: eval_coincident_ret(),
+        },
+    );
+    // slice 4 — signed. Two (iface, locator, algo, sig-iface, sig,
+    // pk-iface, pk) tuples — 14 args total.
+    env.register(
+        ":wat::holon::eval-signed-coincident?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                keyword_ty(), string_ty(), keyword_ty(),
+                keyword_ty(), string_ty(), keyword_ty(), string_ty(),
+                keyword_ty(), string_ty(), keyword_ty(),
+                keyword_ty(), string_ty(), keyword_ty(), string_ty(),
+            ],
+            ret: eval_coincident_ret(),
+        },
+    );
 
     // Config accessors — nullary, read committed startup values.
     env.register(

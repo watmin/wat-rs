@@ -1796,6 +1796,14 @@ fn dispatch_keyword_head(
         ":wat::holon::cosine" => eval_algebra_cosine(args, env, sym),
         ":wat::holon::presence?" => eval_algebra_presence_q(args, env, sym),
         ":wat::holon::coincident?" => eval_algebra_coincident_q(args, env, sym),
+        ":wat::holon::eval-coincident?" => eval_form_ast_coincident_q(args, env, sym),
+        ":wat::holon::eval-edn-coincident?" => eval_form_edn_coincident_q(args, env, sym),
+        ":wat::holon::eval-digest-coincident?" => {
+            eval_form_digest_coincident_q(args, env, sym)
+        }
+        ":wat::holon::eval-signed-coincident?" => {
+            eval_form_signed_coincident_q(args, env, sym)
+        }
         ":wat::holon::dot" => eval_algebra_dot(args, env, sym),
 
         // Constrained runtime eval — four forms, matching the load
@@ -4902,6 +4910,247 @@ fn eval_algebra_coincident_q(
     Ok(Value::bool((1.0 - cosine) < ctx.config.coincident_floor))
 }
 
+/// `(:wat::holon::eval-coincident? form-a form-b)` —
+/// EVALUATION-layer coincidence check. Each arg must evaluate to a
+/// `Value::wat__WatAST` (typically via `:wat::core::quote`); each
+/// captured AST runs through `run_constrained` (same discipline as
+/// `eval-ast!`), the result is atomized via `value_to_atom`, and the
+/// two Atoms are compared with the same `(1 - cosine) <
+/// coincident_floor` test that structural `coincident?` uses.
+///
+/// The difference vs structural `coincident?`:
+///
+/// - `coincident?` takes two already-built HolonASTs; it compares
+///   them as data — the tree is the question.
+/// - `eval-coincident?` takes two expressions; it reduces each first,
+///   then wraps the RESULT in Atom. Different expressions that
+///   reduce to the same value coincide: `(+ 2 2)` with `(* 1 4)`.
+///
+/// Return is uniform across the eval-family:
+/// `Value::Result<:bool, :wat::core::EvalError>`. Any failure
+/// (parse / type / non-atomizable result / mutation-form refusal /
+/// runtime error in the inner eval) arrives as `Err(<EvalError>)`
+/// rather than a panic — same discipline as `eval-ast!` /
+/// `eval-edn!` / `eval-digest!` / `eval-signed!`.
+fn eval_form_ast_coincident_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    // Structural pre-check — matches eval-ast! pattern. Arity errors
+    // fire before the EvalError wrap; they're caller-syntactic issues.
+    if args.len() != 2 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::holon::eval-coincident?".into(),
+            reason: format!(
+                "(:wat::holon::eval-coincident? <ast-a> <ast-b>) takes exactly 2 arguments; got {}",
+                args.len()
+            ),
+        });
+    }
+    wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
+        let op = ":wat::holon::eval-coincident?";
+        let value_a = run_ast_arg_for_eval_coincident(&args[0], env, sym, op)?;
+        let value_b = run_ast_arg_for_eval_coincident(&args[1], env, sym, op)?;
+        coincident_of_two_values(value_a, value_b, sym, op)
+    })())
+}
+
+/// Per-side helper for `eval-coincident?`: eval the arg to a
+/// `Value::wat__WatAST`, then run that AST under the constrained
+/// discipline (mutation forms refused) and return the inner Value.
+/// Shared across the four eval-coincident-family variants for the
+/// AST side of each (the AST variant's ENTIRE side; the edn/digest/
+/// signed variants use different resolvers to obtain the AST).
+fn run_ast_arg_for_eval_coincident(
+    arg: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    op: &'static str,
+) -> Result<Value, RuntimeError> {
+    let ast = match eval(arg, env, sym)? {
+        Value::wat__WatAST(a) => a,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected: "Ast",
+                got: other.type_name(),
+            });
+        }
+    };
+    run_constrained(&ast, env, sym)
+}
+
+/// Shared finalizer: atomize both sides via `value_to_atom`, encode
+/// both atoms, cosine, compare against `coincident_floor`. Returns
+/// `Value::bool`. Used by all four eval-coincident-family variants —
+/// the per-variant resolver produces the two Values via its own
+/// verification discipline, then hands them here for the coincidence
+/// measurement.
+fn coincident_of_two_values(
+    value_a: Value,
+    value_b: Value,
+    sym: &SymbolTable,
+    op: &'static str,
+) -> Result<Value, RuntimeError> {
+    let atom_a = value_to_atom(value_a)?;
+    let atom_b = value_to_atom(value_b)?;
+    let holon_a = require_holon(op, atom_a)?;
+    let holon_b = require_holon(op, atom_b)?;
+    let ctx = require_encoding_ctx(op, sym)?;
+    let va = encode(&holon_a, &ctx.vm, &ctx.scalar, &ctx.registry);
+    let vb = encode(&holon_b, &ctx.vm, &ctx.scalar, &ctx.registry);
+    let cosine = Similarity::cosine(&va, &vb);
+    Ok(Value::bool((1.0 - cosine) < ctx.config.coincident_floor))
+}
+
+/// `(:wat::holon::eval-edn-coincident? <iface-a> <loc-a> <iface-b> <loc-b>)`
+/// — EDN-parse variant. Each side resolves its own source (per
+/// `resolve_eval_source`, same as `eval-edn!`), parses, runs under
+/// constrained eval, atomizes, coincidence-checks.
+///
+/// Per-side arity is 2 (matches `eval-edn!`); total is 4.
+fn eval_form_edn_coincident_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 4 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::holon::eval-edn-coincident?".into(),
+            reason: format!(
+                "(:wat::holon::eval-edn-coincident? \
+                 :wat::eval::<iface-a> <loc-a> :wat::eval::<iface-b> <loc-b>) \
+                 takes exactly 4 arguments; got {}",
+                args.len()
+            ),
+        });
+    }
+    wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
+        let op = ":wat::holon::eval-edn-coincident?";
+        let src_a = resolve_eval_source(&args[0], &args[1], env, sym)?;
+        let src_b = resolve_eval_source(&args[2], &args[3], env, sym)?;
+        let value_a = parse_and_run(&src_a, env, sym)?;
+        let value_b = parse_and_run(&src_b, env, sym)?;
+        coincident_of_two_values(value_a, value_b, sym, op)
+    })())
+}
+
+/// `(:wat::holon::eval-digest-coincident?
+///      <iface-a> <loc-a> <algo-a> <payload-iface-a> <hex-a>
+///      <iface-b> <loc-b> <algo-b> <payload-iface-b> <hex-b>)`
+/// — SHA-256 (or sibling algo) verification variant. Each side
+/// fetches its source, verifies the raw-bytes digest BEFORE parse
+/// (mirrors `eval-digest!`), parses, runs, atomizes,
+/// coincidence-checks.
+///
+/// Per-side arity is 5 (matches `eval-digest!`); total is 10.
+fn eval_form_digest_coincident_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 10 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::holon::eval-digest-coincident?".into(),
+            reason: format!(
+                "(:wat::holon::eval-digest-coincident? \
+                 <5-arg side A> <5-arg side B>) \
+                 takes exactly 10 arguments; got {}",
+                args.len()
+            ),
+        });
+    }
+    wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
+        let op = ":wat::holon::eval-digest-coincident?";
+        // Side A — 5-arg block [0..5).
+        let src_a = resolve_eval_source(&args[0], &args[1], env, sym)?;
+        let algo_a = parse_verify_algo_keyword(
+            &args[2],
+            "digest-",
+            ":wat::holon::eval-digest-coincident?",
+        )?;
+        let hex_a = resolve_verify_payload(&args[3], &args[4], env, sym)?;
+        crate::hash::verify_source_hash(src_a.as_bytes(), &algo_a, hex_a.trim())
+            .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+        let value_a = parse_and_run(&src_a, env, sym)?;
+
+        // Side B — 5-arg block [5..10).
+        let src_b = resolve_eval_source(&args[5], &args[6], env, sym)?;
+        let algo_b = parse_verify_algo_keyword(
+            &args[7],
+            "digest-",
+            ":wat::holon::eval-digest-coincident?",
+        )?;
+        let hex_b = resolve_verify_payload(&args[8], &args[9], env, sym)?;
+        crate::hash::verify_source_hash(src_b.as_bytes(), &algo_b, hex_b.trim())
+            .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+        let value_b = parse_and_run(&src_b, env, sym)?;
+
+        coincident_of_two_values(value_a, value_b, sym, op)
+    })())
+}
+
+/// `(:wat::holon::eval-signed-coincident?
+///      <iface-a> <loc-a> <algo-a> <sig-iface-a> <sig-a> <pk-iface-a> <pk-a>
+///      <iface-b> <loc-b> <algo-b> <sig-iface-b> <sig-b> <pk-iface-b> <pk-b>)`
+/// — Ed25519 (or sibling algo) verification variant. Each side
+/// fetches source, parses, verifies the SIGNATURE over the canonical-
+/// EDN of the parsed AST (mirrors `eval-signed!` — parse before
+/// verify, sig is over MEANING not bytes), then runs under
+/// constrained eval, atomizes, coincidence-checks.
+///
+/// Per-side arity is 7 (matches `eval-signed!`); total is 14.
+fn eval_form_signed_coincident_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 14 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::holon::eval-signed-coincident?".into(),
+            reason: format!(
+                "(:wat::holon::eval-signed-coincident? \
+                 <7-arg side A> <7-arg side B>) \
+                 takes exactly 14 arguments; got {}",
+                args.len()
+            ),
+        });
+    }
+    wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
+        let op = ":wat::holon::eval-signed-coincident?";
+        // Side A — 7-arg block [0..7).
+        let src_a = resolve_eval_source(&args[0], &args[1], env, sym)?;
+        let algo_a = parse_verify_algo_keyword(
+            &args[2],
+            "signed-",
+            ":wat::holon::eval-signed-coincident?",
+        )?;
+        let sig_a = resolve_verify_payload(&args[3], &args[4], env, sym)?;
+        let pk_a = resolve_verify_payload(&args[5], &args[6], env, sym)?;
+        let ast_a = parse_program(&src_a, ":wat::holon::eval-signed-coincident?")?;
+        crate::hash::verify_program_signature(&ast_a, &algo_a, sig_a.trim(), pk_a.trim())
+            .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+        let value_a = run_program(&ast_a, env, sym)?;
+
+        // Side B — 7-arg block [7..14).
+        let src_b = resolve_eval_source(&args[7], &args[8], env, sym)?;
+        let algo_b = parse_verify_algo_keyword(
+            &args[9],
+            "signed-",
+            ":wat::holon::eval-signed-coincident?",
+        )?;
+        let sig_b = resolve_verify_payload(&args[10], &args[11], env, sym)?;
+        let pk_b = resolve_verify_payload(&args[12], &args[13], env, sym)?;
+        let ast_b = parse_program(&src_b, ":wat::holon::eval-signed-coincident?")?;
+        crate::hash::verify_program_signature(&ast_b, &algo_b, sig_b.trim(), pk_b.trim())
+            .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
+        let value_b = run_program(&ast_b, env, sym)?;
+
+        coincident_of_two_values(value_a, value_b, sym, op)
+    })())
+}
+
 /// `(:wat::holon::dot x y) -> :f64` — scalar dot product of two
 /// encoded holons. Per 058-005: measurement primitive, not a HolonAST
 /// variant (scalar-out, not vector-out). Sibling to `presence`:
@@ -7590,6 +7839,28 @@ mod tests {
     }
 
     #[test]
+    fn coincident_q_true_for_close_thermometer_values() {
+        // Structural coincident? on two Thermometer holons whose
+        // values sit close inside their range. Models percentages
+        // on [0, 1] — 3.9% vs 4.1% as fractions (0.039 vs 0.041,
+        // difference 0.002 = 0.2% of range). The thermometer-
+        // gradient bits agree almost everywhere; cosine lands
+        // inside the coincident_floor window at d=1024.
+        //
+        // The archive's (Linear v scale) maps to
+        // (Thermometer v -scale scale) per 058-008; for percentage
+        // domains [0, 1] is the honest range, no negative half.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::coincident?
+                 (:wat::holon::Thermometer 0.039 0.0 1.0)
+                 (:wat::holon::Thermometer 0.041 0.0 1.0))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(matches!(result, Value::bool(true)));
+    }
+
+    #[test]
     fn coincident_q_stricter_than_presence_q() {
         // Construct a case where presence? passes but coincident? fails.
         // Bind(k, v1) vs Bind(k, v1) -- identical, both true.
@@ -7645,6 +7916,291 @@ mod tests {
             matches!(coincident, Value::bool(false)),
             "coincident? must NOT fire — the bundle is not the atom"
         );
+    }
+
+    // --- eval-coincident? — arc 026 slice 1 -------------------------------
+    //
+    // Two forms, each quoted as an AST; each reduces under
+    // run_constrained; each result atomizes via value_to_atom; the
+    // two Atoms compare with the same coincident_floor test
+    // structural coincident? uses. Return is eval-family-shaped
+    // Result<bool, EvalError>.
+
+    #[test]
+    fn eval_coincident_q_true_for_equivalent_arithmetic() {
+        // The book's Chapter 28 retort: two distinct expressions that
+        // reduce to the same :i64 4 → same Atom(4) → same vector →
+        // coincident? fires true.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::eval-coincident?
+                 (:wat::core::quote (:wat::core::i64::+ 2 2))
+                 (:wat::core::quote (:wat::core::i64::* 1 4)))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(matches!(eval_ok_inner(result), Value::bool(true)));
+    }
+
+    #[test]
+    fn eval_coincident_q_true_for_same_string() {
+        let result = eval_with_ctx(
+            r#"(:wat::holon::eval-coincident?
+                 (:wat::core::quote "rsi")
+                 (:wat::core::quote "rsi"))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(matches!(eval_ok_inner(result), Value::bool(true)));
+    }
+
+    #[test]
+    fn eval_coincident_q_false_for_different_scalars() {
+        // 4 vs 5: distinct Atom hashes → orthogonal vectors → (1 - cos)
+        // well above coincident_floor.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::eval-coincident?
+                 (:wat::core::quote 4)
+                 (:wat::core::quote 5))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(matches!(eval_ok_inner(result), Value::bool(false)));
+    }
+
+    #[test]
+    fn eval_coincident_q_true_for_structurally_same_holon() {
+        // Atom(quote-HolonAST) wraps each side's constructed Bind as
+        // an Atom whose payload is the canonical-EDN of the Bind.
+        // Two structurally-identical constructions share a hash →
+        // same vector → coincident? fires.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::eval-coincident?
+                 (:wat::core::quote
+                   (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v")))
+                 (:wat::core::quote
+                   (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(matches!(eval_ok_inner(result), Value::bool(true)));
+    }
+
+    #[test]
+    fn eval_coincident_q_accepts_mixed_types() {
+        // Side A reduces to :i64 4 → Atom(4). Side B reduces to an
+        // already-built HolonAST Atom(4) → value_to_atom wraps
+        // HolonAST in another Atom(HolonAST) — canonical-EDN of
+        // Atom(4)-the-wrapping == canonical-EDN of Atom(4)-the-scalar's
+        // enveloping NOT guaranteed to match. This test locks what
+        // actually happens: HolonAST-lifts-to-Atom(HolonAST) so
+        // scalars compared to Atoms of the same scalar are NOT
+        // coincident under this primitive. Documented here so
+        // future refactors don't silently change the behavior.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::eval-coincident?
+                 (:wat::core::quote 4)
+                 (:wat::core::quote (:wat::holon::Atom 4)))"#,
+            1024,
+        )
+        .unwrap();
+        // Expect false — side A is Atom(i64 4), side B is
+        // Atom(HolonAST::Atom(4)), different payloads. The primitive
+        // is "coincidence of atomized results" — atomizing a holon
+        // wraps it; atomizing a scalar lifts it; the two disagree.
+        // If a caller wants to compare arithmetic-equivalent results,
+        // they should normalize both sides to scalars OR both to
+        // already-built holons before the call.
+        assert!(matches!(eval_ok_inner(result), Value::bool(false)));
+    }
+
+    #[test]
+    fn eval_coincident_q_err_on_non_ast_arg() {
+        // Passing a non-WatAST value (e.g., a string literal directly,
+        // not quoted) yields EvalError{kind="type-mismatch"}. Mirrors
+        // eval-ast!'s rejection of non-AST input.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::eval-coincident? "not-ast" "also-not-ast")"#,
+            1024,
+        )
+        .unwrap();
+        let (kind, msg) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "type-mismatch");
+        assert!(msg.contains("eval-coincident?"));
+    }
+
+    // --- eval-edn-coincident? — arc 026 slice 2 ---------------------------
+
+    #[test]
+    fn eval_edn_coincident_q_true_for_equivalent_sources() {
+        // Same shape as slice 1's arithmetic-equivalence test, but
+        // each side is an inline EDN source string rather than a
+        // quoted form. Both parse, both evaluate to :i64 4, both
+        // Atom-lift identically → coincident? fires.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::eval-edn-coincident?
+                 :wat::eval::string "(:wat::core::i64::+ 2 2)"
+                 :wat::eval::string "(:wat::core::i64::* 1 4)")"#,
+            1024,
+        )
+        .unwrap();
+        assert!(matches!(eval_ok_inner(result), Value::bool(true)));
+    }
+
+    #[test]
+    fn eval_edn_coincident_q_false_for_different_sources() {
+        let result = eval_with_ctx(
+            r#"(:wat::holon::eval-edn-coincident?
+                 :wat::eval::string "(:wat::core::i64::+ 2 2)"
+                 :wat::eval::string "(:wat::core::i64::+ 2 3)")"#,
+            1024,
+        )
+        .unwrap();
+        assert!(matches!(eval_ok_inner(result), Value::bool(false)));
+    }
+
+    #[test]
+    fn eval_edn_coincident_q_err_on_parse_failure() {
+        // Side B has an unclosed paren — parse fails → EvalError with
+        // kind="malformed-form" propagates.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::eval-edn-coincident?
+                 :wat::eval::string "(:wat::core::i64::+ 2 2)"
+                 :wat::eval::string "(:wat::core::i64::+ 2")"#,
+            1024,
+        )
+        .unwrap();
+        let (kind, _msg) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "malformed-form");
+    }
+
+    // --- eval-digest-coincident? — arc 026 slice 3 ------------------------
+    //
+    // Uses real SHA-256 digests computed inline. Same helper pattern
+    // as load.rs's digest-load tests.
+
+    fn sha256_hex(source: &str) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(source.as_bytes());
+        format!("{:x}", hasher.finalize())
+    }
+
+    #[test]
+    fn eval_digest_coincident_q_true_for_equivalent_verified_sources() {
+        let src_a = "(:wat::core::i64::+ 2 2)";
+        let src_b = "(:wat::core::i64::* 1 4)";
+        let h_a = sha256_hex(src_a);
+        let h_b = sha256_hex(src_b);
+        let program = format!(
+            r#"(:wat::holon::eval-digest-coincident?
+                 :wat::eval::string "{src_a}"
+                 :wat::verify::digest-sha256
+                 :wat::verify::string "{h_a}"
+                 :wat::eval::string "{src_b}"
+                 :wat::verify::digest-sha256
+                 :wat::verify::string "{h_b}")"#
+        );
+        let result = eval_with_ctx(&program, 1024).unwrap();
+        assert!(matches!(eval_ok_inner(result), Value::bool(true)));
+    }
+
+    #[test]
+    fn eval_digest_coincident_q_err_on_bad_digest() {
+        // Side A digest is wrong → verification fails before parse;
+        // EvalError with kind="verification-failed" propagates.
+        let src_a = "(:wat::core::i64::+ 2 2)";
+        let src_b = "(:wat::core::i64::* 1 4)";
+        let h_b = sha256_hex(src_b);
+        let bogus = "0".repeat(64);
+        let program = format!(
+            r#"(:wat::holon::eval-digest-coincident?
+                 :wat::eval::string "{src_a}"
+                 :wat::verify::digest-sha256
+                 :wat::verify::string "{bogus}"
+                 :wat::eval::string "{src_b}"
+                 :wat::verify::digest-sha256
+                 :wat::verify::string "{h_b}")"#
+        );
+        let result = eval_with_ctx(&program, 1024).unwrap();
+        let (kind, _msg) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "verification-failed");
+    }
+
+    // --- eval-signed-coincident? — arc 026 slice 4 ------------------------
+
+    fn sign_src_ed25519(source: &str) -> (String, String) {
+        use base64::engine::general_purpose::STANDARD as B64;
+        use base64::Engine;
+        use ed25519_dalek::Signer;
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&[7u8; 32]);
+        let forms = crate::parser::parse_all(source).expect("source parses");
+        let hash = crate::hash::hash_canonical_program(&forms);
+        let sig = signing_key.sign(&hash);
+        let sig_b64 = B64.encode(sig.to_bytes());
+        let pk_b64 = B64.encode(signing_key.verifying_key().as_bytes());
+        (sig_b64, pk_b64)
+    }
+
+    #[test]
+    #[ignore]
+    fn print_fixed_signatures_for_wat_tests() {
+        // One-shot helper: prints Ed25519 signatures over the fixed
+        // test sources, using the same [7u8; 32] signing key the
+        // unit tests use. Run with `--ignored` + `--nocapture` to
+        // recompute embedding values when a source changes.
+        let (sig_a, pk_a) = sign_src_ed25519("(:wat::core::i64::+ 2 2)");
+        let (sig_b, pk_b) = sign_src_ed25519("(:wat::core::i64::* 1 4)");
+        eprintln!("SRC_A_SIG = {}", sig_a);
+        eprintln!("SRC_A_PK  = {}", pk_a);
+        eprintln!("SRC_B_SIG = {}", sig_b);
+        eprintln!("SRC_B_PK  = {}", pk_b);
+    }
+
+    #[test]
+    fn eval_signed_coincident_q_true_for_equivalent_verified_sources() {
+        let src_a = "(:wat::core::i64::+ 2 2)";
+        let src_b = "(:wat::core::i64::* 1 4)";
+        let (sig_a, pk_a) = sign_src_ed25519(src_a);
+        let (sig_b, pk_b) = sign_src_ed25519(src_b);
+        let program = format!(
+            r#"(:wat::holon::eval-signed-coincident?
+                 :wat::eval::string "{src_a}"
+                 :wat::verify::signed-ed25519
+                 :wat::verify::string "{sig_a}"
+                 :wat::verify::string "{pk_a}"
+                 :wat::eval::string "{src_b}"
+                 :wat::verify::signed-ed25519
+                 :wat::verify::string "{sig_b}"
+                 :wat::verify::string "{pk_b}")"#
+        );
+        let result = eval_with_ctx(&program, 1024).unwrap();
+        assert!(matches!(eval_ok_inner(result), Value::bool(true)));
+    }
+
+    #[test]
+    fn eval_signed_coincident_q_err_on_bad_signature() {
+        let src_a = "(:wat::core::i64::+ 2 2)";
+        let src_b = "(:wat::core::i64::* 1 4)";
+        let (_sig_a, pk_a) = sign_src_ed25519(src_a);
+        let (sig_b, pk_b) = sign_src_ed25519(src_b);
+        // Side A carries a signature for a DIFFERENT source (src_b's
+        // sig over src_a) → verification fails → EvalError
+        // kind="verification-failed".
+        let wrong_sig = sig_b.clone();
+        let program = format!(
+            r#"(:wat::holon::eval-signed-coincident?
+                 :wat::eval::string "{src_a}"
+                 :wat::verify::signed-ed25519
+                 :wat::verify::string "{wrong_sig}"
+                 :wat::verify::string "{pk_a}"
+                 :wat::eval::string "{src_b}"
+                 :wat::verify::signed-ed25519
+                 :wat::verify::string "{sig_b}"
+                 :wat::verify::string "{pk_b}")"#
+        );
+        let result = eval_with_ctx(&program, 1024).unwrap();
+        let (kind, _msg) = eval_err_kind_and_message(result);
+        assert_eq!(kind, "verification-failed");
     }
 
     #[test]

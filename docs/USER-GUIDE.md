@@ -605,6 +605,75 @@ compose the primitives. File path matches namespace (`wat/holon/*.wat`).
 ;; Use cosine if you want the raw scalar.
 ```
 
+### The eval-coincident? family (arc 026)
+
+Structural `coincident?` takes two already-built HolonASTs and
+asks whether they project to the same point on the sphere.
+`eval-coincident?` and its three siblings take EXPRESSIONS,
+evaluate each side first, atomize the results, and then ask the
+same geometric question. Different expressions that reduce to the
+same value coincide — the algebra catches `(= (+ 2 2) (* 1 4))`
+because both sides atomize to `Atom(4)`.
+
+Each variant mirrors one of the shipped `eval-*!` forms,
+applied per side. Return is uniform
+`:Result<:bool, :wat::core::EvalError>` — any failure (source
+fetch, verification, parse, runtime error, non-atomizable result)
+arrives as `Err`, never a panic.
+
+```scheme
+;; AST variant — each arg is a quote-captured form.
+(:wat::holon::eval-coincident?
+  (:wat::core::quote (:wat::core::i64::+ 2 2))
+  (:wat::core::quote (:wat::core::i64::* 1 4)))
+;; → Ok(true) — both reduce to 4.
+
+;; EDN variant — each side is a source string.
+(:wat::holon::eval-edn-coincident?
+  :wat::eval::string "(:wat::core::i64::+ 2 2)"
+  :wat::eval::string "(:wat::core::i64::* 1 4)")
+;; → Ok(true)
+
+;; Digest-verified variant — SHA-256 over raw bytes before parse.
+(:wat::holon::eval-digest-coincident?
+  :wat::eval::string "(:wat::core::i64::+ 2 2)"
+  :wat::verify::digest-sha256
+  :wat::verify::string "<hex-a>"
+  :wat::eval::string "(:wat::core::i64::* 1 4)"
+  :wat::verify::digest-sha256
+  :wat::verify::string "<hex-b>")
+
+;; Signed-verified variant — Ed25519 over canonical-EDN after parse.
+(:wat::holon::eval-signed-coincident?
+  :wat::eval::string "(:wat::core::i64::+ 2 2)"
+  :wat::verify::signed-ed25519
+  :wat::verify::string "<sig-a>"
+  :wat::verify::string "<pubkey-a>"
+  :wat::eval::string "(:wat::core::i64::* 1 4)"
+  :wat::verify::signed-ed25519
+  :wat::verify::string "<sig-b>"
+  :wat::verify::string "<pubkey-b>")
+```
+
+**Empty bundles and the null sentinel.** The vector-layer bundle
+primitive (in holon-rs) panics on empty input — empty superposition
+has no well-defined vector without a substrate-specific convention.
+The userland idiom for "nothing was constructed here" is Lisp's
+`'()` lifted into an Atom, bundled as a single-element sentinel:
+
+```scheme
+;; Instead of (:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST))
+;; — which panics — construct:
+(:wat::holon::Bundle
+  (:wat::core::vec :wat::holon::HolonAST
+    (:wat::holon::Atom (:wat::core::quote ()))))
+```
+
+The Little Schemer's `'()` — the canonical null in Scheme — lifted
+into the algebra. Deterministic, no panic, grep-able across any
+caller that needs the same marker. Trading-lab's
+`wat/encoding/rhythm.wat` short-window fallback uses this idiom.
+
 ### The ten wat-written idioms
 
 Each shipped in `wat/holon/<Name>.wat`; each expands to algebra-core

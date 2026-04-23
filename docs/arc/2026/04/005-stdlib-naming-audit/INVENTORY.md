@@ -186,6 +186,10 @@ threshold (presence?, coincident? — arc 023).
 | `:wat::holon::dot` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :f64` | `runtime.rs::eval_algebra_dot` |
 | `:wat::holon::presence?` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :bool` (cosine > noise-floor) | `runtime.rs::eval_algebra_presence_q` |
 | `:wat::holon::coincident?` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :bool` ((1 − cosine) < noise-floor — arc 023) | `runtime.rs::eval_algebra_coincident_q` |
+| `:wat::holon::eval-coincident?` | `:wat::WatAST × :wat::WatAST -> :Result<:bool, :wat::core::EvalError>` (arc 026 — eval both sides, atomize, coincident?) | `runtime.rs::eval_form_ast_coincident_q` |
+| `:wat::holon::eval-edn-coincident?` | 4 args (two EDN-source pairs) → `:Result<:bool, :wat::core::EvalError>` (arc 026) | `runtime.rs::eval_form_edn_coincident_q` |
+| `:wat::holon::eval-digest-coincident?` | 10 args (two `eval-digest!`-shaped 5-tuples) → `:Result<:bool, :wat::core::EvalError>` (arc 026 — SHA-256-verified each side) | `runtime.rs::eval_form_digest_coincident_q` |
+| `:wat::holon::eval-signed-coincident?` | 14 args (two `eval-signed!`-shaped 7-tuples) → `:Result<:bool, :wat::core::EvalError>` (arc 026 — Ed25519-verified each side) | `runtime.rs::eval_form_signed_coincident_q` |
 
 ---
 
