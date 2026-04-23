@@ -23,6 +23,7 @@
 ;; ─── eval-coincident? — the book's (+ 2 2) ≡ (* 1 4) retort ──────
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-arithmetic-equivalence 1024 :error
+  ()
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
       (:wat::holon::eval-coincident?
@@ -37,6 +38,7 @@
 ;; ─── Different scalars → not coincident ──────────────────────────
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-different-scalars 1024 :error
+  ()
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
       (:wat::holon::eval-coincident?
@@ -51,6 +53,7 @@
 ;; ─── Same strings → coincident ───────────────────────────────────
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-same-strings 1024 :error
+  ()
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
       (:wat::holon::eval-coincident?
@@ -65,6 +68,7 @@
 ;; ─── Structurally-same holons built via quote ────────────────────
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-structurally-same-holons 1024 :error
+  ()
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
       (:wat::holon::eval-coincident?
@@ -81,6 +85,7 @@
 ;; ─── eval-edn-coincident? — inline EDN sources ───────────────────
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-edn-arithmetic-equivalence 1024 :error
+  ()
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
       (:wat::holon::eval-edn-coincident?
@@ -93,6 +98,7 @@
       true)))
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-edn-different-sources 1024 :error
+  ()
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
       (:wat::holon::eval-edn-coincident?
@@ -116,6 +122,7 @@
 ;; tests follow the same pattern for a runnable template.
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-digest-arithmetic-equivalence 1024 :error
+  ()
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
       (:wat::holon::eval-digest-string-coincident?
@@ -132,6 +139,7 @@
       true)))
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-digest-bad-hex-errs 1024 :error
+  ()
   ;; Side A carries a zero-hex digest that doesn't match the source;
   ;; verify fires before parse → Err(EvalError{kind=verification-failed}).
   (:wat::core::let*
@@ -163,6 +171,7 @@
 ;;   src-b sig = PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw==
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-signed-arithmetic-equivalence 1024 :error
+  ()
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
       (:wat::holon::eval-signed-string-coincident?
@@ -181,6 +190,7 @@
       true)))
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-signed-wrong-sig-errs 1024 :error
+  ()
   ;; Side A carries src-B's sig against src-A; verify fails →
   ;; Err(EvalError{kind=verification-failed}).
   (:wat::core::let*

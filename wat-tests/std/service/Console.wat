@@ -25,6 +25,7 @@
 ;;     select sees disconnect → Console/loop exits → outer join unblocks)
 
 (:wat::test::deftest :wat-tests::std::service::Console::test-hello-world 1024 :error
+  ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
@@ -60,6 +61,7 @@
 ;; scheduler picks write order.
 
 (:wat::test::deftest :wat-tests::std::service::Console::test-multi-writer 1024 :error
+  ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast

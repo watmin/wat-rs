@@ -207,3 +207,77 @@ transitively loads its own deps, even fewer per test.
   `env!("CARGO_MANIFEST_DIR")` (not `concat!(..., "/", ...)`) is
   why — the concat form would produce a trailing-slash path that
   ScopedLoader would reject; the bare env form is the path itself.
+- **Slice 4 broadened: deftest gained a `prelude` parameter.**
+  Initial migration attempt kept the manual `run-sandboxed-ast` +
+  `:wat::test::program` pattern because two constraints seemed to
+  block `deftest`: (a) the macro puts its body inside `:user::main`
+  which runs at RUNTIME, so `(:wat::load-file! ...)` — a startup
+  form — couldn't live in the body; (b) AST-entry sandboxes have
+  no source-file context, so `./` and `../` relative paths would
+  walk out of scope.
+  Builder correction: *"we do not do deferral — we fix the thing
+  when we find it broken... the expression (:wat::test::deftest)
+  should just work for consumers as it does in the wat-rs tests."*
+  The cleaner path WAS to extend the macro.
+  Shipped: `:wat::test::deftest` grew from 4-arg to 5-arg —
+  `(name dims mode prelude body)`. The new `prelude` param is a
+  list AST that splices via `,@prelude` BEFORE the auto-generated
+  `:user::main` define. Empty `()` prelude = the minimal shape;
+  list-of-load-forms = tests that compose external modules. Plus
+  `:wat::test::deftest-hermetic` sibling with identical signature
+  routing through `:wat::kernel::run-sandboxed-hermetic-ast` (fork
+  isolation for tests that spawn driver threads — Console, Cache).
+  Migration: 52 existing `deftest` callers across
+  `wat-rs/wat-tests/`, 6 across `crates/wat-lru/wat-tests/` + one
+  example, 1 in lab's `test_scaffold.wat` — all gained an `()`
+  line as the new 4th arg. Script-driven (Python, not Perl — the
+  `|` alternation crash neighborhood from Chapter 32 stayed
+  avoided).
+- **Slice 4 bonus: types self-load their deps.** Builder pressed
+  on the 7-load prelude: *"how many of those load! are redundant...
+  does candle pull in all its deps for us?"* Three loads were
+  genuinely redundant (enums, newtypes, distances — time tests
+  don't transitively use them). The other four were deps that
+  should have been auto-loaded through the type hierarchy. Added
+  `./` relative `(load!)` lines to `wat/types/candle.wat` (pulls
+  ohlcv + pivot), `wat/types/distances.wat` (pulls newtypes), and
+  `wat/vocab/shared/time.wat` (pulls candle). Canonical-path dedup
+  (slice 1) makes the explicit loads in `wat/main.wat` no-op on
+  repeat. Lab tests collapsed from a 7-load prelude to a 1-load
+  prelude — just `"wat/vocab/shared/time.wat"` — everything else
+  transitive. 25/25 lab tests green (including all 6 time tests
+  at ~9ms each). The ergonomic win lands honestly.
+- **Slice 4 scope shifted during migration.** The DESIGN expected
+  `deftest` + `../../wat/...` relative-path loads. Two findings
+  collapsed that target down to a smaller-but-honest shape:
+  1. The `deftest` macro puts its body inside `:user::main`, which
+     runs at RUNTIME. `(:wat::load-file! ...)` is a STARTUP-time
+     form refused at eval (`EvalForbidsMutationForm`). So `deftest`
+     bodies literally cannot carry loads without a macro refactor
+     that would hoist them above the `:user::main` define — bigger
+     than slice 4.
+  2. AST-entry sandboxes have NO source-file context (the forms are
+     a `Vec<WatAST>` constructed programmatically, not parsed from
+     disk). Relative paths with `./` or `../` inside the sandboxed
+     program's `(load!)` calls resolve against the loader's scope
+     ROOT (arc 017's "no caller base" branch), not against the
+     outer test file's location. So `../../wat/types/enums.wat`
+     resolves to `CARGO_MANIFEST_DIR/../../wat/types/enums.wat` —
+     which walks OUT of the scope and is refused.
+  Slice 4 landed as the honest alternative: **keep the
+  `run-sandboxed-ast` + `:wat::test::program` + explicit load
+  lines shape; just migrate the paths from scope-relative-under-
+  "wat"** (`"types/enums.wat"` with `(Some "wat")` scope) **to
+  scope-relative-under-CARGO_MANIFEST_DIR** (`"wat/types/enums.wat"`
+  with `:None` scope — inheriting the test binary's loader via
+  slice 2). Same 7 load lines per test, but now rooted at the
+  widened scope slice 3 provides. Tests all green — 25/25 lab
+  tests including the 6 migrated ones at ~9ms each (~54ms total;
+  dedup means 6 × 7 = 42 load-file calls parse just 7 unique
+  files).
+  Future work (outside arc 027): either extend `deftest` to accept
+  a load-prelude separate from the runtime body, OR thread a
+  synthetic source-file context through AST-entry sandboxes so
+  relative-path resolution works from a caller-supplied anchor.
+  Either would enable the DESIGN's minimalist shape. Neither was
+  needed to prove the end-to-end loader-inheritance path.

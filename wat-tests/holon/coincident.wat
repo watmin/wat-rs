@@ -15,6 +15,7 @@
 ;; ─── Self-coincidence: a holon is the same as itself ─────────────
 
 (:wat::test::deftest :wat-tests::holon::coincident::test-self-coincident 1024 :error
+  ()
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "rsi")))
     (:wat::test::assert-eq
@@ -24,6 +25,7 @@
 ;; ─── Structural equivalence: same-shape ASTs coincide ────────────
 
 (:wat::test::deftest :wat-tests::holon::coincident::test-structurally-same 1024 :error
+  ()
   (:wat::core::let*
     (((a :wat::holon::HolonAST)
       (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v")))
@@ -36,6 +38,7 @@
 ;; ─── Unrelated holons do NOT coincide ────────────────────────────
 
 (:wat::test::deftest :wat-tests::holon::coincident::test-unrelated-not-coincident 1024 :error
+  ()
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "alice"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "charlie")))
@@ -49,6 +52,7 @@
 ;; coincident with the Bundle — the Bundle is a superposition, not
 ;; the atom itself.
 (:wat::test::deftest :wat-tests::holon::coincident::test-stricter-than-presence 1024 :error
+  ()
   (:wat::core::let*
     (((bundled :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
       (:wat::holon::Bundle
@@ -80,6 +84,7 @@
 ;; which is 15 orders of magnitude below noise-floor (~0.156).
 ;; Coincident? has massive headroom for self-equivalence checks.
 (:wat::test::deftest :wat-tests::holon::coincident::test-self-cosine-within-floor 1024 :error
+  ()
   (:wat::core::let*
     (((a :wat::holon::HolonAST)
       (:wat::holon::Bind (:wat::holon::Atom "rsi")

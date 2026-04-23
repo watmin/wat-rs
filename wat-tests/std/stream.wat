@@ -20,6 +20,7 @@
 ;; nothing.
 
 (:wat::test::deftest :wat-tests::std::stream::test-chunks-exact-multiple 1024 :error
+  ()
   ;; Send 6 items with chunk size 3 → expect two Vec<i64> chunks of 3.
   (:wat::core::let*
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3 4 5 6))
@@ -38,6 +39,7 @@
     (:wat::test::assert-eq num-chunks 2)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-chunks-partial-flush 1024 :error
+  ()
   ;; Send 5 items with chunk size 3 → expect one full [1 2 3] then a
   ;; flushed partial [4 5] at EOS.
   (:wat::core::let*
@@ -60,6 +62,7 @@
     (:wat::test::assert-eq collected expected)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-chunks-empty-upstream 1024 :error
+  ()
   ;; No items sent → flush sees empty buffer → no chunks emitted.
   (:wat::core::let*
     (((stream :wat::std::stream::Stream<i64>)
@@ -78,6 +81,7 @@
 ;; duplicates collapses to one.
 
 (:wat::test::deftest :wat-tests::std::stream::test-with-state-dedupe-adjacent 1024 :error
+  ()
   ;; Input: 1 1 2 2 2 3 1 1 → expect 1 2 3 1.
   (:wat::core::let*
     (((source :Vec<i64>) (:wat::core::vec :i64 1 1 2 2 2 3 1 1))
@@ -114,6 +118,7 @@
 ;; from flush. Proves EOS → flush → drain path fires.
 
 (:wat::test::deftest :wat-tests::std::stream::test-with-state-buffer-all-at-eos 1024 :error
+  ()
   (:wat::core::let*
     (((source :Vec<i64>) (:wat::core::vec :i64 10 20 30))
      ((stream :wat::std::stream::Stream<i64>)
@@ -143,6 +148,7 @@
 ;; passes by bare reference via the let*-bound lambda.
 
 (:wat::test::deftest :wat-tests::std::stream::test-names-are-values-via-let-binding 1024 :error
+  ()
   (:wat::core::let*
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3))
      ((double :fn(i64)->i64)
@@ -155,6 +161,7 @@
 ;; ─── chunks-by — key-boundary N:1 partitioning ────────────────────────
 
 (:wat::test::deftest :wat-tests::std::stream::test-chunks-by-runs-on-identity 1024 :error
+  ()
   ;; Stream [1 1 2 3 3 3 1] grouped by identity → [[1 1] [2] [3 3 3] [1]].
   (:wat::core::let*
     (((source :Vec<i64>) (:wat::core::vec :i64 1 1 2 3 3 3 1))
@@ -180,6 +187,7 @@
     (:wat::test::assert-eq collected expected)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-chunks-by-all-distinct 1024 :error
+  ()
   ;; Stream [1 2 3] grouped by identity → [[1] [2] [3]] (each its own run).
   (:wat::core::let*
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3))
@@ -204,6 +212,7 @@
     (:wat::test::assert-eq collected expected)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-chunks-by-empty-stream 1024 :error
+  ()
   ;; Empty stream → no groups emitted.
   (:wat::core::let*
     (((stream :wat::std::stream::Stream<i64>)
@@ -220,6 +229,7 @@
 ;; ─── window — sliding N-length windows, flush-partial-when-short ──────
 
 (:wat::test::deftest :wat-tests::std::stream::test-window-full-windows 1024 :error
+  ()
   ;; Stream [1 2 3 4 5], size 3 → [[1 2 3] [2 3 4] [3 4 5]].
   (:wat::core::let*
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3 4 5))
@@ -242,6 +252,7 @@
     (:wat::test::assert-eq collected expected)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-window-short-stream-flushes-partial 1024 :error
+  ()
   ;; Stream [1 2], size 3 — never reached size, flush emits [[1 2]].
   (:wat::core::let*
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2))
@@ -262,6 +273,7 @@
     (:wat::test::assert-eq collected expected)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-window-exactly-size-no-flush 1024 :error
+  ()
   ;; Stream [1 2 3], size 3 — one full window emitted, flush empty.
   (:wat::core::let*
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3))
@@ -282,6 +294,7 @@
     (:wat::test::assert-eq collected expected)))
 
 (:wat::test::deftest :wat-tests::std::stream::test-window-empty-stream 1024 :error
+  ()
   ;; Empty stream → no windows emitted at all.
   (:wat::core::let*
     (((stream :wat::std::stream::Stream<i64>)

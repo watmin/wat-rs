@@ -11,6 +11,7 @@
 (:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :wat-tests::holon::Sequential::test-self-identity 1024 :error
+  ()
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
@@ -20,6 +21,7 @@
     (:wat::test::assert-eq (:wat::holon::presence? abc abc) true)))
 
 (:wat::test::deftest :wat-tests::holon::Sequential::test-order-sensitivity 1024 :error
+  ()
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))

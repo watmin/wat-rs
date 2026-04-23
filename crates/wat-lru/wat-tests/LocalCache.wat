@@ -18,6 +18,7 @@
 ;; ─── put-then-get round-trip ────────────────────────────────────────
 
 (:wat::test::deftest :wat-lru::test-local-cache-put-then-get 1024 :error
+  ()
   (:wat::core::let*
     (((cache :user::wat::std::lru::LocalCache<String,i64>)
       (:user::wat::std::lru::LocalCache::new 16))
@@ -33,6 +34,7 @@
 ;; ─── miss returns :None ─────────────────────────────────────────────
 
 (:wat::test::deftest :wat-lru::test-local-cache-miss-returns-none 1024 :error
+  ()
   (:wat::core::let*
     (((cache :user::wat::std::lru::LocalCache<String,i64>)
       (:user::wat::std::lru::LocalCache::new 16))
@@ -47,6 +49,7 @@
 ;; ─── put overwrites existing key ────────────────────────────────────
 
 (:wat::test::deftest :wat-lru::test-local-cache-put-overwrites 1024 :error
+  ()
   (:wat::core::let*
     (((cache :user::wat::std::lru::LocalCache<String,i64>)
       (:user::wat::std::lru::LocalCache::new 16))
@@ -64,6 +67,7 @@
 ;; Capacity 2: after putting 3 keys, the oldest (1) is evicted.
 
 (:wat::test::deftest :wat-lru::test-local-cache-evict-at-capacity 1024 :error
+  ()
   (:wat::core::let*
     (((cache :user::wat::std::lru::LocalCache<i64,i64>)
       (:user::wat::std::lru::LocalCache::new 2))

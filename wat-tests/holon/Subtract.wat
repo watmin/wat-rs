@@ -11,6 +11,7 @@
 (:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :wat-tests::holon::Subtract::test-self-presence-above-floor 1024 :error
+  ()
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "alice"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "bob"))
@@ -18,6 +19,7 @@
     (:wat::test::assert-eq (:wat::holon::presence? a diff) true)))
 
 (:wat::test::deftest :wat-tests::holon::Subtract::test-unrelated-presence-below-floor 1024 :error
+  ()
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "alice"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "bob"))

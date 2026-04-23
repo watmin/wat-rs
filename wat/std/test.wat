@@ -183,31 +183,42 @@
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed-hermetic-ast forms stdin :None))
 
-;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b) ───────
+;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b; arc 027 slice 4) ───────
 ;;
 ;; Registers a named zero-arg test function that returns RunResult.
-;; The body runs inside a fresh sandboxed world with the caller's dims
-;; + capacity-mode committed. When slice 4's test discoverer lands, it
-;; iterates registered functions and invokes each.
+;; The body runs inside a fresh sandboxed world with the caller's
+;; dims + capacity-mode committed. The `prelude` list splices startup
+;; forms (loads, type declarations, defmacros) BEFORE the auto-
+;; generated `:user::main`. Empty `()` prelude = no startup forms,
+;; the minimal shape.
 ;;
-;; Shape:
+;; Shape — empty prelude:
 ;;
 ;;   (:wat::test::deftest :my::test::two-plus-two 1024 :error
+;;     ()
 ;;     (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
+;;
+;; Shape — loads in prelude (arc 027 slice 4):
+;;
+;;   (:wat::test::deftest :my::test::with-loads 1024 :error
+;;     ((:wat::load-file! "wat/types/candle.wat")
+;;      (:wat::load-file! "wat/vocab/shared/time.wat"))
+;;     (:wat::test::assert-eq ...))
 ;;
 ;; Expansion:
 ;;
 ;;   (:wat::core::define (:my::test::two-plus-two -> :wat::kernel::RunResult)
 ;;     (:wat::kernel::run-sandboxed-ast
-;;       (:wat::core::vec :wat::WatAST
-;;         (:wat::core::quote (:wat::config::set-dims! 1024))
-;;         (:wat::core::quote (:wat::config::set-capacity-mode! :error))
-;;         (:wat::core::quote (:wat::core::define (:user::main
-;;                                                 (stdin  :wat::io::IOReader)
-;;                                                 (stdout :wat::io::IOWriter)
-;;                                                 (stderr :wat::io::IOWriter)
-;;                                                 -> :())
-;;                              <body>)))
+;;       (:wat::core::forms
+;;         (:wat::config::set-dims! 1024)
+;;         (:wat::config::set-capacity-mode! :error)
+;;         <prelude spliced here>
+;;         (:wat::core::define (:user::main
+;;                              (stdin  :wat::io::IOReader)
+;;                              (stdout :wat::io::IOWriter)
+;;                              (stderr :wat::io::IOWriter)
+;;                              -> :())
+;;           <body>))
 ;;       (:wat::core::vec :String)
 ;;       :None))
 (:wat::core::defmacro
@@ -215,20 +226,56 @@
     (name :AST<()>)
     (dims :AST<i64>)
     (mode :AST<wat::core::keyword>)
+    (prelude :AST<()>)
     (body :AST<()>)
     -> :AST<()>)
   `(:wat::core::define (,name -> :wat::kernel::RunResult)
      (:wat::kernel::run-sandboxed-ast
-       (:wat::core::vec :wat::WatAST
-         (:wat::core::quote (:wat::config::set-dims! ,dims))
-         (:wat::core::quote (:wat::config::set-capacity-mode! ,mode))
-         (:wat::core::quote
-           (:wat::core::define
-             (:user::main
-               (stdin  :wat::io::IOReader)
-               (stdout :wat::io::IOWriter)
-               (stderr :wat::io::IOWriter)
-               -> :())
-             ,body)))
+       (:wat::core::forms
+         (:wat::config::set-dims! ,dims)
+         (:wat::config::set-capacity-mode! ,mode)
+         ,@prelude
+         (:wat::core::define
+           (:user::main
+             (stdin  :wat::io::IOReader)
+             (stdout :wat::io::IOWriter)
+             (stderr :wat::io::IOWriter)
+             -> :())
+           ,body))
+       (:wat::core::vec :String)
+       :None)))
+
+;; ─── deftest-hermetic — same shape, forked child for isolation ────────
+;;
+;; Identical to `deftest` except the sandboxed program runs in a forked
+;; child via `:wat::kernel::run-sandboxed-hermetic-ast` (→ wat/std/
+;; hermetic.wat → :wat::kernel::fork-with-forms). Use for tests that
+;; exercise services spawning driver threads (Console, Cache) —
+;; in-process run-ast uses StringIo stdio (ThreadOwnedCell, single-
+;; thread) and cross-thread writes from a driver panic silently.
+;; hermetic runs in a child with real thread-safe stdio (PipeReader /
+;; PipeWriter; arc 012). The child inherits the caller's SymbolTable
+;; (including loaded deps) via COW.
+(:wat::core::defmacro
+  (:wat::test::deftest-hermetic
+    (name :AST<()>)
+    (dims :AST<i64>)
+    (mode :AST<wat::core::keyword>)
+    (prelude :AST<()>)
+    (body :AST<()>)
+    -> :AST<()>)
+  `(:wat::core::define (,name -> :wat::kernel::RunResult)
+     (:wat::kernel::run-sandboxed-hermetic-ast
+       (:wat::core::forms
+         (:wat::config::set-dims! ,dims)
+         (:wat::config::set-capacity-mode! ,mode)
+         ,@prelude
+         (:wat::core::define
+           (:user::main
+             (stdin  :wat::io::IOReader)
+             (stdout :wat::io::IOWriter)
+             (stderr :wat::io::IOWriter)
+             -> :())
+           ,body))
        (:wat::core::vec :String)
        :None)))

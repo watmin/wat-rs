@@ -19,6 +19,7 @@
 (:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :wat-lru::test-cache-service-put-then-get-round-trip 1024 :error
+  ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast

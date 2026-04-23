@@ -11,6 +11,7 @@
 (:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :wat-tests::holon::Trigram::test-window-participant-above-floor 1024 :error
+  ()
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
@@ -30,6 +31,7 @@
     (:wat::test::assert-eq (:wat::holon::presence? window-1 full) true)))
 
 (:wat::test::deftest :wat-tests::holon::Trigram::test-outsider-below-floor 1024 :error
+  ()
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))

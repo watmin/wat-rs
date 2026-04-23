@@ -19,15 +19,19 @@
 ;; ─── assert-eq — pass cases ───────────────────────────────────────────
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-i64 1024 :error
+  ()
   (:wat::test::assert-eq 42 42))
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-strings 1024 :error
+  ()
   (:wat::test::assert-eq "hello" "hello"))
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-bools 1024 :error
+  ()
   (:wat::test::assert-eq true true))
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-vec 1024 :error
+  ()
   (:wat::core::let*
     (((a :Vec<String>) (:wat::core::vec :String "x" "y"))
      ((b :Vec<String>) (:wat::core::vec :String "x" "y")))
@@ -36,6 +40,7 @@
 ;; ─── assert-eq — fail case surfaces message ───────────────────────────
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-fail-populates-message 1024 :error
+  ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
@@ -62,9 +67,11 @@
 ;; ─── assert-contains — pass + fail ────────────────────────────────────
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-contains-hit 1024 :error
+  ()
   (:wat::test::assert-contains "the quick brown fox" "quick"))
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-contains-fail-populates-actual 1024 :error
+  ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
@@ -100,6 +107,7 @@
 ;; ─── assert-stdout-is — pass case ─────────────────────────────────────
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-stdout-is-matches 1024 :error
+  ()
   (:wat::core::let*
     (((inner :wat::kernel::RunResult)
       (:wat::test::run-ast
@@ -123,6 +131,7 @@
 ;; ─── assert-stderr-matches — pass + fail-reports-pattern ──────────────
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-stderr-matches-pass 1024 :error
+  ()
   (:wat::core::let*
     (((inner :wat::kernel::RunResult)
       (:wat::test::run-ast
@@ -140,6 +149,7 @@
     (:wat::test::assert-stderr-matches inner "code [0-9]+")))
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern 1024 :error
+  ()
   ;; Two-level nested sandbox: outer program runs inner program that
   ;; runs silent program. The middle layer calls assert-stderr-matches
   ;; against the silent program's empty stderr; that assertion fires;
@@ -192,6 +202,7 @@
 ;; path continues to work alongside the AST-entry path used above.
 
 (:wat::test::deftest :wat-tests::std::test::test-run-string-entry-path 1024 :error
+  ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run
@@ -210,6 +221,7 @@
 ;; ─── :wat::test::run-ast — AST-entry path via :wat::test::program ────
 
 (:wat::test::deftest :wat-tests::std::test::test-run-ast-via-program 1024 :error
+  ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
