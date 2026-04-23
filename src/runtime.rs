@@ -1759,8 +1759,8 @@ fn dispatch_keyword_head(
         ":wat::core::HashSet" => eval_hashset_ctor(args, env, sym),
         ":wat::core::get" => eval_get(args, env, sym),
         ":wat::core::assoc" => eval_assoc(args, env, sym),
-        ":wat::core::contains?" => eval_hashmap_contains(args, env, sym),
-        ":wat::std::member?" => eval_hashset_member(args, env, sym),
+        ":wat::core::contains?" => eval_contains_q(args, env, sym),
+        // :wat::core::contains? retired in arc 025 — contains? is polymorphic now.
         // :wat::io::IOReader / :wat::io::IOWriter — abstract IO
         // substrate (arc 008 slice 2). Two wat-level types; multiple
         // concrete backings (real stdio, StringIo). Byte-oriented
@@ -3112,20 +3112,30 @@ fn eval_conj(
             got: args.len(),
         });
     }
-    let vec = match eval(&args[0], env, sym)? {
-        Value::Vec(v) => v,
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: ":wat::core::conj".into(),
-                expected: "Vec",
-                got: other.type_name(),
-            });
-        }
-    };
+    let container = eval(&args[0], env, sym)?;
     let item = eval(&args[1], env, sym)?;
-    let mut out = (*vec).clone();
-    out.push(item);
-    Ok(Value::Vec(Arc::new(out)))
+    match container {
+        Value::Vec(xs) => {
+            let mut out = (*xs).clone();
+            out.push(item);
+            Ok(Value::Vec(Arc::new(out)))
+        }
+        // Arc 025: HashSet support. `(conj set x)` returns a new set
+        // with x added. HashSet's `assoc` is illegal (no key-value
+        // pairing); `conj` is the honest verb for "add one element
+        // to this growing collection" — Clojure convention.
+        Value::wat__std__HashSet(s) => {
+            let key = hashmap_key(":wat::core::conj", &item)?;
+            let mut out = (*s).clone();
+            out.insert(key, item);
+            Ok(Value::wat__std__HashSet(Arc::new(out)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::conj".into(),
+            expected: "Vec<T> | HashSet<T>",
+            got: other.type_name(),
+        }),
+    }
 }
 
 /// `(:wat::core::tuple a b c ...)` — build a heterogeneous tuple
@@ -3632,9 +3642,29 @@ fn eval_get(
                 None => Ok(Value::Option(Arc::new(None))),
             }
         }
+        // Arc 025: Vec support — `(get xs i)` with :i64 index returns
+        // `:Option<T>`. (Some v) at valid index; :None at negative or
+        // out-of-range. Matches 058-026-array's INSCRIPTION intent.
+        Value::Vec(xs) => {
+            let i = match k {
+                Value::i64(n) => n,
+                other => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: ":wat::core::get".into(),
+                        expected: "i64 index for Vec",
+                        got: other.type_name(),
+                    });
+                }
+            };
+            if i < 0 || (i as usize) >= xs.len() {
+                Ok(Value::Option(Arc::new(None)))
+            } else {
+                Ok(Value::Option(Arc::new(Some(xs[i as usize].clone()))))
+            }
+        }
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::get".into(),
-            expected: "HashMap | HashSet",
+            expected: "HashMap | HashSet | Vec",
             got: other.type_name(),
         }),
     }
@@ -3670,9 +3700,38 @@ fn eval_assoc(
             new_map.insert(key, (k, v));
             Ok(Value::wat__std__HashMap(Arc::new(new_map)))
         }
+        // Arc 025: Vec support. `(assoc xs i v)` returns a new Vec
+        // with xs[i] replaced. Runtime out-of-range index → runtime
+        // error (type checker accepts any i64; only the value bounds
+        // check at runtime). Values-up — input Vec unchanged.
+        Value::Vec(xs) => {
+            let i = match k {
+                Value::i64(n) => n,
+                other => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: OP.into(),
+                        expected: "i64 index for Vec",
+                        got: other.type_name(),
+                    });
+                }
+            };
+            if i < 0 || (i as usize) >= xs.len() {
+                return Err(RuntimeError::MalformedForm {
+                    head: OP.into(),
+                    reason: format!(
+                        "index {} out of range for Vec of length {}",
+                        i,
+                        xs.len()
+                    ),
+                });
+            }
+            let mut out = (*xs).clone();
+            out[i as usize] = v;
+            Ok(Value::Vec(Arc::new(out)))
+        }
         other => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
-            expected: "HashMap<K,V>",
+            expected: "HashMap<K,V> | Vec<T>",
             got: other.type_name(),
         }),
     }
@@ -3708,37 +3767,14 @@ fn eval_hashset_ctor(
     Ok(Value::wat__std__HashSet(Arc::new(set)))
 }
 
-/// `(:wat::std::member? s x)` — boolean membership test over
-/// `:HashSet<T>`.
-fn eval_hashset_member(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
-            op: ":wat::std::member?".into(),
-            expected: 2,
-            got: args.len(),
-        });
-    }
-    let set = eval(&args[0], env, sym)?;
-    let x = eval(&args[1], env, sym)?;
-    match set {
-        Value::wat__std__HashSet(s) => {
-            let key = hashmap_key(":wat::std::member?", &x)?;
-            Ok(Value::bool(s.contains_key(&key)))
-        }
-        other => Err(RuntimeError::TypeMismatch {
-            op: ":wat::std::member?".into(),
-            expected: "HashSet",
-            got: other.type_name(),
-        }),
-    }
-}
-
-/// `(:wat::core::contains? m k)` — boolean membership test.
-fn eval_hashmap_contains(
+/// Arc 025 — `(:wat::core::contains? container key)`. Polymorphic
+/// membership / key / index predicate:
+///   HashMap<K,V> × K    -> bool   (has key)
+///   HashSet<T>   × T    -> bool   (has element)
+///   Vec<T>       × i64  -> bool   (has valid index)
+/// Retires `:wat::core::contains?` — this covers it. Dispatched in
+/// check.rs via `infer_contains_q`.
+fn eval_contains_q(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -3757,9 +3793,26 @@ fn eval_hashmap_contains(
             let key = hashmap_key(":wat::core::contains?", &k)?;
             Ok(Value::bool(m.contains_key(&key)))
         }
+        Value::wat__std__HashSet(s) => {
+            let key = hashmap_key(":wat::core::contains?", &k)?;
+            Ok(Value::bool(s.contains_key(&key)))
+        }
+        Value::Vec(xs) => {
+            let i = match k {
+                Value::i64(n) => n,
+                other => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: ":wat::core::contains?".into(),
+                        expected: "i64 index for Vec",
+                        got: other.type_name(),
+                    });
+                }
+            };
+            Ok(Value::bool(i >= 0 && (i as usize) < xs.len()))
+        }
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::contains?".into(),
-            expected: "HashMap",
+            expected: "HashMap | HashSet | Vec",
             got: other.type_name(),
         }),
     }
@@ -8615,12 +8668,124 @@ mod tests {
     fn hashset_member_present_and_absent() {
         let present = r#"(:wat::core::let*
             (((s :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "a" "b")))
-            (:wat::std::member? s "a"))"#;
+            (:wat::core::contains? s "a"))"#;
         assert!(matches!(eval_expr(present).unwrap(), Value::bool(true)));
         let absent = r#"(:wat::core::let*
             (((s :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "a" "b")))
-            (:wat::std::member? s "z"))"#;
+            (:wat::core::contains? s "z"))"#;
         assert!(matches!(eval_expr(absent).unwrap(), Value::bool(false)));
+    }
+
+    // ─── Arc 025: polymorphic get / assoc / conj / contains? ─────────
+
+    #[test]
+    fn vec_get_hit_returns_some_at_valid_index() {
+        let src = r#"(:wat::core::let*
+            (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
+            (:wat::core::match (:wat::core::get xs 1) -> :i64
+              ((Some v) v)
+              (:None    -1)))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::i64(20)));
+    }
+
+    #[test]
+    fn vec_get_out_of_range_returns_none() {
+        let src = r#"(:wat::core::let*
+            (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
+            (:wat::core::match (:wat::core::get xs 5) -> :bool
+              ((Some _) false)
+              (:None    true)))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
+    }
+
+    #[test]
+    fn vec_get_negative_index_returns_none() {
+        let src = r#"(:wat::core::let*
+            (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
+            (:wat::core::match (:wat::core::get xs -1) -> :bool
+              ((Some _) false)
+              (:None    true)))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
+    }
+
+    #[test]
+    fn vec_assoc_replaces_at_index() {
+        let src = r#"(:wat::core::let*
+            (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30))
+             ((ys :Vec<i64>) (:wat::core::assoc xs 1 99)))
+            (:wat::core::match (:wat::core::get ys 1) -> :i64
+              ((Some v) v)
+              (:None    -1)))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::i64(99)));
+    }
+
+    #[test]
+    fn vec_assoc_values_up_preserves_input() {
+        // Confirm assoc doesn't mutate the input Vec — the original
+        // binding still reads the pre-update value.
+        let src = r#"(:wat::core::let*
+            (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30))
+             ((_  :Vec<i64>) (:wat::core::assoc xs 1 99)))
+            (:wat::core::match (:wat::core::get xs 1) -> :i64
+              ((Some v) v)
+              (:None    -1)))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::i64(20)));
+    }
+
+    #[test]
+    fn vec_assoc_out_of_range_runtime_errors() {
+        let src = r#"(:wat::core::let*
+            (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
+            (:wat::core::assoc xs 5 99))"#;
+        let err = eval_expr(src).unwrap_err();
+        assert!(
+            matches!(err, RuntimeError::MalformedForm { ref head, .. }
+                     if head == ":wat::core::assoc"),
+            "expected MalformedForm on assoc out-of-range; got {:?}",
+            err
+        );
+    }
+
+    #[test]
+    fn hashset_conj_adds_element() {
+        let src = r#"(:wat::core::let*
+            (((s0 :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "a" "b"))
+             ((s1 :rust::std::collections::HashSet<String>) (:wat::core::conj s0 "c")))
+            (:wat::core::contains? s1 "c"))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
+    }
+
+    #[test]
+    fn hashset_conj_values_up_preserves_input() {
+        let src = r#"(:wat::core::let*
+            (((s0 :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "a" "b"))
+             ((_  :rust::std::collections::HashSet<String>) (:wat::core::conj s0 "c")))
+            (:wat::core::contains? s0 "c"))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
+    }
+
+    #[test]
+    fn vec_contains_valid_index_returns_true() {
+        let src = r#"(:wat::core::let*
+            (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
+            (:wat::core::contains? xs 2))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
+    }
+
+    #[test]
+    fn vec_contains_out_of_range_returns_false() {
+        let src = r#"(:wat::core::let*
+            (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
+            (:wat::core::contains? xs 5))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
+    }
+
+    #[test]
+    fn vec_contains_negative_index_returns_false() {
+        let src = r#"(:wat::core::let*
+            (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
+            (:wat::core::contains? xs -1))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
     }
 
     #[test]
@@ -8805,7 +8970,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((s :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "42")))
-              (:wat::std::member? s 42))
+              (:wat::core::contains? s 42))
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(false) => {}

@@ -428,6 +428,8 @@ fn infer_list(
             ":wat::core::tuple" => return infer_tuple_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::HashMap" => return infer_hashmap_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::assoc" => return infer_assoc(args, env, locals, fresh, subst, errors),
+            ":wat::core::conj" => return infer_conj(args, env, locals, fresh, subst, errors),
+            ":wat::core::contains?" => return infer_contains_q(args, env, locals, fresh, subst, errors),
             ":wat::core::HashSet" => return infer_hashset_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::get" => return infer_get(args, env, locals, fresh, subst, errors),
             ":wat::core::quote" => {
@@ -1984,6 +1986,27 @@ fn infer_get(
                     args: vec![apply_subst(&v, subst)],
                 });
             }
+            // Arc 025: Vec support. `(get xs i)` with :i64 index
+            // returns `:Option<T>`. Unify key with i64; container's
+            // element type is the Option's T. 058-026 INSCRIPTION.
+            TypeExpr::Parametric { head, args: ta } if head == "Vec" && ta.len() == 1 => {
+                let t = apply_subst(&ta[0], subst);
+                if let Some(key_ty) = key_ty {
+                    let i64_ty = TypeExpr::Path(":i64".into());
+                    if unify(&key_ty, &i64_ty, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::core::get".into(),
+                            param: "key".into(),
+                            expected: "i64".into(),
+                            got: format_type(&apply_subst(&key_ty, subst)),
+                        });
+                    }
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![apply_subst(&t, subst)],
+                });
+            }
             TypeExpr::Parametric { head, args: ta } if head == "HashSet" && ta.len() == 1 => {
                 let t = apply_subst(&ta[0], subst);
                 if let Some(key_ty) = key_ty {
@@ -2005,7 +2028,7 @@ fn infer_get(
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::core::get".into(),
                     param: "container".into(),
-                    expected: "HashMap<K,V> | HashSet<T>".into(),
+                    expected: "HashMap<K,V> | HashSet<T> | Vec<T>".into(),
                     got: format_type(&apply_subst(&ct, subst)),
                 });
             }
@@ -2073,11 +2096,40 @@ fn infer_assoc(
                 }
                 return Some(reduced);
             }
+            // Arc 025: Vec support. `(assoc xs i v)` replaces xs[i]
+            // with v; i must unify with :i64, v must unify with T.
+            // Returns Vec<T>. Out-of-range i is a runtime error, not
+            // a type error.
+            TypeExpr::Parametric { head, args: ta } if head == "Vec" && ta.len() == 1 => {
+                let t = apply_subst(&ta[0], subst);
+                if let Some(key_ty) = key_ty {
+                    let i64_ty = TypeExpr::Path(":i64".into());
+                    if unify(&key_ty, &i64_ty, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::core::assoc".into(),
+                            param: "key".into(),
+                            expected: "i64".into(),
+                            got: format_type(&apply_subst(&key_ty, subst)),
+                        });
+                    }
+                }
+                if let Some(value_ty) = value_ty {
+                    if unify(&value_ty, &t, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::core::assoc".into(),
+                            param: "value".into(),
+                            expected: format_type(&apply_subst(&t, subst)),
+                            got: format_type(&apply_subst(&value_ty, subst)),
+                        });
+                    }
+                }
+                return Some(reduced);
+            }
             _ => {
                 errors.push(CheckError::TypeMismatch {
                     callee: ":wat::core::assoc".into(),
                     param: "container".into(),
-                    expected: "HashMap<K,V>".into(),
+                    expected: "HashMap<K,V> | Vec<T>".into(),
                     got: format_type(&apply_subst(&ct, subst)),
                 });
             }
@@ -2087,6 +2139,163 @@ fn infer_assoc(
         head: "HashMap".into(),
         args: vec![fresh.fresh(), fresh.fresh()],
     })
+}
+
+/// Arc 025 — `(:wat::core::conj container value)`. Polymorphic
+/// over Vec and HashSet; HashMap illegal (no key-value pairing —
+/// use assoc).
+///   ∀T. Vec<T>     × T -> Vec<T>
+///   ∀T. HashSet<T> × T -> HashSet<T>
+fn infer_conj(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::core::conj".into(),
+            expected: 2,
+            got: args.len(),
+        });
+        return Some(TypeExpr::Parametric {
+            head: "Vec".into(),
+            args: vec![fresh.fresh()],
+        });
+    }
+    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let value_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    if let Some(ct) = container_ty {
+        let reduced = reduce(&ct, subst, env.types());
+        match &reduced {
+            TypeExpr::Parametric { head, args: ta } if head == "Vec" && ta.len() == 1 => {
+                let t = apply_subst(&ta[0], subst);
+                if let Some(value_ty) = value_ty {
+                    if unify(&value_ty, &t, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::core::conj".into(),
+                            param: "value".into(),
+                            expected: format_type(&apply_subst(&t, subst)),
+                            got: format_type(&apply_subst(&value_ty, subst)),
+                        });
+                    }
+                }
+                return Some(reduced);
+            }
+            TypeExpr::Parametric { head, args: ta } if head == "HashSet" && ta.len() == 1 => {
+                let t = apply_subst(&ta[0], subst);
+                if let Some(value_ty) = value_ty {
+                    if unify(&value_ty, &t, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::core::conj".into(),
+                            param: "value".into(),
+                            expected: format_type(&apply_subst(&t, subst)),
+                            got: format_type(&apply_subst(&value_ty, subst)),
+                        });
+                    }
+                }
+                return Some(reduced);
+            }
+            _ => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::conj".into(),
+                    param: "container".into(),
+                    expected: "Vec<T> | HashSet<T>".into(),
+                    got: format_type(&apply_subst(&ct, subst)),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![fresh.fresh()],
+    })
+}
+
+/// Arc 025 — `(:wat::core::contains? container key)`. Polymorphic
+/// membership/key predicate:
+///   ∀K,V. HashMap<K,V> × K -> bool    (has key)
+///   ∀T.   HashSet<T>   × T -> bool    (has element)
+///   ∀T.   Vec<T>       × i64 -> bool  (has valid index)
+/// Retires `:wat::std::member?` — contains? covers it now.
+fn infer_contains_q(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::core::contains?".into(),
+            expected: 2,
+            got: args.len(),
+        });
+        return Some(TypeExpr::Path(":bool".into()));
+    }
+    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let key_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    if let Some(ct) = container_ty {
+        let reduced = reduce(&ct, subst, env.types());
+        match &reduced {
+            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
+                let k = apply_subst(&ta[0], subst);
+                if let Some(key_ty) = key_ty {
+                    if unify(&key_ty, &k, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::core::contains?".into(),
+                            param: "key".into(),
+                            expected: format_type(&apply_subst(&k, subst)),
+                            got: format_type(&apply_subst(&key_ty, subst)),
+                        });
+                    }
+                }
+                return Some(TypeExpr::Path(":bool".into()));
+            }
+            TypeExpr::Parametric { head, args: ta } if head == "HashSet" && ta.len() == 1 => {
+                let t = apply_subst(&ta[0], subst);
+                if let Some(key_ty) = key_ty {
+                    if unify(&key_ty, &t, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::core::contains?".into(),
+                            param: "key".into(),
+                            expected: format_type(&apply_subst(&t, subst)),
+                            got: format_type(&apply_subst(&key_ty, subst)),
+                        });
+                    }
+                }
+                return Some(TypeExpr::Path(":bool".into()));
+            }
+            TypeExpr::Parametric { head, args: ta } if head == "Vec" && ta.len() == 1 => {
+                if let Some(key_ty) = key_ty {
+                    let i64_ty = TypeExpr::Path(":i64".into());
+                    if unify(&key_ty, &i64_ty, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::core::contains?".into(),
+                            param: "key".into(),
+                            expected: "i64".into(),
+                            got: format_type(&apply_subst(&key_ty, subst)),
+                        });
+                    }
+                }
+                // suppress unused-arg warnings in this arm
+                let _ = ta;
+                return Some(TypeExpr::Path(":bool".into()));
+            }
+            _ => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::contains?".into(),
+                    param: "container".into(),
+                    expected: "HashMap<K,V> | HashSet<T> | Vec<T>".into(),
+                    got: format_type(&apply_subst(&ct, subst)),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Path(":bool".into()))
 }
 
 /// Type-check `(:wat::core::HashMap :(K,V) k1 v1 k2 v2 ...)`. First arg
@@ -3884,37 +4093,11 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: vec_of(TypeExpr::Tuple(vec![t_var(), u_var()])),
         },
     );
-    // get is special-cased in infer_list (polymorphic over HashMap
-    // and HashSet). contains? (HashMap) and member? (HashSet) carry
-    // their own narrow schemes.
-    env.register(
-        ":wat::core::contains?".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![
-                TypeExpr::Parametric {
-                    head: "HashMap".into(),
-                    args: vec![TypeExpr::Path(":K".into()), TypeExpr::Path(":V".into())],
-                },
-                TypeExpr::Path(":K".into()),
-            ],
-            ret: bool_ty(),
-        },
-    );
-    env.register(
-        ":wat::std::member?".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![
-                TypeExpr::Parametric {
-                    head: "HashSet".into(),
-                    args: vec![t_var()],
-                },
-                t_var(),
-            ],
-            ret: bool_ty(),
-        },
-    );
+    // get, assoc, conj, and contains? are all polymorphic over
+    // container type — dispatched by the infer_* arms above. No
+    // narrow schemes registered here.
+    // :wat::std::member? RETIRED in arc 025. Use `:wat::core::contains?`
+    // instead — now polymorphic over HashMap / HashSet / Vec.
     env.register(
         ":wat::std::list::remove-at".into(),
         TypeScheme {
@@ -3942,17 +4125,13 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: vec_of(t_var()),
         },
     );
-    // :wat::core::conj — immutable append.
-    // ∀T. Vec<T> × T -> Vec<T>. Returns a new Vec with the item
-    // appended; the input Vec is unchanged.
-    env.register(
-        ":wat::core::conj".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var()), t_var()],
-            ret: vec_of(t_var()),
-        },
-    );
+    // :wat::core::conj — polymorphic add-to-growing-collection.
+    //   ∀T. Vec<T>     × T -> Vec<T>
+    //   ∀T. HashSet<T> × T -> HashSet<T>
+    // Illegal on HashMap (use assoc instead — HashMap needs key+value
+    // pairing). Dispatched by `infer_conj` at check.rs arm above.
+    //
+    // No narrow scheme registered; handled entirely by infer_conj.
     // :wat::std::list::map-with-index — needed by Sequential for
     // indexed fold.
     env.register(

@@ -1487,7 +1487,10 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::holon::coincident?` | `a b` | `:bool` — (1 - cosine) < coincident-floor (1σ default) |
 | `:wat::core::quote` | `<form>` | `:wat::WatAST` — captures AST as data |
 | `:wat::core::forms` | `f1 f2 ... fn` | `:Vec<wat::WatAST>` — variadic quote |
-| `:wat::core::conj` | `vec item` | `:Vec<T>` — immutable append |
+| `:wat::core::get` | `<HashMap\|HashSet\|Vec> key` | `:Option<V>` (polymorphic — arc 025) |
+| `:wat::core::assoc` | `<HashMap\|Vec> key value` | same container — new entry/replacement (arc 025) |
+| `:wat::core::conj` | `<Vec\|HashSet> item` | same container — immutable add (arc 025) |
+| `:wat::core::contains?` | `<HashMap\|HashSet\|Vec> key` | `:bool` (polymorphic — arc 025) |
 | `:wat::core::eval-ast!` / `eval-edn!` | various | evaluates AST / parses+evaluates string |
 | `:wat::core::eval-digest!` / `eval-signed!` | verified | evaluates with SHA-256 / Ed25519 check |
 | `:wat::core::string::contains?` / `starts-with?` / `ends-with?` | `hay needle` | `:bool` |

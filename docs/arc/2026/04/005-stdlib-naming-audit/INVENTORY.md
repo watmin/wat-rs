@@ -300,7 +300,7 @@ as first-class keyword arguments.
 | `:wat::core::get` | polymorphic `get` on HashMap / HashSet / Vec | `runtime.rs::eval_std_get`; `check.rs::infer_get`. Moved from `:wat::std::*` in arc 021. |
 | `:wat::core::contains?` | HashMap key-membership test | `runtime.rs::eval_std_contains`. Moved from `:wat::std::*` in arc 021. |
 | `:wat::core::assoc` | `HashMap<K,V> × K × V -> HashMap<K,V>` — Clojure's `assoc`, values-up put | `runtime.rs::eval_assoc`; `check.rs::infer_assoc`. Added in arc 020. |
-| `:wat::std::member?` | HashSet element-membership test | `runtime.rs::eval_std_member` |
+| `:wat::std::member?` | **RETIRED (arc 025).** Use `:wat::core::contains?` — now polymorphic over HashMap / HashSet / Vec. |
 
 ### `:wat::std::list::*` — list combinators
 
