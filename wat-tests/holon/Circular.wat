@@ -10,14 +10,14 @@
 (:wat::config::set-capacity-mode! :error)
 (:wat::config::set-dims! 1024)
 
-(:wat::test::deftest :wat-tests::holon::Circular::test-adjacent-hours-are-near 1024 :error
+(:wat::test::deftest :wat-tests::holon::Circular::test-adjacent-hours-are-near :error 1024
   ()
   (:wat::core::let*
     (((h0  :wat::holon::HolonAST) (:wat::holon::Circular  0.0 24.0))
      ((h23 :wat::holon::HolonAST) (:wat::holon::Circular 23.0 24.0)))
     (:wat::test::assert-eq (:wat::holon::presence? h0 h23) true)))
 
-(:wat::test::deftest :wat-tests::holon::Circular::test-antipodal-hours-are-far 1024 :error
+(:wat::test::deftest :wat-tests::holon::Circular::test-antipodal-hours-are-far :error 1024
   ()
   (:wat::core::let*
     (((h0  :wat::holon::HolonAST) (:wat::holon::Circular  0.0 24.0))

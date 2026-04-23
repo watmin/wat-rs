@@ -194,13 +194,13 @@
 ;;
 ;; Shape — empty prelude:
 ;;
-;;   (:wat::test::deftest :my::test::two-plus-two 1024 :error
+;;   (:wat::test::deftest :my::test::two-plus-two :error 1024
 ;;     ()
 ;;     (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
 ;;
 ;; Shape — loads in prelude (arc 027 slice 4):
 ;;
-;;   (:wat::test::deftest :my::test::with-loads 1024 :error
+;;   (:wat::test::deftest :my::test::with-loads :error 1024
 ;;     ((:wat::load-file! "wat/types/candle.wat")
 ;;      (:wat::load-file! "wat/vocab/shared/time.wat"))
 ;;     (:wat::test::assert-eq ...))
@@ -224,16 +224,16 @@
 (:wat::core::defmacro
   (:wat::test::deftest
     (name :AST<()>)
-    (dims :AST<i64>)
     (mode :AST<wat::core::keyword>)
+    (dims :AST<i64>)
     (prelude :AST<()>)
     (body :AST<()>)
     -> :AST<()>)
   `(:wat::core::define (,name -> :wat::kernel::RunResult)
      (:wat::kernel::run-sandboxed-ast
        (:wat::core::forms
-         (:wat::config::set-dims! ,dims)
          (:wat::config::set-capacity-mode! ,mode)
+         (:wat::config::set-dims! ,dims)
          ,@prelude
          (:wat::core::define
            (:user::main
@@ -259,16 +259,16 @@
 (:wat::core::defmacro
   (:wat::test::deftest-hermetic
     (name :AST<()>)
-    (dims :AST<i64>)
     (mode :AST<wat::core::keyword>)
+    (dims :AST<i64>)
     (prelude :AST<()>)
     (body :AST<()>)
     -> :AST<()>)
   `(:wat::core::define (,name -> :wat::kernel::RunResult)
      (:wat::kernel::run-sandboxed-hermetic-ast
        (:wat::core::forms
-         (:wat::config::set-dims! ,dims)
          (:wat::config::set-capacity-mode! ,mode)
+         (:wat::config::set-dims! ,dims)
          ,@prelude
          (:wat::core::define
            (:user::main
@@ -288,7 +288,7 @@
 ;;
 ;; Preamble at the top of a test source file:
 ;;
-;;   (:wat::test::make-deftest :deftest 1024 :error
+;;   (:wat::test::make-deftest :deftest :error 1024
 ;;     ((:wat::load-file! "wat/vocab/shared/time.wat")))
 ;;
 ;; Every test below:
@@ -304,7 +304,7 @@
 ;;
 ;; Expansion (outer → inner):
 ;;   outer generates (:wat::core::defmacro (,name ...) ...)
-;;   inner expands to (:wat::test::deftest <name> 1024 :error
+;;   inner expands to (:wat::test::deftest <name> :error 1024
 ;;                       ((load!)) <body>)
 ;;
 ;; Nested quasiquote mechanics (arc 029 slice 1): ,,dims / ,,mode /
@@ -316,8 +316,8 @@
 (:wat::core::defmacro
   (:wat::test::make-deftest
     (name :AST<()>)
-    (dims :AST<i64>)
     (mode :AST<wat::core::keyword>)
+    (dims :AST<i64>)
     (default-prelude :AST<()>)
     -> :AST<()>)
   `(:wat::core::defmacro
@@ -325,7 +325,7 @@
        (test-name :AST<()>)
        (body :AST<()>)
        -> :AST<()>)
-     `(:wat::test::deftest ,test-name ,,dims ,,mode ,,default-prelude ,body)))
+     `(:wat::test::deftest ,test-name ,,mode ,,dims ,,default-prelude ,body)))
 
 ;; ─── make-deftest-hermetic — fork-isolated configured variant ─────────
 ;;
@@ -335,8 +335,8 @@
 (:wat::core::defmacro
   (:wat::test::make-deftest-hermetic
     (name :AST<()>)
-    (dims :AST<i64>)
     (mode :AST<wat::core::keyword>)
+    (dims :AST<i64>)
     (default-prelude :AST<()>)
     -> :AST<()>)
   `(:wat::core::defmacro
@@ -344,4 +344,4 @@
        (test-name :AST<()>)
        (body :AST<()>)
        -> :AST<()>)
-     `(:wat::test::deftest-hermetic ,test-name ,,dims ,,mode ,,default-prelude ,body)))
+     `(:wat::test::deftest-hermetic ,test-name ,,mode ,,dims ,,default-prelude ,body)))

@@ -24,7 +24,7 @@ fn diag_make_deftest_with_prelude_expansion() {
 (:wat::config::set-capacity-mode! :error)
 (:wat::config::set-dims! 1024)
 
-(:wat::test::make-deftest :my-deftest 1024 :error
+(:wat::test::make-deftest :my-deftest :error 1024
   ((:wat::load-file! "foo.wat")))
 
 ;; Expose the expansion result as the main function's return value.
@@ -97,7 +97,7 @@ fn diag_make_deftest_with_prelude_expansion() {
         other => panic!("expected wat::WatAST, got {:?}", other),
     };
 
-    // Expect (:wat::test::deftest :my-test 1024 :error <prelude> <body>)
+    // Expect (:wat::test::deftest :my-test :error 1024 <prelude> <body>)
     let items = match &*ast {
         wat::ast::WatAST::List(items, _) => items,
         _ => panic!("expansion should be a list"),

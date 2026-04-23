@@ -18,6 +18,6 @@
 
 (:wat::load-file! "helpers.wat")
 
-(:wat::test::deftest :user::with_loader::test::test-loader-wiring 1024 :error
+(:wat::test::deftest :user::with_loader::test::test-loader-wiring :error 1024
   ()
   (:wat::test::assert-eq (:wat::core::i64::+ 1 1) 2))

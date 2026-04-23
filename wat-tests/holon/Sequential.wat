@@ -10,7 +10,7 @@
 (:wat::config::set-capacity-mode! :error)
 (:wat::config::set-dims! 1024)
 
-(:wat::test::deftest :wat-tests::holon::Sequential::test-self-identity 1024 :error
+(:wat::test::deftest :wat-tests::holon::Sequential::test-self-identity :error 1024
   ()
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
@@ -20,7 +20,7 @@
       (:wat::holon::Sequential (:wat::core::list :wat::holon::HolonAST a b c))))
     (:wat::test::assert-eq (:wat::holon::presence? abc abc) true)))
 
-(:wat::test::deftest :wat-tests::holon::Sequential::test-order-sensitivity 1024 :error
+(:wat::test::deftest :wat-tests::holon::Sequential::test-order-sensitivity :error 1024
   ()
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
