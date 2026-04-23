@@ -161,7 +161,7 @@ fn main() -> ExitCode {
         .map(|p| p.display().to_string());
 
     // Full startup pipeline. The loader is shared through the frozen
-    // world — runtime primitives like :wat::eval::file-path route
+    // world — runtime primitives like route
     // file reads through it, same capability that handled startup loads.
     let frozen = match startup_from_source(
         &source,

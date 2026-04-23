@@ -84,8 +84,8 @@
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
       (:wat::holon::eval-edn-coincident?
-        :wat::eval::string "(:wat::core::i64::+ 2 2)"
-        :wat::eval::string "(:wat::core::i64::* 1 4)")))
+ "(:wat::core::i64::+ 2 2)"
+ "(:wat::core::i64::* 1 4)")))
     (:wat::test::assert-eq
       (:wat::core::match r -> :bool
         ((Ok b)  b)
@@ -96,8 +96,8 @@
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
       (:wat::holon::eval-edn-coincident?
-        :wat::eval::string "(:wat::core::i64::+ 2 2)"
-        :wat::eval::string "(:wat::core::i64::+ 2 3)")))
+ "(:wat::core::i64::+ 2 2)"
+ "(:wat::core::i64::+ 2 3)")))
     (:wat::test::assert-eq
       (:wat::core::match r -> :bool
         ((Ok b)  b)
@@ -118,11 +118,11 @@
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-digest-arithmetic-equivalence 1024 :error
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
-      (:wat::holon::eval-digest-coincident?
-        :wat::eval::string "(:wat::core::i64::+ 2 2)"
+      (:wat::holon::eval-digest-string-coincident?
+ "(:wat::core::i64::+ 2 2)"
         :wat::verify::digest-sha256
         :wat::verify::string "844049a88ac83175756184fd59e9b7746b3e8bbe745ba8afe8fa5f1ec5fb274e"
-        :wat::eval::string "(:wat::core::i64::* 1 4)"
+ "(:wat::core::i64::* 1 4)"
         :wat::verify::digest-sha256
         :wat::verify::string "3571299726bb0f014a3cea5e91cd1623a94fffb7ac1641525ff1ca56c7140e45")))
     (:wat::test::assert-eq
@@ -136,11 +136,11 @@
   ;; verify fires before parse → Err(EvalError{kind=verification-failed}).
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
-      (:wat::holon::eval-digest-coincident?
-        :wat::eval::string "(:wat::core::i64::+ 2 2)"
+      (:wat::holon::eval-digest-string-coincident?
+ "(:wat::core::i64::+ 2 2)"
         :wat::verify::digest-sha256
         :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"
-        :wat::eval::string "(:wat::core::i64::* 1 4)"
+ "(:wat::core::i64::* 1 4)"
         :wat::verify::digest-sha256
         :wat::verify::string "3571299726bb0f014a3cea5e91cd1623a94fffb7ac1641525ff1ca56c7140e45")))
     (:wat::test::assert-eq
@@ -154,20 +154,23 @@
 ;; Fixed signing key: SigningKey::from_bytes(&[7u8; 32]).
 ;; Pubkey (same for both sides — one signer):
 ;;   6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=
-;; Signatures (run the ignored runtime::tests::print_fixed_signatures
-;; helper to regenerate if a source changes):
+;; Signatures are guarded by the `wat_test_embedded_signatures_verify`
+;; Rust unit test — if a source string changes here, that test fails
+;; with "SRC_X signature drifted." Regenerate by adding a temporary
+;; eprintln to sign_src_ed25519, OR via a scratch binary that calls
+;; the helper:
 ;;   src-a sig = ZR3nyIPpRSKItQKfFH46p96UbwYpr2TlaysNbnnxZvpA6QiuXftuzmA3xUDfaZ+qWMNCk3m51XzXzXGguo6XCA==
 ;;   src-b sig = PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw==
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-signed-arithmetic-equivalence 1024 :error
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
-      (:wat::holon::eval-signed-coincident?
-        :wat::eval::string "(:wat::core::i64::+ 2 2)"
+      (:wat::holon::eval-signed-string-coincident?
+ "(:wat::core::i64::+ 2 2)"
         :wat::verify::signed-ed25519
         :wat::verify::string "ZR3nyIPpRSKItQKfFH46p96UbwYpr2TlaysNbnnxZvpA6QiuXftuzmA3xUDfaZ+qWMNCk3m51XzXzXGguo6XCA=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw="
-        :wat::eval::string "(:wat::core::i64::* 1 4)"
+ "(:wat::core::i64::* 1 4)"
         :wat::verify::signed-ed25519
         :wat::verify::string "PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")))
@@ -182,12 +185,12 @@
   ;; Err(EvalError{kind=verification-failed}).
   (:wat::core::let*
     (((r :Result<bool,wat::core::EvalError>)
-      (:wat::holon::eval-signed-coincident?
-        :wat::eval::string "(:wat::core::i64::+ 2 2)"
+      (:wat::holon::eval-signed-string-coincident?
+ "(:wat::core::i64::+ 2 2)"
         :wat::verify::signed-ed25519
         :wat::verify::string "PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw="
-        :wat::eval::string "(:wat::core::i64::* 1 4)"
+ "(:wat::core::i64::* 1 4)"
         :wat::verify::signed-ed25519
         :wat::verify::string "PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")))

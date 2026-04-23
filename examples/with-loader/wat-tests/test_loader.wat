@@ -1,7 +1,7 @@
 ;; examples/with-loader/wat-tests/test_loader.wat — arc 017 slice 2's
 ;; walkable proof that `wat::test_suite! { ..., loader: "..." }`
 ;; threads a ScopedLoader into each test file's freeze, so the
-;; entry-file `(:wat::core::load! :wat::load::file-path "helpers.wat")`
+;; entry-file `(:wat::core::load-file! "helpers.wat")`
 ;; resolves.
 ;;
 ;; The actual test body is trivial (1 + 1 == 2). The proof point is
@@ -16,7 +16,7 @@
 (:wat::config::set-capacity-mode! :error)
 (:wat::config::set-dims! 1024)
 
-(:wat::core::load! :wat::load::file-path "helpers.wat")
+(:wat::core::load-file! "helpers.wat")
 
 (:wat::test::deftest :user::with_loader::test::test-loader-wiring 1024 :error
   (:wat::test::assert-eq (:wat::core::i64::+ 1 1) 2))

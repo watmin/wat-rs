@@ -518,7 +518,7 @@ fn infer_list(
             | ":wat::core::newtype"
             | ":wat::core::typealias"
             | ":wat::core::defmacro"
-            | ":wat::core::load!"
+            | ":wat::core::load-file!"
             | ":wat::core::digest-load!"
             | ":wat::core::signed-load!"
             | ":wat::core::quasiquote"
@@ -3538,6 +3538,10 @@ fn register_builtins(env: &mut CheckEnv) {
     let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
     let string_ty = || TypeExpr::Path(":String".into());
 
+    // Arc 028 slice 3 — eval family iface drop. Each form takes its
+    // source/path directly as the first arg; no interface keyword.
+    // eval-edn! narrowed to string-only (one source shape per form,
+    // like load! / load-string!).
     env.register(
         ":wat::core::eval-ast!".into(),
         TypeScheme {
@@ -3550,8 +3554,17 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::eval-edn!".into(),
         TypeScheme {
             type_params: vec![],
-            // :wat::eval::<iface>, <locator>
-            params: vec![keyword_ty(), string_ty()],
+            // <source-string>
+            params: vec![string_ty()],
+            ret: eval_result_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::eval-file!".into(),
+        TypeScheme {
+            type_params: vec![],
+            // <path>
+            params: vec![string_ty()],
             ret: eval_result_ty(),
         },
     );
@@ -3559,15 +3572,17 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::eval-digest!".into(),
         TypeScheme {
             type_params: vec![],
-            // :wat::eval::<iface>, <locator>,
-            // :wat::verify::digest-<algo>, :wat::verify::<iface>, <hex>
-            params: vec![
-                keyword_ty(),
-                string_ty(),
-                keyword_ty(),
-                keyword_ty(),
-                string_ty(),
-            ],
+            // <path>, :wat::verify::digest-<algo>, :wat::verify::<iface>, <hex>
+            params: vec![string_ty(), keyword_ty(), keyword_ty(), string_ty()],
+            ret: eval_result_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::eval-digest-string!".into(),
+        TypeScheme {
+            type_params: vec![],
+            // <source>, :wat::verify::digest-<algo>, :wat::verify::<iface>, <hex>
+            params: vec![string_ty(), keyword_ty(), keyword_ty(), string_ty()],
             ret: eval_result_ty(),
         },
     );
@@ -3575,11 +3590,26 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::core::eval-signed!".into(),
         TypeScheme {
             type_params: vec![],
-            // :wat::eval::<iface>, <locator>,
-            // :wat::verify::signed-<algo>, :wat::verify::<iface>, <sig>,
-            // :wat::verify::<iface>, <pubkey>
+            // <path>, :wat::verify::signed-<algo>,
+            // :wat::verify::<iface>, <sig>, :wat::verify::<iface>, <pubkey>
             params: vec![
+                string_ty(),
                 keyword_ty(),
+                keyword_ty(),
+                string_ty(),
+                keyword_ty(),
+                string_ty(),
+            ],
+            ret: eval_result_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::eval-signed-string!".into(),
+        TypeScheme {
+            type_params: vec![],
+            // <source>, :wat::verify::signed-<algo>,
+            // :wat::verify::<iface>, <sig>, :wat::verify::<iface>, <pubkey>
+            params: vec![
                 string_ty(),
                 keyword_ty(),
                 keyword_ty(),
@@ -3700,39 +3730,61 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: eval_coincident_ret(),
         },
     );
-    // slice 2 — EDN. Two (iface, locator) pairs — 4 args total.
+    // Arc 028 slice 3 — eval-coincident family arities updated to
+    // match new eval-*! shapes (iface keyword dropped).
+    // EDN variant — 2 source strings.
     env.register(
         ":wat::holon::eval-edn-coincident?".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![keyword_ty(), string_ty(), keyword_ty(), string_ty()],
+            params: vec![string_ty(), string_ty()],
             ret: eval_coincident_ret(),
         },
     );
-    // slice 3 — digest. Two (iface, locator, algo, payload-iface, hex)
-    // tuples — 10 args total.
+    // digest variant — 2 × (path, algo, payload-iface, hex) = 8 args.
     env.register(
         ":wat::holon::eval-digest-coincident?".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![
-                keyword_ty(), string_ty(), keyword_ty(), keyword_ty(), string_ty(),
-                keyword_ty(), string_ty(), keyword_ty(), keyword_ty(), string_ty(),
+                string_ty(), keyword_ty(), keyword_ty(), string_ty(),
+                string_ty(), keyword_ty(), keyword_ty(), string_ty(),
             ],
             ret: eval_coincident_ret(),
         },
     );
-    // slice 4 — signed. Two (iface, locator, algo, sig-iface, sig,
-    // pk-iface, pk) tuples — 14 args total.
+    // digest-string variant — same arity, inline sources.
+    env.register(
+        ":wat::holon::eval-digest-string-coincident?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                string_ty(), keyword_ty(), keyword_ty(), string_ty(),
+                string_ty(), keyword_ty(), keyword_ty(), string_ty(),
+            ],
+            ret: eval_coincident_ret(),
+        },
+    );
+    // signed variant — 2 × (path, algo, sig-iface, sig, pk-iface, pk) = 12 args.
     env.register(
         ":wat::holon::eval-signed-coincident?".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![
-                keyword_ty(), string_ty(), keyword_ty(),
-                keyword_ty(), string_ty(), keyword_ty(), string_ty(),
-                keyword_ty(), string_ty(), keyword_ty(),
-                keyword_ty(), string_ty(), keyword_ty(), string_ty(),
+                string_ty(), keyword_ty(), keyword_ty(), string_ty(), keyword_ty(), string_ty(),
+                string_ty(), keyword_ty(), keyword_ty(), string_ty(), keyword_ty(), string_ty(),
+            ],
+            ret: eval_coincident_ret(),
+        },
+    );
+    // signed-string variant — same arity, inline sources.
+    env.register(
+        ":wat::holon::eval-signed-string-coincident?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                string_ty(), keyword_ty(), keyword_ty(), string_ty(), keyword_ty(), string_ty(),
+                string_ty(), keyword_ty(), keyword_ty(), string_ty(), keyword_ty(), string_ty(),
             ],
             ret: eval_coincident_ret(),
         },

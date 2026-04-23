@@ -102,7 +102,7 @@ fn eval_edn_bang_parse_failure_surfaces_as_err() {
         (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::core::eval-edn! :wat::eval::string "(:wat::core::i64::+ 1"))
+          (:wat::core::eval-edn! "(:wat::core::i64::+ 1"))
     "#;
     let result = run(src);
     assert_eq!(err_kind(&result), "malformed-form");
@@ -118,7 +118,7 @@ fn eval_digest_bang_hash_mismatch_surfaces_as_err() {
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::eval-digest!
-            :wat::eval::string "(:wat::holon::Atom \"x\")"
+ "(:wat::holon::Atom \"x\")"
             :wat::verify::digest-sha256
             :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"))
     "#;

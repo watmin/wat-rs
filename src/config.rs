@@ -2,7 +2,7 @@
 //!
 //! A wat entry file has a two-part shape per FOUNDATION's `:wat::config`
 //! section: all `(:wat::config::set-*!)` setters first, then all
-//! `(:wat::core::load!)` forms (and any trailing program body). This
+//! `(:wat::core::load-file!)` forms (and any trailing program body). This
 //! module enforces that shape and commits the setters into a [`Config`]
 //! struct.
 //!

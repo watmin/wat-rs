@@ -622,7 +622,7 @@ fn is_mutation_form(head: &str) -> bool {
             | ":wat::core::enum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
-            | ":wat::core::load!"
+            | ":wat::core::load-file!"
             | ":wat::core::digest-load!"
             | ":wat::core::signed-load!"
     ) || head.starts_with(":wat::config::set-")
@@ -796,7 +796,7 @@ mod tests {
         let entry = r#"
             (:wat::config::set-capacity-mode! :error)
             (:wat::config::set-dims! 1024)
-            (:wat::core::load! :wat::load::file-path "lib.wat")
+            (:wat::core::load-file! "lib.wat")
         "#;
         let world = startup_from_source(entry, None, Arc::new(loader)).expect("startup");
         assert!(world.symbols().get(":lib::square").is_some());
@@ -1022,7 +1022,7 @@ mod tests {
         "#,
         );
         let ast = crate::parser::parse_one(
-            r#"(:wat::core::load! :wat::load::file-path "evil.wat")"#,
+            r#"(:wat::core::load-file! "evil.wat")"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
@@ -1038,7 +1038,7 @@ mod tests {
         "#,
         );
         let ast = crate::parser::parse_one(
-            r#"(:wat::core::digest-load! :wat::load::file-path "x" :wat::verify::digest-sha256 :wat::verify::string "hex")"#,
+            r#"(:wat::core::digest-load! "x" :wat::verify::digest-sha256 :wat::verify::string "hex")"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
@@ -1054,7 +1054,7 @@ mod tests {
         "#,
         );
         let ast = crate::parser::parse_one(
-            r#"(:wat::core::signed-load! :wat::load::file-path "x" :wat::verify::signed-ed25519 :wat::verify::string "sig" :wat::verify::string "pk")"#,
+            r#"(:wat::core::signed-load! "x" :wat::verify::signed-ed25519 :wat::verify::string "sig" :wat::verify::string "pk")"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();

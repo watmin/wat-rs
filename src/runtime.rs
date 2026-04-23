@@ -1801,8 +1801,14 @@ fn dispatch_keyword_head(
         ":wat::holon::eval-digest-coincident?" => {
             eval_form_digest_coincident_q(args, env, sym)
         }
+        ":wat::holon::eval-digest-string-coincident?" => {
+            eval_form_digest_string_coincident_q(args, env, sym)
+        }
         ":wat::holon::eval-signed-coincident?" => {
             eval_form_signed_coincident_q(args, env, sym)
+        }
+        ":wat::holon::eval-signed-string-coincident?" => {
+            eval_form_signed_string_coincident_q(args, env, sym)
         }
         ":wat::holon::dot" => eval_algebra_dot(args, env, sym),
 
@@ -1810,8 +1816,11 @@ fn dispatch_keyword_head(
         // pipeline's discipline on source interface and verification.
         ":wat::core::eval-ast!" => eval_form_ast(args, env, sym),
         ":wat::core::eval-edn!" => eval_form_edn(args, env, sym),
+        ":wat::core::eval-file!" => eval_form_file(args, env, sym),
         ":wat::core::eval-digest!" => eval_form_digest(args, env, sym),
+        ":wat::core::eval-digest-string!" => eval_form_digest_string(args, env, sym),
         ":wat::core::eval-signed!" => eval_form_signed(args, env, sym),
+        ":wat::core::eval-signed-string!" => eval_form_signed_string(args, env, sym),
 
         // Kernel primitives — channel IO + stop flag + user signals.
         ":wat::kernel::stopped?" => eval_kernel_stopped(args),
@@ -5004,32 +5013,28 @@ fn coincident_of_two_values(
     Ok(Value::bool((1.0 - cosine) < ctx.config.coincident_floor))
 }
 
-/// `(:wat::holon::eval-edn-coincident? <iface-a> <loc-a> <iface-b> <loc-b>)`
-/// — EDN-parse variant. Each side resolves its own source (per
-/// `resolve_eval_source`, same as `eval-edn!`), parses, runs under
-/// constrained eval, atomizes, coincidence-checks.
-///
-/// Per-side arity is 2 (matches `eval-edn!`); total is 4.
+/// `(:wat::holon::eval-edn-coincident? <source-a> <source-b>)` — both
+/// sides are inline EDN source strings. Arc 028 slice 3 narrowed this
+/// to string-only (matches `eval-edn!` which also narrowed). Per-side
+/// arity is 1; total is 2.
 fn eval_form_edn_coincident_q(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    if args.len() != 4 {
+    if args.len() != 2 {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::holon::eval-edn-coincident?".into(),
             reason: format!(
-                "(:wat::holon::eval-edn-coincident? \
-                 :wat::eval::<iface-a> <loc-a> :wat::eval::<iface-b> <loc-b>) \
-                 takes exactly 4 arguments; got {}",
+                "(:wat::holon::eval-edn-coincident? <source-a> <source-b>) takes exactly 2 arguments; got {}",
                 args.len()
             ),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
         let op = ":wat::holon::eval-edn-coincident?";
-        let src_a = resolve_eval_source(&args[0], &args[1], env, sym)?;
-        let src_b = resolve_eval_source(&args[2], &args[3], env, sym)?;
+        let src_a = expect_string_value(op, &args[0], env, sym, "source-a")?;
+        let src_b = expect_string_value(op, &args[1], env, sym, "source-b")?;
         let value_a = parse_and_run(&src_a, env, sym)?;
         let value_b = parse_and_run(&src_b, env, sym)?;
         coincident_of_two_values(value_a, value_b, sym, op)
@@ -5037,52 +5042,70 @@ fn eval_form_edn_coincident_q(
 }
 
 /// `(:wat::holon::eval-digest-coincident?
-///      <iface-a> <loc-a> <algo-a> <payload-iface-a> <hex-a>
-///      <iface-b> <loc-b> <algo-b> <payload-iface-b> <hex-b>)`
-/// — SHA-256 (or sibling algo) verification variant. Each side
-/// fetches its source, verifies the raw-bytes digest BEFORE parse
-/// (mirrors `eval-digest!`), parses, runs, atomizes,
-/// coincidence-checks.
-///
-/// Per-side arity is 5 (matches `eval-digest!`); total is 10.
+///      <path-a> <algo-a> <payload-iface-a> <hex-a>
+///      <path-b> <algo-b> <payload-iface-b> <hex-b>)` — file-based
+/// SHA-256 verification variant. Per-side arity 4; total 8.
 fn eval_form_digest_coincident_q(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    if args.len() != 10 {
+    eval_form_digest_coincident_shared(args, env, sym, false)
+}
+
+/// `(:wat::holon::eval-digest-string-coincident?
+///      <src-a> <algo-a> <payload-iface-a> <hex-a>
+///      <src-b> <algo-b> <payload-iface-b> <hex-b>)` — string-based
+/// SHA-256 verification variant. Inline sources on both sides.
+fn eval_form_digest_string_coincident_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    eval_form_digest_coincident_shared(args, env, sym, true)
+}
+
+fn eval_form_digest_coincident_shared(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    is_string: bool,
+) -> Result<Value, RuntimeError> {
+    let op: &'static str = if is_string {
+        ":wat::holon::eval-digest-string-coincident?"
+    } else {
+        ":wat::holon::eval-digest-coincident?"
+    };
+    if args.len() != 8 {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::holon::eval-digest-coincident?".into(),
+            head: op.into(),
             reason: format!(
-                "(:wat::holon::eval-digest-coincident? \
-                 <5-arg side A> <5-arg side B>) \
-                 takes exactly 10 arguments; got {}",
-                args.len()
+                "({} <4-arg side A> <4-arg side B>) takes exactly 8 arguments; got {}",
+                op, args.len()
             ),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let op = ":wat::holon::eval-digest-coincident?";
-        // Side A — 5-arg block [0..5).
-        let src_a = resolve_eval_source(&args[0], &args[1], env, sym)?;
-        let algo_a = parse_verify_algo_keyword(
-            &args[2],
-            "digest-",
-            ":wat::holon::eval-digest-coincident?",
-        )?;
-        let hex_a = resolve_verify_payload(&args[3], &args[4], env, sym)?;
+        // Side A — 4-arg block [0..4).
+        let src_a = if is_string {
+            expect_string_value(op, &args[0], env, sym, "source-a")?
+        } else {
+            read_source_via_loader(op, &args[0], env, sym)?
+        };
+        let algo_a = parse_verify_algo_keyword(&args[1], "digest-", op)?;
+        let hex_a = resolve_verify_payload(&args[2], &args[3], env, sym)?;
         crate::hash::verify_source_hash(src_a.as_bytes(), &algo_a, hex_a.trim())
             .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
         let value_a = parse_and_run(&src_a, env, sym)?;
 
-        // Side B — 5-arg block [5..10).
-        let src_b = resolve_eval_source(&args[5], &args[6], env, sym)?;
-        let algo_b = parse_verify_algo_keyword(
-            &args[7],
-            "digest-",
-            ":wat::holon::eval-digest-coincident?",
-        )?;
-        let hex_b = resolve_verify_payload(&args[8], &args[9], env, sym)?;
+        // Side B — 4-arg block [4..8).
+        let src_b = if is_string {
+            expect_string_value(op, &args[4], env, sym, "source-b")?
+        } else {
+            read_source_via_loader(op, &args[4], env, sym)?
+        };
+        let algo_b = parse_verify_algo_keyword(&args[5], "digest-", op)?;
+        let hex_b = resolve_verify_payload(&args[6], &args[7], env, sym)?;
         crate::hash::verify_source_hash(src_b.as_bytes(), &algo_b, hex_b.trim())
             .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
         let value_b = parse_and_run(&src_b, env, sym)?;
@@ -5100,49 +5123,73 @@ fn eval_form_digest_coincident_q(
 /// verify, sig is over MEANING not bytes), then runs under
 /// constrained eval, atomizes, coincidence-checks.
 ///
-/// Per-side arity is 7 (matches `eval-signed!`); total is 14.
+/// `(:wat::holon::eval-signed-coincident?
+///      <path-a> <algo-a> <sig-iface-a> <sig-a> <pk-iface-a> <pk-a>
+///      <path-b> <algo-b> <sig-iface-b> <sig-b> <pk-iface-b> <pk-b>)`
+/// — file-based Ed25519 verification. Per-side arity 6; total 12.
 fn eval_form_signed_coincident_q(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    if args.len() != 14 {
+    eval_form_signed_coincident_shared(args, env, sym, false)
+}
+
+/// Inline-source sibling of `eval-signed-coincident?`. Both sides'
+/// sources are string literals.
+fn eval_form_signed_string_coincident_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    eval_form_signed_coincident_shared(args, env, sym, true)
+}
+
+fn eval_form_signed_coincident_shared(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    is_string: bool,
+) -> Result<Value, RuntimeError> {
+    let op: &'static str = if is_string {
+        ":wat::holon::eval-signed-string-coincident?"
+    } else {
+        ":wat::holon::eval-signed-coincident?"
+    };
+    if args.len() != 12 {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::holon::eval-signed-coincident?".into(),
+            head: op.into(),
             reason: format!(
-                "(:wat::holon::eval-signed-coincident? \
-                 <7-arg side A> <7-arg side B>) \
-                 takes exactly 14 arguments; got {}",
-                args.len()
+                "({} <6-arg side A> <6-arg side B>) takes exactly 12 arguments; got {}",
+                op, args.len()
             ),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let op = ":wat::holon::eval-signed-coincident?";
-        // Side A — 7-arg block [0..7).
-        let src_a = resolve_eval_source(&args[0], &args[1], env, sym)?;
-        let algo_a = parse_verify_algo_keyword(
-            &args[2],
-            "signed-",
-            ":wat::holon::eval-signed-coincident?",
-        )?;
-        let sig_a = resolve_verify_payload(&args[3], &args[4], env, sym)?;
-        let pk_a = resolve_verify_payload(&args[5], &args[6], env, sym)?;
-        let ast_a = parse_program(&src_a, ":wat::holon::eval-signed-coincident?")?;
+        // Side A — 6-arg block [0..6).
+        let src_a = if is_string {
+            expect_string_value(op, &args[0], env, sym, "source-a")?
+        } else {
+            read_source_via_loader(op, &args[0], env, sym)?
+        };
+        let algo_a = parse_verify_algo_keyword(&args[1], "signed-", op)?;
+        let sig_a = resolve_verify_payload(&args[2], &args[3], env, sym)?;
+        let pk_a = resolve_verify_payload(&args[4], &args[5], env, sym)?;
+        let ast_a = parse_program(&src_a, op)?;
         crate::hash::verify_program_signature(&ast_a, &algo_a, sig_a.trim(), pk_a.trim())
             .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
         let value_a = run_program(&ast_a, env, sym)?;
 
-        // Side B — 7-arg block [7..14).
-        let src_b = resolve_eval_source(&args[7], &args[8], env, sym)?;
-        let algo_b = parse_verify_algo_keyword(
-            &args[9],
-            "signed-",
-            ":wat::holon::eval-signed-coincident?",
-        )?;
-        let sig_b = resolve_verify_payload(&args[10], &args[11], env, sym)?;
-        let pk_b = resolve_verify_payload(&args[12], &args[13], env, sym)?;
-        let ast_b = parse_program(&src_b, ":wat::holon::eval-signed-coincident?")?;
+        // Side B — 6-arg block [6..12).
+        let src_b = if is_string {
+            expect_string_value(op, &args[6], env, sym, "source-b")?
+        } else {
+            read_source_via_loader(op, &args[6], env, sym)?
+        };
+        let algo_b = parse_verify_algo_keyword(&args[7], "signed-", op)?;
+        let sig_b = resolve_verify_payload(&args[8], &args[9], env, sym)?;
+        let pk_b = resolve_verify_payload(&args[10], &args[11], env, sym)?;
+        let ast_b = parse_program(&src_b, op)?;
         crate::hash::verify_program_signature(&ast_b, &algo_b, sig_b.trim(), pk_b.trim())
             .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
         let value_b = run_program(&ast_b, env, sym)?;
@@ -6246,166 +6293,233 @@ fn eval_form_ast(
     })())
 }
 
+// Arc 028 slice 3 — eval family iface drop + split eval-edn into
+// eval-edn (string) and eval-file (path). First arg is now the
+// source or the path directly; no :wat::eval::<iface> keyword.
+
+/// `(:wat::core::eval-edn! <source>)` — parse + evaluate an inline
+/// EDN source string at runtime. One arg.
 fn eval_form_edn(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    // (:wat::core::eval-edn! :wat::eval::<iface> <locator>)
-    // Structural arity — pre-checked; EvalError wrap starts below.
-    if args.len() != 2 {
+    if args.len() != 1 {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::eval-edn!".into(),
             reason: format!(
-                "(:wat::core::eval-edn! :wat::eval::<iface> <locator>) takes exactly 2 arguments; got {}",
+                "(:wat::core::eval-edn! <source>) takes exactly 1 argument; got {}",
                 args.len()
             ),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        // Source fetch: its errors (file-not-found, bad interface,
-        // locator type mismatch) are dynamic evaluation failures.
-        let source = resolve_eval_source(&args[0], &args[1], env, sym)?;
+        let source = expect_string_value(":wat::core::eval-edn!", &args[0], env, sym, "source")?;
         parse_and_run(&source, env, sym)
     })())
 }
 
+/// `(:wat::core::eval-file! <path>)` — read a file via the outer
+/// loader, parse, evaluate at runtime. One arg. Separated from
+/// eval-edn! so each form has one source shape (matching the
+/// load! / load-string! split).
+fn eval_form_file(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::eval-file!".into(),
+            reason: format!(
+                "(:wat::core::eval-file! <path>) takes exactly 1 argument; got {}",
+                args.len()
+            ),
+        });
+    }
+    wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
+        let source = read_source_via_loader(":wat::core::eval-file!", &args[0], env, sym)?;
+        parse_and_run(&source, env, sym)
+    })())
+}
+
+/// `(:wat::core::eval-digest! <path>
+///                             :wat::verify::digest-<algo>
+///                             :wat::verify::<iface> <hex>)`
+/// — verify SHA-256 (or sibling algo) of file bytes BEFORE parse,
+/// then parse + evaluate. Four args.
 fn eval_form_digest(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    // (:wat::core::eval-digest! :wat::eval::<iface> <locator>
-    //                            :wat::verify::digest-<algo>
-    //                            :wat::verify::<iface> <hex>)
-    // Structural arity pre-check.
-    if args.len() != 5 {
+    eval_form_digest_shared(args, env, sym, /*is_string*/ false)
+}
+
+/// `(:wat::core::eval-digest-string! <source>
+///                                    :wat::verify::digest-<algo>
+///                                    :wat::verify::<iface> <hex>)`
+/// — same verification as `eval-digest!` but the source is inline.
+/// No loader access needed. Four args.
+fn eval_form_digest_string(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    eval_form_digest_shared(args, env, sym, /*is_string*/ true)
+}
+
+fn eval_form_digest_shared(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    is_string: bool,
+) -> Result<Value, RuntimeError> {
+    let op: &'static str = if is_string {
+        ":wat::core::eval-digest-string!"
+    } else {
+        ":wat::core::eval-digest!"
+    };
+    if args.len() != 4 {
+        let shape = if is_string { "<source>" } else { "<path>" };
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::eval-digest!".into(),
+            head: op.into(),
             reason: format!(
-                "(:wat::core::eval-digest! :wat::eval::<iface> <locator> :wat::verify::digest-<algo> :wat::verify::<iface> <hex>) takes exactly 5 arguments; got {}",
-                args.len()
+                "({} {} :wat::verify::digest-<algo> :wat::verify::<iface> <hex>) takes exactly 4 arguments; got {}",
+                op, shape, args.len()
             ),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let source = resolve_eval_source(&args[0], &args[1], env, sym)?;
-        let algo = parse_verify_algo_keyword(&args[2], "digest-", ":wat::core::eval-digest!")?;
-        let hex = resolve_verify_payload(&args[3], &args[4], env, sym)?;
-        // Verify hash of raw source bytes BEFORE parse (mirrors digest-load!).
-        // Verification failure becomes EvalError{kind="verification-failed"}
-        // via runtime_error_to_eval_error_value's match on
-        // EvalVerificationFailed.
+        let source = if is_string {
+            expect_string_value(op, &args[0], env, sym, "source")?
+        } else {
+            read_source_via_loader(op, &args[0], env, sym)?
+        };
+        let algo = parse_verify_algo_keyword(&args[1], "digest-", op)?;
+        let hex = resolve_verify_payload(&args[2], &args[3], env, sym)?;
         crate::hash::verify_source_hash(source.as_bytes(), &algo, hex.trim())
             .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
         parse_and_run(&source, env, sym)
     })())
 }
 
+/// `(:wat::core::eval-signed! <path>
+///                             :wat::verify::signed-<algo>
+///                             :wat::verify::<iface> <sig>
+///                             :wat::verify::<iface> <pubkey>)`
+/// — verify Ed25519 (or sibling algo) over canonical-EDN AFTER parse,
+/// then run. Six args.
 fn eval_form_signed(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    // (:wat::core::eval-signed! :wat::eval::<iface> <locator>
-    //                            :wat::verify::signed-<algo>
-    //                            :wat::verify::<iface> <sig>
-    //                            :wat::verify::<iface> <pubkey>)
-    // Structural arity pre-check.
-    if args.len() != 7 {
+    eval_form_signed_shared(args, env, sym, /*is_string*/ false)
+}
+
+/// `(:wat::core::eval-signed-string! <source>
+///                                    :wat::verify::signed-<algo>
+///                                    :wat::verify::<iface> <sig>
+///                                    :wat::verify::<iface> <pubkey>)`
+/// — same verification as `eval-signed!` but the source is inline.
+/// Six args.
+fn eval_form_signed_string(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    eval_form_signed_shared(args, env, sym, /*is_string*/ true)
+}
+
+fn eval_form_signed_shared(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    is_string: bool,
+) -> Result<Value, RuntimeError> {
+    let op: &'static str = if is_string {
+        ":wat::core::eval-signed-string!"
+    } else {
+        ":wat::core::eval-signed!"
+    };
+    if args.len() != 6 {
+        let shape = if is_string { "<source>" } else { "<path>" };
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::eval-signed!".into(),
+            head: op.into(),
             reason: format!(
-                "(:wat::core::eval-signed! :wat::eval::<iface> <locator> :wat::verify::signed-<algo> :wat::verify::<iface> <sig> :wat::verify::<iface> <pubkey>) takes exactly 7 arguments; got {}",
-                args.len()
+                "({} {} :wat::verify::signed-<algo> :wat::verify::<iface> <sig> :wat::verify::<iface> <pubkey>) takes exactly 6 arguments; got {}",
+                op, shape, args.len()
             ),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let source = resolve_eval_source(&args[0], &args[1], env, sym)?;
-        let algo = parse_verify_algo_keyword(&args[2], "signed-", ":wat::core::eval-signed!")?;
-        let sig_b64 = resolve_verify_payload(&args[3], &args[4], env, sym)?;
-        let pk_b64 = resolve_verify_payload(&args[5], &args[6], env, sym)?;
-        // Parse FIRST (sig is over canonical-EDN of parsed AST, which
-        // we need the AST to compute — same discipline as signed-load!).
-        let ast = parse_program(&source, ":wat::core::eval-signed!")?;
+        let source = if is_string {
+            expect_string_value(op, &args[0], env, sym, "source")?
+        } else {
+            read_source_via_loader(op, &args[0], env, sym)?
+        };
+        let algo = parse_verify_algo_keyword(&args[1], "signed-", op)?;
+        let sig_b64 = resolve_verify_payload(&args[2], &args[3], env, sym)?;
+        let pk_b64 = resolve_verify_payload(&args[4], &args[5], env, sym)?;
+        let ast = parse_program(&source, op)?;
         crate::hash::verify_program_signature(&ast, &algo, sig_b64.trim(), pk_b64.trim())
             .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
-        // After verify, run each form under the mutation-refusal guard.
         run_program(&ast, env, sym)
     })())
 }
 
-/// Resolve a `:wat::eval::<iface> <locator>` pair to a source string.
-fn resolve_eval_source(
-    iface_ast: &WatAST,
-    locator_ast: &WatAST,
+/// Evaluate a string-literal or string-expression arg and return
+/// its :String value. Shared helper for eval-edn! and similar
+/// forms that take an inline source / string payload directly.
+fn expect_string_value(
+    op: &'static str,
+    arg: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
+    arg_name: &'static str,
 ) -> Result<String, RuntimeError> {
-    let iface = match iface_ast {
-        WatAST::Keyword(k, _) => k.as_str(),
-        other => {
-            return Err(RuntimeError::MalformedForm {
-                head: ":wat::eval::<iface>".into(),
-                reason: format!(
-                    "eval source interface must be a :wat::eval::<iface> keyword; got {}",
-                    ast_variant_name(other)
-                ),
-            });
-        }
-    };
-    match iface {
-        ":wat::eval::string" => match eval(locator_ast, env, sym)? {
-            Value::String(s) => Ok((*s).clone()),
-            other => Err(RuntimeError::TypeMismatch {
-                op: ":wat::eval::string".into(),
-                expected: "String",
-                got: other.type_name(),
-            }),
-        },
-        ":wat::eval::file-path" => match eval(locator_ast, env, sym)? {
-            Value::String(s) => {
-                let loader = sym.source_loader().ok_or_else(|| {
-                    RuntimeError::NoSourceLoader {
-                        op: ":wat::eval::file-path".into(),
-                    }
-                })?;
-                loader.fetch_source_file(&s, None)
-                    .map(|loaded| loaded.source)
-                    .map_err(|e| RuntimeError::MalformedForm {
-                        head: ":wat::eval::file-path".into(),
-                        reason: format!("read {:?}: {:?}", s, e),
-                    })
-            }
-            other => Err(RuntimeError::TypeMismatch {
-                op: ":wat::eval::file-path".into(),
-                expected: "String",
-                got: other.type_name(),
-            }),
-        },
-        ":wat::eval::http-path" | ":wat::eval::s3-path" => {
-            Err(RuntimeError::MalformedForm {
-                head: iface.to_string(),
-                reason: format!(
-                    "eval source interface {} is reserved but not implemented in this build",
-                    iface
-                ),
-            })
-        }
-        other => Err(RuntimeError::MalformedForm {
-            head: iface.to_string(),
-            reason: format!(
-                "unknown eval source interface {}; expected :wat::eval::string or :wat::eval::file-path",
-                other
-            ),
+    match eval(arg, env, sym)? {
+        Value::String(s) => Ok((*s).clone()),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: arg_name,
+            got: other.type_name(),
         }),
     }
 }
 
+/// Evaluate a path arg and read the file's source via the outer
+/// SymbolTable's loader. Shared helper for eval-file!, eval-digest!,
+/// eval-signed! — each takes its path directly as the first arg.
+fn read_source_via_loader(
+    op: &'static str,
+    arg: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<String, RuntimeError> {
+    let path = expect_string_value(op, arg, env, sym, "path")?;
+    let loader = sym
+        .source_loader()
+        .ok_or_else(|| RuntimeError::NoSourceLoader { op: op.into() })?;
+    loader
+        .fetch_source_file(&path, None)
+        .map(|loaded| loaded.source)
+        .map_err(|e| RuntimeError::MalformedForm {
+            head: op.into(),
+            reason: format!("read {:?}: {:?}", path, e),
+        })
+}
+
+// Arc 028 slice 3 — resolve_eval_source retired alongside the
+// :wat::eval::* keyword namespace. Each eval form now takes its
+// source directly: eval-edn! a string, eval-file!/digest/signed
+// a path (read via the outer loader by read_source_via_loader).
+
 /// Resolve a `:wat::verify::<iface> <locator>` pair to a payload string.
-/// Parallels [`resolve_eval_source`] but in the verify namespace; used
-/// for digest hex and signature / pubkey base64 payloads.
+/// Verify payloads retain the two-shape keyword dispatch because the
+/// verification location can be inline (`:wat::verify::string`) or a
+/// sidecar file (`:wat::verify::file-path`).
 fn resolve_verify_payload(
     iface_ast: &WatAST,
     locator_ast: &WatAST,
@@ -6588,7 +6702,7 @@ fn is_mutation_head(head: &str) -> bool {
             | ":wat::core::enum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
-            | ":wat::core::load!"
+            | ":wat::core::load-file!"
             | ":wat::core::digest-load!"
             | ":wat::core::signed-load!"
     ) || head.starts_with(":wat::config::set-")
@@ -8090,8 +8204,8 @@ mod tests {
         // Atom-lift identically → coincident? fires.
         let result = eval_with_ctx(
             r#"(:wat::holon::eval-edn-coincident?
-                 :wat::eval::string "(:wat::core::i64::+ 2 2)"
-                 :wat::eval::string "(:wat::core::i64::* 1 4)")"#,
+ "(:wat::core::i64::+ 2 2)"
+ "(:wat::core::i64::* 1 4)")"#,
             1024,
         )
         .unwrap();
@@ -8102,8 +8216,8 @@ mod tests {
     fn eval_edn_coincident_q_false_for_different_sources() {
         let result = eval_with_ctx(
             r#"(:wat::holon::eval-edn-coincident?
-                 :wat::eval::string "(:wat::core::i64::+ 2 2)"
-                 :wat::eval::string "(:wat::core::i64::+ 2 3)")"#,
+ "(:wat::core::i64::+ 2 2)"
+ "(:wat::core::i64::+ 2 3)")"#,
             1024,
         )
         .unwrap();
@@ -8116,8 +8230,8 @@ mod tests {
         // kind="malformed-form" propagates.
         let result = eval_with_ctx(
             r#"(:wat::holon::eval-edn-coincident?
-                 :wat::eval::string "(:wat::core::i64::+ 2 2)"
-                 :wat::eval::string "(:wat::core::i64::+ 2")"#,
+ "(:wat::core::i64::+ 2 2)"
+ "(:wat::core::i64::+ 2")"#,
             1024,
         )
         .unwrap();
@@ -8144,11 +8258,11 @@ mod tests {
         let h_a = sha256_hex(src_a);
         let h_b = sha256_hex(src_b);
         let program = format!(
-            r#"(:wat::holon::eval-digest-coincident?
-                 :wat::eval::string "{src_a}"
+            r#"(:wat::holon::eval-digest-string-coincident?
+ "{src_a}"
                  :wat::verify::digest-sha256
                  :wat::verify::string "{h_a}"
-                 :wat::eval::string "{src_b}"
+ "{src_b}"
                  :wat::verify::digest-sha256
                  :wat::verify::string "{h_b}")"#
         );
@@ -8165,11 +8279,11 @@ mod tests {
         let h_b = sha256_hex(src_b);
         let bogus = "0".repeat(64);
         let program = format!(
-            r#"(:wat::holon::eval-digest-coincident?
-                 :wat::eval::string "{src_a}"
+            r#"(:wat::holon::eval-digest-string-coincident?
+ "{src_a}"
                  :wat::verify::digest-sha256
                  :wat::verify::string "{bogus}"
-                 :wat::eval::string "{src_b}"
+ "{src_b}"
                  :wat::verify::digest-sha256
                  :wat::verify::string "{h_b}")"#
         );
@@ -8193,19 +8307,58 @@ mod tests {
         (sig_b64, pk_b64)
     }
 
+    /// Guard test: the Ed25519 signatures embedded in
+    /// `wat-tests/holon/eval_coincident.wat` must still verify against
+    /// the source strings they sign. If a source string is edited
+    /// without regenerating its sig, this test fails with the
+    /// mismatch. Prevents silent drift between the unit-test sources
+    /// and the wat-level sandbox tests that hard-code their sigs.
+    ///
+    /// To regenerate the embedded values when a source changes:
+    /// - Temporarily add `eprintln!("sig = {}", sig_b64)` to
+    ///   `sign_src_ed25519`, run this test, copy the new values into
+    ///   the corresponding `wat-tests/` file, remove the eprintln.
+    /// - OR use a scratch `src/bin/` binary that calls
+    ///   `sign_src_ed25519` and prints.
+    ///
+    /// The signing key is fixed at `[7u8; 32]`, so the pubkey is
+    /// deterministic across runs — same discipline as `load.rs`'s
+    /// `fixed_signing_key` helper.
     #[test]
-    #[ignore]
-    fn print_fixed_signatures_for_wat_tests() {
-        // One-shot helper: prints Ed25519 signatures over the fixed
-        // test sources, using the same [7u8; 32] signing key the
-        // unit tests use. Run with `--ignored` + `--nocapture` to
-        // recompute embedding values when a source changes.
-        let (sig_a, pk_a) = sign_src_ed25519("(:wat::core::i64::+ 2 2)");
-        let (sig_b, pk_b) = sign_src_ed25519("(:wat::core::i64::* 1 4)");
-        eprintln!("SRC_A_SIG = {}", sig_a);
-        eprintln!("SRC_A_PK  = {}", pk_a);
-        eprintln!("SRC_B_SIG = {}", sig_b);
-        eprintln!("SRC_B_PK  = {}", pk_b);
+    fn wat_test_embedded_signatures_verify() {
+        // The two sources used by wat-tests/holon/eval_coincident.wat's
+        // signed variants (slices in that file's test-signed-*
+        // deftests). If these source strings diverge from what's in
+        // the .wat file, the sig constants below will not match — fix
+        // by regenerating both.
+        const SRC_A: &str = "(:wat::core::i64::+ 2 2)";
+        const SRC_B: &str = "(:wat::core::i64::* 1 4)";
+
+        // Embedded constants — if a wat-tests/ file changes a source,
+        // update these AND the string literals in that file together.
+        const EXPECTED_SRC_A_SIG: &str = "ZR3nyIPpRSKItQKfFH46p96UbwYpr2TlaysNbnnxZvpA6QiuXftuzmA3xUDfaZ+qWMNCk3m51XzXzXGguo6XCA==";
+        const EXPECTED_SRC_B_SIG: &str = "PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw==";
+        const EXPECTED_PK: &str = "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=";
+
+        let (sig_a, pk_a) = sign_src_ed25519(SRC_A);
+        let (sig_b, pk_b) = sign_src_ed25519(SRC_B);
+
+        assert_eq!(
+            pk_a, EXPECTED_PK,
+            "public key drifted; update wat-tests/holon/eval_coincident.wat"
+        );
+        assert_eq!(
+            pk_a, pk_b,
+            "same signing key produces same pubkey for both sources"
+        );
+        assert_eq!(
+            sig_a, EXPECTED_SRC_A_SIG,
+            "SRC_A signature drifted; source changed? regenerate and update wat-tests/holon/eval_coincident.wat"
+        );
+        assert_eq!(
+            sig_b, EXPECTED_SRC_B_SIG,
+            "SRC_B signature drifted; source changed? regenerate and update wat-tests/holon/eval_coincident.wat"
+        );
     }
 
     #[test]
@@ -8215,12 +8368,12 @@ mod tests {
         let (sig_a, pk_a) = sign_src_ed25519(src_a);
         let (sig_b, pk_b) = sign_src_ed25519(src_b);
         let program = format!(
-            r#"(:wat::holon::eval-signed-coincident?
-                 :wat::eval::string "{src_a}"
+            r#"(:wat::holon::eval-signed-string-coincident?
+ "{src_a}"
                  :wat::verify::signed-ed25519
                  :wat::verify::string "{sig_a}"
                  :wat::verify::string "{pk_a}"
-                 :wat::eval::string "{src_b}"
+ "{src_b}"
                  :wat::verify::signed-ed25519
                  :wat::verify::string "{sig_b}"
                  :wat::verify::string "{pk_b}")"#
@@ -8240,12 +8393,12 @@ mod tests {
         // kind="verification-failed".
         let wrong_sig = sig_b.clone();
         let program = format!(
-            r#"(:wat::holon::eval-signed-coincident?
-                 :wat::eval::string "{src_a}"
+            r#"(:wat::holon::eval-signed-string-coincident?
+ "{src_a}"
                  :wat::verify::signed-ed25519
                  :wat::verify::string "{wrong_sig}"
                  :wat::verify::string "{pk_a}"
-                 :wat::eval::string "{src_b}"
+ "{src_b}"
                  :wat::verify::signed-ed25519
                  :wat::verify::string "{sig_b}"
                  :wat::verify::string "{pk_b}")"#
@@ -8384,31 +8537,25 @@ mod tests {
     #[test]
     fn eval_edn_bang_inline_string_runs() {
         let result = eval_expr(
-            r#"(:wat::core::eval-edn! :wat::eval::string "(:wat::core::i64::+ 40 2)")"#,
+            r#"(:wat::core::eval-edn! "(:wat::core::i64::+ 40 2)")"#,
         )
         .unwrap();
         let inner = eval_ok_inner(result);
         assert!(matches!(inner, Value::i64(42)));
     }
 
+    // Arc 028 slice 3 retired `eval_edn_bang_unknown_iface_refused`
+    // and `eval_edn_bang_reserved_unimplemented_iface_refused` —
+    // both asserted that unknown / reserved iface keywords were
+    // rejected. After the iface-drop, those keywords have no meaning
+    // in the grammar; the arity check fires instead and the tests
+    // stopped describing a real behavior.
     #[test]
-    fn eval_edn_bang_unknown_iface_refused() {
-        let result = eval_expr(
-            r#"(:wat::core::eval-edn! :wat::eval::unknown "foo")"#,
-        )
-        .unwrap();
-        let (kind, _) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "malformed-form");
-    }
-
-    #[test]
-    fn eval_edn_bang_reserved_unimplemented_iface_refused() {
-        let result = eval_expr(
-            r#"(:wat::core::eval-edn! :wat::eval::http-path "https://example.com/x")"#,
-        )
-        .unwrap();
-        let (kind, _) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "malformed-form");
+    fn eval_edn_bang_wrong_arity_rejected() {
+        // Arity fires BEFORE the EvalError wrap — structural /
+        // caller-syntactic error, not a runtime evaluation failure.
+        let err = eval_expr(r#"(:wat::core::eval-edn! "foo" "bar")"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
     }
 
     #[test]
@@ -8416,7 +8563,7 @@ mod tests {
         // The parsed AST from the string still walks through the
         // mutation-form guard — now surfaced as EvalError data.
         let result = eval_expr(
-            r#"(:wat::core::eval-edn! :wat::eval::string "(:wat::core::define (:evil (x :i64) -> :i64) x)")"#,
+            r#"(:wat::core::eval-edn! "(:wat::core::define (:evil (x :i64) -> :i64) x)")"#,
         )
         .unwrap();
         let (kind, _) = eval_err_kind_and_message(result);
@@ -8431,8 +8578,8 @@ mod tests {
         hasher.update(source.as_bytes());
         let hex = crate::hash::hex_encode(&hasher.finalize());
         let form = format!(
-            r#"(:wat::core::eval-digest!
-                :wat::eval::string "{}"
+            r#"(:wat::core::eval-digest-string!
+ "{}"
                 :wat::verify::digest-sha256
                 :wat::verify::string "{}")"#,
             source, hex
@@ -8447,8 +8594,8 @@ mod tests {
         let wrong =
             "0000000000000000000000000000000000000000000000000000000000000000";
         let form = format!(
-            r#"(:wat::core::eval-digest!
-                :wat::eval::string "(:wat::core::i64::+ 1 1)"
+            r#"(:wat::core::eval-digest-string!
+ "(:wat::core::i64::+ 1 1)"
                 :wat::verify::digest-sha256
                 :wat::verify::string "{}")"#,
             wrong
@@ -8460,8 +8607,8 @@ mod tests {
 
     #[test]
     fn eval_digest_bang_unknown_algo_refused() {
-        let form = r#"(:wat::core::eval-digest!
-            :wat::eval::string "(:wat::core::i64::+ 1 1)"
+        let form = r#"(:wat::core::eval-digest-string!
+ "(:wat::core::i64::+ 1 1)"
             :wat::verify::signed-ed25519
             :wat::verify::string "abc")"#;
         let result = eval_expr(form).unwrap();
@@ -8484,8 +8631,8 @@ mod tests {
         let sig_b64 = B64.encode(sig.to_bytes());
         let pk_b64 = B64.encode(sk.verifying_key().as_bytes());
         let form = format!(
-            r#"(:wat::core::eval-signed!
-                :wat::eval::string "{}"
+            r#"(:wat::core::eval-signed-string!
+ "{}"
                 :wat::verify::signed-ed25519
                 :wat::verify::string "{}"
                 :wat::verify::string "{}")"#,
@@ -8510,8 +8657,8 @@ mod tests {
         let sig_b64 = B64.encode(sig.to_bytes());
         let pk_b64 = B64.encode(sk.verifying_key().as_bytes());
         let form = format!(
-            r#"(:wat::core::eval-signed!
-                :wat::eval::string "{}"
+            r#"(:wat::core::eval-signed-string!
+ "{}"
                 :wat::verify::signed-ed25519
                 :wat::verify::string "{}"
                 :wat::verify::string "{}")"#,
@@ -8525,8 +8672,8 @@ mod tests {
     #[test]
     fn eval_signed_bang_wrong_algo_kind_refused() {
         // digest-sha256 in a signed slot is a grammar error.
-        let form = r#"(:wat::core::eval-signed!
-            :wat::eval::string "(:wat::core::i64::+ 1 1)"
+        let form = r#"(:wat::core::eval-signed-string!
+ "(:wat::core::i64::+ 1 1)"
             :wat::verify::digest-sha256
             :wat::verify::string "sig"
             :wat::verify::string "pk")"#;
@@ -8556,10 +8703,10 @@ mod tests {
     }
 
     #[test]
-    fn eval_edn_bang_file_path_runs() {
+    fn eval_file_bang_runs() {
         let path = write_temp("(:wat::core::i64::+ 10 11)", "wat");
         let form = format!(
-            r#"(:wat::core::eval-edn! :wat::eval::file-path "{}")"#,
+            r#"(:wat::core::eval-file! "{}")"#,
             path.display()
         );
         let result = eval_expr_with_fs(&form).expect("eval");
@@ -8569,8 +8716,8 @@ mod tests {
     }
 
     #[test]
-    fn eval_edn_bang_file_path_missing_errors() {
-        let form = r#"(:wat::core::eval-edn! :wat::eval::file-path "/nonexistent/path/abc.xyz")"#;
+    fn eval_file_bang_missing_path_errors() {
+        let form = r#"(:wat::core::eval-file! "/nonexistent/path/abc.xyz")"#;
         let result = eval_expr_with_fs(form).unwrap();
         let (kind, _) = eval_err_kind_and_message(result);
         assert_eq!(kind, "malformed-form");
@@ -8587,7 +8734,7 @@ mod tests {
         let digest_path = write_temp(&hex, "sha256");
         let form = format!(
             r#"(:wat::core::eval-digest!
-                :wat::eval::file-path "{}"
+ "{}"
                 :wat::verify::digest-sha256
                 :wat::verify::file-path "{}")"#,
             source_path.display(),

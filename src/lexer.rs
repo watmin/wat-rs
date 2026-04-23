@@ -10,7 +10,7 @@
 //!   escapes. Quotes stripped before emission.
 //! - **Keyword tokens** — start with `:`, followed by a body that is a
 //!   **literal Rust path**. Examples:
-//!     - `:wat::core::load!`
+//!     - `:wat::core::load-file!`
 //!     - `:wat::holon::Atom`
 //!     - `:crossbeam_channel::Sender<T>`
 //!     - `:Vec<T>`, `:HashMap<K,V>`, `:Option<T>`
@@ -581,8 +581,8 @@ mod tests {
         // :: is the canonical namespace separator. The leading : is
         // the symbol-quote; everything after is literal Rust.
         assert_eq!(
-            lex_tokens(":wat::core::load!").unwrap(),
-            vec![Token::Keyword(":wat::core::load!".into())]
+            lex_tokens(":wat::core::load-file!").unwrap(),
+            vec![Token::Keyword(":wat::core::load-file!".into())]
         );
         assert_eq!(
             lex_tokens(":wat::holon::Atom").unwrap(),
