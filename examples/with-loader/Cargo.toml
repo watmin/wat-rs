@@ -1,0 +1,13 @@
+[package]
+name = "with-loader-example"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Arc 017 reference binary — wat::main! { ..., loader: \"wat\" } with a multi-file wat tree resolved via ScopedLoader."
+
+[[bin]]
+name = "with-loader-example"
+path = "src/main.rs"
+
+[dependencies]
+wat = { path = "../.." }

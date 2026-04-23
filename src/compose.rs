@@ -34,7 +34,7 @@ use crate::panic_hook;
 use crate::freeze::{invoke_user_main, startup_from_source, validate_user_main_signature};
 use crate::harness::HarnessError;
 use crate::io::{RealStderr, RealStdin, RealStdout, WatReader, WatWriter};
-use crate::load::InMemoryLoader;
+use crate::load::{InMemoryLoader, SourceLoader};
 use crate::rust_deps::{self, RustDepsBuilder};
 use crate::runtime::{
     request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2, Value,
@@ -116,10 +116,12 @@ fn install_signal_handlers() {
 /// using `Harness` directly.
 ///
 /// **Loader: `InMemoryLoader`.** No filesystem access for
-/// `(:wat::core::load! ...)` from inside the wat program. If a
-/// user's binary needs filesystem-capable loading, they write
-/// their own main using
-/// [`crate::Harness::from_source_with_deps_and_loader`].
+/// `(:wat::core::load! ...)` from inside the wat program. Callers
+/// needing filesystem-capable `(load! ...)` pass a `ScopedLoader`
+/// (or any [`SourceLoader`] impl) via
+/// [`compose_and_run_with_loader`] — which is what `wat::main!`
+/// expands to when its `loader: "..."` argument is present
+/// (arc 017).
 ///
 /// **rust_deps install semantics (first-call-wins).** The registry
 /// is a process-global OnceLock. `compose_and_run` attempts to
@@ -136,6 +138,31 @@ pub fn compose_and_run(
     source: &str,
     dep_sources: &[&'static [WatSource]],
     dep_registrars: &[DepRegistrar],
+) -> Result<(), HarnessError> {
+    compose_and_run_with_loader(
+        source,
+        dep_sources,
+        dep_registrars,
+        Arc::new(InMemoryLoader::new()),
+    )
+}
+
+/// Loader-parametric sibling of [`compose_and_run`]. Same contract
+/// — real OS stdio, signal handlers, panic-hook install, first-
+/// call-wins rust_deps + dep_sources install — but the caller
+/// supplies the [`SourceLoader`] used to resolve
+/// `(:wat::core::load! ...)` from inside the wat program.
+///
+/// The `wat::main! { source: ..., deps: [...], loader: "path" }`
+/// form (arc 017) expands to this function with
+/// `Arc::new(ScopedLoader::new(path)?)` as the loader. Passing
+/// `Arc::new(InMemoryLoader::new())` reproduces the default
+/// [`compose_and_run`] behavior.
+pub fn compose_and_run_with_loader(
+    source: &str,
+    dep_sources: &[&'static [WatSource]],
+    dep_registrars: &[DepRegistrar],
+    loader: Arc<dyn SourceLoader>,
 ) -> Result<(), HarnessError> {
     // Silence the default panic handler for assertion-failed!
     // payloads. The sandboxing primitives rely on
@@ -157,7 +184,6 @@ pub fn compose_and_run(
     let _ = rust_deps::install(builder.build());
     let _ = source::install_dep_sources(dep_sources.to_vec());
 
-    let loader = Arc::new(InMemoryLoader::new());
     let world = startup_from_source(source, None, loader)
         .map_err(HarnessError::Startup)?;
 

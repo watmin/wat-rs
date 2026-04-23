@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "wat-macros", "crates/wat-lru", "examples/with-lru"]
+members = [".", "wat-macros", "crates/wat-lru", "examples/with-lru", "examples/with-loader"]
 
 [package]
 name = "wat"

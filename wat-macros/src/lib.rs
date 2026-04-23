@@ -203,6 +203,13 @@ use syn::Path;
 struct MainInput {
     source: syn::Expr,
     deps: Vec<Path>,
+    /// Arc 017 — optional `loader: "..."` string-literal arg.
+    /// Absent: macro expands to `compose_and_run` (InMemoryLoader
+    /// default, no filesystem). Present: expands to
+    /// `compose_and_run_with_loader` with a `ScopedLoader` rooted
+    /// at the given path. Bad paths surface as
+    /// `HarnessError::Startup(StartupError::Load(...))` from main.
+    loader: Option<LitStr>,
 }
 
 impl Parse for MainInput {
@@ -215,28 +222,51 @@ impl Parse for MainInput {
         input.parse::<syn::Token![:]>()?;
         let source: syn::Expr = input.parse()?;
 
-        // Optional: `, deps: [path, path, ...]`
+        // Optional trailing: `, deps: [...]` and/or `, loader: "..."`.
+        // Accepts either order, each at most once.
         let mut deps: Vec<Path> = Vec::new();
-        if input.peek(syn::Token![,]) {
+        let mut loader: Option<LitStr> = None;
+
+        while input.peek(syn::Token![,]) {
             input.parse::<syn::Token![,]>()?;
-            if !input.is_empty() {
-                let deps_key: syn::Ident = input.parse()?;
-                if deps_key != "deps" {
+            if input.is_empty() {
+                break;
+            }
+            let key: syn::Ident = input.parse()?;
+            let key_str = key.to_string();
+            input.parse::<syn::Token![:]>()?;
+            match key_str.as_str() {
+                "deps" => {
+                    if !deps.is_empty() {
+                        return Err(Error::new(key.span(), "duplicate `deps:` arg"));
+                    }
+                    let content;
+                    syn::bracketed!(content in input);
+                    let parsed: Punctuated<Path, syn::Token![,]> =
+                        content.parse_terminated(Path::parse_mod_style, syn::Token![,])?;
+                    deps = parsed.into_iter().collect();
+                }
+                "loader" => {
+                    if loader.is_some() {
+                        return Err(Error::new(key.span(), "duplicate `loader:` arg"));
+                    }
+                    let lit: LitStr = input.parse().map_err(|e| {
+                        Error::new(
+                            e.span(),
+                            "`loader:` expects a string literal — the ScopedLoader root path",
+                        )
+                    })?;
+                    loader = Some(lit);
+                }
+                other => {
                     return Err(Error::new(
-                        deps_key.span(),
-                        "expected `deps:` after `source:`",
+                        key.span(),
+                        format!(
+                            "unknown `{}:` arg for wat::main!; expected `deps:` or `loader:`",
+                            other
+                        ),
                     ));
                 }
-                input.parse::<syn::Token![:]>()?;
-
-                let content;
-                syn::bracketed!(content in input);
-                let parsed: Punctuated<Path, syn::Token![,]> =
-                    content.parse_terminated(Path::parse_mod_style, syn::Token![,])?;
-                deps = parsed.into_iter().collect();
-
-                // Optional trailing comma after the bracketed list.
-                let _ = input.parse::<syn::Token![,]>();
             }
         }
 
@@ -244,7 +274,11 @@ impl Parse for MainInput {
             return Err(input.error("unexpected tokens after wat::main! args"));
         }
 
-        Ok(MainInput { source, deps })
+        Ok(MainInput {
+            source,
+            deps,
+            loader,
+        })
     }
 }
 
@@ -252,7 +286,11 @@ impl Parse for MainInput {
 /// docs.
 #[proc_macro]
 pub fn main(input: TokenStream) -> TokenStream {
-    let MainInput { source, deps } = parse_macro_input!(input as MainInput);
+    let MainInput {
+        source,
+        deps,
+        loader,
+    } = parse_macro_input!(input as MainInput);
 
     // Each dep is called twice — once for wat_sources() (wat
     // source side), once for register (Rust shim side). The two-
@@ -267,14 +305,49 @@ pub fn main(input: TokenStream) -> TokenStream {
         .map(|p| quote! { #p::register })
         .collect();
 
-    let expanded = quote! {
-        fn main() -> ::std::result::Result<(), ::wat::harness::HarnessError> {
-            ::wat::compose_and_run(
-                #source,
-                &[ #(#stdlib_calls),* ],
-                &[ #(#register_paths),* ],
-            )
-        }
+    let expanded = match loader {
+        None => quote! {
+            fn main() -> ::std::result::Result<(), ::wat::harness::HarnessError> {
+                ::wat::compose_and_run(
+                    #source,
+                    &[ #(#stdlib_calls),* ],
+                    &[ #(#register_paths),* ],
+                )
+            }
+        },
+        Some(loader_lit) => quote! {
+            fn main() -> ::std::result::Result<(), ::wat::harness::HarnessError> {
+                // `loader:` is always resolved relative to the consumer
+                // crate's source directory (CARGO_MANIFEST_DIR). This
+                // makes `cargo run -p <crate>` from the workspace root
+                // work identically to running from the crate's own dir
+                // — the source tree's wat/ location is stable. Users
+                // who need absolute or cwd-relative paths drop to
+                // `Harness::from_source_with_deps_and_loader`.
+                let __wat_loader_root = concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/",
+                    #loader_lit
+                );
+                let __wat_loader: ::std::sync::Arc<
+                    dyn ::wat::load::SourceLoader,
+                > = ::std::sync::Arc::new(
+                    ::wat::load::ScopedLoader::new(__wat_loader_root).map_err(|e| {
+                        ::wat::harness::HarnessError::Startup(
+                            ::wat::freeze::StartupError::Load(
+                                ::wat::load::LoadError::from(e),
+                            ),
+                        )
+                    })?,
+                );
+                ::wat::compose_and_run_with_loader(
+                    #source,
+                    &[ #(#stdlib_calls),* ],
+                    &[ #(#register_paths),* ],
+                    __wat_loader,
+                )
+            }
+        },
     };
 
     expanded.into()

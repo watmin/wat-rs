@@ -889,20 +889,47 @@ impl ScopedLoader {
 
     /// Resolve and containment-check a single path. Returns the canonical
     /// target inside the scope, or a `LoadFetchError`.
+    ///
+    /// Relative-path resolution has two regimes:
+    /// - **With caller base** (`base_canonical = Some(...)`) — resolve
+    ///   relative to the importing file's directory, matching
+    ///   [`FsLoader`]. This is the `(:wat::core::load! ...)` case from
+    ///   inside a file that itself has a canonical path.
+    /// - **Without caller base** (`base_canonical = None`) — resolve
+    ///   relative to this loader's scope root. This is the entry-source
+    ///   case: `compose_and_run_with_loader` / the `wat::main!`
+    ///   `loader:` argument passes `None` for the entry's base because
+    ///   `include_str!`'d source has no disk location. Rooting base-less
+    ///   relative paths at the scope means `(load!
+    ///   :wat::load::file-path "helper.wat")` from the entry file finds
+    ///   `<scope>/helper.wat`, not `<cwd>/helper.wat`.
+    ///
+    /// Absolute paths bypass both regimes and are canonicalized as-is;
+    /// the containment check then rejects anything outside the scope.
     fn resolve_within_scope(
         &self,
         path: &str,
         base_canonical: Option<&str>,
     ) -> Result<PathBuf, LoadFetchError> {
-        let resolved = resolve_relative(path, base_canonical);
+        let requested = Path::new(path);
+        let pre_canonical = if requested.is_absolute() {
+            requested.to_path_buf()
+        } else if let Some(base) = base_canonical {
+            Path::new(base)
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join(requested)
+        } else {
+            self.canonical_root.join(requested)
+        };
         // Paths that don't exist yet can't be canonicalized. Source
         // reads require an existing file; not-found is a legitimate
         // error signal. Canonicalize first so containment is checked
         // against the real target (handles intermediate symlinks).
-        let canonical = std::fs::canonicalize(&resolved).map_err(|e| match e.kind() {
+        let canonical = std::fs::canonicalize(&pre_canonical).map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => LoadFetchError::NotFound(path.to_string()),
             _ => LoadFetchError::Other {
-                path: resolved.display().to_string(),
+                path: pre_canonical.display().to_string(),
                 reason: e.to_string(),
             },
         })?;
@@ -1453,6 +1480,21 @@ mod tests {
             .fetch_source_file(&file_path.to_string_lossy(), None)
             .expect("in-scope read");
         assert_eq!(loaded.source, "hello");
+    }
+
+    /// Arc 017: base-less relative paths resolve against the scope
+    /// root (the `wat::main! { loader: "..." }` entry-source case
+    /// where `include_str!`-sourced program text has no canonical
+    /// path).
+    #[test]
+    fn scoped_loader_resolves_base_less_relative_path_against_scope_root() {
+        let dir = make_scope_dir();
+        std::fs::write(dir.path().join("helper.wat"), "hi").unwrap();
+        let loader = ScopedLoader::new(dir.path()).expect("scope");
+        let loaded = loader
+            .fetch_source_file("helper.wat", None)
+            .expect("base-less relative path resolves against scope root");
+        assert_eq!(loaded.source, "hi");
     }
 
     #[test]
