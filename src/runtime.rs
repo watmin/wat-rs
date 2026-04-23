@@ -1717,6 +1717,7 @@ fn dispatch_keyword_head(
         ":wat::core::i64::to-f64" => eval_i64_to_f64(args, env, sym),
         ":wat::core::f64::to-string" => eval_f64_to_string(args, env, sym),
         ":wat::core::f64::to-i64" => eval_f64_to_i64(args, env, sym),
+        ":wat::core::f64::round" => eval_f64_round(args, env, sym),
         ":wat::core::string::to-i64" => eval_string_to_i64(args, env, sym),
         ":wat::core::string::to-f64" => eval_string_to_f64(args, env, sym),
         ":wat::core::bool::to-string" => eval_bool_to_string(args, env, sym),
@@ -2713,6 +2714,60 @@ fn eval_f64_to_i64(
         None
     };
     Ok(Value::Option(Arc::new(result)))
+}
+
+/// Arc 019 — `(:wat::core::f64::round v digits)`. Rounds `v` to
+/// `digits` decimal places using round-half-away-from-zero (wraps
+/// Rust's `f64::round()` after scaling). `digits=0` rounds to the
+/// nearest integer; `digits=2` rounds to two decimals. Negative
+/// `digits` is rejected as MalformedForm — "round to nearest 10"
+/// has no load-bearing use case and feels like asking for a
+/// divide-by-zero answer; if a real caller surfaces, a future
+/// arc extends. NaN and ±∞ pass through unchanged.
+fn eval_f64_round(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::f64::round";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let v = match eval(&args[0], env, sym)? {
+        Value::f64(x) => x,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "f64",
+                got: other.type_name(),
+            });
+        }
+    };
+    let digits = match eval(&args[1], env, sym)? {
+        Value::i64(d) => d,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "i64",
+                got: other.type_name(),
+            });
+        }
+    };
+    if digits < 0 {
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "`digits` must be non-negative; got {}. Negative digits (round to nearest 10 / 100 / ...) has no load-bearing use case today",
+                digits
+            ),
+        });
+    }
+    let factor = 10f64.powi(digits as i32);
+    Ok(Value::f64((v * factor).round() / factor))
 }
 
 fn eval_string_to_i64(
@@ -6500,6 +6555,54 @@ mod tests {
         expect_none(eval_expr("(:wat::core::f64::to-i64 1e19)").unwrap());
         // And past i64::MIN on the negative side.
         expect_none(eval_expr("(:wat::core::f64::to-i64 -1e19)").unwrap());
+    }
+
+    // ─── f64::round (arc 019) ─────────────────────────────────────────────
+
+    #[test]
+    fn f64_round_to_zero_digits() {
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::round 1.00001 0)").unwrap()),
+            1.0
+        );
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::round 1.5 0)").unwrap()),
+            2.0
+        );
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::round -1.5 0)").unwrap()),
+            -2.0
+        );
+    }
+
+    #[test]
+    fn f64_round_to_three_digits() {
+        let v = expect_f64(eval_expr("(:wat::core::f64::round 12.1234 3)").unwrap());
+        assert!((v - 12.123).abs() < 1e-12, "got {}", v);
+    }
+
+    #[test]
+    fn f64_round_to_two_digits() {
+        let v = expect_f64(eval_expr("(:wat::core::f64::round 4.5678 2)").unwrap());
+        assert!((v - 4.57).abs() < 1e-12, "got {}", v);
+    }
+
+    #[test]
+    fn f64_round_rejects_negative_digits() {
+        let err = eval_expr("(:wat::core::f64::round 15.0 -1)").unwrap_err();
+        match err {
+            RuntimeError::MalformedForm { head, reason } => {
+                assert_eq!(head, ":wat::core::f64::round");
+                assert!(reason.contains("non-negative"), "got: {}", reason);
+            }
+            other => panic!("expected MalformedForm, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn f64_round_arity_mismatch() {
+        let err = eval_expr("(:wat::core::f64::round 1.0)").unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 
     #[test]

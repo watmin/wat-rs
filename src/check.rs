@@ -3014,6 +3014,19 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+    // Arc 019 — f64 rounding primitive. `(round v digits) -> f64`
+    // rounds `v` to `digits` decimal places using round-half-away-
+    // from-zero. `digits=0` rounds to the nearest integer;
+    // `digits=2` rounds to two decimals. Negative `digits` rounds
+    // to tens / hundreds / etc. NaN and ±∞ pass through unchanged.
+    env.register(
+        ":wat::core::f64::round".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![f64_ty(), i64_ty()],
+            ret: f64_ty(),
+        },
+    );
 
     // Scalar conversions — arc 014. :wat::core::<source>::to-<target>
     // between the four scalar tiers (i64, f64, bool, String).
