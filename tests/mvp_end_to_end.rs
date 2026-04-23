@@ -20,9 +20,9 @@ fn env() -> (VectorManager, ScalarEncoder, AtomTypeRegistry) {
 
 /// Hello-world: the minimum wat source that proves source → vector works.
 const HELLO_WORLD: &str = r#"
-(:wat::algebra::Bind
-  (:wat::algebra::Atom "role")
-  (:wat::algebra::Atom "filler"))
+(:wat::holon::Bind
+  (:wat::holon::Atom "role")
+  (:wat::holon::Atom "filler"))
 "#;
 
 #[test]
@@ -47,14 +47,14 @@ fn hello_world_is_deterministic() {
 fn different_sources_produce_different_vectors() {
     let (vm, se, reg) = env();
     let v1 = eval_algebra_source(
-        r#"(:wat::algebra::Atom "role")"#,
+        r#"(:wat::holon::Atom "role")"#,
         &vm,
         &se,
         &reg,
     )
     .unwrap();
     let v2 = eval_algebra_source(
-        r#"(:wat::algebra::Atom "filler")"#,
+        r#"(:wat::holon::Atom "filler")"#,
         &vm,
         &se,
         &reg,
@@ -65,18 +65,18 @@ fn different_sources_produce_different_vectors() {
 
 #[test]
 fn bind_vs_bundle_of_same_atoms_differ() {
-    // (:wat::algebra::Bind a b) and (:wat::algebra::Bundle (:wat::core::vec a b))
+    // (:wat::holon::Bind a b) and (:wat::holon::Bundle (:wat::core::vec a b))
     // are different algebra operations; their vectors must differ.
     let (vm, se, reg) = env();
     let v_bind = eval_algebra_source(
-        r#"(:wat::algebra::Bind (:wat::algebra::Atom "a") (:wat::algebra::Atom "b"))"#,
+        r#"(:wat::holon::Bind (:wat::holon::Atom "a") (:wat::holon::Atom "b"))"#,
         &vm,
         &se,
         &reg,
     )
     .unwrap();
     let v_bundle = eval_algebra_source(
-        r#"(:wat::algebra::Bundle (:wat::core::vec :holon::HolonAST (:wat::algebra::Atom "a") (:wat::algebra::Atom "b")))"#,
+        r#"(:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST (:wat::holon::Atom "a") (:wat::holon::Atom "b")))"#,
         &vm,
         &se,
         &reg,
@@ -90,14 +90,14 @@ fn thermometer_endpoints_produce_opposite_vectors() {
     use holon::Similarity;
     let (vm, se, reg) = env();
     let v_low = eval_algebra_source(
-        "(:wat::algebra::Thermometer 0.0 0.0 1.0)",
+        "(:wat::holon::Thermometer 0.0 0.0 1.0)",
         &vm,
         &se,
         &reg,
     )
     .unwrap();
     let v_high = eval_algebra_source(
-        "(:wat::algebra::Thermometer 1.0 0.0 1.0)",
+        "(:wat::holon::Thermometer 1.0 0.0 1.0)",
         &vm,
         &se,
         &reg,
@@ -114,7 +114,7 @@ fn blend_option_b_subtract_literal() {
     // flows through parse → lower → encode as expected.
     let (vm, se, reg) = env();
     let v = eval_algebra_source(
-        r#"(:wat::algebra::Blend (:wat::algebra::Atom "x") (:wat::algebra::Atom "y") 1 -1)"#,
+        r#"(:wat::holon::Blend (:wat::holon::Atom "x") (:wat::holon::Atom "y") 1 -1)"#,
         &vm,
         &se,
         &reg,
@@ -129,9 +129,9 @@ fn keyword_atom_differs_from_string_atom() {
     // stored bytes makes the two vectors differ. Verifies the keyword
     // convention crosses the whole parse → lower → encode pipeline.
     let (vm, se, reg) = env();
-    let v_kw = eval_algebra_source("(:wat::algebra::Atom :role)", &vm, &se, &reg).unwrap();
+    let v_kw = eval_algebra_source("(:wat::holon::Atom :role)", &vm, &se, &reg).unwrap();
     let v_str =
-        eval_algebra_source(r#"(:wat::algebra::Atom "role")"#, &vm, &se, &reg).unwrap();
+        eval_algebra_source(r#"(:wat::holon::Atom "role")"#, &vm, &se, &reg).unwrap();
     assert_ne!(v_kw, v_str);
 }
 
@@ -142,11 +142,11 @@ fn whitespace_and_comments_ignored() {
     let v2 = eval_algebra_source(
         r#"
         ;; the hello world bind
-        (:wat::algebra::Bind
+        (:wat::holon::Bind
           ;; role
-          (:wat::algebra::Atom "role")
+          (:wat::holon::Atom "role")
           ;; filler
-          (:wat::algebra::Atom "filler"))
+          (:wat::holon::Atom "filler"))
         "#,
         &vm,
         &se,
@@ -160,7 +160,7 @@ fn whitespace_and_comments_ignored() {
 fn parse_error_surfaces_as_error() {
     let (vm, se, reg) = env();
     // Unclosed paren.
-    let err = eval_algebra_source("(:wat::algebra::Atom \"x\"", &vm, &se, &reg).unwrap_err();
+    let err = eval_algebra_source("(:wat::holon::Atom \"x\"", &vm, &se, &reg).unwrap_err();
     match err {
         wat::Error::Parse(_) => {} // expected
         other => panic!("expected ParseError, got {:?}", other),
@@ -172,7 +172,7 @@ fn lower_error_surfaces_as_error() {
     let (vm, se, reg) = env();
     // Unsupported algebra-core form.
     let err =
-        eval_algebra_source("(:wat::algebra::MadeUp 1)", &vm, &se, &reg).unwrap_err();
+        eval_algebra_source("(:wat::holon::MadeUp 1)", &vm, &se, &reg).unwrap_err();
     match err {
         wat::Error::Lower(_) => {} // expected
         other => panic!("expected LowerError, got {:?}", other),

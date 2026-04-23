@@ -12,20 +12,20 @@
 
 (:wat::test::deftest :wat-tests::std::Sequential::test-self-identity 1024 :error
   (:wat::core::let*
-    (((a :holon::HolonAST) (:wat::algebra::Atom "a"))
-     ((b :holon::HolonAST) (:wat::algebra::Atom "b"))
-     ((c :holon::HolonAST) (:wat::algebra::Atom "c"))
-     ((abc :holon::HolonAST)
-      (:wat::std::Sequential (:wat::core::list :holon::HolonAST a b c))))
-    (:wat::test::assert-eq (:wat::algebra::presence? abc abc) true)))
+    (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
+     ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
+     ((c :wat::holon::HolonAST) (:wat::holon::Atom "c"))
+     ((abc :wat::holon::HolonAST)
+      (:wat::std::Sequential (:wat::core::list :wat::holon::HolonAST a b c))))
+    (:wat::test::assert-eq (:wat::holon::presence? abc abc) true)))
 
 (:wat::test::deftest :wat-tests::std::Sequential::test-order-sensitivity 1024 :error
   (:wat::core::let*
-    (((a :holon::HolonAST) (:wat::algebra::Atom "a"))
-     ((b :holon::HolonAST) (:wat::algebra::Atom "b"))
-     ((c :holon::HolonAST) (:wat::algebra::Atom "c"))
-     ((abc :holon::HolonAST)
-      (:wat::std::Sequential (:wat::core::list :holon::HolonAST a b c)))
-     ((acb :holon::HolonAST)
-      (:wat::std::Sequential (:wat::core::list :holon::HolonAST a c b))))
-    (:wat::test::assert-eq (:wat::algebra::presence? abc acb) false)))
+    (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
+     ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
+     ((c :wat::holon::HolonAST) (:wat::holon::Atom "c"))
+     ((abc :wat::holon::HolonAST)
+      (:wat::std::Sequential (:wat::core::list :wat::holon::HolonAST a b c)))
+     ((acb :wat::holon::HolonAST)
+      (:wat::std::Sequential (:wat::core::list :wat::holon::HolonAST a c b))))
+    (:wat::test::assert-eq (:wat::holon::presence? abc acb) false)))

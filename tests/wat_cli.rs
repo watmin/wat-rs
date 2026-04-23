@@ -88,7 +88,7 @@ fn echo_program_reads_stdin_writes_stdout() {
 ///
 /// 1. `(:wat::core::quote ...)` captures the send/recv expression as a
 ///    `:wat::WatAST` without firing its side effects.
-/// 2. `(:wat::algebra::Atom program)` wraps the WatAST as an Atom
+/// 2. `(:wat::holon::Atom program)` wraps the WatAST as an Atom
 ///    holon — the program is now a typed box in the algebra.
 /// 3. `(:wat::core::atom-value program-atom)` extracts the payload back
 ///    as a `:wat::WatAST`. Structural field read; exact; no cosine.
@@ -101,7 +101,7 @@ fn echo_program_reads_stdin_writes_stdout() {
 ///
 /// The VECTOR side of the proof — measuring that `Bind(k, program-atom)`
 /// obscures the program at the vector level and self-inverse recovers
-/// it — needs the `:wat::algebra::cosine` primitive and lives in its
+/// it — needs the `:wat::holon::cosine` primitive and lives in its
 /// own CLI test (added separately).
 const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
 (:wat::config::set-dims! 1024)
@@ -118,11 +118,11 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
          (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
            ((Some line) (:wat::io::IOWriter/print stdout line))
            (:None ()))))
-     ((program-atom :holon::HolonAST)
-       (:wat::algebra::Atom program))
+     ((program-atom :wat::holon::HolonAST)
+       (:wat::holon::Atom program))
      ((reveal :wat::WatAST)
        (:wat::core::atom-value program-atom)))
-    ;; eval-ast! now returns :Result<holon::HolonAST, EvalError> per
+    ;; eval-ast! now returns :Result<wat::holon::HolonAST, EvalError> per
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here
     ;; (the quoted program is well-formed and non-mutating).
@@ -176,16 +176,16 @@ fn programs_are_atoms_hello_world() {
 ///
 /// 1. `(:wat::core::quote ...)` captures the send/recv expression as a
 ///    `:wat::WatAST`.
-/// 2. `(:wat::algebra::Atom program)` wraps it as an Atom holon.
-/// 3. `(:wat::algebra::Bind key-atom program-atom)` composes the Atom
+/// 2. `(:wat::holon::Atom program)` wraps it as an Atom holon.
+/// 3. `(:wat::holon::Bind key-atom program-atom)` composes the Atom
 ///    with a key, producing a Bind tree whose encoded vector is
 ///    ROUGHLY ORTHOGONAL to the program-atom's vector. Below the 5σ
-///    noise floor. `(:wat::algebra::cosine program-atom bound)` returns
+///    noise floor. `(:wat::holon::cosine program-atom bound)` returns
 ///    a small scalar — binarized via `>` against noise-floor yields
 ///    "None". The printed "None" IS the proof.
-/// 4. `(:wat::algebra::Bind bound key-atom)` — MAP self-inverse at the
+/// 4. `(:wat::holon::Bind bound key-atom)` — MAP self-inverse at the
 ///    vector level: `bind(bind(k,p), k) ≈ p` on non-zero positions.
-///    `(:wat::algebra::cosine program-atom recovered)` returns a large
+///    `(:wat::holon::cosine program-atom recovered)` returns a large
 ///    scalar — binarizes to "Some". The printed "Some" is the proof
 ///    the algebra recovered the signal.
 /// 5. `(:wat::core::atom-value program-atom)` extracts the WatAST
@@ -210,18 +210,18 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
          (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
            ((Some line) (:wat::io::IOWriter/print stdout line))
            (:None ()))))
-     ((program-atom :holon::HolonAST)
-       (:wat::algebra::Atom program))
-     ((key-atom :holon::HolonAST)
-       (:wat::algebra::Atom "hello-world"))
+     ((program-atom :wat::holon::HolonAST)
+       (:wat::holon::Atom program))
+     ((key-atom :wat::holon::HolonAST)
+       (:wat::holon::Atom "hello-world"))
 
      ;; Compose: program-atom bound under key-atom.
-     ((bound :holon::HolonAST)
-       (:wat::algebra::Bind key-atom program-atom))
+     ((bound :wat::holon::HolonAST)
+       (:wat::holon::Bind key-atom program-atom))
 
      ;; Vector-level proof #1: program-atom's signal is GONE from bound.
      ((bound-score :f64)
-       (:wat::algebra::cosine program-atom bound))
+       (:wat::holon::cosine program-atom bound))
      ((_ :())
        (:wat::io::IOWriter/print stdout
          (:wat::core::if
@@ -231,12 +231,12 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
            "None\n")))
 
      ;; Self-inverse: bind(bind(k, p), k) recovers p at the vector level.
-     ((recovered :holon::HolonAST)
-       (:wat::algebra::Bind bound key-atom))
+     ((recovered :wat::holon::HolonAST)
+       (:wat::holon::Bind bound key-atom))
 
      ;; Vector-level proof #2: program-atom's signal is BACK in recovered.
      ((recov-score :f64)
-       (:wat::algebra::cosine program-atom recovered))
+       (:wat::holon::cosine program-atom recovered))
      ((_ :())
        (:wat::io::IOWriter/print stdout
          (:wat::core::if
@@ -250,7 +250,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
      ;; dynamics; this line runs the actual program.
      ((reveal :wat::WatAST)
        (:wat::core::atom-value program-atom)))
-    ;; eval-ast! now returns :Result<holon::HolonAST, EvalError> per
+    ;; eval-ast! now returns :Result<wat::holon::HolonAST, EvalError> per
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here —
     ;; the quoted echo program is well-formed and non-mutating.
@@ -403,7 +403,7 @@ fn missing_entry_file_is_ex_noinput() {
 fn startup_error_bubbles_up_as_exit_1() {
     // Missing :wat::config::set-dims! — startup halts.
     let program = r#"
-        (:wat::algebra::Atom 42)
+        (:wat::holon::Atom 42)
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat");

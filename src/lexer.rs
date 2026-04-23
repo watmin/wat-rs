@@ -11,7 +11,7 @@
 //! - **Keyword tokens** — start with `:`, followed by a body that is a
 //!   **literal Rust path**. Examples:
 //!     - `:wat::core::load!`
-//!     - `:wat::algebra::Atom`
+//!     - `:wat::holon::Atom`
 //!     - `:crossbeam_channel::Sender<T>`
 //!     - `:Vec<T>`, `:HashMap<K,V>`, `:Option<T>`
 //!     - `:fn(T,U)->R`
@@ -539,16 +539,16 @@ mod tests {
     #[test]
     fn keyword_path() {
         assert_eq!(
-            lex_tokens(":wat::algebra::Atom").unwrap(),
-            vec![Token::Keyword(":wat::algebra::Atom".into())]
+            lex_tokens(":wat::holon::Atom").unwrap(),
+            vec![Token::Keyword(":wat::holon::Atom".into())]
         );
     }
 
     #[test]
     fn keyword_parametric_type() {
         assert_eq!(
-            lex_tokens(":Vec<holon::HolonAST>").unwrap(),
-            vec![Token::Keyword(":Vec<holon::HolonAST>".into())]
+            lex_tokens(":Vec<wat::holon::HolonAST>").unwrap(),
+            vec![Token::Keyword(":Vec<wat::holon::HolonAST>".into())]
         );
         assert_eq!(
             lex_tokens(":HashMap<K,V>").unwrap(),
@@ -585,8 +585,8 @@ mod tests {
             vec![Token::Keyword(":wat::core::load!".into())]
         );
         assert_eq!(
-            lex_tokens(":wat::algebra::Atom").unwrap(),
-            vec![Token::Keyword(":wat::algebra::Atom".into())]
+            lex_tokens(":wat::holon::Atom").unwrap(),
+            vec![Token::Keyword(":wat::holon::Atom".into())]
         );
         assert_eq!(
             lex_tokens(":my::vocab::foo").unwrap(),
@@ -625,8 +625,8 @@ mod tests {
             vec![Token::Keyword(":(i64,String)".into())]
         );
         assert_eq!(
-            lex_tokens(":(Holon,holon::HolonAST,Holon)").unwrap(),
-            vec![Token::Keyword(":(Holon,holon::HolonAST,Holon)".into())]
+            lex_tokens(":(Holon,wat::holon::HolonAST,Holon)").unwrap(),
+            vec![Token::Keyword(":(Holon,wat::holon::HolonAST,Holon)".into())]
         );
     }
 
@@ -647,8 +647,8 @@ mod tests {
             vec![Token::Keyword(":Vec<T>".into())]
         );
         assert_eq!(
-            lex_tokens(":Vec<holon::HolonAST>").unwrap(),
-            vec![Token::Keyword(":Vec<holon::HolonAST>".into())]
+            lex_tokens(":Vec<wat::holon::HolonAST>").unwrap(),
+            vec![Token::Keyword(":Vec<wat::holon::HolonAST>".into())]
         );
     }
 
@@ -699,18 +699,18 @@ mod tests {
     #[test]
     fn algebra_core_call_tokens() {
         // The MVP target: tokenize the hello-world algebra-core call.
-        let toks = lex_tokens(r#"(:wat::algebra::Bind (:wat::algebra::Atom "role") (:wat::algebra::Atom "filler"))"#).unwrap();
+        let toks = lex_tokens(r#"(:wat::holon::Bind (:wat::holon::Atom "role") (:wat::holon::Atom "filler"))"#).unwrap();
         assert_eq!(
             toks,
             vec![
                 Token::LParen,
-                Token::Keyword(":wat::algebra::Bind".into()),
+                Token::Keyword(":wat::holon::Bind".into()),
                 Token::LParen,
-                Token::Keyword(":wat::algebra::Atom".into()),
+                Token::Keyword(":wat::holon::Atom".into()),
                 Token::Str("role".into()),
                 Token::RParen,
                 Token::LParen,
-                Token::Keyword(":wat::algebra::Atom".into()),
+                Token::Keyword(":wat::holon::Atom".into()),
                 Token::Str("filler".into()),
                 Token::RParen,
                 Token::RParen,
@@ -720,12 +720,12 @@ mod tests {
 
     #[test]
     fn thermometer_numeric_args() {
-        let toks = lex_tokens("(:wat::algebra::Thermometer 0.5 0.0 1.0)").unwrap();
+        let toks = lex_tokens("(:wat::holon::Thermometer 0.5 0.0 1.0)").unwrap();
         assert_eq!(
             toks,
             vec![
                 Token::LParen,
-                Token::Keyword(":wat::algebra::Thermometer".into()),
+                Token::Keyword(":wat::holon::Thermometer".into()),
                 Token::Float(0.5),
                 Token::Float(0.0),
                 Token::Float(1.0),
@@ -736,12 +736,12 @@ mod tests {
 
     #[test]
     fn blend_with_negative_weight() {
-        let toks = lex_tokens("(:wat::algebra::Blend a b 1 -1)").unwrap();
+        let toks = lex_tokens("(:wat::holon::Blend a b 1 -1)").unwrap();
         assert_eq!(
             toks,
             vec![
                 Token::LParen,
-                Token::Keyword(":wat::algebra::Blend".into()),
+                Token::Keyword(":wat::holon::Blend".into()),
                 Token::Symbol("a".into()),
                 Token::Symbol("b".into()),
                 Token::Int(1),

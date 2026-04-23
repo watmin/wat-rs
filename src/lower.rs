@@ -9,16 +9,16 @@
 //!
 //! # What's handled
 //!
-//! - `(:wat::algebra::Atom <literal>)` — lowers to `HolonAST::atom(...)`
+//! - `(:wat::holon::Atom <literal>)` — lowers to `HolonAST::atom(...)`
 //!   for the Rust primitive the literal represents, or
 //!   `HolonAST::keyword(...)` for a keyword literal.
-//! - `(:wat::algebra::Bind a b)` — both args recursively lowered.
-//! - `(:wat::algebra::Bundle (:wat::core::vec ...))` — list form required;
+//! - `(:wat::holon::Bind a b)` — both args recursively lowered.
+//! - `(:wat::holon::Bundle (:wat::core::vec ...))` — list form required;
 //!   children recursively lowered.
-//! - `(:wat::algebra::Permute child k)` — `k` must be an integer literal
+//! - `(:wat::holon::Permute child k)` — `k` must be an integer literal
 //!   (fits in `i32`).
-//! - `(:wat::algebra::Thermometer value min max)` — three float literals.
-//! - `(:wat::algebra::Blend a b w1 w2)` — two holons and two float/int
+//! - `(:wat::holon::Thermometer value min max)` — three float literals.
+//! - `(:wat::holon::Blend a b w1 w2)` — two holons and two float/int
 //!   literal weights.
 //!
 //! # What's NOT handled (yet)
@@ -73,43 +73,43 @@ impl fmt::Display for LowerError {
         match self {
             LowerError::AtomArity(n) => write!(
                 f,
-                "(:wat::algebra::Atom ...) expects exactly one literal argument; got {}",
+                "(:wat::holon::Atom ...) expects exactly one literal argument; got {}",
                 n
             ),
             LowerError::AtomNonLiteral => write!(
                 f,
-                "(:wat::algebra::Atom ...) argument must be a literal (int/float/bool/string/keyword)"
+                "(:wat::holon::Atom ...) argument must be a literal (int/float/bool/string/keyword)"
             ),
             LowerError::BindArity(n) => write!(
                 f,
-                "(:wat::algebra::Bind ...) expects exactly two arguments; got {}",
+                "(:wat::holon::Bind ...) expects exactly two arguments; got {}",
                 n
             ),
             LowerError::BundleShape => write!(
                 f,
-                "(:wat::algebra::Bundle ...) expects (:wat::core::vec ...) as its single argument"
+                "(:wat::holon::Bundle ...) expects (:wat::core::vec ...) as its single argument"
             ),
             LowerError::PermuteArity(n) => write!(
                 f,
-                "(:wat::algebra::Permute ...) expects two arguments (child, integer step); got {}",
+                "(:wat::holon::Permute ...) expects two arguments (child, integer step); got {}",
                 n
             ),
             LowerError::PermuteStepNotInt => write!(
                 f,
-                "(:wat::algebra::Permute ...) step must be an integer literal"
+                "(:wat::holon::Permute ...) step must be an integer literal"
             ),
             LowerError::PermuteStepOverflow(n) => write!(
                 f,
-                "(:wat::algebra::Permute ...) integer step {} does not fit in i32",
+                "(:wat::holon::Permute ...) integer step {} does not fit in i32",
                 n
             ),
             LowerError::ThermometerShape => write!(
                 f,
-                "(:wat::algebra::Thermometer ...) expects three numeric literal arguments: value, min, max"
+                "(:wat::holon::Thermometer ...) expects three numeric literal arguments: value, min, max"
             ),
             LowerError::BlendShape => write!(
                 f,
-                "(:wat::algebra::Blend ...) expects two holons and two numeric weights (a b w1 w2)"
+                "(:wat::holon::Blend ...) expects two holons and two numeric weights (a b w1 w2)"
             ),
             LowerError::UnsupportedUpperCall(head) => write!(
                 f,
@@ -139,7 +139,7 @@ pub fn lower(ast: &WatAST) -> Result<HolonAST, LowerError> {
         WatAST::List(items, _) => lower_call(items),
         WatAST::IntLit(_, _) | WatAST::FloatLit(_, _) | WatAST::BoolLit(_, _)
         | WatAST::StringLit(_, _) | WatAST::Keyword(_, _) => Err(LowerError::UnsupportedForm(
-            "bare literal outside of an (:wat::algebra::...) call".into(),
+            "bare literal outside of an (:wat::holon::...) call".into(),
         )),
         WatAST::Symbol(ident, _) => Err(LowerError::UnsupportedForm(format!(
             "bare symbol '{}' (requires name resolution)",
@@ -159,12 +159,12 @@ fn lower_call(items: &[WatAST]) -> Result<HolonAST, LowerError> {
     let args = &items[1..];
 
     match head_name {
-        ":wat::algebra::Atom" => lower_atom(args),
-        ":wat::algebra::Bind" => lower_bind(args),
-        ":wat::algebra::Bundle" => lower_bundle(args),
-        ":wat::algebra::Permute" => lower_permute(args),
-        ":wat::algebra::Thermometer" => lower_thermometer(args),
-        ":wat::algebra::Blend" => lower_blend(args),
+        ":wat::holon::Atom" => lower_atom(args),
+        ":wat::holon::Bind" => lower_bind(args),
+        ":wat::holon::Bundle" => lower_bundle(args),
+        ":wat::holon::Permute" => lower_permute(args),
+        ":wat::holon::Thermometer" => lower_thermometer(args),
+        ":wat::holon::Blend" => lower_blend(args),
         other => Err(LowerError::UnsupportedUpperCall(other.to_string())),
     }
 }
@@ -292,7 +292,7 @@ mod tests {
 
     #[test]
     fn lower_atom_string() {
-        let ast = parse_one(r#"(:wat::algebra::Atom "role")"#).unwrap();
+        let ast = parse_one(r#"(:wat::holon::Atom "role")"#).unwrap();
         let holon = lower(&ast).unwrap();
         // Verify payload type by downcast through atom_value.
         let recovered: Option<&String> = atom_value(&holon);
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn lower_atom_int() {
-        let ast = parse_one("(:wat::algebra::Atom 42)").unwrap();
+        let ast = parse_one("(:wat::holon::Atom 42)").unwrap();
         let holon = lower(&ast).unwrap();
         let recovered: Option<&i64> = atom_value(&holon);
         assert_eq!(recovered, Some(&42_i64));
@@ -309,7 +309,7 @@ mod tests {
 
     #[test]
     fn lower_atom_float() {
-        let ast = parse_one("(:wat::algebra::Atom 2.5)").unwrap();
+        let ast = parse_one("(:wat::holon::Atom 2.5)").unwrap();
         let holon = lower(&ast).unwrap();
         let recovered: Option<&f64> = atom_value(&holon);
         assert_eq!(recovered, Some(&2.5_f64));
@@ -317,7 +317,7 @@ mod tests {
 
     #[test]
     fn lower_atom_bool() {
-        let ast = parse_one("(:wat::algebra::Atom true)").unwrap();
+        let ast = parse_one("(:wat::holon::Atom true)").unwrap();
         let holon = lower(&ast).unwrap();
         let recovered: Option<&bool> = atom_value(&holon);
         assert_eq!(recovered, Some(&true));
@@ -325,7 +325,7 @@ mod tests {
 
     #[test]
     fn lower_atom_keyword() {
-        let ast = parse_one("(:wat::algebra::Atom :foo::bar)").unwrap();
+        let ast = parse_one("(:wat::holon::Atom :foo::bar)").unwrap();
         let holon = lower(&ast).unwrap();
         // Keyword payloads are stored as Strings with leading `:`.
         let recovered: Option<&String> = atom_value(&holon);
@@ -335,7 +335,7 @@ mod tests {
     #[test]
     fn lower_bind() {
         let ast = parse_one(
-            r#"(:wat::algebra::Bind (:wat::algebra::Atom "role") (:wat::algebra::Atom "filler"))"#,
+            r#"(:wat::holon::Bind (:wat::holon::Atom "role") (:wat::holon::Atom "filler"))"#,
         )
         .unwrap();
         let holon = lower(&ast).unwrap();
@@ -348,7 +348,7 @@ mod tests {
     #[test]
     fn lower_bundle() {
         let ast = parse_one(
-            r#"(:wat::algebra::Bundle (:wat::core::vec :holon::HolonAST (:wat::algebra::Atom "a") (:wat::algebra::Atom "b") (:wat::algebra::Atom "c")))"#,
+            r#"(:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST (:wat::holon::Atom "a") (:wat::holon::Atom "b") (:wat::holon::Atom "c")))"#,
         )
         .unwrap();
         let holon = lower(&ast).unwrap();
@@ -360,7 +360,7 @@ mod tests {
     #[test]
     fn lower_permute() {
         let ast = parse_one(
-            r#"(:wat::algebra::Permute (:wat::algebra::Atom "x") 3)"#,
+            r#"(:wat::holon::Permute (:wat::holon::Atom "x") 3)"#,
         )
         .unwrap();
         let holon = lower(&ast).unwrap();
@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     fn lower_thermometer() {
-        let ast = parse_one("(:wat::algebra::Thermometer 0.5 0.0 1.0)").unwrap();
+        let ast = parse_one("(:wat::holon::Thermometer 0.5 0.0 1.0)").unwrap();
         let holon = lower(&ast).unwrap();
         let (vm, se, reg) = env();
         let v = encode(&holon, &vm, &se, &reg);
@@ -381,7 +381,7 @@ mod tests {
     #[test]
     fn lower_blend_subtract() {
         let ast = parse_one(
-            r#"(:wat::algebra::Blend (:wat::algebra::Atom "x") (:wat::algebra::Atom "y") 1 -1)"#,
+            r#"(:wat::holon::Blend (:wat::holon::Atom "x") (:wat::holon::Atom "y") 1 -1)"#,
         )
         .unwrap();
         let holon = lower(&ast).unwrap();
@@ -394,7 +394,7 @@ mod tests {
 
     #[test]
     fn atom_wrong_arity() {
-        let ast = parse_one(r#"(:wat::algebra::Atom "a" "b")"#).unwrap();
+        let ast = parse_one(r#"(:wat::holon::Atom "a" "b")"#).unwrap();
         assert!(matches!(lower(&ast), Err(LowerError::AtomArity(2))));
     }
 
@@ -402,7 +402,7 @@ mod tests {
     fn atom_non_literal_rejected() {
         // An argument that's a list, not a literal.
         let ast = parse_one(
-            r#"(:wat::algebra::Atom (:wat::algebra::Atom "inner"))"#,
+            r#"(:wat::holon::Atom (:wat::holon::Atom "inner"))"#,
         )
         .unwrap();
         assert!(matches!(lower(&ast), Err(LowerError::AtomNonLiteral)));
@@ -411,7 +411,7 @@ mod tests {
     #[test]
     fn permute_step_must_be_int() {
         let ast = parse_one(
-            r#"(:wat::algebra::Permute (:wat::algebra::Atom "x") 1.5)"#,
+            r#"(:wat::holon::Permute (:wat::holon::Atom "x") 1.5)"#,
         )
         .unwrap();
         assert!(matches!(lower(&ast), Err(LowerError::PermuteStepNotInt)));
@@ -421,7 +421,7 @@ mod tests {
     fn bundle_must_take_list_form() {
         // Bundle directly with args, not (:wat::core::vec ...).
         let ast = parse_one(
-            r#"(:wat::algebra::Bundle (:wat::algebra::Atom "a") (:wat::algebra::Atom "b"))"#,
+            r#"(:wat::holon::Bundle (:wat::holon::Atom "a") (:wat::holon::Atom "b"))"#,
         )
         .unwrap();
         assert!(matches!(lower(&ast), Err(LowerError::BundleShape)));
@@ -429,7 +429,7 @@ mod tests {
 
     #[test]
     fn unsupported_upper_call() {
-        let ast = parse_one(r#"(:wat::algebra::MadeUp "a")"#).unwrap();
+        let ast = parse_one(r#"(:wat::holon::MadeUp "a")"#).unwrap();
         assert!(matches!(
             lower(&ast),
             Err(LowerError::UnsupportedUpperCall(_))

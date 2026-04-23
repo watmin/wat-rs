@@ -12,12 +12,12 @@
 
 (:wat::test::deftest :wat-tests::std::Circular::test-adjacent-hours-are-near 1024 :error
   (:wat::core::let*
-    (((h0  :holon::HolonAST) (:wat::std::Circular  0.0 24.0))
-     ((h23 :holon::HolonAST) (:wat::std::Circular 23.0 24.0)))
-    (:wat::test::assert-eq (:wat::algebra::presence? h0 h23) true)))
+    (((h0  :wat::holon::HolonAST) (:wat::std::Circular  0.0 24.0))
+     ((h23 :wat::holon::HolonAST) (:wat::std::Circular 23.0 24.0)))
+    (:wat::test::assert-eq (:wat::holon::presence? h0 h23) true)))
 
 (:wat::test::deftest :wat-tests::std::Circular::test-antipodal-hours-are-far 1024 :error
   (:wat::core::let*
-    (((h0  :holon::HolonAST) (:wat::std::Circular  0.0 24.0))
-     ((h12 :holon::HolonAST) (:wat::std::Circular 12.0 24.0)))
-    (:wat::test::assert-eq (:wat::algebra::presence? h0 h12) false)))
+    (((h0  :wat::holon::HolonAST) (:wat::std::Circular  0.0 24.0))
+     ((h12 :wat::holon::HolonAST) (:wat::std::Circular 12.0 24.0)))
+    (:wat::test::assert-eq (:wat::holon::presence? h0 h12) false)))

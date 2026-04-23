@@ -1020,7 +1020,7 @@ mod tests {
     #[test]
     fn no_loads_passes_forms_through() {
         let forms = resolve_mem(
-            r#"(:wat::algebra::Atom "hello") (:wat::algebra::Atom "world")"#,
+            r#"(:wat::holon::Atom "hello") (:wat::holon::Atom "world")"#,
             &[],
         )
         .unwrap();
@@ -1030,8 +1030,8 @@ mod tests {
     #[test]
     fn single_file_path_load_inlines() {
         let forms = resolve_mem(
-            r#"(:wat::core::load! :wat::load::file-path "lib.wat") (:wat::algebra::Atom "tail")"#,
-            &[("lib.wat", r#"(:wat::algebra::Atom "from-lib")"#)],
+            r#"(:wat::core::load! :wat::load::file-path "lib.wat") (:wat::holon::Atom "tail")"#,
+            &[("lib.wat", r#"(:wat::holon::Atom "from-lib")"#)],
         )
         .unwrap();
         assert_eq!(forms.len(), 2);
@@ -1040,7 +1040,7 @@ mod tests {
     #[test]
     fn inline_string_source() {
         let forms = resolve_mem(
-            r#"(:wat::core::load! :wat::load::string "(:wat::algebra::Atom \"inlined\")")"#,
+            r#"(:wat::core::load! :wat::load::string "(:wat::holon::Atom \"inlined\")")"#,
             &[],
         )
         .unwrap();
@@ -1048,7 +1048,7 @@ mod tests {
         match &forms[0] {
             WatAST::List(items, _) => match (&items[0], &items[1]) {
                 (WatAST::Keyword(k, _), WatAST::StringLit(s, _)) => {
-                    assert_eq!(k, ":wat::algebra::Atom");
+                    assert_eq!(k, ":wat::holon::Atom");
                     assert_eq!(s, "inlined");
                 }
                 _ => panic!("unexpected children"),
@@ -1064,9 +1064,9 @@ mod tests {
             &[
                 (
                     "a.wat",
-                    r#"(:wat::core::load! :wat::load::file-path "b.wat") (:wat::algebra::Atom "a")"#,
+                    r#"(:wat::core::load! :wat::load::file-path "b.wat") (:wat::holon::Atom "a")"#,
                 ),
-                ("b.wat", r#"(:wat::algebra::Atom "b")"#),
+                ("b.wat", r#"(:wat::holon::Atom "b")"#),
             ],
         )
         .unwrap();
@@ -1078,7 +1078,7 @@ mod tests {
     #[test]
     fn digest_load_inline_string_verified() {
         use sha2::Digest;
-        let source = r#"(:wat::algebra::Atom "ok")"#;
+        let source = r#"(:wat::holon::Atom "ok")"#;
         let mut hasher = sha2::Sha256::new();
         hasher.update(source.as_bytes());
         let hex = crate::hash::hex_encode(&hasher.finalize());
@@ -1096,7 +1096,7 @@ mod tests {
     #[test]
     fn digest_load_payload_in_file() {
         use sha2::Digest;
-        let source = r#"(:wat::algebra::Atom "ok")"#;
+        let source = r#"(:wat::holon::Atom "ok")"#;
         let mut hasher = sha2::Sha256::new();
         hasher.update(source.as_bytes());
         let hex = crate::hash::hex_encode(&hasher.finalize());
@@ -1123,7 +1123,7 @@ mod tests {
                  :wat::verify::string "{}")"#,
             wrong
         );
-        let err = resolve_mem(&entry, &[("lib.wat", r#"(:wat::algebra::Atom "ok")"#)])
+        let err = resolve_mem(&entry, &[("lib.wat", r#"(:wat::holon::Atom "ok")"#)])
             .unwrap_err();
         assert!(matches!(err, LoadError::VerificationFailed { .. }));
     }
@@ -1134,7 +1134,7 @@ mod tests {
                          :wat::load::file-path "lib.wat"
                          :wat::verify::digest-md5
                          :wat::verify::string "abc")"#;
-        let err = resolve_mem(entry, &[("lib.wat", r#"(:wat::algebra::Atom "ok")"#)]).unwrap_err();
+        let err = resolve_mem(entry, &[("lib.wat", r#"(:wat::holon::Atom "ok")"#)]).unwrap_err();
         match err {
             LoadError::VerificationFailed { err, .. } => {
                 assert!(matches!(
@@ -1169,7 +1169,7 @@ mod tests {
 
     #[test]
     fn signed_load_inline_strings_verified() {
-        let source = r#"(:wat::algebra::Atom "ok")"#;
+        let source = r#"(:wat::holon::Atom "ok")"#;
         let (sig, pk) = sign_source_ed25519(source, &fixed_signing_key());
         let entry = format!(
             r#"(:wat::core::signed-load!
@@ -1185,7 +1185,7 @@ mod tests {
 
     #[test]
     fn signed_load_sidecar_files_verified() {
-        let source = r#"(:wat::algebra::Atom "ok")"#;
+        let source = r#"(:wat::holon::Atom "ok")"#;
         let (sig, pk) = sign_source_ed25519(source, &fixed_signing_key());
         let entry = r#"(:wat::core::signed-load!
                          :wat::load::file-path "lib.wat"
@@ -1203,8 +1203,8 @@ mod tests {
 
     #[test]
     fn signed_load_tampered_source_rejected() {
-        let signed_source = r#"(:wat::algebra::Atom "original")"#;
-        let tampered_source = r#"(:wat::algebra::Atom "tampered")"#;
+        let signed_source = r#"(:wat::holon::Atom "original")"#;
+        let tampered_source = r#"(:wat::holon::Atom "tampered")"#;
         let (sig, pk) = sign_source_ed25519(signed_source, &fixed_signing_key());
         let entry = format!(
             r#"(:wat::core::signed-load!
@@ -1230,7 +1230,7 @@ mod tests {
                          :wat::verify::signed-rsa
                          :wat::verify::string "c2lnLXBsYWNlaG9sZGVy"
                          :wat::verify::string "cGstcGxhY2Vob2xkZXI=")"#;
-        let err = resolve_mem(entry, &[("lib.wat", r#"(:wat::algebra::Atom "x")"#)]).unwrap_err();
+        let err = resolve_mem(entry, &[("lib.wat", r#"(:wat::holon::Atom "x")"#)]).unwrap_err();
         match err {
             LoadError::VerificationFailed { err, .. } => {
                 assert!(matches!(
@@ -1363,7 +1363,7 @@ mod tests {
                     "a.wat",
                     r#"(:wat::core::load! :wat::load::file-path "b.wat") (:wat::core::load! :wat::load::file-path "c.wat")"#,
                 ),
-                ("b.wat", r#"(:wat::algebra::Atom "b")"#),
+                ("b.wat", r#"(:wat::holon::Atom "b")"#),
                 ("c.wat", r#"(:wat::core::load! :wat::load::file-path "b.wat")"#),
             ],
         )
@@ -1400,10 +1400,10 @@ mod tests {
             &[
                 (
                     "a.wat",
-                    r#"(:wat::core::load! :wat::load::file-path "a1.wat") (:wat::algebra::Atom "A")"#,
+                    r#"(:wat::core::load! :wat::load::file-path "a1.wat") (:wat::holon::Atom "A")"#,
                 ),
-                ("a1.wat", r#"(:wat::algebra::Atom "A1")"#),
-                ("b.wat", r#"(:wat::algebra::Atom "B")"#),
+                ("a1.wat", r#"(:wat::holon::Atom "A1")"#),
+                ("b.wat", r#"(:wat::holon::Atom "B")"#),
             ],
         )
         .unwrap();
@@ -1426,8 +1426,8 @@ mod tests {
     fn inline_string_duplicate_halts() {
         // Two identical inline-string loads hash to the same synthetic
         // canonical path, so commit-once fires.
-        let entry = r#"(:wat::core::load! :wat::load::string "(:wat::algebra::Atom \"x\")")
-                       (:wat::core::load! :wat::load::string "(:wat::algebra::Atom \"x\")")"#;
+        let entry = r#"(:wat::core::load! :wat::load::string "(:wat::holon::Atom \"x\")")
+                       (:wat::core::load! :wat::load::string "(:wat::holon::Atom \"x\")")"#;
         let err = resolve_mem(entry, &[]).unwrap_err();
         assert!(matches!(err, LoadError::DuplicateLoad { .. }));
     }

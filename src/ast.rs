@@ -1,6 +1,6 @@
 //! `WatAST` — the language-surface AST the parser produces.
 //!
-//! Distinct from `holon::HolonAST`. `WatAST` represents everything the
+//! Distinct from `wat::holon::HolonAST`. `WatAST` represents everything the
 //! s-expression grammar admits at parse time: literals, keyword-path
 //! tokens, bare symbols, parenthesized forms. Classification into higher
 //! forms (`Define`, `Lambda`, `Struct`, `UpperCall`, macro invocations,
@@ -45,8 +45,8 @@ pub enum WatAST {
     /// applied.
     StringLit(String, Span),
 
-    /// Keyword token, as in `:foo`, `:wat::algebra::Atom`,
-    /// `:Vec<holon::HolonAST>`, `:fn(T,U)->R`. The leading `:` is part of the
+    /// Keyword token, as in `:foo`, `:wat::holon::Atom`,
+    /// `:Vec<wat::holon::HolonAST>`, `:fn(T,U)->R`. The leading `:` is part of the
     /// stored string. Used both as keyword literals (payloads for wat
     /// keyword atoms) and as keyword-path references (heads of calls,
     /// type annotations). Distinguished by context at later passes.

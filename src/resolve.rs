@@ -7,7 +7,7 @@
 //!   the builtin arithmetic / comparison / boolean ops, the list
 //!   constructor, the quasiquote forms, the type-declaration heads,
 //!   `load!`).
-//! - A known `:wat::algebra::*` core form (`Atom`, `Bind`, `Bundle`,
+//! - A known `:wat::holon::*` core form (`Atom`, `Bind`, `Bundle`,
 //!   `Permute`, `Thermometer`, `Blend`, `cosine`, `dot`).
 //! - A `:wat::kernel::*` primitive (queue / spawn / select / HandlePool /
 //!   signals) — accepted here; the full kernel surface is live in runtime.
@@ -201,7 +201,7 @@ fn check_form(
 fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry) -> bool {
     // Kernel, algebra, std, config, and core prefixes are reserved for
     // the language; accept them as-is. A wrong name under those
-    // prefixes (e.g. :wat::algebra::Bogus) fails DOWNSTREAM at
+    // prefixes (e.g. :wat::holon::Bogus) fails DOWNSTREAM at
     // runtime or lowering, but the name-resolution pass is scoped
     // to catch "no such namespace" mistakes, not "wrong name inside
     // a known namespace" mistakes. The spec's name-resolution layer
@@ -238,7 +238,7 @@ fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry
 pub const RESERVED_PREFIXES: &[&str] = &[
     ":wat::core::",
     ":wat::kernel::",
-    ":wat::algebra::",
+    ":wat::holon::",
     ":wat::std::",
     ":wat::config::",
     ":wat::load::",
@@ -285,9 +285,9 @@ mod tests {
 
     #[test]
     fn algebra_core_calls_resolve() {
-        assert!(resolve(r#"(:wat::algebra::Atom "x")"#).is_ok());
-        assert!(resolve(r#"(:wat::algebra::Bind (:wat::algebra::Atom "r") (:wat::algebra::Atom "f"))"#).is_ok());
-        assert!(resolve(r#"(:wat::algebra::Bundle (:wat::core::vec :holon::HolonAST (:wat::algebra::Atom "a")))"#).is_ok());
+        assert!(resolve(r#"(:wat::holon::Atom "x")"#).is_ok());
+        assert!(resolve(r#"(:wat::holon::Bind (:wat::holon::Atom "r") (:wat::holon::Atom "f"))"#).is_ok());
+        assert!(resolve(r#"(:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST (:wat::holon::Atom "a")))"#).is_ok());
     }
 
     #[test]
@@ -382,7 +382,7 @@ mod tests {
     fn reserved_prefix_recognized() {
         assert!(is_reserved_prefix(":wat::core::define"));
         assert!(is_reserved_prefix(":wat::kernel::spawn"));
-        assert!(is_reserved_prefix(":wat::algebra::Atom"));
+        assert!(is_reserved_prefix(":wat::holon::Atom"));
         assert!(is_reserved_prefix(":wat::std::Subtract"));
         assert!(is_reserved_prefix(":wat::config::dims"));
         assert!(is_reserved_prefix(":wat::load::file-path"));

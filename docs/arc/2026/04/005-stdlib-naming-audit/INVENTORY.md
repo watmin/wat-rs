@@ -33,7 +33,7 @@ location is also cited; when dispatch is special-cased, the
 | `:wat::core::match` | `scrut -> :T (pat body) …` — typed pattern match | form | `runtime.rs::eval_match` (`eval_match_tail`); `check.rs::infer_match` |
 | `:wat::core::try` | `<result-expr>` — Ok-unwrap or Err-propagate | form (INSCRIPTION 058-033) | `runtime.rs::eval_try`; `check.rs::infer_try` |
 | `:wat::core::quote` | `<ast>` — returns the unevaluated AST as `:wat::WatAST` | form | `runtime.rs::eval_quote` |
-| `:wat::core::atom-value` | `(:holon::HolonAST) -> :T` — reads atom literal | primitive | `runtime.rs::eval_atom_value` |
+| `:wat::core::atom-value` | `(:wat::holon::HolonAST) -> :T` — reads atom literal | primitive | `runtime.rs::eval_atom_value` |
 | `:wat::core::use!` | `:rust::Type` — per-program opt-in declaration | form | `runtime.rs`: Unit; `check.rs::infer` |
 
 ### Type declarations (compile-time; refused at eval)
@@ -59,12 +59,12 @@ location is also cited; when dispatch is special-cased, the
 
 ### Eval-family (runtime dynamic evaluation)
 
-Return `:Result<holon::HolonAST, :wat::core::EvalError>` per the
+Return `:Result<wat::holon::HolonAST, :wat::core::EvalError>` per the
 2026-04-19 inscription.
 
 | Path | Signature | Source |
 |---|---|---|
-| `:wat::core::eval-ast!` | `:wat::WatAST -> :Result<holon::HolonAST, EvalError>` | `runtime.rs::eval_form_ast` |
+| `:wat::core::eval-ast!` | `:wat::WatAST -> :Result<wat::holon::HolonAST, EvalError>` | `runtime.rs::eval_form_ast` |
 | `:wat::core::eval-edn!` | EDN source → parse → eval | `runtime.rs::eval_form_edn` |
 | `:wat::core::eval-digest!` | digest-verified EDN eval | `runtime.rs::eval_form_digest` |
 | `:wat::core::eval-signed!` | signature-verified EDN eval | `runtime.rs::eval_form_signed` |
@@ -129,7 +129,7 @@ Return `:Result<holon::HolonAST, :wat::core::EvalError>` per the
 
 | Path | Shape | Source |
 |---|---|---|
-| `:wat::algebra::CapacityExceeded` | struct `{ cost :i64, budget :i64 }` | `types.rs::register_builtin_types` |
+| `:wat::holon::CapacityExceeded` | struct `{ cost :i64, budget :i64 }` | `types.rs::register_builtin_types` |
 | `:wat::core::EvalError` | struct `{ kind :String, message :String }` | same |
 
 **Note.** `:Option<T>` and `:Result<T,E>` are built-in enums but
@@ -162,28 +162,28 @@ dispatch are in `runtime.rs` (see `eval_some_ctor`, `eval_ok_ctor`,
 
 **Note.** `:wat::config::capacity-mode` accessor is spec'd in
 FOUNDATION but not currently exposed as a runtime primitive;
-the mode is read internally by `:wat::algebra::Bundle`. Flagged
+the mode is read internally by `:wat::holon::Bundle`. Flagged
 in Pass 2 as a referenced-but-not-shipped candidate if user
 code needs to observe the mode.
 
 ---
 
-## `:wat::algebra::*` — algebra core (6 + 2 measurements)
+## `:wat::holon::*` — algebra core (6 + 2 measurements)
 
 Six vector-producing primitives; two scalar-returning
 measurements.
 
 | Path | Signature | Source |
 |---|---|---|
-| `:wat::algebra::Atom` | `∀T. T -> :holon::HolonAST` (typed atoms, 058-001) | `runtime.rs::eval_algebra_atom` |
-| `:wat::algebra::Bind` | `:holon::HolonAST × :holon::HolonAST -> :holon::HolonAST` | `runtime.rs::eval_algebra_bind` |
-| `:wat::algebra::Bundle` | `:Vec<holon::HolonAST> -> :Result<holon::HolonAST, wat::algebra::CapacityExceeded>` (058-003 INSCRIPTION) | `runtime.rs::eval_algebra_bundle` |
-| `:wat::algebra::Permute` | `:holon::HolonAST × :i64 -> :holon::HolonAST` | `runtime.rs::eval_algebra_permute` |
-| `:wat::algebra::Thermometer` | `:f64 × :f64 × :f64 -> :holon::HolonAST` (value min max) | `runtime.rs::eval_algebra_thermometer` |
-| `:wat::algebra::Blend` | `:holon::HolonAST × :holon::HolonAST × :f64 × :f64 -> :holon::HolonAST` | `runtime.rs::eval_algebra_blend` |
-| `:wat::algebra::cosine` | `:holon::HolonAST × :holon::HolonAST -> :f64` | `runtime.rs::eval_algebra_cosine` |
-| `:wat::algebra::dot` | `:holon::HolonAST × :holon::HolonAST -> :f64` | `runtime.rs::eval_algebra_dot` |
-| `:wat::algebra::presence?` | `:holon::HolonAST × :holon::HolonAST -> :f64` (cosine vs reference) | `runtime.rs::eval_algebra_presence` |
+| `:wat::holon::Atom` | `∀T. T -> :wat::holon::HolonAST` (typed atoms, 058-001) | `runtime.rs::eval_algebra_atom` |
+| `:wat::holon::Bind` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :wat::holon::HolonAST` | `runtime.rs::eval_algebra_bind` |
+| `:wat::holon::Bundle` | `:Vec<wat::holon::HolonAST> -> :Result<wat::holon::HolonAST, wat::holon::CapacityExceeded>` (058-003 INSCRIPTION) | `runtime.rs::eval_algebra_bundle` |
+| `:wat::holon::Permute` | `:wat::holon::HolonAST × :i64 -> :wat::holon::HolonAST` | `runtime.rs::eval_algebra_permute` |
+| `:wat::holon::Thermometer` | `:f64 × :f64 × :f64 -> :wat::holon::HolonAST` (value min max) | `runtime.rs::eval_algebra_thermometer` |
+| `:wat::holon::Blend` | `:wat::holon::HolonAST × :wat::holon::HolonAST × :f64 × :f64 -> :wat::holon::HolonAST` | `runtime.rs::eval_algebra_blend` |
+| `:wat::holon::cosine` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :f64` | `runtime.rs::eval_algebra_cosine` |
+| `:wat::holon::dot` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :f64` | `runtime.rs::eval_algebra_dot` |
+| `:wat::holon::presence?` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :f64` (cosine vs reference) | `runtime.rs::eval_algebra_presence` |
 
 ---
 
@@ -402,7 +402,7 @@ From `src/resolve.rs::RESERVED_PREFIXES`:
 
 - `:wat::core::`
 - `:wat::kernel::`
-- `:wat::algebra::`
+- `:wat::holon::`
 - `:wat::std::`
 - `:wat::config::`
 - `:wat::load::`
@@ -459,7 +459,7 @@ the DESIGN but deferred:
 | Path | Why rejected | Record |
 |---|---|---|
 | `:wat::std::stream::pipeline` | `let*` already IS the pipeline. The "boilerplate" the composer would eliminate was per-stage type annotations — information, not ceremony. Captured as `feedback_verbose_is_honest` | arc 004 INSCRIPTION, `BACKLOG.md` pipeline-rejection section |
-| `:wat::core::presence` | Lives at `:wat::algebra::presence?` — an algebra measurement, not a core form. Old USER-GUIDE and README referenced the wrong namespace; fixed during this audit | arc 005 Pass 3 commit `f955cf2` |
+| `:wat::core::presence` | Lives at `:wat::holon::presence?` — an algebra measurement, not a core form. Old USER-GUIDE and README referenced the wrong namespace; fixed during this audit | arc 005 Pass 3 commit `f955cf2` |
 
 ---
 

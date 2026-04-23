@@ -1,7 +1,7 @@
-//! End-to-end tests for `:wat::algebra::Bundle`'s capacity guard.
+//! End-to-end tests for `:wat::holon::Bundle`'s capacity guard.
 //!
 //! Bundle's return type is always
-//! `:Result<holon::HolonAST, :wat::algebra::CapacityExceeded>`. The
+//! `:Result<wat::holon::HolonAST, :wat::holon::CapacityExceeded>`. The
 //! `:wat::config::capacity-mode` setter picks what the runtime does
 //! when a Bundle's constituent count exceeds `floor(sqrt(dims))`:
 //!
@@ -25,13 +25,13 @@ fn run(src: &str) -> Value {
     invoke_user_main(&world, Vec::new()).expect("main should run")
 }
 
-/// Emit `n` distinct `(:wat::algebra::Atom "i")` calls inside a
-/// `(:wat::core::list :holon::HolonAST ...)` literal — used to pack
+/// Emit `n` distinct `(:wat::holon::Atom "i")` calls inside a
+/// `(:wat::core::list :wat::holon::HolonAST ...)` literal — used to pack
 /// Bundle with exactly `n` constituents.
 fn atoms_list(n: usize) -> String {
-    let mut s = String::from("(:wat::core::list :holon::HolonAST");
+    let mut s = String::from("(:wat::core::list :wat::holon::HolonAST");
     for i in 0..n {
-        s.push_str(&format!(" (:wat::algebra::Atom \"atom-{}\")", i));
+        s.push_str(&format!(" (:wat::holon::Atom \"atom-{}\")", i));
     }
     s.push(')');
     s
@@ -47,15 +47,15 @@ fn bundle_under_budget_returns_ok_under_error_mode() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
 
-        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
-          (:wat::algebra::Bundle {}))
+        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+          (:wat::holon::Bundle {}))
         "#,
         atoms_list(5)
     );
     match run(&src) {
         Value::Result(r) => match &*r {
             Ok(Value::holon__HolonAST(_)) => {}
-            other => panic!("expected Ok(holon::HolonAST); got {:?}", other),
+            other => panic!("expected Ok(wat::holon::HolonAST); got {:?}", other),
         },
         other => panic!("expected Value::Result; got {:?}", other),
     }
@@ -68,15 +68,15 @@ fn bundle_under_budget_returns_ok_under_silent_mode() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :silent)
 
-        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
-          (:wat::algebra::Bundle {}))
+        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+          (:wat::holon::Bundle {}))
         "#,
         atoms_list(5)
     );
     match run(&src) {
         Value::Result(r) => match &*r {
             Ok(Value::holon__HolonAST(_)) => {}
-            other => panic!("expected Ok(holon::HolonAST); got {:?}", other),
+            other => panic!("expected Ok(wat::holon::HolonAST); got {:?}", other),
         },
         other => panic!("expected Value::Result; got {:?}", other),
     }
@@ -92,15 +92,15 @@ fn bundle_over_budget_under_error_mode_returns_err_struct() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
 
-        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
-          (:wat::algebra::Bundle {}))
+        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+          (:wat::holon::Bundle {}))
         "#,
         atoms_list(33)
     );
     match run(&src) {
         Value::Result(r) => match &*r {
             Err(Value::Struct(sv)) => {
-                assert_eq!(sv.type_name, ":wat::algebra::CapacityExceeded");
+                assert_eq!(sv.type_name, ":wat::holon::CapacityExceeded");
                 assert_eq!(sv.fields.len(), 2, "CapacityExceeded has cost + budget");
                 // cost first field, budget second — per struct declaration order.
                 match (&sv.fields[0], &sv.fields[1]) {
@@ -128,12 +128,12 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
         (:wat::config::set-capacity-mode! :error)
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:wat::algebra::Bundle {}) -> :i64
+          (:wat::core::match (:wat::holon::Bundle {}) -> :i64
             ((Ok _) 0)
             ((Err e)
               (:wat::core::i64::-
-                (:wat::algebra::CapacityExceeded/cost e)
-                (:wat::algebra::CapacityExceeded/budget e)))))
+                (:wat::holon::CapacityExceeded/cost e)
+                (:wat::holon::CapacityExceeded/budget e)))))
         "#,
         atoms_list(40)
     );
@@ -154,15 +154,15 @@ fn bundle_over_budget_under_silent_mode_still_returns_ok() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :silent)
 
-        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
-          (:wat::algebra::Bundle {}))
+        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+          (:wat::holon::Bundle {}))
         "#,
         atoms_list(200)
     );
     match run(&src) {
         Value::Result(r) => match &*r {
             Ok(Value::holon__HolonAST(_)) => {}
-            other => panic!("expected Ok(holon::HolonAST) even over budget under :silent; got {:?}", other),
+            other => panic!("expected Ok(wat::holon::HolonAST) even over budget under :silent; got {:?}", other),
         },
         other => panic!("expected Value::Result; got {:?}", other),
     }
@@ -181,15 +181,15 @@ fn bundle_over_budget_under_warn_mode_still_returns_ok() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :warn)
 
-        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
-          (:wat::algebra::Bundle {}))
+        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+          (:wat::holon::Bundle {}))
         "#,
         atoms_list(100)
     );
     match run(&src) {
         Value::Result(r) => match &*r {
             Ok(Value::holon__HolonAST(_)) => {}
-            other => panic!("expected Ok(holon::HolonAST) under :warn; got {:?}", other),
+            other => panic!("expected Ok(wat::holon::HolonAST) under :warn; got {:?}", other),
         },
         other => panic!("expected Value::Result; got {:?}", other),
     }
@@ -207,8 +207,8 @@ fn bundle_over_budget_under_abort_mode_panics() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :abort)
 
-        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
-          (:wat::algebra::Bundle {}))
+        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+          (:wat::holon::Bundle {}))
         "#,
         atoms_list(50)
     );
@@ -229,14 +229,14 @@ fn try_propagates_bundle_err_across_function_boundary() {
         (:wat::config::set-capacity-mode! :error)
 
         (:wat::core::define (:app::build-composite
-                            (items :Vec<holon::HolonAST>)
-                            -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
-          (Ok (:wat::core::try (:wat::algebra::Bundle items))))
+                            (items :Vec<wat::holon::HolonAST>)
+                            -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+          (Ok (:wat::core::try (:wat::holon::Bundle items))))
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::match (:app::build-composite {}) -> :i64
             ((Ok _) 0)
-            ((Err e) (:wat::algebra::CapacityExceeded/cost e))))
+            ((Err e) (:wat::holon::CapacityExceeded/cost e))))
         "#,
         atoms_list(50)
     );
@@ -250,19 +250,19 @@ fn try_propagates_bundle_err_across_function_boundary() {
 
 #[test]
 fn bundle_return_type_mismatch_rejected_at_check() {
-    // main's return type is :holon::HolonAST but Bundle returns
-    // :Result<holon::HolonAST, CapacityExceeded>. Must fail at check.
+    // main's return type is :wat::holon::HolonAST but Bundle returns
+    // :Result<wat::holon::HolonAST, CapacityExceeded>. Must fail at check.
     let src = r#"
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
 
-        (:wat::core::define (:user::main -> :holon::HolonAST)
-          (:wat::algebra::Bundle (:wat::core::list :holon::HolonAST
-            (:wat::algebra::Atom "a")
-            (:wat::algebra::Atom "b"))))
+        (:wat::core::define (:user::main -> :wat::holon::HolonAST)
+          (:wat::holon::Bundle (:wat::core::list :wat::holon::HolonAST
+            (:wat::holon::Atom "a")
+            (:wat::holon::Atom "b"))))
     "#;
     match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
         Err(_) => {}
-        Ok(_) => panic!("expected check failure — Bundle is Result-typed, caller declared :holon::HolonAST"),
+        Ok(_) => panic!("expected check failure — Bundle is Result-typed, caller declared :wat::holon::HolonAST"),
     }
 }

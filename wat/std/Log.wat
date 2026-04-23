@@ -11,8 +11,8 @@
     (value :AST<f64>)
     (min :AST<f64>)
     (max :AST<f64>)
-    -> :AST<holon::HolonAST>)
-  `(:wat::algebra::Thermometer
+    -> :AST<wat::holon::HolonAST>)
+  `(:wat::holon::Thermometer
      (:wat::std::math::ln ,value)
      (:wat::std::math::ln ,min)
      (:wat::std::math::ln ,max)))

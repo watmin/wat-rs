@@ -12,15 +12,15 @@
 
 (:wat::test::deftest :wat-tests::std::Subtract::test-self-presence-above-floor 1024 :error
   (:wat::core::let*
-    (((a :holon::HolonAST) (:wat::algebra::Atom "alice"))
-     ((b :holon::HolonAST) (:wat::algebra::Atom "bob"))
-     ((diff :holon::HolonAST) (:wat::std::Subtract a b)))
-    (:wat::test::assert-eq (:wat::algebra::presence? a diff) true)))
+    (((a :wat::holon::HolonAST) (:wat::holon::Atom "alice"))
+     ((b :wat::holon::HolonAST) (:wat::holon::Atom "bob"))
+     ((diff :wat::holon::HolonAST) (:wat::std::Subtract a b)))
+    (:wat::test::assert-eq (:wat::holon::presence? a diff) true)))
 
 (:wat::test::deftest :wat-tests::std::Subtract::test-unrelated-presence-below-floor 1024 :error
   (:wat::core::let*
-    (((a :holon::HolonAST) (:wat::algebra::Atom "alice"))
-     ((b :holon::HolonAST) (:wat::algebra::Atom "bob"))
-     ((c :holon::HolonAST) (:wat::algebra::Atom "charlie"))
-     ((diff :holon::HolonAST) (:wat::std::Subtract a b)))
-    (:wat::test::assert-eq (:wat::algebra::presence? c diff) false)))
+    (((a :wat::holon::HolonAST) (:wat::holon::Atom "alice"))
+     ((b :wat::holon::HolonAST) (:wat::holon::Atom "bob"))
+     ((c :wat::holon::HolonAST) (:wat::holon::Atom "charlie"))
+     ((diff :wat::holon::HolonAST) (:wat::std::Subtract a b)))
+    (:wat::test::assert-eq (:wat::holon::presence? c diff) false)))

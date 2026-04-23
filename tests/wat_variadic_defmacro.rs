@@ -45,8 +45,8 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
 
         (:wat::core::defmacro
           (:my::vec-of
-            & (items :AST<Vec<holon::HolonAST>>)
-            -> :AST<holon::HolonAST>)
+            & (items :AST<Vec<wat::holon::HolonAST>>)
+            -> :AST<wat::holon::HolonAST>)
           `(:wat::core::vec :i64 ,@items))
 
         (:wat::core::define (:user::main -> :i64)
@@ -65,8 +65,8 @@ fn variadic_macro_with_zero_rest_args_produces_empty_splice() {
 
         (:wat::core::defmacro
           (:my::empty-vec
-            & (items :AST<Vec<holon::HolonAST>>)
-            -> :AST<holon::HolonAST>)
+            & (items :AST<Vec<wat::holon::HolonAST>>)
+            -> :AST<wat::holon::HolonAST>)
           `(:wat::core::vec :i64 ,@items))
 
         (:wat::core::define (:user::main -> :Vec<i64>)
@@ -95,8 +95,8 @@ fn variadic_macro_mixes_fixed_params_and_rest() {
         (:wat::core::defmacro
           (:my::sum-of
             (init :AST<i64>)
-            & (items :AST<Vec<holon::HolonAST>>)
-            -> :AST<holon::HolonAST>)
+            & (items :AST<Vec<wat::holon::HolonAST>>)
+            -> :AST<wat::holon::HolonAST>)
           `(:wat::core::foldl
               (:wat::core::vec :i64 ,@items)
               ,init
@@ -123,8 +123,8 @@ fn variadic_macro_requires_at_least_fixed_arity() {
         (:wat::core::defmacro
           (:my::sum-of
             (init :AST<i64>)
-            & (items :AST<Vec<holon::HolonAST>>)
-            -> :AST<holon::HolonAST>)
+            & (items :AST<Vec<wat::holon::HolonAST>>)
+            -> :AST<wat::holon::HolonAST>)
           `(:wat::core::foldl
               (:wat::core::vec :i64 ,@items)
               ,init
@@ -153,8 +153,8 @@ fn double_rest_marker_refused_at_registration() {
           (:my::bogus
             &
             &
-            (items :AST<Vec<holon::HolonAST>>)
-            -> :AST<holon::HolonAST>)
+            (items :AST<Vec<wat::holon::HolonAST>>)
+            -> :AST<wat::holon::HolonAST>)
           `(:wat::core::vec :i64 ,@items))
 
         (:wat::core::define (:user::main -> :i64) 0)
@@ -176,7 +176,7 @@ fn rest_marker_without_binder_refused_at_registration() {
           (:my::bogus
             (x :AST<i64>)
             &
-            -> :AST<holon::HolonAST>)
+            -> :AST<wat::holon::HolonAST>)
           `(:wat::core::i64::+ ,x 0))
 
         (:wat::core::define (:user::main -> :i64) 0)

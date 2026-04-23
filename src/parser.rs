@@ -3,7 +3,7 @@
 //! Recursive descent over the s-expression grammar. Produces a uniform
 //! `WatAST` tree: literals are their respective variants, keywords and
 //! symbols are leaves, parenthesized forms are `List` nodes. Dispatch
-//! on head keyword (`:wat::core::define`, `:wat::algebra::...`, etc.)
+//! on head keyword (`:wat::core::define`, `:wat::holon::...`, etc.)
 //! happens at later passes, not here.
 //!
 //! Two entry points:
@@ -249,19 +249,19 @@ mod tests {
     #[test]
     fn algebra_core_atom() {
         assert_eq!(
-            parse_one(r#"(:wat::algebra::Atom "role")"#).unwrap(),
-            list(vec![kw(":wat::algebra::Atom"), str_lit("role")])
+            parse_one(r#"(:wat::holon::Atom "role")"#).unwrap(),
+            list(vec![kw(":wat::holon::Atom"), str_lit("role")])
         );
     }
 
     #[test]
     fn algebra_core_bind_with_atoms() {
         // The MVP target shape.
-        let src = r#"(:wat::algebra::Bind (:wat::algebra::Atom "role") (:wat::algebra::Atom "filler"))"#;
+        let src = r#"(:wat::holon::Bind (:wat::holon::Atom "role") (:wat::holon::Atom "filler"))"#;
         let expected = list(vec![
-            kw(":wat::algebra::Bind"),
-            list(vec![kw(":wat::algebra::Atom"), str_lit("role")]),
-            list(vec![kw(":wat::algebra::Atom"), str_lit("filler")]),
+            kw(":wat::holon::Bind"),
+            list(vec![kw(":wat::holon::Atom"), str_lit("role")]),
+            list(vec![kw(":wat::holon::Atom"), str_lit("filler")]),
         ]);
         assert_eq!(parse_one(src).unwrap(), expected);
     }
@@ -269,9 +269,9 @@ mod tests {
     #[test]
     fn algebra_core_thermometer() {
         assert_eq!(
-            parse_one("(:wat::algebra::Thermometer 0.5 0.0 1.0)").unwrap(),
+            parse_one("(:wat::holon::Thermometer 0.5 0.0 1.0)").unwrap(),
             list(vec![
-                kw(":wat::algebra::Thermometer"),
+                kw(":wat::holon::Thermometer"),
                 WatAST::FloatLit(0.5, Span::unknown()),
                 WatAST::FloatLit(0.0, Span::unknown()),
                 WatAST::FloatLit(1.0, Span::unknown()),
@@ -282,9 +282,9 @@ mod tests {
     #[test]
     fn algebra_core_blend_negative_weight() {
         assert_eq!(
-            parse_one("(:wat::algebra::Blend a b 1 -1)").unwrap(),
+            parse_one("(:wat::holon::Blend a b 1 -1)").unwrap(),
             list(vec![
-                kw(":wat::algebra::Blend"),
+                kw(":wat::holon::Blend"),
                 sym("a"),
                 sym("b"),
                 WatAST::IntLit(1, Span::unknown()),
@@ -297,7 +297,7 @@ mod tests {
     fn define_signature_shape() {
         // Just verifying the shape survives parsing as a uniform List.
         // Dispatch to a Define node happens in a later pass.
-        let src = "(:wat::core::define (:my::app::amplify (x :holon::HolonAST) (y :holon::HolonAST) (s :f64) -> :holon::HolonAST) (:wat::algebra::Blend x y 1 s))";
+        let src = "(:wat::core::define (:my::app::amplify (x :wat::holon::HolonAST) (y :wat::holon::HolonAST) (s :f64) -> :wat::holon::HolonAST) (:wat::holon::Blend x y 1 s))";
         let parsed = parse_one(src).unwrap();
         // First child must be the :wat::core::define keyword.
         if let WatAST::List(items, _) = &parsed {
@@ -456,17 +456,17 @@ mod tests {
 
     #[test]
     fn quasiquote_with_unquote_inside() {
-        // `(:wat::algebra::Bind ,x ,y) — classic macro template shape.
+        // `(:wat::holon::Bind ,x ,y) — classic macro template shape.
         let expected = list(vec![
             kw(":wat::core::quasiquote"),
             list(vec![
-                kw(":wat::algebra::Bind"),
+                kw(":wat::holon::Bind"),
                 list(vec![kw(":wat::core::unquote"), sym("x")]),
                 list(vec![kw(":wat::core::unquote"), sym("y")]),
             ]),
         ]);
         assert_eq!(
-            parse_one("`(:wat::algebra::Bind ,x ,y)").unwrap(),
+            parse_one("`(:wat::holon::Bind ,x ,y)").unwrap(),
             expected
         );
     }
@@ -476,12 +476,12 @@ mod tests {
         let expected = list(vec![
             kw(":wat::core::quasiquote"),
             list(vec![
-                kw(":wat::algebra::Bundle"),
+                kw(":wat::holon::Bundle"),
                 list(vec![kw(":wat::core::unquote-splicing"), sym("xs")]),
             ]),
         ]);
         assert_eq!(
-            parse_one("`(:wat::algebra::Bundle ,@xs)").unwrap(),
+            parse_one("`(:wat::holon::Bundle ,@xs)").unwrap(),
             expected
         );
     }

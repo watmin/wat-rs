@@ -18,17 +18,17 @@
 
 (:wat::core::defmacro
   (:wat::std::Sequential
-    (items :AST<List<holon::HolonAST>>)
-    -> :AST<holon::HolonAST>)
+    (items :AST<List<wat::holon::HolonAST>>)
+    -> :AST<wat::holon::HolonAST>)
   `(:wat::core::let*
-     (((positioned :Vec<holon::HolonAST>)
+     (((positioned :Vec<wat::holon::HolonAST>)
        (:wat::std::list::map-with-index ,items
-         (:wat::core::lambda ((item :holon::HolonAST) (i :i64) -> :holon::HolonAST)
-           (:wat::core::if (:wat::core::= i 0) -> :holon::HolonAST
+         (:wat::core::lambda ((item :wat::holon::HolonAST) (i :i64) -> :wat::holon::HolonAST)
+           (:wat::core::if (:wat::core::= i 0) -> :wat::holon::HolonAST
              item
-             (:wat::algebra::Permute item i))))))
+             (:wat::holon::Permute item i))))))
      (:wat::core::foldl
        (:wat::core::rest positioned)
        (:wat::core::first positioned)
-       (:wat::core::lambda ((acc :holon::HolonAST) (x :holon::HolonAST) -> :holon::HolonAST)
-         (:wat::algebra::Bind acc x)))))
+       (:wat::core::lambda ((acc :wat::holon::HolonAST) (x :wat::holon::HolonAST) -> :wat::holon::HolonAST)
+         (:wat::holon::Bind acc x)))))

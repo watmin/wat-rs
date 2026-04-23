@@ -12,34 +12,34 @@
 
 (:wat::test::deftest :wat-tests::std::Trigram::test-window-participant-above-floor 1024 :error
   (:wat::core::let*
-    (((a :holon::HolonAST) (:wat::algebra::Atom "a"))
-     ((b :holon::HolonAST) (:wat::algebra::Atom "b"))
-     ((c :holon::HolonAST) (:wat::algebra::Atom "c"))
-     ((d :holon::HolonAST) (:wat::algebra::Atom "d"))
-     ((window-1 :holon::HolonAST)
-      (:wat::std::Sequential (:wat::core::list :holon::HolonAST a b c)))
+    (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
+     ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
+     ((c :wat::holon::HolonAST) (:wat::holon::Atom "c"))
+     ((d :wat::holon::HolonAST) (:wat::holon::Atom "d"))
+     ((window-1 :wat::holon::HolonAST)
+      (:wat::std::Sequential (:wat::core::list :wat::holon::HolonAST a b c)))
      ;; Trigram returns :Result<HolonAST, CapacityExceeded>. 4 atoms at
      ;; d=1024 is well under the capacity budget; Err is unreachable
      ;; but the type system still demands we acknowledge it.
-     ((full :holon::HolonAST)
+     ((full :wat::holon::HolonAST)
       (:wat::core::match
-        (:wat::std::Trigram (:wat::core::list :holon::HolonAST a b c d))
-        -> :holon::HolonAST
+        (:wat::std::Trigram (:wat::core::list :wat::holon::HolonAST a b c d))
+        -> :wat::holon::HolonAST
         ((Ok h) h)
         ((Err _) a))))
-    (:wat::test::assert-eq (:wat::algebra::presence? window-1 full) true)))
+    (:wat::test::assert-eq (:wat::holon::presence? window-1 full) true)))
 
 (:wat::test::deftest :wat-tests::std::Trigram::test-outsider-below-floor 1024 :error
   (:wat::core::let*
-    (((a :holon::HolonAST) (:wat::algebra::Atom "a"))
-     ((b :holon::HolonAST) (:wat::algebra::Atom "b"))
-     ((c :holon::HolonAST) (:wat::algebra::Atom "c"))
-     ((d :holon::HolonAST) (:wat::algebra::Atom "d"))
-     ((z :holon::HolonAST) (:wat::algebra::Atom "unrelated-z"))
-     ((full :holon::HolonAST)
+    (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
+     ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
+     ((c :wat::holon::HolonAST) (:wat::holon::Atom "c"))
+     ((d :wat::holon::HolonAST) (:wat::holon::Atom "d"))
+     ((z :wat::holon::HolonAST) (:wat::holon::Atom "unrelated-z"))
+     ((full :wat::holon::HolonAST)
       (:wat::core::match
-        (:wat::std::Trigram (:wat::core::list :holon::HolonAST a b c d))
-        -> :holon::HolonAST
+        (:wat::std::Trigram (:wat::core::list :wat::holon::HolonAST a b c d))
+        -> :wat::holon::HolonAST
         ((Ok h) h)
         ((Err _) a))))
-    (:wat::test::assert-eq (:wat::algebra::presence? z full) false)))
+    (:wat::test::assert-eq (:wat::holon::presence? z full) false)))

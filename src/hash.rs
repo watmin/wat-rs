@@ -468,22 +468,22 @@ mod tests {
 
     #[test]
     fn same_ast_same_bytes() {
-        let a = parse(r#"(:wat::algebra::Atom "x")"#);
-        let b = parse(r#"(:wat::algebra::Atom "x")"#);
+        let a = parse(r#"(:wat::holon::Atom "x")"#);
+        let b = parse(r#"(:wat::holon::Atom "x")"#);
         assert_eq!(canonical_edn_wat(&a), canonical_edn_wat(&b));
     }
 
     #[test]
     fn different_ast_different_bytes() {
-        let a = parse(r#"(:wat::algebra::Atom "x")"#);
-        let b = parse(r#"(:wat::algebra::Atom "y")"#);
+        let a = parse(r#"(:wat::holon::Atom "x")"#);
+        let b = parse(r#"(:wat::holon::Atom "y")"#);
         assert_ne!(canonical_edn_wat(&a), canonical_edn_wat(&b));
     }
 
     #[test]
     fn variant_discrimination() {
-        let a = parse(r#"(:wat::algebra::Atom "42")"#);
-        let b = parse(r#"(:wat::algebra::Atom 42)"#);
+        let a = parse(r#"(:wat::holon::Atom "42")"#);
+        let b = parse(r#"(:wat::holon::Atom 42)"#);
         assert_ne!(canonical_edn_wat(&a), canonical_edn_wat(&b));
     }
 
@@ -513,15 +513,15 @@ mod tests {
 
     #[test]
     fn program_deterministic() {
-        let f1 = parse_all(r#"(:wat::algebra::Atom "x") (:wat::algebra::Atom "y")"#).unwrap();
-        let f2 = parse_all(r#"(:wat::algebra::Atom "x") (:wat::algebra::Atom "y")"#).unwrap();
+        let f1 = parse_all(r#"(:wat::holon::Atom "x") (:wat::holon::Atom "y")"#).unwrap();
+        let f2 = parse_all(r#"(:wat::holon::Atom "x") (:wat::holon::Atom "y")"#).unwrap();
         assert_eq!(canonical_edn_program(&f1), canonical_edn_program(&f2));
     }
 
     #[test]
     fn program_order_matters() {
-        let f1 = parse_all(r#"(:wat::algebra::Atom "x") (:wat::algebra::Atom "y")"#).unwrap();
-        let f2 = parse_all(r#"(:wat::algebra::Atom "y") (:wat::algebra::Atom "x")"#).unwrap();
+        let f1 = parse_all(r#"(:wat::holon::Atom "x") (:wat::holon::Atom "y")"#).unwrap();
+        let f2 = parse_all(r#"(:wat::holon::Atom "y") (:wat::holon::Atom "x")"#).unwrap();
         assert_ne!(canonical_edn_program(&f1), canonical_edn_program(&f2));
     }
 
@@ -529,23 +529,23 @@ mod tests {
 
     #[test]
     fn hash_is_32_bytes() {
-        let a = parse(r#"(:wat::algebra::Atom "x")"#);
+        let a = parse(r#"(:wat::holon::Atom "x")"#);
         assert_eq!(hash_canonical_ast(&a).len(), 32);
-        let forms = parse_all(r#"(:wat::algebra::Atom "x")"#).unwrap();
+        let forms = parse_all(r#"(:wat::holon::Atom "x")"#).unwrap();
         assert_eq!(hash_canonical_program(&forms).len(), 32);
     }
 
     #[test]
     fn same_ast_same_hash() {
-        let a = parse(r#"(:wat::algebra::Bind (:wat::algebra::Atom "r") (:wat::algebra::Atom "f"))"#);
-        let b = parse(r#"(:wat::algebra::Bind (:wat::algebra::Atom "r") (:wat::algebra::Atom "f"))"#);
+        let a = parse(r#"(:wat::holon::Bind (:wat::holon::Atom "r") (:wat::holon::Atom "f"))"#);
+        let b = parse(r#"(:wat::holon::Bind (:wat::holon::Atom "r") (:wat::holon::Atom "f"))"#);
         assert_eq!(hash_canonical_ast(&a), hash_canonical_ast(&b));
     }
 
     #[test]
     fn different_ast_different_hash() {
-        let a = parse(r#"(:wat::algebra::Bind (:wat::algebra::Atom "r") (:wat::algebra::Atom "f"))"#);
-        let b = parse(r#"(:wat::algebra::Bind (:wat::algebra::Atom "f") (:wat::algebra::Atom "r"))"#);
+        let a = parse(r#"(:wat::holon::Bind (:wat::holon::Atom "r") (:wat::holon::Atom "f"))"#);
+        let b = parse(r#"(:wat::holon::Bind (:wat::holon::Atom "f") (:wat::holon::Atom "r"))"#);
         assert_ne!(hash_canonical_ast(&a), hash_canonical_ast(&b));
     }
 
@@ -594,7 +594,7 @@ mod tests {
     #[test]
     fn ed25519_ast_round_trip() {
         let sk = test_signing_key();
-        let ast = parse(r#"(:wat::algebra::Atom "payload")"#);
+        let ast = parse(r#"(:wat::holon::Atom "payload")"#);
         let hash = hash_canonical_ast(&ast);
         let sig = sk.sign(&hash);
         let sig_b64 = b64(&sig.to_bytes());
@@ -605,12 +605,12 @@ mod tests {
     #[test]
     fn ed25519_ast_tampered_rejected() {
         let sk = test_signing_key();
-        let authored = parse(r#"(:wat::algebra::Atom "authored")"#);
+        let authored = parse(r#"(:wat::holon::Atom "authored")"#);
         let sig = sk.sign(&hash_canonical_ast(&authored));
         let sig_b64 = b64(&sig.to_bytes());
         let pk_b64 = b64(sk.verifying_key().as_bytes());
         // Verify against a DIFFERENT AST — signature must not match.
-        let tampered = parse(r#"(:wat::algebra::Atom "tampered")"#);
+        let tampered = parse(r#"(:wat::holon::Atom "tampered")"#);
         let err = verify_ast_signature(&tampered, "ed25519", &sig_b64, &pk_b64).unwrap_err();
         assert!(matches!(err, HashError::SignatureMismatch { .. }));
     }
@@ -619,7 +619,7 @@ mod tests {
     fn ed25519_ast_wrong_pubkey_rejected() {
         let signer = test_signing_key();
         let other = other_signing_key();
-        let ast = parse(r#"(:wat::algebra::Atom "x")"#);
+        let ast = parse(r#"(:wat::holon::Atom "x")"#);
         let sig = signer.sign(&hash_canonical_ast(&ast));
         let sig_b64 = b64(&sig.to_bytes());
         // Verify with the WRONG pub-key.
@@ -634,7 +634,7 @@ mod tests {
     fn ed25519_program_round_trip() {
         let sk = test_signing_key();
         let forms =
-            parse_all(r#"(:wat::algebra::Atom "a") (:wat::algebra::Atom "b")"#).unwrap();
+            parse_all(r#"(:wat::holon::Atom "a") (:wat::holon::Atom "b")"#).unwrap();
         let hash = hash_canonical_program(&forms);
         let sig = sk.sign(&hash);
         let sig_b64 = b64(&sig.to_bytes());
@@ -645,13 +645,13 @@ mod tests {
     #[test]
     fn ed25519_program_tampered_rejected() {
         let sk = test_signing_key();
-        let authored = parse_all(r#"(:wat::algebra::Atom "a")"#).unwrap();
+        let authored = parse_all(r#"(:wat::holon::Atom "a")"#).unwrap();
         let sig = sk.sign(&hash_canonical_program(&authored));
         let sig_b64 = b64(&sig.to_bytes());
         let pk_b64 = b64(sk.verifying_key().as_bytes());
         // A program with an extra form is NOT the signed program.
         let tampered =
-            parse_all(r#"(:wat::algebra::Atom "a") (:wat::algebra::Atom "injected")"#).unwrap();
+            parse_all(r#"(:wat::holon::Atom "a") (:wat::holon::Atom "injected")"#).unwrap();
         let err = verify_program_signature(&tampered, "ed25519", &sig_b64, &pk_b64).unwrap_err();
         assert!(matches!(err, HashError::SignatureMismatch { .. }));
     }
@@ -661,7 +661,7 @@ mod tests {
     #[test]
     fn ed25519_invalid_base64_sig() {
         let sk = test_signing_key();
-        let ast = parse(r#"(:wat::algebra::Atom "x")"#);
+        let ast = parse(r#"(:wat::holon::Atom "x")"#);
         let pk_b64 = b64(sk.verifying_key().as_bytes());
         let err = verify_ast_signature(&ast, "ed25519", "not valid base64!!!", &pk_b64)
             .unwrap_err();
@@ -671,7 +671,7 @@ mod tests {
     #[test]
     fn ed25519_invalid_base64_pubkey() {
         let sk = test_signing_key();
-        let ast = parse(r#"(:wat::algebra::Atom "x")"#);
+        let ast = parse(r#"(:wat::holon::Atom "x")"#);
         let sig = sk.sign(&hash_canonical_ast(&ast));
         let sig_b64 = b64(&sig.to_bytes());
         let err =
@@ -682,7 +682,7 @@ mod tests {
     #[test]
     fn ed25519_wrong_signature_length() {
         let sk = test_signing_key();
-        let ast = parse(r#"(:wat::algebra::Atom "x")"#);
+        let ast = parse(r#"(:wat::holon::Atom "x")"#);
         let pk_b64 = b64(sk.verifying_key().as_bytes());
         // 10-byte "signature" — valid base64, wrong length.
         let short_sig = b64(&[0u8; 10]);
@@ -696,7 +696,7 @@ mod tests {
     #[test]
     fn ed25519_wrong_pubkey_length() {
         let sk = test_signing_key();
-        let ast = parse(r#"(:wat::algebra::Atom "x")"#);
+        let ast = parse(r#"(:wat::holon::Atom "x")"#);
         let sig = sk.sign(&hash_canonical_ast(&ast));
         let sig_b64 = b64(&sig.to_bytes());
         let short_pk = b64(&[0u8; 8]);
@@ -709,7 +709,7 @@ mod tests {
 
     #[test]
     fn unsupported_signature_algorithm_rejected() {
-        let ast = parse(r#"(:wat::algebra::Atom "x")"#);
+        let ast = parse(r#"(:wat::holon::Atom "x")"#);
         let dummy_sig = b64(&[0u8; 64]);
         let dummy_pk = b64(&[0u8; 32]);
         let err = verify_ast_signature(&ast, "rsa", &dummy_sig, &dummy_pk).unwrap_err();

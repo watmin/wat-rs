@@ -528,7 +528,7 @@ mod tests {
             r#"
             (:wat::config::set-dims! 10000)
             (:wat::config::set-capacity-mode! :error)
-            (:wat::algebra::Atom "hello")
+            (:wat::holon::Atom "hello")
             "#,
         )
         .unwrap();
@@ -563,7 +563,7 @@ mod tests {
         let err = collect(
             r#"
             (:wat::config::set-dims! 10000)
-            (:wat::algebra::Atom "oops — body in the middle")
+            (:wat::holon::Atom "oops — body in the middle")
             (:wat::config::set-capacity-mode! :error)
             "#,
         )

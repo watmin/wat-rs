@@ -2,6 +2,6 @@
 
 (:wat::core::defmacro
   (:wat::std::Bigram
-    (xs :AST<List<holon::HolonAST>>)
-    -> :AST<Result<holon::HolonAST,wat::algebra::CapacityExceeded>>)
+    (xs :AST<List<wat::holon::HolonAST>>)
+    -> :AST<Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>>)
   `(:wat::std::Ngram 2 ,xs))

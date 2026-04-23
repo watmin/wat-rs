@@ -15,7 +15,7 @@
 //! # Modules
 //!
 //! - [`ast`] — `WatAST`, the language-surface AST the parser produces.
-//!   Distinct from `holon::HolonAST` — the WatAST carries `define`,
+//!   Distinct from `wat::holon::HolonAST` — the WatAST carries `define`,
 //!   `lambda`, `struct`, `enum`, `newtype`, `typealias`, `load!`, `set-*!`,
 //!   `let`, `if`, `match`, `defmacro`, and all the language-level forms.
 //!   Algebra-core calls appear as `UpperCall` nodes that are lowered to
@@ -39,7 +39,7 @@
 //!   banned per 058-030.
 //! - [`hash`] — canonical-EDN serialization + SHA-256 hashing +
 //!   Ed25519 signature verification.
-//! - [`lower`] — `WatAST` algebra-core subtree → `holon::HolonAST`.
+//! - [`lower`] — `WatAST` algebra-core subtree → `wat::holon::HolonAST`.
 //! - [`runtime`] — AST-walker for `define` / `lambda` / `let` / `if`
 //!   + algebra-core dispatch.
 //! - [`freeze`] — the 12-step startup pipeline that composes parse →
@@ -164,7 +164,7 @@ impl From<LowerError> for Error {
 /// let se = ScalarEncoder::with_seed(1_024, 42);
 /// let reg = AtomTypeRegistry::with_builtins();
 ///
-/// let src = r#"(:wat::algebra::Bind (:wat::algebra::Atom "role") (:wat::algebra::Atom "filler"))"#;
+/// let src = r#"(:wat::holon::Bind (:wat::holon::Atom "role") (:wat::holon::Atom "filler"))"#;
 /// let vector = eval_algebra_source(src, &vm, &se, &reg).unwrap();
 /// assert_eq!(vector.dimensions(), 1_024);
 /// ```

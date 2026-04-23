@@ -157,7 +157,7 @@ pub enum Value {
     /// registration. Static type is `:fn(A,B,...)->R`; the variant
     /// records HOW it was produced.
     wat__core__lambda(Arc<Function>),
-    /// A composed `holon::HolonAST` — the algebra AST tier carried
+    /// A composed `wat::holon::HolonAST` — the algebra AST tier carried
     /// at runtime.
     holon__HolonAST(Arc<HolonAST>),
     /// A parsed wat AST carried as a first-class runtime value. Used
@@ -256,7 +256,7 @@ pub enum Value {
     wat__kernel__ChildHandle(Arc<crate::fork::ChildHandleInner>),
     /// An instance of a user-declared `:wat::core::struct` type — a
     /// tagged positional tuple. `type_name` carries the struct's
-    /// keyword path (e.g., `:wat::algebra::CapacityExceeded`); `fields`
+    /// keyword path (e.g., `:wat::holon::CapacityExceeded`); `fields`
     /// holds the values in declaration order. Produced by the
     /// auto-generated `<struct>/new` constructor. Read via the
     /// auto-generated `<struct>/<field>` accessors — both of which are
@@ -273,7 +273,7 @@ pub enum Value {
 #[derive(Debug, Clone)]
 pub struct StructValue {
     /// Full keyword path of the struct type, e.g.
-    /// `:wat::algebra::CapacityExceeded`. Matches the declaration's
+    /// `:wat::holon::CapacityExceeded`. Matches the declaration's
     /// name verbatim; identity for type-tag comparisons.
     pub type_name: String,
     /// Field values in declaration order. Length matches the
@@ -294,7 +294,7 @@ impl Value {
             Value::Unit => "()",
             Value::wat__core__keyword(_) => "wat::core::keyword",
             Value::wat__core__lambda(_) => "wat::core::lambda",
-            Value::holon__HolonAST(_) => "holon::HolonAST",
+            Value::holon__HolonAST(_) => "wat::holon::HolonAST",
             Value::wat__WatAST(_) => "wat::WatAST",
             Value::crossbeam_channel__Sender(_) => "rust::crossbeam_channel::Sender",
             Value::crossbeam_channel__Receiver(_) => "rust::crossbeam_channel::Receiver",
@@ -423,7 +423,7 @@ impl EnvBuilder {
 ///
 /// Constructed once from [`Config`] at freeze and attached to the
 /// frozen [`SymbolTable`]. Used by vector-level primitives like
-/// `:wat::algebra::cosine` (FOUNDATION 1718), which measure cosine
+/// `:wat::holon::cosine` (FOUNDATION 1718), which measure cosine
 /// similarity between encoded holons against the substrate noise floor.
 ///
 /// Holds `Arc`s so it can be cloned cheaply by the runtime when a
@@ -443,7 +443,7 @@ impl EncodingCtx {
     /// is seeded with the built-in atom payload types (i64, f64, bool,
     /// String, keyword, HolonAST) plus [`WatAST`] for programs-as-atoms
     /// — a program captured via `:wat::core::quote` and wrapped in an
-    /// `:wat::algebra::Atom` needs a stable canonical form so it can
+    /// `:wat::holon::Atom` needs a stable canonical form so it can
     /// encode to a deterministic vector.
     pub fn from_config(cfg: &Config) -> Self {
         let mut registry = AtomTypeRegistry::with_builtins();
@@ -570,7 +570,7 @@ impl SymbolTable {
     }
 
     /// Borrow the encoding context, if one is attached. Runtime
-    /// primitives that require encoding (`:wat::algebra::cosine`) call
+    /// primitives that require encoding (`:wat::holon::cosine`) call
     /// this and raise [`RuntimeError::NoEncodingCtx`] on `None`.
     pub fn encoding_ctx(&self) -> Option<&Arc<EncodingCtx>> {
         self.encoding_ctx.as_ref()
@@ -646,7 +646,7 @@ pub enum RuntimeError {
     /// user-level channel primitives produces this variant. It
     /// remains only for the join-on-panic case.
     ChannelDisconnected { op: String },
-    /// A vector-level primitive (`:wat::algebra::cosine`,
+    /// A vector-level primitive (`:wat::holon::cosine`,
     /// `:wat::config::noise-floor`, etc.) was invoked but the
     /// [`SymbolTable`] has no attached [`EncodingCtx`]. Reachable from
     /// test harnesses that don't go through freeze; the frozen startup
@@ -886,8 +886,8 @@ pub fn register_stdlib_defines(
 /// The checker picks them up through [`crate::check::CheckEnv::from_symbols`]
 /// as ordinary [`Function`] entries — no new scheme-registration path.
 ///
-/// **Self-trust bypass.** Struct-method paths under `:wat::algebra::*`
-/// (the built-in `:wat::algebra::CapacityExceeded/…`) would otherwise
+/// **Self-trust bypass.** Struct-method paths under `:wat::holon::*`
+/// (the built-in `:wat::holon::CapacityExceeded/…`) would otherwise
 /// hit the reserved-prefix check. This function skips the check: the
 /// paths it emits are derived mechanically from struct declarations
 /// the user / builtins authored legitimately, so emitting them under
@@ -1783,19 +1783,19 @@ fn dispatch_keyword_head(
         ":wat::io::IOWriter/flush" => crate::io::eval_iowriter_flush(args, env, sym),
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
-        ":wat::algebra::Atom" => eval_algebra_atom(args, env, sym),
-        ":wat::algebra::Bind" => eval_algebra_bind(args, env, sym),
-        ":wat::algebra::Bundle" => eval_algebra_bundle(args, env, sym),
-        ":wat::algebra::Permute" => eval_algebra_permute(args, env, sym),
-        ":wat::algebra::Thermometer" => eval_algebra_thermometer(args, env, sym),
-        ":wat::algebra::Blend" => eval_algebra_blend(args, env, sym),
+        ":wat::holon::Atom" => eval_algebra_atom(args, env, sym),
+        ":wat::holon::Bind" => eval_algebra_bind(args, env, sym),
+        ":wat::holon::Bundle" => eval_algebra_bundle(args, env, sym),
+        ":wat::holon::Permute" => eval_algebra_permute(args, env, sym),
+        ":wat::holon::Thermometer" => eval_algebra_thermometer(args, env, sym),
+        ":wat::holon::Blend" => eval_algebra_blend(args, env, sym),
 
         // Presence — the retrieval primitive per FOUNDATION 1718.
         // Cosine between encoded target and encoded reference. Returns
         // scalar :f64; the caller binarizes at the noise floor.
-        ":wat::algebra::cosine" => eval_algebra_cosine(args, env, sym),
-        ":wat::algebra::presence?" => eval_algebra_presence_q(args, env, sym),
-        ":wat::algebra::dot" => eval_algebra_dot(args, env, sym),
+        ":wat::holon::cosine" => eval_algebra_cosine(args, env, sym),
+        ":wat::holon::presence?" => eval_algebra_presence_q(args, env, sym),
+        ":wat::holon::dot" => eval_algebra_dot(args, env, sym),
 
         // Constrained runtime eval — four forms, matching the load
         // pipeline's discipline on source interface and verification.
@@ -3769,7 +3769,7 @@ fn eval_hashmap_contains(
 /// This is the mechanism that places a wat program into the algebra as
 /// data. The inner form is NOT evaluated at quote time — no side effects
 /// fire, no functions are called. The AST is wrapped as a
-/// `Value::wat__WatAST` and can be passed to `:wat::algebra::Atom`,
+/// `Value::wat__WatAST` and can be passed to `:wat::holon::Atom`,
 /// `:wat::core::eval-ast!`, stored in environments, etc.
 ///
 /// Quote is how programs become holons without running.
@@ -4083,7 +4083,7 @@ fn eval_struct_new(
 /// `(:wat::core::struct-field <struct-value> <field-index>)` — the
 /// internal primitive every auto-generated `<struct>/<field>` accessor
 /// body invokes. Users do not call this directly; they call the
-/// per-struct accessor (e.g., `:wat::algebra::CapacityExceeded/cost`),
+/// per-struct accessor (e.g., `:wat::holon::CapacityExceeded/cost`),
 /// which expands to a `struct-field` call with the field's index
 /// baked in.
 ///
@@ -4412,11 +4412,11 @@ fn try_match_pattern(
 
 /// `(:wat::core::atom-value <holon>)` — extract the payload from an Atom.
 ///
-/// Dual of `:wat::algebra::Atom`. Given an `:Atom<T>` holon, returns the
+/// Dual of `:wat::holon::Atom`. Given an `:Atom<T>` holon, returns the
 /// `:T` payload. The payload's Rust type determines which `Value`
 /// variant is returned; callers annotate the expected `T` at let-binding
 /// sites, and the checker unifies through `atom-value`'s
-/// `∀T. :holon::HolonAST -> :T` scheme.
+/// `∀T. :wat::holon::HolonAST -> :T` scheme.
 ///
 /// Errors if the holon is not an `Atom` variant (Bind/Bundle/Permute/
 /// Thermometer/Blend) or if the payload type isn't one of the dispatchable
@@ -4439,7 +4439,7 @@ fn eval_atom_value(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::core::atom-value".into(),
-                expected: "holon::HolonAST",
+                expected: "wat::holon::HolonAST",
                 got: other.type_name(),
             });
         }
@@ -4494,7 +4494,7 @@ fn eval_algebra_atom(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::algebra::Atom".into(),
+            op: ":wat::holon::Atom".into(),
             expected: 1,
             got: args.len(),
         });
@@ -4520,7 +4520,7 @@ fn value_to_atom(v: Value) -> Result<Value, RuntimeError> {
         Value::wat__WatAST(a) => HolonAST::atom((*a).clone()),
         other => {
             return Err(RuntimeError::TypeMismatch {
-                op: ":wat::algebra::Atom".into(),
+                op: ":wat::holon::Atom".into(),
                 expected: "atomizable value (Int/Float/Bool/String/Keyword/Holon/WatAST)",
                 got: other.type_name(),
             });
@@ -4536,13 +4536,13 @@ fn eval_algebra_bind(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::algebra::Bind".into(),
+            op: ":wat::holon::Bind".into(),
             expected: 2,
             got: args.len(),
         });
     }
-    let a = require_holon(":wat::algebra::Bind", eval(&args[0], env, sym)?)?;
-    let b = require_holon(":wat::algebra::Bind", eval(&args[1], env, sym)?)?;
+    let a = require_holon(":wat::holon::Bind", eval(&args[0], env, sym)?)?;
+    let b = require_holon(":wat::holon::Bind", eval(&args[1], env, sym)?)?;
 
     // No AST-level simplification. MAP's bind self-inverse — Bind(Bind(x,y),x) →
     // y — is a VECTOR-level identity (and per 058-024's rejection text, holds
@@ -4554,10 +4554,10 @@ fn eval_algebra_bind(
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::bind((*a).clone(), (*b).clone()))))
 }
 
-/// `(:wat::algebra::Bundle <list-of-holons>)` — superposition, with
+/// `(:wat::holon::Bundle <list-of-holons>)` — superposition, with
 /// Kanerva-capacity enforcement per the committed capacity-mode.
 ///
-/// Return type is `:Result<:holon::HolonAST, :wat::algebra::CapacityExceeded>`.
+/// Return type is `:Result<:wat::holon::HolonAST, :wat::holon::CapacityExceeded>`.
 /// Always. Under every mode. Callers are forced by the type system to
 /// acknowledge the possibility of failure — either matching on the
 /// Result explicitly or propagating with `:wat::core::try`.
@@ -4587,7 +4587,7 @@ fn eval_algebra_bundle(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::algebra::Bundle".into(),
+            op: ":wat::holon::Bundle".into(),
             expected: 1,
             got: args.len(),
         });
@@ -4596,8 +4596,8 @@ fn eval_algebra_bundle(
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::TypeMismatch {
-                op: ":wat::algebra::Bundle".into(),
-                expected: "List<holon::HolonAST> from (:wat::core::vec ...)",
+                op: ":wat::holon::Bundle".into(),
+                expected: "List<wat::holon::HolonAST> from (:wat::core::vec ...)",
                 got: other.type_name(),
             });
         }
@@ -4605,7 +4605,7 @@ fn eval_algebra_bundle(
     let children: Vec<HolonAST> = list
         .iter()
         .map(|v| {
-            require_holon(":wat::algebra::Bundle list element", v.clone())
+            require_holon(":wat::holon::Bundle list element", v.clone())
                 .map(|h| (*h).clone())
         })
         .collect::<Result<Vec<HolonAST>, _>>()?;
@@ -4615,7 +4615,7 @@ fn eval_algebra_bundle(
     // Without a ctx we cannot compute the budget — match the pattern
     // the other config-consuming primitives use and surface
     // NoEncodingCtx.
-    let ctx = require_encoding_ctx(":wat::algebra::Bundle", sym)?;
+    let ctx = require_encoding_ctx(":wat::holon::Bundle", sym)?;
     let dims = ctx.config.dims;
     let budget = (dims as f64).sqrt().floor() as usize;
     let cost = children.len();
@@ -4633,13 +4633,13 @@ fn eval_algebra_bundle(
             }
             crate::config::CapacityMode::Warn => {
                 eprintln!(
-                    ":wat::algebra::Bundle: capacity exceeded — cost {} > budget {} at dims {}",
+                    ":wat::holon::Bundle: capacity exceeded — cost {} > budget {} at dims {}",
                     cost, budget, dims
                 );
             }
             crate::config::CapacityMode::Error => {
                 let err = Value::Struct(Arc::new(StructValue {
-                    type_name: ":wat::algebra::CapacityExceeded".into(),
+                    type_name: ":wat::holon::CapacityExceeded".into(),
                     fields: vec![Value::i64(cost as i64), Value::i64(budget as i64)],
                 }));
                 return Ok(Value::Result(Arc::new(Err(err))));
@@ -4647,7 +4647,7 @@ fn eval_algebra_bundle(
             crate::config::CapacityMode::Abort => {
                 // Fail-closed. No unwinding; the process is done.
                 panic!(
-                    ":wat::algebra::Bundle: capacity exceeded under :abort — cost {} > budget {} at dims {}",
+                    ":wat::holon::Bundle: capacity exceeded under :abort — cost {} > budget {} at dims {}",
                     cost, budget, dims
                 );
             }
@@ -4666,21 +4666,21 @@ fn eval_algebra_permute(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::algebra::Permute".into(),
+            op: ":wat::holon::Permute".into(),
             expected: 2,
             got: args.len(),
         });
     }
-    let child = require_holon(":wat::algebra::Permute", eval(&args[0], env, sym)?)?;
+    let child = require_holon(":wat::holon::Permute", eval(&args[0], env, sym)?)?;
     let k = match eval(&args[1], env, sym)? {
         Value::i64(n) => i32::try_from(n).map_err(|_| RuntimeError::TypeMismatch {
-            op: ":wat::algebra::Permute".into(),
+            op: ":wat::holon::Permute".into(),
             expected: "i32 step (integer fitting in i32)",
             got: "i64 out of range",
         })?,
         other => {
             return Err(RuntimeError::TypeMismatch {
-                op: ":wat::algebra::Permute".into(),
+                op: ":wat::holon::Permute".into(),
                 expected: "i32 step",
                 got: other.type_name(),
             });
@@ -4696,14 +4696,14 @@ fn eval_algebra_thermometer(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 3 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::algebra::Thermometer".into(),
+            op: ":wat::holon::Thermometer".into(),
             expected: 3,
             got: args.len(),
         });
     }
-    let v = require_numeric(":wat::algebra::Thermometer", eval(&args[0], env, sym)?)?;
-    let mn = require_numeric(":wat::algebra::Thermometer", eval(&args[1], env, sym)?)?;
-    let mx = require_numeric(":wat::algebra::Thermometer", eval(&args[2], env, sym)?)?;
+    let v = require_numeric(":wat::holon::Thermometer", eval(&args[0], env, sym)?)?;
+    let mn = require_numeric(":wat::holon::Thermometer", eval(&args[1], env, sym)?)?;
+    let mx = require_numeric(":wat::holon::Thermometer", eval(&args[2], env, sym)?)?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::thermometer(v, mn, mx))))
 }
 
@@ -4714,15 +4714,15 @@ fn eval_algebra_blend(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 4 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::algebra::Blend".into(),
+            op: ":wat::holon::Blend".into(),
             expected: 4,
             got: args.len(),
         });
     }
-    let a = require_holon(":wat::algebra::Blend", eval(&args[0], env, sym)?)?;
-    let b = require_holon(":wat::algebra::Blend", eval(&args[1], env, sym)?)?;
-    let w1 = require_numeric(":wat::algebra::Blend", eval(&args[2], env, sym)?)?;
-    let w2 = require_numeric(":wat::algebra::Blend", eval(&args[3], env, sym)?)?;
+    let a = require_holon(":wat::holon::Blend", eval(&args[0], env, sym)?)?;
+    let b = require_holon(":wat::holon::Blend", eval(&args[1], env, sym)?)?;
+    let w1 = require_numeric(":wat::holon::Blend", eval(&args[2], env, sym)?)?;
+    let w2 = require_numeric(":wat::holon::Blend", eval(&args[3], env, sym)?)?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::blend((*a).clone(), (*b).clone(), w1, w2))))
 }
 
@@ -4737,10 +4737,10 @@ fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, RuntimeError> {
     }
 }
 
-/// `(:wat::algebra::cosine target reference) -> :f64` — raw cosine
+/// `(:wat::holon::cosine target reference) -> :f64` — raw cosine
 /// measurement between two encoded holons. Per FOUNDATION 1718 +
 /// OPEN-QUESTIONS line 419: algebra-substrate operation (input is
-/// holons, not raw numbers). Sibling to `:wat::algebra::dot` — this
+/// holons, not raw numbers). Sibling to `:wat::holon::dot` — this
 /// one normalizes.
 ///
 /// Encodes both holons via the frozen [`EncodingCtx`] and returns a
@@ -4754,28 +4754,28 @@ fn eval_algebra_cosine(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::algebra::cosine".into(),
+            op: ":wat::holon::cosine".into(),
             expected: 2,
             got: args.len(),
         });
     }
-    let target = require_holon(":wat::algebra::cosine", eval(&args[0], env, sym)?)?;
-    let reference = require_holon(":wat::algebra::cosine", eval(&args[1], env, sym)?)?;
-    let ctx = require_encoding_ctx(":wat::algebra::cosine", sym)?;
+    let target = require_holon(":wat::holon::cosine", eval(&args[0], env, sym)?)?;
+    let reference = require_holon(":wat::holon::cosine", eval(&args[1], env, sym)?)?;
+    let ctx = require_encoding_ctx(":wat::holon::cosine", sym)?;
 
     let vt = encode(&target, &ctx.vm, &ctx.scalar, &ctx.registry);
     let vr = encode(&reference, &ctx.vm, &ctx.scalar, &ctx.registry);
     Ok(Value::f64(Similarity::cosine(&vt, &vr)))
 }
 
-/// `(:wat::algebra::presence? target reference) -> :bool` — boolean
+/// `(:wat::holon::presence? target reference) -> :bool` — boolean
 /// verdict: is `target` present in `reference` above the 5σ noise
 /// floor? Encodes both, computes cosine, returns
 /// `cosine > :wat::config::noise-floor`.
 ///
 /// The `?` suffix is the predicate convention (2026-04-19 naming
 /// stance). Callers that want the raw scalar reach for
-/// `:wat::algebra::cosine`.
+/// `:wat::holon::cosine`.
 fn eval_algebra_presence_q(
     args: &[WatAST],
     env: &Environment,
@@ -4783,14 +4783,14 @@ fn eval_algebra_presence_q(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::algebra::presence?".into(),
+            op: ":wat::holon::presence?".into(),
             expected: 2,
             got: args.len(),
         });
     }
-    let target = require_holon(":wat::algebra::presence?", eval(&args[0], env, sym)?)?;
-    let reference = require_holon(":wat::algebra::presence?", eval(&args[1], env, sym)?)?;
-    let ctx = require_encoding_ctx(":wat::algebra::presence?", sym)?;
+    let target = require_holon(":wat::holon::presence?", eval(&args[0], env, sym)?)?;
+    let reference = require_holon(":wat::holon::presence?", eval(&args[1], env, sym)?)?;
+    let ctx = require_encoding_ctx(":wat::holon::presence?", sym)?;
 
     let vt = encode(&target, &ctx.vm, &ctx.scalar, &ctx.registry);
     let vr = encode(&reference, &ctx.vm, &ctx.scalar, &ctx.registry);
@@ -4798,7 +4798,7 @@ fn eval_algebra_presence_q(
     Ok(Value::bool(cosine > ctx.config.noise_floor))
 }
 
-/// `(:wat::algebra::dot x y) -> :f64` — scalar dot product of two
+/// `(:wat::holon::dot x y) -> :f64` — scalar dot product of two
 /// encoded holons. Per 058-005: measurement primitive, not a HolonAST
 /// variant (scalar-out, not vector-out). Sibling to `presence`:
 /// presence returns cosine (dot normalized by magnitudes); dot is the
@@ -4811,14 +4811,14 @@ fn eval_algebra_dot(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::algebra::dot".into(),
+            op: ":wat::holon::dot".into(),
             expected: 2,
             got: args.len(),
         });
     }
-    let x = require_holon(":wat::algebra::dot", eval(&args[0], env, sym)?)?;
-    let y = require_holon(":wat::algebra::dot", eval(&args[1], env, sym)?)?;
-    let ctx = require_encoding_ctx(":wat::algebra::dot", sym)?;
+    let x = require_holon(":wat::holon::dot", eval(&args[0], env, sym)?)?;
+    let y = require_holon(":wat::holon::dot", eval(&args[1], env, sym)?)?;
+    let ctx = require_encoding_ctx(":wat::holon::dot", sym)?;
     let vx = encode(&x, &ctx.vm, &ctx.scalar, &ctx.registry);
     let vy = encode(&y, &ctx.vm, &ctx.scalar, &ctx.registry);
     Ok(Value::f64(Similarity::dot(&vx, &vy)))
@@ -6872,7 +6872,7 @@ mod tests {
     #[test]
     fn reserved_prefix_define_rejected() {
         let err = run(
-            r#"(:wat::core::define (:wat::algebra::Bogus (x :i64) -> :i64) x)"#,
+            r#"(:wat::core::define (:wat::holon::Bogus (x :i64) -> :i64) x)"#,
         )
         .unwrap_err();
         assert!(matches!(err, RuntimeError::ReservedPrefix(_)));
@@ -6946,7 +6946,7 @@ mod tests {
 
     #[test]
     fn algebra_atom_from_literal() {
-        let v = eval_expr(r#"(:wat::algebra::Atom "role")"#).unwrap();
+        let v = eval_expr(r#"(:wat::holon::Atom "role")"#).unwrap();
         assert!(matches!(v, Value::holon__HolonAST(_)));
     }
 
@@ -6954,7 +6954,7 @@ mod tests {
     fn algebra_atom_from_bound_variable() {
         // (Atom x) where x is a let-bound integer — runtime construction.
         let v = eval_expr(
-            r#"(:wat::core::let (((x :i64) 42)) (:wat::algebra::Atom x))"#,
+            r#"(:wat::core::let (((x :i64) 42)) (:wat::holon::Atom x))"#,
         )
         .unwrap();
         match v {
@@ -6969,9 +6969,9 @@ mod tests {
     #[test]
     fn algebra_bind_composes_holons() {
         let v = eval_expr(
-            r#"(:wat::algebra::Bind
-                 (:wat::algebra::Atom "role")
-                 (:wat::algebra::Atom "filler"))"#,
+            r#"(:wat::holon::Bind
+                 (:wat::holon::Atom "role")
+                 (:wat::holon::Atom "filler"))"#,
         )
         .unwrap();
         assert!(matches!(v, Value::holon__HolonAST(_)));
@@ -6979,24 +6979,24 @@ mod tests {
 
     #[test]
     fn algebra_bundle_via_list_ctor() {
-        // Bundle now returns Result<holon::HolonAST, CapacityExceeded>
+        // Bundle now returns Result<wat::holon::HolonAST, CapacityExceeded>
         // under every mode — end-to-end tests in `tests/wat_bundle_*`
         // exercise the four capacity-mode paths. This unit test
         // confirms the Ok wrap happens at cost <= budget (at d=1024,
         // budget=32 and we Bundle 3 atoms).
         let v = eval_with_ctx(
-            r#"(:wat::algebra::Bundle
-                 (:wat::core::vec :holon::HolonAST
-                   (:wat::algebra::Atom "a")
-                   (:wat::algebra::Atom "b")
-                   (:wat::algebra::Atom "c")))"#,
+            r#"(:wat::holon::Bundle
+                 (:wat::core::vec :wat::holon::HolonAST
+                   (:wat::holon::Atom "a")
+                   (:wat::holon::Atom "b")
+                   (:wat::holon::Atom "c")))"#,
             1024,
         )
         .unwrap();
         match v {
             Value::Result(r) => match &*r {
                 Ok(Value::holon__HolonAST(_)) => {}
-                other => panic!("expected Ok(holon::HolonAST); got {:?}", other),
+                other => panic!("expected Ok(wat::holon::HolonAST); got {:?}", other),
             },
             other => panic!("expected Value::Result; got {:?}", other),
         }
@@ -7006,9 +7006,9 @@ mod tests {
     fn algebra_blend_with_runtime_weight() {
         // Weight computed at runtime via arithmetic.
         let v = eval_expr(
-            r#"(:wat::algebra::Blend
-                 (:wat::algebra::Atom "x")
-                 (:wat::algebra::Atom "y")
+            r#"(:wat::holon::Blend
+                 (:wat::holon::Atom "x")
+                 (:wat::holon::Atom "y")
                  1
                  (:wat::core::i64::- 0 1))"#,
         )
@@ -7019,7 +7019,7 @@ mod tests {
     #[test]
     fn algebra_bundle_non_list_rejected() {
         let err = eval_expr(
-            r#"(:wat::algebra::Bundle (:wat::algebra::Atom "a"))"#,
+            r#"(:wat::holon::Bundle (:wat::holon::Atom "a"))"#,
         )
         .unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
@@ -7032,10 +7032,10 @@ mod tests {
         // A small program that defines a helper and uses it to build a Holon.
         let result = run(
             r#"
-            (:wat::core::define (:my::app::encode-pair (a :String) (b :String) -> :holon::HolonAST)
-              (:wat::algebra::Bind
-                (:wat::algebra::Atom a)
-                (:wat::algebra::Atom b)))
+            (:wat::core::define (:my::app::encode-pair (a :String) (b :String) -> :wat::holon::HolonAST)
+              (:wat::holon::Bind
+                (:wat::holon::Atom a)
+                (:wat::holon::Atom b)))
             (:my::app::encode-pair "role" "filler")
             "#,
         )
@@ -7046,7 +7046,7 @@ mod tests {
     // ─── Four eval forms (wat-source callable) ──────────────────────────
     //
     // Per 2026-04-20 INSCRIPTION: eval-ast! / eval-edn! / eval-digest! /
-    // eval-signed! all return :Result<holon::HolonAST, :wat::core::EvalError>
+    // eval-signed! all return :Result<wat::holon::HolonAST, :wat::core::EvalError>
     // now. Test helpers below unwrap the Result wrap so the assertions
     // against Ok values and Err-kind strings stay concise.
 
@@ -7194,7 +7194,7 @@ mod tests {
     fn atom_wraps_quoted_program() {
         // (Atom (quote (+ 1 2))) — program becomes a holon.
         let result = eval_expr(
-            "(:wat::algebra::Atom (:wat::core::quote (:wat::core::i64::+ 1 2)))",
+            "(:wat::holon::Atom (:wat::core::quote (:wat::core::i64::+ 1 2)))",
         )
         .unwrap();
         assert!(matches!(result, Value::holon__HolonAST(_)));
@@ -7203,7 +7203,7 @@ mod tests {
     #[test]
     fn atom_value_recovers_string() {
         let result = eval_expr(
-            r#"(:wat::core::atom-value (:wat::algebra::Atom "hello"))"#,
+            r#"(:wat::core::atom-value (:wat::holon::Atom "hello"))"#,
         )
         .unwrap();
         match result {
@@ -7216,7 +7216,7 @@ mod tests {
     fn atom_value_recovers_quoted_program() {
         // Atom(quote X) → atom-value back to WatAST X.
         let result = eval_expr(
-            "(:wat::core::atom-value (:wat::algebra::Atom (:wat::core::quote (:wat::core::i64::+ 40 2))))",
+            "(:wat::core::atom-value (:wat::holon::Atom (:wat::core::quote (:wat::core::i64::+ 40 2))))",
         )
         .unwrap();
         match result {
@@ -7238,9 +7238,9 @@ mod tests {
         // Bind(Atom, Atom) is not an Atom — atom-value refuses.
         let err = eval_expr(
             r#"(:wat::core::atom-value
-                 (:wat::algebra::Bind
-                   (:wat::algebra::Atom "a")
-                   (:wat::algebra::Atom "b")))"#,
+                 (:wat::holon::Bind
+                   (:wat::holon::Atom "a")
+                   (:wat::holon::Atom "b")))"#,
         )
         .unwrap_err();
         assert!(matches!(
@@ -7256,11 +7256,11 @@ mod tests {
         // vector is where the self-inverse shows up via cosine. Per 058-024
         // rejection text + FOUNDATION 1718 (presence is measurement).
         let result = eval_expr(
-            r#"(:wat::algebra::Bind
-                 (:wat::algebra::Bind
-                   (:wat::algebra::Atom "key")
-                   (:wat::algebra::Atom "program"))
-                 (:wat::algebra::Atom "key"))"#,
+            r#"(:wat::holon::Bind
+                 (:wat::holon::Bind
+                   (:wat::holon::Atom "key")
+                   (:wat::holon::Atom "program"))
+                 (:wat::holon::Atom "key"))"#,
         )
         .unwrap();
         match result {
@@ -7282,8 +7282,8 @@ mod tests {
             r#"(:wat::core::let*
                  (((program :wat::WatAST)
                     (:wat::core::quote (:wat::core::i64::+ 40 2)))
-                  ((program-atom :holon::HolonAST)
-                    (:wat::algebra::Atom program))
+                  ((program-atom :wat::holon::HolonAST)
+                    (:wat::holon::Atom program))
                   ((reveal :wat::WatAST)
                     (:wat::core::atom-value program-atom)))
                  (:wat::core::eval-ast! reveal))"#,
@@ -7326,9 +7326,9 @@ mod tests {
     #[test]
     fn presence_of_atom_in_itself_is_one() {
         let result = eval_with_ctx(
-            r#"(:wat::algebra::cosine
-                 (:wat::algebra::Atom "hello")
-                 (:wat::algebra::Atom "hello"))"#,
+            r#"(:wat::holon::cosine
+                 (:wat::holon::Atom "hello")
+                 (:wat::holon::Atom "hello"))"#,
             1024,
         )
         .unwrap();
@@ -7345,9 +7345,9 @@ mod tests {
         // depends on the substrate's ternary content; we just
         // assert it's well above sqrt(d) (the noise scale).
         let result = eval_with_ctx(
-            r#"(:wat::algebra::dot
-                 (:wat::algebra::Atom "alice")
-                 (:wat::algebra::Atom "alice"))"#,
+            r#"(:wat::holon::dot
+                 (:wat::holon::Atom "alice")
+                 (:wat::holon::Atom "alice"))"#,
             1024,
         )
         .unwrap();
@@ -7366,9 +7366,9 @@ mod tests {
         // magnitudes are substrate-dependent; the ordering is the
         // load-bearing invariant for Gram-Schmidt (Reject / Project).
         let self_dot = match eval_with_ctx(
-            r#"(:wat::algebra::dot
-                 (:wat::algebra::Atom "alice")
-                 (:wat::algebra::Atom "alice"))"#,
+            r#"(:wat::holon::dot
+                 (:wat::holon::Atom "alice")
+                 (:wat::holon::Atom "alice"))"#,
             1024,
         )
         .unwrap()
@@ -7377,9 +7377,9 @@ mod tests {
             other => panic!("expected f64, got {:?}", other),
         };
         let cross_dot = match eval_with_ctx(
-            r#"(:wat::algebra::dot
-                 (:wat::algebra::Atom "alice")
-                 (:wat::algebra::Atom "charlie"))"#,
+            r#"(:wat::holon::dot
+                 (:wat::holon::Atom "alice")
+                 (:wat::holon::Atom "charlie"))"#,
             1024,
         )
         .unwrap()
@@ -7397,14 +7397,14 @@ mod tests {
 
     #[test]
     fn dot_wrong_arity() {
-        let ast = parse_one(r#"(:wat::algebra::dot (:wat::algebra::Atom "a"))"#).unwrap();
+        let ast = parse_one(r#"(:wat::holon::dot (:wat::holon::Atom "a"))"#).unwrap();
         let err = eval(&ast, &Environment::new(), &test_sym_with_ctx(1024)).unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 
     #[test]
     fn dot_refuses_non_holon() {
-        let err = eval_with_ctx(r#"(:wat::algebra::dot 1 2)"#, 1024).unwrap_err();
+        let err = eval_with_ctx(r#"(:wat::holon::dot 1 2)"#, 1024).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
@@ -7413,9 +7413,9 @@ mod tests {
         // presence? is the boolean verdict — cosine > noise floor.
         // An atom against itself: cosine = 1.0, well above the floor.
         let result = eval_with_ctx(
-            r#"(:wat::algebra::presence?
-                 (:wat::algebra::Atom "alice")
-                 (:wat::algebra::Atom "alice"))"#,
+            r#"(:wat::holon::presence?
+                 (:wat::holon::Atom "alice")
+                 (:wat::holon::Atom "alice"))"#,
             1024,
         )
         .unwrap();
@@ -7425,9 +7425,9 @@ mod tests {
     #[test]
     fn presence_q_false_for_unrelated() {
         let result = eval_with_ctx(
-            r#"(:wat::algebra::presence?
-                 (:wat::algebra::Atom "alice")
-                 (:wat::algebra::Atom "charlie"))"#,
+            r#"(:wat::holon::presence?
+                 (:wat::holon::Atom "alice")
+                 (:wat::holon::Atom "charlie"))"#,
             1024,
         )
         .unwrap();
@@ -7439,9 +7439,9 @@ mod tests {
         // The renamed primitive (algebra::cosine) returns the same
         // scalar the old :wat::core::presence did.
         let result = eval_with_ctx(
-            r#"(:wat::algebra::cosine
-                 (:wat::algebra::Atom "self")
-                 (:wat::algebra::Atom "self"))"#,
+            r#"(:wat::holon::cosine
+                 (:wat::holon::Atom "self")
+                 (:wat::holon::Atom "self"))"#,
             1024,
         )
         .unwrap();
@@ -7472,15 +7472,15 @@ mod tests {
         // Without a frozen SymbolTable, presence must error — can't
         // reach into encoding machinery that doesn't exist.
         let ast = parse_one(
-            r#"(:wat::algebra::cosine
-                 (:wat::algebra::Atom "a")
-                 (:wat::algebra::Atom "b"))"#,
+            r#"(:wat::holon::cosine
+                 (:wat::holon::Atom "a")
+                 (:wat::holon::Atom "b"))"#,
         )
         .unwrap();
         let err = eval(&ast, &Environment::new(), &SymbolTable::new()).unwrap_err();
         assert!(matches!(
             err,
-            RuntimeError::NoEncodingCtx { op } if op == ":wat::algebra::cosine"
+            RuntimeError::NoEncodingCtx { op } if op == ":wat::holon::cosine"
         ));
     }
 
@@ -7491,10 +7491,10 @@ mod tests {
         // below the substrate noise floor.
         let result = eval_with_ctx(
             r#"(:wat::core::let*
-                 (((program :holon::HolonAST) (:wat::algebra::Atom "the-program"))
-                  ((key :holon::HolonAST) (:wat::algebra::Atom "the-key"))
-                  ((bound :holon::HolonAST) (:wat::algebra::Bind key program)))
-                 (:wat::algebra::cosine program bound))"#,
+                 (((program :wat::holon::HolonAST) (:wat::holon::Atom "the-program"))
+                  ((key :wat::holon::HolonAST) (:wat::holon::Atom "the-key"))
+                  ((bound :wat::holon::HolonAST) (:wat::holon::Bind key program)))
+                 (:wat::holon::cosine program bound))"#,
             1024,
         )
         .unwrap();
@@ -7520,11 +7520,11 @@ mod tests {
         // non-zero positions of k.
         let result = eval_with_ctx(
             r#"(:wat::core::let*
-                 (((program :holon::HolonAST) (:wat::algebra::Atom "the-program"))
-                  ((key :holon::HolonAST) (:wat::algebra::Atom "the-key"))
-                  ((bound :holon::HolonAST) (:wat::algebra::Bind key program))
-                  ((recovered :holon::HolonAST) (:wat::algebra::Bind bound key)))
-                 (:wat::algebra::cosine program recovered))"#,
+                 (((program :wat::holon::HolonAST) (:wat::holon::Atom "the-program"))
+                  ((key :wat::holon::HolonAST) (:wat::holon::Atom "the-key"))
+                  ((bound :wat::holon::HolonAST) (:wat::holon::Bind key program))
+                  ((recovered :wat::holon::HolonAST) (:wat::holon::Bind bound key)))
+                 (:wat::holon::cosine program recovered))"#,
             1024,
         )
         .unwrap();

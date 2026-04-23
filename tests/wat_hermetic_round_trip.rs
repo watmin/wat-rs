@@ -74,7 +74,7 @@ fn hermetic_output_evaluated_in_outer_scope() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
 
-        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let*
             (((hermetic-result :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-hermetic-ast

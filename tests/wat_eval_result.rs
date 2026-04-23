@@ -2,7 +2,7 @@
 //! (INSCRIPTION 2026-04-20).
 //!
 //! Every eval-* form now returns
-//! `:Result<holon::HolonAST, :wat::core::EvalError>`. Dynamic
+//! `:Result<wat::holon::HolonAST, :wat::core::EvalError>`. Dynamic
 //! evaluation failures — verification mismatch, parse error,
 //! mutation-form refusal, unknown function at the call site, type
 //! mismatch inside the eval'd code — surface as Err values with
@@ -55,15 +55,15 @@ fn eval_ast_bang_happy_path_returns_ok_holon() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
 
-        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let*
-            (((program :wat::WatAST) (:wat::core::quote (:wat::algebra::Atom "hello"))))
+            (((program :wat::WatAST) (:wat::core::quote (:wat::holon::Atom "hello"))))
             (:wat::core::eval-ast! program)))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {
             Ok(Value::holon__HolonAST(_)) => {}
-            other => panic!("expected Ok(holon::HolonAST); got {:?}", other),
+            other => panic!("expected Ok(wat::holon::HolonAST); got {:?}", other),
         },
         other => panic!("expected Value::Result; got {:?}", other),
     }
@@ -80,7 +80,7 @@ fn eval_ast_bang_mutation_form_surfaces_as_err() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
 
-        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let*
             (((program :wat::WatAST)
               (:wat::core::quote
@@ -101,7 +101,7 @@ fn eval_edn_bang_parse_failure_surfaces_as_err() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
 
-        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::eval-edn! :wat::eval::string "(:wat::core::i64::+ 1"))
     "#;
     let result = run(src);
@@ -116,9 +116,9 @@ fn eval_digest_bang_hash_mismatch_surfaces_as_err() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
 
-        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::eval-digest!
-            :wat::eval::string "(:wat::algebra::Atom \"x\")"
+            :wat::eval::string "(:wat::holon::Atom \"x\")"
             :wat::verify::digest-sha256
             :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"))
     "#;
@@ -135,7 +135,7 @@ fn eval_edn_bang_unknown_interface_surfaces_as_err() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
 
-        (:wat::core::define (:user::main -> :Result<holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::eval-edn! :wat::eval::nonexistent-iface "source"))
     "#;
     let result = run(src);
@@ -154,7 +154,7 @@ fn try_propagates_eval_err_through_helper() {
         (:wat::config::set-capacity-mode! :error)
 
         (:wat::core::define (:app::run-dynamic (program :wat::WatAST)
-                             -> :Result<holon::HolonAST,wat::core::EvalError>)
+                             -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (Ok (:wat::core::try (:wat::core::eval-ast! program))))
 
         (:wat::core::define (:user::main -> :String)
@@ -187,7 +187,7 @@ fn eval_err_exposes_both_kind_and_message() {
             (((bad :wat::WatAST)
               (:wat::core::quote
                 (:wat::core::define (:injected (x :i64) -> :i64) x)))
-             ((r :Result<holon::HolonAST,wat::core::EvalError>)
+             ((r :Result<wat::holon::HolonAST,wat::core::EvalError>)
               (:wat::core::eval-ast! bad)))
             (:wat::core::match r -> :(String,String)
               ((Ok _)

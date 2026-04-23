@@ -22,10 +22,10 @@
 (:wat::core::defmacro
   (:wat::std::Ngram
     (n :AST<i64>)
-    (xs :AST<List<holon::HolonAST>>)
-    -> :AST<Result<holon::HolonAST,wat::algebra::CapacityExceeded>>)
-  `(:wat::algebra::Bundle
+    (xs :AST<List<wat::holon::HolonAST>>)
+    -> :AST<Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>>)
+  `(:wat::holon::Bundle
      (:wat::core::map
        (:wat::std::list::window ,xs ,n)
-       (:wat::core::lambda ((window :Vec<holon::HolonAST>) -> :holon::HolonAST)
+       (:wat::core::lambda ((window :Vec<wat::holon::HolonAST>) -> :wat::holon::HolonAST)
          (:wat::std::Sequential window)))))

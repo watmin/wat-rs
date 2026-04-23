@@ -217,11 +217,11 @@ fn accessor_returns_correct_field_type() {
     assert!(saw_ret, "expected ReturnTypeMismatch (body :i64 vs declared :f64); got {:?}", errs);
 }
 
-// ─── Built-in struct: :wat::algebra::CapacityExceeded ────────────────
+// ─── Built-in struct: :wat::holon::CapacityExceeded ────────────────
 
 #[test]
 fn builtin_capacity_exceeded_struct_is_usable() {
-    // wat-rs seeds :wat::algebra::CapacityExceeded as a built-in
+    // wat-rs seeds :wat::holon::CapacityExceeded as a built-in
     // struct; its /new and /cost / /budget accessors must be
     // available at startup without any user declaration.
     let src = r#"
@@ -230,10 +230,10 @@ fn builtin_capacity_exceeded_struct_is_usable() {
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
-            (((e :wat::algebra::CapacityExceeded)
-              (:wat::algebra::CapacityExceeded/new 200 100))
-             ((cost   :i64) (:wat::algebra::CapacityExceeded/cost   e))
-             ((budget :i64) (:wat::algebra::CapacityExceeded/budget e)))
+            (((e :wat::holon::CapacityExceeded)
+              (:wat::holon::CapacityExceeded/new 200 100))
+             ((cost   :i64) (:wat::holon::CapacityExceeded/cost   e))
+             ((budget :i64) (:wat::holon::CapacityExceeded/budget e)))
             (:wat::core::i64::- cost budget)))
     "#;
     match run(src) {
@@ -244,7 +244,7 @@ fn builtin_capacity_exceeded_struct_is_usable() {
 
 #[test]
 fn builtin_capacity_exceeded_cannot_be_redeclared() {
-    // User source cannot claim `:wat::algebra::CapacityExceeded`
+    // User source cannot claim `:wat::holon::CapacityExceeded`
     // because the reserved-prefix gate on `TypeEnv::register` blocks
     // user struct registrations under `:wat::*`. This test shows the
     // duplicate surfaces as a startup error (not a silent override).
@@ -252,7 +252,7 @@ fn builtin_capacity_exceeded_cannot_be_redeclared() {
         (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
 
-        (:wat::core::struct :wat::algebra::CapacityExceeded
+        (:wat::core::struct :wat::holon::CapacityExceeded
           (boom :bool))
 
         (:wat::core::define (:user::main -> :()) ())

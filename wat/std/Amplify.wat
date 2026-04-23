@@ -8,8 +8,8 @@
 
 (:wat::core::defmacro
   (:wat::std::Amplify
-    (x :AST<holon::HolonAST>)
-    (y :AST<holon::HolonAST>)
+    (x :AST<wat::holon::HolonAST>)
+    (y :AST<wat::holon::HolonAST>)
     (s :AST<f64>)
-    -> :AST<holon::HolonAST>)
-  `(:wat::algebra::Blend ,x ,y 1.0 ,s))
+    -> :AST<wat::holon::HolonAST>)
+  `(:wat::holon::Blend ,x ,y 1.0 ,s))

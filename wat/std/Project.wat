@@ -11,7 +11,7 @@
 
 (:wat::core::defmacro
   (:wat::std::Project
-    (x :AST<holon::HolonAST>)
-    (y :AST<holon::HolonAST>)
-    -> :AST<holon::HolonAST>)
+    (x :AST<wat::holon::HolonAST>)
+    (y :AST<wat::holon::HolonAST>)
+    -> :AST<wat::holon::HolonAST>)
   `(:wat::std::Subtract ,x (:wat::std::Reject ,x ,y)))

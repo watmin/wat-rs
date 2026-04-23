@@ -378,7 +378,7 @@ Every wat program lives in a coordinate with two axes.
 
 ### Axis 1 — three layers
 
-1. **Algebra core** (`:wat::algebra::*`) — six primitives that produce holon vectors: `Atom`, `Bind`, `Bundle`, `Permute`, `Thermometer`, `Blend`. Plus two scalar-returning measurements: `cosine`, `dot`. These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
+1. **Algebra core** (`:wat::holon::*`) — six primitives that produce holon vectors: `Atom`, `Bind`, `Bundle`, `Permute`, `Thermometer`, `Blend`. Plus two scalar-returning measurements: `cosine`, `dot`. These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
 2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `try`, `struct`, `enum`, `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, arithmetic/comparison operators. The forms you need to WRITE programs.
 3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `join`, `HandlePool`, `stopped?`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes between processes.
 
@@ -469,10 +469,10 @@ startup — miss an arm, startup fails.
 ### `try` — error propagation
 
 ```scheme
-(:wat::core::define (:my::app::pipeline (items :Vec<holon::HolonAST>)
-                    -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
+(:wat::core::define (:my::app::pipeline (items :Vec<wat::holon::HolonAST>)
+                    -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
   (:wat::core::let*
-    (((bundled :holon::HolonAST) (:wat::core::try (:wat::algebra::Bundle items))))
+    (((bundled :wat::holon::HolonAST) (:wat::core::try (:wat::holon::Bundle items))))
     (Ok bundled)))
 ```
 
@@ -568,25 +568,25 @@ appears ONLY in type annotations. Only `/new` constructs; only
 The six vector-producing primitives:
 
 ```scheme
-(:wat::algebra::Atom "rsi")                ; seed a vector from a literal
-(:wat::algebra::Atom 42)                   ; typed — int, float, bool, string, keyword
-(:wat::algebra::Atom my-ast)               ; or any registered composite type
+(:wat::holon::Atom "rsi")                ; seed a vector from a literal
+(:wat::holon::Atom 42)                   ; typed — int, float, bool, string, keyword
+(:wat::holon::Atom my-ast)               ; or any registered composite type
 
-(:wat::algebra::Bind role filler)          ; elementwise multiply — role-filler binding
-(:wat::algebra::Bundle holons-vec)         ; sum + threshold — superposition
-                                           ;   returns :Result<holon::HolonAST,
-                                           ;                   wat::algebra::CapacityExceeded>
+(:wat::holon::Bind role filler)          ; elementwise multiply — role-filler binding
+(:wat::holon::Bundle holons-vec)         ; sum + threshold — superposition
+                                           ;   returns :Result<wat::holon::HolonAST,
+                                           ;                   wat::holon::CapacityExceeded>
                                            ;   (see section 12)
-(:wat::algebra::Permute holon k)           ; circular shift — positional encoding
-(:wat::algebra::Thermometer v min max)     ; gradient encoding of a scalar
-(:wat::algebra::Blend a b w1 w2)           ; scalar-weighted binary combination
+(:wat::holon::Permute holon k)           ; circular shift — positional encoding
+(:wat::holon::Thermometer v min max)     ; gradient encoding of a scalar
+(:wat::holon::Blend a b w1 w2)           ; scalar-weighted binary combination
 ```
 
 Two scalar measurements (return `:f64`):
 
 ```scheme
-(:wat::algebra::cosine a b)                ; cosine similarity
-(:wat::algebra::dot a b)                   ; dot product, un-normalized
+(:wat::holon::cosine a b)                ; cosine similarity
+(:wat::holon::dot a b)                   ; dot product, un-normalized
 ```
 
 Stdlib forms you'll use constantly — each expands to algebra-core
@@ -611,7 +611,7 @@ primitives at parse time:
 The presence retrieval primitive:
 
 ```scheme
-(:wat::algebra::presence? target-holon reference-vector)
+(:wat::holon::presence? target-holon reference-vector)
 ;; → :f64 cosine between encode(target) and reference
 ;; Caller binarizes against (:wat::config::noise-floor) if they want yes/no
 ```
@@ -1056,8 +1056,8 @@ Constructors are bare: `(Ok v)`, `(Err e)`. Consumers match or `try`.
 
 ### Bundle's capacity — the canonical Result in the algebra
 
-`:wat::algebra::Bundle` returns `:Result<:holon::HolonAST,
-:wat::algebra::CapacityExceeded>`. The four `capacity-mode` values
+`:wat::holon::Bundle` returns `:Result<:wat::holon::HolonAST,
+:wat::holon::CapacityExceeded>`. The four `capacity-mode` values
 (`:silent` / `:warn` / `:error` / `:abort`) set at program startup
 determine the runtime behavior when Kanerva's per-frame bound
 (`floor(sqrt(dims))`) is exceeded.
@@ -1065,16 +1065,16 @@ determine the runtime behavior when Kanerva's per-frame bound
 ```scheme
 (:wat::config::set-capacity-mode! :error)
 
-(:wat::core::define (:my::app::build (items :Vec<holon::HolonAST>)
-                    -> :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
-  (Ok (:wat::core::try (:wat::algebra::Bundle items))))
+(:wat::core::define (:my::app::build (items :Vec<wat::holon::HolonAST>)
+                    -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+  (Ok (:wat::core::try (:wat::holon::Bundle items))))
 
 (:wat::core::match (:my::app::build huge-list) -> :i64
   ((Ok _h) 0)
   ((Err e)
     (:wat::core::i64::-
-      (:wat::algebra::CapacityExceeded/cost e)
-      (:wat::algebra::CapacityExceeded/budget e))))
+      (:wat::holon::CapacityExceeded/cost e)
+      (:wat::holon::CapacityExceeded/budget e))))
 ```
 
 See `README.md`'s Capacity guard section for the full four-mode
@@ -1423,14 +1423,14 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::std::service::Console` | `stdout stderr n` | `(HandlePool, Driver)` |
 | `:user::wat::std::lru::CacheService` (wat-lru) | `capacity count` | `(HandlePool, Driver)` |
 | `:user::wat::std::lru::LocalCache::new` / `put` / `get` (wat-lru) | various | per-program LRU |
-| `:wat::algebra::Atom` | `<literal>` | `:holon::HolonAST` |
-| `:wat::algebra::Bind` | `a b` | `:holon::HolonAST` |
-| `:wat::algebra::Bundle` | `list-of-holons` | `:Result<holon::HolonAST, CapacityExceeded>` |
-| `:wat::algebra::Permute` | `holon k` | `:holon::HolonAST` |
-| `:wat::algebra::Thermometer` | `value min max` | `:holon::HolonAST` |
-| `:wat::algebra::Blend` | `a b w1 w2` | `:holon::HolonAST` |
-| `:wat::algebra::cosine` / `dot` | `a b` | `:f64` |
-| `:wat::algebra::presence?` | `target reference` | `:bool` — cosine(target,ref) > noise-floor |
+| `:wat::holon::Atom` | `<literal>` | `:wat::holon::HolonAST` |
+| `:wat::holon::Bind` | `a b` | `:wat::holon::HolonAST` |
+| `:wat::holon::Bundle` | `list-of-holons` | `:Result<wat::holon::HolonAST, CapacityExceeded>` |
+| `:wat::holon::Permute` | `holon k` | `:wat::holon::HolonAST` |
+| `:wat::holon::Thermometer` | `value min max` | `:wat::holon::HolonAST` |
+| `:wat::holon::Blend` | `a b w1 w2` | `:wat::holon::HolonAST` |
+| `:wat::holon::cosine` / `dot` | `a b` | `:f64` |
+| `:wat::holon::presence?` | `target reference` | `:bool` — cosine(target,ref) > noise-floor |
 | `:wat::core::quote` | `<form>` | `:wat::WatAST` — captures AST as data |
 | `:wat::core::forms` | `f1 f2 ... fn` | `:Vec<wat::WatAST>` — variadic quote |
 | `:wat::core::conj` | `vec item` | `:Vec<T>` — immutable append |

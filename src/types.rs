@@ -42,7 +42,7 @@ use std::fmt;
 /// A type expression — the shape that appears after `:` in a keyword.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeExpr {
-    /// A bare type path: `:f64`, `:holon::HolonAST`, `:my::ns::Candle`. Lexically-
+    /// A bare type path: `:f64`, `:wat::holon::HolonAST`, `:my::ns::Candle`. Lexically-
     /// scoped type variables (`:T`, `:K`, `:V`) also appear as `Path`
     /// when parsed — the type checker distinguishes them via the
     /// enclosing scheme's / declaration's `type_params`.
@@ -51,7 +51,7 @@ pub enum TypeExpr {
     /// rejection of the escape hatch. `parse_type_expr` refuses it at
     /// the parse layer.
     Path(String),
-    /// `:Vec<T>`, `:HashMap<K,V>`, `:my::ns::Container<holon::HolonAST,f64>`.
+    /// `:Vec<T>`, `:HashMap<K,V>`, `:my::ns::Container<wat::holon::HolonAST,f64>`.
     Parametric {
         head: String,
         args: Vec<TypeExpr>,
@@ -160,9 +160,9 @@ impl TypeEnv {
     /// still applies.
     ///
     /// Current builtins:
-    /// - `:wat::algebra::CapacityExceeded` — the error type populated
+    /// - `:wat::holon::CapacityExceeded` — the error type populated
     ///   in the `Err` slot of a `:Result` returned by
-    ///   `:wat::algebra::Bundle` under `:error` mode when a frame
+    ///   `:wat::holon::Bundle` under `:error` mode when a frame
     ///   exceeds Kanerva's capacity. Carries `(cost :i64)` and
     ///   `(budget :i64)` in declaration order.
     pub fn with_builtins() -> Self {
@@ -242,14 +242,14 @@ impl TypeEnv {
 /// land here as the algebra grows; each entry documents why the
 /// declaration is `:wat::*`-scoped.
 fn register_builtin_types(env: &mut TypeEnv) {
-    // :wat::algebra::CapacityExceeded — populated in the Err slot of
-    // :wat::algebra::Bundle's :Result return when a frame's
+    // :wat::holon::CapacityExceeded — populated in the Err slot of
+    // :wat::holon::Bundle's :Result return when a frame's
     // constituent count exceeds `floor(sqrt(dims))` (Kanerva's capacity
     // budget). The two fields are honest: cost is what the Bundle was
     // asked to hold; budget is what the substrate could hold. Both
     // i64 because wat integer literals are i64.
     env.register_builtin(TypeDef::Struct(StructDef {
-        name: ":wat::algebra::CapacityExceeded".into(),
+        name: ":wat::holon::CapacityExceeded".into(),
         type_params: vec![],
         fields: vec![
             ("cost".into(), TypeExpr::Path(":i64".into())),
@@ -464,7 +464,7 @@ pub enum TypeError {
     MalformedTypeExpr { raw: String, reason: String },
     /// User source wrote `:Any` (as a bare path or parametric head).
     /// 058-030 forbids the escape hatch; every apparent use has a
-    /// principled alternative (`:holon::HolonAST`, parametric T, or a named
+    /// principled alternative (`:wat::holon::HolonAST`, parametric T, or a named
     /// enum).
     AnyBanned { raw: String },
     /// A typealias's expansion, traced through the currently-registered
@@ -514,7 +514,7 @@ impl fmt::Display for TypeError {
             }
             TypeError::AnyBanned { raw } => write!(
                 f,
-                ":Any is not part of the type system (058-030); use :holon::HolonAST for any algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: {}",
+                ":Any is not part of the type system (058-030); use :wat::holon::HolonAST for any algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: {}",
                 raw
             ),
             TypeError::CyclicAlias { name } => write!(
@@ -874,7 +874,7 @@ fn parse_declared_name(
 ///
 /// Refuses `:Any` at any position (bare path or parametric head) per
 /// 058-030's closed-type-universe discipline. Every apparent need for
-/// `:Any` has a principled named alternative (`:holon::HolonAST` for algebra
+/// `:Any` has a principled named alternative (`:wat::holon::HolonAST` for algebra
 /// values, parametric `T`/`K`/`V` for generics, a named enum for
 /// closed heterogeneous sets).
 pub fn parse_type_expr(kw: &str) -> Result<TypeExpr, TypeError> {
@@ -1435,12 +1435,12 @@ mod tests {
 
     #[test]
     fn typealias_function_type() {
-        let (env, _) = collect(r#"(:wat::core::typealias :my::Predicate :fn(holon::HolonAST)->bool)"#).unwrap();
+        let (env, _) = collect(r#"(:wat::core::typealias :my::Predicate :fn(wat::holon::HolonAST)->bool)"#).unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Predicate").unwrap() {
             match &a.expr {
                 TypeExpr::Fn { args, ret } => {
                     assert_eq!(args.len(), 1);
-                    assert_eq!(args[0], TypeExpr::Path(":holon::HolonAST".into()));
+                    assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
                     assert_eq!(**ret, TypeExpr::Path(":bool".into()));
                 }
                 other => panic!("expected Fn, got {:?}", other),
@@ -1490,7 +1490,7 @@ mod tests {
         let err = collect(r#"(:wat::core::struct :wat::core::MyStruct (x :f64))"#).unwrap_err();
         assert!(matches!(err, TypeError::ReservedPrefix { .. }));
 
-        let err = collect(r#"(:wat::core::struct :wat::algebra::Bad (x :f64))"#).unwrap_err();
+        let err = collect(r#"(:wat::core::struct :wat::holon::Bad (x :f64))"#).unwrap_err();
         assert!(matches!(err, TypeError::ReservedPrefix { .. }));
 
         let err = collect(r#"(:wat::core::struct :wat::std::Bad (x :f64))"#).unwrap_err();
@@ -1525,7 +1525,7 @@ mod tests {
         let (_env, rest) = collect(
             r#"
             (:wat::core::struct :my::T (x :f64))
-            (:wat::algebra::Atom "hello")
+            (:wat::holon::Atom "hello")
             42
             "#,
         )
@@ -1580,11 +1580,11 @@ mod tests {
 
     #[test]
     fn type_expr_fn_no_args() {
-        let t = parse_type_expr(":fn()->holon::HolonAST").unwrap();
+        let t = parse_type_expr(":fn()->wat::holon::HolonAST").unwrap();
         match t {
             TypeExpr::Fn { args, ret } => {
                 assert!(args.is_empty());
-                assert_eq!(*ret, TypeExpr::Path(":holon::HolonAST".into()));
+                assert_eq!(*ret, TypeExpr::Path(":wat::holon::HolonAST".into()));
             }
             _ => panic!(),
         }
@@ -1617,7 +1617,7 @@ mod tests {
 
     #[test]
     fn type_expr_tuple_triple() {
-        let t = parse_type_expr(":(Holon,holon::HolonAST,Holon)").unwrap();
+        let t = parse_type_expr(":(Holon,wat::holon::HolonAST,Holon)").unwrap();
         match t {
             TypeExpr::Tuple(elements) => assert_eq!(elements.len(), 3),
             other => panic!("expected 3-tuple, got {:?}", other),

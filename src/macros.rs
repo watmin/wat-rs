@@ -664,18 +664,18 @@ mod tests {
     fn alias_macro_expands_to_primitive() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::vocab::Concurrent (xs :AST<List<holon::HolonAST>>) -> :AST<holon::HolonAST>)
-              `(:wat::algebra::Bundle ,xs))
-            (:my::vocab::Concurrent (:wat::core::vec :holon::HolonAST a b c))
+            (:wat::core::defmacro (:my::vocab::Concurrent (xs :AST<List<wat::holon::HolonAST>>) -> :AST<wat::holon::HolonAST>)
+              `(:wat::holon::Bundle ,xs))
+            (:my::vocab::Concurrent (:wat::core::vec :wat::holon::HolonAST a b c))
             "#,
         )
         .unwrap();
         assert_eq!(forms.len(), 1);
-        // Expansion: (:wat::algebra::Bundle (:wat::core::vec :holon::HolonAST a b c))
+        // Expansion: (:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST a b c))
         match &forms[0] {
             WatAST::List(items, _) => {
                 assert_eq!(items.len(), 2);
-                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::algebra::Bundle"));
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::holon::Bundle"));
             }
             _ => panic!("expected List after expansion"),
         }
@@ -687,17 +687,17 @@ mod tests {
     fn subtract_macro_expansion() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::vocab::Subtract (x :AST<holon::HolonAST>) (y :AST<holon::HolonAST>) -> :AST<holon::HolonAST>)
-              `(:wat::algebra::Blend ,x ,y 1 -1))
+            (:wat::core::defmacro (:my::vocab::Subtract (x :AST<wat::holon::HolonAST>) (y :AST<wat::holon::HolonAST>) -> :AST<wat::holon::HolonAST>)
+              `(:wat::holon::Blend ,x ,y 1 -1))
             (:my::vocab::Subtract foo bar)
             "#,
         )
         .unwrap();
-        // (:wat::algebra::Blend foo bar 1 -1)
+        // (:wat::holon::Blend foo bar 1 -1)
         match &forms[0] {
             WatAST::List(items, _) => {
                 assert_eq!(items.len(), 5);
-                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::algebra::Blend"));
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::holon::Blend"));
                 assert!(matches!(&items[1], WatAST::Symbol(i, _) if i.as_str() == "foo"));
                 assert!(matches!(&items[2], WatAST::Symbol(i, _) if i.as_str() == "bar"));
                 assert!(matches!(items[3], WatAST::IntLit(1, _)));
@@ -713,17 +713,17 @@ mod tests {
     fn splice_list_arg_into_template() {
         let forms = expand(
             r#"
-            (:wat::core::defmacro (:my::vocab::SumAll (xs :AST<List<holon::HolonAST>>) -> :AST<holon::HolonAST>)
-              `(:wat::algebra::Bundle ,@xs))
+            (:wat::core::defmacro (:my::vocab::SumAll (xs :AST<List<wat::holon::HolonAST>>) -> :AST<wat::holon::HolonAST>)
+              `(:wat::holon::Bundle ,@xs))
             (:my::vocab::SumAll (a b c))
             "#,
         )
         .unwrap();
-        // (:wat::algebra::Bundle a b c) — the list elements are spliced in.
+        // (:wat::holon::Bundle a b c) — the list elements are spliced in.
         match &forms[0] {
             WatAST::List(items, _) => {
                 assert_eq!(items.len(), 4);
-                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::algebra::Bundle"));
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::holon::Bundle"));
                 assert!(matches!(&items[1], WatAST::Symbol(i, _) if i.as_str() == "a"));
                 assert!(matches!(&items[2], WatAST::Symbol(i, _) if i.as_str() == "b"));
                 assert!(matches!(&items[3], WatAST::Symbol(i, _) if i.as_str() == "c"));
@@ -741,16 +741,16 @@ mod tests {
             (:wat::core::defmacro (:my::outer (x :AST) -> :AST)
               `(:my::inner ,x))
             (:wat::core::defmacro (:my::inner (x :AST) -> :AST)
-              `(:wat::algebra::Atom ,x))
+              `(:wat::holon::Atom ,x))
             (:my::outer 42)
             "#,
         )
         .unwrap();
-        // (:wat::algebra::Atom 42) after fixpoint.
+        // (:wat::holon::Atom 42) after fixpoint.
         match &forms[0] {
             WatAST::List(items, _) => {
                 assert_eq!(items.len(), 2);
-                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::algebra::Atom"));
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::holon::Atom"));
                 assert!(matches!(items[1], WatAST::IntLit(42, _)));
             }
             _ => panic!("expected List"),
@@ -822,7 +822,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::wrap (v :AST) -> :AST)
-              `(:wat::algebra::Atom ,v))
+              `(:wat::holon::Atom ,v))
             (:my::wrap some-var)
             "#,
         )
@@ -960,7 +960,7 @@ mod tests {
 
     #[test]
     fn non_macro_forms_unchanged() {
-        let forms = expand(r#"(:wat::algebra::Atom "hello") 42 "world""#).unwrap();
+        let forms = expand(r#"(:wat::holon::Atom "hello") 42 "world""#).unwrap();
         assert_eq!(forms.len(), 3);
         assert!(matches!(forms[1], WatAST::IntLit(42, _)));
         assert!(matches!(&forms[2], WatAST::StringLit(s, _) if s == "world"));

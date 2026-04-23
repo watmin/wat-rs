@@ -14,13 +14,13 @@
 
 (:wat::core::defmacro
   (:wat::std::Reject
-    (x :AST<holon::HolonAST>)
-    (y :AST<holon::HolonAST>)
-    -> :AST<holon::HolonAST>)
-  `(:wat::algebra::Blend
+    (x :AST<wat::holon::HolonAST>)
+    (y :AST<wat::holon::HolonAST>)
+    -> :AST<wat::holon::HolonAST>)
+  `(:wat::holon::Blend
      ,x
      ,y
      1.0
      (:wat::core::f64::- 0.0
-       (:wat::core::f64::/ (:wat::algebra::dot ,x ,y)
-                           (:wat::algebra::dot ,y ,y)))))
+       (:wat::core::f64::/ (:wat::holon::dot ,x ,y)
+                           (:wat::holon::dot ,y ,y)))))

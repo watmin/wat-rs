@@ -46,7 +46,7 @@
 //!   `AtomTypeRegistry` with a `WatAST` canonicalizer registered)
 //!   built from the committed [`Config`] and attached to the
 //!   [`SymbolTable`]. Runtime primitives that need to project holons
-//!   into their vectors (`:wat::algebra::cosine`,
+//!   into their vectors (`:wat::holon::cosine`,
 //!   `:wat::config::noise-floor`) reach it via dispatch.
 
 use crate::ast::WatAST;
@@ -90,7 +90,7 @@ impl FrozenWorld {
     ///
     /// Also constructs an [`EncodingCtx`] from `config` and attaches it
     /// to `symbols`, so runtime primitives that project holons into
-    /// their vectors (`:wat::algebra::cosine`, `:wat::config::noise-floor`)
+    /// their vectors (`:wat::holon::cosine`, `:wat::config::noise-floor`)
     /// have access at dispatch. Per FOUNDATION 1718, presence is the
     /// retrieval primitive; it is only reachable once freeze has
     /// committed `dims` / `global_seed` / `noise_floor` and built the
@@ -318,7 +318,7 @@ pub fn startup_from_forms(
     let expanded_user = expand_all(post_macro_reg, &macros)?;
 
     // 5. Type declarations. Seeded with wat-rs's own :wat::*
-    //    built-in types (e.g., :wat::algebra::CapacityExceeded)
+    //    built-in types (e.g., :wat::holon::CapacityExceeded)
     //    before stdlib and user source land; those declarations
     //    cannot be re-declared by user code (the reserved-prefix
     //    gate blocks at `TypeEnv::register`).
@@ -645,7 +645,7 @@ mod tests {
         let src = r#"
             (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
-            (:wat::algebra::Atom "hello")
+            (:wat::holon::Atom "hello")
         "#;
         let world = startup(src).expect("startup");
         assert_eq!(world.config().dims, 1024);
@@ -690,8 +690,8 @@ mod tests {
         let src = r#"
             (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
-            (:wat::core::defmacro (:my::vocab::Double (x :AST<holon::HolonAST>) -> :AST<holon::HolonAST>)
-              `(:wat::algebra::Blend ,x ,x 1 1))
+            (:wat::core::defmacro (:my::vocab::Double (x :AST<wat::holon::HolonAST>) -> :AST<wat::holon::HolonAST>)
+              `(:wat::holon::Blend ,x ,x 1 1))
         "#;
         let world = startup(src).expect("startup");
         assert!(world.macros().contains(":my::vocab::Double"));
@@ -708,7 +708,7 @@ mod tests {
     #[test]
     fn config_missing_required_bubbles_up() {
         // No :wat::config::set-dims! — config pass halts.
-        let err = startup("(:wat::algebra::Atom 42)").unwrap_err();
+        let err = startup("(:wat::holon::Atom 42)").unwrap_err();
         assert!(matches!(err, StartupError::Config(_)));
     }
 
@@ -909,7 +909,7 @@ mod tests {
         "#,
         );
         let ast = crate::parser::parse_one(
-            r#"(:wat::algebra::Bind (:wat::algebra::Atom "role") (:wat::algebra::Atom "filler"))"#,
+            r#"(:wat::holon::Bind (:wat::holon::Atom "role") (:wat::holon::Atom "filler"))"#,
         )
         .unwrap();
         let env = Environment::new();
@@ -948,7 +948,7 @@ mod tests {
         "#,
         );
         let ast = crate::parser::parse_one(
-            r#"(:wat::core::defmacro (:evil::M (x :AST<holon::HolonAST>) -> :AST<holon::HolonAST>) x)"#,
+            r#"(:wat::core::defmacro (:evil::M (x :AST<wat::holon::HolonAST>) -> :AST<wat::holon::HolonAST>) x)"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();

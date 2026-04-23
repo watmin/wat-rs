@@ -3,7 +3,7 @@
 //! This slice implements real parametric polymorphism per 058-030:
 //!
 //! - [`TypeScheme`] carries `type_params` — the list of names that are
-//!   universally quantified (e.g., `["T"]` for `∀T. T -> :holon::HolonAST`).
+//!   universally quantified (e.g., `["T"]` for `∀T. T -> :wat::holon::HolonAST`).
 //! - Every call site **instantiates** the scheme with fresh unification
 //!   variables ([`TypeExpr::Var`]), accumulates a substitution by
 //!   unifying each argument type with its (instantiated) parameter
@@ -14,7 +14,7 @@
 //!   types. The body must type-check for any choice of T.
 //! - Built-in schemes use real polymorphism: `list` is `∀T. T* ->
 //!   List<T>`; `= < > <= >=` are `∀T. T -> T -> :bool`; `Atom` is
-//!   `∀T. T -> :holon::HolonAST`.
+//!   `∀T. T -> :wat::holon::HolonAST`.
 //! - `:Any` is banned everywhere — the type universe is closed
 //!   ([058-030](https://…/058-030-types/PROPOSAL.md), §591). User
 //!   source containing `:Any` halts at parse (see
@@ -223,7 +223,7 @@ impl CheckEnv {
     }
 
     /// Build an env with built-in schemes for `:wat::core::*` and
-    /// `:wat::algebra::*` forms, then overlay user-define signatures
+    /// `:wat::holon::*` forms, then overlay user-define signatures
     /// from `sym`. `types` carries the registered user type
     /// declarations (struct/enum/newtype/typealias) — unification uses
     /// it to expand aliases.
@@ -2792,7 +2792,7 @@ fn register_builtins(env: &mut CheckEnv) {
     let u8_ty = || TypeExpr::Path(":u8".into());
     let f64_ty = || TypeExpr::Path(":f64".into());
     let bool_ty = || TypeExpr::Path(":bool".into());
-    let holon_ty = || TypeExpr::Path(":holon::HolonAST".into());
+    let holon_ty = || TypeExpr::Path(":wat::holon::HolonAST".into());
     let t_var = || TypeExpr::Path(":T".into());
 
     // :u8 range-checked cast from :i64. Arc 008 slice 1. Runtime
@@ -3282,16 +3282,16 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Algebra-core UpperCalls.
-    // Atom — ∀T. T → :holon::HolonAST. Accepts any payload type.
+    // Atom — ∀T. T → :wat::holon::HolonAST. Accepts any payload type.
     env.register(
-        ":wat::algebra::Atom".into(),
+        ":wat::holon::Atom".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![t_var()],
             ret: holon_ty(),
         },
     );
-    // atom-value — ∀T. :holon::HolonAST → :T. Dual of Atom. The caller's
+    // atom-value — ∀T. :wat::holon::HolonAST → :T. Dual of Atom. The caller's
     // let-binding type ascription (or surrounding context) pins T; the
     // runtime downcasts the payload and errors on type mismatch.
     env.register(
@@ -3304,7 +3304,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // The eval-family forms — per the 2026-04-20 INSCRIPTION adding
-    // :Result<holon::HolonAST, :wat::core::EvalError> as the uniform
+    // :Result<wat::holon::HolonAST, :wat::core::EvalError> as the uniform
     // return type. Every dynamic evaluation failure (verification,
     // parse, mutation-form refused, unknown function, type mismatch,
     // etc.) becomes an Err value in the Result rather than an
@@ -3382,15 +3382,15 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::algebra::Bind".into(),
+        ":wat::holon::Bind".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty()],
             ret: holon_ty(),
         },
     );
-    // Bundle takes :Vec<holon::HolonAST> and returns
-    // :Result<holon::HolonAST, :wat::algebra::CapacityExceeded>.
+    // Bundle takes :Vec<wat::holon::HolonAST> and returns
+    // :Result<wat::holon::HolonAST, :wat::holon::CapacityExceeded>.
     // The Result wrap is the forcing function for the capacity guard:
     // authors are required by the type system to acknowledge the
     // failure case — either matching explicitly or propagating via
@@ -3399,7 +3399,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Bundle has a capacity bound); under `:error` it fires; under
     // `:abort` the process panics before returning.
     env.register(
-        ":wat::algebra::Bundle".into(),
+        ":wat::holon::Bundle".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Parametric {
@@ -3410,13 +3410,13 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Result".into(),
                 args: vec![
                     holon_ty(),
-                    TypeExpr::Path(":wat::algebra::CapacityExceeded".into()),
+                    TypeExpr::Path(":wat::holon::CapacityExceeded".into()),
                 ],
             },
         },
     );
     env.register(
-        ":wat::algebra::Permute".into(),
+        ":wat::holon::Permute".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty(), i64_ty()],
@@ -3424,7 +3424,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::algebra::Thermometer".into(),
+        ":wat::holon::Thermometer".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![f64_ty(), f64_ty(), f64_ty()],
@@ -3432,7 +3432,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::algebra::Blend".into(),
+        ":wat::holon::Blend".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty(), f64_ty(), f64_ty()],
@@ -3443,10 +3443,10 @@ fn register_builtins(env: &mut CheckEnv) {
     // Cosine measurement — the retrieval scalar (FOUNDATION 1718 +
     // OPEN-QUESTIONS line 419). Algebra-substrate operation (input is
     // holons, not raw numbers).
-    //   (:wat::algebra::cosine    target ref) -> :f64
-    //   (:wat::algebra::presence? target ref) -> :bool (cosine > noise-floor)
+    //   (:wat::holon::cosine    target ref) -> :f64
+    //   (:wat::holon::presence? target ref) -> :bool (cosine > noise-floor)
     env.register(
-        ":wat::algebra::cosine".into(),
+        ":wat::holon::cosine".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty()],
@@ -3454,7 +3454,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::algebra::presence?".into(),
+        ":wat::holon::presence?".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty()],
@@ -3708,7 +3708,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // primitive. Scalar-returning sibling of cosine; used by the
     // Gram-Schmidt stdlib macros (Reject, Project).
     env.register(
-        ":wat::algebra::dot".into(),
+        ":wat::holon::dot".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty()],
@@ -4017,7 +4017,7 @@ mod tests {
     fn correct_arity_passes() {
         assert!(check("(:wat::core::i64::+ 1 2)").is_ok());
         assert!(check("(:wat::core::not true)").is_ok());
-        assert!(check("(:wat::algebra::Bind (:wat::algebra::Atom 1) (:wat::algebra::Atom 2))").is_ok());
+        assert!(check("(:wat::holon::Bind (:wat::holon::Atom 1) (:wat::holon::Atom 2))").is_ok());
     }
 
     #[test]
@@ -4054,7 +4054,7 @@ mod tests {
 
     #[test]
     fn bind_non_holon_rejected() {
-        let err = check("(:wat::algebra::Bind 42 (:wat::algebra::Atom 1))").unwrap_err();
+        let err = check("(:wat::holon::Bind 42 (:wat::holon::Atom 1))").unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
@@ -4095,20 +4095,20 @@ mod tests {
 
     #[test]
     fn bundle_of_list_of_holons_passes() {
-        // Bundle takes :Vec<holon::HolonAST>. A list of (Atom ...) calls
-        // returns :Vec<holon::HolonAST>, so Bundle(list(Atoms...)) type-checks.
+        // Bundle takes :Vec<wat::holon::HolonAST>. A list of (Atom ...) calls
+        // returns :Vec<wat::holon::HolonAST>, so Bundle(list(Atoms...)) type-checks.
         assert!(check(
-            r#"(:wat::algebra::Bundle (:wat::core::vec :holon::HolonAST
-                 (:wat::algebra::Atom 1)
-                 (:wat::algebra::Atom 2)))"#
+            r#"(:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST
+                 (:wat::holon::Atom 1)
+                 (:wat::holon::Atom 2)))"#
         )
         .is_ok());
     }
 
     #[test]
     fn bundle_of_list_of_ints_rejected() {
-        // Bundle wants :Vec<holon::HolonAST>, but this is :Vec<i64>.
-        let err = check(r#"(:wat::algebra::Bundle (:wat::core::vec :i64 1 2 3))"#).unwrap_err();
+        // Bundle wants :Vec<wat::holon::HolonAST>, but this is :Vec<i64>.
+        let err = check(r#"(:wat::holon::Bundle (:wat::core::vec :i64 1 2 3))"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
@@ -4371,8 +4371,8 @@ mod tests {
     #[test]
     fn type_expr_parse_and_unify() {
         let mut s = Subst::new();
-        let a = parse_type_expr(":holon::HolonAST").unwrap();
-        let b = parse_type_expr(":holon::HolonAST").unwrap();
+        let a = parse_type_expr(":wat::holon::HolonAST").unwrap();
+        let b = parse_type_expr(":wat::holon::HolonAST").unwrap();
         assert!(unify(&a, &b, &mut s, &TypeEnv::with_builtins()).is_ok());
     }
 }

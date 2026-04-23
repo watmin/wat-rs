@@ -12,14 +12,14 @@
 
 (:wat::test::deftest :wat-tests::std::Reject::test-reject-strips-y-direction 1024 :error
   (:wat::core::let*
-    (((x :holon::HolonAST) (:wat::algebra::Atom "x"))
-     ((y :holon::HolonAST) (:wat::algebra::Atom "y"))
-     ((residual :holon::HolonAST) (:wat::std::Reject x y)))
-    (:wat::test::assert-eq (:wat::algebra::presence? y residual) false)))
+    (((x :wat::holon::HolonAST) (:wat::holon::Atom "x"))
+     ((y :wat::holon::HolonAST) (:wat::holon::Atom "y"))
+     ((residual :wat::holon::HolonAST) (:wat::std::Reject x y)))
+    (:wat::test::assert-eq (:wat::holon::presence? y residual) false)))
 
 (:wat::test::deftest :wat-tests::std::Reject::test-project-preserves-y-direction 1024 :error
   (:wat::core::let*
-    (((x :holon::HolonAST) (:wat::algebra::Atom "x"))
-     ((y :holon::HolonAST) (:wat::algebra::Atom "y"))
-     ((shadow :holon::HolonAST) (:wat::std::Project x y)))
-    (:wat::test::assert-eq (:wat::algebra::presence? y shadow) true)))
+    (((x :wat::holon::HolonAST) (:wat::holon::Atom "x"))
+     ((y :wat::holon::HolonAST) (:wat::holon::Atom "y"))
+     ((shadow :wat::holon::HolonAST) (:wat::std::Project x y)))
+    (:wat::test::assert-eq (:wat::holon::presence? y shadow) true)))

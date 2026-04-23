@@ -309,7 +309,7 @@ fn missing_user_main_surfaces_as_failure() {
 #[test]
 fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
     // Inner main writes "before panic" to stdout, then triggers a
-    // real Rust-level panic via :wat::algebra::Bundle under :abort
+    // real Rust-level panic via :wat::holon::Bundle under :abort
     // mode with a list exceeding the capacity budget. Outer caller
     // sees RunResult with stdout=["before panic"] + Failure with
     // "panic" in the message.
@@ -331,23 +331,23 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
                                   -> :())
                (:wat::core::let*
                  (((_ :()) (:wat::io::IOWriter/println stdout \"before panic\"))
-                  ((_ :Result<holon::HolonAST,wat::algebra::CapacityExceeded>)
-                   (:wat::algebra::Bundle
-                     (:wat::core::list :holon::HolonAST
-                       (:wat::algebra::Atom \"a\") (:wat::algebra::Atom \"b\") (:wat::algebra::Atom \"c\")
-                       (:wat::algebra::Atom \"d\") (:wat::algebra::Atom \"e\") (:wat::algebra::Atom \"f\")
-                       (:wat::algebra::Atom \"g\") (:wat::algebra::Atom \"h\") (:wat::algebra::Atom \"i\")
-                       (:wat::algebra::Atom \"j\") (:wat::algebra::Atom \"k\") (:wat::algebra::Atom \"l\")
-                       (:wat::algebra::Atom \"m\") (:wat::algebra::Atom \"n\") (:wat::algebra::Atom \"o\")
-                       (:wat::algebra::Atom \"p\") (:wat::algebra::Atom \"q\") (:wat::algebra::Atom \"r\")
-                       (:wat::algebra::Atom \"s\") (:wat::algebra::Atom \"t\") (:wat::algebra::Atom \"u\")
-                       (:wat::algebra::Atom \"v\") (:wat::algebra::Atom \"w\") (:wat::algebra::Atom \"x\")
-                       (:wat::algebra::Atom \"y\") (:wat::algebra::Atom \"z\") (:wat::algebra::Atom \"0\")
-                       (:wat::algebra::Atom \"1\") (:wat::algebra::Atom \"2\") (:wat::algebra::Atom \"3\")
-                       (:wat::algebra::Atom \"4\") (:wat::algebra::Atom \"5\") (:wat::algebra::Atom \"6\")
-                       (:wat::algebra::Atom \"7\") (:wat::algebra::Atom \"8\") (:wat::algebra::Atom \"9\")
-                       (:wat::algebra::Atom \"a2\") (:wat::algebra::Atom \"b2\") (:wat::algebra::Atom \"c2\")
-                       (:wat::algebra::Atom \"d2\")))))
+                  ((_ :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+                   (:wat::holon::Bundle
+                     (:wat::core::list :wat::holon::HolonAST
+                       (:wat::holon::Atom \"a\") (:wat::holon::Atom \"b\") (:wat::holon::Atom \"c\")
+                       (:wat::holon::Atom \"d\") (:wat::holon::Atom \"e\") (:wat::holon::Atom \"f\")
+                       (:wat::holon::Atom \"g\") (:wat::holon::Atom \"h\") (:wat::holon::Atom \"i\")
+                       (:wat::holon::Atom \"j\") (:wat::holon::Atom \"k\") (:wat::holon::Atom \"l\")
+                       (:wat::holon::Atom \"m\") (:wat::holon::Atom \"n\") (:wat::holon::Atom \"o\")
+                       (:wat::holon::Atom \"p\") (:wat::holon::Atom \"q\") (:wat::holon::Atom \"r\")
+                       (:wat::holon::Atom \"s\") (:wat::holon::Atom \"t\") (:wat::holon::Atom \"u\")
+                       (:wat::holon::Atom \"v\") (:wat::holon::Atom \"w\") (:wat::holon::Atom \"x\")
+                       (:wat::holon::Atom \"y\") (:wat::holon::Atom \"z\") (:wat::holon::Atom \"0\")
+                       (:wat::holon::Atom \"1\") (:wat::holon::Atom \"2\") (:wat::holon::Atom \"3\")
+                       (:wat::holon::Atom \"4\") (:wat::holon::Atom \"5\") (:wat::holon::Atom \"6\")
+                       (:wat::holon::Atom \"7\") (:wat::holon::Atom \"8\") (:wat::holon::Atom \"9\")
+                       (:wat::holon::Atom \"a2\") (:wat::holon::Atom \"b2\") (:wat::holon::Atom \"c2\")
+                       (:wat::holon::Atom \"d2\")))))
                  ()))"
             (:wat::core::vec :String)
             :None))
