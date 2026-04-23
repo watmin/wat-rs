@@ -16,12 +16,13 @@
 (:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
 
-;; wat-lru's real external dep. use! is load-bearing here —
-;; :rust::lru::LruCache is a :#[wat_dispatch]'d third-party crate,
-;; not substrate. wat-lru's register() adds the type to the
-;; rust_deps registry at startup; the resolver validates this
-;; declaration against it.
-(:wat::core::use! :rust::lru::LruCache)
+;; No `(:wat::core::use! :rust::lru::LruCache)` is needed here: this
+;; consumer only uses the wat-level wrapper `:user::wat::std::lru::LocalCache`.
+;; wat-lru's own `wat/LocalCache.wat` declares the `use!` internally,
+;; covering the Rust-side dispatch. `use!` belongs in whichever wat
+;; file directly references `:rust::<crate>::*` — which, for consumers
+;; of wrapped Rust types, is usually the wrapping crate, not the
+;; consumer.
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
