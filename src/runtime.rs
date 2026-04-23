@@ -1758,6 +1758,7 @@ fn dispatch_keyword_head(
         ":wat::std::HashMap" => eval_hashmap_ctor(args, env, sym),
         ":wat::std::HashSet" => eval_hashset_ctor(args, env, sym),
         ":wat::std::get" => eval_get(args, env, sym),
+        ":wat::core::assoc" => eval_assoc(args, env, sym),
         ":wat::std::contains?" => eval_hashmap_contains(args, env, sym),
         ":wat::std::member?" => eval_hashset_member(args, env, sym),
         // :wat::io::IOReader / :wat::io::IOWriter — abstract IO
@@ -3633,6 +3634,44 @@ fn eval_get(
         other => Err(RuntimeError::TypeMismatch {
             op: ":wat::std::get".into(),
             expected: "HashMap | HashSet",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// Arc 020 — `(:wat::core::assoc container key value)`. Clojure
+/// `assoc`: return a new HashMap with the entry added/replaced.
+/// Values-up: input container unchanged. HashMap-only for now;
+/// other containers dispatched off the same function if demand
+/// surfaces (matches `eval_get`'s pattern).
+fn eval_assoc(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::assoc";
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let k = eval(&args[1], env, sym)?;
+    let v = eval(&args[2], env, sym)?;
+    match container {
+        Value::wat__std__HashMap(m) => {
+            let key = hashmap_key(OP, &k)?;
+            // Clone the inner HashMap — cheap shallow copy of buckets;
+            // keys and values are `Arc`-shared where applicable.
+            let mut new_map = (*m).clone();
+            new_map.insert(key, (k, v));
+            Ok(Value::wat__std__HashMap(Arc::new(new_map)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "HashMap<K,V>",
             got: other.type_name(),
         }),
     }
@@ -8372,6 +8411,80 @@ mod tests {
     fn hashmap_get_requires_hashmap_arg() {
         let err = eval_expr(r#"(:wat::std::get 42 "k")"#).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    // ─── :wat::core::assoc (arc 020) ───────────────────────────────────
+
+    #[test]
+    fn assoc_adds_entry_returning_new_map() {
+        let src = r#"
+            (:wat::core::let*
+              (((m0 :rust::std::collections::HashMap<String,i64>)
+                (:wat::std::HashMap :(String,i64)))
+               ((m1 :rust::std::collections::HashMap<String,i64>)
+                (:wat::core::assoc m0 "count" 1)))
+              (:wat::core::match (:wat::std::get m1 "count") -> :i64
+                ((Some n) n)
+                (:None 0)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(1) => {}
+            v => panic!("expected 1, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn assoc_overwrites_existing_key() {
+        let src = r#"
+            (:wat::core::let*
+              (((m0 :rust::std::collections::HashMap<String,i64>)
+                (:wat::std::HashMap :(String,i64) "count" 1))
+               ((m1 :rust::std::collections::HashMap<String,i64>)
+                (:wat::core::assoc m0 "count" 2)))
+              (:wat::core::match (:wat::std::get m1 "count") -> :i64
+                ((Some n) n)
+                (:None 0)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(2) => {}
+            v => panic!("expected 2 (overwrite), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn assoc_preserves_original_map() {
+        // Values-up: the input map is unchanged after assoc returns.
+        let src = r#"
+            (:wat::core::let*
+              (((m0 :rust::std::collections::HashMap<String,i64>)
+                (:wat::std::HashMap :(String,i64) "a" 10))
+               ((m1 :rust::std::collections::HashMap<String,i64>)
+                (:wat::core::assoc m0 "b" 20)))
+              (:wat::core::match (:wat::std::get m0 "b") -> :i64
+                ((Some n) n)
+                (:None -1)))
+        "#;
+        // Original m0 doesn't have "b" — assoc returned a new map,
+        // m0 stays as {a: 10}.
+        match eval_expr(src).unwrap() {
+            Value::i64(-1) => {}
+            v => panic!("expected -1 (m0 unchanged), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn assoc_requires_hashmap_arg() {
+        let err = eval_expr(r#"(:wat::core::assoc 42 "k" 1)"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn assoc_arity_mismatch() {
+        let err = eval_expr(
+            r#"(:wat::core::assoc (:wat::std::HashMap :(String,i64)) "k")"#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 
     // ─── HashSet ───────────────────────────────────────────────────────

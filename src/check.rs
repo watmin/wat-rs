@@ -427,6 +427,7 @@ fn infer_list(
             ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::tuple" => return infer_tuple_constructor(args, env, locals, fresh, subst, errors),
             ":wat::std::HashMap" => return infer_hashmap_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::core::assoc" => return infer_assoc(args, env, locals, fresh, subst, errors),
             ":wat::std::HashSet" => return infer_hashset_constructor(args, env, locals, fresh, subst, errors),
             ":wat::std::get" => return infer_get(args, env, locals, fresh, subst, errors),
             ":wat::core::quote" => {
@@ -2013,6 +2014,78 @@ fn infer_get(
     Some(TypeExpr::Parametric {
         head: "Option".into(),
         args: vec![fresh.fresh()],
+    })
+}
+
+/// Arc 020 — `(:wat::core::assoc container key value)`. Clojure
+/// `assoc`: associate key with value in a HashMap, return new map.
+/// For `HashMap<K,V>`: unifies key-ty with K, value-ty with V;
+/// returns the input HashMap type. Matches `infer_get`'s dispatch-
+/// on-container shape; extends to other containers if demand
+/// surfaces.
+fn infer_assoc(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 3 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::core::assoc".into(),
+            expected: 3,
+            got: args.len(),
+        });
+        return Some(TypeExpr::Parametric {
+            head: "HashMap".into(),
+            args: vec![fresh.fresh(), fresh.fresh()],
+        });
+    }
+    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let key_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    let value_ty = infer(&args[2], env, locals, fresh, subst, errors);
+    if let Some(ct) = container_ty {
+        let reduced = reduce(&ct, subst, env.types());
+        match &reduced {
+            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
+                let k = apply_subst(&ta[0], subst);
+                let v = apply_subst(&ta[1], subst);
+                if let Some(key_ty) = key_ty {
+                    if unify(&key_ty, &k, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::core::assoc".into(),
+                            param: "key".into(),
+                            expected: format_type(&apply_subst(&k, subst)),
+                            got: format_type(&apply_subst(&key_ty, subst)),
+                        });
+                    }
+                }
+                if let Some(value_ty) = value_ty {
+                    if unify(&value_ty, &v, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::core::assoc".into(),
+                            param: "value".into(),
+                            expected: format_type(&apply_subst(&v, subst)),
+                            got: format_type(&apply_subst(&value_ty, subst)),
+                        });
+                    }
+                }
+                return Some(reduced);
+            }
+            _ => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::assoc".into(),
+                    param: "container".into(),
+                    expected: "HashMap<K,V>".into(),
+                    got: format_type(&apply_subst(&ct, subst)),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Parametric {
+        head: "HashMap".into(),
+        args: vec![fresh.fresh(), fresh.fresh()],
     })
 }
 
