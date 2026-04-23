@@ -11,7 +11,7 @@
 //! entry Rust primitive `:wat::kernel::run-sandboxed-hermetic`. That
 //! primitive is retired; the AST-entry path lives in the wat stdlib
 //! now. Callers that had source text go through `:wat::test::program`
-//! + `run-sandboxed-hermetic-ast` instead of escape-string-inside-
+//! plus `run-sandboxed-hermetic-ast` instead of escape-string-inside-
 //! escape-string. The behavior tested here is identical; the shape
 //! reads cleanly.
 

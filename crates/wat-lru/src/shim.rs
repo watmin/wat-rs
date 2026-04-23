@@ -11,8 +11,8 @@
 //! # Why a newtype
 //!
 //! `#[wat_dispatch]` annotates a Rust `impl` block. We can't
-//! annotate the upstream `lru::LruCache<K,V>` directly (orphan rule
-//! + generic handling), so we wrap it in `WatLruCache` with
+//! annotate the upstream `lru::LruCache<K,V>` directly (orphan rule,
+//! plus generic handling), so we wrap it in `WatLruCache` with
 //! monomorphic `LruCache<String, Value>` storage — canonical-string
 //! keys matching wat's HashMap convention. The wat-level `<K,V>`
 //! type parameters are phantom (declared via the attribute's

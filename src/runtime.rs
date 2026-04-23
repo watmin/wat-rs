@@ -537,20 +537,11 @@ impl fmt::Debug for EncodingCtx {
 /// Rust's compiler `Session`, Common Lisp special variables,
 /// Clojure dynamic vars, and Haskell `ReaderT`. See arc 007 DESIGN.md.
 #[derive(Clone)]
+#[derive(Default)]
 pub struct SymbolTable {
     pub functions: HashMap<String, Arc<Function>>,
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
     pub source_loader: Option<Arc<dyn crate::load::SourceLoader>>,
-}
-
-impl Default for SymbolTable {
-    fn default() -> Self {
-        Self {
-            functions: HashMap::new(),
-            encoding_ctx: None,
-            source_loader: None,
-        }
-    }
 }
 
 impl std::fmt::Debug for SymbolTable {

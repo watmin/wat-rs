@@ -516,7 +516,7 @@ mod tests {
         let got = lex_tokens("\"héllo\"").unwrap();
         assert_eq!(got, vec![Token::Str("héllo".into())]);
         if let Token::Str(s) = &got[0] {
-            assert_eq!(s.as_bytes().len(), 6, "héllo should be 6 UTF-8 bytes");
+            assert_eq!(s.len(), 6, "héllo should be 6 UTF-8 bytes");
         }
 
         // CJK and emoji exercise 3- and 4-byte sequences.
