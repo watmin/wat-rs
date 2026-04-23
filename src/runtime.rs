@@ -543,6 +543,7 @@ pub struct SymbolTable {
     pub functions: HashMap<String, Arc<Function>>,
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
     pub source_loader: Option<Arc<dyn crate::load::SourceLoader>>,
+    pub macro_registry: Option<Arc<crate::macros::MacroRegistry>>,
 }
 
 impl std::fmt::Debug for SymbolTable {
@@ -551,6 +552,7 @@ impl std::fmt::Debug for SymbolTable {
             .field("functions", &self.functions.len())
             .field("encoding_ctx", &self.encoding_ctx.is_some())
             .field("source_loader", &self.source_loader.is_some())
+            .field("macro_registry", &self.macro_registry.is_some())
             .finish()
     }
 }
@@ -591,6 +593,23 @@ impl SymbolTable {
     /// attach a loader doesn't have the capability.
     pub fn source_loader(&self) -> Option<&Arc<dyn crate::load::SourceLoader>> {
         self.source_loader.as_ref()
+    }
+
+    /// Attach the macro registry. Called once at freeze time by
+    /// [`crate::freeze::FrozenWorld::freeze`] so runtime primitives
+    /// (`:wat::core::macroexpand`, `:wat::core::macroexpand-1`) can
+    /// inspect macro expansion at runtime — the standard Lisp
+    /// macro-debugging tool. Arc 030.
+    pub fn set_macro_registry(&mut self, registry: Arc<crate::macros::MacroRegistry>) {
+        self.macro_registry = Some(registry);
+    }
+
+    /// Borrow the macro registry, if one is attached. `macroexpand`
+    /// and `macroexpand-1` call this and raise `NoMacroRegistry` on
+    /// `None` — test harnesses that build a SymbolTable directly
+    /// without going through freeze don't have macros attached.
+    pub fn macro_registry(&self) -> Option<&Arc<crate::macros::MacroRegistry>> {
+        self.macro_registry.as_ref()
     }
 }
 
@@ -661,6 +680,18 @@ pub enum RuntimeError {
     /// SymbolTable directly must call [`SymbolTable::set_source_loader`]
     /// to grant file-I/O capability.
     NoSourceLoader { op: String },
+    /// `:wat::core::macroexpand` / `macroexpand-1` was invoked but the
+    /// [`SymbolTable`] has no attached macro registry. The frozen
+    /// startup pipeline attaches the registry; test harnesses that
+    /// build a SymbolTable directly must call
+    /// [`SymbolTable::set_macro_registry`] to grant macro-expansion
+    /// capability. Arc 030.
+    NoMacroRegistry { op: String },
+    /// `:wat::core::macroexpand` / `macroexpand-1` surfaced a macro-
+    /// expansion error (malformed template, arity mismatch in the
+    /// expanded call, expansion-depth cycle, etc.). Carries the
+    /// wrapped [`crate::macros::MacroError`] description. Arc 030.
+    MacroExpansionFailed { op: String, reason: String },
     /// A `(:wat::core::match scrutinee ...)` ran with no arm whose
     /// pattern matches the scrutinee's shape. Exhaustiveness is the
     /// type checker's job; this variant fires only when the check was
@@ -785,6 +816,16 @@ impl fmt::Display for RuntimeError {
                 f,
                 "{}: no source loader attached to SymbolTable; file-reading primitives require a loader. Call via the freeze pipeline, or set_source_loader on the test SymbolTable.",
                 op
+            ),
+            RuntimeError::NoMacroRegistry { op } => write!(
+                f,
+                "{}: no macro registry attached to SymbolTable; macroexpand / macroexpand-1 require one. Call via the freeze pipeline, or set_macro_registry on the test SymbolTable.",
+                op
+            ),
+            RuntimeError::MacroExpansionFailed { op, reason } => write!(
+                f,
+                "{}: macro expansion failed: {}",
+                op, reason
             ),
             RuntimeError::PatternMatchFailed { value_type } => write!(
                 f,
@@ -1649,6 +1690,8 @@ fn dispatch_keyword_head(
         ":wat::core::cond" => eval_cond(args, env, sym),
         ":wat::core::quote" => eval_quote(args),
         ":wat::core::forms" => Ok(eval_forms(args)?),
+        ":wat::core::macroexpand-1" => eval_macroexpand_1(args, env, sym),
+        ":wat::core::macroexpand" => eval_macroexpand(args, env, sym),
         ":wat::core::atom-value" => eval_atom_value(args, env, sym),
         ":wat::core::match" => eval_match(args, env, sym),
         ":wat::core::try" => eval_try(args, env, sym),
@@ -3879,6 +3922,93 @@ fn eval_forms(args: &[WatAST]) -> Result<Value, RuntimeError> {
         .map(|a| Value::wat__WatAST(Arc::new(a.clone())))
         .collect();
     Ok(Value::Vec(Arc::new(items)))
+}
+
+/// `(:wat::core::macroexpand-1 <wat::WatAST>) -> :wat::WatAST`. Arc 030.
+/// One expansion step. If the input AST is a macro call (list with a
+/// registered-macro keyword head), apply the macro's template and
+/// return the result. Otherwise return the input unchanged.
+fn eval_macroexpand_1(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::macroexpand-1";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let ast = match eval(&args[0], env, sym)? {
+        Value::wat__WatAST(a) => (*a).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::WatAST",
+                got: other.type_name(),
+            });
+        }
+    };
+    let registry = sym.macro_registry().ok_or(RuntimeError::NoMacroRegistry {
+        op: OP.into(),
+    })?;
+    let expanded = crate::macros::expand_once(ast, registry)
+        .map_err(|e| RuntimeError::MacroExpansionFailed {
+            op: OP.into(),
+            reason: format!("{}", e),
+        })?;
+    Ok(Value::wat__WatAST(Arc::new(expanded)))
+}
+
+/// `(:wat::core::macroexpand <wat::WatAST>) -> :wat::WatAST`. Arc 030.
+/// Fixpoint expansion. Applies macroexpand-1 repeatedly until the AST
+/// stops changing (bounded by EXPANSION_DEPTH_LIMIT to catch cycles).
+fn eval_macroexpand(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::macroexpand";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let mut ast = match eval(&args[0], env, sym)? {
+        Value::wat__WatAST(a) => (*a).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::WatAST",
+                got: other.type_name(),
+            });
+        }
+    };
+    let registry = sym.macro_registry().ok_or(RuntimeError::NoMacroRegistry {
+        op: OP.into(),
+    })?;
+    for _ in 0..crate::macros::EXPANSION_DEPTH_LIMIT {
+        let next = crate::macros::expand_once(ast.clone(), registry)
+            .map_err(|e| RuntimeError::MacroExpansionFailed {
+                op: OP.into(),
+                reason: format!("{}", e),
+            })?;
+        if next == ast {
+            return Ok(Value::wat__WatAST(Arc::new(next)));
+        }
+        ast = next;
+    }
+    Err(RuntimeError::MacroExpansionFailed {
+        op: OP.into(),
+        reason: format!(
+            "expansion did not reach fixpoint within {} iterations",
+            crate::macros::EXPANSION_DEPTH_LIMIT
+        ),
+    })
 }
 
 /// `(:wat::core::first xs)` / `second` / `third` — positional

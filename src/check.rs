@@ -456,6 +456,30 @@ fn infer_list(
                     args: vec![TypeExpr::Path(":wat::WatAST".into())],
                 });
             }
+            ":wat::core::macroexpand-1" | ":wat::core::macroexpand" => {
+                // Arc 030: macro debugging primitives.
+                // (:wat::core::macroexpand{-1}? <wat::WatAST>) -> :wat::WatAST
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.clone(),
+                        expected: 1,
+                        got: args.len(),
+                    });
+                    return Some(TypeExpr::Path(":wat::WatAST".into()));
+                }
+                if let Some(arg_ty) = infer(&args[0], env, locals, fresh, subst, errors) {
+                    let expected = TypeExpr::Path(":wat::WatAST".into());
+                    if unify(&arg_ty, &expected, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: k.clone(),
+                            param: "#1".into(),
+                            expected: format_type(&apply_subst(&expected, subst)),
+                            got: format_type(&apply_subst(&arg_ty, subst)),
+                        });
+                    }
+                }
+                return Some(TypeExpr::Path(":wat::WatAST".into()));
+            }
             ":wat::core::match" => {
                 return infer_match(args, env, locals, fresh, subst, errors);
             }

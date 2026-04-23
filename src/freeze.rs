@@ -106,6 +106,9 @@ impl FrozenWorld {
         let ctx = Arc::new(EncodingCtx::from_config(&config));
         symbols.set_encoding_ctx(ctx);
         symbols.set_source_loader(loader);
+        // Arc 030: runtime macroexpand / macroexpand-1 primitives need
+        // access to the frozen macro registry.
+        symbols.set_macro_registry(Arc::new(macros.clone()));
         FrozenWorld {
             config,
             types,

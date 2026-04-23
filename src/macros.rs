@@ -192,7 +192,27 @@ impl fmt::Display for MacroError {
 
 impl std::error::Error for MacroError {}
 
-const EXPANSION_DEPTH_LIMIT: usize = 512;
+pub const EXPANSION_DEPTH_LIMIT: usize = 512;
+
+/// One macro-expansion step. Arc 030 — the core of
+/// `:wat::core::macroexpand-1`. If `form` is a macro call (list
+/// whose head is a registered macro keyword), apply the macro's
+/// template with the call-site args and return the result. If
+/// `form` is not a macro call, return it unchanged.
+///
+/// Unlike [`expand_form`], does NOT recurse into children and does
+/// NOT fixpoint. Matches Common Lisp / Clojure `macroexpand-1`.
+pub fn expand_once(form: WatAST, registry: &MacroRegistry) -> Result<WatAST, MacroError> {
+    if let WatAST::List(items, span) = &form {
+        if let Some(WatAST::Keyword(head, _)) = items.first() {
+            if let Some(def) = registry.get(head) {
+                let args = items[1..].to_vec();
+                return expand_macro_call(def, args, span.clone());
+            }
+        }
+    }
+    Ok(form)
+}
 
 /// Walk `forms`, register every `(:wat::core::defmacro ...)` into
 /// `registry`, and return the remaining forms in order.

@@ -264,3 +264,33 @@
 (:wat-tests::std::test::cfg-deftest
   :wat-tests::std::test::test-make-deftest-second-test
   (:wat::test::assert-eq 10 (:wat::core::i64::* 5 2)))
+
+;; ─── :wat::core::macroexpand / macroexpand-1 — arc 030 ────────────────
+;;
+;; The standard Lisp macro-debugging tool. Quote a form, hand it to
+;; macroexpand(-1), inspect the returned AST. Lets users see what a
+;; macro call produces without evaluating it.
+
+(:wat::test::deftest :wat-tests::std::test::test-macroexpand-1-non-macro 1024 :error
+  ()
+  ;; A plain expression (no macro head) expands to itself. Verify by
+  ;; evaluating the expanded AST and checking it produces Ok.
+  (:wat::core::match
+    (:wat::eval-ast!
+      (:wat::core::macroexpand-1
+        (:wat::core::quote (:wat::core::i64::+ 2 2))))
+    -> :()
+    ((Ok _) (:wat::test::assert-eq true true))
+    ((Err _) (:wat::test::assert-eq true false))))
+
+(:wat::test::deftest :wat-tests::std::test::test-macroexpand-fixpoint-evaluates 1024 :error
+  ()
+  ;; macroexpand returns a :wat::WatAST; hand it to eval-ast!
+  ;; to prove the expansion is evaluable.
+  (:wat::core::match
+    (:wat::eval-ast!
+      (:wat::core::macroexpand
+        (:wat::core::quote (:wat::core::i64::* 3 4))))
+    -> :()
+    ((Ok _) (:wat::test::assert-eq true true))
+    ((Err _) (:wat::test::assert-eq true false))))
