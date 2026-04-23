@@ -363,9 +363,23 @@ pub fn expand_all(
     forms: Vec<WatAST>,
     registry: &MacroRegistry,
 ) -> Result<Vec<WatAST>, MacroError> {
+    // Arc 029 slice 1: handle macro-generating-macros. A macro call
+    // may expand to a `(:wat::core::defmacro ...)` registration for
+    // a new macro — e.g., `:wat::test::make-deftest` expanding to a
+    // fully-configured deftest variant. Register each such form as
+    // it appears so subsequent forms in the stream can invoke the
+    // new macro. Clone the caller's registry so our in-flight
+    // additions stay scoped to this expansion.
+    let mut reg = registry.clone();
     let mut out = Vec::with_capacity(forms.len());
     for form in forms {
-        out.push(expand_form(form, registry, 0)?);
+        let expanded = expand_form(form, &reg, 0)?;
+        if is_defmacro_form(&expanded) {
+            let def = parse_defmacro_form(expanded)?;
+            reg.register(def)?;
+        } else {
+            out.push(expanded);
+        }
     }
     Ok(out)
 }
@@ -504,7 +518,7 @@ fn expand_template(
         }
     };
 
-    walk_template(quasi_body, bindings, macro_scope, macro_name, call_site_span)
+    walk_template(quasi_body, bindings, macro_scope, macro_name, call_site_span, 1)
 }
 
 /// Walk a quasiquoted form, expanding `,x` unquotes to their argument
@@ -518,18 +532,75 @@ fn expand_template(
 /// Racket's sets-of-scopes approach: when a user reads a failure
 /// message, they want a pointer to their own code, not the
 /// library's template.
+///
+/// Arc 029 slice 1: `depth` tracks how many layers of quasiquote
+/// we're inside. Entry from `expand_template` is at depth 1 (the
+/// outer `(:wat::core::quasiquote ...)` has just been stripped).
+/// Encountering another `(:wat::core::quasiquote X)` in the template
+/// bumps depth and preserves the wrapper. `(:wat::core::unquote X)`
+/// at depth 1 substitutes; at depth > 1 it preserves the wrapper
+/// and walks X at depth-1. Same discipline for
+/// `(:wat::core::unquote-splicing X)`. This enables macro-
+/// generating-macro patterns like `:wat::test::make-deftest` where
+/// some unquotes fire at the outer expansion and others survive
+/// for the inner macro's eventual expansion.
 fn walk_template(
     form: &WatAST,
     bindings: &HashMap<String, WatAST>,
     macro_scope: ScopeId,
     macro_name: &str,
     call_site_span: &Span,
+    depth: u32,
 ) -> Result<WatAST, MacroError> {
     match form {
         WatAST::List(items, _) => {
-            // Detect `(:wat::core::unquote X)` — substitute the argument.
+            // Nested quasiquote — bump depth, preserve the wrapper.
+            // Arc 029 slice 1.
+            if let Some(arg) = match_unquote(items, ":wat::core::quasiquote") {
+                let inner = walk_template(
+                    arg,
+                    bindings,
+                    macro_scope,
+                    macro_name,
+                    call_site_span,
+                    depth + 1,
+                )?;
+                return Ok(WatAST::List(
+                    vec![
+                        WatAST::Keyword(
+                            ":wat::core::quasiquote".into(),
+                            call_site_span.clone(),
+                        ),
+                        inner,
+                    ],
+                    call_site_span.clone(),
+                ));
+            }
+
+            // Unquote — fires at depth 1, preserves + peels at depth > 1.
             if let Some(arg) = match_unquote(items, ":wat::core::unquote") {
-                return unquote_argument(arg, bindings, macro_name);
+                if depth == 1 {
+                    return unquote_argument(arg, bindings);
+                } else {
+                    let inner = walk_template(
+                        arg,
+                        bindings,
+                        macro_scope,
+                        macro_name,
+                        call_site_span,
+                        depth - 1,
+                    )?;
+                    return Ok(WatAST::List(
+                        vec![
+                            WatAST::Keyword(
+                                ":wat::core::unquote".into(),
+                                call_site_span.clone(),
+                            ),
+                            inner,
+                        ],
+                        call_site_span.clone(),
+                    ));
+                }
             }
 
             // Walk each child, handling unquote-splicing inline.
@@ -539,9 +610,34 @@ fn walk_template(
                     if let Some(splice_arg) =
                         match_unquote(child_items, ":wat::core::unquote-splicing")
                     {
-                        let spliced = splice_argument(splice_arg, bindings, macro_name)?;
-                        out.extend(spliced);
-                        continue;
+                        if depth == 1 {
+                            // Fire: splice the argument's elements.
+                            let spliced = splice_argument(splice_arg, bindings, macro_name)?;
+                            out.extend(spliced);
+                            continue;
+                        } else {
+                            // Preserve + peel: walk arg at depth-1,
+                            // rebuild `(:wat::core::unquote-splicing ...)`.
+                            let inner = walk_template(
+                                splice_arg,
+                                bindings,
+                                macro_scope,
+                                macro_name,
+                                call_site_span,
+                                depth - 1,
+                            )?;
+                            out.push(WatAST::List(
+                                vec![
+                                    WatAST::Keyword(
+                                        ":wat::core::unquote-splicing".into(),
+                                        call_site_span.clone(),
+                                    ),
+                                    inner,
+                                ],
+                                call_site_span.clone(),
+                            ));
+                            continue;
+                        }
                     }
                 }
                 out.push(walk_template(
@@ -550,6 +646,7 @@ fn walk_template(
                     macro_scope,
                     macro_name,
                     call_site_span,
+                    depth,
                 )?);
             }
             Ok(WatAST::List(out, call_site_span.clone()))
@@ -579,11 +676,13 @@ fn match_unquote<'a>(items: &'a [WatAST], head_kw: &str) -> Option<&'a WatAST> {
 }
 
 /// `,X` — the argument is either a macro parameter (substitute its
-/// bound AST) or some other template form (walk normally and expand).
+/// bound AST) or an already-substituted literal value from a prior
+/// expansion pass (arc 029 slice 1: the tail-end of the `,,X`
+/// resolution path). Symbols look up in `bindings`; everything else
+/// returns as-is.
 fn unquote_argument(
     arg: &WatAST,
     bindings: &HashMap<String, WatAST>,
-    macro_name: &str,
 ) -> Result<WatAST, MacroError> {
     match arg {
         WatAST::Symbol(ident, _) => match bindings.get(&ident.name) {
@@ -592,43 +691,46 @@ fn unquote_argument(
                 name: ident.name.clone(),
             }),
         },
-        _ => Err(MacroError::MalformedTemplate {
-            reason: format!(
-                "macro {} — unquote ',X' requires a parameter name; got non-symbol",
-                macro_name
-            ),
-        }),
+        // Already-substituted literal (from a `,,X` outer pass or any
+        // other macro that built `(:wat::core::unquote <value>)`
+        // directly). Return as-is; the parent list absorbs it.
+        _ => Ok(arg.clone()),
     }
 }
 
-/// `,@X` — argument must be a parameter bound to a List AST; splice
-/// its elements into the surrounding list context.
+/// `,@X` — argument must be a parameter bound to a List AST OR an
+/// already-substituted List value (arc 029 slice 1: the `,,@X`
+/// resolution tail); splice its elements into the surrounding list
+/// context.
 fn splice_argument(
     arg: &WatAST,
     bindings: &HashMap<String, WatAST>,
     macro_name: &str,
 ) -> Result<Vec<WatAST>, MacroError> {
-    let paramname = match arg {
-        WatAST::Symbol(ident, _) => &ident.name,
-        _ => {
-            return Err(MacroError::MalformedTemplate {
-                reason: format!(
-                    "macro {} — unquote-splicing ',@X' requires a parameter name",
-                    macro_name
-                ),
-            })
+    match arg {
+        WatAST::Symbol(ident, _) => {
+            let bound = bindings
+                .get(&ident.name)
+                .ok_or_else(|| MacroError::UnboundMacroParam {
+                    name: ident.name.clone(),
+                })?;
+            match bound {
+                WatAST::List(items, _) => Ok(items.clone()),
+                other => Err(MacroError::SpliceNotList {
+                    name: ident.name.clone(),
+                    got: ast_variant_name(other),
+                }),
+            }
         }
-    };
-    let bound = bindings
-        .get(paramname)
-        .ok_or_else(|| MacroError::UnboundMacroParam {
-            name: paramname.clone(),
-        })?;
-    match bound {
+        // Already-substituted list value.
         WatAST::List(items, _) => Ok(items.clone()),
-        other => Err(MacroError::SpliceNotList {
-            name: paramname.clone(),
-            got: ast_variant_name(other),
+        other => Err(MacroError::MalformedTemplate {
+            reason: format!(
+                "macro {} — unquote-splicing ',@X' requires a list (parameter \
+                 or already-substituted value); got {}",
+                macro_name,
+                ast_variant_name(other)
+            ),
         }),
     }
 }
@@ -656,6 +758,20 @@ mod tests {
         let mut reg = MacroRegistry::new();
         let rest = register_defmacros(forms, &mut reg)?;
         expand_all(rest, &reg)
+    }
+
+    /// Like `expand`, but DOES NOT strip generated defmacros from the
+    /// output. Arc 029 slice 1 tests use this to inspect the body of
+    /// a defmacro produced by an outer macro-generating-macro call.
+    fn expand_keeping_defmacros(src: &str) -> Result<Vec<WatAST>, MacroError> {
+        let forms = parse_all(src).expect("parse ok");
+        let mut reg = MacroRegistry::new();
+        let rest = register_defmacros(forms, &mut reg)?;
+        let mut out = Vec::with_capacity(rest.len());
+        for form in rest {
+            out.push(expand_form(form, &reg, 0)?);
+        }
+        Ok(out)
     }
 
     // ─── Pure alias macro ───────────────────────────────────────────────
@@ -964,5 +1080,232 @@ mod tests {
         assert_eq!(forms.len(), 3);
         assert!(matches!(forms[1], WatAST::IntLit(42, _)));
         assert!(matches!(&forms[2], WatAST::StringLit(s, _) if s == "world"));
+    }
+
+    // ─── Nested quasiquote — arc 029 slice 1 ────────────────────────────
+
+    /// Helper: find the `:wat::core::quasiquote` body inside a
+    /// `(:wat::core::defmacro ...)` form. Used by nested-quasi tests
+    /// to assert the generated macro's body.
+    fn find_defmacro_body(form: &WatAST) -> &WatAST {
+        match form {
+            WatAST::List(items, _) => {
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wat::core::defmacro"));
+                // items[1] is the (name (param :T) ... -> :Ret) signature;
+                // items[2] is the body — a (:wat::core::quasiquote ...).
+                let body = &items[2];
+                match body {
+                    WatAST::List(b, _) => {
+                        assert!(matches!(&b[0],
+                            WatAST::Keyword(k, _) if k == ":wat::core::quasiquote"));
+                        &b[1]
+                    }
+                    _ => panic!("expected quasiquote body"),
+                }
+            }
+            _ => panic!("expected defmacro list"),
+        }
+    }
+
+    /// Helper: assert `form` is `(:wat::core::unquote <arg>)` and
+    /// return the inner arg.
+    fn expect_unquote(form: &WatAST) -> &WatAST {
+        match form {
+            WatAST::List(items, _) if items.len() == 2 => {
+                assert!(matches!(&items[0],
+                    WatAST::Keyword(k, _) if k == ":wat::core::unquote"));
+                &items[1]
+            }
+            _ => panic!("expected (:wat::core::unquote ...)"),
+        }
+    }
+
+    #[test]
+    fn nested_quasiquote_preserves_inner_unquote() {
+        // Outer macro body contains a nested quasiquote with an
+        // unquote referencing an INNER parameter (not bound at outer
+        // expansion). The unquote should survive into the generated
+        // defmacro's body.
+        let forms = expand_keeping_defmacros(
+            r#"
+            (:wat::core::defmacro (:my::mkmac (name :AST<()>) -> :AST<()>)
+              `(:wat::core::defmacro (,name (x :AST) -> :AST)
+                 `(:wat::holon::Atom ,x)))
+            (:my::mkmac :my::wrap)
+            "#,
+        )
+        .unwrap();
+        // After outer expansion: a defmacro registration for :my::wrap
+        // whose body is (:wat::core::quasiquote (:wat::holon::Atom
+        // (:wat::core::unquote x))) — the inner `,x` preserved.
+        let body = find_defmacro_body(&forms[0]);
+        // body = (:wat::holon::Atom (:wat::core::unquote x))
+        let body_items = match body {
+            WatAST::List(items, _) => items,
+            _ => panic!("expected list body"),
+        };
+        assert_eq!(body_items.len(), 2);
+        assert!(matches!(&body_items[0],
+            WatAST::Keyword(k, _) if k == ":wat::holon::Atom"));
+        let inner = expect_unquote(&body_items[1]);
+        assert!(matches!(inner, WatAST::Symbol(i, _) if i.as_str() == "x"));
+    }
+
+    #[test]
+    fn double_unquote_substitutes_at_outer_level() {
+        // ,,X at depth 2: outer unquote drops to depth 1; inner
+        // unquote at depth 1 substitutes X's outer binding. Result
+        // is (:wat::core::unquote <value>) — the value sits wrapped
+        // in an unquote that fires on the inner expansion pass.
+        let forms = expand_keeping_defmacros(
+            r#"
+            (:wat::core::defmacro (:my::mkmac (v :AST<i64>) -> :AST<()>)
+              `(:wat::core::defmacro (:my::configured -> :AST)
+                 `(:wat::holon::Atom ,,v)))
+            (:my::mkmac 42)
+            "#,
+        )
+        .unwrap();
+        let body = find_defmacro_body(&forms[0]);
+        let body_items = match body {
+            WatAST::List(items, _) => items,
+            _ => panic!("expected list"),
+        };
+        assert_eq!(body_items.len(), 2);
+        assert!(matches!(&body_items[0],
+            WatAST::Keyword(k, _) if k == ":wat::holon::Atom"));
+        // body_items[1] = (:wat::core::unquote 42) — the value
+        // substituted at outer expansion.
+        let inner = expect_unquote(&body_items[1]);
+        assert!(matches!(inner, WatAST::IntLit(42, _)));
+    }
+
+    #[test]
+    fn unquote_of_literal_returns_literal() {
+        // Direct check on unquote_argument: if the arg is already a
+        // concrete value (from a prior substitution pass), return
+        // as-is. Supports the `,,X` two-pass resolution.
+        let bindings = HashMap::new();
+        // A literal int — not a symbol, no binding needed.
+        let lit = WatAST::IntLit(99, Span::unknown());
+        let out = unquote_argument(&lit, &bindings).unwrap();
+        match out {
+            WatAST::IntLit(n, _) => assert_eq!(n, 99),
+            _ => panic!("expected IntLit"),
+        }
+        // A list — same path.
+        let list = WatAST::List(
+            vec![WatAST::IntLit(1, Span::unknown()), WatAST::IntLit(2, Span::unknown())],
+            Span::unknown(),
+        );
+        let out = unquote_argument(&list, &bindings).unwrap();
+        assert!(matches!(out, WatAST::List(_, _)));
+    }
+
+    #[test]
+    fn unquote_splicing_at_depth_two_preserves() {
+        // ,@X at depth 2: preserve the unquote-splicing wrapper,
+        // walk X at depth 1. X is an inner-macro parameter, so
+        // it should appear as-is (symbol) inside the preserved
+        // wrapper.
+        let forms = expand_keeping_defmacros(
+            r#"
+            (:wat::core::defmacro (:my::mkmac (name :AST<()>) -> :AST<()>)
+              `(:wat::core::defmacro (,name (xs :AST) -> :AST)
+                 `(:wat::holon::Bundle ,@xs)))
+            (:my::mkmac :my::wrap)
+            "#,
+        )
+        .unwrap();
+        let body = find_defmacro_body(&forms[0]);
+        let body_items = match body {
+            WatAST::List(items, _) => items,
+            _ => panic!("expected list"),
+        };
+        assert_eq!(body_items.len(), 2);
+        assert!(matches!(&body_items[0],
+            WatAST::Keyword(k, _) if k == ":wat::holon::Bundle"));
+        // body_items[1] = (:wat::core::unquote-splicing xs)
+        match &body_items[1] {
+            WatAST::List(items, _) => {
+                assert_eq!(items.len(), 2);
+                assert!(matches!(&items[0],
+                    WatAST::Keyword(k, _) if k == ":wat::core::unquote-splicing"));
+                assert!(matches!(&items[1], WatAST::Symbol(i, _) if i.as_str() == "xs"));
+            }
+            _ => panic!("expected unquote-splicing wrapper"),
+        }
+    }
+
+    // Note: ,,@X (double unquote-splicing) is NOT yet supported. The
+    // combined shape (:wat::core::unquote (:wat::core::unquote-splicing X))
+    // at depth 2 would need special-case handling that lets the outer
+    // substitution hand a concrete list down to an outer-level splice
+    // wrapper. `make-deftest`'s implementation uses `,,default-prelude`
+    // (non-splicing double unquote) where the list value is placed as
+    // deftest's prelude argument — the splicing happens inside deftest's
+    // own template, not at make-deftest's level. If a future use case
+    // forces `,,@`, extend `walk_template` to recognize
+    // `(unquote (unquote-splicing X))` at depth 2 as "substitute + wrap
+    // in unquote-splicing" (outer wrapper replaced by the inner).
+
+    #[test]
+    fn make_deftest_shaped_template_expands_through_two_passes() {
+        // The canonical forcing case — a macro-generating-macro that
+        // configures dims + mode + default-prelude and registers a
+        // new macro; then the user calls the new macro.
+        let forms = expand(
+            r#"
+            (:wat::core::defmacro
+              (:my::make-mac
+                (name :AST<()>)
+                (dims :AST<i64>)
+                (mode :AST<wat::core::keyword>)
+                (extras :AST)
+                -> :AST<()>)
+              `(:wat::core::defmacro
+                 (,name
+                   (test-name :AST<()>)
+                   (body :AST<()>)
+                   -> :AST<()>)
+                 `(:wat::holon::configured
+                    ,test-name
+                    ,,dims
+                    ,,mode
+                    ,,extras
+                    ,body)))
+
+            (:my::make-mac :my::tdef 1024 :error ((load-a) (load-b)))
+
+            (:my::tdef :my::run-1 (body-expr))
+            "#,
+        )
+        .unwrap();
+        // After both expansions, the final form should be:
+        // (:wat::holon::configured :my::run-1 1024 :error ((load-a) (load-b)) (body-expr))
+        assert_eq!(forms.len(), 1);
+        match &forms[0] {
+            WatAST::List(items, _) => {
+                assert_eq!(items.len(), 6);
+                assert!(matches!(&items[0],
+                    WatAST::Keyword(k, _) if k == ":wat::holon::configured"));
+                assert!(matches!(&items[1],
+                    WatAST::Keyword(k, _) if k == ":my::run-1"));
+                assert!(matches!(&items[2], WatAST::IntLit(1024, _)));
+                assert!(matches!(&items[3],
+                    WatAST::Keyword(k, _) if k == ":error"));
+                // items[4] = ((load-a) (load-b))
+                match &items[4] {
+                    WatAST::List(l, _) => assert_eq!(l.len(), 2),
+                    _ => panic!("expected extras list"),
+                }
+                // items[5] = (body-expr)
+                match &items[5] {
+                    WatAST::List(l, _) => assert_eq!(l.len(), 1),
+                    _ => panic!("expected body list"),
+                }
+            }
+            _ => panic!("expected final list"),
+        }
     }
 }

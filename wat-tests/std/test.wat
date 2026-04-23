@@ -245,3 +245,22 @@
 ;; discovered them by exactly that signature + name convention and
 ;; invoked them. If deftest were broken, this whole file would fail
 ;; at discovery / startup, not one test.
+
+;; ─── :wat::test::make-deftest — arc 029 slice 2 ──────────────────────
+;;
+;; Configured-deftest factory. The preamble registers an ambient
+;; name; subsequent callsites are just name + body. Proves the
+;; macro-generating-macro path end-to-end: outer make-deftest
+;; expands to a defmacro registration, the generated defmacro
+;; expands to a deftest call, the deftest expands to the full
+;; run-sandboxed-ast scaffolding, and the test runs.
+
+(:wat::test::make-deftest :wat-tests::std::test::cfg-deftest 1024 :error ())
+
+(:wat-tests::std::test::cfg-deftest
+  :wat-tests::std::test::test-make-deftest-runs
+  (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
+
+(:wat-tests::std::test::cfg-deftest
+  :wat-tests::std::test::test-make-deftest-second-test
+  (:wat::test::assert-eq 10 (:wat::core::i64::* 5 2)))

@@ -42,7 +42,6 @@
 use crate::ast::WatAST;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
-use crate::types::TypeEnv;
 use std::fmt;
 
 /// One unresolved reference, with context about where it appeared.
@@ -86,7 +85,6 @@ pub fn resolve_references(
     forms: &[WatAST],
     sym: &SymbolTable,
     macros: &MacroRegistry,
-    _types: &TypeEnv,
 ) -> Result<(), ResolveError> {
     let mut unresolved = Vec::new();
 
@@ -271,7 +269,6 @@ mod tests {
     use crate::macros::{register_defmacros, MacroRegistry};
     use crate::parser::parse_all;
     use crate::runtime::{register_defines, SymbolTable};
-    use crate::types::TypeEnv;
 
     /// Full pipeline helper: parse → register-defmacros → expand → register-defines → resolve.
     fn resolve(src: &str) -> Result<(), ResolveError> {
@@ -281,8 +278,7 @@ mod tests {
         let expanded = crate::macros::expand_all(rest, &macros).expect("expand");
         let mut sym = SymbolTable::new();
         let rest = register_defines(expanded, &mut sym).expect("register defines");
-        let types = TypeEnv::new();
-        resolve_references(&rest, &sym, &macros, &types)
+        resolve_references(&rest, &sym, &macros)
     }
 
     // ─── Happy paths ────────────────────────────────────────────────────

@@ -343,7 +343,7 @@ pub fn startup_from_forms(
     crate::runtime::register_struct_methods(&types, &mut symbols)?;
 
     // 7. Name resolution.
-    resolve_references(&residue, &symbols, &macros, &types)?;
+    resolve_references(&residue, &symbols, &macros)?;
 
     // 8. Type check.
     check_program(&residue, &symbols, &types)?;

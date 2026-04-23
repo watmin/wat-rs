@@ -279,3 +279,69 @@
            ,body))
        (:wat::core::vec :String)
        :None)))
+
+;; ─── make-deftest — configured-deftest factory (arc 029) ──────────────
+;;
+;; Register a new deftest variant whose dims / capacity-mode /
+;; default-prelude are baked in. Each test using the variant drops
+;; to just name + body.
+;;
+;; Preamble at the top of a test source file:
+;;
+;;   (:wat::test::make-deftest :deftest 1024 :error
+;;     ((:wat::load-file! "wat/vocab/shared/time.wat")))
+;;
+;; Every test below:
+;;
+;;   (:deftest :my-test-name
+;;     (:wat::test::assert-eq 2 (+ 1 1)))
+;;
+;; Bare `:deftest` is user territory — only `:wat::*` and `:rust::*`
+;; are reserved. An ambient `:deftest` at the root of a test source
+;; file is idiomatic, and dedup makes the macro registration
+;; file-local in practice (the test file's frozen world has it;
+;; other files get their own configured shape).
+;;
+;; Expansion (outer → inner):
+;;   outer generates (:wat::core::defmacro (,name ...) ...)
+;;   inner expands to (:wat::test::deftest <name> 1024 :error
+;;                       ((load!)) <body>)
+;;
+;; Nested quasiquote mechanics (arc 029 slice 1): ,,dims / ,,mode /
+;; ,,default-prelude substitute AT OUTER expansion (the configured
+;; values land as literals in the generated defmacro's body).
+;; ,test-name and ,body preserve across the outer pass — they're
+;; the inner macro's own parameters and fire when the user calls
+;; the configured variant.
+(:wat::core::defmacro
+  (:wat::test::make-deftest
+    (name :AST<()>)
+    (dims :AST<i64>)
+    (mode :AST<wat::core::keyword>)
+    (default-prelude :AST<()>)
+    -> :AST<()>)
+  `(:wat::core::defmacro
+     (,name
+       (test-name :AST<()>)
+       (body :AST<()>)
+       -> :AST<()>)
+     `(:wat::test::deftest ,test-name ,,dims ,,mode ,,default-prelude ,body)))
+
+;; ─── make-deftest-hermetic — fork-isolated configured variant ─────────
+;;
+;; Same shape as make-deftest; generated macro expands to
+;; :wat::test::deftest-hermetic. Use when the configured tests
+;; spawn driver threads and need subprocess isolation.
+(:wat::core::defmacro
+  (:wat::test::make-deftest-hermetic
+    (name :AST<()>)
+    (dims :AST<i64>)
+    (mode :AST<wat::core::keyword>)
+    (default-prelude :AST<()>)
+    -> :AST<()>)
+  `(:wat::core::defmacro
+     (,name
+       (test-name :AST<()>)
+       (body :AST<()>)
+       -> :AST<()>)
+     `(:wat::test::deftest-hermetic ,test-name ,,dims ,,mode ,,default-prelude ,body)))

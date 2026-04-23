@@ -75,6 +75,7 @@ fn wat_test_failing_deftest_exits_nonzero() {
 (:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :failing::test-should-fail 1024 :error
+  ()
   (:wat::test::assert-eq 1 2))
 "##;
     std::fs::write(&tmp, src).expect("write tempfile");
