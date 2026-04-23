@@ -201,45 +201,49 @@ use syn::punctuated::Punctuated;
 use syn::Path;
 
 struct MainInput {
-    source: syn::Expr,
+    /// Arc 018 — optional. When absent, expansion defaults to
+    /// `include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
+    /// "/wat/main.wat"))` — the opinionated entry location.
+    source: Option<syn::Expr>,
     deps: Vec<Path>,
-    /// Arc 017 — optional `loader: "..."` string-literal arg.
-    /// Absent: macro expands to `compose_and_run` (InMemoryLoader
-    /// default, no filesystem). Present: expands to
-    /// `compose_and_run_with_loader` with a `ScopedLoader` rooted
-    /// at the given path. Bad paths surface as
-    /// `HarnessError::Startup(StartupError::Load(...))` from main.
+    /// Arc 017 — optional `loader: "..."` string-literal.
+    /// Arc 018 default rule:
+    /// - `loader` explicit: always honored.
+    /// - `loader` absent, `source` absent: defaults to `"wat"`
+    ///   (ScopedLoader at `<crate>/wat`, matching the implicit
+    ///   `wat/main.wat` entry).
+    /// - `loader` absent, `source` explicit: defaults to None
+    ///   (InMemoryLoader — preserves pre-018 behavior for
+    ///   single-file consumers).
     loader: Option<LitStr>,
 }
 
 impl Parse for MainInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        // Required: `source: <expr>`
-        let source_key: syn::Ident = input.parse()?;
-        if source_key != "source" {
-            return Err(Error::new(source_key.span(), "expected `source:` first"));
-        }
-        input.parse::<syn::Token![:]>()?;
-        let source: syn::Expr = input.parse()?;
-
-        // Optional trailing: `, deps: [...]` and/or `, loader: "..."`.
-        // Accepts either order, each at most once.
+        // All three keys are optional (arc 018). Accept them in any
+        // order; each at most once. Empty braces `wat::main! {}` is
+        // the maximally-opinionated form.
+        let mut source: Option<syn::Expr> = None;
         let mut deps: Vec<Path> = Vec::new();
+        let mut deps_seen = false;
         let mut loader: Option<LitStr> = None;
 
-        while input.peek(syn::Token![,]) {
-            input.parse::<syn::Token![,]>()?;
-            if input.is_empty() {
-                break;
-            }
+        while !input.is_empty() {
             let key: syn::Ident = input.parse()?;
             let key_str = key.to_string();
             input.parse::<syn::Token![:]>()?;
             match key_str.as_str() {
+                "source" => {
+                    if source.is_some() {
+                        return Err(Error::new(key.span(), "duplicate `source:` arg"));
+                    }
+                    source = Some(input.parse()?);
+                }
                 "deps" => {
-                    if !deps.is_empty() {
+                    if deps_seen {
                         return Err(Error::new(key.span(), "duplicate `deps:` arg"));
                     }
+                    deps_seen = true;
                     let content;
                     syn::bracketed!(content in input);
                     let parsed: Punctuated<Path, syn::Token![,]> =
@@ -262,16 +266,18 @@ impl Parse for MainInput {
                     return Err(Error::new(
                         key.span(),
                         format!(
-                            "unknown `{}:` arg for wat::main!; expected `deps:` or `loader:`",
+                            "unknown `{}:` arg for wat::main!; expected `source:`, `deps:`, or `loader:`",
                             other
                         ),
                     ));
                 }
             }
-        }
-
-        if !input.is_empty() {
-            return Err(input.error("unexpected tokens after wat::main! args"));
+            // Accept the separating comma (optional after the last arg).
+            if input.peek(syn::Token![,]) {
+                input.parse::<syn::Token![,]>()?;
+            } else if !input.is_empty() {
+                return Err(input.error("expected `,` between wat::main! args"));
+            }
         }
 
         Ok(MainInput {
@@ -305,17 +311,34 @@ pub fn main(input: TokenStream) -> TokenStream {
         .map(|p| quote! { #p::register })
         .collect();
 
-    let expanded = match loader {
+    // Arc 018 — opinionated defaults.
+    // `source` absent → implicit `include_str!(<crate>/wat/main.wat)`.
+    // `loader` absent AND `source` absent → implicit `"wat"`.
+    // `loader` absent AND `source` explicit → no loader (InMemoryLoader).
+    let source_implicit = source.is_none();
+    let source_expr: TokenStream2 = match source {
+        Some(expr) => quote! { #expr },
+        None => quote! {
+            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/wat/main.wat"))
+        },
+    };
+    let effective_loader: Option<TokenStream2> = match (loader, source_implicit) {
+        (Some(loader_lit), _) => Some(quote! { #loader_lit }),
+        (None, true) => Some(quote! { "wat" }),
+        (None, false) => None,
+    };
+
+    let expanded = match effective_loader {
         None => quote! {
             fn main() -> ::std::result::Result<(), ::wat::harness::HarnessError> {
                 ::wat::compose_and_run(
-                    #source,
+                    #source_expr,
                     &[ #(#stdlib_calls),* ],
                     &[ #(#register_paths),* ],
                 )
             }
         },
-        Some(loader_lit) => quote! {
+        Some(loader_expr) => quote! {
             fn main() -> ::std::result::Result<(), ::wat::harness::HarnessError> {
                 // `loader:` is always resolved relative to the consumer
                 // crate's source directory (CARGO_MANIFEST_DIR). This
@@ -327,7 +350,7 @@ pub fn main(input: TokenStream) -> TokenStream {
                 let __wat_loader_root = concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/",
-                    #loader_lit
+                    #loader_expr
                 );
                 let __wat_loader: ::std::sync::Arc<
                     dyn ::wat::load::SourceLoader,
@@ -341,7 +364,7 @@ pub fn main(input: TokenStream) -> TokenStream {
                     })?,
                 );
                 ::wat::compose_and_run_with_loader(
-                    #source,
+                    #source_expr,
                     &[ #(#stdlib_calls),* ],
                     &[ #(#register_paths),* ],
                     __wat_loader,
