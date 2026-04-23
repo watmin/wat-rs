@@ -367,14 +367,21 @@ The assertion primitives assert about the assertion primitives.
 ### Writing a test — `:wat::test::deftest`
 
 ```scheme
-(:wat::test::deftest :my::app::test-two-plus-two 1024 :error
+(:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
+
+(:wat::test::deftest :my::app::test-two-plus-two
+  ()
   (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
 ```
 
-`deftest` expands to a named zero-arg function returning `RunResult`.
-Config setters + the `:user::main` wrapper come from the macro; the
-body is the user's one line. Callers invoke it directly; the
-`wat::test!` runner auto-discovers by name prefix + signature.
+The test file's top-level preamble commits capacity-mode + dims;
+every `deftest` below inherits those values through the sandbox's
+config-inheritance path (arc 031). `deftest` itself takes name +
+prelude (loads / type declarations) + body. The `:user::main`
+wrapper comes from the macro. Callers invoke the registered
+function directly; the `wat::test!` runner auto-discovers by name
+prefix + signature.
 
 ### Running tests — `cargo test`
 
@@ -401,13 +408,12 @@ Tests that need to sandbox an inner program (to capture its stdout,
 stderr, or failure) compose two stdlib forms:
 
 ```scheme
-(:wat::test::deftest :my::test-captures-inner-output 1024 :error
+(:wat::test::deftest :my::test-captures-inner-output
+  ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
-          (:wat::config::set-capacity-mode! :error)
-          (:wat::config::set-dims! 1024)
           (:wat::core::define (:user::main ... -> :())
             (:wat::io::IOWriter/println stdout "hello-from-inside")))
         (:wat::core::vec :String)))

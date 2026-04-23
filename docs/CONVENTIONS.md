@@ -329,6 +329,38 @@ sandbox via `run-sandboxed-ast`, fork child via
 because the inner sandbox's `startup_from_forms` pulls
 installed deps from the global state.
 
+### Sandbox Config inheritance (arc 031)
+
+Entry files commit capacity-mode + dims via top-level
+`(:wat::config::set-*!)` setters. A sandbox created inside an
+entry (via `:wat::kernel::run-sandboxed-ast`, `run-sandboxed-
+hermetic-ast`, or `fork-with-forms`) inherits those committed
+values by default. Inner setters still override when present;
+absence means "take the caller's value."
+
+Pairs with arc 027's loader inheritance — same scope-inheritance
+move applied to a different environment field. A sandbox is a
+proper child-of-caller scope, not a fresh reset. The single
+declaration site for config is the entry file's preamble:
+
+```scheme
+;; entry preamble — the one place to declare
+(:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
+
+(:wat::test::make-deftest :deftest
+  ((:wat::load-file! "my/helpers.wat")))
+
+(:deftest :my-test body)   ;; inherits :error + 1024
+(:deftest :another body)   ;; inherits :error + 1024
+```
+
+The four `:wat::test::*` macros (`deftest`, `deftest-hermetic`,
+`make-deftest`, `make-deftest-hermetic`) take name + prelude +
+body (or name + default-prelude for the factories) — no
+mode/dims arguments. Re-declaring the config per-test would
+be ceremony without information.
+
 ## Name formats
 
 - `snake-case` for functions: `make-bounded-queue`, `for-each`,

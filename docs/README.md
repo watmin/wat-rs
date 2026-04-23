@@ -226,5 +226,102 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   Convention-over-configuration applied to the consumer surface.
   Three slices, same day as arc 017. 2026-04-22.
 
+- **`arc/2026/04/019-f64-round-primitive/`** — **shipped.**
+  `:wat::core::f64::round` added as a core conversion primitive
+  under the existing scalar-conversions umbrella. Port
+  prerequisite for the trading lab's indicator arithmetic.
+  2026-04-22.
+
+- **`arc/2026/04/020-assoc/`** — **shipped.** `:wat::core::assoc`
+  added over HashMap; returns a new map with a key→value
+  association. Forcing function from the archive's
+  scaled-linear HashMap threading. 2026-04-22.
+
+- **`arc/2026/04/021-core-std-audit/`** — **shipped.** Core vs
+  stdlib naming-discipline sweep: what lives in `:wat::core::`
+  (syntactic primitives + arithmetic + literals + types) vs
+  `:wat::std::` (blueprint library over core). 2026-04-22.
+
+- **`arc/2026/04/022-holon-namespace-move/`** — **shipped.** All
+  algebra primitives moved from `:wat::algebra::` to
+  `:wat::holon::`. Matches FOUNDATION's programs-are-holons
+  framing — the algebra operates on holons, not on an abstract
+  "algebra" layer. 2026-04-22.
+
+- **`arc/2026/04/023-holon-coincident/`** — **shipped.**
+  `:wat::holon::coincident?` — the dual of `presence?` VSA
+  literature hadn't named. `(1 − cosine) < noise_floor` returns
+  bool; two holons "the same point on the sphere to the algebra"
+  when the predicate fires. Lab's test-fact-is-bind-of-atom-and-
+  thermometer assertion collapses from inline cosine arithmetic
+  to one call. Convergence-with-the-greats pattern at a VSA
+  naming level. 2026-04-22.
+
+- **`arc/2026/04/024-presence-coincident-sigma/`** — **shipped.**
+  Two new config knobs: `presence-sigma` + `coincident-sigma`.
+  Defaults are FUNCTIONS of dims (`presence_sigma(d) = floor(sqrt(d)/2) − 1`,
+  `coincident_sigma = 1`), not hardcoded. Validity check at
+  commit catches predicate collapse. The "opinionated defaults
+  are functions, not numbers" principle captured in memory.
+  2026-04-22.
+
+- **`arc/2026/04/025-container-surface-unified/`** — **shipped.**
+  `get` / `assoc` / `conj` / `contains?` each polymorphized over
+  {HashMap, HashSet, Vec} with illegal cells forced by container
+  semantics (assoc on set illegal — use conj; conj on map
+  illegal — use assoc). `:wat::std::member?` retired in favor of
+  unified `contains?`. Forcing function: Phase 3.4 rhythm's Vec
+  indexing. 2026-04-22.
+
+- **`arc/2026/04/026-eval-coincident/`** — **shipped.** Four-
+  primitive family: `eval-coincident?`, `eval-edn-coincident?`,
+  `eval-digest-coincident?`, `eval-signed-coincident?`. Takes
+  two expressions, evaluates, atomizes, measures coincidence of
+  the resulting atom vectors. Chapter 28's `(= (+ 2 2) (* 1 4))`
+  retort operational. Distributed-by-construction substrate
+  shipped as four library calls. 2026-04-22.
+
+- **`arc/2026/04/027-deftest-inherits-loader/`** — **shipped.**
+  `wat::test!` and deftest's sandbox `scope :None` inherit the
+  test binary's filesystem loader so `(load!)` inside a sandbox
+  reaches the same roots the test harness reached. Preparation
+  for arc 031's sibling scope-inheritance move on Config.
+  2026-04-22.
+
+- **`arc/2026/04/028-load-eval-rename/`** — **shipped.** Load
+  family gains `:wat::load-string!` sibling to `:wat::load-file!`;
+  the old single-form `:wat::load!` dispatch retires. Eval family
+  gains explicit `:wat::eval-string!` / `:wat::eval-file!` split.
+  Nine forms hoisted from `:wat::core::*` to `:wat::*` root to
+  match their kernel-primitive status. 2026-04-22.
+
+- **`arc/2026/04/029-nested-quasiquote/`** — **shipped.**
+  `walk_template` gains quote-depth tracking so nested quasiquote
+  `,,X` resolves at the correct pass. `expand_form` preserves
+  `(:wat::core::quote X)` bodies the same way it already
+  preserved quasiquote bodies — a macro-generating-macro's
+  registered body stays un-expanded until the inner macro fires.
+  Substrate enabler for the configured-deftest factory shape.
+  2026-04-23.
+
+- **`arc/2026/04/030-macroexpand/`** — **shipped.**
+  `:wat::core::macroexpand` and `:wat::core::macroexpand-1`
+  runtime primitives — the standard Lisp macro-debugging tool.
+  Fixpoint + one-step variants. Diagnosed arc 029's make-deftest
+  nested-quasiquote bug. Arg-order flip for the test macros
+  landed in the closing commit (matches arc 024's
+  capacity-mode-before-dims discipline). 2026-04-23.
+
+- **`arc/2026/04/031-sandbox-inherits-config/`** — **shipped.**
+  Sandbox freeze (`run-sandboxed-ast`, `run-sandboxed-hermetic-ast`,
+  `fork-with-forms` child) inherits the caller's committed
+  Config by default. All four `:wat::test::*` macros drop their
+  `mode` + `dims` parameters — tests inherit from the test
+  file's top-level preamble. Path B shipped: one declaration
+  site for capacity-mode + dims per test file; every sandbox
+  inherits. Same scope-inheritance move arc 027 made for the
+  source loader, applied to a different environment field.
+  2026-04-23.
+
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.
