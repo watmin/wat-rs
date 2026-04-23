@@ -58,12 +58,15 @@ pub struct Config {
     /// — rare; the derivation from `dims` is the honest default.
     pub noise_floor: f64,
     /// How many σ above the random-pair distribution `presence?` requires
-    /// to fire. Default 15 — FPR ≈ 10⁻⁵¹, essentially zero. User
-    /// overridable via `(:wat::config::set-presence-sigma! <i64>)`.
+    /// to fire. Default function of `dims`: `floor(sqrt(dims)/2) − 1`
+    /// ("one before the zero point" — the sliver below `middle_width = 0`).
+    /// At d=1024 the default is 15; at d=10000 it's 49; at d=100 it's
+    /// 4. User overridable via `(:wat::config::set-presence-sigma! <i64>)`.
     pub presence_sigma: i64,
     /// How many σ below perfect-identity `coincident?` requires to fire.
-    /// Default 1 — the native granularity; the geometric minimum.
-    /// User overridable via `(:wat::config::set-coincident-sigma! <i64>)`.
+    /// Default 1 — the 1σ native granularity; the geometric minimum.
+    /// Constant function of dims (always 1). User overridable via
+    /// `(:wat::config::set-coincident-sigma! <i64>)`.
     pub coincident_sigma: i64,
     /// Memoized `presence_sigma * noise_floor`. `presence?` closes over
     /// this; recomputed only at config commit.
@@ -323,12 +326,30 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
         field: "capacity-mode".into(),
     })?;
     let global_seed = global_seed.unwrap_or(42);
-    // noise_floor defaults to the 1σ native granularity: 1/sqrt(dims).
-    // The atomic angular unit; both predicates multiply it by their
-    // sigma counts. Arc 024 retired the prior 5σ conflation.
+    // Opinionated defaults — all FUNCTIONS of dims. The user picks
+    // dims; everything else derives. Arc 024 slice 2.
+    //
+    //   noise_floor(d)    = 1 / sqrt(d)            ; 1σ native granularity
+    //   coincident_sigma  = 1                      ; constant: 1σ always
+    //   presence_sigma(d) = floor(sqrt(d)/2) - 1   ; one before zero-point
+    //
+    // The presence formula derives "the thing one before zero" — the
+    // zero-point of middle_width is sqrt(d)/2 (where the two predicates
+    // collapse). Presence sits one sliver below, leaving the smallest
+    // non-zero separation. Coincident stays at 1σ because that's the
+    // geometric minimum the substrate can physically resolve.
+    //
+    // Validity (presence_sigma + coincident_sigma < sqrt(d)) holds for
+    // defaults at d ≥ 16. Below that, the user must override.
     let noise_floor = noise_floor.unwrap_or_else(|| 1.0 / (dims as f64).sqrt());
-    let presence_sigma = presence_sigma.unwrap_or(15);
     let coincident_sigma = coincident_sigma.unwrap_or(1);
+    let presence_sigma = presence_sigma.unwrap_or_else(|| {
+        let half_sqrt_dims = ((dims as f64).sqrt() / 2.0).floor() as i64;
+        // "one before the zero point"; clamp positive so parse invariant
+        // still holds for tiny d even though the validity check below
+        // will reject.
+        (half_sqrt_dims - 1).max(1)
+    });
     let presence_floor = (presence_sigma as f64) * noise_floor;
     let coincident_floor = (coincident_sigma as f64) * noise_floor;
 
@@ -531,8 +552,8 @@ mod tests {
     fn minimum_required_entry_file() {
         let (cfg, rest) = collect(
             r#"
-            (:wat::config::set-dims! 10000)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
             "#,
         )
         .unwrap();
@@ -542,10 +563,13 @@ mod tests {
         // Arc 024: noise_floor = 1σ = 1/sqrt(d). At d=10000 that's 0.01.
         let expected = 1.0_f64 / (10000_f64).sqrt();
         assert!((cfg.noise_floor - expected).abs() < 1e-12);
-        // Arc 024 defaults: presence_sigma=15, coincident_sigma=1.
-        assert_eq!(cfg.presence_sigma, 15);
+        // Arc 024 slice 2: defaults are FUNCTIONS of dims.
+        //   presence_sigma = floor(sqrt(d)/2) - 1
+        //   coincident_sigma = 1
+        // At d=10000: floor(100/2) - 1 = 49.
+        assert_eq!(cfg.presence_sigma, 49);
         assert_eq!(cfg.coincident_sigma, 1);
-        assert!((cfg.presence_floor - 15.0 * expected).abs() < 1e-12);
+        assert!((cfg.presence_floor - 49.0 * expected).abs() < 1e-12);
         assert!((cfg.coincident_floor - expected).abs() < 1e-12);
         assert!(rest.is_empty());
     }
@@ -555,8 +579,8 @@ mod tests {
         // Arc 024: noise_floor = 1σ. At d=1024, 1/32 = 0.03125.
         let (cfg, _) = collect(
             r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             "#,
         )
         .unwrap();
@@ -570,8 +594,8 @@ mod tests {
     fn noise_floor_override() {
         let (cfg, _) = collect(
             r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             (:wat::config::set-noise-floor! 0.1)
             "#,
         )
@@ -584,8 +608,8 @@ mod tests {
         // set-noise-floor! accepts integer literals as convenience.
         let (cfg, _) = collect(
             r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             (:wat::config::set-noise-floor! 0)
             "#,
         )
@@ -597,8 +621,8 @@ mod tests {
     fn noise_floor_double_set_rejected() {
         let err = collect(
             r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             (:wat::config::set-noise-floor! 0.1)
             (:wat::config::set-noise-floor! 0.2)
             "#,
@@ -614,8 +638,8 @@ mod tests {
     fn global_seed_default_is_42() {
         let (cfg, _) = collect(
             r#"
-            (:wat::config::set-dims! 10000)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
             "#,
         )
         .unwrap();
@@ -628,8 +652,8 @@ mod tests {
     fn sigma_defaults_are_15_and_1() {
         let (cfg, _) = collect(
             r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             "#,
         )
         .unwrap();
@@ -645,8 +669,8 @@ mod tests {
     fn presence_sigma_override() {
         let (cfg, _) = collect(
             r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             (:wat::config::set-presence-sigma! 10)
             "#,
         )
@@ -659,8 +683,8 @@ mod tests {
     fn coincident_sigma_override() {
         let (cfg, _) = collect(
             r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             (:wat::config::set-coincident-sigma! 3)
             "#,
         )
@@ -673,8 +697,8 @@ mod tests {
     fn nonpositive_sigma_rejected() {
         let err = collect(
             r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             (:wat::config::set-presence-sigma! 0)
             "#,
         )
@@ -687,13 +711,32 @@ mod tests {
     }
 
     #[test]
-    fn sigma_sum_exceeds_sqrt_dims_under_error_returns_err() {
-        // d=100 → sqrt(d)=10. Default sum 15+1=16 ≥ 10. Invariant
-        // violated. Under :error, collect_entry_file returns Err.
+    fn defaults_stay_valid_at_small_dims() {
+        // Arc 024 slice 2: the default formula derives presence_sigma
+        // from dims. At d=100 → floor(10/2) - 1 = 4; sum 4+1=5 < 10.
+        // Valid. The default works wherever the substrate geometry
+        // permits.
+        let (cfg, _) = collect(
+            r#"
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 100)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(cfg.presence_sigma, 4);
+        assert_eq!(cfg.coincident_sigma, 1);
+    }
+
+    #[test]
+    fn user_override_that_breaks_invariant_under_error_returns_err() {
+        // User picks a sigma that violates the geometric ceiling.
+        // At d=100 sqrt=10, so presence_sigma=15 + coincident=1 = 16 ≥ 10.
+        // Under :error, collect_entry_file returns Err.
         let err = collect(
             r#"
-            (:wat::config::set-dims! 100)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 100)
+            (:wat::config::set-presence-sigma! 15)
             "#,
         )
         .unwrap_err();
@@ -706,29 +749,30 @@ mod tests {
     }
 
     #[test]
-    fn sigma_sum_exceeds_sqrt_dims_under_silent_passes() {
-        // :silent mode — invariant violation proceeds anyway. Predicates
-        // behave nonsensically but substrate does not complain.
+    fn user_override_that_breaks_invariant_under_silent_passes() {
+        // :silent mode — violation proceeds. Predicates become
+        // nonsensical but substrate does not complain.
         let (cfg, _) = collect(
             r#"
-            (:wat::config::set-dims! 100)
             (:wat::config::set-capacity-mode! :silent)
+            (:wat::config::set-dims! 100)
+            (:wat::config::set-presence-sigma! 15)
             "#,
         )
         .unwrap();
-        // Config committed — defaults apply even in degenerate zone.
         assert_eq!(cfg.presence_sigma, 15);
         assert_eq!(cfg.coincident_sigma, 1);
     }
 
     #[test]
-    fn sigma_sum_exceeds_sqrt_dims_under_warn_passes_with_stderr() {
+    fn user_override_that_breaks_invariant_under_warn_passes_with_stderr() {
         // :warn mode — proceeds after stderr diagnostic. We don't
         // capture stderr here; just verify the Config is committed.
         let (cfg, _) = collect(
             r#"
-            (:wat::config::set-dims! 100)
             (:wat::config::set-capacity-mode! :warn)
+            (:wat::config::set-dims! 100)
+            (:wat::config::set-presence-sigma! 15)
             "#,
         )
         .unwrap();
@@ -741,8 +785,8 @@ mod tests {
         // sqrt(d)=10. Config commits cleanly.
         let (cfg, _) = collect(
             r#"
-            (:wat::config::set-dims! 100)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 100)
             (:wat::config::set-presence-sigma! 5)
             "#,
         )
@@ -756,8 +800,8 @@ mod tests {
     fn sigma_double_set_rejected() {
         let err = collect(
             r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             (:wat::config::set-presence-sigma! 10)
             (:wat::config::set-presence-sigma! 20)
             "#,
@@ -770,8 +814,8 @@ mod tests {
     fn global_seed_override() {
         let (cfg, _) = collect(
             r#"
-            (:wat::config::set-dims! 10000)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
             (:wat::config::set-global-seed! 12345)
             "#,
         )
@@ -783,8 +827,8 @@ mod tests {
     fn setters_then_body() {
         let (cfg, rest) = collect(
             r#"
-            (:wat::config::set-dims! 10000)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
             (:wat::holon::Atom "hello")
             "#,
         )
@@ -803,8 +847,8 @@ mod tests {
         ] {
             let src = format!(
                 r#"
-                (:wat::config::set-dims! 1024)
                 (:wat::config::set-capacity-mode! {})
+                (:wat::config::set-dims! 1024)
                 "#,
                 kw
             );
@@ -839,8 +883,8 @@ mod tests {
         let err = collect(
             r#"
             (:wat::config::set-dims! 10000)
-            (:wat::config::set-dims! 8192)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 8192)
             "#,
         )
         .unwrap_err();
@@ -851,8 +895,8 @@ mod tests {
     fn duplicate_capacity_mode_rejected() {
         let err = collect(
             r#"
-            (:wat::config::set-dims! 10000)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
             (:wat::config::set-capacity-mode! :abort)
             "#,
         )
@@ -889,8 +933,8 @@ mod tests {
     fn wrong_arity_rejected() {
         let err = collect(
             r#"
-            (:wat::config::set-dims! 10000 8192)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000 8192)
             "#,
         )
         .unwrap_err();
@@ -904,8 +948,8 @@ mod tests {
     fn dims_wrong_type_rejected() {
         let err = collect(
             r#"
-            (:wat::config::set-dims! "oops")
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! "oops")
             "#,
         )
         .unwrap_err();
@@ -916,8 +960,8 @@ mod tests {
     fn capacity_mode_wrong_type_rejected() {
         let err = collect(
             r#"
-            (:wat::config::set-dims! 10000)
             (:wat::config::set-capacity-mode! 42)
+            (:wat::config::set-dims! 10000)
             "#,
         )
         .unwrap_err();
@@ -928,8 +972,8 @@ mod tests {
     fn capacity_mode_unknown_variant_rejected() {
         let err = collect(
             r#"
-            (:wat::config::set-dims! 10000)
             (:wat::config::set-capacity-mode! :chaos)
+            (:wat::config::set-dims! 10000)
             "#,
         )
         .unwrap_err();
@@ -940,8 +984,8 @@ mod tests {
     fn negative_dims_rejected() {
         let err = collect(
             r#"
-            (:wat::config::set-dims! -1)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! -1)
             "#,
         )
         .unwrap_err();
@@ -952,8 +996,8 @@ mod tests {
     fn negative_global_seed_rejected() {
         let err = collect(
             r#"
-            (:wat::config::set-dims! 10000)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
             (:wat::config::set-global-seed! -5)
             "#,
         )
@@ -967,8 +1011,8 @@ mod tests {
         // capacity-mode. Order among setters is free.
         let (cfg_a, _) = collect(
             r#"
-            (:wat::config::set-dims! 10000)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 10000)
             "#,
         )
         .unwrap();

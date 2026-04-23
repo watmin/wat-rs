@@ -9,8 +9,8 @@
 ;;
 ;; Same threshold, two directions, one substrate.
 
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 ;; ─── Self-coincidence: a holon is the same as itself ─────────────
 

@@ -61,14 +61,14 @@ fn as_vec_string(v: &Value) -> Vec<String> {
 #[test]
 fn noop_main_yields_empty_stdout_and_stderr() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         ;; Outer program: runs a sandboxed no-op main.
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::config::set-dims! 1024)
-             (:wat::config::set-capacity-mode! :error)
+            "(:wat::config::set-capacity-mode! :error)
+             (:wat::config::set-dims! 1024)
              (:wat::core::define (:user::main
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
@@ -89,13 +89,13 @@ fn noop_main_yields_empty_stdout_and_stderr() {
 #[test]
 fn main_writes_single_line_to_stdout() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::config::set-dims! 1024)
-             (:wat::config::set-capacity-mode! :error)
+            "(:wat::config::set-capacity-mode! :error)
+             (:wat::config::set-dims! 1024)
              (:wat::core::define (:user::main
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
@@ -116,13 +116,13 @@ fn main_writes_single_line_to_stdout() {
 #[test]
 fn main_writes_to_both_stdout_and_stderr() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::config::set-dims! 1024)
-             (:wat::config::set-capacity-mode! :error)
+            "(:wat::config::set-capacity-mode! :error)
+             (:wat::config::set-dims! 1024)
              (:wat::core::define (:user::main
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
@@ -149,13 +149,13 @@ fn main_echoes_stdin_to_stdout() {
     // r##"..."## delimiter so the outer vec :String "watmin" doesn't
     // need backslash-escaped quotes at the wat surface.
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::config::set-dims! 1024)
-             (:wat::config::set-capacity-mode! :error)
+            "(:wat::config::set-capacity-mode! :error)
+             (:wat::config::set-dims! 1024)
              (:wat::core::define (:user::main
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
@@ -180,13 +180,13 @@ fn print_without_newline_does_not_split_into_lines() {
     // Three prints to stdout: "a" + "b" + "c". No newline.
     // Buffer: "abc". Split on \n: ["abc"]. No trailing \n to trim.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::config::set-dims! 1024)
-             (:wat::config::set-capacity-mode! :error)
+            "(:wat::config::set-capacity-mode! :error)
+             (:wat::config::set-dims! 1024)
              (:wat::core::define (:user::main
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
@@ -239,8 +239,8 @@ fn parse_error_in_source_surfaces_as_failure() {
     // Inner source is unterminated — the lexer's UnterminatedString
     // surfaces as a startup error, captured into Failure.
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
@@ -264,13 +264,13 @@ fn main_signature_mismatch_surfaces_as_failure() {
     // Inner main takes no IO params — mismatch against the expected
     // three-IO contract. Captured as Failure.
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::config::set-dims! 1024)
-             (:wat::config::set-capacity-mode! :error)
+            "(:wat::config::set-capacity-mode! :error)
+             (:wat::config::set-dims! 1024)
              (:wat::core::define (:user::main -> :()) ())"
             (:wat::core::vec :String)
             :None))
@@ -287,13 +287,13 @@ fn main_signature_mismatch_surfaces_as_failure() {
 #[test]
 fn missing_user_main_surfaces_as_failure() {
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::config::set-dims! 1024)
-             (:wat::config::set-capacity-mode! :error)"
+            "(:wat::config::set-capacity-mode! :error)
+             (:wat::config::set-dims! 1024)"
             (:wat::core::vec :String)
             :None))
     "##;
@@ -317,13 +317,13 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
     // At dims=1024, sqrt(dims) = 32. A 40-element Bundle list
     // overshoots; :abort mode panics.
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::config::set-dims! 1024)
-             (:wat::config::set-capacity-mode! :abort)
+            "(:wat::config::set-capacity-mode! :abort)
+             (:wat::config::set-dims! 1024)
              (:wat::core::define (:user::main
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
@@ -411,8 +411,8 @@ fn scoped_file_eval_inside_scope_succeeds() {
     let scope = ScopeDir::new();
     let inner_source_path = scope.write("fortytwo.wat", "(:wat::core::i64::+ 40 2)");
     let inner_src = format!(
-        r#"(:wat::config::set-dims! 1024)
-         (:wat::config::set-capacity-mode! :error)
+        r#"(:wat::config::set-capacity-mode! :error)
+         (:wat::config::set-dims! 1024)
          (:wat::core::define (:user::main
                               (stdin  :wat::io::IOReader)
                               (stdout :wat::io::IOWriter)
@@ -429,8 +429,8 @@ fn scoped_file_eval_inside_scope_succeeds() {
     let scope_path = scope.path.canonicalize().unwrap();
     let src = format!(
         r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
@@ -471,8 +471,8 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
     let outside_file = outside.write("leak.txt", "secrets");
 
     let inner_src = format!(
-        r#"(:wat::config::set-dims! 1024)
-         (:wat::config::set-capacity-mode! :error)
+        r#"(:wat::config::set-capacity-mode! :error)
+         (:wat::config::set-dims! 1024)
          (:wat::core::define (:user::main
                               (stdin  :wat::io::IOReader)
                               (stdout :wat::io::IOWriter)
@@ -489,8 +489,8 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
     let scope_path = scope.path.canonicalize().unwrap();
     let src = format!(
         r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
@@ -523,13 +523,13 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
 fn main_reads_multiple_stdin_lines() {
     // Read and println each line until EOF.
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::config::set-dims! 1024)
-             (:wat::config::set-capacity-mode! :error)
+            "(:wat::config::set-capacity-mode! :error)
+             (:wat::config::set-dims! 1024)
              (:wat::core::define (:my::echo-all
                                   (r :wat::io::IOReader)
                                   (w :wat::io::IOWriter)

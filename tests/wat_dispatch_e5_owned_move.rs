@@ -41,8 +41,8 @@ fn install() {
 fn ticket_redeems_once_successfully() {
     install();
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::Ticket)
 
         (:wat::core::define (:user::main -> :i64)
@@ -60,8 +60,8 @@ fn ticket_redeems_once_successfully() {
 fn ticket_second_redemption_errors() {
     install();
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::Ticket)
 
         (:wat::core::define (:user::main -> :i64)

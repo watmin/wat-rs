@@ -49,16 +49,16 @@ fn fork_child_writes_stdout_parent_reads_line() {
     // stdout. Parent reads that line via the ForkedChild/stdout
     // accessor. ChildHandle drops at :user::main exit; Drop reaps.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
               (:wat::kernel::fork-with-forms
                 (:wat::test::program
-                  (:wat::config::set-dims! 1024)
                   (:wat::config::set-capacity-mode! :error)
+                  (:wat::config::set-dims! 1024)
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)
@@ -79,16 +79,16 @@ fn fork_child_writes_stderr_parent_reads_line() {
     // (stderr carries diagnostic lines when the child's main
     // returns non-zero).
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
               (:wat::kernel::fork-with-forms
                 (:wat::test::program
-                  (:wat::config::set-dims! 1024)
                   (:wat::config::set-capacity-mode! :error)
+                  (:wat::config::set-dims! 1024)
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)
@@ -107,16 +107,16 @@ fn wait_child_returns_zero_on_success() {
     // Fork a trivial main that exits cleanly; wait-child must
     // return EXIT_SUCCESS (0).
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
               (:wat::kernel::fork-with-forms
                 (:wat::test::program
-                  (:wat::config::set-dims! 1024)
                   (:wat::config::set-capacity-mode! :error)
+                  (:wat::config::set-dims! 1024)
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)
@@ -135,16 +135,16 @@ fn wait_child_is_idempotent() {
     // Calling wait-child twice on the same handle must return the
     // same cached code — sub-fog 2c resolution.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
               (:wat::kernel::fork-with-forms
                 (:wat::test::program
-                  (:wat::config::set-dims! 1024)
                   (:wat::config::set-capacity-mode! :error)
+                  (:wat::config::set-dims! 1024)
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)
@@ -169,16 +169,16 @@ fn wait_child_surfaces_startup_error_exit_code() {
     // arg. startup_from_forms's type-check phase fails; child
     // exits with EXIT_STARTUP_ERROR=3.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
               (:wat::kernel::fork-with-forms
                 (:wat::test::program
-                  (:wat::config::set-dims! 1024)
                   (:wat::config::set-capacity-mode! :error)
+                  (:wat::config::set-dims! 1024)
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)
@@ -200,16 +200,16 @@ fn wait_child_surfaces_panic_exit_code() {
     // values — which invokes assertion-failed! via panic_any. The
     // child's catch_unwind catches, maps to EXIT_PANIC=2.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
               (:wat::kernel::fork-with-forms
                 (:wat::test::program
-                  (:wat::config::set-dims! 1024)
                   (:wat::config::set-capacity-mode! :error)
+                  (:wat::config::set-dims! 1024)
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)
@@ -230,16 +230,16 @@ fn wait_child_surfaces_runtime_error_exit_code() {
     // time. invoke_user_main returns Err(runtime_err), child exits
     // EXIT_RUNTIME_ERROR=1.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
               (:wat::kernel::fork-with-forms
                 (:wat::test::program
-                  (:wat::config::set-dims! 1024)
                   (:wat::config::set-capacity-mode! :error)
+                  (:wat::config::set-dims! 1024)
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)
@@ -261,16 +261,16 @@ fn multiple_sequential_forks_no_leak() {
     // their exit codes. Proves no zombie / fd leaks across repeated
     // fork+wait cycles from one parent.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::one-fork -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
               (:wat::kernel::fork-with-forms
                 (:wat::test::program
-                  (:wat::config::set-dims! 1024)
                   (:wat::config::set-capacity-mode! :error)
+                  (:wat::config::set-dims! 1024)
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)
@@ -300,16 +300,16 @@ fn wait_child_surfaces_nonzero_exit_code() {
     // EXIT_MAIN_SIGNATURE=4 per the convention. Parent's
     // wait-child should return 4.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
               (:wat::kernel::fork-with-forms
                 (:wat::test::program
-                  (:wat::config::set-dims! 1024)
                   (:wat::config::set-capacity-mode! :error)
+                  (:wat::config::set-dims! 1024)
                   (:wat::core::define (:user::main -> :i64) 42))))
              ((handle :wat::kernel::ChildHandle)
               (:wat::kernel::ForkedChild/handle child)))
@@ -324,16 +324,16 @@ fn fork_child_reads_stdin_from_parent() {
     // stdout. Exercises the ForkedChild/stdin accessor + parent-
     // to-child data flow.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
               (:wat::kernel::fork-with-forms
                 (:wat::test::program
-                  (:wat::config::set-dims! 1024)
                   (:wat::config::set-capacity-mode! :error)
+                  (:wat::config::set-dims! 1024)
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)

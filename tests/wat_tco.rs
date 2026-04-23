@@ -51,8 +51,8 @@ fn self_recursion_via_if_at_million_depth() {
     // frames (a fresh apply_function + eval frame per iteration). With
     // TCO the loop in apply_function reuses one frame the entire way.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::countdown (n :i64) (acc :i64) -> :i64)
           (:wat::core::if (:wat::core::= n 0) -> :i64
@@ -76,8 +76,8 @@ fn self_recursion_via_match_at_high_depth() {
     //
     // 100k iterations — well past any default stack without TCO.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::drain (remaining :i64) (acc :i64) -> :i64)
           (:wat::core::match
@@ -103,8 +103,8 @@ fn mutual_recursion_between_two_defines() {
     // alternate through apply_function's trampoline; Rust stack
     // constant. 100k each way = 200k tail calls total.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::is-even (n :i64) -> :bool)
           (:wat::core::if (:wat::core::= n 0) -> :bool
@@ -131,8 +131,8 @@ fn tail_call_inside_let_star_body_propagates() {
     // bindings are themselves NOT in tail position (their RHS runs
     // through plain eval).
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::loop (n :i64) -> :i64)
           (:wat::core::let*
@@ -160,8 +160,8 @@ fn non_tail_recursion_modest_depth_correct() {
     // 20 iterations = 2^20 = 1048576. Well within default stack and
     // i64 range.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::pow2 (n :i64) -> :i64)
           (:wat::core::if (:wat::core::= n 0) -> :i64
@@ -187,8 +187,8 @@ fn try_inside_tail_recursive_function_short_circuits() {
     // The function walks a count down; if the argument goes negative,
     // the `check` helper returns Err and `try` propagates.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::check (n :i64) -> :Result<i64,String>)
           (:wat::core::if (:wat::core::< n 0) -> :Result<i64,String>
@@ -217,8 +217,8 @@ fn try_inside_tail_recursive_function_short_circuits() {
 #[test]
 fn try_inside_tail_recursive_function_propagates_err() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::check (n :i64) -> :Result<i64,String>)
           (:wat::core::if (:wat::core::< n 0) -> :Result<i64,String>
@@ -258,8 +258,8 @@ fn lambda_tail_call_via_let_bound_symbol() {
     // Single depth — proves the detection path, not the depth. The
     // million-depth case comes via mutual alternation below.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
@@ -277,8 +277,8 @@ fn inline_lambda_literal_tail_call() {
     // `(lambda ...)`. Evaluated non-tail; the resulting lambda value
     // triggers a TailCall emission from the List head arm.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           ((:wat::core::lambda ((n :i64) -> :i64)
@@ -295,8 +295,8 @@ fn named_define_tail_calls_lambda_param() {
     // detects via env.lookup and TailCall fires with the lambda's
     // Arc<Function>.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::invoke
                              (f :fn(i64)->i64)
@@ -332,8 +332,8 @@ fn inline_lambda_named_alternation_at_high_depth() {
     // allocation, not stack. The test doesn't care about allocation
     // rate; it cares that stack stays flat.)
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::go (state :i64) (n :i64) -> :i64)
           (:wat::core::if (:wat::core::= n 0) -> :i64

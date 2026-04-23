@@ -57,8 +57,8 @@ fn bytes_from_vec_u8(v: Value) -> Vec<u8> {
 #[test]
 fn io_reader_from_string_read_line_round_trips() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
@@ -72,8 +72,8 @@ fn io_reader_from_string_read_line_round_trips() {
 #[test]
 fn io_reader_read_line_handles_crlf() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
@@ -87,8 +87,8 @@ fn io_reader_read_line_handles_crlf() {
 #[test]
 fn io_reader_read_line_at_eof_is_none() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::drain (r :wat::io::IOReader) -> :Option<String>)
           (:wat::core::let*
@@ -110,8 +110,8 @@ fn io_reader_read_line_at_eof_is_none() {
 fn io_reader_read_returns_up_to_n_bytes() {
     // "hello" is 5 bytes. Read 3, expect [h, e, l].
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Option<Vec<u8>>)
           (:wat::core::let*
@@ -134,8 +134,8 @@ fn io_reader_read_returns_up_to_n_bytes() {
 #[test]
 fn io_reader_read_at_eof_is_none() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::drain (r :wat::io::IOReader) -> :Option<Vec<u8>>)
           (:wat::core::let*
@@ -156,8 +156,8 @@ fn io_reader_read_at_eof_is_none() {
 #[test]
 fn io_reader_read_all_returns_everything() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<u8>)
           (:wat::core::let*
@@ -175,8 +175,8 @@ fn io_reader_read_all_returns_everything() {
 fn io_reader_rewind_restarts_from_beginning() {
     // Read everything, rewind, read again. Second read must succeed.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::read-twice (r :wat::io::IOReader) -> :Vec<u8>)
           (:wat::core::let*
@@ -199,8 +199,8 @@ fn io_reader_rewind_restarts_from_beginning() {
 #[test]
 fn io_writer_writeln_then_to_string_round_trips() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
@@ -216,8 +216,8 @@ fn io_writer_writeln_then_to_string_round_trips() {
 fn io_writer_writeln_returns_bytes_written() {
     // "hello" (5 bytes) + "\n" = 6 bytes written.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
@@ -231,8 +231,8 @@ fn io_writer_writeln_returns_bytes_written() {
 fn io_writer_write_returns_byte_count() {
     // Vec<u8> of 3 bytes written; write returns count.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
@@ -250,8 +250,8 @@ fn io_writer_write_returns_byte_count() {
 #[test]
 fn io_writer_write_all_then_to_bytes_round_trips() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<u8>)
           (:wat::core::let*
@@ -274,8 +274,8 @@ fn io_writer_write_string_does_not_add_newline() {
     // Matches the semantics of pre-arc-008 :wat::io::write on real
     // Stdout/Stderr — caller controls newlines.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
@@ -294,8 +294,8 @@ fn io_writer_write_string_returns_byte_count() {
     // 008 slice 3 fixed the byte-at-a-time bug that previously
     // re-encoded each byte as a Latin-1 char.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
@@ -308,8 +308,8 @@ fn io_writer_write_string_returns_byte_count() {
 #[test]
 fn io_writer_flush_is_ok_for_string_writer() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :())
           (:wat::core::let*
@@ -326,8 +326,8 @@ fn reader_lines_copied_to_writer() {
     // Read two lines from reader, write each to writer with writeln.
     // to-string on writer should show "alpha\nbeta\n".
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define
           (:my::copy-one
@@ -355,8 +355,8 @@ fn reader_lines_copied_to_writer() {
 #[test]
 fn fresh_writer_to_string_is_empty() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
@@ -369,8 +369,8 @@ fn fresh_writer_to_string_is_empty() {
 #[test]
 fn empty_reader_read_line_is_none() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*

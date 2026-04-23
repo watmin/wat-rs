@@ -12,8 +12,8 @@
 ;; the same pipeline a downstream consumer uses when it declares
 ;; `deps: [wat_lru]`.
 
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 ;; ─── put-then-get round-trip ────────────────────────────────────────
 

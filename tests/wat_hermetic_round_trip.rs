@@ -31,14 +31,14 @@ fn run(src: &str) -> Value {
 #[test]
 fn hermetic_inner_program_stdout_captured() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed-hermetic-ast
             (:wat::test::program
-              (:wat::config::set-dims! 1024)
               (:wat::config::set-capacity-mode! :error)
+              (:wat::config::set-dims! 1024)
               (:wat::core::define (:user::main
                                    (stdin  :wat::io::IOReader)
                                    (stdout :wat::io::IOWriter)
@@ -71,16 +71,16 @@ fn hermetic_output_evaluated_in_outer_scope() {
     // evaluated back in the parent's wat runtime. "wat generates
     // wat, wat runs wat, wat evaluates wat's output."
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let*
             (((hermetic-result :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-hermetic-ast
                 (:wat::test::program
-                  (:wat::config::set-dims! 1024)
                   (:wat::config::set-capacity-mode! :error)
+                  (:wat::config::set-dims! 1024)
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)

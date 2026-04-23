@@ -48,8 +48,8 @@ fn install() {
 fn shared_handle_reads_message() {
     install();
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::Greeting)
 
         (:wat::core::define (:user::main -> :String)
@@ -71,8 +71,8 @@ fn shared_handle_reads_message() {
 fn shared_handle_reads_year() {
     install();
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::Greeting)
 
         (:wat::core::define (:user::main -> :i64)
@@ -102,8 +102,8 @@ fn shared_handle_survives_thread_crossing() {
     // Build a Greeting through the macro-generated dispatch path
     // (i.e., by running a tiny wat program on the parent thread).
     let src_make = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::Greeting)
 
         (:wat::core::define (:user::main -> :rust::test::Greeting)

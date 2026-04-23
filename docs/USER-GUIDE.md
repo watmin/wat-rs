@@ -82,8 +82,8 @@ wat::test! { deps: [wat_lru] }
 
 ```scheme
 ;; wat/main.wat — commits startup config + defines :user::main
-(:wat::config::set-dims! 10000)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 10000)
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
@@ -166,8 +166,8 @@ recursively from `main.wat` downward.
 
 ```scheme
 ;; wat/main.wat — the ENTRY. Commits config + defines :user::main.
-(:wat::config::set-dims! 10000)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 10000)
 
 (:wat::core::load! :wat::load::file-path "types.wat")
 (:wat::core::load! :wat::load::file-path "vocab.wat")
@@ -248,8 +248,8 @@ them.
 
 ```scheme
 ;; wat-tests/hello.wat
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :my-app::test-one-plus-one 1024 :error
   (:wat::test::assert-eq (:wat::core::i64::+ 1 1) 2))
@@ -345,8 +345,8 @@ A slightly richer first program:
 
 ```scheme
 ;; wat/main.wat
-(:wat::config::set-dims! 10000)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 10000)
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
@@ -1253,8 +1253,8 @@ stdout, its stderr, its assertion-failure payload. Pair
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
-          (:wat::config::set-dims! 1024)
           (:wat::config::set-capacity-mode! :error)
+          (:wat::config::set-dims! 1024)
           (:wat::core::define
             (:user::main
               (stdin :wat::io::IOReader)
@@ -1296,8 +1296,8 @@ s-expressions:
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
-          (:wat::config::set-dims! 1024)
           (:wat::config::set-capacity-mode! :error)
+          (:wat::config::set-dims! 1024)
           (:wat::core::define (:user::main
                                (stdin :wat::io::IOReader)
                                (stdout :wat::io::IOWriter)

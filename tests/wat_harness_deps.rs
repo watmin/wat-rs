@@ -52,8 +52,8 @@ const DEP_B: &[WatSource] = &[WatSource {
 fn harness_composes_multiple_deps_into_user_source() {
     wat::fork::run_in_fork(|| {
         let user = r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
 
             (:wat::core::define (:user::main
                                  (stdin  :wat::io::IOReader)
@@ -78,8 +78,8 @@ fn harness_same_deps_usable_from_different_entry_source() {
         // program — proves deps survive across multiple Harness
         // construction calls within one process (here, the forked one).
         let user = r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             (:wat::core::define (:user::main
                                  (stdin  :wat::io::IOReader)
                                  (stdout :wat::io::IOWriter)
@@ -101,8 +101,8 @@ fn harness_with_zero_deps_matches_from_source() {
         // only install — fresh OnceLock state, no interaction with
         // other tests' dep sets.
         let src = r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             (:wat::core::define (:user::main
                                  (stdin  :wat::io::IOReader)
                                  (stdout :wat::io::IOWriter)

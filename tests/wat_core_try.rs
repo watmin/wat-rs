@@ -42,8 +42,8 @@ fn check_errors(src: &str) -> Vec<CheckError> {
 #[test]
 fn try_on_ok_extracts_inner_value() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<i64,String>)
           (Ok (:wat::core::try (Ok 42))))
@@ -60,8 +60,8 @@ fn try_on_ok_extracts_inner_value() {
 #[test]
 fn try_on_err_propagates_through_function() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<i64,String>)
           (Ok (:wat::core::try (Err "boom"))))
@@ -78,8 +78,8 @@ fn try_on_err_propagates_through_function() {
 #[test]
 fn try_propagates_across_helper_function() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::unwrap-or-propagate
                              (r :Result<i64,String>)
@@ -104,8 +104,8 @@ fn try_chains_two_bindings_in_let_star() {
     // unwraps its Result into the bound name; the final Ok wraps the
     // sum to satisfy the function's declared return type.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<i64,String>)
           (:wat::core::let*
@@ -127,8 +127,8 @@ fn try_short_circuits_let_star_on_first_err() {
     // Err on the first binding propagates; subsequent bindings never
     // evaluate. The body never runs either.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<i64,String>)
           (:wat::core::let*
@@ -150,8 +150,8 @@ fn try_inside_match_arm_propagates() {
     // try inside the body of a match arm still propagates to the
     // enclosing function — not just to the match.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::describe
                              (o :Option<Result<i64,String>>)
@@ -177,8 +177,8 @@ fn try_inside_match_arm_propagates() {
 #[test]
 fn try_with_zero_args_rejected_at_check() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<i64,String>)
           (Ok (:wat::core::try)))
@@ -195,8 +195,8 @@ fn try_with_zero_args_rejected_at_check() {
 #[test]
 fn try_with_two_args_rejected_at_check() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<i64,String>)
           (Ok (:wat::core::try (Ok 1) (Ok 2))))
@@ -214,8 +214,8 @@ fn try_with_two_args_rejected_at_check() {
 fn try_on_non_result_arg_rejected_at_check() {
     // Passing a bare i64 — not a Result.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<i64,String>)
           (Ok (:wat::core::try 42)))
@@ -233,8 +233,8 @@ fn try_inside_non_result_function_rejected_at_check() {
     // Enclosing fn returns :i64, not :Result. `try` has no place to
     // propagate to; MalformedForm fires.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::try (Ok 42)))
@@ -252,8 +252,8 @@ fn try_mismatched_err_types_rejected_at_check() {
     // Enclosing fn's Err is :String; try's arg has Err :i64 — strict
     // equality refuses (no auto-conversion, per 2026-04-19 stance).
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::produce-i64-err -> :Result<i64,i64>)
           (Err 99))
@@ -277,8 +277,8 @@ fn try_inside_result_returning_lambda_propagates_to_lambda() {
     // lambda. The outer function (also Result-returning) receives the
     // lambda's Err as a Value::Result and wraps it back as-is.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<i64,String>)
           (:wat::core::let
@@ -303,8 +303,8 @@ fn try_inside_non_result_lambda_rejected_at_check() {
     // enclosing scope for `try` is the lambda, not the outer fn.
     // MalformedForm fires.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<i64,String>)
           (:wat::core::let

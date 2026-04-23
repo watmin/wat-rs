@@ -43,8 +43,8 @@ fn ast_entry_prints_hello() {
     // run-sandboxed-ast. Inner writes "hello" to stdout; outer checks
     // captured stdout.
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)
@@ -81,8 +81,8 @@ fn ast_entry_captures_assertion_failure() {
     // source-text path — proving the AST-entry sandbox shares the
     // full plumbing.
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)

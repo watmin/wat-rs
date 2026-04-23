@@ -94,8 +94,8 @@ Hand-written tests compose program + run-ast:
 ```
 (:wat::test::run-ast
   (:wat::test::program
-    (:wat::config::set-dims! 1024)
     (:wat::config::set-capacity-mode! :error)
+    (:wat::config::set-dims! 1024)
     (:wat::core::define (:user::main ...) <body>))
   (:wat::core::vec :String))
 ```

@@ -427,8 +427,8 @@ wrapper. It works, but every call site pays the same tax:
 
 ```
 (:wat::test::run
-  "(:wat::config::set-dims! 1024)
-   (:wat::config::set-capacity-mode! :error)
+  "(:wat::config::set-capacity-mode! :error)
+   (:wat::config::set-dims! 1024)
    (:wat::core::define (:user::main
                         (stdin  :wat::io::IOReader)
                         (stdout :wat::io::IOWriter)

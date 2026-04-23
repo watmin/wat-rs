@@ -1,6 +1,6 @@
 # Arc 024 — presence-sigma + coincident-sigma — INSCRIPTION
 
-**Status:** shipped 2026-04-22. Two slices.
+**Status:** shipped 2026-04-22. Three slices.
 **Design:** [`DESIGN.md`](./DESIGN.md) — the shape before code.
 **This file:** completion marker.
 
@@ -31,6 +31,54 @@ Builder framing:
 
 > i think we just have presence? and coincident? closures over
 > their respective values.. keep noisefloor - both funcs need it
+
+---
+
+## Slice 2 — defaults as functions of dims (not constants)
+
+Slice 1 shipped constants: `presence_sigma = 15, coincident_sigma = 1`.
+That was wrong. `15` is load-bearing at d=1024 but meaningless at
+d=100 (violates the validity invariant) or wasteful at d=10000
+(leaves substrate resolution on the table).
+
+Builder's correction:
+
+> dude - you are fixated on a magic number - the number is the
+> least important value here.. the function who provides that
+> value is what's important....
+>
+> there's only one variable there - the dimensions - the user
+> must choose this starting condition - we have opionated
+> defaults definced from is 1-stddev and whatever stddev is
+> meaningful (aka the thing one before the zero point)
+
+The formula that derives everything from `dims` alone:
+
+```
+noise_floor(d)    = 1 / sqrt(d)             ; 1σ native granularity
+coincident_sigma  = 1                       ; constant function
+presence_sigma(d) = floor(sqrt(d)/2) − 1    ; one before the zero point
+```
+
+"One before the zero point" — the zero-point of middle_width is
+`sqrt(d)/2` (where the predicates collapse). Presence sits one
+sliver below, the smallest non-zero separation.
+
+At d=100 → presence_sigma = 4. At d=1024 → 15. At d=10000 → 49.
+At d=1M → 499. The `15` at d=1024 that Slice 1 hardcoded falls
+out of the formula.
+
+Defaults are valid (sum < sqrt(d)) at all d ≥ 16. Below that the
+substrate geometry can't fit even the minimum dual predicates;
+user must override or raise dims.
+
+Tests rewritten to reflect the formula:
+- `defaults_stay_valid_at_small_dims` — d=100 gives (1, 4); valid.
+- `user_override_that_breaks_invariant_under_error_returns_err` —
+  user picks presence_sigma=15 at d=100 (old Slice 1 constant);
+  validity check fires per capacity-mode.
+- `user_override_that_breaks_invariant_under_{silent,warn}_passes` —
+  mode policy tested with user-driven violation.
 
 ---
 

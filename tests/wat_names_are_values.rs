@@ -48,8 +48,8 @@ fn named_define_is_a_function_value() {
     // expression position (not call-head) produces a lambda that can
     // be called by the user via a symbol binding.
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::double (x :i64) -> :i64)
           (:wat::core::i64::* x 2))
@@ -70,8 +70,8 @@ fn named_define_is_a_function_value() {
     // We can't stringify i64 without a fmt primitive. Check the call
     // worked by threading through a known branch.
     let src_check_result = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::double (x :i64) -> :i64)
           (:wat::core::i64::* x 2))
@@ -101,8 +101,8 @@ fn named_define_passes_to_higher_order_fn() {
     // `:fn(i64)->i64` and an `:i64`; calling it with `:my::inc` and
     // `5` via the bare keyword path — no lambda wrapper — yields 7.
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::inc (n :i64) -> :i64)
           (:wat::core::i64::+ n 1))
@@ -132,8 +132,8 @@ fn polymorphic_named_define_instantiates_at_use_site() {
     // Polymorphic `:my::identity<T>`. Passed to a monomorphic
     // `:fn(i64)->i64` slot; the scheme's `T` instantiates to `i64`.
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::identity<T> (x :T) -> :T) x)
 
@@ -163,8 +163,8 @@ fn unregistered_keyword_still_a_literal() {
     // `:wat::core::keyword` value. The lift is only when a define
     // exists at that path.
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define
           (:user::main
@@ -189,8 +189,8 @@ fn named_define_as_stream_map_fn() {
     // The canonical target: pass `:my::double` to `:wat::std::stream::map`
     // without wrapping in a pass-through lambda.
     let src = r##"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::double (n :i64) -> :i64)
           (:wat::core::i64::* n 2))

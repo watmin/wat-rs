@@ -7,8 +7,8 @@
 ;; full stdlib chain: Trigram → Ngram → map over window → Sequential
 ;; → foldl + map-with-index + Permute + Bind.
 
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :wat-tests::holon::Trigram::test-window-participant-above-floor 1024 :error
   (:wat::core::let*

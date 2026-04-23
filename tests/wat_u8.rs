@@ -20,8 +20,8 @@ fn run(src: &str) -> Value {
 #[test]
 fn u8_cast_from_i64_in_range_succeeds() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :u8)
           (:wat::core::u8 42))
@@ -36,8 +36,8 @@ fn u8_cast_from_i64_in_range_succeeds() {
 fn u8_cast_boundary_values() {
     // 0 and 255 are the edges of :u8's range.
     let src_zero = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :u8)
           (:wat::core::u8 0))
@@ -45,8 +45,8 @@ fn u8_cast_boundary_values() {
     assert!(matches!(run(src_zero), Value::u8(0)));
 
     let src_max = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :u8)
           (:wat::core::u8 255))
@@ -58,8 +58,8 @@ fn u8_cast_boundary_values() {
 fn u8_cast_out_of_range_errors_at_runtime() {
     // 256 is one past :u8 max — runtime should reject.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :u8)
           (:wat::core::u8 256))
@@ -78,8 +78,8 @@ fn u8_cast_out_of_range_errors_at_runtime() {
 #[test]
 fn u8_cast_negative_errors_at_runtime() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :u8)
           (:wat::core::u8 -1))
@@ -98,8 +98,8 @@ fn u8_cast_negative_errors_at_runtime() {
 #[test]
 fn u8_equality_works() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :bool)
           (:wat::core::= (:wat::core::u8 10) (:wat::core::u8 10)))
@@ -110,8 +110,8 @@ fn u8_equality_works() {
 #[test]
 fn u8_inequality_works() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :bool)
           (:wat::core::= (:wat::core::u8 10) (:wat::core::u8 11)))
@@ -123,8 +123,8 @@ fn u8_inequality_works() {
 fn vec_u8_construction_round_trips() {
     // (:wat::core::vec :u8 0 65 127 255) — cast each from i64 literal.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<u8>)
           (:wat::core::vec :u8
@@ -153,8 +153,8 @@ fn u8_type_mismatch_rejected_at_check_time() {
     // Passing :i64 directly where :u8 is expected should fail type
     // check — not silently coerce.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::app::byte-taker (b :u8) -> :u8) b)
 
@@ -173,8 +173,8 @@ fn u8_parameter_and_return_roundtrip() {
     // A function that takes :u8 and returns :u8 (identity). Caller
     // provides a properly-cast :u8 value. Both sides type-check.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::app::identity (b :u8) -> :u8) b)
 

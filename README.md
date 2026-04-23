@@ -335,8 +335,8 @@ Signals: the kernel measures; userland owns transitions.
 
 ```scheme
 ;; echo.wat
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
@@ -397,8 +397,8 @@ stderr, or failure) compose two stdlib forms:
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
-          (:wat::config::set-dims! 1024)
           (:wat::config::set-capacity-mode! :error)
+          (:wat::config::set-dims! 1024)
           (:wat::core::define (:user::main ... -> :())
             (:wat::io::IOWriter/println stdout "hello-from-inside")))
         (:wat::core::vec :String)))

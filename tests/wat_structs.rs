@@ -45,8 +45,8 @@ fn user_struct_constructor_and_accessor_round_trip() {
     // Declare a Candle-like struct with two fields; construct via
     // /new; read back via /open and /close accessors.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::struct :my::market::Bar
           (open  :f64)
@@ -71,8 +71,8 @@ fn user_method_can_use_auto_accessors_in_body() {
     // use the auto-generated accessors. Here the method
     // :my::market::spread/of computes high - low from a Bar.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::struct :my::market::Bar
           (high :f64)
@@ -95,8 +95,8 @@ fn user_method_can_use_auto_accessors_in_body() {
 #[test]
 fn struct_can_hold_heterogeneous_fields() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::struct :my::market::Tick
           (symbol :String)
@@ -121,8 +121,8 @@ fn structs_are_values_that_survive_rebinding() {
     // A struct value binds to a name and remains readable after
     // passing through let bindings and function calls.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::struct :my::Point
           (x :i64)
@@ -149,8 +149,8 @@ fn structs_are_values_that_survive_rebinding() {
 fn constructor_arity_mismatch_rejected_at_check() {
     // Bar/new expects 2 args (open, close); we pass 1.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::struct :my::market::Bar
           (open  :f64)
@@ -172,8 +172,8 @@ fn constructor_arity_mismatch_rejected_at_check() {
 fn constructor_field_type_mismatch_rejected_at_check() {
     // Bar/new expects f64 for `open`; we pass a :String.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::struct :my::market::Bar
           (open  :f64)
@@ -197,8 +197,8 @@ fn accessor_returns_correct_field_type() {
     // :f64 is expected is a type error. Proves the accessor's
     // return type flows from the field declaration.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::struct :my::market::Bar
           (open  :f64)
@@ -225,8 +225,8 @@ fn builtin_capacity_exceeded_struct_is_usable() {
     // struct; its /new and /cost / /budget accessors must be
     // available at startup without any user declaration.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
@@ -249,8 +249,8 @@ fn builtin_capacity_exceeded_cannot_be_redeclared() {
     // user struct registrations under `:wat::*`. This test shows the
     // duplicate surfaces as a startup error (not a silent override).
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::struct :wat::holon::CapacityExceeded
           (boom :bool))

@@ -71,8 +71,8 @@ fn wat_test_failing_deftest_exits_nonzero() {
             .map(|d| d.as_nanos())
             .unwrap_or(0)
     ));
-    let src = r##"(:wat::config::set-dims! 1024)
-(:wat::config::set-capacity-mode! :error)
+    let src = r##"(:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :failing::test-should-fail 1024 :error
   (:wat::test::assert-eq 1 2))

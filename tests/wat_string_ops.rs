@@ -36,8 +36,8 @@ fn run(src: &str) -> Vec<String> {
 fn bool_src(expr: &str) -> String {
     format!(
         r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)
@@ -54,8 +54,8 @@ fn bool_src(expr: &str) -> String {
 fn string_src(expr: &str) -> String {
     format!(
         r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)
@@ -114,8 +114,8 @@ fn ends_with_hit_and_miss() {
 #[test]
 fn length_counts_chars_not_bytes() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)
@@ -146,8 +146,8 @@ fn trim_strips_whitespace() {
 #[test]
 fn split_produces_vec() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)
@@ -166,8 +166,8 @@ fn split_produces_vec() {
 #[test]
 fn split_empty_separator_rejected() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)
@@ -223,8 +223,8 @@ fn regex_matches_no_match() {
 #[test]
 fn regex_invalid_pattern_errors() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)

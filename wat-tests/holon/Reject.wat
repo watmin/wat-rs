@@ -7,8 +7,8 @@
 ;;   presence(y, Reject(x,y))  → false  (by construction)
 ;;   presence(y, Project(x,y)) → true   (projection preserves direction)
 
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :wat-tests::holon::Reject::test-reject-strips-y-direction 1024 :error
   (:wat::core::let*

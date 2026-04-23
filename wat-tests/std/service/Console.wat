@@ -12,8 +12,8 @@
 ;; stringified wat with backslash escapes. Arc 010's variadic-quote
 ;; plus the arc 011 hermetic-ast pairing is what makes this clean.
 
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 ;; ─── hello via Console ────────────────────────────────────────────────
 ;;
@@ -29,8 +29,8 @@
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
-          (:wat::config::set-dims! 1024)
           (:wat::config::set-capacity-mode! :error)
+          (:wat::config::set-dims! 1024)
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)
@@ -64,8 +64,8 @@
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
-          (:wat::config::set-dims! 1024)
           (:wat::config::set-capacity-mode! :error)
+          (:wat::config::set-dims! 1024)
           (:wat::core::define
             (:my::worker
               (console :rust::crossbeam_channel::Sender<(i64,String)>)

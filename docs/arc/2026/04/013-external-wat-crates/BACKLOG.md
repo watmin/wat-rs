@@ -472,8 +472,8 @@ workspace acts as the walkable example.
   ```
 - `src/program.wat`:
   ```scheme
-  (:wat::config::set-dims! 1024)
   (:wat::config::set-capacity-mode! :error)
+  (:wat::config::set-dims! 1024)
 
   (:wat::core::use! :rust::lru::LruCache)
 

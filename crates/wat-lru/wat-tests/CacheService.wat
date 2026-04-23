@@ -15,16 +15,16 @@
 ;; a future hang halts at the last checkpoint, surfacing the
 ;; thread-ownership bug that drove the original test.
 
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :wat-lru::test-cache-service-put-then-get-round-trip 1024 :error
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
-          (:wat::config::set-dims! 1024)
           (:wat::config::set-capacity-mode! :error)
+          (:wat::config::set-dims! 1024)
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)

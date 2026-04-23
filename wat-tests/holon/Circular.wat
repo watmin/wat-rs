@@ -7,8 +7,8 @@
 ;; produce far vectors (presence below floor). The load-bearing
 ;; property for encoding time-of-day, hour-of-week, etc.
 
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :wat-tests::holon::Circular::test-adjacent-hours-are-near 1024 :error
   (:wat::core::let*

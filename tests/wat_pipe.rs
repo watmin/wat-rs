@@ -54,8 +54,8 @@ fn pipe_returns_writer_reader_tuple() {
     // Bind the 2-tuple and destructure via first/second. No I/O —
     // just proves the type shape lands through the checker + runtime.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
@@ -73,8 +73,8 @@ fn pipe_returns_writer_reader_tuple() {
 #[test]
 fn pipe_writeln_then_read_line_round_trips() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
@@ -91,8 +91,8 @@ fn pipe_writeln_then_read_line_round_trips() {
 #[test]
 fn pipe_multiple_writelns_read_line_by_line() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :String)
           (:wat::core::let*
@@ -119,8 +119,8 @@ fn pipe_write_string_then_read_exact_bytes() {
     // Write a fixed 5-byte string, read exactly 5 bytes back. No EOF,
     // no newline involvement — just byte-level round-trip.
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
@@ -142,8 +142,8 @@ fn pipe_write_string_then_read_exact_bytes() {
 #[test]
 fn pipe_preserves_utf8_lines() {
     let src = r#"
-        (:wat::config::set-dims! 1024)
         (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*

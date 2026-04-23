@@ -6396,8 +6396,8 @@ mod tests {
         crate::panic_hook::install();
 
         let src = r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             (:wat::core::define (:my::app::failing-fn -> :())
               (:wat::kernel::assertion-failed! "stack test" :None :None))
         "#;
@@ -6445,8 +6445,8 @@ mod tests {
     #[test]
     fn call_stack_unwinds_on_ok() {
         let src = r#"
-            (:wat::config::set-dims! 1024)
             (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-dims! 1024)
             (:wat::core::define (:my::app::plain-fn -> :i64) 42)
         "#;
         let (stdlib_sym, macros) = stdlib_loaded();

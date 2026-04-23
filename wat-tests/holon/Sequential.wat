@@ -7,8 +7,8 @@
 ;; positional encoding that depends on order (trigrams, indicators
 ;; rhythms, the trading lab's rhythm.rs module) rests on this.
 
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :wat-tests::holon::Sequential::test-self-identity 1024 :error
   (:wat::core::let*

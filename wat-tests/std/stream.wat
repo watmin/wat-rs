@@ -9,8 +9,8 @@
 ;; sandbox. Everything a test needs (producer logic, step/flush)
 ;; defines inline via lambda or uses foldl for producer iteration.
 
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 ;; ─── chunks — rewritten on top of with-state ─────────────────────────
 ;;

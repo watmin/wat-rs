@@ -13,8 +13,8 @@
 ;; the sandbox, just registered into the file's world as a freeze-
 ;; time side effect.)
 
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
+(:wat::config::set-dims! 1024)
 
 (:wat::core::load! :wat::load::file-path "helpers.wat")
 
