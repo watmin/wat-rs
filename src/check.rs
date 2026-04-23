@@ -3443,8 +3443,10 @@ fn register_builtins(env: &mut CheckEnv) {
     // Cosine measurement — the retrieval scalar (FOUNDATION 1718 +
     // OPEN-QUESTIONS line 419). Algebra-substrate operation (input is
     // holons, not raw numbers).
-    //   (:wat::holon::cosine    target ref) -> :f64
-    //   (:wat::holon::presence? target ref) -> :bool (cosine > noise-floor)
+    //   (:wat::holon::cosine      target ref) -> :f64
+    //   (:wat::holon::presence?   target ref) -> :bool (cosine > noise-floor)
+    //   (:wat::holon::coincident? a      b  ) -> :bool ((1 - cosine) < noise-floor)
+    //     dual to presence? — same threshold, equivalence direction. Arc 023.
     env.register(
         ":wat::holon::cosine".into(),
         TypeScheme {
@@ -3455,6 +3457,14 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     env.register(
         ":wat::holon::presence?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty(), holon_ty()],
+            ret: bool_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::coincident?".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty()],

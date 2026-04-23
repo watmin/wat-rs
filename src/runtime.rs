@@ -1795,6 +1795,7 @@ fn dispatch_keyword_head(
         // scalar :f64; the caller binarizes at the noise floor.
         ":wat::holon::cosine" => eval_algebra_cosine(args, env, sym),
         ":wat::holon::presence?" => eval_algebra_presence_q(args, env, sym),
+        ":wat::holon::coincident?" => eval_algebra_coincident_q(args, env, sym),
         ":wat::holon::dot" => eval_algebra_dot(args, env, sym),
 
         // Constrained runtime eval — four forms, matching the load
@@ -4798,6 +4799,45 @@ fn eval_algebra_presence_q(
     Ok(Value::bool(cosine > ctx.config.noise_floor))
 }
 
+/// `(:wat::holon::coincident? a b) -> :bool` — boolean verdict:
+/// are `a` and `b` the same holon within the algebra's own
+/// distinguishability threshold? Encodes both, computes cosine,
+/// returns `(1 - cosine) < :wat::config::noise-floor`.
+///
+/// Dual to `presence?` using the same noise-floor. `presence?`
+/// asks "is there detectable signal above random chance?"
+/// (cosine > floor). `coincident?` asks "are these two holons
+/// the same point on the hypersphere within the algebra's
+/// tolerance?" (error-from-perfect-match below floor). Same
+/// bound, two dual predicates, one substrate. Arc 023.
+///
+/// Use `coincident?` for structural-equivalence assertions
+/// (e.g., testing that a computed holon matches a hand-built
+/// expected). Use `presence?` for signal detection (is a
+/// query-holon present in a bundle?). Callers that want the
+/// raw scalar reach for `:wat::holon::cosine`.
+fn eval_algebra_coincident_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::coincident?".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let a = require_holon(":wat::holon::coincident?", eval(&args[0], env, sym)?)?;
+    let b = require_holon(":wat::holon::coincident?", eval(&args[1], env, sym)?)?;
+    let ctx = require_encoding_ctx(":wat::holon::coincident?", sym)?;
+
+    let va = encode(&a, &ctx.vm, &ctx.scalar, &ctx.registry);
+    let vb = encode(&b, &ctx.vm, &ctx.scalar, &ctx.registry);
+    let cosine = Similarity::cosine(&va, &vb);
+    Ok(Value::bool((1.0 - cosine) < ctx.config.noise_floor))
+}
+
 /// `(:wat::holon::dot x y) -> :f64` — scalar dot product of two
 /// encoded holons. Per 058-005: measurement primitive, not a HolonAST
 /// variant (scalar-out, not vector-out). Sibling to `presence`:
@@ -7432,6 +7472,106 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(result, Value::bool(false)));
+    }
+
+    // --- coincident? — arc 023 --------------------------------------------
+
+    #[test]
+    fn coincident_q_true_for_self() {
+        // Atom vs itself: cosine = 1.0, (1 - cosine) = 0 < noise-floor.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::coincident?
+                 (:wat::holon::Atom "alice")
+                 (:wat::holon::Atom "alice"))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(matches!(result, Value::bool(true)));
+    }
+
+    #[test]
+    fn coincident_q_true_for_structurally_same() {
+        // Two hand-built identical-structure holons: same Bind shape
+        // with same atom children.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::coincident?
+                 (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))
+                 (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v")))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(matches!(result, Value::bool(true)));
+    }
+
+    #[test]
+    fn coincident_q_false_for_unrelated() {
+        // Two orthogonal atoms: cosine ≈ 0, (1 - cosine) ≈ 1 > noise-floor.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::coincident?
+                 (:wat::holon::Atom "alice")
+                 (:wat::holon::Atom "charlie"))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(matches!(result, Value::bool(false)));
+    }
+
+    #[test]
+    fn coincident_q_stricter_than_presence_q() {
+        // Construct a case where presence? passes but coincident? fails.
+        // Bind(k, v1) vs Bind(k, v1) -- identical, both true.
+        // Bind(k, v1) vs Bind(k, v2) -- different filler, cosine is
+        // close to 0 (different atoms orthogonalize). Both false.
+        // For the stricter-than check: Atom("x") vs itself is coincident
+        // (cosine=1), and is also present. Flip the bound: the
+        // interesting asymmetry is the THRESHOLD level. At d=1024 the
+        // noise floor is ~0.156, so presence? fires at any cosine > 0.156.
+        // Coincident? only fires at cosine > 0.844. A structural-mismatch
+        // of Bind-shape-vs-Atom-shape gives cosine well below 0.844 but
+        // testing that reliably needs a constructed pair with known
+        // overlap — skip that combinatorial test here and lock the
+        // threshold-level invariant at the wat-test tier where we have
+        // concrete numeric probes.
+        //
+        // What this test asserts: presence? can be true while coincident?
+        // is false for the CAS where cosine is between floor and 1-floor.
+        // Easy case: a=Atom("a"), b=Bundle([Atom("a"), Atom("b"), Atom("c")]).
+        // The Bundle contains Atom("a") — so presence? is true — but
+        // the Bundle is NOT the same as the single atom.
+        let bundle_src = r#"(:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST
+                               (:wat::holon::Atom "a")
+                               (:wat::holon::Atom "b")
+                               (:wat::holon::Atom "c")))"#;
+        let present = eval_with_ctx(
+            &format!(
+                r#"(:wat::core::match {bundle}
+                     -> :bool
+                     ((Ok h) (:wat::holon::presence? (:wat::holon::Atom "a") h))
+                     ((Err _) false))"#,
+                bundle = bundle_src
+            ),
+            1024,
+        )
+        .unwrap();
+        assert!(
+            matches!(present, Value::bool(true)),
+            "presence? should fire for Atom in Bundle"
+        );
+        let coincident = eval_with_ctx(
+            &format!(
+                r#"(:wat::core::match {bundle}
+                     -> :bool
+                     ((Ok h) (:wat::holon::coincident? (:wat::holon::Atom "a") h))
+                     ((Err _) false))"#,
+                bundle = bundle_src
+            ),
+            1024,
+        )
+        .unwrap();
+        assert!(
+            matches!(coincident, Value::bool(false)),
+            "coincident? must NOT fire — the bundle is not the atom"
+        );
     }
 
     #[test]

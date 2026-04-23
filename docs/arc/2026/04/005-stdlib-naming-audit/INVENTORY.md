@@ -168,10 +168,11 @@ code needs to observe the mode.
 
 ---
 
-## `:wat::holon::*` — algebra core (6 + 2 measurements)
+## `:wat::holon::*` — algebra core (6 + 4 measurements)
 
-Six vector-producing primitives; two scalar-returning
-measurements.
+Six vector-producing primitives; two scalar-returning measurements
+(cosine, dot) plus two boolean predicates over the noise-floor
+threshold (presence?, coincident? — arc 023).
 
 | Path | Signature | Source |
 |---|---|---|
@@ -183,7 +184,8 @@ measurements.
 | `:wat::holon::Blend` | `:wat::holon::HolonAST × :wat::holon::HolonAST × :f64 × :f64 -> :wat::holon::HolonAST` | `runtime.rs::eval_algebra_blend` |
 | `:wat::holon::cosine` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :f64` | `runtime.rs::eval_algebra_cosine` |
 | `:wat::holon::dot` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :f64` | `runtime.rs::eval_algebra_dot` |
-| `:wat::holon::presence?` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :f64` (cosine vs reference) | `runtime.rs::eval_algebra_presence` |
+| `:wat::holon::presence?` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :bool` (cosine > noise-floor) | `runtime.rs::eval_algebra_presence_q` |
+| `:wat::holon::coincident?` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :bool` ((1 − cosine) < noise-floor — arc 023) | `runtime.rs::eval_algebra_coincident_q` |
 
 ---
 

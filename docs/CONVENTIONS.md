@@ -22,7 +22,7 @@ Every other prefix is user territory.
 |---|---|
 | `:wat::core::*` | Evaluator primitives — forms (`define`, `lambda`, `let*`, `if`, `match`), primitive types (`i64`, `bool`, `String`, ...), macros, eval-family, primitive-type operations (`i64::+`, `bool::and`), core collections (`vec`, `list`, `cons`, `conj`, `HashMap`, `HashSet`, `get`, `contains?`, `assoc`). Cannot be written in wat. |
 | `:wat::config::*` | Runtime-committed configuration values (noise floor, dimensions). Read-only after config pass. |
-| `:wat::holon::*` | Holon algebra — the `HolonAST` type, the six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), the measurements (`cosine`, `dot`, `presence?`), and the `CapacityExceeded` error type. One namespace for the whole holon surface. |
+| `:wat::holon::*` | Holon algebra — the `HolonAST` type, the six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), the four measurements (`cosine`, `dot`, `presence?`, `coincident?`), and the `CapacityExceeded` error type. One namespace for the whole holon surface. |
 | `:wat::kernel::*` | CSP primitives — `spawn`, `send`, `recv`, `select`, `drop`, `join`, `make-bounded-queue`, `HandlePool`, signal handlers. |
 | `:wat::io::*` | Stdio primitives — `stdin`, `stdout`, `stderr`, `println`. |
 | `:wat::std::*` | Stdlib built on primitives. Each entry should be expressible (in principle) in wat itself, even if shipped as Rust for performance. `LocalCache`, `stream::*`, `program::Console`, `program::Cache`, `list::*`, `math::*`. |
