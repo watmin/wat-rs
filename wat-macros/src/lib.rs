@@ -527,54 +527,41 @@ pub fn test(input: TokenStream) -> TokenStream {
         .map(|p| quote! { #p::register })
         .collect();
 
-    // Arc 018 — opinionated defaults.
-    let path_implicit = path.is_none();
+    // Arc 018 — opinionated defaults for `path:`.
     let path_expr: TokenStream2 = match path {
         Some(expr) => quote! { #expr },
         None => quote! { "wat-tests" },
     };
-    let effective_loader: Option<TokenStream2> = match (loader, path_implicit) {
-        (Some(loader_lit), _) => Some(quote! { #loader_lit }),
-        (None, true) => Some(quote! { "wat-tests" }),
-        (None, false) => None,
+
+    // Arc 027 slice 3 — default loader scope widens to
+    // CARGO_MANIFEST_DIR (the crate root) so test bodies can reach
+    // sibling trees via relative-path (:wat::load-file!) calls.
+    // Explicit `loader: "<subpath>"` still wins — same pre-027 shape,
+    // just with the default moved up one directory level.
+    let loader_root: TokenStream2 = match loader {
+        Some(loader_lit) => {
+            quote! { concat!(env!("CARGO_MANIFEST_DIR"), "/", #loader_lit) }
+        }
+        None => quote! { env!("CARGO_MANIFEST_DIR") },
     };
 
-    let expanded = match effective_loader {
-        None => quote! {
-            #[test]
-            fn wat_suite() {
-                ::wat::test_runner::run_and_assert(
-                    ::std::path::Path::new(#path_expr),
-                    &[ #(#stdlib_calls),* ],
-                    &[ #(#register_paths),* ],
-                );
-            }
-        },
-        Some(loader_expr) => quote! {
-            #[test]
-            fn wat_suite() {
-                // Same CARGO_MANIFEST_DIR-relative convention as
-                // `wat::main! { ..., loader: "..." }` — stable
-                // regardless of cwd.
-                let __wat_loader_root = concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/",
-                    #loader_expr
-                );
-                let __wat_loader: ::std::sync::Arc<
-                    dyn ::wat::load::SourceLoader,
-                > = ::std::sync::Arc::new(
-                    ::wat::load::ScopedLoader::new(__wat_loader_root)
-                        .expect("wat::test! loader path must exist"),
-                );
-                ::wat::test_runner::run_and_assert_with_loader(
-                    ::std::path::Path::new(#path_expr),
-                    &[ #(#stdlib_calls),* ],
-                    &[ #(#register_paths),* ],
-                    __wat_loader,
-                );
-            }
-        },
+    let expanded = quote! {
+        #[test]
+        fn wat_suite() {
+            let __wat_loader_root: &'static str = #loader_root;
+            let __wat_loader: ::std::sync::Arc<
+                dyn ::wat::load::SourceLoader,
+            > = ::std::sync::Arc::new(
+                ::wat::load::ScopedLoader::new(__wat_loader_root)
+                    .expect("wat::test! loader path must exist"),
+            );
+            ::wat::test_runner::run_and_assert_with_loader(
+                ::std::path::Path::new(#path_expr),
+                &[ #(#stdlib_calls),* ],
+                &[ #(#register_paths),* ],
+                __wat_loader,
+            );
+        }
     };
 
     expanded.into()

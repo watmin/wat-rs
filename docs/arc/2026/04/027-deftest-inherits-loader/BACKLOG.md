@@ -191,3 +191,19 @@ transitively loads its own deps, even fewer per test.
   identity via `Arc::ptr_eq`); `:None` with no outer falls back
   to `InMemoryLoader`. 566 → 569 lib tests; zero regressions
   across the workspace.
+- **Slice 3 shipped clean.** `wat::test!` macro's implicit loader
+  default widened from `"wat-tests"` (=CARGO_MANIFEST_DIR/wat-tests)
+  to `CARGO_MANIFEST_DIR` (crate root). The explicit `loader:
+  "<subpath>"` override is unchanged — still resolves to
+  `CARGO_MANIFEST_DIR/<subpath>`. Macro restructured: the previous
+  None/Some(loader) branching on `effective_loader` collapsed —
+  every expansion now emits `run_and_assert_with_loader` with a
+  concrete `ScopedLoader`. Sub-fogs 3a + 3b resolved at build —
+  wat-rs's own `tests/test.rs` still green (baked stdlib has no
+  filesystem reach; wider scope doesn't break anything);
+  `examples/with-lru/` and `examples/with-loader/` smoke tests
+  still pass (their explicit-loader sites hold). Every integration
+  suite across the workspace green. The `__wat_loader_root` being
+  `env!("CARGO_MANIFEST_DIR")` (not `concat!(..., "/", ...)`) is
+  why — the concat form would produce a trailing-slash path that
+  ScopedLoader would reject; the bare env form is the path itself.
