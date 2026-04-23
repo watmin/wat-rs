@@ -7838,6 +7838,58 @@ mod tests {
         assert!(matches!(result, Value::bool(false)));
     }
 
+    /// Empirical sweep: find the actual coincidence window around a
+    /// thermometer-encoded center value at d=1024 with default
+    /// coincident_sigma=1.
+    ///
+    /// For thermometer encoding on [low, high] at dims d:
+    ///   - A value v lights up approximately (v - low)/(high - low) * d bits.
+    ///   - Moving from v1 to v2 flips approximately |v2 - v1|/(high - low) * d bits.
+    ///   - coincident? at 1σ needs bit-flip fraction < 1/(2*sqrt(d)).
+    ///   - At d=1024: fraction < 1/64 = 1.5625% of range.
+    ///
+    /// This test: center = 4.0 on range [0, 10], so range_width = 10.
+    /// Predicted coincidence window: 4 ± 0.15625 = [3.84, 4.16].
+    /// Values well inside should coincide; values well outside should not.
+    #[test]
+    fn coincident_q_window_around_4_on_range_0_10() {
+        // Inside the predicted window — all should coincide with 4.0.
+        for &delta in &[0.0, 0.05, 0.10, 0.14] {
+            let below = 4.0 - delta;
+            let above = 4.0 + delta;
+            for v in &[below, above] {
+                let src = format!(
+                    r#"(:wat::holon::coincident?
+                         (:wat::holon::Thermometer 4.0 0.0 10.0)
+                         (:wat::holon::Thermometer {v} 0.0 10.0))"#
+                );
+                let result = eval_with_ctx(&src, 1024).unwrap();
+                assert!(
+                    matches!(result, Value::bool(true)),
+                    "expected v={} to coincide with 4.0 (inside window)",
+                    v
+                );
+            }
+        }
+
+        // Outside the predicted window — should NOT coincide.
+        for &delta in &[0.25, 0.50, 1.00, 2.00] {
+            for v in &[4.0 - delta, 4.0 + delta] {
+                let src = format!(
+                    r#"(:wat::holon::coincident?
+                         (:wat::holon::Thermometer 4.0 0.0 10.0)
+                         (:wat::holon::Thermometer {v} 0.0 10.0))"#
+                );
+                let result = eval_with_ctx(&src, 1024).unwrap();
+                assert!(
+                    matches!(result, Value::bool(false)),
+                    "expected v={} to NOT coincide with 4.0 (outside window)",
+                    v
+                );
+            }
+        }
+    }
+
     #[test]
     fn coincident_q_true_for_close_thermometer_values() {
         // Structural coincident? on two Thermometer holons whose
