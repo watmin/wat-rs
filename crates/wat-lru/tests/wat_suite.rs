@@ -11,7 +11,7 @@
 //! `wat_sources()` + `register()` composed in. Test output
 //! appears under the `wat_suite` test banner.
 
-wat::test_suite! {
+wat::test! {
     path: "wat-tests",
     deps: [wat_lru],
 }

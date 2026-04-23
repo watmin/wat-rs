@@ -83,7 +83,7 @@ pub mod types;
 pub use compose::{compose_and_run, compose_and_run_with_loader};
 pub use source::WatSource;
 pub use span::Span;
-pub use wat_macros::{main, test_suite};
+pub use wat_macros::{main, test};
 
 pub use ast::WatAST;
 pub use check::{check_program, CheckEnv, CheckError, CheckErrors, TypeScheme};

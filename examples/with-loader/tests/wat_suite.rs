@@ -7,7 +7,7 @@
 //! Silent on success. Run with `--nocapture` for per-wat-test output:
 //! `cargo test -p with-loader-example -- --nocapture`.
 
-wat::test_suite! {
+wat::test! {
     path: "wat-tests",
     loader: "wat-tests",
 }

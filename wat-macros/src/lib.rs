@@ -422,46 +422,49 @@ pub fn main(input: TokenStream) -> TokenStream {
 // test files with different dep sets live in separate
 // `tests/*.rs` files; Cargo builds and runs each binary independently.
 
-struct TestSuiteInput {
-    path: syn::Expr,
+struct TestInput {
+    /// Arc 018 — optional. When absent, expansion defaults to
+    /// `"wat-tests"`.
+    path: Option<syn::Expr>,
     deps: Vec<Path>,
-    /// Arc 017 — optional `loader: "..."` string-literal arg.
-    /// Absent: macro expands to `run_and_assert` (FsLoader default
-    /// — unrestricted filesystem, backward compatible). Present:
-    /// expands to `run_and_assert_with_loader` with a ScopedLoader
-    /// rooted at CARGO_MANIFEST_DIR/<path>, clamping every test
-    /// file's `(load!)` to that scope.
+    /// Arc 017 — optional `loader: "..."` string-literal.
+    /// Arc 018 default rule:
+    /// - `loader` explicit: always honored.
+    /// - `loader` absent, `path` absent: defaults to `"wat-tests"`
+    ///   (ScopedLoader at `<crate>/wat-tests`, matching the default
+    ///   test location).
+    /// - `loader` absent, `path` explicit: defaults to None
+    ///   (FsLoader — preserves pre-018 behavior for test suites
+    ///   that name their own path).
     loader: Option<LitStr>,
 }
 
-impl Parse for TestSuiteInput {
+impl Parse for TestInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        // Required: `path: <expr>`
-        let path_key: syn::Ident = input.parse()?;
-        if path_key != "path" {
-            return Err(Error::new(path_key.span(), "expected `path:` first"));
-        }
-        input.parse::<syn::Token![:]>()?;
-        let path: syn::Expr = input.parse()?;
-
-        // Optional trailing: `, deps: [...]` and/or `, loader: "..."`.
-        // Either order, each at most once.
+        // All three keys are optional (arc 018). Accept them in any
+        // order; each at most once. Empty braces `wat::test! {}` is
+        // the maximally-opinionated form.
+        let mut path: Option<syn::Expr> = None;
         let mut deps: Vec<Path> = Vec::new();
+        let mut deps_seen = false;
         let mut loader: Option<LitStr> = None;
 
-        while input.peek(syn::Token![,]) {
-            input.parse::<syn::Token![,]>()?;
-            if input.is_empty() {
-                break;
-            }
+        while !input.is_empty() {
             let key: syn::Ident = input.parse()?;
             let key_str = key.to_string();
             input.parse::<syn::Token![:]>()?;
             match key_str.as_str() {
+                "path" => {
+                    if path.is_some() {
+                        return Err(Error::new(key.span(), "duplicate `path:` arg"));
+                    }
+                    path = Some(input.parse()?);
+                }
                 "deps" => {
-                    if !deps.is_empty() {
+                    if deps_seen {
                         return Err(Error::new(key.span(), "duplicate `deps:` arg"));
                     }
+                    deps_seen = true;
                     let content;
                     syn::bracketed!(content in input);
                     let parsed: Punctuated<Path, syn::Token![,]> =
@@ -484,19 +487,20 @@ impl Parse for TestSuiteInput {
                     return Err(Error::new(
                         key.span(),
                         format!(
-                            "unknown `{}:` arg for wat::test_suite!; expected `deps:` or `loader:`",
+                            "unknown `{}:` arg for wat::test!; expected `path:`, `deps:`, or `loader:`",
                             other
                         ),
                     ));
                 }
             }
+            if input.peek(syn::Token![,]) {
+                input.parse::<syn::Token![,]>()?;
+            } else if !input.is_empty() {
+                return Err(input.error("expected `,` between wat::test! args"));
+            }
         }
 
-        if !input.is_empty() {
-            return Err(input.error("unexpected tokens after wat::test_suite! args"));
-        }
-
-        Ok(TestSuiteInput {
+        Ok(TestInput {
             path,
             deps,
             loader,
@@ -507,12 +511,12 @@ impl Parse for TestSuiteInput {
 /// Declarative test-suite entry — expands to `#[test] fn wat_suite()`.
 /// See module docs.
 #[proc_macro]
-pub fn test_suite(input: TokenStream) -> TokenStream {
-    let TestSuiteInput {
+pub fn test(input: TokenStream) -> TokenStream {
+    let TestInput {
         path,
         deps,
         loader,
-    } = parse_macro_input!(input as TestSuiteInput);
+    } = parse_macro_input!(input as TestInput);
 
     let stdlib_calls: Vec<TokenStream2> = deps
         .iter()
@@ -523,18 +527,30 @@ pub fn test_suite(input: TokenStream) -> TokenStream {
         .map(|p| quote! { #p::register })
         .collect();
 
-    let expanded = match loader {
+    // Arc 018 — opinionated defaults.
+    let path_implicit = path.is_none();
+    let path_expr: TokenStream2 = match path {
+        Some(expr) => quote! { #expr },
+        None => quote! { "wat-tests" },
+    };
+    let effective_loader: Option<TokenStream2> = match (loader, path_implicit) {
+        (Some(loader_lit), _) => Some(quote! { #loader_lit }),
+        (None, true) => Some(quote! { "wat-tests" }),
+        (None, false) => None,
+    };
+
+    let expanded = match effective_loader {
         None => quote! {
             #[test]
             fn wat_suite() {
                 ::wat::test_runner::run_and_assert(
-                    ::std::path::Path::new(#path),
+                    ::std::path::Path::new(#path_expr),
                     &[ #(#stdlib_calls),* ],
                     &[ #(#register_paths),* ],
                 );
             }
         },
-        Some(loader_lit) => quote! {
+        Some(loader_expr) => quote! {
             #[test]
             fn wat_suite() {
                 // Same CARGO_MANIFEST_DIR-relative convention as
@@ -543,16 +559,16 @@ pub fn test_suite(input: TokenStream) -> TokenStream {
                 let __wat_loader_root = concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/",
-                    #loader_lit
+                    #loader_expr
                 );
                 let __wat_loader: ::std::sync::Arc<
                     dyn ::wat::load::SourceLoader,
                 > = ::std::sync::Arc::new(
                     ::wat::load::ScopedLoader::new(__wat_loader_root)
-                        .expect("wat::test_suite! loader path must exist"),
+                        .expect("wat::test! loader path must exist"),
                 );
                 ::wat::test_runner::run_and_assert_with_loader(
-                    ::std::path::Path::new(#path),
+                    ::std::path::Path::new(#path_expr),
                     &[ #(#stdlib_calls),* ],
                     &[ #(#register_paths),* ],
                     __wat_loader,
