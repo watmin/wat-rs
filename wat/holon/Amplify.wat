@@ -1,4 +1,4 @@
-;; :wat::std::Amplify — scaled component emphasis per 058-015.
+;; :wat::holon::Amplify — scaled component emphasis per 058-015.
 ;;
 ;; (Amplify x y s) expands to (Blend x y 1 s): anchor x at unit
 ;; emphasis, scale y's contribution by s. `s` is a runtime :f64
@@ -7,7 +7,7 @@
 ;; wrote for `s`.
 
 (:wat::core::defmacro
-  (:wat::std::Amplify
+  (:wat::holon::Amplify
     (x :AST<wat::holon::HolonAST>)
     (y :AST<wat::holon::HolonAST>)
     (s :AST<f64>)

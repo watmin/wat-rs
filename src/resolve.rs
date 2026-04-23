@@ -312,7 +312,7 @@ mod tests {
         // These aren't implemented yet but shouldn't fail resolution —
         // they're under reserved prefixes that the spec carves out.
         assert!(resolve(r#"(:wat::kernel::send sender value)"#).is_ok());
-        assert!(resolve(r#"(:wat::std::Subtract a b)"#).is_ok());
+        assert!(resolve(r#"(:wat::holon::Subtract a b)"#).is_ok());
     }
 
     #[test]
@@ -383,7 +383,7 @@ mod tests {
         assert!(is_reserved_prefix(":wat::core::define"));
         assert!(is_reserved_prefix(":wat::kernel::spawn"));
         assert!(is_reserved_prefix(":wat::holon::Atom"));
-        assert!(is_reserved_prefix(":wat::std::Subtract"));
+        assert!(is_reserved_prefix(":wat::holon::Subtract"));
         assert!(is_reserved_prefix(":wat::config::dims"));
         assert!(is_reserved_prefix(":wat::load::file-path"));
         assert!(is_reserved_prefix(":wat::load::string"));

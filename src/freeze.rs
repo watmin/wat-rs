@@ -297,7 +297,7 @@ pub fn startup_from_forms(
     let loaded = resolve_loads(post_config, base_canonical, &*loader)?;
 
     // 3a. Baked stdlib. Registered ahead of user code so any
-    //     `(:wat::std::Subtract …)` / `(:wat::std::Amplify …)` call
+    //     `(:wat::holon::Subtract …)` / `(:wat::holon::Amplify …)` call
     //     in user source resolves during step 4's macro expansion
     //     without an explicit `load!`. Per FOUNDATION § "Where Each
     //     Lives" (line 2088), `wat/std/*.wat` files ship one form
@@ -313,7 +313,7 @@ pub fn startup_from_forms(
     // Expand BOTH stdlib non-defmacro residue and user forms against
     // the combined macro registry. Stdlib functions are authored
     // against stdlib defmacros too — e.g., :wat::std::service::Console's
-    // body uses :wat::std::Subtract / list helpers / etc.
+    // body uses :wat::holon::Subtract / list helpers / etc.
     let expanded_stdlib = expand_all(stdlib_post_macros, &macros)?;
     let expanded_user = expand_all(post_macro_reg, &macros)?;
 

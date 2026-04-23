@@ -312,7 +312,7 @@ mod tests {
         let forms = parse_all(
             r#"
             (:wat::config::set-dims! 10000)
-            (:wat::core::load! "wat/std/Subtract.wat")
+            (:wat::core::load! "wat/holon/Subtract.wat")
             "#,
         )
         .unwrap();

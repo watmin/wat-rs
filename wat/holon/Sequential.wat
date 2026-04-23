@@ -1,4 +1,4 @@
-;; :wat::std::Sequential — bind-chain with positional Permute per
+;; :wat::holon::Sequential — bind-chain with positional Permute per
 ;; 058-009's reframe.
 ;;
 ;; (Sequential [a])       = a
@@ -17,7 +17,7 @@
 ;; (no new primitives).
 
 (:wat::core::defmacro
-  (:wat::std::Sequential
+  (:wat::holon::Sequential
     (items :AST<List<wat::holon::HolonAST>>)
     -> :AST<wat::holon::HolonAST>)
   `(:wat::core::let*

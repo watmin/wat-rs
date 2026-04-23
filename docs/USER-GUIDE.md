@@ -593,16 +593,16 @@ Stdlib forms you'll use constantly — each expands to algebra-core
 primitives at parse time:
 
 ```scheme
-(:wat::std::Log v min max)                 ; Thermometer on (ln v)
-(:wat::std::Circular v period)             ; Blend of cos/sin-basis atoms
-(:wat::std::Sequential list)               ; positional bind-chain
-(:wat::std::Ngram n list)                  ; n-wise adjacency
-(:wat::std::Bigram list)                   ; Ngram 2
-(:wat::std::Trigram list)                  ; Ngram 3
-(:wat::std::Amplify x y s)                 ; Blend x y 1 s — boost y in x
-(:wat::std::Subtract x y)                  ; Blend x y 1 -1 — remove y from x
-(:wat::std::Reject x y)                    ; Gram-Schmidt reject step
-(:wat::std::Project x y)                   ; Gram-Schmidt project step
+(:wat::holon::Log v min max)                 ; Thermometer on (ln v)
+(:wat::holon::Circular v period)             ; Blend of cos/sin-basis atoms
+(:wat::holon::Sequential list)               ; positional bind-chain
+(:wat::holon::Ngram n list)                  ; n-wise adjacency
+(:wat::holon::Bigram list)                   ; Ngram 2
+(:wat::holon::Trigram list)                  ; Ngram 3
+(:wat::holon::Amplify x y s)                 ; Blend x y 1 s — boost y in x
+(:wat::holon::Subtract x y)                  ; Blend x y 1 -1 — remove y from x
+(:wat::holon::Reject x y)                    ; Gram-Schmidt reject step
+(:wat::holon::Project x y)                   ; Gram-Schmidt project step
 (:wat::core::HashMap k1 v1 k2 v2 ...)      ; HashMap (core collection)
 (:wat::std::Vec (...))                     ; Vec holon
 (:wat::core::HashSet (...))                ; HashSet (core collection)
@@ -1090,7 +1090,7 @@ the language verifies itself through the primitives it defines.
 ### Convention
 
 Tests live in `wat-tests/` alongside your `wat/` source. Layout
-mirrors one-to-one: `wat/std/Subtract.wat` → `wat-tests/std/Subtract.wat`.
+mirrors one-to-one: `wat/holon/Subtract.wat` → `wat-tests/holon/Subtract.wat`.
 
 Each test file uses `:wat::test::deftest` to register named test
 functions. `wat test wat-tests/` discovers them by name prefix and

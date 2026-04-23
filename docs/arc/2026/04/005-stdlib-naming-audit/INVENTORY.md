@@ -271,16 +271,16 @@ as first-class keyword arguments.
 
 | Path | Kind | Source file |
 |---|---|---|
-| `:wat::std::Amplify` | macro over Blend | `wat/std/Amplify.wat` |
-| `:wat::std::Subtract` | macro over Blend (1, -1 weights) | `wat/std/Subtract.wat` |
-| `:wat::std::Log` | macro over Thermometer with ln transform | `wat/std/Log.wat` |
-| `:wat::std::Circular` | macro over Blend with cos/sin basis | `wat/std/Circular.wat` |
-| `:wat::std::Reject` | macro over Blend + dot (Gram-Schmidt reject) | `wat/std/Reject.wat` |
-| `:wat::std::Project` | macro `Subtract(x, Reject(x, y))` | `wat/std/Project.wat` |
-| `:wat::std::Sequential` | macro — positional bind-chain | `wat/std/Sequential.wat` |
-| `:wat::std::Ngram` | macro — n-wise adjacency | `wat/std/Ngram.wat` |
-| `:wat::std::Bigram` | `Ngram 2` | `wat/std/Bigram.wat` |
-| `:wat::std::Trigram` | `Ngram 3` | `wat/std/Trigram.wat` |
+| `:wat::holon::Amplify` | macro over Blend | `wat/holon/Amplify.wat` |
+| `:wat::holon::Subtract` | macro over Blend (1, -1 weights) | `wat/holon/Subtract.wat` |
+| `:wat::holon::Log` | macro over Thermometer with ln transform | `wat/holon/Log.wat` |
+| `:wat::holon::Circular` | macro over Blend with cos/sin basis | `wat/holon/Circular.wat` |
+| `:wat::holon::Reject` | macro over Blend + dot (Gram-Schmidt reject) | `wat/holon/Reject.wat` |
+| `:wat::holon::Project` | macro `Subtract(x, Reject(x, y))` | `wat/holon/Project.wat` |
+| `:wat::holon::Sequential` | macro — positional bind-chain | `wat/holon/Sequential.wat` |
+| `:wat::holon::Ngram` | macro — n-wise adjacency | `wat/holon/Ngram.wat` |
+| `:wat::holon::Bigram` | `Ngram 2` | `wat/holon/Bigram.wat` |
+| `:wat::holon::Trigram` | `Ngram 3` | `wat/holon/Trigram.wat` |
 
 ### Reserved atom literals
 
@@ -432,7 +432,7 @@ surface stays small per stdlib-as-blueprint discipline
 | `:wat::core::cons` | seed-doc reference; no caller | early notes |
 | `:wat::core::when` | FOUNDATION-listed host-inherited Lisp form; body will be tail-carrying when it ships | FOUNDATION + arc 003 DESIGN |
 | `:wat::std::cached-encode` | design-deferred; users wrap encode with `LocalCache::get/put` explicitly | arc 001 DESIGN |
-| `:wat::std::list::pairwise-map` | referenced by `Ngram.wat`; verify whether `window` + `map` covers the use | `wat/std/Ngram.wat` |
+| `:wat::std::list::pairwise-map` | referenced by `Ngram.wat`; verify whether `window` + `map` covers the use | `wat/holon/Ngram.wat` |
 | `:wat::config::capacity-mode` accessor | mode is read internally by `Bundle`; expose only if user code needs to observe it | FOUNDATION |
 
 ### Stream combinators (arc 004 deferred set)

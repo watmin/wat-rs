@@ -26,7 +26,7 @@
 //! - Symbol references (a let-bound name, a define-registered function,
 //!   a lambda parameter) — requires resolution, which isn't in this
 //!   slice.
-//! - Stdlib macros (`:wat::std::Subtract`, `:wat::std::Log`, etc.) — require
+//! - Stdlib macros (`:wat::holon::Subtract`, `:wat::holon::Log`, etc.) — require
 //!   macro expansion before lowering reaches them.
 //! - Language forms (`define`, `lambda`, `let`, `if`, etc.) — require
 //!   an evaluator, not just a lowering pass.

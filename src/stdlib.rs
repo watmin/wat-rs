@@ -1,16 +1,18 @@
 //! Bundled wat stdlib — baked into the binary via `include_str!`.
 //!
 //! Per FOUNDATION.md § "Where Each Lives" (line 2088), each
-//! `wat/std/*.wat` file ships one stdlib form whose keyword path
-//! matches the file path. The wat's startup pipeline registers
+//! `wat/<namespace>/*.wat` file ships one stdlib form whose keyword
+//! path matches the file path. The wat's startup pipeline registers
 //! these forms BEFORE user entry forms reach macro expansion, so any
-//! user program can reference `:wat::std::Subtract`, `:wat::std::Amplify`,
-//! etc. without an explicit `load!`.
+//! user program can reference `:wat::holon::Subtract`,
+//! `:wat::holon::Amplify`, `:wat::std::stream::*`, etc. without an
+//! explicit `load!`.
 //!
-//! Files live in the repo under `wat/std/` and are compiled into the
-//! binary at build time. The runtime has no filesystem dependency for
-//! the stdlib — every deployment of `wat` carries the same stdlib
-//! bits.
+//! Files live in the repo under `wat/holon/` (algebra idioms over
+//! `:wat::holon::*` primitives) and `wat/std/` (everything else —
+//! stream, test harness, services), and are compiled into the binary
+//! at build time. The runtime has no filesystem dependency for the
+//! stdlib — every deployment of `wat` carries the same stdlib bits.
 
 use crate::ast::WatAST;
 use crate::parser::parse_all;
@@ -25,44 +27,44 @@ pub(crate) fn stdlib_files() -> &'static [WatSource] {
 
 const STDLIB_FILES: &[WatSource] = &[
     WatSource {
-        path: "wat/std/Amplify.wat",
-        source: include_str!("../wat/std/Amplify.wat"),
+        path: "wat/holon/Amplify.wat",
+        source: include_str!("../wat/holon/Amplify.wat"),
     },
     WatSource {
-        path: "wat/std/Subtract.wat",
-        source: include_str!("../wat/std/Subtract.wat"),
+        path: "wat/holon/Subtract.wat",
+        source: include_str!("../wat/holon/Subtract.wat"),
     },
     WatSource {
-        path: "wat/std/Log.wat",
-        source: include_str!("../wat/std/Log.wat"),
+        path: "wat/holon/Log.wat",
+        source: include_str!("../wat/holon/Log.wat"),
     },
     WatSource {
-        path: "wat/std/Circular.wat",
-        source: include_str!("../wat/std/Circular.wat"),
+        path: "wat/holon/Circular.wat",
+        source: include_str!("../wat/holon/Circular.wat"),
     },
     WatSource {
-        path: "wat/std/Reject.wat",
-        source: include_str!("../wat/std/Reject.wat"),
+        path: "wat/holon/Reject.wat",
+        source: include_str!("../wat/holon/Reject.wat"),
     },
     WatSource {
-        path: "wat/std/Project.wat",
-        source: include_str!("../wat/std/Project.wat"),
+        path: "wat/holon/Project.wat",
+        source: include_str!("../wat/holon/Project.wat"),
     },
     WatSource {
-        path: "wat/std/Sequential.wat",
-        source: include_str!("../wat/std/Sequential.wat"),
+        path: "wat/holon/Sequential.wat",
+        source: include_str!("../wat/holon/Sequential.wat"),
     },
     WatSource {
-        path: "wat/std/Ngram.wat",
-        source: include_str!("../wat/std/Ngram.wat"),
+        path: "wat/holon/Ngram.wat",
+        source: include_str!("../wat/holon/Ngram.wat"),
     },
     WatSource {
-        path: "wat/std/Bigram.wat",
-        source: include_str!("../wat/std/Bigram.wat"),
+        path: "wat/holon/Bigram.wat",
+        source: include_str!("../wat/holon/Bigram.wat"),
     },
     WatSource {
-        path: "wat/std/Trigram.wat",
-        source: include_str!("../wat/std/Trigram.wat"),
+        path: "wat/holon/Trigram.wat",
+        source: include_str!("../wat/holon/Trigram.wat"),
     },
     WatSource {
         path: "wat/std/stream.wat",

@@ -1,4 +1,4 @@
-;; :wat::std::Circular — stdlib macro per 058-018.
+;; :wat::holon::Circular — stdlib macro per 058-018.
 ;;
 ;; (Circular value period) encodes a cyclic quantity as a point on the
 ;; unit circle by Blending two reserved basis atoms (cos-basis and
@@ -17,7 +17,7 @@
 ;; Same math, enforcement-correct wat.
 
 (:wat::core::defmacro
-  (:wat::std::Circular
+  (:wat::holon::Circular
     (value :AST<f64>)
     (period :AST<f64>)
     -> :AST<wat::holon::HolonAST>)

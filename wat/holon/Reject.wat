@@ -1,4 +1,4 @@
-;; :wat::std::Reject — Gram-Schmidt reject step per 058-005.
+;; :wat::holon::Reject — Gram-Schmidt reject step per 058-005.
 ;;
 ;; (Reject x y) = x - ((x·y)/(y·y)) · y
 ;; The component of x orthogonal to y.
@@ -13,7 +13,7 @@
 ;; Engram matching — residual vs subspace.
 
 (:wat::core::defmacro
-  (:wat::std::Reject
+  (:wat::holon::Reject
     (x :AST<wat::holon::HolonAST>)
     (y :AST<wat::holon::HolonAST>)
     -> :AST<wat::holon::HolonAST>)

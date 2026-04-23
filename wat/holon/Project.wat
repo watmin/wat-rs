@@ -1,4 +1,4 @@
-;; :wat::std::Project — Gram-Schmidt project step per 058-005.
+;; :wat::holon::Project — Gram-Schmidt project step per 058-005.
 ;;
 ;; (Project x y) = x's component along y's direction
 ;;               = x - Reject(x, y)
@@ -10,8 +10,8 @@
 ;; reconstructs the observation as the subspace sees it.
 
 (:wat::core::defmacro
-  (:wat::std::Project
+  (:wat::holon::Project
     (x :AST<wat::holon::HolonAST>)
     (y :AST<wat::holon::HolonAST>)
     -> :AST<wat::holon::HolonAST>)
-  `(:wat::std::Subtract ,x (:wat::std::Reject ,x ,y)))
+  `(:wat::holon::Subtract ,x (:wat::holon::Reject ,x ,y)))

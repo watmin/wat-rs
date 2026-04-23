@@ -1,4 +1,4 @@
-;; :wat::std::Log — stdlib macro per 058-017.
+;; :wat::holon::Log — stdlib macro per 058-017.
 ;;
 ;; (Log value min max) expands to (Thermometer (ln value) (ln min) (ln max)) —
 ;; log-transform the inputs, then the standard Thermometer gradient.
@@ -7,7 +7,7 @@
 ;; trading-lab callers use `.max(0.0001)` guards).
 
 (:wat::core::defmacro
-  (:wat::std::Log
+  (:wat::holon::Log
     (value :AST<f64>)
     (min :AST<f64>)
     (max :AST<f64>)

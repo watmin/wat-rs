@@ -1,4 +1,4 @@
-;; wat-tests/std/Trigram.wat — tests for wat/std/Trigram.wat (→ Ngram → Sequential).
+;; wat-tests/holon/Trigram.wat — tests for wat/holon/Trigram.wat (→ Ngram → Sequential).
 ;;
 ;; Trigram(a,b,c,d) = Bundle([Sequential(a,b,c), Sequential(b,c,d)]).
 ;; Presence of the first 3-window's Sequential against the full
@@ -10,26 +10,26 @@
 (:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
 
-(:wat::test::deftest :wat-tests::std::Trigram::test-window-participant-above-floor 1024 :error
+(:wat::test::deftest :wat-tests::holon::Trigram::test-window-participant-above-floor 1024 :error
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
      ((c :wat::holon::HolonAST) (:wat::holon::Atom "c"))
      ((d :wat::holon::HolonAST) (:wat::holon::Atom "d"))
      ((window-1 :wat::holon::HolonAST)
-      (:wat::std::Sequential (:wat::core::list :wat::holon::HolonAST a b c)))
+      (:wat::holon::Sequential (:wat::core::list :wat::holon::HolonAST a b c)))
      ;; Trigram returns :Result<HolonAST, CapacityExceeded>. 4 atoms at
      ;; d=1024 is well under the capacity budget; Err is unreachable
      ;; but the type system still demands we acknowledge it.
      ((full :wat::holon::HolonAST)
       (:wat::core::match
-        (:wat::std::Trigram (:wat::core::list :wat::holon::HolonAST a b c d))
+        (:wat::holon::Trigram (:wat::core::list :wat::holon::HolonAST a b c d))
         -> :wat::holon::HolonAST
         ((Ok h) h)
         ((Err _) a))))
     (:wat::test::assert-eq (:wat::holon::presence? window-1 full) true)))
 
-(:wat::test::deftest :wat-tests::std::Trigram::test-outsider-below-floor 1024 :error
+(:wat::test::deftest :wat-tests::holon::Trigram::test-outsider-below-floor 1024 :error
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
@@ -38,7 +38,7 @@
      ((z :wat::holon::HolonAST) (:wat::holon::Atom "unrelated-z"))
      ((full :wat::holon::HolonAST)
       (:wat::core::match
-        (:wat::std::Trigram (:wat::core::list :wat::holon::HolonAST a b c d))
+        (:wat::holon::Trigram (:wat::core::list :wat::holon::HolonAST a b c d))
         -> :wat::holon::HolonAST
         ((Ok h) h)
         ((Err _) a))))

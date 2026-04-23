@@ -1,4 +1,4 @@
-;; wat-tests/std/Reject.wat — tests for wat/std/Reject.wat + Project.wat.
+;; wat-tests/holon/Reject.wat — tests for wat/holon/Reject.wat + Project.wat.
 ;;
 ;; The Gram-Schmidt duo (058-005). Reject(x,y) carries x's component
 ;; ORTHOGONAL to y; Project(x,y) carries x's component ALONG y. Load-
@@ -10,16 +10,16 @@
 (:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
 
-(:wat::test::deftest :wat-tests::std::Reject::test-reject-strips-y-direction 1024 :error
+(:wat::test::deftest :wat-tests::holon::Reject::test-reject-strips-y-direction 1024 :error
   (:wat::core::let*
     (((x :wat::holon::HolonAST) (:wat::holon::Atom "x"))
      ((y :wat::holon::HolonAST) (:wat::holon::Atom "y"))
-     ((residual :wat::holon::HolonAST) (:wat::std::Reject x y)))
+     ((residual :wat::holon::HolonAST) (:wat::holon::Reject x y)))
     (:wat::test::assert-eq (:wat::holon::presence? y residual) false)))
 
-(:wat::test::deftest :wat-tests::std::Reject::test-project-preserves-y-direction 1024 :error
+(:wat::test::deftest :wat-tests::holon::Reject::test-project-preserves-y-direction 1024 :error
   (:wat::core::let*
     (((x :wat::holon::HolonAST) (:wat::holon::Atom "x"))
      ((y :wat::holon::HolonAST) (:wat::holon::Atom "y"))
-     ((shadow :wat::holon::HolonAST) (:wat::std::Project x y)))
+     ((shadow :wat::holon::HolonAST) (:wat::holon::Project x y)))
     (:wat::test::assert-eq (:wat::holon::presence? y shadow) true)))

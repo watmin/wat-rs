@@ -1,4 +1,4 @@
-;; wat-tests/std/Sequential.wat — tests for wat/std/Sequential.wat.
+;; wat-tests/holon/Sequential.wat — tests for wat/holon/Sequential.wat.
 ;;
 ;; Sequential encoding (058-009) is STRICT identity: two lists with
 ;; the same items in different order produce vectors that are
@@ -10,22 +10,22 @@
 (:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
 
-(:wat::test::deftest :wat-tests::std::Sequential::test-self-identity 1024 :error
+(:wat::test::deftest :wat-tests::holon::Sequential::test-self-identity 1024 :error
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
      ((c :wat::holon::HolonAST) (:wat::holon::Atom "c"))
      ((abc :wat::holon::HolonAST)
-      (:wat::std::Sequential (:wat::core::list :wat::holon::HolonAST a b c))))
+      (:wat::holon::Sequential (:wat::core::list :wat::holon::HolonAST a b c))))
     (:wat::test::assert-eq (:wat::holon::presence? abc abc) true)))
 
-(:wat::test::deftest :wat-tests::std::Sequential::test-order-sensitivity 1024 :error
+(:wat::test::deftest :wat-tests::holon::Sequential::test-order-sensitivity 1024 :error
   (:wat::core::let*
     (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
      ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
      ((c :wat::holon::HolonAST) (:wat::holon::Atom "c"))
      ((abc :wat::holon::HolonAST)
-      (:wat::std::Sequential (:wat::core::list :wat::holon::HolonAST a b c)))
+      (:wat::holon::Sequential (:wat::core::list :wat::holon::HolonAST a b c)))
      ((acb :wat::holon::HolonAST)
-      (:wat::std::Sequential (:wat::core::list :wat::holon::HolonAST a c b))))
+      (:wat::holon::Sequential (:wat::core::list :wat::holon::HolonAST a c b))))
     (:wat::test::assert-eq (:wat::holon::presence? abc acb) false)))

@@ -52,7 +52,7 @@ use std::fmt;
 /// A registered macro.
 #[derive(Debug, Clone)]
 pub struct MacroDef {
-    /// Full keyword-path of the macro (e.g. `:wat::std::Subtract`).
+    /// Full keyword-path of the macro (e.g. `:wat::holon::Subtract`).
     pub name: String,
     /// Fixed-arity parameter names in order. Positional binding.
     pub params: Vec<String>,

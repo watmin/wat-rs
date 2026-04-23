@@ -11,29 +11,33 @@ shuffles them, invokes each, and reports cargo-test-style.
 
 ## Layout
 
-Mirrors `wat/std/` one-to-one:
+Each `.wat` source file under `wat/<namespace>/` has a matching
+test file under `wat-tests/<namespace>/`:
 
 ```
-wat/std/Subtract.wat         ↔ wat-tests/std/Subtract.wat
-wat/std/Circular.wat         ↔ wat-tests/std/Circular.wat
-wat/std/Reject.wat           ↔ wat-tests/std/Reject.wat
-wat/std/Project.wat            (tested alongside Reject)
-wat/std/Sequential.wat       ↔ wat-tests/std/Sequential.wat
-wat/std/Trigram.wat          ↔ wat-tests/std/Trigram.wat
+wat/holon/Subtract.wat         ↔ wat-tests/holon/Subtract.wat
+wat/holon/Circular.wat         ↔ wat-tests/holon/Circular.wat
+wat/holon/Reject.wat           ↔ wat-tests/holon/Reject.wat
+wat/holon/Project.wat            (tested alongside Reject)
+wat/holon/Sequential.wat       ↔ wat-tests/holon/Sequential.wat
+wat/holon/Trigram.wat          ↔ wat-tests/holon/Trigram.wat
 wat/std/test.wat             ↔ wat-tests/std/test.wat
 wat/std/service/Console.wat  ↔ wat-tests/std/service/Console.wat
-wat/std/service/Cache.wat    ↔ wat-tests/std/service/Cache.wat
+wat/std/stream.wat           ↔ wat-tests/std/stream.wat
 ```
 
 The stdlib module under test dictates the path. A future addition to
-`wat/std/X.wat` expects its tests at `wat-tests/std/X.wat`.
+`wat/<ns>/X.wat` expects its tests at `wat-tests/<ns>/X.wat`.
 
 ## Running
 
+`cargo test` runs the full suite via `tests/test.rs`
+(`wat::test! {}`). For targeted invocation:
+
 ```
-wat test wat-tests/               # every .wat in tree, cargo-style report
-wat test wat-tests/std/           # just stdlib tests
-wat test wat-tests/std/test.wat   # single file
+wat test wat-tests/                # every .wat in tree, cargo-style report
+wat test wat-tests/holon/          # just holon algebra tests
+wat test wat-tests/std/test.wat    # single file
 ```
 
 Discovery is recursive. Random order per-file (nanos-seeded xorshift
