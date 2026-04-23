@@ -54,7 +54,7 @@
 (:wat::test::deftest :wat-tests::holon::coincident::test-stricter-than-presence
   ()
   (:wat::core::let*
-    (((bundled :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+    (((bundled :wat::holon::BundleResult)
       (:wat::holon::Bundle
         (:wat::core::vec :wat::holon::HolonAST
           (:wat::holon::Atom "a")

@@ -138,6 +138,7 @@ Return `:Result<wat::holon::HolonAST, :wat::core::EvalError>` per the
 | Path | Shape | Source |
 |---|---|---|
 | `:wat::holon::CapacityExceeded` | struct `{ cost :i64, budget :i64 }` | `types.rs::register_builtin_types` |
+| `:wat::holon::BundleResult` | typealias `= :Result<wat::holon::HolonAST, wat::holon::CapacityExceeded>` — the canonical name for Bundle's return shape (arc 032) | same |
 | `:wat::core::EvalError` | struct `{ kind :String, message :String }` | same |
 
 **Note.** `:Option<T>` and `:Result<T,E>` are built-in enums but
@@ -186,7 +187,7 @@ threshold (presence?, coincident? — arc 023).
 |---|---|---|
 | `:wat::holon::Atom` | `∀T. T -> :wat::holon::HolonAST` (typed atoms, 058-001) | `runtime.rs::eval_algebra_atom` |
 | `:wat::holon::Bind` | `:wat::holon::HolonAST × :wat::holon::HolonAST -> :wat::holon::HolonAST` | `runtime.rs::eval_algebra_bind` |
-| `:wat::holon::Bundle` | `:Vec<wat::holon::HolonAST> -> :Result<wat::holon::HolonAST, wat::holon::CapacityExceeded>` (058-003 INSCRIPTION) | `runtime.rs::eval_algebra_bundle` |
+| `:wat::holon::Bundle` | `:Vec<wat::holon::HolonAST> -> :wat::holon::BundleResult` (058-003 INSCRIPTION; named by arc 032) | `runtime.rs::eval_algebra_bundle` |
 | `:wat::holon::Permute` | `:wat::holon::HolonAST × :i64 -> :wat::holon::HolonAST` | `runtime.rs::eval_algebra_permute` |
 | `:wat::holon::Thermometer` | `:f64 × :f64 × :f64 -> :wat::holon::HolonAST` (value min max) | `runtime.rs::eval_algebra_thermometer` |
 | `:wat::holon::Blend` | `:wat::holon::HolonAST × :wat::holon::HolonAST × :f64 × :f64 -> :wat::holon::HolonAST` | `runtime.rs::eval_algebra_blend` |

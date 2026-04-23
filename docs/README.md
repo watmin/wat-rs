@@ -323,5 +323,15 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   source loader, applied to a different environment field.
   2026-04-23.
 
+- **`arc/2026/04/032-bundle-result-typealias/`** — **shipped.**
+  `:wat::holon::BundleResult` registered as a baked built-in
+  typealias for `:Result<wat::holon::HolonAST, wat::holon::CapacityExceeded>`
+  — Bundle's canonical return shape. Non-parametric. Named by
+  the gaze-ward discipline; the `Result` suffix speaks at first
+  read, no grep needed. 28-site migration across wat-rs
+  (`src/`, `tests/`, `wat/`, `wat-tests/`) + lab rhythm files.
+  Small substrate arc; ergonomic payoff across every Bundle-
+  threaded caller. 2026-04-23.
+
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.

@@ -257,6 +257,30 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::holon::BundleResult — arc 032. Typealias for the
+    // canonical Result shape Bundle (and every downstream caller
+    // that threads through Bundle) returns. 44 characters wide
+    // collapsed to one named type. Non-parametric: Bundle's Ok
+    // arm is always HolonAST; CapacityExceeded is the algebra's
+    // only capacity-failure shape.
+    //
+    //   typealias :wat::holon::BundleResult
+    //     = :Result<wat::holon::HolonAST, wat::holon::CapacityExceeded>
+    //
+    // Callers can write either form; alias resolution unifies them
+    // as the same type at the checker layer.
+    env.register_builtin(TypeDef::Alias(AliasDef {
+        name: ":wat::holon::BundleResult".into(),
+        type_params: vec![],
+        expr: TypeExpr::Parametric {
+            head: "Result".into(),
+            args: vec![
+                TypeExpr::Path(":wat::holon::HolonAST".into()),
+                TypeExpr::Path(":wat::holon::CapacityExceeded".into()),
+            ],
+        },
+    }));
+
     // :wat::core::EvalError — populated in the Err slot of a :Result
     // returned by the eval-family forms (:wat::eval-ast! /
     // eval-edn! / eval-digest! / eval-signed!) when dynamic evaluation
@@ -1663,5 +1687,50 @@ mod tests {
     fn type_expr_tuple_malformed_rejected() {
         // Missing closing ')'.
         assert!(parse_type_expr(":(i64,String").is_err());
+    }
+
+    // ─── Arc 032 — :wat::holon::BundleResult builtin ────────────────
+
+    #[test]
+    fn bundle_result_alias_registered_with_builtins() {
+        let env = TypeEnv::with_builtins();
+        let def = env
+            .get(":wat::holon::BundleResult")
+            .expect(":wat::holon::BundleResult registered via with_builtins");
+        match def {
+            TypeDef::Alias(a) => {
+                assert_eq!(a.name, ":wat::holon::BundleResult");
+                assert!(a.type_params.is_empty(), "non-parametric alias");
+                match &a.expr {
+                    TypeExpr::Parametric { head, args } => {
+                        assert_eq!(head, "Result");
+                        assert_eq!(args.len(), 2);
+                        assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
+                        assert_eq!(
+                            args[1],
+                            TypeExpr::Path(":wat::holon::CapacityExceeded".into())
+                        );
+                    }
+                    other => panic!("expected Result<_,_>, got {:?}", other),
+                }
+            }
+            other => panic!("expected TypeDef::Alias, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn bundle_result_alias_expands_to_expected_result() {
+        let env = TypeEnv::with_builtins();
+        let alias_ref = TypeExpr::Path(":wat::holon::BundleResult".into());
+        let expanded = expand_alias(&alias_ref, &env);
+        match expanded {
+            TypeExpr::Parametric { head, args } => {
+                assert_eq!(head, "Result");
+                assert_eq!(args.len(), 2);
+                assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
+                assert_eq!(args[1], TypeExpr::Path(":wat::holon::CapacityExceeded".into()));
+            }
+            other => panic!("expected expanded Result<HolonAST,CapacityExceeded>, got {:?}", other),
+        }
     }
 }

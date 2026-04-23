@@ -3,5 +3,5 @@
 (:wat::core::defmacro
   (:wat::holon::Trigram
     (xs :AST<List<wat::holon::HolonAST>>)
-    -> :AST<Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>>)
+    -> :AST<wat::holon::BundleResult>)
   `(:wat::holon::Ngram 3 ,xs))

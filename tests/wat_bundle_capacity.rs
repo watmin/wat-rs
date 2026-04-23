@@ -47,7 +47,7 @@ fn bundle_under_budget_returns_ok_under_error_mode() {
         (:wat::config::set-capacity-mode! :error)
         (:wat::config::set-dims! 1024)
 
-        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+        (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
         "#,
         atoms_list(5)
@@ -68,7 +68,7 @@ fn bundle_under_budget_returns_ok_under_silent_mode() {
         (:wat::config::set-capacity-mode! :silent)
         (:wat::config::set-dims! 1024)
 
-        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+        (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
         "#,
         atoms_list(5)
@@ -92,7 +92,7 @@ fn bundle_over_budget_under_error_mode_returns_err_struct() {
         (:wat::config::set-capacity-mode! :error)
         (:wat::config::set-dims! 1024)
 
-        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+        (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
         "#,
         atoms_list(33)
@@ -154,7 +154,7 @@ fn bundle_over_budget_under_silent_mode_still_returns_ok() {
         (:wat::config::set-capacity-mode! :silent)
         (:wat::config::set-dims! 1024)
 
-        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+        (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
         "#,
         atoms_list(200)
@@ -181,7 +181,7 @@ fn bundle_over_budget_under_warn_mode_still_returns_ok() {
         (:wat::config::set-capacity-mode! :warn)
         (:wat::config::set-dims! 1024)
 
-        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+        (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
         "#,
         atoms_list(100)
@@ -207,7 +207,7 @@ fn bundle_over_budget_under_abort_mode_panics() {
         (:wat::config::set-capacity-mode! :abort)
         (:wat::config::set-dims! 1024)
 
-        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+        (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
         "#,
         atoms_list(50)
@@ -230,7 +230,7 @@ fn try_propagates_bundle_err_across_function_boundary() {
 
         (:wat::core::define (:app::build-composite
                             (items :Vec<wat::holon::HolonAST>)
-                            -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+                            -> :wat::holon::BundleResult)
           (Ok (:wat::core::try (:wat::holon::Bundle items))))
 
         (:wat::core::define (:user::main -> :i64)

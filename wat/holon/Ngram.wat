@@ -23,7 +23,7 @@
   (:wat::holon::Ngram
     (n :AST<i64>)
     (xs :AST<List<wat::holon::HolonAST>>)
-    -> :AST<Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>>)
+    -> :AST<wat::holon::BundleResult>)
   `(:wat::holon::Bundle
      (:wat::core::map
        (:wat::std::list::window ,xs ,n)
