@@ -41,69 +41,82 @@ const DEP_B: &[WatSource] = &[WatSource {
     "#,
 }];
 
+// Each test body runs in a forked child — fresh OnceLock state per
+// test, no race between the three Harness::from_source_with_deps
+// callers even though cargo runs them in parallel within one binary.
+// `wat::fork::run_in_fork` is the promoted helper (was private in
+// runtime.rs::tests as in_signal_subprocess; exposed publicly in arc
+// 024 slice 0 for general test isolation).
+
 #[test]
 fn harness_composes_multiple_deps_into_user_source() {
-    let user = r#"
-        (:wat::config::set-dims! 1024)
-        (:wat::config::set-capacity-mode! :error)
+    wat::fork::run_in_fork(|| {
+        let user = r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
 
-        (:wat::core::define (:user::main
-                             (stdin  :wat::io::IOReader)
-                             (stdout :wat::io::IOWriter)
-                             (stderr :wat::io::IOWriter)
-                             -> :())
-          (:wat::core::let*
-            (((_ :i64) (:wat::io::IOWriter/writeln stdout (:user::test::dep-a::label)))
-             ((_ :i64) (:wat::io::IOWriter/writeln stdout (:user::test::dep-b::label))))
-            ()))
-    "#;
-    let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");
-    let out = h.run(&[]).expect("run");
-    assert_eq!(out.stdout, vec!["A".to_string(), "B".to_string()]);
+            (:wat::core::define (:user::main
+                                 (stdin  :wat::io::IOReader)
+                                 (stdout :wat::io::IOWriter)
+                                 (stderr :wat::io::IOWriter)
+                                 -> :())
+              (:wat::core::let*
+                (((_ :i64) (:wat::io::IOWriter/writeln stdout (:user::test::dep-a::label)))
+                 ((_ :i64) (:wat::io::IOWriter/writeln stdout (:user::test::dep-b::label))))
+                ()))
+        "#;
+        let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");
+        let out = h.run(&[]).expect("run");
+        assert_eq!(out.stdout, vec!["A".to_string(), "B".to_string()]);
+    });
 }
 
 #[test]
 fn harness_same_deps_usable_from_different_entry_source() {
-    // Same two deps (the process-global install from whichever test
-    // won first), different entry program — proves deps survive
-    // across multiple Harness construction calls in one process.
-    let user = r#"
-        (:wat::config::set-dims! 1024)
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::core::define (:user::main
-                             (stdin  :wat::io::IOReader)
-                             (stdout :wat::io::IOWriter)
-                             (stderr :wat::io::IOWriter)
-                             -> :())
-          (:wat::io::IOWriter/println stdout (:user::test::dep-a::label)))
-    "#;
-    let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");
-    let Outcome { stdout, stderr } = h.run(&[]).expect("run");
-    assert_eq!(stdout, vec!["A".to_string()]);
-    assert!(stderr.is_empty(), "expected empty stderr; got {:?}", stderr);
+    wat::fork::run_in_fork(|| {
+        // Same two deps installed in this forked child; different entry
+        // program — proves deps survive across multiple Harness
+        // construction calls within one process (here, the forked one).
+        let user = r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::core::define (:user::main
+                                 (stdin  :wat::io::IOReader)
+                                 (stdout :wat::io::IOWriter)
+                                 (stderr :wat::io::IOWriter)
+                                 -> :())
+              (:wat::io::IOWriter/println stdout (:user::test::dep-a::label)))
+        "#;
+        let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");
+        let Outcome { stdout, stderr } = h.run(&[]).expect("run");
+        assert_eq!(stdout, vec!["A".to_string()]);
+        assert!(stderr.is_empty(), "expected empty stderr; got {:?}", stderr);
+    });
 }
 
 #[test]
 fn harness_with_zero_deps_matches_from_source() {
-    // Passing &[] uses no deps. Regardless of the process-global
-    // install state from other tests, this program only uses baked
-    // stdlib, so both entry paths produce identical output.
-    let src = r#"
-        (:wat::config::set-dims! 1024)
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::core::define (:user::main
-                             (stdin  :wat::io::IOReader)
-                             (stdout :wat::io::IOWriter)
-                             (stderr :wat::io::IOWriter)
-                             -> :())
-          (:wat::io::IOWriter/println stdout "no deps"))
-    "#;
-    let h_no_deps = Harness::from_source_with_deps(src, &[], &[]).expect("freeze-empty-deps");
-    let h_ref = Harness::from_source(src).expect("freeze-from-source");
-    let out_a = h_no_deps.run(&[]).expect("run-no-deps");
-    let out_b = h_ref.run(&[]).expect("run-from-source");
-    assert_eq!(out_a, out_b);
-    assert_eq!(out_a.stdout, vec!["no deps".to_string()]);
+    wat::fork::run_in_fork(|| {
+        // Passing &[] uses no deps. In the forked child, this is the
+        // only install — fresh OnceLock state, no interaction with
+        // other tests' dep sets.
+        let src = r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::core::define (:user::main
+                                 (stdin  :wat::io::IOReader)
+                                 (stdout :wat::io::IOWriter)
+                                 (stderr :wat::io::IOWriter)
+                                 -> :())
+              (:wat::io::IOWriter/println stdout "no deps"))
+        "#;
+        let h_no_deps = Harness::from_source_with_deps(src, &[], &[]).expect("freeze-empty-deps");
+        let h_ref = Harness::from_source(src).expect("freeze-from-source");
+        let out_a = h_no_deps.run(&[]).expect("run-no-deps");
+        let out_b = h_ref.run(&[]).expect("run-from-source");
+        assert_eq!(out_a, out_b);
+        assert_eq!(out_a.stdout, vec!["no deps".to_string()]);
+    });
 }
 
 // ─── Retired tests ──────────────────────────────────────────────────

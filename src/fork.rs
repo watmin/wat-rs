@@ -43,6 +43,60 @@ pub const EXIT_PANIC: i32 = 2;
 pub const EXIT_STARTUP_ERROR: i32 = 3;
 pub const EXIT_MAIN_SIGNATURE: i32 = 4;
 
+/// Run `body` in a forked child process; parent waits + asserts the
+/// child exited 0. Test utility for isolating per-process state
+/// (OnceLock, static mut, signal handlers, install_dep_sources) when
+/// multiple tests in one binary need fresh state.
+///
+/// The child runs `body` inside `catch_unwind`; panic → `libc::_exit(1)`
+/// so the parent's assert fails with the panic visible in the child's
+/// inherited stderr. Uses `_exit` (not `exit`) to skip atexit handlers
+/// the parent's test harness registered — those would flush / close
+/// resources the parent still owns.
+///
+/// Originally `runtime.rs::tests::in_signal_subprocess` for signal
+/// tests (arc 012 side quest). Promoted here because any test that
+/// touches process-global state can use the same pattern —
+/// `tests/wat_harness_deps.rs`'s OnceLock race being the second
+/// caller.
+pub fn run_in_fork<F>(body: F)
+where
+    F: FnOnce() + std::panic::UnwindSafe,
+{
+    let pid = unsafe { libc::fork() };
+    if pid < 0 {
+        panic!("fork failed: {}", std::io::Error::last_os_error());
+    }
+    if pid == 0 {
+        // Child — run body, exit 0 on success, 1 on panic. Use
+        // _exit so atexit handlers registered by the parent's
+        // cargo-test harness don't run (they'd flush / close
+        // duplicated resources the parent still owns).
+        let outcome = std::panic::catch_unwind(body);
+        match outcome {
+            Ok(()) => unsafe { libc::_exit(0) },
+            Err(_panic) => {
+                // Rust's default panic hook already wrote the
+                // payload to stderr before catch_unwind caught.
+                unsafe { libc::_exit(1) };
+            }
+        }
+    }
+    // Parent — wait + assert.
+    let mut status: libc::c_int = 0;
+    let waited = unsafe { libc::waitpid(pid, &mut status, 0) };
+    assert!(
+        waited >= 0,
+        "waitpid failed: {}",
+        std::io::Error::last_os_error()
+    );
+    assert!(
+        libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0,
+        "forked child exited with failure (status={:#x})",
+        status
+    );
+}
+
 /// The payload of a `Value::wat__kernel__ChildHandle`. Holds the
 /// child's pid plus a `reaped` flag set by
 /// `:wat::kernel::wait-child`, plus a `cached_exit` OnceLock that

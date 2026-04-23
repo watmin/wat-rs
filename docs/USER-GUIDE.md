@@ -593,11 +593,15 @@ compose the primitives. File path matches namespace (`wat/holon/*.wat`).
 ```scheme
 (:wat::holon::cosine a b)                       ; → :f64  cosine similarity
 (:wat::holon::dot a b)                          ; → :f64  dot product, un-normalized
-(:wat::holon::presence? target reference)       ; → :bool cosine(target, reference) > noise-floor
-(:wat::holon::coincident? a b)                  ; → :bool (1 - cosine(a, b)) < noise-floor
-;; Two binary predicates, same noise-floor, dual claims:
-;;   presence?   — "is there detectable signal above random?"   (dissimilarity not present)
-;;   coincident? — "are these the same holon within tolerance?" (similarity near perfect)
+(:wat::holon::presence? target reference)       ; → :bool cosine(target, reference) > presence-floor
+(:wat::holon::coincident? a b)                  ; → :bool (1 - cosine(a, b)) < coincident-floor
+;; Both predicates measure against a sigma-derived threshold (arc 024).
+;; noise-floor is the 1σ native granularity = 1 / sqrt(dims).
+;; presence-floor    = presence-sigma    * noise-floor  (default 15σ, FPR ~10⁻⁵¹)
+;; coincident-floor  = coincident-sigma  * noise-floor  (default 1σ, the geometric minimum)
+;; Two predicates, two sigmas, one substrate unit. Dual claims:
+;;   presence?   — "is there detectable signal above random?"   (HIGH sigma — low FPR)
+;;   coincident? — "are these the same holon within tolerance?" (LOW sigma — tight equivalence)
 ;; Use cosine if you want the raw scalar.
 ```
 
@@ -624,9 +628,23 @@ Config accessors (every program has these):
 ```scheme
 (:wat::config::dims)           ; → :i64
 (:wat::config::global-seed)    ; → :i64
-(:wat::config::noise-floor)    ; → :f64
+(:wat::config::noise-floor)    ; → :f64   1σ native granularity = 1/sqrt(dims)
 (:wat::config::capacity-mode)  ; → :wat::config::CapacityMode
 ```
+
+Config setters (optional overrides — all defaults are honest):
+
+```scheme
+(:wat::config::set-presence-sigma!   15)    ; default — FPR ~10⁻⁵¹
+(:wat::config::set-coincident-sigma!  1)    ; default — 1σ, the geometric minimum
+(:wat::config::set-noise-floor!  0.03)      ; rare — override the 1σ base itself
+```
+
+Validity invariant: `presence-sigma + coincident-sigma < sqrt(dims)`
+(above this the two predicates collide). Violations are routed
+through `capacity-mode` — :silent proceeds, :warn logs, :error
+fails startup, :abort panics. At the (15, 1) defaults, the
+minimum dimension is `d ≥ 257`.
 
 ---
 
@@ -1465,8 +1483,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::holon::Thermometer` | `value min max` | `:wat::holon::HolonAST` |
 | `:wat::holon::Blend` | `a b w1 w2` | `:wat::holon::HolonAST` |
 | `:wat::holon::cosine` / `dot` | `a b` | `:f64` |
-| `:wat::holon::presence?` | `target reference` | `:bool` — cosine(target,ref) > noise-floor |
-| `:wat::holon::coincident?` | `a b` | `:bool` — (1 - cosine(a,b)) < noise-floor (equivalence) |
+| `:wat::holon::presence?` | `target reference` | `:bool` — cosine > presence-floor (15σ default) |
+| `:wat::holon::coincident?` | `a b` | `:bool` — (1 - cosine) < coincident-floor (1σ default) |
 | `:wat::core::quote` | `<form>` | `:wat::WatAST` — captures AST as data |
 | `:wat::core::forms` | `f1 f2 ... fn` | `:Vec<wat::WatAST>` — variadic quote |
 | `:wat::core::conj` | `vec item` | `:Vec<T>` — immutable append |

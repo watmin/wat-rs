@@ -4770,9 +4770,14 @@ fn eval_algebra_cosine(
 }
 
 /// `(:wat::holon::presence? target reference) -> :bool` — boolean
-/// verdict: is `target` present in `reference` above the 5σ noise
+/// verdict: is `target` present in `reference` above the presence
 /// floor? Encodes both, computes cosine, returns
-/// `cosine > :wat::config::noise-floor`.
+/// `cosine > :wat::config::presence-floor`.
+///
+/// Arc 024: `presence-floor = presence-sigma * noise-floor` where
+/// `noise-floor = 1/sqrt(dims)` (the 1σ native granularity) and
+/// `presence-sigma` defaults to 15 (FPR ~10⁻⁵¹). User overridable
+/// via `(:wat::config::set-presence-sigma! <i64>)`.
 ///
 /// The `?` suffix is the predicate convention (2026-04-19 naming
 /// stance). Callers that want the raw scalar reach for
@@ -4796,20 +4801,26 @@ fn eval_algebra_presence_q(
     let vt = encode(&target, &ctx.vm, &ctx.scalar, &ctx.registry);
     let vr = encode(&reference, &ctx.vm, &ctx.scalar, &ctx.registry);
     let cosine = Similarity::cosine(&vt, &vr);
-    Ok(Value::bool(cosine > ctx.config.noise_floor))
+    Ok(Value::bool(cosine > ctx.config.presence_floor))
 }
 
 /// `(:wat::holon::coincident? a b) -> :bool` — boolean verdict:
 /// are `a` and `b` the same holon within the algebra's own
 /// distinguishability threshold? Encodes both, computes cosine,
-/// returns `(1 - cosine) < :wat::config::noise-floor`.
+/// returns `(1 - cosine) < :wat::config::coincident-floor`.
 ///
-/// Dual to `presence?` using the same noise-floor. `presence?`
-/// asks "is there detectable signal above random chance?"
-/// (cosine > floor). `coincident?` asks "are these two holons
-/// the same point on the hypersphere within the algebra's
-/// tolerance?" (error-from-perfect-match below floor). Same
-/// bound, two dual predicates, one substrate. Arc 023.
+/// Dual to `presence?`. Arc 023 introduced the predicate; arc
+/// 024 split its threshold from presence's — `coincident-floor
+/// = coincident-sigma * noise-floor` where `coincident-sigma`
+/// defaults to 1 (the 1σ native granularity — the geometric
+/// minimum, no looser than the substrate can physically see).
+/// User overridable via `(:wat::config::set-coincident-sigma! <i64>)`.
+///
+/// `presence?` asks "is there detectable signal above random
+/// chance?" (cosine > presence-floor). `coincident?` asks "are
+/// these two holons the same point on the hypersphere within the
+/// algebra's tolerance?" (error-from-perfect-match below
+/// coincident-floor).
 ///
 /// Use `coincident?` for structural-equivalence assertions
 /// (e.g., testing that a computed holon matches a hand-built
@@ -4835,7 +4846,7 @@ fn eval_algebra_coincident_q(
     let va = encode(&a, &ctx.vm, &ctx.scalar, &ctx.registry);
     let vb = encode(&b, &ctx.vm, &ctx.scalar, &ctx.registry);
     let cosine = Similarity::cosine(&va, &vb);
-    Ok(Value::bool((1.0 - cosine) < ctx.config.noise_floor))
+    Ok(Value::bool((1.0 - cosine) < ctx.config.coincident_floor))
 }
 
 /// `(:wat::holon::dot x y) -> :f64` — scalar dot product of two
@@ -5196,12 +5207,14 @@ fn eval_config_global_seed(
     Ok(Value::i64(ctx.config.global_seed as i64))
 }
 
-/// `(:wat::config::noise-floor)` — committed substrate noise floor as
-/// `:f64`. Per FOUNDATION 1718, defaults to `5.0 / sqrt(dims)` — the
-/// 5-sigma threshold below which a presence measurement is
-/// indistinguishable from noise. Applications that need tighter
-/// confidence (10σ engram-recognition) or looser (rough prefiltering)
-/// override via `(:wat::config::set-noise-floor! <f64>)` at startup.
+/// `(:wat::config::noise-floor)` — the committed 1σ native granularity
+/// as `:f64`. Defaults to `1.0 / sqrt(dims)` — the atomic angular unit
+/// on the hypersphere at this dimension. Both `presence?` and
+/// `coincident?` multiply this by their respective sigma (arc 024);
+/// callers who need a specific threshold should compute
+/// `sigma * noise-floor` rather than overriding the base. Override
+/// exists via `(:wat::config::set-noise-floor! <f64>)` for power users
+/// who need a different base unit than 1σ.
 fn eval_config_noise_floor(
     args: &[WatAST],
     sym: &SymbolTable,
@@ -7346,11 +7359,18 @@ mod tests {
     /// `FrozenWorld::freeze` does. Needed for tests exercising presence
     /// or config accessors without running the full startup pipeline.
     fn test_sym_with_ctx(dims: usize) -> SymbolTable {
+        let noise_floor = 1.0 / (dims as f64).sqrt();
+        let presence_sigma = 15i64;
+        let coincident_sigma = 1i64;
         let cfg = Config {
             dims,
             capacity_mode: crate::config::CapacityMode::Error,
             global_seed: 42,
-            noise_floor: 5.0 / (dims as f64).sqrt(),
+            noise_floor,
+            presence_sigma,
+            coincident_sigma,
+            presence_floor: (presence_sigma as f64) * noise_floor,
+            coincident_floor: (coincident_sigma as f64) * noise_floor,
         };
         let mut sym = SymbolTable::new();
         sym.set_encoding_ctx(Arc::new(EncodingCtx::from_config(&cfg)));
@@ -7628,7 +7648,7 @@ mod tests {
     fn bind_obscures_child_at_vector_level() {
         // Core claim: cosine(encode(p), encode(Bind(k, p))) is near zero —
         // MAP bind orthogonalizes. The presence of p in Bind(k,p) is
-        // below the substrate noise floor.
+        // below the substrate's presence floor (15σ at d=1024).
         let result = eval_with_ctx(
             r#"(:wat::core::let*
                  (((program :wat::holon::HolonAST) (:wat::holon::Atom "the-program"))
@@ -7638,14 +7658,15 @@ mod tests {
             1024,
         )
         .unwrap();
-        let noise_floor = 5.0 / (1024f64).sqrt(); // ≈ 0.156
+        // Arc 024: presence_floor = 15 * (1/sqrt(1024)) = 15/32 ≈ 0.469.
+        let presence_floor = 15.0 / (1024f64).sqrt();
         match result {
             Value::f64(x) => {
-                // Cosine is ternary-vector small, well below the 5σ floor.
+                // Cosine is ternary-vector small, well below the presence floor.
                 assert!(
-                    x < noise_floor,
-                    "expected presence below noise floor {}, got {}",
-                    noise_floor,
+                    x < presence_floor,
+                    "expected cosine below presence floor {}, got {}",
+                    presence_floor,
                     x
                 );
             }
@@ -7656,7 +7677,7 @@ mod tests {
     #[test]
     fn bind_on_bind_recovers_child_at_vector_level() {
         // Self-inverse: cosine(encode(p), encode(Bind(Bind(k,p), k))) is
-        // well above the noise floor. MAP's bind(bind(k,p), k) ≈ p on
+        // well above the presence floor. MAP's bind(bind(k,p), k) ≈ p on
         // non-zero positions of k.
         let result = eval_with_ctx(
             r#"(:wat::core::let*
@@ -7668,13 +7689,13 @@ mod tests {
             1024,
         )
         .unwrap();
-        let noise_floor = 5.0 / (1024f64).sqrt();
+        let presence_floor = 15.0 / (1024f64).sqrt();
         match result {
             Value::f64(x) => {
                 assert!(
-                    x > noise_floor,
-                    "expected presence above noise floor {}, got {}",
-                    noise_floor,
+                    x > presence_floor,
+                    "expected cosine above presence floor {}, got {}",
+                    presence_floor,
                     x
                 );
             }
@@ -7684,8 +7705,9 @@ mod tests {
 
     #[test]
     fn config_noise_floor_accessor_returns_derived_value() {
+        // Arc 024: noise_floor = 1/sqrt(d) — the 1σ native granularity.
         let result = eval_with_ctx("(:wat::config::noise-floor)", 10000).unwrap();
-        let expected = 5.0 / 100.0; // = 0.05
+        let expected = 1.0 / 100.0; // = 0.01
         match result {
             Value::f64(x) => assert!((x - expected).abs() < 1e-12),
             other => panic!("expected f64, got {:?}", other),
@@ -7932,142 +7954,84 @@ mod tests {
     // body in a child process with independent atomic state. No shared
     // mutable state; no race.
     //
-    // Mechanism (arc 012 side quest, 2026-04-21): `libc::fork()`. Parent
-    // waits via `waitpid` + asserts exit 0. Child runs `body` inside
-    // `catch_unwind`; panic → `libc::_exit(1)` so the parent's assert
-    // fails with the panic visible in the child's inherited stderr.
-    // Replaces the previous re-invoke-current-exe-with-env-var
-    // mechanism, which coupled tests to `std::env::current_exe()` and
-    // spawned a fresh `std::process::Command` — the last test-code
-    // subprocess spawn in the src/ tree.
+    // Mechanism (arc 012 side quest, 2026-04-21): wraps each body in
+    // `crate::fork::run_in_fork` — child runs body in catch_unwind,
+    // exits 0 on success / 1 on panic; parent waits + asserts. Arc 024
+    // slice 0 promoted the helper from private here to public on fork.rs
+    // so `tests/wat_harness_deps.rs` can use the same pattern for its
+    // own OnceLock isolation.
 
-    /// Run `body` in an isolated forked process for signal tests.
-    /// The `test_path` parameter is unused under the fork mechanism;
-    /// kept at callsites for call-shape stability.
-    fn in_signal_subprocess(_test_path: &str, body: impl FnOnce()) {
-        let pid = unsafe { libc::fork() };
-        if pid < 0 {
-            panic!(
-                "fork failed: {}",
-                std::io::Error::last_os_error()
-            );
-        }
-        if pid == 0 {
-            // Child — run body, exit 0 on success, 1 on panic. Use
-            // _exit so atexit handlers registered by the parent's
-            // cargo-test harness don't run (they'd flush / close
-            // duplicated resources the parent still owns).
-            let outcome = std::panic::catch_unwind(
-                std::panic::AssertUnwindSafe(body),
-            );
-            match outcome {
-                Ok(()) => unsafe { libc::_exit(0) },
-                Err(_panic) => {
-                    // Rust's default panic hook already wrote the
-                    // payload to stderr before catch_unwind caught.
-                    unsafe { libc::_exit(1) };
-                }
-            }
-        }
-        // Parent — wait + assert.
-        let mut status: libc::c_int = 0;
-        let waited = unsafe { libc::waitpid(pid, &mut status, 0) };
-        assert!(
-            waited >= 0,
-            "waitpid failed: {}",
-            std::io::Error::last_os_error()
-        );
-        assert!(
-            libc::WIFEXITED(status) && libc::WEXITSTATUS(status) == 0,
-            "signal-test child exited with failure (status={:#x})",
-            status
-        );
-    }
+    use crate::fork::run_in_fork;
 
     #[test]
     fn sigusr1_query_reflects_flag_state() {
-        in_signal_subprocess(
-            "runtime::tests::sigusr1_query_reflects_flag_state",
-            || {
-                reset_user_signals();
-                match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
-                    Value::bool(false) => {}
-                    v => panic!("expected false, got {:?}", v),
-                }
-                set_kernel_sigusr1();
-                match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
-                    Value::bool(true) => {}
-                    v => panic!("expected true, got {:?}", v),
-                }
-            },
-        );
+        run_in_fork(|| {
+            reset_user_signals();
+            match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
+                Value::bool(false) => {}
+                v => panic!("expected false, got {:?}", v),
+            }
+            set_kernel_sigusr1();
+            match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
+                Value::bool(true) => {}
+                v => panic!("expected true, got {:?}", v),
+            }
+        });
     }
 
     #[test]
     fn sigusr2_and_sighup_independent() {
-        in_signal_subprocess(
-            "runtime::tests::sigusr2_and_sighup_independent",
-            || {
-                reset_user_signals();
-                set_kernel_sigusr2();
-                // sighup? must remain false even though sigusr2? is true.
-                match eval_expr("(:wat::kernel::sigusr2?)").unwrap() {
-                    Value::bool(true) => {}
-                    v => panic!("expected sigusr2 true, got {:?}", v),
-                }
-                match eval_expr("(:wat::kernel::sighup?)").unwrap() {
-                    Value::bool(false) => {}
-                    v => panic!("expected sighup false, got {:?}", v),
-                }
-            },
-        );
+        run_in_fork(|| {
+            reset_user_signals();
+            set_kernel_sigusr2();
+            // sighup? must remain false even though sigusr2? is true.
+            match eval_expr("(:wat::kernel::sigusr2?)").unwrap() {
+                Value::bool(true) => {}
+                v => panic!("expected sigusr2 true, got {:?}", v),
+            }
+            match eval_expr("(:wat::kernel::sighup?)").unwrap() {
+                Value::bool(false) => {}
+                v => panic!("expected sighup false, got {:?}", v),
+            }
+        });
     }
 
     #[test]
     fn reset_sigusr1_flips_flag_false() {
-        in_signal_subprocess(
-            "runtime::tests::reset_sigusr1_flips_flag_false",
-            || {
-                reset_user_signals();
-                set_kernel_sigusr1();
-                let _ = eval_expr("(:wat::kernel::reset-sigusr1!)").expect("reset");
-                match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
-                    Value::bool(false) => {}
-                    v => panic!("expected false after reset, got {:?}", v),
-                }
-            },
-        );
+        run_in_fork(|| {
+            reset_user_signals();
+            set_kernel_sigusr1();
+            let _ = eval_expr("(:wat::kernel::reset-sigusr1!)").expect("reset");
+            match eval_expr("(:wat::kernel::sigusr1?)").unwrap() {
+                Value::bool(false) => {}
+                v => panic!("expected false after reset, got {:?}", v),
+            }
+        });
     }
 
     #[test]
     fn reset_sighup_returns_unit() {
-        in_signal_subprocess(
-            "runtime::tests::reset_sighup_returns_unit",
-            || {
-                reset_user_signals();
-                set_kernel_sighup();
-                let v = eval_expr("(:wat::kernel::reset-sighup!)").expect("reset");
-                assert!(matches!(v, Value::Unit));
-            },
-        );
+        run_in_fork(|| {
+            reset_user_signals();
+            set_kernel_sighup();
+            let v = eval_expr("(:wat::kernel::reset-sighup!)").expect("reset");
+            assert!(matches!(v, Value::Unit));
+        });
     }
 
     #[test]
     fn user_signal_predicates_refuse_arguments() {
-        in_signal_subprocess(
-            "runtime::tests::user_signal_predicates_refuse_arguments",
-            || {
-                reset_user_signals();
-                assert!(matches!(
-                    eval_expr("(:wat::kernel::sigusr1? 1)"),
-                    Err(RuntimeError::ArityMismatch { .. })
-                ));
-                assert!(matches!(
-                    eval_expr("(:wat::kernel::reset-sigusr1! true)"),
-                    Err(RuntimeError::ArityMismatch { .. })
-                ));
-            },
-        );
+        run_in_fork(|| {
+            reset_user_signals();
+            assert!(matches!(
+                eval_expr("(:wat::kernel::sigusr1? 1)"),
+                Err(RuntimeError::ArityMismatch { .. })
+            ));
+            assert!(matches!(
+                eval_expr("(:wat::kernel::reset-sigusr1! true)"),
+                Err(RuntimeError::ArityMismatch { .. })
+            ));
+        });
     }
 
     // ─── Tuples + destructure + first/second ───────────────────────────

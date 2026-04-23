@@ -46,21 +46,31 @@ pub struct Config {
     pub dims: usize,
     pub capacity_mode: CapacityMode,
     pub global_seed: u64,
-    /// Cosine threshold distinguishing signal from noise for the
-    /// substrate at this `dims`. Per FOUNDATION 1718, presence
-    /// measurements are compared against this floor to decide whether a
-    /// target is "in" a reference vector with confidence.
+    /// The substrate's **1σ native granularity**: `1.0 / sqrt(dims)`.
+    /// The atomic angular unit on the hypersphere at this dimension —
+    /// the smallest cosine distance the algebra can distinguish above
+    /// its own random-pair distribution. Arc 024 renamed this from
+    /// "the 5σ presence floor" to "the 1σ base unit" — both predicates
+    /// multiply it by their respective sigma count to derive their
+    /// operative threshold.
     ///
-    /// Default: `5.0 / sqrt(dims as f64)` — the 5-sigma substrate noise
-    /// floor. At `d = 10,000` this is ≈ 0.05; at `d = 1024` ≈ 0.156.
-    ///
-    /// Users may override exactly once via
-    /// `(:wat::config::set-noise-floor! <f64>)` — same discipline as
-    /// `set-global-seed!`. Applications that need tighter confidence
-    /// (10σ engram-recognition) or looser (rough prefiltering) commit
-    /// their threshold at startup rather than threading it through
-    /// every presence call.
+    /// Users may override via `(:wat::config::set-noise-floor! <f64>)`
+    /// — rare; the derivation from `dims` is the honest default.
     pub noise_floor: f64,
+    /// How many σ above the random-pair distribution `presence?` requires
+    /// to fire. Default 15 — FPR ≈ 10⁻⁵¹, essentially zero. User
+    /// overridable via `(:wat::config::set-presence-sigma! <i64>)`.
+    pub presence_sigma: i64,
+    /// How many σ below perfect-identity `coincident?` requires to fire.
+    /// Default 1 — the native granularity; the geometric minimum.
+    /// User overridable via `(:wat::config::set-coincident-sigma! <i64>)`.
+    pub coincident_sigma: i64,
+    /// Memoized `presence_sigma * noise_floor`. `presence?` closes over
+    /// this; recomputed only at config commit.
+    pub presence_floor: f64,
+    /// Memoized `coincident_sigma * noise_floor`. `coincident?` closes
+    /// over this.
+    pub coincident_floor: f64,
 }
 
 /// `:wat::config::CapacityMode` — overflow policy when a frame exceeds
@@ -183,6 +193,8 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
     let mut capacity_mode: Option<CapacityMode> = None;
     let mut global_seed: Option<u64> = None;
     let mut noise_floor: Option<f64> = None;
+    let mut presence_sigma: Option<i64> = None;
+    let mut coincident_sigma: Option<i64> = None;
     let mut remainder_start: Option<usize> = None;
 
     for (i, form) in forms.iter().enumerate() {
@@ -266,6 +278,36 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
                 }
                 noise_floor = Some(parse_f64(&args[0], "noise-floor")?);
             }
+            ":wat::config::set-presence-sigma!" => {
+                if presence_sigma.is_some() {
+                    return Err(ConfigError::DuplicateField {
+                        field: "presence-sigma".into(),
+                    });
+                }
+                if args.len() != 1 {
+                    return Err(ConfigError::BadArity {
+                        head: setter_head,
+                        expected: 1,
+                        got: args.len(),
+                    });
+                }
+                presence_sigma = Some(parse_positive_i64(&args[0], "presence-sigma")?);
+            }
+            ":wat::config::set-coincident-sigma!" => {
+                if coincident_sigma.is_some() {
+                    return Err(ConfigError::DuplicateField {
+                        field: "coincident-sigma".into(),
+                    });
+                }
+                if args.len() != 1 {
+                    return Err(ConfigError::BadArity {
+                        head: setter_head,
+                        expected: 1,
+                        got: args.len(),
+                    });
+                }
+                coincident_sigma = Some(parse_positive_i64(&args[0], "coincident-sigma")?);
+            }
             _ => {
                 return Err(ConfigError::UnknownSetter {
                     head: setter_head,
@@ -281,15 +323,60 @@ pub fn collect_entry_file(forms: Vec<WatAST>) -> Result<(Config, Vec<WatAST>), C
         field: "capacity-mode".into(),
     })?;
     let global_seed = global_seed.unwrap_or(42);
-    // Default: 5-sigma substrate noise floor derived from `dims`.
-    // `5.0 / sqrt(d)` per FOUNDATION 1718.
-    let noise_floor = noise_floor.unwrap_or_else(|| 5.0 / (dims as f64).sqrt());
+    // noise_floor defaults to the 1σ native granularity: 1/sqrt(dims).
+    // The atomic angular unit; both predicates multiply it by their
+    // sigma counts. Arc 024 retired the prior 5σ conflation.
+    let noise_floor = noise_floor.unwrap_or_else(|| 1.0 / (dims as f64).sqrt());
+    let presence_sigma = presence_sigma.unwrap_or(15);
+    let coincident_sigma = coincident_sigma.unwrap_or(1);
+    let presence_floor = (presence_sigma as f64) * noise_floor;
+    let coincident_floor = (coincident_sigma as f64) * noise_floor;
+
+    // Validity: n_p + n_c < sqrt(dims). Above this the presence /
+    // coincident predicates collapse (their thresholds meet or swap).
+    // Behavior per capacity_mode — reuses the same four-mode policy
+    // Bundle capacity uses.
+    let sigma_sum = presence_sigma.saturating_add(coincident_sigma);
+    let dims_sqrt = (dims as f64).sqrt();
+    if (sigma_sum as f64) >= dims_sqrt {
+        match capacity_mode {
+            CapacityMode::Silent => { /* proceed anyway */ }
+            CapacityMode::Warn => {
+                eprintln!(
+                    "warning: presence-sigma ({}) + coincident-sigma ({}) = {} >= sqrt(dims) = {:.4}. \
+                    Predicate duality collapses at or above this sum. Raise dims or lower a sigma.",
+                    presence_sigma, coincident_sigma, sigma_sum, dims_sqrt
+                );
+            }
+            CapacityMode::Error => {
+                return Err(ConfigError::BadValue {
+                    field: "presence-sigma + coincident-sigma".into(),
+                    reason: format!(
+                        "sum ({}) >= sqrt(dims) ({:.4}); presence / coincident predicate duality collapses. \
+                        Raise dims or lower a sigma. (Capacity-mode :error returns this failure.)",
+                        sigma_sum, dims_sqrt
+                    ),
+                });
+            }
+            CapacityMode::Abort => {
+                panic!(
+                    "config invalid under :abort: presence-sigma ({}) + coincident-sigma ({}) = {} >= sqrt(dims) = {:.4}. \
+                    Predicate duality collapses.",
+                    presence_sigma, coincident_sigma, sigma_sum, dims_sqrt
+                );
+            }
+        }
+    }
 
     let config = Config {
         dims,
         capacity_mode,
         global_seed,
         noise_floor,
+        presence_sigma,
+        coincident_sigma,
+        presence_floor,
+        coincident_floor,
     };
 
     let remainder = match remainder_start {
@@ -339,6 +426,25 @@ fn parse_usize(ast: &WatAST, field: &'static str) -> Result<usize, ConfigError> 
         other => Err(ConfigError::BadType {
             field: field.into(),
             expected: "integer literal",
+            got: variant_name(other),
+        }),
+    }
+}
+
+fn parse_positive_i64(ast: &WatAST, field: &'static str) -> Result<i64, ConfigError> {
+    match ast {
+        WatAST::IntLit(n, _) => {
+            if *n <= 0 {
+                return Err(ConfigError::BadValue {
+                    field: field.into(),
+                    reason: format!("expected positive integer, got {}", n),
+                });
+            }
+            Ok(*n)
+        }
+        other => Err(ConfigError::BadType {
+            field: field.into(),
+            expected: "positive integer literal",
             got: variant_name(other),
         }),
     }
@@ -433,15 +539,20 @@ mod tests {
         assert_eq!(cfg.dims, 10000);
         assert_eq!(cfg.capacity_mode, CapacityMode::Error);
         assert_eq!(cfg.global_seed, 42, "default global-seed is 42");
-        // Default noise floor at d=10000 is 5/sqrt(10000) = 0.05.
-        let expected = 5.0_f64 / (10000_f64).sqrt();
+        // Arc 024: noise_floor = 1σ = 1/sqrt(d). At d=10000 that's 0.01.
+        let expected = 1.0_f64 / (10000_f64).sqrt();
         assert!((cfg.noise_floor - expected).abs() < 1e-12);
+        // Arc 024 defaults: presence_sigma=15, coincident_sigma=1.
+        assert_eq!(cfg.presence_sigma, 15);
+        assert_eq!(cfg.coincident_sigma, 1);
+        assert!((cfg.presence_floor - 15.0 * expected).abs() < 1e-12);
+        assert!((cfg.coincident_floor - expected).abs() < 1e-12);
         assert!(rest.is_empty());
     }
 
     #[test]
-    fn noise_floor_default_is_5_over_sqrt_dims() {
-        // d=1024 → 5/32 = 0.15625
+    fn noise_floor_default_is_1_over_sqrt_dims() {
+        // Arc 024: noise_floor = 1σ. At d=1024, 1/32 = 0.03125.
         let (cfg, _) = collect(
             r#"
             (:wat::config::set-dims! 1024)
@@ -450,7 +561,9 @@ mod tests {
         )
         .unwrap();
         assert_eq!(cfg.dims, 1024);
-        assert!((cfg.noise_floor - 5.0 / 32.0).abs() < 1e-12);
+        assert!((cfg.noise_floor - 1.0 / 32.0).abs() < 1e-12);
+        assert!((cfg.presence_floor - 15.0 / 32.0).abs() < 1e-12);
+        assert!((cfg.coincident_floor - 1.0 / 32.0).abs() < 1e-12);
     }
 
     #[test]
@@ -507,6 +620,150 @@ mod tests {
         )
         .unwrap();
         assert_eq!(cfg.global_seed, 42);
+    }
+
+    // ─── Arc 024: presence_sigma + coincident_sigma ───────────────────
+
+    #[test]
+    fn sigma_defaults_are_15_and_1() {
+        let (cfg, _) = collect(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(cfg.presence_sigma, 15);
+        assert_eq!(cfg.coincident_sigma, 1);
+        // presence_floor = 15 / 32 = 0.46875
+        assert!((cfg.presence_floor - 15.0 / 32.0).abs() < 1e-12);
+        // coincident_floor = 1 / 32 = 0.03125
+        assert!((cfg.coincident_floor - 1.0 / 32.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn presence_sigma_override() {
+        let (cfg, _) = collect(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-presence-sigma! 10)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(cfg.presence_sigma, 10);
+        assert!((cfg.presence_floor - 10.0 / 32.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn coincident_sigma_override() {
+        let (cfg, _) = collect(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-coincident-sigma! 3)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(cfg.coincident_sigma, 3);
+        assert!((cfg.coincident_floor - 3.0 / 32.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn nonpositive_sigma_rejected() {
+        let err = collect(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-presence-sigma! 0)
+            "#,
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err, ConfigError::BadValue { ref field, .. } if field == "presence-sigma"),
+            "expected BadValue for presence-sigma, got {:?}",
+            err
+        );
+    }
+
+    #[test]
+    fn sigma_sum_exceeds_sqrt_dims_under_error_returns_err() {
+        // d=100 → sqrt(d)=10. Default sum 15+1=16 ≥ 10. Invariant
+        // violated. Under :error, collect_entry_file returns Err.
+        let err = collect(
+            r#"
+            (:wat::config::set-dims! 100)
+            (:wat::config::set-capacity-mode! :error)
+            "#,
+        )
+        .unwrap_err();
+        match err {
+            ConfigError::BadValue { field, .. } => {
+                assert_eq!(field, "presence-sigma + coincident-sigma");
+            }
+            other => panic!("expected BadValue, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn sigma_sum_exceeds_sqrt_dims_under_silent_passes() {
+        // :silent mode — invariant violation proceeds anyway. Predicates
+        // behave nonsensically but substrate does not complain.
+        let (cfg, _) = collect(
+            r#"
+            (:wat::config::set-dims! 100)
+            (:wat::config::set-capacity-mode! :silent)
+            "#,
+        )
+        .unwrap();
+        // Config committed — defaults apply even in degenerate zone.
+        assert_eq!(cfg.presence_sigma, 15);
+        assert_eq!(cfg.coincident_sigma, 1);
+    }
+
+    #[test]
+    fn sigma_sum_exceeds_sqrt_dims_under_warn_passes_with_stderr() {
+        // :warn mode — proceeds after stderr diagnostic. We don't
+        // capture stderr here; just verify the Config is committed.
+        let (cfg, _) = collect(
+            r#"
+            (:wat::config::set-dims! 100)
+            (:wat::config::set-capacity-mode! :warn)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(cfg.presence_sigma, 15);
+    }
+
+    #[test]
+    fn sigma_override_keeps_config_valid_at_small_dims() {
+        // At d=100, user lowers presence-sigma so sum stays below
+        // sqrt(d)=10. Config commits cleanly.
+        let (cfg, _) = collect(
+            r#"
+            (:wat::config::set-dims! 100)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-presence-sigma! 5)
+            "#,
+        )
+        .unwrap();
+        assert_eq!(cfg.presence_sigma, 5);
+        assert_eq!(cfg.coincident_sigma, 1);
+        // Sum 5+1=6 < sqrt(100)=10 — OK under :error.
+    }
+
+    #[test]
+    fn sigma_double_set_rejected() {
+        let err = collect(
+            r#"
+            (:wat::config::set-dims! 1024)
+            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-presence-sigma! 10)
+            (:wat::config::set-presence-sigma! 20)
+            "#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, ConfigError::DuplicateField { .. }));
     }
 
     #[test]
