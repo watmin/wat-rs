@@ -193,5 +193,23 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   population" follow-up six months after it opened. Four
   slices + one polish pass, all 2026-04-21.
 
+- **`arc/2026/04/017-loader-option-for-consumer-macros/`** —
+  **shipped.** `wat::main!` and `wat::test_suite!` each gain an
+  optional `loader: "<path>"` argument that expands to a
+  `ScopedLoader` rooted at `CARGO_MANIFEST_DIR/<path>` so
+  `(:wat::core::load! :wat::load::file-path "...")` works from
+  multi-file consumer programs. Absent preserves the pre-017
+  defaults (InMemoryLoader for main, FsLoader for tests).
+  `test_runner` learned **library-vs-entry discipline** — a
+  `.wat` in the test dir is an entry iff it has top-level
+  `(:wat::config::set-*!)` forms; files without setters are
+  libraries and are silently skipped at freeze time (they remain
+  `(load!)`-able from entries). Recursive `(load!)` chains
+  flatten into the entry's frozen world at arbitrary depth.
+  Cave-quest from the trading lab's Phase 0: shipped in one
+  session (three slices + a clippy sweep that brought the
+  workspace back to zero warnings) to unblock the lab rewrite.
+  2026-04-22.
+
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.

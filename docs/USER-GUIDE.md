@@ -116,6 +116,81 @@ the macro just calls through.
 
 You never write this boilerplate.
 
+### Multi-file wat programs — `loader: "..."` (arc 017)
+
+For anything larger than a hello-world, your wat program wants a
+tree of files — types, vocab, domain, orchestration — not one long
+`program.wat`. `wat::main!` gains an optional `loader:` argument
+for this:
+
+```toml
+# Cargo.toml  (unchanged)
+[dependencies]
+wat = { path = "../wat-rs" }
+```
+
+```rust
+// src/main.rs
+wat::main! {
+    source: include_str!("program.wat"),
+    loader: "wat",           // ScopedLoader rooted at <crate>/wat
+}
+```
+
+```scheme
+;; src/program.wat — the ENTRY file. Commits config + hosts `:user::main`.
+(:wat::config::set-dims! 10000)
+(:wat::config::set-capacity-mode! :error)
+
+(:wat::core::load! :wat::load::file-path "types.wat")
+(:wat::core::load! :wat::load::file-path "vocab.wat")
+
+(:wat::core::define (:user::main
+                     (stdin  :wat::io::IOReader)
+                     (stdout :wat::io::IOWriter)
+                     (stderr :wat::io::IOWriter)
+                     -> :())
+  (:wat::io::IOWriter/println stdout (:my-app::vocab::greeting)))
+```
+
+```scheme
+;; wat/types.wat — a LIBRARY file. No config setters — loaded only.
+(:wat::core::enum (:my-app::types::Mood :Happy :Sad))
+```
+
+```scheme
+;; wat/vocab.wat — a LIBRARY file. Can itself (load!) further files.
+(:wat::core::load! :wat::load::file-path "types.wat")
+
+(:wat::core::define (:my-app::vocab::greeting -> :String)
+  "hello from wat")
+```
+
+**Paths**. `loader: "wat"` resolves relative to `CARGO_MANIFEST_DIR`
+at macro-expand time — stable regardless of whether you run via
+`cargo run` from workspace root or from the crate's own dir.
+Inside the wat, `(:wat::core::load! :wat::load::file-path "x.wat")`
+resolves against the importing file's directory (same as any
+module system); absolute paths and `../` traversal are allowed as
+long as the final canonical target stays inside the loader's
+scope root.
+
+**Entry vs. library.** An entry file commits startup config via
+`(:wat::config::set-*!)` forms. A library file does not — `(load!)`-
+ing a file with setters fails loud at startup ("setters belong in
+the entry file only"). The entry's frozen config propagates
+automatically to every loaded file.
+
+**Recursive loads work** — the entry `(load!)`s a library, that
+library can `(load!)` another library, to arbitrary depth. Every
+loaded file's defines / types / macros land in the entry's frozen
+world.
+
+**Omit `loader:`** and the default is `InMemoryLoader` (no
+filesystem). That shape works for single-file programs built
+entirely inline via `include_str!`. `loader:` is the explicit
+capability declaration the consumer opts into.
+
 ### Tests — one macro, same shape
 
 Put `.wat` test files under `wat-tests/` using the `deftest` form,
@@ -125,9 +200,19 @@ then add one more Rust file:
 // tests/tests.rs
 wat::test_suite! {
     path: "wat-tests",
-    deps: [wat_lru],   // same deps the program uses
+    deps: [wat_lru],       // same deps the program uses
+    loader: "wat-tests",   // optional — ScopedLoader for (load!) in test files
 }
 ```
+
+`loader:` mirrors `wat::main!` — same `CARGO_MANIFEST_DIR`-relative
+resolution; optional. Test files that commit config (top-level
+`(:wat::config::set-*!)`) are discovered and run; files without
+setters in the test dir are LIBRARIES (helpers loaded by tests)
+and test_runner silently skips freezing them standalone. Deftest
+bodies themselves run in hermetic sandboxes that don't inherit
+outer `(load!)`'d defines — pass helpers via `deps:` or inline
+them when a sandbox body needs them.
 
 ```scheme
 ;; wat-tests/hello.wat

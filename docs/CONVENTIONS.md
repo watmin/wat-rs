@@ -193,6 +193,29 @@ wat call chain — each frame carrying a real `file:line:col`
 into `wat-rs/src/*.rs`, same convention Rust uses for stdlib
 frames). USER-GUIDE § "Failure output" has a worked example.
 
+### Binary vs library — files that commit config (arc 017)
+
+Every `.wat` file is either an **entry** or a **library**:
+
+- **Entry**: commits startup config via top-level
+  `(:wat::config::set-*!)` forms. Hosts `:user::main` (for
+  binaries) or `test-*` defines (for test files).
+- **Library**: no top-level config setters. Can be `(:wat::core::load!
+  :wat::load::file-path "...")`'d from entries (or from other
+  libraries, recursively — the entry's frozen world collects every
+  loaded-file's defines at arbitrary depth). Attempting to `load!`
+  a file that contains setters fails loud at startup ("setters
+  belong in the entry file only").
+
+`wat::main!`'s `source:` argument is always an entry. `wat::test_suite!`
+under a test dir silently skips library files at freeze time —
+they're discovered and read, but not treated as test entries. This
+is how test suites share helpers: the entry test files `(load!)`
+their sibling library files, and the sandbox-free freeze-time
+reads populate the test file's frozen world.
+
+USER-GUIDE § "Multi-file wat programs" has a worked example.
+
 ### Install-once discipline (arc 015 slice 3a)
 
 Both halves of the external-crate contract install

@@ -617,7 +617,8 @@ wat-rs/
         ├── 013-external-wat-crates/        # DESIGN + BACKLOG + INSCRIPTION
         ├── 014-core-scalar-conversions/    # DESIGN + BACKLOG + INSCRIPTION
         ├── 015-wat-test-for-consumers/     # DESIGN + BACKLOG + INSCRIPTION
-        └── 016-failure-location-and-frames/ # DESIGN + BACKLOG + INSCRIPTION
+        ├── 016-failure-location-and-frames/ # DESIGN + BACKLOG + INSCRIPTION
+        └── 017-loader-option-for-consumer-macros/ # DESIGN + BACKLOG + INSCRIPTION
 ```
 
 ## What's next
