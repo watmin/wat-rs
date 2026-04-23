@@ -53,6 +53,8 @@ location is also cited; when dispatch is special-cased, the
 | `:wat::core::quasiquote` | template form (used inside defmacro bodies) | `macros.rs::expand_template` |
 | `:wat::core::unquote` | `,x` splice-one inside quasiquote | `macros.rs::unquote_argument` |
 | `:wat::core::unquote-splicing` | `,@x` splice-list inside quasiquote | `macros.rs::splice_argument` |
+| `:wat::core::macroexpand-1` | `:wat::WatAST -> :wat::WatAST` — one expansion step (arc 030) | `runtime.rs::eval_macroexpand_1` |
+| `:wat::core::macroexpand` | `:wat::WatAST -> :wat::WatAST` — fixpoint expansion (arc 030) | `runtime.rs::eval_macroexpand` |
 | `:wat::load-file!` | build-time module loader (path) | `freeze.rs::resolve_loads` |
 | `:wat::load-string!` | build-time module loader (inline source) | `freeze.rs::resolve_loads` |
 | `:wat::digest-load!` | digest-verified load (path) | `freeze.rs::resolve_loads` |
