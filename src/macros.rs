@@ -381,22 +381,25 @@ fn parse_defmacro_signature(
 /// AST list.
 pub fn expand_all(
     forms: Vec<WatAST>,
-    registry: &MacroRegistry,
+    registry: &mut MacroRegistry,
 ) -> Result<Vec<WatAST>, MacroError> {
     // Arc 029 slice 1: handle macro-generating-macros. A macro call
     // may expand to a `(:wat::core::defmacro ...)` registration for
     // a new macro — e.g., `:wat::test::make-deftest` expanding to a
     // fully-configured deftest variant. Register each such form as
     // it appears so subsequent forms in the stream can invoke the
-    // new macro. Clone the caller's registry so our in-flight
-    // additions stay scoped to this expansion.
-    let mut reg = registry.clone();
+    // new macro.
+    //
+    // Arc 030 slice 2: registry is now `&mut` — new defmacros
+    // generated at expansion time persist to the caller's registry,
+    // so the frozen world sees them (required for runtime
+    // macroexpand / macroexpand-1 primitives to find them).
     let mut out = Vec::with_capacity(forms.len());
     for form in forms {
-        let expanded = expand_form(form, &reg, 0)?;
+        let expanded = expand_form(form, registry, 0)?;
         if is_defmacro_form(&expanded) {
             let def = parse_defmacro_form(expanded)?;
-            reg.register(def)?;
+            registry.register(def)?;
         } else {
             out.push(expanded);
         }
@@ -420,15 +423,18 @@ fn expand_form(
 
     match form {
         WatAST::List(items, list_span) => {
-            // Arc 029 slice 1: do NOT recurse into `(:wat::core::quasiquote
-            // ...)` bodies. They are macro templates, not call forms — any
-            // apparent "macro calls" inside them are deferred until the
-            // enclosing macro fires. Pre-emptive expansion would substitute
-            // still-wrapped unquote forms into downstream macros, corrupting
-            // the template. Applies at any nesting: once we're inside a
-            // quasiquote, the whole subtree is preserved untouched.
+            // Arc 029 / 030: do NOT recurse into bodies of forms that
+            // carry DATA rather than evaluable code:
+            // - `(:wat::core::quasiquote X)` — macro template; inner
+            //   "macro calls" are deferred until the enclosing macro
+            //   fires. Pre-emptive expansion would corrupt the template.
+            // - `(:wat::core::quote X)` — literal AST value; X is data,
+            //   not code. Recursing would eagerly expand macro calls
+            //   that the user wanted to observe, not execute. Arc 030
+            //   macroexpand primitives rely on quote preserving the
+            //   raw form.
             if let Some(WatAST::Keyword(head, _)) = items.first() {
-                if head == ":wat::core::quasiquote" {
+                if head == ":wat::core::quasiquote" || head == ":wat::core::quote" {
                     return Ok(WatAST::List(items, list_span));
                 }
             }
@@ -790,7 +796,7 @@ mod tests {
         let forms = parse_all(src).expect("parse ok");
         let mut reg = MacroRegistry::new();
         let rest = register_defmacros(forms, &mut reg)?;
-        expand_all(rest, &reg)
+        expand_all(rest, &mut reg)
     }
 
     /// Like `expand`, but DOES NOT strip generated defmacros from the

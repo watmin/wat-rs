@@ -6870,7 +6870,7 @@ mod tests {
             let stdlib_post_macros =
                 crate::macros::register_stdlib_defmacros(stdlib, &mut macros)
                     .expect("stdlib defmacros register");
-            let expanded_stdlib = crate::macros::expand_all(stdlib_post_macros, &macros)
+            let expanded_stdlib = crate::macros::expand_all(stdlib_post_macros, &mut macros)
                 .expect("stdlib macro expansion");
             let mut types = crate::types::TypeEnv::with_builtins();
             let stdlib_post_types =
@@ -6886,12 +6886,13 @@ mod tests {
     }
 
     fn run(src: &str) -> Result<Value, RuntimeError> {
-        let (stdlib_sym, macros) = stdlib_loaded();
+        let (stdlib_sym, stdlib_macros) = stdlib_loaded();
+        let mut macros = stdlib_macros.clone();
         let forms = parse_all(src).expect("parse ok");
         // Expand any stdlib-macro calls in the user source before
         // registering defines and evaluating.
         let expanded =
-            crate::macros::expand_all(forms, macros).expect("macro expansion");
+            crate::macros::expand_all(forms, &mut macros).expect("macro expansion");
         let mut sym = stdlib_sym.clone();
         let rest = register_defines(expanded, &mut sym)?;
         let env = Environment::new();
@@ -6903,9 +6904,10 @@ mod tests {
     }
 
     fn eval_expr(src: &str) -> Result<Value, RuntimeError> {
-        let (stdlib_sym, macros) = stdlib_loaded();
+        let (stdlib_sym, stdlib_macros) = stdlib_loaded();
+        let mut macros = stdlib_macros.clone();
         let ast = parse_one(src).expect("parse ok");
-        let expanded = crate::macros::expand_all(vec![ast], macros)
+        let expanded = crate::macros::expand_all(vec![ast], &mut macros)
             .expect("macro expansion");
         let ast = expanded.into_iter().next().expect("one form in, one form out");
         eval(&ast, &Environment::new(), stdlib_sym)
@@ -6918,11 +6920,12 @@ mod tests {
     /// the capability explicitly — arc 007 closed the direct-fs bypass,
     /// so the loader must be announced per call site.
     fn eval_expr_with_fs(src: &str) -> Result<Value, RuntimeError> {
-        let (stdlib_sym, macros) = stdlib_loaded();
+        let (stdlib_sym, stdlib_macros) = stdlib_loaded();
+        let mut macros = stdlib_macros.clone();
         let mut sym = stdlib_sym.clone();
         sym.set_source_loader(std::sync::Arc::new(crate::load::FsLoader));
         let ast = parse_one(src).expect("parse ok");
-        let expanded = crate::macros::expand_all(vec![ast], macros)
+        let expanded = crate::macros::expand_all(vec![ast], &mut macros)
             .expect("macro expansion");
         let ast = expanded.into_iter().next().expect("one form in, one form out");
         eval(&ast, &Environment::new(), &sym)
@@ -6956,10 +6959,11 @@ mod tests {
             (:wat::core::define (:my::app::failing-fn -> :())
               (:wat::kernel::assertion-failed! "stack test" :None :None))
         "#;
-        let (stdlib_sym, macros) = stdlib_loaded();
+        let (stdlib_sym, stdlib_macros) = stdlib_loaded();
+        let mut macros = stdlib_macros.clone();
         let forms = parse_all(src).expect("parse");
         let expanded =
-            crate::macros::expand_all(forms, macros).expect("expand");
+            crate::macros::expand_all(forms, &mut macros).expect("expand");
         let mut sym = stdlib_sym.clone();
         let _ = register_defines(expanded, &mut sym).expect("register");
         let func = sym.get(":my::app::failing-fn").expect("defined").clone();
@@ -7004,10 +7008,11 @@ mod tests {
             (:wat::config::set-dims! 1024)
             (:wat::core::define (:my::app::plain-fn -> :i64) 42)
         "#;
-        let (stdlib_sym, macros) = stdlib_loaded();
+        let (stdlib_sym, stdlib_macros) = stdlib_loaded();
+        let mut macros = stdlib_macros.clone();
         let forms = parse_all(src).expect("parse");
         let expanded =
-            crate::macros::expand_all(forms, macros).expect("expand");
+            crate::macros::expand_all(forms, &mut macros).expect("expand");
         let mut sym = stdlib_sym.clone();
         let _ = register_defines(expanded, &mut sym).expect("register");
         let func = sym.get(":my::app::plain-fn").expect("defined").clone();

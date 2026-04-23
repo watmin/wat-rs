@@ -4309,7 +4309,7 @@ mod tests {
             let stdlib_post_macros =
                 register_stdlib_defmacros(stdlib, &mut macros).expect("stdlib defmacros");
             let expanded_stdlib =
-                expand_all(stdlib_post_macros, &macros).expect("stdlib macro expansion");
+                expand_all(stdlib_post_macros, &mut macros).expect("stdlib macro expansion");
             let mut types = TypeEnv::with_builtins();
             let stdlib_post_types =
                 register_stdlib_types(expanded_stdlib, &mut types).expect("stdlib types");
@@ -4327,7 +4327,7 @@ mod tests {
         let forms = parse_all(src).expect("parse ok");
         let mut macros = stdlib_macros.clone();
         let rest = register_defmacros(forms, &mut macros).expect("register macros");
-        let expanded = expand_all(rest, &macros).expect("expand");
+        let expanded = expand_all(rest, &mut macros).expect("expand");
         let mut sym = stdlib_sym.clone();
         let rest = register_defines(expanded, &mut sym).expect("register defines");
         check_program(&rest, &sym, types)
