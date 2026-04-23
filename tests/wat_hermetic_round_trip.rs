@@ -4,7 +4,7 @@
 //! forks an INNER wat program via the AST-entry hermetic path. The
 //! inner code prints a wat expression to stdout. The outer program
 //! reads that captured string and evaluates it via
-//! `:wat::core::eval-edn!`. End result: a wat expression generated
+//! `:wat::eval-edn!`. End result: a wat expression generated
 //! inside a fork'd child gets evaluated in the outer process.
 //!
 //! Arc 012 slice 3 note — this test used to exercise the string-
@@ -92,7 +92,7 @@ fn hermetic_output_evaluated_in_outer_scope() {
              ((lines :Vec<String>)
               (:wat::kernel::RunResult/stdout hermetic-result))
              ((captured-src :String) (:wat::core::first lines)))
-            (:wat::core::eval-edn! captured-src)))
+            (:wat::eval-edn! captured-src)))
     "#;
     let result = run(src);
     let inner = unwrap_ok_result(result);

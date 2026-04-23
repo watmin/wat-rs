@@ -58,7 +58,7 @@ fn eval_ast_bang_happy_path_returns_ok_holon() {
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let*
             (((program :wat::WatAST) (:wat::core::quote (:wat::holon::Atom "hello"))))
-            (:wat::core::eval-ast! program)))
+            (:wat::eval-ast! program)))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {
@@ -85,7 +85,7 @@ fn eval_ast_bang_mutation_form_surfaces_as_err() {
             (((program :wat::WatAST)
               (:wat::core::quote
                 (:wat::core::define (:evil (x :i64) -> :i64) x))))
-            (:wat::core::eval-ast! program)))
+            (:wat::eval-ast! program)))
     "#;
     let result = run(src);
     assert_eq!(err_kind(&result), "mutation-form-refused");
@@ -102,7 +102,7 @@ fn eval_edn_bang_parse_failure_surfaces_as_err() {
         (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::core::eval-edn! "(:wat::core::i64::+ 1"))
+          (:wat::eval-edn! "(:wat::core::i64::+ 1"))
     "#;
     let result = run(src);
     assert_eq!(err_kind(&result), "malformed-form");
@@ -118,7 +118,7 @@ fn eval_digest_string_bang_hash_mismatch_surfaces_as_err() {
         (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::core::eval-digest-string!
+          (:wat::eval-digest-string!
  "(:wat::holon::Atom \"x\")"
             :wat::verify::digest-sha256
             :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"))
@@ -137,7 +137,7 @@ fn eval_edn_bang_wrong_arity_surfaces_as_err() {
         (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::core::eval-edn! "foo" "bar-extra"))
+          (:wat::eval-edn! "foo" "bar-extra"))
     "#;
     // Structural arity mismatch fires before the EvalError wrap; this
     // shows up at startup (the type checker catches it as wrong-arity).
@@ -161,7 +161,7 @@ fn try_propagates_eval_err_through_helper() {
 
         (:wat::core::define (:app::run-dynamic (program :wat::WatAST)
                              -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (Ok (:wat::core::try (:wat::core::eval-ast! program))))
+          (Ok (:wat::core::try (:wat::eval-ast! program))))
 
         (:wat::core::define (:user::main -> :String)
           (:wat::core::let*
@@ -194,7 +194,7 @@ fn eval_err_exposes_both_kind_and_message() {
               (:wat::core::quote
                 (:wat::core::define (:injected (x :i64) -> :i64) x)))
              ((r :Result<wat::holon::HolonAST,wat::core::EvalError>)
-              (:wat::core::eval-ast! bad)))
+              (:wat::eval-ast! bad)))
             (:wat::core::match r -> :(String,String)
               ((Ok _)
                 (:wat::core::tuple "unreachable" "unreachable"))

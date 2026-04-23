@@ -92,7 +92,7 @@ fn echo_program_reads_stdin_writes_stdout() {
 ///    holon — the program is now a typed box in the algebra.
 /// 3. `(:wat::core::atom-value program-atom)` extracts the payload back
 ///    as a `:wat::WatAST`. Structural field read; exact; no cosine.
-/// 4. `(:wat::core::eval-ast! reveal)` executes the program under
+/// 4. `(:wat::eval-ast! reveal)` executes the program under
 ///    constrained eval.
 ///
 /// This proves the STRUCTURAL side of programs-as-atoms: `(Atom x) →
@@ -126,7 +126,7 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here
     ;; (the quoted program is well-formed and non-mutating).
-    (:wat::core::match (:wat::core::eval-ast! reveal) -> :()
+    (:wat::core::match (:wat::eval-ast! reveal) -> :()
       ((Ok _) ())
       ((Err _) ()))))
 "#;
@@ -190,7 +190,7 @@ fn programs_are_atoms_hello_world() {
 ///    the algebra recovered the signal.
 /// 5. `(:wat::core::atom-value program-atom)` extracts the WatAST
 ///    payload structurally — the caller's reference has been in scope
-///    all along. `(:wat::core::eval-ast! reveal)` fires the echo.
+///    all along. `(:wat::eval-ast! reveal)` fires the echo.
 ///
 /// Observable stdout: `None\nSome\nwatmin`. The presence measurements
 /// at lines 1 and 2 are the load-bearing proof; the echo at line 3 is
@@ -254,7 +254,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here —
     ;; the quoted echo program is well-formed and non-mutating.
-    (:wat::core::match (:wat::core::eval-ast! reveal) -> :()
+    (:wat::core::match (:wat::eval-ast! reveal) -> :()
       ((Ok _) ())
       ((Err _) ()))))
 "#;

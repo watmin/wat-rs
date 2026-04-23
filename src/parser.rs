@@ -312,7 +312,7 @@ mod tests {
         let forms = parse_all(
             r#"
             (:wat::config::set-dims! 10000)
-            (:wat::core::load-file! "wat/holon/Subtract.wat")
+            (:wat::load-file! "wat/holon/Subtract.wat")
             "#,
         )
         .unwrap();
@@ -403,8 +403,8 @@ mod tests {
         // macro — one leading `:` marks the start; internal `::` is
         // just the Rust path separator, pushed as body characters.
         assert_eq!(
-            parse_one(":wat::core::load-file!").unwrap(),
-            kw(":wat::core::load-file!")
+            parse_one(":wat::load-file!").unwrap(),
+            kw(":wat::load-file!")
         );
         assert_eq!(
             parse_one(":rust::crossbeam_channel::Sender<T>").unwrap(),

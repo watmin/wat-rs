@@ -140,7 +140,7 @@ pub fn run_tests_from_dir(
 
 /// Loader-parametric sibling of [`run_tests_from_dir`]. Same
 /// contract; the caller supplies the [`SourceLoader`] used to
-/// resolve `(:wat::core::load-file! ...)` from inside each test file's
+/// resolve `(:wat::load-file! ...)` from inside each test file's
 /// freeze. The `wat::test_suite! { ..., loader: "path" }` form
 /// (arc 017) expands to this function with a `ScopedLoader` rooted
 /// at the given path. Passing `Arc::new(FsLoader)` reproduces the
@@ -200,7 +200,7 @@ pub fn run_tests_from_dir_with_loader(
     // directory is an **entry** iff it commits startup config (a
     // top-level `(:wat::config::set-*!)` form). Entries are frozen
     // here and scanned for `test-*` defines. Files without config
-    // setters are **libraries** — intended to be `(:wat::core::load-file!
+    // setters are **libraries** — intended to be `(:wat::load-file!
     // :wat::load::file-path "...")`'d from entry files — and
     // test_runner silently skips them at freeze time. This mirrors
     // the binary-vs-library distinction `wat::main!` already uses
@@ -413,7 +413,7 @@ fn discover_wat_files(path: &Path) -> std::io::Result<Vec<PathBuf>> {
 /// Arc 017 — a `.wat` file is an ENTRY (commits config + hosts tests)
 /// iff it has at least one top-level `(:wat::config::set-*!)` form.
 /// Files without any top-level setter are LIBRARIES — intended to be
-/// `(:wat::core::load-file! "...")`'d from entries
+/// `(:wat::load-file! "...")`'d from entries
 /// — and test_runner skips them at freeze time.
 ///
 /// Implementation: parse the file's top-level forms with the lexer +

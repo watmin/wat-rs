@@ -312,7 +312,7 @@ exercises the built binary. Copy that shape.
 
 Wat's file-I/O is a **capability**, not a global. The host picks
 which `Loader` a frozen world gets; every `(:wat::core::load!)`
-at startup and every `(:wat::core::eval-edn!
+at startup and every `(:wat::eval-edn!
 :wat::eval::file-path ...)` at runtime routes through that
 Loader. No wat program can reach past its host-provided Loader
 to `std::fs` directly.
@@ -1453,8 +1453,8 @@ away.
 
 **Signed/digest loads.** `(:wat::core::load! path)` is unverified.
 For production code loaded from untrusted sources, use
-`(:wat::core::signed-load!)` with an Ed25519 signature or
-`(:wat::core::digest-load!)` with a SHA-256 digest. Startup halts
+`(:wat::signed-load!)` with an Ed25519 signature or
+`(:wat::digest-load!)` with a SHA-256 digest. Startup halts
 if verification fails.
 
 ---
@@ -1517,8 +1517,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::struct` | `(:path (f :T) ...)` | declares struct |
 | `:wat::core::enum` | `(:path v1 v2 (v3 (f :T)) ...)` | declares enum |
 | `:wat::core::load!` | `<path>` or `:wat::load::<iface> <loc>` | registers loaded file |
-| `:wat::core::digest-load!` | `... :wat::verify::digest-sha256 ...` | verified load |
-| `:wat::core::signed-load!` | `... :wat::verify::signed-ed25519 ...` | verified load |
+| `:wat::digest-load!` | `... :wat::verify::digest-sha256 ...` | verified load |
+| `:wat::signed-load!` | `... :wat::verify::signed-ed25519 ...` | verified load |
 | `:wat::core::vec` | `:T v1 v2 ...` | `:Vec<T>` |
 | `:wat::core::list` | `:T v1 v2 ...` | `:Vec<T>` (alias) |
 | `:wat::core::tuple` | `v1 v2 ...` | `:(T1,T2,...)` |
@@ -1560,8 +1560,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::assoc` | `<HashMap\|Vec> key value` | same container — new entry/replacement (arc 025) |
 | `:wat::core::conj` | `<Vec\|HashSet> item` | same container — immutable add (arc 025) |
 | `:wat::core::contains?` | `<HashMap\|HashSet\|Vec> key` | `:bool` (polymorphic — arc 025) |
-| `:wat::core::eval-ast!` / `eval-edn!` | various | evaluates AST / parses+evaluates string |
-| `:wat::core::eval-digest!` / `eval-signed!` | verified | evaluates with SHA-256 / Ed25519 check |
+| `:wat::eval-ast!` / `eval-edn!` | various | evaluates AST / parses+evaluates string |
+| `:wat::eval-digest!` / `eval-signed!` | verified | evaluates with SHA-256 / Ed25519 check |
 | `:wat::core::string::contains?` / `starts-with?` / `ends-with?` | `hay needle` | `:bool` |
 | `:wat::core::string::length` | `s` | `:i64` — char count |
 | `:wat::core::string::trim` | `s` | `:String` |

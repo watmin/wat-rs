@@ -54,8 +54,8 @@ location is also cited; when dispatch is special-cased, the
 | `:wat::core::unquote` | `,x` splice-one inside quasiquote | `macros.rs::unquote_argument` |
 | `:wat::core::unquote-splicing` | `,@x` splice-list inside quasiquote | `macros.rs::splice_argument` |
 | `:wat::core::load!` | build-time module loader | `freeze.rs::resolve_loads` |
-| `:wat::core::digest-load!` | digest-verified load | `freeze.rs::resolve_loads` |
-| `:wat::core::signed-load!` | signature-verified load | `freeze.rs::resolve_loads` |
+| `:wat::digest-load!` | digest-verified load | `freeze.rs::resolve_loads` |
+| `:wat::signed-load!` | signature-verified load | `freeze.rs::resolve_loads` |
 
 ### Eval-family (runtime dynamic evaluation)
 
@@ -64,10 +64,10 @@ Return `:Result<wat::holon::HolonAST, :wat::core::EvalError>` per the
 
 | Path | Signature | Source |
 |---|---|---|
-| `:wat::core::eval-ast!` | `:wat::WatAST -> :Result<wat::holon::HolonAST, EvalError>` | `runtime.rs::eval_form_ast` |
-| `:wat::core::eval-edn!` | EDN source → parse → eval | `runtime.rs::eval_form_edn` |
-| `:wat::core::eval-digest!` | digest-verified EDN eval | `runtime.rs::eval_form_digest` |
-| `:wat::core::eval-signed!` | signature-verified EDN eval | `runtime.rs::eval_form_signed` |
+| `:wat::eval-ast!` | `:wat::WatAST -> :Result<wat::holon::HolonAST, EvalError>` | `runtime.rs::eval_form_ast` |
+| `:wat::eval-edn!` | EDN source → parse → eval | `runtime.rs::eval_form_edn` |
+| `:wat::eval-digest!` | digest-verified EDN eval | `runtime.rs::eval_form_digest` |
+| `:wat::eval-signed!` | signature-verified EDN eval | `runtime.rs::eval_form_signed` |
 
 ### Arithmetic (strict, no promotion)
 

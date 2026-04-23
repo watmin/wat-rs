@@ -174,7 +174,7 @@ regressions.
   forms pure-literal means it has no surprises at the boundary.
 - **A companion `:wat::core::eval-forms!` primitive.** Callers that
   want to eval a `Vec<wat::WatAST>` in the current world could
-  write their own loop using `:wat::core::eval-ast!` per element.
+  write their own loop using `:wat::eval-ast!` per element.
   A dedicated primitive can ship when a caller demands one;
   stdlib-as-blueprint.
 - **`:wat::test::program` — it is NOT a general-purpose quote.**

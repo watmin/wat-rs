@@ -648,7 +648,7 @@ caller-demanded per `stdlib-as-blueprint` discipline:
   variadic-quote fell out of writing fork/sandbox tests.
 
 Signature verification is **per-form, not per-invocation.** It lives at
-`:wat::core::signed-load!` (startup) and `:wat::core::eval-signed!`
+`:wat::signed-load!` (startup) and `:wat::eval-signed!`
 (runtime). A program may invoke any number of either, each with its own
 key and signature. There is no `wat --signed` / `--sig` / `--pubkey`
 CLI flag; a program's verification surface is its collection of

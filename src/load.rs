@@ -11,20 +11,20 @@
 //!
 //! ```scheme
 //! ;; Unverified file load — first arg is the path.
-//! (:wat::core::load-file! "path/to/file.wat")
+//! (:wat::load-file! "path/to/file.wat")
 //!
 //! ;; Unverified inline-source load — first arg is the source text.
-//! (:wat::core::load-string! "(:wat::holon::Atom \"x\")")
+//! (:wat::load-string! "(:wat::holon::Atom \"x\")")
 //!
 //! ;; Digest-verified — file bytes must hash to the declared digest.
-//! (:wat::core::digest-load!
+//! (:wat::digest-load!
 //!   "path/to/file.wat"
 //!   :wat::verify::digest-sha256
 //!   :wat::verify::string "abc123...")
 //!
 //! ;; Signature-verified — parsed AST must verify under the declared
 //! ;; algorithm with the declared public key.
-//! (:wat::core::signed-load!
+//! (:wat::signed-load!
 //!   "path/to/file.wat"
 //!   :wat::verify::signed-ed25519
 //!   :wat::verify::string "b64-sig"
@@ -99,10 +99,10 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceInterface {
     /// Inline source literal — the value IS the wat source. Used by
-    /// `(:wat::core::load-string! <source>)`.
+    /// `(:wat::load-string! <source>)`.
     String(String),
     /// Filesystem path. Relative paths resolve against the importing
-    /// file's directory. Used by `(:wat::core::load-file! <path>)` and the
+    /// file's directory. Used by `(:wat::load-file! <path>)` and the
     /// verified variants.
     FilePath(String),
     // Future arms: HttpPath, S3Path, GitRef. Not present.
@@ -127,7 +127,7 @@ pub enum PayloadInterface {
 /// tail of `digest-load!` / `signed-load!` forms.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VerificationSpec {
-    /// `(:wat::core::digest-load! ... :wat::verify::digest-<algo> <payload-iface>)`.
+    /// `(:wat::digest-load! ... :wat::verify::digest-<algo> <payload-iface>)`.
     ///
     /// `algo` is extracted from the keyword — for `:wat::verify::digest-sha256`
     /// the algo is `"sha256"`. Verified PRE-PARSE against the raw
@@ -136,7 +136,7 @@ pub enum VerificationSpec {
         algo: String,
         payload: PayloadInterface,
     },
-    /// `(:wat::core::signed-load! ... :wat::verify::signed-<algo> <sig-iface> <pubkey-iface>)`.
+    /// `(:wat::signed-load! ... :wat::verify::signed-<algo> <sig-iface> <pubkey-iface>)`.
     ///
     /// `algo` is extracted from the keyword — for
     /// `:wat::verify::signed-ed25519` the algo is `"ed25519"`. Verified
@@ -500,44 +500,44 @@ fn match_load_form(form: &WatAST) -> Result<Option<LoadSpec>, LoadError> {
         // form per (source-shape × integrity-shape) cell. Future
         // network variants (load-http!, load-s3!, etc.) land as
         // more named siblings following the same shape.
-        ":wat::core::load-file!" => parse_unverified_load(&items[1..]).map(Some),
-        ":wat::core::load-string!" => parse_unverified_load_string(&items[1..]).map(Some),
-        ":wat::core::digest-load!" => parse_digest_load_file(&items[1..]).map(Some),
-        ":wat::core::digest-load-string!" => parse_digest_load_string(&items[1..]).map(Some),
-        ":wat::core::signed-load!" => parse_signed_load_file(&items[1..]).map(Some),
-        ":wat::core::signed-load-string!" => parse_signed_load_string(&items[1..]).map(Some),
+        ":wat::load-file!" => parse_unverified_load(&items[1..]).map(Some),
+        ":wat::load-string!" => parse_unverified_load_string(&items[1..]).map(Some),
+        ":wat::digest-load!" => parse_digest_load_file(&items[1..]).map(Some),
+        ":wat::digest-load-string!" => parse_digest_load_string(&items[1..]).map(Some),
+        ":wat::signed-load!" => parse_signed_load_file(&items[1..]).map(Some),
+        ":wat::signed-load-string!" => parse_signed_load_string(&items[1..]).map(Some),
         _ => Ok(None),
     }
 }
 
-/// `(:wat::core::load-file! <path>)` — file-path load, single arg.
+/// `(:wat::load-file! <path>)` — file-path load, single arg.
 fn parse_unverified_load(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
     if args.len() != 1 {
         return Err(LoadError::MalformedLoadForm {
             reason: format!(
-                "(:wat::core::load-file! <path>) takes exactly one argument; got {}",
+                "(:wat::load-file! <path>) takes exactly one argument; got {}",
                 args.len()
             ),
         });
     }
-    let source = expect_string_arg(&args[0], ":wat::core::load-file!", "path")?;
+    let source = expect_string_arg(&args[0], ":wat::load-file!", "path")?;
     Ok(LoadSpec {
         source: SourceInterface::FilePath(source),
         verification: None,
     })
 }
 
-/// `(:wat::core::load-string! <source>)` — inline-source load, single arg.
+/// `(:wat::load-string! <source>)` — inline-source load, single arg.
 fn parse_unverified_load_string(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
     if args.len() != 1 {
         return Err(LoadError::MalformedLoadForm {
             reason: format!(
-                "(:wat::core::load-string! <source>) takes exactly one argument; got {}",
+                "(:wat::load-string! <source>) takes exactly one argument; got {}",
                 args.len()
             ),
         });
     }
-    let source = expect_string_arg(&args[0], ":wat::core::load-string!", "source")?;
+    let source = expect_string_arg(&args[0], ":wat::load-string!", "source")?;
     Ok(LoadSpec {
         source: SourceInterface::String(source),
         verification: None,
@@ -545,11 +545,11 @@ fn parse_unverified_load_string(args: &[WatAST]) -> Result<LoadSpec, LoadError> 
 }
 
 fn parse_digest_load_file(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
-    parse_digest_load_shared(args, ":wat::core::digest-load!", false)
+    parse_digest_load_shared(args, ":wat::digest-load!", false)
 }
 
 fn parse_digest_load_string(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
-    parse_digest_load_shared(args, ":wat::core::digest-load-string!", true)
+    parse_digest_load_shared(args, ":wat::digest-load-string!", true)
 }
 
 /// Shared parser for `digest-load!` (file) and `digest-load-string!`
@@ -584,11 +584,11 @@ fn parse_digest_load_shared(
 }
 
 fn parse_signed_load_file(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
-    parse_signed_load_shared(args, ":wat::core::signed-load!", false)
+    parse_signed_load_shared(args, ":wat::signed-load!", false)
 }
 
 fn parse_signed_load_string(args: &[WatAST]) -> Result<LoadSpec, LoadError> {
-    parse_signed_load_shared(args, ":wat::core::signed-load-string!", true)
+    parse_signed_load_shared(args, ":wat::signed-load-string!", true)
 }
 
 /// Shared parser for `signed-load!` and `signed-load-string!`. Six args:
@@ -940,7 +940,7 @@ impl ScopedLoader {
     /// Relative-path resolution has two regimes:
     /// - **With caller base** (`base_canonical = Some(...)`) — resolve
     ///   relative to the importing file's directory, matching
-    ///   [`FsLoader`]. This is the `(:wat::core::load-file! ...)` case from
+    ///   [`FsLoader`]. This is the `(:wat::load-file! ...)` case from
     ///   inside a file that itself has a canonical path.
     /// - **Without caller base** (`base_canonical = None`) — resolve
     ///   relative to this loader's scope root. This is the entry-source
@@ -1077,7 +1077,7 @@ mod tests {
     #[test]
     fn single_file_path_load_inlines() {
         let forms = resolve_mem(
-            r#"(:wat::core::load-file! "lib.wat") (:wat::holon::Atom "tail")"#,
+            r#"(:wat::load-file! "lib.wat") (:wat::holon::Atom "tail")"#,
             &[("lib.wat", r#"(:wat::holon::Atom "from-lib")"#)],
         )
         .unwrap();
@@ -1087,7 +1087,7 @@ mod tests {
     #[test]
     fn inline_string_source() {
         let forms = resolve_mem(
-            r#"(:wat::core::load-string! "(:wat::holon::Atom \"inlined\")")"#,
+            r#"(:wat::load-string! "(:wat::holon::Atom \"inlined\")")"#,
             &[],
         )
         .unwrap();
@@ -1107,11 +1107,11 @@ mod tests {
     #[test]
     fn transitive_load() {
         let forms = resolve_mem(
-            r#"(:wat::core::load-file! "a.wat")"#,
+            r#"(:wat::load-file! "a.wat")"#,
             &[
                 (
                     "a.wat",
-                    r#"(:wat::core::load-file! "b.wat") (:wat::holon::Atom "a")"#,
+                    r#"(:wat::load-file! "b.wat") (:wat::holon::Atom "a")"#,
                 ),
                 ("b.wat", r#"(:wat::holon::Atom "b")"#),
             ],
@@ -1130,7 +1130,7 @@ mod tests {
         hasher.update(source.as_bytes());
         let hex = crate::hash::hex_encode(&hasher.finalize());
         let entry = format!(
-            r#"(:wat::core::digest-load! "lib.wat"
+            r#"(:wat::digest-load! "lib.wat"
                  :wat::verify::digest-sha256
                  :wat::verify::string "{}")"#,
             hex
@@ -1146,7 +1146,7 @@ mod tests {
         let mut hasher = sha2::Sha256::new();
         hasher.update(source.as_bytes());
         let hex = crate::hash::hex_encode(&hasher.finalize());
-        let entry = r#"(:wat::core::digest-load! "lib.wat"
+        let entry = r#"(:wat::digest-load! "lib.wat"
                          :wat::verify::digest-sha256
                          :wat::verify::file-path "lib.wat.sha256")"#;
         let forms = resolve_mem_with_payloads(
@@ -1162,7 +1162,7 @@ mod tests {
     fn digest_load_mismatch_rejected() {
         let wrong = "0000000000000000000000000000000000000000000000000000000000000000";
         let entry = format!(
-            r#"(:wat::core::digest-load! "lib.wat"
+            r#"(:wat::digest-load! "lib.wat"
                  :wat::verify::digest-sha256
                  :wat::verify::string "{}")"#,
             wrong
@@ -1174,7 +1174,7 @@ mod tests {
 
     #[test]
     fn digest_load_unsupported_algo_rejected() {
-        let entry = r#"(:wat::core::digest-load! "lib.wat"
+        let entry = r#"(:wat::digest-load! "lib.wat"
                          :wat::verify::digest-md5
                          :wat::verify::string "abc")"#;
         let err = resolve_mem(entry, &[("lib.wat", r#"(:wat::holon::Atom "ok")"#)]).unwrap_err();
@@ -1215,7 +1215,7 @@ mod tests {
         let source = r#"(:wat::holon::Atom "ok")"#;
         let (sig, pk) = sign_source_ed25519(source, &fixed_signing_key());
         let entry = format!(
-            r#"(:wat::core::signed-load! "lib.wat"
+            r#"(:wat::signed-load! "lib.wat"
                  :wat::verify::signed-ed25519
                  :wat::verify::string "{}"
                  :wat::verify::string "{}")"#,
@@ -1229,7 +1229,7 @@ mod tests {
     fn signed_load_sidecar_files_verified() {
         let source = r#"(:wat::holon::Atom "ok")"#;
         let (sig, pk) = sign_source_ed25519(source, &fixed_signing_key());
-        let entry = r#"(:wat::core::signed-load! "lib.wat"
+        let entry = r#"(:wat::signed-load! "lib.wat"
                          :wat::verify::signed-ed25519
                          :wat::verify::file-path "lib.wat.sig"
                          :wat::verify::file-path "lib.wat.pubkey")"#;
@@ -1248,7 +1248,7 @@ mod tests {
         let tampered_source = r#"(:wat::holon::Atom "tampered")"#;
         let (sig, pk) = sign_source_ed25519(signed_source, &fixed_signing_key());
         let entry = format!(
-            r#"(:wat::core::signed-load! "lib.wat"
+            r#"(:wat::signed-load! "lib.wat"
                  :wat::verify::signed-ed25519
                  :wat::verify::string "{}"
                  :wat::verify::string "{}")"#,
@@ -1265,7 +1265,7 @@ mod tests {
 
     #[test]
     fn signed_load_unsupported_algo_rejected() {
-        let entry = r#"(:wat::core::signed-load! "lib.wat"
+        let entry = r#"(:wat::signed-load! "lib.wat"
                          :wat::verify::signed-rsa
                          :wat::verify::string "c2lnLXBsYWNlaG9sZGVy"
                          :wat::verify::string "cGstcGxhY2Vob2xkZXI=")"#;
@@ -1286,14 +1286,14 @@ mod tests {
     // Arc 028 slice 1 retired `load_missing_source_iface_rejected` and
     // `load_non_keyword_iface_rejected`. Both asserted the absence of
     // shapes that are now the CORRECT forms after the iface drop:
-    //   (:wat::core::load-file! "lib.wat")   — this IS the valid shape now
-    //   (:wat::core::load-file! <x> "lib.wat") — arity mismatch, caught by
+    //   (:wat::load-file! "lib.wat")   — this IS the valid shape now
+    //   (:wat::load-file! <x> "lib.wat") — arity mismatch, caught by
     //                                      new arity check
     // New grammar test: load! with two args (wrong arity) fails loud.
     #[test]
     fn load_wrong_arity_rejected() {
         let err = resolve_mem(
-            r#"(:wat::core::load-file! "lib.wat" "extra-arg")"#,
+            r#"(:wat::load-file! "lib.wat" "extra-arg")"#,
             &[("lib.wat", "")],
         )
         .unwrap_err();
@@ -1310,7 +1310,7 @@ mod tests {
     fn digest_load_wrong_algo_kind_rejected() {
         // :wat::verify::signed-ed25519 in a digest-load! is a grammar error
         // (the keyword names a signature algo, not a digest algo).
-        let entry = r#"(:wat::core::digest-load! "lib.wat"
+        let entry = r#"(:wat::digest-load! "lib.wat"
                          :wat::verify::signed-ed25519
                          :wat::verify::string "abc")"#;
         let err = resolve_mem(entry, &[("lib.wat", "")]).unwrap_err();
@@ -1319,7 +1319,7 @@ mod tests {
 
     #[test]
     fn signed_load_wrong_algo_kind_rejected() {
-        let entry = r#"(:wat::core::signed-load! "lib.wat"
+        let entry = r#"(:wat::signed-load! "lib.wat"
                          :wat::verify::digest-sha256
                          :wat::verify::string "sig"
                          :wat::verify::string "pk")"#;
@@ -1329,7 +1329,7 @@ mod tests {
 
     #[test]
     fn signed_load_wrong_arity_rejected() {
-        let entry = r#"(:wat::core::signed-load! "lib.wat"
+        let entry = r#"(:wat::signed-load! "lib.wat"
                          :wat::verify::signed-ed25519
                          :wat::verify::string "sig-only")"#;
         let err = resolve_mem(entry, &[("lib.wat", "")]).unwrap_err();
@@ -1339,7 +1339,7 @@ mod tests {
     #[test]
     fn non_string_locator_rejected() {
         let err = resolve_mem(
-            r#"(:wat::core::load-file! 42)"#,
+            r#"(:wat::load-file! 42)"#,
             &[],
         )
         .unwrap_err();
@@ -1351,7 +1351,7 @@ mod tests {
     #[test]
     fn missing_file_errors() {
         let err = resolve_mem(
-            r#"(:wat::core::load-file! "missing.wat")"#,
+            r#"(:wat::load-file! "missing.wat")"#,
             &[],
         )
         .unwrap_err();
@@ -1361,10 +1361,10 @@ mod tests {
     #[test]
     fn cycle_detected() {
         let err = resolve_mem(
-            r#"(:wat::core::load-file! "a.wat")"#,
+            r#"(:wat::load-file! "a.wat")"#,
             &[
-                ("a.wat", r#"(:wat::core::load-file! "b.wat")"#),
-                ("b.wat", r#"(:wat::core::load-file! "a.wat")"#),
+                ("a.wat", r#"(:wat::load-file! "b.wat")"#),
+                ("b.wat", r#"(:wat::load-file! "a.wat")"#),
             ],
         )
         .unwrap_err();
@@ -1380,8 +1380,8 @@ mod tests {
     #[test]
     fn self_cycle_detected() {
         let err = resolve_mem(
-            r#"(:wat::core::load-file! "a.wat")"#,
-            &[("a.wat", r#"(:wat::core::load-file! "a.wat")"#)],
+            r#"(:wat::load-file! "a.wat")"#,
+            &[("a.wat", r#"(:wat::load-file! "a.wat")"#)],
         )
         .unwrap_err();
         assert!(matches!(err, LoadError::CycleDetected { .. }));
@@ -1395,14 +1395,14 @@ mod tests {
     #[test]
     fn diamond_dependency_deduplicates() {
         let forms = resolve_mem(
-            r#"(:wat::core::load-file! "a.wat")"#,
+            r#"(:wat::load-file! "a.wat")"#,
             &[
                 (
                     "a.wat",
-                    r#"(:wat::core::load-file! "b.wat") (:wat::core::load-file! "c.wat")"#,
+                    r#"(:wat::load-file! "b.wat") (:wat::load-file! "c.wat")"#,
                 ),
                 ("b.wat", r#"(:wat::holon::Atom "b")"#),
-                ("c.wat", r#"(:wat::core::load-file! "b.wat")"#),
+                ("c.wat", r#"(:wat::load-file! "b.wat")"#),
             ],
         )
         .expect("diamond dep resolves silently");
@@ -1417,11 +1417,11 @@ mod tests {
         // base_canonical resolve identically. Document the honest-
         // prefix notation at test tier.
         let bare = resolve_mem(
-            r#"(:wat::core::load-file! "entry.wat")"#,
+            r#"(:wat::load-file! "entry.wat")"#,
             &[
                 (
                     "entry.wat",
-                    r#"(:wat::core::load-file! "helper.wat")"#,
+                    r#"(:wat::load-file! "helper.wat")"#,
                 ),
                 ("helper.wat", r#"(:wat::holon::Atom "h")"#),
             ],
@@ -1429,11 +1429,11 @@ mod tests {
         .expect("bare path resolves");
 
         let dotted = resolve_mem(
-            r#"(:wat::core::load-file! "entry.wat")"#,
+            r#"(:wat::load-file! "entry.wat")"#,
             &[
                 (
                     "entry.wat",
-                    r#"(:wat::core::load-file! "./helper.wat")"#,
+                    r#"(:wat::load-file! "./helper.wat")"#,
                 ),
                 ("helper.wat", r#"(:wat::holon::Atom "h")"#),
             ],
@@ -1447,7 +1447,7 @@ mod tests {
     #[test]
     fn setter_in_loaded_file_halts() {
         let err = resolve_mem(
-            r#"(:wat::core::load-file! "bad.wat")"#,
+            r#"(:wat::load-file! "bad.wat")"#,
             &[("bad.wat", r#"(:wat::config::set-dims! 4096)"#)],
         )
         .unwrap_err();
@@ -1466,11 +1466,11 @@ mod tests {
     #[test]
     fn load_order_is_depth_first() {
         let forms = resolve_mem(
-            r#"(:wat::core::load-file! "a.wat") (:wat::core::load-file! "b.wat")"#,
+            r#"(:wat::load-file! "a.wat") (:wat::load-file! "b.wat")"#,
             &[
                 (
                     "a.wat",
-                    r#"(:wat::core::load-file! "a1.wat") (:wat::holon::Atom "A")"#,
+                    r#"(:wat::load-file! "a1.wat") (:wat::holon::Atom "A")"#,
                 ),
                 ("a1.wat", r#"(:wat::holon::Atom "A1")"#),
                 ("b.wat", r#"(:wat::holon::Atom "B")"#),
@@ -1498,8 +1498,8 @@ mod tests {
         // the same synthetic canonical path; the second load is a
         // silent no-op under the new dedup semantic. The form inside
         // `"x"` (a single `:wat::holon::Atom`) appears once in `out`.
-        let entry = r#"(:wat::core::load-string! "(:wat::holon::Atom \"x\")")
-                       (:wat::core::load-string! "(:wat::holon::Atom \"x\")")"#;
+        let entry = r#"(:wat::load-string! "(:wat::holon::Atom \"x\")")
+                       (:wat::load-string! "(:wat::holon::Atom \"x\")")"#;
         let forms = resolve_mem(entry, &[]).expect("dedup path succeeds");
         assert_eq!(forms.len(), 1, "expected 1 form (single Atom), got {:?}", forms);
     }

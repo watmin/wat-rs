@@ -14,7 +14,7 @@
 //!    children. [`hash_canonical_program`] SHA-256-hashes those bytes.
 //! 3. **Source-file integrity.** [`verify_source_hash`] computes the
 //!    hash of a loaded file's raw bytes and compares against the hex
-//!    digest the user supplied in `(:wat::core::load-file! path (<algo>
+//!    digest the user supplied in `(:wat::load-file! path (<algo>
 //!    "hex"))`. Halts the pipeline if the hash doesn't match. This is
 //!    file-bytes integrity — "did the bytes on disk change?"
 //! 4. **Semantic provenance.** [`verify_ast_signature`] and
@@ -182,7 +182,7 @@ fn sha256_digest(bytes: &[u8]) -> [u8; 32] {
 }
 
 /// Hash source-file bytes with the named algorithm and compare to the
-/// hex-encoded expected digest. Used by `(:wat::core::load-file! path
+/// hex-encoded expected digest. Used by `(:wat::load-file! path
 /// (<algo> "hex"))` verification.
 ///
 /// Supported algorithms: `sha256`. Any other algorithm name returns
@@ -215,7 +215,7 @@ pub fn verify_source_hash(
 ///
 /// Computes the SHA-256 of the canonical-EDN of `ast` and dispatches
 /// to the named signature algorithm with base64-decoded sig + pub-key.
-/// Used for per-file signatures inside `(:wat::core::load-file! path (signed
+/// Used for per-file signatures inside `(:wat::load-file! path (signed
 /// <algo> <sig> <pubkey>))`.
 ///
 /// Supported algorithms: `ed25519`. Any other name returns
@@ -234,8 +234,8 @@ pub fn verify_ast_signature(
 ///
 /// Computes the SHA-256 of the canonical-EDN of `forms` and dispatches
 /// to the named signature algorithm. Used per-form by
-/// `(:wat::core::signed-load! ...)` (the payload is a loaded file's
-/// parsed form list) and `(:wat::core::eval-signed! ...)` (the payload
+/// `(:wat::signed-load! ...)` (the payload is a loaded file's
+/// parsed form list) and `(:wat::eval-signed! ...)` (the payload
 /// is a runtime AST resolved from the source interface). Each call
 /// verifies one form's provenance independently.
 ///

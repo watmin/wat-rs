@@ -116,7 +116,7 @@ fn install_signal_handlers() {
 /// using `Harness` directly.
 ///
 /// **Loader: `InMemoryLoader`.** No filesystem access for
-/// `(:wat::core::load-file! ...)` from inside the wat program. Callers
+/// `(:wat::load-file! ...)` from inside the wat program. Callers
 /// needing filesystem-capable `(load! ...)` pass a `ScopedLoader`
 /// (or any [`SourceLoader`] impl) via
 /// [`compose_and_run_with_loader`] — which is what `wat::main!`
@@ -151,7 +151,7 @@ pub fn compose_and_run(
 /// — real OS stdio, signal handlers, panic-hook install, first-
 /// call-wins rust_deps + dep_sources install — but the caller
 /// supplies the [`SourceLoader`] used to resolve
-/// `(:wat::core::load-file! ...)` from inside the wat program.
+/// `(:wat::load-file! ...)` from inside the wat program.
 ///
 /// The `wat::main! { source: ..., deps: [...], loader: "path" }`
 /// form (arc 017) expands to this function with

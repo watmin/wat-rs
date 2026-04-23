@@ -236,15 +236,18 @@ fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry
 /// prefixes should read this list via [`reserved_prefix_list`] so
 /// the user-facing message stays in sync with [`is_reserved_prefix`].
 pub const RESERVED_PREFIXES: &[&str] = &[
-    ":wat::core::",
-    ":wat::kernel::",
-    ":wat::holon::",
-    ":wat::std::",
-    ":wat::config::",
-    ":wat::load::",
-    ":wat::verify::",
-    ":wat::eval::",
-    ":wat::io::",
+    // Arc 028 slice 4 — :wat:: reserved at the root. Covers every
+    // sub-namespace (:wat::core::, :wat::holon::, etc.) AND the
+    // root-level forms hoisted in this slice (:wat::load-file!,
+    // :wat::eval-ast!, :wat::digest-load!, and siblings). User
+    // source cannot define anything under :wat::*; substrate owns
+    // the whole root.
+    //
+    // The :wat::load::* and :wat::eval::* sub-namespaces retired in
+    // arc 028 slice 1 + 3 — the iface-keyword dispatch shape they
+    // supported is gone.
+    ":wat::",
+    // :rust::* reserved for #[wat_dispatch]-surfaced Rust types.
     ":rust::",
 ];
 

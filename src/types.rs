@@ -258,7 +258,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     }));
 
     // :wat::core::EvalError — populated in the Err slot of a :Result
-    // returned by the eval-family forms (:wat::core::eval-ast! /
+    // returned by the eval-family forms (:wat::eval-ast! /
     // eval-edn! / eval-digest! / eval-signed!) when dynamic evaluation
     // fails. Carries a `kind` discriminator (short machine-readable
     // variant name) and a `message` diagnostic (human-readable detail).

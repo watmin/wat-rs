@@ -61,7 +61,7 @@ every sandbox callsite. `forms` is the factored primitive.
 
 Downstream implications the same way arc 009 (names-are-values)
 opened doors:
-- `:wat::core::eval-ast! (forms ...)` — evaluate a quoted sequence
+- `:wat::eval-ast! (forms ...)` — evaluate a quoted sequence
   in one call, no `vec + quote` wrapping.
 - `:wat::algebra::Atom (forms ...)` — programs-as-atoms where the
   program is written s-expression-direct.

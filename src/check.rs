@@ -518,9 +518,9 @@ fn infer_list(
             | ":wat::core::newtype"
             | ":wat::core::typealias"
             | ":wat::core::defmacro"
-            | ":wat::core::load-file!"
-            | ":wat::core::digest-load!"
-            | ":wat::core::signed-load!"
+            | ":wat::load-file!"
+            | ":wat::digest-load!"
+            | ":wat::signed-load!"
             | ":wat::core::quasiquote"
             | ":wat::core::unquote"
             | ":wat::core::unquote-splicing" => {
@@ -3543,7 +3543,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // eval-edn! narrowed to string-only (one source shape per form,
     // like load! / load-string!).
     env.register(
-        ":wat::core::eval-ast!".into(),
+        ":wat::eval-ast!".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![wat_ast_ty()],
@@ -3551,7 +3551,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::eval-edn!".into(),
+        ":wat::eval-edn!".into(),
         TypeScheme {
             type_params: vec![],
             // <source-string>
@@ -3560,7 +3560,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::eval-file!".into(),
+        ":wat::eval-file!".into(),
         TypeScheme {
             type_params: vec![],
             // <path>
@@ -3569,7 +3569,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::eval-digest!".into(),
+        ":wat::eval-digest!".into(),
         TypeScheme {
             type_params: vec![],
             // <path>, :wat::verify::digest-<algo>, :wat::verify::<iface>, <hex>
@@ -3578,7 +3578,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::eval-digest-string!".into(),
+        ":wat::eval-digest-string!".into(),
         TypeScheme {
             type_params: vec![],
             // <source>, :wat::verify::digest-<algo>, :wat::verify::<iface>, <hex>
@@ -3587,7 +3587,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::eval-signed!".into(),
+        ":wat::eval-signed!".into(),
         TypeScheme {
             type_params: vec![],
             // <path>, :wat::verify::signed-<algo>,
@@ -3604,7 +3604,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::eval-signed-string!".into(),
+        ":wat::eval-signed-string!".into(),
         TypeScheme {
             type_params: vec![],
             // <source>, :wat::verify::signed-<algo>,

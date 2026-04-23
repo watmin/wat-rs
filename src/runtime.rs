@@ -161,7 +161,7 @@ pub enum Value {
     /// at runtime.
     holon__HolonAST(Arc<HolonAST>),
     /// A parsed wat AST carried as a first-class runtime value. Used
-    /// by `:wat::core::eval-ast!` and adjacent forms. Distinct from
+    /// by `:wat::eval-ast!` and adjacent forms. Distinct from
     /// [`Value::String`] (raw EDN text that still needs parsing) and
     /// from [`Value::holon__HolonAST`] (algebra AST).
     wat__WatAST(Arc<WatAST>),
@@ -630,8 +630,8 @@ pub enum RuntimeError {
     /// `:user::main` was not registered at startup. FOUNDATION requires
     /// exactly one `:user::main` declaration; zero halts.
     UserMainMissing,
-    /// Verification failed for a `:wat::core::eval-digest!` /
-    /// `:wat::core::eval-signed!` call. The wrapped [`HashError`]
+    /// Verification failed for a `:wat::eval-digest!` /
+    /// `:wat::eval-signed!` call. The wrapped [`HashError`]
     /// names the specific failure (mismatched digest, invalid
     /// signature, unsupported algorithm, malformed payload).
     EvalVerificationFailed { err: crate::hash::HashError },
@@ -1814,13 +1814,13 @@ fn dispatch_keyword_head(
 
         // Constrained runtime eval — four forms, matching the load
         // pipeline's discipline on source interface and verification.
-        ":wat::core::eval-ast!" => eval_form_ast(args, env, sym),
-        ":wat::core::eval-edn!" => eval_form_edn(args, env, sym),
-        ":wat::core::eval-file!" => eval_form_file(args, env, sym),
-        ":wat::core::eval-digest!" => eval_form_digest(args, env, sym),
-        ":wat::core::eval-digest-string!" => eval_form_digest_string(args, env, sym),
-        ":wat::core::eval-signed!" => eval_form_signed(args, env, sym),
-        ":wat::core::eval-signed-string!" => eval_form_signed_string(args, env, sym),
+        ":wat::eval-ast!" => eval_form_ast(args, env, sym),
+        ":wat::eval-edn!" => eval_form_edn(args, env, sym),
+        ":wat::eval-file!" => eval_form_file(args, env, sym),
+        ":wat::eval-digest!" => eval_form_digest(args, env, sym),
+        ":wat::eval-digest-string!" => eval_form_digest_string(args, env, sym),
+        ":wat::eval-signed!" => eval_form_signed(args, env, sym),
+        ":wat::eval-signed-string!" => eval_form_signed_string(args, env, sym),
 
         // Kernel primitives — channel IO + stop flag + user signals.
         ":wat::kernel::stopped?" => eval_kernel_stopped(args),
@@ -3841,7 +3841,7 @@ fn eval_contains_q(
 /// data. The inner form is NOT evaluated at quote time — no side effects
 /// fire, no functions are called. The AST is wrapped as a
 /// `Value::wat__WatAST` and can be passed to `:wat::holon::Atom`,
-/// `:wat::core::eval-ast!`, stored in environments, etc.
+/// `:wat::eval-ast!`, stored in environments, etc.
 ///
 /// Quote is how programs become holons without running.
 fn eval_quote(args: &[WatAST]) -> Result<Value, RuntimeError> {
@@ -3864,7 +3864,7 @@ fn eval_quote(args: &[WatAST]) -> Result<Value, RuntimeError> {
 /// without the per-form quote ceremony.
 ///
 /// Use case: building program-as-data payloads for
-/// `:wat::kernel::run-sandboxed-ast`, `:wat::core::eval-ast!`, or
+/// `:wat::kernel::run-sandboxed-ast`, `:wat::eval-ast!`, or
 /// any consumer of AST sequences. The test stdlib's `:wat::test::
 /// program` macro expands directly to this.
 ///
@@ -4587,7 +4587,7 @@ fn value_to_atom(v: Value) -> Result<Value, RuntimeError> {
         // Programs-as-atoms: a quoted wat program (captured via
         // `:wat::core::quote`) becomes an Atom whose payload IS the
         // WatAST. Retrieved later via `:wat::core::atom-value` and
-        // executed via `:wat::core::eval-ast!`. See VISION.md.
+        // executed via `:wat::eval-ast!`. See VISION.md.
         Value::wat__WatAST(a) => HolonAST::atom((*a).clone()),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -5435,12 +5435,12 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
 //
 // Mirror of the three load forms, with one extra on the AST side:
 //
-//   (:wat::core::eval-ast! <Value::Ast>)
-//   (:wat::core::eval-edn! :wat::eval::<iface> <locator>)
-//   (:wat::core::eval-digest! :wat::eval::<iface> <locator>
+//   (:wat::eval-ast! <Value::Ast>)
+//   (:wat::eval-edn! :wat::eval::<iface> <locator>)
+//   (:wat::eval-digest! :wat::eval::<iface> <locator>
 //                              :wat::verify::digest-<algo>
 //                              :wat::verify::<iface> <payload>)
-//   (:wat::core::eval-signed! :wat::eval::<iface> <locator>
+//   (:wat::eval-signed! :wat::eval::<iface> <locator>
 //                              :wat::verify::signed-<algo>
 //                              :wat::verify::<iface> <sig>
 //                              :wat::verify::<iface> <pubkey>)
@@ -6266,9 +6266,9 @@ fn eval_form_ast(
     // but possible).
     if args.len() != 1 {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::eval-ast!".into(),
+            head: ":wat::eval-ast!".into(),
             reason: format!(
-                "(:wat::core::eval-ast! <ast-value>) takes exactly 1 argument; got {}",
+                "(:wat::eval-ast! <ast-value>) takes exactly 1 argument; got {}",
                 args.len()
             ),
         });
@@ -6283,7 +6283,7 @@ fn eval_form_ast(
             Value::wat__WatAST(a) => a,
             other => {
                 return Err(RuntimeError::TypeMismatch {
-                    op: ":wat::core::eval-ast!".into(),
+                    op: ":wat::eval-ast!".into(),
                     expected: "Ast",
                     got: other.type_name(),
                 });
@@ -6297,7 +6297,7 @@ fn eval_form_ast(
 // eval-edn (string) and eval-file (path). First arg is now the
 // source or the path directly; no :wat::eval::<iface> keyword.
 
-/// `(:wat::core::eval-edn! <source>)` — parse + evaluate an inline
+/// `(:wat::eval-edn! <source>)` — parse + evaluate an inline
 /// EDN source string at runtime. One arg.
 fn eval_form_edn(
     args: &[WatAST],
@@ -6306,20 +6306,20 @@ fn eval_form_edn(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::eval-edn!".into(),
+            head: ":wat::eval-edn!".into(),
             reason: format!(
-                "(:wat::core::eval-edn! <source>) takes exactly 1 argument; got {}",
+                "(:wat::eval-edn! <source>) takes exactly 1 argument; got {}",
                 args.len()
             ),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let source = expect_string_value(":wat::core::eval-edn!", &args[0], env, sym, "source")?;
+        let source = expect_string_value(":wat::eval-edn!", &args[0], env, sym, "source")?;
         parse_and_run(&source, env, sym)
     })())
 }
 
-/// `(:wat::core::eval-file! <path>)` — read a file via the outer
+/// `(:wat::eval-file! <path>)` — read a file via the outer
 /// loader, parse, evaluate at runtime. One arg. Separated from
 /// eval-edn! so each form has one source shape (matching the
 /// load! / load-string! split).
@@ -6330,20 +6330,20 @@ fn eval_form_file(
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::eval-file!".into(),
+            head: ":wat::eval-file!".into(),
             reason: format!(
-                "(:wat::core::eval-file! <path>) takes exactly 1 argument; got {}",
+                "(:wat::eval-file! <path>) takes exactly 1 argument; got {}",
                 args.len()
             ),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let source = read_source_via_loader(":wat::core::eval-file!", &args[0], env, sym)?;
+        let source = read_source_via_loader(":wat::eval-file!", &args[0], env, sym)?;
         parse_and_run(&source, env, sym)
     })())
 }
 
-/// `(:wat::core::eval-digest! <path>
+/// `(:wat::eval-digest! <path>
 ///                             :wat::verify::digest-<algo>
 ///                             :wat::verify::<iface> <hex>)`
 /// — verify SHA-256 (or sibling algo) of file bytes BEFORE parse,
@@ -6356,7 +6356,7 @@ fn eval_form_digest(
     eval_form_digest_shared(args, env, sym, /*is_string*/ false)
 }
 
-/// `(:wat::core::eval-digest-string! <source>
+/// `(:wat::eval-digest-string! <source>
 ///                                    :wat::verify::digest-<algo>
 ///                                    :wat::verify::<iface> <hex>)`
 /// — same verification as `eval-digest!` but the source is inline.
@@ -6376,9 +6376,9 @@ fn eval_form_digest_shared(
     is_string: bool,
 ) -> Result<Value, RuntimeError> {
     let op: &'static str = if is_string {
-        ":wat::core::eval-digest-string!"
+        ":wat::eval-digest-string!"
     } else {
-        ":wat::core::eval-digest!"
+        ":wat::eval-digest!"
     };
     if args.len() != 4 {
         let shape = if is_string { "<source>" } else { "<path>" };
@@ -6404,7 +6404,7 @@ fn eval_form_digest_shared(
     })())
 }
 
-/// `(:wat::core::eval-signed! <path>
+/// `(:wat::eval-signed! <path>
 ///                             :wat::verify::signed-<algo>
 ///                             :wat::verify::<iface> <sig>
 ///                             :wat::verify::<iface> <pubkey>)`
@@ -6418,7 +6418,7 @@ fn eval_form_signed(
     eval_form_signed_shared(args, env, sym, /*is_string*/ false)
 }
 
-/// `(:wat::core::eval-signed-string! <source>
+/// `(:wat::eval-signed-string! <source>
 ///                                    :wat::verify::signed-<algo>
 ///                                    :wat::verify::<iface> <sig>
 ///                                    :wat::verify::<iface> <pubkey>)`
@@ -6439,9 +6439,9 @@ fn eval_form_signed_shared(
     is_string: bool,
 ) -> Result<Value, RuntimeError> {
     let op: &'static str = if is_string {
-        ":wat::core::eval-signed-string!"
+        ":wat::eval-signed-string!"
     } else {
-        ":wat::core::eval-signed!"
+        ":wat::eval-signed!"
     };
     if args.len() != 6 {
         let shape = if is_string { "<source>" } else { "<path>" };
@@ -6648,7 +6648,7 @@ fn parse_and_run(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let forms = parse_program(source, ":wat::core::eval-edn!")?;
+    let forms = parse_program(source, ":wat::eval-edn!")?;
     run_program(&forms, env, sym)
 }
 
@@ -6702,9 +6702,9 @@ fn is_mutation_head(head: &str) -> bool {
             | ":wat::core::enum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
-            | ":wat::core::load-file!"
-            | ":wat::core::digest-load!"
-            | ":wat::core::signed-load!"
+            | ":wat::load-file!"
+            | ":wat::digest-load!"
+            | ":wat::signed-load!"
     ) || head.starts_with(":wat::config::set-")
 }
 
@@ -7590,7 +7590,7 @@ mod tests {
     fn eval_ast_bang_runs_a_parsed_program() {
         let program = parse_one("(:wat::core::i64::+ 40 2)").unwrap();
         let result =
-            run_with_ast_local("(:wat::core::eval-ast! program)", program).unwrap();
+            run_with_ast_local("(:wat::eval-ast! program)", program).unwrap();
         let inner = eval_ok_inner(result);
         assert!(matches!(inner, Value::i64(42)));
     }
@@ -7601,7 +7601,7 @@ mod tests {
             r#"(:wat::core::define (:evil (x :i64) -> :i64) x)"#,
         )
         .unwrap();
-        let result = run_with_ast_local("(:wat::core::eval-ast! program)", program)
+        let result = run_with_ast_local("(:wat::eval-ast! program)", program)
             .unwrap();
         let (kind, _msg) = eval_err_kind_and_message(result);
         assert_eq!(kind, "mutation-form-refused");
@@ -7614,7 +7614,7 @@ mod tests {
         // The refusal lands as Err(EvalError{kind="type-mismatch"}),
         // NOT a RuntimeError unwind — the eval-family Result-wrap
         // per the 2026-04-20 INSCRIPTION.
-        let form = parse_one(r#"(:wat::core::eval-ast! "oops")"#).unwrap();
+        let form = parse_one(r#"(:wat::eval-ast! "oops")"#).unwrap();
         let result = eval(&form, &Environment::new(), &SymbolTable::new()).unwrap();
         let (kind, msg) = eval_err_kind_and_message(result);
         assert_eq!(kind, "type-mismatch");
@@ -7755,7 +7755,7 @@ mod tests {
                     (:wat::holon::Atom program))
                   ((reveal :wat::WatAST)
                     (:wat::core::atom-value program-atom)))
-                 (:wat::core::eval-ast! reveal))"#,
+                 (:wat::eval-ast! reveal))"#,
         )
         .unwrap();
         // eval-ast! returns Value::Result now; unwrap Ok to get the
@@ -8537,7 +8537,7 @@ mod tests {
     #[test]
     fn eval_edn_bang_inline_string_runs() {
         let result = eval_expr(
-            r#"(:wat::core::eval-edn! "(:wat::core::i64::+ 40 2)")"#,
+            r#"(:wat::eval-edn! "(:wat::core::i64::+ 40 2)")"#,
         )
         .unwrap();
         let inner = eval_ok_inner(result);
@@ -8554,7 +8554,7 @@ mod tests {
     fn eval_edn_bang_wrong_arity_rejected() {
         // Arity fires BEFORE the EvalError wrap — structural /
         // caller-syntactic error, not a runtime evaluation failure.
-        let err = eval_expr(r#"(:wat::core::eval-edn! "foo" "bar")"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::eval-edn! "foo" "bar")"#).unwrap_err();
         assert!(matches!(err, RuntimeError::MalformedForm { .. }));
     }
 
@@ -8563,7 +8563,7 @@ mod tests {
         // The parsed AST from the string still walks through the
         // mutation-form guard — now surfaced as EvalError data.
         let result = eval_expr(
-            r#"(:wat::core::eval-edn! "(:wat::core::define (:evil (x :i64) -> :i64) x)")"#,
+            r#"(:wat::eval-edn! "(:wat::core::define (:evil (x :i64) -> :i64) x)")"#,
         )
         .unwrap();
         let (kind, _) = eval_err_kind_and_message(result);
@@ -8578,7 +8578,7 @@ mod tests {
         hasher.update(source.as_bytes());
         let hex = crate::hash::hex_encode(&hasher.finalize());
         let form = format!(
-            r#"(:wat::core::eval-digest-string!
+            r#"(:wat::eval-digest-string!
  "{}"
                 :wat::verify::digest-sha256
                 :wat::verify::string "{}")"#,
@@ -8594,7 +8594,7 @@ mod tests {
         let wrong =
             "0000000000000000000000000000000000000000000000000000000000000000";
         let form = format!(
-            r#"(:wat::core::eval-digest-string!
+            r#"(:wat::eval-digest-string!
  "(:wat::core::i64::+ 1 1)"
                 :wat::verify::digest-sha256
                 :wat::verify::string "{}")"#,
@@ -8607,7 +8607,7 @@ mod tests {
 
     #[test]
     fn eval_digest_bang_unknown_algo_refused() {
-        let form = r#"(:wat::core::eval-digest-string!
+        let form = r#"(:wat::eval-digest-string!
  "(:wat::core::i64::+ 1 1)"
             :wat::verify::signed-ed25519
             :wat::verify::string "abc")"#;
@@ -8631,7 +8631,7 @@ mod tests {
         let sig_b64 = B64.encode(sig.to_bytes());
         let pk_b64 = B64.encode(sk.verifying_key().as_bytes());
         let form = format!(
-            r#"(:wat::core::eval-signed-string!
+            r#"(:wat::eval-signed-string!
  "{}"
                 :wat::verify::signed-ed25519
                 :wat::verify::string "{}"
@@ -8657,7 +8657,7 @@ mod tests {
         let sig_b64 = B64.encode(sig.to_bytes());
         let pk_b64 = B64.encode(sk.verifying_key().as_bytes());
         let form = format!(
-            r#"(:wat::core::eval-signed-string!
+            r#"(:wat::eval-signed-string!
  "{}"
                 :wat::verify::signed-ed25519
                 :wat::verify::string "{}"
@@ -8672,7 +8672,7 @@ mod tests {
     #[test]
     fn eval_signed_bang_wrong_algo_kind_refused() {
         // digest-sha256 in a signed slot is a grammar error.
-        let form = r#"(:wat::core::eval-signed-string!
+        let form = r#"(:wat::eval-signed-string!
  "(:wat::core::i64::+ 1 1)"
             :wat::verify::digest-sha256
             :wat::verify::string "sig"
@@ -8706,7 +8706,7 @@ mod tests {
     fn eval_file_bang_runs() {
         let path = write_temp("(:wat::core::i64::+ 10 11)", "wat");
         let form = format!(
-            r#"(:wat::core::eval-file! "{}")"#,
+            r#"(:wat::eval-file! "{}")"#,
             path.display()
         );
         let result = eval_expr_with_fs(&form).expect("eval");
@@ -8717,7 +8717,7 @@ mod tests {
 
     #[test]
     fn eval_file_bang_missing_path_errors() {
-        let form = r#"(:wat::core::eval-file! "/nonexistent/path/abc.xyz")"#;
+        let form = r#"(:wat::eval-file! "/nonexistent/path/abc.xyz")"#;
         let result = eval_expr_with_fs(form).unwrap();
         let (kind, _) = eval_err_kind_and_message(result);
         assert_eq!(kind, "malformed-form");
@@ -8733,7 +8733,7 @@ mod tests {
         let hex = crate::hash::hex_encode(&hasher.finalize());
         let digest_path = write_temp(&hex, "sha256");
         let form = format!(
-            r#"(:wat::core::eval-digest!
+            r#"(:wat::eval-digest!
  "{}"
                 :wat::verify::digest-sha256
                 :wat::verify::file-path "{}")"#,

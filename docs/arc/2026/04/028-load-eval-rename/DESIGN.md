@@ -51,10 +51,10 @@ Two renames, one arc:
 ;; BEFORE (today):
 (:wat::core::load!        :wat::load::file-path "path/to/file.wat")
 (:wat::core::load!        :wat::load::string    "(source text)")
-(:wat::core::digest-load! :wat::load::file-path "path"
+(:wat::digest-load! :wat::load::file-path "path"
                           :wat::verify::digest-sha256
                           :wat::verify::string "<hex>")
-(:wat::core::signed-load! :wat::load::file-path "path"
+(:wat::signed-load! :wat::load::file-path "path"
                           :wat::verify::signed-ed25519
                           :wat::verify::string "<sig>"
                           :wat::verify::string "<pk>")
@@ -75,13 +75,13 @@ Two renames, one arc:
 
 ```scheme
 ;; BEFORE (today):
-(:wat::core::eval-ast!    <ast-value>)
-(:wat::core::eval-edn!    :wat::eval::string    "(source text)")
-(:wat::core::eval-edn!    :wat::eval::file-path "path")
-(:wat::core::eval-digest! :wat::eval::file-path "path"
+(:wat::eval-ast!    <ast-value>)
+(:wat::eval-edn!    :wat::eval::string    "(source text)")
+(:wat::eval-edn!    :wat::eval::file-path "path")
+(:wat::eval-digest! :wat::eval::file-path "path"
                           :wat::verify::digest-sha256
                           :wat::verify::string "<hex>")
-(:wat::core::eval-signed! :wat::eval::file-path "path"
+(:wat::eval-signed! :wat::eval::file-path "path"
                           :wat::verify::signed-ed25519
                           :wat::verify::string "<sig>"
                           :wat::verify::string "<pk>")

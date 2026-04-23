@@ -32,8 +32,8 @@
 //! - It doesn't invoke `:user::main` — that's the wat binary's job.
 //! - It doesn't perform signature verification at the whole-program
 //!   level. Signature verification is per-form — inside
-//!   `(:wat::core::signed-load! ...)` at startup and
-//!   `(:wat::core::eval-signed! ...)` at runtime. Each form carries
+//!   `(:wat::signed-load! ...)` at startup and
+//!   `(:wat::eval-signed! ...)` at runtime. Each form carries
 //!   its own `sig` / `pubkey` payloads and verifies its own SHA-256
 //!   of canonical-EDN via [`crate::hash::verify_program_signature`].
 //!   There is no CLI flag for a "full-program" signature; a program's
@@ -532,8 +532,8 @@ pub fn eval_in_frozen(
     crate::runtime::eval(ast, env, frozen.symbols())
 }
 
-/// Digest-verified eval — the wat `(:wat::core::eval-digest! ...)`
-/// form. Mirrors `(:wat::core::digest-load! ...)`: verify the hash
+/// Digest-verified eval — the wat `(:wat::eval-digest! ...)`
+/// form. Mirrors `(:wat::digest-load! ...)`: verify the hash
 /// of the canonical-EDN of the AST before any execution.
 ///
 /// The verification target is `hash_canonical_ast(ast)` — the same
@@ -561,8 +561,8 @@ pub fn eval_digest_in_frozen(
     eval_in_frozen(ast, frozen, env)
 }
 
-/// Signature-verified eval — the wat `(:wat::core::eval-signed! ...)`
-/// form. Mirrors `(:wat::core::signed-load! ...)`: verify an Ed25519
+/// Signature-verified eval — the wat `(:wat::eval-signed! ...)`
+/// form. Mirrors `(:wat::signed-load! ...)`: verify an Ed25519
 /// (or other registered algorithm) signature over the SHA-256 of the
 /// canonical-EDN of the AST before any execution.
 ///
@@ -622,9 +622,9 @@ fn is_mutation_form(head: &str) -> bool {
             | ":wat::core::enum"
             | ":wat::core::newtype"
             | ":wat::core::typealias"
-            | ":wat::core::load-file!"
-            | ":wat::core::digest-load!"
-            | ":wat::core::signed-load!"
+            | ":wat::load-file!"
+            | ":wat::digest-load!"
+            | ":wat::signed-load!"
     ) || head.starts_with(":wat::config::set-")
 }
 
@@ -796,7 +796,7 @@ mod tests {
         let entry = r#"
             (:wat::config::set-capacity-mode! :error)
             (:wat::config::set-dims! 1024)
-            (:wat::core::load-file! "lib.wat")
+            (:wat::load-file! "lib.wat")
         "#;
         let world = startup_from_source(entry, None, Arc::new(loader)).expect("startup");
         assert!(world.symbols().get(":lib::square").is_some());
@@ -1022,7 +1022,7 @@ mod tests {
         "#,
         );
         let ast = crate::parser::parse_one(
-            r#"(:wat::core::load-file! "evil.wat")"#,
+            r#"(:wat::load-file! "evil.wat")"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
@@ -1038,7 +1038,7 @@ mod tests {
         "#,
         );
         let ast = crate::parser::parse_one(
-            r#"(:wat::core::digest-load! "x" :wat::verify::digest-sha256 :wat::verify::string "hex")"#,
+            r#"(:wat::digest-load! "x" :wat::verify::digest-sha256 :wat::verify::string "hex")"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
@@ -1054,7 +1054,7 @@ mod tests {
         "#,
         );
         let ast = crate::parser::parse_one(
-            r#"(:wat::core::signed-load! "x" :wat::verify::signed-ed25519 :wat::verify::string "sig" :wat::verify::string "pk")"#,
+            r#"(:wat::signed-load! "x" :wat::verify::signed-ed25519 :wat::verify::string "sig" :wat::verify::string "pk")"#,
         )
         .unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
