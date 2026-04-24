@@ -114,7 +114,7 @@ pub fn register(&mut wat::rust_deps::RustDepsBuilder);
 
 Naming these exactly (not `stdlib_sources()` or `wat_files()`
 or similar) preserves grep-ability across the ecosystem and
-lets `wat::main!` / `wat::test_suite!` find them by convention.
+lets `wat::main!` / `wat::test!` find them by convention.
 
 **Reference:** `crates/wat-lru/` is the first external wat
 crate shipped. Its shape is the walkable template:
@@ -190,16 +190,15 @@ my-wat-crate/
 ├── wat-tests/           # optional — the crate's own deftests
 │   └── *.wat
 └── tests/
-    └── wat_suite.rs     # optional — one-line wat::test_suite!
+    └── test.rs         # optional — one-line wat::test!
 ```
 
 Reference: `crates/wat-lru/`. Ships both sides of the contract
 (`wat_sources()` returns two baked `.wat` files via
 `include_str!`, `register()` forwards to `#[wat_dispatch]`-
 generated code), its own `wat-tests/` with deftests, and
-`tests/wat_suite.rs` invoking `wat::test_suite! { path:
-"wat-tests", deps: [wat_lru] }` — self-testing its published
-surface.
+`tests/test.rs` invoking `wat::test! { path: "wat-tests",
+deps: [wat_lru] }` — self-testing its published surface.
 
 #### Consumer binary
 
@@ -212,7 +211,7 @@ my-app/
 ├── wat-tests/           # optional — the user's deftests
 │   └── *.wat
 └── tests/
-    └── tests.rs         # optional — one-line: wat::test_suite! { path: "wat-tests", deps: [...] }
+    └── test.rs         # optional — one-line: wat::test! { path: "wat-tests", deps: [...] }
 ```
 
 Reference: `examples/with-lru/`. One Rust file invokes
@@ -235,11 +234,11 @@ cover the space:
 
 All three satisfy the same Rust-level trait — they differ only
 in what their two functions actually do. `wat::main!` and
-`wat::test_suite!` compose them identically.
+`wat::test!` compose them identically.
 
 ### Viewing per-wat-test output under `cargo test`
 
-`wat::test_suite!` expands to a `#[test] fn wat_suite()` that
+`wat::test!` expands to a `#[test] fn wat_suite()` that
 Cargo's libtest captures per convention: stdout from the
 outer `#[test]` is hidden on success, shown only on failure.
 By default you see `test wat_suite ... ok` and nothing about
@@ -325,7 +324,7 @@ Every `.wat` file is either an **entry** or a **library**:
   a file that contains setters fails loud at startup ("setters
   belong in the entry file only").
 
-`wat::main!`'s `source:` argument is always an entry. `wat::test_suite!`
+`wat::main!`'s `source:` argument is always an entry. `wat::test!`
 under a test dir silently skips library files at freeze time —
 they're discovered and read, but not treated as test entries. This
 is how test suites share helpers: the entry test files `(load!)`
