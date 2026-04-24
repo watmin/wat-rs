@@ -354,6 +354,26 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   Plural of the element type, structurally honest, Level-1-safe
   across every content context. 18-site wat-rs migration;
   lab migration follows in lab arc 004. 2026-04-23.
+- **`arc/2026/04/037-dim-router/`** — **shipped.** The last
+  required magic value retires. `dims` is no longer a single
+  global; the ambient `DimRouter` decides vector dim per
+  Atom/Bundle construction from the AST's surface shape.
+  `EncoderRegistry` materializes per-d encoders lazily with a
+  shared seed. Cosine / presence? / coincident? normalize UP
+  via AST re-projection at `max(d_a, d_b)`. Every substrate
+  default is a function, every user override replaces our
+  function: three capability carriers on SymbolTable
+  (`dim_router`, `presence_sigma_fn`, `coincident_sigma_fn`)
+  with AST-accepting setters (`set-dim-router!`,
+  `set-presence-sigma!`, `set-coincident-sigma!`) and
+  freeze-time signature checks. `CapacityMode` reduced to two
+  variants (`:error` / `:abort`); `:silent` and `:warn`
+  retired. Scalar `set-dims!` / `set-noise-floor!` retired;
+  scalar sigma setters retired in favor of function-of-d form.
+  Compatibility shims keep `:wat::config::dims` and
+  `:wat::config::noise-floor` accessors returning
+  `DEFAULT_TIERS[0]` defaults until lab callers migrate.
+  Seven slices (slice 2 retired mid-arc). 2026-04-24.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.
