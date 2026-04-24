@@ -441,6 +441,21 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   concurrency story is substrate-shape-agnostic. Builder
   predicted minimal work; correct prediction enabled tight arc
   scoping. 2026-04-24.
+- **`arc/2026/04/045-capacity-mode-rename/`** — **shipped.**
+  Substrate rename `:abort` → `:panic` (the variant matches Rust's
+  `panic!()` macro behavior; `:abort` connoted
+  `std::process::abort` and misled readers) plus user-facing demo
+  cleanup (drop redundant `(set-capacity-mode! :error)` lines —
+  `:error` is the default per arc 037; demos should show
+  overrides, not defaults). Pre-rename survey found 0 active
+  downstream callers outside test fixtures, so substrate cost
+  was bounded: 5 source files + 2 test files. cargo test green
+  (39 binaries, 850 tests). Slice 2 mid-arc folded in another
+  builder catch: replace `:Vec<wat::holon::HolonAST>` with the
+  `:wat::holon::Holons` typealias (arc 033) in user-facing
+  example signatures. Last polish-class arc planned per builder's
+  "treat wat as stable" stance — further drift catches surface
+  on demand. 2026-04-24.
 - **`arc/2026/04/044-second-verification-pass/`** — **shipped.**
   Round 3 of the "is wat-rs honest?" iteration. Arc 043 said yes;
   builder asked again; surveyed surfaces 043 hadn't covered and
