@@ -364,7 +364,6 @@ A slightly richer first program:
 
 ```scheme
 ;; wat/main.wat
-(:wat::config::set-dims! 10000)
 (:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:user::main
@@ -1159,22 +1158,44 @@ manifest, no registration step.
 ### Writing a test — `deftest`
 
 ```scheme
-(:wat::test::deftest :my::app::test-two-plus-two 1024 :error
+;; wat-tests/example.wat
+(:wat::config::set-capacity-mode! :error)
+
+(:wat::test::deftest :my::app::test-two-plus-two
   (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
 ```
 
 `deftest` takes:
 - **name** — the test's keyword path (last segment must start with
   `test-` for auto-discovery)
-- **dims** — the `:wat::config::set-dims!` value for this test's
-  sandbox
-- **mode** — the `:wat::config::set-capacity-mode!` value
 - **body** — one expression; the test's actual logic
 
+The deftest sandbox **inherits the outer file's Config** (arc 031),
+so capacity-mode and any dim-router override committed at the test
+file's top level apply to every test in the file. No per-test config
+arguments.
+
 It expands to a named zero-arg function that, when invoked, returns
-a `:wat::kernel::RunResult`. The `wat test` CLI invokes each
-discovered function, inspects the RunResult's failure slot, reports
-cargo-style.
+a `:wat::kernel::RunResult`. The runner invokes each discovered
+function, inspects the RunResult's failure slot, reports cargo-style.
+
+For test files that share loads or helpers across multiple tests,
+use the **`make-deftest` factory** (arc 029) — define a deftest-shaped
+macro whose default-prelude carries the shared setup, then call the
+factory's emitted name once per test:
+
+```scheme
+(:wat::test::make-deftest :deftest
+  ((:wat::load-file! "../../wat/types/candle.wat")
+   (:wat::core::define (:test::helper -> :i64) 42)))
+
+(:deftest :my::test-uses-helper
+  (:wat::test::assert-eq (:test::helper) 42))
+```
+
+Every test sandbox the factory emits gets the load + the helper
+define for free; bare-name `(:deftest :name body)` is the per-test
+call shape.
 
 ### Assertion primitives
 
@@ -1279,13 +1300,11 @@ stdout, its stderr, its assertion-failure payload. Pair
 `:wat::test::run-ast` with `:wat::test::program`:
 
 ```scheme
-(:wat::test::deftest :my::test-captures-inner-output 1024 :error
+(:wat::test::deftest :my::test-captures-inner-output
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
-          (:wat::config::set-dims! 1024)
-          (:wat::config::set-capacity-mode! :error)
           (:wat::core::define
             (:user::main
               (stdin :wat::io::IOReader)
@@ -1297,6 +1316,10 @@ stdout, its stderr, its assertion-failure payload. Pair
      ((lines :Vec<String>) (:wat::kernel::RunResult/stdout r)))
     (:wat::test::assert-eq (:wat::core::first lines) "hello-from-inside")))
 ```
+
+The inner program inherits the outer test file's Config — no need
+for `(set-capacity-mode!)` or `(set-dim-router!)` setters inside the
+`:wat::test::program` body.
 
 `:wat::test::program` is a variadic defmacro over `:wat::core::forms`
 — each top-level form passes through as AST data. No strings, no
@@ -1322,13 +1345,11 @@ fresh subprocess with real thread-safe stdio. Same surface as
 s-expressions:
 
 ```scheme
-(:wat::test::deftest :my::test-console-hello 1024 :error
+(:wat::test::deftest :my::test-console-hello
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
-          (:wat::config::set-dims! 1024)
-          (:wat::config::set-capacity-mode! :error)
           (:wat::core::define (:user::main
                                (stdin :wat::io::IOReader)
                                (stdout :wat::io::IOWriter)
