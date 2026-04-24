@@ -81,8 +81,7 @@ wat::test! { deps: [wat_lru] }
 ```
 
 ```scheme
-;; wat/main.wat — commits startup config + defines :user::main
-(:wat::config::set-dims! 10000)
+;; wat/main.wat — defines :user::main. Config setters are optional.
 (:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:user::main
@@ -103,9 +102,8 @@ keys aren't present:
 
 - **`source:`** absent → `include_str!(<crate>/wat/main.wat)`
 - **`loader:`** absent AND source absent → `"wat"` (ScopedLoader
-  rooted at `<crate>/wat`; every `(:wat::core::load!
-  :wat::load::file-path "...")` from inside the wat tree resolves
-  there)
+  rooted at `<crate>/wat`; every `(:wat::load-file! "...")` from
+  inside the wat tree resolves there)
 
 `wat::test! { deps: [...] }` — same shape for tests:
 
@@ -118,6 +116,30 @@ keys aren't present:
 Any explicit value wins. `wat::main! { source: include_str!("x.wat") }`
 keeps the pre-018 single-file behavior (InMemoryLoader). `wat::main!
 { loader: "src/wat" }` picks a different root.
+
+### Config setters (optional)
+
+Top-level forms in your entry file can commit startup config. All
+are optional; defaults are honest:
+
+- **`(:wat::config::set-capacity-mode! :error)`** — Bundle overflow
+  surfaces as `Err(CapacityExceeded)` instead of panicking. Default:
+  `:error`. Other valid value: `:abort` (panic on overflow).
+- **`(:wat::config::set-dim-router! router-fn)`** — replaces the
+  default sizing function (smallest tier `d` whose `√d ≥ statement
+  size`). The router takes a `:wat::holon::HolonAST` and returns
+  `:Option<:i64>` (the picked dim, or `:None` to refuse). Default
+  tier list: `[256, 4096, 10000, 100000]`. The default router is
+  the sizing function; user override replaces it with any wat
+  lambda matching the signature.
+- **`(:wat::config::set-presence-sigma! sigma-fn)`** /
+  **`set-coincident-sigma!`** — function-of-`d` knobs controlling
+  the presence and coincident thresholds. Defaults: `presence_sigma(d)
+  = floor(√d / 2) - 1` (one before zero-point), `coincident_sigma(d)
+  = 1` (1σ — the native granularity).
+
+Override only what you need. Zero setters = correct behavior with
+default tiers; the substrate auto-routes per statement.
 
 ### What the macro actually emits
 
@@ -165,12 +187,11 @@ is the entry; `wat/**/*.wat` is the library tree, loaded
 recursively from `main.wat` downward.
 
 ```scheme
-;; wat/main.wat — the ENTRY. Commits config + defines :user::main.
-(:wat::config::set-dims! 10000)
+;; wat/main.wat — the ENTRY. Optional config + recursive loads + :user::main.
 (:wat::config::set-capacity-mode! :error)
 
-(:wat::core::load! :wat::load::file-path "types.wat")
-(:wat::core::load! :wat::load::file-path "vocab.wat")
+(:wat::load-file! "types.wat")
+(:wat::load-file! "vocab.wat")
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
@@ -186,8 +207,8 @@ recursively from `main.wat` downward.
 ```
 
 ```scheme
-;; wat/vocab.wat — a LIBRARY. Can itself (load!) further files.
-(:wat::core::load! :wat::load::file-path "types.wat")
+;; wat/vocab.wat — a LIBRARY. Can itself load further files.
+(:wat::load-file! "types.wat")
 
 (:wat::core::define (:my-app::vocab::greeting -> :String)
   "hello from wat")
@@ -204,9 +225,9 @@ library can `(load!)` another library, to arbitrary depth. Every
 loaded-file's defines / types / macros land in the entry's frozen
 world.
 
-**Path resolution.** From inside a wat file, `(:wat::core::load!
-:wat::load::file-path "x.wat")` resolves against the *importing
-file's directory* (same as any module system). The loader's scope
+**Path resolution.** From inside a wat file, `(:wat::load-file!
+"x.wat")` resolves against the *importing file's directory* (same
+as any module system). The loader's scope
 root (default `<crate>/wat`) is the containment check — absolute
 paths and `../` traversal are allowed as long as the final
 canonical target stays inside the scope. Paths in the entry file
@@ -248,10 +269,9 @@ them.
 
 ```scheme
 ;; wat-tests/hello.wat
-(:wat::config::set-dims! 1024)
 (:wat::config::set-capacity-mode! :error)
 
-(:wat::test::deftest :my-app::test-one-plus-one 1024 :error
+(:wat::test::deftest :my-app::test-one-plus-one
   (:wat::test::assert-eq (:wat::core::i64::+ 1 1) 2))
 ```
 
@@ -311,11 +331,10 @@ exercises the built binary. Copy that shape.
 ### Capability boundary — the Loader
 
 Wat's file-I/O is a **capability**, not a global. The host picks
-which `Loader` a frozen world gets; every `(:wat::core::load!)`
-at startup and every `(:wat::core::eval-edn!
-:wat::eval::file-path ...)` at runtime routes through that
-Loader. No wat program can reach past its host-provided Loader
-to `std::fs` directly.
+which `Loader` a frozen world gets; every `(:wat::load-file! ...)`
+at startup and every `(:wat::eval-file! ...)` at runtime routes
+through that Loader. No wat program can reach past its host-provided
+Loader to `std::fs` directly.
 
 Three implementations ship in `wat::load`:
 
