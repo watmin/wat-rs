@@ -546,6 +546,62 @@ Tail-position is preserved through the selected arm — a
 tail-recursive function ending in `cond` trampolines correctly
 (same TCO discipline `if` inherits).
 
+### `defmacro` — compile-time rewriting
+
+```scheme
+(:wat::core::defmacro (:my::app::when (cond :wat::WatAST)
+                                      (body :wat::WatAST)
+                                      -> :wat::WatAST)
+  `(:wat::core::if ,cond -> :()
+     ,body
+     ()))
+```
+
+A macro is a function that takes ASTs and returns an AST. The call
+site `(:my::app::when (> n 0) (do-thing))` expands at parse time
+into `(:wat::core::if (> n 0) -> :() (do-thing) ())`. Hygiene
+follows Racket's sets-of-scopes — generated bindings can't capture
+caller-scope names accidentally. Full mechanics in 058-031.
+
+**Quasiquote** — backtick `\`` for "build this AST"; comma `,` for
+"splice this value in"; `,@` for "splice this list in." The
+single-comma is the common case; the list-splice is for variadic
+positions.
+
+**Nested quasiquote** (arc 029) — `,,` is the deep-splice form, used
+when you write a macro that BUILDS another macro's body. Each `,`
+peels one layer of quasiquote nesting:
+
+```scheme
+(:wat::core::defmacro (:my::factory (helper-name :wat::WatAST)
+                                    -> :wat::WatAST)
+  `(:wat::core::defmacro (:my::made-by-factory (x :wat::WatAST)
+                                               -> :wat::WatAST)
+     `(,,helper-name ,x)))     ;; ,,helper-name escapes both quotes
+```
+
+The outer `\`` defines the inner defmacro; the inner `\`` produces
+that defmacro's body; `,,helper-name` reaches all the way back to
+the outer factory's binding. Used by `:wat::test::make-deftest`
+(arc 029) — the factory's default-prelude builds the test sandboxes
+that share configuration across tests in a file (§ 13).
+
+### Debugging macros — `macroexpand` / `macroexpand-1`
+
+```scheme
+(:wat::core::macroexpand-1 '(:my::app::when (> x 0) (do-thing)))
+;;   → '(:wat::core::if (> x 0) -> :() (do-thing) ())
+
+(:wat::core::macroexpand '(:my::app::when (> x 0) (do-thing)))
+;;   → fully expanded form (recurses until no top-level macro remains)
+```
+
+Both take a quoted form and return its expansion as AST data
+(arc 030). `macroexpand-1` peels exactly one layer; `macroexpand`
+recurses until the head of the form is no longer a macro. Useful
+when a macro's expansion isn't producing what you expected — invoke
+the expander, read the resulting AST.
+
 ---
 
 ## 5. Structs
