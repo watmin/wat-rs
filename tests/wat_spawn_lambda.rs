@@ -37,8 +37,6 @@ fn run(src: &str) -> Value {
 #[test]
 fn spawn_named_define_still_works() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::produce (n :i64) -> :i64)
           (:wat::core::i64::+ n 1))
@@ -57,8 +55,6 @@ fn spawn_named_define_still_works() {
 #[test]
 fn spawn_let_bound_lambda() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
@@ -77,8 +73,6 @@ fn spawn_let_bound_lambda() {
 #[test]
 fn spawn_inline_lambda_literal() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
@@ -97,8 +91,6 @@ fn spawn_inline_lambda_literal() {
 #[test]
 fn spawn_lambda_valued_param_from_enclosing_function() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::run-on-thread
                               (f :fn(i64)->i64)
@@ -127,8 +119,6 @@ fn spawn_preserves_lambda_closed_env() {
     // lambda on a new thread must carry its closed_env across the
     // boundary — otherwise `delta` is unbound on the worker thread.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
@@ -153,8 +143,6 @@ fn spawn_rejects_non_callable_value() {
     // :fn(...)->_) — this test hits the runtime path through dynamic
     // evaluation.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*

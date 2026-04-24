@@ -7,8 +7,6 @@
 ;; against the result lands below. That's the "discriminant" identity
 ;; for role-filler binding and residual encoding.
 
-(:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :wat-tests::holon::Subtract::test-self-presence-above-floor
   ()

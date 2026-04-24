@@ -12,8 +12,6 @@
 ;; — rooted at the sibling `wat/` directory. So `"helper.wat"` means
 ;; `./wat/helper.wat` on disk.
 
-(:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 (:wat::load-file! "helper.wat")
 

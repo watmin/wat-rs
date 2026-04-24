@@ -40,8 +40,6 @@ fn install() {
 fn sum2_via_macro() {
     install();
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::TupleUtils)
 
         (:wat::core::define (:user::main -> :i64)
@@ -57,8 +55,6 @@ fn sum2_via_macro() {
 fn pair_of_returns_tuple() {
     install();
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::TupleUtils)
 
         (:wat::core::define (:user::main -> :i64)
@@ -74,8 +70,6 @@ fn pair_of_returns_tuple() {
 fn heterogeneous_triple_via_macro() {
     install();
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::TupleUtils)
 
         (:wat::core::define (:user::main -> :String)

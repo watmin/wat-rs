@@ -53,8 +53,6 @@ fn from_receiver_wraps_raw_queue_into_stream() {
     // forced take to be a stage — if main held tx across collect,
     // collect would wait forever on a never-closing channel.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:test::build-stream -> :wat::std::stream::Stream<i64>)
           (:wat::core::let*
@@ -84,8 +82,6 @@ fn from_receiver_composes_with_map() {
     // from-receiver stream feeds into a map stage, then collect.
     // Same helper-define pattern so tx drops before collect runs.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:test::build-stream -> :wat::std::stream::Stream<i64>)
           (:wat::core::let*
@@ -121,8 +117,6 @@ fn from_receiver_composes_with_map() {
 #[test]
 fn spawn_producer_plus_collect_round_trips_three_values() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::std::stream::collect
@@ -142,8 +136,6 @@ fn spawn_producer_plus_collect_round_trips_three_values() {
 #[test]
 fn spawn_producer_map_collect_doubles_each_value() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::core::let*
@@ -173,8 +165,6 @@ fn three_stage_pipeline_map_map_collect() {
     // Each stage spawns its own worker; handles carried via
     // Stream<T>'s tuple. Drop cascade flushes on termination.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::core::let*
@@ -205,8 +195,6 @@ fn three_stage_pipeline_map_map_collect() {
 #[test]
 fn empty_producer_yields_empty_collected_vec() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::std::stream::collect
@@ -222,8 +210,6 @@ fn empty_producer_yields_empty_collected_vec() {
 #[test]
 fn for_each_returns_unit_on_finite_producer() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :())
           (:wat::std::stream::for-each
@@ -244,8 +230,6 @@ fn for_each_returns_unit_on_finite_producer() {
 fn filter_keeps_only_passing_values() {
     // 1..=6, keep evens → [2, 4, 6].
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::core::let*
@@ -281,8 +265,6 @@ fn filter_keeps_only_passing_values() {
 #[test]
 fn fold_sums_the_stream() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::std::stream::fold
@@ -303,8 +285,6 @@ fn fold_sums_the_stream() {
 #[test]
 fn fold_with_empty_stream_returns_init() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::std::stream::fold
@@ -326,8 +306,6 @@ fn chunks_groups_by_size_flushes_remainder() {
     // chunk flushes on upstream disconnect — the core pattern for
     // every future stateful-stage with EOS cleanup.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<Vec<i64>>)
           (:wat::std::stream::collect
@@ -374,8 +352,6 @@ fn chunks_groups_by_size_flushes_remainder() {
 fn chunks_with_exact_multiple_emits_no_partial_flush() {
     // 6 items, size 3 → [[1,2,3], [4,5,6]]. No partial flush.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<Vec<i64>>)
           (:wat::std::stream::collect
@@ -418,8 +394,6 @@ fn chunks_into_map_composes() {
     // 5 items, size 2, then map each batch to its sum.
     // [[1,2], [3,4], [5]] → [3, 7, 5].
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::std::stream::collect
@@ -452,8 +426,6 @@ fn take_cuts_off_at_n_with_producer_that_would_send_more() {
     // the next send returns :None so the producer exits too. This
     // is the core test that take's drop cascade works.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::core::let*
@@ -484,8 +456,6 @@ fn take_returns_all_when_n_exceeds_available() {
     // Producer has 2 items; take 5. take sees :None before
     // counter hits 0; exits cleanly; collect returns the 2 items.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::core::let*
@@ -508,8 +478,6 @@ fn take_zero_emits_nothing() {
     // take 0 → worker exits immediately; downstream sees :None
     // on first recv; collect returns empty.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::core::let*
@@ -533,8 +501,6 @@ fn take_composes_with_map() {
     // drop cascade propagates back through a map stage to the
     // producer.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::core::let*
@@ -567,8 +533,6 @@ fn inspect_passes_values_through_unchanged() {
     // identical to the source. Validates the pipeline shape even
     // before the effect is observable.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::core::let*
@@ -594,8 +558,6 @@ fn inspect_composes_between_map_and_collect() {
     // Four stages; inspect in the middle must be a transparent
     // pass-through — output = (n+1)*10 per input.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::core::let*
@@ -629,8 +591,6 @@ fn inspect_composes_between_map_and_collect() {
 fn flat_map_expands_each_input_to_two_outputs() {
     // 1:N — each n becomes [n, n*10]. 3 inputs → 6 outputs.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::core::let*
@@ -656,8 +616,6 @@ fn flat_map_empty_expansion_emits_nothing() {
     // 1:0 sub-case — each expansion returns an empty Vec; no
     // downstream emissions. collect returns empty Vec.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::core::let*
@@ -682,8 +640,6 @@ fn flat_map_mixed_expansion_sizes() {
     // Variable expansion — 3 inputs produce [3 items, 0 items, 2 items]
     // → total 5 outputs in input order.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Vec<i64>)
           (:wat::core::let*

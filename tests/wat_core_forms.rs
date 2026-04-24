@@ -44,8 +44,6 @@ fn run(src: &str) -> Vec<String> {
 fn forms_captures_each_arg_as_wat_ast() {
     // Pass three unevaluated forms; expect a Vec<wat::WatAST> of length 3.
     let src = r##"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define
           (:user::main
@@ -68,8 +66,6 @@ fn forms_captures_each_arg_as_wat_ast() {
 fn forms_empty_produces_empty_vec() {
     // Zero-arity must produce an empty Vec — same shape as (:wat::core::vec :wat::WatAST).
     let src = r##"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define
           (:user::main
@@ -92,8 +88,6 @@ fn forms_args_are_not_evaluated() {
     // (undefined-symbol 99) would raise at runtime if evaluated.
     // Captured by forms, it lives as data — no evaluation, no error.
     let src = r##"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define
           (:user::main
@@ -119,8 +113,6 @@ fn forms_composes_with_run_sandboxed_ast() {
     // The canonical use: build a program via forms, run it sandboxed,
     // verify the inner program's output.
     let src = r##"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define
           (:user::main
@@ -131,8 +123,6 @@ fn forms_composes_with_run_sandboxed_ast() {
           (:wat::core::let*
             (((program :Vec<wat::WatAST>)
               (:wat::core::forms
-                (:wat::config::set-capacity-mode! :error)
-                (:wat::config::set-dims! 1024)
                 (:wat::core::define
                   (:user::main
                     (stdin  :wat::io::IOReader)
@@ -157,8 +147,6 @@ fn test_program_macro_expands_correctly() {
     // The stdlib macro is a direct alias — behavior should be
     // identical to calling :wat::core::forms directly.
     let src = r##"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define
           (:user::main
@@ -185,8 +173,6 @@ fn test_run_ast_via_test_program_roundtrips_hello() {
     // equivalent — no escapes, no nested quoting, the inner program
     // reads as actual s-expressions.
     let src = r##"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define
           (:user::main
@@ -198,8 +184,6 @@ fn test_run_ast_via_test_program_roundtrips_hello() {
             (((r :wat::kernel::RunResult)
               (:wat::test::run-ast
                 (:wat::test::program
-                  (:wat::config::set-capacity-mode! :error)
-                  (:wat::config::set-dims! 1024)
                   (:wat::core::define
                     (:user::main
                       (stdin  :wat::io::IOReader)

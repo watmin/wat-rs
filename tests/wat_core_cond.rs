@@ -43,8 +43,6 @@ fn unwrap_i64(v: Value) -> i64 {
 #[test]
 fn cond_first_arm_matches() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :String)
           (:wat::core::cond -> :String
@@ -58,8 +56,6 @@ fn cond_first_arm_matches() {
 #[test]
 fn cond_middle_arm_matches() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :String)
           (:wat::core::cond -> :String
@@ -74,8 +70,6 @@ fn cond_middle_arm_matches() {
 #[test]
 fn cond_falls_through_to_else() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :String)
           (:wat::core::cond -> :String
@@ -90,8 +84,6 @@ fn cond_falls_through_to_else() {
 fn cond_with_single_else_only() {
     // Minimal cond — just the else arm.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::cond -> :i64
@@ -104,8 +96,6 @@ fn cond_with_single_else_only() {
 fn cond_dispatches_on_bound_value() {
     // The exit-code-prefix shape — cond on an :i64 binding.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::label (code :i64) -> :String)
           (:wat::core::cond -> :String
@@ -125,8 +115,6 @@ fn cond_dispatches_on_bound_value() {
 #[test]
 fn cond_refuses_missing_else() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :String)
           (:wat::core::cond -> :String
@@ -144,8 +132,6 @@ fn cond_refuses_missing_else() {
 #[test]
 fn cond_refuses_non_bool_test() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :String)
           (:wat::core::cond -> :String
@@ -163,8 +149,6 @@ fn cond_refuses_non_bool_test() {
 #[test]
 fn cond_refuses_mismatched_body_type() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :String)
           (:wat::core::cond -> :String
@@ -187,8 +171,6 @@ fn cond_preserves_tail_call() {
     // eval_cond_tail threads tail position into the selected body.
     // Without TCO through cond, this would overflow the stack.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:my::countdown (n :i64) -> :i64)
           (:wat::core::cond -> :i64
@@ -207,8 +189,6 @@ fn cond_preserves_tail_call() {
 #[test]
 fn cond_composes_with_other_cond() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :String)
           (:wat::core::cond -> :String

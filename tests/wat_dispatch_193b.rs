@@ -48,8 +48,6 @@ fn counter_increments_and_reads_via_macro_generated_shim() {
     install_fixture_shim();
 
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::Counter)
 
         (:wat::core::define (:user::main -> :i64)
@@ -71,8 +69,6 @@ fn counter_ref_read_preserves_state() {
     install_fixture_shim();
 
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::Counter)
 
         (:wat::core::define (:user::main -> :i64)

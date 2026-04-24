@@ -32,8 +32,6 @@ fn check_errors(src: &str) -> Vec<CheckError> {
 #[test]
 fn simple_alias_unifies_with_its_expansion() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::typealias :my::Amount :f64)
 
@@ -54,8 +52,6 @@ fn simple_alias_unifies_with_its_expansion() {
 #[test]
 fn alias_of_alias_chain_expands_to_root() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::typealias :my::B :f64)
         (:wat::core::typealias :my::A :my::B)
@@ -77,8 +73,6 @@ fn alias_of_alias_chain_expands_to_root() {
 #[test]
 fn cyclic_alias_halts_at_startup() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::typealias :my::A :my::B)
         (:wat::core::typealias :my::B :my::A)
@@ -93,8 +87,6 @@ fn cyclic_alias_halts_at_startup() {
 #[test]
 fn self_referential_alias_halts_at_startup() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::typealias :my::A :my::A)
     "#;
@@ -110,8 +102,6 @@ fn self_referential_alias_halts_at_startup() {
 #[test]
 fn alias_preserves_type_mismatches() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::typealias :my::Amount :f64)
 
@@ -135,8 +125,6 @@ fn alias_over_hashmap_passes_through_std_get() {
     // reduction at the shape-inspection site, the alias resolves to
     // its HashMap root and the call type-checks.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::typealias :my::Row :HashMap<String,i64>)
 
@@ -157,8 +145,6 @@ fn alias_over_fn_type_works_at_spawn() {
     // site at infer_spawn must see through the alias to find the Fn
     // shape.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::typealias
           :my::Job
@@ -189,8 +175,6 @@ fn alias_over_fn_type_works_at_spawn() {
 #[test]
 fn alias_return_type_accepts_expanded_literal() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::typealias :my::Amount :f64)
 

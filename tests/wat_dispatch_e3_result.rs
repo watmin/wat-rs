@@ -39,8 +39,6 @@ fn install() {
 fn result_ok_matched() {
     install();
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::Fallible)
 
         (:wat::core::define (:user::main -> :i64)
@@ -58,8 +56,6 @@ fn result_ok_matched() {
 fn result_err_matched() {
     install();
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::Fallible)
 
         (:wat::core::define (:user::main -> :i64)
@@ -78,8 +74,6 @@ fn user_built_ok_value() {
     // (Ok expr) should work at the wat source level too, independent
     // of any Rust shim.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::match (Ok 7) -> :i64
@@ -95,8 +89,6 @@ fn user_built_ok_value() {
 #[test]
 fn user_built_err_value() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::match (Err "x") -> :i64

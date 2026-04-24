@@ -72,7 +72,6 @@ fn wat_test_failing_deftest_exits_nonzero() {
             .unwrap_or(0)
     ));
     let src = r##"(:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :failing::test-should-fail
   ()

@@ -8,8 +8,6 @@
 use wat::harness::{Harness, HarnessError};
 
 const DIMS_AND_MODE: &str = r##"
-    (:wat::config::set-capacity-mode! :error)
-    (:wat::config::set-dims! 1024)
 "##;
 
 fn main_body(body: &str) -> String {

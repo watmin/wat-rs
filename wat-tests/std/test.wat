@@ -13,8 +13,6 @@
 ;; for callers who build programs from strings at runtime (fuzzers,
 ;; dynamically-generated tests).
 
-(:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 ;; ─── assert-eq — pass cases ───────────────────────────────────────────
 
@@ -45,8 +43,6 @@
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
-          (:wat::config::set-capacity-mode! :error)
-          (:wat::config::set-dims! 1024)
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)
@@ -76,8 +72,6 @@
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
-          (:wat::config::set-capacity-mode! :error)
-          (:wat::config::set-dims! 1024)
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)
@@ -112,8 +106,6 @@
     (((inner :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
-          (:wat::config::set-capacity-mode! :error)
-          (:wat::config::set-dims! 1024)
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)
@@ -136,8 +128,6 @@
     (((inner :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
-          (:wat::config::set-capacity-mode! :error)
-          (:wat::config::set-dims! 1024)
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)
@@ -159,8 +149,6 @@
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
-          (:wat::config::set-capacity-mode! :error)
-          (:wat::config::set-dims! 1024)
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)
@@ -171,8 +159,6 @@
               (((silent :wat::kernel::RunResult)
                 (:wat::test::run-ast
                   (:wat::test::program
-                    (:wat::config::set-capacity-mode! :error)
-                    (:wat::config::set-dims! 1024)
                     (:wat::core::define
                       (:user::main
                         (stdin  :wat::io::IOReader)
@@ -207,7 +193,6 @@
     (((r :wat::kernel::RunResult)
       (:wat::test::run
         "(:wat::config::set-capacity-mode! :error)
-         (:wat::config::set-dims! 1024)
          (:wat::core::define (:user::main
                               (stdin  :wat::io::IOReader)
                               (stdout :wat::io::IOWriter)
@@ -226,8 +211,6 @@
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
-          (:wat::config::set-capacity-mode! :error)
-          (:wat::config::set-dims! 1024)
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)

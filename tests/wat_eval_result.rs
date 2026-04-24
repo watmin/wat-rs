@@ -52,8 +52,6 @@ fn eval_ast_bang_happy_path_returns_ok_holon() {
     // A well-formed AST that evaluates to a holon; the outer result
     // is Ok(Value::holon__HolonAST(_)).
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let*
@@ -77,8 +75,6 @@ fn eval_ast_bang_mutation_form_surfaces_as_err() {
     // form constrained eval refuses. Becomes
     // Err(EvalError{kind="mutation-form-refused"}).
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let*
@@ -98,8 +94,6 @@ fn eval_edn_bang_parse_failure_surfaces_as_err() {
     // slice may introduce a dedicated "parse-failed" kind if the
     // distinction earns it).
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::eval-edn! "(:wat::core::i64::+ 1"))
@@ -114,8 +108,6 @@ fn eval_digest_string_bang_hash_mismatch_surfaces_as_err() {
     // kind="verification-failed". Arc 028 slice 3: inline source
     // variant is `eval-digest-string!` (mirrors `load-string!`).
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::eval-digest-string!
@@ -133,8 +125,6 @@ fn eval_edn_bang_wrong_arity_surfaces_as_err() {
     // test — those keywords don't exist anymore. Arity mismatch is
     // the new structural-error surface to guard.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::eval-edn! "foo" "bar-extra"))
@@ -156,8 +146,6 @@ fn try_propagates_eval_err_through_helper() {
     // Err cleanly. The caller matches at main and accesses the
     // EvalError struct's `kind` field via the auto-generated accessor.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::run-dynamic (program :wat::WatAST)
                              -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
@@ -185,8 +173,6 @@ fn eval_err_exposes_both_kind_and_message() {
     // Access both accessors; the message should contain the
     // mutation-head name for diagnostic clarity.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :(String,String))
           (:wat::core::let*

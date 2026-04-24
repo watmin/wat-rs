@@ -78,8 +78,6 @@ fn assert_type_mismatch_on(errs: &[CheckError], callee: &str, param: &str) {
 #[test]
 fn typed_if_returns_then_branch_on_true() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::if true -> :i64 11 22))
     "#;
@@ -89,8 +87,6 @@ fn typed_if_returns_then_branch_on_true() {
 #[test]
 fn typed_if_returns_else_branch_on_false() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::if false -> :i64 11 22))
     "#;
@@ -100,8 +96,6 @@ fn typed_if_returns_else_branch_on_false() {
 #[test]
 fn typed_match_on_some_returns_some_arm() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::match (Some 7) -> :i64
             ((Some v) v)
@@ -115,8 +109,6 @@ fn typed_match_on_none_returns_none_arm() {
     // Type-annotate the :None literal through a let-bound var so the
     // checker knows the scrutinee is Option<i64>.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((o :Option<i64>) :None))
@@ -132,8 +124,6 @@ fn typed_match_on_none_returns_none_arm() {
 #[test]
 fn untyped_if_gives_migration_hint() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::if true 1 2))
     "#;
@@ -146,8 +136,6 @@ fn untyped_match_gives_migration_hint() {
     // Three args, where the second is NOT `->` — detected as the
     // old untyped shape.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::match (Some 1)
             ((Some v) v)
@@ -163,8 +151,6 @@ fn untyped_match_gives_migration_hint() {
 fn if_without_type_keyword_after_arrow_rejected() {
     // `-> :i64 then` is correct; this uses `-> then else without ty`.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::if true -> 1 2 3))
     "#;
@@ -175,8 +161,6 @@ fn if_without_type_keyword_after_arrow_rejected() {
 #[test]
 fn match_without_type_keyword_after_arrow_rejected() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::match (Some 1) -> oops ((Some v) v) (:None 0)))
     "#;
@@ -192,8 +176,6 @@ fn match_without_type_keyword_after_arrow_rejected() {
 fn if_wrong_arity_rejected_with_shape_guidance() {
     // Six args — one too many.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::if true -> :i64 1 2 99))
     "#;
@@ -205,8 +187,6 @@ fn if_wrong_arity_rejected_with_shape_guidance() {
 fn match_too_few_args_rejected_with_shape_guidance() {
     // Scrutinee + `->` + type but no arm at all.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::match (Some 1) -> :i64))
     "#;
@@ -219,8 +199,6 @@ fn match_too_few_args_rejected_with_shape_guidance() {
 #[test]
 fn if_then_branch_type_mismatch_named_by_branch() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::if true -> :i64 "oops" 0))
     "#;
@@ -231,8 +209,6 @@ fn if_then_branch_type_mismatch_named_by_branch() {
 #[test]
 fn if_else_branch_type_mismatch_named_by_branch() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::if true -> :i64 1 "oops"))
     "#;
@@ -244,8 +220,6 @@ fn if_else_branch_type_mismatch_named_by_branch() {
 fn match_arm_type_mismatch_named_by_arm_index() {
     // Arm #2 (the :None arm) produces a String instead of i64.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::match (Some 7) -> :i64
             ((Some v) v)
@@ -260,8 +234,6 @@ fn match_arm_type_mismatch_named_by_arm_index() {
 #[test]
 fn if_non_bool_cond_rejected_at_check() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::if 42 -> :i64 1 2))
     "#;
@@ -277,8 +249,6 @@ fn typed_if_result_flows_into_enclosing_let_bind() {
     // `:i64` as the if-form's result type — proving the declared `:T`
     // flows out.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((x :i64) (:wat::core::if true -> :i64 10 20)))
@@ -290,8 +260,6 @@ fn typed_if_result_flows_into_enclosing_let_bind() {
 #[test]
 fn typed_match_result_flows_into_enclosing_let_bind() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :String)
           (:wat::core::let*
             (((s :String)
@@ -311,8 +279,6 @@ fn typed_match_result_flows_into_enclosing_let_bind() {
 #[test]
 fn typed_if_inside_typed_match_arm_composes() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::match (Some 3) -> :i64
             ((Some v)

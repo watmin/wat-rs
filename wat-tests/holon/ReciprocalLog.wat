@@ -15,8 +15,6 @@
 ;;    their respective gradients, so they don't coincide with the
 ;;    reference identically.
 
-(:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 (:wat::test::make-deftest :deftest ())
 

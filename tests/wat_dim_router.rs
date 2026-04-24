@@ -52,7 +52,6 @@ fn user_router_introspects_via_statement_length() {
     // succeeded. The user's router produces different behavior.
     let src = format!(
         r#"
-        (:wat::config::set-capacity-mode! :error)
         (:wat::config::set-dim-router!
           (:wat::core::lambda ((ast :wat::holon::HolonAST) -> :Option<i64>)
             (:wat::core::let*
@@ -90,7 +89,6 @@ fn user_router_branches_on_surface_arity() {
     // Bundling 5 atoms triggers the overflow path via router's :None.
     let src = format!(
         r#"
-        (:wat::config::set-capacity-mode! :error)
         (:wat::config::set-dim-router!
           (:wat::core::lambda ((ast :wat::holon::HolonAST) -> :Option<i64>)
             (:wat::core::if (:wat::core::> (:wat::holon::statement-length ast) 4)
@@ -128,7 +126,6 @@ fn user_router_succeeds_when_within_picked_tier() {
     // Constant user router at d=10000. 50 atoms fits (sqrt=100).
     let src = format!(
         r#"
-        (:wat::config::set-capacity-mode! :error)
         (:wat::config::set-dim-router!
           (:wat::core::lambda ((_ast :wat::holon::HolonAST) -> :Option<i64>)
             (Some 10000)))
@@ -153,7 +150,6 @@ fn user_router_succeeds_when_within_picked_tier() {
 fn set_dim_router_with_non_function_fails_startup() {
     // AST evaluates to i64, not a function. Freeze rejects.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
         (:wat::config::set-dim-router! 42)
 
         (:wat::core::define (:user::main -> :()) ())
@@ -174,7 +170,6 @@ fn set_dim_router_with_non_function_fails_startup() {
 fn set_dim_router_with_wrong_arity_fails_startup() {
     // 2-param lambda: freeze rejects at arity check.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
         (:wat::config::set-dim-router!
           (:wat::core::lambda ((a :wat::holon::HolonAST)
                                (b :wat::holon::HolonAST)
@@ -200,7 +195,6 @@ fn set_dim_router_with_wrong_param_type_fails_startup() {
     // Param declared :i64 instead of :wat::holon::HolonAST. Freeze
     // rejects at signature type check.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
         (:wat::config::set-dim-router!
           (:wat::core::lambda ((n :i64) -> :Option<i64>)
             (Some 256)))
@@ -223,7 +217,6 @@ fn set_dim_router_with_wrong_param_type_fails_startup() {
 fn set_dim_router_with_wrong_return_type_fails_startup() {
     // Return declared :i64 instead of :Option<i64>. Freeze rejects.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
         (:wat::config::set-dim-router!
           (:wat::core::lambda ((ast :wat::holon::HolonAST) -> :i64)
             256))

@@ -68,8 +68,6 @@ fn add_two_i64s_via_macro_generated_shim() {
     install_fixture_shim();
 
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::MathUtils)
 
         (:wat::core::define (:user::main -> :i64)
@@ -86,8 +84,6 @@ fn option_some_via_macro_generated_shim() {
     install_fixture_shim();
 
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::MathUtils)
 
         (:wat::core::define (:user::main -> :i64)
@@ -106,8 +102,6 @@ fn option_none_via_macro_generated_shim() {
     install_fixture_shim();
 
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::MathUtils)
 
         (:wat::core::define (:user::main -> :i64)
@@ -126,8 +120,6 @@ fn type_check_rejects_wrong_arg_types() {
     install_fixture_shim();
 
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::MathUtils)
 
         (:wat::core::define (:user::main -> :i64)

@@ -42,8 +42,6 @@ fn install() {
 fn sum_vec_via_macro() {
     install();
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::VecUtils)
 
         (:wat::core::define (:user::main -> :i64)
@@ -59,8 +57,6 @@ fn sum_vec_via_macro() {
 fn reverse_vec_via_macro() {
     install();
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::VecUtils)
 
         (:wat::core::define (:user::main -> :i64)
@@ -77,8 +73,6 @@ fn reverse_vec_via_macro() {
 fn sort_vec_via_macro() {
     install();
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::VecUtils)
 
         (:wat::core::define (:user::main -> :i64)
@@ -95,8 +89,6 @@ fn sort_vec_via_macro() {
 fn empty_vec_via_macro() {
     install();
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::use! :rust::test::VecUtils)
 
         (:wat::core::define (:user::main -> :i64)

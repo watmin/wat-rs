@@ -22,8 +22,6 @@ use std::sync::Arc;
 #[test]
 fn diag_make_deftest_with_prelude_expansion() {
     let src = r##"
-(:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 (:wat::test::make-deftest :my-deftest
   ((:wat::load-file! "foo.wat")))

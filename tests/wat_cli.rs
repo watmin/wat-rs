@@ -34,8 +34,6 @@ fn write_temp(contents: &str) -> std::path::PathBuf {
 /// - stdio bridge threads
 /// - clean shutdown
 const ECHO_PROGRAM: &str = r#"
-(:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
@@ -104,8 +102,6 @@ fn echo_program_reads_stdin_writes_stdout() {
 /// it — needs the `:wat::holon::cosine` primitive and lives in its
 /// own CLI test (added separately).
 const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
-(:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
@@ -196,7 +192,6 @@ fn programs_are_atoms_hello_world() {
 /// at lines 1 and 2 are the load-bearing proof; the echo at line 3 is
 /// the eval confirming the program survived.
 const PRESENCE_PROOF_PROGRAM: &str = r#"
-(:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
@@ -300,8 +295,6 @@ fn missing_user_main_rejected() {
     // Valid setup but no :user::main defined — signature enforcement
     // should halt with exit 3.
     let program = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat");
@@ -327,8 +320,6 @@ fn wrong_arity_user_main_rejected() {
     // :user::main declared with zero args — signature check rejects
     // (wat requires 3 args).
     let program = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main -> :()) ())
     "#;
     let path = write_temp(program);
@@ -353,8 +344,6 @@ fn wrong_arity_user_main_rejected() {
 fn wrong_arg_type_user_main_rejected() {
     // First arg typed :i64 instead of :wat::io::IOReader.
     let program = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main
                              (stdin  :i64)
                              (stdout :wat::io::IOWriter)
@@ -427,8 +416,6 @@ fn program_writes_multiple_times_to_stdout() {
     // the let body is the second send, whose Unit result is the
     // function's return value (matches the `-> :()` signature).
     let program = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define (:user::main
                              (stdin  :wat::io::IOReader)
                              (stdout :wat::io::IOWriter)

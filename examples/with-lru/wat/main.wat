@@ -13,8 +13,6 @@
 ;; shim dispatches, and the user code evaluates against a real
 ;; lru::LruCache.
 
-(:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 ;; No `(:wat::core::use! :rust::lru::LruCache)` is needed here: this
 ;; consumer only uses the wat-level wrapper `:wat::lru::LocalCache`.

@@ -412,10 +412,16 @@ fn discover_wat_files(path: &Path) -> std::io::Result<Vec<PathBuf>> {
 }
 
 /// Arc 017 — a `.wat` file is an ENTRY (commits config + hosts tests)
-/// iff it has at least one top-level `(:wat::config::set-*!)` form.
-/// Files without any top-level setter are LIBRARIES — intended to be
-/// `(:wat::load-file! "...")`'d from entries
-/// — and test_runner skips them at freeze time.
+/// iff it has at least one top-level `(:wat::config::set-*!)` form
+/// OR any top-level `(:wat::test::*)` form (deftest, make-deftest,
+/// etc.). Files with only defines / loads are LIBRARIES and get
+/// skipped at freeze time.
+///
+/// Arc 037 (2026-04-24): loosened the setter-only signal. Under the
+/// arc 037 contract, set-dims! is a no-op and set-capacity-mode!
+/// defaults to :error — entry-file preambles are often empty. A
+/// file's intent to host tests is better signaled by the presence
+/// of `:wat::test::*` forms.
 ///
 /// Implementation: parse the file's top-level forms with the lexer +
 /// parser and check each form's head keyword. Parse errors are NOT
@@ -432,7 +438,8 @@ fn source_has_config_setter(src: &str) -> bool {
     forms.iter().any(|form| {
         if let crate::ast::WatAST::List(items, _) = form {
             if let Some(crate::ast::WatAST::Keyword(k, _)) = items.first() {
-                return k.starts_with(":wat::config::set-") && k.ends_with('!');
+                return (k.starts_with(":wat::config::set-") && k.ends_with('!'))
+                    || k.starts_with(":wat::test::");
             }
         }
         false

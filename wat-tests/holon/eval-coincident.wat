@@ -17,8 +17,6 @@
 ;; whose natural test site is the Rust unit-test tier (hashes
 ;; computed inline via sha2, signatures via ed25519-dalek).
 
-(:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 ;; ─── eval-coincident? — the book's (+ 2 2) ≡ (* 1 4) retort ──────
 

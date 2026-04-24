@@ -40,8 +40,6 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
     // `(:wat::core::vec :i64 1 2 3)`. The `& (items ...)` rest-binder
     // collects the trailing 1 2 3 into a list; `,@items` splices them.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::defmacro
           (:my::vec-of
@@ -60,8 +58,6 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
 #[test]
 fn variadic_macro_with_zero_rest_args_produces_empty_splice() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::defmacro
           (:my::empty-vec
@@ -89,8 +85,6 @@ fn variadic_macro_mixes_fixed_params_and_rest() {
     // Simpler shape: macro expands to `(vec :i64 init ,@items)` and
     // we sum-fold the result. Keeps the splice the point of the test.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::defmacro
           (:my::sum-of
@@ -117,8 +111,6 @@ fn variadic_macro_requires_at_least_fixed_arity() {
     // zero args is a short call. Surfaces as a macro-expansion
     // ArityMismatch during startup.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::defmacro
           (:my::sum-of
@@ -146,8 +138,6 @@ fn variadic_macro_requires_at_least_fixed_arity() {
 #[test]
 fn double_rest_marker_refused_at_registration() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::defmacro
           (:my::bogus
@@ -169,8 +159,6 @@ fn double_rest_marker_refused_at_registration() {
 #[test]
 fn rest_marker_without_binder_refused_at_registration() {
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::defmacro
           (:my::bogus

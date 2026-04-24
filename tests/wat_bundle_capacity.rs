@@ -45,8 +45,6 @@ fn bundle_under_budget_returns_ok_under_error_mode() {
     // d=1024 → budget=32. Bundle 5 atoms — well under. Ok(h) expected.
     let src = format!(
         r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
@@ -67,7 +65,6 @@ fn bundle_under_budget_returns_ok_under_abort_mode() {
     let src = format!(
         r#"
         (:wat::config::set-capacity-mode! :abort)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
@@ -98,7 +95,6 @@ fn bundle_over_budget_under_error_mode_returns_err_struct() {
     // router returns None.
     let src = format!(
         r#"
-        (:wat::config::set-capacity-mode! :error)
 
         (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
@@ -132,7 +128,6 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
     // returns None → budget=0 → cost-budget = 400.
     let src = format!(
         r#"
-        (:wat::config::set-capacity-mode! :error)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::match (:wat::holon::Bundle {}) -> :i64
@@ -180,7 +175,6 @@ fn try_propagates_bundle_err_across_function_boundary() {
     // across the function boundary; main's Err arm reads cost=400.
     let src = format!(
         r#"
-        (:wat::config::set-capacity-mode! :error)
 
         (:wat::core::define (:app::build-composite
                             (items :wat::holon::Holons)
@@ -207,8 +201,6 @@ fn bundle_return_type_mismatch_rejected_at_check() {
     // main's return type is :wat::holon::HolonAST but Bundle returns
     // :Result<wat::holon::HolonAST, CapacityExceeded>. Must fail at check.
     let src = r#"
-        (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::holon::HolonAST)
           (:wat::holon::Bundle (:wat::core::list :wat::holon::HolonAST
