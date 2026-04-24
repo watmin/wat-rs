@@ -307,7 +307,7 @@ that installs both halves of each dep's contract
 `wat::rust_deps::install` for Rust shims), freezes the user source
 against the composed world, and invokes `:user::main` with real
 OS stdio. See `docs/USER-GUIDE.md` § 1 for the full consumer
-shape + test suite companion (`wat::test_suite!`).
+shape + test suite companion (`wat::test!`).
 
 Reference crate: `crates/wat-lru/` — the first external wat crate
 (arc 013). Shows the publisher-side contract; `examples/with-lru/`
@@ -647,7 +647,7 @@ wat-rs/
 │       └── marshal.rs      # FromWat/ToWat, ThreadOwnedCell,
 │                           # OwnedMoveCell, RustOpaqueInner
 ├── wat-macros/             # sibling proc-macro crate
-│   └── src/{lib.rs,codegen.rs}  # #[wat_dispatch] + wat::main! + wat::test_suite!
+│   └── src/{lib.rs,codegen.rs}  # #[wat_dispatch] + wat::main! + wat::test!
 ├── wat/holon/              # algebra-surface wat sources (arc 022)
 │   ├── Amplify.wat Subtract.wat Log.wat Circular.wat
 │   ├── Reject.wat Project.wat Sequential.wat
@@ -662,7 +662,7 @@ wat-rs/
 │   ├── src/{lib.rs,shim.rs}  # wat_sources(), register(), #[wat_dispatch] impl
 │   ├── wat/{LocalCache,CacheService}.wat
 │   ├── wat-tests/{LocalCache,CacheService}.wat  # deftests
-│   └── tests/wat_suite.rs  # one-line wat::test_suite!
+│   └── tests/test.rs       # one-line wat::test!
 ├── examples/with-lru/      # reference consumer binary (arc 013 slice 5)
 │   ├── Cargo.toml
 │   ├── src/{main.rs,program.wat}  # main.rs is one wat::main!
@@ -684,7 +684,7 @@ wat-rs/
 │   └── ...
 └── docs/
     ├── README.md           # orientation
-    ├── USER-GUIDE.md       # building on wat (wat::main! + wat::test_suite!)
+    ├── USER-GUIDE.md       # building on wat (wat::main! + wat::test!)
     ├── CONVENTIONS.md      # naming + folder layouts + three varieties
     ├── ZERO-MUTEX.md       # the concurrency architecture
     └── arc/2026/04/

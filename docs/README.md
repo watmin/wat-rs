@@ -165,7 +165,8 @@ organized as `arc/YYYY/MM/NNN-slug/`:
 - **`arc/2026/04/015-wat-test-for-consumers/`** — **shipped.**
   Closed the last consumer-shape gap: `.wat` tests that
   compose external wat crates, discovered + run by `cargo test`.
-  `wat::test_suite!` proc-macro mirrors `wat::main!` for tests;
+  `wat::test!` proc-macro (originally shipped as `wat::test_suite!`;
+  renamed in arc 018) mirrors `wat::main!` for tests;
   `wat::test_runner` library is the callable substrate;
   `wat::source::install_dep_sources` is the global OnceLock
   (symmetric with `wat::rust_deps::install`) that lets every
@@ -194,7 +195,8 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   slices + one polish pass, all 2026-04-21.
 
 - **`arc/2026/04/017-loader-option-for-consumer-macros/`** —
-  **shipped.** `wat::main!` and `wat::test_suite!` each gain an
+  **shipped.** `wat::main!` and `wat::test!` (then named
+  `wat::test_suite!` — renamed in arc 018) each gain an
   optional `loader: "<path>"` argument that expands to a
   `ScopedLoader` rooted at `CARGO_MANIFEST_DIR/<path>` so
   `(:wat::load-file! "...")` works from
