@@ -141,7 +141,6 @@
 ;;
 ;;   (:wat::test::run-ast
 ;;     (:wat::test::program
-;;       (:wat::config::set-dims! 1024)
 ;;       (:wat::config::set-capacity-mode! :error)
 ;;       (:wat::core::define (:user::main ...) <body>))
 ;;     (:wat::core::vec :String))
@@ -196,9 +195,9 @@
 ;; site for config:
 ;;
 ;;   (:wat::config::set-capacity-mode! :error)
-;;   (:wat::config::set-dims! 1024)
 ;;
-;; Every deftest below inherits those values through the sandbox's
+;; Every deftest below inherits that value (and any optional
+;; set-dim-router! / sigma-fn overrides) through the sandbox's
 ;; Config-inheritance path. No per-test re-declaration.
 ;;
 ;; Shape — empty prelude:
@@ -289,7 +288,6 @@
 ;; Preamble at the top of a test source file:
 ;;
 ;;   (:wat::config::set-capacity-mode! :error)
-;;   (:wat::config::set-dims! 1024)
 ;;
 ;;   (:wat::test::make-deftest :deftest
 ;;     ((:wat::load-file! "wat/vocab/shared/time.wat")))

@@ -1,6 +1,6 @@
 ;; examples/with-loader/wat-tests/helpers.wat — test-local library
 ;; loaded by sibling test files via the arc 017 `loader:` option on
-;; `wat::test_suite!`.
+;; `wat::test!`.
 ;;
 ;; Library files in the test directory don't commit startup config;
 ;; test_runner treats any .wat with no top-level `(:wat::config::set-*!)`

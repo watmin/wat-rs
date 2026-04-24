@@ -376,7 +376,7 @@ pub fn main(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-// ─── wat::test_suite! — arc 015 slice 2 ──────────────────────────────────
+// ─── wat::test! — arc 015 slice 2 (renamed from wat::test_suite! in arc 018) ───
 //
 // Declarative test-suite entry for Rust binaries / libraries that want
 // `cargo test` to discover and run a directory of `.wat` test files
@@ -384,7 +384,7 @@ pub fn main(input: TokenStream) -> TokenStream {
 //
 // Usage (inside any `tests/*.rs` integration test file):
 //
-//     wat::test_suite! {
+//     wat::test! {
 //         path: "wat-tests",
 //         deps: [wat_lru, wat_reqwest, wat_sqlite],
 //     }

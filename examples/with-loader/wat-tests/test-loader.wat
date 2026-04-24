@@ -1,5 +1,5 @@
 ;; examples/with-loader/wat-tests/test-loader.wat — arc 017 slice 2's
-;; walkable proof that `wat::test_suite! { ..., loader: "..." }`
+;; walkable proof that `wat::test! { ..., loader: "..." }`
 ;; threads a ScopedLoader into each test file's freeze, so the
 ;; entry-file `(:wat::load-file! "helpers.wat")`
 ;; resolves.
