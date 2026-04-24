@@ -1019,11 +1019,36 @@ pub struct WatConnection {
 )]
 impl WatConnection {
     pub fn open(path: String) -> Self {
-        WatConnection { inner: Connection::open(&path).unwrap() }
+        // Panic with diagnostic context on failure — bare .unwrap() would
+        // give "called Option::unwrap() on a None value" with no clue WHICH
+        // path failed. Pattern: name the dispatch path + the input + the
+        // underlying error. Same shape as crates/wat-lru/src/shim.rs.
+        let inner = Connection::open(&path).unwrap_or_else(|e| {
+            panic!(
+                ":rust::rusqlite::Connection::open: failed for {:?} — {}",
+                path, e
+            )
+        });
+        WatConnection { inner }
     }
 
-    pub fn query_i64(&mut self, sql: String) -> i64 {
-        self.inner.query_row(&sql, params![], |row| row.get(0)).unwrap_or(0)
+    /// `:rust::rusqlite::Connection::query_i64 conn sql` — returns
+    /// `:Option<i64>`. `Some(v)` for a single matched row; `None` for
+    /// no rows. Any other DB error (locked, syntax, type mismatch)
+    /// panics with diagnostic — those are programmer-or-deployment
+    /// errors, not absent-value answers, so they shouldn't fold into
+    /// `None` and silently corrupt downstream logic.
+    pub fn query_i64(&mut self, sql: String) -> Option<i64> {
+        use rusqlite::OptionalExtension;
+        self.inner
+            .query_row(&sql, params![], |row| row.get(0))
+            .optional()
+            .unwrap_or_else(|e| {
+                panic!(
+                    ":rust::rusqlite::Connection::query_i64: query failed — {}",
+                    e
+                )
+            })
     }
 }
 
