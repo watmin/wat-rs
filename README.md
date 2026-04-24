@@ -203,11 +203,12 @@ sandbox, stream with-state). Live counts in each arc's INSCRIPTION.
   keyword-path in expression position infers to `:fn(...)->Ret`.
 - [`hash`] — canonical-EDN serialization + SHA-256 + Ed25519 verification.
 - [`lower`] — `WatAST` algebra-core subtree → `holon::HolonAST`.
-- [`runtime`] — AST walker; dispatch for `:wat::core::*` / `:wat::algebra::*`
-  / `:wat::kernel::*` / `:wat::io::*` / `:wat::test::*` primitives; four
-  eval forms; `:wat::core::forms` (variadic quote, arc 010). Programs-
+- [`runtime`] — AST walker; dispatch for `:wat::core::*` / `:wat::holon::*`
+  / `:wat::kernel::*` / `:wat::io::*` / `:wat::test::*` primitives; the
+  hoisted load/eval families at `:wat::*` root (arc 028); four eval
+  forms; `:wat::core::forms` (variadic quote, arc 010). Programs-
   as-holons surface: `:wat::core::quote` captures unevaluated AST as
-  `:wat::WatAST`; `:wat::algebra::Atom` accepts `Value::wat__WatAST`
+  `:wat::WatAST`; `:wat::holon::Atom` accepts `Value::wat__WatAST`
   payloads; `:wat::core::atom-value` structurally reads the payload.
   `Value` enum with namespace-honest variant names
   (`Value::io__IOReader`, `Value::holon__HolonAST`, `Value::wat__WatAST`,
