@@ -732,10 +732,10 @@ programs — verify each side's source under integrity, evaluate,
 atomize, compare:
 
 ```scheme
-(:wat::holon::eval-coincident? a-ast b-ast)             ; → :Result<:bool, EvalError>
-(:wat::holon::eval-edn-coincident?  a-edn b-edn)        ; → :Result<:bool, EvalError>
-(:wat::holon::eval-digest-coincident?  ... 4-args ...)  ; SHA-256 per side, pre-parse
-(:wat::holon::eval-signed-coincident?  ... 6-args ...)  ; Ed25519 per side, post-parse
+(:wat::holon::eval-coincident? a-ast b-ast)               ; 2 args  → :Result<:bool, EvalError>
+(:wat::holon::eval-edn-coincident? a-src b-src)           ; 2 args  → :Result<:bool, EvalError>
+(:wat::holon::eval-digest-coincident? ...8 args...)       ; 4 per side: source, eval-iface, verify-iface, digest-hex
+(:wat::holon::eval-signed-coincident? ...12 args...)      ; 6 per side: source, eval-iface, sig-iface, sig-b64, pk-iface, pk-b64
 ```
 
 The signed variant takes per-side source + signature + public key;
@@ -1539,11 +1539,11 @@ for 10k messages + default 8MB stack ~= fine; indefinite driver
 loops ~= eventually crash. When arc 003 ships, the ceiling goes
 away.
 
-**Signed/digest loads.** `(:wat::core::load! path)` is unverified.
+**Signed/digest loads.** `(:wat::load-file! path)` is unverified.
 For production code loaded from untrusted sources, use
-`(:wat::core::signed-load!)` with an Ed25519 signature or
-`(:wat::core::digest-load!)` with a SHA-256 digest. Startup halts
-if verification fails.
+`(:wat::signed-load-file! path sig pk)` with an Ed25519 signature
+or `(:wat::digest-load-file! path digest-hex)` with a SHA-256
+digest. Startup halts if verification fails.
 
 ---
 
@@ -1590,11 +1590,14 @@ spell out. For each: the path, the arity, and what it produces.
 
 | Path | Arity / shape | Produces |
 |---|---|---|
-| `:wat::config::set-dims!` | `(<i64>)` | commits dims |
 | `:wat::config::set-capacity-mode!` | `(<keyword>)` | commits mode |
-| `:wat::config::dims` | `()` | `:i64` |
-| `:wat::config::noise-floor` | `()` | `:f64` |
+| `:wat::config::set-dim-router!` | `(<router-fn>)` | commits router (arc 037) |
+| `:wat::config::set-presence-sigma!` | `(<sigma-fn>)` | commits presence-sigma fn (arc 024) |
+| `:wat::config::set-coincident-sigma!` | `(<sigma-fn>)` | commits coincident-sigma fn (arc 024) |
 | `:wat::config::capacity-mode` | `()` | `:wat::config::CapacityMode` |
+| `:wat::config::global-seed` | `()` | `:i64` |
+| `:wat::config::dims` | `()` | `:i64` (compat shim — arc 037) |
+| `:wat::config::noise-floor` | `()` | `:f64` (compat shim — arc 037) |
 | `:wat::core::define` | `((name (p :T) ... -> :R) body)` | registers function |
 | `:wat::core::lambda` | `(((p :T) ... -> :R) body)` | `:fn(T,...)->R` |
 | `:wat::core::let*` | `(((b :T) rhs) ...) body` | body's type |
@@ -1604,9 +1607,10 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::try` | `<result-expr>` | Ok-inner type |
 | `:wat::core::struct` | `(:path (f :T) ...)` | declares struct |
 | `:wat::core::enum` | `(:path v1 v2 (v3 (f :T)) ...)` | declares enum |
-| `:wat::core::load!` | `<path>` or `:wat::load::<iface> <loc>` | registers loaded file |
-| `:wat::core::digest-load!` | `... :wat::verify::digest-sha256 ...` | verified load |
-| `:wat::core::signed-load!` | `... :wat::verify::signed-ed25519 ...` | verified load |
+| `:wat::load-file!` | `<path>` | registers loaded file (arc 028) |
+| `:wat::load-string!` | `<source>` | registers loaded source (arc 028) |
+| `:wat::digest-load-file!` / `digest-load-string!` | `<path-or-src> <hex-digest>` | SHA-256 verified load |
+| `:wat::signed-load-file!` / `signed-load-string!` | `<path-or-src> <sig-b64> <pk-b64>` | Ed25519 verified load |
 | `:wat::core::vec` | `:T v1 v2 ...` | `:Vec<T>` |
 | `:wat::core::list` | `:T v1 v2 ...` | `:Vec<T>` (alias) |
 | `:wat::core::tuple` | `v1 v2 ...` | `:(T1,T2,...)` |
@@ -1635,17 +1639,30 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::lru::LocalCache::new` / `put` / `get` (wat-lru) | various | per-program LRU |
 | `:wat::holon::Atom` | `<literal>` | `:wat::holon::HolonAST` |
 | `:wat::holon::Bind` | `a b` | `:wat::holon::HolonAST` |
-| `:wat::holon::Bundle` | `list-of-holons` | `:Result<wat::holon::HolonAST, CapacityExceeded>` |
+| `:wat::holon::Bundle` | `list-of-holons` | `:wat::holon::BundleResult` (arc 032) |
 | `:wat::holon::Permute` | `holon k` | `:wat::holon::HolonAST` |
 | `:wat::holon::Thermometer` | `value min max` | `:wat::holon::HolonAST` |
 | `:wat::holon::Blend` | `a b w1 w2` | `:wat::holon::HolonAST` |
+| `:wat::holon::ReciprocalLog` | `n value` | `:wat::holon::HolonAST` (arc 034) |
 | `:wat::holon::cosine` / `dot` | `a b` | `:f64` |
-| `:wat::holon::presence?` | `target reference` | `:bool` — cosine(target,ref) > noise-floor |
+| `:wat::holon::presence?` | `target reference` | `:bool` — cosine > presence-floor |
+| `:wat::holon::coincident?` | `a b` | `:bool` — (1-cosine) < coincident-floor (arc 023) |
+| `:wat::holon::eval-coincident?` | `a-ast b-ast` | `:Result<:bool, EvalError>` (arc 026) |
+| `:wat::holon::eval-edn-coincident?` | `a-src b-src` | `:Result<:bool, EvalError>` |
+| `:wat::holon::eval-digest-coincident?` | `<8 args>` | `:Result<:bool, EvalError>` — 4 per side, SHA-256 |
+| `:wat::holon::eval-signed-coincident?` | `<12 args>` | `:Result<:bool, EvalError>` — 6 per side, Ed25519 |
 | `:wat::core::quote` | `<form>` | `:wat::WatAST` — captures AST as data |
 | `:wat::core::forms` | `f1 f2 ... fn` | `:Vec<wat::WatAST>` — variadic quote |
-| `:wat::core::conj` | `vec item` | `:Vec<T>` — immutable append |
-| `:wat::core::eval-ast!` / `eval-edn!` | various | evaluates AST / parses+evaluates string |
-| `:wat::core::eval-digest!` / `eval-signed!` | verified | evaluates with SHA-256 / Ed25519 check |
+| `:wat::core::macroexpand` | `<quoted-form>` | `:wat::WatAST` — expands until non-macro head (arc 030) |
+| `:wat::core::macroexpand-1` | `<quoted-form>` | `:wat::WatAST` — peels exactly one layer (arc 030) |
+| `:wat::core::conj` | `vec item` | new collection — polymorphic over HashSet/Vec (arc 025) |
+| `:wat::core::assoc` | `coll k v` | new collection — polymorphic over HashMap/Vec (arc 025) |
+| `:wat::core::get` | `coll k-or-i` | `:Option<T>` — polymorphic over HashMap/HashSet/Vec (arc 025) |
+| `:wat::core::contains?` | `coll k-or-i` | `:bool` — polymorphic over HashMap/HashSet/Vec (arc 025) |
+| `:wat::eval-ast!` | `<wat-ast>` | evaluates already-parsed AST (arc 028) |
+| `:wat::eval-edn!` / `eval-file!` | `<source>` / `<path>` | parses+evaluates string or file |
+| `:wat::eval-digest-string!` / `eval-digest-file!` | `<src/path> <hex>` | SHA-256 verified eval |
+| `:wat::eval-signed-string!` / `eval-signed-file!` | `<src/path> <sig> <pk>` | Ed25519 verified eval |
 | `:wat::core::string::contains?` / `starts-with?` / `ends-with?` | `hay needle` | `:bool` |
 | `:wat::core::string::length` | `s` | `:i64` — char count |
 | `:wat::core::string::trim` | `s` | `:String` |
@@ -1667,7 +1684,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::std::stream::with-state` | `stream init step flush` | `:Stream<U>` |
 | `:wat::std::stream::for-each` | `stream handler` | `:()` — terminal |
 | `:wat::std::stream::collect` / `fold` | `stream` / `stream init f` | `:Vec<T>` / `:Acc` |
-| `:wat::test::deftest` | `name dims mode body` | registers named zero-arg RunResult-returning fn |
+| `:wat::test::deftest` | `name body` | registers named zero-arg RunResult fn (arc 031 — inherits config) |
+| `:wat::test::make-deftest` | `name (forms ...)` | registers a deftest-shaped macro with default-prelude forms (arc 029) |
 | `:wat::test::assert-eq<T>` | `actual expected` | `:()` — panics on mismatch |
 | `:wat::test::assert-contains` | `haystack needle` | `:()` |
 | `:wat::test::assert-stdout-is` / `assert-stderr-matches` | `run-result expected` / `result regex` | `:()` |
