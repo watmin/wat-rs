@@ -374,6 +374,18 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   `:wat::config::noise-floor` accessors returning
   `DEFAULT_TIERS[0]` defaults until lab callers migrate.
   Seven slices (slice 2 retired mid-arc). 2026-04-24.
+- **`arc/2026/04/038-user-guide-recovery/`** — **shipped.**
+  USER-GUIDE.md recovery + forward sync. Commit `5b5fad8` (arc 028
+  doc sweep) introduced content that crashed input processing on
+  read; this arc reverted the file to commit `467a3d4` (the prior
+  known-good state from 2026-04-22) and folded arcs 023-037 + the
+  wat-lru namespace promotion forward via eight slices of targeted
+  per-section edits. No `sed`/`perl`/whole-file rewrite at any
+  point. The arc names *wholesale mechanical doc sweeps over
+  markdown-heavy targets* as a poison class (sibling to BOOK
+  Chapter 32's perl-with-pipes class) and retires it as a pattern.
+  Future doc syncs land per-arc as their substrate work ships.
+  2026-04-24.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.
