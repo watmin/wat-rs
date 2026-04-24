@@ -597,8 +597,8 @@ auto-generated `/cost` and `/budget` accessors.
 ```
 
 Every stdlib macro whose expansion ends in Bundle inherits the Result
-wrap — `:wat::std::Ngram`, `:wat::std::Bigram`, `:wat::std::Trigram`.
-Callers match or `try` at the call site.
+wrap — `:wat::holon::Ngram`, `:wat::holon::Bigram`,
+`:wat::holon::Trigram`. Callers match or `try` at the call site.
 
 ## Namespace discipline
 
@@ -610,12 +610,15 @@ hiding what a value is or where a type comes from.
 
 Two sibling namespaces, both rooted at the colon:
 - `:wat::*` — forms and types defined by the wat language itself.
-  Sub-namespaces: `:wat::core::*` (evaluator primitives), `:wat::holon::*`
-  (algebra + measurements), `:wat::kernel::*` (concurrency), `:wat::std::*`
-  (stdlib), `:wat::config::*` (committed config), `:wat::verify::*`
-  (verification vocabulary), `:wat::io::*` (stdio), `:wat::test::*` (test
-  harness). Plus root-level substrate forms — `:wat::load-file!`,
-  `:wat::eval-ast!`, etc. (arc 028) — and the `:wat::WatAST` type.
+  Sub-namespaces: `:wat::core::*` (evaluator primitives),
+  `:wat::holon::*` (algebra + measurements), `:wat::kernel::*`
+  (concurrency), `:wat::std::*` (stdlib — streams, hermetic, test,
+  service/Console), `:wat::lru::*` (LRU surface, arc 036), 
+  `:wat::config::*` (committed config), `:wat::verify::*`
+  (verification vocabulary), `:wat::io::*` (stdio),
+  `:wat::test::*` (test harness). Plus root-level substrate forms —
+  `:wat::load-file!`, `:wat::eval-ast!`, etc. (arc 028) — and the
+  `:wat::WatAST` type.
 - `:rust::*` — forms and types surfaced from Rust crates
   (`:rust::std::io::*`, `:rust::crossbeam_channel::*`, `:rust::lru::*`,
   and whatever the consumer registered).
@@ -642,10 +645,12 @@ wat-rs/
 │                           # OwnedMoveCell, RustOpaqueInner
 ├── wat-macros/             # sibling proc-macro crate
 │   └── src/{lib.rs,codegen.rs}  # #[wat_dispatch] + wat::main! + wat::test_suite!
-├── wat/std/                # baked-in wat source files
+├── wat/holon/              # algebra-surface wat sources (arc 022)
 │   ├── Amplify.wat Subtract.wat Log.wat Circular.wat
 │   ├── Reject.wat Project.wat Sequential.wat
 │   ├── Ngram.wat Bigram.wat Trigram.wat
+│   └── ReciprocalLog.wat   # arc 034
+├── wat/std/                # other baked-in wat sources
 │   ├── stream.wat hermetic.wat test.wat
 │   └── service/
 │       └── Console.wat     # Cache moved to wat-lru (arc 013)
@@ -697,7 +702,28 @@ wat-rs/
         ├── 015-wat-test-for-consumers/     # DESIGN + BACKLOG + INSCRIPTION
         ├── 016-failure-location-and-frames/ # DESIGN + BACKLOG + INSCRIPTION
         ├── 017-loader-option-for-consumer-macros/ # DESIGN + BACKLOG + INSCRIPTION
-        └── 018-opinionated-defaults-and-test-rename/ # DESIGN + BACKLOG + INSCRIPTION
+        ├── 018-opinionated-defaults-and-test-rename/ # DESIGN + BACKLOG + INSCRIPTION
+        ├── 019-f64-round-primitive/        # DESIGN + BACKLOG + INSCRIPTION
+        ├── 020-assoc/                      # DESIGN + BACKLOG + INSCRIPTION
+        ├── 021-core-std-audit/             # DESIGN + BACKLOG + INSCRIPTION
+        ├── 022-holon-namespace-move/       # DESIGN + BACKLOG + INSCRIPTION
+        ├── 023-holon-coincident/           # DESIGN + BACKLOG + INSCRIPTION
+        ├── 024-presence-coincident-sigma/  # DESIGN + BACKLOG + INSCRIPTION
+        ├── 025-container-surface-unified/  # DESIGN + BACKLOG + INSCRIPTION
+        ├── 026-eval-coincident/            # DESIGN + BACKLOG + INSCRIPTION
+        ├── 027-deftest-inherits-loader/    # DESIGN + BACKLOG + INSCRIPTION
+        ├── 028-load-eval-rename/           # DESIGN + BACKLOG + INSCRIPTION
+        ├── 029-nested-quasiquote/          # DESIGN + BACKLOG + INSCRIPTION
+        ├── 030-macroexpand/                # DESIGN + BACKLOG + INSCRIPTION
+        ├── 031-sandbox-inherits-config/    # DESIGN + BACKLOG + INSCRIPTION
+        ├── 032-bundle-result-typealias/    # DESIGN + BACKLOG + INSCRIPTION
+        ├── 033-holons-typealias/           # DESIGN + BACKLOG + INSCRIPTION
+        ├── 034-reciprocal-log/             # DESIGN + BACKLOG + INSCRIPTION
+        ├── 035-length-polymorphism/        # DESIGN + BACKLOG + INSCRIPTION
+        ├── 036-wat-lru-namespace-promotion/ # DESIGN + BACKLOG + INSCRIPTION
+        ├── 037-dim-router/                 # DESIGN + BACKLOG + INSCRIPTION
+        ├── 038-user-guide-recovery/        # DESIGN + BACKLOG + INSCRIPTION
+        └── 039-readme-drift-sync/          # DESIGN + BACKLOG (this arc)
 ```
 
 ## What's next
