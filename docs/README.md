@@ -399,6 +399,20 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   numbers were pre-arc-029, unverifiable without running cargo
   test); replaced with "zero regressions across every shipped
   arc" + per-arc test-suite list. 2026-04-24.
+- **`arc/2026/04/040-conventions-drift-sync/`** — **shipped.**
+  `wat-rs/docs/CONVENTIONS.md` drift-only sync. Slimmer than 039
+  (CONVENTIONS tracks substrate decisions more closely than the
+  user-guide tracks shipped surface). Three implementation
+  slices: §Sandbox Config inheritance (set-dims! drop per arc 037),
+  `wat::test_suite!` → `wat::test!` rename across 5 edit points
+  with `tests/wat_suite.rs` → `tests/test.rs` in templates (arc
+  018), §Namespaces table descriptions refreshed (`:wat::config::*`
+  multi-tier setters, `:wat::holon::*` extended with
+  eval-coincident? + typealiases, `:wat::std::*` minus LocalCache,
+  new `:wat::lru::*` row) plus a load-file! syntax fix (arc 028
+  iface-keyword leftover). Pre-edit verified `wat::test!` still
+  emits `fn wat_suite()` so internal function-name references
+  stay. 2026-04-24.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.
