@@ -4785,16 +4785,16 @@ fn eval_algebra_bind(
 /// the noise floor, and `sqrt(d)` is the safe-side item count.
 ///
 /// Modes (`:wat::config::CapacityMode`):
-/// - `:silent` — always `Ok(h)`. No check. Author opted into risk.
-/// - `:warn`   — always `Ok(h)`. `eprintln!` the cost/budget/dims
-///   triple when over budget. The substrate still produces the
-///   degraded vector; the author sees the diagnostic.
 /// - `:error`  — `Ok(h)` under budget; `Err(CapacityExceeded{cost,
 ///   budget})` over. The program continues with the Err value; the
 ///   type system requires the caller to handle it.
 /// - `:abort`  — `Ok(h)` under budget; `panic!` over, carrying the
 ///   cost/budget/dims diagnostic. Fail-closed: the bad frame never
 ///   leaves this dispatcher. No unwinding of user state.
+///
+/// Arc 037 (2026-04-24) retired `:silent` and `:warn`. Overflow
+/// either crashes or is handled; no middle ground that silently
+/// produces a degraded vector.
 fn eval_algebra_bundle(
     args: &[WatAST],
     env: &Environment,
@@ -4842,16 +4842,6 @@ fn eval_algebra_bundle(
 
     if cost > budget {
         match mode {
-            crate::config::CapacityMode::Silent => {
-                // Measure but don't surface. Author opted out of checks;
-                // the degraded vector is the expected consequence.
-            }
-            crate::config::CapacityMode::Warn => {
-                eprintln!(
-                    ":wat::holon::Bundle: capacity exceeded — cost {} > budget {} at dims {}",
-                    cost, budget, dims
-                );
-            }
             crate::config::CapacityMode::Error => {
                 let err = Value::Struct(Arc::new(StructValue {
                     type_name: ":wat::holon::CapacityExceeded".into(),
@@ -4869,7 +4859,7 @@ fn eval_algebra_bundle(
         }
     }
 
-    // Ok path — under budget OR under `:silent`/`:warn` over budget.
+    // Ok path — under budget.
     let ok = Value::holon__HolonAST(Arc::new(bundle_ast));
     Ok(Value::Result(Arc::new(Ok(ok))))
 }

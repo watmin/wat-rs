@@ -3709,10 +3709,9 @@ fn register_builtins(env: &mut CheckEnv) {
     // The Result wrap is the forcing function for the capacity guard:
     // authors are required by the type system to acknowledge the
     // failure case — either matching explicitly or propagating via
-    // `:wat::core::try`. Under `:silent`/`:warn` the Err arm is
-    // unreachable but still syntactically present (a reminder that
-    // Bundle has a capacity bound); under `:error` it fires; under
-    // `:abort` the process panics before returning.
+    // `:wat::core::try`. Under `:error` the Err arm fires with the
+    // cost/budget struct; under `:abort` the process panics before
+    // returning.
     env.register(
         ":wat::holon::Bundle".into(),
         TypeScheme {

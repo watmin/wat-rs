@@ -5,11 +5,12 @@
 //! `:wat::config::capacity-mode` setter picks what the runtime does
 //! when a Bundle's constituent count exceeds `floor(sqrt(dims))`:
 //!
-//! - `:silent` → always `Ok(h)`. No check. Degraded vector produced.
-//! - `:warn`   → always `Ok(h)`. `eprintln!` diagnostic when over.
 //! - `:error`  → `Ok(h)` under; `Err(CapacityExceeded{cost, budget})`
 //!   over — caller holds the error, program continues.
 //! - `:abort`  → `Ok(h)` under; `panic!()` over — fail-closed.
+//!
+//! Arc 037 (2026-04-24) retired `:silent` and `:warn`. Overflow
+//! either crashes or is handled; no middle ground.
 //!
 //! At `d=1024`, `budget = floor(sqrt(1024)) = 32`. The tests below
 //! pick list sizes deliberately on either side.
@@ -62,10 +63,10 @@ fn bundle_under_budget_returns_ok_under_error_mode() {
 }
 
 #[test]
-fn bundle_under_budget_returns_ok_under_silent_mode() {
+fn bundle_under_budget_returns_ok_under_abort_mode() {
     let src = format!(
         r#"
-        (:wat::config::set-capacity-mode! :silent)
+        (:wat::config::set-capacity-mode! :abort)
         (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::holon::BundleResult)
@@ -140,58 +141,6 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
     match run(&src) {
         Value::i64(n) => assert_eq!(n, 40 - 32, "40-atom bundle over budget 32 → diff 8"),
         other => panic!("expected i64 8; got {:?}", other),
-    }
-}
-
-// ─── Over budget under :silent — still Ok, degraded vector ───────────
-
-#[test]
-fn bundle_over_budget_under_silent_mode_still_returns_ok() {
-    // :silent deliberately skips the check. Bundle returns Ok with the
-    // (degraded) vector even though cost > budget. Author opted in.
-    let src = format!(
-        r#"
-        (:wat::config::set-capacity-mode! :silent)
-        (:wat::config::set-dims! 1024)
-
-        (:wat::core::define (:user::main -> :wat::holon::BundleResult)
-          (:wat::holon::Bundle {}))
-        "#,
-        atoms_list(200)
-    );
-    match run(&src) {
-        Value::Result(r) => match &*r {
-            Ok(Value::holon__HolonAST(_)) => {}
-            other => panic!("expected Ok(wat::holon::HolonAST) even over budget under :silent; got {:?}", other),
-        },
-        other => panic!("expected Value::Result; got {:?}", other),
-    }
-}
-
-// ─── Over budget under :warn — Ok with diagnostic ────────────────────
-
-#[test]
-fn bundle_over_budget_under_warn_mode_still_returns_ok() {
-    // :warn prints to stderr but still produces Ok. We can't easily
-    // capture stderr from invoke_user_main inside this test — the
-    // stderr check lives in a full CLI-spawning test if we add one
-    // later. Here we verify the return shape only.
-    let src = format!(
-        r#"
-        (:wat::config::set-capacity-mode! :warn)
-        (:wat::config::set-dims! 1024)
-
-        (:wat::core::define (:user::main -> :wat::holon::BundleResult)
-          (:wat::holon::Bundle {}))
-        "#,
-        atoms_list(100)
-    );
-    match run(&src) {
-        Value::Result(r) => match &*r {
-            Ok(Value::holon__HolonAST(_)) => {}
-            other => panic!("expected Ok(wat::holon::HolonAST) under :warn; got {:?}", other),
-        },
-        other => panic!("expected Value::Result; got {:?}", other),
     }
 }
 

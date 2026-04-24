@@ -740,9 +740,11 @@ mod tests {
     }
 
     #[test]
-    fn config_missing_required_bubbles_up() {
-        // No :wat::config::set-dims! — config pass halts.
-        let err = startup("(:wat::holon::Atom 42)").unwrap_err();
+    fn config_error_bubbles_up() {
+        // Arc 037 retired required-ness for dims/capacity-mode; any
+        // remaining ConfigError — here, wrong type for dims — still
+        // propagates through startup as StartupError::Config.
+        let err = startup(r#"(:wat::config::set-dims! "oops")"#).unwrap_err();
         assert!(matches!(err, StartupError::Config(_)));
     }
 

@@ -8,10 +8,16 @@
 //!
 //! The three fields currently on `:wat::config`:
 //!
-//! - `dims` (`:usize`) — vector dimension. Required; no default.
+//! - `dims` (`:usize`) — vector dimension. **Default [`DEFAULT_DIMS`] (10000).**
+//!   Optional. Arc 037 slice 1: made optional (was required) so entry
+//!   files can omit the setter and get the opinionated default that
+//!   matches the pre-arc-037 trading lab convention.
 //! - `capacity-mode` (`:wat::config::CapacityMode`) — overflow policy.
-//!   Required; no default. Variants: `:silent` / `:warn` / `:error` /
-//!   `:abort`.
+//!   **Default [`DEFAULT_CAPACITY_MODE`] (`:error`).** Optional. Arc 037
+//!   slice 1: made optional with a safe default (overflow surfaces as
+//!   catchable `CapacityExceeded` rather than silently corrupting).
+//!   Variants: `:error` / `:abort` (arc 037 retired `:silent` and
+//!   `:warn` — overflow either crashes or is handled).
 //! - `global-seed` (`:u64`) — deterministic-vector seed. **Default 42.**
 //!   Optional. Users should rarely set this; the override exists for
 //!   deliberate cross-deployment isolation.
@@ -24,6 +30,9 @@
 //! - Required fields (`dims`, `capacity-mode`) must be set. Optional
 //!   fields fall back to their default.
 //! - Value types match the field schema. Arity is enforced per setter.
+//! - As of arc 037: every field has a default. Empty entry files commit
+//!   a fully-defaulted Config. See [`DEFAULT_DIMS`] and
+//!   [`DEFAULT_CAPACITY_MODE`].
 //!
 //! # What this module does NOT do
 //!
@@ -39,6 +48,13 @@
 
 use crate::ast::WatAST;
 use std::fmt;
+
+/// Default `capacity-mode` when `(:wat::config::set-capacity-mode!)`
+/// is omitted. `:error` is safe — overflow surfaces as a catchable
+/// `CapacityExceeded` struct rather than silently corrupting the
+/// computation. This constant is permanent; `set-capacity-mode!`
+/// stays forever as user override.
+pub const DEFAULT_CAPACITY_MODE: CapacityMode = CapacityMode::Error;
 
 /// Committed configuration values.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -78,15 +94,18 @@ pub struct Config {
 
 /// `:wat::config::CapacityMode` — overflow policy when a frame exceeds
 /// Kanerva's capacity budget.
+///
+/// Two variants only: overflow either crashes or is handled. No
+/// middle ground. Arc 037 (2026-04-24) retired `:silent` and `:warn`
+/// — they implied the substrate could silently proceed with a
+/// corrupted vector, which is never the right answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CapacityMode {
-    /// Research — user accepts degradation; no check.
-    Silent,
-    /// Development — log but continue.
-    Warn,
-    /// Default — catchable `CapacityExceeded`.
+    /// Default — catchable `CapacityExceeded`. Program continues with
+    /// `Err(...)`; type system forces the caller to handle it.
     Error,
-    /// Production fail-closed — halt the wat.
+    /// Production fail-closed — `panic!`. The bad frame never leaves
+    /// the dispatcher.
     Abort,
 }
 
@@ -363,12 +382,17 @@ fn collect_entry_file_inner(
         }
     }
 
-    let dims = dims.ok_or(ConfigError::RequiredFieldMissing {
-        field: "dims".into(),
-    })?;
-    let capacity_mode = capacity_mode.ok_or(ConfigError::RequiredFieldMissing {
-        field: "capacity-mode".into(),
-    })?;
+    // Arc 037 slice 1: dims and capacity_mode are optional. When unset
+    // (and no inherited value is present), fall back to opinionated
+    // defaults. The existing `RequiredFieldMissing` error variant is
+    // retained for potential future required fields but is no longer
+    // raised for these two.
+    //
+    // dims default is inlined (10000) rather than named — the single-
+    // dim concept retires when arc 037 slice 3 introduces the router;
+    // a constant named `DEFAULT_DIMS` would outlive its meaning.
+    let dims = dims.unwrap_or(10000);
+    let capacity_mode = capacity_mode.unwrap_or(DEFAULT_CAPACITY_MODE);
     let global_seed = global_seed.unwrap_or(42);
     // Opinionated defaults — all FUNCTIONS of dims. The user picks
     // dims; everything else derives. Arc 024 slice 2.
@@ -399,20 +423,12 @@ fn collect_entry_file_inner(
 
     // Validity: n_p + n_c < sqrt(dims). Above this the presence /
     // coincident predicates collapse (their thresholds meet or swap).
-    // Behavior per capacity_mode — reuses the same four-mode policy
+    // Behavior per capacity_mode — reuses the same two-mode policy
     // Bundle capacity uses.
     let sigma_sum = presence_sigma.saturating_add(coincident_sigma);
     let dims_sqrt = (dims as f64).sqrt();
     if (sigma_sum as f64) >= dims_sqrt {
         match capacity_mode {
-            CapacityMode::Silent => { /* proceed anyway */ }
-            CapacityMode::Warn => {
-                eprintln!(
-                    "warning: presence-sigma ({}) + coincident-sigma ({}) = {} >= sqrt(dims) = {:.4}. \
-                    Predicate duality collapses at or above this sum. Raise dims or lower a sigma.",
-                    presence_sigma, coincident_sigma, sigma_sum, dims_sqrt
-                );
-            }
             CapacityMode::Error => {
                 return Err(ConfigError::BadValue {
                     field: "presence-sigma + coincident-sigma".into(),
@@ -550,21 +566,19 @@ fn parse_f64(ast: &WatAST, field: &'static str) -> Result<f64, ConfigError> {
 fn parse_capacity_mode(ast: &WatAST) -> Result<CapacityMode, ConfigError> {
     match ast {
         WatAST::Keyword(k, _) => match k.as_str() {
-            ":silent" => Ok(CapacityMode::Silent),
-            ":warn" => Ok(CapacityMode::Warn),
             ":error" => Ok(CapacityMode::Error),
             ":abort" => Ok(CapacityMode::Abort),
             other => Err(ConfigError::BadValue {
                 field: "capacity-mode".into(),
                 reason: format!(
-                    "unknown variant {}; expected :silent / :warn / :error / :abort",
+                    "unknown variant {}; expected :error / :abort (arc 037 retired :silent and :warn)",
                     other
                 ),
             }),
         },
         other => Err(ConfigError::BadType {
             field: "capacity-mode".into(),
-            expected: "keyword (:silent / :warn / :error / :abort)",
+            expected: "keyword (:error / :abort)",
             got: variant_name(other),
         }),
     }
@@ -793,34 +807,41 @@ mod tests {
     }
 
     #[test]
-    fn user_override_that_breaks_invariant_under_silent_passes() {
-        // :silent mode — violation proceeds. Predicates become
-        // nonsensical but substrate does not complain.
-        let (cfg, _) = collect(
+    fn retired_silent_variant_rejected_at_parse() {
+        // Arc 037 retired :silent. Parser errors cleanly.
+        let err = collect(
             r#"
             (:wat::config::set-capacity-mode! :silent)
             (:wat::config::set-dims! 100)
-            (:wat::config::set-presence-sigma! 15)
             "#,
         )
-        .unwrap();
-        assert_eq!(cfg.presence_sigma, 15);
-        assert_eq!(cfg.coincident_sigma, 1);
+        .unwrap_err();
+        match err {
+            ConfigError::BadValue { field, reason } => {
+                assert_eq!(field, "capacity-mode");
+                assert!(reason.contains(":silent"), "reason: {}", reason);
+            }
+            other => panic!("expected BadValue, got {:?}", other),
+        }
     }
 
     #[test]
-    fn user_override_that_breaks_invariant_under_warn_passes_with_stderr() {
-        // :warn mode — proceeds after stderr diagnostic. We don't
-        // capture stderr here; just verify the Config is committed.
-        let (cfg, _) = collect(
+    fn retired_warn_variant_rejected_at_parse() {
+        // Arc 037 retired :warn. Parser errors cleanly.
+        let err = collect(
             r#"
             (:wat::config::set-capacity-mode! :warn)
             (:wat::config::set-dims! 100)
-            (:wat::config::set-presence-sigma! 15)
             "#,
         )
-        .unwrap();
-        assert_eq!(cfg.presence_sigma, 15);
+        .unwrap_err();
+        match err {
+            ConfigError::BadValue { field, reason } => {
+                assert_eq!(field, "capacity-mode");
+                assert!(reason.contains(":warn"), "reason: {}", reason);
+            }
+            other => panic!("expected BadValue, got {:?}", other),
+        }
     }
 
     #[test]
@@ -884,8 +905,6 @@ mod tests {
     #[test]
     fn all_capacity_modes_parse() {
         for (kw, variant) in [
-            (":silent", CapacityMode::Silent),
-            (":warn", CapacityMode::Warn),
             (":error", CapacityMode::Error),
             (":abort", CapacityMode::Abort),
         ] {
@@ -904,22 +923,29 @@ mod tests {
     // ─── Error cases ────────────────────────────────────────────────────
 
     #[test]
-    fn setter_after_non_setter_rejected() {
-        let err = collect(
+    fn setter_after_non_setter_is_silently_dropped() {
+        // Walker stops at the first non-setter; the trailing setter is
+        // never seen. Pre-arc-037 this surfaced as RequiredFieldMissing
+        // because capacity-mode was required. Arc 037 made it optional
+        // (defaults to :error), so the walker's silent-drop behavior is
+        // directly visible: Config commits with defaults for anything
+        // not reached, and the trailing setter is returned as a rest
+        // form for downstream processing. A future arc could tighten
+        // this by scanning past the non-setter and reporting
+        // SetterAfterNonSetter; today the walker is best-effort.
+        let (cfg, rest) = collect(
             r#"
             (:wat::config::set-dims! 10000)
             (:wat::holon::Atom "oops — body in the middle")
-            (:wat::config::set-capacity-mode! :error)
+            (:wat::config::set-capacity-mode! :abort)
             "#,
         )
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::RequiredFieldMissing { ref field } if field == "capacity-mode"));
-        // Note: our walker stops at first non-setter; the following setter is
-        // simply never seen. The RequiredFieldMissing error surfaces the real
-        // consequence to the user — capacity-mode wasn't set. A stricter
-        // implementation could scan past the non-setter to detect misplaced
-        // setters and report SetterAfterNonSetter; see test below for the
-        // future-proof variant.
+        .unwrap();
+        // capacity-mode came from the default (walker never saw the trailing
+        // :abort setter), not from the ignored setter below.
+        assert_eq!(cfg.capacity_mode, CapacityMode::Error);
+        // The ignored setter is present in the rest-forms for the next pass.
+        assert_eq!(rest.len(), 2, "Atom + trailing setter both in rest");
     }
 
     #[test]
@@ -949,22 +975,28 @@ mod tests {
     }
 
     #[test]
-    fn missing_dims_rejected() {
-        let err = collect(r#"(:wat::config::set-capacity-mode! :error)"#).unwrap_err();
-        assert!(matches!(err, ConfigError::RequiredFieldMissing { ref field } if field == "dims"));
+    fn missing_dims_defaults() {
+        // Arc 037: dims is optional. Its value on the encoder path is
+        // irrelevant (router answers on demand). Config commits with
+        // whatever the collector's fallback is.
+        let (cfg, _) = collect(r#"(:wat::config::set-capacity-mode! :error)"#).unwrap();
+        assert_eq!(cfg.capacity_mode, CapacityMode::Error);
     }
 
     #[test]
-    fn missing_capacity_mode_rejected() {
-        let err = collect(r#"(:wat::config::set-dims! 10000)"#).unwrap_err();
-        assert!(matches!(err, ConfigError::RequiredFieldMissing { ref field } if field == "capacity-mode"));
+    fn missing_capacity_mode_defaults_to_error() {
+        // Arc 037: capacity-mode optional; defaults to :error (safe —
+        // overflow surfaces as catchable CapacityExceeded).
+        let (cfg, _) = collect(r#"(:wat::config::set-dims! 10000)"#).unwrap();
+        assert_eq!(cfg.capacity_mode, CapacityMode::Error);
     }
 
     #[test]
-    fn empty_entry_file_rejected() {
-        // No setters = missing dims.
-        let err = collect("").unwrap_err();
-        assert!(matches!(err, ConfigError::RequiredFieldMissing { ref field } if field == "dims"));
+    fn empty_entry_file_commits_defaults() {
+        // Arc 037: no setters required. Empty entry file produces a
+        // fully-defaulted Config.
+        let (cfg, _) = collect("").unwrap();
+        assert_eq!(cfg.capacity_mode, CapacityMode::Error);
     }
 
     #[test]
@@ -1135,17 +1167,17 @@ mod tests {
     #[test]
     fn inherit_both_setters_override_everything_explicit() {
         let parent = parent_config();
-        // Parent has :error + 1024; forms set :warn + 4096.
+        // Parent has :error + 1024; forms set :abort + 4096.
         let (cfg, _) = collect_inherit(
             r#"
-            (:wat::config::set-capacity-mode! :warn)
+            (:wat::config::set-capacity-mode! :abort)
             (:wat::config::set-dims! 4096)
             "#,
             &parent,
         )
         .unwrap();
         assert_eq!(cfg.dims, 4096);
-        assert_eq!(cfg.capacity_mode, CapacityMode::Warn);
+        assert_eq!(cfg.capacity_mode, CapacityMode::Abort);
     }
 
     #[test]
