@@ -426,6 +426,18 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   `deftest-hermetic` / `make-deftest` family from arcs 029 + 031,
   with `:wat::test::run` / `run-hermetic-ast` restated as
   expansion targets). 2026-04-24.
+- **`arc/2026/04/042-zero-mutex-drift-sync/`** — **shipped.**
+  `wat-rs/docs/ZERO-MUTEX.md` drift-only sync. Three Edits total
+  — the smallest implementation surface of any doc-audit arc so
+  far. Sole drift was three `:wat::std::service::Cache<K,V>`
+  references migrating to `:wat::lru::CacheService<K,V>` per arcs
+  013 + 036. Architectural prose otherwise current — the
+  three-tier framing (immutable / thread-owned / program-owned),
+  HandlePool discipline, spawn/send/recv/select primitives, and
+  the empirical claim are all unaffected by arcs 028-037. The
+  concurrency story is substrate-shape-agnostic. Builder
+  predicted minimal work; correct prediction enabled tight arc
+  scoping. 2026-04-24.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.
