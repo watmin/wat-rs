@@ -586,8 +586,10 @@ appears ONLY in type annotations. Only `/new` constructs; only
 ## 6. Algebra forms
 
 Everything holon-algebra-shaped lives under `:wat::holon::*` — six
-AST-producing primitives, three measurements, the `HolonAST` type,
-the `CapacityExceeded` error type, and ten wat-written idioms that
+AST-producing primitives, four measurements (two structural, two
+verified-eval), the `HolonAST` type, the `CapacityExceeded` error
+type, two typealiases (`Holons` for `Vec<HolonAST>`, `BundleResult`
+for Bundle's Result return), and eleven wat-written idioms that
 compose the primitives. File path matches namespace (`wat/holon/*.wat`).
 
 ### The six AST-producing primitives
@@ -599,31 +601,54 @@ compose the primitives. File path matches namespace (`wat/holon/*.wat`).
 
 (:wat::holon::Bind role filler)          ; elementwise multiply — role-filler binding
 (:wat::holon::Bundle holons-vec)         ; sum + threshold — superposition
-                                         ;   returns :Result<wat::holon::HolonAST,
-                                         ;                   wat::holon::CapacityExceeded>
-                                         ;   (see section 12)
+                                         ;   returns :wat::holon::BundleResult
+                                         ;   (= :Result<HolonAST, CapacityExceeded>;
+                                         ;    see section 12)
 (:wat::holon::Permute holon k)           ; circular shift — positional encoding
 (:wat::holon::Thermometer v min max)     ; gradient encoding of a scalar
 (:wat::holon::Blend a b w1 w2)           ; scalar-weighted binary combination
 ```
 
-### The three measurements
+### The four measurements
 
 ```scheme
 (:wat::holon::cosine a b)                       ; → :f64  cosine similarity
 (:wat::holon::dot a b)                          ; → :f64  dot product, un-normalized
-(:wat::holon::presence? target reference)       ; → :bool cosine(target, reference) > noise-floor
-;; presence? binarizes internally against (:wat::config::noise-floor).
-;; Use cosine if you want the raw scalar.
+(:wat::holon::presence? target reference)       ; → :bool cosine(target, reference) > presence-floor
+(:wat::holon::coincident? a b)                  ; → :bool (1 - cosine(a, b)) < coincident-floor
+;; presence? asks "is there signal of A in B?" — cosine clears the
+;; presence threshold (sigma × noise-floor at the encoded d).
+;; coincident? asks "are A and B the same point?" — cosine is so
+;; close to 1.0 that the substrate cannot distinguish them. The two
+;; are dual predicates of one statistical fact (arc 023).
 ```
 
-### The ten wat-written idioms
+The `eval-coincident?` family extends `coincident?` to evaluated
+programs — verify each side's source under integrity, evaluate,
+atomize, compare:
+
+```scheme
+(:wat::holon::eval-coincident? a-ast b-ast)             ; → :Result<:bool, EvalError>
+(:wat::holon::eval-edn-coincident?  a-edn b-edn)        ; → :Result<:bool, EvalError>
+(:wat::holon::eval-digest-coincident?  ... 4-args ...)  ; SHA-256 per side, pre-parse
+(:wat::holon::eval-signed-coincident?  ... 6-args ...)  ; Ed25519 per side, post-parse
+```
+
+The signed variant takes per-side source + signature + public key;
+verifies signatures; refuses mutation forms; evaluates each in a
+fresh sandbox; atomizes the result; cosines and binarizes against
+the coincident floor. One library call covers consensus-via-
+coincidence, integrity-gated composition, and program-comparison
+under signature (arc 026).
+
+### The eleven wat-written idioms
 
 Each shipped in `wat/holon/<Name>.wat`; each expands to algebra-core
 primitives at parse time (via defmacro or define):
 
 ```scheme
 (:wat::holon::Log v min max)                 ; Thermometer on (ln v)
+(:wat::holon::ReciprocalLog n v)             ; Log v (1/n) n  — log-symmetric ratio bounds
 (:wat::holon::Circular v period)             ; Blend of cos/sin-basis atoms
 (:wat::holon::Sequential list)               ; positional bind-chain
 (:wat::holon::Ngram n list)                  ; n-wise adjacency
@@ -638,11 +663,19 @@ primitives at parse time (via defmacro or define):
 Config accessors (every program has these):
 
 ```scheme
-(:wat::config::dims)           ; → :i64
 (:wat::config::global-seed)    ; → :i64
-(:wat::config::noise-floor)    ; → :f64
 (:wat::config::capacity-mode)  ; → :wat::config::CapacityMode
+(:wat::config::dims)           ; → :i64    (compat shim — see note)
+(:wat::config::noise-floor)    ; → :f64    (compat shim — see note)
 ```
+
+**Note on `dims` / `noise-floor`** (arc 037). Under the multi-tier
+dim-router, neither value is single-valued at runtime — the router
+picks `d` per AST construction, and `noise-floor = 1/√d` is computed
+per encoded-d. Both accessors stay as shims returning a default-tier
+value for source-code that hand-rolled formulas around them; the
+shims are deprecation targets — a future arc will retire them once
+all callers migrate to the per-encoded-d pattern.
 
 ---
 
