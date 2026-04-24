@@ -1,4 +1,4 @@
-;; wat-tests/holon/eval_coincident.wat — tests for the
+;; wat-tests/holon/eval-coincident.wat — tests for the
 ;; :wat::holon::eval-coincident? family (arc 026).
 ;;
 ;; Each variant mirrors its parent eval-*! form, applied per-side.

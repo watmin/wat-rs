@@ -8452,7 +8452,7 @@ mod tests {
     }
 
     /// Guard test: the Ed25519 signatures embedded in
-    /// `wat-tests/holon/eval_coincident.wat` must still verify against
+    /// `wat-tests/holon/eval-coincident.wat` must still verify against
     /// the source strings they sign. If a source string is edited
     /// without regenerating its sig, this test fails with the
     /// mismatch. Prevents silent drift between the unit-test sources
@@ -8470,7 +8470,7 @@ mod tests {
     /// `fixed_signing_key` helper.
     #[test]
     fn wat_test_embedded_signatures_verify() {
-        // The two sources used by wat-tests/holon/eval_coincident.wat's
+        // The two sources used by wat-tests/holon/eval-coincident.wat's
         // signed variants (slices in that file's test-signed-*
         // deftests). If these source strings diverge from what's in
         // the .wat file, the sig constants below will not match — fix
@@ -8489,7 +8489,7 @@ mod tests {
 
         assert_eq!(
             pk_a, EXPECTED_PK,
-            "public key drifted; update wat-tests/holon/eval_coincident.wat"
+            "public key drifted; update wat-tests/holon/eval-coincident.wat"
         );
         assert_eq!(
             pk_a, pk_b,
@@ -8497,11 +8497,11 @@ mod tests {
         );
         assert_eq!(
             sig_a, EXPECTED_SRC_A_SIG,
-            "SRC_A signature drifted; source changed? regenerate and update wat-tests/holon/eval_coincident.wat"
+            "SRC_A signature drifted; source changed? regenerate and update wat-tests/holon/eval-coincident.wat"
         );
         assert_eq!(
             sig_b, EXPECTED_SRC_B_SIG,
-            "SRC_B signature drifted; source changed? regenerate and update wat-tests/holon/eval_coincident.wat"
+            "SRC_B signature drifted; source changed? regenerate and update wat-tests/holon/eval-coincident.wat"
         );
     }
 
