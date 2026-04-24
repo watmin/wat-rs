@@ -386,6 +386,19 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   Chapter 32's perl-with-pipes class) and retires it as a pattern.
   Future doc syncs land per-arc as their substrate work ships.
   2026-04-24.
+- **`arc/2026/04/039-readme-drift-sync/`** — **shipped.**
+  `wat-rs/README.md` drift-only sync. Sibling arc to 038, smaller
+  scope (one doc, no recovery phase — builder confirmed via
+  GitHub browse the file was readable, just stale). Same eight
+  slices' targeted-edit discipline against arcs 022-037 surface
+  changes: namespace migration `:wat::algebra::*` →
+  `:wat::holon::*` (12 sites), capacity-mode reduction from four
+  to two, BundleResult typealias adoption, ReciprocalLog mention,
+  workspace layout including `wat/holon/`, arc directory listing
+  extended to 039. Test count line removed (specific 731 / 31
+  numbers were pre-arc-029, unverifiable without running cargo
+  test); replaced with "zero regressions across every shipped
+  arc" + per-arc test-suite list. 2026-04-24.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.
