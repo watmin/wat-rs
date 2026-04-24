@@ -3866,6 +3866,10 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Config accessors — nullary, read committed startup values.
+    // Arc 037 slice 6: :wat::config::dims and :wat::config::noise-floor
+    // are compatibility shims that return DEFAULT_TIERS[0]-derived
+    // defaults. Semantically stale under multi-d but kept for
+    // backward compat until callers migrate to per-AST primitives.
     env.register(
         ":wat::config::dims".into(),
         TypeScheme {

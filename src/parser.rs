@@ -311,7 +311,7 @@ mod tests {
     fn parse_all_multiple_forms() {
         let forms = parse_all(
             r#"
-            (:wat::config::set-dims! 10000)
+            (:wat::config::set-capacity-mode! :error)
             (:wat::load-file! "wat/holon/Subtract.wat")
             "#,
         )

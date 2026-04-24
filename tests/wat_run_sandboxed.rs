@@ -270,8 +270,7 @@ fn missing_user_main_surfaces_as_failure() {
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::config::set-capacity-mode! :error)
-             (:wat::config::set-dims! 1024)"
+            "(:wat::config::set-capacity-mode! :error)"
             (:wat::core::vec :String)
             :None))
     "##;

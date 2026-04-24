@@ -21,56 +21,66 @@ use holon::{ScalarEncoder, VectorManager};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-/// The (VM, ScalarEncoder) pair at a single dim, plus pre-computed
+/// The (VM, ScalarEncoder) pair at a single dim, plus lazy-computed
 /// floors. `holon::encode` consumes vm + scalar alongside the
 /// dim-agnostic AtomTypeRegistry; `presence?` / `coincident?` read
-/// the pre-computed floors.
+/// the floors via [`Encoders::presence_floor`] /
+/// [`Encoders::coincident_floor`], which consult the ambient
+/// sigma-fn capabilities on [`crate::runtime::SymbolTable`] on first
+/// access and memoize via `OnceLock`.
 ///
-/// Floors depend only on d, and there are O(tiers) distinct d's per
-/// enterprise — computing once at Encoders construction means every
-/// subsequent comparison is a field load.
+/// Arc 037 slice 6: floors are functions of both d and the
+/// user-configurable sigma function. They're computed on first
+/// presence? / coincident? call at this d (one wat-lambda invocation
+/// per tier per sigma-setter, max) and cached thereafter as a simple
+/// field load. O(tiers) sigma invocations ever.
 pub struct Encoders {
     pub vm: VectorManager,
     pub scalar: ScalarEncoder,
-    /// `presence_floor_at_d(dims)` — presence-sigma / sqrt(d).
-    /// Sigma from arc 024's formula applied at THIS d.
-    pub presence_floor: f64,
-    /// `coincident_floor_at_d(dims)` — 1 / sqrt(d). The native
-    /// granularity, arc 024's coincident-sigma=1 default.
-    pub coincident_floor: f64,
     /// The encoding d this pair serves.
     pub dims: usize,
+    /// Lazily-computed `presence_sigma_fn(d) / sqrt(d)`. Populated
+    /// on first call to [`Encoders::presence_floor`].
+    presence_floor_cache: std::sync::OnceLock<f64>,
+    /// Lazily-computed `coincident_sigma_fn(d) / sqrt(d)`.
+    coincident_floor_cache: std::sync::OnceLock<f64>,
+}
+
+impl Encoders {
+    /// Presence-floor at this d: `σ(d) / sqrt(d)`, where σ is
+    /// determined by the ambient `presence_sigma_fn` on `sym`.
+    /// Memoized per (Encoders, d).
+    pub fn presence_floor(&self, sym: &crate::runtime::SymbolTable) -> f64 {
+        *self.presence_floor_cache.get_or_init(|| {
+            let sigma = sym
+                .presence_sigma_fn()
+                .map(|f| f.sigma_at(self.dims, sym))
+                .unwrap_or(1);
+            (sigma as f64) / (self.dims as f64).sqrt()
+        })
+    }
+
+    /// Coincident-floor at this d: `σ(d) / sqrt(d)`, where σ is
+    /// determined by the ambient `coincident_sigma_fn` on `sym`.
+    pub fn coincident_floor(&self, sym: &crate::runtime::SymbolTable) -> f64 {
+        *self.coincident_floor_cache.get_or_init(|| {
+            let sigma = sym
+                .coincident_sigma_fn()
+                .map(|f| f.sigma_at(self.dims, sym))
+                .unwrap_or(1);
+            (sigma as f64) / (self.dims as f64).sqrt()
+        })
+    }
 }
 
 impl std::fmt::Debug for Encoders {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Encoders")
             .field("dims", &self.dims)
-            .field("presence_floor", &self.presence_floor)
-            .field("coincident_floor", &self.coincident_floor)
+            .field("presence_floor_cached", &self.presence_floor_cache.get())
+            .field("coincident_floor_cached", &self.coincident_floor_cache.get())
             .finish()
     }
-}
-
-/// Arc 024's presence-sigma formula applied at a specific d, divided
-/// by the 1σ native granularity (1/sqrt(d)). Yields a threshold
-/// approaching 0.5 for large d and scaling down for small d.
-/// Degenerate tiers (d too small for the formula) fall back to 1σ
-/// so presence? stays meaningful.
-fn compute_presence_floor(d: usize) -> f64 {
-    let sqrt_d = (d as f64).sqrt();
-    let sigma = (sqrt_d.floor() / 2.0).floor() - 1.0;
-    if sigma <= 0.0 {
-        1.0 / sqrt_d
-    } else {
-        sigma / sqrt_d
-    }
-}
-
-/// 1σ native granularity: 1 / sqrt(d). Per arc 024's coincident
-/// default.
-fn compute_coincident_floor(d: usize) -> f64 {
-    1.0 / (d as f64).sqrt()
 }
 
 /// Lazy per-dim registry of encoder pairs. All instances share the
@@ -122,9 +132,9 @@ impl EncoderRegistry {
         let enc = Arc::new(Encoders {
             vm: VectorManager::with_seed(dims, self.global_seed),
             scalar: ScalarEncoder::with_seed(dims, self.global_seed),
-            presence_floor: compute_presence_floor(dims),
-            coincident_floor: compute_coincident_floor(dims),
             dims,
+            presence_floor_cache: std::sync::OnceLock::new(),
+            coincident_floor_cache: std::sync::OnceLock::new(),
         });
         map.insert(dims, Arc::clone(&enc));
         enc

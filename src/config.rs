@@ -57,49 +57,36 @@ use std::fmt;
 pub const DEFAULT_CAPACITY_MODE: CapacityMode = CapacityMode::Error;
 
 /// Committed configuration values.
+///
+/// Arc 037 slice 6: every substrate default is a FUNCTION; users
+/// override with their own function via AST-accepting setters.
+/// Retired stored fields: `dims`, `noise_floor`, `presence_floor`,
+/// `coincident_floor` (derived from dims; can't compute without it),
+/// `presence_sigma: i64`, `coincident_sigma: i64` (scalar sigmas
+/// are wrong under multi-d). Replaced with `*_ast: Option<WatAST>`
+/// fields that freeze evaluates into `SigmaFn` / `DimRouter`
+/// capabilities on `SymbolTable`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
-    pub dims: usize,
     pub capacity_mode: CapacityMode,
     pub global_seed: u64,
-    /// User-supplied dim router AST, captured verbatim at
-    /// setter time. Freeze evaluates it against the fully-built
-    /// frozen world (arc 009 "names are values" — a keyword-path
-    /// lifts to a function value; a lambda expression constructs
-    /// one; any AST that reduces to a function works). The result
-    /// is wrapped in [`crate::dim_router::WatLambdaRouter`] and
-    /// installed as the ambient router. When `None`, freeze
-    /// installs the default
-    /// `SizingRouter::with_default_tiers()`. Arc 037 slice 4.
+    /// User-supplied dim router AST. Freeze evaluates against the
+    /// frozen world; result must be a `:fn(:wat::holon::HolonAST) ->
+    /// :Option<i64>`. Wrapped in
+    /// [`crate::dim_router::WatLambdaRouter`] and installed as the
+    /// ambient router. `None` → default
+    /// [`crate::dim_router::SizingRouter::with_default_tiers`].
+    /// Arc 037 slice 4.
     pub dim_router_ast: Option<WatAST>,
-    /// The substrate's **1σ native granularity**: `1.0 / sqrt(dims)`.
-    /// The atomic angular unit on the hypersphere at this dimension —
-    /// the smallest cosine distance the algebra can distinguish above
-    /// its own random-pair distribution. Arc 024 renamed this from
-    /// "the 5σ presence floor" to "the 1σ base unit" — both predicates
-    /// multiply it by their respective sigma count to derive their
-    /// operative threshold.
-    ///
-    /// Users may override via `(:wat::config::set-noise-floor! <f64>)`
-    /// — rare; the derivation from `dims` is the honest default.
-    pub noise_floor: f64,
-    /// How many σ above the random-pair distribution `presence?` requires
-    /// to fire. Default function of `dims`: `floor(sqrt(dims)/2) − 1`
-    /// ("one before the zero point" — the sliver below `middle_width = 0`).
-    /// At d=1024 the default is 15; at d=10000 it's 49; at d=100 it's
-    /// 4. User overridable via `(:wat::config::set-presence-sigma! <i64>)`.
-    pub presence_sigma: i64,
-    /// How many σ below perfect-identity `coincident?` requires to fire.
-    /// Default 1 — the 1σ native granularity; the geometric minimum.
-    /// Constant function of dims (always 1). User overridable via
-    /// `(:wat::config::set-coincident-sigma! <i64>)`.
-    pub coincident_sigma: i64,
-    /// Memoized `presence_sigma * noise_floor`. `presence?` closes over
-    /// this; recomputed only at config commit.
-    pub presence_floor: f64,
-    /// Memoized `coincident_sigma * noise_floor`. `coincident?` closes
-    /// over this.
-    pub coincident_floor: f64,
+    /// User-supplied presence-sigma function AST. Signature
+    /// `:fn(:i64) -> :i64` — takes d, returns sigma count.
+    /// `None` → built-in default `floor(sqrt(d)/2) - 1` (arc 024's
+    /// formula). Arc 037 slice 6.
+    pub presence_sigma_ast: Option<WatAST>,
+    /// User-supplied coincident-sigma function AST. Signature
+    /// `:fn(:i64) -> :i64`. `None` → built-in default `1` constant
+    /// (the 1σ native granularity). Arc 037 slice 6.
+    pub coincident_sigma_ast: Option<WatAST>,
 }
 
 /// `:wat::config::CapacityMode` — overflow policy when a frame exceeds
@@ -247,25 +234,27 @@ fn collect_entry_file_inner(
 ) -> Result<(Config, Vec<WatAST>), ConfigError> {
     // When `inherit` is set, each field starts at the inherited value.
     // Setters in `forms` override; duplicate-in-forms still errors.
-    let mut dims: Option<usize> = inherit.map(|c| c.dims);
+    //
+    // Arc 037 slice 6: scalar dims / noise_floor / presence_sigma /
+    // coincident_sigma retired. Every override is a FUNCTION AST
+    // (dim_router_ast, presence_sigma_ast, coincident_sigma_ast)
+    // evaluated at freeze time.
     let mut capacity_mode: Option<CapacityMode> = inherit.map(|c| c.capacity_mode);
     let mut global_seed: Option<u64> = inherit.map(|c| c.global_seed);
-    let mut noise_floor: Option<f64> = inherit.map(|c| c.noise_floor);
-    let mut presence_sigma: Option<i64> = inherit.map(|c| c.presence_sigma);
-    let mut coincident_sigma: Option<i64> = inherit.map(|c| c.coincident_sigma);
     let mut dim_router_ast: Option<WatAST> = inherit.and_then(|c| c.dim_router_ast.clone());
+    let mut presence_sigma_ast: Option<WatAST> =
+        inherit.and_then(|c| c.presence_sigma_ast.clone());
+    let mut coincident_sigma_ast: Option<WatAST> =
+        inherit.and_then(|c| c.coincident_sigma_ast.clone());
 
     // Separate tracker: has this field's setter appeared in THIS forms
-    // list? Distinct from `.is_some()` because inheritance pre-seeds
-    // the Some. A setter is permitted once per forms list; inheritance
-    // does not count as a prior set.
-    let mut set_dims = false;
+    // list? Inheritance pre-seeds the Some; duplicate-in-forms still
+    // errors.
     let mut set_capacity_mode = false;
     let mut set_global_seed = false;
-    let mut set_noise_floor = false;
+    let mut set_dim_router = false;
     let mut set_presence_sigma = false;
     let mut set_coincident_sigma = false;
-    let mut set_dim_router = false;
 
     let mut remainder_start: Option<usize> = None;
 
@@ -292,20 +281,6 @@ fn collect_entry_file_inner(
         let args = setter_args_of(form).ok_or(ConfigError::MalformedSetter { form_index: i })?;
 
         match setter_head.as_str() {
-            ":wat::config::set-dims!" => {
-                if set_dims {
-                    return Err(ConfigError::DuplicateField { field: "dims".into() });
-                }
-                set_dims = true;
-                if args.len() != 1 {
-                    return Err(ConfigError::BadArity {
-                        head: setter_head,
-                        expected: 1,
-                        got: args.len(),
-                    });
-                }
-                dims = Some(parse_usize(&args[0], "dims")?);
-            }
             ":wat::config::set-capacity-mode!" => {
                 if set_capacity_mode {
                     return Err(ConfigError::DuplicateField {
@@ -338,54 +313,6 @@ fn collect_entry_file_inner(
                 }
                 global_seed = Some(parse_u64(&args[0], "global-seed")?);
             }
-            ":wat::config::set-noise-floor!" => {
-                if set_noise_floor {
-                    return Err(ConfigError::DuplicateField {
-                        field: "noise-floor".into(),
-                    });
-                }
-                set_noise_floor = true;
-                if args.len() != 1 {
-                    return Err(ConfigError::BadArity {
-                        head: setter_head,
-                        expected: 1,
-                        got: args.len(),
-                    });
-                }
-                noise_floor = Some(parse_f64(&args[0], "noise-floor")?);
-            }
-            ":wat::config::set-presence-sigma!" => {
-                if set_presence_sigma {
-                    return Err(ConfigError::DuplicateField {
-                        field: "presence-sigma".into(),
-                    });
-                }
-                set_presence_sigma = true;
-                if args.len() != 1 {
-                    return Err(ConfigError::BadArity {
-                        head: setter_head,
-                        expected: 1,
-                        got: args.len(),
-                    });
-                }
-                presence_sigma = Some(parse_positive_i64(&args[0], "presence-sigma")?);
-            }
-            ":wat::config::set-coincident-sigma!" => {
-                if set_coincident_sigma {
-                    return Err(ConfigError::DuplicateField {
-                        field: "coincident-sigma".into(),
-                    });
-                }
-                set_coincident_sigma = true;
-                if args.len() != 1 {
-                    return Err(ConfigError::BadArity {
-                        head: setter_head,
-                        expected: 1,
-                        got: args.len(),
-                    });
-                }
-                coincident_sigma = Some(parse_positive_i64(&args[0], "coincident-sigma")?);
-            }
             ":wat::config::set-dim-router!" => {
                 if set_dim_router {
                     return Err(ConfigError::DuplicateField {
@@ -401,11 +328,44 @@ fn collect_entry_file_inner(
                     });
                 }
                 // Arc 037 slice 4: store the AST verbatim. Freeze
-                // evaluates it against the fully-built frozen world
-                // (names-are-values per arc 009 lifts a keyword path
-                // to a function value; a lambda expression constructs
-                // one; any AST that reduces to a function works).
+                // evaluates it against the fully-built frozen world.
                 dim_router_ast = Some(args[0].clone());
+            }
+            ":wat::config::set-presence-sigma!" => {
+                if set_presence_sigma {
+                    return Err(ConfigError::DuplicateField {
+                        field: "presence-sigma".into(),
+                    });
+                }
+                set_presence_sigma = true;
+                if args.len() != 1 {
+                    return Err(ConfigError::BadArity {
+                        head: setter_head,
+                        expected: 1,
+                        got: args.len(),
+                    });
+                }
+                // Arc 037 slice 6: AST-valued, not scalar. Freeze
+                // evaluates to a `:fn(:i64) -> :i64`. Users who want
+                // a constant sigma write `(fn (_d) N)`.
+                presence_sigma_ast = Some(args[0].clone());
+            }
+            ":wat::config::set-coincident-sigma!" => {
+                if set_coincident_sigma {
+                    return Err(ConfigError::DuplicateField {
+                        field: "coincident-sigma".into(),
+                    });
+                }
+                set_coincident_sigma = true;
+                if args.len() != 1 {
+                    return Err(ConfigError::BadArity {
+                        head: setter_head,
+                        expected: 1,
+                        got: args.len(),
+                    });
+                }
+                // Arc 037 slice 6: AST-valued. Signature `:fn(:i64) -> :i64`.
+                coincident_sigma_ast = Some(args[0].clone());
             }
             _ => {
                 return Err(ConfigError::UnknownSetter {
@@ -415,83 +375,19 @@ fn collect_entry_file_inner(
         }
     }
 
-    // Arc 037 slice 1: dims and capacity_mode are optional. When unset
-    // (and no inherited value is present), fall back to opinionated
-    // defaults. The existing `RequiredFieldMissing` error variant is
-    // retained for potential future required fields but is no longer
-    // raised for these two.
-    //
-    // dims default is inlined (10000) rather than named — the single-
-    // dim concept retires when arc 037 slice 3 introduces the router;
-    // a constant named `DEFAULT_DIMS` would outlive its meaning.
-    let dims = dims.unwrap_or(10000);
+    // Arc 037 slice 6: all setters optional. capacity-mode defaults
+    // to :error; global-seed defaults to 42; the three function ASTs
+    // default to None (freeze installs built-in defaults on
+    // SymbolTable capability slots).
     let capacity_mode = capacity_mode.unwrap_or(DEFAULT_CAPACITY_MODE);
     let global_seed = global_seed.unwrap_or(42);
-    // Opinionated defaults — all FUNCTIONS of dims. The user picks
-    // dims; everything else derives. Arc 024 slice 2.
-    //
-    //   noise_floor(d)    = 1 / sqrt(d)            ; 1σ native granularity
-    //   coincident_sigma  = 1                      ; constant: 1σ always
-    //   presence_sigma(d) = floor(sqrt(d)/2) - 1   ; one before zero-point
-    //
-    // The presence formula derives "the thing one before zero" — the
-    // zero-point of middle_width is sqrt(d)/2 (where the two predicates
-    // collapse). Presence sits one sliver below, leaving the smallest
-    // non-zero separation. Coincident stays at 1σ because that's the
-    // geometric minimum the substrate can physically resolve.
-    //
-    // Validity (presence_sigma + coincident_sigma < sqrt(d)) holds for
-    // defaults at d ≥ 16. Below that, the user must override.
-    let noise_floor = noise_floor.unwrap_or_else(|| 1.0 / (dims as f64).sqrt());
-    let coincident_sigma = coincident_sigma.unwrap_or(1);
-    let presence_sigma = presence_sigma.unwrap_or_else(|| {
-        let half_sqrt_dims = ((dims as f64).sqrt() / 2.0).floor() as i64;
-        // "one before the zero point"; clamp positive so parse invariant
-        // still holds for tiny d even though the validity check below
-        // will reject.
-        (half_sqrt_dims - 1).max(1)
-    });
-    let presence_floor = (presence_sigma as f64) * noise_floor;
-    let coincident_floor = (coincident_sigma as f64) * noise_floor;
-
-    // Validity: n_p + n_c < sqrt(dims). Above this the presence /
-    // coincident predicates collapse (their thresholds meet or swap).
-    // Behavior per capacity_mode — reuses the same two-mode policy
-    // Bundle capacity uses.
-    let sigma_sum = presence_sigma.saturating_add(coincident_sigma);
-    let dims_sqrt = (dims as f64).sqrt();
-    if (sigma_sum as f64) >= dims_sqrt {
-        match capacity_mode {
-            CapacityMode::Error => {
-                return Err(ConfigError::BadValue {
-                    field: "presence-sigma + coincident-sigma".into(),
-                    reason: format!(
-                        "sum ({}) >= sqrt(dims) ({:.4}); presence / coincident predicate duality collapses. \
-                        Raise dims or lower a sigma. (Capacity-mode :error returns this failure.)",
-                        sigma_sum, dims_sqrt
-                    ),
-                });
-            }
-            CapacityMode::Abort => {
-                panic!(
-                    "config invalid under :abort: presence-sigma ({}) + coincident-sigma ({}) = {} >= sqrt(dims) = {:.4}. \
-                    Predicate duality collapses.",
-                    presence_sigma, coincident_sigma, sigma_sum, dims_sqrt
-                );
-            }
-        }
-    }
 
     let config = Config {
-        dims,
         capacity_mode,
         global_seed,
         dim_router_ast,
-        noise_floor,
-        presence_sigma,
-        coincident_sigma,
-        presence_floor,
-        coincident_floor,
+        presence_sigma_ast,
+        coincident_sigma_ast,
     };
 
     let remainder = match remainder_start {
@@ -524,47 +420,6 @@ fn setter_args_of(form: &WatAST) -> Option<&[WatAST]> {
     }
 }
 
-fn parse_usize(ast: &WatAST, field: &'static str) -> Result<usize, ConfigError> {
-    match ast {
-        WatAST::IntLit(n, _) => {
-            if *n < 0 {
-                return Err(ConfigError::BadValue {
-                    field: field.into(),
-                    reason: format!("expected non-negative integer, got {}", n),
-                });
-            }
-            usize::try_from(*n).map_err(|_| ConfigError::BadValue {
-                field: field.into(),
-                reason: format!("integer {} does not fit in usize", n),
-            })
-        }
-        other => Err(ConfigError::BadType {
-            field: field.into(),
-            expected: "integer literal",
-            got: variant_name(other),
-        }),
-    }
-}
-
-fn parse_positive_i64(ast: &WatAST, field: &'static str) -> Result<i64, ConfigError> {
-    match ast {
-        WatAST::IntLit(n, _) => {
-            if *n <= 0 {
-                return Err(ConfigError::BadValue {
-                    field: field.into(),
-                    reason: format!("expected positive integer, got {}", n),
-                });
-            }
-            Ok(*n)
-        }
-        other => Err(ConfigError::BadType {
-            field: field.into(),
-            expected: "positive integer literal",
-            got: variant_name(other),
-        }),
-    }
-}
-
 fn parse_u64(ast: &WatAST, field: &'static str) -> Result<u64, ConfigError> {
     match ast {
         WatAST::IntLit(n, _) => {
@@ -579,19 +434,6 @@ fn parse_u64(ast: &WatAST, field: &'static str) -> Result<u64, ConfigError> {
         other => Err(ConfigError::BadType {
             field: field.into(),
             expected: "integer literal",
-            got: variant_name(other),
-        }),
-    }
-}
-
-fn parse_f64(ast: &WatAST, field: &'static str) -> Result<f64, ConfigError> {
-    match ast {
-        WatAST::FloatLit(x, _) => Ok(*x),
-        // Accept IntLit as a convenience — `(set-noise-floor! 0)` works.
-        WatAST::IntLit(n, _) => Ok(*n as f64),
-        other => Err(ConfigError::BadType {
-            field: field.into(),
-            expected: "float or integer literal",
             got: variant_name(other),
         }),
     }
@@ -630,6 +472,7 @@ fn variant_name(ast: &WatAST) -> &'static str {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -640,216 +483,47 @@ mod tests {
         collect_entry_file(forms)
     }
 
+    // ─── Minimum / defaults ─────────────────────────────────────────────
+
     #[test]
-    fn minimum_required_entry_file() {
-        let (cfg, rest) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 10000)
-            "#,
-        )
-        .unwrap();
-        assert_eq!(cfg.dims, 10000);
+    fn empty_entry_file_commits_defaults() {
+        let (cfg, _) = collect("").unwrap();
         assert_eq!(cfg.capacity_mode, CapacityMode::Error);
-        assert_eq!(cfg.global_seed, 42, "default global-seed is 42");
-        // Arc 024: noise_floor = 1σ = 1/sqrt(d). At d=10000 that's 0.01.
-        let expected = 1.0_f64 / (10000_f64).sqrt();
-        assert!((cfg.noise_floor - expected).abs() < 1e-12);
-        // Arc 024 slice 2: defaults are FUNCTIONS of dims.
-        //   presence_sigma = floor(sqrt(d)/2) - 1
-        //   coincident_sigma = 1
-        // At d=10000: floor(100/2) - 1 = 49.
-        assert_eq!(cfg.presence_sigma, 49);
-        assert_eq!(cfg.coincident_sigma, 1);
-        assert!((cfg.presence_floor - 49.0 * expected).abs() < 1e-12);
-        assert!((cfg.coincident_floor - expected).abs() < 1e-12);
-        assert!(rest.is_empty());
+        assert_eq!(cfg.global_seed, 42);
+        assert!(cfg.dim_router_ast.is_none());
+        assert!(cfg.presence_sigma_ast.is_none());
+        assert!(cfg.coincident_sigma_ast.is_none());
     }
 
     #[test]
-    fn noise_floor_default_is_1_over_sqrt_dims() {
-        // Arc 024: noise_floor = 1σ. At d=1024, 1/32 = 0.03125.
-        let (cfg, _) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
-            "#,
-        )
-        .unwrap();
-        assert_eq!(cfg.dims, 1024);
-        assert!((cfg.noise_floor - 1.0 / 32.0).abs() < 1e-12);
-        assert!((cfg.presence_floor - 15.0 / 32.0).abs() < 1e-12);
-        assert!((cfg.coincident_floor - 1.0 / 32.0).abs() < 1e-12);
+    fn capacity_mode_error_parses() {
+        let (cfg, _) = collect("(:wat::config::set-capacity-mode! :error)").unwrap();
+        assert_eq!(cfg.capacity_mode, CapacityMode::Error);
     }
 
     #[test]
-    fn noise_floor_override() {
-        let (cfg, _) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
-            (:wat::config::set-noise-floor! 0.1)
-            "#,
-        )
-        .unwrap();
-        assert_eq!(cfg.noise_floor, 0.1);
-    }
-
-    #[test]
-    fn noise_floor_override_accepts_integer() {
-        // set-noise-floor! accepts integer literals as convenience.
-        let (cfg, _) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
-            (:wat::config::set-noise-floor! 0)
-            "#,
-        )
-        .unwrap();
-        assert_eq!(cfg.noise_floor, 0.0);
-    }
-
-    #[test]
-    fn noise_floor_double_set_rejected() {
-        let err = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
-            (:wat::config::set-noise-floor! 0.1)
-            (:wat::config::set-noise-floor! 0.2)
-            "#,
-        )
-        .unwrap_err();
-        assert!(matches!(
-            err,
-            ConfigError::DuplicateField { field } if field == "noise-floor"
-        ));
+    fn capacity_mode_abort_parses() {
+        let (cfg, _) = collect("(:wat::config::set-capacity-mode! :abort)").unwrap();
+        assert_eq!(cfg.capacity_mode, CapacityMode::Abort);
     }
 
     #[test]
     fn global_seed_default_is_42() {
-        let (cfg, _) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 10000)
-            "#,
-        )
-        .unwrap();
+        let (cfg, _) = collect("").unwrap();
         assert_eq!(cfg.global_seed, 42);
     }
 
-    // ─── Arc 024: presence_sigma + coincident_sigma ───────────────────
-
     #[test]
-    fn sigma_defaults_are_15_and_1() {
-        let (cfg, _) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
-            "#,
-        )
-        .unwrap();
-        assert_eq!(cfg.presence_sigma, 15);
-        assert_eq!(cfg.coincident_sigma, 1);
-        // presence_floor = 15 / 32 = 0.46875
-        assert!((cfg.presence_floor - 15.0 / 32.0).abs() < 1e-12);
-        // coincident_floor = 1 / 32 = 0.03125
-        assert!((cfg.coincident_floor - 1.0 / 32.0).abs() < 1e-12);
+    fn global_seed_override() {
+        let (cfg, _) = collect("(:wat::config::set-global-seed! 1337)").unwrap();
+        assert_eq!(cfg.global_seed, 1337);
     }
 
-    #[test]
-    fn presence_sigma_override() {
-        let (cfg, _) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
-            (:wat::config::set-presence-sigma! 10)
-            "#,
-        )
-        .unwrap();
-        assert_eq!(cfg.presence_sigma, 10);
-        assert!((cfg.presence_floor - 10.0 / 32.0).abs() < 1e-12);
-    }
-
-    #[test]
-    fn coincident_sigma_override() {
-        let (cfg, _) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
-            (:wat::config::set-coincident-sigma! 3)
-            "#,
-        )
-        .unwrap();
-        assert_eq!(cfg.coincident_sigma, 3);
-        assert!((cfg.coincident_floor - 3.0 / 32.0).abs() < 1e-12);
-    }
-
-    #[test]
-    fn nonpositive_sigma_rejected() {
-        let err = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
-            (:wat::config::set-presence-sigma! 0)
-            "#,
-        )
-        .unwrap_err();
-        assert!(
-            matches!(err, ConfigError::BadValue { ref field, .. } if field == "presence-sigma"),
-            "expected BadValue for presence-sigma, got {:?}",
-            err
-        );
-    }
-
-    #[test]
-    fn defaults_stay_valid_at_small_dims() {
-        // Arc 024 slice 2: the default formula derives presence_sigma
-        // from dims. At d=100 → floor(10/2) - 1 = 4; sum 4+1=5 < 10.
-        // Valid. The default works wherever the substrate geometry
-        // permits.
-        let (cfg, _) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 100)
-            "#,
-        )
-        .unwrap();
-        assert_eq!(cfg.presence_sigma, 4);
-        assert_eq!(cfg.coincident_sigma, 1);
-    }
-
-    #[test]
-    fn user_override_that_breaks_invariant_under_error_returns_err() {
-        // User picks a sigma that violates the geometric ceiling.
-        // At d=100 sqrt=10, so presence_sigma=15 + coincident=1 = 16 ≥ 10.
-        // Under :error, collect_entry_file returns Err.
-        let err = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 100)
-            (:wat::config::set-presence-sigma! 15)
-            "#,
-        )
-        .unwrap_err();
-        match err {
-            ConfigError::BadValue { field, .. } => {
-                assert_eq!(field, "presence-sigma + coincident-sigma");
-            }
-            other => panic!("expected BadValue, got {:?}", other),
-        }
-    }
+    // ─── CapacityMode retirement (arc 037 Layer 1) ──────────────────────
 
     #[test]
     fn retired_silent_variant_rejected_at_parse() {
-        // Arc 037 retired :silent. Parser errors cleanly.
-        let err = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :silent)
-            (:wat::config::set-dims! 100)
-            "#,
-        )
-        .unwrap_err();
+        let err = collect("(:wat::config::set-capacity-mode! :silent)").unwrap_err();
         match err {
             ConfigError::BadValue { field, reason } => {
                 assert_eq!(field, "capacity-mode");
@@ -861,14 +535,7 @@ mod tests {
 
     #[test]
     fn retired_warn_variant_rejected_at_parse() {
-        // Arc 037 retired :warn. Parser errors cleanly.
-        let err = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :warn)
-            (:wat::config::set-dims! 100)
-            "#,
-        )
-        .unwrap_err();
+        let err = collect("(:wat::config::set-capacity-mode! :warn)").unwrap_err();
         match err {
             ConfigError::BadValue { field, reason } => {
                 assert_eq!(field, "capacity-mode");
@@ -878,121 +545,118 @@ mod tests {
         }
     }
 
+    // ─── set-dim-router! AST storage ────────────────────────────────────
+
     #[test]
-    fn sigma_override_keeps_config_valid_at_small_dims() {
-        // At d=100, user lowers presence-sigma so sum stays below
-        // sqrt(d)=10. Config commits cleanly.
-        let (cfg, _) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 100)
-            (:wat::config::set-presence-sigma! 5)
-            "#,
-        )
-        .unwrap();
-        assert_eq!(cfg.presence_sigma, 5);
-        assert_eq!(cfg.coincident_sigma, 1);
-        // Sum 5+1=6 < sqrt(100)=10 — OK under :error.
+    fn set_dim_router_stores_ast_verbatim() {
+        let (cfg, _) = collect("(:wat::config::set-dim-router! :my::router)").unwrap();
+        assert!(cfg.dim_router_ast.is_some());
     }
 
     #[test]
-    fn sigma_double_set_rejected() {
+    fn set_dim_router_duplicate_rejected() {
         let err = collect(
             r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
-            (:wat::config::set-presence-sigma! 10)
-            (:wat::config::set-presence-sigma! 20)
+            (:wat::config::set-dim-router! :a)
+            (:wat::config::set-dim-router! :b)
             "#,
         )
         .unwrap_err();
-        assert!(matches!(err, ConfigError::DuplicateField { .. }));
+        assert!(matches!(
+            err,
+            ConfigError::DuplicateField { ref field } if field == "dim-router"
+        ));
+    }
+
+    // ─── set-presence-sigma! / set-coincident-sigma! AST storage ────────
+
+    #[test]
+    fn set_presence_sigma_stores_ast_verbatim() {
+        let (cfg, _) = collect("(:wat::config::set-presence-sigma! :my::sigma)").unwrap();
+        assert!(cfg.presence_sigma_ast.is_some());
     }
 
     #[test]
-    fn global_seed_override() {
-        let (cfg, _) = collect(
+    fn set_coincident_sigma_stores_ast_verbatim() {
+        let (cfg, _) = collect("(:wat::config::set-coincident-sigma! :my::sigma)").unwrap();
+        assert!(cfg.coincident_sigma_ast.is_some());
+    }
+
+    #[test]
+    fn set_presence_sigma_duplicate_rejected() {
+        let err = collect(
             r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 10000)
-            (:wat::config::set-global-seed! 12345)
+            (:wat::config::set-presence-sigma! :a)
+            (:wat::config::set-presence-sigma! :b)
             "#,
         )
-        .unwrap();
-        assert_eq!(cfg.global_seed, 12345);
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::DuplicateField { ref field } if field == "presence-sigma"
+        ));
     }
+
+    #[test]
+    fn set_coincident_sigma_duplicate_rejected() {
+        let err = collect(
+            r#"
+            (:wat::config::set-coincident-sigma! :a)
+            (:wat::config::set-coincident-sigma! :b)
+            "#,
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::DuplicateField { ref field } if field == "coincident-sigma"
+        ));
+    }
+
+    // ─── Retired setters (arc 037 slice 6 rip) ──────────────────────────
+
+    #[test]
+    fn set_dims_is_unknown_setter() {
+        let err = collect("(:wat::config::set-dims! 1024)").unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::UnknownSetter { ref head } if head == ":wat::config::set-dims!"
+        ));
+    }
+
+    #[test]
+    fn set_noise_floor_is_unknown_setter() {
+        let err = collect("(:wat::config::set-noise-floor! 0.1)").unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::UnknownSetter { ref head } if head == ":wat::config::set-noise-floor!"
+        ));
+    }
+
+    // ─── Entry-file discipline ──────────────────────────────────────────
 
     #[test]
     fn setters_then_body() {
-        let (cfg, rest) = collect(
+        let (_, rest) = collect(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 10000)
-            (:wat::holon::Atom "hello")
+            (some-body-form)
             "#,
         )
         .unwrap();
-        assert_eq!(cfg.dims, 10000);
         assert_eq!(rest.len(), 1);
     }
 
     #[test]
-    fn all_capacity_modes_parse() {
-        for (kw, variant) in [
-            (":error", CapacityMode::Error),
-            (":abort", CapacityMode::Abort),
-        ] {
-            let src = format!(
-                r#"
-                (:wat::config::set-capacity-mode! {})
-                (:wat::config::set-dims! 1024)
-                "#,
-                kw
-            );
-            let (cfg, _) = collect(&src).unwrap();
-            assert_eq!(cfg.capacity_mode, variant, "failed for {}", kw);
-        }
-    }
-
-    // ─── Error cases ────────────────────────────────────────────────────
-
-    #[test]
     fn setter_after_non_setter_is_silently_dropped() {
-        // Walker stops at the first non-setter; the trailing setter is
-        // never seen. Pre-arc-037 this surfaced as RequiredFieldMissing
-        // because capacity-mode was required. Arc 037 made it optional
-        // (defaults to :error), so the walker's silent-drop behavior is
-        // directly visible: Config commits with defaults for anything
-        // not reached, and the trailing setter is returned as a rest
-        // form for downstream processing. A future arc could tighten
-        // this by scanning past the non-setter and reporting
-        // SetterAfterNonSetter; today the walker is best-effort.
-        let (cfg, rest) = collect(
+        let (_cfg, rest) = collect(
             r#"
-            (:wat::config::set-dims! 10000)
-            (:wat::holon::Atom "oops — body in the middle")
+            (:wat::config::set-capacity-mode! :error)
+            (:some::body)
             (:wat::config::set-capacity-mode! :abort)
             "#,
         )
         .unwrap();
-        // capacity-mode came from the default (walker never saw the trailing
-        // :abort setter), not from the ignored setter below.
-        assert_eq!(cfg.capacity_mode, CapacityMode::Error);
-        // The ignored setter is present in the rest-forms for the next pass.
-        assert_eq!(rest.len(), 2, "Atom + trailing setter both in rest");
-    }
-
-    #[test]
-    fn duplicate_dims_rejected() {
-        let err = collect(
-            r#"
-            (:wat::config::set-dims! 10000)
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 8192)
-            "#,
-        )
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::DuplicateField { ref field } if field == "dims"));
+        assert_eq!(rest.len(), 2);
     }
 
     #[test]
@@ -1000,54 +664,34 @@ mod tests {
         let err = collect(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 10000)
             (:wat::config::set-capacity-mode! :abort)
             "#,
         )
         .unwrap_err();
-        assert!(matches!(err, ConfigError::DuplicateField { ref field } if field == "capacity-mode"));
-    }
-
-    #[test]
-    fn missing_dims_defaults() {
-        // Arc 037: dims is optional. Its value on the encoder path is
-        // irrelevant (router answers on demand). Config commits with
-        // whatever the collector's fallback is.
-        let (cfg, _) = collect(r#"(:wat::config::set-capacity-mode! :error)"#).unwrap();
-        assert_eq!(cfg.capacity_mode, CapacityMode::Error);
-    }
-
-    #[test]
-    fn missing_capacity_mode_defaults_to_error() {
-        // Arc 037: capacity-mode optional; defaults to :error (safe —
-        // overflow surfaces as catchable CapacityExceeded).
-        let (cfg, _) = collect(r#"(:wat::config::set-dims! 10000)"#).unwrap();
-        assert_eq!(cfg.capacity_mode, CapacityMode::Error);
-    }
-
-    #[test]
-    fn empty_entry_file_commits_defaults() {
-        // Arc 037: no setters required. Empty entry file produces a
-        // fully-defaulted Config.
-        let (cfg, _) = collect("").unwrap();
-        assert_eq!(cfg.capacity_mode, CapacityMode::Error);
+        assert!(matches!(
+            err,
+            ConfigError::DuplicateField { ref field } if field == "capacity-mode"
+        ));
     }
 
     #[test]
     fn unknown_setter_rejected() {
-        let err = collect(r#"(:wat::config::set-bogus! 1)"#).unwrap_err();
-        assert!(matches!(err, ConfigError::UnknownSetter { ref head } if head == ":wat::config::set-bogus!"));
+        let err = collect("(:wat::config::set-bogus! 1)").unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::UnknownSetter { ref head } if head == ":wat::config::set-bogus!"
+        ));
+    }
+
+    #[test]
+    fn capacity_mode_wrong_type_rejected() {
+        let err = collect(r#"(:wat::config::set-capacity-mode! "oops")"#).unwrap_err();
+        assert!(matches!(err, ConfigError::BadType { ref field, .. } if field == "capacity-mode"));
     }
 
     #[test]
     fn wrong_arity_rejected() {
-        let err = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 10000 8192)
-            "#,
-        )
-        .unwrap_err();
+        let err = collect("(:wat::config::set-capacity-mode! :error :abort)").unwrap_err();
         assert!(matches!(
             err,
             ConfigError::BadArity { expected: 1, got: 2, .. }
@@ -1055,102 +699,21 @@ mod tests {
     }
 
     #[test]
-    fn dims_wrong_type_rejected() {
-        let err = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! "oops")
-            "#,
-        )
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::BadType { ref field, .. } if field == "dims"));
-    }
-
-    #[test]
-    fn capacity_mode_wrong_type_rejected() {
-        let err = collect(
-            r#"
-            (:wat::config::set-capacity-mode! 42)
-            (:wat::config::set-dims! 10000)
-            "#,
-        )
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::BadType { ref field, .. } if field == "capacity-mode"));
-    }
-
-    #[test]
-    fn capacity_mode_unknown_variant_rejected() {
-        let err = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :chaos)
-            (:wat::config::set-dims! 10000)
-            "#,
-        )
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::BadValue { ref field, .. } if field == "capacity-mode"));
-    }
-
-    #[test]
-    fn negative_dims_rejected() {
-        let err = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! -1)
-            "#,
-        )
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::BadValue { ref field, .. } if field == "dims"));
-    }
-
-    #[test]
     fn negative_global_seed_rejected() {
-        let err = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 10000)
-            (:wat::config::set-global-seed! -5)
-            "#,
-        )
-        .unwrap_err();
+        let err = collect("(:wat::config::set-global-seed! -5)").unwrap_err();
         assert!(matches!(err, ConfigError::BadValue { ref field, .. } if field == "global-seed"));
     }
 
-    #[test]
-    fn setter_order_between_dims_and_capacity_either_way() {
-        // The spec says "setters precede loads" — not that dims comes before
-        // capacity-mode. Order among setters is free.
-        let (cfg_a, _) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 10000)
-            "#,
-        )
-        .unwrap();
-        let (cfg_b, _) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 10000)
-            "#,
-        )
-        .unwrap();
-        assert_eq!(cfg_a, cfg_b);
-    }
-
-    // ─── Arc 031 — collect_entry_file_with_inherit ──────────────────
+    // ─── Inheritance (arc 031) ──────────────────────────────────────────
 
     fn parent_config() -> Config {
-        // A fully-populated parent config for inheritance tests. Built
-        // via the non-inheriting collector so the exact default-derivation
-        // rules (noise_floor, presence_sigma, coincident_sigma) match
-        // what production callers would carry in.
-        let (cfg, _) = collect(
-            r#"
-            (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
-            "#,
-        )
-        .unwrap();
-        cfg
+        Config {
+            capacity_mode: CapacityMode::Abort,
+            global_seed: 99,
+            dim_router_ast: None,
+            presence_sigma_ast: None,
+            coincident_sigma_ast: None,
+        }
     }
 
     fn collect_inherit(src: &str, inherit: &Config) -> Result<(Config, Vec<WatAST>), ConfigError> {
@@ -1167,105 +730,29 @@ mod tests {
     }
 
     #[test]
-    fn inherit_with_no_setters_but_body_still_inherits() {
-        let parent = parent_config();
-        // Body-only form — no setters at all. Would normally error with
-        // RequiredFieldMissing; with inheritance, it's fine.
-        let (cfg, rest) = collect_inherit(
-            r#"
-            (:wat::core::define (:user::main -> :())
-              ())
-            "#,
-            &parent,
-        )
-        .unwrap();
-        assert_eq!(cfg.dims, parent.dims);
-        assert_eq!(cfg.capacity_mode, parent.capacity_mode);
-        assert_eq!(rest.len(), 1);
-    }
-
-    #[test]
     fn inherit_setter_overrides_single_field() {
         let parent = parent_config();
         let (cfg, _) = collect_inherit(
-            r#"
-            (:wat::config::set-dims! 4096)
-            "#,
+            "(:wat::config::set-global-seed! 7)",
             &parent,
         )
         .unwrap();
-        assert_eq!(cfg.dims, 4096, "explicit setter overrides inherited");
-        assert_eq!(cfg.capacity_mode, parent.capacity_mode, "unset fields still inherit");
-    }
-
-    #[test]
-    fn inherit_both_setters_override_everything_explicit() {
-        let parent = parent_config();
-        // Parent has :error + 1024; forms set :abort + 4096.
-        let (cfg, _) = collect_inherit(
-            r#"
-            (:wat::config::set-capacity-mode! :abort)
-            (:wat::config::set-dims! 4096)
-            "#,
-            &parent,
-        )
-        .unwrap();
-        assert_eq!(cfg.dims, 4096);
-        assert_eq!(cfg.capacity_mode, CapacityMode::Abort);
+        assert_eq!(cfg.global_seed, 7);
+        assert_eq!(cfg.capacity_mode, parent.capacity_mode);
     }
 
     #[test]
     fn inherit_duplicate_setter_in_forms_still_errors() {
-        // Inheritance pre-seeds dims, but that's not a prior "set" in
-        // the forms. A single setter overrides cleanly; a SECOND setter
-        // for the same field in the forms trips DuplicateField.
         let parent = parent_config();
         let err = collect_inherit(
             r#"
-            (:wat::config::set-dims! 4096)
-            (:wat::config::set-dims! 8192)
+            (:wat::config::set-global-seed! 1)
+            (:wat::config::set-global-seed! 2)
             "#,
             &parent,
         )
         .unwrap_err();
-        assert!(matches!(err, ConfigError::DuplicateField { ref field, .. } if field == "dims"));
-    }
-
-    #[test]
-    fn inherit_preserves_derived_fields_when_not_overridden() {
-        // Parent at d=1024 has presence_sigma=15, coincident_sigma=1,
-        // noise_floor=1/32. Child with no sigma/noise setters should
-        // take all three from parent unchanged.
-        let parent = parent_config();
-        let (cfg, _) = collect_inherit("", &parent).unwrap();
-        assert_eq!(cfg.presence_sigma, parent.presence_sigma);
-        assert_eq!(cfg.coincident_sigma, parent.coincident_sigma);
-        assert!((cfg.noise_floor - parent.noise_floor).abs() < 1e-12);
-        assert!((cfg.presence_floor - parent.presence_floor).abs() < 1e-12);
-        assert!((cfg.coincident_floor - parent.coincident_floor).abs() < 1e-12);
-    }
-
-    #[test]
-    fn inherit_dims_override_recomputes_nothing_automatically() {
-        // Corollary: overriding dims DOES NOT recompute the
-        // noise_floor default. Inheritance carries the parent's
-        // noise_floor as-is. If the caller wants the new dims' 1σ
-        // floor, they must also set-noise-floor! explicitly. This
-        // matches "inheritance is a baseline, setters override per
-        // field" semantics — simpler than a recompute-on-cascade
-        // rule.
-        let parent = parent_config();
-        let (cfg, _) = collect_inherit(
-            r#"
-            (:wat::config::set-dims! 4096)
-            "#,
-            &parent,
-        )
-        .unwrap();
-        assert_eq!(cfg.dims, 4096);
-        assert!(
-            (cfg.noise_floor - parent.noise_floor).abs() < 1e-12,
-            "noise_floor inherits parent's 1/sqrt(1024), does not recompute for 4096"
-        );
+        assert!(matches!(err, ConfigError::DuplicateField { ref field } if field == "global-seed"));
     }
 }
+

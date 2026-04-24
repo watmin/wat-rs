@@ -44,7 +44,6 @@ fn ast_entry_prints_hello() {
     // captured stdout.
     let src = r##"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)
@@ -54,7 +53,6 @@ fn ast_entry_prints_hello() {
           (:wat::core::let*
             (((forms :Vec<wat::WatAST>)
               (:wat::core::vec :wat::WatAST
-                (:wat::core::quote (:wat::config::set-dims! 1024))
                 (:wat::core::quote (:wat::config::set-capacity-mode! :error))
                 (:wat::core::quote
                   (:wat::core::define (:user::main
@@ -82,7 +80,6 @@ fn ast_entry_captures_assertion_failure() {
     // full plumbing.
     let src = r##"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)
@@ -92,7 +89,6 @@ fn ast_entry_captures_assertion_failure() {
           (:wat::core::let*
             (((forms :Vec<wat::WatAST>)
               (:wat::core::vec :wat::WatAST
-                (:wat::core::quote (:wat::config::set-dims! 1024))
                 (:wat::core::quote (:wat::config::set-capacity-mode! :error))
                 (:wat::core::quote
                   (:wat::core::define (:user::main

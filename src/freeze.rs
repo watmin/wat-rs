@@ -186,6 +186,70 @@ impl FrozenWorld {
             ));
         }
 
+        // Arc 037 slice 6: install built-in default sigma functions.
+        // User overrides via set-presence-sigma! / set-coincident-sigma!
+        // replace these below.
+        symbols.set_presence_sigma_fn(Arc::new(crate::dim_router::DefaultPresenceSigma));
+        symbols.set_coincident_sigma_fn(Arc::new(crate::dim_router::DefaultCoincidentSigma));
+
+        // Install user-supplied presence-sigma function if present.
+        if let Some(sigma_ast) = config.presence_sigma_ast.clone() {
+            let env = crate::runtime::Environment::new();
+            let v = crate::runtime::eval(&sigma_ast, &env, &symbols).map_err(|e| {
+                StartupError::SigmaFn(format!(
+                    "set-presence-sigma! body failed to evaluate: {}",
+                    e
+                ))
+            })?;
+            let func = match v {
+                crate::runtime::Value::wat__core__lambda(f) => f,
+                other => {
+                    return Err(StartupError::SigmaFn(format!(
+                        "set-presence-sigma! expected a function value; got {}",
+                        other.type_name()
+                    )));
+                }
+            };
+            check_sigma_fn_signature("set-presence-sigma!", &func)?;
+            let path = func
+                .name
+                .clone()
+                .unwrap_or_else(|| "<lambda>".to_string());
+            symbols.set_presence_sigma_fn(Arc::new(crate::dim_router::WatLambdaSigmaFn {
+                path,
+                func,
+            }));
+        }
+
+        // Install user-supplied coincident-sigma function if present.
+        if let Some(sigma_ast) = config.coincident_sigma_ast.clone() {
+            let env = crate::runtime::Environment::new();
+            let v = crate::runtime::eval(&sigma_ast, &env, &symbols).map_err(|e| {
+                StartupError::SigmaFn(format!(
+                    "set-coincident-sigma! body failed to evaluate: {}",
+                    e
+                ))
+            })?;
+            let func = match v {
+                crate::runtime::Value::wat__core__lambda(f) => f,
+                other => {
+                    return Err(StartupError::SigmaFn(format!(
+                        "set-coincident-sigma! expected a function value; got {}",
+                        other.type_name()
+                    )));
+                }
+            };
+            check_sigma_fn_signature("set-coincident-sigma!", &func)?;
+            let path = func
+                .name
+                .clone()
+                .unwrap_or_else(|| "<lambda>".to_string());
+            symbols.set_coincident_sigma_fn(Arc::new(crate::dim_router::WatLambdaSigmaFn {
+                path,
+                func,
+            }));
+        }
+
         Ok(FrozenWorld {
             config,
             types,
@@ -239,8 +303,14 @@ pub enum StartupError {
     Stdlib(StdlibError),
     /// `(:wat::config::set-dim-router! <expr>)` committed an AST that
     /// did not evaluate to a function value at freeze, or whose
-    /// signature did not match `:fn(:i64) -> :Option<:i64>`.
+    /// signature did not match
+    /// `:fn(:wat::holon::HolonAST) -> :Option<i64>`.
     DimRouter(String),
+    /// `(:wat::config::set-presence-sigma! <expr>)` or
+    /// `(:wat::config::set-coincident-sigma! <expr>)` committed an AST
+    /// that did not evaluate to a function value at freeze, or whose
+    /// signature did not match `:fn(:i64) -> :i64`.
+    SigmaFn(String),
 }
 
 impl fmt::Display for StartupError {
@@ -256,8 +326,43 @@ impl fmt::Display for StartupError {
             StartupError::Runtime(e) => write!(f, "registration: {}", e),
             StartupError::Stdlib(e) => write!(f, "stdlib: {}", e),
             StartupError::DimRouter(msg) => write!(f, "dim-router: {}", msg),
+            StartupError::SigmaFn(msg) => write!(f, "sigma-fn: {}", msg),
         }
     }
+}
+
+/// Signature check for `set-presence-sigma!` / `set-coincident-sigma!`.
+/// Both expect `:fn(:i64) -> :i64` — takes dim, returns σ count.
+/// Lambdas that lack declared types skip the check (same policy as
+/// dim-router).
+fn check_sigma_fn_signature(
+    setter: &str,
+    func: &crate::runtime::Function,
+) -> Result<(), StartupError> {
+    if func.params.len() != 1 {
+        return Err(StartupError::SigmaFn(format!(
+            "{} function must take exactly 1 argument (got {})",
+            setter,
+            func.params.len()
+        )));
+    }
+    if !func.param_types.is_empty() {
+        let expected_param = crate::types::TypeExpr::Path(":i64".into());
+        if func.param_types[0] != expected_param {
+            return Err(StartupError::SigmaFn(format!(
+                "{} function param must be :i64; got {:?}",
+                setter, func.param_types[0]
+            )));
+        }
+        let expected_ret = crate::types::TypeExpr::Path(":i64".into());
+        if func.ret_type != expected_ret {
+            return Err(StartupError::SigmaFn(format!(
+                "{} function return type must be :i64; got {:?}",
+                setter, func.ret_type
+            )));
+        }
+    }
+    Ok(())
 }
 
 impl std::error::Error for StartupError {}
@@ -760,11 +865,10 @@ mod tests {
     fn minimal_program_freezes() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::holon::Atom "hello")
         "#;
         let world = startup(src).expect("startup");
-        assert_eq!(world.config().dims, 1024);
+        assert_eq!(world.config().capacity_mode, crate::config::CapacityMode::Error);
         assert_eq!(world.program().len(), 1);
     }
 
@@ -772,7 +876,6 @@ mod tests {
     fn global_seed_defaults() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 4096)
         "#;
         let world = startup(src).expect("startup");
         assert_eq!(world.config().global_seed, 42);
@@ -782,7 +885,6 @@ mod tests {
     fn user_define_registers() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::define (:my::app::add (x :i64) (y :i64) -> :i64)
               (:wat::core::i64::+ x y))
         "#;
@@ -794,7 +896,6 @@ mod tests {
     fn user_type_registers() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::struct :my::Candle (open :f64) (close :f64))
         "#;
         let world = startup(src).expect("startup");
@@ -805,7 +906,6 @@ mod tests {
     fn user_macro_registers() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::defmacro (:my::vocab::Double (x :AST<wat::holon::HolonAST>) -> :AST<wat::holon::HolonAST>)
               `(:wat::holon::Blend ,x ,x 1 1))
         "#;
@@ -835,7 +935,6 @@ mod tests {
         // Duplicate struct declaration.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::struct :my::Candle (x :f64))
             (:wat::core::struct :my::Candle (y :i64))
         "#;
@@ -848,7 +947,6 @@ mod tests {
         // Passing :i64 to a define that declared :bool — type mismatch.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::i64::+ "hello" 1)
         "#;
         let err = startup(src).unwrap_err();
@@ -859,7 +957,6 @@ mod tests {
     fn resolve_error_bubbles_up() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:my::app::never-defined 42)
         "#;
         let err = startup(src).unwrap_err();
@@ -873,7 +970,6 @@ mod tests {
         // inside parse_define_signature).
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::define (:my::bad (x :Any) -> :i64) 42)
         "#;
         let err = startup(src).unwrap_err();
@@ -891,7 +987,6 @@ mod tests {
         // references. This test just exercises every accessor.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#;
         let world = startup(src).unwrap();
         let _: &Config = world.config();
@@ -913,7 +1008,6 @@ mod tests {
         );
         let entry = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::load-file! "lib.wat")
         "#;
         let world = startup_from_source(entry, None, Arc::new(loader)).expect("startup");
@@ -927,7 +1021,6 @@ mod tests {
         // :user::main takes no arguments and returns an Int.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::define (:user::main -> :i64)
               (:wat::core::i64::+ 21 21))
         "#;
@@ -941,7 +1034,6 @@ mod tests {
         // :user::main delegates to a user-defined helper.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::define (:my::app::double (x :i64) -> :i64)
               (:wat::core::i64::* x 2))
             (:wat::core::define (:user::main -> :i64)
@@ -956,7 +1048,6 @@ mod tests {
     fn invoke_main_missing_is_error() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#;
         let world = startup(src).expect("startup");
         let err = invoke_user_main(&world, Vec::new()).unwrap_err();
@@ -968,7 +1059,6 @@ mod tests {
         // :user::main declared with one parameter; invoke with zero.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::define (:user::main (x :i64) -> :i64) x)
         "#;
         let world = startup(src).expect("startup");
@@ -987,7 +1077,6 @@ mod tests {
         // the arg type — it passes through to the body.
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::define (:user::main (x :i64) -> :i64)
               (:wat::core::i64::+ x 1))
         "#;
@@ -1007,7 +1096,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::define (:my::app::triple (x :i64) -> :i64)
               (:wat::core::i64::* x 3))
         "#,
@@ -1023,7 +1111,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast = crate::parser::parse_one(
@@ -1040,7 +1127,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast = crate::parser::parse_one(
@@ -1062,7 +1148,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast = crate::parser::parse_one(
@@ -1078,7 +1163,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast = crate::parser::parse_one(
@@ -1094,7 +1178,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast =
@@ -1108,7 +1191,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast =
@@ -1122,7 +1204,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast =
@@ -1136,7 +1217,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast = crate::parser::parse_one(
@@ -1152,7 +1232,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast = crate::parser::parse_one(
@@ -1168,7 +1247,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast = crate::parser::parse_one(
@@ -1184,7 +1262,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast =
@@ -1200,7 +1277,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast = crate::parser::parse_one(
@@ -1227,7 +1303,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast =
@@ -1244,7 +1319,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast = crate::parser::parse_one(r#"(:wat::core::i64::+ 1 1)"#).unwrap();
@@ -1266,7 +1340,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast = crate::parser::parse_one("42").unwrap();
@@ -1301,7 +1374,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast =
@@ -1324,7 +1396,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let original = crate::parser::parse_one(r#"(:wat::core::i64::+ 1 1)"#).unwrap();
@@ -1352,7 +1423,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast = crate::parser::parse_one("42").unwrap();
@@ -1384,7 +1454,6 @@ mod tests {
         let world = frozen_with(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
         "#,
         );
         let ast = crate::parser::parse_one(

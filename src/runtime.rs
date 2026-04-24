@@ -528,7 +528,6 @@ impl fmt::Debug for EncodingCtx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EncodingCtx")
             .field("global_seed", &self.config.global_seed)
-            .field("noise_floor", &self.config.noise_floor)
             .field("materialized_dims", &self.encoders.size())
             .finish()
     }
@@ -556,8 +555,18 @@ pub struct SymbolTable {
     /// Ambient dim router — consulted by Atom/Bundle construction
     /// sites to pick per-construction vector dimension. Attached at
     /// freeze with the built-in [`crate::dim_router::SizingRouter`];
-    /// user override via `set-dim-router!` in a later arc 037 slice.
+    /// user override via `set-dim-router!`.
     pub dim_router: Option<Arc<dyn crate::dim_router::DimRouter>>,
+    /// Ambient presence-sigma function — `:fn(:i64) -> :i64`. Takes
+    /// dim, returns σ count. Used by `presence?` to compute the
+    /// per-d floor (`σ(d) / sqrt(d)`). Built-in default is
+    /// [`crate::dim_router::DefaultPresenceSigma`]; user override via
+    /// `set-presence-sigma!`.
+    pub presence_sigma_fn: Option<Arc<dyn crate::dim_router::SigmaFn>>,
+    /// Ambient coincident-sigma function — `:fn(:i64) -> :i64`.
+    /// Built-in default is [`crate::dim_router::DefaultCoincidentSigma`];
+    /// user override via `set-coincident-sigma!`.
+    pub coincident_sigma_fn: Option<Arc<dyn crate::dim_router::SigmaFn>>,
 }
 
 impl std::fmt::Debug for SymbolTable {
@@ -568,6 +577,8 @@ impl std::fmt::Debug for SymbolTable {
             .field("source_loader", &self.source_loader.is_some())
             .field("macro_registry", &self.macro_registry.is_some())
             .field("dim_router", &self.dim_router.is_some())
+            .field("presence_sigma_fn", &self.presence_sigma_fn.is_some())
+            .field("coincident_sigma_fn", &self.coincident_sigma_fn.is_some())
             .finish()
     }
 }
@@ -638,6 +649,34 @@ impl SymbolTable {
     /// construction sites call this to pick dim per construction.
     pub fn dim_router(&self) -> Option<&Arc<dyn crate::dim_router::DimRouter>> {
         self.dim_router.as_ref()
+    }
+
+    /// Attach the ambient presence-sigma function. Called once at
+    /// freeze time with the user's override (from set-presence-sigma!)
+    /// or the built-in [`crate::dim_router::DefaultPresenceSigma`].
+    pub fn set_presence_sigma_fn(
+        &mut self,
+        f: Arc<dyn crate::dim_router::SigmaFn>,
+    ) {
+        self.presence_sigma_fn = Some(f);
+    }
+
+    /// Borrow the presence-sigma function. `presence?` calls this.
+    pub fn presence_sigma_fn(&self) -> Option<&Arc<dyn crate::dim_router::SigmaFn>> {
+        self.presence_sigma_fn.as_ref()
+    }
+
+    /// Attach the ambient coincident-sigma function.
+    pub fn set_coincident_sigma_fn(
+        &mut self,
+        f: Arc<dyn crate::dim_router::SigmaFn>,
+    ) {
+        self.coincident_sigma_fn = Some(f);
+    }
+
+    /// Borrow the coincident-sigma function. `coincident?` calls this.
+    pub fn coincident_sigma_fn(&self) -> Option<&Arc<dyn crate::dim_router::SigmaFn>> {
+        self.coincident_sigma_fn.as_ref()
     }
 }
 
@@ -1972,9 +2011,17 @@ fn dispatch_keyword_head(
         ":wat::core::use!" => Ok(Value::Unit),
 
         // Config accessors — read committed config fields at runtime.
-        ":wat::config::dims" => eval_config_dims(args, sym),
+        // Arc 037 slice 6: :wat::config::dims and :wat::config::noise-floor
+        // became compatibility shims that return the smallest-tier
+        // default values (DEFAULT_TIERS[0]). Under multi-d these
+        // single-value accessors are semantically stale; callers that
+        // need honest per-AST measurement should use presence? /
+        // coincident? / (statement-length ast) primitives instead.
+        // Shimmed here so existing lab code compiles; deprecation
+        // arc will sweep callers later.
+        ":wat::config::dims" => eval_config_dims_default_shim(args),
         ":wat::config::global-seed" => eval_config_global_seed(args, sym),
-        ":wat::config::noise-floor" => eval_config_noise_floor(args, sym),
+        ":wat::config::noise-floor" => eval_config_noise_floor_default_shim(args),
 
         // Stdlib math — single-method Rust calls packaged at
         // :wat::std::math::* per FOUNDATION-CHANGELOG 2026-04-18.
@@ -5097,7 +5144,7 @@ fn eval_algebra_presence_q(
     let vt = encode(&target, &enc.vm, &enc.scalar, &ctx.registry);
     let vr = encode(&reference, &enc.vm, &enc.scalar, &ctx.registry);
     let cosine = Similarity::cosine(&vt, &vr);
-    Ok(Value::bool(cosine > enc.presence_floor))
+    Ok(Value::bool(cosine > enc.presence_floor(sym)))
 }
 
 /// `(:wat::holon::coincident? a b) -> :bool` — boolean verdict:
@@ -5147,7 +5194,7 @@ fn eval_algebra_coincident_q(
     let va = encode(&a, &enc.vm, &enc.scalar, &ctx.registry);
     let vb = encode(&b, &enc.vm, &enc.scalar, &ctx.registry);
     let cosine = Similarity::cosine(&va, &vb);
-    Ok(Value::bool((1.0 - cosine) < enc.coincident_floor))
+    Ok(Value::bool((1.0 - cosine) < enc.coincident_floor(sym)))
 }
 
 /// `(:wat::holon::eval-coincident? form-a form-b)` —
@@ -5245,7 +5292,7 @@ fn coincident_of_two_values(
     let va = encode(&holon_a, &enc.vm, &enc.scalar, &ctx.registry);
     let vb = encode(&holon_b, &enc.vm, &enc.scalar, &ctx.registry);
     let cosine = Similarity::cosine(&va, &vb);
-    Ok(Value::bool((1.0 - cosine) < enc.coincident_floor))
+    Ok(Value::bool((1.0 - cosine) < enc.coincident_floor(sym)))
 }
 
 /// `(:wat::holon::eval-edn-coincident? <source-a> <source-b>)` — both
@@ -5842,11 +5889,28 @@ fn check_nullary(op: &'static str, args: &[WatAST]) -> Result<(), RuntimeError> 
     Ok(())
 }
 
-/// `(:wat::config::dims)` — committed vector dimensionality as `:i64`.
-fn eval_config_dims(args: &[WatAST], sym: &SymbolTable) -> Result<Value, RuntimeError> {
+/// `(:wat::config::dims)` — arc 037 slice 6 compatibility shim.
+/// Returns the smallest tier from [`crate::dim_router::DEFAULT_TIERS`]
+/// (typically 256). Semantically stale under multi-d; prefer
+/// `(:wat::holon::statement-length ast)` and let the router decide.
+fn eval_config_dims_default_shim(args: &[WatAST]) -> Result<Value, RuntimeError> {
     check_nullary(":wat::config::dims", args)?;
-    let ctx = require_encoding_ctx(":wat::config::dims", sym)?;
-    Ok(Value::i64(ctx.config.dims as i64))
+    let d = *crate::dim_router::DEFAULT_TIERS
+        .first()
+        .expect("DEFAULT_TIERS non-empty");
+    Ok(Value::i64(d as i64))
+}
+
+/// `(:wat::config::noise-floor)` — arc 037 slice 6 compatibility
+/// shim. Returns `1/sqrt(DEFAULT_TIERS[0])`. Semantically stale under
+/// multi-d; per-d noise-floor is computed internally by presence? /
+/// coincident?. Prefer those over hand-rolled threshold comparisons.
+fn eval_config_noise_floor_default_shim(args: &[WatAST]) -> Result<Value, RuntimeError> {
+    check_nullary(":wat::config::noise-floor", args)?;
+    let d = *crate::dim_router::DEFAULT_TIERS
+        .first()
+        .expect("DEFAULT_TIERS non-empty");
+    Ok(Value::f64(1.0 / (d as f64).sqrt()))
 }
 
 /// `(:wat::config::global-seed)` — committed atom-seeding seed as `:i64`.
@@ -5857,23 +5921,6 @@ fn eval_config_global_seed(
     check_nullary(":wat::config::global-seed", args)?;
     let ctx = require_encoding_ctx(":wat::config::global-seed", sym)?;
     Ok(Value::i64(ctx.config.global_seed as i64))
-}
-
-/// `(:wat::config::noise-floor)` — the committed 1σ native granularity
-/// as `:f64`. Defaults to `1.0 / sqrt(dims)` — the atomic angular unit
-/// on the hypersphere at this dimension. Both `presence?` and
-/// `coincident?` multiply this by their respective sigma (arc 024);
-/// callers who need a specific threshold should compute
-/// `sigma * noise-floor` rather than overriding the base. Override
-/// exists via `(:wat::config::set-noise-floor! <f64>)` for power users
-/// who need a different base unit than 1σ.
-fn eval_config_noise_floor(
-    args: &[WatAST],
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    check_nullary(":wat::config::noise-floor", args)?;
-    let ctx = require_encoding_ctx(":wat::config::noise-floor", sym)?;
-    Ok(Value::f64(ctx.config.noise_floor))
 }
 
 /// `(:wat::kernel::make-bounded-queue :T capacity)` — creates a
@@ -7120,7 +7167,6 @@ mod tests {
 
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::define (:my::app::failing-fn -> :())
               (:wat::kernel::assertion-failed! "stack test" :None :None))
         "#;
@@ -7170,7 +7216,6 @@ mod tests {
     fn call_stack_unwinds_on_ok() {
         let src = r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-dims! 1024)
             (:wat::core::define (:my::app::plain-fn -> :i64) 42)
         "#;
         let (stdlib_sym, stdlib_macros) = stdlib_loaded();
@@ -8084,19 +8129,12 @@ mod tests {
     /// `FrozenWorld::freeze` does. Needed for tests exercising presence
     /// or config accessors without running the full startup pipeline.
     fn test_sym_with_ctx(dims: usize) -> SymbolTable {
-        let noise_floor = 1.0 / (dims as f64).sqrt();
-        let presence_sigma = 15i64;
-        let coincident_sigma = 1i64;
         let cfg = Config {
-            dims,
             capacity_mode: crate::config::CapacityMode::Error,
             global_seed: 42,
             dim_router_ast: None,
-            noise_floor,
-            presence_sigma,
-            coincident_sigma,
-            presence_floor: (presence_sigma as f64) * noise_floor,
-            coincident_floor: (coincident_sigma as f64) * noise_floor,
+            presence_sigma_ast: None,
+            coincident_sigma_ast: None,
         };
         let mut sym = SymbolTable::new();
         sym.set_encoding_ctx(Arc::new(EncodingCtx::from_config(&cfg)));
@@ -8106,6 +8144,11 @@ mod tests {
         sym.set_dim_router(Arc::new(
             crate::dim_router::SizingRouter::with_tiers(vec![dims]),
         ));
+        // Arc 037 slice 6: install default sigma fns (mirror what
+        // freeze does). Tests that want to override build their own
+        // SymbolTable with WatLambdaSigmaFn.
+        sym.set_presence_sigma_fn(Arc::new(crate::dim_router::DefaultPresenceSigma));
+        sym.set_coincident_sigma_fn(Arc::new(crate::dim_router::DefaultCoincidentSigma));
         sym
     }
 
@@ -8833,22 +8876,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn config_noise_floor_accessor_returns_derived_value() {
-        // Arc 024: noise_floor = 1/sqrt(d) — the 1σ native granularity.
-        let result = eval_with_ctx("(:wat::config::noise-floor)", 10000).unwrap();
-        let expected = 1.0 / 100.0; // = 0.01
-        match result {
-            Value::f64(x) => assert!((x - expected).abs() < 1e-12),
-            other => panic!("expected f64, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn config_dims_accessor_returns_committed_value() {
-        let result = eval_with_ctx("(:wat::config::dims)", 4096).unwrap();
-        assert!(matches!(result, Value::i64(4096)));
-    }
+    // Arc 037 slice 6: :wat::config::dims and :wat::config::noise-floor
+    // accessors retired. dims is no longer a single value (router
+    // picks per construction); noise-floor is per-d, computed on
+    // Encoders via the ambient sigma-fn. The tests that verified
+    // those accessors are retired alongside the accessors.
 
     #[test]
     fn eval_edn_bang_inline_string_runs() {

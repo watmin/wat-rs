@@ -164,6 +164,77 @@ impl DimRouter for WatLambdaRouter {
     }
 }
 
+/// Ambient sigma function. `sigma_at(d, sym)` returns the sigma
+/// count (unitless σ-multiplier) at dim `d`. Used by presence? /
+/// coincident? to compute their per-d floors:
+/// `floor_at_d = sigma_at(d) / sqrt(d)`.
+///
+/// Two ambient slots on SymbolTable — one for presence, one for
+/// coincident. Built-in defaults ship as Rust impls
+/// ([`DefaultPresenceSigma`], [`DefaultCoincidentSigma`]); user
+/// overrides via `set-presence-sigma!` / `set-coincident-sigma!`
+/// wrap a wat function in [`WatLambdaSigmaFn`].
+pub trait SigmaFn: Send + Sync + fmt::Debug {
+    fn sigma_at(&self, d: usize, sym: &SymbolTable) -> i64;
+}
+
+/// Built-in default presence sigma: arc 024's `floor(sqrt(d)/2) - 1`
+/// formula, clamped ≥ 1 so degenerate tiers stay meaningful.
+/// At d=10k → 49, d=1024 → 15, d=256 → 7, d=16 → 1.
+#[derive(Clone, Debug)]
+pub struct DefaultPresenceSigma;
+
+impl SigmaFn for DefaultPresenceSigma {
+    fn sigma_at(&self, d: usize, _sym: &SymbolTable) -> i64 {
+        let sqrt_d = (d as f64).sqrt();
+        let s = (sqrt_d.floor() / 2.0).floor() as i64 - 1;
+        s.max(1)
+    }
+}
+
+/// Built-in default coincident sigma: 1 (1σ native granularity —
+/// the smallest cosine distance the substrate can physically
+/// distinguish at any d).
+#[derive(Clone, Debug)]
+pub struct DefaultCoincidentSigma;
+
+impl SigmaFn for DefaultCoincidentSigma {
+    fn sigma_at(&self, _d: usize, _sym: &SymbolTable) -> i64 {
+        1
+    }
+}
+
+/// User-supplied sigma function. Wraps a wat function of signature
+/// `:fn(:i64) -> :i64`. At `sigma_at(d, sym)` the wat function is
+/// invoked with `Value::i64(d)`; the returned `Value::i64` is
+/// returned as the sigma count. Any runtime error or shape mismatch
+/// folds to 1 — the minimum geometric σ — so presence? /
+/// coincident? remain meaningful even if the user's router misfires.
+pub struct WatLambdaSigmaFn {
+    pub path: String,
+    pub func: Arc<Function>,
+}
+
+impl fmt::Debug for WatLambdaSigmaFn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WatLambdaSigmaFn")
+            .field("path", &self.path)
+            .finish()
+    }
+}
+
+impl SigmaFn for WatLambdaSigmaFn {
+    fn sigma_at(&self, d: usize, sym: &SymbolTable) -> i64 {
+        let arg = Value::i64(d as i64);
+        let call_span = Span::unknown();
+        let result = apply_function(Arc::clone(&self.func), vec![arg], sym, call_span);
+        match result {
+            Ok(Value::i64(n)) if n >= 1 => n,
+            _ => 1,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

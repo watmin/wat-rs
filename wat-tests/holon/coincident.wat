@@ -86,10 +86,9 @@
   (:wat::core::let*
     (((a :wat::holon::HolonAST)
       (:wat::holon::Bind (:wat::holon::Atom "rsi")
-                         (:wat::holon::Thermometer 0.5 -1.0 1.0)))
-     ((error :f64)
-      (:wat::core::f64::- 1.0 (:wat::holon::cosine a a)))
-     ((floor :f64) (:wat::config::noise-floor)))
-    (:wat::test::assert-eq
-      (:wat::core::< error floor)
-      true)))
+                         (:wat::holon::Thermometer 0.5 -1.0 1.0))))
+    ;; Arc 037: coincident? does the per-d threshold comparison
+    ;; internally. Replaces the pre-arc-037 hand-rolled
+    ;; `(cosine a a) vs (noise-floor)` — the accessor is retired
+    ;; since noise-floor is per-d now, not a global config value.
+    (:wat::test::assert-eq (:wat::holon::coincident? a a) true)))
