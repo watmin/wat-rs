@@ -60,23 +60,43 @@ had been placed at `:wat::std::*` when they should have been at
 `:wat::core::*` (they reach Rust bucket internals; can't write in
 wat). `assoc` from arc 020 was already at core by this rule.
 
-### External wat crates (arc 013)
+### External wat crates (arcs 013 + 036)
 
-The `:user::*` namespace is an open composition tree. Convention
-carves three sub-trees for different kinds of code:
+The `:wat::*` and `:user::*` prefixes split along a single
+rule: **workspace-member crates of wat-rs claim `:wat::*`;
+everyone else claims `:user::*`.**
 
 | Sub-tree | Who claims it | Shape |
 |---|---|---|
-| `:user::wat::std::<crate>::*` | Community stdlib-tier crates — wrappers around Rust libraries (LRU, SQLite, Redis) that present wat-native surfaces. The `::wat::` marker signals "I'm the external-library surface of wat." | `:user::wat::std::lru::LocalCache`, `:user::wat::std::sqlite::Connection` |
+| `:wat::<crate>::*` | **First-party workspace-member crates of wat-rs** (`crates/wat-*/` sub-tree). Co-authored, co-released, co-reviewed in this repo. Promoted to the reserved-prefix tier because workspace membership IS the trust signal. | `:wat::lru::LocalCache`, future `:wat::sqlite::Connection`, `:wat::redis::Client` |
 | `:user::<org>::<name>::*` | Community general-purpose crates — domain libraries, frameworks, application toolkits. Shape mirrors npm `@scope/pkg`, Java reverse-DNS, Go module paths. | `:user::acme::billing::Invoice`, `:user::holon::lab::trading::Post` |
 | `:user::<user-app-tree>::*` | User's own program code — your project, your sub-structure. No collisions with community crates because your tree claims a unique root. | `:user::my-app::main`, `:user::alice::scratch::test` |
 
-**Claim-by-convention, not runtime-enforced.** An author who
-believes their crate is stdlib-quality claims
-`:user::wat::std::<crate>::*`. General-purpose crates claim
+**Mechanism vs convention.** The substrate mechanism is simple:
+everything registered via the stdlib-tier path
+(`register_stdlib_defines` / `register_stdlib_types` / macro
+`register_stdlib`) bypasses the reserved-prefix gate. Baked
+stdlib and installed dep sources both flow through that path
+by construction (`src/freeze.rs:362-368` + `src/stdlib.rs`'s
+`stdlib_forms()`). Any installed dep *can* register under
+`:wat::*`; convention is what says they *should* only do so
+when they're workspace members.
+
+**Claim-by-convention, not runtime-enforced.** Workspace members
+claim `:wat::<crate>::*`. Third-party crates claim
 `:user::<org>::<name>::*`. The runtime doesn't police taste;
 it polices collisions. Two crates claiming the same path fail
 loud at startup via duplicate-define detection.
+
+**Why workspace membership is the bless signal.** Being in
+`wat-rs/crates/<crate>/` means: same repository, same author or
+co-authors, same release cadence as wat-rs itself, same review
+discipline. Workspace members ship in lock-step with the
+substrate they extend. A third-party crate — added to a
+consumer's `Cargo.toml` from crates.io or an external git source
+— doesn't share these guarantees, so it stays at `:user::*`.
+Anyone can fork wat-rs and add `crates/wat-foo/`, but that's
+their workspace, not this one.
 
 **Cargo is the first line of crate-level collision defense.**
 Crate names are globally unique on crates.io, so two `wat-lru`s
@@ -325,7 +345,7 @@ files (Cargo compiles each to its own test binary).
 The win: once installed, every subsequent freeze (main, test,
 sandbox via `run-sandboxed-ast`, fork child via
 `run-hermetic-ast`) transparently sees the dep surface.
-`deftest` bodies can use `:user::wat::std::lru::LocalCache::*`
+`deftest` bodies can use `:wat::lru::LocalCache::*`
 because the inner sandbox's `startup_from_forms` pulls
 installed deps from the global state.
 

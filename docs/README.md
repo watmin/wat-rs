@@ -139,8 +139,8 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   Externalized `wat-lru` into a sibling crate
   (`crates/wat-lru/`). LocalCache left the baked stdlib
   entirely; repathed from `:wat::std::LocalCache` to
-  `:user::wat::std::lru::LocalCache` under the new namespace
-  convention. `wat::Harness::from_source_with_deps` accepts
+  `:user::wat::std::lru::LocalCache` under the community-tier
+  convention (later promoted to `:wat::lru::*` by arc 036). `wat::Harness::from_source_with_deps` accepts
   external wat sources; `wat::main!` proc-macro composes
   baked + dep + user source in one declaration.
   `examples/with-lru/` is the walkable reference. Six slices,

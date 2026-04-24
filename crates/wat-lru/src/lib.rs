@@ -6,7 +6,13 @@
 //! and `:wat::std::service::Cache`. Arc 013 slice 4b moved both
 //! surfaces + the `#[wat_dispatch]`-driven Rust shim + the `lru`
 //! Cargo dep into this sibling crate, under the new community
-//! namespace convention `:user::wat::std::lru::*`.
+//! namespace `:wat::lru::*` — arc 036 promoted wat-lru from the
+//! community tier (`:user::*`) to the first-party tier (`:wat::*`)
+//! on the rule that workspace-member crates of wat-rs share the
+//! repo, the author, and the release cadence. The dispatch
+//! mechanism already permitted this (installed deps bypass the
+//! reserved-prefix gate at stdlib-tier registration); arc 036 is
+//! the convention amendment + rename sweep.
 //!
 //! # Using wat-lru from a Rust binary crate
 //!
@@ -30,9 +36,9 @@
 //!                      (stderr :wat::io::IOWriter)
 //!                      -> :())
 //!   (:wat::core::let*
-//!     (((cache :user::wat::std::lru::LocalCache<String,i64>)
-//!       (:user::wat::std::lru::LocalCache::new 16))
-//!      ((_ :()) (:user::wat::std::lru::LocalCache::put cache "k" 42)))
+//!     (((cache :wat::lru::LocalCache<String,i64>)
+//!       (:wat::lru::LocalCache::new 16))
+//!      ((_ :()) (:wat::lru::LocalCache::put cache "k" 42)))
 //!     ()))
 //! ```
 //!
@@ -53,12 +59,12 @@ pub mod shim;
 pub fn wat_sources() -> &'static [wat::WatSource] {
     static FILES: &[wat::WatSource] = &[
         wat::WatSource {
-            path: "wat-lru/LocalCache.wat",
-            source: include_str!("../wat/LocalCache.wat"),
+            path: "wat-lru/lru/LocalCache.wat",
+            source: include_str!("../wat/lru/LocalCache.wat"),
         },
         wat::WatSource {
-            path: "wat-lru/CacheService.wat",
-            source: include_str!("../wat/CacheService.wat"),
+            path: "wat-lru/lru/CacheService.wat",
+            source: include_str!("../wat/lru/CacheService.wat"),
         },
     ];
     FILES

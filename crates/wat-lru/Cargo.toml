@@ -3,7 +3,7 @@ name = "wat-lru"
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "LRU cache for wat — surfaces :rust::lru::LruCache<K,V> as :user::wat::std::lru::LocalCache<K,V> and ::CacheService."
+description = "LRU cache for wat — surfaces :rust::lru::LruCache<K,V> as :wat::lru::LocalCache<K,V> and :wat::lru::CacheService."
 
 [dependencies]
 wat = { path = "../.." }

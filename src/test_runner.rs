@@ -11,8 +11,9 @@
 //! The `wat` CLI binary deliberately does not link external wat
 //! crates — that's the proof stance arc 013 holds (wat-rs root has
 //! zero dependency on wat-lru). A consumer crate that wants to run
-//! `.wat` tests referencing external symbols (`:user::wat::std::lru::*`
-//! etc.) cannot route through the CLI.
+//! `.wat` tests referencing external symbols (`:wat::lru::*` etc. —
+//! first-party workspace-member crates under arc 036's namespace
+//! rule) cannot route through the CLI.
 //!
 //! This module exposes the same test-discovery + freeze + run logic
 //! as a callable function that accepts `dep_sources` + `dep_registrars`.

@@ -20,11 +20,11 @@
 (:wat::test::deftest :wat-lru::test-local-cache-put-then-get
   ()
   (:wat::core::let*
-    (((cache :user::wat::std::lru::LocalCache<String,i64>)
-      (:user::wat::std::lru::LocalCache::new 16))
-     ((_ :()) (:user::wat::std::lru::LocalCache::put cache "answer" 42))
+    (((cache :wat::lru::LocalCache<String,i64>)
+      (:wat::lru::LocalCache::new 16))
+     ((_ :()) (:wat::lru::LocalCache::put cache "answer" 42))
      ((got :Option<i64>)
-      (:user::wat::std::lru::LocalCache::get cache "answer"))
+      (:wat::lru::LocalCache::get cache "answer"))
      ((result :i64)
       (:wat::core::match got -> :i64
         ((Some v) v)
@@ -36,10 +36,10 @@
 (:wat::test::deftest :wat-lru::test-local-cache-miss-returns-none
   ()
   (:wat::core::let*
-    (((cache :user::wat::std::lru::LocalCache<String,i64>)
-      (:user::wat::std::lru::LocalCache::new 16))
+    (((cache :wat::lru::LocalCache<String,i64>)
+      (:wat::lru::LocalCache::new 16))
      ((got :Option<i64>)
-      (:user::wat::std::lru::LocalCache::get cache "missing"))
+      (:wat::lru::LocalCache::get cache "missing"))
      ((is-none :bool)
       (:wat::core::match got -> :bool
         ((Some _v) false)
@@ -51,12 +51,12 @@
 (:wat::test::deftest :wat-lru::test-local-cache-put-overwrites
   ()
   (:wat::core::let*
-    (((cache :user::wat::std::lru::LocalCache<String,i64>)
-      (:user::wat::std::lru::LocalCache::new 16))
-     ((_ :()) (:user::wat::std::lru::LocalCache::put cache "k" 1))
-     ((_ :()) (:user::wat::std::lru::LocalCache::put cache "k" 99))
+    (((cache :wat::lru::LocalCache<String,i64>)
+      (:wat::lru::LocalCache::new 16))
+     ((_ :()) (:wat::lru::LocalCache::put cache "k" 1))
+     ((_ :()) (:wat::lru::LocalCache::put cache "k" 99))
      ((got :Option<i64>)
-      (:user::wat::std::lru::LocalCache::get cache "k"))
+      (:wat::lru::LocalCache::get cache "k"))
      ((result :i64)
       (:wat::core::match got -> :i64
         ((Some v) v)
@@ -69,13 +69,13 @@
 (:wat::test::deftest :wat-lru::test-local-cache-evict-at-capacity
   ()
   (:wat::core::let*
-    (((cache :user::wat::std::lru::LocalCache<i64,i64>)
-      (:user::wat::std::lru::LocalCache::new 2))
-     ((_ :()) (:user::wat::std::lru::LocalCache::put cache 1 10))
-     ((_ :()) (:user::wat::std::lru::LocalCache::put cache 2 20))
-     ((_ :()) (:user::wat::std::lru::LocalCache::put cache 3 30))
+    (((cache :wat::lru::LocalCache<i64,i64>)
+      (:wat::lru::LocalCache::new 2))
+     ((_ :()) (:wat::lru::LocalCache::put cache 1 10))
+     ((_ :()) (:wat::lru::LocalCache::put cache 2 20))
+     ((_ :()) (:wat::lru::LocalCache::put cache 3 30))
      ((got :Option<i64>)
-      (:user::wat::std::lru::LocalCache::get cache 1))
+      (:wat::lru::LocalCache::get cache 1))
      ((is-none :bool)
       (:wat::core::match got -> :bool
         ((Some _v) false)

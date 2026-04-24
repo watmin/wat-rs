@@ -9,7 +9,7 @@
 ;; read it back, print hit/miss. The interesting bit is what the
 ;; wat::main! macro does BEHIND this — it wires wat-lru's
 ;; wat_sources() + register() into Harness composition so the
-;; :user::wat::std::lru::LocalCache<K,V> path resolves, the Rust
+;; :wat::lru::LocalCache<K,V> path resolves, the Rust
 ;; shim dispatches, and the user code evaluates against a real
 ;; lru::LruCache.
 
@@ -17,7 +17,7 @@
 (:wat::config::set-dims! 1024)
 
 ;; No `(:wat::core::use! :rust::lru::LruCache)` is needed here: this
-;; consumer only uses the wat-level wrapper `:user::wat::std::lru::LocalCache`.
+;; consumer only uses the wat-level wrapper `:wat::lru::LocalCache`.
 ;; wat-lru's own `wat/LocalCache.wat` declares the `use!` internally,
 ;; covering the Rust-side dispatch. `use!` belongs in whichever wat
 ;; file directly references `:rust::<crate>::*` — which, for consumers
@@ -30,12 +30,12 @@
                      (stderr :wat::io::IOWriter)
                      -> :())
   (:wat::core::let*
-    (((cache :user::wat::std::lru::LocalCache<String,i64>)
-      (:user::wat::std::lru::LocalCache::new 16))
+    (((cache :wat::lru::LocalCache<String,i64>)
+      (:wat::lru::LocalCache::new 16))
      ((_ :())
-      (:user::wat::std::lru::LocalCache::put cache "answer" 42))
+      (:wat::lru::LocalCache::put cache "answer" 42))
      ((got :Option<i64>)
-      (:user::wat::std::lru::LocalCache::get cache "answer")))
+      (:wat::lru::LocalCache::get cache "answer")))
     (:wat::core::match got -> :()
       ((Some v) (:wat::io::IOWriter/println stdout "hit"))
       (:None    (:wat::io::IOWriter/println stdout "miss")))))

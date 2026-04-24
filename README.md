@@ -482,11 +482,11 @@ Test harness (arcs 007 + 010):
   `program`.
 
 Caches (external — `crates/wat-lru/`; arc 013 externalization):
-- `:user::wat::std::lru::LocalCache<K,V>` — L1. Three thin wrappers
+- `:wat::lru::LocalCache<K,V>` — L1. Three thin wrappers
   over `:rust::lru::LruCache`. Single-thread-owned. Fastest memoization.
   Ships in the `wat-lru` sibling crate; consumers add `wat-lru =
   "..."` to `Cargo.toml` + `deps: [wat_lru]` to their `wat::main!`.
-- `:user::wat::std::lru::CacheService<K,V>` — L2 shared cache.
+- `:wat::lru::CacheService<K,V>` — L2 shared cache.
   Driver thread owns its `LocalCache`; clients send tagged requests
   with an embedded reply channel. Also in `wat-lru`.
 

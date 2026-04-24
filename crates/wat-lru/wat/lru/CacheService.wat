@@ -1,4 +1,4 @@
-;; :user::wat::std::lru::CacheService — wat-lru's multi-client LRU
+;; :wat::lru::CacheService — wat-lru's multi-client LRU
 ;; service program.
 ;;
 ;; Repathed from wat-rs's former :wat::std::service::Cache when arc
@@ -34,63 +34,63 @@
 ;; — the real external dep — gets a `use!` (see lru.wat).
 
 ;; --- Protocol typealiases ---
-(:wat::core::typealias :user::wat::std::lru::CacheService::Body<K,V>
+(:wat::core::typealias :wat::lru::CacheService::Body<K,V>
   :(i64,K,Option<V>))
-(:wat::core::typealias :user::wat::std::lru::CacheService::ReplyTx<V>
+(:wat::core::typealias :wat::lru::CacheService::ReplyTx<V>
   :rust::crossbeam_channel::Sender<Option<V>>)
-(:wat::core::typealias :user::wat::std::lru::CacheService::Request<K,V>
-  :(user::wat::std::lru::CacheService::Body<K,V>,user::wat::std::lru::CacheService::ReplyTx<V>))
-(:wat::core::typealias :user::wat::std::lru::CacheService::ReqTx<K,V>
-  :rust::crossbeam_channel::Sender<user::wat::std::lru::CacheService::Request<K,V>>)
-(:wat::core::typealias :user::wat::std::lru::CacheService::ReqRx<K,V>
-  :rust::crossbeam_channel::Receiver<user::wat::std::lru::CacheService::Request<K,V>>)
+(:wat::core::typealias :wat::lru::CacheService::Request<K,V>
+  :(wat::lru::CacheService::Body<K,V>,wat::lru::CacheService::ReplyTx<V>))
+(:wat::core::typealias :wat::lru::CacheService::ReqTx<K,V>
+  :rust::crossbeam_channel::Sender<wat::lru::CacheService::Request<K,V>>)
+(:wat::core::typealias :wat::lru::CacheService::ReqRx<K,V>
+  :rust::crossbeam_channel::Receiver<wat::lru::CacheService::Request<K,V>>)
 
 ;; Driver entry — allocates the LocalCache INSIDE the driver thread
 ;; (LocalCache is thread-owned; creating it in the caller and passing
 ;; across threads would trip the thread-id guard and wedge the
 ;; driver). Then delegates to `CacheService/loop-step` for the recursion.
 (:wat::core::define
-  (:user::wat::std::lru::CacheService/loop<K,V>
+  (:wat::lru::CacheService/loop<K,V>
     (capacity :i64)
-    (req-rxs :Vec<user::wat::std::lru::CacheService::ReqRx<K,V>>)
+    (req-rxs :Vec<wat::lru::CacheService::ReqRx<K,V>>)
     -> :())
   (:wat::core::let*
-    (((cache :user::wat::std::lru::LocalCache<K,V>)
-      (:user::wat::std::lru::LocalCache::new capacity)))
-    (:user::wat::std::lru::CacheService/loop-step cache req-rxs)))
+    (((cache :wat::lru::LocalCache<K,V>)
+      (:wat::lru::LocalCache::new capacity)))
+    (:wat::lru::CacheService/loop-step cache req-rxs)))
 
 ;; Recursive inner loop. Owns the cache for the duration of the
 ;; driver thread's lifetime; select across request receivers; each
 ;; request carries its reply-to sender for routing.
 (:wat::core::define
-  (:user::wat::std::lru::CacheService/loop-step<K,V>
-    (cache :user::wat::std::lru::LocalCache<K,V>)
-    (req-rxs :Vec<user::wat::std::lru::CacheService::ReqRx<K,V>>)
+  (:wat::lru::CacheService/loop-step<K,V>
+    (cache :wat::lru::LocalCache<K,V>)
+    (req-rxs :Vec<wat::lru::CacheService::ReqRx<K,V>>)
     -> :())
   (:wat::core::if (:wat::core::empty? req-rxs) -> :()
     ()
     (:wat::core::let*
-      (((chosen :(i64,Option<user::wat::std::lru::CacheService::Request<K,V>>))
+      (((chosen :(i64,Option<wat::lru::CacheService::Request<K,V>>))
         (:wat::kernel::select req-rxs))
        ((idx :i64) (:wat::core::first chosen))
-       ((maybe :Option<user::wat::std::lru::CacheService::Request<K,V>>)
+       ((maybe :Option<wat::lru::CacheService::Request<K,V>>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :()
         ((Some req)
           (:wat::core::let*
-            (((body :user::wat::std::lru::CacheService::Body<K,V>) (:wat::core::first req))
-             ((reply-to :user::wat::std::lru::CacheService::ReplyTx<V>)
+            (((body :wat::lru::CacheService::Body<K,V>) (:wat::core::first req))
+             ((reply-to :wat::lru::CacheService::ReplyTx<V>)
               (:wat::core::second req))
              ((tag :i64) (:wat::core::first body))
              ((key :K) (:wat::core::second body))
              ((put-val :Option<V>) (:wat::core::third body))
              ((resp :Option<V>)
               (:wat::core::if (:wat::core::= tag 0) -> :Option<V>
-                (:user::wat::std::lru::LocalCache::get cache key)
+                (:wat::lru::LocalCache::get cache key)
                 (:wat::core::match put-val -> :Option<V>
                   ((Some v)
                     (:wat::core::let*
-                      (((_ :()) (:user::wat::std::lru::LocalCache::put cache key v)))
+                      (((_ :()) (:wat::lru::LocalCache::put cache key v)))
                       :None))
                   (:None :None))))
              ;; reply-to may have been dropped (client no longer
@@ -98,9 +98,9 @@
              ;; outcome leaves the driver free to carry on — we
              ;; swallow :None.
              ((_ :Option<()>) (:wat::kernel::send reply-to resp)))
-            (:user::wat::std::lru::CacheService/loop-step cache req-rxs)))
+            (:wat::lru::CacheService/loop-step cache req-rxs)))
         (:None
-          (:user::wat::std::lru::CacheService/loop-step
+          (:wat::lru::CacheService/loop-step
             cache
             (:wat::std::list::remove-at req-rxs idx)))))))
 
@@ -111,16 +111,16 @@
 ;; the request, send it, and block on the response.
 
 (:wat::core::define
-  (:user::wat::std::lru::CacheService/get<K,V>
-    (req-tx :user::wat::std::lru::CacheService::ReqTx<K,V>)
-    (reply-tx :user::wat::std::lru::CacheService::ReplyTx<V>)
+  (:wat::lru::CacheService/get<K,V>
+    (req-tx :wat::lru::CacheService::ReqTx<K,V>)
+    (reply-tx :wat::lru::CacheService::ReplyTx<V>)
     (reply-rx :rust::crossbeam_channel::Receiver<Option<V>>)
     (key :K)
     -> :Option<V>)
   (:wat::core::let*
-    (((body :user::wat::std::lru::CacheService::Body<K,V>)
+    (((body :wat::lru::CacheService::Body<K,V>)
       (:wat::core::tuple 0 key :None))
-     ((req :user::wat::std::lru::CacheService::Request<K,V>)
+     ((req :wat::lru::CacheService::Request<K,V>)
       (:wat::core::tuple body reply-tx))
      ;; If the driver dropped before we wrote, `send` returns :None.
      ;; The subsequent `recv` will then also see the reply-tx dropped
@@ -132,17 +132,17 @@
       (:None :None))))
 
 (:wat::core::define
-  (:user::wat::std::lru::CacheService/put<K,V>
-    (req-tx :user::wat::std::lru::CacheService::ReqTx<K,V>)
-    (reply-tx :user::wat::std::lru::CacheService::ReplyTx<V>)
+  (:wat::lru::CacheService/put<K,V>
+    (req-tx :wat::lru::CacheService::ReqTx<K,V>)
+    (reply-tx :wat::lru::CacheService::ReplyTx<V>)
     (reply-rx :rust::crossbeam_channel::Receiver<Option<V>>)
     (key :K)
     (value :V)
     -> :())
   (:wat::core::let*
-    (((body :user::wat::std::lru::CacheService::Body<K,V>)
+    (((body :wat::lru::CacheService::Body<K,V>)
       (:wat::core::tuple 1 key (Some value)))
-     ((req :user::wat::std::lru::CacheService::Request<K,V>)
+     ((req :wat::lru::CacheService::Request<K,V>)
       (:wat::core::tuple body reply-tx))
      ;; Same swallow as CacheService/get above: either send lands and
      ;; the recv acks, or the driver is gone and both short-circuit
@@ -158,28 +158,28 @@
 ;; given capacity and fans in all request receivers. Returns the
 ;; (pool, driver-handle) pair.
 (:wat::core::define
-  (:user::wat::std::lru::CacheService<K,V>
+  (:wat::lru::CacheService<K,V>
     (capacity :i64)
     (count :i64)
-    -> :(wat::kernel::HandlePool<user::wat::std::lru::CacheService::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
+    -> :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
   (:wat::core::let*
-    (((pairs :Vec<(user::wat::std::lru::CacheService::ReqTx<K,V>,user::wat::std::lru::CacheService::ReqRx<K,V>)>)
+    (((pairs :Vec<(wat::lru::CacheService::ReqTx<K,V>,wat::lru::CacheService::ReqRx<K,V>)>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda ((_i :i64) -> :(user::wat::std::lru::CacheService::ReqTx<K,V>,user::wat::std::lru::CacheService::ReqRx<K,V>))
-          (:wat::kernel::make-bounded-queue :user::wat::std::lru::CacheService::Request<K,V> 1))))
-     ((req-txs :Vec<user::wat::std::lru::CacheService::ReqTx<K,V>>)
+        (:wat::core::lambda ((_i :i64) -> :(wat::lru::CacheService::ReqTx<K,V>,wat::lru::CacheService::ReqRx<K,V>))
+          (:wat::kernel::make-bounded-queue :wat::lru::CacheService::Request<K,V> 1))))
+     ((req-txs :Vec<wat::lru::CacheService::ReqTx<K,V>>)
       (:wat::core::map pairs
-        (:wat::core::lambda ((p :(user::wat::std::lru::CacheService::ReqTx<K,V>,user::wat::std::lru::CacheService::ReqRx<K,V>))
-                            -> :user::wat::std::lru::CacheService::ReqTx<K,V>)
+        (:wat::core::lambda ((p :(wat::lru::CacheService::ReqTx<K,V>,wat::lru::CacheService::ReqRx<K,V>))
+                            -> :wat::lru::CacheService::ReqTx<K,V>)
           (:wat::core::first p))))
-     ((req-rxs :Vec<user::wat::std::lru::CacheService::ReqRx<K,V>>)
+     ((req-rxs :Vec<wat::lru::CacheService::ReqRx<K,V>>)
       (:wat::core::map pairs
-        (:wat::core::lambda ((p :(user::wat::std::lru::CacheService::ReqTx<K,V>,user::wat::std::lru::CacheService::ReqRx<K,V>))
-                            -> :user::wat::std::lru::CacheService::ReqRx<K,V>)
+        (:wat::core::lambda ((p :(wat::lru::CacheService::ReqTx<K,V>,wat::lru::CacheService::ReqRx<K,V>))
+                            -> :wat::lru::CacheService::ReqRx<K,V>)
           (:wat::core::second p))))
-     ((pool :wat::kernel::HandlePool<user::wat::std::lru::CacheService::ReqTx<K,V>>)
+     ((pool :wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>)
       (:wat::kernel::HandlePool::new "CacheService" req-txs))
      ((driver :wat::kernel::ProgramHandle<()>)
-      (:wat::kernel::spawn :user::wat::std::lru::CacheService/loop capacity req-rxs)))
+      (:wat::kernel::spawn :wat::lru::CacheService/loop capacity req-rxs)))
     (:wat::core::tuple pool driver)))
