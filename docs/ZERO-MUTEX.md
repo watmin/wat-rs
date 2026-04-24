@@ -188,14 +188,15 @@ proven concurrency pattern that is not a lock.
   No lock on stdout; no garbled output; concurrent writers
   serialize through the driver's single-threaded body. The
   "Console is the lock, except there's no lock" case.
-- **`:wat::std::service::Cache<K,V>`** — the L2 caching program.
-  Owns its own LocalCache internally (on the driver's thread,
-  using tier-2 ThreadOwnedCell). Clients send tagged requests —
-  `(GET, k, :None)` or `(PUT, k, (Some v))` — paired with a
-  reply-to sender; driver reads request, hits or misses its
-  LocalCache, sends reply. Any number of client threads hit the
-  same cache concurrently; the driver serializes; no lock on the
-  cache map.
+- **`:wat::lru::CacheService<K,V>`** — the L2 caching program
+  (external workspace member `crates/wat-lru/`; namespace promoted
+  to `:wat::*` via arc 036). Owns its own LocalCache internally
+  (on the driver's thread, using tier-2 ThreadOwnedCell). Clients
+  send tagged requests — `(GET, k, :None)` or `(PUT, k, (Some v))`
+  — paired with a reply-to sender; driver reads request, hits or
+  misses its LocalCache, sends reply. Any number of client threads
+  hit the same cache concurrently; the driver serializes; no lock
+  on the cache map.
 - **Pipeline stages (arc 004)** — every stage in a streaming
   pipeline owns its local state (accumulator buffer, cursor,
   enrichment cache). Edges between stages are typed channels.
@@ -294,7 +295,7 @@ goes in wat-rs.
 (`Arc<HashMap<...>>`, immutable). Is it one program's private hash
 map? Tier 2 (`ThreadOwnedCell<HashMap<...>>`). Is it shared across
 programs? Tier 3 — wrap it in a program with a mailbox
-(`:wat::std::service::Cache<K,V>` is the template).
+(`:wat::lru::CacheService<K,V>` is the template).
 
 **"I have a shared connection pool."**
 → Tier 3. The pool itself is a program that hands out connections
@@ -304,7 +305,7 @@ dropped. No lock on the pool; the HandlePool mechanism handles
 distribution lock-free.
 
 **"I have a complex cache with multiple readers and writers."**
-→ Tier 3. `:wat::std::service::Cache<K,V>` or a specialization.
+→ Tier 3. `:wat::lru::CacheService<K,V>` or a specialization.
 Multiple clients; one program owns the data; requests/replies
 through channels.
 
