@@ -30,6 +30,16 @@ wat/std/stream.wat           ↔ wat-tests/std/stream.wat
 The stdlib module under test dictates the path. A future addition to
 `wat/<ns>/X.wat` expects its tests at `wat-tests/<ns>/X.wat`.
 
+**External crates ship their own `wat-tests/` trees.** Consumer
+wat crates — both workspace members like `crates/wat-lru/` (arcs
+013 + 036) and out-of-tree consumers — follow the same layout
+under their own crate root: `<crate>/wat/<ns>/X.wat` paired with
+`<crate>/wat-tests/<ns>/X.wat`, discovered and run via
+`cargo test -p <crate>` through `wat::test! {}` in
+`<crate>/tests/test.rs` (arc 015's external-crate test contract).
+The pattern this README describes for wat-rs is portable to any
+wat consumer; nothing about it is wat-rs-specific.
+
 ## Running
 
 ```
@@ -52,14 +62,29 @@ entry point now.
 
 ## In-process vs hermetic
 
-Simple tests use `:wat::test::run` (in-process sandbox with
-StringIoWriter-backed stdio — ThreadOwnedCell discipline means
-single-thread). Programs that spawn threads and write from them
-(Console, Cache) use `:wat::test::run-hermetic-ast` — the wat
-stdlib wrapper that forks a child via `:wat::kernel::fork-with-forms`
-and runs the inner program with fd-backed thread-safe stdio
-(`PipeReader` / `PipeWriter`). See `wat/std/hermetic.wat` for the
-implementation.
+Most readers reach for the user-facing macros first:
+`:wat::test::deftest` (in-process sandbox), `:wat::test::deftest-
+hermetic` (forked subprocess), and `:wat::test::make-deftest` /
+`make-deftest-hermetic` (factories whose default-prelude carries
+shared loads/helpers across tests in a file — arc 029). Both
+factory and direct shapes inherit the outer file's Config (arc
+031) so neither takes per-test `mode` / `dims` arguments.
+
+The substrate primitives the macros expand to:
+
+- **`:wat::test::run`** — in-process sandbox with
+  StringIoWriter-backed stdio. ThreadOwnedCell discipline means
+  single-thread; reach for it directly when you need to drive
+  the sandbox by hand.
+- **`:wat::test::run-hermetic-ast`** — the wat stdlib wrapper
+  that forks a child via `:wat::kernel::fork-with-forms` and
+  runs the inner program with fd-backed thread-safe stdio
+  (`PipeReader` / `PipeWriter`). Used for programs that spawn
+  threads and write from them (Console, Cache). See
+  `wat/std/hermetic.wat` for the implementation.
+
+Default to the macros; drop down to the primitives when a
+sandbox needs custom wiring.
 
 ## Naming
 
