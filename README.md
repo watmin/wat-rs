@@ -379,7 +379,6 @@ Signals: the kernel measures; userland owns transitions.
 ```scheme
 ;; echo.wat
 (:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
@@ -406,15 +405,15 @@ The assertion primitives assert about the assertion primitives.
 
 ```scheme
 (:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 (:wat::test::deftest :my::app::test-two-plus-two
   ()
   (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
 ```
 
-The test file's top-level preamble commits capacity-mode + dims;
-every `deftest` below inherits those values through the sandbox's
+The test file's top-level preamble commits capacity-mode (and any
+`set-dim-router!` / sigma-fn overrides if needed); every `deftest`
+below inherits those values through the sandbox's
 config-inheritance path (arc 031). `deftest` itself takes name +
 prelude (loads / type declarations) + body. The `:user::main`
 wrapper comes from the macro. Callers invoke the registered
