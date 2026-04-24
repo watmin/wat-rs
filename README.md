@@ -68,14 +68,16 @@ the proof point. DESIGN's closing line, *"if wat can test wat, the
 language is complete for its own verification,"* held.
 
 **Programs-as-holons operational.** `:wat::core::quote` + parametric
-`:wat::algebra::Atom` + `:wat::core::atom-value` carry wat programs as
+`:wat::holon::Atom` + `:wat::core::atom-value` carry wat programs as
 first-class data in the algebra. Arc 010's `:wat::core::forms` ships
 the variadic-quote substrate so AST-consuming callers compose without
-per-form quote ceremony. `:wat::algebra::presence?` (FOUNDATION 1718) is
-the retrieval primitive — cosine between encoded holons binarized
-against the 5σ noise floor committed at config pass; returns `:bool`.
-For the raw scalar, use `:wat::algebra::cosine` (returns `:f64`) and
-compare against `:wat::config::noise-floor` yourself.
+per-form quote ceremony. `:wat::holon::presence?` is the retrieval
+primitive — cosine between encoded holons binarized against the
+presence threshold (sigma × noise-floor at the encoded `d`); returns
+`:bool`. Arc 023 added `:wat::holon::coincident?` as the dual
+predicate (asks "are these the same point?" via `(1 - cosine) <
+coincident-floor`). For the raw scalar, use `:wat::holon::cosine`
+(returns `:f64`).
 
 **Rust interop operational.** The `:rust::` namespace carries any
 consumer-registered Rust type. `:rust::lru::LruCache<K,V>` ships as a
@@ -101,28 +103,63 @@ assertion primitives with panic-and-catch semantics. `cargo test`
 (via `tests/test.rs` + `wat::test! {}`) auto-discovers deftests by
 `test-` prefix + zero-arg `:wat::kernel::RunResult` return.
 
-**Capacity-guard arc operational.** `:wat::algebra::Bundle` enforces
+**Capacity-guard arc operational.** `:wat::holon::Bundle` enforces
 Kanerva's per-frame capacity at dispatch time and returns
-`:Result<holon::HolonAST, :wat::algebra::CapacityExceeded>`; authors
-choose `:silent` / `:warn` / `:error` / `:abort` at startup via
-`:wat::config::set-capacity-mode!`. Paired with two supporting forms
-that shipped in the same arc: `:wat::core::try` for error-propagation
-without try/catch, and first-class struct runtime (auto-generated
+`:wat::holon::BundleResult` (a typealias for
+`:Result<holon::HolonAST, :wat::holon::CapacityExceeded>`, arc 032);
+authors choose `:error` / `:abort` at startup via
+`:wat::config::set-capacity-mode!` — `:silent` and `:warn` retired
+in arc 037. Paired with two supporting forms that shipped in the
+same arc: `:wat::core::try` for error-propagation without try/catch,
+and first-class struct runtime (auto-generated
 `<struct-path>/new` constructors and `<struct-path>/<field>` accessors
 from any `:wat::core::struct` declaration). See
 [Capacity guard](#capacity-guard--bundles-result-return) below.
 
-**Test surface: 731 Rust + 31 wat, zero regressions.** Library units,
-macro-feature integration (`wat_dispatch_193a`/`193b`/`e1_vec`/`e2_tuple`
-/`e3_result`/`e4_shared`/`e5_owned_move`), `wat_core_try` (13),
-`wat_structs` (9), `wat_bundle_capacity` (9), `wat_stream` (22),
-`wat_core_forms` (6), `wat_names_are_values` (5), `wat_harness` (7),
-`wat_run_sandboxed{,_ast}` + `wat_hermetic_round_trip`, `wat_test_cli` +
-`wat_cli` + `wat_cache`, zero clippy warnings. On the wat side: the
-`wat-tests/` tree (run via `cargo test`) covers every stdlib-file test
-written in wat (Subtract, Circular, Reject/Project, Sequential,
+**Subsequent arcs (023-037).** The substrate kept growing under the
+same discipline:
+- *Algebra surface.* `coincident?` (023), `eval-coincident?` family
+  (026), `:wat::holon::ReciprocalLog` (034), `:wat::holon::Holons`
+  + `BundleResult` typealiases (032, 033). Sigma config knobs
+  `set-presence-sigma!` / `set-coincident-sigma!` as functions of
+  `d` (024).
+- *Container surface unified.* `get` / `assoc` / `conj` /
+  `contains?` / `length` polymorphic over `HashMap` / `HashSet` /
+  `Vec` with semantically-forced illegal cells (025, 035).
+- *Macros.* Nested quasiquote `,,` deep-splice + `make-deftest`
+  factory (029); `macroexpand` / `macroexpand-1` for expansion
+  debugging (030).
+- *Load / eval root hoist.* `:wat::core::load!` family →
+  `:wat::load-file!` / `:wat::eval-edn!` etc. as honest root-level
+  forms (028).
+- *Test ergonomics.* `loader:` option on `wat::main!` /
+  `wat::test!` (027); sandbox inherits caller's Config so
+  `deftest` drops `dims`+`mode` parameters (031).
+- *Multi-tier dim-router (037).* The last required magic value
+  retires. The ambient `DimRouter` decides vector dim per
+  Atom/Bundle construction; cross-dim cosine normalizes UP via
+  AST re-projection. Every substrate default is a function;
+  every user override replaces our function. `set-dims!` retired;
+  `:wat::config::dims` / `noise-floor` accessors stay as compat
+  shims pointing at `DEFAULT_TIERS[0]` until lab callers migrate.
+- *wat-lru namespace promotion (036).* `:user::wat::std::lru::*`
+  → `:wat::lru::*`; the LRU surface is wat-stdlib-grade.
+
+**Test surface: zero regressions across every shipped arc.** The
+Rust side runs library units plus integration suites for every
+substrate arc — `wat_dispatch_*` (macro-feature), `wat_core_try`,
+`wat_structs`, `wat_bundle_capacity`, `wat_stream`, `wat_core_forms`,
+`wat_names_are_values`, `wat_harness`, `wat_run_sandboxed{,_ast}`,
+`wat_hermetic_round_trip`, `wat_test_cli`, `wat_cli`, `wat_cache`,
+plus the per-arc tests from 023-037 (coincident, sigma-knobs,
+container-surface, eval-coincident, loader-option, root-hoisted
+load/eval, nested-quasiquote, macroexpand, sandbox-inherit-config,
+typealiases, ReciprocalLog, length-polymorphism, wat-lru-namespace,
+dim-router). Zero clippy warnings. On the wat side: the
+`wat-tests/` tree (run via `cargo test`) covers every stdlib-file
+test written in wat (Subtract, Circular, Reject/Project, Sequential,
 Trigram, test-harness self-tests, Console + Cache via hermetic
-sandbox, stream with-state).
+sandbox, stream with-state). Live counts in each arc's INSCRIPTION.
 
 ## Module tour
 
