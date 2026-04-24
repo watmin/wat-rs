@@ -293,6 +293,7 @@ its source (path or string) directly as the first argument.
 | `:wat::holon::Amplify` | macro over Blend | `wat/holon/Amplify.wat` |
 | `:wat::holon::Subtract` | macro over Blend (1, -1 weights) | `wat/holon/Subtract.wat` |
 | `:wat::holon::Log` | macro over Thermometer with ln transform | `wat/holon/Log.wat` |
+| `:wat::holon::ReciprocalLog` | `:(f64, f64) -> :wat::holon::HolonAST` — macro over Log with reciprocal bounds `(1/n, n)` (arc 034) | `wat/holon/ReciprocalLog.wat` |
 | `:wat::holon::Circular` | macro over Blend with cos/sin basis | `wat/holon/Circular.wat` |
 | `:wat::holon::Reject` | macro over Blend + dot (Gram-Schmidt reject) | `wat/holon/Reject.wat` |
 | `:wat::holon::Project` | macro `Subtract(x, Reject(x, y))` | `wat/holon/Project.wat` |

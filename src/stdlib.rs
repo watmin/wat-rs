@@ -39,6 +39,10 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/holon/Log.wat"),
     },
     WatSource {
+        path: "wat/holon/ReciprocalLog.wat",
+        source: include_str!("../wat/holon/ReciprocalLog.wat"),
+    },
+    WatSource {
         path: "wat/holon/Circular.wat",
         source: include_str!("../wat/holon/Circular.wat"),
     },

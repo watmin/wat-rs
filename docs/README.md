@@ -333,6 +333,17 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   Small substrate arc; ergonomic payoff across every Bundle-
   threaded caller. 2026-04-23.
 
+- **`arc/2026/04/034-reciprocal-log/`** — **shipped.**
+  `:wat::holon::ReciprocalLog` stdlib macro — pure-wat sugar over
+  `:wat::holon::Log` with reciprocal bounds `(1/n, n)`. Takes
+  `(n value)`, expands to `(Log value (/ 1.0 n) n)`. First-
+  principles bound-family for ratio-valued indicators: N=2 covers
+  ±doubling, N=3 ±tripling, N=10 ±10x. Log-symmetry automatic
+  via reciprocal construction. Named by `/gaze` after builder
+  proposed `BoundedLog`; settled as `ReciprocalLog` (Level-2-safe
+  — the name IS the structural definition). Zero substrate
+  change; 4 new wat-level tests. 2026-04-23.
+
 - **`arc/2026/04/033-holons-typealias/`** — **shipped.**
   `:wat::holon::Holons` registered as a baked built-in typealias
   for `:Vec<wat::holon::HolonAST>` — the list-of-holons shape
