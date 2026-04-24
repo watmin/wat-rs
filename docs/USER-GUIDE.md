@@ -135,8 +135,9 @@ are optional; defaults are honest:
 - **`(:wat::config::set-presence-sigma! sigma-fn)`** /
   **`set-coincident-sigma!`** — function-of-`d` knobs controlling
   the presence and coincident thresholds. Defaults: `presence_sigma(d)
-  = floor(√d / 2) - 1` (one before zero-point), `coincident_sigma(d)
-  = 1` (1σ — the native granularity).
+  = max(1, floor(√d / 2) - 1)` (one before zero-point, clamped to
+  ≥ 1 so the predicate stays meaningful at small d),
+  `coincident_sigma(d) = 1` (1σ — the native granularity).
 
 Override only what you need. Zero setters = correct behavior with
 default tiers; the substrate auto-routes per statement.
@@ -1212,17 +1213,19 @@ Constructors are bare: `(Ok v)`, `(Err e)`. Consumers match or `try`.
 
 ### Bundle's capacity — the canonical Result in the algebra
 
-`:wat::holon::Bundle` returns `:Result<:wat::holon::HolonAST,
-:wat::holon::CapacityExceeded>`. The four `capacity-mode` values
-(`:silent` / `:warn` / `:error` / `:abort`) set at program startup
-determine the runtime behavior when Kanerva's per-frame bound
-(`floor(sqrt(dims))`) is exceeded.
+`:wat::holon::Bundle` returns `:wat::holon::BundleResult` (a
+typealias for `:Result<:wat::holon::HolonAST,
+:wat::holon::CapacityExceeded>`, arc 032). The two `capacity-mode`
+values (`:error` — default, returns `Err`; `:abort` — panics) set
+at program startup determine the runtime behavior when Kanerva's
+per-frame bound (`floor(sqrt(d))` for the dim picked by the active
+DimRouter, arc 037) is exceeded.
 
 ```scheme
 (:wat::config::set-capacity-mode! :error)
 
 (:wat::core::define (:my::app::build (items :Vec<wat::holon::HolonAST>)
-                    -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+                    -> :wat::holon::BundleResult)
   (Ok (:wat::core::try (:wat::holon::Bundle items))))
 
 (:wat::core::match (:my::app::build huge-list) -> :i64
@@ -1518,13 +1521,16 @@ and the orphan count. This is DELIBERATE — it catches the mistake
 at wiring time instead of deadlocking the driver at shutdown. Fix:
 pop exactly as many handles as you allocated to distribute.
 
-**Capacity overflow.** A Bundle with more than `floor(sqrt(dims))`
-items under `:error` mode returns `(Err (CapacityExceeded ...))`.
-Callers who ignore the Err by unwrap will panic at `match` time.
-Fix: either handle the Err arm, use `:wat::core::try` in a
-Result-returning function, or pre-filter the list to the budget
-using `(:wat::core::take items (:wat::config::budget))` (the budget
-primitive when it lands; today hand-compute with sqrt).
+**Capacity overflow.** A Bundle with more than `floor(sqrt(d))`
+items (where `d` is the dim the active DimRouter picks for that
+construction) under `:error` mode returns
+`(Err (CapacityExceeded ...))`. Callers who ignore the Err by
+unwrap will panic at `match` time. Fix: either handle the Err
+arm, use `:wat::core::try` in a Result-returning function, or
+pre-filter the list to the budget. The thrown `CapacityExceeded`
+struct carries `/cost` (actual count) and `/budget` (the limit
+at the active `d`) accessors so the error path can shape its
+recovery against real numbers.
 
 **Pipeline deadlocks.** If a pipeline stage reads from its input
 but NEVER sends to its output, the upstream's `bounded(1)` send
