@@ -438,6 +438,26 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   concurrency story is substrate-shape-agnostic. Builder
   predicted minimal work; correct prediction enabled tight arc
   scoping. 2026-04-24.
+- **`arc/2026/04/043-verification-gaps-closure/`** — **shipped.**
+  Verification follow-on to arcs 038-042. Builder asked "is wat-rs
+  honest again?" — honest answer was "substantially more, not
+  provably." Four checks executed: `cargo test --release`
+  produced concrete numbers (725 Rust + ~58 wat tests, zero
+  failures, zero clippy); `src/dim_router.rs:188-205` verified
+  USER-GUIDE's sigma formula needed a `max(1)` clamp; `src/*.rs`
+  grep surfaced 7 stale `wat::test_suite!` doc-comment refs and
+  one set-dims! example; cross-doc spot-check surfaced **three
+  drift spots in USER-GUIDE §12 that arc 038's slice 5 missed**
+  (BundleResult typealias propagation, capacity-mode list
+  reduction from 4 → 2 per arc 037, sqrt-formula reframing).
+  Plus removed the stale `wat_cache` reference from README's
+  integration-suite enumeration (file does not exist; cache tests
+  live in wat-lru). Plus pre-commit drift catch: invented
+  `:wat::core::i64::sqrt-floor` primitive in a draft, verified
+  via grep before push. Honest disclosure: arc 042's "current
+  through arc 037" claim was too optimistic; the correction
+  lives here, historical record (arc 042 INSCRIPTION) stays
+  frozen. 2026-04-24.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.
