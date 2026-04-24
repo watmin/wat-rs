@@ -1003,9 +1003,9 @@ Lives in that program's thread; no channel overhead.
 
 (:wat::core::define (:my::app::worker -> :())
   (:wat::core::let*
-    (((cache :user::wat::std::lru::LocalCache<String,i64>)
-      (:user::wat::std::lru::LocalCache::new 128)))
-    (... use cache via :user::wat::std::lru::LocalCache::put / ::get ...)))
+    (((cache :wat::lru::LocalCache<String,i64>)
+      (:wat::lru::LocalCache::new 128)))
+    (... use cache via :wat::lru::LocalCache::put / ::get ...)))
 ```
 
 Tier 2 — thread-owned. The cache never leaves this program's thread.
@@ -1018,12 +1018,12 @@ through channels.
 
 ```scheme
 (:wat::core::let*
-  (((state :(wat::kernel::HandlePool<user::wat::std::lru::CacheService::ReqTx<String,i64>>,
+  (((state :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<String,i64>>,
              wat::kernel::ProgramHandle<()>))
-    (:user::wat::std::lru::CacheService 1024 8))   ;; capacity 1024, 8 client handles
+    (:wat::lru::CacheService 1024 8))   ;; capacity 1024, 8 client handles
    ((pool :wat::kernel::HandlePool<...>) (:wat::core::first state))
    ((driver :wat::kernel::ProgramHandle<()>) (:wat::core::second state))
-   ((client1 :user::wat::std::lru::CacheService::ReqTx<String,i64>)
+   ((client1 :wat::lru::CacheService::ReqTx<String,i64>)
     (:wat::kernel::HandlePool::pop pool))
    (... eight clients ...)
    ((_ :()) (:wat::kernel::HandlePool::finish pool)))
@@ -1505,8 +1505,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::stopped?` / `sigusr1?` / ... | `()` | `:bool` |
 | `:wat::kernel::HandlePool::new` / `pop` / `finish` | various | pool ops |
 | `:wat::std::service::Console` | `stdout stderr n` | `(HandlePool, Driver)` |
-| `:user::wat::std::lru::CacheService` (wat-lru) | `capacity count` | `(HandlePool, Driver)` |
-| `:user::wat::std::lru::LocalCache::new` / `put` / `get` (wat-lru) | various | per-program LRU |
+| `:wat::lru::CacheService` (wat-lru) | `capacity count` | `(HandlePool, Driver)` |
+| `:wat::lru::LocalCache::new` / `put` / `get` (wat-lru) | various | per-program LRU |
 | `:wat::holon::Atom` | `<literal>` | `:wat::holon::HolonAST` |
 | `:wat::holon::Bind` | `a b` | `:wat::holon::HolonAST` |
 | `:wat::holon::Bundle` | `list-of-holons` | `:Result<wat::holon::HolonAST, CapacityExceeded>` |
