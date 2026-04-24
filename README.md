@@ -500,11 +500,21 @@ Every file under `wat/std/` is baked into the binary at compile time via
 `include_str!` and registered during startup before user code parses.
 Consumers reference them by path — no explicit `load!` needed.
 
-Algebra conveniences:
-- `:wat::std::Amplify`, `:wat::std::Subtract`, `:wat::std::Log`,
-  `:wat::std::Circular`, `:wat::std::Reject`, `:wat::std::Project`,
-  `:wat::std::Sequential`, `:wat::std::Ngram` / `:wat::std::Bigram` /
-  `:wat::std::Trigram`.
+Algebra conveniences (under `:wat::holon::*`, arc 022 namespace
+consolidation; files live in `wat/holon/`):
+- `:wat::holon::Amplify`, `:wat::holon::Subtract`, `:wat::holon::Log`,
+  `:wat::holon::ReciprocalLog` (arc 034 — log-symmetric ratio
+  bounds), `:wat::holon::Circular`, `:wat::holon::Reject`,
+  `:wat::holon::Project`, `:wat::holon::Sequential`,
+  `:wat::holon::Ngram` / `:wat::holon::Bigram` / `:wat::holon::Trigram`.
+- Measurements: `:wat::holon::cosine`, `dot`, `presence?`,
+  `coincident?` (arc 023 — dual predicate), plus the
+  `eval-coincident?` family (arc 026 — verify+eval+atomize+compare
+  in one call: bare AST, edn-string, digest-verified,
+  signed-verified).
+- Typealiases: `:wat::holon::Holons` (arc 033, for
+  `Vec<HolonAST>`); `:wat::holon::BundleResult` (arc 032, for
+  Bundle's Result return).
 
 Streams (arcs 003 + 004 + 006):
 - `:wat::std::stream::Stream<T>` typealias, `spawn-producer`,
@@ -513,10 +523,14 @@ Streams (arcs 003 + 004 + 006):
   `with-state` (the Mealy-machine substrate — every stateful stage
   reduces to an `(init, step, flush)` triple).
 
-Test harness (arcs 007 + 010):
+Test harness (arcs 007 + 010 + 012 + 029 + 031):
 - `:wat::test::assert-eq`, `assert-contains`, `assert-stdout-is`,
-  `assert-stderr-matches`, `run`, `run-in-scope`, `run-ast`, `deftest`,
-  `program`.
+  `assert-stderr-matches`, `run`, `run-in-scope`, `run-ast`,
+  `run-hermetic-ast` (arc 012 — fork-based, for tests that spawn
+  threads), `deftest` (signature dropped `dims`/`mode` per arc 031;
+  inherits Config from outer file), `make-deftest` (arc 029 —
+  factory whose default-prelude carries shared loads/helpers across
+  tests), `program`.
 
 Caches (external — `crates/wat-lru/`; arc 013 externalization):
 - `:wat::lru::LocalCache<K,V>` — L1. Three thin wrappers
@@ -534,34 +548,43 @@ Services (long-running driver programs with client handles, baked):
 
 ## Capacity guard — Bundle's Result return
 
-`:wat::algebra::Bundle` enforces Kanerva's per-frame capacity bound at
+`:wat::holon::Bundle` enforces Kanerva's per-frame capacity bound at
 dispatch time. Every program picks a `:capacity-mode` at startup; the
 Bundle dispatcher consults it when a frame's constituent count exceeds
-`floor(sqrt(dims))` and behaves per the committed policy.
+`floor(sqrt(d))` (where `d` is the dim picked by the active
+`DimRouter` for this construction, arc 037) and behaves per the
+committed policy.
 
-**Budget.** `floor(sqrt(dims))` — at d=10k → 100, at d=4k → 64, at
+**Budget.** `floor(sqrt(d))` — at d=10k → 100, at d=4k → 64, at
 d=1k → 32. The wat algebra is AST-primary (no codebook to distinguish
 against), so the classical `d/(2·ln K)` bound has no `K` term;
 `sqrt(d)` is what keeps a single bundled element's presence
-comfortably above the 5σ noise floor.
+comfortably above the noise floor at the chosen `d`.
 
 **Return type (every mode).**
 
 ```
-:wat::algebra::Bundle : :Vec<holon::HolonAST>
-                     -> :Result<holon::HolonAST, :wat::algebra::CapacityExceeded>
+:wat::holon::Bundle : :Vec<holon::HolonAST>
+                   -> :wat::holon::BundleResult
+                   = :Result<holon::HolonAST, :wat::holon::CapacityExceeded>
 ```
 
-**Four modes** (`:wat::config::set-capacity-mode!`):
+`:wat::holon::BundleResult` is a typealias (arc 032) — same shape,
+shorter to write at call sites.
+
+**Two modes** (`:wat::config::set-capacity-mode!`):
 
 | Mode | Under budget | Over budget |
 |---|---|---|
-| `:silent` | `Ok(h)` | `Ok(h)` — degraded vector, no diagnostic |
-| `:warn`   | `Ok(h)` | `Ok(h)` — degraded vector + `eprintln!` cost/budget/dims |
-| `:error`  | `Ok(h)` | `Err(CapacityExceeded { cost, budget })` |
+| `:error`  | `Ok(h)` | `Err(CapacityExceeded { cost, budget })` (default) |
 | `:abort`  | `Ok(h)` | `panic!` with diagnostic — fail-closed |
 
-**`:wat::algebra::CapacityExceeded`** is a built-in struct with
+(`:silent` and `:warn` retired in arc 037 — silent overflow is the
+class of bug the type-system makes impossible at the call site, and
+warn-but-degrade hid the same class behind stderr noise. `:error`
+is the default; `:abort` is for hosts that prefer halt-on-overflow.)
+
+**`:wat::holon::CapacityExceeded`** is a built-in struct with
 auto-generated `/cost` and `/budget` accessors.
 
 **Canonical program shape** uses `:wat::core::try`:
@@ -569,8 +592,8 @@ auto-generated `/cost` and `/budget` accessors.
 ```scheme
 (:wat::core::define (:app::build
                     (items :Vec<holon::HolonAST>)
-                    -> :Result<holon::HolonAST, wat::algebra::CapacityExceeded>)
-  (Ok (:wat::core::try (:wat::algebra::Bundle items))))
+                    -> :wat::holon::BundleResult)
+  (Ok (:wat::core::try (:wat::holon::Bundle items))))
 ```
 
 Every stdlib macro whose expansion ends in Bundle inherits the Result
