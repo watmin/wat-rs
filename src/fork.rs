@@ -329,7 +329,7 @@ pub fn eval_kernel_fork_with_forms(
     // Snapshot caller's Config before fork so the child can inherit
     // it through COW (arc 031). None when sym has no encoding context
     // (test harnesses that built a SymbolTable directly).
-    let inherit_config: Option<Config> = sym.encoding_ctx().map(|ctx| ctx.config);
+    let inherit_config: Option<Config> = sym.encoding_ctx().map(|ctx| ctx.config.clone());
 
     // Three pipes for stdin/stdout/stderr.
     let (stdin_r, stdin_w) = make_pipe(OP)?;

@@ -461,7 +461,7 @@ impl EncodingCtx {
         EncodingCtx {
             encoders: Arc::new(crate::vm_registry::EncoderRegistry::new(cfg.global_seed)),
             registry: Arc::new(registry),
-            config: *cfg,
+            config: cfg.clone(),
         }
     }
 }
@@ -4886,7 +4886,7 @@ fn eval_algebra_bundle(
     // to cost > budget overflow.
     let cost = children.len();
     let router = require_dim_router(":wat::holon::Bundle", sym)?;
-    let picked = router.pick(cost);
+    let picked = router.pick(cost, sym);
 
     // Capacity-mode still lives on the EncodingCtx (it's orthogonal
     // to dim selection — the permanent user override arc 037 keeps).
@@ -5807,13 +5807,13 @@ fn pick_d_for_pair(
     let ar_a = immediate_arity(a);
     let ar_b = immediate_arity(b);
     let d_a = router
-        .pick(ar_a)
+        .pick(ar_a, sym)
         .ok_or_else(|| RuntimeError::DimUnresolvable {
             op: op.into(),
             immediate_arity: ar_a,
         })?;
     let d_b = router
-        .pick(ar_b)
+        .pick(ar_b, sym)
         .ok_or_else(|| RuntimeError::DimUnresolvable {
             op: op.into(),
             immediate_arity: ar_b,
@@ -8081,6 +8081,7 @@ mod tests {
             dims,
             capacity_mode: crate::config::CapacityMode::Error,
             global_seed: 42,
+            dim_router_ast: None,
             noise_floor,
             presence_sigma,
             coincident_sigma,

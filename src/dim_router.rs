@@ -12,13 +12,17 @@
 //! least the immediate item count — the Kanerva capacity bound
 //! (BOOK Ch 41: `d = K²` where K is max statement size).
 //!
-//! User override ships in a later slice (arc 037 slice 5) via the
-//! `set-dim-router!` primitive — the config carries the user's wat
-//! lambda; substrate invokes it at construction time. For now the
-//! default is the only router; it attaches to
-//! [`crate::runtime::SymbolTable`]'s capability slot at freeze.
+//! User override via [`WatLambdaRouter`]: the user writes a wat
+//! function `fn(:i64) -> :Option<:i64>` and registers it via
+//! `(:wat::config::set-dim-router! :my::router)`. Freeze looks up
+//! the function and installs a WatLambdaRouter that invokes it at
+//! pick time. Default is [`SizingRouter::with_default_tiers`] when
+//! no user router is set.
 
+use crate::runtime::{apply_function, Function, RuntimeError, SymbolTable, Value};
+use crate::span::Span;
 use std::fmt;
+use std::sync::Arc;
 
 /// Opinionated default tier list: `[256, 4096, 10000, 100000]`.
 ///
@@ -30,13 +34,17 @@ use std::fmt;
 pub const DEFAULT_TIERS: &[usize] = &[256, 4096, 10000, 100000];
 
 /// Ambient runtime capability that picks vector dimension per
-/// construction. `pick(n)` returns `Some d` when a tier fits item
-/// count `n`, or `None` when all tiers overflow.
+/// construction. `pick(n, sym)` returns `Some d` when a tier fits
+/// item count `n`, or `None` when all tiers overflow.
+///
+/// `sym` is passed so user-supplied routers (wat lambdas) can
+/// evaluate against the frozen symbol table. The built-in
+/// [`SizingRouter`] ignores it.
 pub trait DimRouter: Send + Sync + fmt::Debug {
     /// Return the smallest dim `d` such that this router accepts a
     /// construction of `immediate_size` items. `None` signals
     /// overflow — caller dispatches per `capacity-mode`.
-    fn pick(&self, immediate_size: usize) -> Option<usize>;
+    fn pick(&self, immediate_size: usize, sym: &SymbolTable) -> Option<usize>;
 }
 
 /// The built-in sizing function. Closes over a tier list; picks the
@@ -78,7 +86,7 @@ impl fmt::Debug for SizingRouter {
 }
 
 impl DimRouter for SizingRouter {
-    fn pick(&self, immediate_size: usize) -> Option<usize> {
+    fn pick(&self, immediate_size: usize, _sym: &SymbolTable) -> Option<usize> {
         // Smallest tier d where sqrt(d) >= immediate_size.
         // Equivalent integer form: d >= immediate_size².
         let needed = immediate_size.checked_mul(immediate_size)?;
@@ -89,65 +97,108 @@ impl DimRouter for SizingRouter {
     }
 }
 
+/// User-supplied dim router. Wraps a wat function of signature
+/// `:fn(:i64) -> :Option<:i64>` registered via
+/// `(:wat::config::set-dim-router! :my::router)`. At pick time the
+/// wat function is invoked through [`apply_function`] with the
+/// current immediate size; the returned `Value::Option` is mapped to
+/// `Option<usize>`.
+///
+/// Any runtime error during invocation (eval failure, return-type
+/// mismatch, negative dim, etc.) surfaces as `None`. The caller
+/// then dispatches per `capacity-mode` — user router bugs become
+/// user-visible overflows rather than silent corruption.
+pub struct WatLambdaRouter {
+    pub path: String,
+    pub func: Arc<Function>,
+}
+
+impl fmt::Debug for WatLambdaRouter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WatLambdaRouter")
+            .field("path", &self.path)
+            .finish()
+    }
+}
+
+impl DimRouter for WatLambdaRouter {
+    fn pick(&self, immediate_size: usize, sym: &SymbolTable) -> Option<usize> {
+        let arg = Value::i64(immediate_size as i64);
+        let call_span = Span::unknown();
+        let result = apply_function(Arc::clone(&self.func), vec![arg], sym, call_span);
+        match result {
+            Ok(Value::Option(opt_arc)) => match &*opt_arc {
+                Some(Value::i64(n)) if *n > 0 => Some(*n as usize),
+                _ => None,
+            },
+            Ok(_) | Err(RuntimeError::TailCall { .. } | RuntimeError::TryPropagate(..)) => None,
+            Err(_) => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn sym() -> SymbolTable {
+        SymbolTable::new()
+    }
+
     #[test]
     fn default_router_picks_smallest_tier() {
         let r = SizingRouter::with_default_tiers();
+        let s = sym();
         // 16 items → sqrt(256)=16 fits exactly → d=256.
-        assert_eq!(r.pick(16), Some(256));
+        assert_eq!(r.pick(16, &s), Some(256));
         // 17 items → 17² = 289 > 256, needs 4096 → d=4096.
-        assert_eq!(r.pick(17), Some(4096));
+        assert_eq!(r.pick(17, &s), Some(4096));
         // 64 items → 64² = 4096 exactly → d=4096.
-        assert_eq!(r.pick(64), Some(4096));
+        assert_eq!(r.pick(64, &s), Some(4096));
         // 65 items → 65² = 4225 > 4096, needs 10000 → d=10000.
-        assert_eq!(r.pick(65), Some(10000));
+        assert_eq!(r.pick(65, &s), Some(10000));
         // 100 items → 100² = 10000 exactly → d=10000.
-        assert_eq!(r.pick(100), Some(10000));
+        assert_eq!(r.pick(100, &s), Some(10000));
         // 101 items → 101² = 10201 > 10000, needs 100000 → d=100000.
-        assert_eq!(r.pick(101), Some(100000));
+        assert_eq!(r.pick(101, &s), Some(100000));
         // 316 items → 316² = 99856 < 100000 → d=100000.
-        assert_eq!(r.pick(316), Some(100000));
+        assert_eq!(r.pick(316, &s), Some(100000));
         // 317 items → 317² = 100489 > 100000 → overflow.
-        assert_eq!(r.pick(317), None);
+        assert_eq!(r.pick(317, &s), None);
     }
 
     #[test]
     fn leaf_item_fits_smallest_tier() {
         let r = SizingRouter::with_default_tiers();
-        // A single atom (N=1) fits anywhere; router picks smallest.
-        assert_eq!(r.pick(1), Some(256));
-        // Zero items (empty bundle) also fits smallest.
-        assert_eq!(r.pick(0), Some(256));
+        let s = sym();
+        assert_eq!(r.pick(1, &s), Some(256));
+        assert_eq!(r.pick(0, &s), Some(256));
     }
 
     #[test]
     fn custom_single_tier_matches_legacy_behavior() {
-        // User-supplied single-tier list reproduces pre-arc-037
-        // single-dim behavior.
         let r = SizingRouter::with_tiers(vec![10000]);
-        assert_eq!(r.pick(1), Some(10000));
-        assert_eq!(r.pick(100), Some(10000));
-        // Past the single tier: overflow.
-        assert_eq!(r.pick(101), None);
+        let s = sym();
+        assert_eq!(r.pick(1, &s), Some(10000));
+        assert_eq!(r.pick(100, &s), Some(10000));
+        assert_eq!(r.pick(101, &s), None);
     }
 
     #[test]
     fn overflow_past_largest_tier_is_none() {
         let r = SizingRouter::with_default_tiers();
-        // sqrt(100000) ≈ 316.2 — 317+ items overflow.
-        assert_eq!(r.pick(317), None);
-        assert_eq!(r.pick(1000), None);
-        assert_eq!(r.pick(usize::MAX), None);
+        let s = sym();
+        assert_eq!(r.pick(317, &s), None);
+        assert_eq!(r.pick(1000, &s), None);
+        assert_eq!(r.pick(usize::MAX, &s), None);
     }
 
     #[test]
     fn empty_tier_list_always_overflows() {
         let r = SizingRouter::with_tiers(vec![]);
-        assert_eq!(r.pick(0), None);
-        assert_eq!(r.pick(1), None);
-        assert_eq!(r.pick(100), None);
+        let s = sym();
+        assert_eq!(r.pick(0, &s), None);
+        assert_eq!(r.pick(1, &s), None);
+        assert_eq!(r.pick(100, &s), None);
     }
 }

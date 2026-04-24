@@ -57,11 +57,21 @@ use std::fmt;
 pub const DEFAULT_CAPACITY_MODE: CapacityMode = CapacityMode::Error;
 
 /// Committed configuration values.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     pub dims: usize,
     pub capacity_mode: CapacityMode,
     pub global_seed: u64,
+    /// User-supplied dim router AST, captured verbatim at
+    /// setter time. Freeze evaluates it against the fully-built
+    /// frozen world (arc 009 "names are values" — a keyword-path
+    /// lifts to a function value; a lambda expression constructs
+    /// one; any AST that reduces to a function works). The result
+    /// is wrapped in [`crate::dim_router::WatLambdaRouter`] and
+    /// installed as the ambient router. When `None`, freeze
+    /// installs the default
+    /// `SizingRouter::with_default_tiers()`. Arc 037 slice 4.
+    pub dim_router_ast: Option<WatAST>,
     /// The substrate's **1σ native granularity**: `1.0 / sqrt(dims)`.
     /// The atomic angular unit on the hypersphere at this dimension —
     /// the smallest cosine distance the algebra can distinguish above
@@ -243,6 +253,7 @@ fn collect_entry_file_inner(
     let mut noise_floor: Option<f64> = inherit.map(|c| c.noise_floor);
     let mut presence_sigma: Option<i64> = inherit.map(|c| c.presence_sigma);
     let mut coincident_sigma: Option<i64> = inherit.map(|c| c.coincident_sigma);
+    let mut dim_router_ast: Option<WatAST> = inherit.and_then(|c| c.dim_router_ast.clone());
 
     // Separate tracker: has this field's setter appeared in THIS forms
     // list? Distinct from `.is_some()` because inheritance pre-seeds
@@ -254,6 +265,7 @@ fn collect_entry_file_inner(
     let mut set_noise_floor = false;
     let mut set_presence_sigma = false;
     let mut set_coincident_sigma = false;
+    let mut set_dim_router = false;
 
     let mut remainder_start: Option<usize> = None;
 
@@ -374,6 +386,27 @@ fn collect_entry_file_inner(
                 }
                 coincident_sigma = Some(parse_positive_i64(&args[0], "coincident-sigma")?);
             }
+            ":wat::config::set-dim-router!" => {
+                if set_dim_router {
+                    return Err(ConfigError::DuplicateField {
+                        field: "dim-router".into(),
+                    });
+                }
+                set_dim_router = true;
+                if args.len() != 1 {
+                    return Err(ConfigError::BadArity {
+                        head: setter_head,
+                        expected: 1,
+                        got: args.len(),
+                    });
+                }
+                // Arc 037 slice 4: store the AST verbatim. Freeze
+                // evaluates it against the fully-built frozen world
+                // (names-are-values per arc 009 lifts a keyword path
+                // to a function value; a lambda expression constructs
+                // one; any AST that reduces to a function works).
+                dim_router_ast = Some(args[0].clone());
+            }
             _ => {
                 return Err(ConfigError::UnknownSetter {
                     head: setter_head,
@@ -453,6 +486,7 @@ fn collect_entry_file_inner(
         dims,
         capacity_mode,
         global_seed,
+        dim_router_ast,
         noise_floor,
         presence_sigma,
         coincident_sigma,
