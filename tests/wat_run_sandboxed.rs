@@ -286,14 +286,14 @@ fn missing_user_main_surfaces_as_failure() {
 #[test]
 fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
     // Inner main writes "before panic" to stdout, then triggers a
-    // real Rust-level panic via :wat::holon::Bundle under :abort
+    // real Rust-level panic via :wat::holon::Bundle under :panic
     // mode with a list exceeding the capacity budget. Outer caller
     // sees RunResult with stdout=["before panic"] + Failure with
     // "panic" in the message.
     //
     // Arc 037 slice 1: ambient router picks dim from DEFAULT_TIERS
     // ([256, 4096, 10000, 100000]). Largest tier's sqrt ≈ 316. A
-    // 400-element Bundle overflows every tier; :abort mode panics.
+    // 400-element Bundle overflows every tier; :panic mode panics.
     let atoms = (0..400)
         .map(|i| format!(r#"(:wat::holon::Atom \"atom-{}\")"#, i))
         .collect::<Vec<_>>()
@@ -302,7 +302,7 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::config::set-capacity-mode! :abort)
+            "(:wat::config::set-capacity-mode! :panic)
              (:wat::core::define (:user::main
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)

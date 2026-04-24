@@ -16,8 +16,9 @@
 //!   **Default [`DEFAULT_CAPACITY_MODE`] (`:error`).** Optional. Arc 037
 //!   slice 1: made optional with a safe default (overflow surfaces as
 //!   catchable `CapacityExceeded` rather than silently corrupting).
-//!   Variants: `:error` / `:abort` (arc 037 retired `:silent` and
-//!   `:warn` — overflow either crashes or is handled).
+//!   Variants: `:error` / `:panic` (arc 037 retired `:silent` and
+//!   `:warn` — overflow either crashes or is handled; arc 045
+//!   renamed `:abort` → `:panic`).
 //! - `global-seed` (`:u64`) — deterministic-vector seed. **Default 42.**
 //!   Optional. Users should rarely set this; the override exists for
 //!   deliberate cross-deployment isolation.
@@ -103,7 +104,7 @@ pub enum CapacityMode {
     Error,
     /// Production fail-closed — `panic!`. The bad frame never leaves
     /// the dispatcher.
-    Abort,
+    Panic,
 }
 
 /// Errors from the entry-file shape check and config pass.
@@ -443,18 +444,18 @@ fn parse_capacity_mode(ast: &WatAST) -> Result<CapacityMode, ConfigError> {
     match ast {
         WatAST::Keyword(k, _) => match k.as_str() {
             ":error" => Ok(CapacityMode::Error),
-            ":abort" => Ok(CapacityMode::Abort),
+            ":panic" => Ok(CapacityMode::Panic),
             other => Err(ConfigError::BadValue {
                 field: "capacity-mode".into(),
                 reason: format!(
-                    "unknown variant {}; expected :error / :abort (arc 037 retired :silent and :warn)",
+                    "unknown variant {}; expected :error / :panic (arc 037 retired :silent and :warn; arc 045 renamed :abort → :panic)",
                     other
                 ),
             }),
         },
         other => Err(ConfigError::BadType {
             field: "capacity-mode".into(),
-            expected: "keyword (:error / :abort)",
+            expected: "keyword (:error / :panic)",
             got: variant_name(other),
         }),
     }
@@ -502,9 +503,9 @@ mod tests {
     }
 
     #[test]
-    fn capacity_mode_abort_parses() {
-        let (cfg, _) = collect("(:wat::config::set-capacity-mode! :abort)").unwrap();
-        assert_eq!(cfg.capacity_mode, CapacityMode::Abort);
+    fn capacity_mode_panic_parses() {
+        let (cfg, _) = collect("(:wat::config::set-capacity-mode! :panic)").unwrap();
+        assert_eq!(cfg.capacity_mode, CapacityMode::Panic);
     }
 
     #[test]
@@ -652,7 +653,7 @@ mod tests {
             r#"
             (:wat::config::set-capacity-mode! :error)
             (:some::body)
-            (:wat::config::set-capacity-mode! :abort)
+            (:wat::config::set-capacity-mode! :panic)
             "#,
         )
         .unwrap();
@@ -664,7 +665,7 @@ mod tests {
         let err = collect(
             r#"
             (:wat::config::set-capacity-mode! :error)
-            (:wat::config::set-capacity-mode! :abort)
+            (:wat::config::set-capacity-mode! :panic)
             "#,
         )
         .unwrap_err();
@@ -691,7 +692,7 @@ mod tests {
 
     #[test]
     fn wrong_arity_rejected() {
-        let err = collect("(:wat::config::set-capacity-mode! :error :abort)").unwrap_err();
+        let err = collect("(:wat::config::set-capacity-mode! :error :panic)").unwrap_err();
         assert!(matches!(
             err,
             ConfigError::BadArity { expected: 1, got: 2, .. }
@@ -708,7 +709,7 @@ mod tests {
 
     fn parent_config() -> Config {
         Config {
-            capacity_mode: CapacityMode::Abort,
+            capacity_mode: CapacityMode::Panic,
             global_seed: 99,
             dim_router_ast: None,
             presence_sigma_ast: None,

@@ -7,10 +7,13 @@
 //!
 //! - `:error`  → `Ok(h)` under; `Err(CapacityExceeded{cost, budget})`
 //!   over — caller holds the error, program continues.
-//! - `:abort`  → `Ok(h)` under; `panic!()` over — fail-closed.
+//! - `:panic`  → `Ok(h)` under; `panic!()` over — fail-closed.
 //!
 //! Arc 037 (2026-04-24) retired `:silent` and `:warn`. Overflow
 //! either crashes or is handled; no middle ground.
+//! Arc 045 (2026-04-24) renamed `:abort` → `:panic` for honesty
+//! with Rust's `panic!()` macro behavior (which unwinds, unlike
+//! `std::process::abort`).
 //!
 //! At `d=1024`, `budget = floor(sqrt(1024)) = 32`. The tests below
 //! pick list sizes deliberately on either side.
@@ -61,10 +64,10 @@ fn bundle_under_budget_returns_ok_under_error_mode() {
 }
 
 #[test]
-fn bundle_under_budget_returns_ok_under_abort_mode() {
+fn bundle_under_budget_returns_ok_under_panic_mode() {
     let src = format!(
         r#"
-        (:wat::config::set-capacity-mode! :abort)
+        (:wat::config::set-capacity-mode! :panic)
 
         (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
@@ -145,14 +148,14 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
     }
 }
 
-// ─── Over budget under :abort — panic ────────────────────────────────
+// ─── Over budget under :panic — panic ────────────────────────────────
 
 #[test]
-fn bundle_over_budget_under_abort_mode_panics() {
-    // :abort fails closed. 500 atoms overflow all tiers → panic.
+fn bundle_over_budget_under_panic_mode_panics() {
+    // :panic fails closed. 500 atoms overflow all tiers → panic.
     let src = format!(
         r#"
-        (:wat::config::set-capacity-mode! :abort)
+        (:wat::config::set-capacity-mode! :panic)
 
         (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
@@ -160,7 +163,7 @@ fn bundle_over_budget_under_abort_mode_panics() {
         atoms_list(500)
     );
     let caught = std::panic::catch_unwind(|| run(&src));
-    assert!(caught.is_err(), ":abort + over budget must panic");
+    assert!(caught.is_err(), ":panic + over budget must panic");
 }
 
 // ─── Try form propagates Bundle's Err ────────────────────────────────

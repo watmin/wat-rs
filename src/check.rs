@@ -3710,7 +3710,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // authors are required by the type system to acknowledge the
     // failure case — either matching explicitly or propagating via
     // `:wat::core::try`. Under `:error` the Err arm fires with the
-    // cost/budget struct; under `:abort` the process panics before
+    // cost/budget struct; under `:panic` the process panics before
     // returning.
     env.register(
         ":wat::holon::Bundle".into(),

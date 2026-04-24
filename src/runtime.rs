@@ -4889,13 +4889,15 @@ fn eval_algebra_bind(
 /// - `:error`  — `Ok(h)` under budget; `Err(CapacityExceeded{cost,
 ///   budget})` over. The program continues with the Err value; the
 ///   type system requires the caller to handle it.
-/// - `:abort`  — `Ok(h)` under budget; `panic!` over, carrying the
+/// - `:panic`  — `Ok(h)` under budget; `panic!` over, carrying the
 ///   cost/budget/dims diagnostic. Fail-closed: the bad frame never
-///   leaves this dispatcher. No unwinding of user state.
+///   leaves this dispatcher. (Rust's `panic!()` macro unwinds.)
 ///
 /// Arc 037 (2026-04-24) retired `:silent` and `:warn`. Overflow
 /// either crashes or is handled; no middle ground that silently
-/// produces a degraded vector.
+/// produces a degraded vector. Arc 045 (2026-04-24) renamed
+/// `:abort` → `:panic` for honesty with `panic!()`'s actual
+/// behavior.
 fn eval_algebra_bundle(
     args: &[WatAST],
     env: &Environment,
@@ -4974,10 +4976,11 @@ fn eval_algebra_bundle(
                 }));
                 return Ok(Value::Result(Arc::new(Err(err))));
             }
-            crate::config::CapacityMode::Abort => {
-                // Fail-closed. No unwinding; the process is done.
+            crate::config::CapacityMode::Panic => {
+                // Fail-closed via Rust's panic!() macro (which unwinds).
+                // The bad frame never leaves the dispatcher.
                 panic!(
-                    ":wat::holon::Bundle: capacity exceeded under :abort — cost {} > budget {} (router picked d={:?})",
+                    ":wat::holon::Bundle: capacity exceeded under :panic — cost {} > budget {} (router picked d={:?})",
                     cost_i, budget_i, picked
                 );
             }
