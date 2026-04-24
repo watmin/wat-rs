@@ -21,11 +21,12 @@ Every other prefix is user territory.
 | Prefix | What lives here |
 |---|---|
 | `:wat::core::*` | Evaluator primitives — forms (`define`, `lambda`, `let*`, `if`, `match`), primitive types (`i64`, `bool`, `String`, ...), macros, eval-family, primitive-type operations (`i64::+`, `bool::and`), core collections (`vec`, `list`, `cons`, `conj`, `HashMap`, `HashSet`, `get`, `contains?`, `assoc`). Cannot be written in wat. |
-| `:wat::config::*` | Runtime-committed configuration values (noise floor, dimensions). Read-only after config pass. |
-| `:wat::holon::*` | Holon algebra — the `HolonAST` type, the six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), the four measurements (`cosine`, `dot`, `presence?`, `coincident?`), and the `CapacityExceeded` error type. One namespace for the whole holon surface. |
+| `:wat::config::*` | Runtime-committed configuration: `capacity-mode` (`:error` / `:abort`), `dim-router` function (multi-tier dim selection per AST surface — arc 037), `presence-sigma` / `coincident-sigma` functions of `d` (arc 024), `global-seed`. Compat shim accessors `dims` / `noise-floor` return `DEFAULT_TIERS[0]` defaults. Read-only after config pass. |
+| `:wat::holon::*` | Holon algebra — the `HolonAST` type, the six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), the four measurements (`cosine`, `dot`, `presence?`, `coincident?`), the `eval-coincident?` family (arc 026), the `CapacityExceeded` error type, and typealiases `Holons` / `BundleResult` (arcs 032, 033). One namespace for the whole holon surface. |
 | `:wat::kernel::*` | CSP primitives — `spawn`, `send`, `recv`, `select`, `drop`, `join`, `make-bounded-queue`, `HandlePool`, signal handlers. |
 | `:wat::io::*` | Stdio primitives — `stdin`, `stdout`, `stderr`, `println`. |
-| `:wat::std::*` | Stdlib built on primitives. Each entry should be expressible (in principle) in wat itself, even if shipped as Rust for performance. `LocalCache`, `stream::*`, `program::Console`, `program::Cache`, `list::*`, `math::*`. |
+| `:wat::std::*` | Stdlib built on primitives. Each entry should be expressible (in principle) in wat itself, even if shipped as Rust for performance. `stream::*`, `service::Console`, `hermetic`, `test::*`. (LocalCache + CacheService moved to `:wat::lru::*` via arcs 013 + 036.) |
+| `:wat::lru::*` | LRU cache surface (external workspace member `crates/wat-lru/`, namespace promoted to `:wat::*` via arc 036). `LocalCache<K,V>`, `CacheService<K,V>`. |
 | `:rust::*` | Surfaced Rust types via `#[wat_dispatch]`. Paths mirror real Rust (`:rust::std::iter::Iterator`, `:rust::crossbeam_channel::Receiver`). |
 | `:user::*` | User composition space — community wat crates AND user program code. See "External wat crates" below. |
 
@@ -318,11 +319,11 @@ Every `.wat` file is either an **entry** or a **library**:
   `(:wat::config::set-*!)` forms. Hosts `:user::main` (for
   binaries) or `test-*` defines (for test files).
 - **Library**: no top-level config setters. Can be `(:wat::load-file!
-  (path argument) "...")`'d from entries (or from other
-  libraries, recursively — the entry's frozen world collects every
-  loaded-file's defines at arbitrary depth). Attempting to `load!`
-  a file that contains setters fails loud at startup ("setters
-  belong in the entry file only").
+  "...")`'d from entries (or from other libraries, recursively —
+  the entry's frozen world collects every loaded-file's defines at
+  arbitrary depth). Attempting to `load!` a file that contains
+  setters fails loud at startup ("setters belong in the entry file
+  only").
 
 `wat::main!`'s `source:` argument is always an entry. `wat::test!`
 under a test dir silently skips library files at freeze time —
