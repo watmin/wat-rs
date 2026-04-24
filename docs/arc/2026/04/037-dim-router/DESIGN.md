@@ -98,35 +98,85 @@ dim-specifying primitive. No backward-compat code.
 
 ## Slice plan
 
-Slicing the arc so each PR is independently testable. Each
-slice preserves behavior until slice 5 (router-driven d).
+**CORRECTION (2026-04-23 late-session):** The initial slice plan
+kept `dims: usize` as a "default dim" with literal `10000`
+fallback. That preserves the exact magic value arc 037 is
+killing — renaming it from "required" to "default" is the same
+disease. The correct slice 1 eliminates the single-dim
+consultation from Atom/Bundle encoders entirely; there is NO
+"default dim number" in the runtime path after slice 1.
 
-### Slice 1 — Optional `dims` + `capacity-mode`
+**There is no default dim.** The default is a FUNCTION — the
+sizing function — that returns a dim per AST shape. Atom and
+Bundle encoders CALL this function at construction time.
+Different-shape ASTs get different dims. Vectors at different
+dims coexist.
 
-**Narrowest possible start.**
+### Slice 1 — Sizing function as the substrate default
 
-- `Config.dims`: required → optional with default `10000`.
-- `Config.capacity_mode`: required → optional with default
-  `CapacityMode::Error`.
-- `ConfigError::RequiredFieldMissing` never fires for these
-  two fields (they have defaults now).
-- All derived fields (noise_floor, sigmas) already use `dims`;
-  they get the default when `dims` is unset.
-- Test: blank entry file produces Config with all fields at
-  their defaults.
-- Test: every existing test using `set-dims! n` still works.
+**This is slice 1 correctly scoped.** Larger than a trivial
+config edit; the whole point is that the single-dim lookup
+disappears from the encoder path.
 
-**Scope**: 50-ish lines in `src/config.rs` + test additions.
-**Risk**: near-zero. Behavior unchanged for existing callers.
-**Validates**: defaults match current behavior.
+What this slice ships:
 
-### Slice 2 — `tier_list` field (backward compat)
+- **Sizing function**: a Rust module implementing
+  `default_dim_for_shape(immediate_item_count: usize,
+  tier_list: &[usize]) -> Option<usize>`. Returns the smallest
+  dim in `tier_list` whose `sqrt(d) >= count`. Returns `None`
+  if no tier fits (caller decides: capacity overflow per mode).
+- **Default tier list**: `[256, 4096, 10000, 100000]` as a
+  substrate-level constant or Config field.
+- **Atom / Bundle encoder sites**: replace every read of
+  `ctx.config.dims` with a call to the sizing function using
+  the AST's immediate shape. The function returns the dim for
+  THIS construction. Store that dim alongside the resulting
+  HolonAST (via cache entry or ctx, depending on structure).
+- **`set-dims!` becomes a no-op** on the encoder path: the
+  value still parses and stores in `config.dims` for backward
+  compat, but NOTHING reads it. Existing test files continue
+  to parse; their encoding dim is now the sizing function's
+  output, not the literal they set.
+- **`set-capacity-mode!` remains functional** with default
+  `CapacityMode::Error` (the `DEFAULT_CAPACITY_MODE` constant
+  stays — capacity-mode is the permanent user override, not a
+  migration artifact).
+- **Required-field machinery retires for `dims` and
+  `capacity-mode`**: both become optional with safe defaults.
 
-- Add `Config.tier_list: Vec<usize>` with default
-  `vec![256, 4096, 10000, 100000]`.
-- `set-dims!(n)` also sets `tier_list = vec![n]` for compat.
-- Add `set-dim-tiers!(list)` setter (direct tier-list setter,
-  doesn't require the router).
+What this slice does NOT ship:
+- `set-dim-router!` primitive (slice 5 — the user-supplied
+  function override).
+- `set-dim-tiers!` primitive (slice 2 — user override of the
+  default tier list).
+- Cross-dim validation in cosine / presence / coincident
+  (slice 4).
+
+Expected behavior change:
+- Test vectors previously at `d=1024` (via `set-dims! 1024`)
+  are now at whatever dim the sizing function picks for their
+  shape. Many tests will pass unchanged (the shape determines
+  the dim deterministically). Tests that hard-code expected
+  values derived from a specific d may flip — those are
+  expected to be few, and they surface real places the old
+  code assumed the magic.
+
+**Scope**: spans `src/config.rs`, `src/runtime.rs` (Atom +
+Bundle encode sites), possibly `holon-rs` depending on where
+dim actually enters the vector encoding. Not a 50-line change;
+plan for a multi-file slice.
+**Risk**: medium. The encoder path changes materially. Careful
+test sweep required.
+**Validates**: the sizing-function-as-default model works end-
+to-end; `config.dims` becomes an unread residual field.
+
+### Slice 2 — User-configurable tier list
+
+- Add `set-dim-tiers!(list)` primitive.
+- Config stores the user-supplied tier list (overrides the
+  default).
+- Sizing function uses the configured tier list rather than
+  the built-in constant.
 - `tier_list` unused by runtime yet — slice 3 starts reading it.
 
 **Scope**: config.rs parser additions + tests.
