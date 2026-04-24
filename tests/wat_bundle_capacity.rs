@@ -229,7 +229,7 @@ fn try_propagates_bundle_err_across_function_boundary() {
         (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::build-composite
-                            (items :Vec<wat::holon::HolonAST>)
+                            (items :wat::holon::Holons)
                             -> :wat::holon::BundleResult)
           (Ok (:wat::core::try (:wat::holon::Bundle items))))
 

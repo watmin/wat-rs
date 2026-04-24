@@ -3652,7 +3652,7 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: holon_ty(),
         },
     );
-    // Bundle takes :Vec<wat::holon::HolonAST> and returns
+    // Bundle takes :wat::holon::Holons and returns
     // :Result<wat::holon::HolonAST, :wat::holon::CapacityExceeded>.
     // The Result wrap is the forcing function for the capacity guard:
     // authors are required by the type system to acknowledge the
@@ -4417,8 +4417,8 @@ mod tests {
 
     #[test]
     fn bundle_of_list_of_holons_passes() {
-        // Bundle takes :Vec<wat::holon::HolonAST>. A list of (Atom ...) calls
-        // returns :Vec<wat::holon::HolonAST>, so Bundle(list(Atoms...)) type-checks.
+        // Bundle takes :wat::holon::Holons. A list of (Atom ...) calls
+        // returns :wat::holon::Holons, so Bundle(list(Atoms...)) type-checks.
         assert!(check(
             r#"(:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST
                  (:wat::holon::Atom 1)
@@ -4429,7 +4429,7 @@ mod tests {
 
     #[test]
     fn bundle_of_list_of_ints_rejected() {
-        // Bundle wants :Vec<wat::holon::HolonAST>, but this is :Vec<i64>.
+        // Bundle wants :wat::holon::Holons, but this is :Vec<i64>.
         let err = check(r#"(:wat::holon::Bundle (:wat::core::vec :i64 1 2 3))"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }

@@ -333,5 +333,16 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   Small substrate arc; ergonomic payoff across every Bundle-
   threaded caller. 2026-04-23.
 
+- **`arc/2026/04/033-holons-typealias/`** — **shipped.**
+  `:wat::holon::Holons` registered as a baked built-in typealias
+  for `:Vec<wat::holon::HolonAST>` — the list-of-holons shape
+  Bundle takes as input and every `encode-*-facts` vocab
+  function returns. Named under `/gaze` after rejecting
+  `:wat::holon::Facts` on Level-1 epistemic grounds: the type
+  is content-agnostic (facts today, predictions tomorrow).
+  Plural of the element type, structurally honest, Level-1-safe
+  across every content context. 18-site wat-rs migration;
+  lab migration follows in lab arc 004. 2026-04-23.
+
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.

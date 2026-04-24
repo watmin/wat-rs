@@ -139,6 +139,7 @@ Return `:Result<wat::holon::HolonAST, :wat::core::EvalError>` per the
 |---|---|---|
 | `:wat::holon::CapacityExceeded` | struct `{ cost :i64, budget :i64 }` | `types.rs::register_builtin_types` |
 | `:wat::holon::BundleResult` | typealias `= :Result<wat::holon::HolonAST, wat::holon::CapacityExceeded>` — the canonical name for Bundle's return shape (arc 032) | same |
+| `:wat::holon::Holons` | typealias `= :Vec<wat::holon::HolonAST>` — the ubiquitous list-of-holons shape (Bundle's input, every `encode-*-facts` return) (arc 033) | same |
 | `:wat::core::EvalError` | struct `{ kind :String, message :String }` | same |
 
 **Note.** `:Option<T>` and `:Result<T,E>` are built-in enums but

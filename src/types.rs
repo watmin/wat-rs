@@ -281,6 +281,28 @@ fn register_builtin_types(env: &mut TypeEnv) {
         },
     }));
 
+    // :wat::holon::Holons — arc 033. Typealias for the ubiquitous
+    // "list of holons" shape that Bundle takes as input and that
+    // every encode-*-facts vocab function returns. 35+ lab
+    // occurrences plus 12 in wat-rs before the rename. Named via
+    // /gaze — structurally honest, epistemically neutral, plural
+    // of the element type. Content-agnostic: the type holds facts
+    // (ground-truth measurements), claims (predictions), or
+    // anything else a caller bundles; the alias makes no truth
+    // assertion.
+    //
+    //   typealias :wat::holon::Holons = :Vec<wat::holon::HolonAST>
+    //
+    // Callers can write either form; alias resolution unifies them.
+    env.register_builtin(TypeDef::Alias(AliasDef {
+        name: ":wat::holon::Holons".into(),
+        type_params: vec![],
+        expr: TypeExpr::Parametric {
+            head: "Vec".into(),
+            args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+        },
+    }));
+
     // :wat::core::EvalError — populated in the Err slot of a :Result
     // returned by the eval-family forms (:wat::eval-ast! /
     // eval-edn! / eval-digest! / eval-signed!) when dynamic evaluation
@@ -1731,6 +1753,46 @@ mod tests {
                 assert_eq!(args[1], TypeExpr::Path(":wat::holon::CapacityExceeded".into()));
             }
             other => panic!("expected expanded Result<HolonAST,CapacityExceeded>, got {:?}", other),
+        }
+    }
+
+    // ─── Arc 033 — :wat::holon::Holons builtin ─────────────────────
+
+    #[test]
+    fn holons_alias_registered_with_builtins() {
+        let env = TypeEnv::with_builtins();
+        let def = env
+            .get(":wat::holon::Holons")
+            .expect(":wat::holon::Holons registered via with_builtins");
+        match def {
+            TypeDef::Alias(a) => {
+                assert_eq!(a.name, ":wat::holon::Holons");
+                assert!(a.type_params.is_empty(), "non-parametric alias");
+                match &a.expr {
+                    TypeExpr::Parametric { head, args } => {
+                        assert_eq!(head, "Vec");
+                        assert_eq!(args.len(), 1);
+                        assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
+                    }
+                    other => panic!("expected Vec<_>, got {:?}", other),
+                }
+            }
+            other => panic!("expected TypeDef::Alias, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn holons_alias_expands_to_expected_vec() {
+        let env = TypeEnv::with_builtins();
+        let alias_ref = TypeExpr::Path(":wat::holon::Holons".into());
+        let expanded = expand_alias(&alias_ref, &env);
+        match expanded {
+            TypeExpr::Parametric { head, args } => {
+                assert_eq!(head, "Vec");
+                assert_eq!(args.len(), 1);
+                assert_eq!(args[0], TypeExpr::Path(":wat::holon::HolonAST".into()));
+            }
+            other => panic!("expected expanded Vec<HolonAST>, got {:?}", other),
         }
     }
 }

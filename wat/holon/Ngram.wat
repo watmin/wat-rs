@@ -27,5 +27,5 @@
   `(:wat::holon::Bundle
      (:wat::core::map
        (:wat::std::list::window ,xs ,n)
-       (:wat::core::lambda ((window :Vec<wat::holon::HolonAST>) -> :wat::holon::HolonAST)
+       (:wat::core::lambda ((window :wat::holon::Holons) -> :wat::holon::HolonAST)
          (:wat::holon::Sequential window)))))
