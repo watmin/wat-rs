@@ -58,13 +58,52 @@ NOT a separate config concept.
   `CapacityMode` enum has exactly two variants: `:error`
   returns `Err(CapacityExceeded)`, `:abort` panics. No
   `:silent` or `:warn` — overflow either crashes or is handled.
-- **Other derived fields** (noise_floor, presence_sigma,
-  coincident_sigma): already defaulted per arc 024, all
-  functions of the dim the router picks per construction.
+- **Default presence-sigma**: `fn(d) → floor(sqrt(d)/2) − 1` —
+  arc 024's formula applied at actual encoding d. User overrides
+  with their own `:fn(:i64) -> :i64` via
+  `(:wat::config::set-presence-sigma! <expr>)`.
+- **Default coincident-sigma**: `fn(_d) → 1` — the 1σ native
+  granularity constant. User overrides with
+  `(:wat::config::set-coincident-sigma! <expr>)`.
 
 Zero-config entry files produce the same effective behavior as
 today's `(:wat::config::set-dims! 10000)
 (:wat::config::set-capacity-mode! :error)`.
+
+## Every substrate knob is a function
+
+The design principle extended beyond dim-router: **every
+default the substrate provides is a FUNCTION, and every user
+override replaces that function with the user's own.** Three
+capability carriers on `SymbolTable`, all installed at freeze:
+
+| Capability | Signature | Default | Setter |
+|---|---|---|---|
+| `dim_router` | `:fn(:wat::holon::HolonAST) -> :Option<i64>` | `SizingRouter::with_default_tiers` | `set-dim-router!` |
+| `presence_sigma_fn` | `:fn(:i64) -> :i64` | `fn(d) → floor(sqrt(d)/2) − 1` | `set-presence-sigma!` |
+| `coincident_sigma_fn` | `:fn(:i64) -> :i64` | `fn(_d) → 1` | `set-coincident-sigma!` |
+
+Measurement at runtime:
+
+```
+floor_at_d = sigma_fn(d) / sqrt(d)
+presence? :  cosine > presence_sigma_fn(d) / sqrt(d)
+coincident?: (1 - cosine) < coincident_sigma_fn(d) / sqrt(d)
+```
+
+`Encoders` memoize the computed floors per d via `OnceLock<f64>`
+— first `presence?` / `coincident?` call at d invokes the
+(possibly user-supplied) sigma function and caches the result;
+subsequent calls at the same d are field loads. With O(tiers)
+distinct d's per enterprise, at most N sigma-function
+invocations ever — even under a user-lambda sigma function with
+non-trivial body.
+
+**Scalar sigma setters retire.** Arc 024's `set-presence-sigma! 15`
+took an integer. Under arc 037 that's wrong — integer sigma
+means different confidence levels at different d. The function
+form (`set-presence-sigma! (fn (d) ...)`) is the honest shape;
+users who want a constant write `(fn (_d) 15)`.
 
 ## Cross-dim operations
 
@@ -320,17 +359,50 @@ Memoization likely needed for performance.
 **Risk**: near-zero. Each migration is a textual replacement
 that preserves behavior.
 
-### Slice 7 — Remove `set-dims!` primitive
+### Slice 7 — Remove `set-dims!` primitive + cascade cleanup
 
-- Once grep confirms zero callers, remove the primitive
-  itself.
-- Remove `dims` as a primary Config field (it becomes
-  `tier_list[0]` for backward lookup).
-- `:wat::config::dims` accessor: either retire or keep as
-  "primary dim" shorthand.
+Once grep confirms zero callers, rip the primitives and Config
+fields that no longer make sense under multi-d.
 
-**Scope**: small removals.
-**Risk**: low. Verified pre-removal.
+**Rip:**
+- `set-dims!` parser arm + `Config.dims` field + `:wat::config::dims`
+  accessor. The primary move — d is per-construction, not global.
+- `Config.noise_floor`, `Config.presence_floor`, `Config.coincident_floor`
+  stored f64 fields. All were derived from dims at commit-time;
+  without dims they can't compute. Floors are per-d formulae now,
+  memoized on `Encoders`.
+- `:wat::config::noise-floor` accessor. There is no single
+  noise-floor — it's `1/sqrt(d)` at whatever d the encoder uses.
+- `set-noise-floor!` setter. No field to set.
+- `Config.presence_sigma: i64` + `Config.coincident_sigma: i64`
+  SCALAR fields. A scalar sigma means different confidence levels
+  at different d; the honest shape is a function of d. Arc 037
+  replaces these with function-accepting setters (see below).
+
+**Add (scope expansion from the simple "rip dims" original):**
+- `Config.presence_sigma_ast: Option<WatAST>` — user-supplied
+  sigma function AST. Freeze evaluates against the frozen world,
+  wraps in `WatLambdaSigmaFn`, installs on `SymbolTable` as the
+  `presence_sigma_fn` capability.
+- `Config.coincident_sigma_ast: Option<WatAST>` — same shape.
+- `set-presence-sigma!` + `set-coincident-sigma!` setters: both
+  AST-accepting. Signature `:fn(:i64) -> :i64`. Check arity +
+  param type + return type at freeze (like `set-dim-router!`).
+- Defaults shipped as built-in Rust `SigmaFn` impls:
+  - `DefaultPresenceSigma`: `floor(sqrt(d)/2) - 1`, floored at 1.
+  - `DefaultCoincidentSigma`: constant 1.
+- `Encoders` gains `OnceLock<f64>` slots for `presence_floor`
+  and `coincident_floor`. Computed on first access at d using
+  the ambient sigma function; cached thereafter.
+
+**Keep:**
+- `capacity_mode`, `global_seed`, `dim_router_ast`.
+- `set-capacity-mode!`, `set-global-seed!`, `set-dim-router!`.
+
+**Scope**: larger than "small removals" — touches runtime (sigma
+capabilities), freeze (evaluate sigma ASTs), config (parser arms),
+Encoders (lazy floors). Medium risk; the principle is consistent
+with slice 4 so the shape is proven.
 
 ### Slice 8 — INSCRIPTION + doc sweep
 

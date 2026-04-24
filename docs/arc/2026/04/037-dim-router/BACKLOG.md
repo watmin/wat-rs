@@ -9,6 +9,14 @@ See DESIGN.md for the full migration plan.
 not a separate config slot. `CapacityMode` enum reduces to two
 variants (`:error`, `:abort`). `:silent` and `:warn` retire.
 
+**2026-04-24 scope expansion:** Slice 6 extends from "rip dims"
+to "every substrate default is a function, user replaces with
+their own function." Scalar sigma setters retire in favor of
+function-valued setters mirroring `set-dim-router!`. Derived
+Config fields (`noise_floor`, `presence_floor`,
+`coincident_floor`) and their accessors rip as cascade.
+`Encoders` gains lazy per-d floor memoization.
+
 ---
 
 ## Phase 1 — Add new, keep old (backward compat)
@@ -187,22 +195,59 @@ no all-at-once rewrite.
 
 Slices 6 – 7.
 
-### Slice 6 — Remove `set-dims!` primitive
+### Slice 6 — Rip `set-dims!` + cascade + function-valued sigmas
 
 **Status: ready after Phase 2 complete.**
 
-- `grep set-dims!` returns zero hits → safe to remove.
-- Remove parser arm in `config.rs`.
-- Remove `Config.dims` field entirely — no longer read,
-  no longer stored, no longer useful.
-- `:wat::config::dims` accessor: retire. There is no single
-  "dims" at runtime; each construction picks its own via the
-  router. No shorthand that isn't a lie.
-- `set-capacity-mode!` STAYS. Not removed. Legitimate user
-  override.
+**Scope expansion (2026-04-24):** The user correction made clear
+that EVERY substrate default we ship is a function, and EVERY
+user override replaces our function with theirs. Slice 6 extends
+to retire the scalar sigma setters (arc 024 shipped them as
+integers; under arc 037 that's wrong because integer-sigma means
+different confidence at different d) and replace with function-
+accepting setters mirroring `set-dim-router!`.
 
-**Scope**: small removals. `Config.dims` and the
-`:wat::config::dims` accessor both retire.
+**Rip:**
+- `set-dims!` parser arm.
+- `Config.dims` field.
+- `:wat::config::dims` accessor — there is no single "dims"
+  at runtime; each construction picks its own via the router.
+- `Config.noise_floor`, `Config.presence_floor`,
+  `Config.coincident_floor` stored fields. All derived from dims;
+  without dims they can't compute. Floors are per-d formulae now.
+- `:wat::config::noise-floor` accessor. Per-d now, not a global.
+- `set-noise-floor!` setter. No field to set.
+- `Config.presence_sigma: i64`, `Config.coincident_sigma: i64`
+  scalar fields. Scalar sigma is the wrong shape under multi-d.
+
+**Add:**
+- `Config.presence_sigma_ast: Option<WatAST>` + setter
+  `(:wat::config::set-presence-sigma! <expr>)` — expr must
+  evaluate to `:fn(:i64) -> :i64`. Signature-checked at freeze.
+- `Config.coincident_sigma_ast: Option<WatAST>` + setter — same
+  shape.
+- Built-in default `SigmaFn` impls:
+  - `DefaultPresenceSigma`: `floor(sqrt(d)/2) - 1` (arc 024's formula).
+  - `DefaultCoincidentSigma`: constant 1.
+- `SymbolTable` gains `presence_sigma_fn` +
+  `coincident_sigma_fn` capability slots (mirrors `dim_router`).
+- Freeze installs user-supplied `WatLambdaSigmaFn` if configured,
+  else the default.
+- `Encoders` gains `presence_floor: OnceLock<f64>` and
+  `coincident_floor: OnceLock<f64>` — lazy per-d memoization via
+  the ambient sigma function. O(tiers) sigma-fn invocations ever.
+
+**Keep:**
+- `capacity_mode`, `global_seed`, `dim_router_ast`.
+- `set-capacity-mode!`, `set-global-seed!`, `set-dim-router!`.
+
+**Scope**: medium. Touches runtime (two new capability slots +
+invocation via SigmaFn trait), freeze (eval sigma ASTs), config
+(parser arms + field rip/add), Encoders (lazy floors), check.rs
+(retired accessors + new sigma setter signatures).
+**Risk**: medium. Same shape as slice 4's `set-dim-router!` so
+the pattern is proven. The scalar-sigma-setter retirement flips
+the one wat-tests file that hand-rolled `noise-floor` comparison.
 
 ### Slice 7 — INSCRIPTION + doc sweep
 
@@ -249,6 +294,15 @@ Slices 6 – 7.
   Amortized via shared L2; cold path is Merkle-DAG-bounded.
   Down-normalize is banned (would bust capacity-mode for the
   bigger operand).
+- **Decision made 2026-04-24**: Every substrate default is a
+  FUNCTION; every user override replaces our function with theirs.
+  Three capability carriers on `SymbolTable`: `dim_router`,
+  `presence_sigma_fn`, `coincident_sigma_fn`. Defaults shipped
+  as built-in Rust impls; user overrides via AST-accepting
+  setters (`set-dim-router!`, `set-presence-sigma!`,
+  `set-coincident-sigma!`). Scalar sigma setters retire —
+  integer-sigma gives different confidence at different d;
+  function-of-d is the honest shape.
 - **Slice 1 correction (2026-04-23 late)**: the prior slice 1
   scope preserved `dims=10000` as a default literal, which IS
   the magic value arc 037 is killing. The corrected slice 1
