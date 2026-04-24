@@ -1032,23 +1032,23 @@ impl WatConnection {
         WatConnection { inner }
     }
 
-    /// `:rust::rusqlite::Connection::query_i64 conn sql` — returns
-    /// `:Option<i64>`. `Some(v)` for a single matched row; `None` for
-    /// no rows. Any other DB error (locked, syntax, type mismatch)
-    /// panics with diagnostic — those are programmer-or-deployment
-    /// errors, not absent-value answers, so they shouldn't fold into
-    /// `None` and silently corrupt downstream logic.
+    /// `:rust::rusqlite::Connection::query_i64 conn sql` — asks the
+    /// DB for an i64; returns `:Option<i64>`. `Some(v)` if the query
+    /// yielded a row; `None` for any reason it didn't (no row, DB
+    /// locked, syntax error, type mismatch). The caller asked a
+    /// question; the answer is either present or absent. The shim
+    /// doesn't pre-decide that *why* it's absent matters — that's
+    /// the caller's logic, surfaced cleanly through `:None` rather
+    /// than smuggled through a panic.
+    ///
+    /// Discipline: panic for **input validation** (e.g., a non-
+    /// primitive map key in `wat-lru` — the wat-side input was
+    /// malformed); return `Option<T>` for **lookup outcomes** (the
+    /// query was well-formed but didn't find a value).
     pub fn query_i64(&mut self, sql: String) -> Option<i64> {
-        use rusqlite::OptionalExtension;
         self.inner
             .query_row(&sql, params![], |row| row.get(0))
-            .optional()
-            .unwrap_or_else(|e| {
-                panic!(
-                    ":rust::rusqlite::Connection::query_i64: query failed — {}",
-                    e
-                )
-            })
+            .ok()
     }
 }
 
