@@ -751,12 +751,14 @@ caller-demanded per `stdlib-as-blueprint` discipline:
   a candidate for a substrate follow-up — the same way arc 010's
   variadic-quote fell out of writing fork/sandbox tests.
 
-Signature verification is **per-form, not per-invocation.** It lives at
-`:wat::signed-load!` (startup) and `:wat::eval-signed!`
-(runtime). A program may invoke any number of either, each with its own
-key and signature. There is no `wat --signed` / `--sig` / `--pubkey`
-CLI flag; a program's verification surface is its collection of
-`signed-*` forms. See FOUNDATION's cryptographic-provenance section.
+Signature verification is **per-form, not per-invocation.** It lives
+at `:wat::signed-load-file!` / `signed-load-string!` (startup) and
+`:wat::eval-signed-file!` / `eval-signed-string!` (runtime) — the
+arc 028 root-hoisted forms. A program may invoke any number of
+either, each with its own key and signature. There is no
+`wat --signed` / `--sig` / `--pubkey` CLI flag; a program's
+verification surface is its collection of `signed-*` forms. See
+FOUNDATION's cryptographic-provenance section.
 
 ## See also
 
