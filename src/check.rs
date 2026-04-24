@@ -4118,6 +4118,20 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: f64_ty(),
         },
     );
+    // Arc 037 slice 4: HolonAST → immediate surface arity. The
+    // natural introspection primitive for user dim-router bodies
+    // ((:wat::config::set-dim-router! <fn>) where the fn signature
+    // is `:fn(:wat::holon::HolonAST) -> :Option<i64>`). Returns the
+    // top-level cardinality: 1 for Atom/Permute/Thermometer,
+    // 2 for Bind/Blend, children.len() for Bundle.
+    env.register(
+        ":wat::holon::statement-length".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: i64_ty(),
+        },
+    );
 
     // IO primitives — see `:wat::io::IOReader/*` + `:wat::io::IOWriter/*`
     // registered above. Arc 008 retired the earlier `:wat::io::write`

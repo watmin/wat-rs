@@ -1909,6 +1909,7 @@ fn dispatch_keyword_head(
             eval_form_signed_string_coincident_q(args, env, sym)
         }
         ":wat::holon::dot" => eval_algebra_dot(args, env, sym),
+        ":wat::holon::statement-length" => eval_holon_statement_length(args, env, sym),
 
         // Constrained runtime eval — four forms, matching the load
         // pipeline's discipline on source interface and verification.
@@ -4879,23 +4880,26 @@ fn eval_algebra_bundle(
         .collect::<Result<Vec<HolonAST>, _>>()?;
 
     // Arc 037 slice 1 layer 3: the dim the Bundle encodes at is
-    // chosen by the ambient router based on THIS construction's
-    // immediate item count — not by `ctx.config.dims`. The router's
-    // verdict drives the capacity budget: `budget = floor(sqrt(d))`
-    // at the picked d. `None` means no tier fits; treated identically
-    // to cost > budget overflow.
+    // chosen by the ambient router given THIS Bundle's AST — not by
+    // `ctx.config.dims`. The router's verdict drives the capacity
+    // budget: `budget = floor(sqrt(d))` at the picked d. `None`
+    // means no tier fits; treated identically to cost > budget
+    // overflow.
     let cost = children.len();
+    // Build the Bundle AST up front so the router (and any
+    // downstream failure paths) can see the full shape. Under
+    // Clone-on-use this is cheap; the AST is Arc-shared through
+    // HolonAST's internal structure.
+    let bundle_ast = HolonAST::bundle(children);
     let router = require_dim_router(":wat::holon::Bundle", sym)?;
-    let picked = router.pick(cost, sym);
+    let picked = router.pick(&bundle_ast, sym);
 
     // Capacity-mode still lives on the EncodingCtx (it's orthogonal
     // to dim selection — the permanent user override arc 037 keeps).
     let ctx = require_encoding_ctx(":wat::holon::Bundle", sym)?;
     let mode = ctx.config.capacity_mode;
 
-    // Build the Bundle AST up front — under every non-Abort mode we
-    // return it wrapped; only `:abort` + overflow skips this step.
-    let bundle_ast = HolonAST::bundle(children);
+    // (bundle_ast built above before router.pick was called.)
 
     // Overflow surfaces when the router returned None (no tier fits)
     // OR when cost exceeds the picked tier's budget. At the default
@@ -5435,6 +5439,28 @@ fn eval_form_signed_coincident_shared(
 /// presence returns cosine (dot normalized by magnitudes); dot is the
 /// raw bilinear value, used by Gram-Schmidt macros (Reject, Project)
 /// that need the unnormalized coefficient.
+/// `(:wat::holon::statement-length ast) -> :i64` — the AST's
+/// immediate surface arity. Arc 037 slice 4: the natural
+/// introspection primitive for user dim-router bodies.
+/// Atom / Permute / Thermometer → 1. Bind / Blend → 2.
+/// Bundle → `children.len()`.
+fn eval_holon_statement_length(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::statement-length".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let ast = require_holon(":wat::holon::statement-length", eval(&args[0], env, sym)?)?;
+    let n = crate::dim_router::immediate_arity(&ast);
+    Ok(Value::i64(n as i64))
+}
+
 fn eval_algebra_dot(
     args: &[WatAST],
     env: &Environment,
@@ -5776,25 +5802,11 @@ fn require_dim_router<'a>(
         .ok_or_else(|| RuntimeError::NoDimRouter { op: op.into() })
 }
 
-/// Top-level cardinality of a [`HolonAST`] — the "surface-deep"
-/// count of immediate constituents the router cares about.
-/// Bundles vary in arity; every other variant is fixed-shape.
-fn immediate_arity(ast: &HolonAST) -> usize {
-    match ast {
-        HolonAST::Atom(_) => 1,
-        HolonAST::Bind(_, _) => 2,
-        HolonAST::Bundle(children) => children.len(),
-        HolonAST::Permute(_, _) => 1,
-        HolonAST::Thermometer { .. } => 1,
-        HolonAST::Blend(_, _, _, _) => 2,
-    }
-}
-
 /// Pick the target dim for a cross-dim pair comparison (cosine /
 /// presence? / coincident? / dot). Normalize UP: consult the ambient
-/// router for each operand's immediate arity, take the max. Both
-/// operands will re-encode at this d — the greater d has headroom
-/// (arc 037 slice 3 design).
+/// router for each operand's AST, take the max. Both operands
+/// re-encode at this d — the greater d has headroom (arc 037
+/// slice 3 design).
 ///
 /// Returns `DimUnresolvable` if the router can't size either operand.
 fn pick_d_for_pair(
@@ -5804,19 +5816,17 @@ fn pick_d_for_pair(
     sym: &SymbolTable,
 ) -> Result<usize, RuntimeError> {
     let router = require_dim_router(op, sym)?;
-    let ar_a = immediate_arity(a);
-    let ar_b = immediate_arity(b);
     let d_a = router
-        .pick(ar_a, sym)
+        .pick(a, sym)
         .ok_or_else(|| RuntimeError::DimUnresolvable {
             op: op.into(),
-            immediate_arity: ar_a,
+            immediate_arity: crate::dim_router::immediate_arity(a),
         })?;
     let d_b = router
-        .pick(ar_b, sym)
+        .pick(b, sym)
         .ok_or_else(|| RuntimeError::DimUnresolvable {
             op: op.into(),
-            immediate_arity: ar_b,
+            immediate_arity: crate::dim_router::immediate_arity(b),
         })?;
     Ok(d_a.max(d_b))
 }

@@ -1,9 +1,11 @@
 //! End-to-end tests for `:wat::config::set-dim-router!` — arc 037
 //! slice 4.
 //!
-//! The setter accepts any AST that evaluates to a function value
-//! (signature `:fn(:i64) -> :Option<i64>`). Freeze evaluates against
-//! the finished frozen world and installs a `WatLambdaRouter`.
+//! The setter accepts any AST that evaluates to a function value.
+//! Signature: `:fn(:wat::holon::HolonAST) -> :Option<i64>` — the
+//! router sees the whole AST and decides what dim best suits its
+//! surface. Freeze evaluates the AST against the finished frozen
+//! world and installs a `WatLambdaRouter`.
 //!
 //! Entry-file discipline (set-*! before any non-setter) means the
 //! setter's AST references symbols that don't exist yet at
@@ -37,25 +39,25 @@ fn atoms_list(n: usize) -> String {
     s
 }
 
-// ─── User router via named-define keyword path ────────────────────────
+// ─── User router that introspects AST via statement-length ────────────
 
 #[test]
-fn user_router_via_named_define_path() {
-    // User-defined single-tier router that always picks d=10000.
-    // set-dim-router! stores the AST `:my::router`; freeze evaluates
-    // after defines are registered (names-are-values, arc 009 lifts
-    // the keyword path to the function value).
+fn user_router_introspects_via_statement_length() {
+    // Router is the honest shape: takes AST, inspects surface arity,
+    // decides dim. Always picks d=10000 regardless — but threads the
+    // introspection primitive to prove it works.
     //
     // 200 atoms → sqrt(10000) = 100 → overflow at user's tier.
-    // The default SizingRouter would have routed 200 to d=100000
-    // (sqrt=316) and succeeded. Under user router, overflow fires.
+    // Default SizingRouter would have routed 200 → d=100000 and
+    // succeeded. The user's router produces different behavior.
     let src = format!(
         r#"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dim-router! :my::router)
-
-        (:wat::core::define (:my::router (n :i64) -> :Option<i64>)
-          (Some 10000))
+        (:wat::config::set-dim-router!
+          (:wat::core::lambda ((ast :wat::holon::HolonAST) -> :Option<i64>)
+            (:wat::core::let*
+              (((_n :i64) (:wat::holon::statement-length ast)))
+              (Some 10000))))
 
         (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
@@ -80,22 +82,18 @@ fn user_router_via_named_define_path() {
     }
 }
 
-// ─── User router via inline lambda ────────────────────────────────────
+// ─── User router that branches on AST surface arity ───────────────────
 
 #[test]
-fn user_router_via_inline_lambda() {
-    // set-dim-router! accepts any AST reducing to a function. Inline
-    // lambda works — no separate define needed.
-    //
-    // Router returns None for N > 4, else Some(256). Bundling 5
-    // atoms → None → overflow.
+fn user_router_branches_on_surface_arity() {
+    // Router returns :None for Bundles with arity > 4, else Some(256).
+    // Bundling 5 atoms triggers the overflow path via router's :None.
     let src = format!(
         r#"
         (:wat::config::set-capacity-mode! :error)
-
         (:wat::config::set-dim-router!
-          (:wat::core::lambda ((n :i64) -> :Option<i64>)
-            (:wat::core::if (:wat::core::> n 4)
+          (:wat::core::lambda ((ast :wat::holon::HolonAST) -> :Option<i64>)
+            (:wat::core::if (:wat::core::> (:wat::holon::statement-length ast) 4)
               -> :Option<i64>
               :None
               (Some 256))))
@@ -127,14 +125,13 @@ fn user_router_via_inline_lambda() {
 
 #[test]
 fn user_router_succeeds_when_within_picked_tier() {
-    // User router always returns d=10000. 50 atoms fits (sqrt=100).
+    // Constant user router at d=10000. 50 atoms fits (sqrt=100).
     let src = format!(
         r#"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dim-router! :my::router)
-
-        (:wat::core::define (:my::router (n :i64) -> :Option<i64>)
-          (Some 10000))
+        (:wat::config::set-dim-router!
+          (:wat::core::lambda ((_ast :wat::holon::HolonAST) -> :Option<i64>)
+            (Some 10000)))
 
         (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
@@ -154,8 +151,7 @@ fn user_router_succeeds_when_within_picked_tier() {
 
 #[test]
 fn set_dim_router_with_non_function_fails_startup() {
-    // AST evaluates to i64, not a function. Freeze surfaces
-    // StartupError::DimRouter cleanly.
+    // AST evaluates to i64, not a function. Freeze rejects.
     let src = r#"
         (:wat::config::set-capacity-mode! :error)
         (:wat::config::set-dim-router! 42)
@@ -176,17 +172,14 @@ fn set_dim_router_with_non_function_fails_startup() {
 
 #[test]
 fn set_dim_router_with_wrong_arity_fails_startup() {
-    // User function takes 2 args; router must be 1-arg. Freeze
-    // rejects at arity check.
+    // 2-param lambda: freeze rejects at arity check.
     let src = r#"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dim-router! :my::bad-router)
-
-        (:wat::core::define (:my::bad-router
-                             (a :i64)
-                             (b :i64)
-                             -> :Option<i64>)
-          (Some 256))
+        (:wat::config::set-dim-router!
+          (:wat::core::lambda ((a :wat::holon::HolonAST)
+                               (b :wat::holon::HolonAST)
+                               -> :Option<i64>)
+            (Some 256)))
 
         (:wat::core::define (:user::main -> :()) ())
     "#;
@@ -203,14 +196,62 @@ fn set_dim_router_with_wrong_arity_fails_startup() {
 }
 
 #[test]
+fn set_dim_router_with_wrong_param_type_fails_startup() {
+    // Param declared :i64 instead of :wat::holon::HolonAST. Freeze
+    // rejects at signature type check.
+    let src = r#"
+        (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dim-router!
+          (:wat::core::lambda ((n :i64) -> :Option<i64>)
+            (Some 256)))
+
+        (:wat::core::define (:user::main -> :()) ())
+    "#;
+    match try_startup(src) {
+        Err(StartupError::DimRouter(msg)) => {
+            assert!(
+                msg.contains(":wat::holon::HolonAST"),
+                "message should mention HolonAST param; got {}",
+                msg
+            );
+        }
+        other => panic!("expected StartupError::DimRouter, got {:?}", other),
+    }
+}
+
+#[test]
+fn set_dim_router_with_wrong_return_type_fails_startup() {
+    // Return declared :i64 instead of :Option<i64>. Freeze rejects.
+    let src = r#"
+        (:wat::config::set-capacity-mode! :error)
+        (:wat::config::set-dim-router!
+          (:wat::core::lambda ((ast :wat::holon::HolonAST) -> :i64)
+            256))
+
+        (:wat::core::define (:user::main -> :()) ())
+    "#;
+    match try_startup(src) {
+        Err(StartupError::DimRouter(msg)) => {
+            assert!(
+                msg.contains(":Option<i64>"),
+                "message should mention Option<i64> return; got {}",
+                msg
+            );
+        }
+        other => panic!("expected StartupError::DimRouter, got {:?}", other),
+    }
+}
+
+#[test]
 fn duplicate_set_dim_router_rejected() {
     // Config setter discipline: one set-dim-router! per entry file.
     let src = r#"
-        (:wat::config::set-dim-router! :a)
-        (:wat::config::set-dim-router! :b)
-
-        (:wat::core::define (:a (n :i64) -> :Option<i64>) (Some 256))
-        (:wat::core::define (:b (n :i64) -> :Option<i64>) (Some 4096))
+        (:wat::config::set-dim-router!
+          (:wat::core::lambda ((a :wat::holon::HolonAST) -> :Option<i64>)
+            (Some 256)))
+        (:wat::config::set-dim-router!
+          (:wat::core::lambda ((a :wat::holon::HolonAST) -> :Option<i64>)
+            (Some 4096)))
 
         (:wat::core::define (:user::main -> :()) ())
     "#;

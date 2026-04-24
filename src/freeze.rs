@@ -144,11 +144,38 @@ impl FrozenWorld {
                     )));
                 }
             };
+            // Arity check: exactly one parameter.
             if func.params.len() != 1 {
                 return Err(StartupError::DimRouter(format!(
                     "set-dim-router! function must take exactly 1 argument (got {})",
                     func.params.len()
                 )));
+            }
+            // Signature type check: :fn(:wat::holon::HolonAST) -> :Option<i64>.
+            // The param's declared type must be HolonAST (the router
+            // is "what dim is best for this AST's surface?"); the
+            // return must be :Option<i64>. Lambdas that lack declared
+            // types (param_types empty) skip this check — they get a
+            // runtime error instead if their produced values don't
+            // match the Option<i64> shape.
+            if !func.param_types.is_empty() {
+                let expected_param = crate::types::TypeExpr::Path(":wat::holon::HolonAST".into());
+                if func.param_types[0] != expected_param {
+                    return Err(StartupError::DimRouter(format!(
+                        "set-dim-router! function param must be :wat::holon::HolonAST; got {:?}",
+                        func.param_types[0]
+                    )));
+                }
+                let expected_ret = crate::types::TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![crate::types::TypeExpr::Path(":i64".into())],
+                };
+                if func.ret_type != expected_ret {
+                    return Err(StartupError::DimRouter(format!(
+                        "set-dim-router! function return type must be :Option<i64>; got {:?}",
+                        func.ret_type
+                    )));
+                }
             }
             let path = func
                 .name
