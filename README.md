@@ -145,21 +145,24 @@ same discipline:
 - *wat-lru namespace promotion (036).* `:user::wat::std::lru::*`
   → `:wat::lru::*`; the LRU surface is wat-stdlib-grade.
 
-**Test surface: zero regressions across every shipped arc.** The
-Rust side runs library units plus integration suites for every
-substrate arc — `wat_dispatch_*` (macro-feature), `wat_core_try`,
-`wat_structs`, `wat_bundle_capacity`, `wat_stream`, `wat_core_forms`,
-`wat_names_are_values`, `wat_harness`, `wat_run_sandboxed{,_ast}`,
-`wat_hermetic_round_trip`, `wat_test_cli`, `wat_cli`, `wat_cache`,
-plus the per-arc tests from 023-037 (coincident, sigma-knobs,
-container-surface, eval-coincident, loader-option, root-hoisted
-load/eval, nested-quasiquote, macroexpand, sandbox-inherit-config,
-typealiases, ReciprocalLog, length-polymorphism, wat-lru-namespace,
-dim-router). Zero clippy warnings. On the wat side: the
-`wat-tests/` tree (run via `cargo test`) covers every stdlib-file
-test written in wat (Subtract, Circular, Reject/Project, Sequential,
-Trigram, test-harness self-tests, Console + Cache via hermetic
-sandbox, stream with-state). Live counts in each arc's INSCRIPTION.
+**Test surface: 725 Rust + ~58 wat, zero regressions, zero
+clippy warnings.** Rust side: library units in `src/lib.rs` plus
+25 integration suites under `tests/` — `mvp_end_to_end`,
+`wat_dispatch_{193a,193b,e1_vec,e2_tuple,e3_result,e4_shared,e5_owned_move}`,
+`wat_core_{try,forms,cond}`, `wat_structs`, `wat_bundle_capacity`,
+`wat_stream`, `wat_names_are_values`, `wat_{harness,harness_deps}`,
+`wat_run_sandboxed{,_ast}`, `wat_hermetic_round_trip`,
+`wat_{test_cli,cli}`, `wat_io`, `wat_fork`, `wat_pipe`,
+`wat_dim_router`, `wat_make_deftest`, `wat_eval_result`,
+`wat_typealias`, `wat_typed_if_match`, `wat_u8`, `wat_tco`,
+`wat_string_ops`, `wat_spawn_lambda`, `wat_variadic_defmacro`.
+The `wat-lru` workspace member ships its own suite at
+`crates/wat-lru/tests/test.rs`. Wat side: 11 `wat-tests/` files
+(Subtract, Circular, Reject/Project, Sequential, Trigram, eval-
+coincident, ReciprocalLog, coincident, the test-harness self-test,
+Console + Cache via hermetic sandbox, stream with-state) running
+through the wat-suite via `cargo test`. Live counts via `cargo
+test --release` from `wat-rs/`.
 
 ## Module tour
 
