@@ -29,7 +29,7 @@ effects (via the kernel primitives the binary wires up).
 **The INTERPRET path.** Parse → load-resolve → macro-expand → register
 types → register defines → resolve → type-check → freeze → invoke
 `:user::main`. The runtime dispatches algebra-core UpperCalls
-(`:wat::algebra::Atom`, `:wat::algebra::Bind`, …) to `holon::HolonAST`
+(`:wat::holon::Atom`, `:wat::holon::Bind`, …) to `holon::HolonAST`
 and encodes via `holon::encode`.
 
 A source-to-source COMPILE path was sketched in the 058 batch's
