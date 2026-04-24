@@ -602,6 +602,55 @@ recurses until the head of the form is no longer a macro. Useful
 when a macro's expansion isn't producing what you expected — invoke
 the expander, read the resulting AST.
 
+### Containers — polymorphic `get` / `assoc` / `conj` / `contains?` / `length`
+
+Five core verbs operate uniformly across the three built-in
+containers (`HashMap<K,V>`, `HashSet<T>`, `Vec<T>`). Each verb's
+shape is forced by the container's semantics — illegal cells exist
+where a verb has no honest meaning for that container (arc 025
+unified the surface; arc 035 added `length`):
+
+| Verb | `HashMap<K,V>` | `HashSet<T>` | `Vec<T>` |
+|---|---|---|---|
+| `get`        | `Option<V>` by key      | `Option<T>` by element      | `Option<T>` by index |
+| `assoc`      | new map (key→value)     | **illegal** — use `conj`    | new vec (index→value) |
+| `conj`       | **illegal** — use `assoc` | new set (insert element)  | new vec (push tail) |
+| `contains?`  | `bool` by key           | `bool` by element           | `bool` by index |
+| `length`     | `i64` (entry count)     | `i64` (member count)        | `i64` (item count) |
+
+```scheme
+(:wat::core::let*
+  (((m :HashMap<String,i64>) (:wat::core::HashMap :String :i64))
+   ((m1 :HashMap<String,i64>) (:wat::core::assoc m "rsi" 42))
+   ((v :Option<i64>) (:wat::core::get m1 "rsi")))         ;; → (Some 42)
+  ...)
+
+(:wat::core::let*
+  (((s :HashSet<String>) (:wat::core::HashSet :String))
+   ((s1 :HashSet<String>) (:wat::core::conj s "alpha"))
+   ((found? :bool) (:wat::core::contains? s1 "alpha"))    ;; → true
+   ((n :i64) (:wat::core::length s1)))                    ;; → 1
+  ...)
+
+(:wat::core::let*
+  (((v :Vec<i64>) (:wat::core::vec :i64 10 20 30))
+   ((v1 :Vec<i64>) (:wat::core::conj v 40))               ;; → [10,20,30,40]
+   ((v2 :Vec<i64>) (:wat::core::assoc v1 0 99))           ;; → [99,20,30,40]
+   ((x :Option<i64>) (:wat::core::get v2 1)))             ;; → (Some 20)
+  ...)
+```
+
+**The illegal cells are forced by semantics, not implementation
+laziness.** A HashSet has no key/value pairing, so `assoc` has no
+honest meaning — use `conj` to add an element. A HashMap has no
+unpaired elements, so `conj` has no honest meaning — use `assoc`
+with a (key, value) pair. The type checker rejects illegal cells at
+startup, pointing at the offending call site.
+
+All five verbs are values-up: `assoc` and `conj` return new
+collections; the inputs are unchanged. No mutation. No surprise
+sharing.
+
 ---
 
 ## 5. Structs
