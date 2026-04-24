@@ -85,29 +85,35 @@ fn bundle_under_budget_returns_ok_under_abort_mode() {
 
 // ─── Over budget under :error — populates CapacityExceeded ───────────
 
+// Arc 037 slice 1 layer 3: the ambient router picks dim per
+// construction from DEFAULT_TIERS = [256, 4096, 10000, 100000].
+// Largest tier d=100000 has budget floor(sqrt(100000)) = 316.
+// Any Bundle with 317+ items overflows every tier: router returns
+// None → CapacityExceeded with budget=0 (the None signal).
+// `set-dims!` is a parseable no-op on the encoder path.
+
 #[test]
 fn bundle_over_budget_under_error_mode_returns_err_struct() {
-    // d=1024 → budget=32. Bundle 33 atoms — one over. Err fires.
+    // 317 atoms — one past sqrt(100000). Every tier overflows;
+    // router returns None.
     let src = format!(
         r#"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
         "#,
-        atoms_list(33)
+        atoms_list(317)
     );
     match run(&src) {
         Value::Result(r) => match &*r {
             Err(Value::Struct(sv)) => {
                 assert_eq!(sv.type_name, ":wat::holon::CapacityExceeded");
                 assert_eq!(sv.fields.len(), 2, "CapacityExceeded has cost + budget");
-                // cost first field, budget second — per struct declaration order.
                 match (&sv.fields[0], &sv.fields[1]) {
                     (Value::i64(cost), Value::i64(budget)) => {
-                        assert_eq!(*cost, 33, "cost is the constituent count");
-                        assert_eq!(*budget, 32, "budget is floor(sqrt(1024))");
+                        assert_eq!(*cost, 317, "cost is the constituent count");
+                        assert_eq!(*budget, 0, "budget=0 signals router returned None (no tier fits)");
                     }
                     other => panic!("expected (i64, i64) fields; got {:?}", other),
                 }
@@ -122,11 +128,11 @@ fn bundle_over_budget_under_error_mode_returns_err_struct() {
 fn bundle_err_cost_and_budget_readable_via_accessors() {
     // Round-trip through user wat: the program reads cost and budget
     // from the CapacityExceeded instance via the auto-generated
-    // accessors and computes their difference.
+    // accessors. With 400 atoms against DEFAULT_TIERS, router
+    // returns None → budget=0 → cost-budget = 400.
     let src = format!(
         r#"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::match (:wat::holon::Bundle {}) -> :i64
@@ -136,11 +142,11 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
                 (:wat::holon::CapacityExceeded/cost e)
                 (:wat::holon::CapacityExceeded/budget e)))))
         "#,
-        atoms_list(40)
+        atoms_list(400)
     );
     match run(&src) {
-        Value::i64(n) => assert_eq!(n, 40 - 32, "40-atom bundle over budget 32 → diff 8"),
-        other => panic!("expected i64 8; got {:?}", other),
+        Value::i64(n) => assert_eq!(n, 400, "400-atom bundle overflows all tiers → diff 400"),
+        other => panic!("expected i64 400; got {:?}", other),
     }
 }
 
@@ -148,18 +154,15 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
 
 #[test]
 fn bundle_over_budget_under_abort_mode_panics() {
-    // :abort fails closed — the process terminates before any bad
-    // vector escapes. invoke_user_main propagates the panic; we catch
-    // via std::panic::catch_unwind to assert the panic path fires.
+    // :abort fails closed. 500 atoms overflow all tiers → panic.
     let src = format!(
         r#"
         (:wat::config::set-capacity-mode! :abort)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::holon::BundleResult)
           (:wat::holon::Bundle {}))
         "#,
-        atoms_list(50)
+        atoms_list(500)
     );
     let caught = std::panic::catch_unwind(|| run(&src));
     assert!(caught.is_err(), ":abort + over budget must panic");
@@ -172,10 +175,12 @@ fn try_propagates_bundle_err_across_function_boundary() {
     // Helper returns Result. Its body calls Bundle and `try`s the
     // result. Main calls the helper and matches. This is the cleanest
     // handler shape once `try` is available for Bundle's Result.
+    // 400 atoms overflow all DEFAULT_TIERS; helper's Bundle returns
+    // Err(CapacityExceeded{cost=400, budget=0}); try propagates it
+    // across the function boundary; main's Err arm reads cost=400.
     let src = format!(
         r#"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:app::build-composite
                             (items :wat::holon::Holons)
@@ -187,11 +192,11 @@ fn try_propagates_bundle_err_across_function_boundary() {
             ((Ok _) 0)
             ((Err e) (:wat::holon::CapacityExceeded/cost e))))
         "#,
-        atoms_list(50)
+        atoms_list(400)
     );
     match run(&src) {
-        Value::i64(50) => {}
-        other => panic!("expected i64 50 (the cost); got {:?}", other),
+        Value::i64(400) => {}
+        other => panic!("expected i64 400 (the cost); got {:?}", other),
     }
 }
 

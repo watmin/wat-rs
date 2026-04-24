@@ -544,6 +544,11 @@ pub struct SymbolTable {
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
     pub source_loader: Option<Arc<dyn crate::load::SourceLoader>>,
     pub macro_registry: Option<Arc<crate::macros::MacroRegistry>>,
+    /// Ambient dim router — consulted by Atom/Bundle construction
+    /// sites to pick per-construction vector dimension. Attached at
+    /// freeze with the built-in [`crate::dim_router::SizingRouter`];
+    /// user override via `set-dim-router!` in a later arc 037 slice.
+    pub dim_router: Option<Arc<dyn crate::dim_router::DimRouter>>,
 }
 
 impl std::fmt::Debug for SymbolTable {
@@ -553,6 +558,7 @@ impl std::fmt::Debug for SymbolTable {
             .field("encoding_ctx", &self.encoding_ctx.is_some())
             .field("source_loader", &self.source_loader.is_some())
             .field("macro_registry", &self.macro_registry.is_some())
+            .field("dim_router", &self.dim_router.is_some())
             .finish()
     }
 }
@@ -610,6 +616,19 @@ impl SymbolTable {
     /// without going through freeze don't have macros attached.
     pub fn macro_registry(&self) -> Option<&Arc<crate::macros::MacroRegistry>> {
         self.macro_registry.as_ref()
+    }
+
+    /// Attach the ambient dim router. Called once at freeze time by
+    /// [`crate::freeze::FrozenWorld::freeze`]. Default is
+    /// [`crate::dim_router::SizingRouter::with_default_tiers`].
+    pub fn set_dim_router(&mut self, router: Arc<dyn crate::dim_router::DimRouter>) {
+        self.dim_router = Some(router);
+    }
+
+    /// Borrow the dim router, if one is attached. Atom/Bundle
+    /// construction sites call this to pick dim per construction.
+    pub fn dim_router(&self) -> Option<&Arc<dyn crate::dim_router::DimRouter>> {
+        self.dim_router.as_ref()
     }
 }
 
@@ -672,6 +691,11 @@ pub enum RuntimeError {
     /// test harnesses that don't go through freeze; the frozen startup
     /// pipeline always installs one.
     NoEncodingCtx { op: String },
+    /// [`SymbolTable`] has no attached dim router. Reachable from
+    /// test harnesses that don't go through freeze; the frozen
+    /// startup pipeline always installs
+    /// [`crate::dim_router::SizingRouter`].
+    NoDimRouter { op: String },
     /// A file-reading primitive (`:wat::eval-file!`, file-path
     /// variants of the verified eval/load forms, `:wat::verify::file-path`
     /// payloads) was invoked but the [`SymbolTable`] has no attached
@@ -810,6 +834,11 @@ impl fmt::Display for RuntimeError {
             RuntimeError::NoEncodingCtx { op } => write!(
                 f,
                 "{}: no encoding context attached to SymbolTable; presence / config accessors need a frozen EncodingCtx. Call via the freeze pipeline rather than a bare SymbolTable::new().",
+                op
+            ),
+            RuntimeError::NoDimRouter { op } => write!(
+                f,
+                "{}: no dim router attached to SymbolTable; Atom/Bundle construction needs an ambient router. Call via the freeze pipeline rather than a bare SymbolTable::new().",
                 op
             ),
             RuntimeError::NoSourceLoader { op } => write!(
@@ -4825,41 +4854,62 @@ fn eval_algebra_bundle(
         })
         .collect::<Result<Vec<HolonAST>, _>>()?;
 
-    // Capacity arithmetic needs `dims` and the committed mode; both
-    // live on the frozen `EncodingCtx` attached to the symbol table.
-    // Without a ctx we cannot compute the budget — match the pattern
-    // the other config-consuming primitives use and surface
-    // NoEncodingCtx.
-    let ctx = require_encoding_ctx(":wat::holon::Bundle", sym)?;
-    let dims = ctx.config.dims;
-    let budget = (dims as f64).sqrt().floor() as usize;
+    // Arc 037 slice 1 layer 3: the dim the Bundle encodes at is
+    // chosen by the ambient router based on THIS construction's
+    // immediate item count — not by `ctx.config.dims`. The router's
+    // verdict drives the capacity budget: `budget = floor(sqrt(d))`
+    // at the picked d. `None` means no tier fits; treated identically
+    // to cost > budget overflow.
     let cost = children.len();
+    let router = require_dim_router(":wat::holon::Bundle", sym)?;
+    let picked = router.pick(cost);
+
+    // Capacity-mode still lives on the EncodingCtx (it's orthogonal
+    // to dim selection — the permanent user override arc 037 keeps).
+    let ctx = require_encoding_ctx(":wat::holon::Bundle", sym)?;
     let mode = ctx.config.capacity_mode;
 
     // Build the Bundle AST up front — under every non-Abort mode we
     // return it wrapped; only `:abort` + overflow skips this step.
     let bundle_ast = HolonAST::bundle(children);
 
-    if cost > budget {
+    // Overflow surfaces when the router returned None (no tier fits)
+    // OR when cost exceeds the picked tier's budget. At the default
+    // sizing router the two coincide: sqrt(picked_d) >= cost is the
+    // pick rule. A user router that returned Some(d) with
+    // sqrt(d) < cost is honored but then errors via the budget check.
+    let overflowed = match picked {
+        None => true,
+        Some(d) => cost > (d as f64).sqrt().floor() as usize,
+    };
+
+    if overflowed {
+        let (cost_i, budget_i) = match picked {
+            Some(d) => (cost as i64, (d as f64).sqrt().floor() as i64),
+            // No tier fits — report largest-tier budget via None
+            // signal in CapacityExceeded. Using 0 as budget makes the
+            // "no tier fits" case unambiguous to downstream handlers.
+            None => (cost as i64, 0),
+        };
         match mode {
             crate::config::CapacityMode::Error => {
                 let err = Value::Struct(Arc::new(StructValue {
                     type_name: ":wat::holon::CapacityExceeded".into(),
-                    fields: vec![Value::i64(cost as i64), Value::i64(budget as i64)],
+                    fields: vec![Value::i64(cost_i), Value::i64(budget_i)],
                 }));
                 return Ok(Value::Result(Arc::new(Err(err))));
             }
             crate::config::CapacityMode::Abort => {
                 // Fail-closed. No unwinding; the process is done.
                 panic!(
-                    ":wat::holon::Bundle: capacity exceeded under :abort — cost {} > budget {} at dims {}",
-                    cost, budget, dims
+                    ":wat::holon::Bundle: capacity exceeded under :abort — cost {} > budget {} (router picked d={:?})",
+                    cost_i, budget_i, picked
                 );
             }
         }
     }
 
-    // Ok path — under budget.
+    // Ok path — router picked a tier and cost fits within its budget.
     let ok = Value::holon__HolonAST(Arc::new(bundle_ast));
     Ok(Value::Result(Arc::new(Ok(ok))))
 }
@@ -5666,6 +5716,14 @@ fn require_encoding_ctx<'a>(
     sym.encoding_ctx()
         .map(|arc| arc.as_ref())
         .ok_or_else(|| RuntimeError::NoEncodingCtx { op: op.into() })
+}
+
+fn require_dim_router<'a>(
+    op: &'static str,
+    sym: &'a SymbolTable,
+) -> Result<&'a Arc<dyn crate::dim_router::DimRouter>, RuntimeError> {
+    sym.dim_router()
+        .ok_or_else(|| RuntimeError::NoDimRouter { op: op.into() })
 }
 
 fn check_nullary(op: &'static str, args: &[WatAST]) -> Result<(), RuntimeError> {
@@ -7936,6 +7994,12 @@ mod tests {
         };
         let mut sym = SymbolTable::new();
         sym.set_encoding_ctx(Arc::new(EncodingCtx::from_config(&cfg)));
+        // Arc 037: ambient router. Single-tier at the requested dims
+        // preserves pre-arc-037 test intent ("at d=1024, budget=32").
+        // Tests exercising multi-tier behavior build their own sym.
+        sym.set_dim_router(Arc::new(
+            crate::dim_router::SizingRouter::with_tiers(vec![dims]),
+        ));
         sym
     }
 

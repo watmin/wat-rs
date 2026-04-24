@@ -109,6 +109,14 @@ impl FrozenWorld {
         // Arc 030: runtime macroexpand / macroexpand-1 primitives need
         // access to the frozen macro registry.
         symbols.set_macro_registry(Arc::new(macros.clone()));
+        // Arc 037 slice 1 layer 3: the ambient dim router decides
+        // vector dim per Atom/Bundle construction. Built-in default
+        // is the sizing function over DEFAULT_TIERS
+        // ([256, 4096, 10000, 100000]). User override via
+        // set-dim-router! ships in a later slice.
+        symbols.set_dim_router(Arc::new(
+            crate::dim_router::SizingRouter::with_default_tiers(),
+        ));
         FrozenWorld {
             config,
             types,

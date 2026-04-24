@@ -314,16 +314,19 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
     // sees RunResult with stdout=["before panic"] + Failure with
     // "panic" in the message.
     //
-    // At dims=1024, sqrt(dims) = 32. A 40-element Bundle list
-    // overshoots; :abort mode panics.
-    let src = r##"
+    // Arc 037 slice 1: ambient router picks dim from DEFAULT_TIERS
+    // ([256, 4096, 10000, 100000]). Largest tier's sqrt ≈ 316. A
+    // 400-element Bundle overflows every tier; :abort mode panics.
+    let atoms = (0..400)
+        .map(|i| format!(r#"(:wat::holon::Atom \"atom-{}\")"#, i))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let src = format!(r##"
         (:wat::config::set-capacity-mode! :error)
-        (:wat::config::set-dims! 1024)
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             "(:wat::config::set-capacity-mode! :abort)
-             (:wat::config::set-dims! 1024)
              (:wat::core::define (:user::main
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
@@ -334,24 +337,12 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
                   ((_ :wat::holon::BundleResult)
                    (:wat::holon::Bundle
                      (:wat::core::list :wat::holon::HolonAST
-                       (:wat::holon::Atom \"a\") (:wat::holon::Atom \"b\") (:wat::holon::Atom \"c\")
-                       (:wat::holon::Atom \"d\") (:wat::holon::Atom \"e\") (:wat::holon::Atom \"f\")
-                       (:wat::holon::Atom \"g\") (:wat::holon::Atom \"h\") (:wat::holon::Atom \"i\")
-                       (:wat::holon::Atom \"j\") (:wat::holon::Atom \"k\") (:wat::holon::Atom \"l\")
-                       (:wat::holon::Atom \"m\") (:wat::holon::Atom \"n\") (:wat::holon::Atom \"o\")
-                       (:wat::holon::Atom \"p\") (:wat::holon::Atom \"q\") (:wat::holon::Atom \"r\")
-                       (:wat::holon::Atom \"s\") (:wat::holon::Atom \"t\") (:wat::holon::Atom \"u\")
-                       (:wat::holon::Atom \"v\") (:wat::holon::Atom \"w\") (:wat::holon::Atom \"x\")
-                       (:wat::holon::Atom \"y\") (:wat::holon::Atom \"z\") (:wat::holon::Atom \"0\")
-                       (:wat::holon::Atom \"1\") (:wat::holon::Atom \"2\") (:wat::holon::Atom \"3\")
-                       (:wat::holon::Atom \"4\") (:wat::holon::Atom \"5\") (:wat::holon::Atom \"6\")
-                       (:wat::holon::Atom \"7\") (:wat::holon::Atom \"8\") (:wat::holon::Atom \"9\")
-                       (:wat::holon::Atom \"a2\") (:wat::holon::Atom \"b2\") (:wat::holon::Atom \"c2\")
-                       (:wat::holon::Atom \"d2\")))))
+                       {atoms}))))
                  ()))"
             (:wat::core::vec :String)
             :None))
-    "##;
+    "##);
+    let src = src.as_str();
     let (stdout, _, failure) = unwrap_run_result_with_failure(run(src));
     // Stdout captured BEFORE the panic should survive.
     assert_eq!(
