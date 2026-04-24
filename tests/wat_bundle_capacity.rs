@@ -90,7 +90,7 @@ fn bundle_under_budget_returns_ok_under_panic_mode() {
 // Largest tier d=100000 has budget floor(sqrt(100000)) = 316.
 // Any Bundle with 317+ items overflows every tier: router returns
 // None → CapacityExceeded with budget=0 (the None signal).
-// `set-dims!` is a parseable no-op on the encoder path.
+// `set-dims!` is retired (arc 037 — config-collect rejects it).
 
 #[test]
 fn bundle_over_budget_under_error_mode_returns_err_struct() {

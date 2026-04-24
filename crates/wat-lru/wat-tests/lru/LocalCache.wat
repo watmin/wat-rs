@@ -6,8 +6,8 @@
 ;; All tests are in-process — LocalCache has no driver threads, no
 ;; channels, so the `deftest`'s implicit sandbox suffices.
 ;;
-;; Run via: `cargo test -p wat-lru`. The `tests/wat_suite.rs` file
-;; invokes `wat::test_suite! { path: "wat-tests", deps: [wat_lru] }`,
+;; Run via: `cargo test -p wat-lru`. The `tests/test.rs` file
+;; invokes `wat::test! { path: "wat-tests", deps: [wat_lru] }`,
 ;; which routes through `wat::test_runner` with wat-lru composed in —
 ;; the same pipeline a downstream consumer uses when it declares
 ;; `deps: [wat_lru]`.

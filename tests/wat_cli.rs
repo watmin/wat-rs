@@ -391,9 +391,10 @@ fn missing_entry_file_is_ex_noinput() {
 fn startup_error_bubbles_up_as_exit_1() {
     // Arc 037 retired required-ness for dims/capacity-mode. A remaining
     // startup failure surface: malformed config setter (bad type) still
-    // halts startup with exit 1.
+    // halts startup with exit 1. set-capacity-mode! takes a keyword;
+    // passing a string triggers ConfigError::BadType.
     let program = r#"
-        (:wat::config::set-dims! "oops")
+        (:wat::config::set-capacity-mode! "oops")
     "#;
     let path = write_temp(program);
     let bin = env!("CARGO_BIN_EXE_wat");

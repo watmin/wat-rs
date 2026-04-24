@@ -55,7 +55,7 @@ pub mod shim;
 /// registration order: `LocalCache.wat` (LocalCache wrapper) first,
 /// `CacheService.wat` (multi-client CacheService on top of LocalCache)
 /// second. `wat::main!` / `wat::Harness::from_source_with_deps*`
-/// / `wat::compose_and_run` / `wat::test_suite!` consume this slice.
+/// / `wat::compose_and_run` / `wat::test!` consume this slice.
 pub fn wat_sources() -> &'static [wat::WatSource] {
     static FILES: &[wat::WatSource] = &[
         wat::WatSource {

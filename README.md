@@ -177,11 +177,13 @@ test --release` from `wat-rs/`.
 - [`parser`] — recursive descent over tokens. `parse_one` / `parse_all`
   entry points. Reader macros (`` ` `` / `,` / `,@`) rewrite to
   `:wat::core::quasiquote` / `unquote` / `unquote-splicing`.
-- [`config`] — entry-file discipline + `set-*!` setter commit. Required
-  fields (`dims`, `capacity-mode`); optional `global-seed` (default 42)
-  and `noise-floor` (default `5.0 / sqrt(dims)` — the 5σ substrate noise
-  floor per FOUNDATION 1718). Each optional field overridable exactly
-  once.
+- [`config`] — entry-file discipline + `set-*!` setter commit. All
+  setters optional under arc 037 — defaults are honest:
+  `capacity-mode` defaults to `:error`; `dim-router` defaults to the
+  sizing function over `[256, 4096, 10000, 100000]` tiers;
+  `presence-sigma`/`coincident-sigma` default to functions of `d`
+  (`max(1, floor(√d / 2) - 1)` and `1` respectively); `global-seed`
+  defaults to 42. Each setter committable exactly once.
 - [`load`] — recursive load-form resolution. Six load forms
   (`load-file!` / `load-string!` / `digest-load!` / `digest-load-string!` /
   `signed-load!` / `signed-load-string!`) — each takes its source
