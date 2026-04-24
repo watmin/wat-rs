@@ -42,7 +42,7 @@
 use crate::ast::WatAST;
 use crate::span::Span;
 use crate::config::Config;
-use holon::{encode, AtomTypeRegistry, HolonAST, ScalarEncoder, Similarity, VectorManager};
+use holon::{encode, AtomTypeRegistry, HolonAST, Similarity};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -431,26 +431,35 @@ impl EnvBuilder {
 /// `ScalarEncoder` are pure caches that can be shared across threads.
 #[derive(Clone)]
 pub struct EncodingCtx {
-    pub vm: Arc<VectorManager>,
-    pub scalar: Arc<ScalarEncoder>,
+    /// Per-dim encoder registry. Lazy: encoders at a given d are
+    /// materialized on first request and shared across threads. All
+    /// encoders share `config.global_seed`. Arc 037 slice 3: this
+    /// replaces the single-dim VM/Scalar pair — every construction
+    /// now picks its own d via the ambient router, and THIS registry
+    /// is where the materialization lives.
+    pub encoders: Arc<crate::vm_registry::EncoderRegistry>,
     pub registry: Arc<AtomTypeRegistry>,
     pub config: Config,
 }
 
 impl EncodingCtx {
-    /// Build an encoding context from the frozen [`Config`]. `dims` and
-    /// `global_seed` drive deterministic atom vectors; the registry
-    /// is seeded with the built-in atom payload types (i64, f64, bool,
-    /// String, keyword, HolonAST) plus [`WatAST`] for programs-as-atoms
-    /// — a program captured via `:wat::core::quote` and wrapped in an
-    /// `:wat::holon::Atom` needs a stable canonical form so it can
-    /// encode to a deterministic vector.
+    /// Build an encoding context from the frozen [`Config`]. The
+    /// atom-type registry is seeded with the built-in payload types
+    /// (i64, f64, bool, String, keyword, HolonAST) plus [`WatAST`]
+    /// for programs-as-atoms — a program captured via
+    /// `:wat::core::quote` and wrapped in an `:wat::holon::Atom`
+    /// needs a stable canonical form so it can encode to a
+    /// deterministic vector.
+    ///
+    /// Arc 037 slice 3: no VM is built here. The
+    /// [`crate::vm_registry::EncoderRegistry`] carries
+    /// `config.global_seed` and materializes encoders lazily per
+    /// dim, as Atom/Bundle/cosine sites consult the ambient router.
     pub fn from_config(cfg: &Config) -> Self {
         let mut registry = AtomTypeRegistry::with_builtins();
         registry.register::<WatAST>("wat/WatAST", |ast, _reg| canonical_wat_ast(ast));
         EncodingCtx {
-            vm: Arc::new(VectorManager::with_seed(cfg.dims, cfg.global_seed)),
-            scalar: Arc::new(ScalarEncoder::with_seed(cfg.dims, cfg.global_seed)),
+            encoders: Arc::new(crate::vm_registry::EncoderRegistry::new(cfg.global_seed)),
             registry: Arc::new(registry),
             config: *cfg,
         }
@@ -518,9 +527,9 @@ fn write_bytes(bytes: &[u8], out: &mut Vec<u8>) {
 impl fmt::Debug for EncodingCtx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EncodingCtx")
-            .field("dims", &self.config.dims)
             .field("global_seed", &self.config.global_seed)
             .field("noise_floor", &self.config.noise_floor)
+            .field("materialized_dims", &self.encoders.size())
             .finish()
     }
 }
@@ -696,6 +705,16 @@ pub enum RuntimeError {
     /// startup pipeline always installs
     /// [`crate::dim_router::SizingRouter`].
     NoDimRouter { op: String },
+    /// The ambient router returned `None` for an already-constructed
+    /// operand's immediate arity at a cross-dim comparison site
+    /// (cosine / presence? / coincident? / dot). The operand was
+    /// constructed somehow but the current router considers its
+    /// shape unroutable — likely a router change between construction
+    /// and query, or a non-substrate construction path.
+    DimUnresolvable {
+        op: String,
+        immediate_arity: usize,
+    },
     /// A file-reading primitive (`:wat::eval-file!`, file-path
     /// variants of the verified eval/load forms, `:wat::verify::file-path`
     /// payloads) was invoked but the [`SymbolTable`] has no attached
@@ -840,6 +859,11 @@ impl fmt::Display for RuntimeError {
                 f,
                 "{}: no dim router attached to SymbolTable; Atom/Bundle construction needs an ambient router. Call via the freeze pipeline rather than a bare SymbolTable::new().",
                 op
+            ),
+            RuntimeError::DimUnresolvable { op, immediate_arity } => write!(
+                f,
+                "{}: ambient dim router returned :None for an operand with immediate arity {}; cannot pick a target d for cross-dim comparison. Either construct operands that route under the current tier list, or pick a router that accommodates them.",
+                op, immediate_arity
             ),
             RuntimeError::NoSourceLoader { op } => write!(
                 f,
@@ -5018,8 +5042,14 @@ fn eval_algebra_cosine(
     let reference = require_holon(":wat::holon::cosine", eval(&args[1], env, sym)?)?;
     let ctx = require_encoding_ctx(":wat::holon::cosine", sym)?;
 
-    let vt = encode(&target, &ctx.vm, &ctx.scalar, &ctx.registry);
-    let vr = encode(&reference, &ctx.vm, &ctx.scalar, &ctx.registry);
+    // Arc 037 slice 3: normalize UP via ambient router. Pick the
+    // greater of the two operands' natural d; encode both at that d
+    // via the per-d registry. Same-d operands pay a single lookup
+    // and otherwise match pre-slice-3 behavior.
+    let d = pick_d_for_pair(":wat::holon::cosine", &target, &reference, sym)?;
+    let enc = ctx.encoders.get(d);
+    let vt = encode(&target, &enc.vm, &enc.scalar, &ctx.registry);
+    let vr = encode(&reference, &enc.vm, &enc.scalar, &ctx.registry);
     Ok(Value::f64(Similarity::cosine(&vt, &vr)))
 }
 
@@ -5052,10 +5082,18 @@ fn eval_algebra_presence_q(
     let reference = require_holon(":wat::holon::presence?", eval(&args[1], env, sym)?)?;
     let ctx = require_encoding_ctx(":wat::holon::presence?", sym)?;
 
-    let vt = encode(&target, &ctx.vm, &ctx.scalar, &ctx.registry);
-    let vr = encode(&reference, &ctx.vm, &ctx.scalar, &ctx.registry);
+    // Arc 037 slice 3: normalize UP via ambient router. Presence
+    // sigma is computed at the ACTUAL encoding d via arc 024's
+    // formula `sqrt(d)/2 - 1` — it adapts by design (Ch 28
+    // slack-lemma). Using config.presence_sigma directly would
+    // over-threshold at smaller d (sigma was calibrated at
+    // config.dims).
+    let d = pick_d_for_pair(":wat::holon::presence?", &target, &reference, sym)?;
+    let enc = ctx.encoders.get(d);
+    let vt = encode(&target, &enc.vm, &enc.scalar, &ctx.registry);
+    let vr = encode(&reference, &enc.vm, &enc.scalar, &ctx.registry);
     let cosine = Similarity::cosine(&vt, &vr);
-    Ok(Value::bool(cosine > ctx.config.presence_floor))
+    Ok(Value::bool(cosine > enc.presence_floor))
 }
 
 /// `(:wat::holon::coincident? a b) -> :bool` — boolean verdict:
@@ -5097,10 +5135,15 @@ fn eval_algebra_coincident_q(
     let b = require_holon(":wat::holon::coincident?", eval(&args[1], env, sym)?)?;
     let ctx = require_encoding_ctx(":wat::holon::coincident?", sym)?;
 
-    let va = encode(&a, &ctx.vm, &ctx.scalar, &ctx.registry);
-    let vb = encode(&b, &ctx.vm, &ctx.scalar, &ctx.registry);
+    // Arc 037 slice 3: normalize UP via ambient router. Coincident
+    // sigma stays at 1 (the 1σ native-granularity floor — Ch 28),
+    // applied at actual encoding d.
+    let d = pick_d_for_pair(":wat::holon::coincident?", &a, &b, sym)?;
+    let enc = ctx.encoders.get(d);
+    let va = encode(&a, &enc.vm, &enc.scalar, &ctx.registry);
+    let vb = encode(&b, &enc.vm, &enc.scalar, &ctx.registry);
     let cosine = Similarity::cosine(&va, &vb);
-    Ok(Value::bool((1.0 - cosine) < ctx.config.coincident_floor))
+    Ok(Value::bool((1.0 - cosine) < enc.coincident_floor))
 }
 
 /// `(:wat::holon::eval-coincident? form-a form-b)` —
@@ -5191,10 +5234,14 @@ fn coincident_of_two_values(
     let holon_a = require_holon(op, atom_a)?;
     let holon_b = require_holon(op, atom_b)?;
     let ctx = require_encoding_ctx(op, sym)?;
-    let va = encode(&holon_a, &ctx.vm, &ctx.scalar, &ctx.registry);
-    let vb = encode(&holon_b, &ctx.vm, &ctx.scalar, &ctx.registry);
+    // Arc 037 slice 3: normalize UP via ambient router. Coincident
+    // floor at actual encoding d.
+    let d = pick_d_for_pair(op, &holon_a, &holon_b, sym)?;
+    let enc = ctx.encoders.get(d);
+    let va = encode(&holon_a, &enc.vm, &enc.scalar, &ctx.registry);
+    let vb = encode(&holon_b, &enc.vm, &enc.scalar, &ctx.registry);
     let cosine = Similarity::cosine(&va, &vb);
-    Ok(Value::bool((1.0 - cosine) < ctx.config.coincident_floor))
+    Ok(Value::bool((1.0 - cosine) < enc.coincident_floor))
 }
 
 /// `(:wat::holon::eval-edn-coincident? <source-a> <source-b>)` — both
@@ -5403,8 +5450,11 @@ fn eval_algebra_dot(
     let x = require_holon(":wat::holon::dot", eval(&args[0], env, sym)?)?;
     let y = require_holon(":wat::holon::dot", eval(&args[1], env, sym)?)?;
     let ctx = require_encoding_ctx(":wat::holon::dot", sym)?;
-    let vx = encode(&x, &ctx.vm, &ctx.scalar, &ctx.registry);
-    let vy = encode(&y, &ctx.vm, &ctx.scalar, &ctx.registry);
+    // Arc 037 slice 3: normalize UP via ambient router.
+    let d = pick_d_for_pair(":wat::holon::dot", &x, &y, sym)?;
+    let enc = ctx.encoders.get(d);
+    let vx = encode(&x, &enc.vm, &enc.scalar, &ctx.registry);
+    let vy = encode(&y, &enc.vm, &enc.scalar, &ctx.registry);
     Ok(Value::f64(Similarity::dot(&vx, &vy)))
 }
 
@@ -5724,6 +5774,51 @@ fn require_dim_router<'a>(
 ) -> Result<&'a Arc<dyn crate::dim_router::DimRouter>, RuntimeError> {
     sym.dim_router()
         .ok_or_else(|| RuntimeError::NoDimRouter { op: op.into() })
+}
+
+/// Top-level cardinality of a [`HolonAST`] — the "surface-deep"
+/// count of immediate constituents the router cares about.
+/// Bundles vary in arity; every other variant is fixed-shape.
+fn immediate_arity(ast: &HolonAST) -> usize {
+    match ast {
+        HolonAST::Atom(_) => 1,
+        HolonAST::Bind(_, _) => 2,
+        HolonAST::Bundle(children) => children.len(),
+        HolonAST::Permute(_, _) => 1,
+        HolonAST::Thermometer { .. } => 1,
+        HolonAST::Blend(_, _, _, _) => 2,
+    }
+}
+
+/// Pick the target dim for a cross-dim pair comparison (cosine /
+/// presence? / coincident? / dot). Normalize UP: consult the ambient
+/// router for each operand's immediate arity, take the max. Both
+/// operands will re-encode at this d — the greater d has headroom
+/// (arc 037 slice 3 design).
+///
+/// Returns `DimUnresolvable` if the router can't size either operand.
+fn pick_d_for_pair(
+    op: &'static str,
+    a: &HolonAST,
+    b: &HolonAST,
+    sym: &SymbolTable,
+) -> Result<usize, RuntimeError> {
+    let router = require_dim_router(op, sym)?;
+    let ar_a = immediate_arity(a);
+    let ar_b = immediate_arity(b);
+    let d_a = router
+        .pick(ar_a)
+        .ok_or_else(|| RuntimeError::DimUnresolvable {
+            op: op.into(),
+            immediate_arity: ar_a,
+        })?;
+    let d_b = router
+        .pick(ar_b)
+        .ok_or_else(|| RuntimeError::DimUnresolvable {
+            op: op.into(),
+            immediate_arity: ar_b,
+        })?;
+    Ok(d_a.max(d_b))
 }
 
 fn check_nullary(op: &'static str, args: &[WatAST]) -> Result<(), RuntimeError> {

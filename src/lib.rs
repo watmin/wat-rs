@@ -83,6 +83,7 @@ pub(crate) mod stdlib;
 pub mod string_ops;
 pub mod test_runner;
 pub mod types;
+pub mod vm_registry;
 
 pub use compose::{compose_and_run, compose_and_run_with_loader};
 pub use source::WatSource;
@@ -95,6 +96,7 @@ pub use config::{
     collect_entry_file, collect_entry_file_with_inherit, CapacityMode, Config, ConfigError,
 };
 pub use dim_router::{DimRouter, SizingRouter, DEFAULT_TIERS};
+pub use vm_registry::{Encoders, EncoderRegistry};
 pub use freeze::{
     eval_digest_in_frozen, eval_in_frozen, eval_signed_in_frozen, invoke_user_main,
     startup_from_forms, startup_from_forms_with_inherit, startup_from_source, FrozenWorld,

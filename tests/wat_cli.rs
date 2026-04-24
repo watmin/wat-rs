@@ -197,7 +197,6 @@ fn programs_are_atoms_hello_world() {
 /// the eval confirming the program survived.
 const PRESENCE_PROOF_PROGRAM: &str = r#"
 (:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
@@ -219,13 +218,15 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
      ((bound :wat::holon::HolonAST)
        (:wat::holon::Bind key-atom program-atom))
 
-     ;; Vector-level proof #1: program-atom's signal is GONE from bound.
-     ((bound-score :f64)
-       (:wat::holon::cosine program-atom bound))
+     ;; Substrate proof #1: program-atom's signal is GONE from bound.
+     ;; Arc 037 slice 3: presence? does the honest per-d threshold
+     ;; comparison internally — the router picks d per operand,
+     ;; presence-floor is computed as presence-sigma / sqrt(d) at the
+     ;; picked d. Users no longer hand-roll `cosine vs noise-floor`.
      ((_ :())
        (:wat::io::IOWriter/print stdout
          (:wat::core::if
-           (:wat::core::> bound-score (:wat::config::noise-floor))
+           (:wat::holon::presence? program-atom bound)
            -> :String
            "Some\n"
            "None\n")))
@@ -234,13 +235,11 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
      ((recovered :wat::holon::HolonAST)
        (:wat::holon::Bind bound key-atom))
 
-     ;; Vector-level proof #2: program-atom's signal is BACK in recovered.
-     ((recov-score :f64)
-       (:wat::holon::cosine program-atom recovered))
+     ;; Substrate proof #2: program-atom's signal is BACK in recovered.
      ((_ :())
        (:wat::io::IOWriter/print stdout
          (:wat::core::if
-           (:wat::core::> recov-score (:wat::config::noise-floor))
+           (:wat::holon::presence? program-atom recovered)
            -> :String
            "Some\n"
            "None\n")))
