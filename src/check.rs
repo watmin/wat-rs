@@ -430,6 +430,7 @@ fn infer_list(
             ":wat::core::assoc" => return infer_assoc(args, env, locals, fresh, subst, errors),
             ":wat::core::conj" => return infer_conj(args, env, locals, fresh, subst, errors),
             ":wat::core::contains?" => return infer_contains_q(args, env, locals, fresh, subst, errors),
+            ":wat::core::length" => return infer_length(args, env, locals, fresh, subst, errors),
             ":wat::core::HashSet" => return infer_hashset_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::get" => return infer_get(args, env, locals, fresh, subst, errors),
             ":wat::core::quote" => {
@@ -2236,6 +2237,57 @@ fn infer_conj(
         head: "Vec".into(),
         args: vec![fresh.fresh()],
     })
+}
+
+/// Arc 035 — `(:wat::core::length container)`. Polymorphic size:
+///   ∀T.   Vec<T>       -> i64    (elements)
+///   ∀K,V. HashMap<K,V> -> i64    (entries)
+///   ∀T.   HashSet<T>   -> i64    (elements)
+/// Tuple is deliberately excluded — arity is structural and known
+/// at type-check time.
+fn infer_length(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::core::length".into(),
+            expected: 1,
+            got: args.len(),
+        });
+        return Some(TypeExpr::Path(":i64".into()));
+    }
+    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    if let Some(ct) = container_ty {
+        let reduced = reduce(&ct, subst, env.types());
+        match &reduced {
+            TypeExpr::Parametric { head, args: ta } if head == "Vec" && ta.len() == 1 => {
+                let _ = ta;
+                return Some(TypeExpr::Path(":i64".into()));
+            }
+            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
+                let _ = ta;
+                return Some(TypeExpr::Path(":i64".into()));
+            }
+            TypeExpr::Parametric { head, args: ta } if head == "HashSet" && ta.len() == 1 => {
+                let _ = ta;
+                return Some(TypeExpr::Path(":i64".into()));
+            }
+            _ => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::length".into(),
+                    param: "container".into(),
+                    expected: "Vec<T> | HashMap<K,V> | HashSet<T>".into(),
+                    got: format_type(&apply_subst(&ct, subst)),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Path(":i64".into()))
 }
 
 /// Arc 025 — `(:wat::core::contains? container key)`. Polymorphic
@@ -4112,14 +4164,8 @@ fn register_builtins(env: &mut CheckEnv) {
         head: "Vec".into(),
         args: vec![inner],
     };
-    env.register(
-        ":wat::core::length".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var())],
-            ret: i64_ty(),
-        },
-    );
+    // :wat::core::length scheme retired; polymorphic under
+    // `infer_length` (arc 035). Dispatched in `infer_list`.
     env.register(
         ":wat::core::empty?".into(),
         TypeScheme {

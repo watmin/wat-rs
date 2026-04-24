@@ -397,6 +397,12 @@ pub fn eval_kernel_fork_with_forms(
 /// `libc::_exit` with one of the `EXIT_*` codes. Takes ownership of
 /// all six OwnedFds so Rust's Drop semantics close the child's
 /// copies cleanly after dup2.
+///
+/// Eight parameters is the honest shape: six fds (three raw for
+/// dup2, three OwnedFd pairs whose Drop closes the parent-side
+/// ends the child inherited), plus the forms to evaluate and the
+/// optionally-inherited config. Called from exactly one site.
+#[allow(clippy::too_many_arguments)]
 fn child_branch(
     forms: Vec<WatAST>,
     inherit_config: Option<Config>,

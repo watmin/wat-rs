@@ -1787,7 +1787,7 @@ fn dispatch_keyword_head(
         ":wat::core::list" => eval_list_ctor(args, env, sym),
         ":wat::core::conj" => eval_conj(args, env, sym),
         ":wat::core::tuple" => eval_tuple_ctor(args, env, sym),
-        ":wat::core::length" => eval_vec_length(args, env, sym),
+        ":wat::core::length" => eval_length(args, env, sym),
         ":wat::core::empty?" => eval_vec_empty(args, env, sym),
         ":wat::core::reverse" => eval_vec_reverse(args, env, sym),
         ":wat::core::range" => eval_vec_range(args, env, sym),
@@ -3250,8 +3250,11 @@ fn require_i64(op: &'static str, v: Value) -> Result<i64, RuntimeError> {
     }
 }
 
-/// `(:wat::core::length xs)` → `:i64`. `xs.len() as i64`.
-fn eval_vec_length(
+/// `(:wat::core::length xs)` → `:i64`. Polymorphic over Vec,
+/// HashMap, and HashSet — each returns its element/entry count
+/// as an i64. Arc 035 (2026-04-23): was Vec-only; promoted when
+/// lab arc 007 surfaced HashMap-counting as a real caller need.
+fn eval_length(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -3263,8 +3266,17 @@ fn eval_vec_length(
             got: args.len(),
         });
     }
-    let xs = require_vec(":wat::core::length", eval(&args[0], env, sym)?)?;
-    Ok(Value::i64(xs.len() as i64))
+    let v = eval(&args[0], env, sym)?;
+    match v {
+        Value::Vec(xs) => Ok(Value::i64(xs.len() as i64)),
+        Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
+        Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::length".into(),
+            expected: "Vec<T> | HashMap<K,V> | HashSet<T>",
+            got: other.type_name(),
+        }),
+    }
 }
 
 /// `(:wat::core::empty? xs)` → `:bool`. Mirrors `slice::is_empty`.
@@ -9883,6 +9895,53 @@ mod tests {
             Value::Vec(items) => assert!(items.is_empty()),
             v => panic!("expected empty Vec, got {:?}", v),
         }
+    }
+
+    // ── Arc 035 — :wat::core::length polymorphism ────────────
+
+    #[test]
+    fn hashmap_length_returns_entry_count() {
+        let src = r#"(:wat::core::let*
+            (((m :rust::std::collections::HashMap<String,i64>)
+              (:wat::core::HashMap :(String,i64) "a" 1 "b" 2 "c" 3)))
+            (:wat::core::length m))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::i64(3)));
+    }
+
+    #[test]
+    fn hashmap_length_empty_returns_zero() {
+        let src = r#"(:wat::core::let*
+            (((m :rust::std::collections::HashMap<String,i64>)
+              (:wat::core::HashMap :(String,i64))))
+            (:wat::core::length m))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::i64(0)));
+    }
+
+    #[test]
+    fn hashset_length_returns_element_count() {
+        let src = r#"(:wat::core::let*
+            (((s :rust::std::collections::HashSet<String>)
+              (:wat::core::HashSet :String "a" "b" "c")))
+            (:wat::core::length s))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::i64(3)));
+    }
+
+    #[test]
+    fn hashset_length_empty_returns_zero() {
+        let src = r#"(:wat::core::let*
+            (((s :rust::std::collections::HashSet<String>)
+              (:wat::core::HashSet :String)))
+            (:wat::core::length s))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::i64(0)));
+    }
+
+    #[test]
+    fn vec_length_still_works_after_polymorphism() {
+        // Sanity — the existing Vec arm is preserved.
+        let src = r#"(:wat::core::let*
+            (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
+            (:wat::core::length xs))"#;
+        assert!(matches!(eval_expr(src).unwrap(), Value::i64(3)));
     }
 
     // ─── try-recv + drop ───────────────────────────────────────────────

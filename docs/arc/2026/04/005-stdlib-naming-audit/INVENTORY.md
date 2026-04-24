@@ -116,7 +116,7 @@ Return `:Result<wat::holon::HolonAST, :wat::core::EvalError>` per the
 | `:wat::core::third` | same (pos 2) | same (pos 2) |
 | `:wat::core::rest` | `∀T. :Vec<T> -> :Vec<T>` | `runtime.rs::eval_vec_rest` |
 | `:wat::core::empty?` | `∀T. :Vec<T> -> :bool` | `runtime.rs::eval_vec_empty` |
-| `:wat::core::length` | `∀T. :Vec<T> -> :i64` | `runtime.rs::eval_vec_length` |
+| `:wat::core::length` | polymorphic — `Vec<T>`/`HashMap<K,V>`/`HashSet<T>` → `:i64` (arc 035) | `runtime.rs::eval_length` |
 | `:wat::core::reverse` | `∀T. :Vec<T> -> :Vec<T>` | `runtime.rs::eval_vec_reverse` |
 | `:wat::core::take` | `∀T. :i64 × :Vec<T> -> :Vec<T>` | `runtime.rs::eval_vec_take` |
 | `:wat::core::drop` | `∀T. :i64 × :Vec<T> -> :Vec<T>` | `runtime.rs::eval_vec_drop` |
