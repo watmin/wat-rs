@@ -440,6 +440,19 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   concurrency story is substrate-shape-agnostic. Builder
   predicted minimal work; correct prediction enabled tight arc
   scoping. 2026-04-24.
+- **`arc/2026/04/044-second-verification-pass/`** — **shipped.**
+  Round 3 of the "is wat-rs honest?" iteration. Arc 043 said yes;
+  builder asked again; surveyed surfaces 043 hadn't covered and
+  found 7 drift sites (proc-macro source comments, example
+  wat-tests, baked wat-stdlib comments). After Slice 1 fixed
+  those, BACKLOG-mandated broadened sweep caught 6 more in
+  README.md + docs/README.md (arcs 039 + 042 had touched those
+  files but missed these). 13 total fixes across 2 slices.
+  Names the iterative-verification observation explicitly:
+  "audited" is a pass count, not a final state. Lists what's
+  still uncovered (Rust tests' embedded wat strings, wat-tests
+  source comments, wat-lru's own docs, Cargo.toml metadata) so
+  any round-4 has a starting point. 2026-04-24.
 - **`arc/2026/04/043-verification-gaps-closure/`** — **shipped.**
   Verification follow-on to arcs 038-042. Builder asked "is wat-rs
   honest again?" — honest answer was "substantially more, not
