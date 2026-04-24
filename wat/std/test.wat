@@ -141,7 +141,6 @@
 ;;
 ;;   (:wat::test::run-ast
 ;;     (:wat::test::program
-;;       (:wat::config::set-capacity-mode! :error)
 ;;       (:wat::core::define (:user::main ...) <body>))
 ;;     (:wat::core::vec :String))
 ;;
@@ -192,13 +191,12 @@
 ;; prelude = no startup forms, the minimal shape.
 ;;
 ;; The test file's top-level preamble is the single declaration
-;; site for config:
-;;
-;;   (:wat::config::set-capacity-mode! :error)
-;;
-;; Every deftest below inherits that value (and any optional
-;; set-dim-router! / sigma-fn overrides) through the sandbox's
-;; Config-inheritance path. No per-test re-declaration.
+;; site for config — needed only when overriding defaults (e.g.
+;; switching capacity-mode from :error to :panic, or installing
+;; a custom set-dim-router! / sigma-fn). Every deftest below
+;; inherits whatever the preamble committed (and the substrate
+;; defaults for whatever the preamble omits) through the
+;; sandbox's Config-inheritance path. No per-test re-declaration.
 ;;
 ;; Shape — empty prelude:
 ;;
@@ -286,8 +284,6 @@
 ;; arc 031's sandbox-inherits-config path.
 ;;
 ;; Preamble at the top of a test source file:
-;;
-;;   (:wat::config::set-capacity-mode! :error)
 ;;
 ;;   (:wat::test::make-deftest :deftest
 ;;     ((:wat::load-file! "wat/vocab/shared/time.wat")))

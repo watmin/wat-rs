@@ -369,7 +369,8 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   with AST-accepting setters (`set-dim-router!`,
   `set-presence-sigma!`, `set-coincident-sigma!`) and
   freeze-time signature checks. `CapacityMode` reduced to two
-  variants (`:error` / `:abort`); `:silent` and `:warn`
+  variants (`:error` / `:panic` — was `:error` / `:abort`,
+  renamed in arc 045); `:silent` and `:warn`
   retired. Scalar `set-dims!` / `set-noise-floor!` retired;
   scalar sigma setters retired in favor of function-of-d form.
   Compatibility shims keep `:wat::config::dims` and

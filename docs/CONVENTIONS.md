@@ -21,7 +21,7 @@ Every other prefix is user territory.
 | Prefix | What lives here |
 |---|---|
 | `:wat::core::*` | Evaluator primitives — forms (`define`, `lambda`, `let*`, `if`, `match`), primitive types (`i64`, `bool`, `String`, ...), macros, eval-family, primitive-type operations (`i64::+`, `bool::and`), core collections (`vec`, `list`, `cons`, `conj`, `HashMap`, `HashSet`, `get`, `contains?`, `assoc`). Cannot be written in wat. |
-| `:wat::config::*` | Runtime-committed configuration: `capacity-mode` (`:error` / `:abort`), `dim-router` function (multi-tier dim selection per AST surface — arc 037), `presence-sigma` / `coincident-sigma` functions of `d` (arc 024), `global-seed`. Compat shim accessors `dims` / `noise-floor` return `DEFAULT_TIERS[0]` defaults. Read-only after config pass. |
+| `:wat::config::*` | Runtime-committed configuration: `capacity-mode` (`:error` / `:panic` — arc 045 renamed `:abort` → `:panic`), `dim-router` function (multi-tier dim selection per AST surface — arc 037), `presence-sigma` / `coincident-sigma` functions of `d` (arc 024), `global-seed`. Compat shim accessors `dims` / `noise-floor` return `DEFAULT_TIERS[0]` defaults. Read-only after config pass. |
 | `:wat::holon::*` | Holon algebra — the `HolonAST` type, the six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), the four measurements (`cosine`, `dot`, `presence?`, `coincident?`), the `eval-coincident?` family (arc 026), the `CapacityExceeded` error type, and typealiases `Holons` / `BundleResult` (arcs 032, 033). One namespace for the whole holon surface. |
 | `:wat::kernel::*` | CSP primitives — `spawn`, `send`, `recv`, `select`, `drop`, `join`, `make-bounded-queue`, `HandlePool`, signal handlers. |
 | `:wat::io::*` | Stdio primitives — `stdin`, `stdout`, `stderr`, `println`. |
@@ -365,15 +365,18 @@ proper child-of-caller scope, not a fresh reset. The single
 declaration site for config is the entry file's preamble:
 
 ```scheme
-;; entry preamble — the one place to declare
-(:wat::config::set-capacity-mode! :error)
-
+;; entry preamble — needed only when overriding defaults
 (:wat::test::make-deftest :deftest
   ((:wat::load-file! "my/helpers.wat")))
 
-(:deftest :my-test body)   ;; inherits :error + the active dim-router
-(:deftest :another body)   ;; inherits :error + the active dim-router
+(:deftest :my-test body)   ;; inherits the entry's Config (:error default + active dim-router)
+(:deftest :another body)   ;; same
 ```
+
+Add `(:wat::config::set-capacity-mode! :panic)` (or any other
+optional setter) at the top of the file when you want to override
+a default; otherwise the deftests inherit the substrate's
+opinionated values.
 
 The four `:wat::test::*` macros (`deftest`, `deftest-hermetic`,
 `make-deftest`, `make-deftest-hermetic`) take name + prelude +

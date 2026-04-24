@@ -81,9 +81,9 @@ wat::test! { deps: [wat_lru] }
 ```
 
 ```scheme
-;; wat/main.wat — defines :user::main. Config setters are optional.
-(:wat::config::set-capacity-mode! :error)
-
+;; wat/main.wat — defines :user::main. Config setters are optional;
+;; the substrate's opinionated defaults (capacity-mode :error,
+;; the sizing dim-router) cover most consumers.
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
                      (stdout :wat::io::IOWriter)
@@ -122,9 +122,11 @@ keeps the pre-018 single-file behavior (InMemoryLoader). `wat::main!
 Top-level forms in your entry file can commit startup config. All
 are optional; defaults are honest:
 
-- **`(:wat::config::set-capacity-mode! :error)`** — Bundle overflow
-  surfaces as `Err(CapacityExceeded)` instead of panicking. Default:
-  `:error`. Other valid value: `:abort` (panic on overflow).
+- **`(:wat::config::set-capacity-mode! :panic)`** — Bundle overflow
+  panics (`panic!()`, which unwinds) instead of returning an
+  `Err(CapacityExceeded)`. Default is `:error`; `:panic` is the
+  fail-closed override. (Renamed from `:abort` in arc 045 — `:panic`
+  matches Rust's macro behavior more honestly.)
 - **`(:wat::config::set-dim-router! router-fn)`** — replaces the
   default sizing function (smallest tier `d` whose `√d ≥ statement
   size`). The router takes a `:wat::holon::HolonAST` and returns
@@ -188,9 +190,7 @@ is the entry; `wat/**/*.wat` is the library tree, loaded
 recursively from `main.wat` downward.
 
 ```scheme
-;; wat/main.wat — the ENTRY. Optional config + recursive loads + :user::main.
-(:wat::config::set-capacity-mode! :error)
-
+;; wat/main.wat — the ENTRY. Recursive loads + :user::main.
 (:wat::load-file! "types.wat")
 (:wat::load-file! "vocab.wat")
 
@@ -270,8 +270,6 @@ them.
 
 ```scheme
 ;; wat-tests/hello.wat
-(:wat::config::set-capacity-mode! :error)
-
 (:wat::test::deftest :my-app::test-one-plus-one
   (:wat::test::assert-eq (:wat::core::i64::+ 1 1) 2))
 ```
@@ -365,8 +363,6 @@ A slightly richer first program:
 
 ```scheme
 ;; wat/main.wat
-(:wat::config::set-capacity-mode! :error)
-
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
                      (stdout :wat::io::IOWriter)
@@ -489,8 +485,8 @@ startup — miss an arm, startup fails.
 ### `try` — error propagation
 
 ```scheme
-(:wat::core::define (:my::app::pipeline (items :Vec<wat::holon::HolonAST>)
-                    -> :Result<wat::holon::HolonAST,wat::holon::CapacityExceeded>)
+(:wat::core::define (:my::app::pipeline (items :wat::holon::Holons)
+                    -> :wat::holon::BundleResult)
   (:wat::core::let*
     (((bundled :wat::holon::HolonAST) (:wat::core::try (:wat::holon::Bundle items))))
     (Ok bundled)))
@@ -1216,15 +1212,14 @@ Constructors are bare: `(Ok v)`, `(Err e)`. Consumers match or `try`.
 `:wat::holon::Bundle` returns `:wat::holon::BundleResult` (a
 typealias for `:Result<:wat::holon::HolonAST,
 :wat::holon::CapacityExceeded>`, arc 032). The two `capacity-mode`
-values (`:error` — default, returns `Err`; `:abort` — panics) set
+values (`:error` — default, returns `Err`; `:panic` — panics; arc
+045 renamed `:abort` → `:panic`) set
 at program startup determine the runtime behavior when Kanerva's
 per-frame bound (`floor(sqrt(d))` for the dim picked by the active
 DimRouter, arc 037) is exceeded.
 
 ```scheme
-(:wat::config::set-capacity-mode! :error)
-
-(:wat::core::define (:my::app::build (items :Vec<wat::holon::HolonAST>)
+(:wat::core::define (:my::app::build (items :wat::holon::Holons)
                     -> :wat::holon::BundleResult)
   (Ok (:wat::core::try (:wat::holon::Bundle items))))
 
@@ -1267,8 +1262,6 @@ manifest, no registration step.
 
 ```scheme
 ;; wat-tests/example.wat
-(:wat::config::set-capacity-mode! :error)
-
 (:wat::test::deftest :my::app::test-two-plus-two
   (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
 ```

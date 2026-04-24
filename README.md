@@ -107,7 +107,7 @@ assertion primitives with panic-and-catch semantics. `cargo test`
 Kanerva's per-frame capacity at dispatch time and returns
 `:wat::holon::BundleResult` (a typealias for
 `:Result<holon::HolonAST, :wat::holon::CapacityExceeded>`, arc 032);
-authors choose `:error` / `:abort` at startup via
+authors choose `:error` / `:panic` at startup via
 `:wat::config::set-capacity-mode!` — `:silent` and `:warn` retired
 in arc 037. Paired with two supporting forms that shipped in the
 same arc: `:wat::core::try` for error-propagation without try/catch,
@@ -381,8 +381,6 @@ Signals: the kernel measures; userland owns transitions.
 
 ```scheme
 ;; echo.wat
-(:wat::config::set-capacity-mode! :error)
-
 (:wat::core::define (:user::main
                      (stdin  :wat::io::IOReader)
                      (stdout :wat::io::IOWriter)
@@ -407,14 +405,13 @@ The assertion primitives assert about the assertion primitives.
 ### Writing a test — `:wat::test::deftest`
 
 ```scheme
-(:wat::config::set-capacity-mode! :error)
-
 (:wat::test::deftest :my::app::test-two-plus-two
   ()
   (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
 ```
 
-The test file's top-level preamble commits capacity-mode (and any
+The test file's top-level preamble (if it has one) commits
+capacity-mode (and any
 `set-dim-router!` / sigma-fn overrides if needed); every `deftest`
 below inherits those values through the sandbox's
 config-inheritance path (arc 031). `deftest` itself takes name +
@@ -580,12 +577,14 @@ shorter to write at call sites.
 | Mode | Under budget | Over budget |
 |---|---|---|
 | `:error`  | `Ok(h)` | `Err(CapacityExceeded { cost, budget })` (default) |
-| `:abort`  | `Ok(h)` | `panic!` with diagnostic — fail-closed |
+| `:panic`  | `Ok(h)` | `panic!` with diagnostic — fail-closed (unwinds) |
 
 (`:silent` and `:warn` retired in arc 037 — silent overflow is the
 class of bug the type-system makes impossible at the call site, and
 warn-but-degrade hid the same class behind stderr noise. `:error`
-is the default; `:abort` is for hosts that prefer halt-on-overflow.)
+is the default; `:panic` is for hosts that prefer halt-on-overflow.
+Renamed from `:abort` in arc 045 — Rust's `panic!()` actually unwinds,
+so `:panic` matches the behavior more honestly than `:abort` did.)
 
 **`:wat::holon::CapacityExceeded`** is a built-in struct with
 auto-generated `/cost` and `/budget` accessors.
