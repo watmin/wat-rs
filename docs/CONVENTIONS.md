@@ -351,12 +351,13 @@ installed deps from the global state.
 
 ### Sandbox Config inheritance (arc 031)
 
-Entry files commit capacity-mode + dims via top-level
-`(:wat::config::set-*!)` setters. A sandbox created inside an
-entry (via `:wat::kernel::run-sandboxed-ast`, `run-sandboxed-
-hermetic-ast`, or `fork-with-forms`) inherits those committed
-values by default. Inner setters still override when present;
-absence means "take the caller's value."
+Entry files commit capacity-mode (and any optional
+`set-dim-router!` / sigma-fn overrides — arcs 024 + 037) via
+top-level `(:wat::config::set-*!)` setters. A sandbox created
+inside an entry (via `:wat::kernel::run-sandboxed-ast`,
+`run-sandboxed-hermetic-ast`, or `fork-with-forms`) inherits
+those committed values by default. Inner setters still override
+when present; absence means "take the caller's value."
 
 Pairs with arc 027's loader inheritance — same scope-inheritance
 move applied to a different environment field. A sandbox is a
@@ -366,13 +367,12 @@ declaration site for config is the entry file's preamble:
 ```scheme
 ;; entry preamble — the one place to declare
 (:wat::config::set-capacity-mode! :error)
-(:wat::config::set-dims! 1024)
 
 (:wat::test::make-deftest :deftest
   ((:wat::load-file! "my/helpers.wat")))
 
-(:deftest :my-test body)   ;; inherits :error + 1024
-(:deftest :another body)   ;; inherits :error + 1024
+(:deftest :my-test body)   ;; inherits :error + the active dim-router
+(:deftest :another body)   ;; inherits :error + the active dim-router
 ```
 
 The four `:wat::test::*` macros (`deftest`, `deftest-hermetic`,
