@@ -23,7 +23,6 @@
 //! use wat::harness::Harness;
 //!
 //! let h = Harness::from_source(r#"
-//!     (:wat::config::set-dims! 1024)
 //!     (:wat::config::set-capacity-mode! :error)
 //!     (:wat::core::define (:user::main
 //!                          (stdin  :wat::io::IOReader)

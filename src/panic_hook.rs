@@ -44,7 +44,7 @@
 //! Called from:
 //! - [`crate::compose_and_run`] — consumer binary entry.
 //! - [`crate::test_runner::run_tests_from_dir`] — `cargo test` entry
-//!   via `wat::test_suite!`.
+//!   via `wat::test!`.
 //! - `src/bin/wat.rs::main` — the `wat` CLI.
 //!
 //! Idempotent: calling `install` twice chains two of these hooks;

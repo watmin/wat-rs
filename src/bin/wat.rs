@@ -251,7 +251,7 @@ const TEST_EXIT_NO_TESTS: u8 = 64;
 /// No dep_sources / dep_registrars — the CLI binary deliberately
 /// does not link external wat crates (arc 013's proof stance).
 /// Consumers that want to run `.wat` tests referencing external
-/// wat crates use `wat::test_suite!` in a Rust binary crate.
+/// wat crates use `wat::test!` in a Rust binary crate.
 fn run_tests_command(entry: &str) -> ExitCode {
     let path = std::path::Path::new(entry);
     let summary = run_tests_from_dir(path, &[], &[]);
@@ -273,5 +273,5 @@ fn run_tests_command(entry: &str) -> ExitCode {
 // Test-runner internals — discover_wat_files, discover_tests,
 // extract_failure, Xorshift64, shuffle — moved to
 // `wat::test_runner` in arc 015 slice 1. The CLI now routes
-// through that module so consumer crates (via
-// `wat::test_suite!`) and the CLI share one codepath.
+// through that module so consumer crates (via `wat::test!`) and
+// the CLI share one codepath.

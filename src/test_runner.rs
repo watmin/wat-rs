@@ -17,7 +17,7 @@
 //!
 //! This module exposes the same test-discovery + freeze + run logic
 //! as a callable function that accepts `dep_sources` + `dep_registrars`.
-//! The `wat::test_suite!` proc-macro (slice 2) wraps it in a `#[test]
+//! The `wat::test!` proc-macro (slice 2) wraps it in a `#[test]
 //! fn` so `cargo test` picks up consumer-authored wat test suites
 //! with zero ceremony.
 //!
@@ -38,7 +38,7 @@
 //! Via the macro (slice 2):
 //!
 //! ```text
-//! wat::test_suite! {
+//! wat::test! {
 //!     path: "wat-tests",
 //!     deps: [wat_lru],
 //! }
@@ -142,7 +142,7 @@ pub fn run_tests_from_dir(
 /// Loader-parametric sibling of [`run_tests_from_dir`]. Same
 /// contract; the caller supplies the [`SourceLoader`] used to
 /// resolve `(:wat::load-file! ...)` from inside each test file's
-/// freeze. The `wat::test_suite! { ..., loader: "path" }` form
+/// freeze. The `wat::test! { ..., loader: "path" }` form
 /// (arc 017) expands to this function with a `ScopedLoader` rooted
 /// at the given path. Passing `Arc::new(FsLoader)` reproduces the
 /// default [`run_tests_from_dir`] behavior.
@@ -358,7 +358,7 @@ pub fn run_and_assert(
 }
 
 /// Loader-parametric sibling of [`run_and_assert`]. What
-/// `wat::test_suite! { ..., loader: "path" }` expands to (arc 017).
+/// `wat::test! { ..., loader: "path" }` expands to (arc 017).
 /// Panics with the joined failure summary if any test fails; the
 /// caller-supplied loader threads through every test file's freeze.
 pub fn run_and_assert_with_loader(
@@ -418,10 +418,11 @@ fn discover_wat_files(path: &Path) -> std::io::Result<Vec<PathBuf>> {
 /// skipped at freeze time.
 ///
 /// Arc 037 (2026-04-24): loosened the setter-only signal. Under the
-/// arc 037 contract, set-dims! is a no-op and set-capacity-mode!
-/// defaults to :error — entry-file preambles are often empty. A
-/// file's intent to host tests is better signaled by the presence
-/// of `:wat::test::*` forms.
+/// arc 037 contract, set-dims! is retired (rejected at config
+/// collection time) and set-capacity-mode! defaults to :error —
+/// entry-file preambles are often empty. A file's intent to host
+/// tests is better signaled by the presence of `:wat::test::*`
+/// forms.
 ///
 /// Implementation: parse the file's top-level forms with the lexer +
 /// parser and check each form's head keyword. Parse errors are NOT
