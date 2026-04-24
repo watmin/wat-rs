@@ -413,6 +413,19 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   iface-keyword leftover). Pre-edit verified `wat::test!` still
   emits `fn wat_suite()` so internal function-name references
   stay. 2026-04-24.
+- **`arc/2026/04/041-wat-tests-readme-drift-sync/`** —
+  **shipped.** `wat-rs/wat-tests/README.md` drift-only sync.
+  Smallest doc-drift arc so far (one implementation slice on a
+  70-line file). Standard audit set returned **zero retired-form
+  occurrences** — drift was by *omission*, not correction. Two
+  additions: §Layout gained an external-crates paragraph (consumer
+  wat crates including `crates/wat-lru/` ship their own
+  `wat-tests/` trees and run via `cargo test -p <crate>` — arcs
+  013 + 015 + 036); §In-process vs hermetic restructured macros-
+  first / primitives-below (the user-facing `deftest` /
+  `deftest-hermetic` / `make-deftest` family from arcs 029 + 031,
+  with `:wat::test::run` / `run-hermetic-ast` restated as
+  expansion targets). 2026-04-24.
 
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.
