@@ -566,6 +566,12 @@ fn startup_from_forms_post_config(
     //      `unit_variants` map; tagged variants as Function entries
     //      whose bodies invoke `:wat::core::enum-new`).
     crate::runtime::register_enum_methods(&types, &mut symbols)?;
+    // 6.7. Newtype auto-methods — arc 049. For each `(:wat::core::newtype
+    //      :Type :Inner)` decl, synthesize `:Type/new` constructor and
+    //      `:Type/0` accessor. Newtype values are represented as
+    //      `Value::Struct` of arity 1, reusing the existing struct-new
+    //      and struct-field primitives.
+    crate::runtime::register_newtype_methods(&types, &mut symbols)?;
 
     // 7. Name resolution.
     resolve_references(&residue, &symbols, &macros)?;

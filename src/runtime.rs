@@ -1259,6 +1259,96 @@ pub fn register_enum_methods(
     Ok(())
 }
 
+/// Walk every `:wat::core::newtype` declaration in `types` and synthesize
+/// a positional constructor + accessor into `sym`. Arc 049. Mirrors
+/// [`register_struct_methods`] for arity-1 tuple structs — newtype's
+/// Rust compilation per 058-030 line 538 IS `struct A(B);`, so the
+/// natural representation is `Value::Struct` of arity 1 with the
+/// inner value at index 0.
+///
+/// Per newtype `:my::ns::Price` with inner `:f64`:
+///
+/// - Constructor `:my::ns::Price/new` — Function `(:fn(:f64) -> :Price)`,
+///   body invokes `(:wat::core::struct-new :Price value)`.
+/// - Accessor `:my::ns::Price/0` — Function `(:fn(:Price) -> :f64)`,
+///   body invokes `(:wat::core::struct-field self 0)`. The `/0` name
+///   mirrors Rust's `.0` tuple-struct positional access — embodying
+///   the host language. No invented field name.
+///
+/// Atom hashing of newtype values gets nominal distinction for free
+/// because `Value::Struct` carries `type_name` in its EDN encoding —
+/// `(Atom (:Price/new 100.0))` and `(Atom 100.0)` produce different
+/// vectors.
+pub fn register_newtype_methods(
+    types: &crate::types::TypeEnv,
+    sym: &mut SymbolTable,
+) -> Result<(), RuntimeError> {
+    use crate::identifier::Identifier;
+    use crate::types::TypeDef;
+
+    for (_name, def) in types.iter() {
+        let nt_def = match def {
+            TypeDef::Newtype(n) => n,
+            _ => continue,
+        };
+
+        let nt_type = crate::types::TypeExpr::Path(nt_def.name.clone());
+
+        // Constructor — `<newtype>/new`. Single param `value` of inner
+        // type. Body invokes `:wat::core::struct-new` with the type-name
+        // keyword and the param. Same shape as a struct of arity 1.
+        let constructor_path = format!("{}/new", nt_def.name);
+        let new_body = WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::core::struct-new".into(), Span::unknown()),
+                WatAST::Keyword(nt_def.name.clone(), Span::unknown()),
+                WatAST::Symbol(Identifier::bare("value"), Span::unknown()),
+            ],
+            Span::unknown(),
+        );
+        let new_func = Function {
+            name: Some(constructor_path.clone()),
+            params: vec!["value".into()],
+            type_params: nt_def.type_params.clone(),
+            param_types: vec![nt_def.inner.clone()],
+            ret_type: nt_type.clone(),
+            body: Arc::new(new_body),
+            closed_env: None,
+        };
+        if sym.functions.contains_key(&constructor_path) {
+            return Err(RuntimeError::DuplicateDefine(constructor_path));
+        }
+        sym.functions.insert(constructor_path, Arc::new(new_func));
+
+        // Accessor — `<newtype>/0`. Single param `self` of newtype.
+        // Body invokes `:wat::core::struct-field self 0`. The `/0`
+        // accessor mirrors Rust's `.0` for tuple structs.
+        let accessor_path = format!("{}/0", nt_def.name);
+        let accessor_body = WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::core::struct-field".into(), Span::unknown()),
+                WatAST::Symbol(Identifier::bare("self"), Span::unknown()),
+                WatAST::IntLit(0, Span::unknown()),
+            ],
+            Span::unknown(),
+        );
+        let accessor_func = Function {
+            name: Some(accessor_path.clone()),
+            params: vec!["self".into()],
+            type_params: nt_def.type_params.clone(),
+            param_types: vec![nt_type.clone()],
+            ret_type: nt_def.inner.clone(),
+            body: Arc::new(accessor_body),
+            closed_env: None,
+        };
+        if sym.functions.contains_key(&accessor_path) {
+            return Err(RuntimeError::DuplicateDefine(accessor_path));
+        }
+        sym.functions.insert(accessor_path, Arc::new(accessor_func));
+    }
+    Ok(())
+}
+
 fn is_define_form(form: &WatAST) -> bool {
     matches!(
         form,
