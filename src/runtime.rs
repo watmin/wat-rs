@@ -2272,6 +2272,10 @@ fn dispatch_keyword_head(
         ":wat::holon::dot" => eval_algebra_dot(args, env, sym),
         ":wat::holon::simhash" => eval_algebra_simhash(args, env, sym),
         ":wat::holon::encode" => eval_holon_encode(args, env, sym),
+        ":wat::holon::vector-bind" => eval_holon_vector_bind(args, env, sym),
+        ":wat::holon::vector-bundle" => eval_holon_vector_bundle(args, env, sym),
+        ":wat::holon::vector-blend" => eval_holon_vector_blend(args, env, sym),
+        ":wat::holon::vector-permute" => eval_holon_vector_permute(args, env, sym),
         ":wat::holon::statement-length" => eval_holon_statement_length(args, env, sym),
 
         // Constrained runtime eval — four forms, matching the load
@@ -6473,6 +6477,176 @@ fn eval_holon_encode(
     let enc = ctx.encoders.get(d);
     let v = encode(&target, &enc.vm, &enc.scalar, &ctx.registry);
     Ok(Value::Vector(Arc::new(v)))
+}
+
+/// Arc 053 — helper. Extract a `Value::Vector` payload, error on
+/// non-Vector input. Cousin of `require_holon`. Used by the
+/// Vector-tier algebra primitives.
+fn require_vector(op: &str, v: Value) -> Result<Arc<holon::Vector>, RuntimeError> {
+    match v {
+        Value::Vector(vec) => Ok(vec),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "wat::holon::Vector",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::holon::vector-bind v1 v2) -> :Vector` — XOR-like bind on
+/// two materialized Vectors. Arc 053.
+///
+/// Mirrors `:wat::holon::Bind` (the AST constructor) at the Vector
+/// tier. Use when you have two Vectors already materialized and want
+/// to compose them without round-tripping through HolonAST.
+fn eval_holon_vector_bind(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::vector-bind".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let va = require_vector(":wat::holon::vector-bind", eval(&args[0], env, sym)?)?;
+    let vb = require_vector(":wat::holon::vector-bind", eval(&args[1], env, sym)?)?;
+    if va.dimensions() != vb.dimensions() {
+        return Err(RuntimeError::TypeMismatch {
+            op: ":wat::holon::vector-bind".into(),
+            expected: "Vector pair with matching dimensions",
+            got: "mismatched-dim Vector pair",
+        });
+    }
+    let result = holon::primitives::Primitives::bind(&va, &vb);
+    Ok(Value::Vector(Arc::new(result)))
+}
+
+/// `(:wat::holon::vector-bundle vs) -> :Vector` — superposition over
+/// a `:Vec<Vector>`. Arc 053.
+///
+/// Mirrors `:wat::holon::Bundle` at the Vector tier. Empty Vec input
+/// errors (no zero-vector default — use the substrate's encode path
+/// if a "neutral" vector is needed).
+fn eval_holon_vector_bundle(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::vector-bundle".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let vec_value = eval(&args[0], env, sym)?;
+    let elements = match vec_value {
+        Value::Vec(v) => v,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::holon::vector-bundle".into(),
+                expected: "Vec of wat::holon::Vector",
+                got: other.type_name(),
+            })
+        }
+    };
+    if elements.is_empty() {
+        return Err(RuntimeError::TypeMismatch {
+            op: ":wat::holon::vector-bundle".into(),
+            expected: "non-empty Vec of Vector",
+            got: "empty Vec",
+        });
+    }
+    let mut owned: Vec<Arc<holon::Vector>> = Vec::with_capacity(elements.len());
+    for elem in elements.iter() {
+        owned.push(require_vector(
+            ":wat::holon::vector-bundle",
+            elem.clone(),
+        )?);
+    }
+    // Verify dim match.
+    let d = owned[0].dimensions();
+    for v in &owned[1..] {
+        if v.dimensions() != d {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::holon::vector-bundle".into(),
+                expected: "Vec of Vectors with matching dimensions",
+                got: "mismatched-dim Vector in Vec",
+            });
+        }
+    }
+    let refs: Vec<&holon::Vector> = owned.iter().map(|v| v.as_ref()).collect();
+    let result = holon::primitives::Primitives::bundle(&refs);
+    Ok(Value::Vector(Arc::new(result)))
+}
+
+/// `(:wat::holon::vector-blend v1 v2 w1 w2) -> :Vector` — weighted
+/// linear combination of two Vectors. Arc 053.
+///
+/// Mirrors `:wat::holon::Blend` at the Vector tier. Used by Reject /
+/// Project / weighted prototype updates.
+fn eval_holon_vector_blend(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 4 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::vector-blend".into(),
+            expected: 4,
+            got: args.len(),
+        });
+    }
+    let va = require_vector(":wat::holon::vector-blend", eval(&args[0], env, sym)?)?;
+    let vb = require_vector(":wat::holon::vector-blend", eval(&args[1], env, sym)?)?;
+    let w1 = require_numeric(":wat::holon::vector-blend", eval(&args[2], env, sym)?)?;
+    let w2 = require_numeric(":wat::holon::vector-blend", eval(&args[3], env, sym)?)?;
+    if va.dimensions() != vb.dimensions() {
+        return Err(RuntimeError::TypeMismatch {
+            op: ":wat::holon::vector-blend".into(),
+            expected: "Vector pair with matching dimensions",
+            got: "mismatched-dim Vector pair",
+        });
+    }
+    let result = holon::primitives::Primitives::blend_weighted(&va, &vb, w1, w2);
+    Ok(Value::Vector(Arc::new(result)))
+}
+
+/// `(:wat::holon::vector-permute v k) -> :Vector` — circular shift
+/// of a Vector by k positions. Arc 053.
+///
+/// Mirrors `:wat::holon::Permute` at the Vector tier. Used for
+/// position-bound binding when the position has already been resolved
+/// to a Vector.
+fn eval_holon_vector_permute(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::vector-permute".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let v = require_vector(":wat::holon::vector-permute", eval(&args[0], env, sym)?)?;
+    let k_val = eval(&args[1], env, sym)?;
+    let k = match k_val {
+        Value::i64(n) => n as i32,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::holon::vector-permute".into(),
+                expected: "i64 shift amount",
+                got: other.type_name(),
+            })
+        }
+    };
+    let result = holon::primitives::Primitives::permute(&v, k);
+    Ok(Value::Vector(Arc::new(result)))
 }
 
 fn require_numeric(op: &str, v: Value) -> Result<f64, RuntimeError> {

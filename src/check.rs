@@ -4815,6 +4815,45 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Path(":wat::holon::Vector".into()),
         },
     );
+    // Arc 053: Vector-tier algebra primitives. Operate on raw
+    // materialized Vectors without round-tripping through HolonAST.
+    // Used by Phase 4 learning code that holds emergent vectors.
+    let vector_ty = || TypeExpr::Path(":wat::holon::Vector".into());
+    env.register(
+        ":wat::holon::vector-bind".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![vector_ty(), vector_ty()],
+            ret: vector_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::vector-bundle".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Parametric {
+                head: "Vec".into(),
+                args: vec![vector_ty()],
+            }],
+            ret: vector_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::vector-blend".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![vector_ty(), vector_ty(), f64_ty(), f64_ty()],
+            ret: vector_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::vector-permute".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![vector_ty(), i64_ty()],
+            ret: vector_ty(),
+        },
+    );
     // Arc 051: SimHash — direction-space lattice position. Charikar's
     // hyperplane SimHash via the canonical Atom(0)..Atom(63) basis.
     // Maps an input holon to a 64-bit i64 key; cosine-similar inputs
