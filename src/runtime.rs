@@ -326,6 +326,16 @@ pub enum Value {
     /// match container for engrams. `Arc<ThreadOwnedCell<...>>` for
     /// per-thread mutation under CSP.
     EngramLibrary(Arc<crate::rust_deps::ThreadOwnedCell<holon::EngramLibrary>>),
+    /// Arc 056 — `:wat::time::Instant`. Wall-clock point in time
+    /// (Java/Clojure lineage; not Rust's monotonic `std::time::Instant`).
+    /// Backing: `chrono::DateTime<chrono::Utc>` (Copy + Send + Sync;
+    /// no `ThreadOwnedCell` needed). Constructed via
+    /// `:wat::time::now`/`at`/`at-millis`/`at-nanos`/`from-iso8601`;
+    /// rendered via `to-iso8601`; integer-accessible via
+    /// `epoch-seconds`/`epoch-millis`/`epoch-nanos`. Duration
+    /// measurement is `(now)` before, `(now)` after, subtract integer
+    /// accessors — no separate `Duration` type.
+    Instant(chrono::DateTime<chrono::Utc>),
 }
 
 /// The payload of a [`Value::Struct`] — the struct's fully-qualified
@@ -391,6 +401,7 @@ impl Value {
             Value::Reckoner(_) => "wat::holon::Reckoner",
             Value::Engram(_) => "wat::holon::Engram",
             Value::EngramLibrary(_) => "wat::holon::EngramLibrary",
+            Value::Instant(_) => "wat::time::Instant",
         }
     }
 }
@@ -2469,6 +2480,19 @@ fn dispatch_keyword_head(
         ":wat::std::stat::mean" => eval_stat_mean(args, env, sym),
         ":wat::std::stat::variance" => eval_stat_variance(args, env, sym),
         ":wat::std::stat::stddev" => eval_stat_stddev(args, env, sym),
+
+        // Time primitives — arc 056. World-observing (`now`) +
+        // pure converters at `:wat::time::*`, sibling of `:wat::io::*`
+        // rather than nested under `:wat::std::*`.
+        ":wat::time::now" => crate::time::eval_time_now(args),
+        ":wat::time::at" => crate::time::eval_time_at(args, env, sym),
+        ":wat::time::at-millis" => crate::time::eval_time_at_millis(args, env, sym),
+        ":wat::time::at-nanos" => crate::time::eval_time_at_nanos(args, env, sym),
+        ":wat::time::from-iso8601" => crate::time::eval_time_from_iso8601(args, env, sym),
+        ":wat::time::to-iso8601" => crate::time::eval_time_to_iso8601(args, env, sym),
+        ":wat::time::epoch-seconds" => crate::time::eval_time_epoch_seconds(args, env, sym),
+        ":wat::time::epoch-millis" => crate::time::eval_time_epoch_millis(args, env, sym),
+        ":wat::time::epoch-nanos" => crate::time::eval_time_epoch_nanos(args, env, sym),
 
         // :rust::* — dispatch through the rust-deps registry. Each
         // symbol's shim handles its own arg evaluation and marshaling.

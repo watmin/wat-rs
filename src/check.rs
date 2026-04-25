@@ -5624,6 +5624,62 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+
+    // Arc 056 — :wat::time::* surface. Sibling of :wat::io::* at the
+    // same nesting depth (world-observing primitives, not pure
+    // stdlib). Single Instant value type backs all 9 primitives;
+    // duration measurement is two `now` calls + integer-accessor
+    // subtract (no separate Duration type).
+    let instant_ty = || TypeExpr::Path(":wat::time::Instant".into());
+    let string_ty = || TypeExpr::Path(":String".into());
+    let opt_instant_ty = || TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![instant_ty()],
+    };
+    env.register(
+        ":wat::time::now".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: instant_ty(),
+        },
+    );
+    for name in ["at", "at-millis", "at-nanos"] {
+        env.register(
+            format!(":wat::time::{}", name),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![i64_ty()],
+                ret: instant_ty(),
+            },
+        );
+    }
+    env.register(
+        ":wat::time::from-iso8601".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: opt_instant_ty(),
+        },
+    );
+    env.register(
+        ":wat::time::to-iso8601".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![instant_ty(), i64_ty()],
+            ret: string_ty(),
+        },
+    );
+    for name in ["epoch-seconds", "epoch-millis", "epoch-nanos"] {
+        env.register(
+            format!(":wat::time::{}", name),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![instant_ty()],
+                ret: i64_ty(),
+            },
+        );
+    }
     // List/Vec primitives — Round 4a, per docs/058-backlog.md.
     //
     //   length   : ∀T. Vec<T> -> :i64

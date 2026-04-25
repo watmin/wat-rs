@@ -12,7 +12,7 @@ from BLOCKED to ready and writes the supporting program.
 
 ## Slice 1 — Rust runtime + Cargo dep
 
-**Status: ready.**
+**Status: shipped 2026-04-25.**
 
 `wat-rs/Cargo.toml` — append to `[dependencies]`:
 
@@ -100,7 +100,7 @@ OnlineSubspace) register.
 
 ## Slice 2 — Wat surface
 
-**Status: ready (after slice 1).**
+**Status: omitted 2026-04-25.** Runtime-dispatch primitives don't need a wat wrapper — same shape as `:wat::std::math::*` and `:wat::std::stat::*` (no `wat/std/math.wat` or `wat/std/stat.wat` files exist; both ship as direct dispatch arms). Saved ~50 LOC of pure ceremony. INSCRIPTION captures the rationale.
 
 `wat-rs/wat/time.wat` (new) — sits at the same nesting depth as
 `wat/io/`, `wat/std/`, etc. Per Q10 (namespace-as-IO), time is a
@@ -145,7 +145,7 @@ wrapper. Either is fine; pick during implementation.)
 
 ## Slice 3 — Tests
 
-**Status: ready (after slice 2).**
+**Status: shipped 2026-04-25.**
 
 `wat-rs/wat-tests/time.wat` (new) — 8-10 deftests covering each
 primitive.
@@ -184,7 +184,7 @@ Test budget:
 
 ## Slice 4 — INSCRIPTION + USER-GUIDE row
 
-**Status: blocked on slice 3.**
+**Status: shipped 2026-04-25.** USER-GUIDE row added under `:wat::time::*`. FOUNDATION-CHANGELOG note skipped — the file doesn't exist in this repo.
 
 - **INSCRIPTION.md** — record what landed (LOC delta, test
   count delta), confirm Q10's namespace decision in practice,

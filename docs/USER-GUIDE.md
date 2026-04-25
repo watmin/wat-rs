@@ -1707,6 +1707,11 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::f64::clamp` | `v lo hi` | bound `v` into `[lo, hi]` (arc 046); errors if `lo > hi` or NaN bounds |
 | `:wat::std::math::ln` / `log` / `exp` / `sin` / `cos` | `x` | unary math (`log` is alias for `ln`); accept i64 promotion |
 | `:wat::std::math::pi` | — | π as `:f64` |
+| `:wat::time::now` | — | `:wat::time::Instant` — current wall-clock time (arc 056; world-observing — sibling of `:wat::io::*` rather than under `:wat::std::*`) |
+| `:wat::time::at` / `at-millis` / `at-nanos` | `epoch:i64` | `:wat::time::Instant` from epoch seconds / ms / ns (i64 ns saturates ~year 2262) |
+| `:wat::time::from-iso8601` | `s:String` | `:Option<wat::time::Instant>` — `:None` on parse failure; accepts the RFC 3339 grammar |
+| `:wat::time::to-iso8601` | `instant digits:i64` | `:String` — UTC ISO 8601 with N fractional second digits; `digits` clamps to `[0, 9]` |
+| `:wat::time::epoch-seconds` / `epoch-millis` / `epoch-nanos` | `instant` | `:i64` — truncating; `epoch-nanos` panics outside i64-ns range (~1677–2262) |
 | `:wat::core::i64::to-string` / `to-f64` | `n` | infallible — `:String` / `:f64` |
 | `:wat::core::f64::to-string` / `to-i64` | `x` | `:String` / `:Option<i64>` (NaN/inf/out-of-range → `:None`) |
 | `:wat::core::string::to-i64` / `to-f64` / `to-bool` | `s` | `:Option<T>` (unparseable → `:None`) |
