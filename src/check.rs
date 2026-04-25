@@ -4854,6 +4854,79 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: vector_ty(),
         },
     );
+    // Arc 053: OnlineSubspace native value + 10 core methods.
+    let subspace_ty = || TypeExpr::Path(":wat::holon::OnlineSubspace".into());
+    let vec_f64_ty = || TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![f64_ty()],
+    };
+    env.register(
+        ":wat::holon::OnlineSubspace/new".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty(), i64_ty()],
+            ret: subspace_ty(),
+        },
+    );
+    for unary_to_i64 in &[
+        ":wat::holon::OnlineSubspace/dim",
+        ":wat::holon::OnlineSubspace/k",
+        ":wat::holon::OnlineSubspace/n",
+    ] {
+        env.register(
+            unary_to_i64.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![subspace_ty()],
+                ret: i64_ty(),
+            },
+        );
+    }
+    env.register(
+        ":wat::holon::OnlineSubspace/threshold".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![subspace_ty()],
+            ret: f64_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::OnlineSubspace/eigenvalues".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![subspace_ty()],
+            ret: vec_f64_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::OnlineSubspace/update".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![subspace_ty(), vector_ty()],
+            ret: f64_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::OnlineSubspace/residual".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![subspace_ty(), vector_ty()],
+            ret: f64_ty(),
+        },
+    );
+    for unary_to_vec in &[
+        ":wat::holon::OnlineSubspace/project",
+        ":wat::holon::OnlineSubspace/reconstruct",
+    ] {
+        env.register(
+            unary_to_vec.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![subspace_ty(), vector_ty()],
+                ret: vec_f64_ty(),
+            },
+        );
+    }
     // Arc 051: SimHash — direction-space lattice position. Charikar's
     // hyperplane SimHash via the canonical Atom(0)..Atom(63) basis.
     // Maps an input holon to a 64-bit i64 key; cosine-similar inputs

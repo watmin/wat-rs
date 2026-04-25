@@ -301,6 +301,31 @@ pub enum Value {
     /// keys. For graded similarity reach for `cosine`, `presence?`,
     /// or `simhash`-then-bucket-then-cosine.
     Vector(Arc<holon::Vector>),
+    /// Arc 053 — `:wat::holon::OnlineSubspace`. Incremental PCA that
+    /// learns "what normal looks like" from a stream of vectors.
+    /// `Arc<ThreadOwnedCell<...>>` for per-thread ownership, zero
+    /// Mutex (CSP-safe). Same pattern as wat-lru's LruCache wrapping.
+    ///
+    /// Mutates via `update`; reads via `residual` / `project` /
+    /// `reconstruct` / `eigenvalues`. No equality semantics — two
+    /// subspaces trained on different orderings produce different
+    /// internal bases.
+    OnlineSubspace(Arc<crate::rust_deps::ThreadOwnedCell<holon::OnlineSubspace>>),
+    /// Arc 053 — `:wat::holon::Reckoner`. Gradient-trained discriminant
+    /// classifier with discrete or continuous readout. Per-thread
+    /// owned for safe mutation under CSP.
+    Reckoner(Arc<crate::rust_deps::ThreadOwnedCell<holon::Reckoner>>),
+    /// Arc 053 — `:wat::holon::Engram`. A learned-pattern snapshot
+    /// produced by training. Mostly read-only after construction; the
+    /// `residual` method triggers lazy subspace-cache mutation, so we
+    /// use ThreadOwnedCell (same per-thread-ownership pattern as the
+    /// other state-bearing types). Send+Sync via the same UnsafeCell
+    /// + thread-id-check discipline.
+    Engram(Arc<crate::rust_deps::ThreadOwnedCell<holon::Engram>>),
+    /// Arc 053 — `:wat::holon::EngramLibrary`. The collection-and-
+    /// match container for engrams. `Arc<ThreadOwnedCell<...>>` for
+    /// per-thread mutation under CSP.
+    EngramLibrary(Arc<crate::rust_deps::ThreadOwnedCell<holon::EngramLibrary>>),
 }
 
 /// The payload of a [`Value::Struct`] — the struct's fully-qualified
@@ -362,6 +387,10 @@ impl Value {
             Value::Struct(_) => "Struct",
             Value::Enum(_) => "Enum",
             Value::Vector(_) => "wat::holon::Vector",
+            Value::OnlineSubspace(_) => "wat::holon::OnlineSubspace",
+            Value::Reckoner(_) => "wat::holon::Reckoner",
+            Value::Engram(_) => "wat::holon::Engram",
+            Value::EngramLibrary(_) => "wat::holon::EngramLibrary",
         }
     }
 }
@@ -2276,6 +2305,20 @@ fn dispatch_keyword_head(
         ":wat::holon::vector-bundle" => eval_holon_vector_bundle(args, env, sym),
         ":wat::holon::vector-blend" => eval_holon_vector_blend(args, env, sym),
         ":wat::holon::vector-permute" => eval_holon_vector_permute(args, env, sym),
+
+        // Arc 053: OnlineSubspace native primitives.
+        ":wat::holon::OnlineSubspace/new" => eval_subspace_new(args, env, sym),
+        ":wat::holon::OnlineSubspace/dim" => eval_subspace_dim(args, env, sym),
+        ":wat::holon::OnlineSubspace/k" => eval_subspace_k(args, env, sym),
+        ":wat::holon::OnlineSubspace/n" => eval_subspace_n(args, env, sym),
+        ":wat::holon::OnlineSubspace/threshold" => eval_subspace_threshold(args, env, sym),
+        ":wat::holon::OnlineSubspace/eigenvalues" => eval_subspace_eigenvalues(args, env, sym),
+        ":wat::holon::OnlineSubspace/update" => eval_subspace_update(args, env, sym),
+        ":wat::holon::OnlineSubspace/residual" => eval_subspace_residual(args, env, sym),
+        ":wat::holon::OnlineSubspace/project" => eval_subspace_project(args, env, sym),
+        ":wat::holon::OnlineSubspace/reconstruct" => {
+            eval_subspace_reconstruct(args, env, sym)
+        }
         ":wat::holon::statement-length" => eval_holon_statement_length(args, env, sym),
 
         // Constrained runtime eval — four forms, matching the load
@@ -6647,6 +6690,237 @@ fn eval_holon_vector_permute(
     };
     let result = holon::primitives::Primitives::permute(&v, k);
     Ok(Value::Vector(Arc::new(result)))
+}
+
+/// Arc 053 — extract a `Value::OnlineSubspace` payload.
+fn require_subspace(
+    op: &str,
+    v: Value,
+) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::OnlineSubspace>>, RuntimeError> {
+    match v {
+        Value::OnlineSubspace(s) => Ok(s),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "wat::holon::OnlineSubspace",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// Arc 053 — wrap a `Vec<f64>` into a wat-tier `:Vec<f64>` Value.
+fn vec_f64_to_value(xs: Vec<f64>) -> Value {
+    Value::Vec(Arc::new(xs.into_iter().map(Value::f64).collect()))
+}
+
+/// `(:wat::holon::OnlineSubspace/new dim k) -> :OnlineSubspace` — arc 053.
+fn eval_subspace_new(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::OnlineSubspace/new".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let dim = require_i64(":wat::holon::OnlineSubspace/new", eval(&args[0], env, sym)?)?;
+    let k = require_i64(":wat::holon::OnlineSubspace/new", eval(&args[1], env, sym)?)?;
+    let s = holon::OnlineSubspace::new(dim as usize, k as usize);
+    Ok(Value::OnlineSubspace(Arc::new(
+        crate::rust_deps::ThreadOwnedCell::new(s),
+    )))
+}
+
+fn eval_subspace_dim(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::OnlineSubspace/dim".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let s = require_subspace(":wat::holon::OnlineSubspace/dim", eval(&args[0], env, sym)?)?;
+    let n = s.with_ref(":wat::holon::OnlineSubspace/dim", |s| s.dim())?;
+    Ok(Value::i64(n as i64))
+}
+
+fn eval_subspace_k(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::OnlineSubspace/k".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let s = require_subspace(":wat::holon::OnlineSubspace/k", eval(&args[0], env, sym)?)?;
+    let n = s.with_ref(":wat::holon::OnlineSubspace/k", |s| s.k())?;
+    Ok(Value::i64(n as i64))
+}
+
+fn eval_subspace_n(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::OnlineSubspace/n".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let s = require_subspace(":wat::holon::OnlineSubspace/n", eval(&args[0], env, sym)?)?;
+    let n = s.with_ref(":wat::holon::OnlineSubspace/n", |s| s.n())?;
+    Ok(Value::i64(n as i64))
+}
+
+fn eval_subspace_threshold(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::OnlineSubspace/threshold".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let s = require_subspace(
+        ":wat::holon::OnlineSubspace/threshold",
+        eval(&args[0], env, sym)?,
+    )?;
+    let t = s.with_ref(":wat::holon::OnlineSubspace/threshold", |s| s.threshold())?;
+    Ok(Value::f64(t))
+}
+
+fn eval_subspace_eigenvalues(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::OnlineSubspace/eigenvalues".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let s = require_subspace(
+        ":wat::holon::OnlineSubspace/eigenvalues",
+        eval(&args[0], env, sym)?,
+    )?;
+    let xs = s.with_ref(":wat::holon::OnlineSubspace/eigenvalues", |s| s.eigenvalues())?;
+    Ok(vec_f64_to_value(xs))
+}
+
+fn eval_subspace_update(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::OnlineSubspace/update".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let s = require_subspace(
+        ":wat::holon::OnlineSubspace/update",
+        eval(&args[0], env, sym)?,
+    )?;
+    let v = require_vector(":wat::holon::OnlineSubspace/update", eval(&args[1], env, sym)?)?;
+    let xs = v.to_f64();
+    let residual = s.with_mut(":wat::holon::OnlineSubspace/update", |s| s.update(&xs))?;
+    Ok(Value::f64(residual))
+}
+
+fn eval_subspace_residual(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::OnlineSubspace/residual".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let s = require_subspace(
+        ":wat::holon::OnlineSubspace/residual",
+        eval(&args[0], env, sym)?,
+    )?;
+    let v = require_vector(
+        ":wat::holon::OnlineSubspace/residual",
+        eval(&args[1], env, sym)?,
+    )?;
+    let xs = v.to_f64();
+    let r = s.with_ref(":wat::holon::OnlineSubspace/residual", |s| s.residual(&xs))?;
+    Ok(Value::f64(r))
+}
+
+fn eval_subspace_project(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::OnlineSubspace/project".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let s = require_subspace(
+        ":wat::holon::OnlineSubspace/project",
+        eval(&args[0], env, sym)?,
+    )?;
+    let v = require_vector(
+        ":wat::holon::OnlineSubspace/project",
+        eval(&args[1], env, sym)?,
+    )?;
+    let xs = v.to_f64();
+    let projected = s.with_ref(":wat::holon::OnlineSubspace/project", |s| s.project(&xs))?;
+    Ok(vec_f64_to_value(projected))
+}
+
+fn eval_subspace_reconstruct(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::OnlineSubspace/reconstruct".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let s = require_subspace(
+        ":wat::holon::OnlineSubspace/reconstruct",
+        eval(&args[0], env, sym)?,
+    )?;
+    let v = require_vector(
+        ":wat::holon::OnlineSubspace/reconstruct",
+        eval(&args[1], env, sym)?,
+    )?;
+    let xs = v.to_f64();
+    let r = s.with_ref(":wat::holon::OnlineSubspace/reconstruct", |s| {
+        s.reconstruct(&xs)
+    })?;
+    Ok(vec_f64_to_value(r))
 }
 
 fn require_numeric(op: &str, v: Value) -> Result<f64, RuntimeError> {
