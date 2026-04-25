@@ -5584,7 +5584,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Stdlib math — single-method Rust calls per FOUNDATION-CHANGELOG
     // 2026-04-18. All unary :f64 -> :f64 except pi which is :() -> :f64.
     // Packaged here so Log / Circular expansions get proper checking.
-    for name in ["ln", "log", "exp", "sin", "cos"] {
+    for name in ["ln", "log", "exp", "sin", "cos", "sqrt"] {
         env.register(
             format!(":wat::std::math::{}", name),
             TypeScheme {

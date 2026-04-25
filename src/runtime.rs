@@ -2462,6 +2462,7 @@ fn dispatch_keyword_head(
         ":wat::std::math::ln" => eval_math_unary(args, env, sym, "ln", f64::ln),
         ":wat::std::math::log" => eval_math_unary(args, env, sym, "log", f64::ln),
         ":wat::std::math::exp" => eval_math_unary(args, env, sym, "exp", f64::exp),
+        ":wat::std::math::sqrt" => eval_math_unary(args, env, sym, "sqrt", f64::sqrt),
         ":wat::std::math::sin" => eval_math_unary(args, env, sym, "sin", f64::sin),
         ":wat::std::math::cos" => eval_math_unary(args, env, sym, "cos", f64::cos),
         ":wat::std::math::pi" => eval_math_pi(args),
