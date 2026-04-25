@@ -482,16 +482,53 @@ earlier ones. Body after the bindings is the result.
 (:wat::core::match some-result -> :i64
   ((Ok v) v)
   ((Err e) (:my::app::handle-err e)))
-
-(:wat::core::match tuple-pair -> :i64
-  ((a b) (:wat::core::i64::+ a b)))
 ```
 
-Works on `:Option<T>`, `:Result<T,E>`, and tuples. The `-> :T`
-annotation declares the arms' common result type — every arm body
-is checked against `T` independently, so a mismatch points at the
+Works on `:Option<T>`, `:Result<T,E>`, and user enums (058-048). The
+`-> :T` annotation declares the arms' common result type — every arm
+body is checked against `T` independently, so a mismatch points at the
 offending arm, not at the unifier. Exhaustiveness is checked at
 startup — miss an arm, startup fails.
+
+**Patterns recurse** (arc 055). Anywhere a sub-pattern can appear, it
+can itself be another pattern — bare symbol, `_` wildcard, literal,
+nested tuple, or nested variant — to any depth:
+
+```scheme
+;; Option<Tuple> destructured in one step:
+(:wat::core::match row -> :String
+  ((Some (ts open high low close volume))
+    (:wat::core::string::concat
+      (:wat::core::i64::to-string ts) ":"
+      (:wat::core::f64::to-string close)))
+  (:None "end-of-stream"))
+
+;; Wildcard at any depth, literal at any depth, nested variants —
+;; all compose:
+(:wat::core::match resp -> :String
+  ((Ok (Some 200))  "ok")
+  ((Ok (Some n))    (:wat::core::string::concat "code:"
+                      (:wat::core::i64::to-string n)))
+  ((Ok :None)       "no-content")
+  ((Err msg)        msg))
+```
+
+Linear-shadowing semantics: a name bound twice in one pattern keeps
+the second binding (`(Some (x x))` against `(5,7)` makes `x` 7).
+
+**Exhaustiveness with narrowing patterns.** A sub-pattern that's
+narrower than bare-symbol or `_` (e.g. a literal at any depth, or a
+nested variant constructor) makes its arm *partial* — it covers some
+but not all of the variant's space. Exhaustiveness then requires a
+fallback arm: a top-level `_` wildcard, or other arms that
+collectively cover the full space. The error message names the rule
+when an arm is missing:
+
+```
+non-exhaustive: :Option<T> needs arms for both :None and (Some _),
+or a wildcard. (Arc 055 — narrowing patterns like `(Some (1 _))`
+are partial; add a fallback `_` arm.)
+```
 
 ### `try` — error propagation
 

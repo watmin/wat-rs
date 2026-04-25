@@ -2163,6 +2163,7 @@ fn dispatch_keyword_head(
         ":wat::core::string::trim" => crate::string_ops::eval_string_trim(args, env, sym),
         ":wat::core::string::split" => crate::string_ops::eval_string_split(args, env, sym),
         ":wat::core::string::join" => crate::string_ops::eval_string_join(args, env, sym),
+        ":wat::core::string::concat" => crate::string_ops::eval_string_concat(args, env, sym),
 
         // Regex — pattern matching. Lives in its own :wat::core::regex::*
         // namespace since the regex crate is a distinct concern.
@@ -5403,6 +5404,12 @@ fn eval_match(
 ///   pattern-introduced bindings.
 /// - `Ok(None)` — pattern doesn't match this value; try the next arm.
 /// - `Err(_)` — pattern is malformed.
+///
+/// Arc 055 — patterns are recursive over the algebra. List sub-patterns
+/// dispatch on the value's shape (Option/Result/Enum/Tuple); literal
+/// sub-patterns compare for equality; bare symbols bind, `_` discards.
+/// Linear-shadowing semantics — a name bound twice in one pattern
+/// keeps the second binding (later recursion overwrites earlier).
 fn try_match_pattern(
     pattern: &WatAST,
     value: &Value,
@@ -5412,6 +5419,23 @@ fn try_match_pattern(
         // `:None` — matches Option(None) only.
         WatAST::Keyword(k, _) if k == ":None" => match value {
             Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
+            _ => Ok(None),
+        },
+        // Arc 055 — literal sub-patterns compare by equality.
+        WatAST::IntLit(n, _) => match value {
+            Value::i64(v) if v == n => Ok(Some(outer.clone())),
+            _ => Ok(None),
+        },
+        WatAST::FloatLit(f, _) => match value {
+            Value::f64(v) if v == f => Ok(Some(outer.clone())),
+            _ => Ok(None),
+        },
+        WatAST::BoolLit(b, _) => match value {
+            Value::bool(v) if v == b => Ok(Some(outer.clone())),
+            _ => Ok(None),
+        },
+        WatAST::StringLit(s, _) => match value {
+            Value::String(v) if v.as_str() == s => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
         // Arc 048 — user-enum unit variant. Pattern `:enum::Variant`
@@ -5447,28 +5471,14 @@ fn try_match_pattern(
                         return Err(RuntimeError::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
-                                "(Some binder) takes exactly one field, got {}",
+                                "(Some _) takes exactly one field, got {}",
                                 items.len() - 1
                             ),
                         });
                     }
                     match value {
                         Value::Option(opt) => match &**opt {
-                            Some(inner) => {
-                                let binder = match &items[1] {
-                                    WatAST::Symbol(b, _) => b.as_str().to_string(),
-                                    other => {
-                                        return Err(RuntimeError::MalformedForm {
-                                            head: ":wat::core::match".into(),
-                                            reason: format!(
-                                                "(Some _): binder must be a bare symbol, got {}",
-                                                ast_variant_name(other)
-                                            ),
-                                        });
-                                    }
-                                };
-                                Ok(Some(outer.child().bind(binder, inner.clone()).build()))
-                            }
+                            Some(inner) => try_match_pattern(&items[1], inner, outer),
                             None => Ok(None),
                         },
                         _ => Ok(None),
@@ -5479,28 +5489,14 @@ fn try_match_pattern(
                         return Err(RuntimeError::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
-                                "(Ok binder) takes exactly one field, got {}",
+                                "(Ok _) takes exactly one field, got {}",
                                 items.len() - 1
                             ),
                         });
                     }
                     match value {
                         Value::Result(r) => match &**r {
-                            Ok(inner) => {
-                                let binder = match &items[1] {
-                                    WatAST::Symbol(b, _) => b.as_str().to_string(),
-                                    other => {
-                                        return Err(RuntimeError::MalformedForm {
-                                            head: ":wat::core::match".into(),
-                                            reason: format!(
-                                                "(Ok _): binder must be a bare symbol, got {}",
-                                                ast_variant_name(other)
-                                            ),
-                                        });
-                                    }
-                                };
-                                Ok(Some(outer.child().bind(binder, inner.clone()).build()))
-                            }
+                            Ok(inner) => try_match_pattern(&items[1], inner, outer),
                             Err(_) => Ok(None),
                         },
                         _ => Ok(None),
@@ -5511,95 +5507,79 @@ fn try_match_pattern(
                         return Err(RuntimeError::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!(
-                                "(Err binder) takes exactly one field, got {}",
+                                "(Err _) takes exactly one field, got {}",
                                 items.len() - 1
                             ),
                         });
                     }
                     match value {
                         Value::Result(r) => match &**r {
-                            Err(inner) => {
-                                let binder = match &items[1] {
-                                    WatAST::Symbol(b, _) => b.as_str().to_string(),
-                                    other => {
-                                        return Err(RuntimeError::MalformedForm {
-                                            head: ":wat::core::match".into(),
-                                            reason: format!(
-                                                "(Err _): binder must be a bare symbol, got {}",
-                                                ast_variant_name(other)
-                                            ),
-                                        });
-                                    }
-                                };
-                                Ok(Some(outer.child().bind(binder, inner.clone()).build()))
-                            }
+                            Err(inner) => try_match_pattern(&items[1], inner, outer),
                             Ok(_) => Ok(None),
                         },
                         _ => Ok(None),
                     }
                 }
                 // Arc 048 — user-enum tagged variant. Pattern
-                // `(:enum::Variant binder1 binder2 ...)` matches
-                // `Value::Enum` whose `type_path::variant_name`
-                // composes to the same path AND whose `fields` count
-                // matches the binder count. Each binder is bound to
-                // the corresponding field by position.
+                // `(:enum::Variant pat1 pat2 ...)` matches `Value::Enum`
+                // whose `type_path::variant_name` composes to the same
+                // path AND whose `fields` count matches.
+                // Arc 055 — each sub-pattern is recursive (was: bare
+                // symbol only). Linear shadowing — each sub-pattern's
+                // bindings layer on top of the previous via Environment
+                // chaining.
                 WatAST::Keyword(variant_path, _) => match value {
                     Value::Enum(ev) => {
                         let composed = format!("{}::{}", ev.type_path, ev.variant_name);
                         if composed != *variant_path {
                             return Ok(None);
                         }
-                        let binders = &items[1..];
-                        if binders.len() != ev.fields.len() {
+                        let sub_pats = &items[1..];
+                        if sub_pats.len() != ev.fields.len() {
                             return Err(RuntimeError::MalformedForm {
                                 head: ":wat::core::match".into(),
                                 reason: format!(
-                                    "({} ...) takes {} field(s) for variant {}, got {} binder(s)",
+                                    "({} ...) takes {} field(s) for variant {}, got {}",
                                     variant_path,
                                     ev.fields.len(),
                                     ev.variant_name,
-                                    binders.len()
+                                    sub_pats.len()
                                 ),
                             });
                         }
-                        let mut child = outer.child();
-                        for (binder_ast, field_value) in binders.iter().zip(ev.fields.iter()) {
-                            let binder_name = match binder_ast {
-                                WatAST::Symbol(b, _) => b.as_str().to_string(),
-                                other => {
-                                    return Err(RuntimeError::MalformedForm {
-                                        head: ":wat::core::match".into(),
-                                        reason: format!(
-                                            "({} ...) binders must be bare symbols, got {}",
-                                            variant_path,
-                                            ast_variant_name(other)
-                                        ),
-                                    });
-                                }
-                            };
-                            child = child.bind(binder_name, field_value.clone());
+                        let mut env = outer.clone();
+                        for (sub_pat, field_value) in sub_pats.iter().zip(ev.fields.iter()) {
+                            match try_match_pattern(sub_pat, field_value, &env)? {
+                                Some(new_env) => env = new_env,
+                                None => return Ok(None),
+                            }
                         }
-                        Ok(Some(child.build()))
+                        Ok(Some(env))
                     }
                     _ => Ok(None),
                 },
-                other => Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::match".into(),
-                    reason: format!(
-                        "list pattern head must be a variant constructor; got {}",
-                        ast_variant_name(other)
-                    ),
-                }),
+                // Arc 055 — tuple destructure. Pattern is a list with no
+                // recognized variant constructor at head; value must be
+                // a tuple of matching arity. Each sub-pattern matches
+                // one element by position.
+                _ => match value {
+                    Value::Tuple(elems) => {
+                        if items.len() != elems.len() {
+                            return Ok(None);
+                        }
+                        let mut env = outer.clone();
+                        for (sub_pat, sub_val) in items.iter().zip(elems.iter()) {
+                            match try_match_pattern(sub_pat, sub_val, &env)? {
+                                Some(new_env) => env = new_env,
+                                None => return Ok(None),
+                            }
+                        }
+                        Ok(Some(env))
+                    }
+                    _ => Ok(None),
+                },
             }
         }
-        other => Err(RuntimeError::MalformedForm {
-            head: ":wat::core::match".into(),
-            reason: format!(
-                "pattern must be a keyword, symbol, or list; got {}",
-                ast_variant_name(other)
-            ),
-        }),
     }
 }
 

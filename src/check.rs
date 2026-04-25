@@ -463,6 +463,7 @@ fn infer_list(
             ":wat::core::vec" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::tuple" => return infer_tuple_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::core::string::concat" => return infer_string_concat(args, env, locals, fresh, subst, errors),
             ":wat::core::HashMap" => return infer_hashmap_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::assoc" => return infer_assoc(args, env, locals, fresh, subst, errors),
             ":wat::core::conj" => return infer_conj(args, env, locals, fresh, subst, errors),
@@ -865,6 +866,18 @@ fn infer_match(
         }
     }
 
+    // Arc 055 — resolve the shape's inner types via the substitution
+    // *now* so recursive sub-pattern checking sees concrete types
+    // (e.g. `Option<fresh>` → `Option<(i64,i64,i64)>` once the
+    // scrutinee unifies with a let-bound variable).
+    let shape = match &shape {
+        MatchShape::Option(t) => MatchShape::Option(apply_subst(t, subst)),
+        MatchShape::Result(t, e) => {
+            MatchShape::Result(apply_subst(t, subst), apply_subst(e, subst))
+        }
+        MatchShape::Enum(p) => MatchShape::Enum(p.clone()),
+    };
+
     let mut covers_option_none = false;
     let mut covers_option_some = false;
     let mut covers_result_ok = false;
@@ -891,12 +904,18 @@ fn infer_match(
         let mut arm_locals = locals.clone();
         match pattern_coverage(pattern, &shape, env, &mut arm_locals, errors) {
             Some(Coverage::OptionNone) => covers_option_none = true,
-            Some(Coverage::OptionSome) => covers_option_some = true,
-            Some(Coverage::ResultOk) => covers_result_ok = true,
-            Some(Coverage::ResultErr) => covers_result_err = true,
-            Some(Coverage::EnumVariant(name)) => {
+            // Arc 055 — partial Some (e.g. `(Some (1 _))`) does not
+            // satisfy Some-coverage; needs a fallback arm.
+            Some(Coverage::OptionSome { full: true }) => covers_option_some = true,
+            Some(Coverage::OptionSome { full: false }) => {}
+            Some(Coverage::ResultOk { full: true }) => covers_result_ok = true,
+            Some(Coverage::ResultOk { full: false }) => {}
+            Some(Coverage::ResultErr { full: true }) => covers_result_err = true,
+            Some(Coverage::ResultErr { full: false }) => {}
+            Some(Coverage::EnumVariant { name, full: true }) => {
                 covered_enum_variants.insert(name);
             }
+            Some(Coverage::EnumVariant { full: false, .. }) => {}
             Some(Coverage::Wildcard) => {
                 wildcard_seen = true;
                 covers_option_none = true;
@@ -944,8 +963,8 @@ fn infer_match(
         errors.push(CheckError::MalformedForm {
             head: ":wat::core::match".into(),
             reason: match &shape {
-                MatchShape::Option(_) => "non-exhaustive: :Option<T> needs arms for both :None and (Some _), or a wildcard".into(),
-                MatchShape::Result(_, _) => "non-exhaustive: :Result<T,E> needs arms for both (Ok _) and (Err _), or a wildcard".into(),
+                MatchShape::Option(_) => "non-exhaustive: :Option<T> needs arms for both :None and (Some _), or a wildcard. (Arc 055 — narrowing patterns like `(Some (1 _))` are partial; add a fallback `_` arm.)".into(),
+                MatchShape::Result(_, _) => "non-exhaustive: :Result<T,E> needs arms for both (Ok _) and (Err _), or a wildcard. (Arc 055 — narrowing patterns like `(Ok 200)` are partial; add a fallback `_` arm.)".into(),
                 MatchShape::Enum(enum_path) => {
                     if let Some(crate::types::TypeDef::Enum(e)) = env.types().get(enum_path) {
                         let missing: Vec<String> = e.variants.iter().filter_map(|v| {
@@ -978,15 +997,26 @@ fn infer_match(
 /// Coverage class for a match pattern. Spans built-in `:Option<T>`,
 /// `:Result<T,E>`, and (arc 048) user-defined enums. Wildcard covers
 /// any shape.
+///
+/// Arc 055 — variant-carrying coverage classes carry a `full` flag.
+/// `full=true` means the variant arm's inner sub-pattern is fully
+/// general (bare symbol or `_` recursively); `full=false` means the
+/// arm narrows the variant's space (a literal or nested variant
+/// somewhere inside) and a fallback wildcard arm is required to
+/// remain exhaustive.
 enum Coverage {
     OptionNone,
-    OptionSome,
-    ResultOk,
-    ResultErr,
+    OptionSome { full: bool },
+    ResultOk { full: bool },
+    ResultErr { full: bool },
     /// Arc 048 — user-enum variant covered. Carries the variant's
     /// bare name (e.g. "Valley") for exhaustiveness checking against
-    /// the enum's declared variant set.
-    EnumVariant(String),
+    /// the enum's declared variant set. Arc 055 — `full` flag tracks
+    /// whether the inner sub-pattern is fully general.
+    EnumVariant {
+        name: String,
+        full: bool,
+    },
     Wildcard,
 }
 
@@ -1176,7 +1206,11 @@ fn pattern_coverage(
                         });
                         return None;
                     }
-                    Some(Coverage::EnumVariant(variant_name.to_string()))
+                    // Unit variant — no fields, vacuously fully general.
+                    Some(Coverage::EnumVariant {
+                        name: variant_name.to_string(),
+                        full: true,
+                    })
                 } else {
                     errors.push(CheckError::MalformedForm {
                         head: ":wat::core::match".into(),
@@ -1298,25 +1332,18 @@ fn pattern_coverage(
                     });
                     return None;
                 }
+                // Arc 055 — recurse into each field's sub-pattern.
+                let mut all_full = true;
                 for (binder_ast, (_field_name, field_type)) in rest.iter().zip(fields.iter()) {
-                    match binder_ast {
-                        WatAST::Symbol(b, _) => {
-                            bindings.insert(b.as_str().to_string(), field_type.clone());
-                        }
-                        other => {
-                            errors.push(CheckError::MalformedForm {
-                                head: ":wat::core::match".into(),
-                                reason: format!(
-                                    "({} ...) binders must be bare symbols, got {}",
-                                    variant_path,
-                                    ast_variant_name_check(other)
-                                ),
-                            });
-                            return None;
-                        }
+                    match check_subpattern(binder_ast, field_type, env, bindings, errors) {
+                        Some(full) => all_full &= full,
+                        None => return None,
                     }
                 }
-                return Some(Coverage::EnumVariant(variant_name.to_string()));
+                return Some(Coverage::EnumVariant {
+                    name: variant_name.to_string(),
+                    full: all_full,
+                });
             }
             let ident = match head {
                 WatAST::Symbol(i, _) => i.as_str(),
@@ -1331,10 +1358,31 @@ fn pattern_coverage(
                     return None;
                 }
             };
-            let (ctor_name, coverage, expected_bind_ty) = match (ident, shape) {
-                ("Some", MatchShape::Option(t)) => ("Some", Coverage::OptionSome, t.clone()),
-                ("Ok", MatchShape::Result(t, _)) => ("Ok", Coverage::ResultOk, t.clone()),
-                ("Err", MatchShape::Result(_, e)) => ("Err", Coverage::ResultErr, e.clone()),
+            // Arc 055 — variant arm dispatches on shape, then recurses
+            // into the inner sub-pattern via `check_subpattern`. The
+            // returned `full` flag tracks whether the sub-pattern is
+            // fully general (bare symbol or `_` recursively); narrowing
+            // sub-patterns produce `full: false` and require a fallback.
+            let (ctor_name, mk_coverage, expected_bind_ty): (
+                &str,
+                fn(bool) -> Coverage,
+                TypeExpr,
+            ) = match (ident, shape) {
+                ("Some", MatchShape::Option(t)) => (
+                    "Some",
+                    |full| Coverage::OptionSome { full },
+                    t.clone(),
+                ),
+                ("Ok", MatchShape::Result(t, _)) => (
+                    "Ok",
+                    |full| Coverage::ResultOk { full },
+                    t.clone(),
+                ),
+                ("Err", MatchShape::Result(_, e)) => (
+                    "Err",
+                    |full| Coverage::ResultErr { full },
+                    e.clone(),
+                ),
                 (other, _) => {
                     errors.push(CheckError::MalformedForm {
                         head: ":wat::core::match".into(),
@@ -1358,23 +1406,8 @@ fn pattern_coverage(
                 });
                 return None;
             }
-            match &rest[0] {
-                WatAST::Symbol(b, _) => {
-                    bindings.insert(b.as_str().to_string(), expected_bind_ty);
-                    Some(coverage)
-                }
-                other => {
-                    errors.push(CheckError::MalformedForm {
-                        head: ":wat::core::match".into(),
-                        reason: format!(
-                            "({} _): binder must be a bare symbol, got {}",
-                            ctor_name,
-                            ast_variant_name_check(other)
-                        ),
-                    });
-                    None
-                }
-            }
+            check_subpattern(&rest[0], &expected_bind_ty, env, bindings, errors)
+                .map(mk_coverage)
         }
         other => {
             errors.push(CheckError::MalformedForm {
@@ -1385,6 +1418,374 @@ fn pattern_coverage(
                 ),
             });
             None
+        }
+    }
+}
+
+/// Arc 055 — recursive sub-pattern checker.
+///
+/// Validates a sub-pattern (anywhere inside a variant or tuple) against
+/// the type expected at that position. Populates `bindings` with any
+/// bare-symbol binders introduced. Returns `Some(full)` on success
+/// (where `full` indicates the sub-pattern is bare-symbol-or-wildcard
+/// at every level — a fully-general match), `None` on type/shape
+/// mismatch (with errors pushed).
+///
+/// Disambiguation at list-position is by `expected_ty`:
+/// - `Option<U>`: list head Symbol "Some" is the variant constructor.
+/// - `Result<T,E>`: list head Symbol "Ok" / "Err" are constructors.
+/// - Enum: list head Keyword `:enum::Variant` is the constructor.
+/// - Tuple `(T1,...,Tn)`: list is positional destructure; recurse on
+///   each element type. The head can be any sub-pattern (bare symbol,
+///   variant, literal, nested tuple) — no special "constructor" status.
+///
+/// `full` is conservative: any literal, variant constructor, or
+/// keyword-narrowed pattern at any depth makes the result `false`. The
+/// v1 exhaustiveness rule then demands a fallback wildcard arm at the
+/// top level. A more sophisticated literal-narrowing analyzer can ship
+/// later without changing this helper's contract.
+fn check_subpattern(
+    pat: &WatAST,
+    expected_ty: &TypeExpr,
+    env: &CheckEnv,
+    bindings: &mut HashMap<String, TypeExpr>,
+    errors: &mut Vec<CheckError>,
+) -> Option<bool> {
+    match pat {
+        // Wildcard — fully general.
+        WatAST::Symbol(s, _) if s.as_str() == "_" => Some(true),
+        // Bare binder — fully general; binds the matched value.
+        WatAST::Symbol(s, _) => {
+            bindings.insert(s.as_str().to_string(), expected_ty.clone());
+            Some(true)
+        }
+        // Literal sub-patterns — narrow the variant's space; partial.
+        WatAST::IntLit(_, _) => match expected_ty {
+            TypeExpr::Path(p) if p == ":i64" => Some(false),
+            other => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "int literal pattern in {} position",
+                        format_type(other)
+                    ),
+                });
+                None
+            }
+        },
+        WatAST::FloatLit(_, _) => match expected_ty {
+            TypeExpr::Path(p) if p == ":f64" => Some(false),
+            other => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "float literal pattern in {} position",
+                        format_type(other)
+                    ),
+                });
+                None
+            }
+        },
+        WatAST::BoolLit(_, _) => match expected_ty {
+            TypeExpr::Path(p) if p == ":bool" => Some(false),
+            other => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "bool literal pattern in {} position",
+                        format_type(other)
+                    ),
+                });
+                None
+            }
+        },
+        WatAST::StringLit(_, _) => match expected_ty {
+            TypeExpr::Path(p) if p == ":String" => Some(false),
+            other => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "string literal pattern in {} position",
+                        format_type(other)
+                    ),
+                });
+                None
+            }
+        },
+        // Keyword sub-patterns:
+        // - `:None` — only valid at Option<U> position; partial (only None).
+        // - `:enum::Variant` (unit) — valid at enum position.
+        // - bare keyword payload (rare in pattern position) — error.
+        WatAST::Keyword(k, _) if k == ":None" => match expected_ty {
+            TypeExpr::Parametric { head, .. } if head == "Option" => Some(false),
+            other => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        ":None pattern in {} position",
+                        format_type(other)
+                    ),
+                });
+                None
+            }
+        },
+        WatAST::Keyword(k, _) => {
+            // User-enum unit variant pattern: `:enum::Variant` against
+            // the matching enum type at this position.
+            let (prefix, variant_name) = match k.rsplit_once("::") {
+                Some(p) => p,
+                None => {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "keyword sub-pattern {} must be `<enum>::<Variant>` or `:None`",
+                            k
+                        ),
+                    });
+                    return None;
+                }
+            };
+            let enum_path = match expected_ty {
+                TypeExpr::Path(p) => p.as_str(),
+                other => {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "keyword variant pattern {} in {} position",
+                            k,
+                            format_type(other)
+                        ),
+                    });
+                    return None;
+                }
+            };
+            if prefix != enum_path {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "variant pattern {} doesn't belong to expected enum {}",
+                        k, enum_path
+                    ),
+                });
+                return None;
+            }
+            if let Some(crate::types::TypeDef::Enum(e)) = env.types().get(enum_path) {
+                let is_unit = e.variants.iter().any(|v| {
+                    matches!(v, crate::types::EnumVariant::Unit(n) if n == variant_name)
+                });
+                if !is_unit {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "{} is not a unit variant of {} (use `({} ...)` for tagged variants)",
+                            k, enum_path, k
+                        ),
+                    });
+                    return None;
+                }
+                Some(false)
+            } else {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!("enum {} not declared", enum_path),
+                });
+                None
+            }
+        }
+        WatAST::List(items, _) => {
+            let head = match items.first() {
+                Some(h) => h,
+                None => {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: "empty list sub-pattern".into(),
+                    });
+                    return None;
+                }
+            };
+            // Variant-constructor list at this sub-position:
+            // dispatch on expected_ty's shape.
+            // Built-in Some/Ok/Err — head is Symbol.
+            if let WatAST::Symbol(ident, _) = head {
+                match (ident.as_str(), expected_ty) {
+                    ("Some", TypeExpr::Parametric { head: h, args })
+                        if h == "Option" && args.len() == 1 =>
+                    {
+                        if items.len() != 2 {
+                            errors.push(CheckError::MalformedForm {
+                                head: ":wat::core::match".into(),
+                                reason: format!(
+                                    "(Some _) takes exactly one field, got {}",
+                                    items.len() - 1
+                                ),
+                            });
+                            return None;
+                        }
+                        let _inner_full =
+                            check_subpattern(&items[1], &args[0], env, bindings, errors)?;
+                        return Some(false);
+                    }
+                    ("Ok", TypeExpr::Parametric { head: h, args })
+                        if h == "Result" && args.len() == 2 =>
+                    {
+                        if items.len() != 2 {
+                            errors.push(CheckError::MalformedForm {
+                                head: ":wat::core::match".into(),
+                                reason: format!(
+                                    "(Ok _) takes exactly one field, got {}",
+                                    items.len() - 1
+                                ),
+                            });
+                            return None;
+                        }
+                        let _inner_full =
+                            check_subpattern(&items[1], &args[0], env, bindings, errors)?;
+                        return Some(false);
+                    }
+                    ("Err", TypeExpr::Parametric { head: h, args })
+                        if h == "Result" && args.len() == 2 =>
+                    {
+                        if items.len() != 2 {
+                            errors.push(CheckError::MalformedForm {
+                                head: ":wat::core::match".into(),
+                                reason: format!(
+                                    "(Err _) takes exactly one field, got {}",
+                                    items.len() - 1
+                                ),
+                            });
+                            return None;
+                        }
+                        let _inner_full =
+                            check_subpattern(&items[1], &args[1], env, bindings, errors)?;
+                        return Some(false);
+                    }
+                    _ => {
+                        // Fall through to tuple destructure below.
+                    }
+                }
+            }
+            // User-enum tagged variant: head is Keyword `:enum::Variant`.
+            if let WatAST::Keyword(variant_path, _) = head {
+                let enum_path = match expected_ty {
+                    TypeExpr::Path(p) => p.as_str(),
+                    other => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "keyword variant pattern {} in {} position",
+                                variant_path,
+                                format_type(other)
+                            ),
+                        });
+                        return None;
+                    }
+                };
+                let (prefix, variant_name) = match variant_path.rsplit_once("::") {
+                    Some(p) => p,
+                    None => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "variant constructor pattern {} must be `<enum>::<Variant>`",
+                                variant_path
+                            ),
+                        });
+                        return None;
+                    }
+                };
+                if prefix != enum_path {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "variant constructor {} doesn't belong to expected enum {}",
+                            variant_path, enum_path
+                        ),
+                    });
+                    return None;
+                }
+                let enum_def = match env.types().get(enum_path) {
+                    Some(crate::types::TypeDef::Enum(e)) => e,
+                    _ => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!("enum {} not declared", enum_path),
+                        });
+                        return None;
+                    }
+                };
+                let fields = enum_def.variants.iter().find_map(|v| {
+                    if let crate::types::EnumVariant::Tagged { name, fields } = v {
+                        if name == variant_name {
+                            return Some(fields);
+                        }
+                    }
+                    None
+                });
+                let fields = match fields {
+                    Some(f) => f,
+                    None => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "{} is not a tagged variant of {}",
+                                variant_path, enum_path
+                            ),
+                        });
+                        return None;
+                    }
+                };
+                let rest = &items[1..];
+                if rest.len() != fields.len() {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "({} ...) takes {} field(s), got {}",
+                            variant_path,
+                            fields.len(),
+                            rest.len()
+                        ),
+                    });
+                    return None;
+                }
+                for (sub_pat, (_field_name, field_type)) in rest.iter().zip(fields.iter()) {
+                    check_subpattern(sub_pat, field_type, env, bindings, errors)?;
+                }
+                return Some(false);
+            }
+            // Tuple destructure: expected_ty must be a tuple of matching arity.
+            match expected_ty {
+                TypeExpr::Tuple(elem_tys) => {
+                    if items.len() != elem_tys.len() {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "tuple pattern arity {} mismatched with type arity {}",
+                                items.len(),
+                                elem_tys.len()
+                            ),
+                        });
+                        return None;
+                    }
+                    let mut all_full = true;
+                    for (sub_pat, sub_ty) in items.iter().zip(elem_tys.iter()) {
+                        match check_subpattern(sub_pat, sub_ty, env, bindings, errors) {
+                            Some(full) => all_full &= full,
+                            None => return None,
+                        }
+                    }
+                    Some(all_full)
+                }
+                other => {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "list sub-pattern in {} position (expected tuple, Option, Result, or enum)",
+                            format_type(other)
+                        ),
+                    });
+                    None
+                }
+            }
         }
     }
 }
@@ -3064,6 +3465,38 @@ fn infer_tuple_constructor(
         elements.push(apply_subst(&ty, subst));
     }
     Some(TypeExpr::Tuple(elements))
+}
+
+/// `(:wat::core::string::concat s1 s2 ... sn) -> :String`.
+///
+/// Variadic; each arg must unify with :String. Special-cased here
+/// rather than registered as a polymorphic scheme because the type
+/// checker has no first-class variadic-arity scheme today (same
+/// rationale as `vec` / `tuple`). Empty arg list errors at the
+/// runtime; the checker accepts arity 0 and returns `:String` so the
+/// runtime owns the diagnostic — this mirrors how `tuple` behaves.
+fn infer_string_concat(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    let string_ty = TypeExpr::Path(":String".into());
+    for arg in args {
+        if let Some(ty) = infer(arg, env, locals, fresh, subst, errors) {
+            if unify(&ty, &string_ty, subst, env.types()).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::string::concat".into(),
+                    param: "arg".into(),
+                    expected: ":String".into(),
+                    got: format_type(&apply_subst(&ty, subst)),
+                });
+            }
+        }
+    }
+    Some(string_ty)
 }
 
 fn infer_list_constructor(

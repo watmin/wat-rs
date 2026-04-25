@@ -152,6 +152,55 @@ pub fn eval_string_join(
     Ok(Value::String(Arc::new(pieces_owned.join(&sep))))
 }
 
+/// `(:wat::core::string::concat s1 s2 ... sn)` → `:String`.
+///
+/// Variadic concatenation. Differs from `join` in that there's no
+/// separator and the args are passed positionally rather than packed
+/// into a `Vec<String>` — the natural form for "stitch a few strings
+/// together at the call site." Equivalent to
+/// `(:wat::core::string::join "" (:wat::core::vec :String s1 s2 ...))`
+/// but spares the caller the Vec ceremony when concatenation is the
+/// goal and the arity is fixed at the call site.
+///
+/// Arity: 1+. Empty arg list errors (the empty string has no useful
+/// concat semantics worth special-casing).
+pub fn eval_string_concat(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::string::concat";
+    if args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: 0,
+        });
+    }
+    let mut total = 0usize;
+    let mut pieces: Vec<Arc<String>> = Vec::with_capacity(args.len());
+    for arg in args {
+        match eval(arg, env, sym)? {
+            Value::String(s) => {
+                total += s.len();
+                pieces.push(s);
+            }
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "String",
+                    got: other.type_name(),
+                });
+            }
+        }
+    }
+    let mut out = String::with_capacity(total);
+    for p in &pieces {
+        out.push_str(p);
+    }
+    Ok(Value::String(Arc::new(out)))
+}
+
 // ─── regex ───────────────────────────────────────────────────────────────
 
 /// `(:wat::core::regex::matches? pattern haystack)` → `:bool`.
