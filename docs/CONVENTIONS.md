@@ -389,6 +389,9 @@ be ceremony without information.
 - `snake-case` for functions: `make-bounded-queue`, `for-each`,
   `spawn-producer`.
 - `PascalCase` for types: `Bundle`, `HashMap`, `Console`, `Stream`.
+- `PascalCase` for enum variants (arc 048): `:Buy`, `:Sell`,
+  `:Up`, `:Down`, `:Valley`, `:Peak`, `:Transition`. Embodies
+  Rust convention; matches built-in `Some`/`None`/`Ok`/`Err`.
 - `?` suffix for predicates: `presence?`, `empty?`, `capital-available?`.
 - `!` suffix for side-effect forms where the caller should notice:
   `use!`. Most side-effect primitives (`send`, `recv`, `println`)

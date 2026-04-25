@@ -394,7 +394,7 @@ Every wat program lives in a coordinate with two axes.
 ### Axis 1 — four layers
 
 1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
-2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `cond`, `try`, `struct`, `enum`, `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
+2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
 3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `join`, `HandlePool`, `stopped?`, `pipe`, `fork-with-forms`, `wait-child`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes between processes.
 4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), services (`:wat::std::service::Console`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel.
 
@@ -1630,7 +1630,10 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::cond` | `-> :T ((test) body) ... (:else body)` | arm result (type `T`) |
 | `:wat::core::try` | `<result-expr>` | Ok-inner type |
 | `:wat::core::struct` | `(:path (f :T) ...)` | declares struct |
-| `:wat::core::enum` | `(:path v1 v2 (v3 (f :T)) ...)` | declares enum |
+| `:wat::core::enum` | `(:path v1 v2 (v3 (f :T)) ...)` | declares enum (variants PascalCase per arc 048) |
+| `:Enum::Variant` (bare keyword) | — | constructs unit variant (arc 048) |
+| `(:Enum::Variant arg1 arg2 ...)` | tagged-variant fields | constructs tagged variant (arc 048) — auto-synthesized constructor function |
+| `(:wat::core::match v -> :T (:Enum::Variant body) ((:Enum::Variant b1 b2) body) ...)` | per-variant arms | match on user enum (arc 048); exhaustiveness checked, binders bound to fields by position |
 | `:wat::load-file!` | `<path>` | registers loaded file (arc 028) |
 | `:wat::load-string!` | `<source>` | registers loaded source (arc 028) |
 | `:wat::digest-load-file!` / `digest-load-string!` | `<path-or-src> <hex-digest>` | SHA-256 verified load |

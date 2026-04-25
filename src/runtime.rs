@@ -265,6 +265,26 @@ pub enum Value {
     /// primitives. No field-by-name dispatch at runtime: accessors are
     /// resolved at parse time like any other keyword-path call.
     Struct(Arc<StructValue>),
+    /// An instance of a user-declared `:wat::core::enum` type — a
+    /// tagged variant carrying optional positional fields. Arc 048.
+    ///
+    /// `type_path` is the enum's keyword path (e.g.
+    /// `:trading::types::PhaseLabel`); `variant_name` is the variant
+    /// identifier (e.g. `"Valley"`). `fields` is empty for unit
+    /// variants and populated in declaration order for tagged variants.
+    ///
+    /// Constructed via:
+    /// - Bare keyword `:enum::Variant` — for unit variants. Resolved
+    ///   at eval time through `SymbolTable.unit_variants`.
+    /// - Invocation `(:enum::Variant arg1 arg2)` — for tagged
+    ///   variants. Resolved through an auto-synthesized Function
+    ///   entry whose body calls `:wat::core::enum-new`.
+    ///
+    /// Generic mechanism — covers every user-declared enum.
+    /// Built-in `:Option<T>` and `:Result<T,E>` keep their dedicated
+    /// `Value::Option` / `Value::Result` variants for substrate-
+    /// internal use; user enums use this generic representation.
+    Enum(Arc<EnumValue>),
 }
 
 /// The payload of a [`Value::Struct`] — the struct's fully-qualified
@@ -279,6 +299,20 @@ pub struct StructValue {
     /// Field values in declaration order. Length matches the
     /// `StructDef::fields` length at construction time; the type
     /// checker enforces alignment.
+    pub fields: Vec<Value>,
+}
+
+/// The payload of a [`Value::Enum`] — the enum's fully-qualified
+/// declared type path, the variant identifier, and the variant's
+/// positional field values (empty for unit variants). Arc 048.
+///
+/// `type_path` matches the enum's declared name verbatim
+/// (`:trading::types::PhaseLabel`); `variant_name` is the variant's
+/// identifier without the path prefix (`Valley`).
+#[derive(Debug, Clone)]
+pub struct EnumValue {
+    pub type_path: String,
+    pub variant_name: String,
     pub fields: Vec<Value>,
 }
 
@@ -310,6 +344,7 @@ impl Value {
             Value::wat__kernel__HandlePool { .. } => "wat::kernel::HandlePool",
             Value::wat__kernel__ChildHandle(_) => "wat::kernel::ChildHandle",
             Value::Struct(_) => "Struct",
+            Value::Enum(_) => "Enum",
         }
     }
 }
@@ -549,6 +584,14 @@ impl fmt::Debug for EncodingCtx {
 #[derive(Default)]
 pub struct SymbolTable {
     pub functions: HashMap<String, Arc<Function>>,
+    /// Arc 048 — pre-built [`EnumValue`]s for each registered
+    /// unit-variant enum constructor. Populated by
+    /// [`register_enum_methods`] at freeze time. Keyed by full
+    /// keyword path (e.g. `:trading::types::PhaseLabel::Valley`).
+    /// Consulted in `eval`'s keyword arm before the function-lookup
+    /// fallback so a bare keyword evaluates directly to its
+    /// variant value (mirrors the `:None` shortcut).
+    pub unit_variants: HashMap<String, EnumValue>,
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
     pub source_loader: Option<Arc<dyn crate::load::SourceLoader>>,
     pub macro_registry: Option<Arc<crate::macros::MacroRegistry>>,
@@ -573,6 +616,7 @@ impl std::fmt::Debug for SymbolTable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SymbolTable")
             .field("functions", &self.functions.len())
+            .field("unit_variants", &self.unit_variants.len())
             .field("encoding_ctx", &self.encoding_ctx.is_some())
             .field("source_loader", &self.source_loader.is_some())
             .field("macro_registry", &self.macro_registry.is_some())
@@ -1098,6 +1142,118 @@ pub fn register_struct_methods(
                 return Err(RuntimeError::DuplicateDefine(accessor_path));
             }
             sym.functions.insert(accessor_path, Arc::new(accessor_func));
+        }
+    }
+    Ok(())
+}
+
+/// Walk every `:wat::core::enum` declaration in `types` and synthesize
+/// per-variant constructors into `sym`. Arc 048. Mirrors
+/// [`register_struct_methods`]'s structure.
+///
+/// **What's synthesized, per enum `:my::ns::E` with variants:**
+///
+/// - **Unit variant `Variant`**: insert a pre-built [`EnumValue`]
+///   into `sym.unit_variants` at keyword path `:my::ns::E::Variant`.
+///   Eval's keyword arm checks this map before the function lookup,
+///   so a bare keyword reference produces the variant value
+///   directly (mirrors the `:None` shortcut for Option).
+///
+/// - **Tagged variant `Variant(f1: T1, ..., fn: Tn)`**: synthesize
+///   a [`Function`] entry at keyword path `:my::ns::E::Variant` with:
+///   - Params `f1, f2, ..., fn` (typed per declaration)
+///   - Return type `:my::ns::E`
+///   - Body `(:wat::core::enum-new :my::ns::E :Variant f1 f2 ... fn)`
+///
+///   Invocation `(:my::ns::E::Variant arg1 arg2)` dispatches to the
+///   synthesized function, which evaluates the args and emits
+///   `Value::Enum`.
+///
+/// Users never write either form — they invoke via the keyword path.
+/// The checker picks up the synthesized functions through
+/// [`crate::check::CheckEnv::from_symbols`] just like struct
+/// constructors. Unit-variant typing is handled separately by the
+/// checker's variant-keyword registry.
+pub fn register_enum_methods(
+    types: &crate::types::TypeEnv,
+    sym: &mut SymbolTable,
+) -> Result<(), RuntimeError> {
+    use crate::identifier::Identifier;
+    use crate::types::{EnumVariant, TypeDef};
+
+    for (_name, def) in types.iter() {
+        let enum_def = match def {
+            TypeDef::Enum(e) => e,
+            _ => continue,
+        };
+
+        let enum_type = crate::types::TypeExpr::Path(enum_def.name.clone());
+
+        for variant in &enum_def.variants {
+            match variant {
+                EnumVariant::Unit(variant_name) => {
+                    let key = format!("{}::{}", enum_def.name, variant_name);
+                    if sym.unit_variants.contains_key(&key) {
+                        return Err(RuntimeError::DuplicateDefine(key));
+                    }
+                    if sym.functions.contains_key(&key) {
+                        return Err(RuntimeError::DuplicateDefine(key));
+                    }
+                    sym.unit_variants.insert(
+                        key,
+                        EnumValue {
+                            type_path: enum_def.name.clone(),
+                            variant_name: variant_name.clone(),
+                            fields: Vec::new(),
+                        },
+                    );
+                }
+                EnumVariant::Tagged {
+                    name: variant_name,
+                    fields,
+                } => {
+                    let constructor_path = format!("{}::{}", enum_def.name, variant_name);
+                    let param_names: Vec<String> =
+                        fields.iter().map(|(n, _)| n.clone()).collect();
+                    let param_types: Vec<crate::types::TypeExpr> =
+                        fields.iter().map(|(_, t)| t.clone()).collect();
+
+                    // Body: (:wat::core::variant :enum-path :Variant p1 p2 ... pn)
+                    let mut body_items = Vec::with_capacity(2 + fields.len());
+                    body_items.push(WatAST::Keyword(
+                        ":wat::core::variant".into(),
+                        Span::unknown(),
+                    ));
+                    body_items.push(WatAST::Keyword(enum_def.name.clone(), Span::unknown()));
+                    body_items.push(WatAST::Keyword(
+                        format!(":{}", variant_name),
+                        Span::unknown(),
+                    ));
+                    for param_name in &param_names {
+                        body_items.push(WatAST::Symbol(
+                            Identifier::bare(param_name.clone()),
+                            Span::unknown(),
+                        ));
+                    }
+
+                    let func = Function {
+                        name: Some(constructor_path.clone()),
+                        params: param_names,
+                        type_params: enum_def.type_params.clone(),
+                        param_types,
+                        ret_type: enum_type.clone(),
+                        body: Arc::new(WatAST::List(body_items, Span::unknown())),
+                        closed_env: None,
+                    };
+                    if sym.functions.contains_key(&constructor_path)
+                        || sym.unit_variants.contains_key(&constructor_path)
+                    {
+                        return Err(RuntimeError::DuplicateDefine(constructor_path));
+                    }
+                    sym.functions
+                        .insert(constructor_path, Arc::new(func));
+                }
+            }
         }
     }
     Ok(())
@@ -1704,6 +1860,14 @@ pub fn eval(
             if k == ":None" {
                 return Ok(Value::Option(Arc::new(None)));
             }
+            // Arc 048 — user-enum unit variants. Pre-built EnumValues
+            // sit in `sym.unit_variants` keyed by their full keyword
+            // path (`:enum::Variant`). When the keyword evaluates,
+            // return the variant value directly (no function call).
+            // Mirrors the `:None` shortcut for Option.
+            if let Some(ev) = sym.unit_variants.get(k) {
+                return Ok(Value::Enum(Arc::new(ev.clone())));
+            }
             // Arc 009 — names are values. If the keyword is a registered
             // user/stdlib define, lift it to a callable Function value.
             // Parallels `:wat::kernel::spawn`'s long-standing accept-by-
@@ -1789,6 +1953,7 @@ fn dispatch_keyword_head(
         ":wat::core::try" => eval_try(args, env, sym),
         ":wat::core::struct-new" => eval_struct_new(args, env, sym),
         ":wat::core::struct-field" => eval_struct_field(args, env, sym),
+        ":wat::core::variant" => eval_variant(args, env, sym),
         ":wat::core::first" => {
             eval_positional_accessor(args, env, sym, ":wat::core::first", 0)
         }
@@ -4615,6 +4780,77 @@ fn eval_struct_new(
     Ok(Value::Struct(Arc::new(StructValue { type_name, fields })))
 }
 
+/// Arc 048 — `(:wat::core::variant <type-path> <variant-name> field1 field2 ...)`
+/// — the internal primitive that auto-synthesized tagged-variant
+/// constructors invoke. Users do not call this directly; they call
+/// `(:Enum::Variant arg1 arg2)` which dispatches to a Function whose
+/// body is a single `variant` call with the type path + variant
+/// name baked in via keyword literals.
+///
+/// Unit variants do NOT route through this primitive — they're stored
+/// as pre-built `EnumValue`s in `SymbolTable.unit_variants` and
+/// returned directly when the bare keyword evaluates.
+///
+/// Validates:
+/// - First arg is a keyword literal (the enum's type path,
+///   `:trading::types::PhaseLabel`).
+/// - Second arg is a keyword literal (the variant identifier with
+///   leading `:`, e.g. `:Valley`). The leading colon is stripped to
+///   yield `variant_name = "Valley"`.
+/// - Remaining args evaluate; their count becomes the variant's
+///   field count. Arity vs declared variant arity is enforced by
+///   the type checker at the synthesized constructor scheme.
+fn eval_variant(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() < 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::variant".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let type_path = match &args[0] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::variant".into(),
+                reason: format!(
+                    "first argument must be a keyword literal (the enum's type path); got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    };
+    let variant_name = match &args[1] {
+        WatAST::Keyword(k, _) => {
+            // Strip the leading `:` — variant_name stores the bare
+            // identifier (e.g., "Valley"), not the `:Valley` keyword form.
+            k.strip_prefix(':').unwrap_or(k.as_str()).to_string()
+        }
+        other => {
+            return Err(RuntimeError::MalformedForm {
+                head: ":wat::core::variant".into(),
+                reason: format!(
+                    "second argument must be a keyword literal (the variant identifier); got {}",
+                    ast_variant_name(other)
+                ),
+            });
+        }
+    };
+    let mut fields = Vec::with_capacity(args.len() - 2);
+    for arg in &args[2..] {
+        fields.push(eval(arg, env, sym)?);
+    }
+    Ok(Value::Enum(Arc::new(EnumValue {
+        type_path,
+        variant_name,
+        fields,
+    })))
+}
+
 /// `(:wat::core::struct-field <struct-value> <field-index>)` — the
 /// internal primitive every auto-generated `<struct>/<field>` accessor
 /// body invokes. Users do not call this directly; they call the
@@ -4808,15 +5044,21 @@ fn try_match_pattern(
             Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
-        // Keyword patterns other than `:None` are not yet spec'd;
-        // user-enum variants graduate in a later slice.
-        WatAST::Keyword(k, _) => Err(RuntimeError::MalformedForm {
-            head: ":wat::core::match".into(),
-            reason: format!(
-                "keyword pattern {} not supported (only `:None` is recognized in this slice)",
-                k
-            ),
-        }),
+        // Arc 048 — user-enum unit variant. Pattern `:enum::Variant`
+        // matches `Value::Enum` whose `type_path::variant_name`
+        // composes to the same path. The scrutinee's type is enforced
+        // upstream by the checker; here we just compare paths.
+        WatAST::Keyword(k, _) => match value {
+            Value::Enum(ev) => {
+                let composed = format!("{}::{}", ev.type_path, ev.variant_name);
+                if composed == *k && ev.fields.is_empty() {
+                    Ok(Some(outer.clone()))
+                } else {
+                    Ok(None)
+                }
+            }
+            _ => Ok(None),
+        },
         // `_` wildcard — matches any value, no binding.
         WatAST::Symbol(ident, _) if ident.as_str() == "_" => Ok(Some(outer.clone())),
         // Bare identifier — binds the scrutinee to that name.
@@ -4926,6 +5168,52 @@ fn try_match_pattern(
                         _ => Ok(None),
                     }
                 }
+                // Arc 048 — user-enum tagged variant. Pattern
+                // `(:enum::Variant binder1 binder2 ...)` matches
+                // `Value::Enum` whose `type_path::variant_name`
+                // composes to the same path AND whose `fields` count
+                // matches the binder count. Each binder is bound to
+                // the corresponding field by position.
+                WatAST::Keyword(variant_path, _) => match value {
+                    Value::Enum(ev) => {
+                        let composed = format!("{}::{}", ev.type_path, ev.variant_name);
+                        if composed != *variant_path {
+                            return Ok(None);
+                        }
+                        let binders = &items[1..];
+                        if binders.len() != ev.fields.len() {
+                            return Err(RuntimeError::MalformedForm {
+                                head: ":wat::core::match".into(),
+                                reason: format!(
+                                    "({} ...) takes {} field(s) for variant {}, got {} binder(s)",
+                                    variant_path,
+                                    ev.fields.len(),
+                                    ev.variant_name,
+                                    binders.len()
+                                ),
+                            });
+                        }
+                        let mut child = outer.child();
+                        for (binder_ast, field_value) in binders.iter().zip(ev.fields.iter()) {
+                            let binder_name = match binder_ast {
+                                WatAST::Symbol(b, _) => b.as_str().to_string(),
+                                other => {
+                                    return Err(RuntimeError::MalformedForm {
+                                        head: ":wat::core::match".into(),
+                                        reason: format!(
+                                            "({} ...) binders must be bare symbols, got {}",
+                                            variant_path,
+                                            ast_variant_name(other)
+                                        ),
+                                    });
+                                }
+                            };
+                            child = child.bind(binder_name, field_value.clone());
+                        }
+                        Ok(Some(child.build()))
+                    }
+                    _ => Ok(None),
+                },
                 other => Err(RuntimeError::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(

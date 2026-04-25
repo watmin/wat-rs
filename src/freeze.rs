@@ -561,6 +561,11 @@ fn startup_from_forms_post_config(
     //     after user defines so collisions with user-authored names
     //     surface as `DuplicateDefine`.
     crate::runtime::register_struct_methods(&types, &mut symbols)?;
+    // 6.5. Enum variant constructors — arc 048. Walks enum decls
+    //      and synthesizes per-variant constructors (units into
+    //      `unit_variants` map; tagged variants as Function entries
+    //      whose bodies invoke `:wat::core::enum-new`).
+    crate::runtime::register_enum_methods(&types, &mut symbols)?;
 
     // 7. Name resolution.
     resolve_references(&residue, &symbols, &macros)?;

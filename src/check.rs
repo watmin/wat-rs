@@ -214,6 +214,14 @@ type Subst = HashMap<u64, TypeExpr>;
 #[derive(Debug)]
 pub struct CheckEnv {
     schemes: HashMap<String, TypeScheme>,
+    /// Arc 048 — keyword paths for user-enum unit variants mapped to
+    /// the enum's type. When `infer` sees one of these as a value-
+    /// position keyword (e.g. `:trading::types::PhaseLabel::Valley`),
+    /// it returns the enum's type instead of the generic
+    /// `:wat::core::keyword`. Mirrors the runtime's
+    /// `SymbolTable.unit_variants`. Populated at construction by
+    /// walking every `:wat::core::enum` declaration in `types`.
+    unit_variant_types: HashMap<String, TypeExpr>,
     types: Arc<TypeEnv>,
 }
 
@@ -248,10 +256,33 @@ impl CheckEnv {
     }
 
     fn with_types(types: Arc<TypeEnv>) -> Self {
+        // Arc 048 — pre-populate unit-variant keyword types from the
+        // declared enums. Walks every TypeDef::Enum and registers each
+        // unit variant's full keyword path (`:enum::Variant`) → enum
+        // type, so `infer` can return the enum type when the bare
+        // keyword appears in expression position.
+        let mut unit_variant_types = HashMap::new();
+        for (name, def) in types.iter() {
+            if let crate::types::TypeDef::Enum(e) = def {
+                for variant in &e.variants {
+                    if let crate::types::EnumVariant::Unit(variant_name) = variant {
+                        let key = format!("{}::{}", name, variant_name);
+                        unit_variant_types.insert(key, TypeExpr::Path(name.clone()));
+                    }
+                }
+            }
+        }
         CheckEnv {
             schemes: HashMap::new(),
+            unit_variant_types,
             types,
         }
+    }
+
+    /// Arc 048 — look up the enum type for a unit-variant keyword
+    /// path. Returns `None` for non-variant keywords.
+    pub fn unit_variant_type(&self, key: &str) -> Option<&TypeExpr> {
+        self.unit_variant_types.get(key)
     }
 
     pub fn register(&mut self, name: String, scheme: TypeScheme) {
@@ -380,6 +411,12 @@ fn infer(
             head: "Option".into(),
             args: vec![fresh.fresh()],
         }),
+        // Arc 048 — user-enum unit variant. The bare keyword resolves
+        // to the enum's type (e.g. `:trading::types::PhaseLabel::Valley`
+        // → `:trading::types::PhaseLabel`).
+        WatAST::Keyword(k, _) if env.unit_variant_type(k).is_some() => {
+            Some(env.unit_variant_type(k).expect("guard").clone())
+        }
         // Arc 009 — names are values. If the keyword is a registered
         // function (user define, stdlib define, or builtin primitive),
         // instantiate its scheme and return a `:fn(...)->Ret` type so
@@ -780,7 +817,7 @@ fn infer_match(
 
     // Detect shape from the arms (arms begin at args[3..]).
     let arm_refs: Vec<&WatAST> = args[3..].iter().collect();
-    let shape = detect_match_shape(&arm_refs, fresh);
+    let shape = detect_match_shape(&arm_refs, env, fresh);
 
     // Scrutinee must unify with the detected shape.
     let scrutinee_ty = infer(&args[0], env, locals, fresh, subst, errors);
@@ -790,10 +827,7 @@ fn infer_match(
             errors.push(CheckError::TypeMismatch {
                 callee: ":wat::core::match".into(),
                 param: "scrutinee".into(),
-                expected: match &shape {
-                    MatchShape::Option(_) => "Option<T>".into(),
-                    MatchShape::Result(_, _) => "Result<T,E>".into(),
-                },
+                expected: format_type(&expected_scrutinee),
                 got: format_type(&apply_subst(sty, subst)),
             });
         }
@@ -803,6 +837,10 @@ fn infer_match(
     let mut covers_option_some = false;
     let mut covers_result_ok = false;
     let mut covers_result_err = false;
+    let mut wildcard_seen = false;
+    // Arc 048 — track which user-enum variant names have arms.
+    let mut covered_enum_variants: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
 
     for (idx, arm) in args[3..].iter().enumerate() {
         let arm_items = match arm {
@@ -819,12 +857,16 @@ fn infer_match(
         let body = &arm_items[1];
 
         let mut arm_locals = locals.clone();
-        match pattern_coverage(pattern, &shape, &mut arm_locals, errors) {
+        match pattern_coverage(pattern, &shape, env, &mut arm_locals, errors) {
             Some(Coverage::OptionNone) => covers_option_none = true,
             Some(Coverage::OptionSome) => covers_option_some = true,
             Some(Coverage::ResultOk) => covers_result_ok = true,
             Some(Coverage::ResultErr) => covers_result_err = true,
+            Some(Coverage::EnumVariant(name)) => {
+                covered_enum_variants.insert(name);
+            }
             Some(Coverage::Wildcard) => {
+                wildcard_seen = true;
                 covers_option_none = true;
                 covers_option_some = true;
                 covers_result_ok = true;
@@ -847,16 +889,53 @@ fn infer_match(
         }
     }
 
-    let exhaustive = match shape {
+    let exhaustive = match &shape {
         MatchShape::Option(_) => covers_option_none && covers_option_some,
         MatchShape::Result(_, _) => covers_result_ok && covers_result_err,
+        MatchShape::Enum(enum_path) => {
+            if wildcard_seen {
+                true
+            } else if let Some(crate::types::TypeDef::Enum(e)) = env.types().get(enum_path) {
+                e.variants.iter().all(|v| {
+                    let name = match v {
+                        crate::types::EnumVariant::Unit(n) => n,
+                        crate::types::EnumVariant::Tagged { name, .. } => name,
+                    };
+                    covered_enum_variants.contains(name)
+                })
+            } else {
+                false
+            }
+        }
     };
     if !exhaustive {
         errors.push(CheckError::MalformedForm {
             head: ":wat::core::match".into(),
-            reason: match shape {
+            reason: match &shape {
                 MatchShape::Option(_) => "non-exhaustive: :Option<T> needs arms for both :None and (Some _), or a wildcard".into(),
                 MatchShape::Result(_, _) => "non-exhaustive: :Result<T,E> needs arms for both (Ok _) and (Err _), or a wildcard".into(),
+                MatchShape::Enum(enum_path) => {
+                    if let Some(crate::types::TypeDef::Enum(e)) = env.types().get(enum_path) {
+                        let missing: Vec<String> = e.variants.iter().filter_map(|v| {
+                            let name = match v {
+                                crate::types::EnumVariant::Unit(n) => n,
+                                crate::types::EnumVariant::Tagged { name, .. } => name,
+                            };
+                            if covered_enum_variants.contains(name) {
+                                None
+                            } else {
+                                Some(name.clone())
+                            }
+                        }).collect();
+                        format!(
+                            "non-exhaustive: enum {} missing arm(s) for variant(s): {} (or include `_` wildcard)",
+                            enum_path,
+                            missing.join(", ")
+                        )
+                    } else {
+                        format!("non-exhaustive: enum {} missing arms (or include `_` wildcard)", enum_path)
+                    }
+                }
             },
         });
     }
@@ -864,24 +943,34 @@ fn infer_match(
     Some(apply_subst(&declared_ty, subst))
 }
 
-/// Coverage class for a match pattern. Spans both `:Option<T>` and
-/// `:Result<T,E>`. Wildcard covers any shape.
+/// Coverage class for a match pattern. Spans built-in `:Option<T>`,
+/// `:Result<T,E>`, and (arc 048) user-defined enums. Wildcard covers
+/// any shape.
 enum Coverage {
     OptionNone,
     OptionSome,
     ResultOk,
     ResultErr,
+    /// Arc 048 — user-enum variant covered. Carries the variant's
+    /// bare name (e.g. "Valley") for exhaustiveness checking against
+    /// the enum's declared variant set.
+    EnumVariant(String),
     Wildcard,
 }
 
 /// Which shape the match dispatches on. Determined by inspecting the
-/// first variant-constructor arm (Some/None → Option; Ok/Err → Result).
+/// first variant-constructor arm.
 #[derive(Clone, Debug)]
 enum MatchShape {
     /// :Option<T> — inner_ty is T.
     Option(TypeExpr),
     /// :Result<T,E> — t_ty is T (Ok-inner), e_ty is E (Err-inner).
     Result(TypeExpr, TypeExpr),
+    /// Arc 048 — user-defined enum. Carries the enum's full type path
+    /// (e.g. `:trading::types::PhaseLabel`); the checker looks up the
+    /// declared variant set in `CheckEnv.types` for exhaustiveness +
+    /// per-variant arity.
+    Enum(String),
 }
 
 impl MatchShape {
@@ -895,15 +984,23 @@ impl MatchShape {
                 head: "Result".into(),
                 args: vec![t.clone(), e.clone()],
             },
+            MatchShape::Enum(path) => TypeExpr::Path(path.clone()),
         }
     }
 }
 
-/// Scan the match arms to decide whether the scrutinee is Option or
-/// Result. First arm with a recognized variant-constructor pattern
-/// (Some/None/Ok/Err) wins. If no arm is definitive (all wildcards),
-/// defaults to Option with a fresh T.
-fn detect_match_shape(arms: &[&WatAST], fresh: &mut InferCtx) -> MatchShape {
+/// Scan the match arms to decide which shape the scrutinee matches.
+/// First arm with a recognized variant-constructor pattern wins:
+/// - `:None` or `(Some _)` → Option<T>
+/// - `(Ok _)` or `(Err _)` → Result<T,E>
+/// - `:enum::Variant` (unit) or `(:enum::Variant ...)` (tagged) → Enum
+///   (arc 048). The keyword is split on the last `::` to separate
+///   enum path from variant name; the prefix is looked up in the type
+///   env to confirm it's a registered enum.
+///
+/// If no arm is definitive (all wildcards), defaults to Option with
+/// a fresh T.
+fn detect_match_shape(arms: &[&WatAST], env: &CheckEnv, fresh: &mut InferCtx) -> MatchShape {
     for arm in arms {
         if let WatAST::List(items, _) = arm {
             if items.len() == 2 {
@@ -911,6 +1008,26 @@ fn detect_match_shape(arms: &[&WatAST], fresh: &mut InferCtx) -> MatchShape {
                 match pat {
                     WatAST::Keyword(k, _) if k == ":None" => {
                         return MatchShape::Option(fresh.fresh());
+                    }
+                    WatAST::Keyword(k, _) => {
+                        // Arc 048 — user-enum variant pattern (unit
+                        // shape). First try the registered unit-variant
+                        // map; falling back to enum-prefix lookup so a
+                        // misapplied keyword pattern (e.g. tagged-variant
+                        // name used in unit position) still classifies
+                        // as Enum and produces the right error in
+                        // pattern_coverage.
+                        if let Some(TypeExpr::Path(enum_path)) = env.unit_variant_type(k) {
+                            return MatchShape::Enum(enum_path.clone());
+                        }
+                        if let Some((enum_path, _)) = k.rsplit_once("::") {
+                            if matches!(
+                                env.types().get(enum_path),
+                                Some(crate::types::TypeDef::Enum(_))
+                            ) {
+                                return MatchShape::Enum(enum_path.to_string());
+                            }
+                        }
                     }
                     WatAST::List(pat_items, _) => {
                         if let Some(WatAST::Symbol(ident, _)) = pat_items.first() {
@@ -920,6 +1037,22 @@ fn detect_match_shape(arms: &[&WatAST], fresh: &mut InferCtx) -> MatchShape {
                                     return MatchShape::Result(fresh.fresh(), fresh.fresh());
                                 }
                                 _ => {}
+                            }
+                        }
+                        // Arc 048 — user-enum tagged variant pattern
+                        // `(:enum::Variant binders...)`. Split the
+                        // head keyword on the last `::` to get the
+                        // enum path; if the path resolves to a
+                        // declared enum, that's the shape.
+                        if let Some(WatAST::Keyword(head_path, _)) = pat_items.first() {
+                            if let Some((enum_path, _variant)) = head_path.rsplit_once("::") {
+                                let enum_path_owned = enum_path.to_string();
+                                if matches!(
+                                    env.types().get(&enum_path_owned),
+                                    Some(crate::types::TypeDef::Enum(_))
+                                ) {
+                                    return MatchShape::Enum(enum_path_owned);
+                                }
                             }
                         }
                     }
@@ -936,27 +1069,102 @@ fn detect_match_shape(arms: &[&WatAST], fresh: &mut InferCtx) -> MatchShape {
 fn pattern_coverage(
     pattern: &WatAST,
     shape: &MatchShape,
+    env: &CheckEnv,
     bindings: &mut HashMap<String, TypeExpr>,
     errors: &mut Vec<CheckError>,
 ) -> Option<Coverage> {
     match pattern {
         WatAST::Keyword(k, _) if k == ":None" => match shape {
             MatchShape::Option(_) => Some(Coverage::OptionNone),
-            MatchShape::Result(_, _) => {
+            MatchShape::Result(_, _) | MatchShape::Enum(_) => {
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::match".into(),
-                    reason: ":None pattern on a :Result<T,E> scrutinee".into(),
+                    reason: format!(
+                        ":None pattern on a {} scrutinee",
+                        format_type(&shape.as_type())
+                    ),
                 });
                 None
             }
         },
-        WatAST::Keyword(k, _) => {
-            errors.push(CheckError::MalformedForm {
-                head: ":wat::core::match".into(),
-                reason: format!("keyword pattern {} not recognized (only `:None` is nullary)", k),
-            });
-            None
-        }
+        // Arc 048 — user-enum unit variant pattern. The keyword
+        // path must split as `<enum>::<Variant>` where `<enum>`
+        // matches the scrutinee shape's Enum path AND `<Variant>`
+        // is a unit variant of that enum.
+        WatAST::Keyword(k, _) => match shape {
+            MatchShape::Enum(enum_path) => {
+                let (prefix, variant_name) = match k.rsplit_once("::") {
+                    Some(p) => p,
+                    None => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "keyword pattern {} must be `<enum>::<Variant>`",
+                                k
+                            ),
+                        });
+                        return None;
+                    }
+                };
+                if prefix != enum_path {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "variant pattern {} doesn't belong to scrutinee enum {}",
+                            k, enum_path
+                        ),
+                    });
+                    return None;
+                }
+                // Verify Variant is declared (and is a unit variant).
+                if let Some(crate::types::TypeDef::Enum(e)) = env.types().get(enum_path) {
+                    let is_unit = e.variants.iter().any(|v| {
+                        matches!(v, crate::types::EnumVariant::Unit(n) if n == variant_name)
+                    });
+                    let is_tagged = e.variants.iter().any(|v| {
+                        matches!(v, crate::types::EnumVariant::Tagged { name, .. } if name == variant_name)
+                    });
+                    if !is_unit && is_tagged {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "{} is a tagged variant; pattern must be (`{}` binders...)",
+                                k, k
+                            ),
+                        });
+                        return None;
+                    }
+                    if !is_unit {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "variant {} is not declared on enum {}",
+                                variant_name, enum_path
+                            ),
+                        });
+                        return None;
+                    }
+                    Some(Coverage::EnumVariant(variant_name.to_string()))
+                } else {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!("enum {} not declared", enum_path),
+                    });
+                    None
+                }
+            }
+            _ => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "keyword pattern {} not valid on a {} scrutinee",
+                        k,
+                        format_type(&shape.as_type())
+                    ),
+                });
+                None
+            }
+        },
         WatAST::Symbol(ident, _) if ident.as_str() == "_" => Some(Coverage::Wildcard),
         WatAST::Symbol(ident, _) => {
             // Bare name binds the whole scrutinee.
@@ -974,6 +1182,110 @@ fn pattern_coverage(
                     return None;
                 }
             };
+            // Arc 048 — user-enum tagged variant pattern: head is a
+            // keyword path `:enum::Variant`. Split, validate, bind
+            // fields by position.
+            if let WatAST::Keyword(variant_path, _) = head {
+                let enum_path = match shape {
+                    MatchShape::Enum(p) => p,
+                    _ => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "keyword variant pattern {} on a {} scrutinee",
+                                variant_path,
+                                format_type(&shape.as_type())
+                            ),
+                        });
+                        return None;
+                    }
+                };
+                let (prefix, variant_name) = match variant_path.rsplit_once("::") {
+                    Some(p) => p,
+                    None => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "variant constructor pattern {} must be `<enum>::<Variant>`",
+                                variant_path
+                            ),
+                        });
+                        return None;
+                    }
+                };
+                if prefix != enum_path {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "variant constructor {} doesn't belong to scrutinee enum {}",
+                            variant_path, enum_path
+                        ),
+                    });
+                    return None;
+                }
+                let enum_def = match env.types().get(enum_path) {
+                    Some(crate::types::TypeDef::Enum(e)) => e,
+                    _ => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!("enum {} not declared", enum_path),
+                        });
+                        return None;
+                    }
+                };
+                let fields = enum_def.variants.iter().find_map(|v| {
+                    if let crate::types::EnumVariant::Tagged { name, fields } = v {
+                        if name == variant_name {
+                            return Some(fields);
+                        }
+                    }
+                    None
+                });
+                let fields = match fields {
+                    Some(f) => f,
+                    None => {
+                        errors.push(CheckError::MalformedForm {
+                            head: ":wat::core::match".into(),
+                            reason: format!(
+                                "{} is not a tagged variant of {}",
+                                variant_path, enum_path
+                            ),
+                        });
+                        return None;
+                    }
+                };
+                if rest.len() != fields.len() {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "({} ...) takes {} field(s), got {} binder(s)",
+                            variant_path,
+                            fields.len(),
+                            rest.len()
+                        ),
+                    });
+                    return None;
+                }
+                for (binder_ast, (_field_name, field_type)) in rest.iter().zip(fields.iter()) {
+                    match binder_ast {
+                        WatAST::Symbol(b, _) => {
+                            bindings.insert(b.as_str().to_string(), field_type.clone());
+                        }
+                        other => {
+                            errors.push(CheckError::MalformedForm {
+                                head: ":wat::core::match".into(),
+                                reason: format!(
+                                    "({} ...) binders must be bare symbols, got {}",
+                                    variant_path,
+                                    ast_variant_name_check(other)
+                                ),
+                            });
+                            return None;
+                        }
+                    }
+                }
+                return Some(Coverage::EnumVariant(variant_name.to_string()));
+            }
             let ident = match head {
                 WatAST::Symbol(i, _) => i.as_str(),
                 other => {
@@ -997,10 +1309,7 @@ fn pattern_coverage(
                         reason: format!(
                             "variant constructor `{}` does not match scrutinee shape ({})",
                             other,
-                            match shape {
-                                MatchShape::Option(_) => "Option<T>",
-                                MatchShape::Result(_, _) => "Result<T,E>",
-                            }
+                            format_type(&shape.as_type())
                         ),
                     });
                     return None;
