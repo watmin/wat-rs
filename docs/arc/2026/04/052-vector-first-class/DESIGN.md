@@ -123,7 +123,18 @@ the minimum viable Vector-as-wat-value:
 
 ---
 
-## Open design questions (need builder review)
+## Design questions — RESOLVED 2026-04-25
+
+Builder confirmation log:
+
+- **Q1 — Value variant.** *"anything in wat is always native — wat_dispatch is only necessary for external crates."* → `Value::Vector(Arc<Vector>)`.
+- **Q2 — Polymorphic primitives.** *"polymorphic is almost always the answer."* → cosine, dot, simhash all extend to accept Vector or HolonAST in any position.
+- **Q3 — `encode` signature.** Ambient encoding context per the `require_encoding_ctx` pattern (same as `:wat::holon::cosine`). User-facing wat surface: `(:wat::holon::encode (h :wat::holon::HolonAST) -> :wat::holon::Vector)` — one arg.
+- **Q4 — EDN form.** Vec of i8 literals; verbosity bounded by the same per-frame capacity rule as ASTs.
+- **Q5 — Equality.** Bit-exact (forced by Hash + Eq contract for HashMap/LruCache use). Graded similarity stays in cosine / presence? / simhash.
+- **Q6 — Cross-dim ops.** Runtime error on mismatched-dim Vector pairs. No auto-promotion (no source AST to re-encode at the other dim).
+
+## Open design questions (resolved above)
 
 ### Q1 — `Value::Vector` variant vs `#[wat_dispatch]` opaque
 
