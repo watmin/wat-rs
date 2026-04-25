@@ -1846,6 +1846,15 @@ fn dispatch_keyword_head(
                 Ok(a / b)
             }
         }),
+        // Float min/max — strict f64. Arc 046.
+        ":wat::core::f64::max" => eval_f64_arith(head, args, env, sym, |a, b| Ok(a.max(b))),
+        ":wat::core::f64::min" => eval_f64_arith(head, args, env, sym, |a, b| Ok(a.min(b))),
+        // Float abs — strict f64, unary. Arc 046.
+        ":wat::core::f64::abs" => {
+            eval_f64_unary(args, env, sym, ":wat::core::f64::abs", f64::abs)
+        }
+        // Float clamp — strict f64, ternary. Arc 046.
+        ":wat::core::f64::clamp" => eval_f64_clamp(args, env, sym),
 
         // Scalar conversions — arc 014. Explicit named casts between
         // the four scalar tiers. Infallible → target type; fallible
@@ -2030,6 +2039,7 @@ fn dispatch_keyword_head(
         // need them, and userland picks them up the same way.
         ":wat::std::math::ln" => eval_math_unary(args, env, sym, "ln", f64::ln),
         ":wat::std::math::log" => eval_math_unary(args, env, sym, "log", f64::ln),
+        ":wat::std::math::exp" => eval_math_unary(args, env, sym, "exp", f64::exp),
         ":wat::std::math::sin" => eval_math_unary(args, env, sym, "sin", f64::sin),
         ":wat::std::math::cos" => eval_math_unary(args, env, sym, "cos", f64::cos),
         ":wat::std::math::pi" => eval_math_pi(args),
@@ -2933,6 +2943,85 @@ fn eval_f64_round(
     }
     let factor = 10f64.powi(digits as i32);
     Ok(Value::f64((v * factor).round() / factor))
+}
+
+/// Arc 046 — strict-f64 unary helper for `:wat::core::f64::*`
+/// primitives. Mirrors `eval_math_unary` (`:wat::std::math::*`)
+/// but takes the full op name as a string and rejects `i64`
+/// arguments — the `:wat::core::f64::*` family is consistently
+/// strict (matches `eval_f64_arith`'s `f64::+/-/*//` discipline),
+/// while `:wat::std::math::*` permits `i64 -> f64` promotion for
+/// ergonomic transcendental calls.
+fn eval_f64_unary(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    op: &str,
+    f: fn(f64) -> f64,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: op.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = match eval(&args[0], env, sym)? {
+        Value::f64(x) => x,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected: "f64",
+                got: other.type_name(),
+            });
+        }
+    };
+    Ok(Value::f64(f(v)))
+}
+
+/// Arc 046 — `(:wat::core::f64::clamp v lo hi)`. Bounds `v` into
+/// `[lo, hi]` via `f64::clamp`. Strict-f64 (no `i64` promotion);
+/// matches the `:wat::core::f64::*` family discipline. Rust's
+/// `f64::clamp` panics if `lo > hi` or either is NaN — we surface
+/// that as a `MalformedForm` rather than letting it propagate as
+/// a panic, since wat-side errors should be catchable.
+fn eval_f64_clamp(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::f64::clamp";
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+        });
+    }
+    let mut vs = [0.0_f64; 3];
+    for (i, slot) in vs.iter_mut().enumerate() {
+        *slot = match eval(&args[i], env, sym)? {
+            Value::f64(x) => x,
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "f64",
+                    got: other.type_name(),
+                });
+            }
+        };
+    }
+    let [v, lo, hi] = vs;
+    if lo.is_nan() || hi.is_nan() || lo > hi {
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "lo must be ≤ hi and neither may be NaN; got lo={}, hi={}",
+                lo, hi
+            ),
+        });
+    }
+    Ok(Value::f64(v.clamp(lo, hi)))
 }
 
 fn eval_string_to_i64(
@@ -7468,6 +7557,122 @@ mod tests {
     fn f64_round_arity_mismatch() {
         let err = eval_expr("(:wat::core::f64::round 1.0)").unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    // ─── f64::max / min / abs / clamp + math::exp (arc 046) ───────────────
+
+    #[test]
+    fn f64_max_picks_larger() {
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::max 1.0 2.0)").unwrap()),
+            2.0
+        );
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::max -3.0 -5.0)").unwrap()),
+            -3.0
+        );
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::max 4.2 4.2)").unwrap()),
+            4.2
+        );
+    }
+
+    #[test]
+    fn f64_min_picks_smaller() {
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::min 1.0 2.0)").unwrap()),
+            1.0
+        );
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::min -3.0 -5.0)").unwrap()),
+            -5.0
+        );
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::min 4.2 4.2)").unwrap()),
+            4.2
+        );
+    }
+
+    #[test]
+    fn f64_abs_handles_sign_and_zero() {
+        assert_eq!(expect_f64(eval_expr("(:wat::core::f64::abs 3.5)").unwrap()), 3.5);
+        assert_eq!(expect_f64(eval_expr("(:wat::core::f64::abs -3.5)").unwrap()), 3.5);
+        assert_eq!(expect_f64(eval_expr("(:wat::core::f64::abs 0.0)").unwrap()), 0.0);
+    }
+
+    #[test]
+    fn f64_abs_rejects_i64() {
+        let err = eval_expr("(:wat::core::f64::abs 5)").unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn f64_clamp_in_range_unchanged() {
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::clamp 0.5 -1.0 1.0)").unwrap()),
+            0.5
+        );
+    }
+
+    #[test]
+    fn f64_clamp_below_lo_lifts() {
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::clamp -5.0 -1.0 1.0)").unwrap()),
+            -1.0
+        );
+    }
+
+    #[test]
+    fn f64_clamp_above_hi_caps() {
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::clamp 5.0 -1.0 1.0)").unwrap()),
+            1.0
+        );
+    }
+
+    #[test]
+    fn f64_clamp_lo_equals_hi_pins() {
+        assert_eq!(
+            expect_f64(eval_expr("(:wat::core::f64::clamp 5.0 2.0 2.0)").unwrap()),
+            2.0
+        );
+    }
+
+    #[test]
+    fn f64_clamp_rejects_lo_greater_than_hi() {
+        let err = eval_expr("(:wat::core::f64::clamp 0.0 1.0 -1.0)").unwrap_err();
+        match err {
+            RuntimeError::MalformedForm { head, reason } => {
+                assert_eq!(head, ":wat::core::f64::clamp");
+                assert!(reason.contains("lo must be"), "got: {}", reason);
+            }
+            other => panic!("expected MalformedForm, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn f64_clamp_arity_mismatch() {
+        let err = eval_expr("(:wat::core::f64::clamp 1.0 0.0)").unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    #[test]
+    fn math_exp_round_trips_with_ln() {
+        // exp(0) == 1.0 exactly.
+        assert_eq!(expect_f64(eval_expr("(:wat::std::math::exp 0.0)").unwrap()), 1.0);
+        // exp(1) ≈ e.
+        let v = expect_f64(eval_expr("(:wat::std::math::exp 1.0)").unwrap());
+        assert!((v - std::f64::consts::E).abs() < 1e-12, "got {}", v);
+        // exp(-1) ≈ 1/e.
+        let v = expect_f64(eval_expr("(:wat::std::math::exp -1.0)").unwrap());
+        assert!((v - (1.0 / std::f64::consts::E)).abs() < 1e-12, "got {}", v);
+    }
+
+    #[test]
+    fn math_exp_accepts_i64_promotion() {
+        // :wat::std::math::* permits i64 → f64 promotion (matches
+        // ln/log/sin/cos siblings); :wat::core::f64::* does not.
+        assert_eq!(expect_f64(eval_expr("(:wat::std::math::exp 0)").unwrap()), 1.0);
     }
 
     #[test]

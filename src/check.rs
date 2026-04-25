@@ -3386,6 +3386,37 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // Arc 046 — strict-f64 max / min / abs / clamp. Lab arc 015
+    // surfaced these as substrate gaps while porting indicator
+    // vocab; lifting them here means every wat consumer reaches
+    // for the same names rather than reinventing in userland.
+    for op in &[":wat::core::f64::max", ":wat::core::f64::min"] {
+        env.register(
+            op.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![f64_ty(), f64_ty()],
+                ret: f64_ty(),
+            },
+        );
+    }
+    env.register(
+        ":wat::core::f64::abs".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![f64_ty()],
+            ret: f64_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::f64::clamp".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![f64_ty(), f64_ty(), f64_ty()],
+            ret: f64_ty(),
+        },
+    );
+
     // Scalar conversions — arc 014. :wat::core::<source>::to-<target>
     // between the four scalar tiers (i64, f64, bool, String).
     // Infallible ones return the target directly; fallible ones return
@@ -4146,7 +4177,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Stdlib math — single-method Rust calls per FOUNDATION-CHANGELOG
     // 2026-04-18. All unary :f64 -> :f64 except pi which is :() -> :f64.
     // Packaged here so Log / Circular expansions get proper checking.
-    for name in ["ln", "log", "sin", "cos"] {
+    for name in ["ln", "log", "exp", "sin", "cos"] {
         env.register(
             format!(":wat::std::math::{}", name),
             TypeScheme {

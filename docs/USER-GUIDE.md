@@ -394,7 +394,7 @@ Every wat program lives in a coordinate with two axes.
 ### Axis 1 — four layers
 
 1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
-2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `cond`, `try`, `struct`, `enum`, `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
+2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `cond`, `try`, `struct`, `enum`, `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
 3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `join`, `HandlePool`, `stopped?`, `pipe`, `fork-with-forms`, `wait-child`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes between processes.
 4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), services (`:wat::std::service::Console`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel.
 
@@ -1641,6 +1641,12 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::first` / `second` / `third` | `<tuple-or-vec>` | field value |
 | `:wat::core::length` / `empty?` / `reverse` / `take` / `drop` | list ops | various |
 | `:wat::core::i64::+/-/*//` / `f64::+/-/*//` | `a b` | arithmetic |
+| `:wat::core::f64::round` | `v digits` | round-half-away-from-zero (arc 019) |
+| `:wat::core::f64::max` / `min` | `a b` | binary min/max (arc 046) — strict-f64 |
+| `:wat::core::f64::abs` | `v` | absolute value (arc 046) — strict-f64 |
+| `:wat::core::f64::clamp` | `v lo hi` | bound `v` into `[lo, hi]` (arc 046); errors if `lo > hi` or NaN bounds |
+| `:wat::std::math::ln` / `log` / `exp` / `sin` / `cos` | `x` | unary math (`log` is alias for `ln`); accept i64 promotion |
+| `:wat::std::math::pi` | — | π as `:f64` |
 | `:wat::core::i64::to-string` / `to-f64` | `n` | infallible — `:String` / `:f64` |
 | `:wat::core::f64::to-string` / `to-i64` | `x` | `:String` / `:Option<i64>` (NaN/inf/out-of-range → `:None`) |
 | `:wat::core::string::to-i64` / `to-f64` / `to-bool` | `s` | `:Option<T>` (unparseable → `:None`) |
