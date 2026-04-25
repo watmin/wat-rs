@@ -2466,6 +2466,9 @@ fn dispatch_keyword_head(
         ":wat::std::math::sin" => eval_math_unary(args, env, sym, "sin", f64::sin),
         ":wat::std::math::cos" => eval_math_unary(args, env, sym, "cos", f64::cos),
         ":wat::std::math::pi" => eval_math_pi(args),
+        ":wat::std::stat::mean" => eval_stat_mean(args, env, sym),
+        ":wat::std::stat::variance" => eval_stat_variance(args, env, sym),
+        ":wat::std::stat::stddev" => eval_stat_stddev(args, env, sym),
 
         // :rust::* — dispatch through the rust-deps registry. Each
         // symbol's shim handles its own arg evaluation and marshaling.
@@ -8363,6 +8366,122 @@ fn eval_math_pi(args: &[WatAST]) -> Result<Value, RuntimeError> {
         });
     }
     Ok(Value::f64(std::f64::consts::PI))
+}
+
+/// `(:wat::std::stat::mean :Vec<f64>) -> :Option<f64>`. Population
+/// mean. None on empty input — matches `f64::min-of`/`max-of`'s
+/// reduction-empty convention.
+///
+/// Surfaced by holon-lab-trading arc 026 slice 9 (Hurst's R/S
+/// analysis) and slice 4 (Bollinger's RollingStddev). Universal
+/// enough to live in core stdlib.
+fn eval_stat_mean(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::std::stat::mean";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(OP, eval(&args[0], env, sym)?)?;
+    if xs.is_empty() {
+        return Ok(Value::Option(Arc::new(None)));
+    }
+    let mut sum = 0.0;
+    for v in xs.iter() {
+        match v {
+            Value::f64(x) => sum += x,
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Vec<f64>",
+                    got: other.type_name(),
+                });
+            }
+        }
+    }
+    Ok(Value::Option(Arc::new(Some(Value::f64(
+        sum / xs.len() as f64,
+    )))))
+}
+
+/// `(:wat::std::stat::variance :Vec<f64>) -> :Option<f64>`. Population
+/// variance (divides by n). Matches numpy default `ddof=0`. None on
+/// empty input. Single-point input returns `Some(0.0)` (no spread).
+fn eval_stat_variance(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::std::stat::variance";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(OP, eval(&args[0], env, sym)?)?;
+    if xs.is_empty() {
+        return Ok(Value::Option(Arc::new(None)));
+    }
+    let n = xs.len() as f64;
+    let mut sum = 0.0;
+    for v in xs.iter() {
+        match v {
+            Value::f64(x) => sum += x,
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Vec<f64>",
+                    got: other.type_name(),
+                });
+            }
+        }
+    }
+    let mean = sum / n;
+    let mut sq = 0.0;
+    for v in xs.iter() {
+        if let Value::f64(x) = v {
+            let dx = x - mean;
+            sq += dx * dx;
+        }
+    }
+    Ok(Value::Option(Arc::new(Some(Value::f64(sq / n)))))
+}
+
+/// `(:wat::std::stat::stddev :Vec<f64>) -> :Option<f64>`. Square
+/// root of population variance.
+fn eval_stat_stddev(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::std::stat::stddev";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    match eval_stat_variance(args, env, sym)? {
+        Value::Option(opt) => match &*opt {
+            Some(Value::f64(var)) => Ok(Value::Option(Arc::new(Some(Value::f64(var.sqrt()))))),
+            Some(_) => unreachable!("variance returned a non-f64 inside Option"),
+            None => Ok(Value::Option(Arc::new(None))),
+        },
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "Option<f64> from inner variance",
+            got: other.type_name(),
+        }),
+    }
 }
 
 /// `(:wat::kernel::HandlePool::new name handles)` — build a pool of

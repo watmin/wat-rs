@@ -5602,6 +5602,28 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: f64_ty(),
         },
     );
+
+    // Stat reductions over Vec<f64> — population variance/stddev
+    // (matches numpy default ddof=0); all return :Option<f64> with
+    // None on empty input (matches f64::min-of/max-of convention).
+    let opt_f64_ty = || TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![f64_ty()],
+    };
+    let vec_f64_ty = || TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![f64_ty()],
+    };
+    for name in ["mean", "variance", "stddev"] {
+        env.register(
+            format!(":wat::std::stat::{}", name),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![vec_f64_ty()],
+                ret: opt_f64_ty(),
+            },
+        );
+    }
     // List/Vec primitives — Round 4a, per docs/058-backlog.md.
     //
     //   length   : ∀T. Vec<T> -> :i64
