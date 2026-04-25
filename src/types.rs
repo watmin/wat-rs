@@ -188,7 +188,16 @@ impl TypeEnv {
         if crate::resolve::is_reserved_prefix(&name) {
             return Err(TypeError::ReservedPrefix { name });
         }
-        if self.types.contains_key(&name) {
+        // Arc 054: idempotent re-declaration. If the same name is already
+        // registered with a byte-equivalent definition, the second
+        // registration is a no-op. Divergent re-declarations remain an
+        // error. Unblocks in-crate shims whose wat surface is delivered
+        // both via `wat_sources()` and on-disk loading (the natural
+        // pattern for lab-side shims like CandleStream).
+        if let Some(existing) = self.types.get(&name) {
+            if existing == &def {
+                return Ok(());
+            }
             return Err(TypeError::DuplicateType { name });
         }
         // Reject cyclic aliases BEFORE insertion so `expand_alias` can
@@ -208,10 +217,16 @@ impl TypeEnv {
     /// [`Self::register`] where the prefix check catches
     /// mis-namespaced user declarations.
     ///
-    /// Duplicates and cyclic aliases are still rejected.
+    /// Duplicates and cyclic aliases are still rejected; arc 054's
+    /// idempotency rule applies — byte-equivalent re-registration is
+    /// a no-op.
     pub fn register_stdlib(&mut self, def: TypeDef) -> Result<(), TypeError> {
         let name = def.name().to_string();
-        if self.types.contains_key(&name) {
+        // Arc 054: idempotent re-declaration (see `register`).
+        if let Some(existing) = self.types.get(&name) {
+            if existing == &def {
+                return Ok(());
+            }
             return Err(TypeError::DuplicateType { name });
         }
         if let TypeDef::Alias(alias) = &def {

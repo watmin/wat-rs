@@ -1052,7 +1052,13 @@ pub fn register_defines(
             if crate::resolve::is_reserved_prefix(&path) {
                 return Err(RuntimeError::ReservedPrefix(path));
             }
-            if sym.functions.contains_key(&path) {
+            // Arc 054: idempotent re-declaration. Byte-equivalent
+            // re-registration of the same name is a no-op; divergent
+            // re-registration remains an error.
+            if let Some(existing) = sym.functions.get(&path) {
+                if function_byte_equivalent(existing, &func) {
+                    continue;
+                }
                 return Err(RuntimeError::DuplicateDefine(path));
             }
             sym.functions.insert(path, func);
@@ -1076,7 +1082,11 @@ pub fn register_stdlib_defines(
     for form in forms {
         if is_define_form(&form) {
             let (path, func) = parse_define_form(form)?;
-            if sym.functions.contains_key(&path) {
+            // Arc 054: idempotent re-declaration (see `register_defines`).
+            if let Some(existing) = sym.functions.get(&path) {
+                if function_byte_equivalent(existing, &func) {
+                    continue;
+                }
                 return Err(RuntimeError::DuplicateDefine(path));
             }
             sym.functions.insert(path, func);
@@ -1085,6 +1095,25 @@ pub fn register_stdlib_defines(
         }
     }
     Ok(rest)
+}
+
+/// Arc 054 — byte-equivalence check for two `Function` values for the
+/// idempotent-redeclaration rule.
+///
+/// Compares param names + types, return type, type-parameter list, and
+/// the AST body. Ignores `name` (it's the registry key, identical by
+/// construction) and `closed_env` (always None for define-registered
+/// functions).
+///
+/// `WatAST::PartialEq` is span-agnostic (verified via Span's no-op
+/// PartialEq impl), so two ASTs parsed from different source paths
+/// compare equal iff their structural content matches.
+fn function_byte_equivalent(a: &Function, b: &Function) -> bool {
+    a.params == b.params
+        && a.type_params == b.type_params
+        && a.param_types == b.param_types
+        && a.ret_type == b.ret_type
+        && *a.body == *b.body
 }
 
 /// Walk every `:wat::core::struct` declaration in `types` and
@@ -6994,27 +7023,22 @@ fn eval_reckoner_new_discrete(
     let recalib =
         require_i64(":wat::holon::Reckoner/new-discrete", eval(&args[2], env, sym)?)?;
     let labels_val = eval(&args[3], env, sym)?;
-    let labels: Vec<String> = match labels_val {
+    let label_asts: Vec<HolonAST> = match labels_val {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
             for item in items.iter() {
-                match item {
-                    Value::String(s) => out.push((**s).clone()),
-                    other => {
-                        return Err(RuntimeError::TypeMismatch {
-                            op: ":wat::holon::Reckoner/new-discrete".into(),
-                            expected: "Vec of String",
-                            got: other.type_name(),
-                        })
-                    }
-                }
+                let h = require_holon(
+                    ":wat::holon::Reckoner/new-discrete",
+                    item.clone(),
+                )?;
+                out.push((*h).clone());
             }
             out
         }
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Reckoner/new-discrete".into(),
-                expected: "Vec of String",
+                expected: "Vec of HolonAST",
                 got: other.type_name(),
             })
         }
@@ -7023,7 +7047,7 @@ fn eval_reckoner_new_discrete(
         &name,
         dims as usize,
         recalib as usize,
-        holon::ReckConfig::Discrete(labels),
+        holon::ReckConfig::Discrete(label_asts),
     );
     Ok(Value::Reckoner(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(r),

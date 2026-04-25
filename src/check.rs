@@ -4944,7 +4944,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 i64_ty(),
                 TypeExpr::Parametric {
                     head: "Vec".into(),
-                    args: vec![string_ty()],
+                    args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
                 },
             ],
             ret: reckoner_ty(),

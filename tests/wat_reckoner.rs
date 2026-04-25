@@ -42,7 +42,10 @@ fn reckoner_discrete_construct_dims_labels() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((labels :Vec<String>) (:wat::core::vec :String "up" "down"))
+            (((labels :Vec<wat::holon::HolonAST>)
+              (:wat::core::vec :wat::holon::HolonAST
+                (:wat::holon::Atom "up")
+                (:wat::holon::Atom "down")))
              ((r :wat::holon::Reckoner)
               (:wat::holon::Reckoner/new-discrete "test-rec" 256 100 labels))
              ((d :i64) (:wat::holon::Reckoner/dims r))
@@ -66,7 +69,10 @@ fn reckoner_observe_then_predict() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((labels :Vec<String>) (:wat::core::vec :String "up" "down"))
+            (((labels :Vec<wat::holon::HolonAST>)
+              (:wat::core::vec :wat::holon::HolonAST
+                (:wat::holon::Atom "up")
+                (:wat::holon::Atom "down")))
              ((r :wat::holon::Reckoner)
               ;; Tiny recalib_interval=1 so discriminants update after every observe.
               (:wat::holon::Reckoner/new-discrete "rec" 256 1 labels))

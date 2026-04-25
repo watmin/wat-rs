@@ -89,11 +89,18 @@ impl MacroRegistry {
     }
 
     /// Register a macro. Errors on duplicate or reserved prefix.
+    ///
+    /// Arc 054: byte-equivalent re-registration is a no-op; divergent
+    /// re-registration remains an error. Two `defmacro` forms with
+    /// matching params + rest_param + body AST count as equivalent.
     pub fn register(&mut self, def: MacroDef) -> Result<(), MacroError> {
         if crate::resolve::is_reserved_prefix(&def.name) {
             return Err(MacroError::ReservedPrefix(def.name));
         }
-        if self.macros.contains_key(&def.name) {
+        if let Some(existing) = self.macros.get(&def.name) {
+            if macro_byte_equivalent(existing, &def) {
+                return Ok(());
+            }
             return Err(MacroError::DuplicateMacro(def.name));
         }
         self.macros.insert(def.name.clone(), def);
@@ -105,13 +112,29 @@ impl MacroRegistry {
     /// Still errors on duplicates. Intended for the baked stdlib
     /// loader; user source paths through `register` where the prefix
     /// check catches mis-namespaced user defmacros.
+    ///
+    /// Arc 054: idempotent re-declaration applies — byte-equivalent
+    /// re-registration is a no-op.
     pub fn register_stdlib(&mut self, def: MacroDef) -> Result<(), MacroError> {
-        if self.macros.contains_key(&def.name) {
+        if let Some(existing) = self.macros.get(&def.name) {
+            if macro_byte_equivalent(existing, &def) {
+                return Ok(());
+            }
             return Err(MacroError::DuplicateMacro(def.name));
         }
         self.macros.insert(def.name.clone(), def);
         Ok(())
     }
+}
+
+/// Arc 054 — byte-equivalence check for two `MacroDef` values.
+///
+/// Compares params + rest_param + body AST. Ignores `name` (it's the
+/// registry key, identical by construction). `WatAST::PartialEq` is
+/// span-agnostic, so two ASTs parsed from different source paths
+/// compare equal iff their structural content matches.
+fn macro_byte_equivalent(a: &MacroDef, b: &MacroDef) -> bool {
+    a.params == b.params && a.rest_param == b.rest_param && a.body == b.body
 }
 
 /// Errors during macro registration / expansion.
@@ -1059,15 +1082,35 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_defmacro_rejected() {
+    fn duplicate_defmacro_with_divergent_body_rejected() {
+        // Arc 054: byte-equivalent re-declaration is a no-op (tested
+        // separately). Divergent re-declaration still errors. This
+        // test exercises the divergent-body path — same name, two
+        // distinct templates.
         let err = expand(
             r#"
             (:wat::core::defmacro (:my::m (x :AST) -> :AST) `,x)
-            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `,x)
+            (:wat::core::defmacro (:my::m (x :AST) -> :AST)
+              `(:wat::core::vec ,x))
             "#,
         )
         .unwrap_err();
         assert!(matches!(err, MacroError::DuplicateMacro(_)));
+    }
+
+    #[test]
+    fn duplicate_defmacro_byte_equivalent_is_noop() {
+        // Arc 054: two byte-equivalent defmacro forms — same name,
+        // params, body. Second registration is a no-op. The macro
+        // expands normally afterward.
+        let result = expand(
+            r#"
+            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `,x)
+            (:wat::core::defmacro (:my::m (x :AST) -> :AST) `,x)
+            (:my::m 42)
+            "#,
+        );
+        assert!(result.is_ok(), "byte-equivalent re-decl should succeed; got {:?}", result);
     }
 
     #[test]

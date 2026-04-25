@@ -321,6 +321,17 @@ wat::main! { source: include_str!("program.wat"), deps: [shim, wat_lru] }
 
 That's the third Rust file — only when you genuinely need it.
 
+**Two valid shapes for the wat surface.** External crates (like
+`wat-lru`) keep their wat surface inside the crate's source tree and
+deliver it bake-only via `wat_sources()`; consumers never see the
+file on disk. In-crate shims have a third option: the wat surface
+can live on disk under your application's own `wat/` tree *and* be
+delivered via `wat_sources()` at the same time. Both paths register
+the same source; arc-054 idempotent re-declaration ensures
+byte-equivalent re-registration is a no-op (divergent re-registration
+still errors). Pick whichever shape reads more naturally — split-tree
+(bake-only) or unified-tree (disk + bake) are both supported.
+
 ### Reference binary
 
 `wat-rs/examples/with-lru/` is the walkable template —
