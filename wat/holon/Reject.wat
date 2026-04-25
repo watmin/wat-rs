@@ -5,8 +5,10 @@
 ;;
 ;; Expands to Blend with the second weight computed at runtime from
 ;; the dot-product ratio. The negation is spelled as binary
-;; (:wat::core::f64::- 0.0 ratio) since wat arith is typed and binary
-;; post the 2026-04-19 split.
+;; (:wat::core::- 0.0 ratio) since wat arith is binary — there is
+;; no unary negate. Polymorphic form used (arc 050); the typed
+;; strict :wat::core::f64::- remains available for callers who
+;; want the type-guard behavior.
 ;;
 ;; Production-cited: DDoS sidecar's core detection mechanism
 ;; (Challenge 010, F1=1.000) — reject(packet, baseline_subspace).
@@ -21,6 +23,6 @@
      ,x
      ,y
      1.0
-     (:wat::core::f64::- 0.0
-       (:wat::core::f64::/ (:wat::holon::dot ,x ,y)
+     (:wat::core::- 0.0
+       (:wat::core::/ (:wat::holon::dot ,x ,y)
                            (:wat::holon::dot ,y ,y)))))

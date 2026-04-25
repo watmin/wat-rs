@@ -151,7 +151,7 @@
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3))
      ((double :fn(i64)->i64)
       (:wat::core::lambda ((n :i64) -> :i64)
-        (:wat::core::i64::* n 2)))
+        (:wat::core::* n 2)))
      ((doubled :Vec<i64>) (:wat::core::map source double))
      ((expected :Vec<i64>) (:wat::core::vec :i64 2 4 6)))
     (:wat::test::assert-eq doubled expected)))

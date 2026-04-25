@@ -8,9 +8,11 @@
 ;; cos(π/4) + sin(π/4) ≈ 1.414, not 1.
 ;;
 ;; Deviations from the proposal's body shape:
-;;   - arith is typed: the proposal's `(* 2 pi (/ v p))` trinary form
-;;     becomes binary `(:wat::core::f64::*/f64::/)` (wat-rs split
-;;     2026-04-19: users commit to int or float at the call site).
+;;   - arith is binary: the proposal's `(* 2 pi (/ v p))` trinary form
+;;     becomes nested binary `(:wat::core::*` + `:wat::core::/`)
+;;     calls. Polymorphic forms used (arc 050); the typed strict
+;;     `:wat::core::f64::*` and `:wat::core::f64::/` remain available
+;;     when callers want the type-guard behavior.
 ;;   - `:wat::std::math::pi` was written bare in the proposal; it's a
 ;;     nullary primitive, called as `(:wat::std::math::pi)` here.
 ;;   - let* bindings carry explicit `:f64` types.
@@ -23,11 +25,11 @@
     -> :AST<wat::holon::HolonAST>)
   `(:wat::core::let*
      (((frac :f64)
-       (:wat::core::f64::/ ,value ,period))
+       (:wat::core::/ ,value ,period))
       ((two-pi :f64)
-       (:wat::core::f64::* 2.0 (:wat::std::math::pi)))
+       (:wat::core::* 2.0 (:wat::std::math::pi)))
       ((theta :f64)
-       (:wat::core::f64::* two-pi frac)))
+       (:wat::core::* two-pi frac)))
      (:wat::holon::Blend
        (:wat::holon::Atom :wat::std::circular-cos-basis)
        (:wat::holon::Atom :wat::std::circular-sin-basis)

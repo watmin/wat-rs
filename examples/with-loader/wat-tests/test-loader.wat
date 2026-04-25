@@ -18,4 +18,4 @@
 
 (:wat::test::deftest :user::with_loader::test::test-loader-wiring
   ()
-  (:wat::test::assert-eq (:wat::core::i64::+ 1 1) 2))
+  (:wat::test::assert-eq (:wat::core::+ 1 1) 2))

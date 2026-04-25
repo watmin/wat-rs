@@ -35,5 +35,5 @@
     -> :AST<wat::holon::HolonAST>)
   `(:wat::holon::Log
      ,value
-     (:wat::core::f64::/ 1.0 ,n)
+     (:wat::core::/ 1.0 ,n)
      ,n))

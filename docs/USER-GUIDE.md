@@ -1646,7 +1646,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::find-last-index` | `xs pred-fn` | `Option<i64>` — index of rightmost element where pred holds (arc 047); `None` if no match or empty |
 | `:wat::core::f64::max-of` / `min-of` | `<vec-of-f64>` | `Option<f64>` — `None` for empty (arc 047) |
 | `:wat::core::length` / `empty?` / `reverse` / `take` / `drop` | list ops | various |
-| `:wat::core::i64::+/-/*//` / `f64::+/-/*//` | `a b` | arithmetic |
+| `:wat::core::+/-/*//` | `a b` | polymorphic arithmetic (arc 050); both args must be numeric (`:i64` or `:f64`); result is `:f64` if either is `:f64`, else `:i64` — Lisp-traditional int → float promotion |
+| `:wat::core::i64::+/-/*//` / `f64::+/-/*//` | `a b` | typed strict arithmetic — same arity, but the type checker rejects cross-type input. Reach for these when the type-guard behavior matters (e.g., index arithmetic where i64 is the only honest answer) |
 | `:wat::core::f64::round` | `v digits` | round-half-away-from-zero (arc 019) |
 | `:wat::core::f64::max` / `min` | `a b` | binary min/max (arc 046) — strict-f64 |
 | `:wat::core::f64::abs` | `v` | absolute value (arc 046) — strict-f64 |
@@ -1657,7 +1658,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::f64::to-string` / `to-i64` | `x` | `:String` / `:Option<i64>` (NaN/inf/out-of-range → `:None`) |
 | `:wat::core::string::to-i64` / `to-f64` / `to-bool` | `s` | `:Option<T>` (unparseable → `:None`) |
 | `:wat::core::bool::to-string` | `b` | `"true"` / `"false"` |
-| `:wat::core::>` / `=` / `<` / `>=` / `<=` | `a b` | `:bool` |
+| `:wat::core::>` / `=` / `<` / `>=` / `<=` | `a b` | polymorphic comparison/equality — same-type for non-numeric, cross-numeric (i64+f64) accepted with promotion (arc 050); always returns `:bool` |
+| `:wat::core::i64::>` / `=` / `<` / `>=` / `<=` / `f64::*` | `a b` | typed strict comparison/equality (arc 050) — rejects cross-type at the checker; opt-in for type-guard discipline |
 | `:wat::io::IOReader/read-line` | `stdin` | `:Option<String>` |
 | `:wat::io::IOWriter/print` | `handle string` | `:()` |
 | `:wat::kernel::spawn` | `<fn-path> args...` | `:ProgramHandle<R>` |
