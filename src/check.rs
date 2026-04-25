@@ -4692,6 +4692,20 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: f64_ty(),
         },
     );
+    // Arc 051: SimHash — direction-space lattice position. Charikar's
+    // hyperplane SimHash via the canonical Atom(0)..Atom(63) basis.
+    // Maps a HolonAST to a 64-bit i64 key; cosine-similar ASTs share
+    // the same key (or near-same in hamming distance). Used as the
+    // key-derivation function for bidirectional engram caches and
+    // any content-addressed retrieval over the holon algebra.
+    env.register(
+        ":wat::holon::simhash".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: i64_ty(),
+        },
+    );
     // Arc 037 slice 4: HolonAST → immediate surface arity. The
     // natural introspection primitive for user dim-router bodies
     // ((:wat::config::set-dim-router! <fn>) where the fn signature

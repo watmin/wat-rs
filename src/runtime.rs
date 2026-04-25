@@ -2253,6 +2253,7 @@ fn dispatch_keyword_head(
             eval_form_signed_string_coincident_q(args, env, sym)
         }
         ":wat::holon::dot" => eval_algebra_dot(args, env, sym),
+        ":wat::holon::simhash" => eval_algebra_simhash(args, env, sym),
         ":wat::holon::statement-length" => eval_holon_statement_length(args, env, sym),
 
         // Constrained runtime eval — four forms, matching the load
@@ -6276,6 +6277,71 @@ fn eval_algebra_dot(
     let vx = encode(&x, &enc.vm, &enc.scalar, &ctx.registry);
     let vy = encode(&y, &enc.vm, &enc.scalar, &ctx.registry);
     Ok(Value::f64(Similarity::dot(&vx, &vy)))
+}
+
+/// `(:wat::holon::simhash holon) -> :i64` — Charikar SimHash over the
+/// materialized vector at the holon's natural d. Arc 051.
+///
+/// Output i64 is the **direction-space lattice position** of the
+/// holon's vector. Same input → same i64. Cosine-near-1 inputs share
+/// the same i64 (when angular separation is small enough that all 64
+/// bit-decisions agree); cosine-near-0 inputs have hamming-distance
+/// ≈ 32 between their keys; anti-parallel inputs have hamming
+/// distance ≈ 64.
+///
+/// **Algorithm.** For i in 0..64: bit i = `sign(v · Atom(i)_at_d) >
+/// 0 ? 1 : 0`, packed into i64. Atom(0)..Atom(63) are the canonical
+/// LSH projection basis — the SAME atoms that serve as positional
+/// markers in `Permute` / `Sequential` / `Bigram` / `Trigram`. BOOK
+/// Chapter 36's unification: position atoms and LSH anchors are one
+/// reserved resource.
+///
+/// **Sign-of-zero rule.** When `v · Atom(i) == 0` exactly (rare; only
+/// when positive and negative substrate contributions cancel), output
+/// bit i = 0. Pathological boundary case; locality-sensitivity
+/// property holds.
+///
+/// **Composition with `wat-lru` for bidirectional caches.** The i64
+/// key plugs into `:rust::lru::LruCache<i64,V>` directly — values can
+/// be `:wat::holon::HolonAST` (one-AST-per-key, most-recent-wins) or
+/// `:Vec<wat::holon::HolonAST>` (full bucket). Cosine-rank within the
+/// bucket if multiple matches.
+fn eval_algebra_simhash(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::simhash".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let target = require_holon(":wat::holon::simhash", eval(&args[0], env, sym)?)?;
+    let ctx = require_encoding_ctx(":wat::holon::simhash", sym)?;
+    let router = require_dim_router(":wat::holon::simhash", sym)?;
+    let d = router
+        .pick(&target, sym)
+        .ok_or_else(|| RuntimeError::DimUnresolvable {
+            op: ":wat::holon::simhash".into(),
+            immediate_arity: crate::dim_router::immediate_arity(&target),
+        })?;
+    let enc = ctx.encoders.get(d);
+    let v = encode(&target, &enc.vm, &enc.scalar, &ctx.registry);
+
+    // Project onto Atom(0)..Atom(63) via the canonical LSH basis.
+    let mut key: u64 = 0;
+    for i in 0..64u32 {
+        let atom_ast = HolonAST::Atom(Arc::new(i as i64));
+        let atom_vec = encode(&atom_ast, &enc.vm, &enc.scalar, &ctx.registry);
+        let dot = Similarity::dot(&v, &atom_vec);
+        if dot > 0.0 {
+            key |= 1u64 << i;
+        }
+        // else: bit i stays 0 (sign-of-zero rule: dot == 0 → bit off)
+    }
+    Ok(Value::i64(key as i64))
 }
 
 fn require_numeric(op: &str, v: Value) -> Result<f64, RuntimeError> {
