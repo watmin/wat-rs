@@ -2212,6 +2212,7 @@ fn dispatch_keyword_head(
 
         // Comparison — return :bool
         ":wat::core::=" => eval_eq(head, args, env, sym),
+        ":wat::core::not=" => eval_not_eq(head, args, env, sym),
         ":wat::core::<" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Less),
         ":wat::core::>" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Greater),
         ":wat::core::<=" => eval_compare(head, args, env, sym, |o| {
@@ -3561,6 +3562,34 @@ fn eval_eq(
     }
 }
 
+/// `(:wat::core::not= a b)` — Clojure-tradition inequality.
+///
+/// Inverse of `:wat::core::=`. Same polymorphism (cross-numeric
+/// promotion, structural equality on composites, Enum equality post-
+/// arc-056-companion). The runtime is `not(=)`; the type checker
+/// shares `infer_polymorphic_compare` so call-site type rules are
+/// identical.
+///
+/// `(not= a b)` reads more naturally aloud than `(not (= a b))` and
+/// follows the Clojure lineage. The C-family alternative `!=` was
+/// passed over to keep the substrate's operator naming Lisp-shaped.
+fn eval_not_eq(
+    head: &str,
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    match eval_eq(head, args, env, sym)? {
+        Value::bool(eq) => Ok(Value::bool(!eq)),
+        // Unreachable — eval_eq always returns Value::bool on success.
+        other => Err(RuntimeError::TypeMismatch {
+            op: head.into(),
+            expected: "bool from inner eq",
+            got: other.type_name(),
+        }),
+    }
+}
+
 /// Structural equality on [`Value`] — returns `Some(bool)` for pairs
 /// whose types support equality, `None` for pairs whose shapes aren't
 /// comparable at all (e.g., comparing a `Value::Function` to anything;
@@ -3621,6 +3650,28 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
             (Err(xv), Err(yv)) => values_equal(xv, yv),
             _ => Some(false),
         },
+        // Arc 048 — user-defined enum equality. Two Enum values are
+        // equal iff they have the same `type_path`, the same
+        // `variant_name`, and structurally-equal fields. This makes
+        // `(=)` and `(not=)` work on PhaseLabel / PhaseDirection /
+        // any user enum without callers writing match-by-match
+        // boilerplate.
+        (Value::Enum(a), Value::Enum(b)) => {
+            if a.type_path != b.type_path || a.variant_name != b.variant_name {
+                return Some(false);
+            }
+            if a.fields.len() != b.fields.len() {
+                return Some(false);
+            }
+            for (x, y) in a.fields.iter().zip(b.fields.iter()) {
+                match values_equal(x, y) {
+                    Some(true) => continue,
+                    Some(false) => return Some(false),
+                    None => return None,
+                }
+            }
+            Some(true)
+        }
         // Arc 052 — Vector equality is bit-exact: dim must match and
         // every i8 element must match. Forced by the Hash + Eq contract
         // for use as HashMap/LruCache keys. For graded similarity, reach

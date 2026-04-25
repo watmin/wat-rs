@@ -524,8 +524,11 @@ fn infer_list(
             }
             // Arc 050 — polymorphic comparison/equality. Same-type
             // for non-numeric, cross-numeric promotion for (i64, f64)
-            // pairs. Always returns :bool.
+            // pairs. Always returns :bool. `not=` (Clojure tradition)
+            // shares the inference path with `=` since the rules are
+            // identical; only the runtime differs.
             ":wat::core::="
+            | ":wat::core::not="
             | ":wat::core::<"
             | ":wat::core::>"
             | ":wat::core::<="
