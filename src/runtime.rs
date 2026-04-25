@@ -2266,6 +2266,7 @@ fn dispatch_keyword_head(
         ":wat::core::range" => eval_vec_range(args, env, sym),
         ":wat::core::take" => eval_vec_take(args, env, sym),
         ":wat::core::drop" => eval_vec_drop(args, env, sym),
+        ":wat::core::sort-by" => eval_vec_sort_by(args, env, sym),
         ":wat::core::map" => eval_vec_map(args, env, sym),
         ":wat::core::foldl" => eval_vec_foldl(args, env, sym),
         ":wat::core::foldr" => eval_vec_foldr(args, env, sym),
@@ -4121,6 +4122,101 @@ fn eval_vec_drop(
     let skip = if n <= 0 { 0 } else { (n as usize).min(xs.len()) };
     let out: Vec<Value> = xs.iter().skip(skip).cloned().collect();
     Ok(Value::Vec(Arc::new(out)))
+}
+
+/// `(:wat::core::sort-by xs less?)` → `Vec<T>`.
+///
+/// Returns a new Vec sorted by the user-supplied less-than predicate.
+/// `less?` is a callable `:fn(T, T) -> :bool`; it returns true iff
+/// the first arg is "less than" the second under the desired order.
+/// The user picks ascending vs descending by which way they compare:
+///
+///   asc:  `(fn (a b) -> :bool (:wat::core::< a b))`
+///   desc: `(fn (a b) -> :bool (:wat::core::> a b))`
+///   key:  `(fn (a b) -> :bool (:wat::core::< (:Foo/age a) (:Foo/age b)))`
+///
+/// Stable. Wraps Rust's `Vec::sort_by`. Common Lisp / Clojure
+/// tradition — predicate-driven ordering with the user owning the
+/// asc/desc choice. The two-sided test (calling `less?` for both
+/// `(a,b)` and `(b,a)` to distinguish Equal from Less/Greater) keeps
+/// stable-sort semantics honest; the doubled call count is amortized
+/// against O(n log n) — for the lab's bounded windows it's
+/// negligible.
+fn eval_vec_sort_by(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::sort-by";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(OP, eval(&args[0], env, sym)?)?;
+    let f = eval(&args[1], env, sym)?;
+    let func = match &f {
+        Value::wat__core__lambda(func) => func.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::core::lambda",
+                got: other.type_name(),
+            });
+        }
+    };
+    let mut sorted: Vec<Value> = (*xs).clone();
+    let mut sort_err: Option<RuntimeError> = None;
+    sorted.sort_by(|a, b| {
+        use std::cmp::Ordering;
+        if sort_err.is_some() {
+            return Ordering::Equal;
+        }
+        let call = |x: &Value, y: &Value| -> Result<bool, RuntimeError> {
+            let v = apply_function(
+                func.clone(),
+                vec![x.clone(), y.clone()],
+                sym,
+                crate::rust_caller_span!(),
+            )?;
+            match v {
+                Value::bool(b) => Ok(b),
+                other => Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "bool",
+                    got: other.type_name(),
+                }),
+            }
+        };
+        let ab = match call(a, b) {
+            Ok(v) => v,
+            Err(e) => {
+                sort_err = Some(e);
+                return Ordering::Equal;
+            }
+        };
+        if ab {
+            return Ordering::Less;
+        }
+        let ba = match call(b, a) {
+            Ok(v) => v,
+            Err(e) => {
+                sort_err = Some(e);
+                return Ordering::Equal;
+            }
+        };
+        if ba {
+            Ordering::Greater
+        } else {
+            Ordering::Equal
+        }
+    });
+    if let Some(e) = sort_err {
+        return Err(e);
+    }
+    Ok(Value::Vec(Arc::new(sorted)))
 }
 
 /// `(:wat::core::map xs f)` → `Vec<U>`. Calls `f` on each element.

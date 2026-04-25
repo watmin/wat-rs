@@ -5658,6 +5658,24 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: vec_of(t_var()),
         },
     );
+    // Arc 056 — sort-by with user-supplied less-than predicate.
+    // `(sort-by xs less?) -> Vec<T>` where `less? : :fn(T,T) -> :bool`.
+    // The user owns asc vs desc via the predicate; key-extraction is
+    // the predicate composing inner accessors. Common Lisp tradition.
+    env.register(
+        ":wat::core::sort-by".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![
+                vec_of(t_var()),
+                TypeExpr::Fn {
+                    args: vec![t_var(), t_var()],
+                    ret: Box::new(TypeExpr::Path(":bool".into())),
+                },
+            ],
+            ret: vec_of(t_var()),
+        },
+    );
     env.register(
         ":wat::core::map".into(),
         TypeScheme {
