@@ -2143,6 +2143,37 @@ fn dispatch_keyword_head(
         }),
         ":wat::core::>=" => eval_compare(head, args, env, sym, |o| o != std::cmp::Ordering::Less),
 
+        // Arc 050 — typed strict comparison/equality variants. The
+        // runtime delegates to the same eval_eq / eval_compare paths
+        // because the type checker already enforces same-numeric-type
+        // input. The strict variants ARE the strict-typed scheme;
+        // the runtime needs no separate strictness logic.
+        ":wat::core::i64::=" => eval_eq(head, args, env, sym),
+        ":wat::core::i64::<" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Less),
+        ":wat::core::i64::>" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Greater),
+        ":wat::core::i64::<=" => eval_compare(head, args, env, sym, |o| {
+            o != std::cmp::Ordering::Greater
+        }),
+        ":wat::core::i64::>=" => eval_compare(head, args, env, sym, |o| o != std::cmp::Ordering::Less),
+        ":wat::core::f64::=" => eval_eq(head, args, env, sym),
+        ":wat::core::f64::<" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Less),
+        ":wat::core::f64::>" => eval_compare(head, args, env, sym, |o| o == std::cmp::Ordering::Greater),
+        ":wat::core::f64::<=" => eval_compare(head, args, env, sym, |o| {
+            o != std::cmp::Ordering::Greater
+        }),
+        ":wat::core::f64::>=" => eval_compare(head, args, env, sym, |o| o != std::cmp::Ordering::Less),
+
+        // Arc 050 — polymorphic arithmetic with int → float promotion.
+        // Lisp-traditional semantics: i64+i64→i64, f64+f64→f64,
+        // mixed-numeric → f64 (LHS or RHS cast to f64 first).
+        // Coexists with the strict typed forms (`:wat::core::i64::+`,
+        // `:wat::core::f64::+`, etc.); user picks per-callsite which
+        // discipline they want.
+        ":wat::core::+" => eval_poly_arith(head, args, env, sym, PolyOp::Add),
+        ":wat::core::-" => eval_poly_arith(head, args, env, sym, PolyOp::Sub),
+        ":wat::core::*" => eval_poly_arith(head, args, env, sym, PolyOp::Mul),
+        ":wat::core::/" => eval_poly_arith(head, args, env, sym, PolyOp::Div),
+
         // Boolean
         ":wat::core::not" => eval_not(args, env, sym),
         ":wat::core::and" => eval_and(args, env, sym),
@@ -3418,6 +3449,13 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         (Value::i64(x), Value::i64(y)) => Some(x == y),
         (Value::u8(x), Value::u8(y)) => Some(x == y),
         (Value::f64(x), Value::f64(y)) => Some(x == y),
+        // Arc 050 — numeric cross-type equality. Promote i64 to f64
+        // before comparison. Reachable when the polymorphic
+        // `:wat::core::=` gets mixed-numeric args (the typed strict
+        // `:wat::core::i64::=` and `:wat::core::f64::=` variants are
+        // gated by the checker before reaching here).
+        (Value::i64(x), Value::f64(y)) => Some((*x as f64) == *y),
+        (Value::f64(x), Value::i64(y)) => Some(*x == (*y as f64)),
         (Value::String(x), Value::String(y)) => Some(x == y),
         (Value::bool(x), Value::bool(y)) => Some(x == y),
         (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x == y),
@@ -3516,6 +3554,115 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
         }
     };
     Ok(Value::bool(pred(order)))
+}
+
+/// Polymorphic-arithmetic dispatch tag — arc 050.
+///
+/// One per binary arithmetic operator. The eval helper switches on
+/// this to apply the right Rust operator after promotion. Kept
+/// private to runtime.rs; callers reach the ops via the
+/// `:wat::core::+` / `-` / `*` / `/` keyword paths.
+#[derive(Clone, Copy)]
+enum PolyOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
+/// Polymorphic arithmetic evaluator — arc 050.
+///
+/// `(:wat::core::+ a b)` and friends. Promotion rule:
+/// - `(i64, i64)` → `i64`
+/// - `(f64, f64)` → `f64`
+/// - `(i64, f64)` or `(f64, i64)` → `f64` (i64 cast to f64 first)
+///
+/// Division-by-zero check matches the existing typed forms:
+/// `i64 / 0`, `f64 / 0.0`, and mixed-promoted `/ 0` all raise
+/// [`RuntimeError::DivisionByZero`]. The substrate explicitly
+/// catches `f64 / 0.0` rather than producing inf/nan; the
+/// polymorphic form preserves that.
+///
+/// Non-numeric inputs raise [`RuntimeError::TypeMismatch`]. The
+/// type checker rejects them before reaching here; the runtime
+/// arm is defense-in-depth.
+fn eval_poly_arith(
+    head: &str,
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    op: PolyOp,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: head.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let a = eval(&args[0], env, sym)?;
+    let b = eval(&args[1], env, sym)?;
+    match (&a, &b) {
+        (Value::i64(x), Value::i64(y)) => match op {
+            PolyOp::Add => Ok(Value::i64(x + y)),
+            PolyOp::Sub => Ok(Value::i64(x - y)),
+            PolyOp::Mul => Ok(Value::i64(x * y)),
+            PolyOp::Div => {
+                if *y == 0 {
+                    Err(RuntimeError::DivisionByZero)
+                } else {
+                    Ok(Value::i64(x / y))
+                }
+            }
+        },
+        (Value::f64(x), Value::f64(y)) => match op {
+            PolyOp::Add => Ok(Value::f64(x + y)),
+            PolyOp::Sub => Ok(Value::f64(x - y)),
+            PolyOp::Mul => Ok(Value::f64(x * y)),
+            PolyOp::Div => {
+                if *y == 0.0 {
+                    Err(RuntimeError::DivisionByZero)
+                } else {
+                    Ok(Value::f64(x / y))
+                }
+            }
+        },
+        (Value::i64(x), Value::f64(y)) => {
+            let xf = *x as f64;
+            match op {
+                PolyOp::Add => Ok(Value::f64(xf + y)),
+                PolyOp::Sub => Ok(Value::f64(xf - y)),
+                PolyOp::Mul => Ok(Value::f64(xf * y)),
+                PolyOp::Div => {
+                    if *y == 0.0 {
+                        Err(RuntimeError::DivisionByZero)
+                    } else {
+                        Ok(Value::f64(xf / y))
+                    }
+                }
+            }
+        }
+        (Value::f64(x), Value::i64(y)) => {
+            let yf = *y as f64;
+            match op {
+                PolyOp::Add => Ok(Value::f64(x + yf)),
+                PolyOp::Sub => Ok(Value::f64(x - yf)),
+                PolyOp::Mul => Ok(Value::f64(x * yf)),
+                PolyOp::Div => {
+                    if yf == 0.0 {
+                        Err(RuntimeError::DivisionByZero)
+                    } else {
+                        Ok(Value::f64(x / yf))
+                    }
+                }
+            }
+        }
+        _ => Err(RuntimeError::TypeMismatch {
+            op: head.into(),
+            expected: "matching numeric pair (i64 or f64)",
+            got: a.type_name(),
+        }),
+    }
 }
 
 fn eval_not(

@@ -521,6 +521,25 @@ fn infer_list(
             ":wat::core::match" => {
                 return infer_match(args, env, locals, fresh, subst, errors);
             }
+            // Arc 050 — polymorphic comparison/equality. Same-type
+            // for non-numeric, cross-numeric promotion for (i64, f64)
+            // pairs. Always returns :bool.
+            ":wat::core::="
+            | ":wat::core::<"
+            | ":wat::core::>"
+            | ":wat::core::<="
+            | ":wat::core::>=" => {
+                return infer_polymorphic_compare(k, args, env, locals, fresh, subst, errors);
+            }
+            // Arc 050 — polymorphic arithmetic. Both args must be
+            // numeric (i64 or f64); result type is f64 if either is
+            // f64, else i64.
+            ":wat::core::+"
+            | ":wat::core::-"
+            | ":wat::core::*"
+            | ":wat::core::/" => {
+                return infer_polymorphic_arith(k, args, env, locals, fresh, subst, errors);
+            }
             ":wat::kernel::make-bounded-queue" => {
                 return infer_make_queue(
                     args,
@@ -2273,6 +2292,132 @@ fn infer_hashset_constructor(
     })
 }
 
+/// Arc 050 — polymorphic comparison/equality inference.
+///
+/// For `:wat::core::=`, `<`, `>`, `<=`, `>=`. Same-type-for-non-
+/// numeric, cross-numeric-promotion-for-(i64,f64) pairs. Always
+/// returns `:bool`.
+///
+/// The runtime path (`eval_compare`, `values_equal` post-arc-050)
+/// already handles the cross-numeric case; this checker branch
+/// makes the runtime path reachable.
+fn infer_polymorphic_compare(
+    op: &str,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    let bool_ty = TypeExpr::Path(":bool".into());
+    if args.len() != 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: op.into(),
+            expected: 2,
+            got: args.len(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(bool_ty);
+    }
+    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let b_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    if let (Some(a), Some(b)) = (a_ty, b_ty) {
+        let a_resolved = apply_subst(&a, subst);
+        let b_resolved = apply_subst(&b, subst);
+        // Numeric cross-type allowed: (i64, f64) and (f64, i64) accepted.
+        if is_numeric(&a_resolved) && is_numeric(&b_resolved) {
+            return Some(bool_ty);
+        }
+        // Non-numeric: same-type required (preserves prior
+        // ∀T. T → T → :bool semantics for strings, bools, etc.).
+        if unify(&a_resolved, &b_resolved, subst, env.types()).is_err() {
+            errors.push(CheckError::TypeMismatch {
+                callee: op.into(),
+                param: "#2".into(),
+                expected: format_type(&apply_subst(&a_resolved, subst)),
+                got: format_type(&apply_subst(&b_resolved, subst)),
+            });
+        }
+    }
+    Some(bool_ty)
+}
+
+/// Arc 050 — polymorphic arithmetic inference.
+///
+/// For `:wat::core::+`, `-`, `*`, `/`. Both args must be numeric
+/// (`:i64` or `:f64`). Result type is `:f64` if either is `:f64`,
+/// else `:i64`. Mixed inputs promote at runtime (i64 cast to f64).
+fn infer_polymorphic_arith(
+    op: &str,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    let i64_ty = TypeExpr::Path(":i64".into());
+    let f64_ty = TypeExpr::Path(":f64".into());
+    if args.len() != 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: op.into(),
+            expected: 2,
+            got: args.len(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(f64_ty);
+    }
+    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let b_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    let a_resolved = a_ty.as_ref().map(|t| apply_subst(t, subst));
+    let b_resolved = b_ty.as_ref().map(|t| apply_subst(t, subst));
+
+    // Push diagnostic if either arg is non-numeric.
+    if let Some(t) = &a_resolved {
+        if !is_numeric(t) {
+            errors.push(CheckError::TypeMismatch {
+                callee: op.into(),
+                param: "#1".into(),
+                expected: ":i64 or :f64".into(),
+                got: format_type(t),
+            });
+        }
+    }
+    if let Some(t) = &b_resolved {
+        if !is_numeric(t) {
+            errors.push(CheckError::TypeMismatch {
+                callee: op.into(),
+                param: "#2".into(),
+                expected: ":i64 or :f64".into(),
+                got: format_type(t),
+            });
+        }
+    }
+
+    match (&a_resolved, &b_resolved) {
+        (Some(a), Some(b)) if is_i64(a) && is_i64(b) => Some(i64_ty),
+        (Some(a), Some(b)) if is_numeric(a) && is_numeric(b) => Some(f64_ty),
+        // Either non-numeric or unknown — fall back to f64 so downstream
+        // inference doesn't cascade more errors.
+        _ => Some(f64_ty),
+    }
+}
+
+/// Arc 050 — predicate. Recognizes `:i64` and `:f64` paths.
+fn is_numeric(t: &TypeExpr) -> bool {
+    matches!(t, TypeExpr::Path(p) if p == ":i64" || p == ":f64")
+}
+
+/// Arc 050 — predicate. Recognizes `:i64` path specifically.
+fn is_i64(t: &TypeExpr) -> bool {
+    matches!(t, TypeExpr::Path(p) if p == ":i64")
+}
+
 /// Type-check `(:wat::core::get container locator)`. Polymorphic over
 /// HashMap and HashSet; dispatch by arg shape. Rank-1 HM can't
 /// express the union at the SCHEME layer, so special-case: inspect
@@ -3932,23 +4077,54 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Comparison — ∀T. T → T → :bool. Operands must agree.
+    // Comparison / equality — arc 050. The polymorphic forms
+    // (`:wat::core::=`, `<`, `>`, `<=`, `>=`) are special-cased in
+    // `infer_list` so they accept mixed numeric pairs (i64+f64) and
+    // promote at runtime. For non-numeric types they still require
+    // both operands to be the same type, same as the prior
+    // `∀T. T → T → :bool` shape. No scheme registration here — the
+    // special-case branch handles inference end-to-end.
+
+    // Typed strict comparison/equality — arc 050. Power-user opt-in
+    // for callers who want the type-guard behavior. Reject mixed
+    // input at the checker; runtime delegates to the same eval_eq /
+    // eval_compare paths.
     for op in &[
-        ":wat::core::=",
-        ":wat::core::<",
-        ":wat::core::>",
-        ":wat::core::<=",
-        ":wat::core::>=",
+        ":wat::core::i64::=",
+        ":wat::core::i64::<",
+        ":wat::core::i64::>",
+        ":wat::core::i64::<=",
+        ":wat::core::i64::>=",
     ] {
         env.register(
             op.to_string(),
             TypeScheme {
-                type_params: vec!["T".into()],
-                params: vec![t_var(), t_var()],
+                type_params: vec![],
+                params: vec![i64_ty(), i64_ty()],
                 ret: bool_ty(),
             },
         );
     }
+    for op in &[
+        ":wat::core::f64::=",
+        ":wat::core::f64::<",
+        ":wat::core::f64::>",
+        ":wat::core::f64::<=",
+        ":wat::core::f64::>=",
+    ] {
+        env.register(
+            op.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![f64_ty(), f64_ty()],
+                ret: bool_ty(),
+            },
+        );
+    }
+    // Polymorphic arithmetic — arc 050. Special-cased in `infer_list`
+    // for the cross-numeric promotion rule (i64+f64→f64). No scheme
+    // registration here — the special-case branch handles inference
+    // end-to-end.
 
     // Boolean negation.
     env.register(
