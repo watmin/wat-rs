@@ -64,7 +64,10 @@ fn ast_entry_prints_hello() {
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-ast forms (:wat::core::vec :String) :None))
              ((lines :Vec<String>) (:wat::kernel::RunResult/stdout r))
-             ((line :String) (:wat::core::first lines)))
+             ((line :String)
+              (:wat::core::match (:wat::core::first lines) -> :String
+                ((Some s) s)
+                (:None ""))))
             (:wat::io::IOWriter/println stdout line)))
     "##;
     assert_eq!(run(src), vec!["hello"]);

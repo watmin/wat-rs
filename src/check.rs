@@ -1649,10 +1649,14 @@ fn infer_positional_accessor(
                     return Some(fresh.fresh());
                 }
             }
-            // Vec<T>: return T.
+            // Vec<T>: return Option<T> (arc 047 — empty/short is a
+            // runtime fact, signature surfaces it honestly).
             TypeExpr::Parametric { head, args: targs } if head == "Vec" => {
                 if let Some(inner) = targs.first() {
-                    return Some(apply_subst(inner, subst));
+                    return Some(TypeExpr::Parametric {
+                        head: "Option".into(),
+                        args: vec![apply_subst(inner, subst)],
+                    });
                 } else {
                     return Some(fresh.fresh());
                 }
@@ -3414,6 +3418,56 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![f64_ty(), f64_ty(), f64_ty()],
             ret: f64_ty(),
+        },
+    );
+
+    // Arc 047 — Vec aggregates and the `last` accessor return
+    // Option to honestly signal empty/no-match. Same reasoning as
+    // the polymorphism shift on first/second/third for Vec inputs.
+    let opt = |inner: TypeExpr| TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![inner],
+    };
+    let vec_of = |inner: TypeExpr| TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![inner],
+    };
+    env.register(
+        ":wat::core::last".to_string(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var())],
+            ret: opt(t_var()),
+        },
+    );
+    env.register(
+        ":wat::core::find-last-index".to_string(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![
+                vec_of(t_var()),
+                TypeExpr::Fn {
+                    args: vec![t_var()],
+                    ret: Box::new(bool_ty()),
+                },
+            ],
+            ret: opt(i64_ty()),
+        },
+    );
+    env.register(
+        ":wat::core::f64::max-of".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![vec_of(f64_ty())],
+            ret: opt(f64_ty()),
+        },
+    );
+    env.register(
+        ":wat::core::f64::min-of".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![vec_of(f64_ty())],
+            ret: opt(f64_ty()),
         },
     );
 

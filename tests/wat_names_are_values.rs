@@ -201,7 +201,10 @@ fn named_define_as_stream_map_fn() {
              ((doubled :wat::std::stream::Stream<i64>)
               (:wat::std::stream::map source :my::double))
              ((collected :Vec<i64>) (:wat::std::stream::collect doubled))
-             ((first :i64) (:wat::core::first collected))
+             ((first :i64)
+              (:wat::core::match (:wat::core::first collected) -> :i64
+                ((Some n) n)
+                (:None -1)))
              ((len :i64) (:wat::core::length collected)))
             (:wat::core::if (:wat::core::and (:wat::core::= first 2) (:wat::core::= len 3))
               -> :()

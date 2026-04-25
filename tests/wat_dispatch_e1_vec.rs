@@ -60,8 +60,12 @@ fn reverse_vec_via_macro() {
         (:wat::core::use! :rust::test::VecUtils)
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::first
-            (:rust::test::VecUtils::reverse (:wat::core::vec :i64 1 2 3))))
+          (:wat::core::match
+            (:wat::core::first
+              (:rust::test::VecUtils::reverse (:wat::core::vec :i64 1 2 3)))
+            -> :i64
+            ((Some n) n)
+            (:None -1)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
@@ -76,8 +80,12 @@ fn sort_vec_via_macro() {
         (:wat::core::use! :rust::test::VecUtils)
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::first
-            (:rust::test::VecUtils::sort (:wat::core::vec :i64 5 2 8 1))))
+          (:wat::core::match
+            (:wat::core::first
+              (:rust::test::VecUtils::sort (:wat::core::vec :i64 5 2 8 1)))
+            -> :i64
+            ((Some n) n)
+            (:None -1)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");

@@ -1798,6 +1798,9 @@ fn dispatch_keyword_head(
         ":wat::core::third" => {
             eval_positional_accessor(args, env, sym, ":wat::core::third", 2)
         }
+        // Vec last + find-last-index. Arc 047.
+        ":wat::core::last" => eval_vec_last(args, env, sym),
+        ":wat::core::find-last-index" => eval_vec_find_last_index(args, env, sym),
         ":wat::core::rest" => eval_vec_rest(args, env, sym),
         ":wat::std::list::map-with-index" => eval_list_map_with_index(args, env, sym),
 
@@ -1855,6 +1858,13 @@ fn dispatch_keyword_head(
         }
         // Float clamp — strict f64, ternary. Arc 046.
         ":wat::core::f64::clamp" => eval_f64_clamp(args, env, sym),
+        // Float vec-reductions. Arc 047.
+        ":wat::core::f64::max-of" => {
+            eval_f64_reduce(args, env, sym, ":wat::core::f64::max-of", f64::max)
+        }
+        ":wat::core::f64::min-of" => {
+            eval_f64_reduce(args, env, sym, ":wat::core::f64::min-of", f64::min)
+        }
 
         // Scalar conversions — arc 014. Explicit named casts between
         // the four scalar tiers. Infallible → target type; fallible
@@ -4214,14 +4224,21 @@ fn eval_macroexpand(
 }
 
 /// `(:wat::core::first xs)` / `second` / `third` — positional
-/// accessor polymorphic over `Vec<T>` and tuples. Both are
-/// index-addressed sequences (user direction 2026-04-19: "both are
-/// index-accessed data structs"). Returns the element at `index`,
-/// cloned. Runtime error if the container is shorter than
-/// `index + 1`.
+/// accessor polymorphic over `Vec<T>` and tuples (user direction
+/// 2026-04-19: "both are index-accessed data structs").
 ///
-/// `third` covers 3-tuples + Vecs-of-length-≥-3; higher indices go
-/// through `:wat::core::get` (lands with HashMap in round 4b).
+/// **Polymorphic return shape (arc 047):**
+/// - On `Tuple`: returns the element at `index`, cloned, as `T`.
+///   Tuples are fixed-arity and type-known; out-of-range is a
+///   type error caught at compile time.
+/// - On `Vec`: returns `Option<T>` — `Some(items[index])` if
+///   in-range, `None` if out-of-range. Empty/short Vec is a
+///   runtime fact, so the signature surfaces it honestly. This
+///   matches Rust's `vec.first() -> Option<&T>` and Ruby's
+///   `[].first -> nil`.
+///
+/// `third` covers 3-tuples + Vecs-of-length-≥-3 (when in-range);
+/// higher indices go through `:wat::core::get`.
 fn eval_positional_accessor(
     args: &[WatAST],
     env: &Environment,
@@ -4248,22 +4265,135 @@ fn eval_positional_accessor(
                 ),
             }
         }),
-        Value::Vec(items) => items.get(index).cloned().ok_or_else(|| {
-            RuntimeError::MalformedForm {
-                head: op.into(),
-                reason: format!(
-                    "Vec has {} element(s); no element at index {} (reach for :wat::core::get if empty is expected)",
-                    items.len(),
-                    index
-                ),
-            }
-        }),
+        Value::Vec(items) => Ok(Value::Option(Arc::new(items.get(index).cloned()))),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "tuple or Vec",
             got: other.type_name(),
         }),
     }
+}
+
+/// Arc 047 — `(:wat::core::last xs)` returns `Option<T>`. The
+/// natural pair to `first`-on-Vec post-arc-047 (both return Option
+/// honestly rather than erroring on empty). Empty Vec → `None`;
+/// non-empty → `Some(items[len - 1])`.
+fn eval_vec_last(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::last".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(":wat::core::last", eval(&args[0], env, sym)?)?;
+    Ok(Value::Option(Arc::new(xs.last().cloned())))
+}
+
+/// Arc 047 — `(:wat::core::find-last-index xs pred)` returns
+/// `Option<i64>`. Iterates `xs`, applies `pred` to each element,
+/// returns `Some(i)` for the rightmost `i` where `pred` returned
+/// `true`. Returns `None` if no element matched (or `xs` is empty).
+/// Mirrors Rust's `iter().rposition(pred)`.
+fn eval_vec_find_last_index(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::find-last-index";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(OP, eval(&args[0], env, sym)?)?;
+    let f = eval(&args[1], env, sym)?;
+    let func = match &f {
+        Value::wat__core__lambda(func) => func.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::core::lambda",
+                got: other.type_name(),
+            });
+        }
+    };
+    let mut last_idx: Option<i64> = None;
+    for (i, x) in xs.iter().enumerate() {
+        let result = apply_function(
+            func.clone(),
+            vec![x.clone()],
+            sym,
+            crate::rust_caller_span!(),
+        )?;
+        match result {
+            Value::bool(true) => last_idx = Some(i as i64),
+            Value::bool(false) => {}
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "bool (predicate result)",
+                    got: other.type_name(),
+                });
+            }
+        }
+    }
+    Ok(Value::Option(Arc::new(last_idx.map(Value::i64))))
+}
+
+/// Arc 047 — shared implementation for `:wat::core::f64::max-of`
+/// and `:wat::core::f64::min-of`. Reduces a `Vec<f64>` to its
+/// extreme value. Empty Vec → `None`. Non-empty → `Some(extreme)`.
+/// Empty case is honest — max/min of an empty set are undefined,
+/// so we surface that via Option rather than erroring or returning
+/// a sentinel.
+fn eval_f64_reduce(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    op: &'static str,
+    fold: fn(f64, f64) -> f64,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: op.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let xs = require_vec(op, eval(&args[0], env, sym)?)?;
+    let mut iter = xs.iter();
+    let init = match iter.next() {
+        Some(Value::f64(x)) => *x,
+        Some(other) => {
+            return Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected: "Vec<f64>",
+                got: other.type_name(),
+            });
+        }
+        None => return Ok(Value::Option(Arc::new(None))),
+    };
+    let mut acc = init;
+    for x in iter {
+        match x {
+            Value::f64(v) => acc = fold(acc, *v),
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: op.into(),
+                    expected: "Vec<f64>",
+                    got: other.type_name(),
+                });
+            }
+        }
+    }
+    Ok(Value::Option(Arc::new(Some(Value::f64(acc)))))
 }
 
 /// `(:wat::core::rest xs)` — everything after the first element of a
@@ -9719,26 +9849,119 @@ mod tests {
 
     #[test]
     fn first_polymorphic_on_vec() {
-        match eval_expr("(:wat::core::first (:wat::core::list :i64 10 20 30))").unwrap() {
-            Value::i64(10) => {}
-            v => panic!("expected 10, got {:?}", v),
-        }
+        // Arc 047 — first on Vec returns Option<T>.
+        let v = expect_some(
+            eval_expr("(:wat::core::first (:wat::core::list :i64 10 20 30))").unwrap(),
+        );
+        assert_eq!(expect_i64(v), 10);
+    }
+
+    #[test]
+    fn first_on_empty_vec_returns_none() {
+        // Arc 047 — first on empty Vec is None (used to error).
+        expect_none(eval_expr("(:wat::core::first (:wat::core::list :i64))").unwrap());
     }
 
     #[test]
     fn second_polymorphic_on_vec() {
-        match eval_expr("(:wat::core::second (:wat::core::list :i64 10 20 30))").unwrap() {
-            Value::i64(20) => {}
-            v => panic!("expected 20, got {:?}", v),
-        }
+        let v = expect_some(
+            eval_expr("(:wat::core::second (:wat::core::list :i64 10 20 30))").unwrap(),
+        );
+        assert_eq!(expect_i64(v), 20);
     }
 
     #[test]
     fn third_on_vec() {
-        match eval_expr("(:wat::core::third (:wat::core::list :i64 10 20 30))").unwrap() {
-            Value::i64(30) => {}
-            v => panic!("expected 30, got {:?}", v),
-        }
+        let v = expect_some(
+            eval_expr("(:wat::core::third (:wat::core::list :i64 10 20 30))").unwrap(),
+        );
+        assert_eq!(expect_i64(v), 30);
+    }
+
+    #[test]
+    fn third_on_short_vec_returns_none() {
+        // Arc 047 — out-of-range Vec index is None, not an error.
+        expect_none(eval_expr("(:wat::core::third (:wat::core::list :i64 10 20))").unwrap());
+    }
+
+    // ─── last + find-last-index + f64::max-of/min-of (arc 047) ────────────
+
+    #[test]
+    fn last_returns_some_for_non_empty() {
+        let v = expect_some(
+            eval_expr("(:wat::core::last (:wat::core::list :i64 1 2 3 99))").unwrap(),
+        );
+        assert_eq!(expect_i64(v), 99);
+    }
+
+    #[test]
+    fn last_returns_none_for_empty() {
+        expect_none(eval_expr("(:wat::core::last (:wat::core::list :i64))").unwrap());
+    }
+
+    #[test]
+    fn find_last_index_returns_rightmost_match() {
+        let src = r#"
+            (:wat::core::find-last-index
+              (:wat::core::list :i64 5 12 3 18 7)
+              (:wat::core::lambda ((x :i64) -> :bool) (:wat::core::> x 10)))
+        "#;
+        let v = expect_some(eval_expr(src).unwrap());
+        assert_eq!(expect_i64(v), 3); // index of 18 (last x > 10)
+    }
+
+    #[test]
+    fn find_last_index_returns_none_for_no_match() {
+        let src = r#"
+            (:wat::core::find-last-index
+              (:wat::core::list :i64 1 2 3)
+              (:wat::core::lambda ((x :i64) -> :bool) (:wat::core::> x 99)))
+        "#;
+        expect_none(eval_expr(src).unwrap());
+    }
+
+    #[test]
+    fn find_last_index_returns_none_for_empty() {
+        let src = r#"
+            (:wat::core::find-last-index
+              (:wat::core::list :i64)
+              (:wat::core::lambda ((x :i64) -> :bool) (:wat::core::> x 0)))
+        "#;
+        expect_none(eval_expr(src).unwrap());
+    }
+
+    #[test]
+    fn f64_max_of_picks_largest() {
+        let v = expect_some(
+            eval_expr("(:wat::core::f64::max-of (:wat::core::list :f64 -1.5 4.2 2.0 4.2 0.0))")
+                .unwrap(),
+        );
+        assert_eq!(expect_f64(v), 4.2);
+    }
+
+    #[test]
+    fn f64_min_of_picks_smallest() {
+        let v = expect_some(
+            eval_expr("(:wat::core::f64::min-of (:wat::core::list :f64 -1.5 4.2 2.0 -1.5 0.0))")
+                .unwrap(),
+        );
+        assert_eq!(expect_f64(v), -1.5);
+    }
+
+    #[test]
+    fn f64_max_of_singleton_returns_single() {
+        let v = expect_some(eval_expr("(:wat::core::f64::max-of (:wat::core::list :f64 7.5))").unwrap());
+        assert_eq!(expect_f64(v), 7.5);
+    }
+
+    #[test]
+    fn f64_max_of_empty_returns_none() {
+        expect_none(eval_expr("(:wat::core::f64::max-of (:wat::core::list :f64))").unwrap());
+    }
+
+    #[test]
+    fn f64_min_of_empty_returns_none() {
+        expect_none(eval_expr("(:wat::core::f64::min-of (:wat::core::list :f64))").unwrap());
     }
 
     #[test]

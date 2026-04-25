@@ -328,14 +328,19 @@
   ;; caller to exit.
   (:wat::core::if (:wat::core::empty? items) -> :Option<()>
     (Some ())
-    (:wat::core::let*
-      (((item :U) (:wat::core::first items))
-       ((rest-items :Vec<U>) (:wat::core::rest items))
-       ((sent :Option<()>) (:wat::kernel::send out item)))
-      (:wat::core::match sent -> :Option<()>
-        ((Some _)
-          (:wat::std::stream::drain-items out rest-items))
-        (:None :None)))))
+    ;; Vec is non-empty (just checked); first returns Some<U> via
+    ;; arc 047. The :None arm is unreachable but the type checker
+    ;; demands totality.
+    (:wat::core::match (:wat::core::first items) -> :Option<()>
+      ((Some item)
+        (:wat::core::let*
+          (((rest-items :Vec<U>) (:wat::core::rest items))
+           ((sent :Option<()>) (:wat::kernel::send out item)))
+          (:wat::core::match sent -> :Option<()>
+            ((Some _)
+              (:wat::std::stream::drain-items out rest-items))
+            (:None :None))))
+      (:None :None))))
 
 (:wat::core::define
   (:wat::std::stream::with-state-worker<T,U,Acc>
@@ -639,14 +644,18 @@
       ((Some v)
         (:wat::std::stream::flat-map-worker in out f (f v)))
       (:None ()))
-    (:wat::core::let*
-      (((item :U) (:wat::core::first pending))
-       ((rest-items :Vec<U>) (:wat::core::rest pending))
-       ((sent :Option<()>) (:wat::kernel::send out item)))
-      (:wat::core::match sent -> :()
-        ((Some _)
-          (:wat::std::stream::flat-map-worker in out f rest-items))
-        (:None ())))))
+    ;; pending is non-empty; first returns Some<U> via arc 047.
+    ;; :None arm is unreachable but type-required.
+    (:wat::core::match (:wat::core::first pending) -> :()
+      ((Some item)
+        (:wat::core::let*
+          (((rest-items :Vec<U>) (:wat::core::rest pending))
+           ((sent :Option<()>) (:wat::kernel::send out item)))
+          (:wat::core::match sent -> :()
+            ((Some _)
+              (:wat::std::stream::flat-map-worker in out f rest-items))
+            (:None ()))))
+      (:None ()))))
 
 (:wat::core::define
   (:wat::std::stream::flat-map<T,U>

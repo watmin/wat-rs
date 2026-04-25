@@ -46,7 +46,12 @@
               (:wat::kernel::join console-driver))))
         (:wat::core::vec :String)))
      ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))
-     ((first-line :String) (:wat::core::first stdout)))
+     ;; first returns Option<String> via arc 047. Test asserts the
+     ;; expected first line; pattern-match unwraps.
+     ((first-line :String)
+      (:wat::core::match (:wat::core::first stdout) -> :String
+        ((Some s) s)
+        (:None ""))))
     (:wat::test::assert-eq first-line "hello via Console")))
 
 ;; ─── Console with N>1 clients ─────────────────────────────────────────

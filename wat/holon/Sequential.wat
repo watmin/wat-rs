@@ -27,8 +27,14 @@
            (:wat::core::if (:wat::core::= i 0) -> :wat::holon::HolonAST
              item
              (:wat::holon::Permute item i))))))
-     (:wat::core::foldl
-       (:wat::core::rest positioned)
-       (:wat::core::first positioned)
-       (:wat::core::lambda ((acc :wat::holon::HolonAST) (x :wat::holon::HolonAST) -> :wat::holon::HolonAST)
-         (:wat::holon::Bind acc x)))))
+     ;; first returns Option<HolonAST> via arc 047. Sequential
+     ;; expects non-empty input by contract; the :None arm is
+     ;; unreachable but the type checker demands totality.
+     (:wat::core::match (:wat::core::first positioned) -> :wat::holon::HolonAST
+       ((Some head)
+         (:wat::core::foldl
+           (:wat::core::rest positioned)
+           head
+           (:wat::core::lambda ((acc :wat::holon::HolonAST) (x :wat::holon::HolonAST) -> :wat::holon::HolonAST)
+             (:wat::holon::Bind acc x))))
+       (:None (:wat::holon::Atom "Sequential-empty-input")))))
