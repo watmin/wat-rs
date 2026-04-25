@@ -25,6 +25,17 @@
 ;; Nested testing: a test file runs sandboxed to TEST a sandboxed
 ;; program.
 
+;; ─── :wat::test::TestResult — alias of kernel::RunResult ─────────────
+;;
+;; Tests are sandboxed runs, so a test's return value IS structurally a
+;; RunResult. The role-honest name for the test-discovery contract is
+;; TestResult: the runner discovers any function returning this type
+;; (or its underlying RunResult). deftest expands its function
+;; signatures with :wat::test::TestResult — `kernel::RunResult`
+;; describes the mechanism (sandbox), `test::TestResult` describes the
+;; role (test outcome).
+(:wat::core::typealias :wat::test::TestResult :wat::kernel::RunResult)
+
 ;; ─── assert-eq<T> ─────────────────────────────────────────────────────
 ;;
 ;; Structural equality via :wat::core::=. Actual/expected stringification
@@ -231,7 +242,7 @@
     (prelude :AST<()>)
     (body :AST<()>)
     -> :AST<()>)
-  `(:wat::core::define (,name -> :wat::kernel::RunResult)
+  `(:wat::core::define (,name -> :wat::test::TestResult)
      (:wat::kernel::run-sandboxed-ast
        (:wat::core::forms
          ,@prelude
@@ -262,7 +273,7 @@
     (prelude :AST<()>)
     (body :AST<()>)
     -> :AST<()>)
-  `(:wat::core::define (,name -> :wat::kernel::RunResult)
+  `(:wat::core::define (,name -> :wat::test::TestResult)
      (:wat::kernel::run-sandboxed-hermetic-ast
        (:wat::core::forms
          ,@prelude

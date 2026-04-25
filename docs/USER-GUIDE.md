@@ -1323,10 +1323,14 @@ the algebra idioms, `wat-tests/std/*.wat` for stream + services +
 the test harness itself.
 
 Each test file uses `:wat::test::deftest` to register named test
-functions. The runner discovers them by name prefix and signature
-— any top-level define whose path's final segment starts with
-`test-` and whose signature is `() -> :wat::kernel::RunResult` is
-a test.
+functions. The runner discovers them by signature alone — any
+top-level define returning `:wat::test::TestResult` (the role-honest
+alias of the underlying `:wat::kernel::RunResult`) is a test. The
+deftest macro expands to exactly that shape, so any function
+written via deftest is automatically discovered. Names are
+descriptive — `test-` prefix is conventional but not required for
+discovery (that filter was dropped 2026-04-25 because it caused
+silent skips when violated; the signature alone is unambiguous).
 
 **Discovery is recursive.** Add a directory, add a test — no
 manifest, no registration step.
@@ -1340,8 +1344,9 @@ manifest, no registration step.
 ```
 
 `deftest` takes:
-- **name** — the test's keyword path (last segment must start with
-  `test-` for auto-discovery)
+- **name** — the test's keyword path. Any descriptive name works;
+  `test-` prefix is conventional but the runner discovers by the
+  function's `() -> :wat::kernel::RunResult` signature alone.
 - **body** — one expression; the test's actual logic
 
 The deftest sandbox **inherits the outer file's Config** (arc 031),

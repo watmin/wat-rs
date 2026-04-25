@@ -474,17 +474,31 @@ fn discover_tests(frozen: &FrozenWorld) -> Vec<String> {
     out
 }
 
-fn is_test_function(name: &str, func: &Arc<Function>) -> bool {
+/// A function is a test iff it has zero params and returns either
+/// `:wat::test::TestResult` (the role-honest alias deftest expands
+/// with) or `:wat::kernel::RunResult` (the underlying type — what
+/// `run-sandboxed-ast` returns). The signature IS the declaration:
+/// `(:wat::test::deftest)` is the canonical producer, and its
+/// expansion generates exactly this shape.
+///
+/// Pre-2026-04-25 this also required the name's final `::`-separated
+/// segment to start with `test-`. That filter pre-dated deftest's
+/// arrival as the canonical entry point; in the post-deftest world
+/// the segment-name convention silently skipped tests with names
+/// that didn't follow it. The signature criterion is unambiguous —
+/// neither typename has other callers — so the name filter has
+/// been dropped. Tests use descriptive names; the runner discovers
+/// them by shape.
+fn is_test_function(_name: &str, func: &Arc<Function>) -> bool {
     if !func.param_types.is_empty() {
         return false;
     }
-    match &func.ret_type {
-        TypeExpr::Path(p) if p == ":wat::kernel::RunResult" => {}
-        _ => return false,
-    }
-    let bare = strip_leading_colon(name);
-    let last = bare.rsplit("::").next().unwrap_or("");
-    last.starts_with("test-")
+    matches!(
+        &func.ret_type,
+        TypeExpr::Path(p)
+            if p == ":wat::test::TestResult"
+                || p == ":wat::kernel::RunResult"
+    )
 }
 
 fn strip_leading_colon(s: &str) -> &str {

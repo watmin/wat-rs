@@ -225,9 +225,10 @@
 ;; deftest's self-test is redundant here — every other passing deftest
 ;; in this file IS proof that deftest registered a callable zero-arg
 ;; :wat::kernel::RunResult-returning function, because `wat test`
-;; discovered them by exactly that signature + name convention and
-;; invoked them. If deftest were broken, this whole file would fail
-;; at discovery / startup, not one test.
+;; discovered them by exactly that signature and invoked them
+;; (signature-only discovery; the legacy `test-` last-segment filter
+;; was dropped 2026-04-25). If deftest were broken, this whole file
+;; would fail at discovery / startup, not one test.
 
 ;; ─── :wat::test::make-deftest — arc 029 slice 2 ──────────────────────
 ;;
