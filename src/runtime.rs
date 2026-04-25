@@ -285,6 +285,22 @@ pub enum Value {
     /// `Value::Option` / `Value::Result` variants for substrate-
     /// internal use; user enums use this generic representation.
     Enum(Arc<EnumValue>),
+    /// A materialized `:wat::holon::Vector` — the algebra's vector
+    /// representation surfaced as a first-class wat value (arc 052).
+    /// `Arc` keeps clone cheap (refcount bump only) since vectors at
+    /// d=10000 carry 10KB of i8 data.
+    ///
+    /// Constructed by `:wat::holon::encode <ast>` (explicit
+    /// materialization) or by future Vector-tier primitives. Consumed
+    /// by polymorphic `cosine` / `dot` / `simhash` (which now accept
+    /// Vector or HolonAST in any position) and by Vector-tier ops
+    /// shipping in follow-up arcs.
+    ///
+    /// Equality is bit-exact (element-wise i8 comparison + dim match).
+    /// Forced by the Hash + Eq contract for use as HashMap/LruCache
+    /// keys. For graded similarity reach for `cosine`, `presence?`,
+    /// or `simhash`-then-bucket-then-cosine.
+    Vector(Arc<holon::Vector>),
 }
 
 /// The payload of a [`Value::Struct`] — the struct's fully-qualified
@@ -345,6 +361,7 @@ impl Value {
             Value::wat__kernel__ChildHandle(_) => "wat::kernel::ChildHandle",
             Value::Struct(_) => "Struct",
             Value::Enum(_) => "Enum",
+            Value::Vector(_) => "wat::holon::Vector",
         }
     }
 }
@@ -2254,6 +2271,7 @@ fn dispatch_keyword_head(
         }
         ":wat::holon::dot" => eval_algebra_dot(args, env, sym),
         ":wat::holon::simhash" => eval_algebra_simhash(args, env, sym),
+        ":wat::holon::encode" => eval_holon_encode(args, env, sym),
         ":wat::holon::statement-length" => eval_holon_statement_length(args, env, sym),
 
         // Constrained runtime eval — four forms, matching the load
@@ -3497,6 +3515,16 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
             (Err(xv), Err(yv)) => values_equal(xv, yv),
             _ => Some(false),
         },
+        // Arc 052 — Vector equality is bit-exact: dim must match and
+        // every i8 element must match. Forced by the Hash + Eq contract
+        // for use as HashMap/LruCache keys. For graded similarity, reach
+        // for cosine / presence? / simhash.
+        (Value::Vector(a), Value::Vector(b)) => {
+            if a.dimensions() != b.dimensions() {
+                return Some(false);
+            }
+            Some(a.data() == b.data())
+        }
         (Value::Struct(x), Value::Struct(y)) => {
             if x.type_name != y.type_name {
                 return Some(false);
@@ -5815,16 +5843,74 @@ fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, RuntimeError> {
     }
 }
 
-/// `(:wat::holon::cosine target reference) -> :f64` — raw cosine
-/// measurement between two encoded holons. Per FOUNDATION 1718 +
-/// OPEN-QUESTIONS line 419: algebra-substrate operation (input is
-/// holons, not raw numbers). Sibling to `:wat::holon::dot` — this
-/// one normalizes.
+/// Arc 052 — polymorphic-input helper for cosine/dot. Accepts
+/// HolonAST or Vector in either position; returns a (Vector, Vector)
+/// pair at a consistent d.
 ///
-/// Encodes both holons via the frozen [`EncodingCtx`] and returns a
-/// value in `[-1, +1]`. The algebra does NOT binarize — callers that
-/// want a verdict reach for [`eval_algebra_presence_q`] (alias
-/// `presence?`), which compares against the committed noise floor.
+/// Dimension-resolution rule:
+/// - Both Vector → dims must match; returns the shared dim.
+/// - Both AST → dim from ambient `pick_d_for_pair` (arc 037 router).
+/// - Mixed (one AST, one Vector) → use the Vector's dim; encode the
+///   AST at that dim.
+///
+/// Cross-dim Vector pairs error with `TypeMismatch`. There's no
+/// auto-promotion: a raw Vector at d=10000 has no source AST to
+/// re-encode at d=4096; the caller must produce matching-dim inputs.
+fn pair_values_to_vectors(
+    op: &'static str,
+    a: Value,
+    b: Value,
+    sym: &SymbolTable,
+) -> Result<(holon::Vector, holon::Vector), RuntimeError> {
+    let ctx = require_encoding_ctx(op, sym)?;
+    match (a, b) {
+        (Value::Vector(va), Value::Vector(vb)) => {
+            if va.dimensions() != vb.dimensions() {
+                return Err(RuntimeError::TypeMismatch {
+                    op: op.into(),
+                    expected: "Vector pair with matching dimensions",
+                    got: "mismatched-dim Vector pair",
+                });
+            }
+            Ok((va.as_ref().clone(), vb.as_ref().clone()))
+        }
+        (Value::Vector(va), Value::holon__HolonAST(b)) => {
+            let d = va.dimensions();
+            let enc = ctx.encoders.get(d);
+            let vb = encode(&b, &enc.vm, &enc.scalar, &ctx.registry);
+            Ok((va.as_ref().clone(), vb))
+        }
+        (Value::holon__HolonAST(a), Value::Vector(vb)) => {
+            let d = vb.dimensions();
+            let enc = ctx.encoders.get(d);
+            let va = encode(&a, &enc.vm, &enc.scalar, &ctx.registry);
+            Ok((va, vb.as_ref().clone()))
+        }
+        (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => {
+            let d = pick_d_for_pair(op, &a, &b, sym)?;
+            let enc = ctx.encoders.get(d);
+            let va = encode(&a, &enc.vm, &enc.scalar, &ctx.registry);
+            let vb = encode(&b, &enc.vm, &enc.scalar, &ctx.registry);
+            Ok((va, vb))
+        }
+        (a, _) => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "wat::holon::HolonAST or wat::holon::Vector",
+            got: a.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::holon::cosine target reference) -> :f64` — raw cosine
+/// measurement. Polymorphic since arc 052: accepts HolonAST or Vector
+/// inputs in any position. Mixed inputs are normalized (the AST side
+/// is encoded at the Vector side's d).
+///
+/// Per FOUNDATION 1718 + OPEN-QUESTIONS line 419: algebra-substrate
+/// operation. Returns a value in `[-1, +1]`. The algebra does NOT
+/// binarize — callers that want a verdict reach for
+/// [`eval_algebra_presence_q`] (alias `presence?`), which compares
+/// against the committed noise floor.
 fn eval_algebra_cosine(
     args: &[WatAST],
     env: &Environment,
@@ -5837,18 +5923,9 @@ fn eval_algebra_cosine(
             got: args.len(),
         });
     }
-    let target = require_holon(":wat::holon::cosine", eval(&args[0], env, sym)?)?;
-    let reference = require_holon(":wat::holon::cosine", eval(&args[1], env, sym)?)?;
-    let ctx = require_encoding_ctx(":wat::holon::cosine", sym)?;
-
-    // Arc 037 slice 3: normalize UP via ambient router. Pick the
-    // greater of the two operands' natural d; encode both at that d
-    // via the per-d registry. Same-d operands pay a single lookup
-    // and otherwise match pre-slice-3 behavior.
-    let d = pick_d_for_pair(":wat::holon::cosine", &target, &reference, sym)?;
-    let enc = ctx.encoders.get(d);
-    let vt = encode(&target, &enc.vm, &enc.scalar, &ctx.registry);
-    let vr = encode(&reference, &enc.vm, &enc.scalar, &ctx.registry);
+    let a = eval(&args[0], env, sym)?;
+    let b = eval(&args[1], env, sym)?;
+    let (vt, vr) = pair_values_to_vectors(":wat::holon::cosine", a, b, sym)?;
     Ok(Value::f64(Similarity::cosine(&vt, &vr)))
 }
 
@@ -6268,14 +6345,11 @@ fn eval_algebra_dot(
             got: args.len(),
         });
     }
-    let x = require_holon(":wat::holon::dot", eval(&args[0], env, sym)?)?;
-    let y = require_holon(":wat::holon::dot", eval(&args[1], env, sym)?)?;
-    let ctx = require_encoding_ctx(":wat::holon::dot", sym)?;
-    // Arc 037 slice 3: normalize UP via ambient router.
-    let d = pick_d_for_pair(":wat::holon::dot", &x, &y, sym)?;
-    let enc = ctx.encoders.get(d);
-    let vx = encode(&x, &enc.vm, &enc.scalar, &ctx.registry);
-    let vy = encode(&y, &enc.vm, &enc.scalar, &ctx.registry);
+    // Arc 052 — polymorphic input: HolonAST or Vector in either
+    // position. Same dim-resolution rule as cosine.
+    let a = eval(&args[0], env, sym)?;
+    let b = eval(&args[1], env, sym)?;
+    let (vx, vy) = pair_values_to_vectors(":wat::holon::dot", a, b, sym)?;
     Ok(Value::f64(Similarity::dot(&vx, &vy)))
 }
 
@@ -6318,17 +6392,35 @@ fn eval_algebra_simhash(
             got: args.len(),
         });
     }
-    let target = require_holon(":wat::holon::simhash", eval(&args[0], env, sym)?)?;
+    let target = eval(&args[0], env, sym)?;
     let ctx = require_encoding_ctx(":wat::holon::simhash", sym)?;
-    let router = require_dim_router(":wat::holon::simhash", sym)?;
-    let d = router
-        .pick(&target, sym)
-        .ok_or_else(|| RuntimeError::DimUnresolvable {
-            op: ":wat::holon::simhash".into(),
-            immediate_arity: crate::dim_router::immediate_arity(&target),
-        })?;
-    let enc = ctx.encoders.get(d);
-    let v = encode(&target, &enc.vm, &enc.scalar, &ctx.registry);
+    // Arc 052 — polymorphic input: HolonAST encodes at router-picked d;
+    // Vector uses its native dim directly.
+    let (v, enc) = match target {
+        Value::Vector(vec) => {
+            let d = vec.dimensions();
+            (vec.as_ref().clone(), ctx.encoders.get(d))
+        }
+        Value::holon__HolonAST(ast) => {
+            let router = require_dim_router(":wat::holon::simhash", sym)?;
+            let d = router
+                .pick(&ast, sym)
+                .ok_or_else(|| RuntimeError::DimUnresolvable {
+                    op: ":wat::holon::simhash".into(),
+                    immediate_arity: crate::dim_router::immediate_arity(&ast),
+                })?;
+            let enc = ctx.encoders.get(d);
+            let v = encode(&ast, &enc.vm, &enc.scalar, &ctx.registry);
+            (v, enc)
+        }
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::holon::simhash".into(),
+                expected: "wat::holon::HolonAST or wat::holon::Vector",
+                got: other.type_name(),
+            })
+        }
+    };
 
     // Project onto Atom(0)..Atom(63) via the canonical LSH basis.
     let mut key: u64 = 0;
@@ -6342,6 +6434,45 @@ fn eval_algebra_simhash(
         // else: bit i stays 0 (sign-of-zero rule: dot == 0 → bit off)
     }
     Ok(Value::i64(key as i64))
+}
+
+/// `(:wat::holon::encode holon) -> :wat::holon::Vector` — explicit
+/// materialization of a HolonAST into a wat-tier Vector value. Arc 052.
+///
+/// The substrate already materializes Vectors implicitly inside
+/// `cosine` / `dot` / `simhash`; this primitive surfaces that
+/// materialization as a callable so users can hold onto the Vector,
+/// store it in caches, or pass it through Vector-tier algebra
+/// (shipping in arc 053+). User-facing signature is one-arg: the
+/// encoding context (`vm`, `scalar`, `registry`) is ambient on the
+/// SymbolTable, picked up via `require_encoding_ctx` same as cosine.
+///
+/// Dimension chosen by the ambient dim-router (per arc 037). Same AST
+/// at different d produces different Vectors; that's by design.
+fn eval_holon_encode(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::encode".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let target = require_holon(":wat::holon::encode", eval(&args[0], env, sym)?)?;
+    let ctx = require_encoding_ctx(":wat::holon::encode", sym)?;
+    let router = require_dim_router(":wat::holon::encode", sym)?;
+    let d = router
+        .pick(&target, sym)
+        .ok_or_else(|| RuntimeError::DimUnresolvable {
+            op: ":wat::holon::encode".into(),
+            immediate_arity: crate::dim_router::immediate_arity(&target),
+        })?;
+    let enc = ctx.encoders.get(d);
+    let v = encode(&target, &enc.vm, &enc.scalar, &ctx.registry);
+    Ok(Value::Vector(Arc::new(v)))
 }
 
 fn require_numeric(op: &str, v: Value) -> Result<f64, RuntimeError> {

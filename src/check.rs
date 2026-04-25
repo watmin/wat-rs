@@ -540,6 +540,19 @@ fn infer_list(
             | ":wat::core::/" => {
                 return infer_polymorphic_arith(k, args, env, locals, fresh, subst, errors);
             }
+            // Arc 052 — polymorphic algebra ops. Cosine and dot accept
+            // HolonAST or Vector in either position; simhash accepts
+            // HolonAST or Vector as its single argument.
+            ":wat::holon::cosine" | ":wat::holon::dot" => {
+                return infer_polymorphic_holon_pair_to_f64(
+                    k, args, env, locals, fresh, subst, errors,
+                );
+            }
+            ":wat::holon::simhash" => {
+                return infer_polymorphic_holon_to_i64(
+                    k, args, env, locals, fresh, subst, errors,
+                );
+            }
             ":wat::kernel::make-bounded-queue" => {
                 return infer_make_queue(
                     args,
@@ -2416,6 +2429,109 @@ fn is_numeric(t: &TypeExpr) -> bool {
 /// Arc 050 — predicate. Recognizes `:i64` path specifically.
 fn is_i64(t: &TypeExpr) -> bool {
     matches!(t, TypeExpr::Path(p) if p == ":i64")
+}
+
+/// Arc 052 — predicate. Recognizes `:wat::holon::HolonAST` and
+/// `:wat::holon::Vector` — the two algebra-tier value types accepted
+/// by polymorphic cosine / dot / simhash.
+fn is_holon_or_vector(t: &TypeExpr) -> bool {
+    matches!(
+        t,
+        TypeExpr::Path(p)
+            if p == ":wat::holon::HolonAST" || p == ":wat::holon::Vector"
+    )
+}
+
+/// Arc 052 — polymorphic two-arg holon-algebra inference.
+///
+/// For `:wat::holon::cosine` and `:wat::holon::dot`. Both args must be
+/// HolonAST or Vector; result type is `:f64`. Mixed inputs are
+/// permitted (the runtime promotes the AST side by encoding at the
+/// Vector side's d).
+fn infer_polymorphic_holon_pair_to_f64(
+    op: &str,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    let f64_ty = TypeExpr::Path(":f64".into());
+    if args.len() != 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: op.into(),
+            expected: 2,
+            got: args.len(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(f64_ty);
+    }
+    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let b_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    if let Some(t) = &a_ty {
+        let resolved = apply_subst(t, subst);
+        if !is_holon_or_vector(&resolved) {
+            errors.push(CheckError::TypeMismatch {
+                callee: op.into(),
+                param: "#1".into(),
+                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                got: format_type(&resolved),
+            });
+        }
+    }
+    if let Some(t) = &b_ty {
+        let resolved = apply_subst(t, subst);
+        if !is_holon_or_vector(&resolved) {
+            errors.push(CheckError::TypeMismatch {
+                callee: op.into(),
+                param: "#2".into(),
+                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                got: format_type(&resolved),
+            });
+        }
+    }
+    Some(f64_ty)
+}
+
+/// Arc 052 — polymorphic one-arg holon-algebra inference returning
+/// `:i64`. For `:wat::holon::simhash` — accepts HolonAST or Vector.
+fn infer_polymorphic_holon_to_i64(
+    op: &str,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    let i64_ty = TypeExpr::Path(":i64".into());
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: op.into(),
+            expected: 1,
+            got: args.len(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(i64_ty);
+    }
+    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    if let Some(t) = &a_ty {
+        let resolved = apply_subst(t, subst);
+        if !is_holon_or_vector(&resolved) {
+            errors.push(CheckError::TypeMismatch {
+                callee: op.into(),
+                param: "#1".into(),
+                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                got: format_type(&resolved),
+            });
+        }
+    }
+    Some(i64_ty)
 }
 
 /// Type-check `(:wat::core::get container locator)`. Polymorphic over
@@ -4331,14 +4447,13 @@ fn register_builtins(env: &mut CheckEnv) {
     //   (:wat::holon::presence?   target ref) -> :bool (cosine > noise-floor)
     //   (:wat::holon::coincident? a      b  ) -> :bool ((1 - cosine) < noise-floor)
     //     dual to presence? — same threshold, equivalence direction. Arc 023.
-    env.register(
-        ":wat::holon::cosine".into(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![holon_ty(), holon_ty()],
-            ret: f64_ty(),
-        },
-    );
+    //
+    // Arc 052: cosine and dot are special-cased in `infer_list` to
+    // accept HolonAST OR Vector inputs (polymorphic). No scheme
+    // registration here for those two — their inference branches in
+    // infer_list cover both AST-AST and Vector-Vector and mixed cases.
+    // presence? and coincident? remain HolonAST-only and keep their
+    // scheme registrations.
     env.register(
         ":wat::holon::presence?".into(),
         TypeScheme {
@@ -4684,28 +4799,31 @@ fn register_builtins(env: &mut CheckEnv) {
     // Algebra measurement: dot product. Per 058-005 new measurement
     // primitive. Scalar-returning sibling of cosine; used by the
     // Gram-Schmidt stdlib macros (Reject, Project).
+    //
+    // Arc 052: polymorphic via `infer_list` special-case branch (see
+    // cosine note above); no scheme registration here.
+    // Arc 052: Vector as first-class wat-tier value.
+    // `:wat::holon::encode` materializes a HolonAST into a Vector at
+    // the ambient d. The encoding context (vm/scalar/registry) is
+    // ambient on the SymbolTable, same as cosine/dot/simhash; user
+    // surface is one-arg.
     env.register(
-        ":wat::holon::dot".into(),
+        ":wat::holon::encode".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![holon_ty(), holon_ty()],
-            ret: f64_ty(),
+            params: vec![holon_ty()],
+            ret: TypeExpr::Path(":wat::holon::Vector".into()),
         },
     );
     // Arc 051: SimHash — direction-space lattice position. Charikar's
     // hyperplane SimHash via the canonical Atom(0)..Atom(63) basis.
-    // Maps a HolonAST to a 64-bit i64 key; cosine-similar ASTs share
-    // the same key (or near-same in hamming distance). Used as the
-    // key-derivation function for bidirectional engram caches and
+    // Maps an input holon to a 64-bit i64 key; cosine-similar inputs
+    // share the same key (or near-same in hamming distance). Used as
+    // the key-derivation function for bidirectional engram caches and
     // any content-addressed retrieval over the holon algebra.
-    env.register(
-        ":wat::holon::simhash".into(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![holon_ty()],
-            ret: i64_ty(),
-        },
-    );
+    //
+    // Arc 052: polymorphic via `infer_list` special-case branch —
+    // accepts HolonAST or Vector input. No scheme registration here.
     // Arc 037 slice 4: HolonAST → immediate surface arity. The
     // natural introspection primitive for user dim-router bodies
     // ((:wat::config::set-dim-router! <fn>) where the fn signature
