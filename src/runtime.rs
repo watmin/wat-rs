@@ -2319,6 +2319,34 @@ fn dispatch_keyword_head(
         ":wat::holon::OnlineSubspace/reconstruct" => {
             eval_subspace_reconstruct(args, env, sym)
         }
+
+        // Arc 053: Reckoner native primitives.
+        ":wat::holon::Reckoner/new-discrete" => eval_reckoner_new_discrete(args, env, sym),
+        ":wat::holon::Reckoner/new-continuous" => {
+            eval_reckoner_new_continuous(args, env, sym)
+        }
+        ":wat::holon::Reckoner/observe" => eval_reckoner_observe(args, env, sym),
+        ":wat::holon::Reckoner/predict" => eval_reckoner_predict(args, env, sym),
+        ":wat::holon::Reckoner/resolve" => eval_reckoner_resolve(args, env, sym),
+        ":wat::holon::Reckoner/curve" => eval_reckoner_curve(args, env, sym),
+        ":wat::holon::Reckoner/labels" => eval_reckoner_labels(args, env, sym),
+        ":wat::holon::Reckoner/dims" => eval_reckoner_dims(args, env, sym),
+
+        // Arc 053: Engram native primitives.
+        ":wat::holon::Engram/name" => eval_engram_name(args, env, sym),
+        ":wat::holon::Engram/eigenvalue-signature" => {
+            eval_engram_eigenvalue_signature(args, env, sym)
+        }
+        ":wat::holon::Engram/n" => eval_engram_n(args, env, sym),
+        ":wat::holon::Engram/residual" => eval_engram_residual(args, env, sym),
+
+        // Arc 053: EngramLibrary native primitives.
+        ":wat::holon::EngramLibrary/new" => eval_library_new(args, env, sym),
+        ":wat::holon::EngramLibrary/add" => eval_library_add(args, env, sym),
+        ":wat::holon::EngramLibrary/match-vec" => eval_library_match_vec(args, env, sym),
+        ":wat::holon::EngramLibrary/len" => eval_library_len(args, env, sym),
+        ":wat::holon::EngramLibrary/contains" => eval_library_contains(args, env, sym),
+        ":wat::holon::EngramLibrary/names" => eval_library_names(args, env, sym),
         ":wat::holon::statement-length" => eval_holon_statement_length(args, env, sym),
 
         // Constrained runtime eval — four forms, matching the load
@@ -6921,6 +6949,593 @@ fn eval_subspace_reconstruct(
         s.reconstruct(&xs)
     })?;
     Ok(vec_f64_to_value(r))
+}
+
+/// Arc 053 — extract a `Value::Reckoner` payload.
+fn require_reckoner(
+    op: &str,
+    v: Value,
+) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::Reckoner>>, RuntimeError> {
+    match v {
+        Value::Reckoner(r) => Ok(r),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "wat::holon::Reckoner",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::holon::Reckoner/new-discrete name dims recalib-interval labels) -> :Reckoner`
+fn eval_reckoner_new_discrete(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 4 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::Reckoner/new-discrete".into(),
+            expected: 4,
+            got: args.len(),
+        });
+    }
+    let name_val = eval(&args[0], env, sym)?;
+    let name = match name_val {
+        Value::String(s) => (*s).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::holon::Reckoner/new-discrete".into(),
+                expected: "String",
+                got: other.type_name(),
+            })
+        }
+    };
+    let dims = require_i64(":wat::holon::Reckoner/new-discrete", eval(&args[1], env, sym)?)?;
+    let recalib =
+        require_i64(":wat::holon::Reckoner/new-discrete", eval(&args[2], env, sym)?)?;
+    let labels_val = eval(&args[3], env, sym)?;
+    let labels: Vec<String> = match labels_val {
+        Value::Vec(items) => {
+            let mut out = Vec::with_capacity(items.len());
+            for item in items.iter() {
+                match item {
+                    Value::String(s) => out.push((**s).clone()),
+                    other => {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: ":wat::holon::Reckoner/new-discrete".into(),
+                            expected: "Vec of String",
+                            got: other.type_name(),
+                        })
+                    }
+                }
+            }
+            out
+        }
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::holon::Reckoner/new-discrete".into(),
+                expected: "Vec of String",
+                got: other.type_name(),
+            })
+        }
+    };
+    let r = holon::Reckoner::new(
+        &name,
+        dims as usize,
+        recalib as usize,
+        holon::ReckConfig::Discrete(labels),
+    );
+    Ok(Value::Reckoner(Arc::new(
+        crate::rust_deps::ThreadOwnedCell::new(r),
+    )))
+}
+
+/// `(:wat::holon::Reckoner/new-continuous name dims recalib default-value buckets) -> :Reckoner`
+fn eval_reckoner_new_continuous(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 5 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::Reckoner/new-continuous".into(),
+            expected: 5,
+            got: args.len(),
+        });
+    }
+    let name_val = eval(&args[0], env, sym)?;
+    let name = match name_val {
+        Value::String(s) => (*s).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::holon::Reckoner/new-continuous".into(),
+                expected: "String",
+                got: other.type_name(),
+            })
+        }
+    };
+    let dims = require_i64(":wat::holon::Reckoner/new-continuous", eval(&args[1], env, sym)?)?;
+    let recalib =
+        require_i64(":wat::holon::Reckoner/new-continuous", eval(&args[2], env, sym)?)?;
+    let default_value = require_numeric(
+        ":wat::holon::Reckoner/new-continuous",
+        eval(&args[3], env, sym)?,
+    )?;
+    let buckets =
+        require_i64(":wat::holon::Reckoner/new-continuous", eval(&args[4], env, sym)?)?;
+    let r = holon::Reckoner::new(
+        &name,
+        dims as usize,
+        recalib as usize,
+        holon::ReckConfig::Continuous {
+            default_value,
+            buckets: buckets as usize,
+        },
+    );
+    Ok(Value::Reckoner(Arc::new(
+        crate::rust_deps::ThreadOwnedCell::new(r),
+    )))
+}
+
+/// `(:wat::holon::Reckoner/observe r vec label weight) -> :()`
+fn eval_reckoner_observe(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 4 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::Reckoner/observe".into(),
+            expected: 4,
+            got: args.len(),
+        });
+    }
+    let r = require_reckoner(":wat::holon::Reckoner/observe", eval(&args[0], env, sym)?)?;
+    let v = require_vector(":wat::holon::Reckoner/observe", eval(&args[1], env, sym)?)?;
+    let label_idx = require_i64(":wat::holon::Reckoner/observe", eval(&args[2], env, sym)?)?;
+    let weight = require_numeric(
+        ":wat::holon::Reckoner/observe",
+        eval(&args[3], env, sym)?,
+    )?;
+    r.with_mut(":wat::holon::Reckoner/observe", |r| {
+        r.observe(&v, holon::Label::from_index(label_idx as usize), weight)
+    })?;
+    Ok(Value::Unit)
+}
+
+/// `(:wat::holon::Reckoner/predict r vec) -> :(Vec<(i64,f64)>, Option<i64>, f64, f64)`
+///
+/// Returns a tuple: scores (Vec of (label-index, cosine) pairs sorted
+/// descending by abs cosine), winning direction (Some label-index or
+/// :None), conviction (|max cosine|), raw_cos (signed cosine of
+/// winner).
+fn eval_reckoner_predict(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::Reckoner/predict".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let r = require_reckoner(":wat::holon::Reckoner/predict", eval(&args[0], env, sym)?)?;
+    let v = require_vector(":wat::holon::Reckoner/predict", eval(&args[1], env, sym)?)?;
+    let pred = r.with_ref(":wat::holon::Reckoner/predict", |r| r.predict(&v))?;
+    // Pack scores as Vec<(i64, f64)> tuples.
+    let scores: Vec<Value> = pred
+        .scores
+        .into_iter()
+        .map(|ls| {
+            Value::Tuple(Arc::new(vec![
+                Value::i64(ls.label.index() as i64),
+                Value::f64(ls.cosine),
+            ]))
+        })
+        .collect();
+    let scores_value = Value::Vec(Arc::new(scores));
+    let direction = match pred.direction {
+        Some(label) => {
+            Value::Option(Arc::new(Some(Value::i64(label.index() as i64))))
+        }
+        None => Value::Option(Arc::new(None)),
+    };
+    let conviction = Value::f64(pred.conviction);
+    let raw_cos = Value::f64(pred.raw_cos);
+    Ok(Value::Tuple(Arc::new(vec![
+        scores_value,
+        direction,
+        conviction,
+        raw_cos,
+    ])))
+}
+
+/// `(:wat::holon::Reckoner/resolve r conviction correct) -> :()`
+fn eval_reckoner_resolve(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::Reckoner/resolve".into(),
+            expected: 3,
+            got: args.len(),
+        });
+    }
+    let r = require_reckoner(":wat::holon::Reckoner/resolve", eval(&args[0], env, sym)?)?;
+    let conviction = require_numeric(
+        ":wat::holon::Reckoner/resolve",
+        eval(&args[1], env, sym)?,
+    )?;
+    let correct_val = eval(&args[2], env, sym)?;
+    let correct = match correct_val {
+        Value::bool(b) => b,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::holon::Reckoner/resolve".into(),
+                expected: "bool",
+                got: other.type_name(),
+            })
+        }
+    };
+    r.with_mut(":wat::holon::Reckoner/resolve", |r| {
+        r.resolve(conviction, correct)
+    })?;
+    Ok(Value::Unit)
+}
+
+/// `(:wat::holon::Reckoner/curve r) -> :Option<(f64,f64)>`
+fn eval_reckoner_curve(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::Reckoner/curve".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let r = require_reckoner(":wat::holon::Reckoner/curve", eval(&args[0], env, sym)?)?;
+    let curve = r.with_mut(":wat::holon::Reckoner/curve", |r| r.curve())?;
+    Ok(match curve {
+        Some((a, b)) => Value::Option(Arc::new(Some(Value::Tuple(Arc::new(vec![
+            Value::f64(a),
+            Value::f64(b),
+        ]))))),
+        None => Value::Option(Arc::new(None)),
+    })
+}
+
+/// `(:wat::holon::Reckoner/labels r) -> :Vec<i64>`
+fn eval_reckoner_labels(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::Reckoner/labels".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let r = require_reckoner(":wat::holon::Reckoner/labels", eval(&args[0], env, sym)?)?;
+    let labels = r.with_ref(":wat::holon::Reckoner/labels", |r| r.labels())?;
+    let xs: Vec<Value> = labels
+        .into_iter()
+        .map(|l| Value::i64(l.index() as i64))
+        .collect();
+    Ok(Value::Vec(Arc::new(xs)))
+}
+
+fn eval_reckoner_dims(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::Reckoner/dims".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let r = require_reckoner(":wat::holon::Reckoner/dims", eval(&args[0], env, sym)?)?;
+    let n = r.with_ref(":wat::holon::Reckoner/dims", |r| r.dims())?;
+    Ok(Value::i64(n as i64))
+}
+
+/// Arc 053 — extract a `Value::Engram` payload.
+fn require_engram(
+    op: &str,
+    v: Value,
+) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::Engram>>, RuntimeError> {
+    match v {
+        Value::Engram(e) => Ok(e),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "wat::holon::Engram",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// Arc 053 — extract a `Value::EngramLibrary` payload.
+fn require_engram_library(
+    op: &str,
+    v: Value,
+) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::EngramLibrary>>, RuntimeError> {
+    match v {
+        Value::EngramLibrary(l) => Ok(l),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "wat::holon::EngramLibrary",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// Arc 053 — extract a String from a Value.
+fn require_string(op: &str, v: Value) -> Result<String, RuntimeError> {
+    match v {
+        Value::String(s) => Ok((*s).clone()),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "String",
+            got: other.type_name(),
+        }),
+    }
+}
+
+fn eval_engram_name(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::Engram/name".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let e = require_engram(":wat::holon::Engram/name", eval(&args[0], env, sym)?)?;
+    let s = e.with_ref(":wat::holon::Engram/name", |e| e.name().to_string())?;
+    Ok(Value::String(Arc::new(s)))
+}
+
+fn eval_engram_eigenvalue_signature(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::Engram/eigenvalue-signature".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let e = require_engram(
+        ":wat::holon::Engram/eigenvalue-signature",
+        eval(&args[0], env, sym)?,
+    )?;
+    let xs =
+        e.with_ref(":wat::holon::Engram/eigenvalue-signature", |e| {
+            e.eigenvalue_signature().to_vec()
+        })?;
+    Ok(vec_f64_to_value(xs))
+}
+
+fn eval_engram_n(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::Engram/n".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let e = require_engram(":wat::holon::Engram/n", eval(&args[0], env, sym)?)?;
+    let n = e.with_ref(":wat::holon::Engram/n", |e| e.n())?;
+    Ok(Value::i64(n as i64))
+}
+
+fn eval_engram_residual(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::Engram/residual".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let e = require_engram(":wat::holon::Engram/residual", eval(&args[0], env, sym)?)?;
+    let v = require_vector(":wat::holon::Engram/residual", eval(&args[1], env, sym)?)?;
+    let xs = v.to_f64();
+    let r = e.with_mut(":wat::holon::Engram/residual", |e| e.residual(&xs))?;
+    Ok(Value::f64(r))
+}
+
+/// `(:wat::holon::EngramLibrary/new dim) -> :EngramLibrary`
+fn eval_library_new(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::EngramLibrary/new".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let dim = require_i64(":wat::holon::EngramLibrary/new", eval(&args[0], env, sym)?)?;
+    let lib = holon::EngramLibrary::new(dim as usize);
+    Ok(Value::EngramLibrary(Arc::new(
+        crate::rust_deps::ThreadOwnedCell::new(lib),
+    )))
+}
+
+/// `(:wat::holon::EngramLibrary/add lib name subspace) -> :()`
+///
+/// Simplified surface: omits surprise_profile and metadata args
+/// (passed as defaults — empty maps). Future arc can add a
+/// `/add-with-meta` variant if metadata becomes a real concern.
+fn eval_library_add(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::EngramLibrary/add".into(),
+            expected: 3,
+            got: args.len(),
+        });
+    }
+    let lib = require_engram_library(":wat::holon::EngramLibrary/add", eval(&args[0], env, sym)?)?;
+    let name = require_string(":wat::holon::EngramLibrary/add", eval(&args[1], env, sym)?)?;
+    let subspace = require_subspace(
+        ":wat::holon::EngramLibrary/add",
+        eval(&args[2], env, sym)?,
+    )?;
+    // EngramLibrary::add takes &OnlineSubspace by reference; we have
+    // ThreadOwnedCell. Borrow immutably to get the reference.
+    lib.with_mut(":wat::holon::EngramLibrary/add", |lib| {
+        subspace.with_ref(":wat::holon::EngramLibrary/add", |s| {
+            lib.add(&name, s, None, std::collections::HashMap::new());
+        })
+    })??;
+    Ok(Value::Unit)
+}
+
+/// `(:wat::holon::EngramLibrary/match-vec lib probe top-k prefilter-k) -> :Vec<(String,f64)>`
+fn eval_library_match_vec(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 4 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::EngramLibrary/match-vec".into(),
+            expected: 4,
+            got: args.len(),
+        });
+    }
+    let lib = require_engram_library(
+        ":wat::holon::EngramLibrary/match-vec",
+        eval(&args[0], env, sym)?,
+    )?;
+    let probe = require_vector(
+        ":wat::holon::EngramLibrary/match-vec",
+        eval(&args[1], env, sym)?,
+    )?;
+    let top_k = require_i64(
+        ":wat::holon::EngramLibrary/match-vec",
+        eval(&args[2], env, sym)?,
+    )?;
+    let prefilter_k = require_i64(
+        ":wat::holon::EngramLibrary/match-vec",
+        eval(&args[3], env, sym)?,
+    )?;
+    let xs = probe.to_f64();
+    let matches = lib.with_mut(":wat::holon::EngramLibrary/match-vec", |lib| {
+        lib.match_vec(&xs, top_k as usize, prefilter_k as usize)
+    })?;
+    let elems: Vec<Value> = matches
+        .into_iter()
+        .map(|(name, residual)| {
+            Value::Tuple(Arc::new(vec![
+                Value::String(Arc::new(name)),
+                Value::f64(residual),
+            ]))
+        })
+        .collect();
+    Ok(Value::Vec(Arc::new(elems)))
+}
+
+fn eval_library_len(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::EngramLibrary/len".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let lib = require_engram_library(
+        ":wat::holon::EngramLibrary/len",
+        eval(&args[0], env, sym)?,
+    )?;
+    let n = lib.with_ref(":wat::holon::EngramLibrary/len", |lib| lib.len())?;
+    Ok(Value::i64(n as i64))
+}
+
+fn eval_library_contains(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::EngramLibrary/contains".into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let lib = require_engram_library(
+        ":wat::holon::EngramLibrary/contains",
+        eval(&args[0], env, sym)?,
+    )?;
+    let name = require_string(
+        ":wat::holon::EngramLibrary/contains",
+        eval(&args[1], env, sym)?,
+    )?;
+    let b = lib.with_ref(":wat::holon::EngramLibrary/contains", |lib| {
+        lib.contains(&name)
+    })?;
+    Ok(Value::bool(b))
+}
+
+fn eval_library_names(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::EngramLibrary/names".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let lib = require_engram_library(
+        ":wat::holon::EngramLibrary/names",
+        eval(&args[0], env, sym)?,
+    )?;
+    let names = lib.with_ref(":wat::holon::EngramLibrary/names", |lib| {
+        lib.names().into_iter().map(|s| s.to_string()).collect::<Vec<String>>()
+    })?;
+    let elems: Vec<Value> = names
+        .into_iter()
+        .map(|s| Value::String(Arc::new(s)))
+        .collect();
+    Ok(Value::Vec(Arc::new(elems)))
 }
 
 fn require_numeric(op: &str, v: Value) -> Result<f64, RuntimeError> {

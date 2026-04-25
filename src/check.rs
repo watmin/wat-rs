@@ -4927,6 +4927,194 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+
+    // Arc 053: Reckoner native value + 8 core methods. Label is :i64;
+    // Prediction is a wat tuple :(Vec<(i64,f64)>, Option<i64>, f64,
+    // f64). ReckConfig is encoded in the constructor name (Discrete
+    // vs Continuous).
+    let reckoner_ty = || TypeExpr::Path(":wat::holon::Reckoner".into());
+    let unit_ty = || TypeExpr::Tuple(vec![]);
+    env.register(
+        ":wat::holon::Reckoner/new-discrete".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                string_ty(),
+                i64_ty(),
+                i64_ty(),
+                TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![string_ty()],
+                },
+            ],
+            ret: reckoner_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::Reckoner/new-continuous".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty(), i64_ty(), i64_ty(), f64_ty(), i64_ty()],
+            ret: reckoner_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::Reckoner/observe".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![reckoner_ty(), vector_ty(), i64_ty(), f64_ty()],
+            ret: unit_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::Reckoner/predict".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![reckoner_ty(), vector_ty()],
+            ret: TypeExpr::Tuple(vec![
+                TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![TypeExpr::Tuple(vec![i64_ty(), f64_ty()])],
+                },
+                TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![i64_ty()],
+                },
+                f64_ty(),
+                f64_ty(),
+            ]),
+        },
+    );
+    env.register(
+        ":wat::holon::Reckoner/resolve".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![reckoner_ty(), f64_ty(), bool_ty()],
+            ret: unit_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::Reckoner/curve".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![reckoner_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![TypeExpr::Tuple(vec![f64_ty(), f64_ty()])],
+            },
+        },
+    );
+    env.register(
+        ":wat::holon::Reckoner/labels".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![reckoner_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Vec".into(),
+                args: vec![i64_ty()],
+            },
+        },
+    );
+    env.register(
+        ":wat::holon::Reckoner/dims".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![reckoner_ty()],
+            ret: i64_ty(),
+        },
+    );
+
+    // Arc 053: Engram native value + 4 read methods.
+    let engram_ty = || TypeExpr::Path(":wat::holon::Engram".into());
+    env.register(
+        ":wat::holon::Engram/name".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![engram_ty()],
+            ret: string_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::Engram/eigenvalue-signature".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![engram_ty()],
+            ret: vec_f64_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::Engram/n".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![engram_ty()],
+            ret: i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::Engram/residual".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![engram_ty(), vector_ty()],
+            ret: f64_ty(),
+        },
+    );
+
+    // Arc 053: EngramLibrary native value + 6 core methods.
+    let library_ty = || TypeExpr::Path(":wat::holon::EngramLibrary".into());
+    env.register(
+        ":wat::holon::EngramLibrary/new".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![i64_ty()],
+            ret: library_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::EngramLibrary/add".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![library_ty(), string_ty(), subspace_ty()],
+            ret: unit_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::EngramLibrary/match-vec".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![library_ty(), vector_ty(), i64_ty(), i64_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Vec".into(),
+                args: vec![TypeExpr::Tuple(vec![string_ty(), f64_ty()])],
+            },
+        },
+    );
+    env.register(
+        ":wat::holon::EngramLibrary/len".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![library_ty()],
+            ret: i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::EngramLibrary/contains".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![library_ty(), string_ty()],
+            ret: bool_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::EngramLibrary/names".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![library_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Vec".into(),
+                args: vec![string_ty()],
+            },
+        },
+    );
     // Arc 051: SimHash — direction-space lattice position. Charikar's
     // hyperplane SimHash via the canonical Atom(0)..Atom(63) basis.
     // Maps an input holon to a 64-bit i64 key; cosine-similar inputs
