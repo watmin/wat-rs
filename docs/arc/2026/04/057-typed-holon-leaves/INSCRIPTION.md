@@ -1,8 +1,15 @@
 # wat-rs arc 057 — Typed HolonAST leaves — INSCRIPTION
 
-**Status:** shipped 2026-04-25. Three substrate slices land in one
-session; the BOOK chapter is the fourth artifact and is being drafted
-in conversation with the builder rather than dropped here as prose.
+**Status:** shipped 2026-04-25. Three substrate slices + docs +
+two BOOK chapters all land in the same session.
+
+BOOK chapters: **Chapter 59 — *42 IS an AST*** (the substrate
+recognition; the algebra closing under itself) and **Chapter 60 —
+*Assert What You Mean*** (the consumer-side recognition that
+followed: three lab tests went red because they'd been reaching for
+`assert-eq cosine 1.0` and a `(quote ())` sentinel — both leaning
+on substrate accidents that closure exposed). Both at
+`holon-lab-trading/BOOK.md` (commits `0f9de83` and `141a7a8`).
 
 Builder direction (the recognition that opened the arc):
 
@@ -72,7 +79,7 @@ Cross-references:
 | 1 | `holon-rs/src/kernel/holon_ast.rs` (full rewrite) — 11-variant enum, manual `Hash`/`PartialEq`/`Eq` (f64 via `to_bits`), per-variant accessors (`as_i64`, `as_string`, `as_symbol`, `as_bool`, `atom_inner`), byte-equivalent canonical-bytes for primitives, empty-Bundle → zero vector. `holon-rs/src/kernel/atom_registry.rs` deleted. `holon-rs/src/kernel/mod.rs`, `lib.rs`, `memory/reckoner.rs` migrated. | ~510 changed / 648 removed | 27 new in holon_ast | shipped |
 | 2 | `wat-rs/src/runtime.rs` — `EncodingCtx` drops `registry` field; 13 `encode()` call sites lose the registry arg; `value_to_atom` becomes a polymorphic dispatcher (primitives → typed leaves; HolonAST → opaque-Atom-wrap; Value::wat__WatAST → structural lowering via `watast_to_holon`); `eval_atom_value` dispatches on HolonAST variant directly; `:wat::holon::to-watast` primitive added (`eval_holon_to_watast` + `holon_to_watast` lifter, structural inverse). `wat-rs/src/lower.rs` switches to typed leaf constructors; `wat-rs/src/dim_router.rs` adds 5 leaf-arity arms; `wat-rs/src/check.rs` registers `to-watast` scheme. `wat-rs/src/lib.rs` and `tests/mvp_end_to_end.rs` drop the registry param. `wat-rs/tests/wat_cli.rs` programs use `to-watast` instead of `atom-value` for the eval-recovery path. | ~350 changed | rewrites in lower / runtime / wat_cli; full lab tests still pass | shipped |
 | 3 | `wat-rs/src/runtime.rs::hashmap_key` — `Value::holon__HolonAST` arm using `std::hash::DefaultHasher` over the derived structural Hash. `wat-rs/crates/wat-lru/src/shim.rs` — drop the "primitives only" panic; updated diagnostics. `wat-rs/crates/wat-lru/wat-tests/lru/HolonKey.wat` — 3 deftests (round-trip, distinguishes, structural-equal). `wat-rs/Cargo.toml` — `default-members` covers every workspace crate so `cargo test` is workspace-wide by default. `wat-rs/crates/wat-lru/wat-tests/lru/CacheService.wat` — `(:wat::core::first stdout)` matched on `Some/None` (post-arc-047 shape; the test had silently rotted). | ~120 changed | 3 new HolonKey deftests; CacheService re-greens | shipped |
-| 4 | This INSCRIPTION + USER-GUIDE rows. BOOK chapter draft (working title in flight; the builder is co-authoring rather than ratifying). | doc-only | — | shipped |
+| 4 | This INSCRIPTION + USER-GUIDE rows + ZERO-MUTEX update. BOOK Chapter 59 (*42 IS an AST*) + BOOK Chapter 60 (*Assert What You Mean*). Plus the post-ship `:wat::test::assert-coincident` helper (`wat/std/test.wat`) that the lab adoption surfaced as missing — three lab tests reached for it after the encoding shift. | doc + 28 LOC test helper | — | shipped |
 
 **Substrate test count: 612 → 612 unit / 359 integration.** Workspace-wide totals at HEAD: **983 passing, 0 failing** under the new `cargo test` default.
 

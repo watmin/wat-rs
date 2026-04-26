@@ -1,8 +1,11 @@
 # wat-rs arc 057 — Typed HolonAST leaves (closing the algebra)
 
-**Status:** opened 2026-04-25.
+**Status:** shipped 2026-04-25. See `INSCRIPTION.md` for the
+canonical post-ship record. This DESIGN stays as the
+pre-implementation reasoning artifact; one significant pivot is
+flagged inline (Q3 — SHIPPED REVISION).
 **Predecessor work:** arc 051 (SimHash), arc 052 (Vector first-class), arc 053 (Phase 4 substrate / Reckoner / OnlineSubspace), arc 056 (`:wat::time::Instant`).
-**Downstream consumer:** lab arc 030 slice 2 (encoding cache) is BLOCKED on this; pending wat-rs task `#57 Layer 4 — Cache key (ast-hash, d) + test sweep` rides on top.
+**Downstream consumer:** lab arc 030 slice 2 (encoding cache) is now substrate-unblocked; pending wat-rs task `#57 Layer 4 — Cache key (ast-hash, d) + test sweep` rides on top.
 
 Builder direction (2026-04-25, after a long Socratic exchange about the
 `Arc<dyn Any>` escape hatch in `HolonAST::Atom`):
@@ -227,19 +230,54 @@ Justification by current use:
 
 ### Q3 — How do user types (lab enums, structs) become atoms?
 
-**They don't, automatically.** The substrate ERRORS on
-`Value::Enum` / `Value::Struct` Atom arguments with a clear
-"lower explicitly via your own wat-side helper" message. This:
+**SHIPPED REVISION (2026-04-25, mid-arc pivot).** During slice 2
+implementation the builder challenged the strict-error stance for
+quoted forms specifically:
 
-- Aligns with BOOK Ch.48 (first-class enum representation, not mechanical lowering).
-- Aligns with the user's principle ("the consumer always knows better than the substrate" — there's no canonical answer to "lower this enum to which holon shape?"; consumer chooses).
-- Avoids a substantial slice of work (auto-derive ToHolon) for a feature no current consumer needs.
+> "(Atom (lambda (x) (* x x))) — this is a valid expr - right?"
+
+> "the atom is meant 'to hold' forms - not eval them - someone else
+> can eval them"
+
+> "we can just (quote :the-next-form) all the way down"
+
+> "we tell both stories?... the users can choose 'do i want next
+> form?' or 'do i want the value?'"
+
+The shipped semantics for `Value::wat__WatAST` arguments to
+`:wat::holon::Atom` is **structural lowering**, not error:
+
+- `WatAST::IntLit(n)` → `HolonAST::I64(n)`
+- `WatAST::FloatLit(x)` → `HolonAST::F64(x)`
+- `WatAST::BoolLit(b)` → `HolonAST::Bool(b)`
+- `WatAST::StringLit(s)` → `HolonAST::String(s)`
+- `WatAST::Keyword(k)` → `HolonAST::Symbol(k)`
+- `WatAST::Symbol(ident)` → `HolonAST::Symbol(ident.name)` (scope dropped)
+- `WatAST::List(items)` → `HolonAST::Bundle([lower each])`
+
+The form's identity participates in the algebra (cosine, Bind,
+presence, structural cache keys). A quoted lambda becomes a Bundle
+whose shape encodes the program. Substrate holds coordinates, not
+values.
+
+The Story-2 recovery primitive `:wat::holon::to-watast` (added
+slice 2) is the structural inverse: lifts a HolonAST back to a
+runnable WatAST so consumers can `(:wat::eval-ast! reveal)` when
+they want the value, not the path. Identifier scope is the only
+lossy piece (recovered as bare-name on lift via the leading-`:`
+keyword convention).
+
+For `Value::Enum` / `Value::Struct` (true wat-declared user
+values, not quoted forms), the pre-pivot strict-error stance
+**still holds** as shipped — the substrate doesn't mechanically
+lower these; the consumer writes an explicit lowering helper as
+the original Q3 text describes (the example below remains valid).
+BOOK Ch.48 (first-class enums; no mechanical lowering) and the
+user's "consumer always knows better" principle apply unchanged.
 
 The lab today doesn't use enum-as-atom anywhere — surface ASTs are
 all string literals, quoted keywords, and variable-bound primitives
 (per a `grep -rn` survey of `:wat::holon::Atom` argument shapes).
-So the error case is theoretical — substrate-allowed-but-rejected
-under the new schema; lab-unused either way.
 
 When a future consumer surfaces a real need ("I want my PhaseLabel
 to be a holon"), they write a one-line lowering helper:
@@ -259,6 +297,9 @@ to be a holon"), they write a one-line lowering helper:
 ```
 
 The consumer chose the lowering. Substrate stays minimal.
+
+See INSCRIPTION's "two stories" section + BOOK Chapter 59 for the
+shipped framing.
 
 ### Q4 — What happens to existing `AtomTypeRegistry` registrations?
 

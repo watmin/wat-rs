@@ -1,14 +1,47 @@
 # wat-rs arc 057 — Typed HolonAST leaves — BACKLOG
 
+**Status: shipped 2026-04-25.** All four slices in one session.
+`INSCRIPTION.md` is the canonical post-ship record; this BACKLOG
+stays as the historical planning artifact.
+
+**One mid-arc pivot worth flagging up front:** slice 2 originally
+called for path-3 strict ("WatAST → ERROR; consumer writes a
+lowering helper"). After builder pushback ("the atom is meant to
+hold forms — not eval them — someone else can eval them" / "we can
+just (quote :the-next-form) all the way down"), slice 2 pivoted to
+path 2 (structural lowering: List → Bundle, Keyword → Symbol,
+literals → matching primitive leaves) AND a new Story-2 recovery
+primitive `:wat::holon::to-watast` was added so the eval-recovery
+round-trip works through both surfaces. See INSCRIPTION's "two
+stories" framing and DESIGN's "Q3 — SHIPPED REVISION" note.
+
+A second mid-arc carry-along: slice 3 surfaced a workspace-default
+visibility gap (the wat-lru sub-crate's deftest suite wasn't run
+by `cargo test` from the wat-rs root, which had let an arc 047
+signature change silently rot a test). `Cargo.toml::default-members`
+fix shipped concurrently; `cargo test` is now workspace-wide by
+default. INSCRIPTION's "visibility-gap correction" section captures
+the rationale.
+
+A third post-ship deliverable: `:wat::test::assert-coincident` (a
+purpose-built holon-equality test helper). Three lab tests went red
+under the new encoding because they'd been reaching for `assert-eq
+cosine 1.0` (a Story-2 mechanism asking a Story-1 question) where
+the substrate already had the right predicate (`coincident?`,
+arc 023) but no test wrapper for it. The helper lives in
+`wat/std/test.wat`; lab adoption shipped concurrently.
+
 **Shape:** four slices. Slice 1 changes the `HolonAST` schema in
 `holon-rs` (5 typed leaves added; `Atom` narrowed from
 `Arc<dyn Any>` to `Arc<HolonAST>`). Slice 2 makes `:wat::holon::Atom`
 a polymorphic eval-and-dispatch (primitives → typed leaves;
-HolonAST → opaque-Atom-wrap; Enum/Struct → loud error). Slice 3
+HolonAST → opaque-Atom-wrap; WatAST → structural lowering [shipped
+shape] OR Enum/Struct → loud error [original draft]). Slice 3
 extends `wat-lru/src/shim.rs::hashmap_key` to accept HolonAST.
 Slice 4 lands INSCRIPTION + USER-GUIDE rows + a BOOK chapter draft.
 
-Total estimate: ~1.5 days.
+Total estimate: ~1.5 days. Actual: ~1 day including the path-2
+pivot, workspace visibility fix, and `assert-coincident`.
 
 **Cut from earlier draft:** auto-derive ToHolon for wat-declared
 user types. Per BOOK Ch.48 (first-class enums; substrate doesn't
@@ -38,7 +71,14 @@ implementation-side per slice.
 
 ## Slice 1 — `HolonAST` schema change in `holon-rs`
 
-**Status: not started.**
+**Status: shipped 2026-04-25** (`holon-rs` commit `c450da3`).
+Implementation matches the planning sketch below; `AtomTypeRegistry`
+retired entirely (rather than just shrunk) since typed leaves
+left it with nothing to dispatch on. Per-variant accessors
+(`as_i64` / `as_string` / `as_symbol` / `as_bool` / `atom_inner`)
+replaced the old `atom_value<T>` downcast surface. Empty `Bundle`
+materializes as a zero ternary vector (algebra's identity element)
+to keep structurally-lowered `()` forms encodable.
 
 `holon-rs/src/kernel/holon_ast.rs` — add 5 typed primitive leaf
 variants; narrow the existing `Atom` variant from
@@ -160,7 +200,14 @@ If existing tests break: investigate per-failure. Most should pass without modif
 
 ## Slice 2 — `:wat::holon::Atom` polymorphic constructor
 
-**Status: not started.** Depends on slice 1.
+**Status: shipped 2026-04-25** (`wat-rs` commit `355721c`),
+**under the path-2 pivot**: WatAST args lower structurally instead
+of erroring. The structural lowering (`watast_to_holon`) plus the
+new Story-2 recovery primitive `:wat::holon::to-watast`
+(`holon_to_watast`) together compose to a clean form-as-coordinate
++ form-as-runnable-program pair. The 8 deftests sketched below
+became the existing wat_cli demos un-ignored under the new shape
+(`programs_are_atoms_hello_world`, `presence_proof_hello_world`).
 
 `wat-rs/src/runtime.rs` — the `:wat::holon::Atom` evaluator becomes
 a dispatch on the argument's runtime `Value` variant:
@@ -235,7 +282,12 @@ cargo test --release wat_suite
 
 ## Slice 3 — `hashmap_key` accepts HolonAST
 
-**Status: not started.** Depends on slice 1 (Hash derive).
+**Status: shipped 2026-04-25** (`wat-rs` commit `0bf01bc`).
+Three deftests (`HolonKey.wat`: round-trip, distinguishes,
+structural-equal) all green. Carry-along: `Cargo.toml::default-members`
+makes `cargo test` workspace-wide by default; CacheService.wat's
+post-arc-047 `Option<String>` rot fix shipped concurrently (was
+the visibility-gap test that surfaced the workspace-default need).
 
 `wat-rs/src/runtime.rs` — extend `hashmap_key` (line 4535):
 
@@ -299,7 +351,13 @@ cargo test --release wat_suite
 
 ## Slice 4 — INSCRIPTION + USER-GUIDE + BOOK chapter
 
-**Status: not started.** Depends on slices 1-4.
+**Status: shipped 2026-04-25** (`wat-rs` commits `253c433` for
+INSCRIPTION + USER-GUIDE + ZERO-MUTEX update; `holon-lab-trading`
+commit `0f9de83` for BOOK Ch 59 *42 IS an AST*; commit `141a7a8`
+for BOOK Ch 60 *Assert What You Mean* — the consumer-side
+recognition that followed the substrate fix). Two BOOK chapters
+landed instead of the planned one because the substrate close
+spawned a parallel test-surface recognition worth its own chapter.
 
 `wat-rs/docs/arc/2026/04/057-typed-holon-leaves/INSCRIPTION.md` — same shape as arc 056's INSCRIPTION:
 
