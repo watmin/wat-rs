@@ -884,18 +884,26 @@ all callers migrate to the per-encoded-d pattern.
 
 The kernel primitives are small. Four concepts cover everything.
 
+> **Building a service program?** This section is the primitive
+> reference. For wiring patterns — nested `let*` shutdown,
+> `HandlePool` fan-in, select-prune loops, struct accumulators, and
+> the full Console / CacheService template — see
+> [`SERVICE-PROGRAMS.md`](SERVICE-PROGRAMS.md). It walks an
+> eight-step exploration that lifts directly into your own service.
+
 ### Queues
 
 ```scheme
 (:wat::kernel::make-bounded-queue :Candle 1)
-;; → :(Sender<Candle>, Receiver<Candle>)
+;; → :wat::kernel::QueuePair<Candle>
+;;   ≡ :(Sender<Candle>, Receiver<Candle>)
 ;; bounded(1) — rendezvous; sender blocks until receiver ready
 
 (:wat::kernel::make-bounded-queue :Candle 64)
 ;; bounded(64) — buffer of 64 before sender blocks
 
 (:wat::kernel::make-unbounded-queue :LearnSignal)
-;; → :(Sender<LearnSignal>, Receiver<LearnSignal>)
+;; → :wat::kernel::QueuePair<LearnSignal>
 ;; fire-and-forget — buffer grows until consumer drains
 ```
 
@@ -903,13 +911,27 @@ The kernel primitives are small. Four concepts cover everything.
 backpressure naturally (slow consumer throttles the producer). Larger
 buffers trade throughput for latency.
 
+Four substrate-baked typealiases (live at `wat/kernel/queue.wat`)
+spell the channel surface in short form:
+
+| Alias | Expands to |
+|---|---|
+| `:wat::kernel::QueueSender<T>` | `:rust::crossbeam_channel::Sender<T>` |
+| `:wat::kernel::QueueReceiver<T>` | `:rust::crossbeam_channel::Receiver<T>` |
+| `:wat::kernel::QueuePair<T>` | `:(QueueSender<T>, QueueReceiver<T>)` — what `make-bounded/unbounded-queue` returns |
+| `:wat::kernel::Chosen<T>` | `:(i64, Option<T>)` — what `select` returns (which receiver fired, and what it gave) |
+
+Reach for them in let* bindings, function signatures, and Vec carriers
+wherever you'd otherwise type the long `rust::crossbeam_channel::*`
+path. Aliases and their expansion are interchangeable at unification.
+
 ### Send and receive
 
 ```scheme
 (:wat::kernel::send sender value)          ; → :Option<()>  — Some(()) on sent; None on disconnect
 (:wat::kernel::recv receiver)              ; → :Option<T>   — Some(v) on recv; None on disconnect
 (:wat::kernel::try-recv receiver)          ; → :Option<T>   — None if empty OR disconnected
-(:wat::kernel::drop handle)                ; → :()          — close a sender or receiver
+(:wat::kernel::drop handle)                ; → :()          — readability marker; see § Channel close is scope-based
 ```
 
 Both channel endpoints report disconnect through the same `:Option`
@@ -924,12 +946,65 @@ belongs to exactly one producer; a receiver to one consumer. Match
 Linux `write(fd, data)`: whoever holds the fd owns the capability;
 sharing means threading the endpoint through spawn args.
 
+### Channel close is scope-based
+
+A `Sender<T>` / `Receiver<T>` is reference-counted. The corresponding
+channel-end disconnects only when **every** clone has dropped — and
+clones drop when their `let*` binding goes out of scope. There is no
+force-close primitive: `:wat::kernel::drop` evaluates its argument
+(causing one *temporary* Arc to fall) but does NOT consume the named
+binding, so the binding still holds a clone until its enclosing scope
+exits. Use `:wat::kernel::drop` only as a readability hint; real
+shutdown happens at scope-end.
+
+**Anti-pattern (deadlocks)** — `tx` is bound in the same `let*` whose
+body calls `join`; `join` blocks before `tx` falls out of scope, so the
+worker's `recv` never returns `:None`:
+
+```scheme
+(:wat::core::let*
+  (((pair :wat::kernel::QueuePair<i64>)
+    (:wat::kernel::make-bounded-queue :i64 1))
+   ((tx :wat::kernel::QueueSender<i64>) (:wat::core::first pair))
+   ((rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second pair))
+   ((handle :wat::kernel::ProgramHandle<()>)
+    (:wat::kernel::spawn :my::worker rx))
+   ((_send :Option<()>) (:wat::kernel::send tx 1))
+   ((_drop :()) (:wat::kernel::drop tx)))   ;; ← no-op; tx still bound
+  (:wat::kernel::join handle))               ;; ← worker recv-loops forever
+```
+
+**Proven pattern (nested `let*`)** — outer scope holds the
+`ProgramHandle`; inner scope owns every `Sender`. The inner `let*` body
+yields `h` so the outer can join it. When inner exits, every `Sender`
+Arc bound there decrements; the worker's next `recv` returns `:None`;
+the worker exits; the outer `join` unblocks:
+
+```scheme
+(:wat::core::let*
+  (((handle :wat::kernel::ProgramHandle<()>)
+    (:wat::core::let*
+      (((pair :wat::kernel::QueuePair<i64>)
+        (:wat::kernel::make-bounded-queue :i64 1))
+       ((tx :wat::kernel::QueueSender<i64>) (:wat::core::first pair))
+       ((rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second pair))
+       ((h :wat::kernel::ProgramHandle<()>) (:wat::kernel::spawn :my::worker rx))
+       ((_send :Option<()>) (:wat::kernel::send tx 1)))
+      h)))                                    ;; ← pair, tx, rx all drop here
+  (:wat::kernel::join handle))                ;; ← worker has exited cleanly
+```
+
+The Console and CacheService stdlib programs follow this shape: the
+caller holds the driver `ProgramHandle` in an outer scope, an inner
+`let*` distributes Sender handles, does the work, and exits; the drop
+cascade then triggers the driver's clean shutdown.
+
 ### Fan-in via `select`
 
 ```scheme
 (:wat::kernel::select receivers)
-;; receivers : :Vec<Receiver<T>>
-;; → :(i64, Option<T>)
+;; receivers : :Vec<wat::kernel::QueueReceiver<T>>
+;; → :wat::kernel::Chosen<T>   ≡ :(i64, Option<T>)
 ;; — blocks until any receiver has a value or disconnects
 ;; — returns the index and :None if disconnected, (Some v) if produced
 ```
@@ -937,6 +1012,11 @@ sharing means threading the endpoint through spawn args.
 The caller owns the select loop — remove disconnected receivers from
 the list, exit when the list is empty. `:wat::std::service::Console`'s
 driver is the canonical example.
+
+`:wat::kernel::Chosen<T>` is the fourth substrate alias from
+`wat/kernel/queue.wat`. The variable that binds the return value is
+universally named `chosen` (Console.wat does it; the docs do it; you
+will too). The alias makes the type echo the variable.
 
 ### Spawning programs
 
