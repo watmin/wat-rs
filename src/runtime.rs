@@ -2273,6 +2273,8 @@ fn dispatch_keyword_head(
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
         ":wat::holon::Atom" => eval_algebra_atom(args, env, sym),
+        ":wat::holon::leaf" => eval_holon_leaf(args, env, sym),
+        ":wat::holon::from-watast" => eval_holon_from_watast(args, env, sym),
         ":wat::holon::to-watast" => eval_holon_to_watast(args, env, sym),
         ":wat::holon::Bind" => eval_algebra_bind(args, env, sym),
         ":wat::holon::Bundle" => eval_algebra_bundle(args, env, sym),
@@ -6004,6 +6006,88 @@ fn watast_to_holon(a: &WatAST) -> HolonAST {
             HolonAST::bundle(items.iter().map(watast_to_holon).collect())
         }
     }
+}
+
+/// `(:wat::holon::leaf v)` → `:wat::holon::HolonAST` (arc 065).
+/// Lift a primitive value to a typed HolonAST leaf. One named verb
+/// for the primitive case of arc 057's polymorphic Atom; reading
+/// `(leaf 42)` says exactly what's happening — "wrap this primitive
+/// as a HolonAST leaf" — where polymorphic `Atom` left the move
+/// ambiguous (primitive? wrap? structural lift?).
+///
+/// Accepts only primitive Value variants; non-primitives error
+/// with TypeMismatch and a hint pointing at the right verb
+/// (`Atom` for HolonAST inputs; `from-watast` for quoted forms).
+fn eval_holon_leaf(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::leaf";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    let h = match v {
+        Value::i64(n) => HolonAST::i64(n),
+        Value::f64(x) => HolonAST::f64(x),
+        Value::bool(b) => HolonAST::bool_(b),
+        Value::String(s) => HolonAST::string(s.as_str()),
+        Value::wat__core__keyword(k) => HolonAST::symbol(k.as_str()),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "primitive (i64/f64/bool/String/keyword); \
+                           use :wat::holon::Atom to wrap a HolonAST, \
+                           :wat::holon::from-watast to lower a quoted form",
+                got: other.type_name(),
+            });
+        }
+    };
+    Ok(Value::holon__HolonAST(Arc::new(h)))
+}
+
+/// `(:wat::holon::from-watast form)` → `:wat::holon::HolonAST` (arc 065).
+/// Lower a quoted wat form to a HolonAST tree (List → Bundle,
+/// Keyword → Symbol, literals → matching primitive leaves). One
+/// named verb for the WatAST case of arc 057's polymorphic Atom;
+/// the round-trip pair `to-watast` / `from-watast` reads visibly
+/// at call sites.
+///
+/// Accepts only `Value::wat__WatAST` (typically produced via
+/// `:wat::core::quote`); non-WatAST inputs error with TypeMismatch
+/// and a hint pointing at the right verb.
+fn eval_holon_from_watast(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::from-watast";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    let h = match v {
+        Value::wat__WatAST(a) => watast_to_holon(&a),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::WatAST (typically from :wat::core::quote); \
+                           use :wat::holon::Atom for HolonAST inputs, \
+                           :wat::holon::leaf for primitives",
+                got: other.type_name(),
+            });
+        }
+    };
+    Ok(Value::holon__HolonAST(Arc::new(h)))
 }
 
 /// `(:wat::holon::to-watast holon) -> :wat::WatAST` — lift a HolonAST
@@ -14520,6 +14604,158 @@ mod tests {
     #[test]
     fn show_arity_mismatch() {
         let err = eval_expr("(:wat::core::show)").unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    // ─── leaf / from-watast (arc 065) ──────────────────────────────────
+
+    #[test]
+    fn leaf_lifts_primitive_to_holon_leaf() {
+        // Each primitive Value variant should become its matching
+        // HolonAST leaf. atom-value extracts the value back to verify.
+        let cases = [
+            (r#"(:wat::core::atom-value (:wat::holon::leaf 42))"#, "42"),
+            (r#"(:wat::core::atom-value (:wat::holon::leaf 3.14))"#, "3.14"),
+            (r#"(:wat::core::atom-value (:wat::holon::leaf true))"#, "true"),
+            (r#"(:wat::core::atom-value (:wat::holon::leaf "hi"))"#, "\"hi\""),
+        ];
+        for (src, expected) in cases.iter() {
+            // Wrap each in a show call to get a stable comparison
+            // string regardless of which Value variant atom-value
+            // returned.
+            let wrapped = format!("(:wat::core::show {})", src);
+            match eval_expr(&wrapped).unwrap() {
+                Value::String(s) => assert_eq!(&*s, *expected, "for source {}", src),
+                v => panic!("expected String, got {:?} for source {}", v, src),
+            }
+        }
+    }
+
+    #[test]
+    fn leaf_rejects_non_primitive() {
+        // HolonAST input is the wrong verb; the rejection should
+        // hint at Atom (which IS the right verb for HolonAST → wrap).
+        let err = eval_expr(
+            "(:wat::holon::leaf (:wat::holon::Atom \"already-holon\"))",
+        )
+        .unwrap_err();
+        match err {
+            RuntimeError::TypeMismatch { op, expected, .. } => {
+                assert_eq!(op, ":wat::holon::leaf");
+                assert!(
+                    expected.contains(":wat::holon::Atom"),
+                    "expected hint to mention Atom, got: {}",
+                    expected
+                );
+            }
+            other => panic!("expected TypeMismatch, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn from_watast_lowers_quoted_list_to_bundle() {
+        // Quoted list form lowers structurally — the result is a
+        // Bundle of Symbol / I64 leaves (mirrors arc 057's path-2
+        // structural lowering).
+        let src = r#"
+            (:wat::holon::from-watast
+              (:wat::core::quote (:wat::core::i64::+ 40 2)))
+        "#;
+        let v = eval_expr(src).unwrap();
+        let h = match v {
+            Value::holon__HolonAST(h) => h,
+            other => panic!("expected Holon, got {:?}", other),
+        };
+        match &*h {
+            HolonAST::Bundle(items) => {
+                assert_eq!(items.len(), 3);
+                assert_eq!(items[0].as_symbol(), Some(":wat::core::i64::+"));
+                assert_eq!(items[1].as_i64(), Some(40));
+                assert_eq!(items[2].as_i64(), Some(2));
+            }
+            other => panic!("expected Bundle, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn from_watast_lowers_atomic_quote_to_leaf() {
+        // Atomic literal inside quote — atomic shape stays as a
+        // primitive leaf, NOT wrapped in a Bundle.
+        let src = r#"
+            (:wat::holon::from-watast (:wat::core::quote :outcome))
+        "#;
+        let v = eval_expr(src).unwrap();
+        let h = match v {
+            Value::holon__HolonAST(h) => h,
+            other => panic!("expected Holon, got {:?}", other),
+        };
+        assert_eq!(h.as_symbol(), Some(":outcome"));
+    }
+
+    #[test]
+    fn from_watast_rejects_non_watast() {
+        // Primitive input is the wrong verb; should hint at leaf.
+        let err = eval_expr("(:wat::holon::from-watast 42)").unwrap_err();
+        match err {
+            RuntimeError::TypeMismatch { op, expected, .. } => {
+                assert_eq!(op, ":wat::holon::from-watast");
+                assert!(
+                    expected.contains(":wat::holon::leaf"),
+                    "expected hint to mention leaf, got: {}",
+                    expected
+                );
+            }
+            other => panic!("expected TypeMismatch, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn watast_round_trip_preserves_bundle_shape() {
+        // The (to-watast → from-watast) round-trip preserves a
+        // structurally-lowered Bundle of primitives — `to-watast`
+        // emits `(items…)` for a Bundle, and `from-watast` reads
+        // that List back as a Bundle of leaves. Trees that started
+        // as algebra ops (Bind / Permute / Thermometer / Blend)
+        // lift as symbol-headed Lists at the source level; they
+        // come back as Bundles structurally rather than the original
+        // composite — that's the substrate distinguishing
+        // "form on the algebra grid" from "form as source text",
+        // and the round-trip is faithful to whichever side h
+        // started on.
+        let src = r#"
+            (:wat::core::let*
+              (((h1 :wat::holon::HolonAST)
+                (:wat::core::match
+                  (:wat::holon::Bundle
+                    (:wat::core::vec :wat::holon::HolonAST
+                      (:wat::holon::leaf "role")
+                      (:wat::holon::leaf "filler")))
+                  -> :wat::holon::HolonAST
+                  ((Ok h) h)
+                  ((Err _) (:wat::holon::leaf "unreachable"))))
+               ((ast :wat::WatAST) (:wat::holon::to-watast h1))
+               ((h2 :wat::holon::HolonAST) (:wat::holon::from-watast ast)))
+              (:wat::holon::cosine h1 h2))
+        "#;
+        match eval_with_ctx(src, 1024).unwrap() {
+            Value::f64(c) => assert!(
+                (c - 1.0).abs() < 1e-9,
+                "expected cosine ≈ 1.0 (Bundle round-trip), got {}",
+                c
+            ),
+            v => panic!("expected f64, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn leaf_arity_mismatch() {
+        let err = eval_expr("(:wat::holon::leaf)").unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    #[test]
+    fn from_watast_arity_mismatch() {
+        let err = eval_expr("(:wat::holon::from-watast)").unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 

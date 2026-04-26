@@ -5009,12 +5009,35 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Algebra-core UpperCalls.
-    // Atom — ∀T. T → :wat::holon::HolonAST. Accepts any payload type.
+    // Atom — ∀T. T → :wat::holon::HolonAST. Polymorphic per arc 057
+    // (primitive → leaf; HolonAST → opaque-wrap; quoted form →
+    // structural lower). Arc 065 introduced named siblings (`leaf`
+    // for primitives, `from-watast` for quoted forms) so consumers
+    // can pick the verb that names the move; the polymorphism
+    // stays for back-compat across ~960 existing call sites.
     env.register(
         ":wat::holon::Atom".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![t_var()],
+            ret: holon_ty(),
+        },
+    );
+    // Arc 065 named siblings of polymorphic Atom — one verb per
+    // move. Polymorphism for back-compat; named ops for new code.
+    env.register(
+        ":wat::holon::leaf".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: holon_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::from-watast".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::WatAST".into())],
             ret: holon_ty(),
         },
     );

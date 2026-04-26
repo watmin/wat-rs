@@ -1910,7 +1910,9 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::std::service::Console` | `stdout stderr n` | `(HandlePool, Driver)` |
 | `:wat::lru::CacheService` (wat-lru) | `capacity count` | `(HandlePool, Driver)` |
 | `:wat::lru::LocalCache::new` / `put` / `get` (wat-lru) | various | per-program LRU |
-| `:wat::holon::Atom` | `<value>` | `:wat::holon::HolonAST` — polymorphic dispatcher (arc 057). Primitive → matching typed leaf; HolonAST → opaque-identity wrap; quoted wat form → structural lowering (List → Bundle, leaves → primitive leaves). |
+| `:wat::holon::Atom` | `<value>` | `:wat::holon::HolonAST` — polymorphic dispatcher (arc 057). Primitive → matching typed leaf; HolonAST → opaque-identity wrap; quoted wat form → structural lowering. New code: prefer the named siblings `:wat::holon::leaf` (primitives) and `:wat::holon::from-watast` (quoted forms) — one verb per move (arc 065). Polymorphism preserved for back-compat. |
+| `:wat::holon::leaf` | `<primitive>` | `:wat::holon::HolonAST` — lift a primitive (i64/f64/bool/String/keyword) to a typed HolonAST leaf (arc 065). Honest verb for the "wrap a value as a leaf" move that Atom's polymorphism left ambiguous. |
+| `:wat::holon::from-watast` | `<wat-ast>` | `:wat::holon::HolonAST` — lower a quoted wat form to a HolonAST tree (arc 065). The `from-watast` / `to-watast` pair reads as one round-trip at call sites. |
 | `:wat::holon::to-watast` | `holon` | `:wat::WatAST` — Story-2 recovery (arc 057): structural inverse of Atom's quote-lowering. Pair with `:wat::eval-ast!` when you want the value, not the coordinate. Lossy on identifier scope; round-trips cleanly enough for the eval-and-get-the-value workflow. |
 | `:wat::holon::Bind` | `a b` | `:wat::holon::HolonAST` |
 | `:wat::holon::Bundle` | `list-of-holons` | `:wat::holon::BundleResult` (arc 032) |
