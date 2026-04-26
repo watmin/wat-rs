@@ -2217,6 +2217,7 @@ fn dispatch_keyword_head(
         ":wat::core::HashMap" => eval_hashmap_ctor(args, env, sym),
         ":wat::core::HashSet" => eval_hashset_ctor(args, env, sym),
         ":wat::core::get" => eval_get(args, env, sym),
+        ":wat::core::concat" => eval_concat(args, env, sym),
         ":wat::core::assoc" => eval_assoc(args, env, sym),
         ":wat::core::dissoc" => eval_dissoc(args, env, sym),
         ":wat::core::keys" => eval_keys(args, env, sym),
@@ -4053,6 +4054,47 @@ fn eval_empty_q(
             got: other.type_name(),
         }),
     }
+}
+
+/// `(:wat::core::concat v1 v2 ...)` → `Vec<T>`. Variadic Vec
+/// concatenation (arc 059). Allocates a fresh Vec of the combined
+/// length; copies elements from each input. Inputs unchanged
+/// (values-up). Single-arg `(concat v)` returns a clone of v.
+fn eval_concat(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::concat";
+    if args.is_empty() {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: 0,
+        });
+    }
+    // Pre-evaluate all args (collect Vec<Arc<Vec<Value>>>) so we can
+    // size the result vector exactly before copying.
+    let mut pieces: Vec<Arc<Vec<Value>>> = Vec::with_capacity(args.len());
+    for arg in args {
+        let v = eval(arg, env, sym)?;
+        match v {
+            Value::Vec(xs) => pieces.push(xs),
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Vec<T>",
+                    got: other.type_name(),
+                });
+            }
+        }
+    }
+    let total: usize = pieces.iter().map(|p| p.len()).sum();
+    let mut out: Vec<Value> = Vec::with_capacity(total);
+    for piece in pieces {
+        out.extend((*piece).iter().cloned());
+    }
+    Ok(Value::Vec(Arc::new(out)))
 }
 
 /// `(:wat::core::reverse xs)` → `Vec<T>`. New Vec with elements
@@ -12446,6 +12488,116 @@ mod tests {
             r#"(:wat::core::assoc (:wat::core::HashMap :(String,i64)) "k")"#,
         )
         .unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    // ─── Vec concat (arc 059) ────────────────────────────────────────────
+
+    #[test]
+    fn concat_two_arg_basic() {
+        let src = r#"
+            (:wat::core::length
+              (:wat::core::concat
+                (:wat::core::vec :i64 1 2)
+                (:wat::core::vec :i64 3 4)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(4) => {}
+            v => panic!("expected 4, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn concat_n_arg_variadic() {
+        // Sum the result to verify all elements made it through in order.
+        let src = r#"
+            (:wat::core::foldl
+              (:wat::core::concat
+                (:wat::core::vec :i64 1)
+                (:wat::core::vec :i64 2)
+                (:wat::core::vec :i64 3)
+                (:wat::core::vec :i64 4))
+              0
+              (:wat::core::lambda ((acc :i64) (n :i64) -> :i64)
+                (:wat::core::i64::+ acc n)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(10) => {}
+            v => panic!("expected 10, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn concat_empty_vecs() {
+        let src = r#"
+            (:wat::core::length
+              (:wat::core::concat
+                (:wat::core::vec :i64)
+                (:wat::core::vec :i64 1 2)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(2) => {}
+            v => panic!("expected 2, got {:?}", v),
+        }
+
+        let all_empty = r#"
+            (:wat::core::length
+              (:wat::core::concat
+                (:wat::core::vec :i64)
+                (:wat::core::vec :i64)
+                (:wat::core::vec :i64)))
+        "#;
+        match eval_expr(all_empty).unwrap() {
+            Value::i64(0) => {}
+            v => panic!("expected 0 for all-empty concat, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn concat_single_arg_returns_clone() {
+        let src = r#"
+            (:wat::core::length
+              (:wat::core::concat (:wat::core::vec :i64 1 2 3)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(3) => {}
+            v => panic!("expected 3, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn concat_preserves_left_to_right_order() {
+        // First element of (concat [10] [20] [30]) must be 10.
+        let src = r#"
+            (:wat::core::match
+              (:wat::core::get
+                (:wat::core::concat
+                  (:wat::core::vec :i64 10)
+                  (:wat::core::vec :i64 20)
+                  (:wat::core::vec :i64 30))
+                0)
+              -> :i64
+              ((Some n) n)
+              (:None -1))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(10) => {}
+            v => panic!("expected 10 (first element), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn concat_non_vec_arg_rejected() {
+        let err = eval_expr(
+            r#"(:wat::core::concat (:wat::core::vec :i64 1) 42)"#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn concat_zero_arg_rejected() {
+        let err = eval_expr(r#"(:wat::core::concat)"#).unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 

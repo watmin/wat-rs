@@ -466,6 +466,7 @@ fn infer_list(
             ":wat::core::string::concat" => return infer_string_concat(args, env, locals, fresh, subst, errors),
             ":wat::core::HashMap" => return infer_hashmap_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::assoc" => return infer_assoc(args, env, locals, fresh, subst, errors),
+            ":wat::core::concat" => return infer_concat(args, env, locals, fresh, subst, errors),
             ":wat::core::dissoc" => return infer_dissoc(args, env, locals, fresh, subst, errors),
             ":wat::core::keys" => return infer_keys(args, env, locals, fresh, subst, errors),
             ":wat::core::values" => return infer_values(args, env, locals, fresh, subst, errors),
@@ -3690,6 +3691,53 @@ fn infer_tuple_constructor(
 /// rationale as `vec` / `tuple`). Empty arg list errors at the
 /// runtime; the checker accepts arity 0 and returns `:String` so the
 /// runtime owns the diagnostic — this mirrors how `tuple` behaves.
+/// Arc 059 — `(:wat::core::concat v1 v2 ...)`. Variadic Vec
+/// concatenation; ≥1 arg required (zero-arg ambiguous on T, same
+/// reasoning as `:wat::core::vec`'s rejection of zero-arg).
+///   ∀T. (Vec<T>)+ → Vec<T>
+/// All args must unify on the same `Vec<T>` — no implicit coercion
+/// (a `Vec<i64>` and `Vec<f64>` don't concat). Mirrors the
+/// `string::concat` shape but with a fresh element type variable
+/// instead of a fixed `:String`.
+fn infer_concat(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.is_empty() {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::core::concat".into(),
+            expected: 1,
+            got: 0,
+        });
+        return Some(TypeExpr::Parametric {
+            head: "Vec".into(),
+            args: vec![fresh.fresh()],
+        });
+    }
+    let elem_ty = fresh.fresh();
+    let vec_ty = TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![elem_ty],
+    };
+    for arg in args {
+        if let Some(ty) = infer(arg, env, locals, fresh, subst, errors) {
+            if unify(&ty, &vec_ty, subst, env.types()).is_err() {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::concat".into(),
+                    param: "arg".into(),
+                    expected: format_type(&apply_subst(&vec_ty, subst)),
+                    got: format_type(&apply_subst(&ty, subst)),
+                });
+            }
+        }
+    }
+    Some(apply_subst(&vec_ty, subst))
+}
+
 fn infer_string_concat(
     args: &[WatAST],
     env: &CheckEnv,

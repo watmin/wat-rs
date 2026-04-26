@@ -1,6 +1,9 @@
 # Arc 059 — `:wat::core::concat` (Vec concatenation)
 
-**Status:** opened 2026-04-26.
+**Status:** shipped 2026-04-26. See `INSCRIPTION.md` for the
+canonical post-ship record. Tests landed inline in
+`src/runtime.rs::mod tests` (matching arc 058's convention) rather
+than as a separate `tests/wat_concat.rs` file.
 **Predecessor:** arc 058 (HashMap completion) — same small-arc shape; same builder direction ("if it's missing it shouldn't be").
 **Consumer:** `holon-lab-trading` experiment 008 (Treasury service `loop-entry` builds a Vec<Receiver<Event>> by combining `[tick-rx]` with `broker-rxs` for the select loop). Reached for `:wat::core::concat`; not there.
 

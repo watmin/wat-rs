@@ -1808,6 +1808,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::macroexpand` | `<quoted-form>` | `:wat::WatAST` — expands until non-macro head (arc 030) |
 | `:wat::core::macroexpand-1` | `<quoted-form>` | `:wat::WatAST` — peels exactly one layer (arc 030) |
 | `:wat::core::conj` | `vec item` | new collection — polymorphic over HashSet/Vec (arc 025) |
+| `:wat::core::concat` | `v1 v2 ...` | `:Vec<T>` — variadic Vec concatenation; ≥1 arg; all args same `Vec<T>` (arc 059) |
 | `:wat::core::assoc` | `coll k v` | new collection — polymorphic over HashMap/Vec (arc 025) |
 | `:wat::core::dissoc` | `m k` | `:HashMap<K,V>` — new map without `k`; missing key is no-op (arc 058) |
 | `:wat::core::get` | `coll k-or-i` | `:Option<T>` — polymorphic over HashMap/HashSet/Vec (arc 025) |
