@@ -356,6 +356,25 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::core::Bytes — substrate-general byte buffer. Alias for
+    // :Vec<u8>. Per arc 062 + /gaze: the universal name "Bytes" wins
+    // across adjacent ecosystems (Rust's bytes::Bytes, Python's
+    // bytes, Go's []byte, Haskell's ByteString). Lives in :wat::core::*
+    // because byte buffers are substrate-general — they predate every
+    // current and future consumer (vector serde via arc 061, future
+    // crypto/IO/hashing/network arcs). The alias resolves structurally;
+    // both `:wat::core::Bytes` and `:Vec<u8>` work at call sites.
+    //
+    //   typealias :wat::core::Bytes = :Vec<u8>
+    env.register_builtin(TypeDef::Alias(AliasDef {
+        name: ":wat::core::Bytes".into(),
+        type_params: vec![],
+        expr: TypeExpr::Parametric {
+            head: "Vec".into(),
+            args: vec![TypeExpr::Path(":u8".into())],
+        },
+    }));
+
     // :wat::kernel::ThreadDiedError — populated in the Err slot of the
     // :Result returned by :wat::kernel::join-result (arc 060) when a
     // spawned thread does NOT yield a value normally. Three variants

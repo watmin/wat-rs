@@ -13922,6 +13922,38 @@ mod tests {
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 
+    #[test]
+    fn core_bytes_alias_resolves_to_vec_u8() {
+        // Arc 062 — :wat::core::Bytes is a structural alias for
+        // :Vec<u8>. Both forms must work at let-binding sites; the
+        // pipeline through arc 061's vector-bytes / bytes-vector
+        // type-checks identically whichever annotation is used.
+        let src = r#"
+            (:wat::core::let*
+              (((v :wat::holon::Vector)
+                (:wat::holon::encode (:wat::holon::Atom "alias-test")))
+               ;; Annotate with the alias on one binding...
+               ((bs1 :wat::core::Bytes)
+                (:wat::holon::vector-bytes v))
+               ;; ...and the verbose form on the other.
+               ((bs2 :Vec<u8>)
+                (:wat::holon::vector-bytes v))
+               ;; Both must round-trip cleanly through bytes-vector.
+               ((maybe-v1 :Option<wat::holon::Vector>)
+                (:wat::holon::bytes-vector bs1))
+               ((maybe-v2 :Option<wat::holon::Vector>)
+                (:wat::holon::bytes-vector bs2)))
+              ;; Bytes are deterministic; so the two byte-buffers
+              ;; produced from the same vector must be equal at the
+              ;; structural level.
+              (:wat::core::= bs1 bs2))
+        "#;
+        match eval_with_ctx(src, 1024).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true (alias resolves structurally), got {:?}", v),
+        }
+    }
+
     // ─── select ────────────────────────────────────────────────────────
 
     #[test]

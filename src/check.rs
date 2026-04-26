@@ -5607,26 +5607,23 @@ fn register_builtins(env: &mut CheckEnv) {
     // wire format the cryptographic-substrate protocol uses to
     // transmit V (the encoded vector) between users. 4-byte dim
     // header + 2-bit-per-cell ternary packing; see
-    // `eval_holon_vector_bytes` for the format.
+    // `eval_holon_vector_bytes` for the format. Arc 062 swaps the
+    // verbose `:Vec<u8>` for `:wat::core::Bytes` (substrate-general
+    // alias); both forms work at call sites because alias resolution
+    // is structural.
     env.register(
         ":wat::holon::vector-bytes".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::holon::Vector".into())],
-            ret: TypeExpr::Parametric {
-                head: "Vec".into(),
-                args: vec![TypeExpr::Path(":u8".into())],
-            },
+            ret: TypeExpr::Path(":wat::core::Bytes".into()),
         },
     );
     env.register(
         ":wat::holon::bytes-vector".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![TypeExpr::Parametric {
-                head: "Vec".into(),
-                args: vec![TypeExpr::Path(":u8".into())],
-            }],
+            params: vec![TypeExpr::Path(":wat::core::Bytes".into())],
             ret: TypeExpr::Parametric {
                 head: "Option".into(),
                 args: vec![TypeExpr::Path(":wat::holon::Vector".into())],
