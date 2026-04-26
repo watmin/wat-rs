@@ -72,6 +72,34 @@
       (Some haystack)
       (Some needle))))
 
+;; ─── assert-coincident ────────────────────────────────────────────────
+;;
+;; "Are these two holons the same point in HD space?" — the geometry-
+;; aware equality. Wraps `:wat::holon::coincident?` (arc 023): cosine
+;; clears the substrate's coincident-floor (1 - cosine < threshold).
+;;
+;; This is what tests should reach for when checking holon identity.
+;; `assert-eq` on cosine f64 against `1.0` is wrong: floating-point
+;; arithmetic can return `1.0 + 2 ULPs` for cosine of identical
+;; vectors, and exact f64 equality fails. The substrate-level
+;; coincident-floor is calibrated for "geometrically equal at the
+;; encoded d" — exactly the question test code is asking.
+;;
+;; Mirrors the assert-contains shape (custom message; both sides
+;; carried in the failure payload). Tolerance lives in the substrate,
+;; not the test.
+(:wat::core::define
+  (:wat::test::assert-coincident
+    (a :wat::holon::HolonAST)
+    (b :wat::holon::HolonAST)
+    -> :())
+  (:wat::core::if (:wat::holon::coincident? a b) -> :()
+    ()
+    (:wat::kernel::assertion-failed!
+      "assert-coincident failed — holons not at the same point"
+      :None
+      :None)))
+
 ;; ─── assert-stdout-is ─────────────────────────────────────────────────
 ;;
 ;; Compare a RunResult's stdout to an expected Vec<String>. Equality via
