@@ -5440,6 +5440,27 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: r_var(),
         },
     );
+    // (:wat::kernel::join-result handle) — arc 060.
+    //   ∀R. ProgramHandle<R> -> Result<R, wat::kernel::ThreadDiedError>
+    // Sibling to join: same blocking recv on the spawn channel; differs
+    // in failure handling (data-as-Result instead of panic-the-caller).
+    env.register(
+        ":wat::kernel::join-result".into(),
+        TypeScheme {
+            type_params: vec!["R".into()],
+            params: vec![TypeExpr::Parametric {
+                head: "wat::kernel::ProgramHandle".into(),
+                args: vec![r_var()],
+            }],
+            ret: TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![
+                    r_var(),
+                    TypeExpr::Path(":wat::kernel::ThreadDiedError".into()),
+                ],
+            },
+        },
+    );
     // HandlePool — claim-or-panic discipline.
     //   new    : ∀T. :String -> :Vec<T> -> :HandlePool<T>
     //   pop    : ∀T. :HandlePool<T> -> :T

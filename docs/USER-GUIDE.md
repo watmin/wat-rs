@@ -947,11 +947,44 @@ driver is the canonical example.
 
 (:wat::kernel::join handle)
 ;; → :ReturnType  — blocks until the program exits, returns its state
+;; "I trust this thread; panic the caller if it died." Use when a
+;; spawn-thread death IS a bug worth halting on.
+
+(:wat::kernel::join-result handle)
+;; → :Result<:ReturnType, :wat::kernel::ThreadDiedError>  (arc 060)
+;; "Death as data." Match on (Ok value) | (Err Panic|RuntimeError|
+;; ChannelDisconnected) — surfaces the spawn-thread's outcome
+;; in-band so supervisors / debuggers / tests can discriminate
+;; cause without losing context.
 ```
 
 Each spawned program is an OS thread running the named function. The
 program owns its state (moved in via spawn args); when it returns,
 its state is dropped or returned via join.
+
+The choice between `join` and `join-result` parallels `assert-eq` vs
+`assert-coincident` (arc 057): both verbs are honest; the call site
+picks per its tolerance for panic-on-death. `join-result` is what
+test harnesses, supervisors, and any code that wants to diagnose a
+spawned crash should reach for; `join` stays appropriate when the
+spawn-thread genuinely shouldn't fail.
+
+```scheme
+;; Story-2 / death-as-data shape:
+(:wat::core::match (:wat::kernel::join-result handle) -> :()
+  ((Ok _value)
+    ;; thread succeeded; do whatever with value
+    ())
+  ((Err (:wat::kernel::ThreadDiedError::Panic msg))
+    (:wat::io::IOWriter/print stderr
+      (:wat::core::string::concat "thread panicked: " msg "\n")))
+  ((Err (:wat::kernel::ThreadDiedError::RuntimeError msg))
+    (:wat::io::IOWriter/print stderr
+      (:wat::core::string::concat "thread Err'd: " msg "\n")))
+  ((Err :wat::kernel::ThreadDiedError::ChannelDisconnected)
+    ;; substrate bug; rare
+    ()))
+```
 
 ### Handle pools — claim-or-panic
 
@@ -1776,7 +1809,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::io::IOReader/read-line` | `stdin` | `:Option<String>` |
 | `:wat::io::IOWriter/print` | `handle string` | `:()` |
 | `:wat::kernel::spawn` | `<fn-path> args...` | `:ProgramHandle<R>` |
-| `:wat::kernel::join` | `handle` | `R` |
+| `:wat::kernel::join` | `handle` | `R` — panics caller on spawn-thread death |
+| `:wat::kernel::join-result` | `handle` | `:Result<R, wat::kernel::ThreadDiedError>` — death-as-data; 3 variants discriminate Panic / RuntimeError / ChannelDisconnected (arc 060) |
 | `:wat::kernel::make-bounded-queue` | `:T n` | `:(Sender<T>, Receiver<T>)` |
 | `:wat::kernel::make-unbounded-queue` | `:T` | `:(Sender<T>, Receiver<T>)` |
 | `:wat::kernel::send` | `sender value` | `:Option<()>` — `(Some ())` on sent, `:None` on disconnect |

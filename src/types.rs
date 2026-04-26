@@ -356,6 +356,44 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::ThreadDiedError — populated in the Err slot of the
+    // :Result returned by :wat::kernel::join-result (arc 060) when a
+    // spawned thread does NOT yield a value normally. Three variants
+    // discriminate cause; supervisors / restart policies / debugging
+    // traces want to tell them apart:
+    //
+    //   Panic(message)         — the thread's eval panicked; catch_unwind
+    //                            captured the payload as a String.
+    //   RuntimeError(message)  — the thread's eval returned :Err normally
+    //                            (the spawned function was Result-typed
+    //                            and produced an Err).
+    //   ChannelDisconnected    — substrate bug; the channel dropped
+    //                            without sending. In practice should
+    //                            never fire under arc-060's catch_unwind
+    //                            wrap; emitted as a distinct variant so
+    //                            consumers can tell "my function ran and
+    //                            died" from "the substrate ate my child."
+    //
+    // The String fields aren't typed-error-objects on purpose — wat-rs's
+    // RuntimeError enum carries its own Display impl; we extract the
+    // formatted message at the substrate boundary. Future arc may widen
+    // to a typed payload if a caller surfaces real need.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::kernel::ThreadDiedError".into(),
+        type_params: vec![],
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Panic".into(),
+                fields: vec![("message".into(), TypeExpr::Path(":String".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "RuntimeError".into(),
+                fields: vec![("message".into(), TypeExpr::Path(":String".into()))],
+            },
+            EnumVariant::Unit("ChannelDisconnected".into()),
+        ],
+    }));
+
     // :wat::kernel::Location — a point in a source file. Populated by
     // `:wat::kernel::run-sandboxed` when a panic carries a PanicInfo
     // location, and by future assertion primitives whose failure-payload

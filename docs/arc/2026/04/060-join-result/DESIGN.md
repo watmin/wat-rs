@@ -1,6 +1,19 @@
 # Arc 060 — `:wat::kernel::join-result` (spawn-thread death as data)
 
-**Status:** opened 2026-04-26.
+**Status:** shipped 2026-04-26. See `INSCRIPTION.md` for the
+canonical post-ship record. Two implementation details to flag
+beyond the sketch:
+
+1. The channel payload was lifted to a 3-state `SpawnOutcome` enum
+   (`Ok(Value)` / `RuntimeErr(RuntimeError)` / `Panic(String)`)
+   rather than the sketched approach of squeezing panic into a
+   special RuntimeError variant. This made both `join` and
+   `join-result` cleaner — each maps SpawnOutcome variants to its
+   own surface shape without coercing through a synthetic
+   RuntimeError.
+2. Tests landed inline in `src/runtime.rs::mod tests` (matching
+   arc 058 / 059's convention) rather than as
+   `tests/wat_join_result.rs`.
 **Predecessor:** arc 058 (HashMap completion), arc 059 (Vec concat) — same small-arc shape, same builder direction ("if it's missing it shouldn't be").
 **Consumer:** `holon-lab-trading` experiment 008 (Treasury service driver) hit a silent treasury-thread crash; the `assert-eq` failed, but the actual cause (`UnknownFunction(":wat::core::concat")`, which arc 059 fixes) stayed buried because `:wat::kernel::join` was never called before the assert. The diagnostic gap is real and orthogonal to the consumer's specific bug.
 
