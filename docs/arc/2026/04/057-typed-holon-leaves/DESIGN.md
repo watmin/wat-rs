@@ -79,17 +79,28 @@ A schema change to `HolonAST` + a polymorphic wat-surface constructor + AtomType
 ### The new HolonAST
 
 ```rust
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HolonAST {
-    // Leaves — terminal terms, no sub-AST. These are atoms in the
-    // Lisp sense: `(atom? x)` returns true for these.
-    Symbol(Arc<str>),       // quoted keywords; today's (Atom (quote :foo))
+    // Leaves — terminal vocabulary atoms (BOOK Chapter 45 framing —
+    // irreducible semantic units the algebra projects onto the
+    // hypersphere). These are also atoms in the Lisp `atom?`
+    // predicate sense.
+    Symbol(Arc<str>),       // keywords; today's (Atom (quote :foo))
     String(Arc<str>),       // string literals; today's (Atom "foo")
     I64(i64),               // integer atoms
-    F64(f64),               // float atoms (Hash via to_bits)
+    F64(f64),               // float atoms (manual Hash via to_bits)
     Bool(bool),             // boolean atoms
 
-    // Composites — operate on other HolonAST terms (unchanged).
+    // Atom — opaque-identity wrapper around any HolonAST. Per BOOK
+    // Chapter 54: the substrate has TWO distinct strategies for
+    // programs-as-data — opaque identity (Atom-wrap, single SHA-256
+    // seed of canonical bytes) and similarity-preserving (recursive
+    // encoding through composites). Atom NARROWED to Arc<HolonAST>
+    // contents only — the dyn Any escape hatch dies; the
+    // semantically-distinct opaque-identity strategy survives.
+    Atom(Arc<HolonAST>),
+
+    // Composites — similarity-preserving recursive encoding.
     Bind(Arc<HolonAST>, Arc<HolonAST>),
     Bundle(Arc<Vec<HolonAST>>),
     Permute(Arc<HolonAST>, i32),
@@ -98,42 +109,62 @@ pub enum HolonAST {
 }
 ```
 
-`HolonAST::Atom(Arc<dyn Any>)` is **removed** from the enum. The
-`Atom` concept survives as:
-- A wat-surface constructor (`:wat::holon::Atom`) that dispatches to typed leaves.
-- An optional predicate (`:wat::holon::atom?`) — true for the leaf variants. Lisp parallel.
+11 variants. `HolonAST::Atom(Arc<dyn Any>)` is replaced by
+`HolonAST::Atom(Arc<HolonAST>)` — opaque-identity wrapping for
+programs only; primitives are first-class typed leaves.
 
-`Hash` derives via `#[derive]`. The `f64` fields (Thermometer's value/min/max, Blend's w1/w2, the F64 leaf) need a manual `Hash` impl using `to_bits()` (Rust's `f64` doesn't impl Hash because of NaN). Same trick the archive used (`thought_encoder.rs:45-46`).
+`Hash + Eq` impls (manual, not derive — f64 fields use `.to_bits()`
+because Rust's `f64` doesn't impl Hash; mem::discriminant for
+variant tagging). Same trick the archive used (`thought_encoder.rs:45-46`).
 
 ### Polymorphic `:wat::holon::Atom` evaluator
 
-```text
-(:wat::holon::Atom <expr>)
-```
+`(:wat::holon::Atom <expr>)` evaluates `<expr>` (eval semantics —
+preserves variable / function-result Atom args, e.g. the lab's
+`(:wat::holon::Atom name)` where `name` is a `:String` parameter).
+Dispatches on the resulting `Value`:
 
-dispatches on `<expr>`'s runtime `Value` variant:
-
-| Argument variant | Produces |
-|------------------|----------|
+| Evaluated argument | Produces |
+|--------------------|----------|
 | `Value::String(s)` | `HolonAST::String(Arc::from(s))` |
 | `Value::wat__core__keyword(k)` | `HolonAST::Symbol(Arc::from(k))` |
 | `Value::i64(n)` | `HolonAST::I64(n)` |
 | `Value::f64(x)` | `HolonAST::F64(x)` |
 | `Value::bool(b)` | `HolonAST::Bool(b)` |
-| `Value::holon__HolonAST(h)` | `(*h).clone()` — passthrough (Lisp's quote-of-quoted is no-op) |
-| anything else (struct, enum, vector, etc.) | error: "Atom argument must be a primitive or HolonAST; user types must provide ToHolon" |
+| `Value::holon__HolonAST(h)` | `HolonAST::Atom(h)` — opaque-identity wrap (preserves the BOOK Ch.54 atom-vs-recursive-encoding distinction) |
+| `Value::Enum {...}` | **ERROR**: "wat enum values aren't directly representable in the algebra; lower explicitly via a wat-side function returning the holon shape you want, then wrap in Atom for opaque identity if needed" |
+| `Value::Struct {...}` | Same error |
+| Lambda / Vector / ProgramHandle / etc. | Same error ("not lowerable to holon") |
 
-Every existing `(:wat::holon::Atom "foo")` and `(:wat::holon::Atom (:wat::core::quote :outcome))` call site continues to work unchanged. The wat surface is preserved.
+Every existing primitive-argument call site (`(:wat::holon::Atom "foo")`, `(:wat::holon::Atom (:wat::core::quote :outcome))`, `(:wat::holon::Atom name)` where `name` is a `:String` variable) continues to work unchanged — they all evaluate to primitives that map to typed leaves.
 
-### AtomTypeRegistry shrinks
+The `Value::Enum`/`Value::Struct` error case never fires in the lab today because the lab's surface ASTs use string literals, quoted keywords, and variable-bound primitives — no enum-as-atom pattern. New consumers who want enum-as-atom write a tiny wat-side lowering helper:
 
-Today the registry registers ~12 built-in primitive canonicalizers (i8/i16/.../String/&str/bool/char/HolonAST). Those become **vestigial** — primitives no longer need registry-injected canonicalization because they're typed leaves. The registry survives only for user-type-to-holon migration:
+```scheme
+;; The consumer's lowering — choose whatever holon shape suits
+;; their cosines. Substrate doesn't opine.
+(:wat::core::define
+  (:trading::sim::Direction/to-symbol
+    (d :trading::sim::Direction)
+    -> :String)
+  (:wat::core::match d -> :String
+    (:trading::sim::Direction::Up   ":Direction::Up")
+    (:trading::sim::Direction::Down ":Direction::Down")))
 
-- A user wants `(:wat::holon::Atom my-phase-label)` to work where `my-phase-label` is a `:trading::types::PhaseLabel`. They provide a wat-side or Rust-side `ToHolon` impl. `:wat::holon::Atom`'s evaluator either calls that or rejects with "user types need ToHolon."
+;; Then:
+(:wat::holon::Atom (:trading::sim::Direction/to-symbol some-direction))
+;; → evaluates to a String → maps to HolonAST::Symbol leaf
+```
 
-Two paths for user types:
-1. **Manual `ToHolon`** — Rust trait `pub trait ToHolon { fn to_holon(&self) -> HolonAST; }`. Lab implements per-type once.
-2. **Auto-derive** for wat-declared `:wat::core::enum` / `:wat::core::struct` types — substrate maps enums to `Bundle(Symbol(:VariantName), <fields>)` and structs to `Bundle(Symbol(:TypeName), <fields>)`. Ships in this arc; lab user types work without manual impl.
+This matches BOOK Ch.48's first-class-enum stance (substrate doesn't mechanically lower; consumer chooses) and the user's principle ("the consumer always knows better than the substrate").
+
+### AtomTypeRegistry shrinks (probably retires)
+
+Today the registry registers ~12 built-in primitive canonicalizers (i8/i16/.../String/&str/bool/char/HolonAST). Those become **vestigial** — primitives are typed leaves now; HolonAST doesn't need registry-injected canonicalization because it has structural Hash + Eq.
+
+The registry was the dyn Any escape hatch's enabler. With dyn Any gone, the registry has nothing to canonicalize. It probably retires entirely; if any caller surfaces a real need for runtime-extensible canonicalization (unlikely — consumers do explicit lowering at the call site instead), it ships as its own arc.
+
+**No `ToHolon` trait, no auto-derive in this arc.** Per BOOK Ch.48 (first-class enums, substrate doesn't mechanically lower) and the user's principle ("the consumer always knows better"), wat enum / struct values aren't directly Atom-able. Consumers write explicit lowering helpers in their own wat code. The substrate stays out of opinionation.
 
 ### `wat-lru/src/shim.rs::hashmap_key` accepts HolonAST
 
@@ -157,17 +188,27 @@ where `structural_hash` is `std::hash::Hash` materialized to u64. `LocalCache<Ho
 
 ### Q1 — Does `Atom` survive as a HolonAST variant?
 
-**No.** It's removed from the Rust enum.
+**Yes — narrowed to `Arc<HolonAST>` contents only.** The dyn Any
+escape hatch dies; the opaque-identity wrapping semantic survives
+because BOOK Chapter 54 explicitly distinguishes two strategies for
+programs-as-data:
 
-The wat-surface `:wat::holon::Atom` constructor survives (preserves
-the 98 lab call sites and the Lisp-style quote ergonomics). The
-Rust enum has typed leaves directly. This matches Lisp: `42` is the
-atom; `(atom 42)` is just `42`. Wrapper redundancy goes away.
+- `Atom(Arc<HolonAST>)` → opaque identity (single SHA-256 of canonical bytes; no similarity preservation)
+- Recursive encoding through composites → similarity-preserving
 
-If a future use case for an "opaque-tag-wrapper" surfaces (e.g.,
-"treat this subtree as an indivisible identity for binding"), it
-ships as its own variant then. Speculative wrapping isn't worth a
-variant today.
+These are SEMANTICALLY DISTINCT. A consumer choosing "treat this
+program as one atomic identity for cosine purposes" needs the
+Atom-wrap; a consumer choosing "let the substrate find similarity
+via shared structure" doesn't wrap. Collapsing them would lose a
+real algebraic operation.
+
+For primitives (Symbol, String, I64, F64, Bool), no wrapper is
+needed — primitives ARE their own atoms in the Lisp `atom?`
+predicate sense AND in BOOK Ch.45's "vocabulary atoms" sense. The
+wat-surface `(:wat::holon::Atom 42)` produces `I64(42)` directly,
+not `Atom(I64(42))`.
+
+The wrapper wrapping itself is also useful: `(:wat::holon::Atom (:wat::holon::Atom <holon>))` produces `Atom(Arc::new(Atom(...)))`, a different vector than the inner alone — Lisp's `'(quote x)` ≠ `'x`.
 
 ### Q2 — Which primitive leaves?
 
@@ -186,22 +227,38 @@ Justification by current use:
 
 ### Q3 — How do user types (lab enums, structs) become atoms?
 
-**Auto-derive for wat-declared types** ships in this arc. Wat's
-`:wat::core::enum` and `:wat::core::struct` declarations already
-generate accessors and constructors; this arc adds an auto-generated
-`ToHolon` per declared type:
+**They don't, automatically.** The substrate ERRORS on
+`Value::Enum` / `Value::Struct` Atom arguments with a clear
+"lower explicitly via your own wat-side helper" message. This:
 
-- An enum variant `:trading::sim::Direction::Up` → `HolonAST::Symbol(":Up")` for unit; `HolonAST::Bundle([Symbol(":Up"), <field-asts>])` for tagged.
-- A struct value → `HolonAST::Bundle([Symbol(":TypeName"), <field-asts>])`.
+- Aligns with BOOK Ch.48 (first-class enum representation, not mechanical lowering).
+- Aligns with the user's principle ("the consumer always knows better than the substrate" — there's no canonical answer to "lower this enum to which holon shape?"; consumer chooses).
+- Avoids a substantial slice of work (auto-derive ToHolon) for a feature no current consumer needs.
 
-`:wat::holon::Atom` accepts struct/enum values via this path. The
-70 existing `register::<T>` registrations for user types collapse to
-the auto-derive; no per-type Rust code needed.
+The lab today doesn't use enum-as-atom anywhere — surface ASTs are
+all string literals, quoted keywords, and variable-bound primitives
+(per a `grep -rn` survey of `:wat::holon::Atom` argument shapes).
+So the error case is theoretical — substrate-allowed-but-rejected
+under the new schema; lab-unused either way.
 
-For non-wat-declared user types (raw Rust types brought in via
-`#[wat_dispatch]`), a manual `impl ToHolon for T` is required. Same
-pattern as `Display`/`Debug` derives — ergonomic for declared types,
-explicit for hand-rolled ones.
+When a future consumer surfaces a real need ("I want my PhaseLabel
+to be a holon"), they write a one-line lowering helper:
+
+```scheme
+(:wat::core::define
+  (:trading::types::PhaseLabel/to-symbol
+    (l :trading::types::PhaseLabel) -> :String)
+  (:wat::core::match l -> :String
+    (:trading::types::PhaseLabel::Peak    ":Peak")
+    (:trading::types::PhaseLabel::Valley  ":Valley")
+    (:trading::types::PhaseLabel::Transition ":Transition")))
+
+;; Use site:
+(:wat::holon::Atom (:trading::types::PhaseLabel/to-symbol some-phase))
+;; → evaluates to a String → maps to HolonAST::Symbol leaf
+```
+
+The consumer chose the lowering. Substrate stays minimal.
 
 ### Q4 — What happens to existing `AtomTypeRegistry` registrations?
 
@@ -314,15 +371,16 @@ back out and reconcile.
 
 ## Implementation sketch
 
-Five slices, tracked in [`BACKLOG.md`](BACKLOG.md):
+Four slices, tracked in [`BACKLOG.md`](BACKLOG.md):
 
-- **Slice 1** — `HolonAST` schema change in `holon-rs`. Add typed leaf variants; remove `Atom(Arc<dyn Any>)`. Manual Hash impl for f64-bearing variants. Update encoder walks. Tests in `holon-rs`.
-- **Slice 2** — `:wat::holon::Atom` polymorphic constructor in `wat-rs/src/runtime.rs`. Tests covering each primitive dispatch case.
-- **Slice 3** — Auto-derive `ToHolon` for wat-declared enums + structs in `wat-rs/src/check.rs` + `wat-rs/src/runtime.rs`. Tests that lab-shape enums round-trip.
-- **Slice 4** — `wat-lru/src/shim.rs::hashmap_key` extends to `Value::holon__HolonAST` via the derived Hash. Drop "primitives only" panic message. Smoke test: `LocalCache<HolonAST, Vector>` works end-to-end.
-- **Slice 5** — INSCRIPTION + USER-GUIDE rows + BOOK chapter draft ("The Sealed Holon" or as named).
+- **Slice 1** — `HolonAST` schema in `holon-rs`. Add 5 typed primitive leaf variants. Narrow `Atom` from `Arc<dyn Any>` to `Arc<HolonAST>`. Manual `Hash + Eq` impls (f64 fields use `to_bits`). Update encoder walks (byte-equivalent canonical bytes for primitives — preserves proof 002 numbers). Shrink/retire `AtomTypeRegistry::with_builtins`. Tests.
+- **Slice 2** — `:wat::holon::Atom` polymorphic eval-and-dispatch in `wat-rs/src/runtime.rs`. Primitives → typed leaves; HolonAST → opaque-Atom-wrap; Enum/Struct → ERROR with helpful message. Tests covering each dispatch case + a test asserting Enum/Struct error.
+- **Slice 3** — `wat-lru/src/shim.rs::hashmap_key` extends to `Value::holon__HolonAST` via the derived Hash. Drop "primitives only" panic message. Smoke test: `LocalCache<HolonAST, Vector>` works end-to-end.
+- **Slice 4** — INSCRIPTION + USER-GUIDE rows + BOOK chapter draft (working title: "The Sealed Holon" — captures the "atom is opaque-identity wrap; primitives are vocabulary atoms; algebra is closed" trio).
 
-Total estimate: ~2 days of focused work. Heavier than arc 056 (`time::Instant`, half a day) because of the schema change + encoder migration. Lighter than arc 053 (Phase 4 substrate, ~5 days) because no new runtime types beyond enum variants.
+Total estimate: ~1.5 days of focused work (slice 3 of the original five — the auto-derive ToHolon — got cut per BOOK Ch.48 alignment + Q3 above; saved ~3 hours and removed real risk).
+
+The proof 002 verification gate ships at slice 4: same per-thinker numbers (`always-up | 34 | 0 | 34`, `sma-cross | 34 | 5 | 29`). If they shift, encoding mechanics changed; back out.
 
 ---
 

@@ -1,13 +1,23 @@
 # wat-rs arc 057 — Typed HolonAST leaves — BACKLOG
 
-**Shape:** five slices. Slice 1 changes the `HolonAST` schema in
-`holon-rs` (typed leaves; remove `Atom(Arc<dyn Any>)`). Slice 2
-makes `:wat::holon::Atom` a polymorphic constructor. Slice 3 ships
-auto-derive `ToHolon` for wat-declared user types. Slice 4 extends
-`wat-lru/src/shim.rs::hashmap_key` to accept HolonAST. Slice 5 lands
-INSCRIPTION + USER-GUIDE rows + a BOOK chapter draft.
+**Shape:** four slices. Slice 1 changes the `HolonAST` schema in
+`holon-rs` (5 typed leaves added; `Atom` narrowed from
+`Arc<dyn Any>` to `Arc<HolonAST>`). Slice 2 makes `:wat::holon::Atom`
+a polymorphic eval-and-dispatch (primitives → typed leaves;
+HolonAST → opaque-Atom-wrap; Enum/Struct → loud error). Slice 3
+extends `wat-lru/src/shim.rs::hashmap_key` to accept HolonAST.
+Slice 4 lands INSCRIPTION + USER-GUIDE rows + a BOOK chapter draft.
 
-Total estimate: ~2 days.
+Total estimate: ~1.5 days.
+
+**Cut from earlier draft:** auto-derive ToHolon for wat-declared
+user types. Per BOOK Ch.48 (first-class enums; substrate doesn't
+mechanically lower) and the user's principle ("the consumer always
+knows better"), enum/struct values aren't directly Atom-able;
+consumers write explicit one-line lowering helpers when they need
+it. The lab today doesn't use enum-as-atom anywhere — the cut
+removes ~3 hours of work and real risk while changing nothing the
+lab depends on.
 
 This arc is the substrate-side unblock for lab arc 030 slice 2
 (encoding cache). The lab is paused on this; once shipped, the
@@ -30,21 +40,27 @@ implementation-side per slice.
 
 **Status: not started.**
 
-`holon-rs/src/kernel/holon_ast.rs` — replace the `Atom(Arc<dyn Any + Send + Sync>)`
-variant with five typed leaf variants, plus a manual `Hash` impl
-covering the f64-bearing variants.
+`holon-rs/src/kernel/holon_ast.rs` — add 5 typed primitive leaf
+variants; narrow the existing `Atom` variant from
+`Arc<dyn Any + Send + Sync>` to `Arc<HolonAST>` (preserves the
+opaque-identity wrapper semantic per BOOK Ch.54; kills the dyn Any
+escape hatch). Manual `Hash + Eq` impls (f64 fields use `to_bits`).
 
 ```rust
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HolonAST {
-    // Leaves — terminal terms.
+    // Primitive leaves — vocabulary atoms (BOOK Ch.45).
     Symbol(Arc<str>),
     String(Arc<str>),
     I64(i64),
     F64(f64),
     Bool(bool),
 
-    // Composites — unchanged.
+    // Opaque-identity wrapper — strictly typed; no more dyn Any
+    // (BOOK Ch.54 atom-vs-recursive-encoding distinction).
+    Atom(Arc<HolonAST>),
+
+    // Composites — similarity-preserving recursive encoding.
     Bind(Arc<HolonAST>, Arc<HolonAST>),
     Bundle(Arc<Vec<HolonAST>>),
     Permute(Arc<HolonAST>, i32),
@@ -61,6 +77,7 @@ impl Hash for HolonAST {
             HolonAST::I64(n) => n.hash(state),
             HolonAST::F64(x) => x.to_bits().hash(state),
             HolonAST::Bool(b) => b.hash(state),
+            HolonAST::Atom(h) => h.hash(state),
             HolonAST::Bind(a, b) => { a.hash(state); b.hash(state); }
             HolonAST::Bundle(xs) => xs.hash(state),
             HolonAST::Permute(a, k) => { a.hash(state); k.hash(state); }
@@ -86,25 +103,29 @@ impl PartialEq for HolonAST {
 }
 ```
 
-Encoder (in `holon-rs/src/kernel/encode.rs` or wherever
-`encode_holon` lives) — update the per-variant match to consume
-typed leaves. Each leaf produces a deterministic vector via
-SHA-256-of-canonical-bytes (mirroring today's registry path):
+Encoder (in `holon-rs/src/kernel/holon_ast.rs` `canonical_edn_holon`
++ `atom_seed`) — **byte-equivalent encoding for primitives** so
+proof 002 numbers stay green. The new typed leaves emit the same
+canonical bytes today's `Atom(payload)` does for the corresponding
+type; only the Rust storage layer changes:
 
-- `Symbol(s)` → SHA-256(b"Symbol:" + s.as_bytes()) → `d`-bit signs
-- `String(s)` → SHA-256(b"String:" + s.as_bytes()) → signs
-- `I64(n)` → SHA-256(b"I64:" + n.to_le_bytes()) → signs
-- `F64(x)` → SHA-256(b"F64:" + x.to_bits().to_le_bytes()) → signs
-- `Bool(b)` → SHA-256(b"Bool:" + [b as u8]) → signs
+- `Symbol(s)` → `[TAG_ATOM, len("String"), "String", len(s), s.as_bytes()]` (matches today's `Atom(quote :foo)` byte-for-byte; keywords are stored as Strings starting with `:`)
+- `String(s)` → `[TAG_ATOM, len("String"), "String", len(s), s.as_bytes()]` (matches today's `Atom("foo")`)
+- `I64(n)` → `[TAG_ATOM, len("i64"), "i64", 8, n.to_le_bytes()]`
+- `F64(x)` → `[TAG_ATOM, len("f64"), "f64", 8, x.to_le_bytes()]`
+- `Bool(b)` → `[TAG_ATOM, len("bool"), "bool", 1, [b as u8]]`
+- `Atom(h)` → `[TAG_ATOM, len("wat/algebra/Holon"), "wat/algebra/Holon", len(canonical_edn(h)), canonical_edn(h)]` (preserves today's "programs as atoms" path)
 
-Composite walks unchanged (Bind / Bundle / Permute / Thermometer /
-Blend recurse into children).
+Composite walks (`Bind` / `Bundle` / `Permute` / `Thermometer` /
+`Blend`) unchanged — they recurse through `canonical_edn_holon`
+which now dispatches on the new variants.
 
-`AtomTypeRegistry` shrinks dramatically: `register_builtins` no
-longer registers the 12 primitive types (they're typed leaves now);
-the registry survives only for `HolonAST` itself (programs-as-atoms
-recursion still exists for ToHolon impls of user types — see
-slice 3).
+`AtomTypeRegistry` retires (or shrinks heavily): `register_builtins`
+no longer registers the 12 primitive types — primitives are typed
+leaves now; the registry's per-type canonicalization is no longer
+the path. The registry struct survives if `holon-rs` callers
+outside this codebase still use it; otherwise it can be deleted in
+a follow-up cleanup pass.
 
 ### Tests
 
@@ -149,23 +170,31 @@ fn eval_holon_atom(args: &[WatAST], env: &Environment, sym: &SymbolTable) -> Res
     if args.len() != 1 { /* arity error */ }
     let v = eval(&args[0], env, sym)?;
     let h = match v {
+        // Primitives → typed leaves (vocabulary atoms).
         Value::String(s)              => HolonAST::String(Arc::from(s.as_str())),
         Value::wat__core__keyword(k)  => HolonAST::Symbol(Arc::from(k.as_str())),
         Value::i64(n)                 => HolonAST::I64(n),
         Value::f64(x)                 => HolonAST::F64(x),
         Value::bool(b)                => HolonAST::Bool(b),
-        Value::holon__HolonAST(h)     => (*h).clone(),
-        // Struct / Enum / etc.: try ToHolon (slice 3); if not available, error.
-        Value::Struct(_) | Value::Enum(_) => {
-            return try_user_to_holon(&v, sym).ok_or_else(|| RuntimeError::TypeMismatch {
+        // HolonAST → opaque-identity wrap (BOOK Ch.54).
+        Value::holon__HolonAST(h)     => HolonAST::Atom(h),
+        // Wat enum / struct: error loudly. Per BOOK Ch.48 the
+        // substrate doesn't mechanically lower; consumer writes
+        // explicit lowering helper.
+        Value::Enum { .. } | Value::Struct(_) => {
+            return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Atom".into(),
-                expected: "primitive, HolonAST, or user type with ToHolon",
+                expected: "primitive (i64/f64/bool/String/keyword) or HolonAST; \
+                           wat enum/struct values aren't directly representable in the \
+                           algebra — write a wat-side lowering function returning the \
+                           holon shape you want, then wrap in Atom for opaque identity",
                 got: v.type_name(),
             });
         }
+        // Lambda / Vector / ProgramHandle / etc.: same error.
         other => return Err(RuntimeError::TypeMismatch {
             op: ":wat::holon::Atom".into(),
-            expected: "primitive (i64/f64/bool/String/keyword), HolonAST, or user type with ToHolon",
+            expected: "primitive or HolonAST",
             got: other.type_name(),
         }),
     };
@@ -204,68 +233,7 @@ cargo test --release wat_suite
 
 ---
 
-## Slice 3 — Auto-derive `ToHolon` for wat-declared user types
-
-**Status: not started.** Depends on slices 1 + 2.
-
-Today's `:wat::core::enum` and `:wat::core::struct` declarations
-generate accessors and constructors. This slice adds an
-auto-generated `ToHolon` wat function per declared type:
-
-```text
-For an enum :T with variants V1, V2(field-types...):
-   :T::to-holon : T -> :wat::holon::HolonAST
-   ;; V1 (unit)        → (Symbol ":T::V1")
-   ;; (V2 a b)         → (Bundle [(Symbol ":T::V2") <a-as-holon> <b-as-holon>])
-
-For a struct :S with fields f1, f2, ...:
-   :S::to-holon : S -> :wat::holon::HolonAST
-   ;; (S/new a b ...) → (Bundle [(Symbol ":S") <a-as-holon> <b-as-holon> ...])
-```
-
-The substrate registers these `T::to-holon` functions automatically
-when the enum / struct is declared (similar to how accessors get
-auto-generated). `:wat::holon::Atom` consults a runtime registry of
-ToHolon functions when its argument is a `Value::Struct` or
-`Value::Enum`.
-
-For non-wat-declared user types (raw Rust types via `#[wat_dispatch]`), a manual `ToHolon` impl is required. Document the
-trait shape; out of scope for v1 to ship a derive-macro for Rust
-(future arc).
-
-### Tests
-
-`wat-rs/wat-tests/holon/atom-user-types.wat` — tests using the
-`:my::test::*` namespace's enum + struct declarations:
-
-1. `test-enum-unit-variant-to-holon` — declared enum's unit variant produces `Symbol(":Enum::Variant")`.
-2. `test-enum-tagged-variant-to-holon` — declared enum's tagged variant produces `Bundle([Symbol(":Enum::Variant"), <field-asts>])`.
-3. `test-struct-to-holon` — declared struct produces `Bundle([Symbol(":Type"), <field-asts>])`.
-4. `test-atom-of-enum` — `(:wat::holon::Atom my-direction-up)` works through ToHolon dispatch.
-
-### Verification
-
-```bash
-cd /home/watmin/work/holon/wat-rs
-cargo test --release wat_suite
-# +4 tests; existing tests pass.
-
-cd /home/watmin/work/holon/holon-lab-trading
-cargo test --release wat_suite
-# 336 lab tests still pass — nothing in the lab broke. The lab's
-# enum / struct atoms now route through auto-derived ToHolon.
-```
-
-**LOC budget:**
-- `wat-rs/src/runtime.rs` + `check.rs`: auto-derive emission (~150 LOC).
-- ToHolon registry / lookup (~50 LOC).
-- `wat-rs/wat-tests/holon/atom-user-types.wat`: 4 tests (~80 LOC).
-
-**Estimated cost:** ~280 LOC. **~3 hours.**
-
----
-
-## Slice 4 — `hashmap_key` accepts HolonAST
+## Slice 3 — `hashmap_key` accepts HolonAST
 
 **Status: not started.** Depends on slice 1 (Hash derive).
 
@@ -329,7 +297,7 @@ cargo test --release wat_suite
 
 ---
 
-## Slice 5 — INSCRIPTION + USER-GUIDE + BOOK chapter
+## Slice 4 — INSCRIPTION + USER-GUIDE + BOOK chapter
 
 **Status: not started.** Depends on slices 1-4.
 
@@ -406,11 +374,10 @@ cargo test --release --features proof-002 --test proof_002
 
 ## Total estimate
 
-- Slice 1: 5 hours (HolonAST schema + encoder migration + tests)
-- Slice 2: 2 hours (polymorphic Atom constructor + tests)
-- Slice 3: 3 hours (auto-derive ToHolon + tests)
-- Slice 4: 1.5 hours (hashmap_key extension + tests)
-- Slice 5: 2 hours (INSCRIPTION + docs)
+- Slice 1: 5 hours (HolonAST schema + byte-equivalent encoder migration + tests)
+- Slice 2: 2 hours (polymorphic Atom constructor + Enum/Struct error case + tests)
+- Slice 3: 1.5 hours (hashmap_key extension + tests)
+- Slice 4: 2 hours (INSCRIPTION + USER-GUIDE + BOOK chapter draft)
 
 **~13.5 hours = ~2 days.** Heavier than arc 056 (`time::Instant`, ~half day) because of the schema change. Same shape as arc 053 (Phase 4 substrate, ~5 days); much smaller in scope.
 
@@ -422,7 +389,7 @@ cargo test --release --features proof-002 --test proof_002
 - **Serde `Serialize` / `Deserialize` for HolonAST.** Hash + Eq derive enables the work; serde impl ships separately.
 - **Cross-process AST handoff.** Same — enabled, not shipped.
 - **`Atom?` predicate.** Trivial follow-up; ships when a consumer wants it.
-- **A Rust derive macro for `ToHolon`.** Wat-declared types get auto-derive; raw Rust types need manual impl. Macro is a future ergonomic uplift.
+- **Auto-derive `ToHolon` for wat-declared user types.** Per BOOK Ch.48 + Q3 — substrate doesn't mechanically lower; consumers write explicit one-line lowering helpers.
 - **Removing `AtomTypeRegistry` entirely.** Shrinks dramatically in slice 1 but stays in place for the auto-derive registration path. Future arc may rip if measurement shows it's unused.
 - **Performance optimization of the leaf walks.** Straightforward; if measurement shows a hot path, optimize then.
 
