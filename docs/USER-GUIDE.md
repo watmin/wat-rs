@@ -911,7 +911,7 @@ The kernel primitives are small. Four concepts cover everything.
 backpressure naturally (slow consumer throttles the producer). Larger
 buffers trade throughput for latency.
 
-Four substrate-baked typealiases (live at `wat/kernel/queue.wat`)
+Five substrate-baked typealiases (live at `wat/kernel/queue.wat`)
 spell the channel surface in short form:
 
 | Alias | Expands to |
@@ -920,6 +920,7 @@ spell the channel surface in short form:
 | `:wat::kernel::QueueReceiver<T>` | `:rust::crossbeam_channel::Receiver<T>` |
 | `:wat::kernel::QueuePair<T>` | `:(QueueSender<T>, QueueReceiver<T>)` — what `make-bounded/unbounded-queue` returns |
 | `:wat::kernel::Chosen<T>` | `:(i64, Option<T>)` — what `select` returns (which receiver fired, and what it gave) |
+| `:wat::kernel::Sent` | `:Option<()>` — what `send` returns (`Some(())` on placed, `:None` on disconnect) |
 
 Reach for them in let* bindings, function signatures, and Vec carriers
 wherever you'd otherwise type the long `rust::crossbeam_channel::*`
@@ -928,17 +929,17 @@ path. Aliases and their expansion are interchangeable at unification.
 ### Send and receive
 
 ```scheme
-(:wat::kernel::send sender value)          ; → :Option<()>  — Some(()) on sent; None on disconnect
+(:wat::kernel::send sender value)          ; → :wat::kernel::Sent  ≡ :Option<()>  — Some(()) on sent; None on disconnect
 (:wat::kernel::recv receiver)              ; → :Option<T>   — Some(v) on recv; None on disconnect
 (:wat::kernel::try-recv receiver)          ; → :Option<T>   — None if empty OR disconnected
 (:wat::kernel::drop handle)                ; → :()          — readability marker; see § Channel close is scope-based
 ```
 
 Both channel endpoints report disconnect through the same `:Option`
-shape — `send` returns `:Option<()>` symmetric with `recv`'s
-`:Option<T>`. A producer matches on its send result to handle the
-"consumer went away" case cleanly; a stage that doesn't need
-disconnect awareness can `((_ :Option<()>) (:wat::kernel::send ...))`
+shape — `send` returns `:wat::kernel::Sent` (≡ `:Option<()>`) symmetric
+with `recv`'s `:Option<T>`. A producer matches on its send result to
+handle the "consumer went away" case cleanly; a stage that doesn't
+need disconnect awareness can `((_ :wat::kernel::Sent) (:wat::kernel::send ...))`
 and ignore.
 
 Senders and receivers are **single-owner** — not cloneable. A sender
@@ -989,7 +990,7 @@ the worker exits; the outer `join` unblocks:
        ((tx :wat::kernel::QueueSender<i64>) (:wat::core::first pair))
        ((rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second pair))
        ((h :wat::kernel::ProgramHandle<()>) (:wat::kernel::spawn :my::worker rx))
-       ((_send :Option<()>) (:wat::kernel::send tx 1)))
+       ((_send :wat::kernel::Sent) (:wat::kernel::send tx 1)))
       h)))                                    ;; ← pair, tx, rx all drop here
   (:wat::kernel::join handle))                ;; ← worker has exited cleanly
 ```
@@ -1893,7 +1894,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::join-result` | `handle` | `:Result<R, wat::kernel::ThreadDiedError>` — death-as-data; 3 variants discriminate Panic / RuntimeError / ChannelDisconnected (arc 060) |
 | `:wat::kernel::make-bounded-queue` | `:T n` | `:(Sender<T>, Receiver<T>)` |
 | `:wat::kernel::make-unbounded-queue` | `:T` | `:(Sender<T>, Receiver<T>)` |
-| `:wat::kernel::send` | `sender value` | `:Option<()>` — `(Some ())` on sent, `:None` on disconnect |
+| `:wat::kernel::send` | `sender value` | `:wat::kernel::Sent` ≡ `:Option<()>` — `(Some ())` on sent, `:None` on disconnect |
 | `:wat::kernel::recv` / `try-recv` | `receiver` | `:Option<T>` |
 | `:wat::kernel::select` | `receivers` | `:(i64, Option<T>)` |
 | `:wat::kernel::drop` | `handle` | `:()` |

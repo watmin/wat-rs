@@ -13,6 +13,9 @@
 ;;   Chosen<T>         — what `:wat::kernel::select` returns
 ;;                       (idx, Option<T>) — which receiver fired,
 ;;                       and what it produced (Some v) or disconnected (:None)
+;;   Sent              — what `:wat::kernel::send` returns
+;;                       Some(()) on placed; None on disconnect.
+;;                       Mirrors the recv side's :Option<T> shape.
 ;;
 ;; Sister to `:wat::std::stream::Stream<T>` (a tuple alias in
 ;; stream.wat for `(Receiver<T>, ProgramHandle<()>)`). These three
@@ -35,3 +38,6 @@
 
 (:wat::core::typealias :wat::kernel::Chosen<T>
   :(i64,Option<T>))
+
+(:wat::core::typealias :wat::kernel::Sent
+  :Option<()>)

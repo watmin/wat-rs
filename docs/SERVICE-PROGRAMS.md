@@ -130,9 +130,9 @@ returns its count.
        ((rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second pair))
        ((h :wat::kernel::ProgramHandle<i64>)
         (:wat::kernel::spawn :my::app::run-counter rx))
-       ((_s1 :Option<()>) (:wat::kernel::send tx 10))
-       ((_s2 :Option<()>) (:wat::kernel::send tx 20))
-       ((_s3 :Option<()>) (:wat::kernel::send tx 30)))
+       ((_s1 :wat::kernel::Sent) (:wat::kernel::send tx 10))
+       ((_s2 :wat::kernel::Sent) (:wat::kernel::send tx 20))
+       ((_s3 :wat::kernel::Sent) (:wat::kernel::send tx 30)))
       h)))                                     ;; ← pair, tx, rx all drop here
   (:wat::core::match (:wat::kernel::join-result handle) -> :()
     ((Ok 3) ())
@@ -190,7 +190,7 @@ Client sends a request, recvs the response, exits.
   (:wat::core::match (:wat::kernel::recv req-rx) -> :()
     ((Some n)
       (:wat::core::let*
-        (((_ack :Option<()>)
+        (((_ack :wat::kernel::Sent)
           (:wat::kernel::send resp-tx (:wat::core::* n 2))))
         (:my::app::doubler-loop req-rx resp-tx)))
     (:None ())))
@@ -208,7 +208,7 @@ Client sends a request, recvs the response, exits.
        ((resp-rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second resp-pair))
        ((h :wat::kernel::ProgramHandle<()>)
         (:wat::kernel::spawn :my::app::doubler-loop req-rx resp-tx))
-       ((_s :Option<()>) (:wat::kernel::send req-tx 21))
+       ((_s :wat::kernel::Sent) (:wat::kernel::send req-tx 21))
        ((got :Option<i64>) (:wat::kernel::recv resp-rx)))
       h)))
   (:wat::core::match (:wat::kernel::join-result handle) -> :() ...))
@@ -296,9 +296,9 @@ handler.
   (:wat::core::match (:wat::kernel::recv req-rx) -> :()
     ((Some n)
       (:wat::core::let*
-        (((_r :Option<()>)
+        (((_r :wat::kernel::Sent)
           (:wat::kernel::send resp-tx (:wat::core::* n 2)))
-         ((_t :Option<()>)
+         ((_t :wat::kernel::Sent)
           (:wat::kernel::send telem-tx n)))
         (:my::app::telemetry-loop req-rx resp-tx telem-tx)))
     (:None ())))
@@ -344,9 +344,9 @@ construction than deadlock at shutdown.
        ((tx-c :wat::kernel::QueueSender<i64>) (:wat::kernel::HandlePool::pop pool))
        ((_finish :()) (:wat::kernel::HandlePool::finish pool))
 
-       ((_a :Option<()>) (:wat::kernel::send tx-a 100))
-       ((_b :Option<()>) (:wat::kernel::send tx-b 200))
-       ((_c :Option<()>) (:wat::kernel::send tx-c 300)))
+       ((_a :wat::kernel::Sent) (:wat::kernel::send tx-a 100))
+       ((_b :wat::kernel::Sent) (:wat::kernel::send tx-b 200))
+       ((_c :wat::kernel::Sent) (:wat::kernel::send tx-c 300)))
       h)))
   (:wat::core::match (:wat::kernel::join-result handle) -> :() ...))
 ```
@@ -417,74 +417,64 @@ this.
 
 ---
 
-## The full service template
+## The complete pattern
 
-The eight steps above compose into the canonical service-program
-template. Both `Console` and `CacheService` are this template applied:
+The eight steps above compose into one canonical template that covers
+**every in-memory request/reply service**. The whole thing is roughly:
 
-```scheme
-(:wat::core::define
-  (:my::service<K,V>
-    (capacity :i64)
-    (count :i64)
-    -> :(wat::kernel::HandlePool<wat::kernel::QueueSender<Request<K,V>>>,
-         wat::kernel::ProgramHandle<()>))
-  (:wat::core::let*
-    (;; Build N request channels.
-     ((pairs :Vec<wat::kernel::QueuePair<Request<K,V>>>) ...)
-     ((req-txs :Vec<wat::kernel::QueueSender<Request<K,V>>>) ...)
-     ((req-rxs :Vec<wat::kernel::QueueReceiver<Request<K,V>>>) ...)
+> A driver loop holding state, fanning in N request channels via
+> `select`, dispatching each request through a per-variant handler
+> that returns the new state, exiting cleanly when all client scopes
+> drop their Senders.
 
-     ;; Pool the senders so callers claim-or-panic.
-     ((pool :wat::kernel::HandlePool<wat::kernel::QueueSender<Request<K,V>>>)
-      (:wat::kernel::HandlePool::new "my-service" req-txs))
+Every service you'll write is some permutation of **three reply
+shapes** mixed in one Request enum:
 
-     ;; Spawn the driver — owns the state, fans in the receivers.
-     ((driver :wat::kernel::ProgramHandle<()>)
-      (:wat::kernel::spawn :my::service/loop capacity req-rxs)))
-    (:wat::core::tuple pool driver)))
-```
+| Variant shape | Reply | Use |
+|---|---|---|
+| `Push(value)` | none | fire-and-forget; caller doesn't wait |
+| `Ack(reply-tx)` | unit | confirm-receipt; caller waits but gets nothing back |
+| `Get(reply-tx)` | domain payload | read-only query; caller wants data back |
 
-The driver loop combines steps 5 + 8: select over `req-rxs`, on each
-`Some(req)` pattern-match the request, build new state, recurse with
-new state and the rxs Vec; on `:None` for any channel, prune that rx
-and recurse; exit when the rxs Vec is empty.
+Pick the verbs your service needs. You don't need all three — Console
+is just `Push`-shaped (each tagged-message write is fire-and-forget);
+CacheService is `Get`-shaped (every request returns `Option<V>`); a
+treasury is all three. The shapes are independent, the dispatch table
+holds them side by side, the shutdown story is identical for all.
 
-The caller pattern is the nested-scope shape from step 3, scaled:
+### The runnable reference
 
-```scheme
-(:wat::core::let*
-  (;; Outer holds driver handles.
-   ((service-state ...) (:my::service ...))
-   ((driver ...) (:wat::core::second service-state))
+`wat-rs/wat-tests/std/service-template.wat` is the canonical complete
+template. **Lift it directly when starting your own service** — the
+only things that should change are:
 
-   ;; Inner scope owns the popped handles + does the work.
-   ((_ :())
-    (:wat::core::let*
-      (((pool ...) (:wat::core::first service-state))
-       ((req-tx ...) (:wat::kernel::HandlePool::pop pool))
-       ((_finish :()) (:wat::kernel::HandlePool::finish pool))
-       ;; ... per-client reply channel, request/response calls, etc.
-       )
-      ()))                                ;; ← inner scope exits, all senders drop
+- The State struct (your domain — LRU map, treasury record, registry table)
+- The Request enum's verbs (your operations)
+- The `:svc::*` namespace (rename to `:your::domain::*`)
 
-   ;; Driver sees disconnect, exits cleanly.
-   ((_ :()) (:wat::kernel::join driver)))
-  ())
-```
+The wiring (`Service`, `Service/loop`, `Service/handle`, type aliases,
+HandlePool, scope discipline) stays. The test deftest exercises all
+three reply shapes end-to-end, including a Get that reads LIVE state
+between two Push calls — so you can see the pattern survive
+real-world operation orders.
 
-**The two worked examples** in the substrate:
+### Worked examples in the substrate
+
+Two stdlib services already follow this template:
 
 - `wat-rs/wat/std/service/Console.wat` — N tagged-message senders fan
   into one driver that decodes the tag and writes to stdout / stderr.
-  Tested by `wat-rs/wat-tests/std/service/Console.wat`.
+  All variants are `Push`-shaped (fire-and-forget). Tested by
+  `wat-rs/wat-tests/std/service/Console.wat`.
 
 - `wat-rs/crates/wat-lru/wat/lru/CacheService.wat` — N request senders
   carry their own reply-to addresses; the driver routes responses
-  without a sender-index map (per-caller channels).
+  without a sender-index map (per-caller channels). All variants are
+  `Get`-shaped (`Option<V>` reply). Tested by
+  `wat-rs/crates/wat-lru/wat-tests/lru/CacheService.wat`.
 
-Both are short and the comments are dense — read them straight through
-once you're past the eight steps.
+Read either after the eight steps. They're short and the comments are
+dense.
 
 ---
 
@@ -499,6 +489,7 @@ The substrate aliases that make all of this readable
 | `:wat::kernel::QueueReceiver<T>` | `:rust::crossbeam_channel::Receiver<T>` |
 | `:wat::kernel::QueuePair<T>` | `:(QueueSender<T>, QueueReceiver<T>)` |
 | `:wat::kernel::Chosen<T>` | `:(i64, Option<T>)` — `select` return |
+| `:wat::kernel::Sent` | `:Option<()>` — `send` return |
 
 The shutdown rules in one paragraph:
 
