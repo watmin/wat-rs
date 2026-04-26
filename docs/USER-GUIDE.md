@@ -1884,6 +1884,9 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::bool::to-string` | `b` | `"true"` / `"false"` |
 | `:wat::holon::Vector` | type | First-class materialized algebra vector (arc 052). Usable as struct field, parameter, return type, container element. Equality is bit-exact; for graded similarity reach for `cosine` / `presence?` / `simhash` |
 | `:wat::holon::encode` | `holon` | `:wat::holon::Vector` — explicit materialization of a HolonAST into a Vector at the ambient d (arc 052). Lets users hold a Vector value, store it in caches, or pass it to Vector-tier algebra |
+| `:wat::holon::vector-bytes` | `vec` | `:Vec<u8>` — serialize a Vector to a portable byte buffer (arc 061). 4-byte dim header + 2-bit-per-cell ternary packing. The wire format for the cryptographic-substrate transmission protocol |
+| `:wat::holon::bytes-vector` | `bs` | `:Option<wat::holon::Vector>` — deserialize the wire format (arc 061). `:None` on short / truncated / dim-mismatched / corrupt input |
+| `:wat::holon::coincident?` | `a b` | `:bool` — polymorphic over HolonAST or Vector inputs in either position (arc 061 widened from HolonAST-only); `(1 - cosine) < coincident-floor` at encoded d |
 | `:wat::holon::simhash` | `holon` or `vector` | `:i64` — Charikar SimHash, polymorphic over HolonAST or Vector input (arcs 051 + 052). Cosine-similar inputs share keys; the position-allocator for content-addressed caches. Composes with `:rust::lru::LruCache<i64,V>` for bidirectional engram lookup |
 | `:wat::core::>` / `=` / `<` / `>=` / `<=` | `a b` | polymorphic comparison/equality — same-type for non-numeric, cross-numeric (i64+f64) accepted with promotion (arc 050); always returns `:bool` |
 | `:wat::core::i64::>` / `=` / `<` / `>=` / `<=` / `f64::*` | `a b` | typed strict comparison/equality (arc 050) — rejects cross-type at the checker; opt-in for type-guard discipline |
@@ -1913,7 +1916,6 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::holon::ReciprocalLog` | `n value` | `:wat::holon::HolonAST` (arc 034) |
 | `:wat::holon::cosine` / `dot` | `a b` | `:f64` — polymorphic over HolonAST or Vector inputs (arc 052); mixed (one AST, one Vector) is permitted and the AST encodes at the Vector's d |
 | `:wat::holon::presence?` | `target reference` | `:bool` — cosine > presence-floor |
-| `:wat::holon::coincident?` | `a b` | `:bool` — (1-cosine) < coincident-floor (arc 023) |
 | `:wat::holon::eval-coincident?` | `a-ast b-ast` | `:Result<:bool, EvalError>` (arc 026) |
 | `:wat::holon::eval-edn-coincident?` | `a-src b-src` | `:Result<:bool, EvalError>` |
 | `:wat::holon::eval-digest-coincident?` | `<8 args>` | `:Result<:bool, EvalError>` — 4 per side, SHA-256 |

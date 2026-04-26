@@ -551,9 +551,16 @@ fn infer_list(
             }
             // Arc 052 — polymorphic algebra ops. Cosine and dot accept
             // HolonAST or Vector in either position; simhash accepts
-            // HolonAST or Vector as its single argument.
+            // HolonAST or Vector as its single argument. Arc 061
+            // extends the polymorphism to coincident? (mirroring
+            // cosine's shape; differs only in the bool return type).
             ":wat::holon::cosine" | ":wat::holon::dot" => {
                 return infer_polymorphic_holon_pair_to_f64(
+                    k, args, env, locals, fresh, subst, errors,
+                );
+            }
+            ":wat::holon::coincident?" => {
+                return infer_polymorphic_holon_pair_to_bool(
                     k, args, env, locals, fresh, subst, errors,
                 );
             }
@@ -2905,6 +2912,59 @@ fn infer_polymorphic_holon_pair_to_f64(
     Some(f64_ty)
 }
 
+/// Arc 061 — polymorphic two-arg holon-algebra inference returning
+/// `:bool`. For `:wat::holon::coincident?` — accepts HolonAST or
+/// Vector in either position. Mirrors
+/// [`infer_polymorphic_holon_pair_to_f64`] exactly; differs only in
+/// return type.
+fn infer_polymorphic_holon_pair_to_bool(
+    op: &str,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    let bool_ty = TypeExpr::Path(":bool".into());
+    if args.len() != 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: op.into(),
+            expected: 2,
+            got: args.len(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(bool_ty);
+    }
+    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let b_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    if let Some(t) = &a_ty {
+        let resolved = apply_subst(t, subst);
+        if !is_holon_or_vector(&resolved) {
+            errors.push(CheckError::TypeMismatch {
+                callee: op.into(),
+                param: "#1".into(),
+                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                got: format_type(&resolved),
+            });
+        }
+    }
+    if let Some(t) = &b_ty {
+        let resolved = apply_subst(t, subst);
+        if !is_holon_or_vector(&resolved) {
+            errors.push(CheckError::TypeMismatch {
+                callee: op.into(),
+                param: "#2".into(),
+                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                got: format_type(&resolved),
+            });
+        }
+    }
+    Some(bool_ty)
+}
+
 /// Arc 052 — polymorphic one-arg holon-algebra inference returning
 /// `:i64`. For `:wat::holon::simhash` — accepts HolonAST or Vector.
 fn infer_polymorphic_holon_to_i64(
@@ -5172,14 +5232,11 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: bool_ty(),
         },
     );
-    env.register(
-        ":wat::holon::coincident?".into(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![holon_ty(), holon_ty()],
-            ret: bool_ty(),
-        },
-    );
+    // :wat::holon::coincident? scheme retired in arc 061; polymorphic
+    // under `infer_polymorphic_holon_pair_to_bool` (HolonAST | Vector
+    // in either position; returns :bool). Same shape as cosine's
+    // arc-052 polymorphism.
+
     // eval-coincident? family — arc 026. Each variant mirrors its
     // eval-*! parent's arg shape, applied per-side (2 sides per
     // variant). Return is uniform Result<bool, EvalError> — any
@@ -5544,6 +5601,36 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty()],
             ret: TypeExpr::Path(":wat::holon::Vector".into()),
+        },
+    );
+    // Arc 061 — vector portability. Serialize / deserialize the
+    // wire format the cryptographic-substrate protocol uses to
+    // transmit V (the encoded vector) between users. 4-byte dim
+    // header + 2-bit-per-cell ternary packing; see
+    // `eval_holon_vector_bytes` for the format.
+    env.register(
+        ":wat::holon::vector-bytes".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::holon::Vector".into())],
+            ret: TypeExpr::Parametric {
+                head: "Vec".into(),
+                args: vec![TypeExpr::Path(":u8".into())],
+            },
+        },
+    );
+    env.register(
+        ":wat::holon::bytes-vector".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Parametric {
+                head: "Vec".into(),
+                args: vec![TypeExpr::Path(":u8".into())],
+            }],
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![TypeExpr::Path(":wat::holon::Vector".into())],
+            },
         },
     );
     // Arc 053: Vector-tier algebra primitives. Operate on raw

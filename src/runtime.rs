@@ -2303,6 +2303,8 @@ fn dispatch_keyword_head(
         ":wat::holon::dot" => eval_algebra_dot(args, env, sym),
         ":wat::holon::simhash" => eval_algebra_simhash(args, env, sym),
         ":wat::holon::encode" => eval_holon_encode(args, env, sym),
+        ":wat::holon::vector-bytes" => eval_holon_vector_bytes(args, env, sym),
+        ":wat::holon::bytes-vector" => eval_holon_bytes_vector(args, env, sym),
         ":wat::holon::vector-bind" => eval_holon_vector_bind(args, env, sym),
         ":wat::holon::vector-bundle" => eval_holon_vector_bundle(args, env, sym),
         ":wat::holon::vector-blend" => eval_holon_vector_blend(args, env, sym),
@@ -6492,24 +6494,25 @@ fn eval_algebra_coincident_q(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::coincident?";
     if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::holon::coincident?".into(),
+            op: OP.into(),
             expected: 2,
             got: args.len(),
         });
     }
-    let a = require_holon(":wat::holon::coincident?", eval(&args[0], env, sym)?)?;
-    let b = require_holon(":wat::holon::coincident?", eval(&args[1], env, sym)?)?;
-    let ctx = require_encoding_ctx(":wat::holon::coincident?", sym)?;
-
-    // Arc 037 slice 3: normalize UP via ambient router. Coincident
+    let a = eval(&args[0], env, sym)?;
+    let b = eval(&args[1], env, sym)?;
+    // Arc 061 — polymorphic over (HolonAST, Vector) pairs in any
+    // combination, mirroring arc 052's `cosine` shape. Pre-encoded
+    // Vector inputs short-circuit the encoding step; mixed inputs
+    // promote the AST side at the Vector side's d. Coincident
     // sigma stays at 1 (the 1σ native-granularity floor — Ch 28),
-    // applied at actual encoding d.
-    let d = pick_d_for_pair(":wat::holon::coincident?", &a, &b, sym)?;
-    let enc = ctx.encoders.get(d);
-    let va = encode(&a, &enc.vm, &enc.scalar);
-    let vb = encode(&b, &enc.vm, &enc.scalar);
+    // applied at the actual encoding d.
+    let (va, vb) = pair_values_to_vectors(OP, a, b, sym)?;
+    let ctx = require_encoding_ctx(OP, sym)?;
+    let enc = ctx.encoders.get(va.dimensions());
     let cosine = Similarity::cosine(&va, &vb);
     Ok(Value::bool((1.0 - cosine) < enc.coincident_floor(sym)))
 }
@@ -6965,6 +6968,182 @@ fn eval_holon_encode(
     let enc = ctx.encoders.get(d);
     let v = encode(&target, &enc.vm, &enc.scalar);
     Ok(Value::Vector(Arc::new(v)))
+}
+
+// ─── Vector portability (arc 061) — vector-bytes / bytes-vector ──────
+//
+// Wire format for transmission between users:
+//
+//   bytes 0..4   : dim as u32 little-endian  (validation header)
+//   bytes 4..end : packed 2-bit cells, 4 cells per byte, LSB-first
+//
+// Each ternary cell encodes one i8 in {-1, 0, +1}:
+//
+//   0b00 →  0
+//   0b01 → +1
+//   0b10 → -1
+//   0b11 →  reserved (rejected on decode as corrupt input)
+//
+// The substrate's encoding produces ternary vectors (deterministic
+// rng % 3 in `holon-rs::deterministic_vector_from_seed`; bundle
+// ties produce 0); 1-bit-per-dim packing would lose information.
+// Total size at d=10000: 4-byte header + 2500 data bytes = 2504
+// bytes. The dim header lets the receiver validate "wrong universe
+// shape" cleanly (returns :None on dim mismatch with ambient
+// encoder).
+//
+// No universe metadata in the bytes — per DESIGN Q5: the seed is
+// the receiver's responsibility to know. V + K + F three-factor
+// verification UX.
+
+/// `(:wat::holon::vector-bytes vec)` → `:Vec<u8>` (arc 061).
+/// Serialize a Vector to a portable byte buffer. Deterministic:
+/// same Vector → same bytes.
+fn eval_holon_vector_bytes(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::vector-bytes";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = require_vector(OP, eval(&args[0], env, sym)?)?;
+    let dim = v.dimensions();
+    let dim_u32 = u32::try_from(dim).map_err(|_| RuntimeError::TypeMismatch {
+        op: OP.into(),
+        expected: "Vector with dim representable as u32",
+        got: "oversized Vector dim",
+    })?;
+    // 4-byte dim header + ceil(dim/4) data bytes.
+    let data_len = dim.div_ceil(4);
+    let mut out: Vec<Value> = Vec::with_capacity(4 + data_len);
+    for &b in dim_u32.to_le_bytes().iter() {
+        out.push(Value::u8(b));
+    }
+    let data = v.data();
+    for chunk in data.chunks(4) {
+        let mut byte: u8 = 0;
+        for (i, &cell) in chunk.iter().enumerate() {
+            let bits: u8 = match cell {
+                0 => 0b00,
+                1 => 0b01,
+                -1 => 0b10,
+                other => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: OP.into(),
+                        expected: "Vector cell in {-1, 0, +1}",
+                        got: format!(
+                            "cell value out of ternary range ({})",
+                            other
+                        )
+                        .leak(),
+                    });
+                }
+            };
+            byte |= bits << (i * 2);
+        }
+        out.push(Value::u8(byte));
+    }
+    Ok(Value::Vec(Arc::new(out)))
+}
+
+/// `(:wat::holon::bytes-vector bs)` → `:Option<wat::holon::Vector>`
+/// (arc 061). Deserialize a byte buffer back into a Vector. Returns
+/// `:None` on:
+///   - input shorter than 4-byte dim header
+///   - dim header doesn't match the ambient encoder's d at the
+///     surfaced dim (cross-universe transmission would still let
+///     this through; cross-DIM is the structural error this
+///     validates against)
+///   - data length doesn't match `ceil(dim/4)` bytes
+///   - any cell decodes to the reserved 0b11 pattern
+///
+/// The `:None` discipline mirrors `:wat::core::string::to-i64`
+/// (parse-or-None) and arc 056's `from-iso8601`. Failure is a
+/// binary outcome from the caller's perspective.
+fn eval_holon_bytes_vector(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::bytes-vector";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    // Pull the byte vector contents out as Vec<u8>.
+    let xs = match eval(&args[0], env, sym)? {
+        Value::Vec(xs) => xs,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Vec<u8>",
+                got: other.type_name(),
+            });
+        }
+    };
+    let mut bytes: Vec<u8> = Vec::with_capacity(xs.len());
+    for v in xs.iter() {
+        match v {
+            Value::u8(b) => bytes.push(*b),
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Vec<u8>",
+                    got: other.type_name(),
+                });
+            }
+        }
+    }
+    // Header.
+    if bytes.len() < 4 {
+        return Ok(Value::Option(Arc::new(None)));
+    }
+    let header = [bytes[0], bytes[1], bytes[2], bytes[3]];
+    let dim = u32::from_le_bytes(header) as usize;
+    let expected_data_len = dim.div_ceil(4);
+    if bytes.len() != 4 + expected_data_len {
+        return Ok(Value::Option(Arc::new(None)));
+    }
+    // Cross-dim validation: ensure ambient encoder is at this dim
+    // (arc 037's router materializes per-d encoders). If a vector
+    // arrives at a d the ambient world doesn't know about, treat as
+    // structural failure — return :None.
+    let ctx = require_encoding_ctx(OP, sym)?;
+    if ctx.encoders.get(dim).vm.dimensions() != dim {
+        return Ok(Value::Option(Arc::new(None)));
+    }
+    // Decode cells.
+    let mut cells: Vec<i8> = Vec::with_capacity(dim);
+    for byte in &bytes[4..] {
+        for shift in 0..4 {
+            if cells.len() == dim {
+                break;
+            }
+            let bits = (byte >> (shift * 2)) & 0b11;
+            let cell: i8 = match bits {
+                0b00 => 0,
+                0b01 => 1,
+                0b10 => -1,
+                _ => return Ok(Value::Option(Arc::new(None))),
+            };
+            cells.push(cell);
+        }
+    }
+    if cells.len() != dim {
+        return Ok(Value::Option(Arc::new(None)));
+    }
+    Ok(Value::Option(Arc::new(Some(Value::Vector(Arc::new(
+        holon::Vector::from_data(cells),
+    ))))))
 }
 
 /// Arc 053 — helper. Extract a `Value::Vector` payload, error on
@@ -13596,6 +13775,150 @@ mod tests {
     #[test]
     fn join_result_arity_mismatch() {
         let err = eval_expr("(:wat::kernel::join-result)").unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    // ─── Vector portability (arc 061) ──────────────────────────────────
+
+    #[test]
+    fn vector_bytes_round_trip_recovers_vector() {
+        // Encode an AST → vector → bytes → vector, then check the
+        // recovered vector cosines == 1.0 with the original
+        // (byte-perfect round-trip).
+        let src = r#"
+            (:wat::core::let*
+              (((v :wat::holon::Vector)
+                (:wat::holon::encode (:wat::holon::Atom "round-trip-test")))
+               ((bs :Vec<u8>) (:wat::holon::vector-bytes v))
+               ((maybe-v :Option<wat::holon::Vector>)
+                (:wat::holon::bytes-vector bs))
+               ((v2 :wat::holon::Vector)
+                (:wat::core::match maybe-v -> :wat::holon::Vector
+                  ((Some v2) v2)
+                  (:None
+                    (:wat::holon::encode (:wat::holon::Atom "decode-failed-sentinel"))))))
+              (:wat::holon::cosine v v2))
+        "#;
+        match eval_with_ctx(src, 1024).unwrap() {
+            Value::f64(c) => assert!(
+                (c - 1.0).abs() < 1e-9,
+                "expected cosine == 1.0 (byte-perfect round-trip), got {}",
+                c
+            ),
+            v => panic!("expected f64, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn vector_bytes_deterministic() {
+        // Same Vector → same bytes (substrate-level determinism;
+        // arc 061 Q7).
+        let src = r#"
+            (:wat::core::let*
+              (((v1 :wat::holon::Vector)
+                (:wat::holon::encode (:wat::holon::Atom "deterministic")))
+               ((v2 :wat::holon::Vector)
+                (:wat::holon::encode (:wat::holon::Atom "deterministic")))
+               ((b1 :Vec<u8>) (:wat::holon::vector-bytes v1))
+               ((b2 :Vec<u8>) (:wat::holon::vector-bytes v2)))
+              (:wat::core::= b1 b2))
+        "#;
+        match eval_with_ctx(src, 1024).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn bytes_vector_rejects_short_input() {
+        // Three bytes — not enough for the 4-byte dim header.
+        // Integer literals default to :i64; cast each through
+        // :wat::core::u8 so the Vec stores u8 elements.
+        let src = r#"
+            (:wat::core::match
+              (:wat::holon::bytes-vector
+                (:wat::core::vec :u8
+                  (:wat::core::u8 0)
+                  (:wat::core::u8 0)
+                  (:wat::core::u8 0)))
+              -> :bool
+              ((Some _) false)
+              (:None true))
+        "#;
+        match eval_with_ctx(src, 1024).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected None on short input, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn bytes_vector_rejects_truncated_data() {
+        // 4-byte header claiming dim=10000 followed by zero data
+        // bytes — data length doesn't match expected.
+        // dim=10000 little-endian u32 = 16 39 00 00.
+        let src = r#"
+            (:wat::core::match
+              (:wat::holon::bytes-vector
+                (:wat::core::vec :u8
+                  (:wat::core::u8 16)
+                  (:wat::core::u8 39)
+                  (:wat::core::u8 0)
+                  (:wat::core::u8 0)))
+              -> :bool
+              ((Some _) false)
+              (:None true))
+        "#;
+        match eval_with_ctx(src, 1024).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected None on truncated input, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn coincident_q_polymorphic_accepts_vectors() {
+        // Vector × Vector — same source AST encoded twice should
+        // coincide (arc 061: coincident? widened from HolonAST-only
+        // to HolonAST | Vector).
+        let src = r#"
+            (:wat::core::let*
+              (((v1 :wat::holon::Vector)
+                (:wat::holon::encode (:wat::holon::Atom "coincide-me")))
+               ((v2 :wat::holon::Vector)
+                (:wat::holon::encode (:wat::holon::Atom "coincide-me"))))
+              (:wat::holon::coincident? v1 v2))
+        "#;
+        match eval_with_ctx(src, 1024).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true (coincident vectors), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn coincident_q_polymorphic_accepts_mixed_vector_holon() {
+        // Mixed (Vector, HolonAST) — pre-encoded vector vs. the
+        // same AST should coincide (arc 061 polymorphism + arc 052's
+        // mixed-input pair_values_to_vectors).
+        let src = r#"
+            (:wat::core::let*
+              (((v :wat::holon::Vector)
+                (:wat::holon::encode (:wat::holon::Atom "mixed-input"))))
+              (:wat::holon::coincident? v (:wat::holon::Atom "mixed-input")))
+        "#;
+        match eval_with_ctx(src, 1024).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true (mixed coincident), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn vector_bytes_arity_mismatch() {
+        let err = eval_expr("(:wat::holon::vector-bytes)").unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    #[test]
+    fn bytes_vector_arity_mismatch() {
+        let err = eval_expr("(:wat::holon::bytes-vector)").unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 
