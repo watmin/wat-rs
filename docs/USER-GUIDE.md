@@ -1939,7 +1939,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::keys` | `m` | `:Vec<K>` — order unspecified; sort post-call for determinism (arc 058) |
 | `:wat::core::values` | `m` | `:Vec<V>` — order unspecified; sort post-call for determinism (arc 058) |
 | `:wat::core::empty?` | `coll` | `:bool` — polymorphic over Vec/HashMap/HashSet (extended in arc 058) |
-| `:wat::eval-ast!` | `<wat-ast>` | evaluates already-parsed AST (arc 028) |
+| `:wat::eval-ast!` | `<wat-ast>` | `:Result<wat::holon::HolonAST, wat::core::EvalError>` — evaluates already-parsed AST (arc 028); arc 066 wraps the terminal value as HolonAST per scheme so `(Ok h)` is genuinely a HolonAST (use `:wat::core::atom-value` to extract the primitive). Forms whose terminal value has no HolonAST representation (Vec / Tuple / channels / etc.) return `Err` |
 | `:wat::eval-edn!` / `eval-file!` | `<source>` / `<path>` | parses+evaluates string or file |
 | `:wat::eval-digest-string!` / `eval-digest-file!` | `<src/path> <hex>` | SHA-256 verified eval |
 | `:wat::eval-signed-string!` / `eval-signed-file!` | `<src/path> <sig> <pk>` | Ed25519 verified eval |
