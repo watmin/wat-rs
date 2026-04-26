@@ -1,6 +1,13 @@
 # Arc 058 — HashMap surface completion (`dissoc` / `keys` / `values` / `empty?`)
 
-**Status:** opened 2026-04-26.
+**Status:** shipped 2026-04-26. See `INSCRIPTION.md` for the
+canonical post-ship record. This DESIGN stays as the
+pre-implementation reasoning artifact; one detail to flag: tests
+landed inline in `src/runtime.rs::mod tests` (the existing
+HashMap-test convention) rather than as separate
+`tests/wat_dissoc.rs` / `tests/wat_keys.rs` / `tests/wat_values.rs`
+files as the implementation sketch suggested. Same coverage; fewer
+files; matches the in-place template.
 **Predecessor arcs:** [`docs/arc/2026/04/020-assoc/`](../020-assoc/DESIGN.md), [`docs/arc/2026/04/021-core-std-audit/`](../021-core-std-audit/DESIGN.md).
 **Consumer:** `holon-lab-trading` experiment 008 (Treasury program). The Treasury holds `HashMap<i64, Paper>` keyed by paper-id; per-tick `check-deadlines` needs to iterate every Active paper to find expirations; resolution removes resolved entries; metrics emit count of active papers. Without iteration + remove, the HashMap is half-built — assoc-only.
 

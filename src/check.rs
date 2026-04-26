@@ -466,6 +466,10 @@ fn infer_list(
             ":wat::core::string::concat" => return infer_string_concat(args, env, locals, fresh, subst, errors),
             ":wat::core::HashMap" => return infer_hashmap_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::assoc" => return infer_assoc(args, env, locals, fresh, subst, errors),
+            ":wat::core::dissoc" => return infer_dissoc(args, env, locals, fresh, subst, errors),
+            ":wat::core::keys" => return infer_keys(args, env, locals, fresh, subst, errors),
+            ":wat::core::values" => return infer_values(args, env, locals, fresh, subst, errors),
+            ":wat::core::empty?" => return infer_empty_q(args, env, locals, fresh, subst, errors),
             ":wat::core::conj" => return infer_conj(args, env, locals, fresh, subst, errors),
             ":wat::core::contains?" => return infer_contains_q(args, env, locals, fresh, subst, errors),
             ":wat::core::length" => return infer_length(args, env, locals, fresh, subst, errors),
@@ -3144,6 +3148,214 @@ fn infer_assoc(
     })
 }
 
+/// Arc 058 — `(:wat::core::dissoc m k)`. Returns a NEW HashMap
+/// without `k`; original unchanged. Missing key is no-op
+/// (returns clone of input). Mirrors Clojure's dissoc.
+///   ∀K, V. HashMap<K,V> × K → HashMap<K,V>
+fn infer_dissoc(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::core::dissoc".into(),
+            expected: 2,
+            got: args.len(),
+        });
+        return Some(TypeExpr::Parametric {
+            head: "HashMap".into(),
+            args: vec![fresh.fresh(), fresh.fresh()],
+        });
+    }
+    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let key_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    if let Some(ct) = container_ty {
+        let reduced = reduce(&ct, subst, env.types());
+        match &reduced {
+            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
+                let k = apply_subst(&ta[0], subst);
+                if let Some(key_ty) = key_ty {
+                    if unify(&key_ty, &k, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: ":wat::core::dissoc".into(),
+                            param: "key".into(),
+                            expected: format_type(&apply_subst(&k, subst)),
+                            got: format_type(&apply_subst(&key_ty, subst)),
+                        });
+                    }
+                }
+                return Some(reduced);
+            }
+            _ => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::dissoc".into(),
+                    param: "container".into(),
+                    expected: "HashMap<K,V>".into(),
+                    got: format_type(&apply_subst(&ct, subst)),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Parametric {
+        head: "HashMap".into(),
+        args: vec![fresh.fresh(), fresh.fresh()],
+    })
+}
+
+/// Arc 058 — `(:wat::core::keys m)`. Materializes the map's keys
+/// as a Vec (order unspecified — Rust's HashMap iteration order
+/// depends on hash randomization; sort the result if you need
+/// determinism).
+///   ∀K, V. HashMap<K,V> → Vec<K>
+fn infer_keys(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::core::keys".into(),
+            expected: 1,
+            got: args.len(),
+        });
+        return Some(TypeExpr::Parametric {
+            head: "Vec".into(),
+            args: vec![fresh.fresh()],
+        });
+    }
+    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    if let Some(ct) = container_ty {
+        let reduced = reduce(&ct, subst, env.types());
+        match &reduced {
+            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
+                let k = apply_subst(&ta[0], subst);
+                return Some(TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![k],
+                });
+            }
+            _ => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::keys".into(),
+                    param: "container".into(),
+                    expected: "HashMap<K,V>".into(),
+                    got: format_type(&apply_subst(&ct, subst)),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![fresh.fresh()],
+    })
+}
+
+/// Arc 058 — `(:wat::core::values m)`. Materializes the map's
+/// values as a Vec (order unspecified — same caveat as `keys`).
+///   ∀K, V. HashMap<K,V> → Vec<V>
+fn infer_values(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::core::values".into(),
+            expected: 1,
+            got: args.len(),
+        });
+        return Some(TypeExpr::Parametric {
+            head: "Vec".into(),
+            args: vec![fresh.fresh()],
+        });
+    }
+    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    if let Some(ct) = container_ty {
+        let reduced = reduce(&ct, subst, env.types());
+        match &reduced {
+            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
+                let v = apply_subst(&ta[1], subst);
+                return Some(TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![v],
+                });
+            }
+            _ => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::values".into(),
+                    param: "container".into(),
+                    expected: "HashMap<K,V>".into(),
+                    got: format_type(&apply_subst(&ct, subst)),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![fresh.fresh()],
+    })
+}
+
+/// Arc 058 — `(:wat::core::empty? container)`. Polymorphic empty-check;
+/// mirrors `length`'s polymorphism shape:
+///   ∀T.   Vec<T>       → bool
+///   ∀K,V. HashMap<K,V> → bool
+///   ∀T.   HashSet<T>   → bool
+fn infer_empty_q(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::core::empty?".into(),
+            expected: 1,
+            got: args.len(),
+        });
+        return Some(TypeExpr::Path(":bool".into()));
+    }
+    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    if let Some(ct) = container_ty {
+        let reduced = reduce(&ct, subst, env.types());
+        match &reduced {
+            TypeExpr::Parametric { head, args: ta } if head == "Vec" && ta.len() == 1 => {
+                let _ = ta;
+                return Some(TypeExpr::Path(":bool".into()));
+            }
+            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
+                let _ = ta;
+                return Some(TypeExpr::Path(":bool".into()));
+            }
+            TypeExpr::Parametric { head, args: ta } if head == "HashSet" && ta.len() == 1 => {
+                let _ = ta;
+                return Some(TypeExpr::Path(":bool".into()));
+            }
+            _ => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::empty?".into(),
+                    param: "container".into(),
+                    expected: "Vec<T> | HashMap<K,V> | HashSet<T>".into(),
+                    got: format_type(&apply_subst(&ct, subst)),
+                });
+            }
+        }
+    }
+    Some(TypeExpr::Path(":bool".into()))
+}
+
 /// Arc 025 — `(:wat::core::conj container value)`. Polymorphic
 /// over Vec and HashSet; HashMap illegal (no key-value pairing —
 /// use assoc).
@@ -5713,14 +5925,9 @@ fn register_builtins(env: &mut CheckEnv) {
     };
     // :wat::core::length scheme retired; polymorphic under
     // `infer_length` (arc 035). Dispatched in `infer_list`.
-    env.register(
-        ":wat::core::empty?".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var())],
-            ret: bool_ty(),
-        },
-    );
+    // :wat::core::empty? scheme retired (arc 058); polymorphic under
+    // `infer_empty_q`. Same shape as `length` — Vec<T> | HashMap<K,V>
+    // | HashSet<T> → bool.
     env.register(
         ":wat::core::reverse".into(),
         TypeScheme {

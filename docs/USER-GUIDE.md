@@ -659,9 +659,13 @@ unified the surface; arc 035 added `length`):
 |---|---|---|---|
 | `get`        | `Option<V>` by key      | `Option<T>` by element      | `Option<T>` by index |
 | `assoc`      | new map (key→value)     | **illegal** — use `conj`    | new vec (index→value) |
+| `dissoc`     | new map (key removed)   | **illegal** (arc 058)       | **illegal** (arc 058) |
 | `conj`       | **illegal** — use `assoc` | new set (insert element)  | new vec (push tail) |
 | `contains?`  | `bool` by key           | `bool` by element           | `bool` by index |
 | `length`     | `i64` (entry count)     | `i64` (member count)        | `i64` (item count) |
+| `empty?`     | `bool` (entry count == 0) | `bool` (member count == 0) | `bool` (item count == 0) |
+| `keys`       | `Vec<K>` (arc 058)      | **illegal**                 | **illegal** |
+| `values`     | `Vec<V>` (arc 058)      | **illegal**                 | **illegal** |
 
 ```scheme
 (:wat::core::let*
@@ -1805,8 +1809,12 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::macroexpand-1` | `<quoted-form>` | `:wat::WatAST` — peels exactly one layer (arc 030) |
 | `:wat::core::conj` | `vec item` | new collection — polymorphic over HashSet/Vec (arc 025) |
 | `:wat::core::assoc` | `coll k v` | new collection — polymorphic over HashMap/Vec (arc 025) |
+| `:wat::core::dissoc` | `m k` | `:HashMap<K,V>` — new map without `k`; missing key is no-op (arc 058) |
 | `:wat::core::get` | `coll k-or-i` | `:Option<T>` — polymorphic over HashMap/HashSet/Vec (arc 025) |
 | `:wat::core::contains?` | `coll k-or-i` | `:bool` — polymorphic over HashMap/HashSet/Vec (arc 025) |
+| `:wat::core::keys` | `m` | `:Vec<K>` — order unspecified; sort post-call for determinism (arc 058) |
+| `:wat::core::values` | `m` | `:Vec<V>` — order unspecified; sort post-call for determinism (arc 058) |
+| `:wat::core::empty?` | `coll` | `:bool` — polymorphic over Vec/HashMap/HashSet (extended in arc 058) |
 | `:wat::eval-ast!` | `<wat-ast>` | evaluates already-parsed AST (arc 028) |
 | `:wat::eval-edn!` / `eval-file!` | `<source>` / `<path>` | parses+evaluates string or file |
 | `:wat::eval-digest-string!` / `eval-digest-file!` | `<src/path> <hex>` | SHA-256 verified eval |

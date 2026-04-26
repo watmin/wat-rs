@@ -2201,7 +2201,7 @@ fn dispatch_keyword_head(
         ":wat::core::conj" => eval_conj(args, env, sym),
         ":wat::core::tuple" => eval_tuple_ctor(args, env, sym),
         ":wat::core::length" => eval_length(args, env, sym),
-        ":wat::core::empty?" => eval_vec_empty(args, env, sym),
+        ":wat::core::empty?" => eval_empty_q(args, env, sym),
         ":wat::core::reverse" => eval_vec_reverse(args, env, sym),
         ":wat::core::range" => eval_vec_range(args, env, sym),
         ":wat::core::take" => eval_vec_take(args, env, sym),
@@ -2218,6 +2218,9 @@ fn dispatch_keyword_head(
         ":wat::core::HashSet" => eval_hashset_ctor(args, env, sym),
         ":wat::core::get" => eval_get(args, env, sym),
         ":wat::core::assoc" => eval_assoc(args, env, sym),
+        ":wat::core::dissoc" => eval_dissoc(args, env, sym),
+        ":wat::core::keys" => eval_keys(args, env, sym),
+        ":wat::core::values" => eval_values(args, env, sym),
         ":wat::core::contains?" => eval_contains_q(args, env, sym),
         // :wat::core::contains? retired in arc 025 — contains? is polymorphic now.
         // :wat::io::IOReader / :wat::io::IOWriter — abstract IO
@@ -4024,10 +4027,10 @@ fn eval_length(
     }
 }
 
-/// `(:wat::core::empty? xs)` → `:bool`. Mirrors `slice::is_empty`.
-/// Per FOUNDATION-CHANGELOG 2026-04-18: the wat replacement for
-/// Scheme's `null?` (wat has no null).
-fn eval_vec_empty(
+/// `(:wat::core::empty? container)` → `:bool`. Polymorphic since arc
+/// 058: Vec, HashMap, and HashSet all answer "no entries?" the same
+/// way. Mirrors `length`'s polymorphism shape.
+fn eval_empty_q(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -4039,8 +4042,17 @@ fn eval_vec_empty(
             got: args.len(),
         });
     }
-    let xs = require_vec(":wat::core::empty?", eval(&args[0], env, sym)?)?;
-    Ok(Value::bool(xs.is_empty()))
+    let v = eval(&args[0], env, sym)?;
+    match v {
+        Value::Vec(xs) => Ok(Value::bool(xs.is_empty())),
+        Value::wat__std__HashMap(m) => Ok(Value::bool(m.is_empty())),
+        Value::wat__std__HashSet(s) => Ok(Value::bool(s.is_empty())),
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::empty?".into(),
+            expected: "Vec<T> | HashMap<K,V> | HashSet<T>",
+            got: other.type_name(),
+        }),
+    }
 }
 
 /// `(:wat::core::reverse xs)` → `Vec<T>`. New Vec with elements
@@ -4655,6 +4667,100 @@ fn eval_assoc(
         other => Err(RuntimeError::TypeMismatch {
             op: OP.into(),
             expected: "HashMap<K,V> | Vec<T>",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::core::dissoc m k)` → `HashMap<K,V>`. Returns a NEW map
+/// without `k`; original unchanged. Missing key is no-op (returns
+/// clone of input). Mirrors Clojure's dissoc; same values-up
+/// template as assoc.
+fn eval_dissoc(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::dissoc";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let k = eval(&args[1], env, sym)?;
+    match container {
+        Value::wat__std__HashMap(m) => {
+            let key = hashmap_key(OP, &k)?;
+            let mut new_map = (*m).clone();
+            new_map.remove(&key);
+            Ok(Value::wat__std__HashMap(Arc::new(new_map)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "HashMap<K,V>",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::core::keys m)` → `Vec<K>`. Materializes the map's keys.
+/// Order is unspecified — Rust's HashMap iteration order depends on
+/// hash randomization. Sort the result if you need determinism.
+fn eval_keys(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::keys";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    match eval(&args[0], env, sym)? {
+        Value::wat__std__HashMap(m) => {
+            // Inner stored as (canonical-key-string → (original-key-Value, value-Value))
+            // — the first tuple slot carries the original key Value
+            // (the second is the entry value); collect those.
+            let ks: Vec<Value> = m.values().map(|(k, _v)| k.clone()).collect();
+            Ok(Value::Vec(Arc::new(ks)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "HashMap<K,V>",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::core::values m)` → `Vec<V>`. Materializes the map's
+/// values. Same order caveat as `keys`.
+fn eval_values(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::values";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    match eval(&args[0], env, sym)? {
+        Value::wat__std__HashMap(m) => {
+            let vs: Vec<Value> = m.values().map(|(_k, v)| v.clone()).collect();
+            Ok(Value::Vec(Arc::new(vs)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "HashMap<K,V>",
             got: other.type_name(),
         }),
     }
@@ -12341,6 +12447,235 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    // ─── HashMap completion (arc 058) — dissoc / keys / values ───────────
+
+    #[test]
+    fn dissoc_removes_existing_key() {
+        let src = r#"
+            (:wat::core::let*
+              (((m0 :rust::std::collections::HashMap<String,i64>)
+                (:wat::core::HashMap :(String,i64) "a" 1 "b" 2))
+               ((m1 :rust::std::collections::HashMap<String,i64>)
+                (:wat::core::dissoc m0 "a")))
+              (:wat::core::match (:wat::core::get m1 "a") -> :i64
+                ((Some n) n)
+                (:None -1)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(-1) => {}
+            v => panic!("expected -1 (key removed), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn dissoc_missing_key_is_no_op() {
+        let src = r#"
+            (:wat::core::let*
+              (((m0 :rust::std::collections::HashMap<String,i64>)
+                (:wat::core::HashMap :(String,i64) "a" 1))
+               ((m1 :rust::std::collections::HashMap<String,i64>)
+                (:wat::core::dissoc m0 "missing")))
+              (:wat::core::match (:wat::core::get m1 "a") -> :i64
+                ((Some n) n)
+                (:None -1)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(1) => {}
+            v => panic!("expected 1 (no-op preserves entries), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn dissoc_preserves_original_map() {
+        // Values-up: input map still has the key after dissoc returns.
+        let src = r#"
+            (:wat::core::let*
+              (((m0 :rust::std::collections::HashMap<String,i64>)
+                (:wat::core::HashMap :(String,i64) "a" 1 "b" 2))
+               ((_m1 :rust::std::collections::HashMap<String,i64>)
+                (:wat::core::dissoc m0 "a")))
+              (:wat::core::match (:wat::core::get m0 "a") -> :i64
+                ((Some n) n)
+                (:None -1)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(1) => {}
+            v => panic!("expected 1 (m0 unchanged), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn dissoc_requires_hashmap_arg() {
+        let err = eval_expr(r#"(:wat::core::dissoc 42 "k")"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn dissoc_arity_mismatch() {
+        let err = eval_expr(
+            r#"(:wat::core::dissoc (:wat::core::HashMap :(String,i64)))"#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    #[test]
+    fn keys_returns_vec_of_correct_length() {
+        let src = r#"
+            (:wat::core::length
+              (:wat::core::keys
+                (:wat::core::HashMap :(String,i64) "a" 1 "b" 2 "c" 3)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(3) => {}
+            v => panic!("expected 3, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn keys_empty_map_returns_empty_vec() {
+        let src = r#"
+            (:wat::core::length
+              (:wat::core::keys
+                (:wat::core::HashMap :(String,i64))))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(0) => {}
+            v => panic!("expected 0, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn keys_contents_match_map() {
+        // Order is unspecified — check membership via contains?.
+        let src = r#"
+            (:wat::core::let*
+              (((ks :Vec<String>)
+                (:wat::core::keys
+                  (:wat::core::HashMap :(String,i64) "alpha" 1 "beta" 2))))
+              (:wat::core::and
+                (:wat::core::contains? ks 0)
+                (:wat::core::contains? ks 1)))
+        "#;
+        // contains? on Vec checks valid index; both keys present means
+        // a 2-element Vec which has indices 0 and 1.
+        match eval_expr(src).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn keys_requires_hashmap_arg() {
+        let err = eval_expr(r#"(:wat::core::keys 42)"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn keys_arity_mismatch() {
+        let err = eval_expr(
+            r#"(:wat::core::keys (:wat::core::HashMap :(String,i64)) "extra")"#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    #[test]
+    fn values_returns_vec_of_correct_length() {
+        let src = r#"
+            (:wat::core::length
+              (:wat::core::values
+                (:wat::core::HashMap :(String,i64) "a" 1 "b" 2 "c" 3)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(3) => {}
+            v => panic!("expected 3, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn values_empty_map_returns_empty_vec() {
+        let src = r#"
+            (:wat::core::length
+              (:wat::core::values
+                (:wat::core::HashMap :(String,i64))))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(0) => {}
+            v => panic!("expected 0, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn values_sum_matches_map_values() {
+        // Order-agnostic — sum of values is a stable invariant.
+        let src = r#"
+            (:wat::core::foldl
+              (:wat::core::values
+                (:wat::core::HashMap :(String,i64) "a" 10 "b" 20 "c" 30))
+              0
+              (:wat::core::lambda ((acc :i64) (v :i64) -> :i64)
+                (:wat::core::i64::+ acc v)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::i64(60) => {}
+            v => panic!("expected 60, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn values_requires_hashmap_arg() {
+        let err = eval_expr(r#"(:wat::core::values 42)"#).unwrap_err();
+        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn values_arity_mismatch() {
+        let err = eval_expr(
+            r#"(:wat::core::values (:wat::core::HashMap :(String,i64)) "extra")"#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    // ─── empty? polymorphism extension (arc 058) ─────────────────────────
+
+    #[test]
+    fn empty_q_hashmap_true_when_empty() {
+        let src = r#"
+            (:wat::core::empty? (:wat::core::HashMap :(String,i64)))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn empty_q_hashmap_false_when_populated() {
+        let src = r#"
+            (:wat::core::empty? (:wat::core::HashMap :(String,i64) "a" 1))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::bool(false) => {}
+            v => panic!("expected false, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn empty_q_hashset_polymorphism() {
+        let src_empty = r#"(:wat::core::empty? (:wat::core::HashSet :String))"#;
+        match eval_expr(src_empty).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true on empty HashSet, got {:?}", v),
+        }
+        let src_full = r#"(:wat::core::empty? (:wat::core::HashSet :String "x"))"#;
+        match eval_expr(src_full).unwrap() {
+            Value::bool(false) => {}
+            v => panic!("expected false on populated HashSet, got {:?}", v),
+        }
     }
 
     // ─── HashSet ───────────────────────────────────────────────────────
