@@ -527,16 +527,107 @@ fn extract_failure(v: &Value) -> Option<String> {
         Some(Value::String(s)) => (**s).clone(),
         _ => "<missing message>".to_string(),
     };
+    // Arc 064 — surface the source location captured by arc 016's
+    // snapshot_call_stack(). The Failure struct's `location` field
+    // (index 1) is :Option<wat::kernel::Location { file, line, col }>;
+    // populated whenever the panic site has a non-unknown Span.
+    let location = fv.fields.get(1).and_then(failure_location);
     let actual = fv.fields.get(3).and_then(option_string_field);
     let expected = fv.fields.get(4).and_then(option_string_field);
     let mut out = format!("  failure: {}", message);
+    if let Some(loc) = location {
+        out.push_str(&format!("\n    at:       {}", loc));
+    }
     if let Some(a) = actual {
-        out.push_str(&format!("\n  actual:   {}", a));
+        out.push_str(&format!("\n    actual:   {}", a));
     }
     if let Some(e) = expected {
-        out.push_str(&format!("\n  expected: {}", e));
+        out.push_str(&format!("\n    expected: {}", e));
+    }
+    // Frames stack newest-first, surfaced under RUST_BACKTRACE=1
+    // per arc 016's existing convention. Field index 2 of the
+    // Failure struct holds :Vec<wat::kernel::Frame>.
+    if std::env::var("RUST_BACKTRACE")
+        .map(|v| v != "0" && !v.is_empty())
+        .unwrap_or(false)
+    {
+        if let Some(frames_str) = fv.fields.get(2).and_then(failure_frames) {
+            if !frames_str.is_empty() {
+                out.push_str(&format!("\n    frames (newest first):\n{}", frames_str));
+            }
+        }
     }
     Some(out)
+}
+
+/// Extract `file:line:col` from the Failure's `location` field
+/// (Option<Location { file, line, col }>). Returns `None` when the
+/// location is `:None` or the inner shape is malformed.
+fn failure_location(v: &Value) -> Option<String> {
+    let opt = match v {
+        Value::Option(opt) => opt,
+        _ => return None,
+    };
+    let inner = opt.as_ref().as_ref()?;
+    let loc = match inner {
+        Value::Struct(s) if s.type_name == ":wat::kernel::Location" => s,
+        _ => return None,
+    };
+    let file = match loc.fields.first()? {
+        Value::String(s) => (**s).clone(),
+        _ => return None,
+    };
+    let line = match loc.fields.get(1)? {
+        Value::i64(n) => *n,
+        _ => return None,
+    };
+    let col = match loc.fields.get(2)? {
+        Value::i64(n) => *n,
+        _ => return None,
+    };
+    Some(format!("{}:{}:{}", file, line, col))
+}
+
+/// Render the Failure's `frames` field (Vec<Frame { file, line,
+/// symbol }>) as a newline-separated string, newest first.
+fn failure_frames(v: &Value) -> Option<String> {
+    let xs = match v {
+        Value::Vec(xs) => xs,
+        _ => return None,
+    };
+    let mut out = String::new();
+    for (i, frame_v) in xs.iter().enumerate() {
+        let f = match frame_v {
+            Value::Struct(s) if s.type_name == ":wat::kernel::Frame" => s,
+            _ => continue,
+        };
+        let file = f
+            .fields
+            .first()
+            .and_then(option_string_field)
+            .unwrap_or_else(|| "<unknown>".to_string());
+        let line = match f.fields.get(1) {
+            Some(Value::Option(opt)) => match opt.as_ref() {
+                Some(Value::i64(n)) => n.to_string(),
+                _ => "?".to_string(),
+            },
+            _ => "?".to_string(),
+        };
+        let symbol = f
+            .fields
+            .get(2)
+            .and_then(option_string_field)
+            .unwrap_or_else(|| "<symbol>".to_string());
+        if i > 0 {
+            out.push('\n');
+        }
+        out.push_str(&format!("      #{}  {} ({}:{})", i, symbol, file, line));
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
 }
 
 fn option_string_field(v: &Value) -> Option<String> {

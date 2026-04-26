@@ -2307,6 +2307,7 @@ fn dispatch_keyword_head(
         ":wat::holon::bytes-vector" => eval_holon_bytes_vector(args, env, sym),
         ":wat::core::Bytes::to-hex" => eval_bytes_to_hex(args, env, sym),
         ":wat::core::Bytes::from-hex" => eval_bytes_from_hex(args, env, sym),
+        ":wat::core::show" => eval_show(args, env, sym),
         ":wat::holon::vector-bind" => eval_holon_vector_bind(args, env, sym),
         ":wat::holon::vector-bundle" => eval_holon_vector_bundle(args, env, sym),
         ":wat::holon::vector-blend" => eval_holon_vector_blend(args, env, sym),
@@ -7274,6 +7275,212 @@ fn decode_nibble(b: u8) -> Option<u8> {
         b'a'..=b'f' => Some(b - b'a' + 10),
         b'A'..=b'F' => Some(b - b'A' + 10),
         _ => None,
+    }
+}
+
+// ─── show — polymorphic value rendering (arc 064) ───────────────────
+//
+// `:wat::core::show<T>` renders any wat Value to a debug-friendly
+// String. Used internally by `assert-eq` to populate the failure
+// payload's actual/expected fields; exposed publicly so test code
+// and future assertions (assert-not-eq, assert-true, etc.) can reuse.
+//
+// Per-variant rendering follows wat surface conventions where they
+// exist (literal forms for primitives; (Some x) / (Ok x) / (Err x)
+// for Option/Result; (vec :T x ...) shape via `[...]` shorthand for
+// Vec; quoted-string semantics matching Rust's {:?} for String).
+// Compound substrate values (Struct, Enum, HolonAST, Vector,
+// channels, ProgramHandle) render as angle-bracketed summaries
+// naming the type and key dimensions — full structural dumps are
+// out of scope (the cost of pretty-printing a 4096-element ternary
+// vector inline is not worth it for diagnostics).
+//
+// Pretty-print depth is bounded at ~1KB per render via truncation
+// guards in the recursive helper; deeply nested structures collapse
+// to a `…` marker rather than blowing past a sensible limit.
+
+/// `(:wat::core::show v)` → `:String` (arc 064). Polymorphic
+/// renderer; per-variant dispatch via [`render_value`].
+fn eval_show(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::show";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    Ok(Value::String(Arc::new(render_value(&v, 0))))
+}
+
+/// Soft cap on render output. Recursive renders that would exceed
+/// this length collapse remaining children to `…`. Guards against
+/// pathological output for deeply nested or large compound values.
+const SHOW_MAX_LEN: usize = 1024;
+/// Maximum recursion depth before emitting a `…` placeholder. Matches
+/// the same "good-enough for diagnostics" envelope as SHOW_MAX_LEN.
+const SHOW_MAX_DEPTH: usize = 8;
+
+fn render_value(v: &Value, depth: usize) -> String {
+    if depth > SHOW_MAX_DEPTH {
+        return "…".to_string();
+    }
+    match v {
+        // ── Primitive leaves ──────────────────────────────────────
+        Value::Unit => "()".to_string(),
+        Value::bool(b) => if *b { "true" } else { "false" }.to_string(),
+        Value::i64(n) => n.to_string(),
+        Value::u8(n) => n.to_string(),
+        Value::f64(x) => x.to_string(),
+        Value::String(s) => format!("\"{}\"", s),
+        Value::wat__core__keyword(k) => (**k).clone(),
+
+        // ── Option / Result — wat-surface variant shape ───────────
+        Value::Option(opt) => match &**opt {
+            None => ":None".to_string(),
+            Some(inner) => format!("(Some {})", render_value(inner, depth + 1)),
+        },
+        Value::Result(r) => match &**r {
+            Ok(v) => format!("(Ok {})", render_value(v, depth + 1)),
+            Err(e) => format!("(Err {})", render_value(e, depth + 1)),
+        },
+
+        // ── Compound containers ───────────────────────────────────
+        Value::Vec(xs) => {
+            let mut out = String::from("[");
+            let mut first = true;
+            for v in xs.iter() {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                if out.len() >= SHOW_MAX_LEN {
+                    out.push('…');
+                    break;
+                }
+                out.push_str(&render_value(v, depth + 1));
+            }
+            out.push(']');
+            out
+        }
+        Value::Tuple(xs) => {
+            let mut out = String::from("(");
+            let mut first = true;
+            for v in xs.iter() {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                if out.len() >= SHOW_MAX_LEN {
+                    out.push('…');
+                    break;
+                }
+                out.push_str(&render_value(v, depth + 1));
+            }
+            out.push(')');
+            out
+        }
+        Value::wat__std__HashMap(m) => {
+            let mut out = String::from("{");
+            let mut first = true;
+            // Walk the (k_value, v_value) tuples stored in the map's
+            // Value side. Order is unspecified per HashMap semantics.
+            for (k, v) in m.values() {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                if out.len() >= SHOW_MAX_LEN {
+                    out.push('…');
+                    break;
+                }
+                out.push_str(&render_value(k, depth + 1));
+                out.push_str(": ");
+                out.push_str(&render_value(v, depth + 1));
+            }
+            out.push('}');
+            out
+        }
+        Value::wat__std__HashSet(s) => {
+            let mut out = String::from("#{");
+            let mut first = true;
+            for v in s.values() {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                if out.len() >= SHOW_MAX_LEN {
+                    out.push('…');
+                    break;
+                }
+                out.push_str(&render_value(v, depth + 1));
+            }
+            out.push('}');
+            out
+        }
+
+        // ── User-declared struct / enum (arc 048) ─────────────────
+        Value::Struct(sv) => {
+            let mut out = format!("{}{{", sv.type_name);
+            let mut first = true;
+            for (i, fv) in sv.fields.iter().enumerate() {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                if out.len() >= SHOW_MAX_LEN {
+                    out.push('…');
+                    break;
+                }
+                out.push_str(&format!("#{}: ", i));
+                out.push_str(&render_value(fv, depth + 1));
+            }
+            out.push('}');
+            out
+        }
+        Value::Enum(ev) => {
+            if ev.fields.is_empty() {
+                format!("{}::{}", ev.type_path, ev.variant_name)
+            } else {
+                let mut out = format!("({}::{}", ev.type_path, ev.variant_name);
+                for fv in ev.fields.iter() {
+                    out.push(' ');
+                    if out.len() >= SHOW_MAX_LEN {
+                        out.push('…');
+                        break;
+                    }
+                    out.push_str(&render_value(fv, depth + 1));
+                }
+                out.push(')');
+                out
+            }
+        }
+
+        // ── Substrate compound values — angle-bracketed summary ──
+        Value::holon__HolonAST(_) => "<HolonAST>".to_string(),
+        Value::Vector(v) => format!("<Vector dim={}>", v.dimensions()),
+        Value::wat__WatAST(_) => "<WatAST>".to_string(),
+        Value::wat__core__lambda(_) => "<lambda>".to_string(),
+        Value::crossbeam_channel__Sender(_) => "<Sender>".to_string(),
+        Value::crossbeam_channel__Receiver(_) => "<Receiver>".to_string(),
+        Value::wat__kernel__ProgramHandle(_) => "<ProgramHandle>".to_string(),
+        Value::wat__kernel__HandlePool { name, .. } => {
+            format!("<HandlePool {:?}>", name)
+        }
+        Value::wat__kernel__ChildHandle(_) => "<ChildHandle>".to_string(),
+        Value::io__IOReader(_) => "<IOReader>".to_string(),
+        Value::io__IOWriter(_) => "<IOWriter>".to_string(),
+        Value::RustOpaque(inner) => format!("<{}>", inner.type_path),
+        Value::OnlineSubspace(_) => "<OnlineSubspace>".to_string(),
+        Value::Reckoner(_) => "<Reckoner>".to_string(),
+        Value::Engram(_) => "<Engram>".to_string(),
+        Value::EngramLibrary(_) => "<EngramLibrary>".to_string(),
+        Value::Instant(t) => format!("<Instant {}>", t.to_rfc3339()),
     }
 }
 
@@ -14187,6 +14394,132 @@ mod tests {
     #[test]
     fn bytes_from_hex_arity_mismatch() {
         let err = eval_expr("(:wat::core::Bytes::from-hex)").unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    // ─── show — polymorphic rendering (arc 064) ─────────────────────────
+
+    fn show_str(src: &str) -> String {
+        match eval_expr(src).unwrap() {
+            Value::String(s) => (*s).clone(),
+            other => panic!("expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn show_renders_primitive_leaves() {
+        assert_eq!(show_str("(:wat::core::show true)"), "true");
+        assert_eq!(show_str("(:wat::core::show false)"), "false");
+        assert_eq!(show_str("(:wat::core::show 42)"), "42");
+        assert_eq!(show_str("(:wat::core::show -7)"), "-7");
+        assert_eq!(show_str("(:wat::core::show 3.14)"), "3.14");
+        assert_eq!(show_str(r#"(:wat::core::show "hello")"#), "\"hello\"");
+        assert_eq!(show_str(r#"(:wat::core::show "")"#), "\"\"");
+        // Quoted keyword evaluates to a Value::wat__WatAST(Keyword …);
+        // the WatAST arm renders as a `<WatAST>` summary. Diagnostic
+        // for assert-eq is via the keyword's atom-of form (see
+        // show_renders_compound_summaries) or via primitive equality.
+        assert_eq!(
+            show_str("(:wat::core::show (:wat::core::quote :outcome))"),
+            "<WatAST>"
+        );
+    }
+
+    #[test]
+    fn show_renders_option_and_result() {
+        assert_eq!(show_str("(:wat::core::show (Some 1))"), "(Some 1)");
+        assert_eq!(show_str("(:wat::core::show :None)"), ":None");
+        assert_eq!(show_str(r#"(:wat::core::show (Ok "hi"))"#), "(Ok \"hi\")");
+        assert_eq!(show_str("(:wat::core::show (Err 42))"), "(Err 42)");
+    }
+
+    #[test]
+    fn show_renders_vec_with_brackets() {
+        assert_eq!(
+            show_str("(:wat::core::show (:wat::core::vec :i64 1 2 3))"),
+            "[1, 2, 3]"
+        );
+        assert_eq!(
+            show_str("(:wat::core::show (:wat::core::vec :i64))"),
+            "[]"
+        );
+    }
+
+    #[test]
+    fn show_renders_compound_summaries() {
+        // Vector → angle-bracketed dim summary.
+        let s = match eval_with_ctx(
+            r#"(:wat::core::show
+                  (:wat::holon::encode (:wat::holon::Atom "x")))"#,
+            1024,
+        )
+        .unwrap()
+        {
+            Value::String(s) => (*s).clone(),
+            other => panic!("expected String, got {:?}", other),
+        };
+        assert!(
+            s.starts_with("<Vector dim="),
+            "expected '<Vector dim=...>', got {:?}",
+            s
+        );
+    }
+
+    #[test]
+    fn assert_eq_failure_renders_actual_and_expected() {
+        // Arc 064 — a failed assert-eq should populate the Failure's
+        // actual/expected slots with the rendered values via show.
+        // Drive the failure through run-sandboxed and inspect the
+        // resulting RunResult.failure struct.
+        let src = r#"
+            (:wat::test::run-ast
+              (:wat::test::program
+                (:wat::core::define
+                  (:user::main
+                    (stdin  :wat::io::IOReader)
+                    (stdout :wat::io::IOWriter)
+                    (stderr :wat::io::IOWriter)
+                    -> :())
+                  (:wat::test::assert-eq 1 2)))
+              (:wat::core::vec :String))
+        "#;
+        let result = run(src).unwrap();
+        // Walk RunResult.failure (field 2) → Failure { actual (3),
+        // expected (4) }.
+        let result_struct = match result {
+            Value::Struct(s) => s,
+            other => panic!("expected RunResult struct, got {:?}", other),
+        };
+        let failure_opt = match result_struct.fields.get(2).unwrap() {
+            Value::Option(opt) => opt,
+            other => panic!("expected Option for failure, got {:?}", other),
+        };
+        let failure_struct = match &**failure_opt {
+            Some(Value::Struct(s)) => s,
+            other => panic!("expected Some(Failure struct), got {:?}", other),
+        };
+        // actual (field index 3) — Option<String>.
+        let actual = match failure_struct.fields.get(3).unwrap() {
+            Value::Option(opt) => match &**opt {
+                Some(Value::String(s)) => (**s).clone(),
+                other => panic!("expected Some(String) for actual, got {:?}", other),
+            },
+            other => panic!("expected Option for actual, got {:?}", other),
+        };
+        let expected = match failure_struct.fields.get(4).unwrap() {
+            Value::Option(opt) => match &**opt {
+                Some(Value::String(s)) => (**s).clone(),
+                other => panic!("expected Some(String) for expected, got {:?}", other),
+            },
+            other => panic!("expected Option for expected, got {:?}", other),
+        };
+        assert_eq!(actual, "1");
+        assert_eq!(expected, "2");
+    }
+
+    #[test]
+    fn show_arity_mismatch() {
+        let err = eval_expr("(:wat::core::show)").unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 

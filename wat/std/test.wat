@@ -38,11 +38,11 @@
 
 ;; ─── assert-eq<T> ─────────────────────────────────────────────────────
 ;;
-;; Structural equality via :wat::core::=. Actual/expected stringification
-;; is future work — requires generic show<T>. Until then, a failed
-;; assert-eq reports the message only; the failure shape still carries
-;; the actual/expected SLOTS (as :None) so callers that match on Failure
-;; see a stable shape.
+;; Structural equality via :wat::core::=. Failure renders both sides
+;; via :wat::core::show<T> (arc 064) — the assertion's actual / expected
+;; slots carry the rendered values so the test runner can display them
+;; alongside the source location. Used to be `:None :None` (just "the
+;; assertion fired"); arc 064 closed the diagnostic gap.
 (:wat::core::define
   (:wat::test::assert-eq<T>
     (actual :T)
@@ -52,8 +52,8 @@
     ()
     (:wat::kernel::assertion-failed!
       "assert-eq failed"
-      :None
-      :None)))
+      (Some (:wat::core::show actual))
+      (Some (:wat::core::show expected)))))
 
 ;; ─── assert-contains ──────────────────────────────────────────────────
 ;;

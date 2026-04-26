@@ -5653,6 +5653,19 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         },
     );
+    // Arc 064 — polymorphic value rendering. `:wat::core::show<T>`
+    // takes any value and returns a debug-friendly String. Used
+    // internally by `:wat::test::assert-eq` to populate the failure
+    // payload's actual/expected fields; exposed publicly so test
+    // code and future assertions reuse it.
+    env.register(
+        ":wat::core::show".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: TypeExpr::Path(":String".into()),
+        },
+    );
     // Arc 053: Vector-tier algebra primitives. Operate on raw
     // materialized Vectors without round-tripping through HolonAST.
     // Used by Phase 4 learning code that holds emergent vectors.
