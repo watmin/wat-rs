@@ -2305,6 +2305,8 @@ fn dispatch_keyword_head(
         ":wat::holon::encode" => eval_holon_encode(args, env, sym),
         ":wat::holon::vector-bytes" => eval_holon_vector_bytes(args, env, sym),
         ":wat::holon::bytes-vector" => eval_holon_bytes_vector(args, env, sym),
+        ":wat::core::Bytes::to-hex" => eval_bytes_to_hex(args, env, sym),
+        ":wat::core::Bytes::from-hex" => eval_bytes_from_hex(args, env, sym),
         ":wat::holon::vector-bind" => eval_holon_vector_bind(args, env, sym),
         ":wat::holon::vector-bundle" => eval_holon_vector_bundle(args, env, sym),
         ":wat::holon::vector-blend" => eval_holon_vector_blend(args, env, sym),
@@ -7144,6 +7146,135 @@ fn eval_holon_bytes_vector(
     Ok(Value::Option(Arc::new(Some(Value::Vector(Arc::new(
         holon::Vector::from_data(cells),
     ))))))
+}
+
+// ─── Bytes ↔ hex (arc 063) ──────────────────────────────────────────
+//
+// Text bridge for `:wat::core::Bytes`. The substrate's hermetic
+// stdout/stdin (and any future log-file or string-field channel) is
+// `:Vec<String>` — raw `:Bytes` doesn't ride that without an
+// encoding. Hex is the universally-readable choice: 1:2 byte-to-char,
+// trivially encodable, debuggable in dumps. Base64 / base32 ship
+// later under the same `:wat::core::Bytes::to-X` / `from-X` shape if
+// a consumer surfaces.
+
+/// `(:wat::core::Bytes::to-hex bs)` → `:String` (arc 063).
+/// Emit lowercase hex, no separators. Deterministic: same Bytes
+/// always produce the same String.
+fn eval_bytes_to_hex(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::Bytes::to-hex";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let xs = match eval(&args[0], env, sym)? {
+        Value::Vec(xs) => xs,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::core::Bytes (Vec<u8>)",
+                got: other.type_name(),
+            });
+        }
+    };
+    let mut out = String::with_capacity(xs.len() * 2);
+    for v in xs.iter() {
+        let b = match v {
+            Value::u8(b) => *b,
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "wat::core::Bytes (Vec<u8>)",
+                    got: other.type_name(),
+                });
+            }
+        };
+        // Lowercase hex (matches Rust's hex::encode default + git /
+        // file-checksum conventions). Two chars per byte, no padding.
+        out.push(NIBBLE[(b >> 4) as usize]);
+        out.push(NIBBLE[(b & 0x0f) as usize]);
+    }
+    Ok(Value::String(Arc::new(out)))
+}
+
+/// Lowercase hex digit table — 16 entries, indexed by nibble.
+const NIBBLE: [char; 16] = [
+    '0', '1', '2', '3', '4', '5', '6', '7',
+    '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
+];
+
+/// `(:wat::core::Bytes::from-hex s)` → `:Option<wat::core::Bytes>`
+/// (arc 063). Parse hex back into a byte buffer. Mixed case
+/// accepted (a-f and A-F both decode); raw hex only (no
+/// separators, no `0x` prefix); empty string round-trips to an
+/// empty Bytes.
+///
+/// Returns `:None` on:
+///   - odd input length (can't pair into bytes)
+///   - any non-hex character (`[^0-9a-fA-F]`)
+///
+/// Same `:None`-on-structural-failure posture as arc 056's
+/// `from-iso8601` and arc 061's `bytes-vector`.
+fn eval_bytes_from_hex(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::Bytes::from-hex";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let s = match eval(&args[0], env, sym)? {
+        Value::String(s) => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "String",
+                got: other.type_name(),
+            });
+        }
+    };
+    let bytes_in = s.as_bytes();
+    if !bytes_in.len().is_multiple_of(2) {
+        return Ok(Value::Option(Arc::new(None)));
+    }
+    let mut out: Vec<Value> = Vec::with_capacity(bytes_in.len() / 2);
+    let mut i = 0;
+    while i < bytes_in.len() {
+        let hi = match decode_nibble(bytes_in[i]) {
+            Some(n) => n,
+            None => return Ok(Value::Option(Arc::new(None))),
+        };
+        let lo = match decode_nibble(bytes_in[i + 1]) {
+            Some(n) => n,
+            None => return Ok(Value::Option(Arc::new(None))),
+        };
+        out.push(Value::u8((hi << 4) | lo));
+        i += 2;
+    }
+    Ok(Value::Option(Arc::new(Some(Value::Vec(Arc::new(out))))))
+}
+
+/// Decode an ASCII byte to a hex nibble. Accepts `0-9`, `a-f`,
+/// `A-F`; everything else returns `None`.
+fn decode_nibble(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
 }
 
 /// Arc 053 — helper. Extract a `Value::Vector` payload, error on
@@ -13919,6 +14050,143 @@ mod tests {
     #[test]
     fn bytes_vector_arity_mismatch() {
         let err = eval_expr("(:wat::holon::bytes-vector)").unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    // ─── Bytes ↔ hex (arc 063) ──────────────────────────────────────────
+
+    #[test]
+    fn bytes_to_hex_emits_lowercase_no_separators() {
+        // 0xde 0xad 0xbe 0xef → "deadbeef" (lowercase, no spaces).
+        let src = r#"
+            (:wat::core::Bytes::to-hex
+              (:wat::core::vec :u8
+                (:wat::core::u8 222)   ;; 0xde
+                (:wat::core::u8 173)   ;; 0xad
+                (:wat::core::u8 190)   ;; 0xbe
+                (:wat::core::u8 239))) ;; 0xef
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::String(s) => assert_eq!(&*s, "deadbeef"),
+            v => panic!("expected String, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn bytes_from_hex_round_trip() {
+        // hex → bytes → hex must reproduce the original.
+        let src = r#"
+            (:wat::core::let*
+              (((bs1 :wat::core::Bytes)
+                (:wat::core::vec :u8
+                  (:wat::core::u8 1)
+                  (:wat::core::u8 2)
+                  (:wat::core::u8 254)
+                  (:wat::core::u8 255)))
+               ((hex :String) (:wat::core::Bytes::to-hex bs1))
+               ((maybe-bs2 :Option<wat::core::Bytes>)
+                (:wat::core::Bytes::from-hex hex))
+               ((bs2 :wat::core::Bytes)
+                (:wat::core::match maybe-bs2 -> :wat::core::Bytes
+                  ((Some b) b)
+                  (:None
+                    (:wat::core::vec :u8 (:wat::core::u8 0))))))
+              (:wat::core::= bs1 bs2))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true (round-trip preserves bytes), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn bytes_from_hex_accepts_mixed_case() {
+        // Mixed case "AbCd" → 0xab 0xcd; same as lowercase "abcd".
+        let src = r#"
+            (:wat::core::let*
+              (((mixed :Option<wat::core::Bytes>)
+                (:wat::core::Bytes::from-hex "AbCd"))
+               ((lower :Option<wat::core::Bytes>)
+                (:wat::core::Bytes::from-hex "abcd")))
+              (:wat::core::= mixed lower))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected true (mixed case = lowercase), got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn bytes_from_hex_empty_string_round_trips() {
+        // "" → :Some(empty Bytes); to-hex of empty Bytes → "".
+        let empty_decode = r#"
+            (:wat::core::match (:wat::core::Bytes::from-hex "") -> :i64
+              ((Some b) (:wat::core::length b))
+              (:None -1))
+        "#;
+        match eval_expr(empty_decode).unwrap() {
+            Value::i64(0) => {}
+            v => panic!("expected 0 (empty Bytes), got {:?}", v),
+        }
+        let empty_encode = r#"
+            (:wat::core::Bytes::to-hex (:wat::core::vec :u8))
+        "#;
+        match eval_expr(empty_encode).unwrap() {
+            Value::String(s) => assert_eq!(&*s, ""),
+            v => panic!("expected empty String, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn bytes_from_hex_rejects_odd_length() {
+        let src = r#"
+            (:wat::core::match (:wat::core::Bytes::from-hex "abc") -> :bool
+              ((Some _) false)
+              (:None true))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected None on odd length, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn bytes_from_hex_rejects_non_hex_chars() {
+        // "zz" — z is not a hex character.
+        let src = r#"
+            (:wat::core::match (:wat::core::Bytes::from-hex "zz") -> :bool
+              ((Some _) false)
+              (:None true))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected None on non-hex char, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn bytes_from_hex_rejects_0x_prefix() {
+        // Per DESIGN Q6: no `0x` tolerance in v1.
+        let src = r#"
+            (:wat::core::match (:wat::core::Bytes::from-hex "0xdead") -> :bool
+              ((Some _) false)
+              (:None true))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::bool(true) => {}
+            v => panic!("expected None on 0x prefix, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn bytes_to_hex_arity_mismatch() {
+        let err = eval_expr("(:wat::core::Bytes::to-hex)").unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    #[test]
+    fn bytes_from_hex_arity_mismatch() {
+        let err = eval_expr("(:wat::core::Bytes::from-hex)").unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 

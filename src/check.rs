@@ -5630,6 +5630,29 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         },
     );
+    // Arc 063 — Bytes ↔ hex text bridge. to-hex emits lowercase
+    // no-separator; from-hex accepts mixed case, returns :None on
+    // odd length / non-hex character. Empty string round-trips to
+    // empty Bytes.
+    env.register(
+        ":wat::core::Bytes::to-hex".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::core::Bytes".into())],
+            ret: TypeExpr::Path(":String".into()),
+        },
+    );
+    env.register(
+        ":wat::core::Bytes::from-hex".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":String".into())],
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![TypeExpr::Path(":wat::core::Bytes".into())],
+            },
+        },
+    );
     // Arc 053: Vector-tier algebra primitives. Operate on raw
     // materialized Vectors without round-tripping through HolonAST.
     // Used by Phase 4 learning code that holds emergent vectors.
