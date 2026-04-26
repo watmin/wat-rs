@@ -4459,8 +4459,10 @@ fn eval_list_remove_at(
 
 /// Canonicalize a Value to a type-tagged String key for HashMap
 /// storage. Type-tags prevent cross-type collision (`42` vs `"42"`).
-/// Scoped to primitive keys; composite keys (Vec, Tuple, HolonAST,
-/// etc.) error.
+/// Accepts every value type whose identity has a well-defined
+/// structural hash — primitives plus `HolonAST` (per arc 057's closed
+/// algebra; structural Hash + Eq derive). Lambda / Function /
+/// ProgramHandle / etc. error: their identity isn't structural.
 pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
     match v {
         Value::String(s) => Ok(format!("S:{}", s)),
@@ -4468,9 +4470,16 @@ pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
         Value::f64(x) => Ok(format!("F:{}", x.to_bits())),
         Value::bool(b) => Ok(format!("B:{}", b)),
         Value::wat__core__keyword(k) => Ok(format!("K:{}", k)),
+        Value::holon__HolonAST(h) => {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            h.hash(&mut hasher);
+            Ok(format!("H:{:x}", hasher.finish()))
+        }
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
-            expected: "primitive key (i64, f64, bool, String, keyword)",
+            expected: "hashable value (primitive or HolonAST)",
             got: other.type_name(),
         }),
     }

@@ -66,16 +66,15 @@ impl WatLruCache {
 
     /// `:rust::lru::LruCache::put cache k v` — insert or update. LRU
     /// evicts the least-recently-used entry if insertion pushes past
-    /// capacity. Key is canonicalized via `hashmap_key` so
-    /// heterogeneous types don't collide.
+    /// capacity. Key is canonicalized via `hashmap_key`, which now
+    /// accepts every value type with a structural identity:
+    /// primitives plus `HolonAST` (per arc 057). Lambdas / handles /
+    /// other non-hashable values still error.
     pub fn put(&mut self, k: Value, v: Value) {
-        // Non-primitive keys (HolonAST, Vec, handle values, …) panic:
-        // HashMap-style canonicalization only covers the primitive key
-        // domain. Same rationale as new() — errors-as-values round-trip
-        // lands when the macro's return-type marshaling supports it.
         let key = hashmap_key(":rust::lru::LruCache::put", &k).unwrap_or_else(|_| {
             panic!(
-                ":rust::lru::LruCache::put: key must be a primitive (got {})",
+                ":rust::lru::LruCache::put: key must be a hashable value \
+                 (primitive or HolonAST); got {}",
                 k.type_name()
             )
         });
@@ -87,7 +86,8 @@ impl WatLruCache {
     pub fn get(&mut self, k: Value) -> Option<Value> {
         let key = hashmap_key(":rust::lru::LruCache::get", &k).unwrap_or_else(|_| {
             panic!(
-                ":rust::lru::LruCache::get: key must be a primitive (got {})",
+                ":rust::lru::LruCache::get: key must be a hashable value \
+                 (primitive or HolonAST); got {}",
                 k.type_name()
             )
         });
