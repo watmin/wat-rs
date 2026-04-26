@@ -744,9 +744,22 @@ compose the primitives. File path matches namespace (`wat/holon/*.wat`).
 ### The six AST-producing primitives
 
 ```scheme
-(:wat::holon::Atom "rsi")                ; seed a vector from a literal
-(:wat::holon::Atom 42)                   ; typed — int, float, bool, string, keyword
-(:wat::holon::Atom my-ast)               ; or any registered composite type
+(:wat::holon::Atom "rsi")                ; primitive → typed leaf (String)
+(:wat::holon::Atom 42)                   ; primitive → typed leaf (I64);
+                                         ; also f64 / bool / keyword
+(:wat::holon::Atom (:wat::core::quote (...)))
+                                         ; quoted form → structural lowering:
+                                         ; List → Bundle, Keyword → Symbol,
+                                         ; literals → matching primitive leaves.
+                                         ; The form itself becomes a HolonAST
+                                         ; whose identity participates in the
+                                         ; algebra — cosine, Bind, presence,
+                                         ; structural cache keys (arc 057).
+(:wat::holon::Atom my-holon)             ; HolonAST → opaque-identity wrap;
+                                         ; one SHA-256 over canonical bytes,
+                                         ; no decomposition. Distinct from
+                                         ; the inner holon's structural vector
+                                         ; (BOOK Ch.54).
 
 (:wat::holon::Bind role filler)          ; elementwise multiply — role-filler binding
 (:wat::holon::Bundle holons-vec)         ; sum + threshold — superposition
@@ -757,6 +770,41 @@ compose the primitives. File path matches namespace (`wat/holon/*.wat`).
 (:wat::holon::Thermometer v min max)     ; gradient encoding of a scalar
 (:wat::holon::Blend a b w1 w2)           ; scalar-weighted binary combination
 ```
+
+Per arc 057 the algebra is closed under itself: every leaf variant
+(`Symbol`, `String`, `I64`, `F64`, `Bool`) IS a HolonAST; the `Atom`
+variant narrows to `Arc<HolonAST>` (opaque-identity wrap of an inner
+holon). HolonAST has structural `Hash + Eq` derive, which is what
+unblocks `:wat::lru::LocalCache<wat::holon::HolonAST, V>` and the
+dual-LRU coordinate cache pattern.
+
+### Two stories the consumer chooses (arc 057)
+
+`:wat::holon::Atom` of a captured wat form gives you Story 1 — a
+**coordinate**: the form's identity is on the algebra grid; cosine,
+Bind, presence, and structural cache keys all see the form's shape.
+The substrate holds coordinates, not values — to get the actual
+result you have to walk the form yourself (or hit a cache that has
+the value edge stored).
+
+`:wat::holon::to-watast` gives you Story 2 — the **value**: it lifts
+a HolonAST back to a runnable WatAST. Pair it with `:wat::eval-ast!`
+when you want the answer, not the path.
+
+```scheme
+;; Story 1 — coordinate. The form lives on the grid.
+((form-atom :wat::holon::HolonAST)
+  (:wat::holon::Atom (:wat::core::quote (:wat::core::i64::+ 40 2))))
+
+;; Story 2 — value. Lift back, run.
+((reveal :wat::WatAST) (:wat::holon::to-watast form-atom))
+(:wat::eval-ast! reveal)        ; → :Result<wat::holon::HolonAST, EvalError>
+```
+
+The two stories compose: cache-check Story 1 ("have I seen this form
+before?") and on miss fall through to Story 2 (compute and store).
+Lossy parts of Story 2: identifier scope is dropped at lowering and
+recovered as bare-name on lift; spans are never preserved either way.
 
 ### The four measurements
 
@@ -1736,7 +1784,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::std::service::Console` | `stdout stderr n` | `(HandlePool, Driver)` |
 | `:wat::lru::CacheService` (wat-lru) | `capacity count` | `(HandlePool, Driver)` |
 | `:wat::lru::LocalCache::new` / `put` / `get` (wat-lru) | various | per-program LRU |
-| `:wat::holon::Atom` | `<literal>` | `:wat::holon::HolonAST` |
+| `:wat::holon::Atom` | `<value>` | `:wat::holon::HolonAST` — polymorphic dispatcher (arc 057). Primitive → matching typed leaf; HolonAST → opaque-identity wrap; quoted wat form → structural lowering (List → Bundle, leaves → primitive leaves). |
+| `:wat::holon::to-watast` | `holon` | `:wat::WatAST` — Story-2 recovery (arc 057): structural inverse of Atom's quote-lowering. Pair with `:wat::eval-ast!` when you want the value, not the coordinate. Lossy on identifier scope; round-trips cleanly enough for the eval-and-get-the-value workflow. |
 | `:wat::holon::Bind` | `a b` | `:wat::holon::HolonAST` |
 | `:wat::holon::Bundle` | `list-of-holons` | `:wat::holon::BundleResult` (arc 032) |
 | `:wat::holon::Permute` | `holon k` | `:wat::holon::HolonAST` |

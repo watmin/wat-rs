@@ -79,12 +79,13 @@ The substrate examples:
   registry, and config are bundled into an immutable value.
   Every thread holds an `Arc<FrozenWorld>` or `&FrozenWorld`. No
   mutation possible; no lock needed.
-- **`EncodingCtx`** — `VectorManager` + `ScalarEncoder` +
-  `AtomTypeRegistry` + `Config`, populated at freeze, referenced
-  by every thread that encodes or presence-measures. The
-  `VectorManager`'s internal caches use lock-free structures
-  internally (deterministic hashing; entries never change); the
-  outer `Arc<EncodingCtx>` is read-only.
+- **`EncodingCtx`** — `EncoderRegistry` (per-dim VM/Scalar pair) +
+  `Config`, populated at freeze, referenced by every thread that
+  encodes or presence-measures. The encoder registry's internal
+  caches use lock-free structures (deterministic hashing; entries
+  never change); the outer `Arc<EncodingCtx>` is read-only. Per
+  arc 057 the `AtomTypeRegistry` field is gone — typed HolonAST
+  leaves replaced its dyn-Any dispatch job.
 - **Deterministic atom vectors** — per FOUNDATION, the same atom
   at the same seed and dimension always produces the same vector.
   Threads that both need `atom("rsi")` compute independently and
