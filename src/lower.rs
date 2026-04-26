@@ -9,9 +9,9 @@
 //!
 //! # What's handled
 //!
-//! - `(:wat::holon::Atom <literal>)` — lowers to `HolonAST::atom(...)`
-//!   for the Rust primitive the literal represents, or
-//!   `HolonAST::keyword(...)` for a keyword literal.
+//! - `(:wat::holon::Atom <literal>)` — lowers to the matching typed leaf
+//!   (`HolonAST::i64/f64/bool_/string`) per arc 057, or `HolonAST::keyword`
+//!   for a keyword literal.
 //! - `(:wat::holon::Bind a b)` — both args recursively lowered.
 //! - `(:wat::holon::Bundle (:wat::core::vec ...))` — list form required;
 //!   children recursively lowered.
@@ -177,17 +177,14 @@ fn lower_atom(args: &[WatAST]) -> Result<HolonAST, LowerError> {
 }
 
 fn atom_from_literal(lit: &WatAST) -> Result<HolonAST, LowerError> {
+    // Per arc 057, primitives ARE HolonAST — atoms lower to the typed
+    // leaf variant directly, not through a polymorphic dyn-Any wrapper.
     match lit {
-        WatAST::IntLit(n, _) => Ok(HolonAST::atom(*n)),
-        WatAST::FloatLit(x, _) => Ok(HolonAST::atom(*x)),
-        WatAST::BoolLit(b, _) => Ok(HolonAST::atom(*b)),
-        WatAST::StringLit(s, _) => Ok(HolonAST::atom(s.clone())),
-        WatAST::Keyword(k, _) => {
-            // Stored as-is — the leading `:` is part of the canonical bytes,
-            // so keywords and strings never collide (per holon-rs's Keyword
-            // convention).
-            Ok(HolonAST::keyword(k))
-        }
+        WatAST::IntLit(n, _) => Ok(HolonAST::i64(*n)),
+        WatAST::FloatLit(x, _) => Ok(HolonAST::f64(*x)),
+        WatAST::BoolLit(b, _) => Ok(HolonAST::bool_(*b)),
+        WatAST::StringLit(s, _) => Ok(HolonAST::string(s.as_str())),
+        WatAST::Keyword(k, _) => Ok(HolonAST::keyword(k)),
         _ => Err(LowerError::AtomNonLiteral),
     }
 }
@@ -278,15 +275,14 @@ fn numeric(ast: &WatAST) -> Option<f64> {
 mod tests {
     use super::*;
     use crate::parser::parse_one;
-    use holon::{atom_value, encode, AtomTypeRegistry, ScalarEncoder, VectorManager};
+    use holon::{encode, ScalarEncoder, VectorManager};
 
     const D: usize = 1024;
 
-    fn env() -> (VectorManager, ScalarEncoder, AtomTypeRegistry) {
+    fn env() -> (VectorManager, ScalarEncoder) {
         (
             VectorManager::with_seed(D, 42),
             ScalarEncoder::with_seed(D, 42),
-            AtomTypeRegistry::with_builtins(),
         )
     }
 
@@ -294,42 +290,36 @@ mod tests {
     fn lower_atom_string() {
         let ast = parse_one(r#"(:wat::holon::Atom "role")"#).unwrap();
         let holon = lower(&ast).unwrap();
-        // Verify payload type by downcast through atom_value.
-        let recovered: Option<&String> = atom_value(&holon);
-        assert_eq!(recovered, Some(&"role".to_string()));
+        assert_eq!(holon.as_string(), Some("role"));
     }
 
     #[test]
     fn lower_atom_int() {
         let ast = parse_one("(:wat::holon::Atom 42)").unwrap();
         let holon = lower(&ast).unwrap();
-        let recovered: Option<&i64> = atom_value(&holon);
-        assert_eq!(recovered, Some(&42_i64));
+        assert_eq!(holon.as_i64(), Some(42));
     }
 
     #[test]
     fn lower_atom_float() {
         let ast = parse_one("(:wat::holon::Atom 2.5)").unwrap();
         let holon = lower(&ast).unwrap();
-        let recovered: Option<&f64> = atom_value(&holon);
-        assert_eq!(recovered, Some(&2.5_f64));
+        assert_eq!(holon.as_f64(), Some(2.5));
     }
 
     #[test]
     fn lower_atom_bool() {
         let ast = parse_one("(:wat::holon::Atom true)").unwrap();
         let holon = lower(&ast).unwrap();
-        let recovered: Option<&bool> = atom_value(&holon);
-        assert_eq!(recovered, Some(&true));
+        assert_eq!(holon.as_bool(), Some(true));
     }
 
     #[test]
     fn lower_atom_keyword() {
         let ast = parse_one("(:wat::holon::Atom :foo::bar)").unwrap();
         let holon = lower(&ast).unwrap();
-        // Keyword payloads are stored as Strings with leading `:`.
-        let recovered: Option<&String> = atom_value(&holon);
-        assert_eq!(recovered, Some(&":foo::bar".to_string()));
+        // Keywords lower to Symbol leaves with the leading `:` preserved.
+        assert_eq!(holon.as_symbol(), Some(":foo::bar"));
     }
 
     #[test]
@@ -340,8 +330,8 @@ mod tests {
         .unwrap();
         let holon = lower(&ast).unwrap();
         // Shape check: the lowered value encodes to a ternary vector.
-        let (vm, se, reg) = env();
-        let v = encode(&holon, &vm, &se, &reg);
+        let (vm, se) = env();
+        let v = encode(&holon, &vm, &se);
         assert_eq!(v.dimensions(), D);
     }
 
@@ -352,8 +342,8 @@ mod tests {
         )
         .unwrap();
         let holon = lower(&ast).unwrap();
-        let (vm, se, reg) = env();
-        let v = encode(&holon, &vm, &se, &reg);
+        let (vm, se) = env();
+        let v = encode(&holon, &vm, &se);
         assert_eq!(v.dimensions(), D);
     }
 
@@ -364,8 +354,8 @@ mod tests {
         )
         .unwrap();
         let holon = lower(&ast).unwrap();
-        let (vm, se, reg) = env();
-        let v = encode(&holon, &vm, &se, &reg);
+        let (vm, se) = env();
+        let v = encode(&holon, &vm, &se);
         assert_eq!(v.dimensions(), D);
     }
 
@@ -373,8 +363,8 @@ mod tests {
     fn lower_thermometer() {
         let ast = parse_one("(:wat::holon::Thermometer 0.5 0.0 1.0)").unwrap();
         let holon = lower(&ast).unwrap();
-        let (vm, se, reg) = env();
-        let v = encode(&holon, &vm, &se, &reg);
+        let (vm, se) = env();
+        let v = encode(&holon, &vm, &se);
         assert_eq!(v.dimensions(), D);
     }
 
@@ -385,8 +375,8 @@ mod tests {
         )
         .unwrap();
         let holon = lower(&ast).unwrap();
-        let (vm, se, reg) = env();
-        let v = encode(&holon, &vm, &se, &reg);
+        let (vm, se) = env();
+        let v = encode(&holon, &vm, &se);
         assert_eq!(v.dimensions(), D);
     }
 

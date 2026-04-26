@@ -126,7 +126,7 @@ pub use types::{
     NewtypeDef, StructDef, TypeDef, TypeEnv, TypeError, TypeExpr,
 };
 
-use holon::{encode, AtomTypeRegistry, ScalarEncoder, Vector, VectorManager};
+use holon::{encode, ScalarEncoder, Vector, VectorManager};
 
 /// Unified error type across the parse + lower pipeline.
 #[derive(Debug)]
@@ -169,23 +169,21 @@ impl From<LowerError> for Error {
 ///
 /// ```
 /// use wat::eval_algebra_source;
-/// use holon::{AtomTypeRegistry, ScalarEncoder, VectorManager};
+/// use holon::{ScalarEncoder, VectorManager};
 ///
 /// let vm = VectorManager::with_seed(1_024, 42);
 /// let se = ScalarEncoder::with_seed(1_024, 42);
-/// let reg = AtomTypeRegistry::with_builtins();
 ///
 /// let src = r#"(:wat::holon::Bind (:wat::holon::Atom "role") (:wat::holon::Atom "filler"))"#;
-/// let vector = eval_algebra_source(src, &vm, &se, &reg).unwrap();
+/// let vector = eval_algebra_source(src, &vm, &se).unwrap();
 /// assert_eq!(vector.dimensions(), 1_024);
 /// ```
 pub fn eval_algebra_source(
     src: &str,
     vm: &VectorManager,
     scalar: &ScalarEncoder,
-    registry: &AtomTypeRegistry,
 ) -> Result<Vector, Error> {
     let ast = parse_one(src)?;
     let holon = lower(&ast)?;
-    Ok(encode(&holon, vm, scalar, registry))
+    Ok(encode(&holon, vm, scalar))
 }

@@ -58,6 +58,12 @@ pub trait DimRouter: Send + Sync + fmt::Debug {
 /// shape except Bundle which is variable.
 pub fn immediate_arity(ast: &HolonAST) -> usize {
     match ast {
+        // Primitive leaves are atomic (arity 1).
+        HolonAST::Symbol(_)
+        | HolonAST::String(_)
+        | HolonAST::I64(_)
+        | HolonAST::F64(_)
+        | HolonAST::Bool(_) => 1,
         HolonAST::Atom(_) => 1,
         HolonAST::Bind(_, _) => 2,
         HolonAST::Bundle(children) => children.len(),
@@ -248,7 +254,7 @@ mod tests {
     /// matter, just the count.
     fn bundle_of(n: usize) -> HolonAST {
         let children: Vec<HolonAST> = (0..n)
-            .map(|i| HolonAST::atom(format!("a-{}", i)))
+            .map(|i| HolonAST::string(format!("a-{}", i)))
             .collect();
         HolonAST::bundle(children)
     }
@@ -280,7 +286,7 @@ mod tests {
         let r = SizingRouter::with_default_tiers();
         let s = sym();
         // An Atom has immediate arity 1 → smallest tier fits.
-        assert_eq!(r.pick(&HolonAST::atom("alice"), &s), Some(256));
+        assert_eq!(r.pick(&HolonAST::string("alice"), &s), Some(256));
         // Empty bundle (arity 0) also fits smallest.
         assert_eq!(r.pick(&bundle_of(0), &s), Some(256));
     }
@@ -289,7 +295,7 @@ mod tests {
     fn custom_single_tier_matches_legacy_behavior() {
         let r = SizingRouter::with_tiers(vec![10000]);
         let s = sym();
-        assert_eq!(r.pick(&HolonAST::atom("x"), &s), Some(10000));
+        assert_eq!(r.pick(&HolonAST::string("x"), &s), Some(10000));
         assert_eq!(r.pick(&bundle_of(100), &s), Some(10000));
         assert_eq!(r.pick(&bundle_of(101), &s), None);
     }
@@ -307,7 +313,7 @@ mod tests {
         let r = SizingRouter::with_tiers(vec![]);
         let s = sym();
         assert_eq!(r.pick(&bundle_of(0), &s), None);
-        assert_eq!(r.pick(&HolonAST::atom("x"), &s), None);
+        assert_eq!(r.pick(&HolonAST::string("x"), &s), None);
         assert_eq!(r.pick(&bundle_of(100), &s), None);
     }
 
@@ -315,7 +321,7 @@ mod tests {
     fn bind_arity_is_2() {
         let r = SizingRouter::with_default_tiers();
         let s = sym();
-        let ast = HolonAST::bind(HolonAST::atom("a"), HolonAST::atom("b"));
+        let ast = HolonAST::bind(HolonAST::string("a"), HolonAST::string("b"));
         // arity 2 → fits smallest tier (sqrt(256)=16 ≥ 2).
         assert_eq!(r.pick(&ast, &s), Some(256));
     }

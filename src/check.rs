@@ -4700,13 +4700,27 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     // atom-value — ∀T. :wat::holon::HolonAST → :T. Dual of Atom. The caller's
     // let-binding type ascription (or surrounding context) pins T; the
-    // runtime downcasts the payload and errors on type mismatch.
+    // runtime dispatches on the holon's variant and errors when the
+    // variant doesn't match the expected return type.
     env.register(
         ":wat::core::atom-value".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![holon_ty()],
             ret: t_var(),
+        },
+    );
+
+    // to-watast — :wat::holon::HolonAST → :wat::WatAST. Story-2 escape
+    // hatch per arc 057: structural inverse of Atom's quote-lowering.
+    // Pair with :wat::eval-ast! when you want the value, not the
+    // coordinate.
+    env.register(
+        ":wat::holon::to-watast".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: TypeExpr::Path(":wat::WatAST".into()),
         },
     );
 

@@ -42,7 +42,7 @@
 use crate::ast::WatAST;
 use crate::span::Span;
 use crate::config::Config;
-use holon::{encode, AtomTypeRegistry, HolonAST, Similarity};
+use holon::{encode, HolonAST, Similarity};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -525,95 +525,23 @@ impl EnvBuilder {
 pub struct EncodingCtx {
     /// Per-dim encoder registry. Lazy: encoders at a given d are
     /// materialized on first request and shared across threads. All
-    /// encoders share `config.global_seed`. Arc 037 slice 3: this
-    /// replaces the single-dim VM/Scalar pair — every construction
-    /// now picks its own d via the ambient router, and THIS registry
-    /// is where the materialization lives.
+    /// encoders share `config.global_seed`.
     pub encoders: Arc<crate::vm_registry::EncoderRegistry>,
-    pub registry: Arc<AtomTypeRegistry>,
     pub config: Config,
 }
 
 impl EncodingCtx {
-    /// Build an encoding context from the frozen [`Config`]. The
-    /// atom-type registry is seeded with the built-in payload types
-    /// (i64, f64, bool, String, keyword, HolonAST) plus [`WatAST`]
-    /// for programs-as-atoms — a program captured via
-    /// `:wat::core::quote` and wrapped in an `:wat::holon::Atom`
-    /// needs a stable canonical form so it can encode to a
-    /// deterministic vector.
+    /// Build an encoding context from the frozen [`Config`].
     ///
-    /// Arc 037 slice 3: no VM is built here. The
-    /// [`crate::vm_registry::EncoderRegistry`] carries
-    /// `config.global_seed` and materializes encoders lazily per
-    /// dim, as Atom/Bundle/cosine sites consult the ambient router.
+    /// Per arc 057 the `AtomTypeRegistry` is gone — primitives ARE
+    /// HolonAST (typed leaves), so the dyn-Any payload registry that
+    /// once dispatched on `Atom(Arc<dyn Any>)` no longer has work to do.
     pub fn from_config(cfg: &Config) -> Self {
-        let mut registry = AtomTypeRegistry::with_builtins();
-        registry.register::<WatAST>("wat/WatAST", |ast, _reg| canonical_wat_ast(ast));
         EncodingCtx {
             encoders: Arc::new(crate::vm_registry::EncoderRegistry::new(cfg.global_seed)),
-            registry: Arc::new(registry),
             config: cfg.clone(),
         }
     }
-}
-
-/// Canonical byte encoding of a [`WatAST`] for atom-payload hashing.
-///
-/// Deterministic per spec: same AST ⇒ same bytes ⇒ same vector seed.
-/// Format is a simple tagged recursive serialization — variant tag
-/// (1 byte) followed by variant-specific body. Used only for atom
-/// canonicalization inside the registry; not a wire format.
-fn canonical_wat_ast(ast: &WatAST) -> Vec<u8> {
-    let mut out = Vec::new();
-    write_wat_ast(ast, &mut out);
-    out
-}
-
-fn write_wat_ast(ast: &WatAST, out: &mut Vec<u8>) {
-    match ast {
-        WatAST::IntLit(n, _) => {
-            out.push(0);
-            out.extend_from_slice(&n.to_le_bytes());
-        }
-        WatAST::FloatLit(x, _) => {
-            out.push(1);
-            out.extend_from_slice(&x.to_le_bytes());
-        }
-        WatAST::BoolLit(b, _) => {
-            out.push(2);
-            out.push(if *b { 1 } else { 0 });
-        }
-        WatAST::StringLit(s, _) => {
-            out.push(3);
-            write_bytes(s.as_bytes(), out);
-        }
-        WatAST::Keyword(k, _) => {
-            out.push(4);
-            write_bytes(k.as_bytes(), out);
-        }
-        WatAST::Symbol(ident, _) => {
-            out.push(5);
-            write_bytes(ident.name.as_bytes(), out);
-            // Scope IDs — sorted (BTreeSet already provides order).
-            out.extend_from_slice(&(ident.scopes.len() as u64).to_le_bytes());
-            for sid in ident.scopes.iter() {
-                out.extend_from_slice(&sid.0.to_le_bytes());
-            }
-        }
-        WatAST::List(items, _) => {
-            out.push(6);
-            out.extend_from_slice(&(items.len() as u64).to_le_bytes());
-            for child in items {
-                write_wat_ast(child, out);
-            }
-        }
-    }
-}
-
-fn write_bytes(bytes: &[u8], out: &mut Vec<u8>) {
-    out.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
-    out.extend_from_slice(bytes);
 }
 
 impl fmt::Debug for EncodingCtx {
@@ -2315,6 +2243,7 @@ fn dispatch_keyword_head(
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
         ":wat::holon::Atom" => eval_algebra_atom(args, env, sym),
+        ":wat::holon::to-watast" => eval_holon_to_watast(args, env, sym),
         ":wat::holon::Bind" => eval_algebra_bind(args, env, sym),
         ":wat::holon::Bundle" => eval_algebra_bundle(args, env, sym),
         ":wat::holon::Permute" => eval_algebra_permute(args, env, sym),
@@ -5758,17 +5687,22 @@ fn try_match_pattern(
     }
 }
 
-/// `(:wat::core::atom-value <holon>)` — extract the payload from an Atom.
+/// `(:wat::core::atom-value <holon>)` — extract the wrapped value from a
+/// HolonAST leaf or from an opaque-identity `Atom` wrap.
 ///
-/// Dual of `:wat::holon::Atom`. Given an `:Atom<T>` holon, returns the
-/// `:T` payload. The payload's Rust type determines which `Value`
-/// variant is returned; callers annotate the expected `T` at let-binding
-/// sites, and the checker unifies through `atom-value`'s
-/// `∀T. :wat::holon::HolonAST -> :T` scheme.
+/// Per arc 057 the algebra is closed: HolonAST has typed primitive
+/// leaves (Symbol/String/I64/F64/Bool) AND an opaque-identity wrap
+/// (`Atom(Arc<HolonAST>)`). `atom-value` recovers either:
 ///
-/// Errors if the holon is not an `Atom` variant (Bind/Bundle/Permute/
-/// Thermometer/Blend) or if the payload type isn't one of the dispatchable
-/// atom payload types (String/i64/f64/bool/HolonAST/WatAST/keyword).
+/// - Primitive leaf → corresponding wat `Value` (Symbol → keyword,
+///   String → String, I64 → i64, F64 → f64, Bool → bool).
+/// - `Atom(inner)` → inner HolonAST as a `Value::holon__HolonAST`. The
+///   wrap is unwrapped one layer; consumers wanting the inner-most
+///   leaf call `atom-value` repeatedly.
+/// - Composite (`Bind`/`Bundle`/`Permute`/`Thermometer`/`Blend`) →
+///   error. These are structural; their parts come out via the
+///   substrate's structural decomposition (e.g. `unbind`), not via
+///   atom-value.
 fn eval_atom_value(
     args: &[WatAST],
     env: &Environment,
@@ -5793,42 +5727,16 @@ fn eval_atom_value(
         }
     };
     match &*holon {
-        HolonAST::Atom(payload) => {
-            // Dispatch on the payload's concrete Rust type. Order
-            // matters only for `String` vs keyword: HolonAST::keyword
-            // stores keywords as `String` with a leading `:`. We
-            // distinguish by inspecting that byte.
-            if let Some(s) = payload.downcast_ref::<String>() {
-                if s.starts_with(':') {
-                    return Ok(Value::wat__core__keyword(Arc::new(s.clone())));
-                }
-                return Ok(Value::String(Arc::new(s.clone())));
-            }
-            if let Some(n) = payload.downcast_ref::<i64>() {
-                return Ok(Value::i64(*n));
-            }
-            if let Some(x) = payload.downcast_ref::<f64>() {
-                return Ok(Value::f64(*x));
-            }
-            if let Some(b) = payload.downcast_ref::<bool>() {
-                return Ok(Value::bool(*b));
-            }
-            if let Some(w) = payload.downcast_ref::<WatAST>() {
-                return Ok(Value::wat__WatAST(Arc::new(w.clone())));
-            }
-            if let Some(h) = payload.downcast_ref::<HolonAST>() {
-                return Ok(Value::holon__HolonAST(Arc::new(h.clone())));
-            }
-            Err(RuntimeError::TypeMismatch {
-                op: ":wat::core::atom-value".into(),
-                expected: "atom payload of known type (String/i64/f64/bool/HolonAST/WatAST/keyword)",
-                got: "atom payload type not registered in atom-value dispatch",
-            })
-        }
+        HolonAST::Symbol(s) => Ok(Value::wat__core__keyword(Arc::new(s.to_string()))),
+        HolonAST::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
+        HolonAST::I64(n) => Ok(Value::i64(*n)),
+        HolonAST::F64(x) => Ok(Value::f64(*x)),
+        HolonAST::Bool(b) => Ok(Value::bool(*b)),
+        HolonAST::Atom(inner) => Ok(Value::holon__HolonAST(inner.clone())),
         _ => Err(RuntimeError::TypeMismatch {
             op: ":wat::core::atom-value".into(),
-            expected: "Atom holon",
-            got: "non-Atom HolonAST variant (Bind/Bundle/Permute/Thermometer/Blend)",
+            expected: "Atom or primitive leaf",
+            got: "composite HolonAST variant (Bind/Bundle/Permute/Thermometer/Blend)",
         }),
     }
 }
@@ -5852,29 +5760,170 @@ fn eval_algebra_atom(
 }
 
 fn value_to_atom(v: Value) -> Result<Value, RuntimeError> {
-    // Atomize a runtime value: wrap it in an Atom Holon whose payload
-    // registry dispatches on the value's concrete Rust type.
+    // Per arc 057 (typed leaves; algebra closed) the Atom constructor
+    // is a polymorphic dispatcher onto HolonAST:
+    //
+    // - Primitives → typed leaves (vocabulary atoms; BOOK Ch.45).
+    // - HolonAST   → opaque-identity wrap (BOOK Ch.54 atom-vs-recursive
+    //                distinction; `Atom(prog)` ≠ `prog` at the
+    //                geometric level — kept for callers who explicitly
+    //                want one-identity-for-the-whole-subtree).
+    // - WatAST     → structural lowering. Programs ARE holons under the
+    //                cache-as-coordinate-tree vision: a quoted form
+    //                (Keyword, literal, or List) produces the
+    //                corresponding HolonAST node, recursively. This is
+    //                what lets the form's identity participate in the
+    //                algebra (Hash + Eq + cosine) — the prerequisite
+    //                for the dual-LRU expansion/value caches and for
+    //                Reckoner labels on intermediary forms.
     let holon = match v {
-        Value::i64(n) => HolonAST::atom(n),
-        Value::f64(x) => HolonAST::atom(x),
-        Value::bool(b) => HolonAST::atom(b),
-        Value::String(s) => HolonAST::atom((*s).clone()),
-        Value::wat__core__keyword(k) => HolonAST::keyword(&k),
-        Value::holon__HolonAST(h) => HolonAST::atom((*h).clone()),
-        // Programs-as-atoms: a quoted wat program (captured via
-        // `:wat::core::quote`) becomes an Atom whose payload IS the
-        // WatAST. Retrieved later via `:wat::core::atom-value` and
-        // executed via `:wat::eval-ast!`. See VISION.md.
-        Value::wat__WatAST(a) => HolonAST::atom((*a).clone()),
+        // Primitive leaves ───────────────────────────────────────────
+        Value::i64(n) => HolonAST::i64(n),
+        Value::f64(x) => HolonAST::f64(x),
+        Value::bool(b) => HolonAST::bool_(b),
+        Value::String(s) => HolonAST::string(s.as_str()),
+        Value::wat__core__keyword(k) => HolonAST::symbol(k.as_str()),
+        // Opaque-identity wrap ───────────────────────────────────────
+        Value::holon__HolonAST(h) => HolonAST::Atom(h),
+        // Structural lowering of a captured wat form ────────────────
+        Value::wat__WatAST(a) => watast_to_holon(&a),
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Atom".into(),
-                expected: "atomizable value (Int/Float/Bool/String/Keyword/Holon/WatAST)",
+                expected: "primitive, HolonAST, or quoted wat form",
                 got: other.type_name(),
             });
         }
     };
     Ok(Value::holon__HolonAST(Arc::new(holon)))
+}
+
+/// Lower a captured wat form into a HolonAST. Uniform structural
+/// rule per arc 057's quote-all-the-way-down framing: every node is
+/// a coordinate; lists nest as Bundle; literals collapse to their
+/// matching primitive leaf; identifier scope is dropped (forms are
+/// spelling, scope is resolution-time).
+fn watast_to_holon(a: &WatAST) -> HolonAST {
+    match a {
+        WatAST::IntLit(n, _) => HolonAST::i64(*n),
+        WatAST::FloatLit(x, _) => HolonAST::f64(*x),
+        WatAST::BoolLit(b, _) => HolonAST::bool_(*b),
+        WatAST::StringLit(s, _) => HolonAST::string(s.as_str()),
+        WatAST::Keyword(k, _) => HolonAST::symbol(k.as_str()),
+        WatAST::Symbol(ident, _) => HolonAST::symbol(ident.name.as_str()),
+        WatAST::List(items, _) => {
+            HolonAST::bundle(items.iter().map(watast_to_holon).collect())
+        }
+    }
+}
+
+/// `(:wat::holon::to-watast holon) -> :wat::WatAST` — lift a HolonAST
+/// back to a runnable wat AST. The Story-2 escape hatch per arc 057:
+/// the substrate's "next form" surface (cosine, Bind, presence, the
+/// dual-LRU coordinate cache) operates on HolonAST structure directly;
+/// when a consumer wants the actual VALUE, they `to-watast` the form
+/// and `eval-ast!` the result.
+///
+/// The lift is the structural inverse of [`watast_to_holon`]:
+/// primitive leaves recover their corresponding WatAST literal;
+/// `Bundle`s become `List`s; `Atom`/`Bind`/`Permute`/`Thermometer`/
+/// `Blend` emit the wat source form that, when evaluated, would
+/// reconstruct that node — so a HolonAST tree round-trips through
+/// `to-watast → eval-ast!` back to the same HolonAST shape.
+///
+/// Lossy parts: identifier scope (dropped at lowering time;
+/// recovered keyword form re-resolves through the current scope) and
+/// span info (never preserved on either side).
+fn eval_holon_to_watast(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::holon::to-watast".into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let h = match eval(&args[0], env, sym)? {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: ":wat::holon::to-watast".into(),
+                expected: "wat::holon::HolonAST",
+                got: other.type_name(),
+            });
+        }
+    };
+    Ok(Value::wat__WatAST(Arc::new(holon_to_watast(&h))))
+}
+
+fn holon_to_watast(h: &HolonAST) -> WatAST {
+    match h {
+        HolonAST::I64(n) => WatAST::IntLit(*n, Span::unknown()),
+        HolonAST::F64(x) => WatAST::FloatLit(*x, Span::unknown()),
+        HolonAST::Bool(b) => WatAST::BoolLit(*b, Span::unknown()),
+        HolonAST::String(s) => WatAST::StringLit(s.to_string(), Span::unknown()),
+        // Per the lab convention (also enforced by HolonAST::keyword): a
+        // Symbol whose content begins with `:` came from a keyword;
+        // anything else came from a bare wat identifier. We use that
+        // prefix to decide which WatAST variant to emit, preserving the
+        // `to-watast → eval-ast!` round-trip for both shapes.
+        HolonAST::Symbol(s) => {
+            if s.starts_with(':') {
+                WatAST::Keyword(s.to_string(), Span::unknown())
+            } else {
+                WatAST::Symbol(crate::identifier::Identifier::bare(s.to_string()), Span::unknown())
+            }
+        }
+        HolonAST::Bundle(items) => WatAST::List(
+            items.iter().map(holon_to_watast).collect(),
+            Span::unknown(),
+        ),
+        HolonAST::Atom(inner) => WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::holon::Atom".into(), Span::unknown()),
+                holon_to_watast(inner),
+            ],
+            Span::unknown(),
+        ),
+        HolonAST::Bind(a, b) => WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::holon::Bind".into(), Span::unknown()),
+                holon_to_watast(a),
+                holon_to_watast(b),
+            ],
+            Span::unknown(),
+        ),
+        HolonAST::Permute(child, k) => WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::holon::Permute".into(), Span::unknown()),
+                holon_to_watast(child),
+                WatAST::IntLit(*k as i64, Span::unknown()),
+            ],
+            Span::unknown(),
+        ),
+        HolonAST::Thermometer { value, min, max } => WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::holon::Thermometer".into(), Span::unknown()),
+                WatAST::FloatLit(*value, Span::unknown()),
+                WatAST::FloatLit(*min, Span::unknown()),
+                WatAST::FloatLit(*max, Span::unknown()),
+            ],
+            Span::unknown(),
+        ),
+        HolonAST::Blend(a, b, w1, w2) => WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::holon::Blend".into(), Span::unknown()),
+                holon_to_watast(a),
+                holon_to_watast(b),
+                WatAST::FloatLit(*w1, Span::unknown()),
+                WatAST::FloatLit(*w2, Span::unknown()),
+            ],
+            Span::unknown(),
+        ),
+    }
 }
 
 fn eval_algebra_bind(
@@ -6136,20 +6185,20 @@ fn pair_values_to_vectors(
         (Value::Vector(va), Value::holon__HolonAST(b)) => {
             let d = va.dimensions();
             let enc = ctx.encoders.get(d);
-            let vb = encode(&b, &enc.vm, &enc.scalar, &ctx.registry);
+            let vb = encode(&b, &enc.vm, &enc.scalar);
             Ok((va.as_ref().clone(), vb))
         }
         (Value::holon__HolonAST(a), Value::Vector(vb)) => {
             let d = vb.dimensions();
             let enc = ctx.encoders.get(d);
-            let va = encode(&a, &enc.vm, &enc.scalar, &ctx.registry);
+            let va = encode(&a, &enc.vm, &enc.scalar);
             Ok((va, vb.as_ref().clone()))
         }
         (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => {
             let d = pick_d_for_pair(op, &a, &b, sym)?;
             let enc = ctx.encoders.get(d);
-            let va = encode(&a, &enc.vm, &enc.scalar, &ctx.registry);
-            let vb = encode(&b, &enc.vm, &enc.scalar, &ctx.registry);
+            let va = encode(&a, &enc.vm, &enc.scalar);
+            let vb = encode(&b, &enc.vm, &enc.scalar);
             Ok((va, vb))
         }
         (a, _) => Err(RuntimeError::TypeMismatch {
@@ -6225,8 +6274,8 @@ fn eval_algebra_presence_q(
     // config.dims).
     let d = pick_d_for_pair(":wat::holon::presence?", &target, &reference, sym)?;
     let enc = ctx.encoders.get(d);
-    let vt = encode(&target, &enc.vm, &enc.scalar, &ctx.registry);
-    let vr = encode(&reference, &enc.vm, &enc.scalar, &ctx.registry);
+    let vt = encode(&target, &enc.vm, &enc.scalar);
+    let vr = encode(&reference, &enc.vm, &enc.scalar);
     let cosine = Similarity::cosine(&vt, &vr);
     Ok(Value::bool(cosine > enc.presence_floor(sym)))
 }
@@ -6275,8 +6324,8 @@ fn eval_algebra_coincident_q(
     // applied at actual encoding d.
     let d = pick_d_for_pair(":wat::holon::coincident?", &a, &b, sym)?;
     let enc = ctx.encoders.get(d);
-    let va = encode(&a, &enc.vm, &enc.scalar, &ctx.registry);
-    let vb = encode(&b, &enc.vm, &enc.scalar, &ctx.registry);
+    let va = encode(&a, &enc.vm, &enc.scalar);
+    let vb = encode(&b, &enc.vm, &enc.scalar);
     let cosine = Similarity::cosine(&va, &vb);
     Ok(Value::bool((1.0 - cosine) < enc.coincident_floor(sym)))
 }
@@ -6373,8 +6422,8 @@ fn coincident_of_two_values(
     // floor at actual encoding d.
     let d = pick_d_for_pair(op, &holon_a, &holon_b, sym)?;
     let enc = ctx.encoders.get(d);
-    let va = encode(&holon_a, &enc.vm, &enc.scalar, &ctx.registry);
-    let vb = encode(&holon_b, &enc.vm, &enc.scalar, &ctx.registry);
+    let va = encode(&holon_a, &enc.vm, &enc.scalar);
+    let vb = encode(&holon_b, &enc.vm, &enc.scalar);
     let cosine = Similarity::cosine(&va, &vb);
     Ok(Value::bool((1.0 - cosine) < enc.coincident_floor(sym)))
 }
@@ -6669,7 +6718,7 @@ fn eval_algebra_simhash(
                     immediate_arity: crate::dim_router::immediate_arity(&ast),
                 })?;
             let enc = ctx.encoders.get(d);
-            let v = encode(&ast, &enc.vm, &enc.scalar, &ctx.registry);
+            let v = encode(&ast, &enc.vm, &enc.scalar);
             (v, enc)
         }
         other => {
@@ -6681,11 +6730,11 @@ fn eval_algebra_simhash(
         }
     };
 
-    // Project onto Atom(0)..Atom(63) via the canonical LSH basis.
+    // Project onto I64(0)..I64(63) via the canonical LSH basis.
     let mut key: u64 = 0;
     for i in 0..64u32 {
-        let atom_ast = HolonAST::Atom(Arc::new(i as i64));
-        let atom_vec = encode(&atom_ast, &enc.vm, &enc.scalar, &ctx.registry);
+        let atom_ast = HolonAST::i64(i as i64);
+        let atom_vec = encode(&atom_ast, &enc.vm, &enc.scalar);
         let dot = Similarity::dot(&v, &atom_vec);
         if dot > 0.0 {
             key |= 1u64 << i;
@@ -6730,7 +6779,7 @@ fn eval_holon_encode(
             immediate_arity: crate::dim_router::immediate_arity(&target),
         })?;
     let enc = ctx.encoders.get(d);
-    let v = encode(&target, &enc.vm, &enc.scalar, &ctx.registry);
+    let v = encode(&target, &enc.vm, &enc.scalar);
     Ok(Value::Vector(Arc::new(v)))
 }
 
@@ -10200,8 +10249,7 @@ mod tests {
         .unwrap();
         match v {
             Value::holon__HolonAST(h) => {
-                let recovered: Option<&i64> = holon::atom_value(&h);
-                assert_eq!(recovered, Some(&42_i64));
+                assert_eq!(h.as_i64(), Some(42));
             }
             other => panic!("expected Holon, got {:?}", other),
         }
@@ -10454,23 +10502,43 @@ mod tests {
     }
 
     #[test]
-    fn atom_value_recovers_quoted_program() {
-        // Atom(quote X) → atom-value back to WatAST X.
+    fn atom_lowers_quoted_list_to_bundle() {
+        // Per arc 057's quote-all-the-way-down framing: a quoted list
+        // form lowers structurally to a Bundle of its lowered children.
+        // The form's identity participates in the algebra; this is the
+        // substrate-side prerequisite for the cache-as-coordinate-tree
+        // and for Reckoner labels on intermediary forms.
+        let v = eval_expr(
+            "(:wat::holon::Atom (:wat::core::quote (:wat::core::i64::+ 40 2)))",
+        )
+        .unwrap();
+        let h = match v {
+            Value::holon__HolonAST(h) => h,
+            other => panic!("expected Holon, got {:?}", other),
+        };
+        match &*h {
+            HolonAST::Bundle(items) => {
+                assert_eq!(items.len(), 3, "expected 3-item Bundle, got {}", items.len());
+                assert_eq!(items[0].as_symbol(), Some(":wat::core::i64::+"));
+                assert_eq!(items[1].as_i64(), Some(40));
+                assert_eq!(items[2].as_i64(), Some(2));
+            }
+            other => panic!("expected Bundle, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn atom_value_recovers_quoted_keyword() {
+        // Atomic literals inside quote DO survive the trip — they lower to
+        // their matching primitive leaf at Atom time, and atom-value
+        // reads them back as the corresponding wat Value.
         let result = eval_expr(
-            "(:wat::core::atom-value (:wat::holon::Atom (:wat::core::quote (:wat::core::i64::+ 40 2))))",
+            "(:wat::core::atom-value (:wat::holon::Atom (:wat::core::quote :outcome)))",
         )
         .unwrap();
         match result {
-            Value::wat__WatAST(ast) => match &*ast {
-                WatAST::List(items, _) => {
-                    assert!(matches!(
-                        items.first(),
-                        Some(WatAST::Keyword(k, _)) if k == ":wat::core::i64::+"
-                    ));
-                }
-                other => panic!("expected List AST, got {:?}", other),
-            },
-            other => panic!("expected Value::wat__WatAST, got {:?}", other),
+            Value::wat__core__keyword(k) => assert_eq!(&*k, ":outcome"),
+            other => panic!("expected keyword, got {:?}", other),
         }
     }
 
@@ -10514,26 +10582,34 @@ mod tests {
     }
 
     #[test]
-    fn programs_as_atoms_structural_roundtrip() {
-        // The structural side of programs-as-atoms: quote captures a
-        // WatAST; Atom wraps it; atom-value unwraps it; eval-ast! runs
-        // it. No Bind / unbind in this path — that's the vector-side
-        // proof, which needs presence (added separately).
-        let result = eval_expr(
-            r#"(:wat::core::let*
-                 (((program :wat::WatAST)
-                    (:wat::core::quote (:wat::core::i64::+ 40 2)))
-                  ((program-atom :wat::holon::HolonAST)
-                    (:wat::holon::Atom program))
-                  ((reveal :wat::WatAST)
-                    (:wat::core::atom-value program-atom)))
-                 (:wat::eval-ast! reveal))"#,
+    fn programs_as_atoms_structural_lowering() {
+        // Per arc 057's quote-all-the-way-down: a quoted form lowers
+        // structurally to a HolonAST tree (List → Bundle, leaves →
+        // primitive leaves). The form is now a coordinate in the
+        // algebra; cosine, Hash, and Eq all see its structure.
+        //
+        // The pre-arc-057 lossless `Atom → atom-value → eval-ast!`
+        // round-trip is intentionally gone — the substrate holds
+        // coordinates, not runnable programs. Consumers who want the
+        // value walk the form themselves (or use a future cache layer
+        // that records the form → value edge).
+        let v = eval_expr(
+            "(:wat::holon::Atom (:wat::core::quote (:wat::core::i64::+ 40 2)))",
         )
         .unwrap();
-        // eval-ast! returns Value::Result now; unwrap Ok to get the
-        // evaluated value.
-        let inner = eval_ok_inner(result);
-        assert!(matches!(inner, Value::i64(42)));
+        let h = match v {
+            Value::holon__HolonAST(h) => h,
+            other => panic!("expected Holon, got {:?}", other),
+        };
+        match &*h {
+            HolonAST::Bundle(items) => {
+                assert_eq!(items.len(), 3);
+                assert_eq!(items[0].as_symbol(), Some(":wat::core::i64::+"));
+                assert_eq!(items[1].as_i64(), Some(40));
+                assert_eq!(items[2].as_i64(), Some(2));
+            }
+            other => panic!("expected Bundle, got {:?}", other),
+        }
     }
 
     // ─── Presence measurement (FOUNDATION 1718) ─────────────────────────

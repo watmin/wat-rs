@@ -116,9 +116,12 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
            (:None ()))))
      ((program-atom :wat::holon::HolonAST)
        (:wat::holon::Atom program))
+     ;; arc 057 Story-2 recovery: program-atom is now a structural
+     ;; HolonAST (the form lowered onto the algebra grid). to-watast
+     ;; lifts it back to a runnable WatAST; eval-ast! fires it.
      ((reveal :wat::WatAST)
-       (:wat::core::atom-value program-atom)))
-    ;; eval-ast! now returns :Result<wat::holon::HolonAST, EvalError> per
+       (:wat::holon::to-watast program-atom)))
+    ;; eval-ast! returns :Result<wat::holon::HolonAST, EvalError> per
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here
     ;; (the quoted program is well-formed and non-mutating).
@@ -239,11 +242,12 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
            "Some\n"
            "None\n")))
 
-     ;; Structural path: extract the WatAST from the in-scope program-atom
-     ;; and run it. The presence measurements above proved the vector
-     ;; dynamics; this line runs the actual program.
+     ;; arc 057 Story-2 recovery: program-atom is the structurally
+     ;; lowered HolonAST (Bundle of Symbol/lit leaves). to-watast lifts
+     ;; it back to a runnable WatAST. The presence measurements above
+     ;; proved the vector dynamics; this line runs the actual program.
      ((reveal :wat::WatAST)
-       (:wat::core::atom-value program-atom)))
+       (:wat::holon::to-watast program-atom)))
     ;; eval-ast! now returns :Result<wat::holon::HolonAST, EvalError> per
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here —
