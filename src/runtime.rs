@@ -6418,6 +6418,25 @@ fn eval_algebra_permute(
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::permute((*child).clone(), k))))
 }
 
+/// `(:wat::holon::Thermometer value min max)` — gradient-encode a
+/// scalar `value` over the `[min, max]` axis. Two near-equal values
+/// produce vectors with cosine ≈ `1 - 2·|Δ|/(max-min)` — the encoding
+/// is locality-preserving: proximate inputs land at proximate
+/// coordinates on the algebra grid. Pairs with arc 057's typed-leaf
+/// `F64` (which is quasi-orthogonal) as the consumer's choice for
+/// "discrete identity vs. continuous identity at this leaf."
+///
+/// The NAME is borrowed from the HDC / hyperdimensional-computing and
+/// earlier ML traditions, where "thermometer encoding" refers to
+/// representing a scalar as a bit-vector with a number of '1' bits
+/// proportional to the value (mercury rising in a column). wat-rs's
+/// primitive is the continuous-bipolar variant of that discrete
+/// classical encoding, adapted to the substrate's `{-1, 0, +1}^d`
+/// algebra — different math, same metaphor, same name.
+///
+/// Substrate role: BOOK Chapters 57 (the continuum) and 66 (the
+/// fuzziness) name this primitive as the locality-preserving leaf
+/// the dual-LRU coordinate cache (Chapter 59) keys neighborhoods on.
 fn eval_algebra_thermometer(
     args: &[WatAST],
     env: &Environment,

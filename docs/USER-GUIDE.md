@@ -773,7 +773,7 @@ compose the primitives. File path matches namespace (`wat/holon/*.wat`).
                                          ;   (= :Result<HolonAST, CapacityExceeded>;
                                          ;    see section 12)
 (:wat::holon::Permute holon k)           ; circular shift — positional encoding
-(:wat::holon::Thermometer v min max)     ; gradient encoding of a scalar
+(:wat::holon::Thermometer v min max)     ; locality-preserving gradient encoding of a scalar (HDC/ML tradition; see runtime.rs::eval_algebra_thermometer)
 (:wat::holon::Blend a b w1 w2)           ; scalar-weighted binary combination
 ```
 
@@ -1969,7 +1969,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::holon::Bind` | `a b` | `:wat::holon::HolonAST` |
 | `:wat::holon::Bundle` | `list-of-holons` | `:wat::holon::BundleResult` (arc 032) |
 | `:wat::holon::Permute` | `holon k` | `:wat::holon::HolonAST` |
-| `:wat::holon::Thermometer` | `value min max` | `:wat::holon::HolonAST` |
+| `:wat::holon::Thermometer` | `value min max` | `:wat::holon::HolonAST` — locality-preserving gradient encoding of a scalar over `[min, max]`. Two near-equal values produce vectors with cosine ≈ `1 - 2·\|Δ\|/(max-min)`. Pairs with arc 057's quasi-orthogonal `F64` leaf as the consumer's choice for "discrete vs. continuous identity at this leaf." Name from the HDC/ML tradition; see `runtime.rs::eval_algebra_thermometer` for full attribution and BOOK chapters 57 + 66 for substrate role. |
 | `:wat::holon::Blend` | `a b w1 w2` | `:wat::holon::HolonAST` |
 | `:wat::holon::ReciprocalLog` | `n value` | `:wat::holon::HolonAST` (arc 034) |
 | `:wat::holon::cosine` / `dot` | `a b` | `:f64` — polymorphic over HolonAST or Vector inputs (arc 052); mixed (one AST, one Vector) is permitted and the AST encodes at the Vector's d |
