@@ -2128,14 +2128,23 @@ fn dispatch_keyword_head(
         ":wat::core::u8" => eval_u8_cast(args, env, sym),
 
         // Integer arithmetic — strict i64. No promotion from f64.
-        ":wat::core::i64::+" => eval_i64_arith(head, args, env, sym, |a, b| Ok(a + b)),
-        ":wat::core::i64::-" => eval_i64_arith(head, args, env, sym, |a, b| Ok(a - b)),
-        ":wat::core::i64::*" => eval_i64_arith(head, args, env, sym, |a, b| Ok(a * b)),
+        // Wrapping on overflow (matches `eval_poly_arith`'s i64
+        // semantics; protects against debug-mode panics on hash-
+        // derived inputs like `:wat::holon::simhash`).
+        ":wat::core::i64::+" => {
+            eval_i64_arith(head, args, env, sym, |a, b| Ok(a.wrapping_add(b)))
+        }
+        ":wat::core::i64::-" => {
+            eval_i64_arith(head, args, env, sym, |a, b| Ok(a.wrapping_sub(b)))
+        }
+        ":wat::core::i64::*" => {
+            eval_i64_arith(head, args, env, sym, |a, b| Ok(a.wrapping_mul(b)))
+        }
         ":wat::core::i64::/" => eval_i64_arith(head, args, env, sym, |a, b| {
             if b == 0 {
                 Err(RuntimeError::DivisionByZero)
             } else {
-                Ok(a / b)
+                Ok(a.wrapping_div(b))
             }
         }),
         // String basics — per-type ops under :wat::core::string::*,
@@ -3811,14 +3820,21 @@ fn eval_poly_arith(
     let b = eval(&args[1], env, sym)?;
     match (&a, &b) {
         (Value::i64(x), Value::i64(y)) => match op {
-            PolyOp::Add => Ok(Value::i64(x + y)),
-            PolyOp::Sub => Ok(Value::i64(x - y)),
-            PolyOp::Mul => Ok(Value::i64(x * y)),
+            // Wrapping i64 arithmetic — matches typical Lisp/Scheme
+            // semantics for `+` on machine integers and prevents debug-
+            // mode panics on overflow when the inputs come from hash-
+            // derived sources (`:wat::holon::simhash`, etc.). Callers
+            // wanting overflow-checked arithmetic compose `:wat::core::
+            // i64::*` primitives with explicit guards; the substrate's
+            // bare `+/-/*` is the wrap-on-overflow shape.
+            PolyOp::Add => Ok(Value::i64(x.wrapping_add(*y))),
+            PolyOp::Sub => Ok(Value::i64(x.wrapping_sub(*y))),
+            PolyOp::Mul => Ok(Value::i64(x.wrapping_mul(*y))),
             PolyOp::Div => {
                 if *y == 0 {
                     Err(RuntimeError::DivisionByZero)
                 } else {
-                    Ok(Value::i64(x / y))
+                    Ok(Value::i64(x.wrapping_div(*y)))
                 }
             }
         },
@@ -10193,6 +10209,33 @@ fn step_list(
         | ":wat::core::f64::max"
         | ":wat::core::f64::min"
         | ":wat::core::u8" => step_descend_then_fire(items, list_span, env, sym),
+        // Holon constructors — pure ops over the closed algebra (arc 057).
+        // They use a holon-canonical fire condition: a list whose head is
+        // itself a holon constructor with recursively-canonical args
+        // counts as a single holon "value." Lifting an intermediate
+        // typed-leaf back to a primitive WatAST would lose the
+        // HolonAST-typed distinction the next constructor expects, so
+        // the whole holon tree fires in one step instead of piecemeal.
+        ":wat::holon::Atom"
+        | ":wat::holon::leaf"
+        | ":wat::holon::Bind"
+        | ":wat::holon::Bundle"
+        | ":wat::holon::Permute"
+        | ":wat::holon::Thermometer"
+        | ":wat::holon::Blend" => {
+            step_holon_descend_then_fire(items, list_span, env, sym)
+        }
+        // Bare lambda terminal — Q6 of arc 068 DESIGN. A `(lambda ...)`
+        // form is its own canonical-form holon: no captures (a closure-
+        // bearing lambda would have already produced a Function value
+        // with closed_env, not a literal `(lambda ...)` form). Wrap as
+        // an opaque-identity Atom of the structural lowering so cosine /
+        // hash / cache keys see it as a single coordinate.
+        ":wat::core::lambda" => {
+            let form = WatAST::List(items.to_vec(), list_span.clone());
+            let h = watast_to_holon(&form);
+            Ok(StepValue::Terminal(HolonAST::Atom(Arc::new(h))))
+        }
         _ => {
             // User-defined function looked up by full keyword path.
             // Top-level defines have closed_env=None; closures (from
@@ -10275,6 +10318,101 @@ fn step_descend_then_fire(
         _ => unreachable!("value_to_holon returns Value::holon__HolonAST on Ok"),
     };
     Ok(StepValue::Terminal(h))
+}
+
+/// Holon-constructor variant of descend-then-fire. Same shape as
+/// `step_descend_then_fire`, but uses `is_holon_arg_canonical` so a
+/// nested holon-constructor list (its inner args canonical) counts
+/// as a single value for the parent — the entire holon tree fires
+/// in one rewrite. This is the honest answer to the type-loss
+/// problem: `Atom("k")` produces a typed `HolonAST::String` leaf
+/// (per arc 057's polymorphic Atom), and lifting that back to a
+/// bare WatAST `StringLit` would make the next `Bind` step fail
+/// `require_holon` — so we don't lift; we recognize the structural
+/// holon shape and let `eval` reduce the whole tree.
+fn step_holon_descend_then_fire(
+    items: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<StepValue, RuntimeError> {
+    for (idx, arg) in items.iter().enumerate().skip(1) {
+        if !is_holon_arg_canonical(arg) {
+            let new_arg = step_to_watast(arg, env, sym)?;
+            let mut new_items: Vec<WatAST> = items.to_vec();
+            new_items[idx] = new_arg;
+            return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
+        }
+    }
+    // Fire. Bundle's signature is `:Result<HolonAST, CapacityExceeded>`
+    // — a wat-side Result wrap orthogonal to the EvalError wrap that
+    // eval-step!'s caller sees. Other holon constructors return a
+    // bare HolonAST. Peel the inner Result if present so the
+    // user-visible step terminal is uniformly a HolonAST: Ok cases
+    // unwrap to the inner; Err cases lift to TypeMismatch so
+    // wrap_as_eval_result surfaces the capacity overflow as the
+    // outer EvalError. (Q9 of arc 068 DESIGN.)
+    let form = WatAST::List(items.to_vec(), list_span.clone());
+    let v = eval(&form, env, sym)?;
+    let v = match v {
+        Value::Result(r) => match Arc::try_unwrap(r).unwrap_or_else(|a| (*a).clone()) {
+            Ok(inner) => inner,
+            Err(err_val) => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: ":wat::eval-step!".into(),
+                    expected: "successful holon construction",
+                    got: err_val.type_name(),
+                });
+            }
+        },
+        other => other,
+    };
+    let h_val = value_to_holon(":wat::eval-step!", v)?;
+    let h = match h_val {
+        Value::holon__HolonAST(h) => (*h).clone(),
+        _ => unreachable!("value_to_holon returns Value::holon__HolonAST on Ok"),
+    };
+    Ok(StepValue::Terminal(h))
+}
+
+/// Holon-constructor argument canonicity. Admits primitives and
+/// holon-constructor calls whose own args are recursively canonical.
+/// This is what lets `(Bind (Atom "k") (Atom "v"))` fire as a single
+/// step instead of trying to step `(Atom "k")` separately and lift
+/// the typed leaf back through a primitive WatAST (where it'd lose
+/// its HolonAST identity).
+fn is_holon_arg_canonical(form: &WatAST) -> bool {
+    match form {
+        WatAST::IntLit(_, _)
+        | WatAST::FloatLit(_, _)
+        | WatAST::BoolLit(_, _)
+        | WatAST::StringLit(_, _)
+        | WatAST::Keyword(_, _) => true,
+        WatAST::List(items, _) => match items.first() {
+            Some(WatAST::Keyword(k, _)) => match k.as_str() {
+                ":wat::holon::Atom"
+                | ":wat::holon::leaf"
+                | ":wat::holon::Bind"
+                | ":wat::holon::Permute"
+                | ":wat::holon::Thermometer"
+                | ":wat::holon::Blend" => items[1..].iter().all(is_holon_arg_canonical),
+                // `(:wat::core::vec :T <elems>...)` — Bundle's input
+                // shape. The first arg is a type keyword (not
+                // evaluated, always canonical); subsequent args are
+                // the holon elements that must be recursively
+                // canonical for the parent constructor to fire as a
+                // single step.
+                ":wat::core::vec" | ":wat::core::list" => {
+                    items.len() >= 2
+                        && matches!(items[1], WatAST::Keyword(_, _))
+                        && items[2..].iter().all(is_holon_arg_canonical)
+                }
+                _ => false,
+            },
+            _ => false,
+        },
+        _ => false,
+    }
 }
 
 /// `(:wat::core::if cond -> :T then else)` — five-arg shape per
@@ -15646,11 +15784,15 @@ mod tests {
 
     #[test]
     fn step_unknown_form_yields_no_step_rule_err() {
-        // Holon constructors (`:wat::holon::Bind`, `leaf`, `Bundle`,
-        // …) ship in Phase 3. Phase 2 routes them to NoStepRule so
-        // a consumer can fall back to `eval-ast!` for those sub-forms.
+        // `:wat::holon::from-watast` consumes a quoted form (a
+        // `:wat::WatAST` value) and `:wat::core::quote` is a special
+        // form not in the step-rule table — quote produces a
+        // wat__WatAST Value that has no HolonAST representation. Step
+        // mode routes both to NoStepRule; consumers that hit them
+        // fall back to `eval-ast!`. Picking from-watast as the test
+        // case documents that boundary.
         let s = step_to_show(
-            "(:wat::eval-step! (:wat::core::quote (:wat::holon::Bind 1 2)))",
+            "(:wat::eval-step! (:wat::core::quote (:wat::holon::from-watast x)))",
         );
         assert!(
             s.contains("no-step-rule"),
@@ -15687,7 +15829,9 @@ mod tests {
     fn step_to_terminal_prelude() -> &'static str {
         // Tagged-enum variant patterns use the fully-qualified keyword
         // path per arc 048 (see try_match_pattern's `WatAST::Keyword`
-        // arm).
+        // arm). The Err arm packs the EvalError's message string into
+        // the result holon so failing tests can show it instead of a
+        // silent sentinel.
         r#"
         (:wat::core::define
           (:my::test::step-to-terminal (form :wat::WatAST) -> :wat::holon::HolonAST)
@@ -15697,7 +15841,7 @@ mod tests {
                 ((:wat::eval::StepResult::StepNext next)
                   (:my::test::step-to-terminal next))
                 ((:wat::eval::StepResult::StepTerminal h) h)))
-            ((Err e) (:wat::holon::leaf -1))))
+            ((Err e) (:wat::holon::leaf (:wat::core::struct-field e 1)))))
         "#
     }
 
@@ -15713,6 +15857,38 @@ mod tests {
             Value::holon__HolonAST(h) => h,
             other => panic!("expected HolonAST, got {:?}", other),
         }
+    }
+
+    /// `run` variant that attaches an EncodingCtx + dim router to the
+    /// SymbolTable — matches what `FrozenWorld::freeze` does for a
+    /// real program. Required for step rules over forms that touch
+    /// the encoding pipeline (`:wat::holon::Bundle`, cosine, etc.).
+    fn run_with_ctx(src: &str, dims: usize) -> Result<Value, RuntimeError> {
+        let (stdlib_sym, stdlib_macros) = stdlib_loaded();
+        let mut macros = stdlib_macros.clone();
+        let forms = parse_all(src).expect("parse ok");
+        let expanded =
+            crate::macros::expand_all(forms, &mut macros).expect("macro expansion");
+        let mut sym = stdlib_sym.clone();
+        sym.set_encoding_ctx(Arc::new(EncodingCtx::from_config(&Config {
+            capacity_mode: crate::config::CapacityMode::Error,
+            global_seed: 42,
+            dim_router_ast: None,
+            presence_sigma_ast: None,
+            coincident_sigma_ast: None,
+        })));
+        sym.set_dim_router(Arc::new(
+            crate::dim_router::SizingRouter::with_tiers(vec![dims]),
+        ));
+        sym.set_presence_sigma_fn(Arc::new(crate::dim_router::DefaultPresenceSigma));
+        sym.set_coincident_sigma_fn(Arc::new(crate::dim_router::DefaultCoincidentSigma));
+        let rest = register_defines(expanded, &mut sym)?;
+        let env = Environment::new();
+        let mut last = Value::Unit;
+        for form in &rest {
+            last = eval(form, &env, &sym)?;
+        }
+        Ok(last)
     }
 
     #[test]
@@ -15876,6 +16052,177 @@ mod tests {
                 ),
                 other => panic!("expected i64, got {:?}", other),
             }
+        }
+    }
+
+    #[test]
+    fn step_tail_recursion_terminates_under_bound() {
+        // `sum-to` recurses by tail call. Each β-reduction substitutes
+        // the body in place — no stack growth — so a small `n` should
+        // terminate well under a generous step bound. We count the
+        // rewrites driven through `:wat::eval-step!` and assert the
+        // total stays below the bound (mirrors arc 003's TCO claim
+        // at the step level).
+        let src = format!(
+            r#"
+            (:wat::core::define
+              (:my::test::sum-to (n :i64) (acc :i64) -> :i64)
+              (:wat::core::if (:wat::core::i64::= n 0) -> :i64
+                acc
+                (:my::test::sum-to (:wat::core::i64::- n 1)
+                                   (:wat::core::i64::+ acc n))))
+            (:wat::core::define
+              (:my::test::step-count (form :wat::WatAST) (n :i64) -> :i64)
+              (:wat::core::match (:wat::eval-step! form) -> :i64
+                ((Ok r)
+                  (:wat::core::match r -> :i64
+                    ((:wat::eval::StepResult::StepNext next)
+                      (:my::test::step-count next (:wat::core::i64::+ n 1)))
+                    ((:wat::eval::StepResult::StepTerminal h) n)))
+                ((Err e) -1)))
+            {}
+            (:wat::core::let*
+              (((sum :wat::holon::HolonAST)
+                (:my::test::step-to-terminal
+                  (:wat::core::quote (:my::test::sum-to 3 0))))
+               ((steps :i64)
+                (:my::test::step-count
+                  (:wat::core::quote (:my::test::sum-to 3 0)) 0)))
+              (:wat::core::tuple sum steps))
+            "#,
+            step_to_terminal_prelude()
+        );
+        match run(&src).unwrap() {
+            Value::Tuple(t) => {
+                let elems = (*t).clone();
+                let h = match &elems[0] {
+                    Value::holon__HolonAST(h) => h.clone(),
+                    other => panic!("sum: expected HolonAST, got {:?}", other),
+                };
+                let steps = match &elems[1] {
+                    Value::i64(n) => *n,
+                    other => panic!("steps: expected i64, got {:?}", other),
+                };
+                assert_eq!(h.as_i64(), Some(6), "sum-to 3 0 should equal 6");
+                assert!(steps > 0 && steps < 50, "steps out of bound: {}", steps);
+            }
+            other => panic!("expected tuple, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn step_holon_constructor_atom() {
+        // `(:wat::holon::Atom "k")` — primitive arg, holon-canonical;
+        // fires in one step. Per arc 057's polymorphic Atom the result
+        // is the typed-leaf shape `HolonAST::String("k")`, NOT an
+        // Atom-wrap (the wrap reserves itself for HolonAST inputs;
+        // primitives lift to typed leaves).
+        let h = step_drive_to_terminal(r#"(:wat::holon::Atom "k")"#);
+        match &*h {
+            HolonAST::String(s) if &s[..] == "k" => {}
+            other => panic!("expected HolonAST::String(\"k\"), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn step_holon_constructor_bind() {
+        // `(:wat::holon::Bind (Atom "k") (Atom "v"))` — both args are
+        // holon-canonical (constructor lists with primitive fields),
+        // so the whole tree fires as one rewrite. The result is the
+        // Bind tree over typed-leaf children. Verifies the Phase 3
+        // type-loss workaround: lifting a typed leaf back to a bare
+        // primitive WatAST would make the parent's require_holon
+        // check fail, so the macro-step rule keeps the holon tree
+        // intact through eval.
+        let h = step_drive_to_terminal(
+            r#"(:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))"#,
+        );
+        match &*h {
+            HolonAST::Bind(a, b) => {
+                assert!(matches!(&**a, HolonAST::String(s) if &s[..] == "k"));
+                assert!(matches!(&**b, HolonAST::String(s) if &s[..] == "v"));
+            }
+            other => panic!("expected HolonAST::Bind, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn step_holon_constructor_bundle() {
+        // `(:wat::holon::Bundle (:wat::core::vec :HolonAST (Atom "a")
+        //                                                  (Atom "b")))`
+        // — the vec list's elements are themselves holon-canonical
+        // (Atom forms with primitive args). Bundle's arg recognizes
+        // the (vec :T <holons>...) shape as canonical, so the entire
+        // tree fires in one step. The result is a HolonAST::Bundle of
+        // typed-leaf Strings.
+        //
+        // Bundle exercises the encoding pipeline (capacity guard +
+        // dim router), so this test runs through `run_with_ctx`
+        // instead of `run`.
+        let src = format!(
+            r#"
+            {}
+            (:my::test::step-to-terminal
+              (:wat::core::quote
+                (:wat::holon::Bundle
+                  (:wat::core::vec :wat::holon::HolonAST
+                    (:wat::holon::Atom "a")
+                    (:wat::holon::Atom "b")))))
+            "#,
+            step_to_terminal_prelude()
+        );
+        let v = run_with_ctx(&src, 1024).unwrap();
+        let h = match v {
+            Value::holon__HolonAST(h) => h,
+            other => panic!("expected HolonAST, got {:?}", other),
+        };
+        match &*h {
+            HolonAST::Bundle(items) => {
+                assert_eq!(items.len(), 2, "expected 2 elements, got {}", items.len());
+                assert!(matches!(&items[0], HolonAST::String(s) if &s[..] == "a"));
+                assert!(matches!(&items[1], HolonAST::String(s) if &s[..] == "b"));
+            }
+            other => panic!("expected HolonAST::Bundle, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn step_holon_thermometer() {
+        // `(:wat::holon::Thermometer 0.5 0.0 1.0)` — three primitive
+        // f64 args, all canonical, fires in one step.
+        let h = step_drive_to_terminal("(:wat::holon::Thermometer 0.5 0.0 1.0)");
+        match &*h {
+            HolonAST::Thermometer { value, min, max } => {
+                assert_eq!(*value, 0.5);
+                assert_eq!(*min, 0.0);
+                assert_eq!(*max, 1.0);
+            }
+            other => panic!("expected HolonAST::Thermometer, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn step_outer_form_span_survives_rewrite() {
+        // Per DESIGN's Q7: the rewritten outer form preserves the
+        // original outer span. We parse `(+ (+ 1 2) 3)`, take the
+        // outer list's parsed span, run one step (which descends the
+        // inner `(+ 1 2)`), and assert the rebuilt outer form carries
+        // the same span. Direct Rust access — no eval-step! wrap.
+        use crate::parser::parse_one;
+        let src = "(:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3)";
+        let ast = parse_one(src).expect("parse");
+        let outer_span = ast.span().clone();
+        let (sym, _) = stdlib_loaded();
+        let env = Environment::new();
+        let stepped = step_form(&ast, &env, sym).expect("step");
+        match stepped {
+            StepValue::Next(WatAST::List(_, span)) => {
+                assert_eq!(
+                    span, outer_span,
+                    "outer-form span should survive a rewrite"
+                );
+            }
+            other => panic!("expected StepNext(List), got {:?}", other),
         }
     }
 

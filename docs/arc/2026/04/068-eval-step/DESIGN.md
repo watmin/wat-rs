@@ -1,6 +1,6 @@
 # Arc 068 — Incremental evaluator (`:wat::eval-step!`)
 
-**Status:** PROPOSED 2026-04-26. Pre-implementation reasoning artifact.
+**Status:** shipped 2026-04-26 (3 phases). Pre-implementation reasoning artifact.
 **Predecessors:** arc 003 (TCO trampoline), arc 057 (typed HolonAST
 leaves — algebra closed under itself), arc 058 (`HashMap<HolonAST, V>`
 at user level), arc 066 (`eval-ast!` returns wrapped HolonAST per

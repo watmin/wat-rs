@@ -812,6 +812,56 @@ before?") and on miss fall through to Story 2 (compute and store).
 Lossy parts of Story 2: identifier scope is dropped at lowering and
 recovered as bare-name on lift; spans are never preserved either way.
 
+### Story 3 — the path. `:wat::eval-step!`
+
+`eval-ast!` runs a form to its terminal value in one shot. `eval-step!`
+runs ONE reduction at the leftmost-outermost redex and gives you back
+the next form to feed in — or the terminal HolonAST if there's no
+redex left. Every intermediate form is its own coordinate, its own
+potential cache key, its own potential short-circuit for a parallel
+walker. This is the substrate primitive that BOOK Chapter 59's
+dual-LRU coordinate cache (form→next-form + form→terminal-value)
+sits on top of.
+
+```scheme
+;; A driver that walks a form to its terminal value, calling eval-step!
+;; once per rewrite. The same shape every dual-LRU cache consumer wants.
+(:wat::core::define
+  (:my::cache::step-to-terminal (form :wat::WatAST) -> :wat::holon::HolonAST)
+  (:wat::core::match (:wat::eval-step! form) -> :wat::holon::HolonAST
+    ((Ok r)
+      (:wat::core::match r -> :wat::holon::HolonAST
+        ((:wat::eval::StepResult::StepNext next)
+          ;; This is where a real consumer would also write
+          ;;   (form → next) into the form-to-next-form LRU.
+          (:my::cache::step-to-terminal next))
+        ((:wat::eval::StepResult::StepTerminal h)
+          ;; And this is where it would write
+          ;;   (form → h) into the form-to-terminal-value LRU.
+          h)))
+    ((Err e)
+      ;; Effectful sub-forms (`:wat::kernel::*`, `:wat::io::*`),
+      ;; no-step-rule shapes, type errors — fall back to eval-ast!.
+      (:wat::core::match (:wat::eval-ast! form) -> :wat::holon::HolonAST
+        ((Ok h2) h2)
+        ((Err _) (:wat::holon::leaf -1))))))
+
+;; Use it: drive `(+ (+ 1 2) 3)` to terminal HolonAST::I64(6).
+(:my::cache::step-to-terminal
+  (:wat::core::quote (:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3)))
+```
+
+The three cache-coordinate stories compose:
+- **Story 1** (the coordinate): `Atom(form)` — the form's identity on
+  the algebra grid. SimHash / cosine / Hash see it as one vector.
+- **Story 2** (the value): `to-watast → eval-ast!` — collapse the
+  whole form to its terminal HolonAST in one shot.
+- **Story 3** (the path): `eval-step!` — the path between Story 1 and
+  Story 2, one rewrite at a time. Every intermediate form gets its own
+  Story-1 coordinate; the dual-LRU caches form→next + form→terminal
+  along the way so a parallel walker sharing the cache can shortcut
+  to whatever's already known.
+
 ### The four measurements
 
 ```scheme
@@ -1942,6 +1992,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::values` | `m` | `:Vec<V>` — order unspecified; sort post-call for determinism (arc 058) |
 | `:wat::core::empty?` | `coll` | `:bool` — polymorphic over Vec/HashMap/HashSet (extended in arc 058) |
 | `:wat::eval-ast!` | `<wat-ast>` | `:Result<wat::holon::HolonAST, wat::core::EvalError>` — evaluates already-parsed AST (arc 028); arc 066 wraps the terminal value as HolonAST per scheme so `(Ok h)` is genuinely a HolonAST (use `:wat::core::atom-value` to extract the primitive). Forms whose terminal value has no HolonAST representation (Vec / Tuple / channels / etc.) return `Err` |
+| `:wat::eval-step!` | `<wat-ast>` | `:Result<wat::eval::StepResult, wat::core::EvalError>` — performs ONE call-by-value reduction at the leftmost-outermost redex (arc 068). Returns `StepNext form` when a rewrite happened (`form` is the next WatAST to feed back), `StepTerminal value` when the form had no redex (`value` is the HolonAST representation). Effectful ops (`:wat::kernel::*`, `:wat::io::*`, `:wat::eval-*`, `:wat::load*`, `:wat::config::*`) refuse with `EvalError(kind="effectful-in-step")`; ops without a step rule yet refuse with `kind="no-step-rule"`. The substrate primitive backing BOOK Chapter 59's dual-LRU coordinate cache: every intermediate form is its own cache key. Holon constructors (`Atom` / `leaf` / `Bind` / `Bundle` / `Permute` / `Thermometer` / `Blend`) fire as a single rewrite when their args are recursively holon-canonical — typed-leaf round-trip would lose the `HolonAST` distinction the next constructor expects |
+| `:wat::eval::StepResult` | enum | `StepNext { form: :wat::WatAST }` / `StepTerminal { value: :wat::holon::HolonAST }` — the two outcomes of a single reduction step (arc 068). Match by full keyword path: `((:wat::eval::StepResult::StepNext next) ...)` / `((:wat::eval::StepResult::StepTerminal h) ...)` |
 | `:wat::eval-edn!` / `eval-file!` | `<source>` / `<path>` | parses+evaluates string or file |
 | `:wat::eval-digest-string!` / `eval-digest-file!` | `<src/path> <hex>` | SHA-256 verified eval |
 | `:wat::eval-signed-string!` / `eval-signed-file!` | `<src/path> <sig> <pk>` | Ed25519 verified eval |
