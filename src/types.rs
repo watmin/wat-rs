@@ -375,6 +375,31 @@ fn register_builtin_types(env: &mut TypeEnv) {
         },
     }));
 
+    // :wat::eval::StepResult — populated in the Ok slot of the :Result
+    // returned by :wat::eval-step! (arc 068). Two variants distinguish
+    // "one rewrite happened, here's the next form" from "this is the
+    // terminal value." Both arms carry a payload — the next form as
+    // wat::WatAST, the terminal value as wat::holon::HolonAST. The
+    // consumer drives the loop, feeding StepNext.form back in until
+    // StepTerminal arrives.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::eval::StepResult".into(),
+        type_params: vec![],
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "StepNext".into(),
+                fields: vec![("form".into(), TypeExpr::Path(":wat::WatAST".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "StepTerminal".into(),
+                fields: vec![(
+                    "value".into(),
+                    TypeExpr::Path(":wat::holon::HolonAST".into()),
+                )],
+            },
+        ],
+    }));
+
     // :wat::kernel::ThreadDiedError — populated in the Err slot of the
     // :Result returned by :wat::kernel::join-result (arc 060) when a
     // spawned thread does NOT yield a value normally. Three variants

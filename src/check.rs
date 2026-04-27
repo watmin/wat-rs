@@ -5105,6 +5105,24 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: eval_result_ty(),
         },
     );
+    // :wat::eval-step! (arc 068) — one CBV reduction at the leftmost-
+    // outermost redex. Returns Ok(StepResult) on progress (StepNext or
+    // StepTerminal); Err(EvalError) for malformed forms, effectful
+    // ops in step mode, or shapes the stepper hasn't been taught yet.
+    env.register(
+        ":wat::eval-step!".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![wat_ast_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![
+                    TypeExpr::Path(":wat::eval::StepResult".into()),
+                    TypeExpr::Path(":wat::core::EvalError".into()),
+                ],
+            },
+        },
+    );
     env.register(
         ":wat::eval-edn!".into(),
         TypeScheme {

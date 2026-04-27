@@ -834,6 +834,21 @@ pub enum RuntimeError {
     /// type checker's job; this variant fires only when the check was
     /// bypassed or hasn't caught up with a new pattern form.
     PatternMatchFailed { value_type: &'static str },
+    /// Arc 068 — `:wat::eval-step!` saw a form whose head is an
+    /// effectful op (kernel sends/recvs, IO writes, channel-construction
+    /// primitives, `:wat::eval-ast!` itself, etc.). The stepwise
+    /// evaluator deliberately rejects effects so the BOOK Chapter 59
+    /// dual-LRU cache's "form IS its return value" invariant holds —
+    /// the caller falls back to `:wat::eval-ast!` for sub-forms with
+    /// effects.
+    EffectfulInStep { op: String },
+    /// Arc 068 — `:wat::eval-step!` saw a form whose shape isn't yet
+    /// covered by a step rule (a future stdlib op, an unrecognized
+    /// keyword head). Caller falls back to `:wat::eval-ast!` for
+    /// the affected sub-form. Distinct from `EffectfulInStep` so
+    /// consumers can distinguish "out of scope by design" from "not
+    /// taught yet."
+    NoStepRule { op: String },
     /// Internal control-flow signal raised by `:wat::core::try` on an
     /// `Err` value. Carries the `Err` payload up to the innermost
     /// enclosing function/lambda boundary; [`apply_function`] catches
@@ -978,6 +993,16 @@ impl fmt::Display for RuntimeError {
                 f,
                 ":wat::core::match: no arm matched scrutinee of type {}; exhaustiveness should be caught at type-check time",
                 value_type
+            ),
+            RuntimeError::EffectfulInStep { op } => write!(
+                f,
+                ":wat::eval-step!: refuses to step effectful op {}; the BOOK Chapter 59 dual-LRU cache assumes form IS its return value (no side effects). Fall back to :wat::eval-ast! for sub-forms with effects.",
+                op
+            ),
+            RuntimeError::NoStepRule { op } => write!(
+                f,
+                ":wat::eval-step!: no step rule for op {}; v1 covers arithmetic / logical / control flow / let* / match / function call / holon constructors. Fall back to :wat::eval-ast! for unrecognized heads.",
+                op
             ),
             RuntimeError::TryPropagate(_) => write!(
                 f,
@@ -2361,6 +2386,7 @@ fn dispatch_keyword_head(
         // Constrained runtime eval — four forms, matching the load
         // pipeline's discipline on source interface and verification.
         ":wat::eval-ast!" => eval_form_ast(args, env, sym),
+        ":wat::eval-step!" => eval_form_step(args, env, sym),
         ":wat::eval-edn!" => eval_form_edn(args, env, sym),
         ":wat::eval-file!" => eval_form_file(args, env, sym),
         ":wat::eval-digest!" => eval_form_digest(args, env, sym),
@@ -9828,6 +9854,14 @@ fn runtime_error_to_eval_error_value(err: &RuntimeError) -> Value {
             "pattern-match-failed",
             format!("no match arm fired for {} scrutinee", value_type),
         ),
+        RuntimeError::EffectfulInStep { op } => (
+            "effectful-in-step",
+            format!("eval-step! refuses effectful op: {}", op),
+        ),
+        RuntimeError::NoStepRule { op } => (
+            "no-step-rule",
+            format!("eval-step! has no rule for op: {}", op),
+        ),
         RuntimeError::MalformedForm { head, reason } => {
             ("malformed-form", format!("{}: {}", head, reason))
         }
@@ -9952,6 +9986,136 @@ fn value_to_holon(op: &'static str, v: Value) -> Result<Value, RuntimeError> {
         }
     };
     Ok(Value::holon__HolonAST(Arc::new(h)))
+}
+
+// ─── Incremental evaluator (arc 068) — :wat::eval-step! ─────────────
+//
+// `:wat::eval-step!` performs ONE call-by-value reduction at the
+// leftmost-outermost redex. Returns:
+//
+//   Ok(StepNext form)      — one rewrite happened; `form` is the next
+//                            WatAST to feed back in.
+//   Ok(StepTerminal value) — the form had no redex; `value` is its
+//                            HolonAST representation.
+//   Err(EvalError)         — malformed form, effectful op in step
+//                            mode, or a shape with no step rule yet.
+//
+// The substrate already has `:wat::eval-ast!` (full evaluation in
+// one shot). Step mode exists for the BOOK Chapter 59 dual-LRU
+// coordinate cache: every intermediate form is its own coordinate,
+// its own potential cache hit, its own potential short-circuit for
+// a parallel walker. Without per-step observation, the cache can't
+// be built cleanly in user-level wat code.
+//
+// Strategy: textual substitution (Plotkin small-step) on the WatAST.
+// Wat is hygienic; identifier matching uses (name, scope set) so
+// distinct bindings of the same name never alias. Effectful ops are
+// rejected (consumer falls back to eval-ast! for those sub-forms);
+// non-HolonAST-expressible terminals also go through the EvalError
+// path (consumer falls back).
+
+/// Internal step result — translated to `Value::Enum` at the
+/// `:wat::eval::StepResult` boundary.
+#[derive(Debug)]
+enum StepValue {
+    Next(WatAST),
+    Terminal(HolonAST),
+}
+
+/// `(:wat::eval-step! <wat-ast>)` dispatch entry. Mirrors arc 066's
+/// `eval_form_ast` Result-wrap shape — every RuntimeError except
+/// the control-flow signals becomes an `EvalError` in the Err arm
+/// of the returned Value::Result.
+fn eval_form_step(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::eval-step!".into(),
+            reason: format!(
+                "(:wat::eval-step! <ast-value>) takes exactly 1 argument; got {}",
+                args.len()
+            ),
+        });
+    }
+    wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
+        let value = eval(&args[0], env, sym)?;
+        let ast = match value {
+            Value::wat__WatAST(a) => a,
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: ":wat::eval-step!".into(),
+                    expected: "wat::WatAST",
+                    got: other.type_name(),
+                });
+            }
+        };
+        let stepped = step_form(&ast, sym)?;
+        Ok(step_value_to_enum(stepped))
+    })())
+}
+
+/// Construct the `:wat::eval::StepResult` enum value from an
+/// internal `StepValue`. Mirrors arc 060's `thread_died_error_*`
+/// helper shape.
+fn step_value_to_enum(sv: StepValue) -> Value {
+    match sv {
+        StepValue::Next(form) => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::eval::StepResult".into(),
+            variant_name: "StepNext".into(),
+            fields: vec![Value::wat__WatAST(Arc::new(form))],
+        })),
+        StepValue::Terminal(holon) => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::eval::StepResult".into(),
+            variant_name: "StepTerminal".into(),
+            fields: vec![Value::holon__HolonAST(Arc::new(holon))],
+        })),
+    }
+}
+
+/// Step a wat form one rewrite. Outer-driver for the per-shape step
+/// rules. Phase 1 of arc 068 covers literal forms only; subsequent
+/// phases extend the match to arithmetic, control flow, let*, match,
+/// function call, and holon constructors.
+fn step_form(form: &WatAST, _sym: &SymbolTable) -> Result<StepValue, RuntimeError> {
+    match form {
+        // ── Literal leaves — already terminal. Lift to matching
+        //    HolonAST primitive leaf, same dispatch arc 066's
+        //    `value_to_holon` uses for eval-ast!'s wrap.
+        WatAST::IntLit(n, _) => Ok(StepValue::Terminal(HolonAST::i64(*n))),
+        WatAST::FloatLit(x, _) => Ok(StepValue::Terminal(HolonAST::f64(*x))),
+        WatAST::BoolLit(b, _) => Ok(StepValue::Terminal(HolonAST::bool_(*b))),
+        WatAST::StringLit(s, _) => Ok(StepValue::Terminal(HolonAST::string(s.as_str()))),
+        WatAST::Keyword(k, _) => {
+            // Bare keyword — terminal. Symbol leaf with the keyword's
+            // canonical bytes (leading colon preserved per wat
+            // convention).
+            Ok(StepValue::Terminal(HolonAST::symbol(k.as_str())))
+        }
+        // Symbol references and List forms reach here only when no
+        // step rule has fired; phase 1 returns NoStepRule so the
+        // caller sees the boundary cleanly.
+        WatAST::Symbol(ident, _) => Err(RuntimeError::NoStepRule {
+            op: format!("symbol-ref:{}", ident.name),
+        }),
+        WatAST::List(items, _) => {
+            let head_op = items.first().map(format_form_head).unwrap_or_else(|| "()".to_string());
+            Err(RuntimeError::NoStepRule { op: head_op })
+        }
+    }
+}
+
+/// Render a list-head WatAST node for diagnostic messages — keyword
+/// heads emit their full keyword path, symbol heads emit the
+/// identifier name, anything else falls back to a generic marker.
+fn format_form_head(node: &WatAST) -> String {
+    match node {
+        WatAST::Keyword(k, _) => k.to_string(),
+        WatAST::Symbol(ident, _) => ident.name.clone(),
+        _ => "<non-keyword-head>".to_string(),
+    }
 }
 
 // Arc 028 slice 3 — eval family iface drop + split eval-edn into
@@ -14901,6 +15065,98 @@ mod tests {
             Value::i64(-1) => {}
             v => panic!("expected -1 (Err arm), got {:?}", v),
         }
+    }
+
+    // ─── eval-step! (arc 068) ──────────────────────────────────────────
+
+    /// Run an `(:wat::eval-step! <form>)` chain through `eval_expr`
+    /// (no encoding ctx) and assert the result matches the expected
+    /// shape via the rendered `show` of the inner StepResult.
+    fn step_to_show(quoted_src: &str) -> String {
+        let src = format!(
+            "(:wat::core::match {} -> :String \
+                ((Ok r) (:wat::core::show r)) \
+                ((Err e) (:wat::core::show e)))",
+            quoted_src
+        );
+        match eval_expr(&src).unwrap() {
+            Value::String(s) => (*s).clone(),
+            other => panic!("expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn step_lit_i64_is_terminal() {
+        let s = step_to_show(
+            "(:wat::eval-step! (:wat::core::quote 5))",
+        );
+        // StepResult::StepTerminal wraps an HolonAST::I64(5); show
+        // renders the enum form.
+        assert!(
+            s.contains("StepTerminal"),
+            "expected StepTerminal in output, got: {}",
+            s
+        );
+    }
+
+    #[test]
+    fn step_lit_bool_is_terminal() {
+        let s = step_to_show(
+            "(:wat::eval-step! (:wat::core::quote true))",
+        );
+        assert!(s.contains("StepTerminal"), "got: {}", s);
+    }
+
+    #[test]
+    fn step_lit_string_is_terminal() {
+        let s = step_to_show(
+            r#"(:wat::eval-step! (:wat::core::quote "hi"))"#,
+        );
+        assert!(s.contains("StepTerminal"), "got: {}", s);
+    }
+
+    #[test]
+    fn step_lit_keyword_is_terminal() {
+        let s = step_to_show(
+            "(:wat::eval-step! (:wat::core::quote :outcome))",
+        );
+        assert!(s.contains("StepTerminal"), "got: {}", s);
+    }
+
+    #[test]
+    fn step_unknown_form_yields_no_step_rule_err() {
+        // Phase 1 has no rule for arithmetic; the form should hit the
+        // NoStepRule fallthrough, surfacing as an EvalError with kind
+        // "no-step-rule" via wrap_as_eval_result.
+        let s = step_to_show(
+            "(:wat::eval-step! (:wat::core::quote (:wat::core::i64::+ 2 2)))",
+        );
+        assert!(
+            s.contains("no-step-rule"),
+            "expected no-step-rule kind tag, got: {}",
+            s
+        );
+    }
+
+    #[test]
+    fn step_arity_mismatch() {
+        let err = eval_expr("(:wat::eval-step!)").unwrap_err();
+        // arity is checked BEFORE the wrap_as_eval_result block, so
+        // it surfaces as a RuntimeError directly (not wrapped as an
+        // EvalError).
+        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
+    }
+
+    #[test]
+    fn step_non_watast_arg_yields_eval_error() {
+        // Arg evaluates to an i64, not a WatAST — caught inside the
+        // wrap_as_eval_result block, surfaces as EvalError(type-mismatch).
+        let s = step_to_show("(:wat::eval-step! 42)");
+        assert!(
+            s.contains("type-mismatch"),
+            "expected type-mismatch kind tag, got: {}",
+            s
+        );
     }
 
     #[test]
