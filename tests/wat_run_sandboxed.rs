@@ -291,9 +291,9 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
     // sees RunResult with stdout=["before panic"] + Failure with
     // "panic" in the message.
     //
-    // Arc 037 slice 1: ambient router picks dim from DEFAULT_TIERS
-    // ([256, 4096, 10000, 100000]). Largest tier's sqrt ≈ 316. A
-    // 400-element Bundle overflows every tier; :panic mode panics.
+    // Arc 037 slice 1 + arc 067: ambient router picks dim from
+    // DEFAULT_TIERS ([10000]). Default tier's sqrt = 100. A
+    // 400-element Bundle overflows; :panic mode panics.
     let atoms = (0..400)
         .map(|i| format!(r#"(:wat::holon::Atom \"atom-{}\")"#, i))
         .collect::<Vec<_>>()

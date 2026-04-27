@@ -131,9 +131,11 @@ are optional; defaults are honest:
   default sizing function (smallest tier `d` whose `√d ≥ statement
   size`). The router takes a `:wat::holon::HolonAST` and returns
   `:Option<:i64>` (the picked dim, or `:None` to refuse). Default
-  tier list: `[256, 4096, 10000, 100000]`. The default router is
-  the sizing function; user override replaces it with any wat
-  lambda matching the signature.
+  tier list (post-arc-067): `[10000]` — single tier optimized for
+  measurement S/N rather than per-encode perf at small arities.
+  Override with `SizingRouter::with_tiers(vec![256, 4096, 10000,
+  100000])` for the pre-arc-067 hierarchy, or with a wat lambda
+  for arbitrary policy.
 - **`(:wat::config::set-presence-sigma! sigma-fn)`** /
   **`set-coincident-sigma!`** — function-of-`d` knobs controlling
   the presence and coincident thresholds. Defaults: `presence_sigma(d)

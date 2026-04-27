@@ -86,16 +86,16 @@ fn bundle_under_budget_returns_ok_under_panic_mode() {
 // ─── Over budget under :error — populates CapacityExceeded ───────────
 
 // Arc 037 slice 1 layer 3: the ambient router picks dim per
-// construction from DEFAULT_TIERS = [256, 4096, 10000, 100000].
-// Largest tier d=100000 has budget floor(sqrt(100000)) = 316.
-// Any Bundle with 317+ items overflows every tier: router returns
+// construction from DEFAULT_TIERS = [10000] (arc 067).
+// Default tier d=10000 has budget floor(sqrt(10000)) = 100.
+// Any Bundle with 101+ items overflows the default: router returns
 // None → CapacityExceeded with budget=0 (the None signal).
 // `set-dims!` is retired (arc 037 — config-collect rejects it).
 
 #[test]
 fn bundle_over_budget_under_error_mode_returns_err_struct() {
-    // 317 atoms — one past sqrt(100000). Every tier overflows;
-    // router returns None.
+    // 317 atoms — far past sqrt(10000)=100 (default post-arc-067).
+    // Default tier overflows; router returns None.
     let src = format!(
         r#"
 
@@ -127,8 +127,8 @@ fn bundle_over_budget_under_error_mode_returns_err_struct() {
 fn bundle_err_cost_and_budget_readable_via_accessors() {
     // Round-trip through user wat: the program reads cost and budget
     // from the CapacityExceeded instance via the auto-generated
-    // accessors. With 400 atoms against DEFAULT_TIERS, router
-    // returns None → budget=0 → cost-budget = 400.
+    // accessors. With 400 atoms against the default tier (10000),
+    // router returns None → budget=0 → cost-budget = 400.
     let src = format!(
         r#"
 
@@ -173,9 +173,10 @@ fn try_propagates_bundle_err_across_function_boundary() {
     // Helper returns Result. Its body calls Bundle and `try`s the
     // result. Main calls the helper and matches. This is the cleanest
     // handler shape once `try` is available for Bundle's Result.
-    // 400 atoms overflow all DEFAULT_TIERS; helper's Bundle returns
-    // Err(CapacityExceeded{cost=400, budget=0}); try propagates it
-    // across the function boundary; main's Err arm reads cost=400.
+    // 400 atoms overflow the default tier (post-arc-067); helper's
+    // Bundle returns Err(CapacityExceeded{cost=400, budget=0});
+    // try propagates it across the function boundary; main's Err
+    // arm reads cost=400.
     let src = format!(
         r#"
 

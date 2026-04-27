@@ -25,14 +25,31 @@ use holon::HolonAST;
 use std::fmt;
 use std::sync::Arc;
 
-/// Opinionated default tier list: `[256, 4096, 10000, 100000]`.
+/// Default tier list: `[10000]` (arc 067).
 ///
-/// At d=256 the bundle capacity is 16 items; at d=4096 it's 64; at
-/// d=10000 it's 100; at d=100000 it's ~316. Four orders of magnitude
-/// of statement-richness coverage in four tiers. User override
-/// available via [`SizingRouter::with_tiers`] or, eventually, a wat
-/// lambda through the `set-dim-router!` primitive.
-pub const DEFAULT_TIERS: &[usize] = &[256, 4096, 10000, 100000];
+/// A single tier at d=10000 — bundle capacity 100 items, noise
+/// floor `1/sqrt(10000) ≈ 0.01`. The default is now optimized for
+/// *measurement quality* (signal/noise headroom for cosine /
+/// presence? / coincident? against thresholds) rather than for
+/// per-encode perf at small arities.
+///
+/// Pre-arc-067 the default was `[256, 4096, 10000, 100000]` — a
+/// perf-tier hierarchy that picked the smallest tier whose
+/// `sqrt(d) ≥ immediate_arity`. The hierarchy backfired for
+/// soundness-gate-style workloads (proof 008 in
+/// `holon-lab-trading/docs/proofs/2026/04/008-soundness-gate/`):
+/// small forms got d=256, the noise floor at d=256 swallowed the
+/// signal, and consumers had to install custom routers to function.
+///
+/// Consumers that want the old hierarchy can:
+/// - Build a custom router via [`SizingRouter::with_tiers`]:
+///   `SizingRouter::with_tiers(vec![256, 4096, 10000, 100000])`
+/// - Register a wat lambda via `(:wat::config::set-dim-router! ...)`
+///
+/// Larger arities (> 100) overflow the new default; capacity-mode
+/// dispatches per [`crate::config::CapacityMode`]. Consumers needing
+/// arity > 100 install a router with a larger tier (e.g., 100000).
+pub const DEFAULT_TIERS: &[usize] = &[10000];
 
 /// Ambient runtime capability that picks vector dimension per
 /// construction. Contract: **HolonAST in, `Option<usize>` out** —
@@ -260,35 +277,31 @@ mod tests {
     }
 
     #[test]
-    fn default_router_picks_smallest_tier() {
+    fn default_router_returns_10000_for_fitting_arities() {
+        // Arc 067: DEFAULT_TIERS = [10000]. Single tier; arities
+        // up to 100 fit; larger overflow.
         let r = SizingRouter::with_default_tiers();
         let s = sym();
-        // 16-item bundle → sqrt(256)=16 → d=256.
-        assert_eq!(r.pick(&bundle_of(16), &s), Some(256));
-        // 17 → 17² = 289 > 256 → d=4096.
-        assert_eq!(r.pick(&bundle_of(17), &s), Some(4096));
-        // 64 → 64² = 4096 exactly → d=4096.
-        assert_eq!(r.pick(&bundle_of(64), &s), Some(4096));
-        // 65 → 4225 > 4096 → d=10000.
-        assert_eq!(r.pick(&bundle_of(65), &s), Some(10000));
+        // 1-item bundle → 1² = 1 ≤ 10000 → d=10000.
+        assert_eq!(r.pick(&bundle_of(1), &s), Some(10000));
+        // 16 → 256 ≤ 10000 → d=10000 (was d=256 pre-arc-067).
+        assert_eq!(r.pick(&bundle_of(16), &s), Some(10000));
+        // 64 → 4096 ≤ 10000 → d=10000 (was d=4096 pre-arc-067).
+        assert_eq!(r.pick(&bundle_of(64), &s), Some(10000));
         // 100 → 10000 exactly → d=10000.
         assert_eq!(r.pick(&bundle_of(100), &s), Some(10000));
-        // 101 → 10201 > 10000 → d=100000.
-        assert_eq!(r.pick(&bundle_of(101), &s), Some(100000));
-        // 316 → 99856 < 100000 → d=100000.
-        assert_eq!(r.pick(&bundle_of(316), &s), Some(100000));
-        // 317 → 100489 > 100000 → overflow.
-        assert_eq!(r.pick(&bundle_of(317), &s), None);
+        // 101 → 10201 > 10000 → overflow (was d=100000 pre-arc-067).
+        assert_eq!(r.pick(&bundle_of(101), &s), None);
     }
 
     #[test]
-    fn leaf_atom_fits_smallest_tier() {
+    fn leaf_atom_fits_default_tier() {
         let r = SizingRouter::with_default_tiers();
         let s = sym();
-        // An Atom has immediate arity 1 → smallest tier fits.
-        assert_eq!(r.pick(&HolonAST::string("alice"), &s), Some(256));
-        // Empty bundle (arity 0) also fits smallest.
-        assert_eq!(r.pick(&bundle_of(0), &s), Some(256));
+        // An Atom has immediate arity 1 → single tier fits.
+        assert_eq!(r.pick(&HolonAST::string("alice"), &s), Some(10000));
+        // Empty bundle (arity 0) also fits.
+        assert_eq!(r.pick(&bundle_of(0), &s), Some(10000));
     }
 
     #[test]
@@ -302,9 +315,10 @@ mod tests {
 
     #[test]
     fn overflow_past_largest_tier_is_none() {
+        // Arc 067: default's largest tier is now 10000; arity > 100 overflows.
         let r = SizingRouter::with_default_tiers();
         let s = sym();
-        assert_eq!(r.pick(&bundle_of(317), &s), None);
+        assert_eq!(r.pick(&bundle_of(101), &s), None);
         assert_eq!(r.pick(&bundle_of(1000), &s), None);
     }
 
@@ -322,7 +336,7 @@ mod tests {
         let r = SizingRouter::with_default_tiers();
         let s = sym();
         let ast = HolonAST::bind(HolonAST::string("a"), HolonAST::string("b"));
-        // arity 2 → fits smallest tier (sqrt(256)=16 ≥ 2).
-        assert_eq!(r.pick(&ast, &s), Some(256));
+        // arity 2 → fits the default tier (sqrt(10000)=100 ≥ 2).
+        assert_eq!(r.pick(&ast, &s), Some(10000));
     }
 }

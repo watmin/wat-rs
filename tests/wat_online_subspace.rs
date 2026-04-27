@@ -42,13 +42,13 @@ fn subspace_construct_dim_k_n_zero() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((s :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 256 16))
+            (((s :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 16))
              ((d :i64) (:wat::holon::OnlineSubspace/dim s))
              ((k :i64) (:wat::holon::OnlineSubspace/k s))
              ((n :i64) (:wat::holon::OnlineSubspace/n s)))
             (:wat::io::IOWriter/println stdout
               (:wat::core::if
-                (:wat::core::and (:wat::core::= d 256)
+                (:wat::core::and (:wat::core::= d 10000)
                   (:wat::core::and (:wat::core::= k 16) (:wat::core::= n 0))) -> :String
                 "ok" "wrong"))))
     "##;
@@ -65,7 +65,7 @@ fn subspace_update_increments_n_and_returns_residual() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((s :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 256 4))
+            (((s :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 4))
              ((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((residual :f64) (:wat::holon::OnlineSubspace/update s v))
              ((n :i64) (:wat::holon::OnlineSubspace/n s)))
@@ -85,7 +85,7 @@ fn subspace_eigenvalues_returns_k_floats() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((s :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 256 8))
+            (((s :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 8))
              ((eigs :Vec<f64>) (:wat::holon::OnlineSubspace/eigenvalues s))
              ((len :i64) (:wat::core::length eigs)))
             (:wat::io::IOWriter/println stdout
