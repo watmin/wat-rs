@@ -397,6 +397,19 @@ fn register_builtin_types(env: &mut TypeEnv) {
                     TypeExpr::Path(":wat::holon::HolonAST".into()),
                 )],
             },
+            // Arc 070 — distinguishes "input was already a value; no
+            // work happened" from "this step reduced a redex." Fires
+            // on holon-value-shape WatASTs (`to-watast(holon)` round-
+            // trips like Bundle's bare-list lift, holon-constructor
+            // forms with all-canonical args, primitive literals).
+            // Walkers and tracers care about chain-length 0 vs ≥ 1.
+            EnumVariant::Tagged {
+                name: "AlreadyTerminal".into(),
+                fields: vec![(
+                    "value".into(),
+                    TypeExpr::Path(":wat::holon::HolonAST".into()),
+                )],
+            },
         ],
     }));
 

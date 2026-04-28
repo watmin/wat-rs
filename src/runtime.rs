@@ -10113,10 +10113,16 @@ fn value_to_holon(op: &'static str, v: Value) -> Result<Value, RuntimeError> {
 
 /// Internal step result — translated to `Value::Enum` at the
 /// `:wat::eval::StepResult` boundary.
+///
+/// `AlreadyTerminal` is arc 070's "no work happened — input was
+/// already a value-shape" variant. Distinct from `Terminal`, which
+/// says "this step reduced a redex to a value." A walker/tracer
+/// distinguishing chain-length 0 from ≥ 1 reads the variant.
 #[derive(Debug)]
 enum StepValue {
     Next(WatAST),
     Terminal(HolonAST),
+    AlreadyTerminal(HolonAST),
 }
 
 /// `(:wat::eval-step! <wat-ast>)` dispatch entry. Mirrors arc 066's
@@ -10169,32 +10175,44 @@ fn step_value_to_enum(sv: StepValue) -> Value {
             variant_name: "StepTerminal".into(),
             fields: vec![Value::holon__HolonAST(Arc::new(holon))],
         })),
+        StepValue::AlreadyTerminal(holon) => Value::Enum(Arc::new(EnumValue {
+            type_path: ":wat::eval::StepResult".into(),
+            variant_name: "AlreadyTerminal".into(),
+            fields: vec![Value::holon__HolonAST(Arc::new(holon))],
+        })),
     }
 }
 
 /// Step a wat form one rewrite. Outer-driver for the per-shape step
-/// rules. Phase 1 covered literal forms; phase 2 adds arithmetic,
-/// control flow (`if`), `let*`, `match`, and user-function calls.
-/// Phase 3 will land holon constructors + lambda terminals.
+/// rules. Arc 068 covered literal/arithmetic/control flow/let*/match/
+/// holon-ctor/user-fn rules. Arc 070 prepends a structural-already-
+/// terminal check: if the form's WatAST recognizes as a value-shape
+/// (literal leaves, holon-constructor lists with all-value args,
+/// bare-list Bundle lifts), short-circuit to `AlreadyTerminal` —
+/// signaling "no work happened; this IS the value" rather than the
+/// current behavior where literals returned `Terminal` and lifted
+/// Bundles returned `Err(NoStepRule)`.
 fn step_form(
     form: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<StepValue, RuntimeError> {
+    // Arc 070 — try value-shape recognition first. Covers everything
+    // a `to-watast(holon)` round-trip can produce, plus primitive
+    // literals. Reduction-shape forms (arithmetic, comparison,
+    // user-function calls, special forms) fall through.
+    if let Some(holon) = try_recognize_holon_value(form) {
+        return Ok(StepValue::AlreadyTerminal(holon));
+    }
     match form {
-        // ── Literal leaves — already terminal. Lift to matching
-        //    HolonAST primitive leaf, same dispatch arc 066's
-        //    `value_to_holon` uses for eval-ast!'s wrap.
+        // Literal arms reach here only if `try_recognize_holon_value`
+        // somehow misses (it shouldn't — these are the canonical
+        // cases). Defense in depth.
         WatAST::IntLit(n, _) => Ok(StepValue::Terminal(HolonAST::i64(*n))),
         WatAST::FloatLit(x, _) => Ok(StepValue::Terminal(HolonAST::f64(*x))),
         WatAST::BoolLit(b, _) => Ok(StepValue::Terminal(HolonAST::bool_(*b))),
         WatAST::StringLit(s, _) => Ok(StepValue::Terminal(HolonAST::string(s.as_str()))),
-        WatAST::Keyword(k, _) => {
-            // Bare keyword — terminal. Symbol leaf with the keyword's
-            // canonical bytes (leading colon preserved per wat
-            // convention).
-            Ok(StepValue::Terminal(HolonAST::symbol(k.as_str())))
-        }
+        WatAST::Keyword(k, _) => Ok(StepValue::Terminal(HolonAST::symbol(k.as_str()))),
         // A bare symbol that survived to step time means substitution
         // didn't reach it — an unbound free variable. Surface as
         // NoStepRule so the consumer falls back to eval-ast! (which
@@ -10203,6 +10221,151 @@ fn step_form(
             op: format!("symbol-ref:{}", ident.name),
         }),
         WatAST::List(items, span) => step_list(items, span, env, sym),
+    }
+}
+
+/// Arc 070 — try to recognize a WatAST as a holon-value shape. If
+/// every node down the tree is a literal, a holon-constructor call
+/// with value args, or a bare-list (Bundle-shape) of values, return
+/// the corresponding HolonAST. Otherwise None.
+///
+/// This is what lets `eval-step!` distinguish "input was already a
+/// value" (`AlreadyTerminal`) from "this step reduced a redex"
+/// (`Terminal`). The substrate's accounting matters at the walker /
+/// tracer / cache layer: chain length 0 vs ≥ 1.
+///
+/// Forms with reduction-shape (arithmetic, comparison, logical,
+/// special forms, user fn calls) return None — they're β-redexes
+/// and step normally.
+fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
+    match form {
+        WatAST::IntLit(n, _) => Some(HolonAST::i64(*n)),
+        WatAST::FloatLit(x, _) => Some(HolonAST::f64(*x)),
+        WatAST::BoolLit(b, _) => Some(HolonAST::bool_(*b)),
+        WatAST::StringLit(s, _) => Some(HolonAST::string(s.as_str())),
+        WatAST::Keyword(k, _) => Some(HolonAST::symbol(k.as_str())),
+        // A bare Symbol could be either an unbound free variable
+        // (NoStepRule territory) or a HolonAST::Symbol leaf (lifted
+        // from a `holon::Symbol` per arc 057's `holon_to_watast`).
+        // The substrate can't distinguish at this layer; we treat
+        // it as a value-shape since the alternative (free var)
+        // would still trigger NoStepRule via the existing path
+        // when stepping fires. Conservative: don't recognize
+        // bare symbols here; let them go to the symbol-ref error.
+        WatAST::Symbol(_, _) => None,
+        WatAST::List(items, _) => {
+            if items.is_empty() {
+                return None;
+            }
+            match &items[0] {
+                WatAST::Keyword(k, _) => match k.as_str() {
+                    ":wat::holon::Atom" if items.len() == 2 => {
+                        // Match `value_to_atom`'s polymorphic
+                        // dispatch (arc 057): primitive args lift to
+                        // matching typed leaves; nested holon
+                        // constructor args wrap as opaque-identity
+                        // `Atom`. The substrate's invariant — `Atom`
+                        // never wraps a primitive directly because
+                        // primitives are already typed leaves.
+                        match &items[1] {
+                            WatAST::IntLit(_, _)
+                            | WatAST::FloatLit(_, _)
+                            | WatAST::BoolLit(_, _)
+                            | WatAST::StringLit(_, _)
+                            | WatAST::Keyword(_, _) => {
+                                try_recognize_holon_value(&items[1])
+                            }
+                            _ => {
+                                let inner = try_recognize_holon_value(&items[1])?;
+                                Some(HolonAST::Atom(std::sync::Arc::new(inner)))
+                            }
+                        }
+                    }
+                    ":wat::holon::leaf" if items.len() == 2 => {
+                        // Arc 065's primitive-only constructor.
+                        // Always emits a typed leaf — refuses non-
+                        // primitive inputs at eval time. Recognize
+                        // only when the arg is a primitive literal.
+                        match &items[1] {
+                            WatAST::IntLit(_, _)
+                            | WatAST::FloatLit(_, _)
+                            | WatAST::BoolLit(_, _)
+                            | WatAST::StringLit(_, _)
+                            | WatAST::Keyword(_, _) => {
+                                try_recognize_holon_value(&items[1])
+                            }
+                            _ => None,
+                        }
+                    }
+                    ":wat::holon::Bind" if items.len() == 3 => {
+                        let a = try_recognize_holon_value(&items[1])?;
+                        let b = try_recognize_holon_value(&items[2])?;
+                        Some(HolonAST::bind(a, b))
+                    }
+                    ":wat::holon::Permute" if items.len() == 3 => {
+                        let inner = try_recognize_holon_value(&items[1])?;
+                        let k = match &items[2] {
+                            WatAST::IntLit(n, _) if *n >= 0 && *n <= i64::from(i32::MAX) => *n as i32,
+                            _ => return None,
+                        };
+                        Some(HolonAST::permute(inner, k))
+                    }
+                    ":wat::holon::Thermometer" if items.len() == 4 => {
+                        let v = match &items[1] {
+                            WatAST::FloatLit(x, _) => *x,
+                            _ => return None,
+                        };
+                        let lo = match &items[2] {
+                            WatAST::FloatLit(x, _) => *x,
+                            _ => return None,
+                        };
+                        let hi = match &items[3] {
+                            WatAST::FloatLit(x, _) => *x,
+                            _ => return None,
+                        };
+                        Some(HolonAST::Thermometer {
+                            value: v,
+                            min: lo,
+                            max: hi,
+                        })
+                    }
+                    ":wat::holon::Blend" if items.len() == 5 => {
+                        let a = try_recognize_holon_value(&items[1])?;
+                        let b = try_recognize_holon_value(&items[2])?;
+                        let w1 = match &items[3] {
+                            WatAST::FloatLit(x, _) => *x,
+                            _ => return None,
+                        };
+                        let w2 = match &items[4] {
+                            WatAST::FloatLit(x, _) => *x,
+                            _ => return None,
+                        };
+                        Some(HolonAST::blend(a, b, w1, w2))
+                    }
+                    // Source-form `:wat::holon::Bundle` is NOT a
+                    // value-shape — it takes a `(:wat::core::vec :T
+                    // …)` arg and runs the encoder/capacity check
+                    // when fired. The lifted Bundle (bare list, no
+                    // keyword head) IS handled by the bare-list
+                    // branch below.
+                    //
+                    // Any other keyword head → reduction-shape.
+                    _ => None,
+                },
+                _ => {
+                    // Bare-list head (List or Symbol). Structural
+                    // Bundle lift per arc 057's
+                    // `holon_to_watast(Bundle(items))` — the source
+                    // shape `to-watast` produces. Recognize as a
+                    // Bundle iff every child recognizes too.
+                    let mut children = Vec::with_capacity(items.len());
+                    for item in items {
+                        children.push(try_recognize_holon_value(item)?);
+                    }
+                    Some(HolonAST::bundle(children))
+                }
+            }
+        }
     }
 }
 
@@ -10366,7 +10529,14 @@ fn step_to_watast(
 ) -> Result<WatAST, RuntimeError> {
     match step_form(form, env, sym)? {
         StepValue::Next(w) => Ok(w),
-        StepValue::Terminal(h) => Ok(holon_to_watast(&h)),
+        // Both terminal flavors lift the same way for descend-rule
+        // rebuilds — the caller wants a WatAST to splice into an
+        // outer form. AlreadyTerminal differs from Terminal only in
+        // signaling chain length to the consumer; descent doesn't
+        // care.
+        StepValue::Terminal(h) | StepValue::AlreadyTerminal(h) => {
+            Ok(holon_to_watast(&h))
+        }
     }
 }
 
@@ -16058,11 +16228,14 @@ mod tests {
         let s = step_to_show(
             "(:wat::eval-step! (:wat::core::quote 5))",
         );
-        // StepResult::StepTerminal wraps an HolonAST::I64(5); show
-        // renders the enum form.
+        // Arc 070 — primitive literals are value-shapes; `eval-step!`
+        // recognizes them via try_recognize_holon_value and returns
+        // AlreadyTerminal (no work happened). Pre-arc-070 returned
+        // StepTerminal; arc 070 narrows that variant to "this step
+        // reduced a redex" only.
         assert!(
-            s.contains("StepTerminal"),
-            "expected StepTerminal in output, got: {}",
+            s.contains("AlreadyTerminal"),
+            "expected AlreadyTerminal in output, got: {}",
             s
         );
     }
@@ -16072,7 +16245,7 @@ mod tests {
         let s = step_to_show(
             "(:wat::eval-step! (:wat::core::quote true))",
         );
-        assert!(s.contains("StepTerminal"), "got: {}", s);
+        assert!(s.contains("AlreadyTerminal"), "got: {}", s);
     }
 
     #[test]
@@ -16080,7 +16253,7 @@ mod tests {
         let s = step_to_show(
             r#"(:wat::eval-step! (:wat::core::quote "hi"))"#,
         );
-        assert!(s.contains("StepTerminal"), "got: {}", s);
+        assert!(s.contains("AlreadyTerminal"), "got: {}", s);
     }
 
     #[test]
@@ -16088,7 +16261,67 @@ mod tests {
         let s = step_to_show(
             "(:wat::eval-step! (:wat::core::quote :outcome))",
         );
-        assert!(s.contains("StepTerminal"), "got: {}", s);
+        assert!(s.contains("AlreadyTerminal"), "got: {}", s);
+    }
+
+    #[test]
+    fn step_already_terminal_on_lifted_bundle() {
+        // Arc 070 — `holon_to_watast(Bundle([...]))` produces a bare-
+        // list WatAST (no keyword head). Pre-arc-070 this would
+        // return Err(NoStepRule); arc 070 recognizes the structural
+        // value-shape and returns AlreadyTerminal with the rebuilt
+        // Bundle. The walker can now distinguish "input is already
+        // a value" from "no rule applies."
+        let s = step_to_show(
+            r#"(:wat::eval-step!
+                 (:wat::core::quote
+                   ((:wat::holon::Atom "k")
+                    (:wat::holon::Atom "v"))))"#,
+        );
+        assert!(
+            s.contains("AlreadyTerminal"),
+            "expected AlreadyTerminal for bare-list Bundle lift, got: {}",
+            s
+        );
+    }
+
+    #[test]
+    fn step_already_terminal_on_holon_constructor_call() {
+        // `(:wat::holon::Atom "k")` is a value-shape per arc 057's
+        // `holon_to_watast` (the source form an already-built holon
+        // round-trips to). Returns AlreadyTerminal — the substrate
+        // KNOWS this is a value, not a function call to compute one.
+        let s = step_to_show(
+            r#"(:wat::eval-step!
+                 (:wat::core::quote (:wat::holon::Atom "k")))"#,
+        );
+        assert!(
+            s.contains("AlreadyTerminal"),
+            "expected AlreadyTerminal for holon-ctor value-shape, got: {}",
+            s
+        );
+    }
+
+    #[test]
+    fn step_terminal_on_arithmetic_redex() {
+        // Sanity: actual reductions (arithmetic firings) still
+        // return StepTerminal, not AlreadyTerminal — the variant
+        // distinction matters. `(+ 2 2)` fires a real reduction.
+        let s = step_to_show(
+            "(:wat::eval-step! (:wat::core::quote (:wat::core::i64::+ 2 2)))",
+        );
+        assert!(
+            s.contains("StepTerminal"),
+            "expected StepTerminal for arithmetic fire, got: {}",
+            s
+        );
+        // Tighten — must NOT be AlreadyTerminal (would signal "no
+        // work happened" for a form that absolutely did work).
+        assert!(
+            !s.contains("AlreadyTerminal"),
+            "arithmetic fire should NOT be AlreadyTerminal, got: {}",
+            s
+        );
     }
 
     #[test]
@@ -16138,9 +16371,10 @@ mod tests {
     fn step_to_terminal_prelude() -> &'static str {
         // Tagged-enum variant patterns use the fully-qualified keyword
         // path per arc 048 (see try_match_pattern's `WatAST::Keyword`
-        // arm). The Err arm packs the EvalError's message string into
-        // the result holon so failing tests can show it instead of a
-        // silent sentinel.
+        // arm). Three arms now (arc 070): StepNext recurses, both
+        // terminal flavors return the inner HolonAST. The Err arm
+        // packs the EvalError's message string into the result holon
+        // so failing tests can show it instead of a silent sentinel.
         r#"
         (:wat::core::define
           (:my::test::step-to-terminal (form :wat::WatAST) -> :wat::holon::HolonAST)
@@ -16149,7 +16383,8 @@ mod tests {
               (:wat::core::match r -> :wat::holon::HolonAST
                 ((:wat::eval::StepResult::StepNext next)
                   (:my::test::step-to-terminal next))
-                ((:wat::eval::StepResult::StepTerminal h) h)))
+                ((:wat::eval::StepResult::StepTerminal h) h)
+                ((:wat::eval::StepResult::AlreadyTerminal h) h)))
             ((Err e) (:wat::holon::leaf (:wat::core::struct-field e 1)))))
         "#
     }
@@ -16387,7 +16622,8 @@ mod tests {
                   (:wat::core::match r -> :i64
                     ((:wat::eval::StepResult::StepNext next)
                       (:my::test::step-count next (:wat::core::i64::+ n 1)))
-                    ((:wat::eval::StepResult::StepTerminal h) n)))
+                    ((:wat::eval::StepResult::StepTerminal h) n)
+                    ((:wat::eval::StepResult::AlreadyTerminal h) n)))
                 ((Err e) -1)))
             {}
             (:wat::core::let*
