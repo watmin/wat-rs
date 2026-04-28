@@ -32,22 +32,22 @@
             ;; the senders — when it exits, senders drop, drivers see
             ;; disconnect, outer joins flush-and-exit cleanly.
             (:wat::core::let*
-              (((con-state :(wat::kernel::HandlePool<rust::crossbeam_channel::Sender<(i64,String)>>,wat::kernel::ProgramHandle<()>))
-                (:wat::std::service::Console stdout stderr 2))
+              (((con-state :wat::std::service::Console::Spawn)
+                (:wat::std::service::Console/spawn stdout stderr 2))
                ((con-drv :wat::kernel::ProgramHandle<()>)
                 (:wat::core::second con-state))
-               ((state :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<String,i64>>,wat::kernel::ProgramHandle<()>))
-                (:wat::lru::CacheService 16 1))
+               ((state :wat::lru::CacheService::Spawn<String,i64>)
+                (:wat::lru::CacheService/spawn 16 1))
                ((driver :wat::kernel::ProgramHandle<()>)
                 (:wat::core::second state))
 
                ((_ :())
                 (:wat::core::let*
-                  (((con-pool :wat::kernel::HandlePool<rust::crossbeam_channel::Sender<(i64,String)>>)
+                  (((con-pool :wat::kernel::HandlePool<wat::std::service::Console::Tx>)
                     (:wat::core::first con-state))
-                   ((diag :rust::crossbeam_channel::Sender<(i64,String)>)
+                   ((diag :wat::std::service::Console::Tx)
                     (:wat::kernel::HandlePool::pop con-pool))
-                   ((_spare :rust::crossbeam_channel::Sender<(i64,String)>)
+                   ((_spare :wat::std::service::Console::Tx)
                     (:wat::kernel::HandlePool::pop con-pool))
                    ((_ :()) (:wat::kernel::HandlePool::finish con-pool))
 
@@ -56,11 +56,11 @@
                    ((req-tx :wat::lru::CacheService::ReqTx<String,i64>)
                     (:wat::kernel::HandlePool::pop pool))
                    ((_ :()) (:wat::kernel::HandlePool::finish pool))
-                   ((reply-pair :(rust::crossbeam_channel::Sender<Option<i64>>,rust::crossbeam_channel::Receiver<Option<i64>>))
+                   ((reply-pair :wat::kernel::QueuePair<Option<i64>>)
                     (:wat::kernel::make-bounded-queue :Option<i64> 1))
-                   ((reply-tx :rust::crossbeam_channel::Sender<Option<i64>>)
+                   ((reply-tx :wat::kernel::QueueSender<Option<i64>>)
                     (:wat::core::first reply-pair))
-                   ((reply-rx :rust::crossbeam_channel::Receiver<Option<i64>>)
+                   ((reply-rx :wat::kernel::QueueReceiver<Option<i64>>)
                     (:wat::core::second reply-pair))
 
                    ((_ :()) (:wat::std::service::Console/err diag "T1: about-to-put\n"))

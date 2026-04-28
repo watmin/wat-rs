@@ -45,6 +45,20 @@
 (:wat::core::typealias :wat::lru::CacheService::ReqRx<K,V>
   :rust::crossbeam_channel::Receiver<wat::lru::CacheService::Request<K,V>>)
 
+;; The (ReqTx, ReqRx) pair as a single name. Used by the spawn body
+;; to keep nested `<>` depth tractable when iterating bounded-queue
+;; pairs.
+(:wat::core::typealias :wat::lru::CacheService::ReqPair<K,V>
+  :(wat::lru::CacheService::ReqTx<K,V>,wat::lru::CacheService::ReqRx<K,V>))
+
+;; --- Spawn return shape ---
+;;
+;; What `:wat::lru::CacheService/spawn` returns: the HandlePool of
+;; client request senders + the driver's ProgramHandle. Caller pops
+;; N senders, finishes the pool, scoped-drops at end → driver exits.
+(:wat::core::typealias :wat::lru::CacheService::Spawn<K,V>
+  :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
+
 ;; Driver entry — allocates the LocalCache INSIDE the driver thread
 ;; (LocalCache is thread-owned; creating it in the caller and passing
 ;; across threads would trip the thread-id guard and wedge the
@@ -158,24 +172,24 @@
 ;; given capacity and fans in all request receivers. Returns the
 ;; (pool, driver-handle) pair.
 (:wat::core::define
-  (:wat::lru::CacheService<K,V>
+  (:wat::lru::CacheService/spawn<K,V>
     (capacity :i64)
     (count :i64)
-    -> :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
+    -> :wat::lru::CacheService::Spawn<K,V>)
   (:wat::core::let*
-    (((pairs :Vec<(wat::lru::CacheService::ReqTx<K,V>,wat::lru::CacheService::ReqRx<K,V>)>)
+    (((pairs :Vec<wat::lru::CacheService::ReqPair<K,V>>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda ((_i :i64) -> :(wat::lru::CacheService::ReqTx<K,V>,wat::lru::CacheService::ReqRx<K,V>))
+        (:wat::core::lambda ((_i :i64) -> :wat::lru::CacheService::ReqPair<K,V>)
           (:wat::kernel::make-bounded-queue :wat::lru::CacheService::Request<K,V> 1))))
      ((req-txs :Vec<wat::lru::CacheService::ReqTx<K,V>>)
       (:wat::core::map pairs
-        (:wat::core::lambda ((p :(wat::lru::CacheService::ReqTx<K,V>,wat::lru::CacheService::ReqRx<K,V>))
+        (:wat::core::lambda ((p :wat::lru::CacheService::ReqPair<K,V>)
                             -> :wat::lru::CacheService::ReqTx<K,V>)
           (:wat::core::first p))))
      ((req-rxs :Vec<wat::lru::CacheService::ReqRx<K,V>>)
       (:wat::core::map pairs
-        (:wat::core::lambda ((p :(wat::lru::CacheService::ReqTx<K,V>,wat::lru::CacheService::ReqRx<K,V>))
+        (:wat::core::lambda ((p :wat::lru::CacheService::ReqPair<K,V>)
                             -> :wat::lru::CacheService::ReqRx<K,V>)
           (:wat::core::second p))))
      ((pool :wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>)

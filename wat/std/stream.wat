@@ -43,6 +43,25 @@
   :wat::std::stream::Producer<T>
   :fn(rust::crossbeam_channel::Sender<T>)->())
 
+;; --- with-state step shapes ---
+;;
+;; Buffer-based stream stages (chunks, window, chunks-by) carry an
+;; accumulator + an emit list per step. Two recurring shapes:
+;;
+;;   ChunkStep<T>           — chunks / window      : (buf,             emits)
+;;   KeyedChunkStep<K,T>    — chunks-by            : ((Option<K>,buf), emits)
+;;
+;; Each `:wat::core::tuple` step returns one of these. Naming the
+;; shapes keeps lambda return-type annotations from accumulating
+;; nested `<>`s at every site.
+(:wat::core::typealias
+  :wat::std::stream::ChunkStep<T>
+  :(Vec<T>,Vec<Vec<T>>))
+
+(:wat::core::typealias
+  :wat::std::stream::KeyedChunkStep<K,T>
+  :((Option<K>,Vec<T>),Vec<Vec<T>>))
+
 ;; --- spawn-producer ---
 ;;
 ;; Accepts a producer function of signature `Producer<T>`
@@ -411,11 +430,11 @@
     (buffer :Vec<T>)
     (item :T)
     (size :i64)
-    -> :(Vec<T>,Vec<Vec<T>>))
+    -> :wat::std::stream::ChunkStep<T>)
   (:wat::core::let*
     (((new-buffer :Vec<T>) (:wat::core::conj buffer item)))
     (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size)
-      -> :(Vec<T>,Vec<Vec<T>>)
+      -> :wat::std::stream::ChunkStep<T>
       (:wat::core::tuple
         (:wat::core::vec :T)
         (:wat::core::vec :Vec<T> new-buffer))
@@ -443,7 +462,7 @@
   ;; it passes by name directly (arc 009 — names are values).
   (:wat::std::stream::with-state upstream
     (:wat::core::vec :T)
-    (:wat::core::lambda ((buf :Vec<T>) (item :T) -> :(Vec<T>,Vec<Vec<T>>))
+    (:wat::core::lambda ((buf :Vec<T>) (item :T) -> :wat::std::stream::ChunkStep<T>)
       (:wat::std::stream::chunks-step buf item size))
     :wat::std::stream::chunks-flush))
 
@@ -462,12 +481,12 @@
     (state :(Option<K>,Vec<T>))
     (item :T)
     (key-fn :fn(T)->K)
-    -> :((Option<K>,Vec<T>),Vec<Vec<T>>))
+    -> :wat::std::stream::KeyedChunkStep<K,T>)
   (:wat::core::let*
     (((last-key :Option<K>) (:wat::core::first state))
      ((buffer :Vec<T>) (:wat::core::second state))
      ((k :K) (key-fn item)))
-    (:wat::core::match last-key -> :((Option<K>,Vec<T>),Vec<Vec<T>>)
+    (:wat::core::match last-key -> :wat::std::stream::KeyedChunkStep<K,T>
       (:None
         ;; First item — start the run, emit nothing yet.
         (:wat::core::tuple
@@ -475,7 +494,7 @@
           (:wat::core::vec :Vec<T>)))
       ((Some prev)
         (:wat::core::if (:wat::core::= prev k)
-          -> :((Option<K>,Vec<T>),Vec<Vec<T>>)
+          -> :wat::std::stream::KeyedChunkStep<K,T>
           ;; Same key — append to current run, emit nothing.
           (:wat::core::tuple
             (:wat::core::tuple (Some k) (:wat::core::conj buffer item))
@@ -505,7 +524,7 @@
   (:wat::std::stream::with-state upstream
     (:wat::core::tuple :None (:wat::core::vec :T))
     (:wat::core::lambda ((state :(Option<K>,Vec<T>)) (item :T)
-                         -> :((Option<K>,Vec<T>),Vec<Vec<T>>))
+                         -> :wat::std::stream::KeyedChunkStep<K,T>)
       (:wat::std::stream::chunks-by-step state item key-fn))
     :wat::std::stream::chunks-by-flush))
 
@@ -529,11 +548,11 @@
     (buffer :Vec<T>)
     (item :T)
     (size :i64)
-    -> :(Vec<T>,Vec<Vec<T>>))
+    -> :wat::std::stream::ChunkStep<T>)
   (:wat::core::let*
     (((new-buf :Vec<T>) (:wat::core::conj buffer item))
      ((new-len :i64) (:wat::core::length new-buf)))
-    (:wat::core::cond -> :(Vec<T>,Vec<Vec<T>>)
+    (:wat::core::cond -> :wat::std::stream::ChunkStep<T>
       ;; Over-size — slide: drop first, emit trimmed window, keep trimmed.
       ((:wat::core::> new-len size)
         (:wat::core::let*
@@ -569,7 +588,7 @@
   ;; Both step and flush close over size — two lambda wrappers.
   (:wat::std::stream::with-state upstream
     (:wat::core::vec :T)
-    (:wat::core::lambda ((buf :Vec<T>) (item :T) -> :(Vec<T>,Vec<Vec<T>>))
+    (:wat::core::lambda ((buf :Vec<T>) (item :T) -> :wat::std::stream::ChunkStep<T>)
       (:wat::std::stream::window-step buf item size))
     (:wat::core::lambda ((buf :Vec<T>) -> :Vec<Vec<T>>)
       (:wat::std::stream::window-flush buf size))))

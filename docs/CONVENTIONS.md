@@ -401,6 +401,85 @@ be ceremony without information.
 - Qualifiers AFTER the base name:
   `:wat::core::i64::+` (ops on `i64`), not `:wat::core::+::i64`.
 
+## Constructor / factory naming (arc 077)
+
+Three kinds of "make me one of these" exist; each gets its own
+suffix. **Same path, different meaning** — readers can predict
+the arity and side-effects from the suffix alone.
+
+| Suffix | What it does | Where it comes from | Arity contract |
+|---|---|---|---|
+| `Type/new` | **Field constructor.** Pure construction; no setup, no defaults. | Auto-derived from `(:wat::core::struct ...)` declarations. Substrate generates one per struct. | one parameter per field, in declaration order |
+| `Type/make` | **Factory with internal setup.** Takes high-level args (filter, capacity), allocates internal state, reads ambient context, calls `Type/new` to assemble the struct. User-defined. | wat or Rust impl. | high-level args; never matches the field arity |
+| `Type/spawn` | **Factory + spawns workers.** Everything `/make` does plus spawning thread(s); returns `(handles, ProgramHandle)` tuples or a struct holding them. | wat. | high-level args; side-effecting |
+
+### Examples
+
+```scheme
+;; Type/new — auto-derived field constructor (3 args = 3 fields)
+(:wat::holon::HologramLRU/new hologram lru)
+
+;; Type/make — factory; reads ambient `dim-count`; allocates inner storage
+(:wat::holon::HologramLRU/make filter cap)
+
+;; Type/spawn — factory that ALSO spawns a driver thread
+(:wat::lru::CacheService/spawn capacity count)        ; -> CacheService::Spawn<K,V>
+(:wat::std::service::Console/spawn stdout stderr 4)   ; -> Console::Spawn
+(:trading::cache::Service/spawn count cap)            ; -> Spawn (lab-side alias)
+```
+
+### When to pick which
+
+- **Adding a new struct?** The `/new` is free (auto-derived). You don't write it.
+- **Constructing it requires more than one of each field?** Define `Type/make` that returns `Type/new` with the assembled fields.
+- **Constructing it spawns a worker?** Define `Type/spawn`.
+
+### Rust-side primitives (`::new`)
+
+`#[wat_dispatch]`-generated methods on Rust types use Rust's
+`Type::new` convention (`:wat::lru::LocalCache::new cap`,
+`:wat::kernel::HandlePool::new tag handles`). The `::` separator
+in the path is what flags it as Rust-side. The `/new` vs `/make`
+vs `/spawn` distinction is wat-side only.
+
+## Type alias for nested-generic returns (arc 077)
+
+If a function's return type contains **three or more** `<` characters, name it. Nested generics make signatures unreadable; an alias near the type definition restores grep-ability.
+
+### Examples
+
+```scheme
+;; Before — 3 angle brackets at every Service factory site
+(:wat::lru::CacheService/spawn<K,V>
+  (capacity :i64) (count :i64)
+  -> :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
+
+;; After — alias near the protocol typealiases
+(:wat::core::typealias :wat::lru::CacheService::Spawn<K,V>
+  :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
+
+(:wat::lru::CacheService/spawn<K,V>
+  (capacity :i64) (count :i64)
+  -> :wat::lru::CacheService::Spawn<K,V>)
+```
+
+### Aliases that ship in the substrate
+
+| Alias | Expands to | Where |
+|---|---|---|
+| `:wat::kernel::QueuePair<T>` | `:(QueueSender<T>,QueueReceiver<T>)` | `wat/kernel/queue.wat` |
+| `:wat::kernel::Sent` | `:Option<()>` | `wat/kernel/queue.wat` |
+| `:wat::kernel::Chosen<T>` | `:(i64,Option<T>)` | `wat/kernel/queue.wat` |
+| `:wat::std::stream::Stream<T>` | `:(Receiver<T>,ProgramHandle<()>)` | `wat/std/stream.wat` |
+| `:wat::std::stream::ChunkStep<T>` | `:(Vec<T>,Vec<Vec<T>>)` | `wat/std/stream.wat` |
+| `:wat::std::stream::KeyedChunkStep<K,T>` | `:((Option<K>,Vec<T>),Vec<Vec<T>>)` | `wat/std/stream.wat` |
+| `:wat::std::service::Console::Spawn` | factory return shape | `wat/std/service/Console.wat` |
+| `:wat::lru::CacheService::Spawn<K,V>` | factory return shape | `crates/wat-lru/wat/lru/CacheService.wat` |
+
+The same rule applies in user crates: pass the angle-bracket
+density check at every type signature, and add aliases adjacent
+to the protocol typealiases when one signature crosses three.
+
 ## When to add a primitive
 
 The stdlib is a blueprint, not a reference library. A primitive

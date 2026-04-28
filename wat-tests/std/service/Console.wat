@@ -36,7 +36,7 @@
               -> :())
             (:wat::core::let*
               (((pool console-driver)
-                (:wat::std::service::Console stdout stderr 1))
+                (:wat::std::service::Console/spawn stdout stderr 1))
                ((_ :())
                 (:wat::core::let*
                   (((console :rust::crossbeam_channel::Sender<(i64,String)>)
@@ -81,7 +81,7 @@
               -> :())
             (:wat::core::let*
               (((pool console-driver)
-                (:wat::std::service::Console stdout stderr 3))
+                (:wat::std::service::Console/spawn stdout stderr 3))
                ((_ :())
                 (:wat::core::let*
                   (((h0 :rust::crossbeam_channel::Sender<(i64,String)>)

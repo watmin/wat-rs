@@ -41,6 +41,14 @@
 (:wat::core::typealias :wat::std::service::Console::Rx
   :rust::crossbeam_channel::Receiver<wat::std::service::Console::Message>)
 
+;; --- Spawn return shape ---
+;;
+;; What `:wat::std::service::Console/spawn` returns: the HandlePool of
+;; tagged-message senders + the driver's ProgramHandle. Caller pops
+;; N senders, finishes the pool, scoped-drops at end → driver exits.
+(:wat::core::typealias :wat::std::service::Console::Spawn
+  :(wat::kernel::HandlePool<wat::std::service::Console::Tx>,wat::kernel::ProgramHandle<()>))
+
 ;; --- Driver loop ---
 ;;
 ;; Select across N receivers, decode each message's tag, write to
@@ -120,11 +128,11 @@
 ;; drops all handles (end of their scope), then calls
 ;; `(join driver)`. The drop cascade triggers the loop's clean exit.
 (:wat::core::define
-  (:wat::std::service::Console
+  (:wat::std::service::Console/spawn
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
     (count :i64)
-    -> :(wat::kernel::HandlePool<wat::std::service::Console::Tx>,wat::kernel::ProgramHandle<()>))
+    -> :wat::std::service::Console::Spawn)
   (:wat::core::let*
     (((pairs :Vec<(wat::std::service::Console::Tx,wat::std::service::Console::Rx)>)
       (:wat::core::map
