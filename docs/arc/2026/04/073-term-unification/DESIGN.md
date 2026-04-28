@@ -1,6 +1,24 @@
 # Arc 073 — Term store: HolonAST as Prolog term, Thermometer as tuning curve
 
-**Status:** PROPOSED 2026-04-27. Pre-implementation reasoning artifact.
+**Status:** PARTIAL — slices 1-3 shipped; slice 4 (`TermStore<V>`) **superseded by arc 074** (`HolonStore<V>`). 2026-04-28.
+
+> **Slices 1-3 stand as shipped substrate shelf primitives:**
+> - `HolonAST::SlotMarker` 12th variant (slice 1, holon-rs@7586f66, wat-rs@fb7650c)
+> - `:wat::holon::term::template / slots / ranges` decomposition (slice 2, holon-rs@e5b96c9, wat-rs@709ec72)
+> - `:wat::holon::term::matches?` per-slot fuzzy unification (slice 3, wat-rs@d86e32c)
+> - `:wat::core::=` accepts HolonAST pairs (substrate gap closed alongside slice 2)
+>
+> These are useful primitives for any consumer that wants explicit template-and-slots reasoning, but the cache slice does NOT consume them.
+>
+> **Slice 4 (`TermStore<V>`) is abandoned.** The cache use case turned out not to be a template-keyed bucket — it's a coordinate-keyed bucket with cosine-readout-against-the-population. Templates explained the THEORETICAL pre-filtering ("asts in different neighborhoods can't match"); the operational mechanism turned out to be `pos: f64`-indexed cells with cosine. Arc 074 ships that.
+>
+> The half-built slice 4 work is preserved under [`./archived/`](./archived/): the in-progress `term_store.rs.draft`, the cross-session `BUILD-LOG.md`, and `FEEDBACK-FROM-OTHER-SESSION.md` (which converged with the consulting session on a thread-owned mutable shape that, in turn, was superseded by arc 074's coordinate-cell shape).
+>
+> **For the operational cache primitive, see `../074-holon-store/DESIGN.md`.**
+
+---
+
+**Status (original draft):** PROPOSED 2026-04-27. Pre-implementation reasoning artifact.
 
 **Predecessors:** arc 023 (`coincident?`), arc 037 (per-d encoders + sigma machinery), arc 057 (typed HolonAST leaves), arc 058 (`HashMap<HolonAST, V>`), arc 067 (flat default dim router with `DEFAULT_TIERS = [10000]`).
 

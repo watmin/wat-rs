@@ -1,0 +1,242 @@
+//! Arc 073 — `TermStore<V>`: the substrate's population-code primitive.
+//!
+//! A bucketed store keyed by HolonAST template. Each bucket is a
+//! population of cells sharing a cell type (template) and tuned to
+//! different points in the slot space. `put` mutates in place;
+//! `get(form, floor)` walks the matching bucket and returns the first
+//! entry whose slots lie within the substrate's coincident floor of
+//! the query's slots.
+//!
+//! Thread-owned mutable per `ZERO-MUTEX.md` Tier 2; the wat-side
+//! Value variant wraps this in `ThreadOwnedCell` for scope safety
+//! with zero Mutex. Inside a thread's loop the store mutates freely;
+//! cross-thread sharing routes through service programs (Tier 3),
+//! where values-up discipline applies at the queue boundary.
+//!
+//! # Capacity
+//!
+//! `cap_per_bucket` defaults to `sqrt(d)` where d is the encoding
+//! tier's dimension (arc 067's `DEFAULT_TIERS = [10000]` → cap 100).
+//! Beyond sqrt(d), receptive fields overlap and the substrate stops
+//! discriminating; FIFO eviction keeps the bucket honest with
+//! Kanerva's capacity budget. The cap is a population invariant, not
+//! a tunable knob — exceeding it is dishonest, not impossible.
+
+use crate::runtime::Value;
+use holon::HolonAST;
+use std::collections::HashMap;
+
+/// Population-keyed store. One bucket per template; each bucket holds
+/// `(slots, value)` pairs whose slot-tuning may differ within the
+/// substrate's coincident floor.
+pub struct TermStore {
+    cap_per_bucket: usize,
+    buckets: HashMap<HolonAST, Vec<(Vec<f64>, Value)>>,
+}
+
+impl TermStore {
+    /// Construct an empty store with the given per-bucket capacity.
+    /// Callers compute the cap from `sqrt(d)` at the encoding tier;
+    /// the dispatcher does that lookup so consumers never see d.
+    pub fn new(cap_per_bucket: usize) -> Self {
+        TermStore {
+            cap_per_bucket,
+            buckets: HashMap::new(),
+        }
+    }
+
+    /// Insert `(form, value)` into the appropriate template bucket.
+    /// FIFO eviction past `cap_per_bucket` keeps the population
+    /// inside the substrate's resolution. Existing entries with
+    /// matching slots are NOT deduplicated — the bucket is a
+    /// population of independent observations; if the consumer wants
+    /// dedup, they decide at the put-site.
+    pub fn put(&mut self, form: &HolonAST, value: Value) {
+        let template = form.template();
+        let slots = form.slots();
+        let bucket = self.buckets.entry(template).or_insert_with(Vec::new);
+        bucket.push((slots, value));
+        if bucket.len() > self.cap_per_bucket {
+            // Drop the oldest. Vec::remove(0) is O(n); for sqrt(d) =
+            // 100 this is fine. If sqrt(d) ever blows up at high
+            // tiers, switch to VecDeque.
+            bucket.remove(0);
+        }
+    }
+
+    /// Look up `form`. Returns the value of the first bucket entry
+    /// whose slots lie within `floor` of the query's slots
+    /// (per-slot tolerance: `|q[i] - s[i]| / range[i] < floor`).
+    /// Returns `None` if the template doesn't exist or no entry's
+    /// slots match.
+    ///
+    /// `floor` is `sigma(d) / sqrt(d)` from the substrate's coincident
+    /// machinery — the dispatcher computes it from the ambient
+    /// `coincident_sigma_fn` at the form's d before calling.
+    pub fn get(&self, form: &HolonAST, floor: f64) -> Option<Value> {
+        let template = form.template();
+        let bucket = self.buckets.get(&template)?;
+        let q_slots = form.slots();
+        let q_ranges = form.ranges();
+        for (s_slots, v) in bucket.iter() {
+            if slots_within_floor(&q_slots, s_slots, &q_ranges, floor) {
+                return Some(v.clone());
+            }
+        }
+        None
+    }
+
+    /// Total entry count across all buckets. Read-only; doesn't bump
+    /// FIFO order.
+    pub fn len(&self) -> usize {
+        self.buckets.values().map(|b| b.len()).sum()
+    }
+
+    /// Configured cap per bucket. Diagnostic / introspection only.
+    pub fn cap_per_bucket(&self) -> usize {
+        self.cap_per_bucket
+    }
+}
+
+/// Per-slot tolerance check: returns true iff every paired slot lies
+/// within `floor` of its counterpart on the bucket's receptive-field
+/// scale. Caller guarantees `q_slots.len() == s_slots.len()` (template
+/// equality enforces this); ranges may be slightly mis-paired only if
+/// the bucket was built from a different form shape, which template
+/// equality also rules out.
+///
+/// Degenerate range (min == max) requires bit-exact value equality —
+/// divides-by-zero would otherwise silently match anything.
+fn slots_within_floor(
+    q_slots: &[f64],
+    s_slots: &[f64],
+    q_ranges: &[(f64, f64)],
+    floor: f64,
+) -> bool {
+    for i in 0..q_slots.len() {
+        let (lo, hi) = q_ranges[i];
+        let range = hi - lo;
+        if range == 0.0 {
+            if q_slots[i] != s_slots[i] {
+                return false;
+            }
+        } else if (q_slots[i] - s_slots[i]).abs() / range >= floor {
+            return false;
+        }
+    }
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rsi_thought(value: f64) -> HolonAST {
+        HolonAST::bind(
+            HolonAST::keyword("rsi-thought"),
+            HolonAST::thermometer(value, 0.0, 100.0),
+        )
+    }
+
+    #[test]
+    fn put_get_roundtrip() {
+        let mut store = TermStore::new(8);
+        store.put(&rsi_thought(70.0), Value::i64(42));
+        let got = store.get(&rsi_thought(70.0), 0.01);
+        assert!(matches!(got, Some(Value::i64(42))));
+    }
+
+    #[test]
+    fn get_misses_on_distant_slot() {
+        let mut store = TermStore::new(8);
+        store.put(&rsi_thought(70.0), Value::i64(42));
+        // 70 vs 30 on a 100-wide range = 40% delta; floor 0.01 = 1%.
+        let got = store.get(&rsi_thought(30.0), 0.01);
+        assert!(got.is_none());
+    }
+
+    #[test]
+    fn get_hits_on_close_slot() {
+        let mut store = TermStore::new(8);
+        store.put(&rsi_thought(70.0), Value::i64(42));
+        // 70 vs 70.5 on a 100-wide range = 0.5% delta; floor 1% wide.
+        let got = store.get(&rsi_thought(70.5), 0.01);
+        assert!(matches!(got, Some(Value::i64(42))));
+    }
+
+    #[test]
+    fn get_misses_on_different_template() {
+        let mut store = TermStore::new(8);
+        store.put(&rsi_thought(70.0), Value::i64(42));
+        let macd = HolonAST::bind(
+            HolonAST::keyword("macd-thought"),
+            HolonAST::thermometer(70.0, 0.0, 100.0),
+        );
+        assert!(store.get(&macd, 0.01).is_none());
+    }
+
+    #[test]
+    fn fifo_eviction_at_cap() {
+        let mut store = TermStore::new(2);
+        store.put(&rsi_thought(10.0), Value::i64(1));
+        store.put(&rsi_thought(50.0), Value::i64(2));
+        store.put(&rsi_thought(90.0), Value::i64(3));
+        // The 10.0 entry should have been evicted.
+        assert_eq!(store.len(), 2);
+        assert!(store.get(&rsi_thought(10.0), 0.01).is_none());
+        assert!(store.get(&rsi_thought(50.0), 0.01).is_some());
+        assert!(store.get(&rsi_thought(90.0), 0.01).is_some());
+    }
+
+    #[test]
+    fn len_counts_across_buckets() {
+        let mut store = TermStore::new(8);
+        store.put(&rsi_thought(70.0), Value::i64(1));
+        let macd = HolonAST::bind(
+            HolonAST::keyword("macd-thought"),
+            HolonAST::thermometer(0.5, -1.0, 1.0),
+        );
+        store.put(&macd, Value::i64(2));
+        assert_eq!(store.len(), 2);
+    }
+
+    #[test]
+    fn thermometer_free_form_degenerates_to_exact_lookup() {
+        let mut store = TermStore::new(8);
+        let form = HolonAST::bind(HolonAST::keyword("x"), HolonAST::i64(42));
+        store.put(&form, Value::String("hello".into()));
+        // Same form retrieves the value; floor irrelevant (no slots).
+        let got = store.get(&form, 0.01);
+        assert!(matches!(got, Some(Value::String(_))));
+        // Different form misses cleanly.
+        let other = HolonAST::bind(HolonAST::keyword("y"), HolonAST::i64(42));
+        assert!(store.get(&other, 0.01).is_none());
+    }
+
+    #[test]
+    fn degenerate_range_requires_exact_match() {
+        let mut store = TermStore::new(8);
+        // Thermometer with min == max is a pathological shape; the
+        // store treats it as exact-match (divide-by-zero would make
+        // any value match otherwise).
+        let degenerate = HolonAST::bind(
+            HolonAST::keyword("x"),
+            HolonAST::thermometer(5.0, 5.0, 5.0),
+        );
+        store.put(&degenerate, Value::i64(1));
+        let same = HolonAST::bind(
+            HolonAST::keyword("x"),
+            HolonAST::thermometer(5.0, 5.0, 5.0),
+        );
+        assert!(store.get(&same, 0.01).is_some());
+        let different = HolonAST::bind(
+            HolonAST::keyword("x"),
+            HolonAST::thermometer(7.0, 5.0, 5.0),
+        );
+        // Different value with the same degenerate range — the
+        // SLOTS differ (5.0 vs 7.0) but the TEMPLATE matches
+        // (same SlotMarker { min: 5.0, max: 5.0 }). Bucket lookup
+        // succeeds; per-slot exact-equality check falsifies.
+        assert!(store.get(&different, 0.01).is_none());
+    }
+}
