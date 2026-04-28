@@ -36,7 +36,7 @@
     (cache :wat::lru::LocalCache<K,V>)
     (k :K)
     (v :V)
-    -> :())
+    -> :Option<(K,V)>)
   (:rust::lru::LruCache::put cache k v))
 
 (:wat::core::define

@@ -27,11 +27,19 @@ use wat::runtime::{hashmap_key, Value};
 
 use wat_macros::wat_dispatch;
 
-/// Newtype wrapper around `lru::LruCache<String, Value>`. The wat
-/// type checker sees this as `:rust::lru::LruCache<K,V>` with phantom
-/// K,V (see the `type_params` attribute below).
+/// Newtype wrapper around `lru::LruCache<String, (Value, Value)>`.
+/// The wat type checker sees this as `:rust::lru::LruCache<K,V>` with
+/// phantom K,V (see the `type_params` attribute below).
+///
+/// Storage shape: the canonical String of the user's key indexes into
+/// pairs of `(original_key_value, val)`. Keeping the original key
+/// alive lets `put` return the evicted entry as `Option<(K, V)>` —
+/// downstream consumers (e.g. HologramLRU under arc 074 slice 2) need
+/// the original AST to clean up correlated bookkeeping when the LRU
+/// evicts a key. Memory cost is one extra `Arc::clone` per entry
+/// (HolonAST is Arc-wrapped; primitives are Copy or small).
 pub struct WatLruCache {
-    inner: LruCache<String, Value>,
+    inner: LruCache<String, (Value, Value)>,
 }
 
 #[wat_dispatch(
@@ -70,7 +78,12 @@ impl WatLruCache {
     /// accepts every value type with a structural identity:
     /// primitives plus `HolonAST` (per arc 057). Lambdas / handles /
     /// other non-hashable values still error.
-    pub fn put(&mut self, k: Value, v: Value) {
+    ///
+    /// Returns `Some((evicted_k, evicted_v))` if insertion pushed past
+    /// capacity, `None` otherwise. Most callers ignore the return; bound
+    /// caches that maintain correlated state (HologramLRU's per-cell
+    /// hologram store) consume it to drop the matching entry.
+    pub fn put(&mut self, k: Value, v: Value) -> Option<(Value, Value)> {
         let key = hashmap_key(":rust::lru::LruCache::put", &k).unwrap_or_else(|_| {
             panic!(
                 ":rust::lru::LruCache::put: key must be a hashable value \
@@ -78,7 +91,11 @@ impl WatLruCache {
                 k.type_name()
             )
         });
-        self.inner.put(key, v);
+        // Use `push` (returns Option<(K,V)>) rather than `put` (returns
+        // Option<V>) because we want eviction visibility, not just
+        // overwrite visibility. push returns Some on either an
+        // overwrite of an existing key OR a capacity-driven eviction.
+        self.inner.push(key, (k, v)).map(|(_, pair)| pair)
     }
 
     /// `:rust::lru::LruCache::get cache k` — returns `:Option<V>`. Hit
@@ -91,7 +108,7 @@ impl WatLruCache {
                 k.type_name()
             )
         });
-        self.inner.get(&key).cloned()
+        self.inner.get(&key).map(|(_, v)| v.clone())
     }
 
     /// `:rust::lru::LruCache::len cache` — current entry count.

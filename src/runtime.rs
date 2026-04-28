@@ -6661,42 +6661,17 @@ fn eval_hologram_get(
     let enc = ctx.encoders.get(d);
     let probe_vec = holon::encode(&probe, &enc.vm, &enc.scalar);
 
-    // Collect candidates by cloning their (key, val) pairs out of the
-    // store. Cloning here releases the with_ref guard before we
-    // start the cosine + filter loop (which may reach back into the
-    // runtime via apply_function).
-    let candidates: Vec<(HolonAST, HolonAST)> = store.with_ref(OP, |s| {
-        let (left, right) = crate::hologram::pos_to_cell_spread(OP, pos, s.num_cells())?;
-        let mut out: Vec<(HolonAST, HolonAST)> = Vec::new();
-        for (k, v) in s.cell(left).iter() {
-            out.push((k.clone(), v.clone()));
-        }
-        if right != left {
-            for (k, v) in s.cell(right).iter() {
-                out.push((k.clone(), v.clone()));
-            }
-        }
-        Ok::<Vec<(HolonAST, HolonAST)>, RuntimeError>(out)
+    // Cosine readout via Hologram::find_best — the substrate primitive
+    // that bounded backings (HologramLRU etc.) compose. Returns the
+    // highest-cosine (key, val, cosine) triple in the spread cells, or
+    // None if both cells are empty.
+    let best = store.with_ref(OP, |s| {
+        s.find_best(OP, pos, &probe_vec, &ctx.encoders)
     })??;
-
-    if candidates.is_empty() {
-        return Ok(Value::Option(Arc::new(None)));
-    }
-
-    // Cosine readout: encode every candidate key, score against probe,
-    // track the highest-cosine entry. Filter is applied AFTER picking
-    // the best — the filter answers "is the best good enough?", not
-    // "which candidate wins."
-    let mut best: Option<(f64, HolonAST)> = None;
-    for (stored_key, val) in candidates {
-        let key_vec = holon::encode(&stored_key, &enc.vm, &enc.scalar);
-        let cos = holon::Similarity::cosine(&key_vec, &probe_vec);
-        match &best {
-            Some((best_cos, _)) if *best_cos >= cos => {}
-            _ => best = Some((cos, val)),
-        }
-    }
-    let (best_cos, best_val) = best.expect("candidates non-empty checked above");
+    let (_best_key, best_val, best_cos) = match best {
+        Some(triple) => triple,
+        None => return Ok(Value::Option(Arc::new(None))),
+    };
 
     // Apply the user-supplied filter to the best cosine. If filter
     // returns true, the get is a hit; otherwise miss.

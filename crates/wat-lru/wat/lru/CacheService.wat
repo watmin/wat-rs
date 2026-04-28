@@ -90,7 +90,7 @@
                 (:wat::core::match put-val -> :Option<V>
                   ((Some v)
                     (:wat::core::let*
-                      (((_ :()) (:wat::lru::LocalCache::put cache key v)))
+                      (((_ :Option<(K,V)>) (:wat::lru::LocalCache::put cache key v)))
                       :None))
                   (:None :None))))
              ;; reply-to may have been dropped (client no longer

@@ -24,7 +24,8 @@
 //! with zero Mutex.
 
 use crate::runtime::RuntimeError;
-use holon::HolonAST;
+use crate::vm_registry::EncoderRegistry;
+use holon::{encode, HolonAST, Similarity, Vector};
 use std::collections::HashMap;
 
 /// Population-keyed coordinate cell store. Unbounded; entries persist
@@ -88,6 +89,60 @@ impl Hologram {
     /// idempotent at the same `(pos, key)`.
     pub fn put_at_index(&mut self, idx: usize, key: HolonAST, val: HolonAST) {
         self.cells[idx].insert(key, val);
+    }
+
+    /// Remove the entry at `cells[idx]` keyed by `key`. Returns the
+    /// removed val if the entry existed, else None. Used by bounded
+    /// variants (`HologramLRU` etc.) when their LRU sidecar evicts a
+    /// key — the sidecar tells us which cell holds the entry, this
+    /// method drops it from that cell.
+    pub fn remove_at_index(&mut self, idx: usize, key: &HolonAST) -> Option<HolonAST> {
+        self.cells[idx].remove(key)
+    }
+
+    /// The cosine-readout primitive. For a probe encoded at `probe_vec`
+    /// and looking up at user-supplied `pos`, walk the spread cells
+    /// (left and right around pos), encode each candidate key, compute
+    /// cosine against the probe, return the highest-cosine entry as
+    /// `(key, val, cosine)` — or None if both spread cells are empty.
+    ///
+    /// This is THE primitive sibling backings (`HologramLRU`,
+    /// `HologramSQLite`, …) reach for. Each variant's `get` wraps this
+    /// with its own filter logic and (where applicable) its own
+    /// retrieval-rate bookkeeping. The unbounded substrate variant's
+    /// `get` calls this directly and applies the user's filter.
+    ///
+    /// Returns `Ok(Some((key, val, cosine)))` on hit, `Ok(None)` on
+    /// empty spread, or an error for invalid `pos`.
+    pub fn find_best(
+        &self,
+        op: &str,
+        pos: f64,
+        probe_vec: &Vector,
+        registry: &EncoderRegistry,
+    ) -> Result<Option<(HolonAST, HolonAST, f64)>, RuntimeError> {
+        let (left, right) = pos_to_cell_spread(op, pos, self.num_cells)?;
+        let mut best: Option<(HolonAST, HolonAST, f64)> = None;
+        let scan_cells: &[usize] = if left == right {
+            &[left][..]
+        } else {
+            &[left, right][..]
+        };
+        // Look up the per-d encoder pair at the store's d. The probe
+        // was already encoded at the same d (the dispatcher routed it
+        // there), so cosine comparisons stay honest.
+        let enc = registry.get(self.d);
+        for &idx in scan_cells {
+            for (k, v) in self.cells[idx].iter() {
+                let k_vec = encode(k, &enc.vm, &enc.scalar);
+                let cos = Similarity::cosine(&k_vec, probe_vec);
+                match &best {
+                    Some((_, _, best_cos)) if *best_cos >= cos => {}
+                    _ => best = Some((k.clone(), v.clone(), cos)),
+                }
+            }
+        }
+        Ok(best)
     }
 }
 

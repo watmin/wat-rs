@@ -30,7 +30,7 @@
   (:wat::core::let*
     (((cache :wat::lru::LocalCache<String,i64>)
       (:wat::lru::LocalCache::new 16))
-     ((_ :())
+     ((_ :Option<(String,i64)>)
       (:wat::lru::LocalCache::put cache "answer" 42))
      ((got :Option<i64>)
       (:wat::lru::LocalCache::get cache "answer")))
