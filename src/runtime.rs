@@ -2387,6 +2387,7 @@ fn dispatch_keyword_head(
         ":wat::holon::Hologram/put" => eval_hologram_put(args, env, sym),
         ":wat::holon::Hologram/get" => eval_hologram_get(args, env, sym),
         ":wat::holon::Hologram/len" => eval_hologram_len(args, env, sym),
+        ":wat::holon::Hologram/dim" => eval_hologram_dim(args, env, sym),
 
         // Presence — the retrieval primitive per FOUNDATION 1718.
         // Cosine between encoded target and encoded reference. Returns
@@ -6742,6 +6743,29 @@ fn eval_hologram_len(
     let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
     let n = store.with_ref(OP, |s| s.len() as i64)?;
     Ok(Value::i64(n))
+}
+
+/// `(:wat::holon::Hologram/dim store)` -> `:i64`. Returns the encoding
+/// dimension `d` the store was built against. Surfaces the d that
+/// `Hologram/new` consumed so wat-stdlib convenience getters
+/// (`present-get`, `coincident-get`) can compose `filter-present` /
+/// `filter-coincident` without the caller passing d explicitly.
+fn eval_hologram_dim(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Hologram/dim";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
+    let d = store.with_ref(OP, |s| s.dim() as i64)?;
+    Ok(Value::i64(d))
 }
 
 fn holon_to_watast(h: &HolonAST) -> WatAST {

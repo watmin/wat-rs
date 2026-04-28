@@ -5254,6 +5254,14 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Path(":i64".into()),
         },
     );
+    env.register(
+        ":wat::holon::Hologram/dim".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![hologram_ty()],
+            ret: TypeExpr::Path(":i64".into()),
+        },
+    );
 
     // The eval-family forms — per the 2026-04-20 INSCRIPTION adding
     // :Result<wat::holon::HolonAST, :wat::core::EvalError> as the uniform

@@ -183,3 +183,65 @@
   (:wat::core::let*
     (((floor :f64) (:wat::holon::coincident-floor 10000)))
     (:wat::test::assert-eq (:wat::core::> floor 0.0) true)))
+
+;; ─── dim accessor returns the d the store was built with ─────────
+
+(:wat::test::deftest :wat-tests::holon::Hologram::test-dim-returns-construction-d
+  ()
+  (:wat::core::let*
+    (((store :wat::holon::Hologram) (:wat::holon::Hologram/new 10000))
+     ((d :i64) (:wat::holon::Hologram/dim store)))
+    (:wat::test::assert-eq d 10000)))
+
+;; ─── coincident-get composes filter-coincident at the store's d ──
+;;
+;; Self-cosine = 1.0 → coincident-filter accepts → Some(stored val).
+;; The user passes no filter and no d; the convenience reads both
+;; off the store.
+
+(:wat::test::deftest :wat-tests::holon::Hologram::test-coincident-get-self-hit
+  ()
+  (:wat::core::let*
+    (((store :wat::holon::Hologram) (:wat::holon::Hologram/new 10000))
+     ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
+     ((v :wat::holon::HolonAST) (:wat::holon::leaf :beta))
+     ((_ :()) (:wat::holon::Hologram/put store 5.0 k v))
+     ((got :Option<wat::holon::HolonAST>)
+      (:wat::holon::Hologram/coincident-get store 5.0 k))
+     ((found :wat::holon::HolonAST)
+      (:wat::core::match got -> :wat::holon::HolonAST
+        ((Some h) h)
+        (:None    (:wat::holon::leaf :unreachable)))))
+    (:wat::test::assert-eq found v)))
+
+;; ─── present-get composes filter-present at the store's d ────────
+
+(:wat::test::deftest :wat-tests::holon::Hologram::test-present-get-self-hit
+  ()
+  (:wat::core::let*
+    (((store :wat::holon::Hologram) (:wat::holon::Hologram/new 10000))
+     ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
+     ((v :wat::holon::HolonAST) (:wat::holon::leaf :beta))
+     ((_ :()) (:wat::holon::Hologram/put store 5.0 k v))
+     ((got :Option<wat::holon::HolonAST>)
+      (:wat::holon::Hologram/present-get store 5.0 k))
+     ((found :wat::holon::HolonAST)
+      (:wat::core::match got -> :wat::holon::HolonAST
+        ((Some h) h)
+        (:None    (:wat::holon::leaf :unreachable)))))
+    (:wat::test::assert-eq found v)))
+
+;; ─── coincident-get on empty store returns None ──────────────────
+
+(:wat::test::deftest :wat-tests::holon::Hologram::test-coincident-get-empty-none
+  ()
+  (:wat::core::let*
+    (((store :wat::holon::Hologram) (:wat::holon::Hologram/new 10000))
+     ((probe :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
+     ((got :Option<wat::holon::HolonAST>)
+      (:wat::holon::Hologram/coincident-get store 5.0 probe))
+     ((is-none :bool)
+      (:wat::core::match got -> :bool
+        ((Some _) false)
+        (:None    true))))
+    (:wat::test::assert-eq is-none true)))

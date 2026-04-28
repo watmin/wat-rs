@@ -36,6 +36,11 @@ pub struct Hologram {
     cells: Vec<HashMap<HolonAST, HolonAST>>,
     /// Cached `floor(sqrt(d))` so we don't recompute on every op.
     num_cells: usize,
+    /// The encoding dimension this store was built against. Surfaced
+    /// via `Hologram/dim` so the wat-stdlib convenience getters
+    /// (`present-get`, `coincident-get`) can compose `filter-present` /
+    /// `filter-coincident` without the caller passing d explicitly.
+    d: usize,
 }
 
 impl Hologram {
@@ -50,13 +55,18 @@ impl Hologram {
         // on wonky d.
         let num_cells = num_cells.max(1);
         let cells = (0..num_cells).map(|_| HashMap::new()).collect();
-        Hologram { cells, num_cells }
+        Hologram { cells, num_cells, d }
     }
 
     /// `num_cells` for this store. Read-only; matches `floor(sqrt(d))`
     /// of the d passed to `new`.
     pub fn num_cells(&self) -> usize {
         self.num_cells
+    }
+
+    /// The encoding dimension this store was built against. Read-only.
+    pub fn dim(&self) -> usize {
+        self.d
     }
 
     /// Total entries across all cells.

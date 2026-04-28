@@ -75,6 +75,10 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/holon/Filter.wat"),
     },
     WatSource {
+        path: "wat/holon/Hologram.wat",
+        source: include_str!("../wat/holon/Hologram.wat"),
+    },
+    WatSource {
         path: "wat/kernel/queue.wat",
         source: include_str!("../wat/kernel/queue.wat"),
     },
