@@ -2399,6 +2399,7 @@ fn dispatch_keyword_head(
         // pipeline's discipline on source interface and verification.
         ":wat::eval-ast!" => eval_form_ast(args, env, sym),
         ":wat::eval-step!" => eval_form_step(args, env, sym),
+        ":wat::eval::walk" => eval_walk(args, env, sym),
         ":wat::eval-edn!" => eval_form_edn(args, env, sym),
         ":wat::eval-file!" => eval_form_file(args, env, sym),
         ":wat::eval-digest!" => eval_form_digest(args, env, sym),
@@ -10160,6 +10161,175 @@ fn eval_form_step(
     })())
 }
 
+/// Arc 070 — `:wat::eval::walk` fold over the eval-step! chain.
+///
+/// `(:wat::eval::walk form init visit) -> Result<(HolonAST, A),
+/// EvalError>`. Lifts the walker pattern that proofs 015/016/017/018
+/// each reimplemented into a single substrate primitive. The
+/// visitor is called once per coordinate with `(acc, current-form,
+/// step-result)` and returns a `WalkStep<A>`:
+///
+///   - `Continue(acc')` — keep walking. On `StepNext` the loop
+///     recurses on the next form; on either terminal flavor the
+///     loop returns `(terminal, acc')`.
+///   - `Skip(terminal, acc')` — caller has its own answer (cache
+///     hit, etc.). Loop stops; returns `(terminal, acc')`.
+///
+/// `Err(EvalError)` from the inner `eval-step!` propagates as the
+/// outer `Result::Err`. The visitor never sees it — if a consumer
+/// wants to recover, they wrap walk and match on the outer Result.
+///
+/// Iterative loop, not recursion — avoids unbounded stack growth on
+/// long chains. Walks until: (a) visitor returns Skip, (b) step-
+/// result is StepTerminal/AlreadyTerminal, or (c) eval-step! errors.
+fn eval_walk(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::eval::walk";
+    if args.len() != 3 {
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "(:wat::eval::walk form init visit) takes exactly 3 args; got {}",
+                args.len()
+            ),
+        });
+    }
+    wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
+        let form_value = eval(&args[0], env, sym)?;
+        let mut current_form: Arc<WatAST> = match form_value {
+            Value::wat__WatAST(a) => a,
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "wat::WatAST",
+                    got: other.type_name(),
+                });
+            }
+        };
+        let mut acc = eval(&args[1], env, sym)?;
+        let visit_value = eval(&args[2], env, sym)?;
+        let visit_func = match visit_value {
+            Value::wat__core__lambda(f) => f,
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "wat::core::lambda — visitor (acc, form, step) → WalkStep<A>",
+                    got: other.type_name(),
+                });
+            }
+        };
+        loop {
+            let stepped = step_form(&current_form, env, sym)?;
+            // Cache the structural shape before we hand it to
+            // visit so we can decide what to do post-visit
+            // (recurse on next form, or return on terminal).
+            let (next_form_opt, terminal_opt) = match &stepped {
+                StepValue::Next(form) => (Some(form.clone()), None),
+                StepValue::Terminal(h) => (None, Some(h.clone())),
+                StepValue::AlreadyTerminal(h) => (None, Some(h.clone())),
+            };
+            let step_value = step_value_to_enum(stepped);
+            let walkstep_value = apply_function(
+                visit_func.clone(),
+                vec![
+                    acc,
+                    Value::wat__WatAST(current_form.clone()),
+                    step_value,
+                ],
+                sym,
+                crate::rust_caller_span!(),
+            )?;
+            // Visitor must return :wat::eval::WalkStep<A> as a
+            // tagged-enum value. Read the variant + fields.
+            let (variant_name, fields) = match walkstep_value {
+                Value::Enum(ev) => {
+                    if ev.type_path != ":wat::eval::WalkStep" {
+                        return Err(RuntimeError::TypeMismatch {
+                            op: OP.into(),
+                            expected: "wat::eval::WalkStep<A>",
+                            got: "different enum",
+                        });
+                    }
+                    let ev = (*ev).clone();
+                    (ev.variant_name, ev.fields)
+                }
+                other => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: OP.into(),
+                        expected: "wat::eval::WalkStep<A>",
+                        got: other.type_name(),
+                    });
+                }
+            };
+            match variant_name.as_str() {
+                "Continue" => {
+                    if fields.len() != 1 {
+                        return Err(RuntimeError::MalformedForm {
+                            head: OP.into(),
+                            reason: format!(
+                                "WalkStep::Continue takes exactly 1 field (acc); got {}",
+                                fields.len()
+                            ),
+                        });
+                    }
+                    let mut iter = fields.into_iter();
+                    acc = iter.next().expect("length checked");
+                    if let Some(next_form) = next_form_opt {
+                        current_form = Arc::new(next_form);
+                        continue;
+                    }
+                    // Terminal reached — return (terminal, acc).
+                    let terminal = terminal_opt.expect("terminal_opt set when next_form_opt None");
+                    return Ok(Value::Tuple(Arc::new(vec![
+                        Value::holon__HolonAST(Arc::new(terminal)),
+                        acc,
+                    ])));
+                }
+                "Skip" => {
+                    if fields.len() != 2 {
+                        return Err(RuntimeError::MalformedForm {
+                            head: OP.into(),
+                            reason: format!(
+                                "WalkStep::Skip takes exactly 2 fields (terminal, acc); got {}",
+                                fields.len()
+                            ),
+                        });
+                    }
+                    let mut iter = fields.into_iter();
+                    let terminal_v = iter.next().expect("length checked");
+                    let new_acc = iter.next().expect("length checked");
+                    let terminal_h = match terminal_v {
+                        Value::holon__HolonAST(h) => h,
+                        other => {
+                            return Err(RuntimeError::TypeMismatch {
+                                op: OP.into(),
+                                expected: "wat::holon::HolonAST (Skip's terminal field)",
+                                got: other.type_name(),
+                            });
+                        }
+                    };
+                    return Ok(Value::Tuple(Arc::new(vec![
+                        Value::holon__HolonAST(terminal_h),
+                        new_acc,
+                    ])));
+                }
+                other => {
+                    return Err(RuntimeError::MalformedForm {
+                        head: OP.into(),
+                        reason: format!(
+                            "WalkStep variant must be Continue or Skip; got {}",
+                            other
+                        ),
+                    });
+                }
+            }
+        }
+    })())
+}
+
 /// Construct the `:wat::eval::StepResult` enum value from an
 /// internal `StepValue`. Mirrors arc 060's `thread_died_error_*`
 /// helper shape.
@@ -11478,6 +11648,8 @@ mod tests {
                 .expect("stdlib defines register");
             register_struct_methods(&types, &mut symbols)
                 .expect("built-in struct methods register");
+            register_enum_methods(&types, &mut symbols)
+                .expect("built-in enum methods register");
             (symbols, macros)
         })
     }
@@ -16262,6 +16434,178 @@ mod tests {
             "(:wat::eval-step! (:wat::core::quote :outcome))",
         );
         assert!(s.contains("AlreadyTerminal"), "got: {}", s);
+    }
+
+    // --- :wat::eval::walk — arc 070 phase 2 -------------------------------
+    //
+    // Fold over the eval-step! chain. The walker visits every
+    // coordinate exactly once with `(acc, form, step-result)` and
+    // dispatches based on the WalkStep<A> the visitor returns.
+
+    /// Wat program prelude defining a `count-visits` visitor that
+    /// always returns Continue and increments the i64 accumulator.
+    /// Used to drive walks that should run to natural terminal.
+    fn walk_count_prelude() -> &'static str {
+        r#"
+        (:wat::core::define
+          (:my::test::count-visit
+            (acc :i64)
+            (form :wat::WatAST)
+            (step :wat::eval::StepResult)
+            -> :wat::eval::WalkStep<i64>)
+          (:wat::eval::WalkStep::Continue (:wat::core::i64::+ acc 1)))
+        "#
+    }
+
+    #[test]
+    fn walk_w1_chain_to_terminal() {
+        // Fully-reducible chain `(+ (+ 1 2) 3)`. Walker visits every
+        // coordinate; final terminal is HolonAST::I64(6); the
+        // accumulator (visit count) is positive (chain has length
+        // ≥ 1 — at least one StepNext + one StepTerminal).
+        let src = format!(
+            r#"
+            {}
+            (:wat::core::match
+              (:wat::eval::walk
+                (:wat::core::quote (:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3))
+                0
+                :my::test::count-visit)
+              -> :i64
+              ((Ok pair)
+                (:wat::core::let*
+                  (((terminal :wat::holon::HolonAST) (:wat::core::first pair))
+                   ((count :i64) (:wat::core::second pair))
+                   ((value :i64) (:wat::core::atom-value terminal))
+                   ;; encode (value, count) as one i64: value * 1000 + count.
+                   ;; sufficient for a chain of length < 1000.
+                   ((packed :i64)
+                    (:wat::core::i64::+
+                      (:wat::core::i64::* value 1000)
+                      count)))
+                  packed))
+              ((Err _) -1))
+            "#,
+            walk_count_prelude()
+        );
+        match run(&src).unwrap() {
+            Value::i64(packed) => {
+                let value = packed / 1000;
+                let count = packed % 1000;
+                assert_eq!(value, 6, "expected terminal value 6, got {}", value);
+                assert!(count >= 1, "expected at least 1 visit, got {}", count);
+            }
+            other => panic!("expected i64, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn walk_w2_already_terminal_input() {
+        // Input that's already a value-shape (`Bind(Atom, Therm)`'s
+        // canonical form). Walker visits exactly once with
+        // step-result = AlreadyTerminal; final return is the form
+        // itself; chain length is 0 — the visit count after one
+        // visit is 1.
+        let src = format!(
+            r#"
+            {}
+            (:wat::core::match
+              (:wat::eval::walk
+                (:wat::core::quote
+                  (:wat::holon::Bind
+                    (:wat::holon::Atom "k")
+                    (:wat::holon::Atom "v")))
+                0
+                :my::test::count-visit)
+              -> :i64
+              ((Ok pair)
+                (:wat::core::second pair))
+              ((Err _) -1))
+            "#,
+            walk_count_prelude()
+        );
+        match run(&src).unwrap() {
+            Value::i64(count) => {
+                assert_eq!(count, 1, "expected exactly 1 visit, got {}", count);
+            }
+            other => panic!("expected i64, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn walk_w3_skip_short_circuits() {
+        // Visitor returns Skip on the FIRST coordinate with a
+        // sentinel terminal HolonAST::I64(999). Walker stops; final
+        // return is (sentinel, acc'). Even on a chain that would
+        // naturally terminate at I64(6), Skip wins.
+        let src = r#"
+        (:wat::core::define
+          (:my::test::skip-on-first
+            (acc :i64)
+            (form :wat::WatAST)
+            (step :wat::eval::StepResult)
+            -> :wat::eval::WalkStep<i64>)
+          (:wat::eval::WalkStep::Skip
+            (:wat::holon::leaf 999)
+            (:wat::core::i64::+ acc 1)))
+        (:wat::core::match
+          (:wat::eval::walk
+            (:wat::core::quote (:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3))
+            0
+            :my::test::skip-on-first)
+          -> :i64
+          ((Ok pair)
+            (:wat::core::let*
+              (((terminal :wat::holon::HolonAST) (:wat::core::first pair))
+               ((value :i64) (:wat::core::atom-value terminal)))
+              value))
+          ((Err _) -1))
+        "#;
+        match run(src).unwrap() {
+            Value::i64(value) => {
+                assert_eq!(
+                    value, 999,
+                    "expected sentinel 999 from Skip, got {}",
+                    value
+                );
+            }
+            other => panic!("expected i64, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn walk_w4_propagates_eval_step_err() {
+        // Quote-form (`:wat::core::quote`) inside the chain has no
+        // step rule — eval-step! returns Err(NoStepRule). walk
+        // propagates as the outer Result::Err; the visitor never
+        // sees the error.
+        let src = format!(
+            r#"
+            {}
+            (:wat::core::match
+              (:wat::eval::walk
+                (:wat::core::quote
+                  (:wat::holon::from-watast
+                    (:wat::core::quote 42)))
+                0
+                :my::test::count-visit)
+              -> :i64
+              ((Ok _) -2)
+              ((Err e)
+                ;; struct-field 0 is the kind tag.
+                (:wat::core::if
+                  (:wat::core::= "no-step-rule"
+                                 (:wat::core::struct-field e 0))
+                                 -> :i64
+                  1
+                  -3)))
+            "#,
+            walk_count_prelude()
+        );
+        match run(&src).unwrap() {
+            Value::i64(1) => {}
+            other => panic!("expected Err(no-step-rule), got {:?}", other),
+        }
     }
 
     #[test]

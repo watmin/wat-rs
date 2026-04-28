@@ -5173,9 +5173,10 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // :wat::eval-step! (arc 068) — one CBV reduction at the leftmost-
-    // outermost redex. Returns Ok(StepResult) on progress (StepNext or
-    // StepTerminal); Err(EvalError) for malformed forms, effectful
-    // ops in step mode, or shapes the stepper hasn't been taught yet.
+    // outermost redex. Returns Ok(StepResult) on progress (StepNext,
+    // StepTerminal, or AlreadyTerminal — arc 070); Err(EvalError) for
+    // malformed forms, effectful ops in step mode, or shapes the
+    // stepper hasn't been taught yet.
     env.register(
         ":wat::eval-step!".into(),
         TypeScheme {
@@ -5185,6 +5186,42 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Result".into(),
                 args: vec![
                     TypeExpr::Path(":wat::eval::StepResult".into()),
+                    TypeExpr::Path(":wat::core::EvalError".into()),
+                ],
+            },
+        },
+    );
+    // :wat::eval::walk<A> (arc 070) — fold over the eval-step! chain.
+    // Visitor sees every coordinate exactly once, in order, with the
+    // step-result the substrate produced at that coordinate. Returns
+    // (terminal-HolonAST, final-acc) on Ok; the chain's terminal +
+    // the visitor's accumulated state.
+    env.register(
+        ":wat::eval::walk".into(),
+        TypeScheme {
+            type_params: vec!["A".into()],
+            params: vec![
+                wat_ast_ty(),
+                TypeExpr::Path("A".into()),
+                TypeExpr::Fn {
+                    args: vec![
+                        TypeExpr::Path("A".into()),
+                        wat_ast_ty(),
+                        TypeExpr::Path(":wat::eval::StepResult".into()),
+                    ],
+                    ret: Box::new(TypeExpr::Parametric {
+                        head: "wat::eval::WalkStep".into(),
+                        args: vec![TypeExpr::Path("A".into())],
+                    }),
+                },
+            ],
+            ret: TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![
+                    TypeExpr::Tuple(vec![
+                        TypeExpr::Path(":wat::holon::HolonAST".into()),
+                        TypeExpr::Path("A".into()),
+                    ]),
                     TypeExpr::Path(":wat::core::EvalError".into()),
                 ],
             },

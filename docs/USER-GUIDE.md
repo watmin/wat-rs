@@ -823,32 +823,83 @@ walker. This is the substrate primitive that BOOK Chapter 59's
 dual-LRU coordinate cache (form→next-form + form→terminal-value)
 sits on top of.
 
-```scheme
-;; A driver that walks a form to its terminal value, calling eval-step!
-;; once per rewrite. The same shape every dual-LRU cache consumer wants.
-(:wat::core::define
-  (:my::cache::step-to-terminal (form :wat::WatAST) -> :wat::holon::HolonAST)
-  (:wat::core::match (:wat::eval-step! form) -> :wat::holon::HolonAST
-    ((Ok r)
-      (:wat::core::match r -> :wat::holon::HolonAST
-        ((:wat::eval::StepResult::StepNext next)
-          ;; This is where a real consumer would also write
-          ;;   (form → next) into the form-to-next-form LRU.
-          (:my::cache::step-to-terminal next))
-        ((:wat::eval::StepResult::StepTerminal h)
-          ;; And this is where it would write
-          ;;   (form → h) into the form-to-terminal-value LRU.
-          h)))
-    ((Err e)
-      ;; Effectful sub-forms (`:wat::kernel::*`, `:wat::io::*`),
-      ;; no-step-rule shapes, type errors — fall back to eval-ast!.
-      (:wat::core::match (:wat::eval-ast! form) -> :wat::holon::HolonAST
-        ((Ok h2) h2)
-        ((Err _) (:wat::holon::leaf -1))))))
+`StepResult` has three variants (arc 070 added the third):
 
-;; Use it: drive `(+ (+ 1 2) 3)` to terminal HolonAST::I64(6).
-(:my::cache::step-to-terminal
-  (:wat::core::quote (:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3)))
+- `StepNext { form }` — one rewrite happened. The chain is mid-walk;
+  feed `form` back to keep going.
+- `StepTerminal { value }` — this step reduced a redex to a value.
+  The chain has length ≥ 1.
+- `AlreadyTerminal { value }` — the input was already a value-shape
+  (a `to-watast(holon)` round-trip, a primitive literal, a holon
+  constructor with all-canonical args). No work happened. The chain
+  has length 0.
+
+The substrate's accounting matters at the cache layer: chain length
+0 vs ≥ 1 distinguishes "I came in as a value" from "I just reduced
+a value." A walker hitting an effectful sub-form, a malformed form,
+or a no-rule head sees `Err(EvalError)` — the consumer falls back to
+`eval-ast!` for those.
+
+Most consumers don't write the walker by hand. Reach for
+`:wat::eval::walk` (arc 070):
+
+```scheme
+(:wat::eval::walk
+  form          ;; :wat::WatAST            the form to walk
+  init          ;; :A                      initial accumulator
+  visit         ;; :fn(A, WatAST, StepResult) -> WalkStep<A>
+)               ;; -> :Result<(:wat::holon::HolonAST, :A), :wat::core::EvalError>
+```
+
+The walker visits every coordinate exactly once with `(acc,
+current-form, step-result)`. The visitor returns a `WalkStep<A>`:
+
+- `Continue(acc')` — keep walking. On `StepNext`, the walker
+  recurses on the next form. On either terminal flavor, the walker
+  returns `(terminal, acc')`.
+- `Skip(terminal, acc')` — caller has its own answer (cache hit,
+  short-circuit); walker stops, returns `(terminal, acc')`.
+
+```scheme
+;; A dual-LRU cache visitor. visit fires once per coordinate;
+;; every step records (form → next) or (form → terminal); on a
+;; cache hit, return Skip with the cached terminal — the walker
+;; short-circuits.
+(:wat::core::define
+  (:my::cache::record-coordinate
+    (tier   :my::cache::Tier)
+    (form-w :wat::WatAST)
+    (step   :wat::eval::StepResult)
+    -> :wat::eval::WalkStep<my::cache::Tier>)
+  (:wat::core::let*
+    (((form-h :wat::holon::HolonAST) (:wat::holon::from-watast form-w)))
+    (:wat::core::match (:my::cache::lookup-terminal tier form-h)
+                       -> :wat::eval::WalkStep<my::cache::Tier>
+      ;; Cache hit on the terminal — short-circuit.
+      ((Some t) (:wat::eval::WalkStep::Skip t tier))
+      ;; Miss — record what the substrate just produced.
+      (:None
+        (:wat::core::match step -> :wat::eval::WalkStep<my::cache::Tier>
+          ((:wat::eval::StepResult::StepNext next-w)
+            (:wat::eval::WalkStep::Continue
+              (:my::cache::record-next tier form-h
+                (:wat::holon::from-watast next-w))))
+          ((:wat::eval::StepResult::StepTerminal t)
+            (:wat::eval::WalkStep::Continue
+              (:my::cache::record-terminal tier form-h t)))
+          ((:wat::eval::StepResult::AlreadyTerminal t)
+            (:wat::eval::WalkStep::Continue
+              (:my::cache::record-terminal tier form-h t))))))))
+
+;; Use it: walk a thought, return (terminal, populated-tier).
+(:wat::core::match
+  (:wat::eval::walk
+    (:wat::holon::to-watast my-thought)
+    (:my::cache::tier-empty)
+    :my::cache::record-coordinate)
+  -> :my::cache::Tier
+  ((Ok pair) (:wat::core::second pair))
+  ((Err _e)  (:my::cache::tier-empty)))
 ```
 
 The three cache-coordinate stories compose:
@@ -856,11 +907,11 @@ The three cache-coordinate stories compose:
   the algebra grid. SimHash / cosine / Hash see it as one vector.
 - **Story 2** (the value): `to-watast → eval-ast!` — collapse the
   whole form to its terminal HolonAST in one shot.
-- **Story 3** (the path): `eval-step!` — the path between Story 1 and
-  Story 2, one rewrite at a time. Every intermediate form gets its own
-  Story-1 coordinate; the dual-LRU caches form→next + form→terminal
-  along the way so a parallel walker sharing the cache can shortcut
-  to whatever's already known.
+- **Story 3** (the path): `eval-step!` + `walk` — the path between
+  Story 1 and Story 2, one rewrite at a time. Every intermediate form
+  gets its own Story-1 coordinate; the dual-LRU caches form→next +
+  form→terminal along the way so a parallel walker sharing the cache
+  can shortcut to whatever's already known.
 
 ### The four measurements
 
@@ -2027,8 +2078,10 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::values` | `m` | `:Vec<V>` — order unspecified; sort post-call for determinism (arc 058) |
 | `:wat::core::empty?` | `coll` | `:bool` — polymorphic over Vec/HashMap/HashSet (extended in arc 058) |
 | `:wat::eval-ast!` | `<wat-ast>` | `:Result<wat::holon::HolonAST, wat::core::EvalError>` — evaluates already-parsed AST (arc 028); arc 066 wraps the terminal value as HolonAST per scheme so `(Ok h)` is genuinely a HolonAST (use `:wat::core::atom-value` to extract the primitive). Forms whose terminal value has no HolonAST representation (Vec / Tuple / channels / etc.) return `Err` |
-| `:wat::eval-step!` | `<wat-ast>` | `:Result<wat::eval::StepResult, wat::core::EvalError>` — performs ONE call-by-value reduction at the leftmost-outermost redex (arc 068). Returns `StepNext form` when a rewrite happened (`form` is the next WatAST to feed back), `StepTerminal value` when the form had no redex (`value` is the HolonAST representation). Effectful ops (`:wat::kernel::*`, `:wat::io::*`, `:wat::eval-*`, `:wat::load*`, `:wat::config::*`) refuse with `EvalError(kind="effectful-in-step")`; ops without a step rule yet refuse with `kind="no-step-rule"`. The substrate primitive backing BOOK Chapter 59's dual-LRU coordinate cache: every intermediate form is its own cache key. Holon constructors (`Atom` / `leaf` / `Bind` / `Bundle` / `Permute` / `Thermometer` / `Blend`) fire as a single rewrite when their args are recursively holon-canonical — typed-leaf round-trip would lose the `HolonAST` distinction the next constructor expects |
-| `:wat::eval::StepResult` | enum | `StepNext { form: :wat::WatAST }` / `StepTerminal { value: :wat::holon::HolonAST }` — the two outcomes of a single reduction step (arc 068). Match by full keyword path: `((:wat::eval::StepResult::StepNext next) ...)` / `((:wat::eval::StepResult::StepTerminal h) ...)` |
+| `:wat::eval-step!` | `<wat-ast>` | `:Result<wat::eval::StepResult, wat::core::EvalError>` — performs ONE call-by-value reduction at the leftmost-outermost redex (arc 068). Returns `StepNext form` when a rewrite happened (`form` is the next WatAST to feed back), `StepTerminal value` when this step reduced a redex (chain length ≥ 1), `AlreadyTerminal value` when the input was already a value-shape (arc 070; chain length 0 — `to-watast(holon)` round-trips, holon-constructor calls with all-canonical args, primitive literals). Effectful ops (`:wat::kernel::*`, `:wat::io::*`, `:wat::eval-*`, `:wat::load*`, `:wat::config::*`) refuse with `EvalError(kind="effectful-in-step")`; ops without a step rule yet refuse with `kind="no-step-rule"`. The substrate primitive backing BOOK Chapter 59's dual-LRU coordinate cache: every intermediate form is its own cache key |
+| `:wat::eval::StepResult` | enum | `StepNext { form: :wat::WatAST }` / `StepTerminal { value: :wat::holon::HolonAST }` / `AlreadyTerminal { value: :wat::holon::HolonAST }` — three outcomes of a single reduction step (arc 068, arc 070). Match by full keyword path: `((:wat::eval::StepResult::StepNext next) ...)` / `((:wat::eval::StepResult::StepTerminal h) ...)` / `((:wat::eval::StepResult::AlreadyTerminal h) ...)` |
+| `:wat::eval::walk` | `<form> <init> <visit>` | `:Result<(:wat::holon::HolonAST, :A), :wat::core::EvalError>` — fold over the eval-step! chain (arc 070). Visitor fires once per coordinate with `(acc, form, step-result)` and returns `WalkStep<A>`: `Continue(acc')` keeps walking, `Skip(terminal, acc')` short-circuits with the caller's terminal. The substrate primitive that lifts the walker pattern proofs 015/016/017/018 each reimplemented |
+| `:wat::eval::WalkStep<A>` | enum | `Continue { acc: A }` / `Skip { terminal: :wat::holon::HolonAST, acc: A }` — what `:wat::eval::walk`'s visitor returns. Generic over `A` so the consumer's accumulator can be any type (cache, trace, counter, tier) |
 | `:wat::eval-edn!` / `eval-file!` | `<source>` / `<path>` | parses+evaluates string or file |
 | `:wat::eval-digest-string!` / `eval-digest-file!` | `<src/path> <hex>` | SHA-256 verified eval |
 | `:wat::eval-signed-string!` / `eval-signed-file!` | `<src/path> <sig> <pk>` | Ed25519 verified eval |

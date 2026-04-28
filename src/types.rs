@@ -413,6 +413,43 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // Arc 070 — :wat::eval::WalkStep<A> — what the visitor passed to
+    // :wat::eval::walk returns. Two variants:
+    //
+    //   Continue(acc')        — keep walking; acc' is the new
+    //                           accumulator. If the current
+    //                           step-result was StepNext, walk
+    //                           recurses on the next form. If it
+    //                           was StepTerminal/AlreadyTerminal,
+    //                           walk returns (terminal, acc').
+    //   Skip(terminal, acc')  — caller has its own answer for this
+    //                           coordinate (cache hit, etc.).
+    //                           Walk stops here and returns
+    //                           (terminal, acc').
+    //
+    // Generic over A so the consumer's accumulator can be any
+    // type — cache, trace, counter, tier, etc.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::eval::WalkStep".into(),
+        type_params: vec!["A".into()],
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Continue".into(),
+                fields: vec![("acc".into(), TypeExpr::Path("A".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "Skip".into(),
+                fields: vec![
+                    (
+                        "terminal".into(),
+                        TypeExpr::Path(":wat::holon::HolonAST".into()),
+                    ),
+                    ("acc".into(), TypeExpr::Path("A".into())),
+                ],
+            },
+        ],
+    }));
+
     // :wat::kernel::ThreadDiedError — populated in the Err slot of the
     // :Result returned by :wat::kernel::join-result (arc 060) when a
     // spawned thread does NOT yield a value normally. Three variants
