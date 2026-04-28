@@ -11671,8 +11671,16 @@ mod tests {
     /// `SymbolTable::new()` values where `:wat::std::*` names resolve
     /// to `UnknownFunction` — dishonest framing of what "standard
     /// library" means.
-    fn stdlib_loaded() -> &'static (SymbolTable, crate::macros::MacroRegistry) {
-        static LOADED: OnceLock<(SymbolTable, crate::macros::MacroRegistry)> = OnceLock::new();
+    fn stdlib_loaded() -> &'static (
+        SymbolTable,
+        crate::macros::MacroRegistry,
+        crate::types::TypeEnv,
+    ) {
+        static LOADED: OnceLock<(
+            SymbolTable,
+            crate::macros::MacroRegistry,
+            crate::types::TypeEnv,
+        )> = OnceLock::new();
         LOADED.get_or_init(|| {
             let stdlib = crate::stdlib::stdlib_forms().expect("stdlib parses");
             let mut macros = crate::macros::MacroRegistry::new();
@@ -11692,12 +11700,12 @@ mod tests {
                 .expect("built-in struct methods register");
             register_enum_methods(&types, &mut symbols)
                 .expect("built-in enum methods register");
-            (symbols, macros)
+            (symbols, macros, types)
         })
     }
 
     fn run(src: &str) -> Result<Value, RuntimeError> {
-        let (stdlib_sym, stdlib_macros) = stdlib_loaded();
+        let (stdlib_sym, stdlib_macros, stdlib_types) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let forms = parse_all(src).expect("parse ok");
         // Expand any stdlib-macro calls in the user source before
@@ -11706,6 +11714,16 @@ mod tests {
             crate::macros::expand_all(forms, &mut macros).expect("macro expansion");
         let mut sym = stdlib_sym.clone();
         let rest = register_defines(expanded, &mut sym)?;
+        // Arc 071 follow-up — type-check the program before
+        // evaluating. Mirrors what freeze.rs:580 (the lab harness's
+        // path) does. Any type-system bug visible at a use site
+        // surfaces here instead of escaping to a downstream
+        // consumer. Uses stdlib's TypeEnv (no user-source type
+        // declarations are honored — `run` deliberately doesn't
+        // accept those).
+        if let Err(errors) = crate::check::check_program(&rest, &sym, stdlib_types) {
+            panic!("type-check errors in test wat:\n{}", errors);
+        }
         let env = Environment::new();
         let mut last = Value::Unit;
         for form in &rest {
@@ -11715,7 +11733,7 @@ mod tests {
     }
 
     fn eval_expr(src: &str) -> Result<Value, RuntimeError> {
-        let (stdlib_sym, stdlib_macros) = stdlib_loaded();
+        let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let ast = parse_one(src).expect("parse ok");
         let expanded = crate::macros::expand_all(vec![ast], &mut macros)
@@ -11731,7 +11749,7 @@ mod tests {
     /// the capability explicitly — arc 007 closed the direct-fs bypass,
     /// so the loader must be announced per call site.
     fn eval_expr_with_fs(src: &str) -> Result<Value, RuntimeError> {
-        let (stdlib_sym, stdlib_macros) = stdlib_loaded();
+        let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let mut sym = stdlib_sym.clone();
         sym.set_source_loader(std::sync::Arc::new(crate::load::FsLoader));
@@ -11769,7 +11787,7 @@ mod tests {
             (:wat::core::define (:my::app::failing-fn -> :())
               (:wat::kernel::assertion-failed! "stack test" :None :None))
         "#;
-        let (stdlib_sym, stdlib_macros) = stdlib_loaded();
+        let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let forms = parse_all(src).expect("parse");
         let expanded =
@@ -11817,7 +11835,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
             (:wat::core::define (:my::app::plain-fn -> :i64) 42)
         "#;
-        let (stdlib_sym, stdlib_macros) = stdlib_loaded();
+        let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let forms = parse_all(src).expect("parse");
         let expanded =
@@ -16794,7 +16812,7 @@ mod tests {
     /// real program. Required for step rules over forms that touch
     /// the encoding pipeline (`:wat::holon::Bundle`, cosine, etc.).
     fn run_with_ctx(src: &str, dims: usize) -> Result<Value, RuntimeError> {
-        let (stdlib_sym, stdlib_macros) = stdlib_loaded();
+        let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let forms = parse_all(src).expect("parse ok");
         let expanded =
@@ -17143,7 +17161,7 @@ mod tests {
         let src = "(:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3)";
         let ast = parse_one(src).expect("parse");
         let outer_span = ast.span().clone();
-        let (sym, _) = stdlib_loaded();
+        let (sym, _, _) = stdlib_loaded();
         let env = Environment::new();
         let stepped = step_form(&ast, &env, sym).expect("step");
         match stepped {

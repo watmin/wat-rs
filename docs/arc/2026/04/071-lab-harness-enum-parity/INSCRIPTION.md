@@ -140,6 +140,48 @@ The substrate's local `run` helper is fine for runtime semantics;
 but anything visible through the type system needs the full
 pipeline.
 
+### Structural follow-up — `run` now type-checks too
+
+Right after the fix landed, the user's framing shifted the
+discipline from "informational" to "structural": *"check program
+… can you declare types once main starts? i think no … so we
+could just do a parse and not eval main? we find all the types
+that can be allowed at runtime?"*
+
+That observation — types are static after startup — means the
+type-check pass can run on any program once types and defines are
+registered. No main execution required. And `runtime.rs::tests::run`
+already had everything: parse, expand, register defines. It just
+skipped the check.
+
+The follow-up adds one call:
+
+```rust
+let rest = register_defines(expanded, &mut sym)?;
+if let Err(errors) = crate::check::check_program(&rest, &sym, stdlib_types) {
+    panic!("type-check errors in test wat:\n{}", errors);
+}
+```
+
+The expected blast radius was finite-but-real — tests that pass
+through dynamic eval on type-incorrect code would break. The
+actual blast radius was **zero**: 1096 workspace tests pass
+without modification. Every existing `run`-based test already
+type-checks cleanly.
+
+This converts the failure mode from "ships and the lab catches
+it" to "fails immediately in the substrate's own `cargo test
+--lib`." The discipline arc 071 introduced (write a
+`startup_from_source`-driven regression test for every new
+parametric type) is no longer purely informational — the test
+path enforces it by construction. New parametric built-ins that
+trip the checker fail at substrate test time, before the lab
+ever sees them.
+
+The model: *every test path the substrate ships should be
+type-honest by construction*. Lab tests already are (via freeze).
+Now substrate tests are too.
+
 ---
 
 ## What shipped
