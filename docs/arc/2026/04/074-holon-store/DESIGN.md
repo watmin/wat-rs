@@ -1,4 +1,4 @@
-# Arc 074 — `HolonHash<V>` + `HolonCache<V>`: coordinate-cell cache with cosine readout
+# Arc 074 — `Hologram<V>` + `HologramLRU<V>`: coordinate-cell cache with cosine readout
 
 **Status:** PROPOSED 2026-04-28. Pre-implementation reasoning artifact.
 
@@ -25,8 +25,8 @@ The recognition: **the substrate's natural neighborhoods (sqrt(d) cells per d) A
 ## What this arc is, and is not
 
 **Is:** two concrete substrate types, each implementing the same `new` / `put` / `get` / `len` method-name convention:
-- `:wat::holon::HolonHash<V>` — unbounded, no eviction; lives in **wat-rs core**.
-- `:wat::holon::HolonCache<V>` — bounded with LRU + per-cell-cap; lives in a **sibling crate** (`crates/wat-holon-cache/`, adjacent to `crates/wat-lru/`).
+- `:wat::holon::Hologram<V>` — unbounded, no eviction; lives in **wat-rs core**.
+- `:wat::holon::HologramLRU<V>` — bounded with LRU + per-cell-cap; lives in a **sibling crate** (`crates/wat-hologram-lru/`, adjacent to `crates/wat-lru/`).
 
 **Is not** a trait abstraction. Per 058-030's deliberate stance: "No `deftype`. No `:is-a`. No `subtype`. No `impl`. No `trait`." Polymorphism in wat happens through **enum-wrapping** (see [Composition](#composition-enum-wrapping-per-058-030) below) or **per-type functions**, not implicit protocol. The two types share method names by **convention** so that a consumer who switches between them moves only the constructor; call sites stay verbatim.
 
@@ -38,36 +38,36 @@ The recognition: **the substrate's natural neighborhoods (sqrt(d) cells per d) A
 
 ## The two types
 
-### `HolonHash<V>` — unbounded, in core
+### `Hologram<V>` — unbounded, in core
 
 ```
-HolonHash<V> {
+Hologram<V> {
   cells: Vec<HashMap<HolonAST, V>>    ; outer length = floor(sqrt(d)) cells
                                       ; inner unbounded
   num_cells: usize                    ; cached at construction
 }
 ```
 
-**Where:** wat-rs main, hand-coded substrate primitive next to `OnlineSubspace`, `Reckoner`, `Engram`, `EngramLibrary`. New `Value::HolonHash(...)` variant; manual dispatch in `runtime.rs`; type schemes in `check.rs`.
+**Where:** wat-rs main, hand-coded substrate primitive next to `OnlineSubspace`, `Reckoner`, `Engram`, `EngramLibrary`. New `Value::Hologram(...)` variant; manual dispatch in `runtime.rs`; type schemes in `check.rs`.
 
-**Why core:** No external dep. This is the substrate's primitive coordinate-cell store. If we later split it into a sibling crate, every consumer including HolonCache (which composes it) breaks. Keeping HolonHash in core means HolonCache (which depends on `wat-lru` for the LRU sidecar) can ALSO depend on core's HolonHash — same dependency direction wat-lru already established.
+**Why core:** No external dep. This is the substrate's primitive coordinate-cell store. If we later split it into a sibling crate, every consumer including HologramLRU (which composes it) breaks. Keeping Hologram in core means HologramLRU (which depends on `wat-lru` for the LRU sidecar) can ALSO depend on core's Hologram — same dependency direction wat-lru already established.
 
 **Use case:** tests, simple consumers without memory pressure, workloads where unbounded growth is acceptable.
 
-### `HolonCache<V>` — bounded, in sibling crate
+### `HologramLRU<V>` — bounded, in sibling crate
 
 ```
-HolonCache<V> {
-  inner:  HolonHash<V>                ; reuses core's bucketing + lookup
+HologramLRU<V> {
+  inner:  Hologram<V>                ; reuses core's bucketing + lookup
   lru:    LruCache<HolonAST, CellIdx> ; key tracker; tracks retrieval-rate
   per_cell_cap: usize                 ; user's pick at construction
   global_cap:   usize                 ; user's pick at construction (LRU's bound)
 }
 ```
 
-**Where:** new sibling crate `crates/wat-holon-cache/`, adjacent to `crates/wat-lru/`. The crate composes both wat-lru's `LruCache` and core's `HolonHash`. Pattern mirrors how wat-lru exposes `:rust::lru::LruCache` and `:wat::lru::LocalCache` typealias.
+**Where:** new sibling crate `crates/wat-hologram-lru/`, adjacent to `crates/wat-lru/`. The crate composes both wat-lru's `LruCache` and core's `Hologram`. Pattern mirrors how wat-lru exposes `:rust::lru::LruCache` and `:wat::lru::LocalCache` typealias.
 
-**Why sibling:** wat-rs core can't depend on wat-lru (which depends on core). HolonCache uses LRU. So HolonCache must live where wat-lru lives — sibling-to-core, depending on both core and wat-lru.
+**Why sibling:** wat-rs core can't depend on wat-lru (which depends on core). HologramLRU uses LRU. So HologramLRU must live where wat-lru lives — sibling-to-core, depending on both core and wat-lru.
 
 **Eviction policy — two bounds:**
 
@@ -88,7 +88,7 @@ For both types:
 1. `idx = pos_to_cell_index(pos, d)` — pos validation runs first; rejects illegal pos with `RuntimeError`.
 2. `cells[idx].insert(key, val)` — HashMap insert; idempotent on existing key (overwrite is fine).
 
-For `HolonCache` only, additionally:
+For `HologramLRU` only, additionally:
 - `lru.put(key, idx)` — bumps freshness if key exists; on global LRU eviction, the evicted key's idx tells us which cell to clean.
 - If `cells[idx].len() > per_cell_cap`, drop one cell entry: scan the cell, find the entry whose key has the oldest LRU rank, remove it.
 
@@ -105,15 +105,15 @@ For both types:
    - Track the highest cosine seen.
 5. If best cosine satisfies `filter(best_cosine) == true`, return `Some(best_val)`. Else return `None`.
 
-For `HolonCache` only, additionally:
+For `HologramLRU` only, additionally:
 - If returning `Some`, bump the matched key in the LRU (it just got retrieved).
 
 `filter` is a user-supplied `:fn(:f64) -> :bool`. The substrate provides two opinionated defaults — both as functions parameterized by `d`:
 
-- `(:wat::holon::HolonHash::presence-filter d)` — looser. Returns a closure: `(λ (cos) cos > presence_floor(d))`.
-- `(:wat::holon::HolonHash::coincidence-filter d)` — stricter. Returns a closure: `(λ (cos) (1 - cos) < coincident_floor(d))`.
+- `(:wat::holon::Hologram::presence-filter d)` — looser. Returns a closure: `(λ (cos) cos > presence_floor(d))`.
+- `(:wat::holon::Hologram::coincidence-filter d)` — stricter. Returns a closure: `(λ (cos) (1 - cos) < coincident_floor(d))`.
 
-(The `HolonHash::` namespace is shared by HolonCache via the convention — both call sites use the same filter; only the constructor differs.)
+(The `Hologram::` namespace is shared by HologramLRU via the convention — both call sites use the same filter; only the constructor differs.)
 
 Users compose their own filter funcs for non-default thresholds.
 
@@ -123,9 +123,9 @@ Returns the total entry count across all cells as `:i64`. Read-only; doesn't bum
 
 ### `(new ...)`
 
-`HolonHash::new` takes no arguments — uses the ambient dim router to determine `num_cells`.
+`Hologram::new` takes no arguments — uses the ambient dim router to determine `num_cells`.
 
-`HolonCache::new global-cap per-cell-cap` takes both bounds as user-chosen parameters.
+`HologramLRU::new global-cap per-cell-cap` takes both bounds as user-chosen parameters.
 
 ---
 
@@ -167,12 +167,12 @@ right = ceil (pos * num_cells / 100)
 
 ## Composition (enum-wrapping per 058-030)
 
-A consumer who wants to be generic over both store types — e.g., a test harness that sometimes uses HolonHash and sometimes HolonCache — composes via the enum-wrapping pattern 058-030 established as the substrate's polymorphism mechanism:
+A consumer who wants to be generic over both store types — e.g., a test harness that sometimes uses Hologram and sometimes HologramLRU — composes via the enum-wrapping pattern 058-030 established as the substrate's polymorphism mechanism:
 
 ```scheme
 (:wat::core::enum :my::store::AnyStore<V>
-  (Hash  (:wat::holon::HolonHash<V>))
-  (Cache (:wat::holon::HolonCache<V>)))
+  (Hash  (:wat::holon::Hologram<V>))
+  (Cache (:wat::holon::HologramLRU<V>)))
 
 (:wat::core::define
   (:my::store::put<V>
@@ -182,13 +182,13 @@ A consumer who wants to be generic over both store types — e.g., a test harnes
     (val :V)
     -> :())
   (:wat::core::match s -> :()
-    ((Hash  h) (:wat::holon::HolonHash::put  h pos key val))
-    ((Cache c) (:wat::holon::HolonCache::put c pos key val))))
+    ((Hash  h) (:wat::holon::Hologram::put  h pos key val))
+    ((Cache c) (:wat::holon::HologramLRU::put c pos key val))))
 ```
 
 Closed variant set; explicit dispatch; no implicit protocol. Same shape `:wat::holon::HolonAST` itself uses (Atom is a *variant*, not a *subtype*).
 
-**This arc does NOT ship `AnyStore` — that's a consumer-side construct.** Each consumer wraps the variants they care about. The lab cache, for instance, never wraps — it commits to `HolonCache` directly.
+**This arc does NOT ship `AnyStore` — that's a consumer-side construct.** Each consumer wraps the variants they care about. The lab cache, for instance, never wraps — it commits to `HologramLRU` directly.
 
 ---
 
@@ -204,7 +204,7 @@ The substrate doesn't pick a default. The user passes `pos` in `[0, 100]`.
 
 **Filter func.** Substrate provides `presence-filter` and `coincidence-filter`; user picks one or supplies their own.
 
-**`per_cell_cap` and `global_cap` (HolonCache only).** User chooses based on memory budget and expected cell density.
+**`per_cell_cap` and `global_cap` (HologramLRU only).** User chooses based on memory budget and expected cell density.
 
 **`val` shape.** Parametric over V. The trader's two caches use `V = HolonAST` (chain-walking returns the next form to feed back). Other consumers use `V = wat::holon::Vector` (encoded result), `V = SomeStruct`, etc.
 
@@ -212,9 +212,9 @@ The substrate doesn't pick a default. The user passes `pos` in `[0, 100]`.
 
 ## Slice plan
 
-**Slice 1 — `HolonHash<V>` in core.** Hand-coded substrate primitive. New `Value::HolonHash(Arc<ThreadOwnedCell<...>>)` variant. Methods: `new`, `put`, `get`, `len`, plus `presence-filter` / `coincidence-filter` factory funcs. Tests cover pos-to-cell math at multiple d, cosine-readout, filter compositions, illegal-pos rejection.
+**Slice 1 — `Hologram<V>` in core.** Hand-coded substrate primitive. New `Value::Hologram(Arc<ThreadOwnedCell<...>>)` variant. Methods: `new`, `put`, `get`, `len`, plus `presence-filter` / `coincidence-filter` factory funcs. Tests cover pos-to-cell math at multiple d, cosine-readout, filter compositions, illegal-pos rejection.
 
-**Slice 2 — `HolonCache<V>` in `crates/wat-holon-cache/`.** New sibling crate following `crates/wat-lru/`'s pattern. Composes `wat::holon::HolonHash` (core) and `wat::lru::LocalCache` (wat-lru). Methods: `new`, `put`, `get`, `len`. Tests cover global-LRU eviction, per-cell-cap eviction, retrieval-rate freshness, cell discovery on eviction.
+**Slice 2 — `HologramLRU<V>` in `crates/wat-hologram-lru/`.** New sibling crate following `crates/wat-lru/`'s pattern. Composes `wat::holon::Hologram` (core) and `wat::lru::LocalCache` (wat-lru). Methods: `new`, `put`, `get`, `len`. Tests cover global-LRU eviction, per-cell-cap eviction, retrieval-rate freshness, cell discovery on eviction.
 
 The trader's cache slice (lab umbrella 059 slice 1) lands on slice 2 directly.
 
@@ -227,16 +227,16 @@ The trader's cache slice (lab umbrella 059 slice 1) lands on slice 2 directly.
 - **Trait machinery.** Per 058-030's deliberate stance. Two concrete types; consumers compose via enum-wrapping. If a future consumer surfaces a hard need for runtime polymorphism over an abstract `HolonStore`, that's a separate spec — and it'd be reversing 058's no-traits decision, which is a substrate-philosophy debate, not a one-arc lift.
 - **Pos-computation primitives.** Different consumers compute pos differently; the substrate doesn't pick. Future arc if a "default pos function for HolonAST" emerges.
 - **Cross-process / cross-machine coordination.** Tier 3 (program-owned) services compose around the in-memory store; this arc ships the per-thread Tier 2 primitive.
-- **Range queries / set ops.** `HolonHash` / `HolonCache` do single-key lookup. Range queries over pos-cells are a future-arc spec.
-- **Custom eviction policies.** LRU + per-cell-cap is the only HolonCache shape. If a consumer wants LFU, it ships as a separate type in a future arc.
+- **Range queries / set ops.** `Hologram` / `HologramLRU` do single-key lookup. Range queries over pos-cells are a future-arc spec.
+- **Custom eviction policies.** LRU + per-cell-cap is the only HologramLRU shape. If a consumer wants LFU, it ships as a separate type in a future arc.
 - **Database / persistence.** Out of scope.
 
 ---
 
 ## What this unblocks
 
-- **Lab umbrella 059 slice 1** — directly. Two `HolonCache<HolonAST>` instances (next-cache, terminal-cache) plus one `HolonCache<wat::holon::Vector>` (encode-cache). The trader's hot path consumes them.
-- **Future engram library** — engrams ARE position-keyed populations of exemplars. `HolonHash<Engram>` is the natural fit.
+- **Lab umbrella 059 slice 1** — directly. Two `HologramLRU<HolonAST>` instances (next-cache, terminal-cache) plus one `HologramLRU<wat::holon::Vector>` (encode-cache). The trader's hot path consumes them.
+- **Future engram library** — engrams ARE position-keyed populations of exemplars. `Hologram<Engram>` is the natural fit.
 - **MTG / truth-engine domains** — same primitives; different V; same lookup pattern.
 - **Cross-domain reuse** — anywhere a consumer wants "fuzzy lookup keyed by coordinate" lands here.
 
@@ -244,7 +244,7 @@ The trader's cache slice (lab umbrella 059 slice 1) lands on slice 2 directly.
 
 ## Test strategy
 
-### `HolonHash<V>` (slice 1)
+### `Hologram<V>` (slice 1)
 
 - T1 — put+get roundtrip: pos in cell N retrieves the val.
 - T2 — pos spread: probe at cell-boundary pos finds entries from both adjacent cells.
@@ -255,13 +255,13 @@ The trader's cache slice (lab umbrella 059 slice 1) lands on slice 2 directly.
 - T7 — illegal pos rejected: pos < 0, pos > 100, NaN — each surfaces `RuntimeError::InvalidArgument`.
 - T8 — len counts across cells.
 
-### `HolonCache<V>` (slice 2)
+### `HologramLRU<V>` (slice 2)
 
 - T9 — global LRU eviction: filling past `global_cap` drops the oldest-retrieved entry.
 - T10 — per-cell-cap eviction: filling one cell past `per_cell_cap` drops one entry from that cell (the oldest by LRU rank).
 - T11 — get bumps freshness: retrieved entries stay warm; stale entries get evicted preferentially.
 - T12 — cell discovery on eviction: LRU evicts → cell.remove(key) → entry actually gone from get.
-- T13 — composition with HolonHash: HolonCache's underlying HolonHash behavior matches slice 1's tests.
+- T13 — composition with Hologram: HologramLRU's underlying Hologram behavior matches slice 1's tests.
 
 ### Filter funcs (slice 1)
 
@@ -283,6 +283,6 @@ The trader's cache slice (lab umbrella 059 slice 1) lands on slice 2 directly.
 - **Proof 019** — `wat-tests-integ/experiment/023-population-cache/` — cosine-readout-over-flat-population prototype. The architectural claim arc 074 makes operational.
 - **2026-04-28 (mid-arc-073-slice-4 build)** — the recognition: "the bucketing technique is identifying what asts are never capable of being queried." Coordinate cells ARE the substrate's pre-filter, in operational form.
 - **Arc 074 (this)** — the coordinate-cell cache primitives made concrete, as two types not a trait.
-- **Next** — slice 1 ships `HolonHash<V>` in core; slice 2 ships `HolonCache<V>` in `crates/wat-holon-cache/`. Lab umbrella 059 slice 1 consumes the latter.
+- **Next** — slice 1 ships `Hologram<V>` in core; slice 2 ships `HologramLRU<V>` in `crates/wat-hologram-lru/`. Lab umbrella 059 slice 1 consumes the latter.
 
 PERSEVERARE.

@@ -5186,7 +5186,7 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Arc 074 — substrate floor accessors. Read the substrate's
     // presence/coincident floor at d. Users compose these into filter
-    // funcs they pass to `HolonHash/get`.
+    // funcs they pass to `Hologram/get`.
     env.register(
         ":wat::holon::presence-floor".into(),
         TypeScheme {
@@ -5204,35 +5204,35 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 074 slice 1 — HolonHash. Coordinate-cell store with cosine
+    // Arc 074 slice 1 — Hologram. Coordinate-cell store with cosine
     // readout. HolonAST → HolonAST (val type fixed). Substrate-internal
-    // hand-coded; sibling crate adds the bounded HolonCache variant in
+    // hand-coded; sibling crate adds the bounded HologramLRU variant in
     // slice 2.
-    let holon_hash_ty = || TypeExpr::Path(":wat::holon::HolonHash".into());
+    let hologram_ty = || TypeExpr::Path(":wat::holon::Hologram".into());
     let f64_ty = || TypeExpr::Path(":f64".into());
     let bool_ty = || TypeExpr::Path(":bool".into());
     env.register(
-        ":wat::holon::HolonHash/new".into(),
+        ":wat::holon::Hologram/new".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":i64".into())],
-            ret: holon_hash_ty(),
+            ret: hologram_ty(),
         },
     );
     env.register(
-        ":wat::holon::HolonHash/put".into(),
+        ":wat::holon::Hologram/put".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![holon_hash_ty(), f64_ty(), holon_ty(), holon_ty()],
+            params: vec![hologram_ty(), f64_ty(), holon_ty(), holon_ty()],
             ret: TypeExpr::Tuple(vec![]),
         },
     );
     env.register(
-        ":wat::holon::HolonHash/get".into(),
+        ":wat::holon::Hologram/get".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![
-                holon_hash_ty(),
+                hologram_ty(),
                 f64_ty(),
                 holon_ty(),
                 TypeExpr::Fn {
@@ -5247,10 +5247,10 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::holon::HolonHash/len".into(),
+        ":wat::holon::Hologram/len".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![holon_hash_ty()],
+            params: vec![hologram_ty()],
             ret: TypeExpr::Path(":i64".into()),
         },
     );

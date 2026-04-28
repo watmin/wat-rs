@@ -1,19 +1,19 @@
-# Arc 074 Slice 1 — `HolonHash` shipped
+# Arc 074 Slice 1 — `Hologram` shipped
 
 **Status:** SHIPPED 2026-04-28 at commit `3820009`.
 
-**What landed:** `:wat::holon::HolonHash` — substrate-internal coordinate-cell store with cosine-readout retrieval. HolonAST → HolonAST. Unbounded, no eviction (slice 2 adds the bounded variant).
+**What landed:** `:wat::holon::Hologram` — substrate-internal coordinate-cell store with cosine-readout retrieval. HolonAST → HolonAST. Unbounded, no eviction (slice 2 adds the bounded variant).
 
-The `<V>` parametric in the original DESIGN dropped during slice-1 implementation review. The actual consumers (the trader's next-cache and terminal-cache) are both HolonAST → HolonAST. Encode-cache (HolonAST → Vector) was the one case that wanted V ≠ HolonAST — but it doesn't need cosine readout (form→Vector is a deterministic HashMap lookup), so it belongs in a different cache type, not `HolonHash`.
+The `<V>` parametric in the original DESIGN dropped during slice-1 implementation review. The actual consumers (the trader's next-cache and terminal-cache) are both HolonAST → HolonAST. Encode-cache (HolonAST → Vector) was the one case that wanted V ≠ HolonAST — but it doesn't need cosine readout (form→Vector is a deterministic HashMap lookup), so it belongs in a different cache type, not `Hologram`.
 
 ## Surface (six entry points)
 
 | Op | Signature | What it does |
 |----|-----------|--------------|
-| `:wat::holon::HolonHash/new` | `(d :i64) -> :wat::holon::HolonHash` | Construct empty store sized for d. `num_cells = floor(sqrt(d))`. d=10000 → 100 cells. |
-| `:wat::holon::HolonHash/put` | `(store :HolonHash) (pos :f64) (key :HolonAST) (val :HolonAST) -> :()` | Insert at cell determined by `pos`. Idempotent on existing key (overwrite). Mutates in place. |
-| `:wat::holon::HolonHash/get` | `(store :HolonHash) (pos :f64) (probe :HolonAST) (filter :fn(:f64)->:bool) -> :Option<HolonAST>` | Walk adjacent cells; encode candidates; cosine vs probe; apply filter to best; return matched val or None. |
-| `:wat::holon::HolonHash/len` | `(store :HolonHash) -> :i64` | Total entries across all cells. Read-only. |
+| `:wat::holon::Hologram/new` | `(d :i64) -> :wat::holon::Hologram` | Construct empty store sized for d. `num_cells = floor(sqrt(d))`. d=10000 → 100 cells. |
+| `:wat::holon::Hologram/put` | `(store :Hologram) (pos :f64) (key :HolonAST) (val :HolonAST) -> :()` | Insert at cell determined by `pos`. Idempotent on existing key (overwrite). Mutates in place. |
+| `:wat::holon::Hologram/get` | `(store :Hologram) (pos :f64) (probe :HolonAST) (filter :fn(:f64)->:bool) -> :Option<HolonAST>` | Walk adjacent cells; encode candidates; cosine vs probe; apply filter to best; return matched val or None. |
+| `:wat::holon::Hologram/len` | `(store :Hologram) -> :i64` | Total entries across all cells. Read-only. |
 | `:wat::holon::presence-floor` | `(d :i64) -> :f64` | Substrate's presence floor at d (`σ(d)/√d` with the presence sigma). User-composable into filter funcs. |
 | `:wat::holon::coincident-floor` | `(d :i64) -> :f64` | Substrate's coincident floor at d (same shape, tighter sigma). |
 
@@ -52,22 +52,22 @@ The substrate maps the user's `[0, 100]` to the cell index based on the encoder'
 
 | Path | What |
 |------|------|
-| `src/holon_hash.rs` | `HolonHash` struct + `pos_to_cell_index` / `pos_to_cell_spread` helpers. 12 Rust unit tests. |
-| `src/lib.rs` | `pub mod holon_hash;` registration. |
-| `src/runtime.rs` | `Value::HolonHash` variant; six dispatch entries; six eval functions. |
+| `src/hologram.rs` | `Hologram` struct + `pos_to_cell_index` / `pos_to_cell_spread` helpers. 12 Rust unit tests. |
+| `src/lib.rs` | `pub mod hologram;` registration. |
+| `src/runtime.rs` | `Value::Hologram` variant; six dispatch entries; six eval functions. |
 | `src/check.rs` | Six type schemes. |
-| `wat-tests/holon/holon-hash.wat` | 11 wat-side integration tests. |
+| `wat-tests/holon/Hologram.wat` | 11 wat-side integration tests. |
 
 ## Tests
 
-**Rust unit tests (`src/holon_hash.rs`)** — 12 pass:
+**Rust unit tests (`src/hologram.rs`)** — 12 pass:
 - `new_d_10000_yields_100_cells`, `new_d_4096_yields_64_cells`, `new_d_1024_yields_32_cells`
 - `pos_to_index_at_d_10000`, `pos_to_index_at_d_4096`
 - `pos_validation_rejects_negative`, `pos_validation_rejects_above_100`, `pos_validation_rejects_nan`
 - `spread_at_cell_boundary`, `spread_clamps_at_boundary`
 - `put_and_len_track_inserts_across_cells`, `put_idempotent_at_same_key`
 
-**Wat-side tests (`wat-tests/holon/holon-hash.wat`)** — 11 pass:
+**Wat-side tests (`wat-tests/holon/Hologram.wat`)** — 11 pass:
 - `test-new-empty` — fresh store has len 0
 - `test-put-increments-len` — len grows
 - `test-put-idempotent-on-same-key` — same key overwrites
@@ -91,7 +91,7 @@ Defined functions can't (yet) be referenced as values by their keyword path — 
     (:wat::core::lambda ((cos :f64) -> :bool)
       (:wat::core::< (:wat::core::- 1.0 cos) floor)))
    ((got :Option<wat::holon::HolonAST>)
-    (:wat::holon::HolonHash/get store pos probe tight)))
+    (:wat::holon::Hologram/get store pos probe tight)))
   ...)
 ```
 
@@ -99,18 +99,18 @@ The substrate provides `presence-floor` and `coincident-floor` as raw f64 access
 
 ## What slice 2 adds
 
-`HolonCache` in `crates/wat-holon-cache/` (sibling crate adjacent to `wat-lru`). Same surface (`new` / `put` / `get` / `len`); composes:
+`HologramLRU` in `crates/wat-hologram-lru/` (sibling crate adjacent to `wat-lru`). Same surface (`new` / `put` / `get` / `len`); composes:
 
-- `wat::holon::HolonHash` (slice 1, this crate) for the bucketing + cosine readout
+- `wat::holon::Hologram` (slice 1, this crate) for the bucketing + cosine readout
 - `wat::lru::LocalCache` (existing wat-lru crate) for global LRU eviction
 - A `per_cell_cap: usize` parameter for in-cell ceiling
 
-Two eviction triggers: global LRU on retrieval rate, per-cell-cap when one cell fills before the LRU. The trader's lab cache (umbrella 059 slice 1) consumes `HolonCache` directly.
+Two eviction triggers: global LRU on retrieval rate, per-cell-cap when one cell fills before the LRU. The trader's lab cache (umbrella 059 slice 1) consumes `HologramLRU` directly.
 
 ## Open
 
 - **Filter func ergonomics.** Defined functions need an inline lambda wrapper to be passed to `get`. If wat ever grows function-as-value semantics for keyword-path references, this gets cleaner. Not blocking.
-- **Multi-tier d.** Today's substrate is single-tier (arc 067, `DEFAULT_TIERS = [10000]`). If multi-tier surfaces, `HolonHash/new` may need to accept a tier list rather than a single d, and `pos_to_cell_index` may need to know which tier the form lands in. Future arc.
+- **Multi-tier d.** Today's substrate is single-tier (arc 067, `DEFAULT_TIERS = [10000]`). If multi-tier surfaces, `Hologram/new` may need to accept a tier list rather than a single d, and `pos_to_cell_index` may need to know which tier the form lands in. Future arc.
 - **Filter func evaluation cost.** Filter is invoked once per get (not once per candidate). Cheap. If a future shape wants per-candidate filtering, a different surface ships then.
 
 PERSEVERARE.

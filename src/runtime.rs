@@ -331,11 +331,11 @@ pub enum Value {
     /// match container for engrams. `Arc<ThreadOwnedCell<...>>` for
     /// per-thread mutation under CSP.
     EngramLibrary(Arc<crate::rust_deps::ThreadOwnedCell<holon::EngramLibrary>>),
-    /// Arc 074 slice 1 — `:wat::holon::HolonHash<V>`. Coordinate-cell
+    /// Arc 074 slice 1 — `:wat::holon::Hologram<V>`. Coordinate-cell
     /// store with cosine readout, unbounded. The wat-side `<V>` is
     /// phantom — the runtime carries any `Value`. Thread-owned mutable
     /// per `ZERO-MUTEX.md` Tier 2.
-    HolonHash(Arc<crate::rust_deps::ThreadOwnedCell<crate::holon_hash::HolonHash>>),
+    Hologram(Arc<crate::rust_deps::ThreadOwnedCell<crate::hologram::Hologram>>),
     /// Arc 056 — `:wat::time::Instant`. Wall-clock point in time
     /// (Java/Clojure lineage; not Rust's monotonic `std::time::Instant`).
     /// Backing: `chrono::DateTime<chrono::Utc>` (Copy + Send + Sync;
@@ -432,7 +432,7 @@ impl Value {
             Value::Reckoner(_) => "wat::holon::Reckoner",
             Value::Engram(_) => "wat::holon::Engram",
             Value::EngramLibrary(_) => "wat::holon::EngramLibrary",
-            Value::HolonHash(_) => "wat::holon::HolonHash",
+            Value::Hologram(_) => "wat::holon::Hologram",
             Value::Instant(_) => "wat::time::Instant",
         }
     }
@@ -2376,17 +2376,17 @@ fn dispatch_keyword_head(
 
         // Substrate floor accessors (arc 074). Read the substrate's
         // presence and coincident floors at the given d. Users compose
-        // these into filter funcs for `HolonHash/get`.
+        // these into filter funcs for `Hologram/get`.
         ":wat::holon::presence-floor" => eval_presence_floor(args, env, sym),
         ":wat::holon::coincident-floor" => eval_coincident_floor(args, env, sym),
 
         // Coordinate-cell store (arc 074 slice 1). Substrate-internal
         // hand-coded primitive; sibling crate adds the bounded
-        // HolonCache variant in slice 2.
-        ":wat::holon::HolonHash/new" => eval_holon_hash_new(args, env, sym),
-        ":wat::holon::HolonHash/put" => eval_holon_hash_put(args, env, sym),
-        ":wat::holon::HolonHash/get" => eval_holon_hash_get(args, env, sym),
-        ":wat::holon::HolonHash/len" => eval_holon_hash_len(args, env, sym),
+        // HologramLRU variant in slice 2.
+        ":wat::holon::Hologram/new" => eval_hologram_new(args, env, sym),
+        ":wat::holon::Hologram/put" => eval_hologram_put(args, env, sym),
+        ":wat::holon::Hologram/get" => eval_hologram_get(args, env, sym),
+        ":wat::holon::Hologram/len" => eval_hologram_len(args, env, sym),
 
         // Presence — the retrieval primitive per FOUNDATION 1718.
         // Cosine between encoded target and encoded reference. Returns
@@ -6443,7 +6443,7 @@ fn eval_term_matches_q(
 
 /// `(:wat::holon::presence-floor d)` -> `:f64`. Returns the substrate's
 /// presence floor at d: `sigma(d) / sqrt(d)`. Users compose this into
-/// filter funcs they pass to `HolonHash/get`.
+/// filter funcs they pass to `Hologram/get`.
 fn eval_presence_floor(
     args: &[WatAST],
     env: &Environment,
@@ -6496,32 +6496,32 @@ fn eval_coincident_floor(
     Ok(Value::f64(ctx.encoders.get(d as usize).coincident_floor(sym)))
 }
 
-// ─── Arc 074 slice 1 — HolonHash<V> ─────────────────────────────────
+// ─── Arc 074 slice 1 — Hologram<V> ─────────────────────────────────
 
-fn require_holon_hash(
+fn require_hologram(
     op: &str,
     v: Value,
-) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<crate::holon_hash::HolonHash>>, RuntimeError> {
+) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<crate::hologram::Hologram>>, RuntimeError> {
     match v {
-        Value::HolonHash(h) => Ok(h),
+        Value::Hologram(h) => Ok(h),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
-            expected: "wat::holon::HolonHash",
+            expected: "wat::holon::Hologram",
             got: other.type_name(),
         }),
     }
 }
 
-/// `(:wat::holon::HolonHash/new d)` -> `:wat::holon::HolonHash<V>`.
+/// `(:wat::holon::Hologram/new d)` -> `:wat::holon::Hologram<V>`.
 /// Construct a coordinate-cell store sized for encoding dim `d`.
 /// `num_cells = floor(sqrt(d))`. The wat-side `<V>` is phantom; the
 /// runtime carries any Value.
-fn eval_holon_hash_new(
+fn eval_hologram_new(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::holon::HolonHash/new";
+    const OP: &str = ":wat::holon::Hologram/new";
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
@@ -6536,21 +6536,21 @@ fn eval_holon_hash_new(
             reason: format!("d must be positive; got {}", d),
         });
     }
-    let h = crate::holon_hash::HolonHash::new(d as usize);
-    Ok(Value::HolonHash(Arc::new(
+    let h = crate::hologram::Hologram::new(d as usize);
+    Ok(Value::Hologram(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(h),
     )))
 }
 
-/// `(:wat::holon::HolonHash/put store pos key val)` -> `:()`.
+/// `(:wat::holon::Hologram/put store pos key val)` -> `:()`.
 /// Insert `(key, val)` at the cell determined by `pos` (in `[0, 100]`).
 /// Existing entry at the same `key` is overwritten. Mutates in place.
-fn eval_holon_hash_put(
+fn eval_hologram_put(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::holon::HolonHash/put";
+    const OP: &str = ":wat::holon::Hologram/put";
     if args.len() != 4 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
@@ -6558,7 +6558,7 @@ fn eval_holon_hash_put(
             got: args.len(),
         });
     }
-    let store = require_holon_hash(OP, eval(&args[0], env, sym)?)?;
+    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
     let pos = match eval(&args[1], env, sym)? {
         Value::f64(x) => x,
         other => {
@@ -6590,24 +6590,24 @@ fn eval_holon_hash_put(
         }
     };
     store.with_mut(OP, |s| {
-        let idx = crate::holon_hash::pos_to_cell_index(OP, pos, s.num_cells())?;
+        let idx = crate::hologram::pos_to_cell_index(OP, pos, s.num_cells())?;
         s.put_at_index(idx, key, val);
         Ok::<(), RuntimeError>(())
     })??;
     Ok(Value::Unit)
 }
 
-/// `(:wat::holon::HolonHash/get store pos probe filter)` -> `:Option<V>`.
+/// `(:wat::holon::Hologram/get store pos probe filter)` -> `:Option<V>`.
 /// Walk the two cells around `pos` (or one, if pos is exactly on a cell
 /// boundary), encode each stored key, cosine-match against the probe,
 /// and return the value of the highest-cosine entry whose cosine
 /// satisfies `filter`. Returns None if no candidate passes the filter.
-fn eval_holon_hash_get(
+fn eval_hologram_get(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::holon::HolonHash/get";
+    const OP: &str = ":wat::holon::Hologram/get";
     if args.len() != 4 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
@@ -6615,7 +6615,7 @@ fn eval_holon_hash_get(
             got: args.len(),
         });
     }
-    let store = require_holon_hash(OP, eval(&args[0], env, sym)?)?;
+    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
     let pos = match eval(&args[1], env, sym)? {
         Value::f64(x) => x,
         other => {
@@ -6665,7 +6665,7 @@ fn eval_holon_hash_get(
     // start the cosine + filter loop (which may reach back into the
     // runtime via apply_function).
     let candidates: Vec<(HolonAST, HolonAST)> = store.with_ref(OP, |s| {
-        let (left, right) = crate::holon_hash::pos_to_cell_spread(OP, pos, s.num_cells())?;
+        let (left, right) = crate::hologram::pos_to_cell_spread(OP, pos, s.num_cells())?;
         let mut out: Vec<(HolonAST, HolonAST)> = Vec::new();
         for (k, v) in s.cell(left).iter() {
             out.push((k.clone(), v.clone()));
@@ -6724,14 +6724,14 @@ fn eval_holon_hash_get(
     }
 }
 
-/// `(:wat::holon::HolonHash/len store)` -> `:i64`. Total entries
+/// `(:wat::holon::Hologram/len store)` -> `:i64`. Total entries
 /// across all cells.
-fn eval_holon_hash_len(
+fn eval_hologram_len(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::holon::HolonHash/len";
+    const OP: &str = ":wat::holon::Hologram/len";
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
@@ -6739,7 +6739,7 @@ fn eval_holon_hash_len(
             got: args.len(),
         });
     }
-    let store = require_holon_hash(OP, eval(&args[0], env, sym)?)?;
+    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
     let n = store.with_ref(OP, |s| s.len() as i64)?;
     Ok(Value::i64(n))
 }
@@ -8271,7 +8271,7 @@ fn render_value(v: &Value, depth: usize) -> String {
         Value::Reckoner(_) => "<Reckoner>".to_string(),
         Value::Engram(_) => "<Engram>".to_string(),
         Value::EngramLibrary(_) => "<EngramLibrary>".to_string(),
-        Value::HolonHash(_) => "<HolonHash>".to_string(),
+        Value::Hologram(_) => "<Hologram>".to_string(),
         Value::Instant(t) => format!("<Instant {}>", t.to_rfc3339()),
     }
 }

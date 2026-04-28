@@ -1,4 +1,4 @@
-//! Arc 074 slice 1 — `HolonHash`: coordinate-cell store with
+//! Arc 074 slice 1 — `Hologram`: coordinate-cell store with
 //! cosine readout, unbounded. HolonAST → HolonAST.
 //!
 //! The substrate's natural neighborhoods (`floor(sqrt(d))` cells per
@@ -14,7 +14,7 @@
 //! coordinate-cell + cosine-readout shape only earns its keep when both
 //! sides of the lookup are forms in the algebra.
 //!
-//! Unbounded — entries never evict. The bounded variant (`HolonCache`)
+//! Unbounded — entries never evict. The bounded variant (`HologramLRU`)
 //! ships in slice 2 as a sibling crate composing this primitive plus
 //! `wat-lru`'s LRU. Per arc 074 DESIGN: two concrete types, no trait;
 //! polymorphism via enum-wrapping (058-030).
@@ -29,7 +29,7 @@ use std::collections::HashMap;
 
 /// Population-keyed coordinate cell store. Unbounded; entries persist
 /// until the store is dropped.
-pub struct HolonHash {
+pub struct Hologram {
     /// Outer length is `num_cells = floor(sqrt(d))`. Each cell is a
     /// HashMap of `(key → val)` pairs (both HolonAST) whose pos landed
     /// in that neighborhood.
@@ -38,7 +38,7 @@ pub struct HolonHash {
     num_cells: usize,
 }
 
-impl HolonHash {
+impl Hologram {
     /// Construct an empty store sized for the given encoding `d`.
     /// `num_cells = floor(sqrt(d))`. Caller passes the same d that
     /// the dim router will route forms at; substrate-internal users
@@ -50,7 +50,7 @@ impl HolonHash {
         // on wonky d.
         let num_cells = num_cells.max(1);
         let cells = (0..num_cells).map(|_| HashMap::new()).collect();
-        HolonHash { cells, num_cells }
+        Hologram { cells, num_cells }
     }
 
     /// `num_cells` for this store. Read-only; matches `floor(sqrt(d))`
@@ -144,19 +144,19 @@ mod tests {
 
     #[test]
     fn new_d_10000_yields_100_cells() {
-        let h = HolonHash::new(10000);
+        let h = Hologram::new(10000);
         assert_eq!(h.num_cells(), 100);
     }
 
     #[test]
     fn new_d_4096_yields_64_cells() {
-        let h = HolonHash::new(4096);
+        let h = Hologram::new(4096);
         assert_eq!(h.num_cells(), 64);
     }
 
     #[test]
     fn new_d_1024_yields_32_cells() {
-        let h = HolonHash::new(1024);
+        let h = Hologram::new(1024);
         assert_eq!(h.num_cells(), 32);
     }
 
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn put_and_len_track_inserts_across_cells() {
-        let mut h = HolonHash::new(10000);
+        let mut h = Hologram::new(10000);
         h.put_at_index(5, HolonAST::keyword("k1"), HolonAST::keyword("v1"));
         h.put_at_index(50, HolonAST::keyword("k2"), HolonAST::keyword("v2"));
         assert_eq!(h.len(), 2);
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn put_idempotent_at_same_key() {
-        let mut h = HolonHash::new(10000);
+        let mut h = Hologram::new(10000);
         let key = HolonAST::keyword("k1");
         h.put_at_index(5, key.clone(), HolonAST::keyword("a"));
         h.put_at_index(5, key, HolonAST::keyword("b"));
