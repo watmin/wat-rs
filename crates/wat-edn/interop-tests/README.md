@@ -74,9 +74,29 @@ Confirms the **header-file architecture**: Clojure loads
 wat-edn parses with full structural assertion. ONE schema, two
 language readers.
 
-### 4. Round-trip through both sides
+### 4. EDN ↔ JSON cross-language
 
-(Composition — left as an exercise; cargo run | clojure | cargo run.)
+```sh
+echo '#myapp/Order {:id 1 :name "x"}' \
+  | cargo run --release --bin json_producer \
+  | clojure \
+      -Sdeps '{:paths ["../wat-edn-clj/src"] :deps {cheshire/cheshire {:mvn/version "5.13.0"}}}' \
+      -M clj/json_passthrough.clj \
+  | cargo run --release --bin json_consumer
+```
+
+The full chain:
+- Rust wat-edn parses the EDN string
+- Rust wat-edn::to_json_string converts to JSON
+- Clojure wat-edn.json/from-json-string parses (same wire convention)
+- Clojure wat-edn.json/to-json-string re-emits
+- Rust wat-edn::from_json_string parses back to EDN
+- All steps verified by structural assertion in json_consumer
+
+Wire format documented at `crates/wat-edn/src/json.rs`. Both
+sides agree on sentinel-key tagged objects (`#tag`, `#set`,
+`#bigint`, `#bigdec`, `#float`, `#char`, `#symbol`, `#inst`,
+`#uuid`); keywords use `":foo"` colon-prefix discriminator.
 
 ## What this proves
 

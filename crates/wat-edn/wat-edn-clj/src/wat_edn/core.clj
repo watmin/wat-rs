@@ -12,6 +12,7 @@
   (:refer-clojure :exclude [read])
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.pprint :as pprint]
             [wat-edn.scanner :as scanner]))
 
 ;; ─── Reader: default fn for wat.* tags ──────────────────────────
@@ -228,6 +229,14 @@
   [v]
   (binding [*print-dup* false]
     (pr-str v)))
+
+(defn pretty-edn
+  "Pretty-print a Clojure value as EDN. Uses clojure.pprint with
+  the wat-edn print-method extensions installed, so variants and
+  tagged values format correctly."
+  [v]
+  (binding [*print-dup* false]
+    (with-out-str (pprint/pprint v))))
 
 (defn print-line!
   "Write a value to a writer as one EDN line."

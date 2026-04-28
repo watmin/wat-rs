@@ -6,6 +6,122 @@ use crate::value::{Keyword, Symbol, Tag, Value};
 use chrono::SecondsFormat;
 use std::fmt::Write;
 
+// ─── Pretty-printing ────────────────────────────────────────────
+
+/// Pretty-print an EDN `Value` to a `String`. Uses 2-space indent;
+/// scalar containers stay on one line, nested collections break per
+/// element. Maps put each `key value` pair on its own line.
+pub fn write_pretty(v: &Value) -> String {
+    let mut out = String::with_capacity(128);
+    write_pretty_indented(v, &mut out, 0);
+    out
+}
+
+const INDENT: &str = "  ";
+
+fn push_indent(out: &mut String, level: usize) {
+    for _ in 0..level {
+        out.push_str(INDENT);
+    }
+}
+
+/// True if the value is "scalar enough" to inline without breaking.
+fn is_scalar(v: &Value) -> bool {
+    matches!(
+        v,
+        Value::Nil
+            | Value::Bool(_)
+            | Value::Integer(_)
+            | Value::Float(_)
+            | Value::String(_)
+            | Value::Char(_)
+            | Value::Symbol(_)
+            | Value::Keyword(_)
+            | Value::Inst(_)
+            | Value::Uuid(_)
+    )
+}
+
+/// True if every element is scalar (so we can inline a small collection).
+fn all_scalar(items: &[Value]) -> bool {
+    items.iter().all(is_scalar)
+}
+
+fn write_pretty_indented(v: &Value, out: &mut String, level: usize) {
+    match v {
+        Value::List(items) | Value::Vector(items) | Value::Set(items) => {
+            let (open, close) = match v {
+                Value::List(_) => ("(", ")"),
+                Value::Vector(_) => ("[", "]"),
+                Value::Set(_) => ("#{", "}"),
+                _ => unreachable!(),
+            };
+            if items.is_empty() {
+                out.push_str(open);
+                out.push_str(close);
+            } else if all_scalar(items) && items.len() <= 8 {
+                // Inline small scalar-only collections.
+                out.push_str(open);
+                let mut first = true;
+                for item in items {
+                    if !first {
+                        out.push(' ');
+                    }
+                    write_to(item, out);
+                    first = false;
+                }
+                out.push_str(close);
+            } else {
+                out.push_str(open);
+                out.push('\n');
+                let inner = level + 1;
+                for (i, item) in items.iter().enumerate() {
+                    push_indent(out, inner);
+                    write_pretty_indented(item, out, inner);
+                    if i + 1 < items.len() {
+                        out.push('\n');
+                    }
+                }
+                out.push('\n');
+                push_indent(out, level);
+                out.push_str(close);
+            }
+        }
+        Value::Map(entries) => {
+            if entries.is_empty() {
+                out.push_str("{}");
+            } else {
+                out.push('{');
+                let inner = level + 1;
+                for (i, (k, val)) in entries.iter().enumerate() {
+                    if i > 0 {
+                        push_indent(out, inner);
+                    }
+                    write_pretty_indented(k, out, inner);
+                    out.push(' ');
+                    write_pretty_indented(val, out, inner);
+                    if i + 1 < entries.len() {
+                        out.push('\n');
+                    }
+                }
+                out.push('}');
+            }
+        }
+        Value::Tagged(tag, body) => {
+            // #ns/name <body>  — tag and body on same line if body
+            // is scalar, otherwise newline + indent for body.
+            out.push('#');
+            out.push_str(tag.namespace());
+            out.push('/');
+            out.push_str(tag.name());
+            out.push(' ');
+            write_pretty_indented(body, out, level);
+        }
+        // Scalars: defer to write_to.
+        _ => write_to(v, out),
+    }
+}
+
 // ─── Identifier writers ─────────────────────────────────────────
 //
 // Direct `push_str` to the caller's buffer. The `Display` impls in

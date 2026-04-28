@@ -67,6 +67,7 @@
 
 pub mod error;
 pub mod escapes;
+pub mod json;
 pub mod lexer;
 pub mod parser;
 pub mod value;
@@ -80,9 +81,13 @@ pub mod writer;
 // reaches the whole API in one line.
 
 pub use error::{Error, ErrorKind, Result};
+pub use json::{
+    edn_to_json, from_json_string, json_to_edn, to_json_string, to_json_string_pretty,
+    JsonError, JsonResult,
+};
 pub use parser::Parser;
 pub use value::{Keyword, Symbol, Tag, Value};
-pub use writer::{write, write_to};
+pub use writer::{write, write_pretty, write_to};
 
 /// A `Value` that owns all of its string data — no input-buffer
 /// lifetime to track. Storable across threads, returnable from

@@ -54,6 +54,34 @@ Run the benchmark:
 cargo run --release --example bench -p wat-edn
 ```
 
+## JSON conversion
+
+```rust
+use wat_edn::{parse, to_json_string, to_json_string_pretty,
+              from_json_string, write, write_pretty};
+
+// EDN → JSON (sentinel-key tagged objects preserve type fidelity)
+let v = parse(r#"#myapp/Order {:id 1 :tags #{:vip}}"#).unwrap();
+let json = to_json_string(&v);
+// → {"#tag":"myapp/Order","body":{":id":1,":tags":{"#set":[":vip"]}}}
+
+// JSON → EDN (round-trips back to the same Value)
+let v2 = from_json_string(&json).unwrap();
+
+// Pretty-print EDN
+println!("{}", write_pretty(&v));
+```
+
+Wire convention: `{"#tag":..., "body":...}` for tagged values,
+`{"#set":[...]}` for sets, `{"#bigint":"123N"}` for big integers,
+`":foo"` colon-prefix string for keywords. See `src/json.rs` for
+the full table; the Clojure side at `wat-edn-clj/src/wat_edn/json.clj`
+agrees on the same wire convention.
+
+Useful for: emitting EDN-typed data to JSON-only sinks
+(CloudWatch logs, HTTP APIs, JavaScript front-ends), then reading
+back without losing type information.
+
 ## Clojure side
 
 The companion Clojure library lives at [`wat-edn-clj/`](wat-edn-clj/).
