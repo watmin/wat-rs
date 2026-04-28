@@ -2385,9 +2385,16 @@ fn dispatch_keyword_head(
         // HologramLRU variant in slice 2.
         ":wat::holon::Hologram/new" => eval_hologram_new(args, env, sym),
         ":wat::holon::Hologram/put" => eval_hologram_put(args, env, sym),
-        ":wat::holon::Hologram/get" => eval_hologram_get(args, env, sym),
         ":wat::holon::Hologram/len" => eval_hologram_len(args, env, sym),
         ":wat::holon::Hologram/dim" => eval_hologram_dim(args, env, sym),
+        // arc 074 slice 2 prep — surface find-best / remove-at-index /
+        // pos-to-idx so the wat-side HologramLRU composition can
+        // compose them. Hologram/get is now a wat-stdlib wrapper
+        // (wat/holon/Hologram.wat) that calls find-best + filter; the
+        // substrate primitive returns the raw cosine readout triple.
+        ":wat::holon::Hologram/find-best" => eval_hologram_find_best(args, env, sym),
+        ":wat::holon::Hologram/remove-at-index" => eval_hologram_remove_at_index(args, env, sym),
+        ":wat::holon::Hologram/pos-to-idx" => eval_hologram_pos_to_idx(args, env, sym),
 
         // Presence — the retrieval primitive per FOUNDATION 1718.
         // Cosine between encoded target and encoded reference. Returns
@@ -6598,21 +6605,28 @@ fn eval_hologram_put(
     Ok(Value::Unit)
 }
 
-/// `(:wat::holon::Hologram/get store pos probe filter)` -> `:Option<V>`.
-/// Walk the two cells around `pos` (or one, if pos is exactly on a cell
-/// boundary), encode each stored key, cosine-match against the probe,
-/// and return the value of the highest-cosine entry whose cosine
-/// satisfies `filter`. Returns None if no candidate passes the filter.
-fn eval_hologram_get(
+/// `(:wat::holon::Hologram/find-best store pos probe)` ->
+/// `:Option<(wat::holon::HolonAST, wat::holon::HolonAST, f64)>`.
+///
+/// The substrate's cosine-readout primitive: walk the two cells around
+/// `pos` (or one, if pos lies cleanly inside a cell), encode each
+/// stored key, compute cosine against probe-as-vector, return the
+/// highest-cosine entry as `(matched_key, val, cosine)`. None when the
+/// spread cells are empty.
+///
+/// Filter application happens at the wat-stdlib layer (Hologram/get,
+/// HologramLRU/get, etc. compose this with `(filter cos)`); the
+/// substrate primitive is filter-agnostic.
+fn eval_hologram_find_best(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::holon::Hologram/get";
-    if args.len() != 4 {
+    const OP: &str = ":wat::holon::Hologram/find-best";
+    if args.len() != 3 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
-            expected: 4,
+            expected: 3,
             got: args.len(),
         });
     }
@@ -6637,19 +6651,6 @@ fn eval_hologram_get(
             });
         }
     };
-    let filter_fn = match eval(&args[3], env, sym)? {
-        Value::wat__core__lambda(f) => f,
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::core::lambda",
-                got: other.type_name(),
-            });
-        }
-    };
-
-    // Pick d once via the dim router (probe and stored keys share
-    // the same encoding dim — single-tier today per arc 067).
     let router = require_dim_router(OP, sym)?;
     let d = router
         .pick(&probe, sym)
@@ -6661,43 +6662,110 @@ fn eval_hologram_get(
     let enc = ctx.encoders.get(d);
     let probe_vec = holon::encode(&probe, &enc.vm, &enc.scalar);
 
-    // Cosine readout via Hologram::find_best — the substrate primitive
-    // that bounded backings (HologramLRU etc.) compose. Returns the
-    // highest-cosine (key, val, cosine) triple in the spread cells, or
-    // None if both cells are empty.
     let best = store.with_ref(OP, |s| {
         s.find_best(OP, pos, &probe_vec, &ctx.encoders)
     })??;
-    let (_best_key, best_val, best_cos) = match best {
-        Some(triple) => triple,
-        None => return Ok(Value::Option(Arc::new(None))),
-    };
+    match best {
+        Some((key, val, cos)) => Ok(Value::Option(Arc::new(Some(Value::Tuple(
+            Arc::new(vec![
+                Value::holon__HolonAST(Arc::new(key)),
+                Value::holon__HolonAST(Arc::new(val)),
+                Value::f64(cos),
+            ]),
+        ))))),
+        None => Ok(Value::Option(Arc::new(None))),
+    }
+}
 
-    // Apply the user-supplied filter to the best cosine. If filter
-    // returns true, the get is a hit; otherwise miss.
-    let filter_result = apply_function(
-        filter_fn,
-        vec![Value::f64(best_cos)],
-        sym,
-        Span::unknown(),
-    )?;
-    let passed = match filter_result {
-        Value::bool(b) => b,
+/// `(:wat::holon::Hologram/remove-at-index store idx key)` ->
+/// `:Option<wat::holon::HolonAST>`. Drop the entry at `cells[idx]`
+/// keyed by `key`. Returns the previously-stored val if the entry
+/// existed, else None. Used by bounded variants (HologramLRU) when
+/// the LRU sidecar evicts a key.
+fn eval_hologram_remove_at_index(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Hologram/remove-at-index";
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+        });
+    }
+    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
+    let idx = require_i64(OP, eval(&args[1], env, sym)?)?;
+    if idx < 0 {
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!("idx must be non-negative; got {}", idx),
+        });
+    }
+    let key = match eval(&args[2], env, sym)? {
+        Value::holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
-                expected: "bool returned by filter",
+                expected: "wat::holon::HolonAST",
                 got: other.type_name(),
             });
         }
     };
-    if passed {
-        Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
-            Arc::new(best_val),
-        )))))
-    } else {
-        Ok(Value::Option(Arc::new(None)))
+    let removed = store.with_mut(OP, |s| {
+        let n = s.num_cells();
+        if (idx as usize) >= n {
+            return Err(RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: format!(
+                    "idx out of range; got {}, num_cells = {}",
+                    idx, n
+                ),
+            });
+        }
+        Ok(s.remove_at_index(idx as usize, &key))
+    })??;
+    match removed {
+        Some(val) => Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+            Arc::new(val),
+        ))))),
+        None => Ok(Value::Option(Arc::new(None))),
     }
+}
+
+/// `(:wat::holon::Hologram/pos-to-idx store pos)` -> `:i64`. Map a
+/// user-supplied `pos: f64` (in `[0, 100]`) to the cell index this
+/// store would use for it. Wat-stdlib HologramLRU consumers call this
+/// to record the LRU's value (cell idx) when inserting.
+fn eval_hologram_pos_to_idx(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Hologram/pos-to-idx";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
+    let pos = match eval(&args[1], env, sym)? {
+        Value::f64(x) => x,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "f64",
+                got: other.type_name(),
+            });
+        }
+    };
+    let idx = store.with_ref(OP, |s| {
+        crate::hologram::pos_to_cell_index(OP, pos, s.num_cells())
+    })??;
+    Ok(Value::i64(idx as i64))
 }
 
 /// `(:wat::holon::Hologram/len store)` -> `:i64`. Total entries

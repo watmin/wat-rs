@@ -30,6 +30,40 @@
 ;; their own filter directly. These two are the named shapes — the
 ;; ones the substrate carries an opinion about.
 
+;; ─── get — substrate-side find-best + user-supplied filter ──────
+;;
+;; The substrate primitive Hologram/find-best returns the raw cosine
+;; readout: the highest-cosine (key, val, cosine) triple in the
+;; spread cells, or None if both cells are empty. This wat-stdlib
+;; wrapper applies the user's filter to the cosine; if the filter
+;; accepts, return Some(val); else None.
+;;
+;; Why wat-stdlib not Rust: the substrate's #[wat_dispatch] macro
+;; doesn't pass SymbolTable to method bodies, so a Rust-side method
+;; can't invoke a user-supplied wat lambda (apply_function needs
+;; sym). Composing at the wat layer sidesteps that and makes the
+;; same primitive composable for both Hologram and HologramLRU
+;; (the latter's get is structurally identical, with added LRU
+;; bookkeeping).
+(:wat::core::define
+  (:wat::holon::Hologram/get
+    (store :wat::holon::Hologram)
+    (pos :f64)
+    (probe :wat::holon::HolonAST)
+    (filter :fn(f64)->bool)
+    -> :Option<wat::holon::HolonAST>)
+  (:wat::core::match
+    (:wat::holon::Hologram/find-best store pos probe)
+    -> :Option<wat::holon::HolonAST>
+    ((Some triple)
+      (:wat::core::let*
+        (((val :wat::holon::HolonAST) (:wat::core::second triple))
+         ((cos :f64) (:wat::core::third triple)))
+        (:wat::core::if (filter cos) -> :Option<wat::holon::HolonAST>
+          (Some val)
+          :None)))
+    (:None :None)))
+
 ;; ─── coincident-get — strict variant ─────────────────────────────
 (:wat::core::define
   (:wat::holon::Hologram/coincident-get

@@ -5227,23 +5227,46 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Tuple(vec![]),
         },
     );
+    // Hologram/get is now a wat-stdlib wrapper (wat/holon/Hologram.wat)
+    // that composes find-best + (filter cos). The substrate primitive
+    // is find-best — returns the raw cosine triple; bounded variants
+    // (HologramLRU) and the wat-stdlib get all compose it.
     env.register(
-        ":wat::holon::Hologram/get".into(),
+        ":wat::holon::Hologram/find-best".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![hologram_ty(), f64_ty(), holon_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![TypeExpr::Tuple(vec![
+                    holon_ty(),
+                    holon_ty(),
+                    f64_ty(),
+                ])],
+            },
+        },
+    );
+    env.register(
+        ":wat::holon::Hologram/remove-at-index".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![
                 hologram_ty(),
-                f64_ty(),
+                TypeExpr::Path(":i64".into()),
                 holon_ty(),
-                TypeExpr::Fn {
-                    args: vec![f64_ty()],
-                    ret: Box::new(bool_ty()),
-                },
             ],
             ret: TypeExpr::Parametric {
                 head: "Option".into(),
                 args: vec![holon_ty()],
             },
+        },
+    );
+    env.register(
+        ":wat::holon::Hologram/pos-to-idx".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![hologram_ty(), f64_ty()],
+            ret: TypeExpr::Path(":i64".into()),
         },
     );
     env.register(
