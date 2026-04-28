@@ -1,4 +1,4 @@
-//! `wat-hologram-lru` — `:wat::holon::HologramLRU` exposed to wat as
+//! `wat-holon-lru` — `:wat::holon::HologramLRU` exposed to wat as
 //! pure-wat composition over `:wat::holon::Hologram` (substrate) and
 //! `:wat::lru::LocalCache` (wat-lru).
 //!
@@ -25,14 +25,14 @@
 //! ```text
 //! // Cargo.toml
 //! [dependencies]
-//! wat              = { path = "../wat-rs" }
-//! wat-lru          = { path = "../wat-rs/crates/wat-lru" }
-//! wat-hologram-lru = { path = "../wat-rs/crates/wat-hologram-lru" }
+//! wat           = { path = "../wat-rs" }
+//! wat-lru       = { path = "../wat-rs/crates/wat-lru" }
+//! wat-holon-lru = { path = "../wat-rs/crates/wat-holon-lru" }
 //!
 //! // main.rs
 //! wat::main! {
 //!     source: include_str!("program.wat"),
-//!     deps: [wat_lru, wat_hologram_lru],
+//!     deps: [wat_lru, wat_holon_lru],
 //! }
 //! ```
 //!
@@ -41,18 +41,18 @@
 
 /// wat source files this crate contributes. Returned in registration
 /// order: `HologramLRU.wat` (the bounded sibling of `Hologram`).
-/// Consumers who want HologramLRU pass `[wat_lru, wat_hologram_lru]`
+/// Consumers who want HologramLRU pass `[wat_lru, wat_holon_lru]`
 /// (in that order — wat-lru registers `LocalCache` first, then
 /// HologramLRU.wat layers on top).
 pub fn wat_sources() -> &'static [wat::WatSource] {
     static FILES: &[wat::WatSource] = &[wat::WatSource {
-        path: "wat-hologram-lru/holon/HologramLRU.wat",
+        path: "wat-holon-lru/holon/HologramLRU.wat",
         source: include_str!("../wat/holon/HologramLRU.wat"),
     }];
     FILES
 }
 
-/// Registrar for wat-hologram-lru. No-op: this crate ships pure wat;
+/// Registrar for wat-holon-lru. No-op: this crate ships pure wat;
 /// no Rust shim. Present so the external-crate contract reads
 /// uniformly with crates that DO have Rust code (wat-lru).
 pub fn register(_builder: &mut wat::rust_deps::RustDepsBuilder) {
