@@ -342,12 +342,28 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
     out.push(':');
     let mut i = start + 1;
     let mut paren_depth = 0i32;
+    // Arc 072 — track `<>` depth alongside `()` so type-keyword
+    // expressions like `:Result<(i64,i64),i64>` and (with the
+    // user's intuitive whitespace) `:Result<(i64,i64), i64>` don't
+    // silently truncate at the space inside the brackets.
+    //
+    // Operator `<` / `>` (e.g., `:wat::core::<`, `:wat::core::>=`)
+    // appear in keyword paths AFTER `::` and must NOT be treated as
+    // bracket openers. Disambiguation: `<` increments depth only
+    // when preceded by an alphanumeric (a type-head name like
+    // `Result<` or `Vec<`); `>` decrements only when angle_depth >
+    // 0. Pre-arc-072 the lexer ignored angle brackets entirely, so
+    // whitespace inside `<...>` truncated the keyword and the
+    // downstream type checker saw a malformed Result with one
+    // arg — surfacing as opaque "fresh-var unsolved" errors at
+    // pattern-arm sites.
+    let mut angle_depth = 0i32;
 
     while i < bytes.len() {
         let c = bytes[i] as char;
 
         if c.is_whitespace() {
-            if paren_depth > 0 {
+            if paren_depth > 0 || angle_depth > 0 {
                 return Err(LexError::UnclosedBracketInKeyword(i));
             }
             break;
@@ -364,6 +380,30 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
                     break;
                 }
                 paren_depth -= 1;
+                out.push(c);
+            }
+            '<' => {
+                // Type-head `<` follows an alphanumeric (`Result<`,
+                // `Vec<`, ...). Operator `<` follows `::` — the
+                // previous emitted char is `:`, never alphanumeric
+                // for a path. Use the last char in `out` to decide.
+                let prev_alpha = out
+                    .chars()
+                    .last()
+                    .map(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+                    .unwrap_or(false);
+                if prev_alpha {
+                    angle_depth += 1;
+                }
+                out.push(c);
+            }
+            '>' => {
+                // Closes a previously-opened type-head `<`. Operator
+                // `>` and `>=` would have left angle_depth at 0
+                // because their `<`/`>` followed `::`.
+                if angle_depth > 0 {
+                    angle_depth -= 1;
+                }
                 out.push(c);
             }
             '"' | ';' => {

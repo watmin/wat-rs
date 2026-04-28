@@ -1482,6 +1482,19 @@ mod tests {
         Ok((env, rest))
     }
 
+    /// Variant for tests where the lexer may reject the source
+    /// before parsing reaches the type-registration phase. Arc 072
+    /// extended the lexer's bracket-depth tracking to `<>`, so
+    /// malformed type-keyword brackets now surface as
+    /// LexError::UnclosedBracketInKeyword rather than slipping
+    /// through to a TypeError downstream.
+    fn collect_lenient(src: &str) -> Result<(TypeEnv, Vec<WatAST>), String> {
+        let forms = parse_all(src).map_err(|e| format!("parse: {:?}", e))?;
+        let mut env = TypeEnv::new();
+        let rest = register_types(forms, &mut env).map_err(|e| format!("type: {:?}", e))?;
+        Ok((env, rest))
+    }
+
     // ─── Struct ─────────────────────────────────────────────────────────
 
     #[test]
@@ -1730,11 +1743,21 @@ mod tests {
 
     #[test]
     fn malformed_parametric_name_rejected() {
-        let err = collect(r#"(:wat::core::struct :my::Bad<T (x :T))"#).unwrap_err();
-        // `:my::Bad<T` (no closing `>`) — under the keyword-lexer rules
-        // either the lexer errors out (unterminated) or the type
-        // declaration complains. Either way, an error surfaces.
-        assert!(matches!(err, TypeError::MalformedName { .. } | TypeError::MalformedDecl { .. }));
+        // `:my::Bad<T` (unclosed `<`) hits whitespace mid-bracket.
+        // Pre-arc-072 the lexer ignored `<>` so the keyword silently
+        // truncated and the resulting decl errored as a malformed
+        // name. Post-arc-072 the lexer rejects at lex layer with a
+        // clean diagnostic — same property (rejection) at a better
+        // layer.
+        let err = collect_lenient(r#"(:wat::core::struct :my::Bad<T (x :T))"#)
+            .expect_err("expected rejection");
+        assert!(
+            err.contains("UnclosedBracketInKeyword")
+                || err.contains("MalformedName")
+                || err.contains("MalformedDecl"),
+            "expected lex or type-decl error, got: {}",
+            err
+        );
     }
 
     // ─── Non-type forms pass through ────────────────────────────────────
