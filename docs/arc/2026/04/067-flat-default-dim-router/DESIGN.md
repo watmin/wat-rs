@@ -1,6 +1,6 @@
 # Arc 067 — Flat default dim router (always 10000)
 
-**Status:** drafting 2026-04-26.
+**Status:** DISCARDED 2026-04-29. Premise (flatten `DEFAULT_TIERS` to `[10000]`) was overtaken by arc 077 (kill the dim router entirely; one program-d via `:wat::config::set-dim-count!`). The flat-default was a halfway step; the aggressive answer that shipped was no router at all.
 
 **Predecessor:** arc 037 introduced the tier-router pattern with
 `DEFAULT_TIERS = [256, 4096, 10000, 100000]` — pick smallest tier

@@ -1,5 +1,7 @@
 # Caching — design notes (2026-04-19)
 
+**Status:** DISCARDED 2026-04-29. Pre-arc-convention session notes from before the arc style solidified (no Predecessors / Surfaced-by / Slice-plan structure). The actual shipped answer is the cache lineage: `:wat::lru::LocalCache` + `:wat::lru::CacheService` (arc 013 / wat-lru externalization), `:wat::holon::Hologram` + `:wat::holon::lru::HologramCache` (arc 074), routing inside Hologram (arc 076), one program-d (arc 077), service contract (arc 078). Kept in-tree as historical context only.
+
 Durable record of decisions reached this session. Resume state if compacted.
 
 ## What 058 specifies
