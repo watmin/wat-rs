@@ -87,6 +87,11 @@ pub fn immediate_arity(ast: &HolonAST) -> usize {
         HolonAST::Permute(_, _) => 1,
         HolonAST::Thermometer { .. } => 1,
         HolonAST::Blend(_, _, _, _) => 2,
+        // SlotMarker is a substrate-internal sentinel (arc 073) that
+        // carries no encoded value; arity 1 keeps the leaf taxonomy
+        // honest if a router ever sees one (the encoder panics before
+        // routing kicks in for templates, so this is defense-in-depth).
+        HolonAST::SlotMarker { .. } => 1,
     }
 }
 

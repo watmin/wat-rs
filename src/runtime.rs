@@ -6284,6 +6284,23 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
             ],
             Span::unknown(),
         ),
+        // SlotMarker (arc 073) is a substrate-internal sentinel returned
+        // by `:wat::holon::term::template`. It surfaces here as a debug-
+        // legible list, but the rendering is INTENTIONALLY non-round-
+        // trippable: `:wat::holon::SlotMarker` is not registered as a
+        // from-watast constructor, so `(eval-ast! (to-watast template))`
+        // on a template-bearing form will fail at re-parse with an
+        // unknown-constructor error. Templates are query keys, not
+        // values; this rendering supports inspection without reopening
+        // the user-spoofing door arc 073's option-a closed.
+        HolonAST::SlotMarker { min, max } => WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::holon::SlotMarker".into(), Span::unknown()),
+                WatAST::FloatLit(*min, Span::unknown()),
+                WatAST::FloatLit(*max, Span::unknown()),
+            ],
+            Span::unknown(),
+        ),
     }
 }
 
