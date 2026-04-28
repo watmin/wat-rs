@@ -57,28 +57,33 @@ use std::fmt;
 /// stays forever as user override.
 pub const DEFAULT_CAPACITY_MODE: CapacityMode = CapacityMode::Error;
 
+/// Default `dim-count` when `(:wat::config::set-dim-count!)` is
+/// omitted. Arc 077 — the program runs at one d, user-chosen at
+/// startup, with 10000 as the substrate-blessed default. Capacity in
+/// any `:wat::holon::Hologram` is `floor(sqrt(dim-count))` (e.g. 100
+/// at dim-count=10000).
+pub const DEFAULT_DIM_COUNT: usize = 10000;
+
 /// Committed configuration values.
 ///
 /// Arc 037 slice 6: every substrate default is a FUNCTION; users
 /// override with their own function via AST-accepting setters.
-/// Retired stored fields: `dims`, `noise_floor`, `presence_floor`,
-/// `coincident_floor` (derived from dims; can't compute without it),
-/// `presence_sigma: i64`, `coincident_sigma: i64` (scalar sigmas
-/// are wrong under multi-d). Replaced with `*_ast: Option<WatAST>`
-/// fields that freeze evaluates into `SigmaFn` / `DimRouter`
-/// capabilities on `SymbolTable`.
+/// `presence_sigma_ast` and `coincident_sigma_ast` carry user-supplied
+/// sigma functions that freeze evaluates into `SigmaFn` capabilities
+/// on `SymbolTable`. Arc 077 retired the dim-router AST field; the
+/// program's `dim_count` is now a stored value, not a per-form picker.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     pub capacity_mode: CapacityMode,
     pub global_seed: u64,
-    /// User-supplied dim router AST. Freeze evaluates against the
-    /// frozen world; result must be a `:fn(:wat::holon::HolonAST) ->
-    /// :Option<i64>`. Wrapped in
-    /// [`crate::dim_router::WatLambdaRouter`] and installed as the
-    /// ambient router. `None` → default
-    /// [`crate::dim_router::SizingRouter::with_default_tiers`].
-    /// Arc 037 slice 4.
-    pub dim_router_ast: Option<WatAST>,
+    /// Arc 077 — the program's encoding dim. One d per program;
+    /// capacity for any `Hologram` is derived as
+    /// `floor(sqrt(dim_count))`. Default [`DEFAULT_DIM_COUNT`] (10000);
+    /// user override via `(:wat::config::set-dim-count! n)`. Restores
+    /// the pre-arc-067 surface: arc 037 slice 6 deleted this field in
+    /// favor of a router-pick-d-per-form story; arc 077 brings it
+    /// back having learned that real programs run at one d.
+    pub dim_count: usize,
     /// User-supplied presence-sigma function AST. Signature
     /// `:fn(:i64) -> :i64` — takes d, returns sigma count.
     /// `None` → built-in default `floor(sqrt(d)/2) - 1` (arc 024's
@@ -242,7 +247,7 @@ fn collect_entry_file_inner(
     // evaluated at freeze time.
     let mut capacity_mode: Option<CapacityMode> = inherit.map(|c| c.capacity_mode);
     let mut global_seed: Option<u64> = inherit.map(|c| c.global_seed);
-    let mut dim_router_ast: Option<WatAST> = inherit.and_then(|c| c.dim_router_ast.clone());
+    let mut dim_count: usize = inherit.map(|c| c.dim_count).unwrap_or(DEFAULT_DIM_COUNT);
     let mut presence_sigma_ast: Option<WatAST> =
         inherit.and_then(|c| c.presence_sigma_ast.clone());
     let mut coincident_sigma_ast: Option<WatAST> =
@@ -253,7 +258,7 @@ fn collect_entry_file_inner(
     // errors.
     let mut set_capacity_mode = false;
     let mut set_global_seed = false;
-    let mut set_dim_router = false;
+    let mut set_dim_count = false;
     let mut set_presence_sigma = false;
     let mut set_coincident_sigma = false;
 
@@ -314,13 +319,13 @@ fn collect_entry_file_inner(
                 }
                 global_seed = Some(parse_u64(&args[0], "global-seed")?);
             }
-            ":wat::config::set-dim-router!" => {
-                if set_dim_router {
+            ":wat::config::set-dim-count!" => {
+                if set_dim_count {
                     return Err(ConfigError::DuplicateField {
-                        field: "dim-router".into(),
+                        field: "dim-count".into(),
                     });
                 }
-                set_dim_router = true;
+                set_dim_count = true;
                 if args.len() != 1 {
                     return Err(ConfigError::BadArity {
                         head: setter_head,
@@ -328,10 +333,18 @@ fn collect_entry_file_inner(
                         got: args.len(),
                     });
                 }
-                // Arc 037 slice 4: store the AST verbatim. Freeze
-                // evaluates it against the fully-built frozen world.
-                dim_router_ast = Some(args[0].clone());
+                let n = parse_u64(&args[0], "dim-count")?;
+                if n == 0 {
+                    return Err(ConfigError::BadValue {
+                        field: "dim-count".into(),
+                        reason: "dim-count must be > 0".into(),
+                    });
+                }
+                dim_count = n as usize;
             }
+            // Arc 077: `:wat::config::set-dim-router!` retired. The
+            // single-d program model dropped the per-form router; use
+            // `:wat::config::set-dim-count!` instead.
             ":wat::config::set-presence-sigma!" => {
                 if set_presence_sigma {
                     return Err(ConfigError::DuplicateField {
@@ -386,7 +399,7 @@ fn collect_entry_file_inner(
     let config = Config {
         capacity_mode,
         global_seed,
-        dim_router_ast,
+        dim_count,
         presence_sigma_ast,
         coincident_sigma_ast,
     };
@@ -491,9 +504,39 @@ mod tests {
         let (cfg, _) = collect("").unwrap();
         assert_eq!(cfg.capacity_mode, CapacityMode::Error);
         assert_eq!(cfg.global_seed, 42);
-        assert!(cfg.dim_router_ast.is_none());
+        assert_eq!(cfg.dim_count, DEFAULT_DIM_COUNT);
         assert!(cfg.presence_sigma_ast.is_none());
         assert!(cfg.coincident_sigma_ast.is_none());
+    }
+
+    #[test]
+    fn dim_count_override() {
+        let (cfg, _) = collect("(:wat::config::set-dim-count! 4096)").unwrap();
+        assert_eq!(cfg.dim_count, 4096);
+    }
+
+    #[test]
+    fn dim_count_zero_rejected() {
+        let err = collect("(:wat::config::set-dim-count! 0)").unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::BadValue { ref field, .. } if field == "dim-count"
+        ));
+    }
+
+    #[test]
+    fn dim_count_duplicate_rejected() {
+        let err = collect(
+            r#"
+            (:wat::config::set-dim-count! 4096)
+            (:wat::config::set-dim-count! 8192)
+            "#,
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::DuplicateField { ref field } if field == "dim-count"
+        ));
     }
 
     #[test]
@@ -546,28 +589,7 @@ mod tests {
         }
     }
 
-    // ─── set-dim-router! AST storage ────────────────────────────────────
-
-    #[test]
-    fn set_dim_router_stores_ast_verbatim() {
-        let (cfg, _) = collect("(:wat::config::set-dim-router! :my::router)").unwrap();
-        assert!(cfg.dim_router_ast.is_some());
-    }
-
-    #[test]
-    fn set_dim_router_duplicate_rejected() {
-        let err = collect(
-            r#"
-            (:wat::config::set-dim-router! :a)
-            (:wat::config::set-dim-router! :b)
-            "#,
-        )
-        .unwrap_err();
-        assert!(matches!(
-            err,
-            ConfigError::DuplicateField { ref field } if field == "dim-router"
-        ));
-    }
+    // Arc 077: set-dim-router! retired; tests removed.
 
     // ─── set-presence-sigma! / set-coincident-sigma! AST storage ────────
 
@@ -711,7 +733,7 @@ mod tests {
         Config {
             capacity_mode: CapacityMode::Panic,
             global_seed: 99,
-            dim_router_ast: None,
+            dim_count: DEFAULT_DIM_COUNT,
             presence_sigma_ast: None,
             coincident_sigma_ast: None,
         }

@@ -85,17 +85,13 @@ fn bundle_under_budget_returns_ok_under_panic_mode() {
 
 // ─── Over budget under :error — populates CapacityExceeded ───────────
 
-// Arc 037 slice 1 layer 3: the ambient router picks dim per
-// construction from DEFAULT_TIERS = [10000] (arc 067).
-// Default tier d=10000 has budget floor(sqrt(10000)) = 100.
-// Any Bundle with 101+ items overflows the default: router returns
-// None → CapacityExceeded with budget=0 (the None signal).
-// `set-dims!` is retired (arc 037 — config-collect rejects it).
+// Arc 077 — one d per program, default 10000. Budget at d=10000 is
+// floor(sqrt(10000)) = 100. Any Bundle with 101+ items overflows.
+// CapacityExceeded reports cost AND budget (no router-None signal).
 
 #[test]
 fn bundle_over_budget_under_error_mode_returns_err_struct() {
-    // 317 atoms — far past sqrt(10000)=100 (default post-arc-067).
-    // Default tier overflows; router returns None.
+    // 317 atoms — far past sqrt(10000)=100. Overflows the program-d.
     let src = format!(
         r#"
 
@@ -112,7 +108,7 @@ fn bundle_over_budget_under_error_mode_returns_err_struct() {
                 match (&sv.fields[0], &sv.fields[1]) {
                     (Value::i64(cost), Value::i64(budget)) => {
                         assert_eq!(*cost, 317, "cost is the constituent count");
-                        assert_eq!(*budget, 0, "budget=0 signals router returned None (no tier fits)");
+                        assert_eq!(*budget, 100, "budget = floor(sqrt(10000)) at default d");
                     }
                     other => panic!("expected (i64, i64) fields; got {:?}", other),
                 }
@@ -125,10 +121,8 @@ fn bundle_over_budget_under_error_mode_returns_err_struct() {
 
 #[test]
 fn bundle_err_cost_and_budget_readable_via_accessors() {
-    // Round-trip through user wat: the program reads cost and budget
-    // from the CapacityExceeded instance via the auto-generated
-    // accessors. With 400 atoms against the default tier (10000),
-    // router returns None → budget=0 → cost-budget = 400.
+    // Round-trip through user wat: with 400 atoms against the
+    // default d=10000 (budget=100), cost - budget = 300.
     let src = format!(
         r#"
 
@@ -143,8 +137,8 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
         atoms_list(400)
     );
     match run(&src) {
-        Value::i64(n) => assert_eq!(n, 400, "400-atom bundle overflows all tiers → diff 400"),
-        other => panic!("expected i64 400; got {:?}", other),
+        Value::i64(n) => assert_eq!(n, 300, "400 - floor(sqrt(10000)) = 300"),
+        other => panic!("expected i64 300; got {:?}", other),
     }
 }
 

@@ -317,8 +317,8 @@ mod tests {
 
     #[test]
     fn config_accessors_accepted() {
-        assert!(resolve(r#"(:wat::config::dims)"#).is_ok());
-        assert!(resolve(r#"(:wat::config::set-dims! 4096)"#).is_ok());
+        assert!(resolve(r#"(:wat::config::dim-count)"#).is_ok());
+        assert!(resolve(r#"(:wat::config::set-dim-count! 4096)"#).is_ok());
     }
 
     #[test]
@@ -384,7 +384,7 @@ mod tests {
         assert!(is_reserved_prefix(":wat::kernel::spawn"));
         assert!(is_reserved_prefix(":wat::holon::Atom"));
         assert!(is_reserved_prefix(":wat::holon::Subtract"));
-        assert!(is_reserved_prefix(":wat::config::dims"));
+        assert!(is_reserved_prefix(":wat::config::dim-count"));
         assert!(is_reserved_prefix(":wat::load::file-path"));
         assert!(is_reserved_prefix(":wat::load::string"));
         assert!(is_reserved_prefix(":wat::verify::digest-sha256"));

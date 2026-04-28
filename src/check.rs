@@ -5204,18 +5204,22 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 074 slice 1 — Hologram. Coordinate-cell store with cosine
-    // readout. HolonAST → HolonAST (val type fixed). Substrate-internal
-    // hand-coded; sibling crate adds the bounded HologramLRU variant in
-    // slice 2.
+    // Arc 076 — therm-routed Hologram. Slot derives from the form's
+    // structure (first Thermometer leaf's normalized floor, or slot 0
+    // for non-therm). Filter is bound at construction; get is filtered-
+    // argmax. HolonAST → HolonAST.
     let hologram_ty = || TypeExpr::Path(":wat::holon::Hologram".into());
     let f64_ty = || TypeExpr::Path(":f64".into());
     let bool_ty = || TypeExpr::Path(":bool".into());
+    let filter_ty = || TypeExpr::Fn {
+        args: vec![f64_ty()],
+        ret: Box::new(bool_ty()),
+    };
     env.register(
-        ":wat::holon::Hologram/new".into(),
+        ":wat::holon::Hologram/make".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![TypeExpr::Path(":i64".into())],
+            params: vec![filter_ty()],
             ret: hologram_ty(),
         },
     );
@@ -5223,38 +5227,15 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::holon::Hologram/put".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![hologram_ty(), f64_ty(), holon_ty(), holon_ty()],
+            params: vec![hologram_ty(), holon_ty(), holon_ty()],
             ret: TypeExpr::Tuple(vec![]),
         },
     );
-    // Hologram/get is now a wat-stdlib wrapper (wat/holon/Hologram.wat)
-    // that composes find-best + (filter cos). The substrate primitive
-    // is find-best — returns the raw cosine triple; bounded variants
-    // (HologramLRU) and the wat-stdlib get all compose it.
     env.register(
-        ":wat::holon::Hologram/find-best".into(),
+        ":wat::holon::Hologram/get".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![hologram_ty(), f64_ty(), holon_ty()],
-            ret: TypeExpr::Parametric {
-                head: "Option".into(),
-                args: vec![TypeExpr::Tuple(vec![
-                    holon_ty(),
-                    holon_ty(),
-                    f64_ty(),
-                ])],
-            },
-        },
-    );
-    env.register(
-        ":wat::holon::Hologram/remove-at-index".into(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![
-                hologram_ty(),
-                TypeExpr::Path(":i64".into()),
-                holon_ty(),
-            ],
+            params: vec![hologram_ty(), holon_ty()],
             ret: TypeExpr::Parametric {
                 head: "Option".into(),
                 args: vec![holon_ty()],
@@ -5262,11 +5243,25 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::holon::Hologram/pos-to-idx".into(),
+        ":wat::holon::Hologram/find".into(),
         TypeScheme {
             type_params: vec![],
-            params: vec![hologram_ty(), f64_ty()],
-            ret: TypeExpr::Path(":i64".into()),
+            params: vec![hologram_ty(), holon_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![TypeExpr::Tuple(vec![holon_ty(), holon_ty()])],
+            },
+        },
+    );
+    env.register(
+        ":wat::holon::Hologram/remove".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![hologram_ty(), holon_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![holon_ty()],
+            },
         },
     );
     env.register(
@@ -5278,11 +5273,23 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::holon::Hologram/dim".into(),
+        ":wat::holon::Hologram/capacity".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![hologram_ty()],
             ret: TypeExpr::Path(":i64".into()),
+        },
+    );
+
+    // Arc 076 slice 2 — therm-form constructor. Carries the user's
+    // natural domain on the form; Hologram applies its own capacity at
+    // slot routing time. No capacity arg.
+    env.register(
+        ":wat::holon::therm-form".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![f64_ty(), f64_ty(), f64_ty()],
+            ret: holon_ty(),
         },
     );
 
@@ -5615,12 +5622,18 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Config accessors — nullary, read committed startup values.
-    // Arc 037 slice 6: :wat::config::dims and :wat::config::noise-floor
-    // are compatibility shims that return DEFAULT_TIERS[0]-derived
-    // defaults. Semantically stale under multi-d but kept for
-    // backward compat until callers migrate to per-AST primitives.
+    // Arc 077: dim-count + dim-capacity are the program-d surfaces.
+    // (Pre-arc-077 alias `:wat::config::dims` removed; use dim-count.)
     env.register(
-        ":wat::config::dims".into(),
+        ":wat::config::dim-count".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::config::dim-capacity".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![],
@@ -6272,12 +6285,11 @@ fn register_builtins(env: &mut CheckEnv) {
     //
     // Arc 052: polymorphic via `infer_list` special-case branch —
     // accepts HolonAST or Vector input. No scheme registration here.
-    // Arc 037 slice 4: HolonAST → immediate surface arity. The
-    // natural introspection primitive for user dim-router bodies
-    // ((:wat::config::set-dim-router! <fn>) where the fn signature
-    // is `:fn(:wat::holon::HolonAST) -> :Option<i64>`). Returns the
-    // top-level cardinality: 1 for Atom/Permute/Thermometer,
-    // 2 for Bind/Blend, children.len() for Bundle.
+    // HolonAST → immediate surface arity. Returns the top-level
+    // cardinality: 1 for leaf / Atom / Permute / Thermometer,
+    // 2 for Bind / Blend, children.len() for Bundle. Useful for
+    // user code that wants to introspect the shape of a form
+    // (e.g., capacity-aware Bundle construction).
     env.register(
         ":wat::holon::statement-length".into(),
         TypeScheme {

@@ -74,10 +74,10 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/holon/Filter.wat",
         source: include_str!("../wat/holon/Filter.wat"),
     },
-    WatSource {
-        path: "wat/holon/Hologram.wat",
-        source: include_str!("../wat/holon/Hologram.wat"),
-    },
+    // Arc 076: wat/holon/Hologram.wat removed. Hologram/get / put /
+    // make / len / capacity are all substrate primitives now; the
+    // construction-time filter eliminates the wat-stdlib wrapper layer
+    // and the coincident-get / present-get conveniences (Q1 = a).
     WatSource {
         path: "wat/kernel/queue.wat",
         source: include_str!("../wat/kernel/queue.wat"),

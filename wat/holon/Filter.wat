@@ -38,13 +38,19 @@
 ;; Returns true iff `(1 - cos) < coincident-floor(d)`. Matches the
 ;; semantics of `:wat::holon::coincident?` but works on a raw cosine
 ;; value instead of two HolonAST inputs.
+;;
+;; Arc 076: d is read from the ambient `:wat::config::dim-count` rather
+;; than passed by the caller. The filter captures the floor at the
+;; call site's ambient d; pass through `Hologram/make` once and the
+;; entire store carries the same threshold.
 (:wat::core::define
   (:wat::holon::filter-coincident
-    (d :i64)
     -> :fn(f64)->bool)
-  (:wat::core::lambda ((cos :f64) -> :bool)
-    (:wat::core::< (:wat::core::- 1.0 cos)
-                   (:wat::holon::coincident-floor d))))
+  (:wat::core::let*
+    (((floor :f64)
+      (:wat::holon::coincident-floor (:wat::config::dim-count))))
+    (:wat::core::lambda ((cos :f64) -> :bool)
+      (:wat::core::< (:wat::core::- 1.0 cos) floor))))
 
 ;; ─── filter-present — looser, "signal detected above noise" ───────
 ;;
@@ -52,12 +58,16 @@
 ;; of `:wat::holon::presence?` but works on a raw cosine value.
 ;; Use when the cache is acting as a "best-known reasonable answer"
 ;; lookup rather than "did I see this exact form before."
+;;
+;; Arc 076: d is read from the ambient `:wat::config::dim-count`.
 (:wat::core::define
   (:wat::holon::filter-present
-    (d :i64)
     -> :fn(f64)->bool)
-  (:wat::core::lambda ((cos :f64) -> :bool)
-    (:wat::core::> cos (:wat::holon::presence-floor d))))
+  (:wat::core::let*
+    (((floor :f64)
+      (:wat::holon::presence-floor (:wat::config::dim-count))))
+    (:wat::core::lambda ((cos :f64) -> :bool)
+      (:wat::core::> cos floor))))
 
 ;; ─── filter-accept-any — null gate, returns whatever scored best ──
 ;;
@@ -65,9 +75,6 @@
 ;; population's nearest neighbor without any floor — e.g., taking the
 ;; cell's argmax for a soft scoring loop where the consumer applies
 ;; their own gate downstream.
-;;
-;; Takes no arguments since it doesn't depend on `d`. Returns a
-;; lambda for shape-symmetry with the other two factories.
 (:wat::core::define
   (:wat::holon::filter-accept-any
     -> :fn(f64)->bool)

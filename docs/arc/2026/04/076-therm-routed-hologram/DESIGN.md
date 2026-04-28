@@ -197,12 +197,17 @@ Users who hand-roll `(thermometer ...)` without going through `therm-form` can p
 
 | Before (arc 074) | After (arc 076) |
 |---|---|
-| `Hologram/make` | `Hologram/make capacity filter` (capacity is now a substrate parameter, not derived from d) |
-| `Hologram/put store pos key val` | `Hologram/put store key val` |
-| `Hologram/get store pos probe filter` | `Hologram/get store probe` (filter bound at construction; arity drops) |
-| `Hologram/coincident-get` / `present-get` | Same shape, `pos` removed; or **deprecated** if `Hologram/get` with construction-time filter subsumes them. Decide in slice 1. |
-| n/a | `:wat::holon::therm-normalize`, `:wat::holon::therm-form` |
-| `presence-filter d` / `coincidence-filter d` | `presence-filter capacity` / `coincidence-filter capacity` |
+| `Hologram/new d` | `Hologram/make d filter` (capacity = floor(sqrt(d)); filter bound at construction) |
+| `Hologram/put store pos key val` | `Hologram/put store key val` (slot inferred from key's structure) |
+| `Hologram/get store pos probe filter` | `Hologram/get store probe` (filter from construction; one and only filter) |
+| `Hologram/coincident-get` / `present-get` | **dropped** (Q1 = a; one filter per store) |
+| `Hologram/find-best`, `remove-at-index`, `pos-to-idx`, `dim` | **dropped**; `Hologram/capacity store` replaces `dim` for callers who need slot count |
+| n/a | `:wat::holon::therm-form low high value` (3 args; capacity is a Hologram-side concern, never crosses the form) |
+| `presence-filter d` / `coincidence-filter d` | unchanged (still parameterized by d) |
+
+**`therm-normalize` is NOT shipped.** Earlier draft had it as a public surface; resolution from the build conversation collapsed it. The Thermometer leaf carries the user's natural domain (`min`, `max`); the Hologram applies its own capacity at slot-routing time via `floor((value - min) / (max - min) * capacity)`. There's no pre-normalization step the user needs — `therm-form` clamps the value into `[low, high]` and stuffs it directly into the Thermometer with the original domain bounds preserved.
+
+The capacity ambience is structural, not lexical: it lives in the Hologram instance only, and the same form lands in different slots in different-capacity stores without user intervention.
 
 ### Unchanged
 
@@ -299,20 +304,30 @@ Touches:
 
 ## Open questions
 
-### Q1 — Do `coincident-get` and `present-get` survive?
+### Q1 — Do `coincident-get` and `present-get` survive? ✅ resolved (a)
 
-Currently they're separate entry points with built-in filter selection. If `Hologram/make` takes a filter at construction, the two-name distinction collapses — every `Hologram/get` is filtered-by-its-construction-filter. Slice 1 picks one of:
+Both go away. The user programs the Hologram at construction time —
+the filter func is bound there, used internally for every get. No
+two-name distinction; one `get`, one filter, one decision point.
 
-- (a) Drop both; one `get` with one construction-time filter.
-- (b) Keep both as construction-time filter overrides — useful when one Hologram needs two filtering modes (rare).
+Resolution per the build conversation: *"the user programmed the
+hologram at construction time"* — the filter belongs to the store,
+not to the call site. A consumer who wants two filtering modes
+constructs two Holograms.
 
-Default position: (a). Decide in slice 1.
+### Q2 — Capacity = dim-capacity = sqrt(d)? ✅ resolved (derived)
 
-### Q2 — Capacity = dim-capacity = sqrt(d)?
+Capacity is **explicitly known and derived from d** via the canonical
+`floor(sqrt(d))` map. 10k → 100. Not a free parameter; the function
+determines it.
 
-Arc 074 chose `num_cells = floor(sqrt(d))` to match the algebra grid's resolution. Arc 076's `capacity` is user-chosen at construction — orthogonal to d. Q: does the substrate enforce `capacity == floor(sqrt(d))` for any reason, or is it free?
+Resolution per the build conversation: *"capacity... its explicitly
+known.. its the func who determines the capacity... 10k -> 100."*
 
-Default: **free**. Capacity is a hologram-level decision. The substrate's d is encoder-level. They can differ — Hologram doesn't depend on d for slot math anymore.
+Implication for the API: `Hologram/make` takes the filter and reads
+the ambient dim from the router — no separate capacity argument. The
+form's third arg `(thermometer :float 0 :capacity)` matches the
+store's derived capacity at put / get; mismatch is a `RuntimeError`.
 
 ### Q3 — Therm-form recognition strictness
 

@@ -555,10 +555,20 @@ impl EnvBuilder {
 /// `ScalarEncoder` are pure caches that can be shared across threads.
 #[derive(Clone)]
 pub struct EncodingCtx {
-    /// Per-dim encoder registry. Lazy: encoders at a given d are
-    /// materialized on first request and shared across threads. All
-    /// encoders share `config.global_seed`.
+    /// Per-dim encoder registry. Arc 037-era multi-tier shape; arc 077
+    /// retires the multi-tier story but keeps the registry as the
+    /// underlying encoder cache so consumers transition incrementally.
+    /// In the new world, the registry only ever holds one entry — the
+    /// one at `dim_count`.
     pub encoders: Arc<crate::vm_registry::EncoderRegistry>,
+    /// Arc 077 — the program's encoding dim. Read from
+    /// `Config.dim_count` at freeze; same value for the whole program
+    /// lifetime. All encoder lookups go to `encoders.get(dim_count)`.
+    pub dim_count: usize,
+    /// Arc 077 — capacity of any `:wat::holon::Hologram` constructed
+    /// in this program: `floor(sqrt(dim_count))`. Cached at
+    /// construction.
+    pub capacity: usize,
     pub config: Config,
 }
 
@@ -569,10 +579,21 @@ impl EncodingCtx {
     /// HolonAST (typed leaves), so the dyn-Any payload registry that
     /// once dispatched on `Atom(Arc<dyn Any>)` no longer has work to do.
     pub fn from_config(cfg: &Config) -> Self {
+        let dim_count = cfg.dim_count;
+        let capacity = ((dim_count as f64).sqrt().floor() as usize).max(1);
         EncodingCtx {
             encoders: Arc::new(crate::vm_registry::EncoderRegistry::new(cfg.global_seed)),
+            dim_count,
+            capacity,
             config: cfg.clone(),
         }
+    }
+
+    /// The `Encoders` (vm + scalar) at this program's dim. Replaces
+    /// arc-074-era `ctx.encoders.get(d)` once the d came from the
+    /// router; arc 077 makes the dim ambient.
+    pub fn encoder(&self) -> Arc<crate::vm_registry::Encoders> {
+        self.encoders.get(self.dim_count)
     }
 }
 
@@ -580,7 +601,8 @@ impl fmt::Debug for EncodingCtx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EncodingCtx")
             .field("global_seed", &self.config.global_seed)
-            .field("materialized_dims", &self.encoders.size())
+            .field("dim_count", &self.dim_count)
+            .field("capacity", &self.capacity)
             .finish()
     }
 }
@@ -612,21 +634,16 @@ pub struct SymbolTable {
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
     pub source_loader: Option<Arc<dyn crate::load::SourceLoader>>,
     pub macro_registry: Option<Arc<crate::macros::MacroRegistry>>,
-    /// Ambient dim router — consulted by Atom/Bundle construction
-    /// sites to pick per-construction vector dimension. Attached at
-    /// freeze with the built-in [`crate::dim_router::SizingRouter`];
-    /// user override via `set-dim-router!`.
-    pub dim_router: Option<Arc<dyn crate::dim_router::DimRouter>>,
     /// Ambient presence-sigma function — `:fn(:i64) -> :i64`. Takes
     /// dim, returns σ count. Used by `presence?` to compute the
     /// per-d floor (`σ(d) / sqrt(d)`). Built-in default is
-    /// [`crate::dim_router::DefaultPresenceSigma`]; user override via
+    /// [`crate::sigma::DefaultPresenceSigma`]; user override via
     /// `set-presence-sigma!`.
-    pub presence_sigma_fn: Option<Arc<dyn crate::dim_router::SigmaFn>>,
+    pub presence_sigma_fn: Option<Arc<dyn crate::sigma::SigmaFn>>,
     /// Ambient coincident-sigma function — `:fn(:i64) -> :i64`.
-    /// Built-in default is [`crate::dim_router::DefaultCoincidentSigma`];
+    /// Built-in default is [`crate::sigma::DefaultCoincidentSigma`];
     /// user override via `set-coincident-sigma!`.
-    pub coincident_sigma_fn: Option<Arc<dyn crate::dim_router::SigmaFn>>,
+    pub coincident_sigma_fn: Option<Arc<dyn crate::sigma::SigmaFn>>,
 }
 
 impl std::fmt::Debug for SymbolTable {
@@ -637,7 +654,6 @@ impl std::fmt::Debug for SymbolTable {
             .field("encoding_ctx", &self.encoding_ctx.is_some())
             .field("source_loader", &self.source_loader.is_some())
             .field("macro_registry", &self.macro_registry.is_some())
-            .field("dim_router", &self.dim_router.is_some())
             .field("presence_sigma_fn", &self.presence_sigma_fn.is_some())
             .field("coincident_sigma_fn", &self.coincident_sigma_fn.is_some())
             .finish()
@@ -699,44 +715,31 @@ impl SymbolTable {
         self.macro_registry.as_ref()
     }
 
-    /// Attach the ambient dim router. Called once at freeze time by
-    /// [`crate::freeze::FrozenWorld::freeze`]. Default is
-    /// [`crate::dim_router::SizingRouter::with_default_tiers`].
-    pub fn set_dim_router(&mut self, router: Arc<dyn crate::dim_router::DimRouter>) {
-        self.dim_router = Some(router);
-    }
-
-    /// Borrow the dim router, if one is attached. Atom/Bundle
-    /// construction sites call this to pick dim per construction.
-    pub fn dim_router(&self) -> Option<&Arc<dyn crate::dim_router::DimRouter>> {
-        self.dim_router.as_ref()
-    }
-
     /// Attach the ambient presence-sigma function. Called once at
     /// freeze time with the user's override (from set-presence-sigma!)
-    /// or the built-in [`crate::dim_router::DefaultPresenceSigma`].
+    /// or the built-in [`crate::sigma::DefaultPresenceSigma`].
     pub fn set_presence_sigma_fn(
         &mut self,
-        f: Arc<dyn crate::dim_router::SigmaFn>,
+        f: Arc<dyn crate::sigma::SigmaFn>,
     ) {
         self.presence_sigma_fn = Some(f);
     }
 
     /// Borrow the presence-sigma function. `presence?` calls this.
-    pub fn presence_sigma_fn(&self) -> Option<&Arc<dyn crate::dim_router::SigmaFn>> {
+    pub fn presence_sigma_fn(&self) -> Option<&Arc<dyn crate::sigma::SigmaFn>> {
         self.presence_sigma_fn.as_ref()
     }
 
     /// Attach the ambient coincident-sigma function.
     pub fn set_coincident_sigma_fn(
         &mut self,
-        f: Arc<dyn crate::dim_router::SigmaFn>,
+        f: Arc<dyn crate::sigma::SigmaFn>,
     ) {
         self.coincident_sigma_fn = Some(f);
     }
 
     /// Borrow the coincident-sigma function. `coincident?` calls this.
-    pub fn coincident_sigma_fn(&self) -> Option<&Arc<dyn crate::dim_router::SigmaFn>> {
+    pub fn coincident_sigma_fn(&self) -> Option<&Arc<dyn crate::sigma::SigmaFn>> {
         self.coincident_sigma_fn.as_ref()
     }
 }
@@ -800,21 +803,6 @@ pub enum RuntimeError {
     /// test harnesses that don't go through freeze; the frozen startup
     /// pipeline always installs one.
     NoEncodingCtx { op: String },
-    /// [`SymbolTable`] has no attached dim router. Reachable from
-    /// test harnesses that don't go through freeze; the frozen
-    /// startup pipeline always installs
-    /// [`crate::dim_router::SizingRouter`].
-    NoDimRouter { op: String },
-    /// The ambient router returned `None` for an already-constructed
-    /// operand's immediate arity at a cross-dim comparison site
-    /// (cosine / presence? / coincident? / dot). The operand was
-    /// constructed somehow but the current router considers its
-    /// shape unroutable — likely a router change between construction
-    /// and query, or a non-substrate construction path.
-    DimUnresolvable {
-        op: String,
-        immediate_arity: usize,
-    },
     /// A file-reading primitive (`:wat::eval-file!`, file-path
     /// variants of the verified eval/load forms, `:wat::verify::file-path`
     /// payloads) was invoked but the [`SymbolTable`] has no attached
@@ -969,16 +957,6 @@ impl fmt::Display for RuntimeError {
                 f,
                 "{}: no encoding context attached to SymbolTable; presence / config accessors need a frozen EncodingCtx. Call via the freeze pipeline rather than a bare SymbolTable::new().",
                 op
-            ),
-            RuntimeError::NoDimRouter { op } => write!(
-                f,
-                "{}: no dim router attached to SymbolTable; Atom/Bundle construction needs an ambient router. Call via the freeze pipeline rather than a bare SymbolTable::new().",
-                op
-            ),
-            RuntimeError::DimUnresolvable { op, immediate_arity } => write!(
-                f,
-                "{}: ambient dim router returned :None for an operand with immediate arity {}; cannot pick a target d for cross-dim comparison. Either construct operands that route under the current tier list, or pick a router that accommodates them.",
-                op, immediate_arity
             ),
             RuntimeError::NoSourceLoader { op } => write!(
                 f,
@@ -2380,21 +2358,22 @@ fn dispatch_keyword_head(
         ":wat::holon::presence-floor" => eval_presence_floor(args, env, sym),
         ":wat::holon::coincident-floor" => eval_coincident_floor(args, env, sym),
 
-        // Coordinate-cell store (arc 074 slice 1). Substrate-internal
-        // hand-coded primitive; sibling crate adds the bounded
-        // HologramLRU variant in slice 2.
-        ":wat::holon::Hologram/new" => eval_hologram_new(args, env, sym),
+        // Therm-routed coordinate-cell store (arc 076). The slot is
+        // derived from the form's structure — no caller-supplied pos.
+        // Filter is bound at construction; get is filtered-argmax.
+        ":wat::holon::Hologram/make" => eval_hologram_make(args, env, sym),
         ":wat::holon::Hologram/put" => eval_hologram_put(args, env, sym),
+        ":wat::holon::Hologram/get" => eval_hologram_get(args, env, sym),
+        ":wat::holon::Hologram/find" => eval_hologram_find(args, env, sym),
+        ":wat::holon::Hologram/remove" => eval_hologram_remove(args, env, sym),
         ":wat::holon::Hologram/len" => eval_hologram_len(args, env, sym),
-        ":wat::holon::Hologram/dim" => eval_hologram_dim(args, env, sym),
-        // arc 074 slice 2 prep — surface find-best / remove-at-index /
-        // pos-to-idx so the wat-side HologramLRU composition can
-        // compose them. Hologram/get is now a wat-stdlib wrapper
-        // (wat/holon/Hologram.wat) that calls find-best + filter; the
-        // substrate primitive returns the raw cosine readout triple.
-        ":wat::holon::Hologram/find-best" => eval_hologram_find_best(args, env, sym),
-        ":wat::holon::Hologram/remove-at-index" => eval_hologram_remove_at_index(args, env, sym),
-        ":wat::holon::Hologram/pos-to-idx" => eval_hologram_pos_to_idx(args, env, sym),
+        ":wat::holon::Hologram/capacity" => eval_hologram_capacity(args, env, sym),
+
+        // Therm-form constructor (arc 076 slice 2). Caller passes their
+        // natural domain bounds; the form carries them; the Hologram
+        // applies its own capacity at slot time. No capacity arg —
+        // capacity lives only in the Hologram instance.
+        ":wat::holon::therm-form" => eval_therm_form(args, env, sym),
 
         // Presence — the retrieval primitive per FOUNDATION 1718.
         // Cosine between encoded target and encoded reference. Returns
@@ -2547,9 +2526,10 @@ fn dispatch_keyword_head(
         // coincident? / (statement-length ast) primitives instead.
         // Shimmed here so existing lab code compiles; deprecation
         // arc will sweep callers later.
-        ":wat::config::dims" => eval_config_dims_default_shim(args),
+        ":wat::config::dim-count" => eval_config_dim_count(args, sym),
+        ":wat::config::dim-capacity" => eval_config_dim_capacity(args, sym),
         ":wat::config::global-seed" => eval_config_global_seed(args, sym),
-        ":wat::config::noise-floor" => eval_config_noise_floor_default_shim(args),
+        ":wat::config::noise-floor" => eval_config_noise_floor_default_shim(args, sym),
 
         // Stdlib math — single-method Rust calls packaged at
         // :wat::std::math::* per FOUNDATION-CHANGELOG 2026-04-18.
@@ -6426,7 +6406,7 @@ fn eval_term_matches_q(
     // the template decomposition reads the form's shape and slots/
     // ranges read the same Thermometer leaves in the same pre-order
     // sequence.
-    let d = pick_d_for_pair(OP, &q, &s, sym)?;
+    let d = program_dim(OP, sym)?;
     let ctx = require_encoding_ctx(OP, sym)?;
     let floor = ctx.encoders.get(d).coincident_floor(sym);
     for i in 0..q_slots.len() {
@@ -6504,7 +6484,7 @@ fn eval_coincident_floor(
     Ok(Value::f64(ctx.encoders.get(d as usize).coincident_floor(sym)))
 }
 
-// ─── Arc 074 slice 1 — Hologram<V> ─────────────────────────────────
+// ─── Arc 076 — therm-routed Hologram + filtered-argmax ─────────────
 
 fn require_hologram(
     op: &str,
@@ -6520,16 +6500,29 @@ fn require_hologram(
     }
 }
 
-/// `(:wat::holon::Hologram/new d)` -> `:wat::holon::Hologram<V>`.
-/// Construct a coordinate-cell store sized for encoding dim `d`.
-/// `num_cells = floor(sqrt(d))`. The wat-side `<V>` is phantom; the
-/// runtime carries any Value.
-fn eval_hologram_new(
+fn require_lambda(op: &str, v: Value) -> Result<Arc<Function>, RuntimeError> {
+    match v {
+        Value::wat__core__lambda(f) => Ok(f),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "fn(f64)->bool",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::holon::Hologram/make filter)` -> `:wat::holon::Hologram`.
+/// Construct a therm-routed coordinate-cell store at the program's
+/// ambient encoding dim (read from `EncodingCtx`, configured at
+/// startup via `(:wat::config::set-dim-count! n)`; default 10000).
+/// Capacity = `floor(sqrt(d))`. The filter func is bound for the
+/// lifetime of the store and invoked during every get.
+fn eval_hologram_make(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::holon::Hologram/new";
+    const OP: &str = ":wat::holon::Hologram/make";
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
@@ -6537,92 +6530,25 @@ fn eval_hologram_new(
             got: args.len(),
         });
     }
-    let d = require_i64(OP, eval(&args[0], env, sym)?)?;
-    if d <= 0 {
-        return Err(RuntimeError::MalformedForm {
-            head: OP.into(),
-            reason: format!("d must be positive; got {}", d),
-        });
-    }
-    let h = crate::hologram::Hologram::new(d as usize);
+    let filter = require_lambda(OP, eval(&args[0], env, sym)?)?;
+    let ctx = require_encoding_ctx(OP, sym)?;
+    let h = crate::hologram::Hologram::make(ctx.dim_count, filter);
     Ok(Value::Hologram(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(h),
     )))
 }
 
-/// `(:wat::holon::Hologram/put store pos key val)` -> `:()`.
-/// Insert `(key, val)` at the cell determined by `pos` (in `[0, 100]`).
-/// Existing entry at the same `key` is overwritten. Mutates in place.
+/// `(:wat::holon::Hologram/put store key val)` -> `:()`. Insert
+/// `(key, val)` at the slot determined by `key`'s structure: the first
+/// Thermometer leaf's normalized floor (in `[0, capacity-1]`), or slot
+/// 0 for non-therm forms. Existing entry at the same key is
+/// overwritten. Mutates in place.
 fn eval_hologram_put(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::Hologram/put";
-    if args.len() != 4 {
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 4,
-            got: args.len(),
-        });
-    }
-    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
-    let pos = match eval(&args[1], env, sym)? {
-        Value::f64(x) => x,
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: OP.into(),
-                expected: "f64",
-                got: other.type_name(),
-            });
-        }
-    };
-    let key = match eval(&args[2], env, sym)? {
-        Value::holon__HolonAST(h) => (*h).clone(),
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::holon::HolonAST",
-                got: other.type_name(),
-            });
-        }
-    };
-    let val = match eval(&args[3], env, sym)? {
-        Value::holon__HolonAST(h) => (*h).clone(),
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: OP.into(),
-                expected: "wat::holon::HolonAST",
-                got: other.type_name(),
-            });
-        }
-    };
-    store.with_mut(OP, |s| {
-        let idx = crate::hologram::pos_to_cell_index(OP, pos, s.num_cells())?;
-        s.put_at_index(idx, key, val);
-        Ok::<(), RuntimeError>(())
-    })??;
-    Ok(Value::Unit)
-}
-
-/// `(:wat::holon::Hologram/find-best store pos probe)` ->
-/// `:Option<(wat::holon::HolonAST, wat::holon::HolonAST, f64)>`.
-///
-/// The substrate's cosine-readout primitive: walk the two cells around
-/// `pos` (or one, if pos lies cleanly inside a cell), encode each
-/// stored key, compute cosine against probe-as-vector, return the
-/// highest-cosine entry as `(matched_key, val, cosine)`. None when the
-/// spread cells are empty.
-///
-/// Filter application happens at the wat-stdlib layer (Hologram/get,
-/// HologramLRU/get, etc. compose this with `(filter cos)`); the
-/// substrate primitive is filter-agnostic.
-fn eval_hologram_find_best(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::holon::Hologram/find-best";
     if args.len() != 3 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
@@ -6631,17 +6557,51 @@ fn eval_hologram_find_best(
         });
     }
     let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
-    let pos = match eval(&args[1], env, sym)? {
-        Value::f64(x) => x,
+    let key = match eval(&args[1], env, sym)? {
+        Value::holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
-                expected: "f64",
+                expected: "wat::holon::HolonAST",
                 got: other.type_name(),
             });
         }
     };
-    let probe = match eval(&args[2], env, sym)? {
+    let val = match eval(&args[2], env, sym)? {
+        Value::holon__HolonAST(h) => (*h).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST",
+                got: other.type_name(),
+            });
+        }
+    };
+    store.with_mut(OP, |s| s.put(key, val))?;
+    Ok(Value::Unit)
+}
+
+/// `(:wat::holon::Hologram/get store probe)` -> `:Option<HolonAST>`.
+/// Filtered-argmax over the bracket-pair determined by `probe`'s
+/// structure. Therm probes scan two adjacent slots (floor + ceil);
+/// non-therm probes scan slot 0. The construction-time filter
+/// validates each candidate's cosine; the highest-cosine accepted
+/// candidate's val is returned.
+fn eval_hologram_get(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Hologram/get";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
+    let probe = match eval(&args[1], env, sym)? {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -6651,59 +6611,83 @@ fn eval_hologram_find_best(
             });
         }
     };
-    let router = require_dim_router(OP, sym)?;
-    let d = router
-        .pick(&probe, sym)
-        .ok_or_else(|| RuntimeError::DimUnresolvable {
-            op: OP.into(),
-            immediate_arity: crate::dim_router::immediate_arity(&probe),
-        })?;
     let ctx = require_encoding_ctx(OP, sym)?;
-    let enc = ctx.encoders.get(d);
-    let probe_vec = holon::encode(&probe, &enc.vm, &enc.scalar);
-
-    let best = store.with_ref(OP, |s| {
-        s.find_best(OP, pos, &probe_vec, &ctx.encoders)
+    let span = crate::rust_caller_span!();
+    let result = store.with_ref(OP, |s| {
+        s.get(&probe, sym, span.clone(), &ctx.encoders)
     })??;
-    match best {
-        Some((key, val, cos)) => Ok(Value::Option(Arc::new(Some(Value::Tuple(
-            Arc::new(vec![
-                Value::holon__HolonAST(Arc::new(key)),
-                Value::holon__HolonAST(Arc::new(val)),
-                Value::f64(cos),
-            ]),
+    match result {
+        Some(val) => Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+            Arc::new(val),
         ))))),
         None => Ok(Value::Option(Arc::new(None))),
     }
 }
 
-/// `(:wat::holon::Hologram/remove-at-index store idx key)` ->
-/// `:Option<wat::holon::HolonAST>`. Drop the entry at `cells[idx]`
-/// keyed by `key`. Returns the previously-stored val if the entry
-/// existed, else None. Used by bounded variants (HologramLRU) when
-/// the LRU sidecar evicts a key.
-fn eval_hologram_remove_at_index(
+/// `(:wat::holon::Hologram/find store probe)` ->
+/// `:Option<(wat::holon::HolonAST, wat::holon::HolonAST)>`.
+/// Same lookup as `Hologram/get` but returns both the matched key
+/// AND the val. HologramLRU and consumers that need the matched key
+/// for downstream bookkeeping (LRU bumps, eviction) compose this;
+/// the user-facing call is `Hologram/get` which discards the key.
+fn eval_hologram_find(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::holon::Hologram/remove-at-index";
-    if args.len() != 3 {
+    const OP: &str = ":wat::holon::Hologram/find";
+    if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
-            expected: 3,
+            expected: 2,
             got: args.len(),
         });
     }
     let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
-    let idx = require_i64(OP, eval(&args[1], env, sym)?)?;
-    if idx < 0 {
-        return Err(RuntimeError::MalformedForm {
-            head: OP.into(),
-            reason: format!("idx must be non-negative; got {}", idx),
+    let probe = match eval(&args[1], env, sym)? {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST",
+                got: other.type_name(),
+            });
+        }
+    };
+    let ctx = require_encoding_ctx(OP, sym)?;
+    let span = crate::rust_caller_span!();
+    let result = store.with_ref(OP, |s| {
+        s.find(&probe, sym, span.clone(), &ctx.encoders)
+    })??;
+    match result {
+        Some((k, v)) => Ok(Value::Option(Arc::new(Some(Value::Tuple(Arc::new(vec![
+            Value::holon__HolonAST(Arc::new(k)),
+            Value::holon__HolonAST(Arc::new(v)),
+        ])))))),
+        None => Ok(Value::Option(Arc::new(None))),
+    }
+}
+
+/// `(:wat::holon::Hologram/remove store key)` ->
+/// `:Option<wat::holon::HolonAST>`. Drop the entry whose key matches
+/// `key` exactly. Returns the previously-stored val if present, else
+/// None. HologramLRU calls this on LRU eviction to keep the inner
+/// Hologram in sync.
+fn eval_hologram_remove(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::Hologram/remove";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
         });
     }
-    let key = match eval(&args[2], env, sym)? {
+    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
+    let key = match eval(&args[1], env, sym)? {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::TypeMismatch {
@@ -6713,19 +6697,7 @@ fn eval_hologram_remove_at_index(
             });
         }
     };
-    let removed = store.with_mut(OP, |s| {
-        let n = s.num_cells();
-        if (idx as usize) >= n {
-            return Err(RuntimeError::MalformedForm {
-                head: OP.into(),
-                reason: format!(
-                    "idx out of range; got {}, num_cells = {}",
-                    idx, n
-                ),
-            });
-        }
-        Ok(s.remove_at_index(idx as usize, &key))
-    })??;
+    let removed = store.with_mut(OP, |s| s.remove(&key))?;
     match removed {
         Some(val) => Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
             Arc::new(val),
@@ -6734,42 +6706,8 @@ fn eval_hologram_remove_at_index(
     }
 }
 
-/// `(:wat::holon::Hologram/pos-to-idx store pos)` -> `:i64`. Map a
-/// user-supplied `pos: f64` (in `[0, 100]`) to the cell index this
-/// store would use for it. Wat-stdlib HologramLRU consumers call this
-/// to record the LRU's value (cell idx) when inserting.
-fn eval_hologram_pos_to_idx(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::holon::Hologram/pos-to-idx";
-    if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len(),
-        });
-    }
-    let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
-    let pos = match eval(&args[1], env, sym)? {
-        Value::f64(x) => x,
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: OP.into(),
-                expected: "f64",
-                got: other.type_name(),
-            });
-        }
-    };
-    let idx = store.with_ref(OP, |s| {
-        crate::hologram::pos_to_cell_index(OP, pos, s.num_cells())
-    })??;
-    Ok(Value::i64(idx as i64))
-}
-
 /// `(:wat::holon::Hologram/len store)` -> `:i64`. Total entries
-/// across all cells.
+/// across all slots.
 fn eval_hologram_len(
     args: &[WatAST],
     env: &Environment,
@@ -6788,17 +6726,16 @@ fn eval_hologram_len(
     Ok(Value::i64(n))
 }
 
-/// `(:wat::holon::Hologram/dim store)` -> `:i64`. Returns the encoding
-/// dimension `d` the store was built against. Surfaces the d that
-/// `Hologram/new` consumed so wat-stdlib convenience getters
-/// (`present-get`, `coincident-get`) can compose `filter-present` /
-/// `filter-coincident` without the caller passing d explicitly.
-fn eval_hologram_dim(
+/// `(:wat::holon::Hologram/capacity store)` -> `:i64`. Slot count for
+/// the store, derived from construction d as `floor(sqrt(d))`. Useful
+/// for callers building therm-form constructors against the same
+/// capacity.
+fn eval_hologram_capacity(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::holon::Hologram/dim";
+    const OP: &str = ":wat::holon::Hologram/capacity";
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
@@ -6807,8 +6744,76 @@ fn eval_hologram_dim(
         });
     }
     let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
-    let d = store.with_ref(OP, |s| s.dim() as i64)?;
-    Ok(Value::i64(d))
+    let cap = store.with_ref(OP, |s| s.capacity() as i64)?;
+    Ok(Value::i64(cap))
+}
+
+/// `(:wat::holon::therm-form low high value)` -> `:wat::holon::HolonAST`.
+/// Construct a Thermometer leaf in the caller's natural domain
+/// `[low, high]`. The value is clamped into the domain (OOB collapses
+/// to the boundary). The form carries low/high as min/max; the
+/// Hologram applies its own capacity at slot routing time, so capacity
+/// never crosses this call site.
+fn eval_therm_form(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::therm-form";
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+        });
+    }
+    let low = match eval(&args[0], env, sym)? {
+        Value::f64(x) => x,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "f64",
+                got: other.type_name(),
+            });
+        }
+    };
+    let high = match eval(&args[1], env, sym)? {
+        Value::f64(x) => x,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "f64",
+                got: other.type_name(),
+            });
+        }
+    };
+    let value = match eval(&args[2], env, sym)? {
+        Value::f64(x) => x,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "f64",
+                got: other.type_name(),
+            });
+        }
+    };
+    if !low.is_finite() || !high.is_finite() || low >= high {
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!("require finite low < high; got low={}, high={}", low, high),
+        });
+    }
+    let clamped = if !value.is_finite() {
+        low
+    } else {
+        value.clamp(low, high)
+    };
+    let ast = HolonAST::Thermometer {
+        value: clamped,
+        min: low,
+        max: high,
+    };
+    Ok(Value::holon__HolonAST(Arc::new(ast)))
 }
 
 fn holon_to_watast(h: &HolonAST) -> WatAST {
@@ -6990,34 +6995,16 @@ fn eval_algebra_bundle(
     // Clone-on-use this is cheap; the AST is Arc-shared through
     // HolonAST's internal structure.
     let bundle_ast = HolonAST::bundle(children);
-    let router = require_dim_router(":wat::holon::Bundle", sym)?;
-    let picked = router.pick(&bundle_ast, sym);
-
-    // Capacity-mode still lives on the EncodingCtx (it's orthogonal
-    // to dim selection — the permanent user override arc 037 keeps).
     let ctx = require_encoding_ctx(":wat::holon::Bundle", sym)?;
     let mode = ctx.config.capacity_mode;
+    let d = ctx.dim_count;
 
-    // (bundle_ast built above before router.pick was called.)
-
-    // Overflow surfaces when the router returned None (no tier fits)
-    // OR when cost exceeds the picked tier's budget. At the default
-    // sizing router the two coincide: sqrt(picked_d) >= cost is the
-    // pick rule. A user router that returned Some(d) with
-    // sqrt(d) < cost is honored but then errors via the budget check.
-    let overflowed = match picked {
-        None => true,
-        Some(d) => cost > (d as f64).sqrt().floor() as usize,
-    };
-
-    if overflowed {
-        let (cost_i, budget_i) = match picked {
-            Some(d) => (cost as i64, (d as f64).sqrt().floor() as i64),
-            // No tier fits — report largest-tier budget via None
-            // signal in CapacityExceeded. Using 0 as budget makes the
-            // "no tier fits" case unambiguous to downstream handlers.
-            None => (cost as i64, 0),
-        };
+    // Arc 077: capacity check is against the program's d.
+    // Budget = floor(sqrt(d)). Overflow when cost exceeds that.
+    let budget = (d as f64).sqrt().floor() as usize;
+    if cost > budget {
+        let cost_i = cost as i64;
+        let budget_i = budget as i64;
         match mode {
             crate::config::CapacityMode::Error => {
                 let err = Value::Struct(Arc::new(StructValue {
@@ -7027,17 +7014,14 @@ fn eval_algebra_bundle(
                 return Ok(Value::Result(Arc::new(Err(err))));
             }
             crate::config::CapacityMode::Panic => {
-                // Fail-closed via Rust's panic!() macro (which unwinds).
-                // The bad frame never leaves the dispatcher.
                 panic!(
-                    ":wat::holon::Bundle: capacity exceeded under :panic — cost {} > budget {} (router picked d={:?})",
-                    cost_i, budget_i, picked
+                    ":wat::holon::Bundle: capacity exceeded under :panic — cost {} > budget {} (d={})",
+                    cost_i, budget_i, d
                 );
             }
         }
     }
 
-    // Ok path — router picked a tier and cost fits within its budget.
     let ok = Value::holon__HolonAST(Arc::new(bundle_ast));
     Ok(Value::Result(Arc::new(Ok(ok))))
 }
@@ -7183,7 +7167,7 @@ fn pair_values_to_vectors(
             Ok((va, vb.as_ref().clone()))
         }
         (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => {
-            let d = pick_d_for_pair(op, &a, &b, sym)?;
+            let d = program_dim(op, sym)?;
             let enc = ctx.encoders.get(d);
             let va = encode(&a, &enc.vm, &enc.scalar);
             let vb = encode(&b, &enc.vm, &enc.scalar);
@@ -7260,7 +7244,7 @@ fn eval_algebra_presence_q(
     // slack-lemma). Using config.presence_sigma directly would
     // over-threshold at smaller d (sigma was calibrated at
     // config.dims).
-    let d = pick_d_for_pair(":wat::holon::presence?", &target, &reference, sym)?;
+    let d = program_dim(":wat::holon::presence?", sym)?;
     let enc = ctx.encoders.get(d);
     let vt = encode(&target, &enc.vm, &enc.scalar);
     let vr = encode(&reference, &enc.vm, &enc.scalar);
@@ -7468,7 +7452,7 @@ fn coincident_of_two_values(
     let ctx = require_encoding_ctx(op, sym)?;
     // Arc 037 slice 3: normalize UP via ambient router. Coincident
     // floor at actual encoding d.
-    let d = pick_d_for_pair(op, &holon_a, &holon_b, sym)?;
+    let d = program_dim(op, sym)?;
     let enc = ctx.encoders.get(d);
     let va = encode(&holon_a, &enc.vm, &enc.scalar);
     let vb = encode(&holon_b, &enc.vm, &enc.scalar);
@@ -7685,7 +7669,19 @@ fn eval_holon_statement_length(
         });
     }
     let ast = require_holon(":wat::holon::statement-length", eval(&args[0], env, sym)?)?;
-    let n = crate::dim_router::immediate_arity(&ast);
+    let n = match &*ast {
+        HolonAST::Symbol(_)
+        | HolonAST::String(_)
+        | HolonAST::I64(_)
+        | HolonAST::F64(_)
+        | HolonAST::Bool(_)
+        | HolonAST::Atom(_)
+        | HolonAST::Permute(_, _)
+        | HolonAST::Thermometer { .. }
+        | HolonAST::SlotMarker { .. } => 1,
+        HolonAST::Bind(_, _) | HolonAST::Blend(_, _, _, _) => 2,
+        HolonAST::Bundle(children) => children.len(),
+    };
     Ok(Value::i64(n as i64))
 }
 
@@ -7758,14 +7754,7 @@ fn eval_algebra_simhash(
             (vec.as_ref().clone(), ctx.encoders.get(d))
         }
         Value::holon__HolonAST(ast) => {
-            let router = require_dim_router(":wat::holon::simhash", sym)?;
-            let d = router
-                .pick(&ast, sym)
-                .ok_or_else(|| RuntimeError::DimUnresolvable {
-                    op: ":wat::holon::simhash".into(),
-                    immediate_arity: crate::dim_router::immediate_arity(&ast),
-                })?;
-            let enc = ctx.encoders.get(d);
+            let enc = ctx.encoders.get(ctx.dim_count);
             let v = encode(&ast, &enc.vm, &enc.scalar);
             (v, enc)
         }
@@ -7819,14 +7808,7 @@ fn eval_holon_encode(
     }
     let target = require_holon(":wat::holon::encode", eval(&args[0], env, sym)?)?;
     let ctx = require_encoding_ctx(":wat::holon::encode", sym)?;
-    let router = require_dim_router(":wat::holon::encode", sym)?;
-    let d = router
-        .pick(&target, sym)
-        .ok_or_else(|| RuntimeError::DimUnresolvable {
-            op: ":wat::holon::encode".into(),
-            immediate_arity: crate::dim_router::immediate_arity(&target),
-        })?;
-    let enc = ctx.encoders.get(d);
+    let enc = ctx.encoders.get(ctx.dim_count);
     let v = encode(&target, &enc.vm, &enc.scalar);
     Ok(Value::Vector(Arc::new(v)))
 }
@@ -9636,41 +9618,12 @@ fn require_encoding_ctx<'a>(
         .ok_or_else(|| RuntimeError::NoEncodingCtx { op: op.into() })
 }
 
-fn require_dim_router<'a>(
-    op: &'static str,
-    sym: &'a SymbolTable,
-) -> Result<&'a Arc<dyn crate::dim_router::DimRouter>, RuntimeError> {
-    sym.dim_router()
-        .ok_or_else(|| RuntimeError::NoDimRouter { op: op.into() })
-}
-
-/// Pick the target dim for a cross-dim pair comparison (cosine /
-/// presence? / coincident? / dot). Normalize UP: consult the ambient
-/// router for each operand's AST, take the max. Both operands
-/// re-encode at this d — the greater d has headroom (arc 037
-/// slice 3 design).
-///
-/// Returns `DimUnresolvable` if the router can't size either operand.
-fn pick_d_for_pair(
-    op: &'static str,
-    a: &HolonAST,
-    b: &HolonAST,
-    sym: &SymbolTable,
-) -> Result<usize, RuntimeError> {
-    let router = require_dim_router(op, sym)?;
-    let d_a = router
-        .pick(a, sym)
-        .ok_or_else(|| RuntimeError::DimUnresolvable {
-            op: op.into(),
-            immediate_arity: crate::dim_router::immediate_arity(a),
-        })?;
-    let d_b = router
-        .pick(b, sym)
-        .ok_or_else(|| RuntimeError::DimUnresolvable {
-            op: op.into(),
-            immediate_arity: crate::dim_router::immediate_arity(b),
-        })?;
-    Ok(d_a.max(d_b))
+/// Arc 077: the program runs at one d. Read it from the ambient
+/// `EncodingCtx`. Returns `NoEncodingCtx` if no ctx is attached
+/// (test harnesses that bypass freeze).
+fn program_dim(op: &'static str, sym: &SymbolTable) -> Result<usize, RuntimeError> {
+    let ctx = require_encoding_ctx(op, sym)?;
+    Ok(ctx.dim_count)
 }
 
 fn check_nullary(op: &'static str, args: &[WatAST]) -> Result<(), RuntimeError> {
@@ -9684,27 +9637,54 @@ fn check_nullary(op: &'static str, args: &[WatAST]) -> Result<(), RuntimeError> 
     Ok(())
 }
 
-/// `(:wat::config::dims)` — arc 037 slice 6 compatibility shim.
-/// Returns the smallest tier from [`crate::dim_router::DEFAULT_TIERS`]
-/// (typically 256). Semantically stale under multi-d; prefer
-/// `(:wat::holon::statement-length ast)` and let the router decide.
-fn eval_config_dims_default_shim(args: &[WatAST]) -> Result<Value, RuntimeError> {
-    check_nullary(":wat::config::dims", args)?;
-    let d = *crate::dim_router::DEFAULT_TIERS
-        .first()
-        .expect("DEFAULT_TIERS non-empty");
-    Ok(Value::i64(d as i64))
+/// `(:wat::config::dim-count)` -> `:i64`. The program's encoding dim,
+/// set once at startup via `(:wat::config::set-dim-count! n)`;
+/// defaults to [`crate::config::DEFAULT_DIMS`] (10000) when no
+/// encoding ctx is attached (test harnesses bypassing the freeze
+/// pipeline).
+fn eval_config_dim_count(
+    args: &[WatAST],
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    check_nullary(":wat::config::dim-count", args)?;
+    match sym.encoding_ctx() {
+        Some(ctx) => Ok(Value::i64(ctx.dim_count as i64)),
+        None => Ok(Value::i64(crate::config::DEFAULT_DIM_COUNT as i64)),
+    }
 }
 
-/// `(:wat::config::noise-floor)` — arc 037 slice 6 compatibility
-/// shim. Returns `1/sqrt(DEFAULT_TIERS[0])`. Semantically stale under
-/// multi-d; per-d noise-floor is computed internally by presence? /
-/// coincident?. Prefer those over hand-rolled threshold comparisons.
-fn eval_config_noise_floor_default_shim(args: &[WatAST]) -> Result<Value, RuntimeError> {
+/// `(:wat::config::dim-capacity)` -> `:i64`. Hologram-slot count for
+/// this program: `floor(sqrt(dim-count))`. Cached at freeze; reads
+/// from `EncodingCtx`. Falls back to the default-derived value when
+/// no encoding ctx is attached.
+fn eval_config_dim_capacity(
+    args: &[WatAST],
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    check_nullary(":wat::config::dim-capacity", args)?;
+    match sym.encoding_ctx() {
+        Some(ctx) => Ok(Value::i64(ctx.capacity as i64)),
+        None => {
+            let d = crate::config::DEFAULT_DIM_COUNT;
+            let cap = ((d as f64).sqrt().floor() as usize).max(1);
+            Ok(Value::i64(cap as i64))
+        }
+    }
+}
+
+/// `(:wat::config::noise-floor)` — `1/sqrt(dim-count)` at the
+/// program's d. Held for legacy callers; per-d noise-floor is also
+/// computed internally by presence? / coincident? against the same
+/// program-d.
+fn eval_config_noise_floor_default_shim(
+    args: &[WatAST],
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
     check_nullary(":wat::config::noise-floor", args)?;
-    let d = *crate::dim_router::DEFAULT_TIERS
-        .first()
-        .expect("DEFAULT_TIERS non-empty");
+    let d = match sym.encoding_ctx() {
+        Some(ctx) => ctx.dim_count,
+        None => crate::config::DEFAULT_DIM_COUNT,
+    };
     Ok(Value::f64(1.0 / (d as f64).sqrt()))
 }
 
@@ -13504,27 +13484,20 @@ mod tests {
     /// Build a SymbolTable with an EncodingCtx attached — mirrors what
     /// `FrozenWorld::freeze` does. Needed for tests exercising presence
     /// or config accessors without running the full startup pipeline.
-    fn test_sym_with_ctx(dims: usize) -> SymbolTable {
+    fn test_sym_with_ctx(dim_count: usize) -> SymbolTable {
         let cfg = Config {
             capacity_mode: crate::config::CapacityMode::Error,
             global_seed: 42,
-            dim_router_ast: None,
+            dim_count,
             presence_sigma_ast: None,
             coincident_sigma_ast: None,
         };
         let mut sym = SymbolTable::new();
         sym.set_encoding_ctx(Arc::new(EncodingCtx::from_config(&cfg)));
-        // Arc 037: ambient router. Single-tier at the requested dims
-        // preserves pre-arc-037 test intent ("at d=1024, budget=32").
-        // Tests exercising multi-tier behavior build their own sym.
-        sym.set_dim_router(Arc::new(
-            crate::dim_router::SizingRouter::with_tiers(vec![dims]),
-        ));
-        // Arc 037 slice 6: install default sigma fns (mirror what
-        // freeze does). Tests that want to override build their own
-        // SymbolTable with WatLambdaSigmaFn.
-        sym.set_presence_sigma_fn(Arc::new(crate::dim_router::DefaultPresenceSigma));
-        sym.set_coincident_sigma_fn(Arc::new(crate::dim_router::DefaultCoincidentSigma));
+        // Arc 077: dim router retired; program-d lives in EncodingCtx.
+        // Tests still install the default sigma fns to mirror freeze.
+        sym.set_presence_sigma_fn(Arc::new(crate::sigma::DefaultPresenceSigma));
+        sym.set_coincident_sigma_fn(Arc::new(crate::sigma::DefaultCoincidentSigma));
         sym
     }
 
@@ -17430,15 +17403,12 @@ mod tests {
         sym.set_encoding_ctx(Arc::new(EncodingCtx::from_config(&Config {
             capacity_mode: crate::config::CapacityMode::Error,
             global_seed: 42,
-            dim_router_ast: None,
+            dim_count: dims,
             presence_sigma_ast: None,
             coincident_sigma_ast: None,
         })));
-        sym.set_dim_router(Arc::new(
-            crate::dim_router::SizingRouter::with_tiers(vec![dims]),
-        ));
-        sym.set_presence_sigma_fn(Arc::new(crate::dim_router::DefaultPresenceSigma));
-        sym.set_coincident_sigma_fn(Arc::new(crate::dim_router::DefaultCoincidentSigma));
+        sym.set_presence_sigma_fn(Arc::new(crate::sigma::DefaultPresenceSigma));
+        sym.set_coincident_sigma_fn(Arc::new(crate::sigma::DefaultCoincidentSigma));
         let rest = register_defines(expanded, &mut sym)?;
         let env = Environment::new();
         let mut last = Value::Unit;

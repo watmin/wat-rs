@@ -1,17 +1,15 @@
 //! Per-dim encoder registry.
 //!
-//! Arc 037 slice 3. Under multi-dim routing, each construction site
-//! picks its own d via the ambient [`crate::dim_router::DimRouter`].
-//! The actual vector materialization then needs a
-//! `holon::VectorManager` AND `holon::ScalarEncoder` at that specific
-//! d. Both upstream types are locked to a single dim at construction
-//! time (`with_seed(d, seed)`) — changing d requires building a new
-//! instance.
+//! Arc 037 slice 3 / arc 077 — registry was originally per-router-d;
+//! arc 077 retired the router so the registry now only ever holds
+//! one entry, the encoder at the program's `dim_count` (carried on
+//! `EncodingCtx`). The HashMap shape stays as a small caching detail.
 //!
-//! [`EncoderRegistry`] wraps the upstream types in a lazy HashMap
-//! keyed by d, all sharing the same `global_seed`. Same atom at d=256
-//! produces a different-but-deterministic vector than at d=4096; the
-//! registry ensures every node in a distributed cloud agrees on both.
+//! [`EncoderRegistry`] wraps the upstream types (`holon::VectorManager`,
+//! `holon::ScalarEncoder`) in a lazy HashMap keyed by d, all sharing
+//! the same `global_seed`. Same atom at d=256 produces a different-
+//! but-deterministic vector than at d=4096; the registry ensures
+//! every node in a distributed cloud agrees on both.
 //!
 //! [`Encoders`] holds the (VM, Scalar) pair at a single d — the unit
 //! the `holon::encode` function consumes. `registry.get(d)` returns

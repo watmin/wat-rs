@@ -60,7 +60,7 @@ pub mod ast;
 pub mod check;
 pub mod compose;
 pub mod config;
-pub mod dim_router;
+pub mod sigma;
 pub mod fork;
 pub mod harness;
 pub mod freeze;
@@ -97,7 +97,7 @@ pub use check::{check_program, CheckEnv, CheckError, CheckErrors, TypeScheme};
 pub use config::{
     collect_entry_file, collect_entry_file_with_inherit, CapacityMode, Config, ConfigError,
 };
-pub use dim_router::{DimRouter, SizingRouter, DEFAULT_TIERS};
+pub use sigma::{DefaultCoincidentSigma, DefaultPresenceSigma, SigmaFn, WatLambdaSigmaFn};
 pub use vm_registry::{Encoders, EncoderRegistry};
 pub use freeze::{
     eval_digest_in_frozen, eval_in_frozen, eval_signed_in_frozen, invoke_user_main,

@@ -110,87 +110,14 @@ impl FrozenWorld {
         // access to the frozen macro registry.
         symbols.set_macro_registry(Arc::new(macros.clone()));
 
-        // Arc 037 slice 1 layer 3: install the built-in default router
-        // first. If the entry file committed a user router via
-        // set-dim-router!, we'll override below. Installing the
-        // default first means the rest of this method can safely run
-        // ops that might transitively consult the router (e.g.,
-        // evaluating the user router AST via a primitive that
-        // constructs an Atom under the hood).
-        symbols.set_dim_router(Arc::new(
-            crate::dim_router::SizingRouter::with_default_tiers(),
-        ));
-
-        // Arc 037 slice 4: if the user supplied a dim router AST,
-        // evaluate it against the frozen world's symbols and install
-        // the result. Any AST that reduces to a function value works
-        // — a keyword path names-are-values into the function, a
-        // lambda expression constructs one, a let-bound expression
-        // produces whichever function value the user composed.
-        if let Some(router_ast) = config.dim_router_ast.clone() {
-            let env = crate::runtime::Environment::new();
-            let v = crate::runtime::eval(&router_ast, &env, &symbols).map_err(|e| {
-                StartupError::DimRouter(format!(
-                    "set-dim-router! body failed to evaluate: {}",
-                    e
-                ))
-            })?;
-            let func = match v {
-                crate::runtime::Value::wat__core__lambda(f) => f,
-                other => {
-                    return Err(StartupError::DimRouter(format!(
-                        "set-dim-router! expected a function value; got {}",
-                        other.type_name()
-                    )));
-                }
-            };
-            // Arity check: exactly one parameter.
-            if func.params.len() != 1 {
-                return Err(StartupError::DimRouter(format!(
-                    "set-dim-router! function must take exactly 1 argument (got {})",
-                    func.params.len()
-                )));
-            }
-            // Signature type check: :fn(:wat::holon::HolonAST) -> :Option<i64>.
-            // The param's declared type must be HolonAST (the router
-            // is "what dim is best for this AST's surface?"); the
-            // return must be :Option<i64>. Lambdas that lack declared
-            // types (param_types empty) skip this check — they get a
-            // runtime error instead if their produced values don't
-            // match the Option<i64> shape.
-            if !func.param_types.is_empty() {
-                let expected_param = crate::types::TypeExpr::Path(":wat::holon::HolonAST".into());
-                if func.param_types[0] != expected_param {
-                    return Err(StartupError::DimRouter(format!(
-                        "set-dim-router! function param must be :wat::holon::HolonAST; got {:?}",
-                        func.param_types[0]
-                    )));
-                }
-                let expected_ret = crate::types::TypeExpr::Parametric {
-                    head: "Option".into(),
-                    args: vec![crate::types::TypeExpr::Path(":i64".into())],
-                };
-                if func.ret_type != expected_ret {
-                    return Err(StartupError::DimRouter(format!(
-                        "set-dim-router! function return type must be :Option<i64>; got {:?}",
-                        func.ret_type
-                    )));
-                }
-            }
-            let path = func
-                .name
-                .clone()
-                .unwrap_or_else(|| "<lambda>".to_string());
-            symbols.set_dim_router(Arc::new(
-                crate::dim_router::WatLambdaRouter { path, func },
-            ));
-        }
+        // Arc 077: the dim router is retired. Program-d lives in
+        // `EncodingCtx.dim_count` set above; no router to install.
 
         // Arc 037 slice 6: install built-in default sigma functions.
         // User overrides via set-presence-sigma! / set-coincident-sigma!
         // replace these below.
-        symbols.set_presence_sigma_fn(Arc::new(crate::dim_router::DefaultPresenceSigma));
-        symbols.set_coincident_sigma_fn(Arc::new(crate::dim_router::DefaultCoincidentSigma));
+        symbols.set_presence_sigma_fn(Arc::new(crate::sigma::DefaultPresenceSigma));
+        symbols.set_coincident_sigma_fn(Arc::new(crate::sigma::DefaultCoincidentSigma));
 
         // Install user-supplied presence-sigma function if present.
         if let Some(sigma_ast) = config.presence_sigma_ast.clone() {
@@ -215,7 +142,7 @@ impl FrozenWorld {
                 .name
                 .clone()
                 .unwrap_or_else(|| "<lambda>".to_string());
-            symbols.set_presence_sigma_fn(Arc::new(crate::dim_router::WatLambdaSigmaFn {
+            symbols.set_presence_sigma_fn(Arc::new(crate::sigma::WatLambdaSigmaFn {
                 path,
                 func,
             }));
@@ -244,7 +171,7 @@ impl FrozenWorld {
                 .name
                 .clone()
                 .unwrap_or_else(|| "<lambda>".to_string());
-            symbols.set_coincident_sigma_fn(Arc::new(crate::dim_router::WatLambdaSigmaFn {
+            symbols.set_coincident_sigma_fn(Arc::new(crate::sigma::WatLambdaSigmaFn {
                 path,
                 func,
             }));
@@ -301,11 +228,6 @@ pub enum StartupError {
     /// validated by `cargo test` — but surfaces cleanly if someone
     /// ships a malformed stdlib file.
     Stdlib(StdlibError),
-    /// `(:wat::config::set-dim-router! <expr>)` committed an AST that
-    /// did not evaluate to a function value at freeze, or whose
-    /// signature did not match
-    /// `:fn(:wat::holon::HolonAST) -> :Option<i64>`.
-    DimRouter(String),
     /// `(:wat::config::set-presence-sigma! <expr>)` or
     /// `(:wat::config::set-coincident-sigma! <expr>)` committed an AST
     /// that did not evaluate to a function value at freeze, or whose
@@ -325,7 +247,6 @@ impl fmt::Display for StartupError {
             StartupError::Check(e) => write!(f, "check:\n{}", e),
             StartupError::Runtime(e) => write!(f, "registration: {}", e),
             StartupError::Stdlib(e) => write!(f, "stdlib: {}", e),
-            StartupError::DimRouter(msg) => write!(f, "dim-router: {}", msg),
             StartupError::SigmaFn(msg) => write!(f, "sigma-fn: {}", msg),
         }
     }
