@@ -93,6 +93,14 @@ impl WatLruCache {
         });
         self.inner.get(&key).cloned()
     }
+
+    /// `:rust::lru::LruCache::len cache` — current entry count.
+    /// Read-only; does not affect LRU order. Used by telemetry to
+    /// emit cache-size metrics (lab umbrella 059's L1/L2 cache
+    /// service programs flush this through rundb on a rate gate).
+    pub fn len(&self) -> i64 {
+        self.inner.len() as i64
+    }
 }
 
 /// Registrar for `:rust::lru::LruCache`. Forwards to the macro-

@@ -45,3 +45,12 @@
     (k :K)
     -> :Option<V>)
   (:rust::lru::LruCache::get cache k))
+
+;; `:wat::lru::LocalCache::len cache` — current entry count. Read-only;
+;; does not affect LRU order. Lab cache services (umbrella 059
+;; slice 1) emit this through rundb telemetry on a rate gate.
+(:wat::core::define
+  (:wat::lru::LocalCache::len<K,V>
+    (cache :wat::lru::LocalCache<K,V>)
+    -> :i64)
+  (:rust::lru::LruCache::len cache))
