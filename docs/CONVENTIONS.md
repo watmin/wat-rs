@@ -423,9 +423,12 @@ the arity and side-effects from the suffix alone.
 (:wat::holon::lru::HologramCache/make filter cap)
 
 ;; Type/spawn — factory that ALSO spawns a driver thread
-(:wat::lru::CacheService/spawn capacity count)        ; -> CacheService::Spawn<K,V>
-(:wat::std::service::Console/spawn stdout stderr 4)   ; -> Console::Spawn
-(:trading::cache::Service/spawn count cap)            ; -> Spawn (lab-side alias)
+(:wat::lru::CacheService/spawn capacity count reporter metrics-cadence)
+   ; -> CacheService::Spawn<K,V>
+(:wat::std::service::Console/spawn stdout stderr 4)
+   ; -> Console::Spawn
+(:wat::holon::lru::HologramCacheService/spawn count cap reporter metrics-cadence)
+   ; -> HologramCacheService::Spawn
 ```
 
 ### When to pick which
@@ -441,6 +444,107 @@ the arity and side-effects from the suffix alone.
 `:wat::kernel::HandlePool::new tag handles`). The `::` separator
 in the path is what flags it as Rust-side. The `/new` vs `/make`
 vs `/spawn` distinction is wat-side only.
+
+## Service contract — Reporter + MetricsCadence (arc 078)
+
+A *service* is a queue-addressed program with a request enum, a
+driver loop, and per-request state. The substrate ships two:
+`:wat::lru::CacheService<K,V>` and
+`:wat::holon::lru::HologramCacheService`. Both follow the same
+contract; future stdlib services do too.
+
+The contract is a one-page recipe. Every service declares **eleven
+elements** (the first six earn their slot from the moment a service
+exists; the last five are the standard verbs):
+
+1. **A typed Request enum.** What clients can ask. Variants ARE the
+   RPC methods.
+2. **A typed Report enum.** What the service emits outbound.
+   Producer-defined; consumer dispatches via match. Slice-1 ships
+   only `(Metrics stats)`; future variants (Error, Evicted,
+   Lifecycle) extend additively. Same grow-by-arms pattern as the
+   archive's `TreasuryRequest`.
+3. **A `Reporter` typealias.** `:fn(Type::Report) -> :()`. The
+   user's match-dispatching consumer.
+4. **A `MetricsCadence<G>` struct.** `{gate :G, tick :fn(G,Stats) ->
+   :(G,bool)}`. Stateful rate gate. The user picks `G`; the loop
+   threads it through, rebuilding the struct each iteration with
+   the advanced gate.
+5. **A `Stats` struct.** Counter type emitted via `Report::Metrics`.
+   Counter set is service-defined (e.g., `lookups`, `hits`,
+   `misses`, `puts`, `cache-size` for caches).
+6. **`Type/null-reporter` + `Type/null-metrics-cadence`.** The
+   explicit no-reporting choice. Caller passes BOTH; opting out is
+   a deliberate choice, not a default.
+7. **`Type/spawn ... reporter metrics-cadence`.** The constructor.
+   Order encodes the contract: factory args first, then "here's
+   your reporter, then here's how often you use it for metrics."
+   Both are non-negotiable.
+8. **`Type/handle req state -> state'`.** Per-variant request
+   dispatcher. Pure values-up.
+9. **`Type/tick-window state reporter metrics-cadence -> Step<G>`.**
+   Gate-fire logic; ALWAYS advances the cadence; conditionally
+   emits + resets stats. Named for what it always does, not the
+   conditional branch.
+10. **`Type/loop`.** Driver. Threads State + Reporter +
+    MetricsCadence; selects + dispatches + ticks the window.
+11. **`Type/run`.** Worker entry. Wraps the loop with storage
+    construction and dropping (per the thread-owned-cache
+    discipline).
+
+### The three cadence shapes the user expresses
+
+```scheme
+;; Null path — both required to be passed deliberately
+(:wat::holon::lru::HologramCacheService/spawn 2 16
+  :wat::holon::lru::HologramCacheService/null-reporter
+  (:wat::holon::lru::HologramCacheService/null-metrics-cadence))
+
+;; Time-based metrics gate — wall-clock tick-gate, gate = Instant
+(:wat::holon::lru::HologramCacheService/spawn 2 16
+  :my::reporter
+  (:wat::holon::lru::HologramCacheService::MetricsCadence/new
+    (:wat::time::now)
+    (:wat::core::lambda
+      ((g :wat::time::Instant) (_s :Stats) -> :(wat::time::Instant,bool))
+      (:trading::log::tick-gate g 5000))))
+
+;; Counter-based — every 100 lookups, gate = i64
+(:wat::holon::lru::HologramCacheService/spawn 2 16
+  :my::reporter
+  (:wat::holon::lru::HologramCacheService::MetricsCadence/new
+    0
+    (:wat::core::lambda ((n :i64) (_s :Stats) -> :(i64,bool))
+      (:wat::core::if (:wat::core::i64::>= n 99) -> :(i64,bool)
+        (:wat::core::tuple 0 true)
+        (:wat::core::tuple (:wat::core::i64::+ n 1) false)))))
+```
+
+The user's `:my::reporter` is `:fn(Report) -> :()` — a closure that
+captures whatever stateful sink they want (sqlite handle, CloudWatch
+tx, stdout writer).
+
+### When a service should adopt this shape
+
+- **Adopt** when a service owns a queue + state. The contract pays
+  for itself the first time you need to wire telemetry without
+  reaching for `Mutex` or threading a separate channel.
+- **Skip** for trivial pure-fn services that don't earn the
+  ceremony.
+- **Console is the exception.** Console writes to stdout/stderr
+  through tagged messages — that IS its report layer. There's no
+  inner Reporter to inject; the channel writes ARE the reports.
+  Any future "logging service" pattern resolves the same way:
+  whatever IS the sink doesn't need a sink-injection point.
+
+### Per-service, not shared
+
+Each service ships its own `Type::MetricsCadence<G>`. We keep
+per-service rather than lifting to a shared
+`:wat::std::service::MetricsCadence<G,Stats>` because the cadence's
+`tick` knows the service's specific Stats — sharing would force a
+two-parameter generic with no clear payoff. Revisit when a third
+service surfaces and the duplication is concretely painful.
 
 ## Type alias for nested-generic returns (arc 077)
 
@@ -475,6 +579,10 @@ If a function's return type contains **three or more** `<` characters, name it. 
 | `:wat::std::stream::KeyedChunkStep<K,T>` | `:((Option<K>,Vec<T>),Vec<Vec<T>>)` | `wat/std/stream.wat` |
 | `:wat::std::service::Console::Spawn` | factory return shape | `wat/std/service/Console.wat` |
 | `:wat::lru::CacheService::Spawn<K,V>` | factory return shape | `crates/wat-lru/wat/lru/CacheService.wat` |
+| `:wat::lru::CacheService::Step<K,V,G>` | one loop-step output | `crates/wat-lru/wat/lru/CacheService.wat` |
+| `:wat::lru::CacheService::ReqPair<K,V>` | `:(ReqTx<K,V>,ReqRx<K,V>)` | `crates/wat-lru/wat/lru/CacheService.wat` |
+| `:wat::holon::lru::HologramCacheService::Spawn` | factory return shape | `crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat` |
+| `:wat::holon::lru::HologramCacheService::Step<G>` | one loop-step output | `crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat` |
 
 The same rule applies in user crates: pass the angle-bracket
 density check at every type signature, and add aliases adjacent
