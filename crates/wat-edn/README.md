@@ -1,110 +1,91 @@
 # wat-edn
 
-Spec-conforming EDN parser and writer for Rust. Hand-rolled for
-performance, designed for the wat language and useful anywhere Rust
-code needs to read or write EDN.
+Spec-conforming EDN parser, writer, and JSON bridge for Rust.
+A second conforming implementation of [EDN][edn], peer to
+Clojure's reference reader, with companion Clojure library
+([`wat-edn-clj/`](wat-edn-clj/)) sharing one wire convention.
 
-## What is EDN?
+[edn]: https://github.com/edn-format/edn
 
-[Extensible Data Notation](https://github.com/edn-format/edn) — Rich
-Hickey's data interchange format for Clojure. Like JSON, but
-typed-by-tag, immutable-by-default, and built to round-trip lossless
-across processes.
+## Add to Cargo.toml
 
-## Coverage
-
-Every literal type defined by the spec:
-
-- `nil`, `true`, `false`
-- integers (`i64`) and big integers (`42N`, `num_bigint::BigInt`)
-- floats (`f64`) and big decimals (`3.14M`, `bigdecimal::BigDecimal`)
-- strings with full escape support (`\n \t \r \b \f \" \\ \/ \uXXXX`)
-- characters (`\c \newline \space \tab \return \formfeed \backspace \uXXXX`)
-- symbols and namespaced symbols (`foo`, `ns/foo`)
-- keywords and namespaced keywords (`:foo`, `:ns/foo`)
-- lists `(1 2 3)`, vectors `[1 2 3]`, maps `{:k :v}`, sets `#{1 2 3}`
-- tagged elements `#tag value` with arbitrary nesting
-- built-in tags `#inst` (RFC 3339 → `chrono::DateTime<Utc>`) and
-  `#uuid` (canonical → `uuid::Uuid`)
-- comments (`;`) and discard (`#_`)
-
-## Use
-
-```rust
-use wat_edn::{parse, write, Value};
-
-let v = parse(r#"#myapp/Order {:id 42 :total 99.99}"#)?;
-let s = write(&v);
+```toml
+[dependencies]
+wat-edn = { path = "../wat-rs/crates/wat-edn" }
 ```
 
-## Performance
-
-- Hand-rolled byte-level lexer; no regex, no parser-combinator
-  framework.
-- Single-pass recursive-descent parser.
-- Borrowed string bodies via `Cow<str>` — escapes are the only path
-  that allocates.
-- Comma is whitespace per spec.
-- Map preserves insertion order; consumers convert to their preferred
-  hash structure after reading.
-
-Run the benchmark:
-
-```sh
-cargo run --release --example bench -p wat-edn
-```
-
-## JSON conversion
+## Quickest example
 
 ```rust
-use wat_edn::{parse, to_json_string, to_json_string_pretty,
-              from_json_string, write, write_pretty};
+use wat_edn::{parse, write, to_json_string, from_json_string};
 
-// EDN → JSON (sentinel-key tagged objects preserve type fidelity)
+// EDN ↔ Value
 let v = parse(r#"#myapp/Order {:id 1 :tags #{:vip}}"#).unwrap();
+let edn = write(&v);
+
+// EDN ↔ JSON (sentinel-key tagged objects preserve type fidelity)
 let json = to_json_string(&v);
-// → {"#tag":"myapp/Order","body":{":id":1,":tags":{"#set":[":vip"]}}}
-
-// JSON → EDN (round-trips back to the same Value)
 let v2 = from_json_string(&json).unwrap();
-
-// Pretty-print EDN
-println!("{}", write_pretty(&v));
+assert_eq!(v.into_owned(), v2);
 ```
 
-Wire convention: `{"#tag":..., "body":...}` for tagged values,
-`{"#set":[...]}` for sets, `{"#bigint":"123N"}` for big integers,
-`":foo"` colon-prefix string for keywords. See `src/json.rs` for
-the full table; the Clojure side at `wat-edn-clj/src/wat_edn/json.clj`
-agrees on the same wire convention.
+## What you get
 
-Useful for: emitting EDN-typed data to JSON-only sinks
-(CloudWatch logs, HTTP APIs, JavaScript front-ends), then reading
-back without losing type information.
+- Hand-rolled byte-level lexer + recursive-descent parser
+- `Value<'a>` with `Cow<'a, str>` zero-copy strings; `OwnedValue` alias for `'static`
+- `CompactString`-inlined Symbol/Keyword/Tag (no heap alloc for short names)
+- Direct `push_str` writers (no `Display` formatter overhead)
+- Round-trip-safe JSON conversion with sentinel-key tagged objects
+- Pretty-print with byte-equivalent round-trip identity
+- 313 Rust tests + 39 Clojure tests, all green
 
-## Clojure side
+## Performance (stable, M-class hardware)
 
-The companion Clojure library lives at [`wat-edn-clj/`](wat-edn-clj/).
-It loads schema from the same `.wat` files wat-rs's type checker
-consumes (header-file pattern):
+```
+parse small  [1 2 3 4 5]              56 MB/s     0.19 µs/op
+parse realistic blob (416B)          271 MB/s     1.46 µs/op
+parse string-heavy (395B)            510 MB/s     0.74 µs/op
+parse identifier-heavy (300B)        149 MB/s     1.91 µs/op
 
-```clojure
-(require '[wat-edn.core :as wat])
-
-(wat/load-types! "shared.wat")
-
-(wat/gen 'enterprise.config/SizeAdjust
-         {:asset :BTC :factor 1.5 :reason "vol spike"})
-;; => #enterprise.config/SizeAdjust {:asset :BTC, :factor 1.5, ...}
-;;    (validation throws on field-type mismatch BEFORE bytes leave Clojure)
-
-(wat/read-typed 'enterprise.config/SizeAdjust edn-string)
-;; => validated body map
+write small  [1 2 3 4 5]              111 MB/s    0.09 µs/op
+write realistic blob                  996 MB/s    0.40 µs/op
+write string-heavy                    858 MB/s    0.44 µs/op
+write identifier-heavy                605 MB/s    0.47 µs/op
 ```
 
-One `.wat` file. Two readers. Same schema. EDN bytes flow either
-direction (Clojure ↔ wat) without any helper-library handshake for
-the standard EDN spec.
+Run `cargo run --release --example bench -p wat-edn` to reproduce.
+
+## Deeper documentation
+
+The short version lives here. The full user guide — every API,
+concrete examples, wire conventions, cross-language interop,
+performance methodology, common gotchas — lives at:
+
+**[`docs/USER-GUIDE.md`](docs/USER-GUIDE.md)**
+
+Quick links into it:
+
+- [Setup and feature flags](docs/USER-GUIDE.md#1-setup)
+- [The Value type — Value<'a> vs OwnedValue](docs/USER-GUIDE.md#2-the-value-type)
+- [Parsing](docs/USER-GUIDE.md#3-parsing) /
+  [Writing](docs/USER-GUIDE.md#4-writing) /
+  [Pretty-print](docs/USER-GUIDE.md#8-pretty-print)
+- [JSON conversion](docs/USER-GUIDE.md#7-json-conversion)
+- [The Clojure side](docs/USER-GUIDE.md#10-the-clojure-side)
+- [Cross-language interop](docs/USER-GUIDE.md#11-cross-language-interop)
+
+## Spec coverage
+
+Every literal type defined by the EDN spec, including built-in
+`#inst` (RFC 3339 → `chrono::DateTime<Utc>`) and `#uuid`
+(canonical → `uuid::Uuid`). Five `/ignorant` ward casts confirm
+zero spec divergence; the strict-rejection test suite locks every
+spec-mandated `must not` against regression.
+
+Documented extensions (Clojure-aligned, all round-trip-symmetric):
+`\b \f \/` string escapes, `\formfeed \backspace` char names,
+`#wat-edn.float/{nan,inf,neg-inf}` sentinels for `f64` round-trip.
+See [§9 Spec extensions](docs/USER-GUIDE.md#9-spec-extensions).
 
 ## License
 
