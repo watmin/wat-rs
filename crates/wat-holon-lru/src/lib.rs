@@ -40,15 +40,25 @@
 //! external-crate contract uses `wat_sources()` only.
 
 /// wat source files this crate contributes. Returned in registration
-/// order: `HologramCache.wat` (the bounded sibling of `Hologram`).
-/// Consumers who want HologramCache pass `[wat_lru, wat_holon_lru]`
-/// (in that order — wat-lru registers `LocalCache` first, then
-/// HologramCache.wat layers on top).
+/// order:
+///   1. `HologramCache.wat` — bounded sibling of `Hologram` (arc 074).
+///   2. `HologramCacheService.wat` — queue-addressed wrapper over the
+///      cache, with the Reporter + MetricsCadence service contract
+///      (arc 078).
+/// Consumers who want either pass `[wat_lru, wat_holon_lru]` (in
+/// that order — wat-lru registers `LocalCache` first, then this
+/// crate's wat layers on top).
 pub fn wat_sources() -> &'static [wat::WatSource] {
-    static FILES: &[wat::WatSource] = &[wat::WatSource {
-        path: "wat-holon-lru/holon/lru/HologramCache.wat",
-        source: include_str!("../wat/holon/lru/HologramCache.wat"),
-    }];
+    static FILES: &[wat::WatSource] = &[
+        wat::WatSource {
+            path: "wat-holon-lru/holon/lru/HologramCache.wat",
+            source: include_str!("../wat/holon/lru/HologramCache.wat"),
+        },
+        wat::WatSource {
+            path: "wat-holon-lru/holon/lru/HologramCacheService.wat",
+            source: include_str!("../wat/holon/lru/HologramCacheService.wat"),
+        },
+    ];
     FILES
 }
 
