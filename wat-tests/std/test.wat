@@ -98,6 +98,56 @@
       (:None (:wat::kernel::assertion-failed!
                "expected Failure, got :None" :None :None)))))
 
+;; ─── assert-coincident — pass + fail-renders-explanation ─────────────
+
+(:wat::test::deftest :wat-tests::std::test::test-assert-coincident-pass
+  ()
+  (:wat::test::assert-coincident
+    (:wat::holon::Atom "alice")
+    (:wat::holon::Atom "alice")))
+
+;; The fail-side test exercises arc 069's wiring: when the assertion
+;; fails, the rendered CoincidentExplanation lands in the failure
+;; payload's `actual` slot. We grep for each named field; their
+;; presence is what matters, not exact numeric values (those depend
+;; on the encoder's d at run time).
+(:wat::test::deftest :wat-tests::std::test::test-assert-coincident-fail-renders-explanation
+  ()
+  (:wat::core::let*
+    (((r :wat::kernel::RunResult)
+      (:wat::test::run-ast
+        (:wat::test::program
+          (:wat::core::define
+            (:user::main
+              (stdin  :wat::io::IOReader)
+              (stdout :wat::io::IOWriter)
+              (stderr :wat::io::IOWriter)
+              -> :())
+            (:wat::test::assert-coincident
+              (:wat::holon::Atom "alice")
+              (:wat::holon::Atom "charlie"))))
+        (:wat::core::vec :String)))
+     ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
+    (:wat::core::match fail -> :()
+      ((Some f)
+        (:wat::core::let*
+          (((actual :Option<String>) (:wat::kernel::Failure/actual f)))
+          (:wat::core::match actual -> :()
+            ((Some a)
+              (:wat::core::let*
+                (((_ :()) (:wat::test::assert-contains a "cosine"))
+                 ((_ :()) (:wat::test::assert-contains a "floor"))
+                 ((_ :()) (:wat::test::assert-contains a "dim"))
+                 ((_ :()) (:wat::test::assert-contains a "sigma"))
+                 ((_ :()) (:wat::test::assert-contains
+                            a "min-sigma-to-pass")))
+                ()))
+            (:None (:wat::kernel::assertion-failed!
+                     "actual slot empty — explanation should populate it"
+                     :None :None)))))
+      (:None (:wat::kernel::assertion-failed!
+               "expected Failure, got :None" :None :None)))))
+
 ;; ─── assert-stdout-is — pass case ─────────────────────────────────────
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-stdout-is-matches

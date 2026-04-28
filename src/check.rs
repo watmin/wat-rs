@@ -564,6 +564,18 @@ fn infer_list(
                     k, args, env, locals, fresh, subst, errors,
                 );
             }
+            ":wat::holon::coincident-explain" => {
+                return infer_polymorphic_holon_pair_to_path(
+                    k,
+                    args,
+                    env,
+                    locals,
+                    fresh,
+                    subst,
+                    errors,
+                    ":wat::holon::CoincidentExplanation",
+                );
+            }
             ":wat::holon::simhash" => {
                 return infer_polymorphic_holon_to_i64(
                     k, args, env, locals, fresh, subst, errors,
@@ -2963,6 +2975,61 @@ fn infer_polymorphic_holon_pair_to_bool(
         }
     }
     Some(bool_ty)
+}
+
+/// Arc 069 — polymorphic two-arg holon-algebra inference returning a
+/// fixed struct path. For `:wat::holon::coincident-explain` —
+/// returns `:wat::holon::CoincidentExplanation`. Same arg discipline
+/// as the bool / f64 siblings; differs only in the return type
+/// arity (a registered struct path).
+#[allow(clippy::too_many_arguments)]
+fn infer_polymorphic_holon_pair_to_path(
+    op: &str,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+    return_path: &str,
+) -> Option<TypeExpr> {
+    let ret_ty = TypeExpr::Path(return_path.into());
+    if args.len() != 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: op.into(),
+            expected: 2,
+            got: args.len(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(ret_ty);
+    }
+    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let b_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    if let Some(t) = &a_ty {
+        let resolved = apply_subst(t, subst);
+        if !is_holon_or_vector(&resolved) {
+            errors.push(CheckError::TypeMismatch {
+                callee: op.into(),
+                param: "#1".into(),
+                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                got: format_type(&resolved),
+            });
+        }
+    }
+    if let Some(t) = &b_ty {
+        let resolved = apply_subst(t, subst);
+        if !is_holon_or_vector(&resolved) {
+            errors.push(CheckError::TypeMismatch {
+                callee: op.into(),
+                param: "#2".into(),
+                expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
+                got: format_type(&resolved),
+            });
+        }
+    }
+    Some(ret_ty)
 }
 
 /// Arc 052 — polymorphic one-arg holon-algebra inference returning

@@ -88,17 +88,54 @@
 ;; Mirrors the assert-contains shape (custom message; both sides
 ;; carried in the failure payload). Tolerance lives in the substrate,
 ;; not the test.
+;; Assertion failure carries the full coincidence explanation in the
+;; `actual` slot of the failure payload (arc 069). When the assertion
+;; fails, the consumer sees the cosine, floor, dim, sigma, and the
+;; smallest sigma at which the pair would coincide — distinguishes
+;; "calibration boundary" from "structurally distant" from "encoding
+;; shape wrong" without a separate diagnostic round-trip.
 (:wat::core::define
   (:wat::test::assert-coincident
     (a :wat::holon::HolonAST)
     (b :wat::holon::HolonAST)
     -> :())
-  (:wat::core::if (:wat::holon::coincident? a b) -> :()
-    ()
-    (:wat::kernel::assertion-failed!
-      "assert-coincident failed — holons not at the same point"
-      :None
-      :None)))
+  (:wat::core::let*
+    (((expl :wat::holon::CoincidentExplanation)
+      (:wat::holon::coincident-explain a b))
+     ((ok :bool)
+      (:wat::holon::CoincidentExplanation/coincident expl)))
+    (:wat::core::if ok -> :()
+      ()
+      (:wat::kernel::assertion-failed!
+        "assert-coincident failed — holons not at the same point"
+        (Some (:wat::test::render-coincident-explanation expl))
+        :None))))
+
+;; Helper — turn a CoincidentExplanation into a multi-line, named-
+;; field string for assertion failure displays. Each field on its own
+;; line, indented, so a developer reading test output sees the full
+;; story without horizontal scrolling. Used by assert-coincident;
+;; consumers wanting raw values call coincident-explain directly.
+(:wat::core::define
+  (:wat::test::render-coincident-explanation
+    (expl :wat::holon::CoincidentExplanation)
+    -> :String)
+  (:wat::core::string::concat
+    "\n  cosine            = "
+    (:wat::core::f64::to-string
+      (:wat::holon::CoincidentExplanation/cosine expl))
+    "\n  floor             = "
+    (:wat::core::f64::to-string
+      (:wat::holon::CoincidentExplanation/floor expl))
+    "\n  dim               = "
+    (:wat::core::i64::to-string
+      (:wat::holon::CoincidentExplanation/dim expl))
+    "\n  sigma             = "
+    (:wat::core::i64::to-string
+      (:wat::holon::CoincidentExplanation/sigma expl))
+    "\n  min-sigma-to-pass = "
+    (:wat::core::i64::to-string
+      (:wat::holon::CoincidentExplanation/min-sigma-to-pass expl))))
 
 ;; ─── assert-stdout-is ─────────────────────────────────────────────────
 ;;

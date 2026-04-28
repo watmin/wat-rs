@@ -876,6 +876,40 @@ The three cache-coordinate stories compose:
 ;; are dual predicates of one statistical fact (arc 023).
 ```
 
+When a `coincident?` answer disagrees with expectation, reach for
+`coincident-explain` — the diagnostic sibling (arc 069). It returns
+a `:wat::holon::CoincidentExplanation` record with six fields that
+tell the full story of the judgement:
+
+```scheme
+(:wat::holon::coincident-explain a b)
+  ; → :wat::holon::CoincidentExplanation
+  ;     cosine             :f64    raw cosine of the two encoded vectors
+  ;     floor              :f64    current coincident floor (sigma/sqrt(d))
+  ;     dim                :i64    dim where the comparison ran
+  ;     sigma              :i64    sigma feeding the floor
+  ;     coincident         :bool   same answer coincident? would give
+  ;     min-sigma-to-pass  :i64    smallest sigma at which the pair would coincide
+```
+
+When two thoughts that "should" coincide don't, the struct
+disambiguates the three failure modes:
+
+- **mental model wrong** — `cosine` reads ≪ 0.99 (you expected
+  near-1.0). The encoding shape isn't what you thought.
+- **calibration boundary** — `cosine` reads in `(1 - 2·floor, 1 -
+  floor)` and `min-sigma-to-pass` reads 2 or 3. Bumping
+  `:wat::config::set-coincident-sigma!` to that value unblocks.
+- **structurally distant** — `cosine` reads near 0 and
+  `min-sigma-to-pass` is large. The forms aren't on the same
+  algebra-grid neighborhood; no sigma fix will help — fix the
+  encoding.
+
+`coincident-explain` is polymorphic over the same `(HolonAST,
+Vector)` pairs `coincident?` accepts (arc 061). The `dim` field
+reports the actual encoding d, so callers running multi-tier dim
+routers see which tier fired.
+
 The `eval-coincident?` family extends `coincident?` to evaluated
 programs — verify each side's source under integrity, evaluate,
 atomize, compare:
@@ -1974,6 +2008,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::holon::ReciprocalLog` | `n value` | `:wat::holon::HolonAST` (arc 034) |
 | `:wat::holon::cosine` / `dot` | `a b` | `:f64` — polymorphic over HolonAST or Vector inputs (arc 052); mixed (one AST, one Vector) is permitted and the AST encodes at the Vector's d |
 | `:wat::holon::presence?` | `target reference` | `:bool` — cosine > presence-floor |
+| `:wat::holon::coincident-explain` | `a b` | `:wat::holon::CoincidentExplanation` (arc 069) — diagnostic record bundling cosine, floor, dim, sigma, the predicate result, and `min-sigma-to-pass` (smallest sigma at which the pair would coincide). Polymorphic over HolonAST/Vector. Use when a coincidence judgement disagrees with expectation |
 | `:wat::holon::eval-coincident?` | `a-ast b-ast` | `:Result<:bool, EvalError>` (arc 026) |
 | `:wat::holon::eval-edn-coincident?` | `a-src b-src` | `:Result<:bool, EvalError>` |
 | `:wat::holon::eval-digest-coincident?` | `<8 args>` | `:Result<:bool, EvalError>` — 4 per side, SHA-256 |

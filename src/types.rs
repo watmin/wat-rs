@@ -593,6 +593,32 @@ fn register_builtin_types(env: &mut TypeEnv) {
             ),
         ],
     }));
+
+    // :wat::holon::CoincidentExplanation — arc 069 diagnostic record
+    // returned by `:wat::holon::coincident-explain`. Bundles the raw
+    // cosine, the current coincident floor, the dim where comparison
+    // happened, the sigma feeding the floor, the same boolean
+    // `coincident?` would have returned, and the smallest sigma at
+    // which the pair would coincide. Lets a consumer see *why* a
+    // coincidence judgement landed where it did instead of guessing.
+    //
+    // Auto-generated `CoincidentExplanation/new` + per-field accessors
+    // land in the symbol table at freeze time via register_struct_methods.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::holon::CoincidentExplanation".into(),
+        type_params: vec![],
+        fields: vec![
+            ("cosine".into(), TypeExpr::Path(":f64".into())),
+            ("floor".into(), TypeExpr::Path(":f64".into())),
+            ("dim".into(), TypeExpr::Path(":i64".into())),
+            ("sigma".into(), TypeExpr::Path(":i64".into())),
+            ("coincident".into(), TypeExpr::Path(":bool".into())),
+            (
+                "min-sigma-to-pass".into(),
+                TypeExpr::Path(":i64".into()),
+            ),
+        ],
+    }));
 }
 
 /// Type-declaration errors.

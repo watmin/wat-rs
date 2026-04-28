@@ -2322,6 +2322,9 @@ fn dispatch_keyword_head(
         ":wat::holon::cosine" => eval_algebra_cosine(args, env, sym),
         ":wat::holon::presence?" => eval_algebra_presence_q(args, env, sym),
         ":wat::holon::coincident?" => eval_algebra_coincident_q(args, env, sym),
+        ":wat::holon::coincident-explain" => {
+            eval_algebra_coincident_explain(args, env, sym)
+        }
         ":wat::holon::eval-coincident?" => eval_form_ast_coincident_q(args, env, sym),
         ":wat::holon::eval-edn-coincident?" => eval_form_edn_coincident_q(args, env, sym),
         ":wat::holon::eval-digest-coincident?" => {
@@ -6663,6 +6666,65 @@ fn eval_algebra_coincident_q(
     let enc = ctx.encoders.get(va.dimensions());
     let cosine = Similarity::cosine(&va, &vb);
     Ok(Value::bool((1.0 - cosine) < enc.coincident_floor(sym)))
+}
+
+/// `(:wat::holon::coincident-explain a b)` — arc 069 diagnostic.
+///
+/// Returns a `:wat::holon::CoincidentExplanation` struct bundling
+/// the raw cosine, the current floor, the dim where comparison
+/// happened, the sigma feeding the floor, the same boolean
+/// `coincident?` would have returned, and the smallest sigma at
+/// which the pair would coincide.
+///
+/// Polymorphic over (HolonAST, Vector) inputs in the same shape as
+/// `cosine` / `coincident?` (arc 061): pre-encoded Vectors short-
+/// circuit the encoding step; mixed inputs promote the AST side at
+/// the Vector side's d; AST/AST pairs go through the dim router.
+///
+/// `min-sigma-to-pass` is `ceil((1 - cos) * sqrt(d))`, clamped ≥ 1.
+/// Honest math at every cosine — for orthogonal or anti-correlated
+/// pairs the value is large and the cosine field reads the
+/// situation directly. Q3 of arc 069 DESIGN.
+fn eval_algebra_coincident_explain(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::coincident-explain";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let a = eval(&args[0], env, sym)?;
+    let b = eval(&args[1], env, sym)?;
+    let (va, vb) = pair_values_to_vectors(OP, a, b, sym)?;
+    let ctx = require_encoding_ctx(OP, sym)?;
+    let dim = va.dimensions();
+    let enc = ctx.encoders.get(dim);
+    let cosine = Similarity::cosine(&va, &vb);
+    let floor = enc.coincident_floor(sym);
+    let sigma = sym
+        .coincident_sigma_fn()
+        .map(|f| f.sigma_at(dim, sym))
+        .unwrap_or(1);
+    let coincident = (1.0 - cosine) < floor;
+    let sqrt_d = (dim as f64).sqrt();
+    let min_sigma_raw = ((1.0 - cosine) * sqrt_d).ceil() as i64;
+    let min_sigma_to_pass = min_sigma_raw.max(1);
+    Ok(Value::Struct(Arc::new(StructValue {
+        type_name: ":wat::holon::CoincidentExplanation".into(),
+        fields: vec![
+            Value::f64(cosine),
+            Value::f64(floor),
+            Value::i64(dim as i64),
+            Value::i64(sigma),
+            Value::bool(coincident),
+            Value::i64(min_sigma_to_pass),
+        ],
+    })))
 }
 
 /// `(:wat::holon::eval-coincident? form-a form-b)` —
@@ -12744,6 +12806,234 @@ mod tests {
             matches!(coincident, Value::bool(false)),
             "coincident? must NOT fire — the bundle is not the atom"
         );
+    }
+
+    // --- coincident-explain — arc 069 ---------------------------------------
+    //
+    // Diagnostic primitive bundling the cosine, the floor, the dim,
+    // the sigma, the predicate result, and the smallest sigma at
+    // which the pair would coincide.
+
+    fn explain_fields(v: &Value) -> &[Value] {
+        match v {
+            Value::Struct(sv) => {
+                assert_eq!(sv.type_name, ":wat::holon::CoincidentExplanation");
+                assert_eq!(sv.fields.len(), 6);
+                &sv.fields
+            }
+            other => panic!("expected CoincidentExplanation struct, got {:?}", other),
+        }
+    }
+
+    fn explain_cosine(v: &Value) -> f64 {
+        match &explain_fields(v)[0] {
+            Value::f64(x) => *x,
+            other => panic!("expected f64 cosine, got {:?}", other),
+        }
+    }
+
+    fn explain_coincident(v: &Value) -> bool {
+        match &explain_fields(v)[4] {
+            Value::bool(b) => *b,
+            other => panic!("expected bool coincident, got {:?}", other),
+        }
+    }
+
+    fn explain_min_sigma(v: &Value) -> i64 {
+        match &explain_fields(v)[5] {
+            Value::i64(n) => *n,
+            other => panic!("expected i64 min-sigma-to-pass, got {:?}", other),
+        }
+    }
+
+    fn explain_dim(v: &Value) -> i64 {
+        match &explain_fields(v)[2] {
+            Value::i64(n) => *n,
+            other => panic!("expected i64 dim, got {:?}", other),
+        }
+    }
+
+    fn explain_sigma(v: &Value) -> i64 {
+        match &explain_fields(v)[3] {
+            Value::i64(n) => *n,
+            other => panic!("expected i64 sigma, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn coincident_explain_byte_identical() {
+        // Same Atom against itself: cosine = 1.0, coincident at sigma=1.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::coincident-explain
+                 (:wat::holon::Atom "alice")
+                 (:wat::holon::Atom "alice"))"#,
+            1024,
+        )
+        .unwrap();
+        assert!((explain_cosine(&result) - 1.0).abs() < 1e-9);
+        assert!(explain_coincident(&result));
+        assert_eq!(explain_min_sigma(&result), 1);
+        assert_eq!(explain_dim(&result), 1024);
+        assert_eq!(explain_sigma(&result), 1);
+    }
+
+    #[test]
+    fn coincident_explain_near_coincident() {
+        // Thermometer values inside the predicted window at d=1024
+        // (window ≈ ±0.15625 on range [0, 10]; we pick 4.0 vs 4.05).
+        // Cosine should be very close to 1, coincident=true,
+        // min-sigma-to-pass=1.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::coincident-explain
+                 (:wat::holon::Thermometer 4.0  0.0 10.0)
+                 (:wat::holon::Thermometer 4.05 0.0 10.0))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(explain_coincident(&result));
+        let cos = explain_cosine(&result);
+        assert!(cos > 0.99, "expected cos > 0.99, got {}", cos);
+        assert_eq!(explain_min_sigma(&result), 1);
+    }
+
+    #[test]
+    fn coincident_explain_just_below_threshold() {
+        // Thermometer values outside the d=1024 window. Coincident=false;
+        // min-sigma-to-pass > 1 — the diagnostic literally tells the
+        // caller how much wider to set sigma to make the pair pass.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::coincident-explain
+                 (:wat::holon::Thermometer 4.0  0.0 10.0)
+                 (:wat::holon::Thermometer 4.50 0.0 10.0))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(!explain_coincident(&result));
+        let min_sigma = explain_min_sigma(&result);
+        assert!(min_sigma > 1, "expected > 1, got {}", min_sigma);
+    }
+
+    #[test]
+    fn coincident_explain_distant() {
+        // Two unrelated atoms: cosine ≈ 0; (1 - cos) * sqrt(d) is
+        // honestly large. The diagnostic surfaces the structural
+        // distance — caller reads cosine directly to see "not near-
+        // coincident, structurally distant."
+        let result = eval_with_ctx(
+            r#"(:wat::holon::coincident-explain
+                 (:wat::holon::Atom "alice")
+                 (:wat::holon::Atom "charlie"))"#,
+            1024,
+        )
+        .unwrap();
+        assert!(!explain_coincident(&result));
+        let cos = explain_cosine(&result);
+        assert!(cos.abs() < 0.5, "expected near 0, got {}", cos);
+        let min_sigma = explain_min_sigma(&result);
+        // (1 - 0) * sqrt(1024) = 32; allow a band around it.
+        assert!(min_sigma >= 16, "expected >= 16, got {}", min_sigma);
+    }
+
+    #[test]
+    fn coincident_explain_polymorphic_holon_vector() {
+        // One side AST, the other side a pre-encoded Vector. Same
+        // input shape `coincident?` accepts post arc 061.
+        let result = eval_with_ctx(
+            r#"(:wat::core::let*
+                 (((a :wat::holon::HolonAST) (:wat::holon::Atom "x"))
+                  ((va :wat::holon::Vector) (:wat::holon::encode a)))
+                 (:wat::holon::coincident-explain a va))"#,
+            1024,
+        )
+        .unwrap();
+        assert_eq!(explain_dim(&result), 1024);
+        assert!(explain_coincident(&result));
+    }
+
+    #[test]
+    fn coincident_explain_dim_reflects_router_choice() {
+        // Build with d=512; the diagnostic's `dim` field reports
+        // the actual encoding d, not a hard-coded constant.
+        let result = eval_with_ctx(
+            r#"(:wat::holon::coincident-explain
+                 (:wat::holon::Atom "a")
+                 (:wat::holon::Atom "a"))"#,
+            512,
+        )
+        .unwrap();
+        assert_eq!(explain_dim(&result), 512);
+    }
+
+    #[test]
+    fn coincident_explain_arity_mismatch() {
+        let err = eval_with_ctx(
+            r#"(:wat::holon::coincident-explain (:wat::holon::Atom "x"))"#,
+            1024,
+        )
+        .unwrap_err();
+        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
+    }
+
+    #[test]
+    fn coincident_explain_agrees_with_coincident_q() {
+        // The struct's `coincident` field returns the same value as
+        // `:wat::holon::coincident?` for the same inputs. This is
+        // the "the diagnostic doesn't lie" invariant.
+        let cases = [
+            (
+                r#"(:wat::holon::Atom "a")"#,
+                r#"(:wat::holon::Atom "a")"#,
+            ),
+            (
+                r#"(:wat::holon::Atom "a")"#,
+                r#"(:wat::holon::Atom "b")"#,
+            ),
+            (
+                r#"(:wat::holon::Thermometer 4.0 0.0 10.0)"#,
+                r#"(:wat::holon::Thermometer 4.05 0.0 10.0)"#,
+            ),
+            (
+                r#"(:wat::holon::Thermometer 4.0 0.0 10.0)"#,
+                r#"(:wat::holon::Thermometer 6.0 0.0 10.0)"#,
+            ),
+        ];
+        for (a, b) in cases {
+            // Field index 4 is `coincident` per the struct's field
+            // declaration order. Tests run with a bare SymbolTable
+            // (no `register_struct_methods`), so we access by
+            // position rather than the auto-generated `/coincident`
+            // helper.
+            let probe = format!(
+                r#"(:wat::core::let*
+                     (((aa :wat::holon::HolonAST) {a})
+                      ((bb :wat::holon::HolonAST) {b})
+                      ((p :bool) (:wat::holon::coincident? aa bb))
+                      ((expl :wat::holon::CoincidentExplanation)
+                        (:wat::holon::coincident-explain aa bb)))
+                     (:wat::core::tuple p
+                       (:wat::core::struct-field expl 4)))"#
+            );
+            let result = eval_with_ctx(&probe, 1024).unwrap();
+            match result {
+                Value::Tuple(t) => {
+                    let elems = (*t).clone();
+                    let p = match &elems[0] {
+                        Value::bool(b) => *b,
+                        other => panic!("expected bool, got {:?}", other),
+                    };
+                    let q = match &elems[1] {
+                        Value::bool(b) => *b,
+                        other => panic!("expected bool, got {:?}", other),
+                    };
+                    assert_eq!(
+                        p, q,
+                        "predicate vs explanation.coincident disagree on ({}, {})",
+                        a, b
+                    );
+                }
+                other => panic!("expected tuple, got {:?}", other),
+            }
+        }
     }
 
     // --- eval-coincident? — arc 026 slice 1 -------------------------------
