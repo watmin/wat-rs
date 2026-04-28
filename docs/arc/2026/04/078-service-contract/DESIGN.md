@@ -1,6 +1,6 @@
 # Arc 078 — Service contract: Reporter + MetricsCadence as substrate idiom
 
-**Status:** PROPOSED 2026-04-29. Pre-implementation reasoning artifact.
+**Status:** SHIPPED 2026-04-29 across slices 0–5. See INSCRIPTION.md.
 
 **Predecessors:**
 - Arc 074 — `Hologram` + `HologramLRU` shipped. The bounded sibling lived in its own sibling crate `wat-hologram-lru`.

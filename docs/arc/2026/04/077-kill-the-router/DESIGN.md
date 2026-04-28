@@ -1,6 +1,6 @@
 # Arc 077 — Kill the dim router; one program-d, capacity at the call site
 
-**Status:** PROPOSED 2026-04-28. Pre-implementation reasoning artifact.
+**Status:** SHIPPED 2026-04-28 in commit 3f6cb8c (combined with arc 076). See INSCRIPTION.md.
 
 **Predecessors:**
 - Arc 014 — `set-dim-router!` (the wat lambda primitive that user-customizes the per-form d).

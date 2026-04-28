@@ -1,6 +1,6 @@
 # Arc 076 — Therm-routed Hologram + filtered-argmax as the unifying primitive
 
-**Status:** PROPOSED 2026-04-28. Pre-implementation reasoning artifact.
+**Status:** SHIPPED 2026-04-28 in commit 3f6cb8c (combined with arc 077). See INSCRIPTION.md.
 
 **Predecessors:**
 - Arc 074 — `Hologram<V>` + `HologramLRU<V>`. Established the cell-bucketed coordinate-cell store with cosine readout and a construction-time filter func. This arc supersedes the explicit `pos` parameter pattern.

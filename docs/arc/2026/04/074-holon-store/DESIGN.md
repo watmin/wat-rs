@@ -1,6 +1,6 @@
 # Arc 074 — `Hologram<V>` + `HologramLRU<V>`: coordinate-cell cache with cosine readout
 
-**Status:** PROPOSED 2026-04-28. Pre-implementation reasoning artifact.
+**Status:** SHIPPED 2026-04-28 across two slices (Hologram in core; HologramLRU in sibling crate). The HologramLRU surface was subsequently renamed to `:wat::holon::lru::HologramCache` by arc 078 slice 1; substrate behavior unchanged. See INSCRIPTION.md.
 
 **Predecessors:**
 - Arc 023 — `coincident?` and the substrate's sigma machinery.
