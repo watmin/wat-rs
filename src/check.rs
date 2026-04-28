@@ -5184,6 +5184,77 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // Arc 074 — substrate floor accessors. Read the substrate's
+    // presence/coincident floor at d. Users compose these into filter
+    // funcs they pass to `HolonHash/get`.
+    env.register(
+        ":wat::holon::presence-floor".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":i64".into())],
+            ret: TypeExpr::Path(":f64".into()),
+        },
+    );
+    env.register(
+        ":wat::holon::coincident-floor".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":i64".into())],
+            ret: TypeExpr::Path(":f64".into()),
+        },
+    );
+
+    // Arc 074 slice 1 — HolonHash. Coordinate-cell store with cosine
+    // readout. HolonAST → HolonAST (val type fixed). Substrate-internal
+    // hand-coded; sibling crate adds the bounded HolonCache variant in
+    // slice 2.
+    let holon_hash_ty = || TypeExpr::Path(":wat::holon::HolonHash".into());
+    let f64_ty = || TypeExpr::Path(":f64".into());
+    let bool_ty = || TypeExpr::Path(":bool".into());
+    env.register(
+        ":wat::holon::HolonHash/new".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":i64".into())],
+            ret: holon_hash_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::HolonHash/put".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_hash_ty(), f64_ty(), holon_ty(), holon_ty()],
+            ret: TypeExpr::Tuple(vec![]),
+        },
+    );
+    env.register(
+        ":wat::holon::HolonHash/get".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                holon_hash_ty(),
+                f64_ty(),
+                holon_ty(),
+                TypeExpr::Fn {
+                    args: vec![f64_ty()],
+                    ret: Box::new(bool_ty()),
+                },
+            ],
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![holon_ty()],
+            },
+        },
+    );
+    env.register(
+        ":wat::holon::HolonHash/len".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_hash_ty()],
+            ret: TypeExpr::Path(":i64".into()),
+        },
+    );
+
     // The eval-family forms — per the 2026-04-20 INSCRIPTION adding
     // :Result<wat::holon::HolonAST, :wat::core::EvalError> as the uniform
     // return type. Every dynamic evaluation failure (verification,

@@ -65,6 +65,7 @@ pub mod fork;
 pub mod harness;
 pub mod freeze;
 pub mod hash;
+pub mod holon_hash;
 pub mod identifier;
 pub mod io;
 pub mod lexer;
