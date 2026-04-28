@@ -537,6 +537,23 @@ tx, stdout writer).
   Any future "logging service" pattern resolves the same way:
   whatever IS the sink doesn't need a sink-injection point.
 
+### Composing services (the Reporter-closes-over-handles case)
+
+When one service's Reporter closes over ANOTHER service's handles
+(common case: cache reporter writes to rundb), you have two
+drivers to shut down in order. The lockstep from
+`SERVICE-PROGRAMS.md` Step 3 still applies, but TWICE — once per
+driver. **Do not express both drivers' lockstep in one inline
+`let*`.** The resulting three-deep nest collapses outer/inner for
+both drivers into one scope; trying to join either driver from
+that scope deadlocks (the senders are still bound).
+
+The fix is **function decomposition.** Each scope-level becomes a
+small named function with the canonical two-level `let*`. See
+`SERVICE-PROGRAMS.md` Step 9 for the worked pattern + anti-pattern.
+The real-world citation lives at
+`holon-lab-trading/wat-tests-integ/proof/004-cache-telemetry/`.
+
 ### Per-service, not shared
 
 Each service ships its own `Type::MetricsCadence<G>`. We keep

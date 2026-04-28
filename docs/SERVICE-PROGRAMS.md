@@ -417,6 +417,157 @@ this.
 
 ---
 
+## Step 9 — Composing services (multi-driver shutdown)
+
+Steps 1–8 cover one service. Step 9 covers what happens when one
+service's Reporter (per arc 078's contract) closes over ANOTHER
+service's handles — the case where two drivers must shut down in
+order, and the lockstep from Step 3 has to apply twice without
+collapsing into a single inline `let*`.
+
+The trap: the obvious "just nest harder" reading produces a
+three-deep `let*` that puts every driver, every popped handle, and
+every Sender clone in scope at the same time. The lockstep from
+Step 3 said "outer holds the handle; inner owns the Senders." With
+two services, "outer" and "inner" need TWO levels each — and trying
+to write all four levels inline in one `let*` body is how I (the
+author of the surrounding documentation) deadlocked the first
+attempt at a two-service composition.
+
+The fix is **function decomposition.** Each scope-level becomes a
+small named function that owns its driver and joins it before
+returning. The deftest body composes the functions. Each function's
+two-level `let*` is local and obeys Step 3 verbatim.
+
+### The shape
+
+```scheme
+;; Bottom — pure work; takes the leaf service's send/recv handles
+;; as args. No driver. Returns when work is done.
+(:wat::core::define
+  (:my::test::drive-requests
+    (cache-req-tx :CacheService::ReqTx)
+    (reply-tx :GetReplyTx)
+    (reply-rx :GetReplyRx)
+    -> :())
+  ...)
+
+;; Middle — owns CacheService driver. Two-level let*: outer holds
+;; cache-driver (joined after inner exits); inner pops cache-req-tx,
+;; calls drive-requests, drops senders.
+(:wat::core::define
+  (:my::test::run-cache-with-rundb-tx
+    (rundb-req-tx :RunDbService::ReqTx)
+    (ack-tx :RunDbService::AckTx)
+    (ack-rx :RunDbService::AckRx)
+    -> :())
+  (:wat::core::let*
+    (;; Cache reporter — closes over rundb handles (function args).
+     ((reporter ...) (:my::reporter/make rundb-req-tx ack-tx ack-rx))
+     ((cache-spawn ...) (CacheService/spawn ... reporter))
+     ((cache-pool ...) ...)
+     ((cache-driver :ProgramHandle<()>) ...)
+     ;; Inner — pop cache-req-tx, drive, drop.
+     ((_inner :())
+      (:wat::core::let*
+        (((cache-req-tx ...) (HandlePool::pop cache-pool))
+         ((_finish ...) (HandlePool::finish cache-pool))
+         ((reply-pair ...) ...)
+         ((_drive :()) (:my::test::drive-requests cache-req-tx ...)))
+        ()))
+     ;; cache senders dropped → cache loop exits → cache-driver is
+     ;; joinable now. Reporter's captured rundb-clone drops with
+     ;; the cache thread's env when the join completes.
+     ((_cache-join :()) (:wat::kernel::join cache-driver)))
+    ()))
+
+;; Top — deftest body. Owns RunDbService driver.
+(:deftest :my::test::full-pipeline
+  (:wat::core::let*
+    (((rundb-spawn ...) (RunDbService path 1 (null-cadence)))
+     ((rundb-pool ...) ...)
+     ((rundb-driver ...) ...)
+     ;; Inner — pop rundb req-tx, build ack pair, run cache.
+     ((_inner :())
+      (:wat::core::let*
+        (((rundb-req-tx ...) (HandlePool::pop rundb-pool))
+         ((_finish ...) (HandlePool::finish rundb-pool))
+         ((ack-channel ...) ...)
+         ((ack-tx ...) ...)
+         ((ack-rx ...) ...)
+         ((_run :()) (:my::test::run-cache-with-rundb-tx
+                       rundb-req-tx ack-tx ack-rx)))
+        ()))
+     ;; Inner exited — rundb senders dropped (popped one + reporter's
+     ;; captured clone, which run-cache-with-rundb-tx already cleaned
+     ;; up by joining cache before returning).
+     ((_rundb-join :()) (:wat::kernel::join rundb-driver)))
+    (:wat::test::assert-eq true true)))
+```
+
+Each function has the canonical Step-3 shape — outer driver, inner
+senders. The composition stays clean because each function
+encapsulates one driver's lifecycle in two scope levels.
+
+### The anti-pattern (do NOT do this)
+
+```scheme
+;; Inline triple-nest — collapses both drivers' lockstep into one
+;; let*. cache-req-tx and cache-driver are SAME-SCOPE bindings;
+;; joining cache-driver from this scope blocks because cache-req-tx
+;; is still alive.
+(:wat::core::let*
+  (((rundb-spawn ...) ...)
+   ((rundb-driver ...) ...)
+   ((rundb-req-tx ...) ...)         ; rundb sender lives same scope
+   ((cache-spawn ...) ...)
+   ((cache-driver ...) ...)
+   ((cache-req-tx ...) ...)         ; cache sender same scope
+   ((_drive :()) (drive-30 cache-req-tx ...))
+   ;; Joining cache-driver here — cache-req-tx is STILL bound;
+   ;; cache loop never sees disconnect; deadlock.
+   ((_cache-join :()) (:wat::kernel::join cache-driver))
+   ((_rundb-join :()) (:wat::kernel::join rundb-driver)))
+  (:wat::test::assert-eq true true))
+```
+
+The bug is structural: `_cache-join` is bound in the same `let*`
+whose body still has cache-req-tx alive. Step 3's "outer holds the
+handle; inner owns every Sender" rule still applies — but the
+inline mega-`let*` collapses outer and inner into one scope. The
+function-decomposition above puts each driver back in its own
+outer scope: `run-cache-with-rundb-tx`'s outer scope holds
+cache-driver; its inner scope owns cache-req-tx; the function joins
+cache-driver after inner returns; the function returns; ITS caller
+then drops the rundb senders that the function-args passed in.
+
+### When function decomposition is required
+
+Whenever a Reporter (or any callback) closes over OUTER service
+handles. The closure carries an extra ref to the outer service's
+senders; that ref lives as long as the closure does. The only way
+to ensure the outer service's senders are all gone before joining
+the outer driver is to ensure the closure itself is gone — which
+means the inner service must have FULLY shut down. A small named
+function that joins-before-returning gives you that guarantee for
+free.
+
+The "two-level `let*`" rule from Step 3 still holds. Step 9 just
+adds: when handles cascade across services, decompose into
+functions so each cascade level has its own outer/inner pair.
+
+### Real-world citation
+
+`holon-lab-trading/wat-tests-integ/proof/004-cache-telemetry/`
+ships this pattern: `drive-requests` / `run-cache-with-rundb-tx`
+/ deftest body. Three named functions, three driver lifecycles,
+one clean shutdown cascade. The first attempt at the same proof
+used the inline triple-nest above and deadlocked; the function-
+decomposed version passes (~290ms) and was the recognition that
+earned this section.
+
+---
+
 ## The complete pattern
 
 The eight steps above compose into one canonical template that covers
