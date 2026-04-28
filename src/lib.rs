@@ -60,6 +60,7 @@ pub mod ast;
 pub mod check;
 pub mod compose;
 pub mod config;
+pub mod edn_shim;
 pub mod sigma;
 pub mod fork;
 pub mod harness;

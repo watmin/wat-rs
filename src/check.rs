@@ -5976,6 +5976,26 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Path(":String".into()),
         },
     );
+    // Arc 079 — polymorphic value-to-EDN rendering. Three primitives
+    // wrap wat-edn's writer: `write` (compact single-line), `write-pretty`
+    // (multi-line indented), `write-json` (sentinel-tagged JSON).
+    // Each takes any wat value and returns a String; consumers compose
+    // them to render structured records on stdout (telemetry::Console)
+    // or for cross-process IPC.
+    for op in [
+        ":wat::edn::write",
+        ":wat::edn::write-pretty",
+        ":wat::edn::write-json",
+    ] {
+        env.register(
+            op.into(),
+            TypeScheme {
+                type_params: vec!["T".into()],
+                params: vec![t_var()],
+                ret: TypeExpr::Path(":String".into()),
+            },
+        );
+    }
     // Arc 053: Vector-tier algebra primitives. Operate on raw
     // materialized Vectors without round-tripping through HolonAST.
     // Used by Phase 4 learning code that holds emergent vectors.
