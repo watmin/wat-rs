@@ -5171,6 +5171,18 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         },
     );
+    // term::matches? — composes template + slots + ranges + sigma. The
+    // population-code unification primitive: same cell type AND every
+    // slot within the substrate's coincident floor. Cheaper than
+    // `coincident?` for forms that share a template (no encoding pass).
+    env.register(
+        ":wat::holon::term::matches?".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty(), holon_ty()],
+            ret: TypeExpr::Path(":bool".into()),
+        },
+    );
 
     // The eval-family forms — per the 2026-04-20 INSCRIPTION adding
     // :Result<wat::holon::HolonAST, :wat::core::EvalError> as the uniform

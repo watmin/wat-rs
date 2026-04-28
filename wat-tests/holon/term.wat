@@ -151,3 +151,97 @@
      ((slots :Vec<f64>) (:wat::holon::term::slots tpl))
      ((n :i64) (:wat::core::length slots)))
     (:wat::test::assert-eq n 0)))
+
+;; ─── matches? — same form against itself ─────────────────────────
+
+(:wat::test::deftest :wat-tests::holon::term::test-matches-self
+  ()
+  (:wat::core::let*
+    (((form :wat::holon::HolonAST)
+      (:wat::holon::Bind
+        (:wat::holon::leaf :rsi-thought)
+        (:wat::holon::Thermometer 70.0 0.0 100.0))))
+    (:wat::test::assert-eq
+      (:wat::holon::term::matches? form form)
+      true)))
+
+;; ─── matches? — close-but-not-identical slots within tolerance ────
+;;
+;; At the default coincident floor (sigma=1, sqrt(d)=100 for d=10000),
+;; the per-slot tolerance window is ~1% of the receptive field. A
+;; thought at 70.0 against one at 70.5 (0.5% delta on a 100-wide
+;; range) sits well inside that.
+
+(:wat::test::deftest :wat-tests::holon::term::test-matches-close-slot
+  ()
+  (:wat::core::let*
+    (((q :wat::holon::HolonAST)
+      (:wat::holon::Bind
+        (:wat::holon::leaf :rsi-thought)
+        (:wat::holon::Thermometer 70.0 0.0 100.0)))
+     ((s :wat::holon::HolonAST)
+      (:wat::holon::Bind
+        (:wat::holon::leaf :rsi-thought)
+        (:wat::holon::Thermometer 70.5 0.0 100.0))))
+    (:wat::test::assert-eq
+      (:wat::holon::term::matches? q s)
+      true)))
+
+;; ─── matches? — distant slot exceeds tolerance ───────────────────
+
+(:wat::test::deftest :wat-tests::holon::term::test-matches-distant-slot
+  ()
+  (:wat::core::let*
+    (((q :wat::holon::HolonAST)
+      (:wat::holon::Bind
+        (:wat::holon::leaf :rsi-thought)
+        (:wat::holon::Thermometer 70.0 0.0 100.0)))
+     ((s :wat::holon::HolonAST)
+      (:wat::holon::Bind
+        (:wat::holon::leaf :rsi-thought)
+        (:wat::holon::Thermometer 30.0 0.0 100.0))))
+    (:wat::test::assert-eq
+      (:wat::holon::term::matches? q s)
+      false)))
+
+;; ─── matches? — different templates never match ──────────────────
+;;
+;; Same value, same range, different keyword head → distinct templates;
+;; matches? short-circuits to false without even reaching the slot loop.
+
+(:wat::test::deftest :wat-tests::holon::term::test-matches-different-template
+  ()
+  (:wat::core::let*
+    (((q :wat::holon::HolonAST)
+      (:wat::holon::Bind
+        (:wat::holon::leaf :rsi-thought)
+        (:wat::holon::Thermometer 70.0 0.0 100.0)))
+     ((s :wat::holon::HolonAST)
+      (:wat::holon::Bind
+        (:wat::holon::leaf :macd-thought)
+        (:wat::holon::Thermometer 70.0 0.0 100.0))))
+    (:wat::test::assert-eq
+      (:wat::holon::term::matches? q s)
+      false)))
+
+;; ─── matches? — template-only forms (no Thermometer) match exactly ──
+;;
+;; A form with no Thermometer leaves degenerates to a single-template
+;; bucket; matches? reduces to "templates equal", which equals
+;; structural equality. Two structurally-identical forms with no
+;; Thermometers always match.
+
+(:wat::test::deftest :wat-tests::holon::term::test-matches-thermometer-free
+  ()
+  (:wat::core::let*
+    (((q :wat::holon::HolonAST)
+      (:wat::holon::Bind
+        (:wat::holon::leaf :x)
+        (:wat::holon::leaf 42)))
+     ((s :wat::holon::HolonAST)
+      (:wat::holon::Bind
+        (:wat::holon::leaf :x)
+        (:wat::holon::leaf 42))))
+    (:wat::test::assert-eq
+      (:wat::holon::term::matches? q s)
+      true)))

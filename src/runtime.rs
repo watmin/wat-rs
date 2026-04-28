@@ -2366,6 +2366,7 @@ fn dispatch_keyword_head(
         ":wat::holon::term::template" => eval_term_template(args, env, sym),
         ":wat::holon::term::slots" => eval_term_slots(args, env, sym),
         ":wat::holon::term::ranges" => eval_term_ranges(args, env, sym),
+        ":wat::holon::term::matches?" => eval_term_matches_q(args, env, sym),
 
         // Presence — the retrieval primitive per FOUNDATION 1718.
         // Cosine between encoded target and encoded reference. Returns
@@ -6336,6 +6337,86 @@ fn eval_term_ranges(
         .map(|(lo, hi)| Value::Tuple(Arc::new(vec![Value::f64(lo), Value::f64(hi)])))
         .collect();
     Ok(Value::Vec(Arc::new(items)))
+}
+
+/// `(:wat::holon::term::matches? query stored)` → `:bool` (arc 073).
+/// Composes the three decomposition primitives plus the substrate's
+/// sigma machinery. Returns true iff:
+///
+///   1. `template(query) == template(stored)` — same cell type
+///      (structural HolonAST equality).
+///   2. For every slot i, `|q[i] - s[i]| / (max[i] - min[i]) < floor`
+///      where `floor = sigma(d) / sqrt(d)` at the d the dim router
+///      picks for the form. Per-slot fuzzy unification on the
+///      receptive field — what `coincident?` reduces to when the
+///      structural shape already matches, but cheaper because no
+///      encoding is required.
+///
+/// HolonAST/HolonAST only (per Q5 of arc 073 DESIGN). Pre-encoded
+/// Vector callers reach for `coincident?` directly; they've already
+/// crossed the encoding boundary and don't have term structure.
+fn eval_term_matches_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::term::matches?";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let q = match eval(&args[0], env, sym)? {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST",
+                got: other.type_name(),
+            });
+        }
+    };
+    let s = match eval(&args[1], env, sym)? {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST",
+                got: other.type_name(),
+            });
+        }
+    };
+    if q.template() != s.template() {
+        return Ok(Value::bool(false));
+    }
+    let q_slots = q.slots();
+    let s_slots = s.slots();
+    let q_ranges = q.ranges();
+    // Same template guarantees same slot/range arity by construction —
+    // the template decomposition reads the form's shape and slots/
+    // ranges read the same Thermometer leaves in the same pre-order
+    // sequence.
+    let d = pick_d_for_pair(OP, &q, &s, sym)?;
+    let ctx = require_encoding_ctx(OP, sym)?;
+    let floor = ctx.encoders.get(d).coincident_floor(sym);
+    for i in 0..q_slots.len() {
+        let (lo, hi) = q_ranges[i];
+        let range = hi - lo;
+        // Zero-range slot (min == max) is degenerate; require exact
+        // value equality rather than dividing by zero. Two thoughts
+        // with a degenerate Thermometer still match if and only if
+        // their values agree bit-for-bit.
+        if range == 0.0 {
+            if q_slots[i] != s_slots[i] {
+                return Ok(Value::bool(false));
+            }
+        } else if (q_slots[i] - s_slots[i]).abs() / range >= floor {
+            return Ok(Value::bool(false));
+        }
+    }
+    Ok(Value::bool(true))
 }
 
 fn holon_to_watast(h: &HolonAST) -> WatAST {
