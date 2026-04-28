@@ -1,0 +1,22 @@
+;; wat-edn-clj — Clojure-side bridge to the wat-edn EDN format.
+;;
+;; Lives inside the wat-edn Rust crate for now; will move to its own
+;; Clojars-published artifact once the API stabilizes.
+
+{:paths ["src" "resources"]
+ :deps  {org.clojure/clojure {:mvn/version "1.11.1"}}
+
+ :aliases
+ {:test
+  {:extra-paths ["test"]
+   :extra-deps  {io.github.cognitect-labs/test-runner
+                 {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+   :main-opts   ["-m" "cognitect.test-runner"]}
+
+  :dev
+  {:extra-paths ["test" "examples"]
+   :extra-deps  {org.clojure/tools.namespace {:mvn/version "1.4.4"}}}
+
+  :run-dashboard
+  {:extra-paths ["examples"]
+   :main-opts   ["-m" "dashboard"]}}}

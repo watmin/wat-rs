@@ -1,0 +1,23 @@
+# Interop verification — separate Cargo project (NOT a workspace
+# member). Builds standalone from this directory, depends on the
+# wat-edn library via path. Holds the cross-tool handshake proof:
+# bytes flow Rust ↔ Clojure correctly.
+#
+# Not for `cargo test --workspace` — see README.md to run.
+
+[package]
+name = "wat-edn-interop-tests"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+wat-edn    = { path = ".." }
+chrono     = "0.4"
+uuid       = "1"
+num-bigint = "0.4"
+bigdecimal = "0.4"
+
+[workspace]
+# Empty [workspace] table — declares this is a leaf workspace,
+# excluded from the parent wat-rs workspace.

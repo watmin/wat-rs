@@ -54,6 +54,30 @@ Run the benchmark:
 cargo run --release --example bench -p wat-edn
 ```
 
+## Clojure side
+
+The companion Clojure library lives at [`wat-edn-clj/`](wat-edn-clj/).
+It loads schema from the same `.wat` files wat-rs's type checker
+consumes (header-file pattern):
+
+```clojure
+(require '[wat-edn.core :as wat])
+
+(wat/load-types! "shared.wat")
+
+(wat/gen 'enterprise.config/SizeAdjust
+         {:asset :BTC :factor 1.5 :reason "vol spike"})
+;; => #enterprise.config/SizeAdjust {:asset :BTC, :factor 1.5, ...}
+;;    (validation throws on field-type mismatch BEFORE bytes leave Clojure)
+
+(wat/read-typed 'enterprise.config/SizeAdjust edn-string)
+;; => validated body map
+```
+
+One `.wat` file. Two readers. Same schema. EDN bytes flow either
+direction (Clojure ↔ wat) without any helper-library handshake for
+the standard EDN spec.
+
 ## License
 
 MIT OR Apache-2.0
