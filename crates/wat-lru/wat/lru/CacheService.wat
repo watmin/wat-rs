@@ -12,6 +12,12 @@
 ;; Runtime storage is canonical-string-keyed per LocalCache/HashMap
 ;; convention; K,V are phantom at the type-check layer.
 ;;
+;; Arc 078: ships the canonical service contract — Reporter +
+;; MetricsCadence<G> + null-helpers + typed Report enum — alongside
+;; the pre-existing tuple Request protocol. spawn now demands both
+;; injection points; pass null-reporter / null-metrics-cadence for
+;; the explicit "no reporting" choice.
+;;
 ;; Protocol:
 ;;   Body<K,V>     = (tag :i64, key :K, put-val :Option<V>)
 ;;   ReplyTx<V>    = :Sender<Option<V>>
@@ -59,27 +65,208 @@
 (:wat::core::typealias :wat::lru::CacheService::Spawn<K,V>
   :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
 
+;; ─── Reporting contract — non-negotiable ───────────────────────
+;;
+;; Same shape as :wat::holon::lru::HologramCacheService — the
+;; canonical wat substrate service contract per arc 078. The user
+;; passes a Reporter (consumer-defined match-dispatching fn over
+;; Report variants) and a MetricsCadence (gate + tick) at spawn time.
+;; Both are required; pass null-reporter / null-metrics-cadence for
+;; the explicit "no reporting" choice.
+
+(:wat::core::struct :wat::lru::CacheService::Stats
+  (lookups :i64)        ;; total Gets in this window
+  (hits :i64)           ;; Gets returning Some
+  (misses :i64)         ;; Gets returning :None
+  (puts :i64)           ;; total Puts in this window
+  (cache-size :i64))    ;; LocalCache::len at gate-fire time
+
+;; Slice 4 ships ONE variant (Metrics, gated by metrics-cadence).
+;; Future variants (lifecycle, errors, evictions) extend additively
+;; without breaking consumers — same grow-by-arms pattern as the
+;; archive's TreasuryRequest.
+(:wat::core::enum :wat::lru::CacheService::Report
+  (Metrics (stats :wat::lru::CacheService::Stats)))
+
+;; MetricsCadence<G> — stateful rate gate. The user picks G; the
+;; cache threads the gate through each loop iteration via
+;; MetricsCadence/new with the advanced gate; the tick fn itself is
+;; invariant.
+(:wat::core::struct :wat::lru::CacheService::MetricsCadence<G>
+  (gate :G)
+  (tick :fn(G,wat::lru::CacheService::Stats)->(G,bool)))
+
+(:wat::core::typealias :wat::lru::CacheService::Reporter
+  :fn(wat::lru::CacheService::Report)->())
+
+;; null-metrics-cadence — fresh `MetricsCadence<()>` whose tick
+;; never fires. Use when metrics are a deliberate opt-out.
+(:wat::core::define
+  (:wat::lru::CacheService/null-metrics-cadence
+    -> :wat::lru::CacheService::MetricsCadence<()>)
+  (:wat::lru::CacheService::MetricsCadence/new
+    ()
+    (:wat::core::lambda
+      ((gate :()) (_stats :wat::lru::CacheService::Stats) -> :((),bool))
+      (:wat::core::tuple gate false))))
+
+;; null-reporter — discards every Report variant.
+(:wat::core::define
+  (:wat::lru::CacheService/null-reporter
+    (_report :wat::lru::CacheService::Report) -> :())
+  ())
+
+;; Fresh zero-counters Stats. Used at startup and after each
+;; gate-fire (window-rolling reset).
+(:wat::core::define
+  (:wat::lru::CacheService::Stats/zero -> :wat::lru::CacheService::Stats)
+  (:wat::lru::CacheService::Stats/new 0 0 0 0 0))
+
+;; ─── Service state — cache + running stats ─────────────────────
+;;
+;; Threaded through CacheService/loop-step alongside the cadence's
+;; gate. The cache mutates in place (LocalCache is thread-owned
+;; mutable); Stats rebuilds each iteration (values-up).
+
+(:wat::core::struct :wat::lru::CacheService::State<K,V>
+  (cache :wat::lru::LocalCache<K,V>)
+  (stats :wat::lru::CacheService::Stats))
+
+;; One loop-step's outputs: the post-dispatch State paired with the
+;; advanced MetricsCadence. tick-window and loop-step both thread
+;; this shape.
+(:wat::core::typealias :wat::lru::CacheService::Step<K,V,G>
+  :(wat::lru::CacheService::State<K,V>,wat::lru::CacheService::MetricsCadence<G>))
+
+;; ─── Per-variant request handler ────────────────────────────────
+;;
+;; GET: LocalCache::get; reply with Option<V>; stats: lookups++,
+;;      hits++ or misses++.
+;; PUT: LocalCache::put; reply :None; stats: puts++.
+;;
+;; Returns the new State (cache pointer unchanged — mutates in
+;; place; stats rebuilt).
+
+(:wat::core::define
+  (:wat::lru::CacheService/handle<K,V>
+    (req :wat::lru::CacheService::Request<K,V>)
+    (state :wat::lru::CacheService::State<K,V>)
+    -> :wat::lru::CacheService::State<K,V>)
+  (:wat::core::let*
+    (((cache :wat::lru::LocalCache<K,V>)
+      (:wat::lru::CacheService::State/cache state))
+     ((stats :wat::lru::CacheService::Stats)
+      (:wat::lru::CacheService::State/stats state))
+     ((body :wat::lru::CacheService::Body<K,V>) (:wat::core::first req))
+     ((reply-to :wat::lru::CacheService::ReplyTx<V>) (:wat::core::second req))
+     ((tag :i64) (:wat::core::first body))
+     ((key :K) (:wat::core::second body))
+     ((put-val :Option<V>) (:wat::core::third body))
+     ((resp :Option<V>)
+      (:wat::core::if (:wat::core::= tag 0) -> :Option<V>
+        (:wat::lru::LocalCache::get cache key)
+        (:wat::core::match put-val -> :Option<V>
+          ((Some v)
+            (:wat::core::let*
+              (((_ :Option<(K,V)>) (:wat::lru::LocalCache::put cache key v)))
+              :None))
+          (:None :None))))
+     ;; reply-to may have been dropped (client no longer interested);
+     ;; `send` returns :Option<()>, swallow either way.
+     ((_ :Option<()>) (:wat::kernel::send reply-to resp))
+     ((stats' :wat::lru::CacheService::Stats)
+      (:wat::core::if (:wat::core::= tag 0) -> :wat::lru::CacheService::Stats
+        ;; GET — bump lookups + hits/misses
+        (:wat::core::let*
+          (((hit-delta :i64)
+            (:wat::core::match resp -> :i64
+              ((Some _) 1)
+              (:None 0)))
+           ((miss-delta :i64)
+            (:wat::core::i64::- 1 hit-delta)))
+          (:wat::lru::CacheService::Stats/new
+            (:wat::core::i64::+ (:wat::lru::CacheService::Stats/lookups stats) 1)
+            (:wat::core::i64::+ (:wat::lru::CacheService::Stats/hits stats) hit-delta)
+            (:wat::core::i64::+ (:wat::lru::CacheService::Stats/misses stats) miss-delta)
+            (:wat::lru::CacheService::Stats/puts stats)
+            (:wat::lru::CacheService::Stats/cache-size stats)))
+        ;; PUT — bump puts
+        (:wat::lru::CacheService::Stats/new
+          (:wat::lru::CacheService::Stats/lookups stats)
+          (:wat::lru::CacheService::Stats/hits stats)
+          (:wat::lru::CacheService::Stats/misses stats)
+          (:wat::core::i64::+ (:wat::lru::CacheService::Stats/puts stats) 1)
+          (:wat::lru::CacheService::Stats/cache-size stats)))))
+    (:wat::lru::CacheService::State/new cache stats')))
+
+;; ─── Tick the metrics window — advance gate, emit+reset on fire ──
+
+(:wat::core::define
+  (:wat::lru::CacheService/tick-window<K,V,G>
+    (state :wat::lru::CacheService::State<K,V>)
+    (reporter :wat::lru::CacheService::Reporter)
+    (metrics-cadence :wat::lru::CacheService::MetricsCadence<G>)
+    -> :wat::lru::CacheService::Step<K,V,G>)
+  (:wat::core::let*
+    (((stats :wat::lru::CacheService::Stats)
+      (:wat::lru::CacheService::State/stats state))
+     ((gate :G)
+      (:wat::lru::CacheService::MetricsCadence/gate metrics-cadence))
+     ((tick-fn :fn(G,wat::lru::CacheService::Stats)->(G,bool))
+      (:wat::lru::CacheService::MetricsCadence/tick metrics-cadence))
+     ((tick :(G,bool)) (tick-fn gate stats))
+     ((gate' :G) (:wat::core::first tick))
+     ((fired :bool) (:wat::core::second tick))
+     ((cadence' :wat::lru::CacheService::MetricsCadence<G>)
+      (:wat::lru::CacheService::MetricsCadence/new gate' tick-fn)))
+    (:wat::core::if fired -> :wat::lru::CacheService::Step<K,V,G>
+      (:wat::core::let*
+        (((cache :wat::lru::LocalCache<K,V>)
+          (:wat::lru::CacheService::State/cache state))
+         ((final-stats :wat::lru::CacheService::Stats)
+          (:wat::lru::CacheService::Stats/new
+            (:wat::lru::CacheService::Stats/lookups stats)
+            (:wat::lru::CacheService::Stats/hits stats)
+            (:wat::lru::CacheService::Stats/misses stats)
+            (:wat::lru::CacheService::Stats/puts stats)
+            (:wat::lru::LocalCache::len cache)))
+         ((_ :()) (reporter (:wat::lru::CacheService::Report::Metrics final-stats)))
+         ((state' :wat::lru::CacheService::State<K,V>)
+          (:wat::lru::CacheService::State/new
+            cache (:wat::lru::CacheService::Stats/zero))))
+        (:wat::core::tuple state' cadence'))
+      (:wat::core::tuple state cadence'))))
+
 ;; Driver entry — allocates the LocalCache INSIDE the driver thread
 ;; (LocalCache is thread-owned; creating it in the caller and passing
 ;; across threads would trip the thread-id guard and wedge the
 ;; driver). Then delegates to `CacheService/loop-step` for the recursion.
 (:wat::core::define
-  (:wat::lru::CacheService/loop<K,V>
+  (:wat::lru::CacheService/loop<K,V,G>
     (capacity :i64)
     (req-rxs :Vec<wat::lru::CacheService::ReqRx<K,V>>)
+    (reporter :wat::lru::CacheService::Reporter)
+    (metrics-cadence :wat::lru::CacheService::MetricsCadence<G>)
     -> :())
   (:wat::core::let*
     (((cache :wat::lru::LocalCache<K,V>)
-      (:wat::lru::LocalCache::new capacity)))
-    (:wat::lru::CacheService/loop-step cache req-rxs)))
+      (:wat::lru::LocalCache::new capacity))
+     ((initial :wat::lru::CacheService::State<K,V>)
+      (:wat::lru::CacheService::State/new
+        cache (:wat::lru::CacheService::Stats/zero))))
+    (:wat::lru::CacheService/loop-step
+      initial req-rxs reporter metrics-cadence)))
 
 ;; Recursive inner loop. Owns the cache for the duration of the
 ;; driver thread's lifetime; select across request receivers; each
-;; request carries its reply-to sender for routing.
+;; request carries its reply-to sender for routing. After every
+;; dispatch, tick the metrics window (advance gate; emit on fire).
 (:wat::core::define
-  (:wat::lru::CacheService/loop-step<K,V>
-    (cache :wat::lru::LocalCache<K,V>)
+  (:wat::lru::CacheService/loop-step<K,V,G>
+    (state :wat::lru::CacheService::State<K,V>)
     (req-rxs :Vec<wat::lru::CacheService::ReqRx<K,V>>)
+    (reporter :wat::lru::CacheService::Reporter)
+    (metrics-cadence :wat::lru::CacheService::MetricsCadence<G>)
     -> :())
   (:wat::core::if (:wat::core::empty? req-rxs) -> :()
     ()
@@ -92,31 +279,22 @@
       (:wat::core::match maybe -> :()
         ((Some req)
           (:wat::core::let*
-            (((body :wat::lru::CacheService::Body<K,V>) (:wat::core::first req))
-             ((reply-to :wat::lru::CacheService::ReplyTx<V>)
-              (:wat::core::second req))
-             ((tag :i64) (:wat::core::first body))
-             ((key :K) (:wat::core::second body))
-             ((put-val :Option<V>) (:wat::core::third body))
-             ((resp :Option<V>)
-              (:wat::core::if (:wat::core::= tag 0) -> :Option<V>
-                (:wat::lru::LocalCache::get cache key)
-                (:wat::core::match put-val -> :Option<V>
-                  ((Some v)
-                    (:wat::core::let*
-                      (((_ :Option<(K,V)>) (:wat::lru::LocalCache::put cache key v)))
-                      :None))
-                  (:None :None))))
-             ;; reply-to may have been dropped (client no longer
-             ;; interested). `send` returns :Option<()>; either
-             ;; outcome leaves the driver free to carry on — we
-             ;; swallow :None.
-             ((_ :Option<()>) (:wat::kernel::send reply-to resp)))
-            (:wat::lru::CacheService/loop-step cache req-rxs)))
+            (((after-handle :wat::lru::CacheService::State<K,V>)
+              (:wat::lru::CacheService/handle req state))
+             ((step :wat::lru::CacheService::Step<K,V,G>)
+              (:wat::lru::CacheService/tick-window
+                after-handle reporter metrics-cadence))
+             ((next-state :wat::lru::CacheService::State<K,V>)
+              (:wat::core::first step))
+             ((cadence' :wat::lru::CacheService::MetricsCadence<G>)
+              (:wat::core::second step)))
+            (:wat::lru::CacheService/loop-step
+              next-state req-rxs reporter cadence')))
         (:None
           (:wat::lru::CacheService/loop-step
-            cache
-            (:wat::std::list::remove-at req-rxs idx)))))))
+            state
+            (:wat::std::list::remove-at req-rxs idx)
+            reporter metrics-cadence))))))
 
 ;; --- Client helpers ---
 ;;
@@ -171,10 +349,17 @@
 ;; spawns one driver thread that owns a fresh LocalCache<K,V> of the
 ;; given capacity and fans in all request receivers. Returns the
 ;; (pool, driver-handle) pair.
+;;
+;; Both reporter + metrics-cadence are required; pass
+;; :wat::lru::CacheService/null-reporter and
+;; (:wat::lru::CacheService/null-metrics-cadence) for the explicit
+;; "no reporting" choice. See CONVENTIONS.md "Service contract".
 (:wat::core::define
-  (:wat::lru::CacheService/spawn<K,V>
+  (:wat::lru::CacheService/spawn<K,V,G>
     (capacity :i64)
     (count :i64)
+    (reporter :wat::lru::CacheService::Reporter)
+    (metrics-cadence :wat::lru::CacheService::MetricsCadence<G>)
     -> :wat::lru::CacheService::Spawn<K,V>)
   (:wat::core::let*
     (((pairs :Vec<wat::lru::CacheService::ReqPair<K,V>>)
@@ -195,5 +380,6 @@
      ((pool :wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>)
       (:wat::kernel::HandlePool::new "CacheService" req-txs))
      ((driver :wat::kernel::ProgramHandle<()>)
-      (:wat::kernel::spawn :wat::lru::CacheService/loop capacity req-rxs)))
+      (:wat::kernel::spawn :wat::lru::CacheService/loop
+        capacity req-rxs reporter metrics-cadence)))
     (:wat::core::tuple pool driver)))

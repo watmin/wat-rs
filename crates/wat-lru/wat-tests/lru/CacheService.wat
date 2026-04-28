@@ -37,7 +37,9 @@
                ((con-drv :wat::kernel::ProgramHandle<()>)
                 (:wat::core::second con-state))
                ((state :wat::lru::CacheService::Spawn<String,i64>)
-                (:wat::lru::CacheService/spawn 16 1))
+                (:wat::lru::CacheService/spawn 16 1
+                  :wat::lru::CacheService/null-reporter
+                  (:wat::lru::CacheService/null-metrics-cadence)))
                ((driver :wat::kernel::ProgramHandle<()>)
                 (:wat::core::second state))
 
