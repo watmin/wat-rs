@@ -1,0 +1,25 @@
+[package]
+name = "wat-edn"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Spec-conforming EDN parser and writer for Rust — typed wire format for the wat language and wider Clojure-EDN ecosystem."
+
+[dependencies]
+chrono       = { version = "0.4", default-features = false, features = ["std", "clock"] }
+uuid         = "1"
+num-bigint   = "0.4"
+bigdecimal   = "0.4"
+memchr       = "2"
+thiserror    = "1"
+compact_str  = "0.8"
+
+[dev-dependencies]
+
+[lib]
+name = "wat_edn"
+path = "src/lib.rs"
+
+[[example]]
+name = "bench"
+path = "examples/bench.rs"
