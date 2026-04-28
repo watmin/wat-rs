@@ -2358,6 +2358,15 @@ fn dispatch_keyword_head(
         ":wat::holon::Thermometer" => eval_algebra_thermometer(args, env, sym),
         ":wat::holon::Blend" => eval_algebra_blend(args, env, sym),
 
+        // Term decomposition (arc 073). Read the form's structure as a
+        // Prolog term: template (the cell type), slots (the tuning
+        // values), ranges (the receptive fields). The cache slice
+        // (lab umbrella 059) and population-code consumers compose
+        // these directly.
+        ":wat::holon::term::template" => eval_term_template(args, env, sym),
+        ":wat::holon::term::slots" => eval_term_slots(args, env, sym),
+        ":wat::holon::term::ranges" => eval_term_ranges(args, env, sym),
+
         // Presence — the retrieval primitive per FOUNDATION 1718.
         // Cosine between encoded target and encoded reference. Returns
         // scalar :f64; the caller binarizes at the noise floor.
@@ -3758,6 +3767,14 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
             }
             Some(a.data() == b.data())
         }
+        // Arc 073 — HolonAST structural equality. The closed algebra
+        // already implements PartialEq/Eq with the f64-to_bits NaN
+        // dance; values_equal exposes that to wat-side `:wat::core::=`.
+        // Distinct from `coincident?` (which encodes both sides and
+        // compares on the algebra grid via cosine + sigma): this is
+        // the bit-exact structural predicate, the one a HashMap or a
+        // term-store template-key dispatch lookup needs.
+        (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => Some(a == b),
         (Value::Struct(x), Value::Struct(y)) => {
             if x.type_name != y.type_name {
                 return Some(false);
@@ -6218,6 +6235,107 @@ fn eval_holon_to_watast(
         }
     };
     Ok(Value::wat__WatAST(Arc::new(holon_to_watast(&h))))
+}
+
+/// `(:wat::holon::term::template form)` → `:wat::holon::HolonAST` (arc 073).
+/// Returns the form with each Thermometer leaf replaced by a SlotMarker
+/// — the template / cell type. Two thoughts that share structure-and-
+/// receptive-fields produce the same template; two thoughts that differ
+/// in any other way (variant, range, atom content) produce distinct
+/// templates. The `TermStore::get` path keys on this for exact-template
+/// HashMap lookup before sliding into per-slot tolerance.
+fn eval_term_template(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::term::template";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let h = match eval(&args[0], env, sym)? {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST",
+                got: other.type_name(),
+            });
+        }
+    };
+    Ok(Value::holon__HolonAST(Arc::new(h.template())))
+}
+
+/// `(:wat::holon::term::slots form)` → `:Vec<f64>` (arc 073). Pre-order
+/// list of every Thermometer value in the form. Empty for forms with
+/// no Thermometer leaves. Parallel in length and order to
+/// `:wat::holon::term::ranges`. The `TermStore::get` path uses these
+/// to score per-slot tolerance against the bucket's stored slots.
+fn eval_term_slots(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::term::slots";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let h = match eval(&args[0], env, sym)? {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST",
+                got: other.type_name(),
+            });
+        }
+    };
+    let items: Vec<Value> = h.slots().into_iter().map(Value::f64).collect();
+    Ok(Value::Vec(Arc::new(items)))
+}
+
+/// `(:wat::holon::term::ranges form)` → `:Vec<(f64,f64)>` (arc 073).
+/// Pre-order list of every Thermometer (min, max) pair in the form,
+/// parallel to `term::slots`. Used by `TermStore::get` to compute
+/// the per-slot tolerance window: `|q − stored| / (max − min)` against
+/// the substrate's `coincident?` floor.
+fn eval_term_ranges(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::holon::term::ranges";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let h = match eval(&args[0], env, sym)? {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST",
+                got: other.type_name(),
+            });
+        }
+    };
+    let items: Vec<Value> = h
+        .ranges()
+        .into_iter()
+        .map(|(lo, hi)| Value::Tuple(Arc::new(vec![Value::f64(lo), Value::f64(hi)])))
+        .collect();
+    Ok(Value::Vec(Arc::new(items)))
 }
 
 fn holon_to_watast(h: &HolonAST) -> WatAST {

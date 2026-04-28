@@ -5134,6 +5134,44 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // Term decomposition (arc 073). The Prolog/population-code primitive:
+    // any HolonAST decomposes into (template, slots, ranges). Templates
+    // compare exactly; slots compare via tolerance; ranges parameterize
+    // the tolerance window. Three substrate functions; three pure shapes.
+    env.register(
+        ":wat::holon::term::template".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: holon_ty(),
+        },
+    );
+    env.register(
+        ":wat::holon::term::slots".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Vec".into(),
+                args: vec![TypeExpr::Path(":f64".into())],
+            },
+        },
+    );
+    env.register(
+        ":wat::holon::term::ranges".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Vec".into(),
+                args: vec![TypeExpr::Tuple(vec![
+                    TypeExpr::Path(":f64".into()),
+                    TypeExpr::Path(":f64".into()),
+                ])],
+            },
+        },
+    );
+
     // The eval-family forms — per the 2026-04-20 INSCRIPTION adding
     // :Result<wat::holon::HolonAST, :wat::core::EvalError> as the uniform
     // return type. Every dynamic evaluation failure (verification,
