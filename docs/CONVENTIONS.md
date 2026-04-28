@@ -417,10 +417,10 @@ the arity and side-effects from the suffix alone.
 
 ```scheme
 ;; Type/new — auto-derived field constructor (3 args = 3 fields)
-(:wat::holon::HologramLRU/new hologram lru)
+(:wat::holon::lru::HologramCache/new hologram lru)
 
 ;; Type/make — factory; reads ambient `dim-count`; allocates inner storage
-(:wat::holon::HologramLRU/make filter cap)
+(:wat::holon::lru::HologramCache/make filter cap)
 
 ;; Type/spawn — factory that ALSO spawns a driver thread
 (:wat::lru::CacheService/spawn capacity count)        ; -> CacheService::Spawn<K,V>

@@ -1,4 +1,4 @@
-//! `wat-holon-lru` — `:wat::holon::HologramLRU` exposed to wat as
+//! `wat-holon-lru` — `:wat::holon::lru::HologramCache` exposed to wat as
 //! pure-wat composition over `:wat::holon::Hologram` (substrate) and
 //! `:wat::lru::LocalCache` (wat-lru).
 //!
@@ -9,14 +9,14 @@
 //!
 //! # Why this crate has no Rust code beyond the registrar
 //!
-//! HologramLRU's logic is a wat composition: `Hologram/put` +
+//! HologramCache's logic is a wat composition: `Hologram/put` +
 //! `LocalCache::put` (now eviction-aware after the slice-2 prep
 //! commit), with `Hologram/find-best` + filter on read. The substrate
 //! primitives needed (`Hologram/find-best`, `Hologram/remove-at-index`,
 //! `Hologram/pos-to-idx`) all live in core. wat-lru's
 //! `LocalCache::put` returns `Option<(K, V)>` for evicted entries.
 //!
-//! The crate ships ONE wat source file — `wat/holon/HologramLRU.wat` —
+//! The crate ships ONE wat source file — `wat/holon/HologramCache.wat` —
 //! plus its tests. The Rust side is just the registrar that exposes
 //! the wat source to consumers.
 //!
@@ -40,14 +40,14 @@
 //! external-crate contract uses `wat_sources()` only.
 
 /// wat source files this crate contributes. Returned in registration
-/// order: `HologramLRU.wat` (the bounded sibling of `Hologram`).
-/// Consumers who want HologramLRU pass `[wat_lru, wat_holon_lru]`
+/// order: `HologramCache.wat` (the bounded sibling of `Hologram`).
+/// Consumers who want HologramCache pass `[wat_lru, wat_holon_lru]`
 /// (in that order — wat-lru registers `LocalCache` first, then
-/// HologramLRU.wat layers on top).
+/// HologramCache.wat layers on top).
 pub fn wat_sources() -> &'static [wat::WatSource] {
     static FILES: &[wat::WatSource] = &[wat::WatSource {
-        path: "wat-holon-lru/holon/HologramLRU.wat",
-        source: include_str!("../wat/holon/HologramLRU.wat"),
+        path: "wat-holon-lru/holon/lru/HologramCache.wat",
+        source: include_str!("../wat/holon/lru/HologramCache.wat"),
     }];
     FILES
 }
@@ -56,5 +56,5 @@ pub fn wat_sources() -> &'static [wat::WatSource] {
 /// no Rust shim. Present so the external-crate contract reads
 /// uniformly with crates that DO have Rust code (wat-lru).
 pub fn register(_builder: &mut wat::rust_deps::RustDepsBuilder) {
-    // No-op: HologramLRU is wat-stdlib-only.
+    // No-op: HologramCache is wat-stdlib-only.
 }

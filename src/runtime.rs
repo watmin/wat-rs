@@ -6627,7 +6627,7 @@ fn eval_hologram_get(
 /// `(:wat::holon::Hologram/find store probe)` ->
 /// `:Option<(wat::holon::HolonAST, wat::holon::HolonAST)>`.
 /// Same lookup as `Hologram/get` but returns both the matched key
-/// AND the val. HologramLRU and consumers that need the matched key
+/// AND the val. HologramCache and consumers that need the matched key
 /// for downstream bookkeeping (LRU bumps, eviction) compose this;
 /// the user-facing call is `Hologram/get` which discards the key.
 fn eval_hologram_find(
@@ -6671,7 +6671,7 @@ fn eval_hologram_find(
 /// `(:wat::holon::Hologram/remove store key)` ->
 /// `:Option<wat::holon::HolonAST>`. Drop the entry whose key matches
 /// `key` exactly. Returns the previously-stored val if present, else
-/// None. HologramLRU calls this on LRU eviction to keep the inner
+/// None. HologramCache calls this on LRU eviction to keep the inner
 /// Hologram in sync.
 fn eval_hologram_remove(
     args: &[WatAST],

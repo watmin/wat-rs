@@ -1,6 +1,6 @@
 //! Arc 076 — `Hologram`: therm-routed coordinate-cell store with
 //! filtered-argmax readout. HolonAST → HolonAST. Unbounded; entries
-//! never evict (the bounded sibling `HologramLRU` adapts on top).
+//! never evict (the bounded sibling `HologramCache` adapts on top).
 //!
 //! ## What changed from arc 074
 //!
@@ -186,7 +186,7 @@ impl Hologram {
     /// Remove the entry whose key matches `key` exactly. Slot is
     /// derived from the key's structure (same routing as put).
     /// Returns the previously-stored val if the entry existed, else
-    /// None. Used by bounded variants (HologramLRU) to drop entries
+    /// None. Used by bounded variants (HologramCache) to drop entries
     /// when their LRU sidecar evicts a key.
     pub fn remove(&mut self, key: &HolonAST) -> Option<HolonAST> {
         let s = slot_for_form(key, self.capacity);

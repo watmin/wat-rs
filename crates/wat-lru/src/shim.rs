@@ -34,7 +34,7 @@ use wat_macros::wat_dispatch;
 /// Storage shape: the canonical String of the user's key indexes into
 /// pairs of `(original_key_value, val)`. Keeping the original key
 /// alive lets `put` return the evicted entry as `Option<(K, V)>` —
-/// downstream consumers (e.g. HologramLRU under arc 074 slice 2) need
+/// downstream consumers (e.g. HologramCache under arc 074 slice 2) need
 /// the original AST to clean up correlated bookkeeping when the LRU
 /// evicts a key. Memory cost is one extra `Arc::clone` per entry
 /// (HolonAST is Arc-wrapped; primitives are Copy or small).
@@ -81,7 +81,7 @@ impl WatLruCache {
     ///
     /// Returns `Some((evicted_k, evicted_v))` if insertion pushed past
     /// capacity, `None` otherwise. Most callers ignore the return; bound
-    /// caches that maintain correlated state (HologramLRU's per-cell
+    /// caches that maintain correlated state (HologramCache's per-cell
     /// hologram store) consume it to drop the matching entry.
     pub fn put(&mut self, k: Value, v: Value) -> Option<(Value, Value)> {
         let key = hashmap_key(":rust::lru::LruCache::put", &k).unwrap_or_else(|_| {

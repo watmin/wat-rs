@@ -1,4 +1,4 @@
-;; :wat::holon::HologramLRU — bounded therm-routed coordinate-cell store.
+;; :wat::holon::lru::HologramCache — bounded therm-routed coordinate-cell store.
 ;; Composes :wat::holon::Hologram (substrate) and :wat::lru::LocalCache
 ;; (wat-lru). When the LRU evicts a key, the matching Hologram entry
 ;; is dropped via Hologram/remove.
@@ -11,17 +11,17 @@
 ;; Surface mirrors Hologram's:
 ;;
 ;;   Hologram/make         (filter :fn(f64)->bool) -> Hologram
-;;   HologramLRU/make      (filter :fn(f64)->bool) (cap :i64) -> HologramLRU
+;;   HologramCache/make      (filter :fn(f64)->bool) (cap :i64) -> HologramCache
 ;;
 ;;   Hologram/put          store key val -> ()
-;;   HologramLRU/put       store key val -> ()      ;; ALSO updates LRU + drops evicted
+;;   HologramCache/put       store key val -> ()      ;; ALSO updates LRU + drops evicted
 ;;
 ;;   Hologram/get          store probe -> Option<HolonAST>
-;;   HologramLRU/get       store probe -> Option<HolonAST>  ;; ALSO bumps LRU on hit
+;;   HologramCache/get       store probe -> Option<HolonAST>  ;; ALSO bumps LRU on hit
 ;;
-;;   {Hologram,HologramLRU}/{len, capacity} — same shape
+;;   {Hologram,HologramCache}/{len, capacity} — same shape
 
-(:wat::core::struct :wat::holon::HologramLRU
+(:wat::core::struct :wat::holon::lru::HologramCache
   (hologram :wat::holon::Hologram)
   (lru :wat::lru::LocalCache<wat::holon::HolonAST,()>))
 
@@ -33,11 +33,11 @@
 ;; evicted from the LRU AND from the Hologram. A reasonable starting
 ;; point is `dim-capacity * 100` for ~100 entries per slot on average.
 (:wat::core::define
-  (:wat::holon::HologramLRU/make
+  (:wat::holon::lru::HologramCache/make
     (filter :fn(f64)->bool)
     (cap :i64)
-    -> :wat::holon::HologramLRU)
-  (:wat::holon::HologramLRU/new
+    -> :wat::holon::lru::HologramCache)
+  (:wat::holon::lru::HologramCache/new
     (:wat::holon::Hologram/make filter)
     (:wat::lru::LocalCache::new cap)))
 
@@ -51,15 +51,15 @@
 ;;    evicted key — slot routing inside Hologram drops the matching
 ;;    cell entry.
 (:wat::core::define
-  (:wat::holon::HologramLRU/put
-    (store :wat::holon::HologramLRU)
+  (:wat::holon::lru::HologramCache/put
+    (store :wat::holon::lru::HologramCache)
     (key :wat::holon::HolonAST)
     (val :wat::holon::HolonAST)
     -> :())
   (:wat::core::let*
-    (((h :wat::holon::Hologram) (:wat::holon::HologramLRU/hologram store))
+    (((h :wat::holon::Hologram) (:wat::holon::lru::HologramCache/hologram store))
      ((lru :wat::lru::LocalCache<wat::holon::HolonAST,()>)
-      (:wat::holon::HologramLRU/lru store))
+      (:wat::holon::lru::HologramCache/lru store))
      ((_ :()) (:wat::holon::Hologram/put h key val))
      ((evicted :Option<(wat::holon::HolonAST,())>)
       (:wat::lru::LocalCache::put lru key ())))
@@ -79,14 +79,14 @@
 ;; updates freshness on existing keys) and return Some(val). On
 ;; miss (filter rejected or empty bracket-pair), return :None.
 (:wat::core::define
-  (:wat::holon::HologramLRU/get
-    (store :wat::holon::HologramLRU)
+  (:wat::holon::lru::HologramCache/get
+    (store :wat::holon::lru::HologramCache)
     (probe :wat::holon::HolonAST)
     -> :Option<wat::holon::HolonAST>)
   (:wat::core::let*
-    (((h :wat::holon::Hologram) (:wat::holon::HologramLRU/hologram store))
+    (((h :wat::holon::Hologram) (:wat::holon::lru::HologramCache/hologram store))
      ((lru :wat::lru::LocalCache<wat::holon::HolonAST,()>)
-      (:wat::holon::HologramLRU/lru store)))
+      (:wat::holon::lru::HologramCache/lru store)))
     (:wat::core::match
       (:wat::holon::Hologram/find h probe)
       -> :Option<wat::holon::HolonAST>
@@ -101,16 +101,16 @@
 
 ;; ─── len — total entries across all slots ────────────────────────
 (:wat::core::define
-  (:wat::holon::HologramLRU/len
-    (store :wat::holon::HologramLRU)
+  (:wat::holon::lru::HologramCache/len
+    (store :wat::holon::lru::HologramCache)
     -> :i64)
   (:wat::holon::Hologram/len
-    (:wat::holon::HologramLRU/hologram store)))
+    (:wat::holon::lru::HologramCache/hologram store)))
 
 ;; ─── capacity — slot count of the inner Hologram ─────────────────
 (:wat::core::define
-  (:wat::holon::HologramLRU/capacity
-    (store :wat::holon::HologramLRU)
+  (:wat::holon::lru::HologramCache/capacity
+    (store :wat::holon::lru::HologramCache)
     -> :i64)
   (:wat::holon::Hologram/capacity
-    (:wat::holon::HologramLRU/hologram store)))
+    (:wat::holon::lru::HologramCache/hologram store)))
