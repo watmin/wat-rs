@@ -1136,6 +1136,34 @@ fn function_byte_equivalent(a: &Function, b: &Function) -> bool {
 /// paths it emits are derived mechanically from struct declarations
 /// the user / builtins authored legitimately, so emitting them under
 /// the same prefix is legitimate too.
+/// Arc 071 — build the type expression that names a declared
+/// struct/enum/newtype. For monomorphic decls (`type_params` empty),
+/// returns `:Foo` as a `Path`. For parametric decls (`type_params =
+/// ["A","B"]`), returns `:Foo<A,B>` as a `Parametric` whose head
+/// strips the leading `:` (matching how the type parser stores
+/// Parametric heads — see arc 058's `Result`/`Option`/`Vec` registrations).
+///
+/// Without this, `register_struct_methods` / `register_enum_methods`
+/// synthesized constructors with bare-path return types — fine for
+/// monomorphic decls but broken for parametric ones, since the type
+/// checker saw the body produce `:Foo` and rejected it against a
+/// `:Foo<i64>` signature. Surfaced by arc 070's `WalkStep<A>`
+/// (the first parametric built-in enum) when the lab harness
+/// type-checked a real consumer.
+fn parametric_decl_type(name: &str, type_params: &[String]) -> crate::types::TypeExpr {
+    if type_params.is_empty() {
+        crate::types::TypeExpr::Path(name.into())
+    } else {
+        crate::types::TypeExpr::Parametric {
+            head: name.trim_start_matches(':').into(),
+            args: type_params
+                .iter()
+                .map(|p| crate::types::TypeExpr::Path(p.clone()))
+                .collect(),
+        }
+    }
+}
+
 pub fn register_struct_methods(
     types: &crate::types::TypeEnv,
     sym: &mut SymbolTable,
@@ -1149,7 +1177,15 @@ pub fn register_struct_methods(
             _ => continue,
         };
 
-        let struct_type = crate::types::TypeExpr::Path(struct_def.name.clone());
+        // Arc 071 — parametric structs need their constructor /
+        // accessor signatures to reference the type as
+        // `:Foo<A,B>`, not bare `:Foo`. Without this the call site
+        // can't bind the type parameters and the checker rejects
+        // the body's apparent type as different from the
+        // signature's declared type. (No parametric built-in
+        // structs exist today, but user-declared parametrics get
+        // synthesized through the same machinery.)
+        let struct_type = parametric_decl_type(&struct_def.name, &struct_def.type_params);
 
         // Constructor — `<struct>/new`. One param per field, same
         // order as declaration. Body invokes `:wat::core::struct-new`
@@ -1252,7 +1288,13 @@ pub fn register_enum_methods(
             _ => continue,
         };
 
-        let enum_type = crate::types::TypeExpr::Path(enum_def.name.clone());
+        // Arc 071 — parametric enums (e.g., `WalkStep<A>`) need
+        // their constructor return types to read `:Enum<A,B>`, not
+        // bare `:Enum`. Without this the type checker sees the body
+        // produce `:Enum` and rejects against a `:Enum<i64>` signature.
+        // The lab harness probe at experiment/099-walkstep-probe is
+        // the regression case.
+        let enum_type = parametric_decl_type(&enum_def.name, &enum_def.type_params);
 
         for variant in &enum_def.variants {
             match variant {
