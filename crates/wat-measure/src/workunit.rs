@@ -26,7 +26,7 @@
 //! original key Value at iteration time.
 
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use wat::rust_deps::RustDepsBuilder;
 use wat::runtime::{hashmap_key, Value};
@@ -52,11 +52,20 @@ pub struct WatMeasureWorkUnit {
     /// Appends via `append-dt!`. Same canonical-key + original-Value
     /// shape; payload is a `Vec<f64>` of seconds-deltas.
     durations: HashMap<String, (Value, Vec<f64>)>,
-    /// Wall-clock at scope-open. Used by slice 4's `WorkUnit/scope`
-    /// to compute elapsed at scope-end. Slice 3 stores it but
-    /// exposes no accessor.
-    #[allow(dead_code)]
-    started: Instant,
+    /// Set via `assoc-tag!` / removed via `disassoc-tag!`. The
+    /// third concern alongside counters and durations: arbitrary
+    /// `HolonAST → HolonAST` key/value pairs that ride out on
+    /// every emitted Event row as a queryable EDN-string column.
+    /// Storage parallel to counters/durations: canonical-string key
+    /// → (original-key-Value, value-Value).
+    tags: HashMap<String, (Value, Value)>,
+    /// Wall-clock epoch nanoseconds at scope-open. Captured via
+    /// `chrono::Utc::now()` since `Instant` is monotonic-only and
+    /// can't anchor to wall-clock for the metric table's
+    /// `start-time-ns` column. Slice 4's `WorkUnit/scope` HOF
+    /// reads this at scope-close to populate `start-time-ns` on
+    /// every emitted Event::Metric row.
+    started_epoch_nanos: i64,
     /// Canonical 8-4-4-4-12 hyphenated v4 UUID. Minted via
     /// `wat_edn::new_uuid_v4()` (arc 092) at construction.
     uuid: String,
@@ -72,12 +81,108 @@ impl WatMeasureWorkUnit {
     /// returned wraps in a `ThreadOwnedCell` (macro `scope =
     /// "thread_owned"`); the cell binds to this thread.
     pub fn new() -> Self {
+        // Wall-clock epoch nanos at scope open. `SystemTime` can in
+        // theory go before UNIX_EPOCH (manual clock skew during NTP
+        // sync); treat that case as zero so the field is always
+        // monotone-non-negative for downstream SQL math.
+        let started_epoch_nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos() as i64)
+            .unwrap_or(0);
         WatMeasureWorkUnit {
             counters: HashMap::new(),
             durations: HashMap::new(),
-            started: Instant::now(),
+            tags: HashMap::new(),
+            started_epoch_nanos,
             uuid: wat_edn::new_uuid_v4().to_string(),
         }
+    }
+
+    /// `:rust::measure::WorkUnit::started-epoch-nanos wu` — wall-clock
+    /// nanos at scope open. Slice 4's `WorkUnit/scope` reads this
+    /// alongside `(:wat::time::epoch-nanos (:wat::time::now))` at
+    /// scope-close to populate the metric row's `start-time-ns` and
+    /// `end-time-ns` columns.
+    pub fn started_epoch_nanos(&self) -> i64 {
+        self.started_epoch_nanos
+    }
+
+    /// `:rust::measure::WorkUnit::counters-keys wu` — the original
+    /// key Values for every counter that was ever bumped. Slice 4's
+    /// ship walker iterates this to emit one Event::Metric row per
+    /// counter (CloudWatch model: each counter is a single data
+    /// point, value = leaf(count)).
+    pub fn counters_keys(&self) -> Vec<Value> {
+        self.counters.values().map(|(k, _)| k.clone()).collect()
+    }
+
+    /// `:rust::measure::WorkUnit::durations-keys wu` — the original
+    /// key Values for every duration name that ever had a sample
+    /// appended. Slice 4's ship walker pairs this with
+    /// `WorkUnit/durations` to emit ONE Event::Metric row PER
+    /// SAMPLE — N rows for a name with N samples (CloudWatch
+    /// model). metric_value stays a primitive HolonAST leaf this
+    /// way; Bundle/operator-tag preservation in NoTag (per arc 086)
+    /// never enters the picture.
+    pub fn durations_keys(&self) -> Vec<Value> {
+        self.durations.values().map(|(k, _)| k.clone()).collect()
+    }
+
+    /// `:rust::measure::WorkUnit::assoc-tag wu key val` — set the
+    /// tag at `key` to `val`. Both are HolonAST. If the key is
+    /// already present, the value is replaced. Tags are the third
+    /// concern alongside counters and durations: arbitrary
+    /// `HolonAST → HolonAST` pairs that ride on every emitted
+    /// Event row as a queryable EDN-string column. Reaches the SQL
+    /// `tags` column at scope-close.
+    pub fn assoc_tag(&mut self, key: Value, val: Value) {
+        let canon = hashmap_key(":rust::measure::WorkUnit::assoc-tag", &key)
+            .unwrap_or_else(|_| {
+                panic!(
+                    ":rust::measure::WorkUnit::assoc-tag: key must be a hashable Value \
+                     (primitive or HolonAST); got {}",
+                    key.type_name()
+                )
+            });
+        self.tags.insert(canon, (key, val));
+    }
+
+    /// `:rust::measure::WorkUnit::disassoc-tag wu key` — remove
+    /// the tag at `key`. No-op if the key isn't present (mirrors
+    /// `:wat::core::dissoc` on absent keys).
+    pub fn disassoc_tag(&mut self, key: Value) {
+        let canon = hashmap_key(":rust::measure::WorkUnit::disassoc-tag", &key)
+            .unwrap_or_else(|_| {
+                panic!(
+                    ":rust::measure::WorkUnit::disassoc-tag: key must be a hashable Value \
+                     (primitive or HolonAST); got {}",
+                    key.type_name()
+                )
+            });
+        self.tags.remove(&canon);
+    }
+
+    /// `:rust::measure::WorkUnit::tag wu key` — read the tag at
+    /// `key`. `None` for absent keys; symmetric with the read-side
+    /// counter / durations accessors. Tests use this to verify
+    /// assoc / disassoc behavior.
+    pub fn tag(&self, key: Value) -> Option<Value> {
+        let canon = hashmap_key(":rust::measure::WorkUnit::tag", &key)
+            .unwrap_or_else(|_| {
+                panic!(
+                    ":rust::measure::WorkUnit::tag: key must be a hashable Value \
+                     (primitive or HolonAST); got {}",
+                    key.type_name()
+                )
+            });
+        self.tags.get(&canon).map(|(_, v)| v.clone())
+    }
+
+    /// `:rust::measure::WorkUnit::tags-keys wu` — every currently-set
+    /// tag key. Slice 4's ship walker iterates this with
+    /// `WorkUnit/tag` to materialize the per-row tags map.
+    pub fn tags_keys(&self) -> Vec<Value> {
+        self.tags.values().map(|(k, _)| k.clone()).collect()
     }
 
     /// `:rust::measure::WorkUnit::uuid wu` — returns the scope's

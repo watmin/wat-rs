@@ -82,3 +82,65 @@
     (name :wat::holon::HolonAST)
     -> :Vec<f64>)
   (:rust::measure::WorkUnit::durations wu name))
+
+
+;; ─── Slice 4 accessors — read state needed by WorkUnit/scope ────
+
+(:wat::core::define
+  (:wat::measure::WorkUnit/started-epoch-nanos
+    (wu :wat::measure::WorkUnit) -> :i64)
+  ;; Rust ident `started_epoch_nanos`; the macro registers with
+  ;; underscore (cf. slice-3's append_dt). The wat-side keeps the
+  ;; kebab name.
+  (:rust::measure::WorkUnit::started_epoch_nanos wu))
+
+
+(:wat::core::define
+  (:wat::measure::WorkUnit/counters-keys
+    (wu :wat::measure::WorkUnit) -> :Vec<wat::holon::HolonAST>)
+  (:rust::measure::WorkUnit::counters_keys wu))
+
+
+(:wat::core::define
+  (:wat::measure::WorkUnit/durations-keys
+    (wu :wat::measure::WorkUnit) -> :Vec<wat::holon::HolonAST>)
+  (:rust::measure::WorkUnit::durations_keys wu))
+
+
+;; ─── Tags — the third concern (key/val HolonAST pairs) ──────────
+;;
+;; Mutators get `!` per the incr!/append-dt! convention. The tags
+;; map carries arbitrary HolonAST→HolonAST pairs that ride out on
+;; every emitted Event row as a queryable EDN-string column. Lab
+;; usage: stage identity (:stage :market-eval), entity tags
+;; (:asset :BTC), trace correlations (:run-id "abc-123"), etc.
+
+(:wat::core::define
+  (:wat::measure::WorkUnit/assoc-tag!
+    (wu :wat::measure::WorkUnit)
+    (key :wat::holon::HolonAST)
+    (val :wat::holon::HolonAST)
+    -> :())
+  (:rust::measure::WorkUnit::assoc_tag wu key val))
+
+
+(:wat::core::define
+  (:wat::measure::WorkUnit/disassoc-tag!
+    (wu :wat::measure::WorkUnit)
+    (key :wat::holon::HolonAST)
+    -> :())
+  (:rust::measure::WorkUnit::disassoc_tag wu key))
+
+
+(:wat::core::define
+  (:wat::measure::WorkUnit/tag
+    (wu :wat::measure::WorkUnit)
+    (key :wat::holon::HolonAST)
+    -> :Option<wat::holon::HolonAST>)
+  (:rust::measure::WorkUnit::tag wu key))
+
+
+(:wat::core::define
+  (:wat::measure::WorkUnit/tags-keys
+    (wu :wat::measure::WorkUnit) -> :Vec<wat::holon::HolonAST>)
+  (:rust::measure::WorkUnit::tags_keys wu))

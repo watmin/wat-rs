@@ -162,31 +162,58 @@ substrate defines all three; consumers don't model their own
 measurement-event variants.
 
 ```scheme
-;; ─── Metric — one row per (counter|duration) at scope-close ──
-(:wat::core::struct :wat::measure::Metric
-  (start-time-ns :i64)              ; wu start (wall-clock epoch ns)
-  (end-time-ns   :i64)              ; wu end
-  (namespace     :wat::edn::NoTag)  ; producing fn's fqdn keyword
-  (uuid          :String)           ; from the WorkUnit
-  (dimensions    :wat::edn::NoTag)  ; HolonAST map of fixed tags
-  (metric-name   :wat::edn::NoTag)  ; the counter/duration key
-  (metric-value  :wat::edn::NoTag)  ; bare number for counter; vector for durations
-  (metric-unit   :wat::edn::NoTag)) ; :count, :seconds, etc.
-
-;; ─── Log — one row per info/warn/error/debug call ────────────
-(:wat::core::struct :wat::measure::Log
-  (time-ns   :i64)                   ; emit moment (wall-clock epoch ns)
-  (namespace :wat::edn::NoTag)       ; producing fn's fqdn keyword
-  (caller    :wat::edn::NoTag)       ; producer identity
-  (level     :wat::edn::NoTag)       ; :info/:warn/:error/:debug
-  (uuid      :String)                ; from the WorkUnit
-  (data      :wat::edn::Tagged))     ; round-trip-safe message HolonAST
-
-;; ─── Event — the enum the consumer's Service is parameterized on ──
+;; The Event enum's variants carry flat-field payloads — no nested
+;; struct — because the substrate's auto-dispatch shim (arc 085)
+;; supports only primitive + :wat::edn::Tagged/NoTag field types
+;; per variant, NOT struct-typed fields. Each variant's fields are
+;; the columns of its derived table; no second level of unwrapping.
+;;
+;; The CloudWatch shape: ONE Event::Metric row per data point.
+;; A counter that ends at 7 emits ONE row (metric-value = leaf 7).
+;; A duration timed N times emits N rows (one per sample).
+;; metric-value is uniformly a primitive HolonAST leaf — never a
+;; collection — so NoTag rendering stays clean (bare numbers,
+;; no `#wat-edn.holon/Bundle` prefix from operator tags surviving
+;; NoTag's struct-and-enum-only tag-stripping rule, per arc 086).
+;; Aggregation (SUM/AVG/PERCENTILE) lives in arc 093's WorkQuery —
+;; the same shape CloudWatch + Prometheus use.
+;;
+;; The `tags` column is the third concern (after counters and
+;; durations): an unordered map of HolonAST→HolonAST pairs that
+;; rides on every emitted row as a queryable EDN string. Set via
+;; WorkUnit/assoc-tag! / cleared via /disassoc-tag!. Lab usage:
+;; (:asset :BTC), (:stage :market-eval), (:run-id "abc-123"), etc.
+;; The substrate-side field shape that renders the tags map as an
+;; edn string lands in slice 4's implementation (likely a new
+;; auto-dispatch arm for HashMap field types, or a third newtype
+;; alongside Tagged/NoTag — decision deferred until the wat-side
+;; Event types compile).
 (:wat::core::enum :wat::measure::Event
-  (Metric (m :wat::measure::Metric))
-  (Log    (l :wat::measure::Log)))
+  (Metric
+    (start-time-ns :i64)              ; wu start (wall-clock epoch ns)
+    (end-time-ns   :i64)              ; wu end
+    (namespace     :wat::edn::NoTag)  ; producing fn's fqdn keyword
+    (uuid          :String)           ; from the WorkUnit
+    (tags          <tags-shape-tbd>)  ; unordered HolonAST→HolonAST map
+    (metric-name   :wat::edn::NoTag)  ; the counter/duration key
+    (metric-value  :wat::edn::NoTag)  ; primitive HolonAST leaf — never a Bundle
+    (metric-unit   :wat::edn::NoTag)) ; :count, :seconds, etc.
+  (Log
+    (time-ns   :i64)                   ; emit moment (wall-clock epoch ns)
+    (namespace :wat::edn::NoTag)       ; producing fn's fqdn keyword
+    (caller    :wat::edn::NoTag)       ; producer identity
+    (level     :wat::edn::NoTag)       ; :info/:warn/:error/:debug
+    (uuid      :String)                ; from the WorkUnit
+    (tags      <tags-shape-tbd>)       ; same shape as on Metric
+    (data      :wat::edn::Tagged)))    ; round-trip-safe message HolonAST
 ```
+
+The `tags` field replaces the original DESIGN's `dimensions` field
+on Metric — same concept, but the user's framing made the third
+concern explicit (tags ride alongside counters and durations as
+WorkUnit state, not just on the row). Logs gain tags too: a log
+emitted mid-scope inherits whatever tags the wu carries at emit
+time.
 
 The `data` field on `Log` is tagged because logs are queryable
 structured records — we need to read them back as HolonAST and

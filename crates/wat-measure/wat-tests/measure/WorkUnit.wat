@@ -95,3 +95,58 @@
      ((_b :()) (:wat::measure::WorkUnit/append-dt! wu name 1.5))
      ((dts :Vec<f64>) (:wat::measure::WorkUnit/durations wu name)))
     (:wat::test::assert-eq dts (:wat::core::vec :f64 0.5 1.5))))
+
+
+;; ─── Tags — the third concern ────────────────────────────────────
+
+;; Tag absent reads None.
+(:wat::test::deftest :wat-measure::WorkUnit::test-tag-default
+  ()
+  (:wat::core::let*
+    (((wu :wat::measure::WorkUnit) (:wat::measure::WorkUnit::new))
+     ((key :wat::holon::HolonAST) (:wat::holon::Atom :asset))
+     ((got :Option<wat::holon::HolonAST>)
+      (:wat::measure::WorkUnit/tag wu key)))
+    (:wat::test::assert-eq got :None)))
+
+
+;; assoc-tag! then tag returns the value.
+(:wat::test::deftest :wat-measure::WorkUnit::test-assoc-tag-then-read
+  ()
+  (:wat::core::let*
+    (((wu  :wat::measure::WorkUnit) (:wat::measure::WorkUnit::new))
+     ((key :wat::holon::HolonAST)   (:wat::holon::Atom :asset))
+     ((val :wat::holon::HolonAST)   (:wat::holon::Atom :BTC))
+     ((_   :())                      (:wat::measure::WorkUnit/assoc-tag! wu key val))
+     ((got :Option<wat::holon::HolonAST>)
+      (:wat::measure::WorkUnit/tag wu key)))
+    (:wat::test::assert-eq got (Some val))))
+
+
+;; assoc-tag! twice on the same key — last write wins.
+(:wat::test::deftest :wat-measure::WorkUnit::test-assoc-tag-overwrites
+  ()
+  (:wat::core::let*
+    (((wu   :wat::measure::WorkUnit) (:wat::measure::WorkUnit::new))
+     ((key  :wat::holon::HolonAST)   (:wat::holon::Atom :stage))
+     ((v1   :wat::holon::HolonAST)   (:wat::holon::Atom :market-eval))
+     ((v2   :wat::holon::HolonAST)   (:wat::holon::Atom :ship-and-fold))
+     ((_a   :())                      (:wat::measure::WorkUnit/assoc-tag! wu key v1))
+     ((_b   :())                      (:wat::measure::WorkUnit/assoc-tag! wu key v2))
+     ((got  :Option<wat::holon::HolonAST>)
+      (:wat::measure::WorkUnit/tag wu key)))
+    (:wat::test::assert-eq got (Some v2))))
+
+
+;; disassoc-tag! removes the tag.
+(:wat::test::deftest :wat-measure::WorkUnit::test-disassoc-tag-removes
+  ()
+  (:wat::core::let*
+    (((wu  :wat::measure::WorkUnit) (:wat::measure::WorkUnit::new))
+     ((key :wat::holon::HolonAST)   (:wat::holon::Atom :run-id))
+     ((val :wat::holon::HolonAST)   (:wat::holon::Atom "abc-123"))
+     ((_a  :())                      (:wat::measure::WorkUnit/assoc-tag! wu key val))
+     ((_b  :())                      (:wat::measure::WorkUnit/disassoc-tag! wu key))
+     ((got :Option<wat::holon::HolonAST>)
+      (:wat::measure::WorkUnit/tag wu key)))
+    (:wat::test::assert-eq got :None)))
