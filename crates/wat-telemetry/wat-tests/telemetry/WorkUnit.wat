@@ -32,7 +32,25 @@
 (:wat::test::make-deftest :deftest
   ((:wat::core::define
      (:wat-telemetry::empty-tags -> :wat::telemetry::Tags)
-     (:wat::core::HashMap :wat::telemetry::Tag))))
+     (:wat::core::HashMap :wat::telemetry::Tag))
+   ;; Probe helper — `:fn(X)->fn(Y)->Z` shape. Tests whether wat
+   ;; supports nested fn return types (rejected as having "no
+   ;; precedent" per arc 083, but maybe the type system has grown
+   ;; since).
+   (:wat::core::define
+     (:wat-telemetry::probe::make-adder
+       (x :i64) -> :fn(i64)->i64)
+     (:wat::core::lambda ((y :i64) -> :i64)
+       (:wat::core::+ x y)))
+
+   ;; Rank-2 probe — factory generic over T, returns a closure that
+   ;; ITSELF is generic over T. Each call to make-runner instantiates
+   ;; T at the call-site.
+   (:wat::core::define
+     (:wat-telemetry::probe::make-runner<T>
+       (_label :String) -> :fn(fn()->T)->T)
+     (:wat::core::lambda ((body :fn()->T) -> :T)
+       (body)))))
 
 
 ;; ─── uuid is non-empty ────────────────────────────────────────────
@@ -256,3 +274,33 @@
       (:wat::telemetry::WorkUnit/scope::collect-metric-events
         wu 100 200 ns)))
     (:wat::test::assert-eq (:wat::core::length events) 2)))
+
+
+;; ─── Probe: can wat express `fn(X) -> fn(Y) -> Z` returns? ──────
+;;
+;; Arc 083 rejected a nested-fn shape on grounds it had "no other
+;; precedent in wat". Before the rank-2 closure factory for
+;; WorkUnit/make-scope, this probe verifies the basic shape:
+;; a function whose return type IS a function type, returned as a
+;; lambda value.
+(:deftest :wat-telemetry::WorkUnit::probe-fn-returning-fn
+  (:wat::core::let*
+    (((adder :fn(i64)->i64)
+      (:wat-telemetry::probe::make-adder 10))
+     ((sum :i64) (adder 5)))
+    (:wat::test::assert-eq sum 15)))
+
+
+;; ─── Probe: rank-2 — generic factory returning generic-T closure
+;;
+;; The pattern WorkUnit/make-scope wants:
+;;   make-runner<T> :: String -> (fn() -> T) -> T
+;; Each call to make-runner with a different T produces a runner
+;; specific to that T. If wat supports this, the closure factory
+;; for WorkUnit/scope handles works directly.
+(:deftest :wat-telemetry::WorkUnit::probe-rank-2-i64
+  (:wat::core::let*
+    (((runner :fn(fn()->i64)->i64)
+      (:wat-telemetry::probe::make-runner "i64-runner"))
+     ((result :i64) (runner (:wat::core::lambda (-> :i64) 42))))
+    (:wat::test::assert-eq result 42)))
