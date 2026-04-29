@@ -13,3 +13,4 @@ wat-sqlite = { path = "../wat-sqlite" }
 wat-edn = { path = "../wat-edn" }
 holon = { path = "../../../holon-rs" }
 rusqlite = { version = "0.31", features = ["bundled"] }
+crossbeam-channel = "0.5"

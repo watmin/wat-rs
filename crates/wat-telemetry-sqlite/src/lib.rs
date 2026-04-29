@@ -36,6 +36,7 @@
 //!   shims into the deps builder.
 
 mod auto;
+mod cursor;
 
 pub fn wat_sources() -> &'static [wat::WatSource] {
     static FILES: &[wat::WatSource] = &[
@@ -49,4 +50,5 @@ pub fn wat_sources() -> &'static [wat::WatSource] {
 
 pub fn register(builder: &mut wat::rust_deps::RustDepsBuilder) {
     auto::register(builder);
+    cursor::register(builder);
 }
