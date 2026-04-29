@@ -42,6 +42,14 @@
   :NoTagEdn     ;; render via :wat::edn::write-notag (compact, no struct/enum tag — lossy, human-friendly)
   :NoTagJson)   ;; render via :wat::edn::write-json-natural (natural JSON for ELK/DataDog ingestion — lossy)
 
+
+;; The shape `Console/dispatcher` returns and Service<E,G>'s
+;; per-batch dispatch contract takes (arc 089 slice 3). Aliasing
+;; spares every downstream signature from `:fn(Vec<E>)->()`
+;; nested inside another generic.
+(:wat::core::typealias :wat::std::telemetry::Console::Dispatcher<E>
+  :fn(Vec<E>)->())
+
 ;; The factory. Returns a closure that captures con-tx + format.
 ;; When the substrate Service calls dispatcher(entries), the closure
 ;; foldls each entry through the format-selected wat-edn primitive
@@ -80,11 +88,11 @@
 
 (:wat::core::define
   (:wat::std::telemetry::Console/dispatcher<E>
-    (con-tx :wat::std::service::Console::Tx)
+    (handle :wat::std::service::Console::Handle)
     (format :wat::std::telemetry::Console::Format)
-    -> :fn(Vec<E>)->())
+    -> :wat::std::telemetry::Console::Dispatcher<E>)
   (:wat::core::lambda ((entries :Vec<E>) -> :())
     (:wat::core::foldl entries ()
       (:wat::core::lambda ((_acc :()) (entry :E) -> :())
-        (:wat::std::service::Console/out con-tx
+        (:wat::std::service::Console/out handle
           (:wat::std::telemetry::Console::render-line entry format))))))

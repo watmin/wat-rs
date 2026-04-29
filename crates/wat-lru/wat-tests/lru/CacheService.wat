@@ -45,11 +45,11 @@
 
                ((_ :())
                 (:wat::core::let*
-                  (((con-pool :wat::kernel::HandlePool<wat::std::service::Console::Tx>)
+                  (((con-pool :wat::kernel::HandlePool<wat::std::service::Console::Handle>)
                     (:wat::core::first con-state))
-                   ((diag :wat::std::service::Console::Tx)
+                   ((diag :wat::std::service::Console::Handle)
                     (:wat::kernel::HandlePool::pop con-pool))
-                   ((_spare :wat::std::service::Console::Tx)
+                   ((_spare :wat::std::service::Console::Handle)
                     (:wat::kernel::HandlePool::pop con-pool))
                    ((_ :()) (:wat::kernel::HandlePool::finish con-pool))
 

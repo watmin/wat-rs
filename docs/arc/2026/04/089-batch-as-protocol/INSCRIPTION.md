@@ -1,9 +1,6 @@
 # Arc 089 — Batch-as-Protocol — INSCRIPTION
 
-**Status:** shipped 2026-04-29 (slices 1–4). Slice 5 (Console ack channel)
-held for separate consideration — it's correctness work on a different
-axis and touches every `Console/out` call site; deferred until a consumer
-or test surfaces a real failure mode that requires it.
+**Status:** shipped 2026-04-29 (slices 1–4 + 5). All five slices in.
 
 The substrate's destination services (`:wat::std::telemetry::Service<E,G>`,
 `:wat::std::telemetry::Sqlite/spawn` + `auto-spawn`) were rebuilt around
@@ -147,26 +144,75 @@ that choice for them.
 
 ---
 
+### Slice 5 — Console gains ack channel ("mini-TCP via paired channels")
+
+Replaced fire-and-forget `Console/out` / `Console/err` with the
+substrate's now-canonical mini-TCP pattern: each producer pops a
+`Console::Handle = (Tx, AckRx)` from the pool; the driver
+internally holds `Vec<DriverPair>` where each `DriverPair = (Rx,
+AckTx)` is paired with the producer's request channel by index;
+the driver's `select` returns the index that fired, and the
+matching ack-tx routes back to that producer with no payload
+overhead. The producer's helper blocks on ack-rx until the
+driver's `IOWriter/write-string` completes.
+
+Routing strategy: **pair-by-index** rather than embedded
+reply-tx. Console has one verb (write-line), all replies are
+unit, the producer's identity is captured by which channel
+fired. Pair-by-index is the cleanest shape for that case.
+Multi-verb services (`Service<E,G>`, `CacheService<K,V>`,
+`service-template.wat`) keep their existing embedded-reply-tx
+approach because reply types differ per verb. Both shapes
+documented as canonical patterns in `ZERO-MUTEX.md` § "Mini-TCP
+via paired channels — the canonical mutex-replacement pattern."
+
+Why it shipped tonight (not deferred): the user landed the
+recognition that this is a *general* pattern — substrate's
+answer to the mutex problem, applicable anywhere a shared
+resource has multiple producers. With the pattern named and
+ZERO-MUTEX.md updated to document it, slice 5's wide call-site
+sweep was the worked example that earned the documentation.
+
+**Files:**
+- `wat-rs/wat/std/service/Console.wat` — protocol rebuilt around
+  Handle / DriverPair; loop selects on rxs (extracted via map
+  first), routes ack via pairs[idx].second; `Console/out` /
+  `Console/err` take Handle and block on ack-rx.
+- `wat-rs/wat/std/telemetry/ConsoleLogger.wat` — struct holds
+  one `con-handle :Console::Handle` field instead of separate
+  con-tx + ack-tx + ack-rx fields.
+- `wat-rs/wat/std/telemetry/Console.wat` — `Console/dispatcher`
+  takes Handle; new `Console::Dispatcher<E>` typealias collapses
+  the dispatcher's return shape (per CONVENTIONS.md arc 077 rule).
+- `wat-rs/wat-tests/std/service/Console.wat` — both tests use Handle.
+- `wat-rs/wat-tests/std/telemetry/Console.wat` — test demonstrates
+  consumer-side concrete alias (`:my::Dispatcher`) per CONVENTIONS.md's
+  newly-named "Consumers alias the substrate's generic at their
+  concrete instantiation" convention.
+- `wat-rs/crates/wat-lru/wat-tests/lru/CacheService.wat` — debug
+  prints use Handle.
+- `wat-rs/examples/console-demo/wat/main.wat` — `:demo::make-logger`
+  takes Handle.
+- Lab `wat/programs/{pulse,smoke,bare-walk}.wat` — pop Handle
+  from con-pool; pass to ConsoleLogger/new and direct
+  Console/out calls.
+
+**Measured:** lab pulse 1000-candle benchmark stays at 45ms
+(was 46ms before slice 5). Console acks add no measurable
+overhead; the substrate's bounded(1) rendezvous already has
+the latency budget.
+
+**Documentation that landed alongside the slice:**
+- `ZERO-MUTEX.md` § "Mini-TCP via paired channels — the
+  canonical mutex-replacement pattern" — names the pattern as
+  the substrate's answer to the mutex question. Two sub-sections
+  covering pair-by-index vs embedded-reply-tx routing.
+- `CONVENTIONS.md` § "Consumers alias the substrate's generic at
+  their concrete instantiation" — added next to arc 077 rule.
+  Examples cite `:trading::telemetry::Spawn` (pre-existing) and
+  `:my::Dispatcher` (slice-5 test).
+
 ## What's NOT in this arc
-
-### Slice 5 — Console gains ack channel
-
-`:wat::std::service::Console/out` and `Console/err` are still
-fire-and-forget. Bounded(1) provides backpressure on accept; an ack
-channel would provide backpressure on completion ("the data is durable
-in IOWriter, not just queued"). The DESIGN.md sketches the shape.
-
-Held because:
-- The perf win the user named (5.4s → 0.046s) doesn't depend on
-  Console acks.
-- Slice 5 touches every `Console/out` and `Console/err` call site in
-  the substrate, examples, and lab — wide churn for a correctness
-  property no current test exercises.
-- A Service-shape Console refactor (Console becomes a Service<Message,()>
-  consumer) is the cleaner long-term shape but a bigger arc.
-
-When a consumer surfaces a real failure mode (e.g., logs lost on crash,
-ordering inversion across producers), slice 5 ships in its own arc.
 
 ### Cache batch primitives — Arc 090
 

@@ -605,6 +605,61 @@ The same rule applies in user crates: pass the angle-bracket
 density check at every type signature, and add aliases adjacent
 to the protocol typealiases when one signature crosses three.
 
+### Consumers alias the substrate's generic at their concrete instantiation
+
+The substrate ships generic aliases — `Service::Spawn<E>`,
+`Console::Dispatcher<E>`, `CacheService::Spawn<K,V>` — so the
+SAME factory can serve any consumer's domain type. For each
+consumer, those generics resolve to ONE concrete instantiation
+(the lab's `E = :trading::log::LogEntry`; an MTG engine's
+`E = :mtg::log::Event`; a thinker's
+`E = :thought::log::Inscription`). Aliasing that concrete
+instantiation once at the consumer's namespace collapses every
+downstream signature to a single readable name.
+
+Two layers of alias compose: substrate-generic + consumer-concrete.
+
+```scheme
+;; Substrate ships the generic — reusable across consumers.
+(:wat::core::typealias :wat::std::telemetry::Service::Spawn<E>
+  :(wat::std::telemetry::Service::ReqTxPool<E>,wat::kernel::ProgramHandle<()>))
+
+;; Consumer aliases the concrete instantiation at their namespace —
+;; readable everywhere downstream.
+(:wat::core::typealias :trading::telemetry::Spawn
+  :wat::std::telemetry::Service::Spawn<trading::log::LogEntry>)
+
+;; Every lab signature reads `:trading::telemetry::Spawn` instead
+;; of `:wat::std::telemetry::Service::Spawn<trading::log::LogEntry>`.
+(:wat::core::define
+  (:trading::telemetry::Sqlite/spawn<G>
+    (path :String) (count :i64)
+    (cadence :wat::std::telemetry::Service::MetricsCadence<G>)
+    -> :trading::telemetry::Spawn)
+  ...)
+```
+
+The rule:
+
+- **Substrate ships generics for reusability across consumers.**
+  `<E>`, `<K,V>`, `<G>` parameters that different domains
+  instantiate differently.
+- **Consumers alias the concrete instantiation at their own namespace.**
+  One alias per concept the app uses; substrate's `<E>` collapses
+  to a single readable name at the consumer site.
+
+References:
+
+- `holon-lab-trading/wat/io/telemetry/Sqlite.wat` —
+  `:trading::telemetry::Spawn = Service::Spawn<trading::log::LogEntry>`
+  is the canonical example; the lab's only telemetry consumer
+  aliases its concrete shape once.
+- `wat-rs/wat-tests/std/service-template.wat:72-73` — the canonical
+  service template's `:svc::Spawn` aliases the (pool, driver) tuple
+  AT the consumer's namespace; SERVICE-PROGRAMS.md § "The complete
+  pattern" explicitly says to "rename the `:svc::*` namespace to
+  your domain" when forking.
+
 ## When to add a primitive
 
 The stdlib is a blueprint, not a reference library. A primitive

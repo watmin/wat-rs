@@ -11,18 +11,28 @@
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
-          ;; Helper — takes the popped Console::Tx, builds an EDN
+          ;; App-level concrete typealias collapses the substrate's
+          ;; generic Dispatcher<E> to a single name for THIS app's
+          ;; entry type. Same pattern as the lab's
+          ;; `:trading::telemetry::Spawn` alias collapsing
+          ;; `Service::Spawn<trading::log::LogEntry>` — substrate
+          ;; ships generic shapes, apps alias them concrete.
+          (:wat::core::typealias :my::Dispatcher
+            :wat::std::telemetry::Console::Dispatcher<i64>)
+
+          ;; Helper — takes a Console::Handle, builds an EDN
           ;; dispatcher, dispatches three i64 entries as ONE batch.
-          ;; One let*; closure lives in the helper's scope, drops on
-          ;; return. Arc 089 slice 3: dispatcher takes Vec<E>.
+          ;; Arc 089 slice 3: dispatcher takes Vec<E>.
+          ;; Arc 089 slice 5: dispatcher closes over a Console::Handle
+          ;; so the per-entry Console/out call gets in-memory TCP for free.
           (:wat::core::define
             (:my::dispatch-three-edn
-              (con-tx :wat::std::service::Console::Tx)
+              (handle :wat::std::service::Console::Handle)
               -> :())
             (:wat::core::let*
-              (((d :fn(Vec<i64>)->())
+              (((d :my::Dispatcher)
                 (:wat::std::telemetry::Console/dispatcher
-                  con-tx :wat::std::telemetry::Console::Format::Edn))
+                  handle :wat::std::telemetry::Console::Format::Edn))
                ((batch :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
               (d batch)))
           ;; Main — outer holds Console driver; inner pops handle +
@@ -38,10 +48,10 @@
                 (:wat::std::service::Console/spawn stdout stderr 1))
                ((_ :())
                 (:wat::core::let*
-                  (((con-tx :wat::std::service::Console::Tx)
+                  (((handle :wat::std::service::Console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
                    ((_0 :()) (:wat::kernel::HandlePool::finish pool)))
-                  (:my::dispatch-three-edn con-tx))))
+                  (:my::dispatch-three-edn handle))))
               (:wat::kernel::join console-driver))))
         (:wat::core::vec :String)))
      ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))
@@ -76,21 +86,29 @@
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
-          ;; Arc 089 slice 3: dispatcher takes Vec<E>. Here E is
-          ;; Vec<i64>, so we wrap the row in a one-element batch.
-          ;; The dispatcher renders each element on its own line —
-          ;; one batch with one Vec<i64> entry → one line "[1,2,3]".
+          ;; App-level concrete aliases. Two layers — Row is the
+          ;; entry shape; Dispatcher is the dispatcher's concrete
+          ;; type. Every signature site reads `:my::Dispatcher`
+          ;; instead of `:fn(Vec<Vec<i64>>)->()` or
+          ;; `:wat::std::telemetry::Console::Dispatcher<Vec<i64>>`.
+          (:wat::core::typealias :my::Row :Vec<i64>)
+          (:wat::core::typealias :my::Dispatcher
+            :wat::std::telemetry::Console::Dispatcher<my::Row>)
+
+          ;; Arc 089 slice 3: dispatcher takes Vec<E>. The
+          ;; dispatcher renders each element on its own line —
+          ;; one batch with one Row entry → one line "[1,2,3]".
           (:wat::core::define
             (:my::dispatch-row-json
-              (con-tx :wat::std::service::Console::Tx)
+              (handle :wat::std::service::Console::Handle)
               -> :())
             (:wat::core::let*
-              (((d :fn(Vec<Vec<i64>>)->())
+              (((d :my::Dispatcher)
                 (:wat::std::telemetry::Console/dispatcher
-                  con-tx :wat::std::telemetry::Console::Format::Json))
-               ((row :Vec<i64>) (:wat::core::vec :i64 1 2 3))
-               ((batch :Vec<Vec<i64>>)
-                (:wat::core::vec :Vec<i64> row)))
+                  handle :wat::std::telemetry::Console::Format::Json))
+               ((row :my::Row) (:wat::core::vec :i64 1 2 3))
+               ((batch :Vec<my::Row>)
+                (:wat::core::vec :my::Row row)))
               (d batch)))
           (:wat::core::define
             (:user::main
@@ -103,10 +121,10 @@
                 (:wat::std::service::Console/spawn stdout stderr 1))
                ((_ :())
                 (:wat::core::let*
-                  (((con-tx :wat::std::service::Console::Tx)
+                  (((handle :wat::std::service::Console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
                    ((_0 :()) (:wat::kernel::HandlePool::finish pool)))
-                  (:my::dispatch-row-json con-tx))))
+                  (:my::dispatch-row-json handle))))
               (:wat::kernel::join console-driver))))
         (:wat::core::vec :String)))
      ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))

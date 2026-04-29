@@ -11,6 +11,14 @@
 ;; AST-entry path — the inner program reads as s-expressions, not a
 ;; stringified wat with backslash escapes. Arc 010's variadic-quote
 ;; plus the arc 011 hermetic-ast pairing is what makes this clean.
+;;
+;; Arc 089 slice 5 — Console gained mini-TCP via paired channels.
+;; Each producer pops a Console::Handle = (Tx, AckRx) from the
+;; pool; the driver internally pairs req-Rx with ack-Tx by index
+;; in Vec<DriverPair>. Console/out and Console/err take the
+;; Handle and block on ack-rx until the driver has written. The
+;; bounded(1) on each pipe is the organic backoff — producer
+;; can't queue another message until the previous one acked.
 
 
 ;; ─── hello via Console ────────────────────────────────────────────────
@@ -19,8 +27,10 @@
 ;;   - Console stdlib registers at startup (stdlib-defines land before user defines)
 ;;   - HandlePool claim-or-panic cycle runs
 ;;   - spawn/join routes a wat function across threads
-;;   - Drop cascade fires (inner scope exits → sender Arc drops →
-;;     select sees disconnect → Console/loop exits → outer join unblocks)
+;;   - Drop cascade fires (inner scope exits → Handle (Tx, AckRx) pair
+;;     drops → req-rx + ack-tx pair in the driver disconnects → loop
+;;     prunes the pair → loop exits → outer join unblocks)
+;;   - Producer blocks on ack-rx until driver writes (slice 5)
 
 (:wat::test::deftest :wat-tests::std::service::Console::test-hello-world
   ()
@@ -39,10 +49,10 @@
                 (:wat::std::service::Console/spawn stdout stderr 1))
                ((_ :())
                 (:wat::core::let*
-                  (((console :rust::crossbeam_channel::Sender<(i64,String)>)
+                  (((handle :wat::std::service::Console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
-                   ((_2 :()) (:wat::kernel::HandlePool::finish pool)))
-                  (:wat::std::service::Console/out console "hello via Console"))))
+                   ((_finish :()) (:wat::kernel::HandlePool::finish pool)))
+                  (:wat::std::service::Console/out handle "hello via Console"))))
               (:wat::kernel::join console-driver))))
         (:wat::core::vec :String)))
      ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))
@@ -60,6 +70,11 @@
 ;; message. The writes race; the test checks the SET of lines (sorted
 ;; membership) rather than order — three workers across threads, the
 ;; scheduler picks write order.
+;;
+;; Each worker pops its own Handle — the Handle bundles (Tx, AckRx),
+;; so each worker's producer-side pair is self-contained. The
+;; driver pairs them with the matching (Rx, AckTx) by index inside
+;; Console/loop.
 
 (:wat::test::deftest :wat-tests::std::service::Console::test-multi-writer
   ()
@@ -69,10 +84,10 @@
         (:wat::test::program
           (:wat::core::define
             (:my::worker
-              (console :rust::crossbeam_channel::Sender<(i64,String)>)
+              (handle :wat::std::service::Console::Handle)
               (msg :String)
               -> :())
-            (:wat::std::service::Console/out console msg))
+            (:wat::std::service::Console/out handle msg))
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)
@@ -84,11 +99,11 @@
                 (:wat::std::service::Console/spawn stdout stderr 3))
                ((_ :())
                 (:wat::core::let*
-                  (((h0 :rust::crossbeam_channel::Sender<(i64,String)>)
+                  (((h0 :wat::std::service::Console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
-                   ((h1 :rust::crossbeam_channel::Sender<(i64,String)>)
+                   ((h1 :wat::std::service::Console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
-                   ((h2 :rust::crossbeam_channel::Sender<(i64,String)>)
+                   ((h2 :wat::std::service::Console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
                    ((_0 :()) (:wat::kernel::HandlePool::finish pool))
                    ((w0 :wat::kernel::ProgramHandle<()>)

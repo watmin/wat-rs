@@ -2,12 +2,13 @@
 ;; logger.
 ;;
 ;; Producer-side recorder bound to a Console destination. Closure
-;; over (caller-id, clock, con-tx, format). Per emission: stamp the
-;; current time, identify the caller, render `[time level caller
-;; entry]` as one EDN/JSON line, write through the Console driver.
+;; over (caller-id, clock, con-tx, ack-tx, ack-rx, format). Per
+;; emission: stamp the current time, identify the caller, render
+;; `[time level caller entry]` as one EDN/JSON line, write through
+;; the Console driver, BLOCK on ack until the bytes are durable.
 ;; No Service queue between producer and Console driver — direct
-;; render-and-send in the producer's thread (Console/out and
-;; Console/err are fire-and-forget).
+;; render-and-send in the producer's thread, with the in-memory
+;; TCP discipline arc 089 slice 5 made universal.
 ;;
 ;; Why direct (no Service<E,G> shell): for dev/debug logging at
 ;; reasonable volume, queue-fronted indirection adds latency without
@@ -41,7 +42,7 @@
 
 
 (:wat::core::struct :wat::std::telemetry::ConsoleLogger
-  (con-tx :wat::std::service::Console::Tx)
+  (con-handle :wat::std::service::Console::Handle)
   (caller :wat::core::keyword)
   (now-fn :fn(())->wat::time::Instant)
   (format :wat::std::telemetry::Console::Format))
@@ -90,15 +91,15 @@
     (line :String)
     -> :())
   (:wat::core::let*
-    (((con-tx :wat::std::service::Console::Tx)
-      (:wat::std::telemetry::ConsoleLogger/con-tx logger))
+    (((handle :wat::std::service::Console::Handle)
+      (:wat::std::telemetry::ConsoleLogger/con-handle logger))
      ((to-stderr :bool)
       (:wat::core::or
         (:wat::core::= level :warn)
         (:wat::core::= level :error))))
     (:wat::core::if to-stderr -> :()
-      (:wat::std::service::Console/err con-tx line)
-      (:wat::std::service::Console/out con-tx line))))
+      (:wat::std::service::Console/err handle line)
+      (:wat::std::service::Console/out handle line))))
 
 
 ;; Universal log form. Caller passes the level explicitly. Use this

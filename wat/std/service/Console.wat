@@ -30,10 +30,11 @@
 
 ;; --- Message typealias ---
 ;;
-;; A Console message is (tag :i64, msg :String). This alias makes
-;; every signature in the file name the shape once; `reduce` walks
-;; through at unify + shape-inspection sites, so Message and its
-;; tuple expansion are interchangeable everywhere.
+;; A Console message is (tag :i64, msg :String). The ack address
+;; isn't carried in the payload — the driver pairs each rx with
+;; its matching ack-tx by index when select fires (see the loop
+;; below). One write pipe + one ack pipe per producer scope; the
+;; two pipes mutually block each other through bounded(1).
 (:wat::core::typealias :wat::std::service::Console::Message
   :(i64,String))
 (:wat::core::typealias :wat::std::service::Console::Tx
@@ -41,29 +42,74 @@
 (:wat::core::typealias :wat::std::service::Console::Rx
   :rust::crossbeam_channel::Receiver<wat::std::service::Console::Message>)
 
+
+;; --- Ack channel + handle typealiases (arc 089 slice 5) ---
+;;
+;; In-memory TCP: producer writes on Console::Tx, blocks on
+;; Console::AckRx until the driver finishes the corresponding
+;; IOWriter/write-string. Each producer scope creates ONE pair of
+;; pipes — one for each direction — and the bounded(1) on both
+;; gives mutual blocking without any extra plumbing.
+;;
+;; Console::Handle = (Tx, AckRx). Pop one of these from the pool
+;; at the producer's scope; pass it into Console/out and
+;; Console/err. The driver's internal pairs hold the matching
+;; (Rx, AckTx) — paired by index inside Console/spawn.
+(:wat::core::typealias :wat::std::service::Console::AckTx
+  :rust::crossbeam_channel::Sender<()>)
+(:wat::core::typealias :wat::std::service::Console::AckRx
+  :rust::crossbeam_channel::Receiver<()>)
+(:wat::core::typealias :wat::std::service::Console::Handle
+  :(wat::std::service::Console::Tx,wat::std::service::Console::AckRx))
+(:wat::core::typealias :wat::std::service::Console::DriverPair
+  :(wat::std::service::Console::Rx,wat::std::service::Console::AckTx))
+
 ;; --- Spawn return shape ---
 ;;
 ;; What `:wat::std::service::Console/spawn` returns: the HandlePool of
-;; tagged-message senders + the driver's ProgramHandle. Caller pops
-;; N senders, finishes the pool, scoped-drops at end → driver exits.
+;; per-producer Handles ((Tx, AckRx) pairs) + the driver's
+;; ProgramHandle. Caller pops N Handles, finishes the pool,
+;; scoped-drops at end → driver exits.
 (:wat::core::typealias :wat::std::service::Console::Spawn
-  :(wat::kernel::HandlePool<wat::std::service::Console::Tx>,wat::kernel::ProgramHandle<()>))
+  :(wat::kernel::HandlePool<wat::std::service::Console::Handle>,wat::kernel::ProgramHandle<()>))
 
 ;; --- Driver loop ---
 ;;
-;; Select across N receivers, decode each message's tag, write to
-;; the matching real IO handle. Removes disconnected receivers.
-;; Exits when no receivers remain.
+;; Select across N producers' request receivers; on a select fire
+;; at index i, write the (tag, msg) to the matching IOWriter and
+;; send () on the ack-tx paired with that receiver at index i.
+;; The pair index IS the routing — the substrate's `select`
+;; already told us WHICH producer fired; the matching ack-tx
+;; lives at the same index in the driver's pairs vec. No payload
+;; bloat for ack routing.
+;;
+;; Ack discipline (arc 089 slice 5): producer is blocked on its
+;; ack-rx; we send () AFTER IOWriter/write-string returns, so the
+;; producer's unblock happens after the bytes are durable.
+;; Bounded(1) on both pipes gives mutual blocking — the producer
+;; can't queue another message until the driver acked the
+;; previous one. The `select` IS the mutex — only one producer
+;; can be processed at a time; the ack is the release.
+;;
+;; Removes disconnected pairs (producer scope exited → req-tx
+;; dropped → req-rx returns :None on select). Exits when no
+;; pairs remain.
 (:wat::core::define
   (:wat::std::service::Console/loop
-    (rxs :Vec<wat::std::service::Console::Rx>)
+    (pairs :Vec<wat::std::service::Console::DriverPair>)
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
     -> :())
-  (:wat::core::if (:wat::core::empty? rxs) -> :()
+  (:wat::core::if (:wat::core::empty? pairs) -> :()
     ()
     (:wat::core::let*
-      (((chosen :(i64,Option<wat::std::service::Console::Message>))
+      (((rxs :Vec<wat::std::service::Console::Rx>)
+        (:wat::core::map pairs
+          (:wat::core::lambda
+            ((p :wat::std::service::Console::DriverPair)
+             -> :wat::std::service::Console::Rx)
+            (:wat::core::first p))))
+       ((chosen :(i64,Option<wat::std::service::Console::Message>))
         (:wat::kernel::select rxs))
        ((idx :i64) (:wat::core::first chosen))
        ((maybe :Option<wat::std::service::Console::Message>)
@@ -75,46 +121,79 @@
              ((msg :String) (:wat::core::second tagged))
              ((_ :i64) (:wat::core::if (:wat::core::= tag 0) -> :i64
                         (:wat::io::IOWriter/write-string stdout msg)
-                        (:wat::io::IOWriter/write-string stderr msg))))
-            (:wat::std::service::Console/loop rxs stdout stderr)))
+                        (:wat::io::IOWriter/write-string stderr msg)))
+             ((_ack :())
+              (:wat::std::service::Console/ack-at pairs idx)))
+            (:wat::std::service::Console/loop pairs stdout stderr)))
         (:None
           (:wat::std::service::Console/loop
-            (:wat::std::list::remove-at rxs idx)
+            (:wat::std::list::remove-at pairs idx)
             stdout
             stderr))))))
 
+
+;; --- Helper — send () on the ack-tx paired with rx[idx]. -----
+;;
+;; Lifted out of the loop body so the loop's outer let* stays
+;; one-let-deep per `feedback_simple_forms_per_func`. `(get pairs
+;; idx)` returns Option per arc 047; an out-of-bounds idx (which
+;; can't happen here since `select` returned a valid index over
+;; the same vec we mapped) collapses to a no-op.
+(:wat::core::define
+  (:wat::std::service::Console/ack-at
+    (pairs :Vec<wat::std::service::Console::DriverPair>)
+    (idx :i64)
+    -> :())
+  (:wat::core::match (:wat::core::get pairs idx) -> :()
+    ((Some pair)
+      (:wat::core::let*
+        (((ack-tx :wat::std::service::Console::AckTx)
+          (:wat::core::second pair))
+         ((_ :Option<()>) (:wat::kernel::send ack-tx ())))
+        ()))
+    (:None ())))
+
 ;; --- Client helpers ---
 ;;
-;; Each handle is a Console::Tx; callers don't build the tuple
-;; themselves, they use Console/out or Console/err.
-;; These are fire-and-forget from the client's perspective: if the
-;; Console driver has already shut down, the write has nowhere to
-;; go and we swallow silently rather than surface a late-lifecycle
-;; error. `send` returns :Option<()> after the 2026-04-20
-;; symmetrization; both arms of the match collapse to :(). A program
-;; that WANTS disconnect awareness uses the primitive `send` directly
-;; on its console handle.
+;; Each producer pops one Console::Handle from the pool — that's
+;; their (Tx, AckRx) pair. The helpers below destructure the
+;; handle, send the (tag, msg) tuple on the request channel, then
+;; block on the ack channel until the driver writes and acks.
+;;
+;; `(tag, msg)` is the entire payload — no per-call ack address
+;; bundled in. The driver pairs the producer's ack-tx with the
+;; producer's req-rx by index inside `Console/loop`, so the
+;; routing falls out of `select` for free.
+;;
+;; If the Console driver has already shut down: send → :None
+;; (req channel disconnected), recv → :None (ack-tx the driver
+;; held has been dropped). Both arms collapse to :() so callers
+;; don't need to care about late-lifecycle disconnect.
 (:wat::core::define
   (:wat::std::service::Console/out
-    (handle :wat::std::service::Console::Tx)
+    (handle :wat::std::service::Console::Handle)
     (msg :String)
     -> :())
-  (:wat::core::match
-    (:wat::kernel::send handle (:wat::core::tuple 0 msg))
-    -> :()
-    ((Some _) ())
-    (:None ())))
+  (:wat::core::let*
+    (((tx :wat::std::service::Console::Tx) (:wat::core::first handle))
+     ((ack-rx :wat::std::service::Console::AckRx) (:wat::core::second handle))
+     ((_send :Option<()>)
+      (:wat::kernel::send tx (:wat::core::tuple 0 msg)))
+     ((_recv :Option<()>) (:wat::kernel::recv ack-rx)))
+    ()))
 
 (:wat::core::define
   (:wat::std::service::Console/err
-    (handle :wat::std::service::Console::Tx)
+    (handle :wat::std::service::Console::Handle)
     (msg :String)
     -> :())
-  (:wat::core::match
-    (:wat::kernel::send handle (:wat::core::tuple 1 msg))
-    -> :()
-    ((Some _) ())
-    (:None ())))
+  (:wat::core::let*
+    (((tx :wat::std::service::Console::Tx) (:wat::core::first handle))
+     ((ack-rx :wat::std::service::Console::AckRx) (:wat::core::second handle))
+     ((_send :Option<()>)
+      (:wat::kernel::send tx (:wat::core::tuple 1 msg)))
+     ((_recv :Option<()>) (:wat::kernel::recv ack-rx)))
+    ()))
 
 ;; --- Console setup ---
 ;;
@@ -134,23 +213,56 @@
     (count :i64)
     -> :wat::std::service::Console::Spawn)
   (:wat::core::let*
-    (((pairs :Vec<(wat::std::service::Console::Tx,wat::std::service::Console::Rx)>)
+    ;; Build N request pairs and N ack pairs in lock-step. The
+    ;; index of the request pair matches the index of the ack
+    ;; pair — this is what makes pair-by-index ack routing
+    ;; possible inside Console/loop.
+    (((req-pairs :Vec<(wat::std::service::Console::Tx,wat::std::service::Console::Rx)>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda ((_i :i64) -> :(wat::std::service::Console::Tx,wat::std::service::Console::Rx))
-          (:wat::kernel::make-bounded-queue :wat::std::service::Console::Message 1))))
-     ((txs :Vec<wat::std::service::Console::Tx>)
-      (:wat::core::map pairs
-        (:wat::core::lambda ((p :(wat::std::service::Console::Tx,wat::std::service::Console::Rx))
-                            -> :wat::std::service::Console::Tx)
-          (:wat::core::first p))))
-     ((rxs :Vec<wat::std::service::Console::Rx>)
-      (:wat::core::map pairs
-        (:wat::core::lambda ((p :(wat::std::service::Console::Tx,wat::std::service::Console::Rx))
-                            -> :wat::std::service::Console::Rx)
-          (:wat::core::second p))))
-     ((pool :wat::kernel::HandlePool<wat::std::service::Console::Tx>)
-      (:wat::kernel::HandlePool::new "Console" txs))
+        (:wat::core::lambda
+          ((_i :i64)
+           -> :(wat::std::service::Console::Tx,wat::std::service::Console::Rx))
+          (:wat::kernel::make-bounded-queue
+            :wat::std::service::Console::Message 1))))
+     ((ack-pairs :Vec<(wat::std::service::Console::AckTx,wat::std::service::Console::AckRx)>)
+      (:wat::core::map
+        (:wat::core::range 0 count)
+        (:wat::core::lambda
+          ((_i :i64)
+           -> :(wat::std::service::Console::AckTx,wat::std::service::Console::AckRx))
+          (:wat::kernel::make-bounded-queue :() 1))))
+     ;; Producer-side: pop a Handle = (req-Tx, ack-Rx).
+     ((handles :Vec<wat::std::service::Console::Handle>)
+      (:wat::std::list::zip
+        (:wat::core::map req-pairs
+          (:wat::core::lambda
+            ((p :(wat::std::service::Console::Tx,wat::std::service::Console::Rx))
+             -> :wat::std::service::Console::Tx)
+            (:wat::core::first p)))
+        (:wat::core::map ack-pairs
+          (:wat::core::lambda
+            ((p :(wat::std::service::Console::AckTx,wat::std::service::Console::AckRx))
+             -> :wat::std::service::Console::AckRx)
+            (:wat::core::second p)))))
+     ;; Driver-side: Vec<DriverPair> = (req-Rx, ack-Tx) at the
+     ;; matching index. select fires for idx i; pairs[i].second
+     ;; is the ack-Tx the driver writes back on.
+     ((driver-pairs :Vec<wat::std::service::Console::DriverPair>)
+      (:wat::std::list::zip
+        (:wat::core::map req-pairs
+          (:wat::core::lambda
+            ((p :(wat::std::service::Console::Tx,wat::std::service::Console::Rx))
+             -> :wat::std::service::Console::Rx)
+            (:wat::core::second p)))
+        (:wat::core::map ack-pairs
+          (:wat::core::lambda
+            ((p :(wat::std::service::Console::AckTx,wat::std::service::Console::AckRx))
+             -> :wat::std::service::Console::AckTx)
+            (:wat::core::first p)))))
+     ((pool :wat::kernel::HandlePool<wat::std::service::Console::Handle>)
+      (:wat::kernel::HandlePool::new "Console" handles))
      ((driver :wat::kernel::ProgramHandle<()>)
-      (:wat::kernel::spawn :wat::std::service::Console/loop rxs stdout stderr)))
+      (:wat::kernel::spawn :wat::std::service::Console/loop
+        driver-pairs stdout stderr)))
     (:wat::core::tuple pool driver)))

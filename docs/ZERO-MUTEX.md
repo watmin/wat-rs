@@ -183,12 +183,17 @@ proven concurrency pattern that is not a lock.
 
 - **`:wat::std::service::Console`** — owns the real `io::Stdout`
   and `io::Stderr` handles. Every program that wants to print
-  gets a `Sender<(i64, String)>` from a HandlePool and sends
-  tagged messages. The Console driver runs a select loop across
-  all client queues; decodes tag; writes to stdout or stderr.
-  No lock on stdout; no garbled output; concurrent writers
-  serialize through the driver's single-threaded body. The
-  "Console is the lock, except there's no lock" case.
+  pops a `Console::Handle = (Tx, AckRx)` from a HandlePool and
+  uses it through `Console/out` / `Console/err`. The Console
+  driver runs a select loop across all client request channels;
+  on a select fire it writes to stdout or stderr, then sends `()`
+  on the ack-tx paired with that request channel by index. The
+  producer's helper blocks on ack-rx until that ack lands. No
+  lock on stdout; no garbled output; concurrent writers serialize
+  through the driver's single-threaded body; AND each producer
+  unblocks only AFTER the bytes are durable. The "Console is the
+  lock, except there's no lock" case — see also "Mini-TCP via
+  paired channels" below.
 - **`:wat::lru::CacheService<K,V>`** — the L2 caching program
   (external workspace member `crates/wat-lru/`; namespace promoted
   to `:wat::*` via arc 036). Owns its own LocalCache internally
@@ -240,6 +245,124 @@ above hot-inner-loop-of-inner-loop cost, channels are cheaper than
 the contention a Mutex would introduce. In the rare case where
 it's not, tier 2 (ThreadOwnedCell) or tier 1 (immutable snapshot)
 is the fallback.
+
+---
+
+## Mini-TCP via paired channels — the canonical mutex-replacement pattern
+
+The substrate's answer to *"I have a shared resource and N
+producers want to touch it without corrupting each other"* lives
+inside Tier 3 — but the ergonomic shape is sharp enough to name
+on its own. The trader called it **mini-TCP** when it surfaced
+during arc 089: producer writes on one pipe, blocks on the
+companion pipe until the consumer signals "done." Two pipes per
+producer, bounded(1) on each, mutually blocking through the
+substrate's existing rendezvous discipline.
+
+```
+PRODUCER SCOPE                                  DRIVER THREAD
+══════════════                                  ═════════════
+
+req-Tx ──────write──→ req-Rx                       ┐
+                                                    │  one of these
+ack-Rx ←──read──── ack-Tx                          │  per producer
+                                                    ┘
+
+  producer's two ends                              driver's two ends
+   = Console::Handle                                = Console::DriverPair
+     (Tx, AckRx)                                      (Rx, AckTx)
+```
+
+The driver's loop is **`io.select(things-who-want-to-touch-data)`**
+— substrate-native via `:wat::kernel::select`. Only one producer's
+message can be processed at a time because select picks one and
+the driver runs sequentially. Bounded(1) on the request pipe
+means a producer can't enqueue another message while the
+previous one is in-flight. Bounded(1) on the ack pipe means the
+producer's `recv` blocks until the driver explicitly signals
+completion. Together they give **organic backoff** — slow
+consumer naturally throttles fast producers; fast consumer
+unblocks producers immediately; no tuning, no policy, no lock.
+
+### What replaces Mutex
+
+A Mutex codifies *"only one thread at a time"*. The mini-TCP
+pattern dissolves that question: there ARE no parallel touches
+of the resource. The select loop is sequential by construction;
+the producer is paused waiting for the ack; the consumer holds
+the resource alone for as long as the work takes; the ack
+releases. The "lock" is the loop body itself; the "release" is
+the ack send. Both are the substrate's primitives; neither is
+a lock.
+
+### Routing acks: pair-by-index vs embedded reply-tx
+
+Two routing strategies, both substrate-supported:
+
+- **Pair-by-index** (`Console`, single-verb services). The
+  driver's `Vec<(Rx, AckTx)>` holds request and ack ends paired
+  by index. `select` returns the index that fired; the driver
+  looks up the matching ack-tx at the same index and sends `()`.
+  Ack address is implicit in the channel's identity. The
+  cleanest shape when ALL replies are unit and the service has
+  one verb. Reference: `wat-rs/wat/std/service/Console.wat`.
+
+- **Embedded reply-tx in payload** (`Service<E,G>`,
+  `CacheService<K,V>`, the canonical `service-template.wat`).
+  The request payload includes the producer's ack/reply channel
+  as a field. The driver reads the request, dispatches per-verb,
+  sends the reply on the address embedded in the payload.
+  Necessary when reply types differ per verb (`Ack` returns
+  unit; `Get` returns the domain state) — the embedded address
+  lets the driver pick the right typed channel per request.
+  Reference: `wat-rs/wat-tests/std/service-template.wat`.
+
+Both shapes give the same in-memory-TCP discipline. Pick
+pair-by-index when the service is single-verb-unit-reply (no
+dispatch needed); pick embedded reply-tx when the service has
+multiple verbs with heterogeneous reply types.
+
+### Why "the system breathes this way"
+
+A Mutex is held until released; producer goroutines/threads
+contend; the OS scheduler arbitrates; throughput depends on the
+hardware's atomic-instruction speed and the tradeoffs the
+scheduler picks. The mini-TCP pattern has none of that:
+producers send when they have something to say; the consumer
+serves at its natural rate; bounded(1) makes the request channel
+its own backpressure mechanism. The system runs at the speed of
+the slowest consumer, applies no fairness logic, and stays
+correct under any interleaving the channels allow. **No lock
+contention because there are no locks; no thundering herd
+because each producer's queue is exactly one slot wide.**
+
+### When this is the right shape
+
+- Any "shared resource with multiple producers" situation a
+  conventional Rust codebase would solve with `Mutex<T>` —
+  Console (stdout / stderr), DB writers, accumulators that bridge
+  pipeline stages, audit logs, registry services.
+- Any case where the producer needs to know when the work is
+  *done*, not just *queued* — durability boundaries (commit
+  acked; bytes written to fd; transaction sealed). Bounded send
+  alone gives backpressure on accept; the ack gives backpressure
+  on completion. Use both when "done" matters.
+
+### When something else fits better
+
+- **Tier 1 immutable snapshot** when the data doesn't mutate
+  after startup. A pipeline that hands out `Arc<Frozen>` references
+  doesn't need the round-trip; readers compute against the
+  snapshot directly.
+- **Pure-dataflow streams** (`wat/std/stream.wat` map / filter /
+  reduce) where the channel itself IS the protocol — no separate
+  ack needed because each downstream stage's `recv` IS the ack
+  for the upstream stage's `send`. Bounded(1) along the pipeline
+  gives the same backpressure for free.
+- **Fire-and-forget cases** where the producer genuinely doesn't
+  care about completion and bounded(1) accept-pressure is enough.
+  Rare; default to mini-TCP and downgrade only when measurement
+  shows the ack is wasted.
 
 ---
 
