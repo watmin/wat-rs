@@ -3,7 +3,7 @@
 ;; Lives inside the wat-edn Rust crate for now; will move to its own
 ;; Clojars-published artifact once the API stabilizes.
 
-{:paths ["src" "resources"]
+{:paths ["src"]
  :deps  {org.clojure/clojure {:mvn/version "1.11.1"}
          cheshire/cheshire   {:mvn/version "5.13.0"}}
 

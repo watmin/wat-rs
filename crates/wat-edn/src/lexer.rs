@@ -338,16 +338,16 @@ impl<'a> Lexer<'a> {
         // Spec: "If `-`, `+` or `.` are the first character, the second
         // character (if any) must be non-numeric." (`-N` / `+N` are routed
         // to lex_number via lex_signed; the `.` case lands here.)
-        if matches!(first, b'-' | b'+' | b'.') {
-            if matches!(self.peek(), Some(b'0'..=b'9')) {
-                return Err(Error::at(
-                    start,
-                    ErrorKind::InvalidSymbol(format!(
-                        "{} cannot be followed by a digit",
-                        first as char
-                    )),
-                ));
-            }
+        if matches!(first, b'-' | b'+' | b'.')
+            && matches!(self.peek(), Some(b'0'..=b'9'))
+        {
+            return Err(Error::at(
+                start,
+                ErrorKind::InvalidSymbol(format!(
+                    "{} cannot be followed by a digit",
+                    first as char
+                )),
+            ));
         }
 
         while let Some(b) = self.peek() {

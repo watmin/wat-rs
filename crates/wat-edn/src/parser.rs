@@ -335,10 +335,10 @@ impl<'a> Parser<'a> {
 /// `kind` selects the error variant used on rejection AND honors the
 /// spec's kind-specific rules: keywords may not begin with `::` and
 /// `:/` is illegal (whereas `/` alone is a legal bare symbol).
-fn parse_namespaced<'a>(
-    body: &'a str,
+fn parse_namespaced(
+    body: &str,
     kind: BodyKind,
-) -> std::result::Result<(Option<&'a str>, &'a str), ErrorKind> {
+) -> std::result::Result<(Option<&str>, &str), ErrorKind> {
     let wrap = |msg: String| -> ErrorKind {
         match kind {
             BodyKind::Symbol => ErrorKind::InvalidSymbol(msg),
