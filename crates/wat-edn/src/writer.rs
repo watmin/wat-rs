@@ -318,7 +318,7 @@ fn write_map(entries: &[(Value, Value)], out: &mut String) {
     let mut first = true;
     for (k, v) in entries {
         if !first {
-            out.push_str(", ");
+            out.push(' ');
         }
         write_to(k, out);
         out.push(' ');
@@ -380,7 +380,7 @@ mod tests {
             (Value::Keyword(Keyword::new("a")), Value::Integer(1)),
             (Value::Keyword(Keyword::new("b")), Value::Integer(2)),
         ]);
-        assert_eq!(write(&m), "{:a 1, :b 2}");
+        assert_eq!(write(&m), "{:a 1 :b 2}");
     }
 
     #[test]

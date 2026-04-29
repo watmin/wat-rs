@@ -12,9 +12,22 @@
 ;;   - pull namespace + uuid + tags from the wu (per-scope identity)
 ;;   - lift caller (keyword) → HolonAST → NoTag for the row
 ;;   - lift level   (keyword) → HolonAST → NoTag for the row
-;;   - wrap data    (HolonAST) → Tagged for the row
+;;   - lower data  (WatAST) → HolonAST via :wat::holon::Atom (the
+;;     polymorphic-Atom WatAST arm structurally lowers any quoted
+;;     form per arc 057); wrap that HolonAST in :wat::edn::Tagged.
 ;;   - build Event::Log; ship as a single-element batch through
 ;;     Service/batch-log; block on ack
+;;
+;; Why data is :wat::WatAST (not :wat::holon::HolonAST):
+;; struct values don't lift through Atom directly (arc 057's
+;; polymorphism covers primitives + HolonAST + WatAST, not Struct).
+;; Producers pass quoted/quasiquoted FORMS that capture the typed
+;; shape with values spliced in:
+;;   (/info wlog wu (:wat::core::quote :hello))
+;;   (/info wlog wu (:wat::core::quasiquote
+;;                   (:trading::PaperResolved/new ,run-name ...)))
+;; The substrate's watast_to_holon arm of Atom does the structural
+;; lowering; the resulting HolonAST round-trips through wat-edn.
 ;;
 ;; "Sync per event": each /log call is one Service/batch-log
 ;; round-trip. Same model as the lab archive's
@@ -55,7 +68,7 @@
     (logger :wat::telemetry::WorkUnitLog)
     (wu     :wat::telemetry::WorkUnit)
     (level  :wat::core::keyword)
-    (data   :wat::holon::HolonAST)
+    (data   :wat::WatAST)
     -> :())
   (:wat::core::let*
     (((handle :wat::telemetry::SinkHandles)
@@ -81,10 +94,14 @@
      ((ns-notag     :wat::edn::NoTag)  (:wat::edn::NoTag/new ns))
      ((caller-notag :wat::edn::NoTag)  (:wat::edn::NoTag/new caller-ast))
      ((level-notag  :wat::edn::NoTag)  (:wat::edn::NoTag/new level-ast))
-     ;; Tagged-wrap data so the sqlite shim writes it via
-     ;; :wat::edn::write (round-trip-safe; logs read back as
-     ;; HolonAST and pattern-match per arc 091's design).
-     ((data-tagged :wat::edn::Tagged) (:wat::edn::Tagged/new data))
+     ;; Lower the captured form to a HolonAST (Atom's WatAST arm —
+     ;; runtime.rs:6129's `watast_to_holon` — handles the structural
+     ;; lowering: primitives → leaves, list-forms → Bundles).
+     ((data-holon :wat::holon::HolonAST) (:wat::holon::Atom data))
+     ;; Tagged-wrap so the sqlite shim writes via :wat::edn::write
+     ;; (round-trip-safe; logs read back as HolonAST and pattern-
+     ;; match per arc 091's design).
+     ((data-tagged :wat::edn::Tagged) (:wat::edn::Tagged/new data-holon))
      ((event :wat::telemetry::Event)
       (:wat::telemetry::Event::Log
         time-ns ns-notag caller-notag level-notag uuid tags data-tagged))
@@ -109,7 +126,7 @@
   (:wat::telemetry::WorkUnitLog/debug
     (logger :wat::telemetry::WorkUnitLog)
     (wu     :wat::telemetry::WorkUnit)
-    (data   :wat::holon::HolonAST)
+    (data   :wat::WatAST)
     -> :())
   (:wat::telemetry::WorkUnitLog/log logger wu :debug data))
 
@@ -117,7 +134,7 @@
   (:wat::telemetry::WorkUnitLog/info
     (logger :wat::telemetry::WorkUnitLog)
     (wu     :wat::telemetry::WorkUnit)
-    (data   :wat::holon::HolonAST)
+    (data   :wat::WatAST)
     -> :())
   (:wat::telemetry::WorkUnitLog/log logger wu :info data))
 
@@ -125,7 +142,7 @@
   (:wat::telemetry::WorkUnitLog/warn
     (logger :wat::telemetry::WorkUnitLog)
     (wu     :wat::telemetry::WorkUnit)
-    (data   :wat::holon::HolonAST)
+    (data   :wat::WatAST)
     -> :())
   (:wat::telemetry::WorkUnitLog/log logger wu :warn data))
 
@@ -133,6 +150,6 @@
   (:wat::telemetry::WorkUnitLog/error
     (logger :wat::telemetry::WorkUnitLog)
     (wu     :wat::telemetry::WorkUnit)
-    (data   :wat::holon::HolonAST)
+    (data   :wat::WatAST)
     -> :())
   (:wat::telemetry::WorkUnitLog/log logger wu :error data))

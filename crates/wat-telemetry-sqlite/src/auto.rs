@@ -38,7 +38,7 @@ use wat::rust_deps::{
     ThreadOwnedCell,
 };
 use wat::runtime::{eval, Environment, RuntimeError, StructValue, SymbolTable, Value};
-use wat::types::{EnumDef, EnumVariant, TypeDef, TypeExpr};
+use wat::types::{expand_alias, EnumDef, EnumVariant, TypeDef, TypeEnv, TypeExpr};
 
 use wat_sqlite::WatSqliteDb;
 
@@ -148,7 +148,7 @@ fn dispatch_auto_prep(
             });
         }
     };
-    let schema = derive_schema(&enum_def).map_err(|reason| RuntimeError::MalformedForm {
+    let schema = derive_schema(&enum_def, types).map_err(|reason| RuntimeError::MalformedForm {
         head: OP.into(),
         reason,
     })?;
@@ -338,7 +338,7 @@ fn dispatch_auto_dispatch(
 
 // ─── derivation helpers ──────────────────────────────────────────
 
-fn derive_schema(def: &EnumDef) -> Result<AutoSchema, String> {
+fn derive_schema(def: &EnumDef, types: &TypeEnv) -> Result<AutoSchema, String> {
     let mut by_variant = HashMap::new();
     let mut ordered_ddls = Vec::new();
     for variant in &def.variants {
@@ -351,15 +351,24 @@ fn derive_schema(def: &EnumDef) -> Result<AutoSchema, String> {
         let mut col_names = Vec::new();
         let mut field_types = Vec::new();
         for (field_name, field_ty) in fields {
+            // Expand typealiases before checking — `:wat::telemetry::Tags`
+            // resolves to `:HashMap<HolonAST,HolonAST>` and that's the
+            // form `type_to_affinity` recognizes.
+            let resolved = expand_alias(field_ty, types);
             let col = kebab_to_snake(field_name);
-            let affinity = type_to_affinity(field_ty)
+            let affinity = type_to_affinity(&resolved)
                 .ok_or_else(|| format!(
-                    "{}::{}: unsupported field type {:?} (slice 1 supports :String, :i64, :f64, :bool)",
+                    "{}::{}: unsupported field type {:?} \
+                     (supports :String, :i64, :f64, :bool, \
+                     :wat::edn::Tagged, :wat::edn::NoTag, \
+                     :HashMap<K,V>)",
                     def.name, name, field_ty
                 ))?;
             col_specs.push(format!("{col} {affinity}"));
             col_names.push(col);
-            field_types.push(field_ty.clone());
+            // Cache the EXPANDED type — value_to_tosql at dispatch
+            // time matches against this without re-expanding.
+            field_types.push(resolved);
         }
         let create_ddl = format!(
             "CREATE TABLE IF NOT EXISTS {table} ({});",
@@ -388,8 +397,8 @@ fn derive_schema(def: &EnumDef) -> Result<AutoSchema, String> {
 }
 
 fn type_to_affinity(t: &TypeExpr) -> Option<&'static str> {
-    if let TypeExpr::Path(p) = t {
-        return match p.as_str() {
+    match t {
+        TypeExpr::Path(p) => match p.as_str() {
             ":String" => Some("TEXT NOT NULL"),
             ":i64" => Some("INTEGER NOT NULL"),
             ":f64" => Some("REAL NOT NULL"),
@@ -401,9 +410,15 @@ fn type_to_affinity(t: &TypeExpr) -> Option<&'static str> {
             ":wat::edn::Tagged" => Some("TEXT NOT NULL"),
             ":wat::edn::NoTag" => Some("TEXT NOT NULL"),
             _ => None,
-        };
+        },
+        // Arc 091 slice 7 — HashMap fields render as NoTag EDN map text.
+        // Same TEXT affinity as the NoTag arm; same write-strategy
+        // (write-notag) at bind time. Recognized after typealias
+        // expansion so `:wat::telemetry::Tags` (alias to
+        // `:HashMap<HolonAST,HolonAST>`) lands here.
+        TypeExpr::Parametric { head, .. } if head == "HashMap" => Some("TEXT NOT NULL"),
+        _ => None,
     }
-    None
 }
 
 fn pascal_to_snake(s: &str) -> String {
@@ -430,6 +445,26 @@ fn value_to_tosql(
     t: &TypeExpr,
     sym: &SymbolTable,
 ) -> Result<Box<dyn ToSql>, RuntimeError> {
+    // HashMap field — render the map via NoTag EDN; bind as TEXT.
+    // Recognized BEFORE the Path match because Parametric isn't a
+    // Path. Arc 091 slice 7 added this arm for the substrate's
+    // own Event::Metric/Log `tags :wat::telemetry::Tags` fields.
+    if let TypeExpr::Parametric { head, .. } = t {
+        if head == "HashMap" {
+            if !matches!(v, Value::wat__std__HashMap(_)) {
+                return Err(RuntimeError::MalformedForm {
+                    head: op.into(),
+                    reason: format!(
+                        "{enum_name}::{variant_name}#{idx}: HashMap field expected \
+                         a HashMap value; got {}",
+                        v.type_name()
+                    ),
+                });
+            }
+            let edn = wat::edn_shim::value_to_edn_notag(v, sym.types().map(|a| a.as_ref()));
+            return Ok(Box::new(wat_edn::write(&edn)));
+        }
+    }
     let path = match t {
         TypeExpr::Path(p) => p.as_str(),
         _ => {
@@ -438,7 +473,8 @@ fn value_to_tosql(
                 reason: format!(
                     "{enum_name}::{variant_name}#{idx}: non-scalar field type — \
                      auto-spawn supports :String/:i64/:f64/:bool plus the \
-                     :wat::edn::Tagged / :wat::edn::NoTag newtypes around HolonAST"
+                     :wat::edn::Tagged / :wat::edn::NoTag newtypes around \
+                     HolonAST and :HashMap<K,V>"
                 ),
             });
         }

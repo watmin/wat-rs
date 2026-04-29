@@ -1076,7 +1076,12 @@ fn holon_ast_to_edn(h: &holon::HolonAST) -> OwnedValue {
 fn holon_ast_to_edn_notag(h: &holon::HolonAST) -> OwnedValue {
     use holon::HolonAST;
     match h {
-        HolonAST::Symbol(s) => keyword_from_wat_path(&format!(":{}", s)),
+        // HolonAST::Symbol stores the colon-prefixed form for keywords
+        // (e.g. ":asset") — same convention runtime.rs:6865 keys off of
+        // for the to-watast round-trip. Pass s through directly; the
+        // older `format!(":{}", s)` here was double-prefixing the colon
+        // and producing `::asset`-shaped EDN output.
+        HolonAST::Symbol(s) => keyword_from_wat_path(s),
         HolonAST::String(s) => OwnedValue::String(std::borrow::Cow::Owned(s.to_string())),
         HolonAST::I64(n) => OwnedValue::Integer(*n),
         HolonAST::F64(x) => OwnedValue::Float(*x),

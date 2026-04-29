@@ -1,6 +1,6 @@
 # Arc 091 — `:wat::telemetry::*` — DESIGN
 
-**Status:** slices 1–5 shipped 2026-04-29; slice 6 pending.
+**Status:** slices 1–5 shipped 2026-04-29; slices 6 + 7 in flight.
 
 > **Namespace + crate rename note (2026-04-29).** This arc was originally
 > scoped under `:wat::measure::*` in a `wat-measure` crate. Mid-arc the
@@ -422,9 +422,45 @@ Slice 6 — lab refactor: consume substrate Event directly             [PENDING]
    circuit.candle / circuit.market / etc.
    This slice closes when pulse runs and the run db has both populated
    tables with proper joinable uuids.
+
+Slice 7 — substrate gaps surfaced by slice 6 (substrate-side)   [SHIPPED 2026-04-29]
+   The lab refactor uncovered three real flaws the substrate's slice-1
+   through slice-5 tests didn't catch (those tests stub the dispatcher
+   or use primitive data; the lab is the first consumer to send rich
+   data through the full Sqlite/auto-spawn path).
+   1. HashMap auto-dispatch arm. Event::Metric/Log declare
+      `tags :wat::telemetry::Tags` (HashMap<HolonAST,HolonAST>);
+      `:rust::sqlite::auto-prep` only handled primitives + Tagged/NoTag.
+      Added a HashMap arm to type_to_affinity (TEXT NOT NULL) and to
+      value_to_tosql (renders the map via wat::edn::write-notag and
+      binds as TEXT). derive_schema now expands typealiases first so
+      `:wat::telemetry::Tags` resolves to its underlying parametric
+      shape before checking. Verified by a new wat-test
+      (wat-tests/telemetry/hashmap-field.wat).
+   2. NoTag double-colon bug. `holon_ast_to_edn_notag` fed a
+      colon-prefixed Symbol through `format!(":{}", s)`, producing
+      `::asset` from a `:asset` keyword. Fixed by passing the symbol
+      string through directly — runtime.rs:6865's to-watast already
+      keys off the colon prefix, so the storage convention is "Symbol
+      stores `:asset` literally."
+   3. EDN map separator. The map writer was inserting `, ` between
+      entries; commas are whitespace in EDN per the spec. Switched
+      to single-space — canonical EDN and one fewer byte per entry.
+   4. WorkUnitLog/log<E>: data param changed from
+      `:wat::holon::HolonAST` to `:wat::WatAST`. Atom's polymorphism
+      (arc 057) covers primitives + HolonAST + WatAST but NOT Struct;
+      a wat struct value can't lift through Atom directly. Producers
+      now pass quoted/quasiquoted forms — the substrate's
+      watast_to_holon arm structurally lowers them at emit-time. Use
+      sites become:
+        (/info wlog wu (:wat::core::quote :hello))
+        (/info wlog wu (:wat::core::quasiquote
+                         (:my::Struct/new ,run-name ,paper-id ...)))
+   Substrate cargo test green; clippy clean.
 ```
 
-Slices ship sequentially. Each one tests its own piece; arc closes when slice 6's
+Slices ship sequentially through 6, with slice 7 surfaced and closed
+inline as the substrate gaps the lab hit. Arc closes when slice 6's
 pulse benchmark produces a queryable run db (the actual test of arc 093's reader
 path comes in arc 093 itself).
 

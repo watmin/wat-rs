@@ -100,7 +100,7 @@
             (:wat-telemetry::log-test::default-caller)
             (:wat-telemetry::log-test::fixed-now-fn)))
          ((_log :())
-          (:wat::telemetry::WorkUnitLog/info logger wu (:wat::holon::Atom :hello))))
+          (:wat::telemetry::WorkUnitLog/info logger wu (:wat::core::quote :hello))))
         ()))
      ((_join :()) (:wat::kernel::join driver))
      ((r1 :Option<wat::telemetry::Event>) (:wat::kernel::recv stub-rx))
@@ -160,7 +160,7 @@
             handle
             (:wat-telemetry::log-test::default-caller)
             (:wat-telemetry::log-test::fixed-now-fn)))
-         ((data :wat::holon::HolonAST) (:wat::holon::Atom :payload))
+         ((data :wat::WatAST) (:wat::core::quote :payload))
          ((_d :()) (:wat::telemetry::WorkUnitLog/debug logger wu data))
          ((_i :()) (:wat::telemetry::WorkUnitLog/info  logger wu data))
          ((_w :()) (:wat::telemetry::WorkUnitLog/warn  logger wu data))
