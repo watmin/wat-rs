@@ -347,11 +347,10 @@ If you don't need a custom binary, the workspace ships
 `#[wat_dispatch]` extension (wat-telemetry, wat-telemetry-sqlite,
 wat-sqlite, wat-lru, wat-holon-lru) at startup. Build with
 `cargo build --release` (the workspace's default-members covers
-it) and the binary lands at `target/release/wat`. Two shapes:
+it) and the binary lands at `target/release/wat`. Single shape:
 
 ```
 wat <entry.wat>      # run a program
-wat test <path>      # run tests — file or directory
 ```
 
 Use this when you want to interrogate a `runs/pulse-*.db` (arc
@@ -359,6 +358,11 @@ Use this when you want to interrogate a `runs/pulse-*.db` (arc
 crates without authoring your own binary. For embedding wat in
 your own application, stick with the `wat::main!` macro shape
 above — the bundled CLI is for ad-hoc scripts, not embedding.
+
+For wat tests, reach for `cargo test` against a Rust crate that
+uses `wat::test!` (see §13). The CLI does not run wat tests —
+arc 101 dropped the `wat test <path>` subcommand because cargo
+is the canonical answer.
 
 ### Build your own batteries-included CLI (arc 100)
 
@@ -376,12 +380,11 @@ fn main() -> std::process::ExitCode {
 }
 ```
 
-Everything `wat_cli::run` does — argv parsing, `wat <entry.wat>`
-vs `wat test <path>` dispatch, signal handlers (SIGINT → kernel
-stop, SIGUSR1/2/HUP forwards), exit codes, dep registration via
-the same OnceLocks `wat::compose_and_run` uses — happens for free.
-You declare which `#[wat_dispatch]` extensions to install; `run`
-does the rest.
+Everything `wat_cli::run` does — argv parsing for `wat
+<entry.wat>`, signal handlers (SIGINT → kernel stop, SIGUSR1/2/HUP
+forwards), exit codes, dep registration via the same OnceLocks
+`wat::compose_and_run` uses — happens for free. You declare which
+`#[wat_dispatch]` extensions to install; `run` does the rest.
 
 The `Battery` type is a tuple alias:
 
@@ -1946,19 +1949,14 @@ test Circular.wat :: wat-tests::holon::Circular::test-adjacent-hours-are-near ..
 test result: ok. 37 passed; 0 failed; finished in 133ms
 ```
 
-The CLI equivalent bypasses cargo entirely — useful for targeted
-runs or CI shells that aren't cargo-based:
-
-```
-$ wat test wat-tests/               # recursive directory traversal
-$ wat test wat-tests/holon/         # just the algebra-idiom tests
-$ wat test wat-tests/std/test.wat   # single file
-```
-
-Both paths share one runner (`wat::run_tests_from_dir`) and emit
-the same cargo-style output. Random-ordered per file (surfaces
-accidental order-dependencies); exit 0 all-pass, non-zero any
-fail.
+cargo IS the test path. There is no separate CLI subcommand for
+running wat tests — arc 101 dropped the `wat test <path>` form
+that pre-dated the `wat::test!` macro. The macro's runtime arm
+(`wat::test_runner::run_and_assert`) does the same directory
+walk + per-test invocation the dropped subcommand did, but
+through cargo's harness so you get `--release`, `RUST_BACKTRACE`,
+`--test-threads`, filter expressions, and the rest of cargo's
+testing surface for free.
 
 ### Failure output — Rust-styled, wat-located (arc 016)
 
@@ -1974,9 +1972,9 @@ note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ```
 
 Format mirrors `cargo test`'s own failure output — same `thread ...
-panicked at`, same `note:` hint. If you run `cargo test` (through
-`wat::test!`), this block appears under the test's captured
-stdout; under `wat test` CLI it goes straight to stderr.
+panicked at`, same `note:` hint. The block appears under the
+test's captured stdout when you run `cargo test` through
+`wat::test!`.
 
 With `RUST_BACKTRACE=1` (standard Rust convention — one env var
 you already know), the block gains a `stack backtrace:` section
@@ -2173,7 +2171,8 @@ digest. Startup halts if verification fails.
   - `005-stdlib-naming-audit/` — naming discipline
   - `006-stream-stdlib-completions/` — with-state + chunks rewrite
   - `007-wat-tests-wat/` — self-hosted testing (run-sandboxed,
-    `:wat::test::*`, `wat test` CLI, `wat::Harness`)
+    `:wat::test::*`, `wat::Harness`; the `wat test` CLI subcommand
+    arc 007 also shipped was retired in arc 101)
   - `008-wat-io-substrate/` — `:u8`, `:wat::io::IOReader` / `IOWriter`,
     StringIo stand-ins
   - `009-names-are-values/` — pass a named define by bare keyword-path

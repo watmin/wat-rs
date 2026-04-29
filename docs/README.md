@@ -85,8 +85,10 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   arc. ScopedLoader capability gate, `:wat::kernel::run-sandboxed`
   + its hermetic subprocess sibling, `:wat::test::*` stdlib with
   panic-and-catch assertions, AST-entry sandbox + `deftest`
-  defmacro, `wat test <path>` CLI with random-order discovery,
-  `wat::Harness` thin Rust embedding wrapper. Migrated every
+  defmacro, `wat::Harness` thin Rust embedding wrapper. (The `wat
+  test <path>` CLI subcommand this arc also shipped was retired
+  in arc 101 — `cargo test` via `wat::test!` is the canonical
+  test path now.) Migrated every
   stdlib test from Rust to `wat-tests/` along the way. Shipped
   alongside the `wat-vm` → `wat` and `program` → `service`
   renames.
