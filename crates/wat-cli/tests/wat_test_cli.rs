@@ -25,8 +25,11 @@ fn wat_test(path: &str) -> (std::process::ExitStatus, String, String) {
 
 #[test]
 fn wat_test_on_wat_tests_dir_passes() {
+    // Arc 099 — wat-tests/ lives at the workspace root (substrate
+    // crate); the wat-cli crate sits two levels deeper, so we walk
+    // up to find it.
     let crate_root = env!("CARGO_MANIFEST_DIR");
-    let wat_tests_dir = format!("{}/wat-tests", crate_root);
+    let wat_tests_dir = format!("{}/../../wat-tests", crate_root);
     let (status, stdout, stderr) = wat_test(&wat_tests_dir);
     assert!(
         status.success(),
@@ -51,7 +54,7 @@ fn wat_test_on_wat_tests_dir_passes() {
 #[test]
 fn wat_test_on_single_file_passes() {
     let crate_root = env!("CARGO_MANIFEST_DIR");
-    let harness = format!("{}/wat-tests/std/test.wat", crate_root);
+    let harness = format!("{}/../../wat-tests/std/test.wat", crate_root);
     let (status, stdout, _) = wat_test(&harness);
     assert!(status.success(), "single-file invocation should exit 0:\n{}", stdout);
     assert!(stdout.contains("test result: ok"));

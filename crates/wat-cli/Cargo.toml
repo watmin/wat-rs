@@ -1,0 +1,20 @@
+[package]
+name = "wat-cli"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "The wat command-line runner — substrate + every workspace #[wat_dispatch] battery linked in. Run wat scripts that use wat-telemetry, wat-telemetry-sqlite, wat-sqlite, wat-lru, wat-holon-lru without authoring a custom Rust binary. Arc 099."
+repository = "https://github.com/watmin/wat-rs"
+
+[[bin]]
+name = "wat"
+path = "src/main.rs"
+
+[dependencies]
+wat = { path = "../.." }
+wat-lru = { path = "../wat-lru" }
+wat-holon-lru = { path = "../wat-holon-lru" }
+wat-sqlite = { path = "../wat-sqlite" }
+wat-telemetry = { path = "../wat-telemetry" }
+wat-telemetry-sqlite = { path = "../wat-telemetry-sqlite" }
+libc = "0.2"

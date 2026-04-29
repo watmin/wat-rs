@@ -1,10 +1,16 @@
-//! `wat` — the wat command-line runner.
+//! `wat` — the wat command-line runner. Arc 099 moves this binary
+//! into its own crate so the substrate library (`wat`) stays
+//! library-only. The CLI crate is the canonical batteries-included
+//! consumer: it links every `#[wat_dispatch]` extension in the
+//! workspace (wat-telemetry, wat-telemetry-sqlite, wat-sqlite,
+//! wat-lru, wat-holon-lru) and registers them at startup so any
+//! `.wat` file passed via argv can use those surfaces directly.
 //!
-//! Two invocation shapes:
+//! Two invocation shapes (unchanged from the pre-arc-099 binary):
 //!
 //! ```
-//! wat <entry.wat>      # run a program — the original shape
-//! wat test <path>      # run tests — file or directory (arc 007 slice 4)
+//! wat <entry.wat>      # run a program
+//! wat test <path>      # run tests — file or directory
 //! ```
 //!
 //! Program mode reads an entry `.wat` file, runs the full startup
@@ -81,6 +87,32 @@ use wat::runtime::{
 };
 use wat::test_runner::run_tests_from_dir;
 
+// ─── Batteries installation ────────────────────────────────────────────
+//
+// Arc 099: install every workspace #[wat_dispatch] crate before any
+// wat code runs so scripts passed via argv can use telemetry, sqlite,
+// lru, etc. without authoring a custom Rust binary. Both halves of the
+// external-crate contract install via process-global OnceLocks (per
+// `wat::compose_and_run`'s docs); first caller wins, so test harnesses
+// inside this binary that spin up their own world inherit transparently.
+fn install_batteries() {
+    let mut builder = wat::rust_deps::RustDepsBuilder::with_wat_rs_defaults();
+    wat_telemetry::register(&mut builder);
+    wat_sqlite::register(&mut builder);
+    wat_lru::register(&mut builder);
+    wat_holon_lru::register(&mut builder);
+    wat_telemetry_sqlite::register(&mut builder);
+    let _ = wat::rust_deps::install(builder.build());
+
+    let _ = wat::source::install_dep_sources(vec![
+        wat_telemetry::wat_sources(),
+        wat_sqlite::wat_sources(),
+        wat_lru::wat_sources(),
+        wat_holon_lru::wat_sources(),
+        wat_telemetry_sqlite::wat_sources(),
+    ]);
+}
+
 // ─── OS signal handlers ────────────────────────────────────────────────
 
 /// SIGINT / SIGTERM handler. Both terminal signals route here; the
@@ -127,6 +159,11 @@ fn main() -> ExitCode {
     // deliberate failure test prints a "thread X panicked" line to
     // stderr before the sandbox intercepts.
     wat::panic_hook::install();
+
+    // Install every batteries crate's wat_sources + rust_deps before
+    // any wat code runs (arc 099). OnceLock-based; safe to call
+    // multiple times in tests, first caller wins.
+    install_batteries();
 
     let argv: Vec<String> = std::env::args().collect();
     let prog = argv.first().map(String::as_str).unwrap_or("wat");
@@ -220,9 +257,6 @@ fn main() -> ExitCode {
     }
 }
 
-// The heavy testing surface for the CLI lives in `tests/wat_cli.rs`
-// — integration tests that spawn the built binary via std::process::Command.
-
 // ─── `wat test` subcommand (arc 007 slice 4) ───────────────────────────
 //
 // Discovery convention (firmed up 2026-04-21):
@@ -248,10 +282,10 @@ const TEST_EXIT_NO_TESTS: u8 = 64;
 /// freeze + run + per-test / summary printing (arc 015 slice 1).
 /// The CLI's job is just argv parsing and exit-code mapping.
 ///
-/// No dep_sources / dep_registrars — the CLI binary deliberately
-/// does not link external wat crates (arc 013's proof stance).
-/// Consumers that want to run `.wat` tests referencing external
-/// wat crates use `wat::test!` in a Rust binary crate.
+/// Arc 099 — passes empty dep slices because batteries are already
+/// installed via the process-global OnceLock in [`install_batteries`]
+/// at startup. Test harnesses inside the freeze pipeline pick them
+/// up transparently.
 fn run_tests_command(entry: &str) -> ExitCode {
     let path = std::path::Path::new(entry);
     let summary = run_tests_from_dir(path, &[], &[]);
