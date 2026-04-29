@@ -33,6 +33,13 @@
   ((:wat::core::define
      (:wat-telemetry::empty-tags -> :wat::telemetry::Tags)
      (:wat::core::HashMap :wat::telemetry::Tag))
+   ;; Default namespace for tests that don't care about the
+   ;; specific value but need SOMETHING since WorkUnit::new
+   ;; demands it (per the user's "namespace adjacent to tags at
+   ;; instantiation" rule, 2026-04-29).
+   (:wat::core::define
+     (:wat-telemetry::default-ns -> :wat::holon::HolonAST)
+     (:wat::holon::Atom :wat-telemetry::test::ns))
    ;; Probe helper — `:fn(X)->fn(Y)->Z` shape. Tests whether wat
    ;; supports nested fn return types (rejected as having "no
    ;; precedent" per arc 083, but maybe the type system has grown
@@ -57,7 +64,7 @@
 
 (:deftest :wat-telemetry::WorkUnit::test-uuid-non-empty
   (:wat::core::let*
-    (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::empty-tags)))
+    (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((id :String) (:wat::telemetry::WorkUnit/uuid wu)))
     ;; A canonical 8-4-4-4-12 hex uuid is 36 chars — but :String
     ;; has no length primitive in slice-3 wat surface, and the
@@ -72,8 +79,8 @@
 
 (:deftest :wat-telemetry::WorkUnit::test-uuid-distinct
   (:wat::core::let*
-    (((wu1 :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::empty-tags)))
-     ((wu2 :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::empty-tags)))
+    (((wu1 :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
+     ((wu2 :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((id1 :String) (:wat::telemetry::WorkUnit/uuid wu1))
      ((id2 :String) (:wat::telemetry::WorkUnit/uuid wu2)))
     (:wat::test::assert-eq (:wat::core::= id1 id2) false)))
@@ -83,7 +90,7 @@
 
 (:deftest :wat-telemetry::WorkUnit::test-counter-default
   (:wat::core::let*
-    (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::empty-tags)))
+    (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :never-incremented))
      ((n :i64) (:wat::telemetry::WorkUnit/counter wu name)))
     (:wat::test::assert-eq n 0)))
@@ -93,7 +100,7 @@
 
 (:deftest :wat-telemetry::WorkUnit::test-incr-then-counter
   (:wat::core::let*
-    (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::empty-tags)))
+    (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :requests))
      ((_ :()) (:wat::telemetry::WorkUnit/incr! wu name))
      ((n :i64) (:wat::telemetry::WorkUnit/counter wu name)))
@@ -104,7 +111,7 @@
 
 (:deftest :wat-telemetry::WorkUnit::test-incr-many
   (:wat::core::let*
-    (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::empty-tags)))
+    (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :requests))
      ((_a :()) (:wat::telemetry::WorkUnit/incr! wu name))
      ((_b :()) (:wat::telemetry::WorkUnit/incr! wu name))
@@ -117,7 +124,7 @@
 
 (:deftest :wat-telemetry::WorkUnit::test-append-dt-then-read
   (:wat::core::let*
-    (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::empty-tags)))
+    (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :sql-page))
      ((_a :()) (:wat::telemetry::WorkUnit/append-dt! wu name 0.5))
      ((_b :()) (:wat::telemetry::WorkUnit/append-dt! wu name 1.5))
@@ -131,7 +138,7 @@
 (:deftest :wat-telemetry::WorkUnit::test-tags-empty
   (:wat::core::let*
     (((empty :wat::telemetry::Tags) (:wat-telemetry::empty-tags))
-     ((wu  :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new empty))
+     ((wu  :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) empty))
      ((got :wat::telemetry::Tags)
       (:wat::telemetry::WorkUnit/tags wu)))
     (:wat::test::assert-eq (:wat::core::length got) 0)))
@@ -149,7 +156,7 @@
       (:wat::core::HashMap :wat::telemetry::Tag
         asset-key asset-val
         stage-key stage-val))
-     ((wu    :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new tags))
+     ((wu    :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) tags))
      ((got   :wat::telemetry::Tags)
       (:wat::telemetry::WorkUnit/tags wu))
      ((looked-up :Option<wat::holon::HolonAST>)
@@ -160,13 +167,15 @@
 ;; ─── WorkUnit/scope<T> — bare HOF (open + run + return) ──────────
 
 ;; Body sees the wu, mutates it, returns T; scope returns body's
-;; T. The bare scope (no auto-ship yet — that lands in slice
-;; 4-ship) is the smallest piece of the HOF contract.
+;; T. The bare scope (no auto-ship — auto-ship lands when scope
+;; gains handles via WorkUnit/make-scope) is the smallest piece
+;; of the HOF contract.
 (:deftest :wat-telemetry::WorkUnit::test-scope-passes-result
   (:wat::core::let*
     (((tags   :wat::telemetry::Tags) (:wat-telemetry::empty-tags))
+     ((ns     :wat::holon::HolonAST) (:wat-telemetry::default-ns))
      ((result :i64)
-      (:wat::telemetry::WorkUnit/scope tags
+      (:wat::telemetry::WorkUnit/scope ns tags
         (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :i64)
           (:wat::core::let*
             (((_ :()) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
@@ -233,11 +242,11 @@
 (:deftest :wat-telemetry::WorkUnit::test-collect-metrics-empty
   (:wat::core::let*
     (((tags   :wat::telemetry::Tags)         (:wat-telemetry::empty-tags))
-     ((wu     :wat::telemetry::WorkUnit)     (:wat::telemetry::WorkUnit::new tags))
+     ((wu     :wat::telemetry::WorkUnit)     (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) tags))
      ((ns     :wat::holon::HolonAST)         (:wat::holon::Atom :test::ns))
      ((events :Vec<wat::telemetry::Event>)
       (:wat::telemetry::WorkUnit/scope::collect-metric-events
-        wu 100 200 ns)))
+        wu 100 200)))
     (:wat::test::assert-eq (:wat::core::length events) 0)))
 
 
@@ -247,7 +256,7 @@
 (:deftest :wat-telemetry::WorkUnit::test-collect-metrics-one-counter
   (:wat::core::let*
     (((tags  :wat::telemetry::Tags)     (:wat-telemetry::empty-tags))
-     ((wu    :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new tags))
+     ((wu    :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) tags))
      ((name  :wat::holon::HolonAST)     (:wat::holon::Atom :requests))
      ((_a    :())                        (:wat::telemetry::WorkUnit/incr! wu name))
      ((_b    :())                        (:wat::telemetry::WorkUnit/incr! wu name))
@@ -255,7 +264,7 @@
      ((ns    :wat::holon::HolonAST)     (:wat::holon::Atom :test::ns))
      ((events :Vec<wat::telemetry::Event>)
       (:wat::telemetry::WorkUnit/scope::collect-metric-events
-        wu 100 200 ns)))
+        wu 100 200)))
     (:wat::test::assert-eq (:wat::core::length events) 1)))
 
 
@@ -265,14 +274,14 @@
 (:deftest :wat-telemetry::WorkUnit::test-collect-metrics-two-duration-samples
   (:wat::core::let*
     (((tags  :wat::telemetry::Tags)     (:wat-telemetry::empty-tags))
-     ((wu    :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new tags))
+     ((wu    :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) tags))
      ((name  :wat::holon::HolonAST)     (:wat::holon::Atom :sql-page))
      ((_a    :())                        (:wat::telemetry::WorkUnit/append-dt! wu name 0.5))
      ((_b    :())                        (:wat::telemetry::WorkUnit/append-dt! wu name 1.5))
      ((ns    :wat::holon::HolonAST)     (:wat::holon::Atom :test::ns))
      ((events :Vec<wat::telemetry::Event>)
       (:wat::telemetry::WorkUnit/scope::collect-metric-events
-        wu 100 200 ns)))
+        wu 100 200)))
     (:wat::test::assert-eq (:wat::core::length events) 2)))
 
 
@@ -289,6 +298,21 @@
       (:wat-telemetry::probe::make-adder 10))
      ((sum :i64) (adder 5)))
     (:wat::test::assert-eq sum 15)))
+
+
+;; ─── Namespace round-trips through WorkUnit::new ────────────────
+;;
+;; Per the user's direction 2026-04-29 — namespace is declared on
+;; the wu adjacent to tags. WorkUnit::new takes (namespace, tags);
+;; WorkUnit/namespace reads it back. Logs and metrics pull it from
+;; the wu rather than threading it as a per-call parameter.
+(:deftest :wat-telemetry::WorkUnit::test-namespace-roundtrip
+  (:wat::core::let*
+    (((tags :wat::telemetry::Tags) (:wat-telemetry::empty-tags))
+     ((ns   :wat::holon::HolonAST) (:wat::holon::Atom :my::function))
+     ((wu   :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new ns tags))
+     ((got  :wat::holon::HolonAST) (:wat::telemetry::WorkUnit/namespace wu)))
+    (:wat::test::assert-eq got ns)))
 
 
 ;; ─── Probe: rank-2 — generic factory returning generic-T closure

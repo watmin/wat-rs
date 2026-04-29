@@ -40,9 +40,16 @@
 
 (:wat::core::define
   (:wat::telemetry::WorkUnit::new
-    (tags :wat::telemetry::Tags)
+    (namespace :wat::holon::HolonAST)
+    (tags      :wat::telemetry::Tags)
     -> :wat::telemetry::WorkUnit)
-  (:rust::telemetry::WorkUnit::new tags))
+  (:rust::telemetry::WorkUnit::new namespace tags))
+
+
+(:wat::core::define
+  (:wat::telemetry::WorkUnit/namespace
+    (wu :wat::telemetry::WorkUnit) -> :wat::holon::HolonAST)
+  (:rust::telemetry::WorkUnit::namespace wu))
 
 
 (:wat::core::define
@@ -127,12 +134,13 @@
 
 (:wat::core::define
   (:wat::telemetry::WorkUnit/scope<T>
-    (tags :wat::telemetry::Tags)
-    (body :fn(wat::telemetry::WorkUnit)->T)
+    (namespace :wat::holon::HolonAST)
+    (tags      :wat::telemetry::Tags)
+    (body      :fn(wat::telemetry::WorkUnit)->T)
     -> :T)
   (:wat::core::let*
-    (((wu     :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new tags))
-     ((result :T)                       (body wu)))
+    (((wu     :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new namespace tags))
+     ((result :T)                        (body wu)))
     result))
 
 
@@ -226,16 +234,17 @@
 ;; collect-metric-events — at scope-close, walks the wu's counters
 ;; and durations into a flat Vec<Event>. Slice 4-ship's central
 ;; piece. Counters: ONE row per name (final count). Durations:
-;; ONE row per sample (CloudWatch fanout).
+;; ONE row per sample (CloudWatch fanout). Namespace pulled
+;; from wu (per the user's "namespace adjacent to tags" rule).
 (:wat::core::define
   (:wat::telemetry::WorkUnit/scope::collect-metric-events
     (wu            :wat::telemetry::WorkUnit)
     (start-time-ns :i64)
     (end-time-ns   :i64)
-    (namespace     :wat::holon::HolonAST)
     -> :Vec<wat::telemetry::Event>)
   (:wat::core::let*
-    (((uuid           :String)                     (:wat::telemetry::WorkUnit/uuid wu))
+    (((namespace      :wat::holon::HolonAST)        (:wat::telemetry::WorkUnit/namespace wu))
+     ((uuid           :String)                     (:wat::telemetry::WorkUnit/uuid wu))
      ((tags           :wat::telemetry::Tags)        (:wat::telemetry::WorkUnit/tags wu))
      ((counter-keys   :Vec<wat::holon::HolonAST>)   (:wat::telemetry::WorkUnit/counters-keys wu))
      ((duration-keys  :Vec<wat::holon::HolonAST>)   (:wat::telemetry::WorkUnit/durations-keys wu))

@@ -62,6 +62,13 @@ pub struct WatMeasureWorkUnit {
     /// `Value::wat__std__HashMap` so wat-side code reads the map
     /// natively (no Rust-side walking).
     tags: Value,
+    /// **Immutable** — declared at `new(namespace, tags)` adjacent
+    /// to tags. The producing fn's fqdn keyword (e.g. `:my::ns`),
+    /// stored as a HolonAST. Every Event::Metric and Event::Log
+    /// row emitted from this wu carries this same namespace as the
+    /// row's `namespace` column. Logs in slice 5 also pull from
+    /// here so emit-sites don't repeat it.
+    namespace: Value,
     /// Wall-clock epoch nanoseconds at scope-open. Captured via
     /// `chrono::Utc::now()` since `Instant` is monotonic-only and
     /// can't anchor to wall-clock for the metric table's
@@ -79,23 +86,20 @@ pub struct WatMeasureWorkUnit {
     scope = "thread_owned"
 )]
 impl WatMeasureWorkUnit {
-    /// `:rust::telemetry::WorkUnit::new` — fresh scope. New uuid,
-    /// `Instant::now()` for `started`, empty maps. The opaque
-    /// returned wraps in a `ThreadOwnedCell` (macro `scope =
-    /// "thread_owned"`); the cell binds to this thread.
-    /// `:rust::telemetry::WorkUnit::new tags` — fresh scope.
-    /// `tags` MUST be a `:HashMap<wat::holon::HolonAST,
-    /// wat::holon::HolonAST>` value; pass an empty HashMap for the
-    /// no-tags case (the substrate doesn't allow a "no-arg" form
-    /// because tags-as-an-invariant is the contract — every
-    /// scope's logs and metrics carry the same set, even if
-    /// that set is empty).
-    pub fn new(tags: Value) -> Self {
-        // Validate at the boundary — the macro has already type-
-        // checked at the wat surface (param declared as
-        // :HashMap<wat::holon::HolonAST, wat::holon::HolonAST>),
-        // but the Rust shim enforces in case some caller bypasses
-        // the wat type checker.
+    /// `:rust::telemetry::WorkUnit::new namespace tags` — fresh
+    /// scope. `namespace` MUST be a HolonAST value (the producing
+    /// fn's fqdn keyword); `tags` MUST be a HashMap<HolonAST,
+    /// HolonAST>. Both are immutable for the scope's lifetime.
+    /// Adjacent at construction per the user's direction
+    /// 2026-04-29: namespace IS the wu's identity, not a queryable
+    /// tag.
+    pub fn new(namespace: Value, tags: Value) -> Self {
+        if !matches!(namespace, Value::holon__HolonAST(_)) {
+            panic!(
+                ":rust::telemetry::WorkUnit::new: namespace must be a HolonAST value; got {}",
+                namespace.type_name()
+            );
+        }
         if !matches!(tags, Value::wat__std__HashMap(_)) {
             panic!(
                 ":rust::telemetry::WorkUnit::new: tags must be a HashMap value; got {}",
@@ -114,9 +118,19 @@ impl WatMeasureWorkUnit {
             counters: HashMap::new(),
             durations: HashMap::new(),
             tags,
+            namespace,
             started_epoch_nanos,
             uuid: wat_edn::new_uuid_v4().to_string(),
         }
+    }
+
+    /// `:rust::telemetry::WorkUnit::namespace wu` — the immutable
+    /// HolonAST namespace declared at `new()`. Read by slice 4's
+    /// ship walker for each emitted row's `namespace` column;
+    /// read by slice 5's log emitters for the same column on
+    /// Event::Log.
+    pub fn namespace(&self) -> Value {
+        self.namespace.clone()
     }
 
     /// `:rust::telemetry::WorkUnit::started-epoch-nanos wu` — wall-clock
