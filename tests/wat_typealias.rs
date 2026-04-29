@@ -119,6 +119,29 @@ fn alias_preserves_type_mismatches() {
 // ─── Alias at shape-inspection sites (post-reduce) ────────────────────
 
 #[test]
+fn tuple_alias_works_at_hashmap_constructor_arg() {
+    // `:my::KV` aliases the K,V tuple `:(String,i64)`. The HashMap
+    // constructor's first-arg check expands aliases before its
+    // Tuple-shape match, so `(:wat::core::HashMap :my::KV ...)` is
+    // accepted exactly as if the literal `:(String,i64)` were
+    // written. Mirrors `:wat::core::Bytes ≡ :Vec<u8>` resolving
+    // structurally at call sites.
+    let src = r#"
+        (:wat::core::typealias :my::KV :(String,i64))
+
+        (:wat::core::define (:user::main -> :i64)
+          (:wat::core::let*
+            (((row :HashMap<String,i64>)
+              (:wat::core::HashMap :my::KV "a" 1 "b" 2))
+             ((got :Option<i64>) (:wat::core::get row "b")))
+            (:wat::core::match got -> :i64
+              ((Some v) v)
+              (:None -1))))
+    "#;
+    assert!(matches!(run(src), Value::i64(2)));
+}
+
+#[test]
 fn alias_over_hashmap_passes_through_std_get() {
     // `:my::Row` aliases HashMap<String,i64>. `:wat::core::get` inspects
     // its container argument's shape (HashMap / HashSet). With alias

@@ -25,20 +25,14 @@
 ;;
 ;; Most tests don't care about tags — they just need a wu. Tags
 ;; are mandatory at the constructor (the immutability contract;
-;; assoc/disassoc don't exist), so every wu needs SOME map. Rather
-;; than re-inline the HashMap literal in every test, make-deftest
-;; injects a shared `empty-tags` define into each test's sandbox
-;; prelude (cf. auto-spawn.wat in wat-sqlite).
-;;
-;; The HashMap constructor's first-arg check is form-level — it
-;; rejects typealiases at that site (`:wat::measure::Tag` doesn't
-;; expand here even though it would in declarations). The literal
-;; `:(...,...)` shows up exactly once, in this prelude.
+;; assoc/disassoc don't exist), so every wu needs SOME map.
+;; make-deftest injects a shared `empty-tags` define into each
+;; test's sandbox prelude (cf. auto-spawn.wat in wat-sqlite).
 
 (:wat::test::make-deftest :deftest
   ((:wat::core::define
      (:wat-measure::empty-tags -> :wat::measure::Tags)
-     (:wat::core::HashMap :(wat::holon::HolonAST,wat::holon::HolonAST)))))
+     (:wat::core::HashMap :wat::measure::Tag))))
 
 
 ;; ─── uuid is non-empty ────────────────────────────────────────────
@@ -134,7 +128,7 @@
      ((stage-key :wat::holon::HolonAST) (:wat::holon::Atom :stage))
      ((stage-val :wat::holon::HolonAST) (:wat::holon::Atom :market-eval))
      ((tags  :wat::measure::Tags)
-      (:wat::core::HashMap :(wat::holon::HolonAST,wat::holon::HolonAST)
+      (:wat::core::HashMap :wat::measure::Tag
         asset-key asset-val
         stage-key stage-val))
      ((wu    :wat::measure::WorkUnit) (:wat::measure::WorkUnit::new tags))

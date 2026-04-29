@@ -32,30 +32,10 @@
 
 (:wat::core::use! :rust::measure::WorkUnit)
 
+;; `:wat::measure::Tag` and `:wat::measure::Tags` typealiases live
+;; in `wat/measure/types.wat`, registered ahead of this file in
+;; the crate's `wat_sources()`.
 (:wat::core::typealias :wat::measure::WorkUnit :rust::measure::WorkUnit)
-
-
-;; A single tag's K,V shape. Aliased so type signatures that
-;; need to name the pair (e.g. `:Vec<wat::measure::Tag>` for a
-;; tag-list before HashMap-ification) read cleanly.
-;;
-;; Note: `:wat::core::HashMap`'s constructor checks its first
-;; argument as a LITERAL tuple form `:(K,V)` and does NOT expand
-;; typealiases at that site (the check is form-level, not
-;; type-system-level). So at HashMap construction the verbose
-;; `:(wat::holon::HolonAST,wat::holon::HolonAST)` is required;
-;; the alias still serves declarations elsewhere.
-(:wat::core::typealias :wat::measure::Tag
-  :(wat::holon::HolonAST,wat::holon::HolonAST))
-
-
-;; The wu's tag map shape — arbitrary HolonAST→HolonAST pairs that
-;; ride on every emitted Event row as a queryable EDN map. Aliased
-;; here per arc 077's "nested generics get a typealias" convention
-;; so the verbose `:HashMap<wat::holon::HolonAST,wat::holon::HolonAST>`
-;; doesn't smear across the WorkUnit + Event surface.
-(:wat::core::typealias :wat::measure::Tags
-  :HashMap<wat::holon::HolonAST,wat::holon::HolonAST>)
 
 
 (:wat::core::define

@@ -3718,17 +3718,28 @@ fn infer_hashmap_constructor(
     }
     let (k_ty, v_ty) = match &args[0] {
         WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(TypeExpr::Tuple(ts)) if ts.len() == 2 => (ts[0].clone(), ts[1].clone()),
-            Ok(other) => {
-                errors.push(CheckError::MalformedForm {
-                    head: ":wat::core::HashMap".into(),
-                    reason: format!(
-                        "first argument must be a tuple type :(K,V); got {}",
-                        format_type(&other)
-                    ),
-                });
-                (fresh.fresh(), fresh.fresh())
-            }
+            // Expand typealiases before the Tuple-shape check so users
+            // can name `:(K,V)` once at top level and reuse the alias
+            // at every HashMap construction site. Mirrors the
+            // "aliases resolve structurally at call sites" rule
+            // documented in CONVENTIONS.md (e.g. `:wat::core::Bytes ≡
+            // :Vec<u8>`). Without this, a tuple-shaped alias parses
+            // as `TypeExpr::Path(...)` and fails the Tuple match
+            // before ever being unwrapped — even though every other
+            // site treats the alias as its expansion.
+            Ok(parsed) => match crate::types::expand_alias(&parsed, env.types()) {
+                TypeExpr::Tuple(ts) if ts.len() == 2 => (ts[0].clone(), ts[1].clone()),
+                other => {
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::HashMap".into(),
+                        reason: format!(
+                            "first argument must be a tuple type :(K,V); got {}",
+                            format_type(&other)
+                        ),
+                    });
+                    (fresh.fresh(), fresh.fresh())
+                }
+            },
             Err(_) => {
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::HashMap".into(),

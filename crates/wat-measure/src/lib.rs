@@ -54,6 +54,15 @@ pub mod workunit;
 /// `wat::test!` / `wat::compose_and_run`.
 pub fn wat_sources() -> &'static [wat::WatSource] {
     static FILES: &[wat::WatSource] = &[
+        // types.wat first — Tag + Tags typealiases that WorkUnit.wat
+        // and the future Event types reference. Earlier files in
+        // wat_sources() are registered before later ones, so
+        // typealiases declared here are visible everywhere
+        // downstream without explicit load!.
+        wat::WatSource {
+            path: "wat-measure/measure/types.wat",
+            source: include_str!("../wat/measure/types.wat"),
+        },
         wat::WatSource {
             path: "wat-measure/measure/uuid.wat",
             source: include_str!("../wat/measure/uuid.wat"),

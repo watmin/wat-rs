@@ -671,10 +671,15 @@ unified the surface; arc 035 added `length`):
 
 ```scheme
 (:wat::core::let*
-  (((m :HashMap<String,i64>) (:wat::core::HashMap :String :i64))
+  (((m :HashMap<String,i64>) (:wat::core::HashMap :(String,i64)))
    ((m1 :HashMap<String,i64>) (:wat::core::assoc m "rsi" 42))
    ((v :Option<i64>) (:wat::core::get m1 "rsi")))         ;; → (Some 42)
   ...)
+;; The first arg `:(K,V)` is a tuple-type keyword carrying both
+;; parameters. Typealiases work here too — `(:wat::core::typealias
+;; :my::KV :(String,i64))` then `(:wat::core::HashMap :my::KV ...)`
+;; resolves structurally at the constructor site (same rule that
+;; lets `:wat::core::Bytes` stand in for `:Vec<u8>` everywhere).
 
 (:wat::core::let*
   (((s :HashSet<String>) (:wat::core::HashSet :String))
