@@ -136,6 +136,41 @@
     result))
 
 
+;; ─── Slice 4-ship helpers — build Event::Metric rows ────────────
+;;
+;; Each counter that the scope tracked emits ONE Event::Metric at
+;; scope-close (CloudWatch model: a counter ending at 7 → one row,
+;; metric-value = leaf 7). Each duration sample emits ONE
+;; Event::Metric row of its own — N samples means N rows.
+;; metric-value is uniformly a primitive HolonAST leaf in NoTag —
+;; never a Bundle.
+;;
+;; build-counter-metric / build-duration-metric live as separate
+;; helpers because the constructor's 8 args degrade readability when
+;; inlined into the foldl bodies, and the helper's signature is its
+;; own contract.
+
+(:wat::core::define
+  (:wat::telemetry::WorkUnit/scope::build-counter-metric
+    (start-time-ns :i64)
+    (end-time-ns   :i64)
+    (namespace     :wat::holon::HolonAST)
+    (uuid          :String)
+    (tags          :wat::telemetry::Tags)
+    (name          :wat::holon::HolonAST)
+    (count         :i64)
+    -> :wat::telemetry::Event)
+  (:wat::telemetry::Event::Metric
+    start-time-ns
+    end-time-ns
+    (:wat::edn::NoTag/new namespace)
+    uuid
+    tags
+    (:wat::edn::NoTag/new name)
+    (:wat::edn::NoTag/new (:wat::holon::leaf count))
+    (:wat::edn::NoTag/new (:wat::holon::leaf :count))))
+
+
 ;; ─── Tags — the third concern, IMMUTABLE for the scope ─────────
 ;;
 ;; Tags are declared upfront at WorkUnit::new and are immutable

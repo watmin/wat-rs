@@ -37,9 +37,15 @@
 
 ;; The bundled Service<Event,_> handles the consumer's
 ;; `WorkUnit/scope` body needs to ship Events at scope-close.
-;; The substrate-defined `:wat::telemetry::Event` enum is what the
-;; consumer's Service is parameterized on; SinkHandles wraps the
-;; (req-tx, ack-tx, ack-rx) triple so scope's signature stays
-;; flat. Per arc 077's "nested-generic alias" convention.
+;; Same shape as `Service::Handle<Event>` from arc 095 —
+;; (req-tx, ack-rx); the client uses two opposite ends, the
+;; server holds the matched (req-rx, ack-tx). No reply-tx
+;; ever rides in the request payload.
+;;
+;; Aliased separately (rather than just using Handle<Event>
+;; directly) for documentation: the name SinkHandles
+;; communicates intent at scope's call site — "these are the
+;; sink's batch-log handles" — better than the more abstract
+;; Service::Handle.
 (:wat::core::typealias :wat::telemetry::SinkHandles
-  :(wat::telemetry::Service::ReqTx<wat::telemetry::Event>,wat::telemetry::Service::AckTx,wat::telemetry::Service::AckRx))
+  :wat::telemetry::Service::Handle<wat::telemetry::Event>)

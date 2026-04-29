@@ -154,3 +154,30 @@
             (((_ :()) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
             42)))))
     (:wat::test::assert-eq result 42)))
+
+
+;; ─── Slice 4-ship helpers — build-counter-metric ────────────────
+
+;; Helper takes (start-time-ns, end-time-ns, namespace,
+;; uuid, tags, name, count) and constructs an Event::Metric with
+;; the four NoTag-typed fields wrapped via NoTag/new and the
+;; metric-value lifted via leaf. Three primitive fields land
+;; verbatim (start-time-ns, end-time-ns, uuid); the rest go
+;; through HolonAST encoding. The test asserts the primitive
+;; fields and that the variant is Metric (not Log).
+(:deftest :wat-telemetry::WorkUnit::test-build-counter-metric
+  (:wat::core::let*
+    (((tags  :wat::telemetry::Tags)        (:wat-telemetry::empty-tags))
+     ((ns    :wat::holon::HolonAST)        (:wat::holon::Atom :my::ns))
+     ((name  :wat::holon::HolonAST)        (:wat::holon::Atom :requests))
+     ((event :wat::telemetry::Event)
+      (:wat::telemetry::WorkUnit/scope::build-counter-metric
+        100 200 ns "test-uuid" tags name 7)))
+    (:wat::core::match event -> :()
+      ((:wat::telemetry::Event::Metric s e _ uuid _ _ _ _)
+        (:wat::core::let*
+          (((_a :()) (:wat::test::assert-eq s 100))
+           ((_b :()) (:wat::test::assert-eq e 200)))
+          (:wat::test::assert-eq uuid "test-uuid")))
+      ((:wat::telemetry::Event::Log _ _ _ _ _ _ _)
+        (:wat::test::assert-eq "expected-Metric-variant" "got-Log-instead")))))
