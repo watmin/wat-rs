@@ -52,13 +52,16 @@ pub struct WatMeasureWorkUnit {
     /// Appends via `append-dt!`. Same canonical-key + original-Value
     /// shape; payload is a `Vec<f64>` of seconds-deltas.
     durations: HashMap<String, (Value, Vec<f64>)>,
-    /// Set via `assoc-tag!` / removed via `disassoc-tag!`. The
-    /// third concern alongside counters and durations: arbitrary
-    /// `HolonAST → HolonAST` key/value pairs that ride out on
-    /// every emitted Event row as a queryable EDN-string column.
-    /// Storage parallel to counters/durations: canonical-string key
-    /// → (original-key-Value, value-Value).
-    tags: HashMap<String, (Value, Value)>,
+    /// **Immutable** for the scope's lifetime. Declared upfront at
+    /// `new(tags)` and read out at ship-time to attach to every
+    /// emitted Event row (Metric AND Log). The immutability is
+    /// load-bearing: every Log line emitted within the scope must
+    /// share the same tag set so the rows correlate via a stable
+    /// queryable shape. assoc/disassoc would let log-time-N differ
+    /// from log-time-M and break that invariant. Carried as a
+    /// `Value::wat__std__HashMap` so wat-side code reads the map
+    /// natively (no Rust-side walking).
+    tags: Value,
     /// Wall-clock epoch nanoseconds at scope-open. Captured via
     /// `chrono::Utc::now()` since `Instant` is monotonic-only and
     /// can't anchor to wall-clock for the metric table's
@@ -80,7 +83,25 @@ impl WatMeasureWorkUnit {
     /// `Instant::now()` for `started`, empty maps. The opaque
     /// returned wraps in a `ThreadOwnedCell` (macro `scope =
     /// "thread_owned"`); the cell binds to this thread.
-    pub fn new() -> Self {
+    /// `:rust::measure::WorkUnit::new tags` — fresh scope.
+    /// `tags` MUST be a `:HashMap<wat::holon::HolonAST,
+    /// wat::holon::HolonAST>` value; pass an empty HashMap for the
+    /// no-tags case (the substrate doesn't allow a "no-arg" form
+    /// because tags-as-an-invariant is the contract — every
+    /// scope's logs and metrics carry the same set, even if
+    /// that set is empty).
+    pub fn new(tags: Value) -> Self {
+        // Validate at the boundary — the macro has already type-
+        // checked at the wat surface (param declared as
+        // :HashMap<wat::holon::HolonAST, wat::holon::HolonAST>),
+        // but the Rust shim enforces in case some caller bypasses
+        // the wat type checker.
+        if !matches!(tags, Value::wat__std__HashMap(_)) {
+            panic!(
+                ":rust::measure::WorkUnit::new: tags must be a HashMap value; got {}",
+                tags.type_name()
+            );
+        }
         // Wall-clock epoch nanos at scope open. `SystemTime` can in
         // theory go before UNIX_EPOCH (manual clock skew during NTP
         // sync); treat that case as zero so the field is always
@@ -92,7 +113,7 @@ impl WatMeasureWorkUnit {
         WatMeasureWorkUnit {
             counters: HashMap::new(),
             durations: HashMap::new(),
-            tags: HashMap::new(),
+            tags,
             started_epoch_nanos,
             uuid: wat_edn::new_uuid_v4().to_string(),
         }
@@ -128,61 +149,15 @@ impl WatMeasureWorkUnit {
         self.durations.values().map(|(k, _)| k.clone()).collect()
     }
 
-    /// `:rust::measure::WorkUnit::assoc-tag wu key val` — set the
-    /// tag at `key` to `val`. Both are HolonAST. If the key is
-    /// already present, the value is replaced. Tags are the third
-    /// concern alongside counters and durations: arbitrary
-    /// `HolonAST → HolonAST` pairs that ride on every emitted
-    /// Event row as a queryable EDN-string column. Reaches the SQL
-    /// `tags` column at scope-close.
-    pub fn assoc_tag(&mut self, key: Value, val: Value) {
-        let canon = hashmap_key(":rust::measure::WorkUnit::assoc-tag", &key)
-            .unwrap_or_else(|_| {
-                panic!(
-                    ":rust::measure::WorkUnit::assoc-tag: key must be a hashable Value \
-                     (primitive or HolonAST); got {}",
-                    key.type_name()
-                )
-            });
-        self.tags.insert(canon, (key, val));
-    }
-
-    /// `:rust::measure::WorkUnit::disassoc-tag wu key` — remove
-    /// the tag at `key`. No-op if the key isn't present (mirrors
-    /// `:wat::core::dissoc` on absent keys).
-    pub fn disassoc_tag(&mut self, key: Value) {
-        let canon = hashmap_key(":rust::measure::WorkUnit::disassoc-tag", &key)
-            .unwrap_or_else(|_| {
-                panic!(
-                    ":rust::measure::WorkUnit::disassoc-tag: key must be a hashable Value \
-                     (primitive or HolonAST); got {}",
-                    key.type_name()
-                )
-            });
-        self.tags.remove(&canon);
-    }
-
-    /// `:rust::measure::WorkUnit::tag wu key` — read the tag at
-    /// `key`. `None` for absent keys; symmetric with the read-side
-    /// counter / durations accessors. Tests use this to verify
-    /// assoc / disassoc behavior.
-    pub fn tag(&self, key: Value) -> Option<Value> {
-        let canon = hashmap_key(":rust::measure::WorkUnit::tag", &key)
-            .unwrap_or_else(|_| {
-                panic!(
-                    ":rust::measure::WorkUnit::tag: key must be a hashable Value \
-                     (primitive or HolonAST); got {}",
-                    key.type_name()
-                )
-            });
-        self.tags.get(&canon).map(|(_, v)| v.clone())
-    }
-
-    /// `:rust::measure::WorkUnit::tags-keys wu` — every currently-set
-    /// tag key. Slice 4's ship walker iterates this with
-    /// `WorkUnit/tag` to materialize the per-row tags map.
-    pub fn tags_keys(&self) -> Vec<Value> {
-        self.tags.values().map(|(k, _)| k.clone()).collect()
+    /// `:rust::measure::WorkUnit::tags wu` — the immutable tag map
+    /// declared at `new()`. Returns the same `Value::wat__std__HashMap`
+    /// that the constructor was passed; wat-side code reads it
+    /// natively via `:wat::core::get`, `:wat::core::keys`, etc. The
+    /// ship walker pulls this once per row to attach the
+    /// HashMap<HolonAST,HolonAST> as the row's queryable
+    /// EDN-map TEXT column.
+    pub fn tags(&self) -> Value {
+        self.tags.clone()
     }
 
     /// `:rust::measure::WorkUnit::uuid wu` — returns the scope's

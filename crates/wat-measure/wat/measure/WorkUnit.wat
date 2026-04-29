@@ -35,9 +35,34 @@
 (:wat::core::typealias :wat::measure::WorkUnit :rust::measure::WorkUnit)
 
 
+;; A single tag's K,V shape. Aliased so type signatures that
+;; need to name the pair (e.g. `:Vec<wat::measure::Tag>` for a
+;; tag-list before HashMap-ification) read cleanly.
+;;
+;; Note: `:wat::core::HashMap`'s constructor checks its first
+;; argument as a LITERAL tuple form `:(K,V)` and does NOT expand
+;; typealiases at that site (the check is form-level, not
+;; type-system-level). So at HashMap construction the verbose
+;; `:(wat::holon::HolonAST,wat::holon::HolonAST)` is required;
+;; the alias still serves declarations elsewhere.
+(:wat::core::typealias :wat::measure::Tag
+  :(wat::holon::HolonAST,wat::holon::HolonAST))
+
+
+;; The wu's tag map shape — arbitrary HolonAST→HolonAST pairs that
+;; ride on every emitted Event row as a queryable EDN map. Aliased
+;; here per arc 077's "nested generics get a typealias" convention
+;; so the verbose `:HashMap<wat::holon::HolonAST,wat::holon::HolonAST>`
+;; doesn't smear across the WorkUnit + Event surface.
+(:wat::core::typealias :wat::measure::Tags
+  :HashMap<wat::holon::HolonAST,wat::holon::HolonAST>)
+
+
 (:wat::core::define
-  (:wat::measure::WorkUnit::new -> :wat::measure::WorkUnit)
-  (:rust::measure::WorkUnit::new))
+  (:wat::measure::WorkUnit::new
+    (tags :wat::measure::Tags)
+    -> :wat::measure::WorkUnit)
+  (:rust::measure::WorkUnit::new tags))
 
 
 (:wat::core::define
@@ -107,40 +132,20 @@
   (:rust::measure::WorkUnit::durations_keys wu))
 
 
-;; ─── Tags — the third concern (key/val HolonAST pairs) ──────────
+;; ─── Tags — the third concern, IMMUTABLE for the scope ─────────
 ;;
-;; Mutators get `!` per the incr!/append-dt! convention. The tags
-;; map carries arbitrary HolonAST→HolonAST pairs that ride out on
-;; every emitted Event row as a queryable EDN-string column. Lab
-;; usage: stage identity (:stage :market-eval), entity tags
-;; (:asset :BTC), trace correlations (:run-id "abc-123"), etc.
+;; Tags are declared upfront at WorkUnit::new and are immutable
+;; for the scope's lifetime. There is NO assoc/disassoc — every
+;; Log line emitted in the scope must carry the same tag set so
+;; rows correlate via a stable queryable shape. The user can read
+;; the map natively with `:wat::core::get`, `:wat::core::keys`,
+;; etc. — no per-key accessor needed.
+;;
+;; The map serializes to the SQL `tags` column as a clean EDN
+;; map: `{:asset :BTC, :stage :market-eval}`. Slice 4 picks the
+;; field-type shape that drives that rendering.
 
 (:wat::core::define
-  (:wat::measure::WorkUnit/assoc-tag!
-    (wu :wat::measure::WorkUnit)
-    (key :wat::holon::HolonAST)
-    (val :wat::holon::HolonAST)
-    -> :())
-  (:rust::measure::WorkUnit::assoc_tag wu key val))
-
-
-(:wat::core::define
-  (:wat::measure::WorkUnit/disassoc-tag!
-    (wu :wat::measure::WorkUnit)
-    (key :wat::holon::HolonAST)
-    -> :())
-  (:rust::measure::WorkUnit::disassoc_tag wu key))
-
-
-(:wat::core::define
-  (:wat::measure::WorkUnit/tag
-    (wu :wat::measure::WorkUnit)
-    (key :wat::holon::HolonAST)
-    -> :Option<wat::holon::HolonAST>)
-  (:rust::measure::WorkUnit::tag wu key))
-
-
-(:wat::core::define
-  (:wat::measure::WorkUnit/tags-keys
-    (wu :wat::measure::WorkUnit) -> :Vec<wat::holon::HolonAST>)
-  (:rust::measure::WorkUnit::tags_keys wu))
+  (:wat::measure::WorkUnit/tags
+    (wu :wat::measure::WorkUnit) -> :wat::measure::Tags)
+  (:rust::measure::WorkUnit::tags wu))
