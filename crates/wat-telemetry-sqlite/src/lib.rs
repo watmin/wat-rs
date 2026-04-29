@@ -44,6 +44,11 @@ pub fn wat_sources() -> &'static [wat::WatSource] {
             path: "wat-telemetry-sqlite/telemetry/Sqlite.wat",
             source: include_str!("../wat/telemetry/Sqlite.wat"),
         },
+        // Arc 093 reader — cursors + spawn-producer-wrapped streams.
+        wat::WatSource {
+            path: "wat-telemetry-sqlite/telemetry/Reader.wat",
+            source: include_str!("../wat/telemetry/Reader.wat"),
+        },
     ];
     FILES
 }
