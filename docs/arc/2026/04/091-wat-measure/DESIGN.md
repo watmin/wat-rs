@@ -99,25 +99,37 @@ The rule, stated:
 
 ### The WorkUnit shape
 
-A wat function that wants measurement opens a scope:
+A wat function that wants measurement opens a scope. The body is a
+**1-arity lambda taking the freshly-constructed `wu`** — that's how
+the body does work on the WorkUnit. `WorkUnit/scope` constructs the
+wu, calls `(body wu)`, and finalize-and-ship happens around the call:
 
 ```scheme
 (:wat::measure::WorkUnit/scope handles (lambda ((wu :wat::measure::WorkUnit) -> :T)
-  ;; INSIDE scope:
+  ;; INSIDE scope (body has wu):
   ;;   - wu has a fresh uuid + start time
-  ;;   - bump counters: (incr! wu :requests)
+  ;;   - bump counters: (incr! wu (:wat::holon::Atom :requests))
   ;;   - time blocking calls: (timed wu :sql-page (lambda () (some-io-work)))
   ;;     — bumps :sql-page counter, appends duration, returns the io-work's val
   ;;   - emit logs through wu: (info wu {:event :started})
-  ;;     — uuid auto-stamped on the WorkUnitLog
+  ;;     — uuid auto-stamped on the emitted Event::Log
   ;;
-  ;; AT scope-end:
+  ;; AT scope-end (substrate owns this):
   ;;   - end-time + duration computed
-  ;;   - counters and counter-durations folded into LogEntry::Metric rows
-  ;;   - rows shipped via the lab's telemetry sink (Service/batch-log + ack)
+  ;;   - counters + duration maps folded into Vec<:wat::measure::Event::Metric> rows
+  ;;   - rows shipped via `handles` (Service<:wat::measure::Event,_>/batch-log + ack)
   ;;   - body's return value passed through
   ...))
 ```
+
+**No row-builder seam.** The substrate owns the row shape end-to-end:
+it defines `:wat::measure::Metric`, `:wat::measure::Log`, and the
+unifying `:wat::measure::Event` enum that bundles them. The handles
+tuple is a `Service<:wat::measure::Event, _>`-shaped triple. The
+consumer's sink (e.g. lab's `Sqlite/auto-spawn` over
+`:wat::measure::Event`) consumes the substrate type directly; there's
+no consumer-supplied callback to map from "internal measurement state"
+to "consumer's E type" because the substrate's E IS the type.
 
 Mutation is in-place via ThreadOwnedCell wrapping the WorkUnit's interior maps.
 Same wat-native pattern wat-lru's LocalCache uses for thread-owned mutable
@@ -143,23 +155,52 @@ HolonAST (per arc 057). A list-form `(:broker eval-position)` is a HolonAST. A
 deeply structured form is a HolonAST. At ship-time each key is rendered via
 `:wat::edn::write-notag` to TEXT for the metric_name column.
 
-### Logs are first-class structured data
+### The substrate-owned Event types
 
-`:wat::measure::WorkUnitLog` is the second event shape:
+The shape that ships through the consumer's `Service<E,_>`. The
+substrate defines all three; consumers don't model their own
+measurement-event variants.
 
 ```scheme
-(:wat::core::struct :wat::measure::WorkUnitLog
-  (time-ns   :i64)
-  (namespace :wat::edn::NoTag)        ; producing fn's fqdn keyword
-  (caller    :wat::edn::NoTag)        ; producer identity
-  (level     :wat::edn::NoTag)        ; :info/:warn/:error/:debug
-  (uuid      :String)                  ; from the WorkUnit
-  (data      :wat::edn::Tagged))       ; round-trip-safe message HolonAST
+;; ─── Metric — one row per (counter|duration) at scope-close ──
+(:wat::core::struct :wat::measure::Metric
+  (start-time-ns :i64)              ; wu start (wall-clock epoch ns)
+  (end-time-ns   :i64)              ; wu end
+  (namespace     :wat::edn::NoTag)  ; producing fn's fqdn keyword
+  (uuid          :String)           ; from the WorkUnit
+  (dimensions    :wat::edn::NoTag)  ; HolonAST map of fixed tags
+  (metric-name   :wat::edn::NoTag)  ; the counter/duration key
+  (metric-value  :wat::edn::NoTag)  ; bare number for counter; vector for durations
+  (metric-unit   :wat::edn::NoTag)) ; :count, :seconds, etc.
+
+;; ─── Log — one row per info/warn/error/debug call ────────────
+(:wat::core::struct :wat::measure::Log
+  (time-ns   :i64)                   ; emit moment (wall-clock epoch ns)
+  (namespace :wat::edn::NoTag)       ; producing fn's fqdn keyword
+  (caller    :wat::edn::NoTag)       ; producer identity
+  (level     :wat::edn::NoTag)       ; :info/:warn/:error/:debug
+  (uuid      :String)                ; from the WorkUnit
+  (data      :wat::edn::Tagged))     ; round-trip-safe message HolonAST
+
+;; ─── Event — the enum the consumer's Service is parameterized on ──
+(:wat::core::enum :wat::measure::Event
+  (Metric (m :wat::measure::Metric))
+  (Log    (l :wat::measure::Log)))
 ```
 
-The `data` field is tagged because logs are queryable structured records — we
-need to read them back as HolonAST and pattern-match on them. Notag would lose
-struct/enum identity.
+The `data` field on `Log` is tagged because logs are queryable
+structured records — we need to read them back as HolonAST and
+pattern-match on them. Notag would lose struct/enum identity. The
+indexed fields (namespace, dimensions, metric-name) are NoTag so SQL
+queries match the natural form. Per-field choice via the type, no
+implicit conventions (the `Tagged`/`NoTag` discipline arc 091 slice 1
+shipped).
+
+A consumer's sink instantiates `Service<:wat::measure::Event, _>`.
+The lab's Sqlite/auto-spawn over this enum derives a two-table
+schema (per the auto-dispatch shim arc 085 ships): the `Metric`
+variant lands in a `metric` table, the `Log` variant in a `log`
+table. Cross-variant joins via `uuid` work directly.
 
 A producer that wants common tags on every log emits via:
 
@@ -202,42 +243,78 @@ Slice 2 — wat-measure crate scaffold + uuid::v4
    wat_sources() + register() exports
    tests verify uniqueness across many calls
 
-Slice 3 — WorkUnit + mutation primitives
-   Rust shim: WatMeasureWorkUnit (ThreadOwnedCell-backed)
-     state: counters: HashMap<HolonAST, i64>, durations: HashMap<HolonAST, Vec<f64>>,
+Slice 3 — WorkUnit + data mutation primitives          [SHIPPED 2026-04-29]
+   Rust shim: WatMeasureWorkUnit (ThreadOwnedCell-backed via #[wat_dispatch])
+     state: counters: HashMap<String,(Value,i64)>,
+            durations: HashMap<String,(Value,Vec<f64>)>,
             started: Instant, uuid: String
-   #[wat_dispatch] generates the type registration + method shims
-   wat surface (in wat/measure.wat):
-     :wat::measure::WorkUnit (typealias to :rust::measure::WorkUnit)
-     :wat::measure::WorkUnit/incr!     wu name
-     :wat::measure::WorkUnit/append-dt! wu name secs
-     :wat::measure::WorkUnit/timed<T>  wu name (lambda () body) -> T
-   tests verify in-place mutation visible across calls in same scope
+   wat surface (in wat/measure/WorkUnit.wat):
+     :wat::measure::WorkUnit  (typealias to :rust::measure::WorkUnit)
+     :wat::measure::WorkUnit::new                        -> WorkUnit
+     :wat::measure::WorkUnit/uuid       wu               -> String
+     :wat::measure::WorkUnit/incr!      wu name          -> ()
+     :wat::measure::WorkUnit/append-dt! wu name (s :f64) -> ()
+     :wat::measure::WorkUnit/counter    wu name          -> i64
+     :wat::measure::WorkUnit/durations  wu name          -> Vec<f64>
+   The HOF `timed<T>` deferred to slice 4 (composes the data primitives
+   plus :wat::time::epoch-nanos at the wat surface).
 
-Slice 4 — WorkUnit/scope HOF + finalize-and-ship
-   :wat::measure::WorkUnit/scope<T>
-     (handles :wat::measure::SinkHandles)
-     (body :fn(wat::measure::WorkUnit)->T)
-     -> T
-     [opens fresh wu; runs body; computes duration;
-      walks counter+duration maps to build Vec<LogEntry::Metric> rows;
-      batch-log + ack via Service<E,G> handles in `handles`;
-      returns body's val]
-   :wat::measure::SinkHandles — the bundled (req-tx, ack-tx, ack-rx) tuple typealias
-                                so the body's type signature stays flat
-   tests verify ship+ack lockstep + uuid present on every emitted row
+Slice 4 — Substrate Event types + WorkUnit/scope HOF + finalize-and-ship
+   wat structs:
+     :wat::measure::Metric  (start-time-ns end-time-ns namespace
+                             uuid dimensions metric-name metric-value metric-unit)
+     :wat::measure::Log     (time-ns namespace caller level uuid data)
+   wat enum:
+     :wat::measure::Event
+       (Metric (m :wat::measure::Metric))
+       (Log    (l :wat::measure::Log))
+   Substrate accessors needed for the ship walker:
+     :wat::measure::WorkUnit/started-epoch-nanos wu      -> i64
+     :wat::measure::WorkUnit/counters-keys       wu      -> Vec<HolonAST>
+     :wat::measure::WorkUnit/durations-keys      wu      -> Vec<HolonAST>
+     (started-epoch-nanos requires capturing wall-clock at new() time —
+      add `started_epoch_nanos: i64` to the WorkUnit alongside `started: Instant`)
+   The HOF:
+     :wat::measure::WorkUnit/scope<T>
+       (handles :wat::measure::SinkHandles)
+       (body    :fn(wat::measure::WorkUnit) -> T)
+       -> T
+       [opens fresh wu; calls (body wu) — body has the wu and does its work;
+        computes end-time at scope-close; walks counters-keys + durations-keys
+        to build Vec<:wat::measure::Event::Metric> rows; batch-log + ack via
+        handles (Service<:wat::measure::Event,_>); returns body's val]
+   :wat::measure::SinkHandles — the bundled (req-tx, ack-tx, ack-rx) tuple
+                                typealias so the body's type signature stays flat
+   The HOF `timed<T>` ships in this slice too, since it composes incr! +
+   epoch-nanos-delta + append-dt! at the wat surface (no Rust required).
+   tests verify ship+ack lockstep + uuid present on every emitted row +
+     start/end epoch-nanos populated + Event::Metric variants well-formed
 
-Slice 5 — WorkUnitLog + emission primitives
-   :wat::measure::WorkUnit/info  wu data       ; emits LogEntry::Log at :info level
+Slice 5 — Log emission primitives (the Log variant of Event)
+   :wat::measure::WorkUnit/info  wu data       ; emits Event::Log at :info
    :wat::measure::WorkUnit/warn  wu data
    :wat::measure::WorkUnit/error wu data
    :wat::measure::WorkUnit/debug wu data
-   Each renders the WorkUnitLog row inline; ships through the same Service handles
-     captured in the wu (wu carries them so logs don't need extra params)
+   Each renders the substrate's :wat::measure::Log struct inline; ships
+   through the same Service<:wat::measure::Event,_> handles. The wu carries
+   the handles so the emit-site doesn't repeat them.
    tests verify uuid join with metrics from the same scope, level routing
 
-Slice 6 — lab refactor
-   :trading::log::LogEntry — retire Telemetry variant; introduce Log + Metric variants
+Slice 6 — lab refactor: consume substrate Event directly
+   The lab's :trading::log::LogEntry retires its Telemetry variant in
+   favor of consuming :wat::measure::Event directly. The lab's
+   Sqlite/auto-spawn instantiates Service<:wat::measure::Event,_>; the
+   auto-dispatch shim (arc 085) derives the two-table schema from the
+   substrate enum (one table per variant). No lab-side Log/Metric variants
+   — the substrate IS the source of truth for measurement-event shape.
+   pulse.wat / smoke.wat / bare-walk.wat: per-stage emit-sites migrate
+   to WorkUnit/scope (one scope per loop iteration; counters + durations
+   + logs all attached to the wu).
+   docs/CIRCUIT.md (lab) — update Logging section: rows go to log table
+   or metric table per Event variant; namespaces are still circuit.candle /
+   circuit.market / etc.
+   This slice closes when pulse runs and the run db has both populated
+   tables with proper joinable uuids.
      per the schema above.  Field types use :wat::edn::Tagged / :wat::edn::NoTag.
    pulse.wat / smoke.wat / bare-walk.wat: per-stage emit-sites migrate to
      WorkUnit/scope (one scope per loop iteration; counters + durations + logs
