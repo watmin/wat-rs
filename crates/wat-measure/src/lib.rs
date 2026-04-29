@@ -45,6 +45,7 @@
 //! No second `uuid` pin in the workspace.
 
 pub mod shim;
+pub mod workunit;
 
 /// wat source files this crate contributes. Slice 2 returns one
 /// file under `wat/measure/uuid.wat` — the wat-side wrapper that
@@ -52,15 +53,24 @@ pub mod shim;
 /// `:wat::measure::uuid::v4`. Composed in by `wat::main!` /
 /// `wat::test!` / `wat::compose_and_run`.
 pub fn wat_sources() -> &'static [wat::WatSource] {
-    static FILES: &[wat::WatSource] = &[wat::WatSource {
-        path: "wat-measure/measure/uuid.wat",
-        source: include_str!("../wat/measure/uuid.wat"),
-    }];
+    static FILES: &[wat::WatSource] = &[
+        wat::WatSource {
+            path: "wat-measure/measure/uuid.wat",
+            source: include_str!("../wat/measure/uuid.wat"),
+        },
+        wat::WatSource {
+            path: "wat-measure/measure/WorkUnit.wat",
+            source: include_str!("../wat/measure/WorkUnit.wat"),
+        },
+    ];
     FILES
 }
 
 /// Registrar — wires this crate's Rust shims into the process's
-/// `rust_deps::RustDepsRegistry`. Forwards to [`shim::register`].
+/// `rust_deps::RustDepsRegistry`. Forwards to per-module registers
+/// (the v4 free-function shim + the WorkUnit `#[wat_dispatch]`
+/// type).
 pub fn register(builder: &mut wat::rust_deps::RustDepsBuilder) {
     shim::register(builder);
+    workunit::register(builder);
 }
