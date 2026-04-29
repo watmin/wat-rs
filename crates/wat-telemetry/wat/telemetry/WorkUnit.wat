@@ -196,6 +196,80 @@
     (:wat::edn::NoTag/new (:wat::holon::leaf :seconds))))
 
 
+;; Per-name duration fanout — one Event::Metric row per sample.
+;; Helper extracted so collect-metric-events can stay one outer
+;; let* (per the "simple forms per func" feedback rule). The
+;; outer walker calls this once per duration-name; inside we
+;; foldl over that name's samples Vec.
+(:wat::core::define
+  (:wat::telemetry::WorkUnit/scope::collect-duration-events-for-name
+    (start-time-ns :i64)
+    (end-time-ns   :i64)
+    (namespace     :wat::holon::HolonAST)
+    (uuid          :String)
+    (tags          :wat::telemetry::Tags)
+    (name          :wat::holon::HolonAST)
+    (samples       :Vec<f64>)
+    -> :Vec<wat::telemetry::Event>)
+  (:wat::core::foldl samples
+    (:wat::core::vec :wat::telemetry::Event)
+    (:wat::core::lambda
+      ((acc    :Vec<wat::telemetry::Event>)
+       (sample :f64)
+       -> :Vec<wat::telemetry::Event>)
+      (:wat::core::concat acc
+        (:wat::core::vec :wat::telemetry::Event
+          (:wat::telemetry::WorkUnit/scope::build-duration-metric
+            start-time-ns end-time-ns namespace uuid tags name sample))))))
+
+
+;; collect-metric-events — at scope-close, walks the wu's counters
+;; and durations into a flat Vec<Event>. Slice 4-ship's central
+;; piece. Counters: ONE row per name (final count). Durations:
+;; ONE row per sample (CloudWatch fanout).
+(:wat::core::define
+  (:wat::telemetry::WorkUnit/scope::collect-metric-events
+    (wu            :wat::telemetry::WorkUnit)
+    (start-time-ns :i64)
+    (end-time-ns   :i64)
+    (namespace     :wat::holon::HolonAST)
+    -> :Vec<wat::telemetry::Event>)
+  (:wat::core::let*
+    (((uuid           :String)                     (:wat::telemetry::WorkUnit/uuid wu))
+     ((tags           :wat::telemetry::Tags)        (:wat::telemetry::WorkUnit/tags wu))
+     ((counter-keys   :Vec<wat::holon::HolonAST>)   (:wat::telemetry::WorkUnit/counters-keys wu))
+     ((duration-keys  :Vec<wat::holon::HolonAST>)   (:wat::telemetry::WorkUnit/durations-keys wu))
+     ((counter-events :Vec<wat::telemetry::Event>)
+      (:wat::core::foldl counter-keys
+        (:wat::core::vec :wat::telemetry::Event)
+        (:wat::core::lambda
+          ((acc :Vec<wat::telemetry::Event>)
+           (key :wat::holon::HolonAST)
+           -> :Vec<wat::telemetry::Event>)
+          (:wat::core::let*
+            (((count :i64) (:wat::telemetry::WorkUnit/counter wu key))
+             ((event :wat::telemetry::Event)
+              (:wat::telemetry::WorkUnit/scope::build-counter-metric
+                start-time-ns end-time-ns namespace uuid tags key count)))
+            (:wat::core::concat acc
+              (:wat::core::vec :wat::telemetry::Event event))))))
+     ((duration-events :Vec<wat::telemetry::Event>)
+      (:wat::core::foldl duration-keys
+        (:wat::core::vec :wat::telemetry::Event)
+        (:wat::core::lambda
+          ((acc :Vec<wat::telemetry::Event>)
+           (key :wat::holon::HolonAST)
+           -> :Vec<wat::telemetry::Event>)
+          (:wat::core::let*
+            (((samples :Vec<f64>)
+              (:wat::telemetry::WorkUnit/durations wu key))
+             ((per-name :Vec<wat::telemetry::Event>)
+              (:wat::telemetry::WorkUnit/scope::collect-duration-events-for-name
+                start-time-ns end-time-ns namespace uuid tags key samples)))
+            (:wat::core::concat acc per-name))))))
+    (:wat::core::concat counter-events duration-events)))
+
+
 ;; ─── Tags — the third concern, IMMUTABLE for the scope ─────────
 ;;
 ;; Tags are declared upfront at WorkUnit::new and are immutable

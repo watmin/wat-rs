@@ -205,3 +205,54 @@
           (:wat::test::assert-eq uuid "dur-uuid")))
       ((:wat::telemetry::Event::Log _ _ _ _ _ _ _)
         (:wat::test::assert-eq "expected-Metric-variant" "got-Log-instead")))))
+
+
+;; collect-metric-events — at scope-close, walk the wu's counters
+;; AND durations into a flat `Vec<Event>` (Metric variants only;
+;; Logs ship per-emission, not at scope-close). Empty wu produces
+;; empty Vec — the simplest contract case. Subsequent tests add
+;; one counter, one duration-sample, then mixed.
+(:deftest :wat-telemetry::WorkUnit::test-collect-metrics-empty
+  (:wat::core::let*
+    (((tags   :wat::telemetry::Tags)         (:wat-telemetry::empty-tags))
+     ((wu     :wat::telemetry::WorkUnit)     (:wat::telemetry::WorkUnit::new tags))
+     ((ns     :wat::holon::HolonAST)         (:wat::holon::Atom :test::ns))
+     ((events :Vec<wat::telemetry::Event>)
+      (:wat::telemetry::WorkUnit/scope::collect-metric-events
+        wu 100 200 ns)))
+    (:wat::test::assert-eq (:wat::core::length events) 0)))
+
+
+;; One counter incremented thrice → ONE Event::Metric row in the
+;; Vec (CloudWatch model — counters emit one row per name with
+;; the final count, not one per increment).
+(:deftest :wat-telemetry::WorkUnit::test-collect-metrics-one-counter
+  (:wat::core::let*
+    (((tags  :wat::telemetry::Tags)     (:wat-telemetry::empty-tags))
+     ((wu    :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new tags))
+     ((name  :wat::holon::HolonAST)     (:wat::holon::Atom :requests))
+     ((_a    :())                        (:wat::telemetry::WorkUnit/incr! wu name))
+     ((_b    :())                        (:wat::telemetry::WorkUnit/incr! wu name))
+     ((_c    :())                        (:wat::telemetry::WorkUnit/incr! wu name))
+     ((ns    :wat::holon::HolonAST)     (:wat::holon::Atom :test::ns))
+     ((events :Vec<wat::telemetry::Event>)
+      (:wat::telemetry::WorkUnit/scope::collect-metric-events
+        wu 100 200 ns)))
+    (:wat::test::assert-eq (:wat::core::length events) 1)))
+
+
+;; One duration name with TWO samples → TWO Event::Metric rows
+;; (CloudWatch fanout). Same name, same start/end/uuid/tags/ns;
+;; different metric-value per row.
+(:deftest :wat-telemetry::WorkUnit::test-collect-metrics-two-duration-samples
+  (:wat::core::let*
+    (((tags  :wat::telemetry::Tags)     (:wat-telemetry::empty-tags))
+     ((wu    :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new tags))
+     ((name  :wat::holon::HolonAST)     (:wat::holon::Atom :sql-page))
+     ((_a    :())                        (:wat::telemetry::WorkUnit/append-dt! wu name 0.5))
+     ((_b    :())                        (:wat::telemetry::WorkUnit/append-dt! wu name 1.5))
+     ((ns    :wat::holon::HolonAST)     (:wat::holon::Atom :test::ns))
+     ((events :Vec<wat::telemetry::Event>)
+      (:wat::telemetry::WorkUnit/scope::collect-metric-events
+        wu 100 200 ns)))
+    (:wat::test::assert-eq (:wat::core::length events) 2)))
