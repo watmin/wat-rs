@@ -1,6 +1,6 @@
-;; :wat::measure::WorkUnit — measurement-scope state surface.
+;; :wat::telemetry::WorkUnit — measurement-scope state surface.
 ;;
-;; The Rust shim at :rust::measure::WorkUnit holds the four pieces
+;; The Rust shim at :rust::telemetry::WorkUnit holds the four pieces
 ;; every scope tracks: counters (HashMap<Value, i64>), durations
 ;; (HashMap<Value, Vec<f64>>), `started: Instant`, and `uuid:
 ;; String`. Mutation is in place via ThreadOwnedCell — same Tier-2
@@ -30,38 +30,38 @@
 ;;
 ;; Arc 091 slice 3.
 
-(:wat::core::use! :rust::measure::WorkUnit)
+(:wat::core::use! :rust::telemetry::WorkUnit)
 
-;; `:wat::measure::Tag` and `:wat::measure::Tags` typealiases live
+;; `:wat::telemetry::Tag` and `:wat::telemetry::Tags` typealiases live
 ;; in `wat/measure/types.wat`, registered ahead of this file in
 ;; the crate's `wat_sources()`.
-(:wat::core::typealias :wat::measure::WorkUnit :rust::measure::WorkUnit)
+(:wat::core::typealias :wat::telemetry::WorkUnit :rust::telemetry::WorkUnit)
 
 
 (:wat::core::define
-  (:wat::measure::WorkUnit::new
-    (tags :wat::measure::Tags)
-    -> :wat::measure::WorkUnit)
-  (:rust::measure::WorkUnit::new tags))
+  (:wat::telemetry::WorkUnit::new
+    (tags :wat::telemetry::Tags)
+    -> :wat::telemetry::WorkUnit)
+  (:rust::telemetry::WorkUnit::new tags))
 
 
 (:wat::core::define
-  (:wat::measure::WorkUnit/uuid
-    (wu :wat::measure::WorkUnit) -> :String)
-  (:rust::measure::WorkUnit::uuid wu))
+  (:wat::telemetry::WorkUnit/uuid
+    (wu :wat::telemetry::WorkUnit) -> :String)
+  (:rust::telemetry::WorkUnit::uuid wu))
 
 
 (:wat::core::define
-  (:wat::measure::WorkUnit/incr!
-    (wu :wat::measure::WorkUnit)
+  (:wat::telemetry::WorkUnit/incr!
+    (wu :wat::telemetry::WorkUnit)
     (name :wat::holon::HolonAST)
     -> :())
-  (:rust::measure::WorkUnit::incr wu name))
+  (:rust::telemetry::WorkUnit::incr wu name))
 
 
 (:wat::core::define
-  (:wat::measure::WorkUnit/append-dt!
-    (wu :wat::measure::WorkUnit)
+  (:wat::telemetry::WorkUnit/append-dt!
+    (wu :wat::telemetry::WorkUnit)
     (name :wat::holon::HolonAST)
     (secs :f64)
     -> :())
@@ -70,46 +70,46 @@
   ;; path is `append_dt` (underscore), not `append-dt` (kebab). The
   ;; wat-side wrapper here owns the kebab name; the rust path is
   ;; an internal detail.
-  (:rust::measure::WorkUnit::append_dt wu name secs))
+  (:rust::telemetry::WorkUnit::append_dt wu name secs))
 
 
 (:wat::core::define
-  (:wat::measure::WorkUnit/counter
-    (wu :wat::measure::WorkUnit)
+  (:wat::telemetry::WorkUnit/counter
+    (wu :wat::telemetry::WorkUnit)
     (name :wat::holon::HolonAST)
     -> :i64)
-  (:rust::measure::WorkUnit::counter wu name))
+  (:rust::telemetry::WorkUnit::counter wu name))
 
 
 (:wat::core::define
-  (:wat::measure::WorkUnit/durations
-    (wu :wat::measure::WorkUnit)
+  (:wat::telemetry::WorkUnit/durations
+    (wu :wat::telemetry::WorkUnit)
     (name :wat::holon::HolonAST)
     -> :Vec<f64>)
-  (:rust::measure::WorkUnit::durations wu name))
+  (:rust::telemetry::WorkUnit::durations wu name))
 
 
 ;; ─── Slice 4 accessors — read state needed by WorkUnit/scope ────
 
 (:wat::core::define
-  (:wat::measure::WorkUnit/started-epoch-nanos
-    (wu :wat::measure::WorkUnit) -> :i64)
+  (:wat::telemetry::WorkUnit/started-epoch-nanos
+    (wu :wat::telemetry::WorkUnit) -> :i64)
   ;; Rust ident `started_epoch_nanos`; the macro registers with
   ;; underscore (cf. slice-3's append_dt). The wat-side keeps the
   ;; kebab name.
-  (:rust::measure::WorkUnit::started_epoch_nanos wu))
+  (:rust::telemetry::WorkUnit::started_epoch_nanos wu))
 
 
 (:wat::core::define
-  (:wat::measure::WorkUnit/counters-keys
-    (wu :wat::measure::WorkUnit) -> :Vec<wat::holon::HolonAST>)
-  (:rust::measure::WorkUnit::counters_keys wu))
+  (:wat::telemetry::WorkUnit/counters-keys
+    (wu :wat::telemetry::WorkUnit) -> :Vec<wat::holon::HolonAST>)
+  (:rust::telemetry::WorkUnit::counters_keys wu))
 
 
 (:wat::core::define
-  (:wat::measure::WorkUnit/durations-keys
-    (wu :wat::measure::WorkUnit) -> :Vec<wat::holon::HolonAST>)
-  (:rust::measure::WorkUnit::durations_keys wu))
+  (:wat::telemetry::WorkUnit/durations-keys
+    (wu :wat::telemetry::WorkUnit) -> :Vec<wat::holon::HolonAST>)
+  (:rust::telemetry::WorkUnit::durations_keys wu))
 
 
 ;; ─── WorkUnit/scope<T> — measurement HOF ─────────────────────────
@@ -126,12 +126,12 @@
 ;; stone testable independently.
 
 (:wat::core::define
-  (:wat::measure::WorkUnit/scope<T>
-    (tags :wat::measure::Tags)
-    (body :fn(wat::measure::WorkUnit)->T)
+  (:wat::telemetry::WorkUnit/scope<T>
+    (tags :wat::telemetry::Tags)
+    (body :fn(wat::telemetry::WorkUnit)->T)
     -> :T)
   (:wat::core::let*
-    (((wu     :wat::measure::WorkUnit) (:wat::measure::WorkUnit::new tags))
+    (((wu     :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new tags))
      ((result :T)                       (body wu)))
     result))
 
@@ -150,6 +150,6 @@
 ;; field-type shape that drives that rendering.
 
 (:wat::core::define
-  (:wat::measure::WorkUnit/tags
-    (wu :wat::measure::WorkUnit) -> :wat::measure::Tags)
-  (:rust::measure::WorkUnit::tags wu))
+  (:wat::telemetry::WorkUnit/tags
+    (wu :wat::telemetry::WorkUnit) -> :wat::telemetry::Tags)
+  (:rust::telemetry::WorkUnit::tags wu))

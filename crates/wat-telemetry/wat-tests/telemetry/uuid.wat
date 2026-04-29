@@ -1,5 +1,5 @@
 ;; wat-tests/measure/uuid.wat — arc 091 slice 2 smoke tests for
-;; `:wat::measure::uuid::v4`.
+;; `:wat::telemetry::uuid::v4`.
 ;;
 ;; Two checks:
 ;;
@@ -18,21 +18,21 @@
 
 ;; ─── Distinct pair ─────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-measure::uuid::test-distinct-pair
+(:wat::test::deftest :wat-telemetry::uuid::test-distinct-pair
   ()
   (:wat::core::let*
-    (((a :String) (:wat::measure::uuid::v4))
-     ((b :String) (:wat::measure::uuid::v4)))
+    (((a :String) (:wat::telemetry::uuid::v4))
+     ((b :String) (:wat::telemetry::uuid::v4)))
     (:wat::test::assert-eq (:wat::core::= a b) false)))
 
 
 ;; ─── Three distinct ────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-measure::uuid::test-many-distinct
+(:wat::test::deftest :wat-telemetry::uuid::test-many-distinct
   ()
   (:wat::core::let*
-    (((a :String) (:wat::measure::uuid::v4))
-     ((b :String) (:wat::measure::uuid::v4))
-     ((c :String) (:wat::measure::uuid::v4))
+    (((a :String) (:wat::telemetry::uuid::v4))
+     ((b :String) (:wat::telemetry::uuid::v4))
+     ((c :String) (:wat::telemetry::uuid::v4))
      ((s :HashSet<String>) (:wat::core::HashSet :String a b c)))
     (:wat::test::assert-eq (:wat::core::length s) 3)))

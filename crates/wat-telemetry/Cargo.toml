@@ -7,3 +7,5 @@ description = "Telemetry primitives for wat — :wat::telemetry::* (Service<E,G>
 
 [dependencies]
 wat = { path = "../.." }
+wat-macros = { path = "../wat-macros" }
+wat-edn = { path = "../wat-edn", features = ["mint"] }

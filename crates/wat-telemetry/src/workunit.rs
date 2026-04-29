@@ -1,4 +1,4 @@
-//! `:rust::measure::WorkUnit` — measurement-scope state.
+//! `:rust::telemetry::WorkUnit` — measurement-scope state.
 //!
 //! Arc 091 slice 3. Holds the four pieces every measurement scope
 //! tracks: counters (HashMap<Value, i64>), durations
@@ -32,7 +32,7 @@ use wat::rust_deps::RustDepsBuilder;
 use wat::runtime::{hashmap_key, Value};
 use wat_macros::wat_dispatch;
 
-/// Register the `:rust::measure::WorkUnit` shim into the deps
+/// Register the `:rust::telemetry::WorkUnit` shim into the deps
 /// builder. Forwards to the macro-generated register fn. Lives in
 /// this module (not `lib.rs`) because the macro-generated module
 /// is visibility-private to its declaring module — same pattern
@@ -41,7 +41,7 @@ pub fn register(builder: &mut RustDepsBuilder) {
     __wat_dispatch_WatMeasureWorkUnit::register(builder);
 }
 
-/// The opaque carried as `:rust::measure::WorkUnit` at the wat
+/// The opaque carried as `:rust::telemetry::WorkUnit` at the wat
 /// level. Each instance is single-thread-owned via the macro's
 /// `scope = "thread_owned"` wrapping.
 pub struct WatMeasureWorkUnit {
@@ -75,15 +75,15 @@ pub struct WatMeasureWorkUnit {
 }
 
 #[wat_dispatch(
-    path = ":rust::measure::WorkUnit",
+    path = ":rust::telemetry::WorkUnit",
     scope = "thread_owned"
 )]
 impl WatMeasureWorkUnit {
-    /// `:rust::measure::WorkUnit::new` — fresh scope. New uuid,
+    /// `:rust::telemetry::WorkUnit::new` — fresh scope. New uuid,
     /// `Instant::now()` for `started`, empty maps. The opaque
     /// returned wraps in a `ThreadOwnedCell` (macro `scope =
     /// "thread_owned"`); the cell binds to this thread.
-    /// `:rust::measure::WorkUnit::new tags` — fresh scope.
+    /// `:rust::telemetry::WorkUnit::new tags` — fresh scope.
     /// `tags` MUST be a `:HashMap<wat::holon::HolonAST,
     /// wat::holon::HolonAST>` value; pass an empty HashMap for the
     /// no-tags case (the substrate doesn't allow a "no-arg" form
@@ -98,7 +98,7 @@ impl WatMeasureWorkUnit {
         // the wat type checker.
         if !matches!(tags, Value::wat__std__HashMap(_)) {
             panic!(
-                ":rust::measure::WorkUnit::new: tags must be a HashMap value; got {}",
+                ":rust::telemetry::WorkUnit::new: tags must be a HashMap value; got {}",
                 tags.type_name()
             );
         }
@@ -119,7 +119,7 @@ impl WatMeasureWorkUnit {
         }
     }
 
-    /// `:rust::measure::WorkUnit::started-epoch-nanos wu` — wall-clock
+    /// `:rust::telemetry::WorkUnit::started-epoch-nanos wu` — wall-clock
     /// nanos at scope open. Slice 4's `WorkUnit/scope` reads this
     /// alongside `(:wat::time::epoch-nanos (:wat::time::now))` at
     /// scope-close to populate the metric row's `start-time-ns` and
@@ -128,7 +128,7 @@ impl WatMeasureWorkUnit {
         self.started_epoch_nanos
     }
 
-    /// `:rust::measure::WorkUnit::counters-keys wu` — the original
+    /// `:rust::telemetry::WorkUnit::counters-keys wu` — the original
     /// key Values for every counter that was ever bumped. Slice 4's
     /// ship walker iterates this to emit one Event::Metric row per
     /// counter (CloudWatch model: each counter is a single data
@@ -137,7 +137,7 @@ impl WatMeasureWorkUnit {
         self.counters.values().map(|(k, _)| k.clone()).collect()
     }
 
-    /// `:rust::measure::WorkUnit::durations-keys wu` — the original
+    /// `:rust::telemetry::WorkUnit::durations-keys wu` — the original
     /// key Values for every duration name that ever had a sample
     /// appended. Slice 4's ship walker pairs this with
     /// `WorkUnit/durations` to emit ONE Event::Metric row PER
@@ -149,7 +149,7 @@ impl WatMeasureWorkUnit {
         self.durations.values().map(|(k, _)| k.clone()).collect()
     }
 
-    /// `:rust::measure::WorkUnit::tags wu` — the immutable tag map
+    /// `:rust::telemetry::WorkUnit::tags wu` — the immutable tag map
     /// declared at `new()`. Returns the same `Value::wat__std__HashMap`
     /// that the constructor was passed; wat-side code reads it
     /// natively via `:wat::core::get`, `:wat::core::keys`, etc. The
@@ -160,14 +160,14 @@ impl WatMeasureWorkUnit {
         self.tags.clone()
     }
 
-    /// `:rust::measure::WorkUnit::uuid wu` — returns the scope's
+    /// `:rust::telemetry::WorkUnit::uuid wu` — returns the scope's
     /// canonical hex uuid. Read-only; cloned to a fresh String so
     /// the caller can carry it freely.
     pub fn uuid(&self) -> String {
         self.uuid.clone()
     }
 
-    /// `:rust::measure::WorkUnit::incr wu name` — bumps
+    /// `:rust::telemetry::WorkUnit::incr wu name` — bumps
     /// `counters[name]` by 1. If the key is absent, initializes
     /// to 1 with the original-key-Value stored alongside.
     ///
@@ -175,9 +175,9 @@ impl WatMeasureWorkUnit {
     /// opaque handle). HolonAST + primitives all hash; this is the
     /// arc-057 contract.
     pub fn incr(&mut self, name: Value) {
-        let key = hashmap_key(":rust::measure::WorkUnit::incr", &name).unwrap_or_else(|_| {
+        let key = hashmap_key(":rust::telemetry::WorkUnit::incr", &name).unwrap_or_else(|_| {
             panic!(
-                ":rust::measure::WorkUnit::incr: name must be a hashable Value \
+                ":rust::telemetry::WorkUnit::incr: name must be a hashable Value \
                  (primitive or HolonAST); got {}",
                 name.type_name()
             )
@@ -186,13 +186,13 @@ impl WatMeasureWorkUnit {
         entry.1 += 1;
     }
 
-    /// `:rust::measure::WorkUnit::append-dt wu name secs` — appends
+    /// `:rust::telemetry::WorkUnit::append-dt wu name secs` — appends
     /// `secs` to `durations[name]`. Initializes to a single-element
     /// Vec on first append for a given key.
     pub fn append_dt(&mut self, name: Value, secs: f64) {
-        let key = hashmap_key(":rust::measure::WorkUnit::append-dt", &name).unwrap_or_else(|_| {
+        let key = hashmap_key(":rust::telemetry::WorkUnit::append-dt", &name).unwrap_or_else(|_| {
             panic!(
-                ":rust::measure::WorkUnit::append-dt: name must be a hashable Value \
+                ":rust::telemetry::WorkUnit::append-dt: name must be a hashable Value \
                  (primitive or HolonAST); got {}",
                 name.type_name()
             )
@@ -204,14 +204,14 @@ impl WatMeasureWorkUnit {
         entry.1.push(secs);
     }
 
-    /// `:rust::measure::WorkUnit::counter wu name` — returns the
+    /// `:rust::telemetry::WorkUnit::counter wu name` — returns the
     /// current count for `name`, or 0 if the key is absent. The
     /// "absent → 0" default is intentional: callers that want
     /// presence-aware behavior can pair with `counters-keys`.
     pub fn counter(&self, name: Value) -> i64 {
-        let key = hashmap_key(":rust::measure::WorkUnit::counter", &name).unwrap_or_else(|_| {
+        let key = hashmap_key(":rust::telemetry::WorkUnit::counter", &name).unwrap_or_else(|_| {
             panic!(
-                ":rust::measure::WorkUnit::counter: name must be a hashable Value \
+                ":rust::telemetry::WorkUnit::counter: name must be a hashable Value \
                  (primitive or HolonAST); got {}",
                 name.type_name()
             )
@@ -219,14 +219,14 @@ impl WatMeasureWorkUnit {
         self.counters.get(&key).map(|(_, n)| *n).unwrap_or(0)
     }
 
-    /// `:rust::measure::WorkUnit::durations wu name` — returns a
+    /// `:rust::telemetry::WorkUnit::durations wu name` — returns a
     /// cloned Vec of the duration samples for `name`. Empty Vec
     /// for absent keys. Slice 4's ship walker iterates this at
     /// scope-end to build the metric rows.
     pub fn durations(&self, name: Value) -> Vec<f64> {
-        let key = hashmap_key(":rust::measure::WorkUnit::durations", &name).unwrap_or_else(|_| {
+        let key = hashmap_key(":rust::telemetry::WorkUnit::durations", &name).unwrap_or_else(|_| {
             panic!(
-                ":rust::measure::WorkUnit::durations: name must be a hashable Value \
+                ":rust::telemetry::WorkUnit::durations: name must be a hashable Value \
                  (primitive or HolonAST); got {}",
                 name.type_name()
             )

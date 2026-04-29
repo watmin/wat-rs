@@ -1,4 +1,4 @@
-;; :wat::measure::* type aliases — the shared shapes used by
+;; :wat::telemetry::* type aliases — the shared shapes used by
 ;; WorkUnit, Event::Metric, Event::Log, and any consumer that
 ;; constructs / reads measurement-event tags.
 ;;
@@ -19,9 +19,9 @@
 ;; constructor takes as its first argument. With slice-4's
 ;; substrate fix (typealias expansion at the constructor's
 ;; first-arg check, mirroring the "aliases resolve structurally
-;; at call sites" rule), `(:wat::core::HashMap :wat::measure::Tag
+;; at call sites" rule), `(:wat::core::HashMap :wat::telemetry::Tag
 ;; ...)` works exactly as if the literal `:(K,V)` were written.
-(:wat::core::typealias :wat::measure::Tag
+(:wat::core::typealias :wat::telemetry::Tag
   :(wat::holon::HolonAST,wat::holon::HolonAST))
 
 
@@ -31,15 +31,15 @@
 ;; convention; resolves structurally to
 ;; `:HashMap<wat::holon::HolonAST,wat::holon::HolonAST>` at every
 ;; declaration site.
-(:wat::core::typealias :wat::measure::Tags
+(:wat::core::typealias :wat::telemetry::Tags
   :HashMap<wat::holon::HolonAST,wat::holon::HolonAST>)
 
 
 ;; The bundled Service<Event,_> handles the consumer's
 ;; `WorkUnit/scope` body needs to ship Events at scope-close.
-;; The substrate-defined `:wat::measure::Event` enum is what the
+;; The substrate-defined `:wat::telemetry::Event` enum is what the
 ;; consumer's Service is parameterized on; SinkHandles wraps the
 ;; (req-tx, ack-tx, ack-rx) triple so scope's signature stays
 ;; flat. Per arc 077's "nested-generic alias" convention.
-(:wat::core::typealias :wat::measure::SinkHandles
-  :(wat::telemetry::Service::ReqTx<wat::measure::Event>,wat::telemetry::Service::AckTx,wat::telemetry::Service::AckRx))
+(:wat::core::typealias :wat::telemetry::SinkHandles
+  :(wat::telemetry::Service::ReqTx<wat::telemetry::Event>,wat::telemetry::Service::AckTx,wat::telemetry::Service::AckRx))

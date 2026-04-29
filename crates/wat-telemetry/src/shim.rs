@@ -1,4 +1,4 @@
-//! `:rust::measure::uuid::v4` — fresh canonical-hyphenated UUID
+//! `:rust::telemetry::uuid::v4` — fresh canonical-hyphenated UUID
 //! per call.
 //!
 //! Hand-rolled `RustSymbol` registration (no `#[wat_dispatch]`)
@@ -18,11 +18,11 @@ use wat::rust_deps::{
 use wat::runtime::{Environment, RuntimeError, SymbolTable, Value};
 use wat::types::TypeExpr;
 
-/// Register `:rust::measure::uuid::v4` into the deps builder.
+/// Register `:rust::telemetry::uuid::v4` into the deps builder.
 /// Called by [`crate::register`].
 pub(crate) fn register(builder: &mut RustDepsBuilder) {
     builder.register_symbol(RustSymbol {
-        path: ":rust::measure::uuid::v4",
+        path: ":rust::telemetry::uuid::v4",
         dispatch: dispatch_uuid_v4 as RustDispatch,
         scheme: scheme_uuid_v4 as RustScheme,
     });
@@ -32,7 +32,7 @@ pub(crate) fn register(builder: &mut RustDepsBuilder) {
 /// time so call-site mistakes surface before runtime.
 fn scheme_uuid_v4(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<TypeExpr> {
     if !args.is_empty() {
-        ctx.push_arity_mismatch(":rust::measure::uuid::v4", 0, args.len());
+        ctx.push_arity_mismatch(":rust::telemetry::uuid::v4", 0, args.len());
     }
     Some(TypeExpr::Path(":String".into()))
 }
@@ -44,7 +44,7 @@ fn dispatch_uuid_v4(
     _env: &Environment,
     _sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":rust::measure::uuid::v4";
+    const OP: &str = ":rust::telemetry::uuid::v4";
     if !args.is_empty() {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),

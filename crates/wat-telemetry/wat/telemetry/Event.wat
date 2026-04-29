@@ -1,4 +1,4 @@
-;; :wat::measure::Event — the substrate-defined enum that
+;; :wat::telemetry::Event — the substrate-defined enum that
 ;; WorkUnit/scope ships at scope-close and consumers' Service
 ;; sinks consume.
 ;;
@@ -23,19 +23,19 @@
 ;; so log entries can be parsed back into HolonAST and pattern-matched.
 ;;
 ;; Lab-side consumers (arc 091 slice 6) will instantiate
-;; `Service<:wat::measure::Event,_>` and pass the result handles
+;; `Service<:wat::telemetry::Event,_>` and pass the result handles
 ;; to `WorkUnit/scope`. `Sqlite/auto-spawn` over Event derives a
 ;; two-table schema (one per variant) via arc 085's auto-dispatch.
 ;;
 ;; Arc 091 slice 4.
 
-(:wat::core::enum :wat::measure::Event
+(:wat::core::enum :wat::telemetry::Event
   (Metric
     (start-time-ns :i64)              ; wu start (wall-clock epoch ns)
     (end-time-ns   :i64)              ; wu end
     (namespace     :wat::edn::NoTag)  ; producing fn's fqdn keyword
     (uuid          :String)           ; from the WorkUnit
-    (tags          :wat::measure::Tags) ; HolonAST→HolonAST map
+    (tags          :wat::telemetry::Tags) ; HolonAST→HolonAST map
     (metric-name   :wat::edn::NoTag)  ; the counter/duration key
     (metric-value  :wat::edn::NoTag)  ; primitive HolonAST leaf — never a Bundle
     (metric-unit   :wat::edn::NoTag)) ; :count, :seconds, etc.
@@ -45,5 +45,5 @@
     (caller    :wat::edn::NoTag)       ; producer identity
     (level     :wat::edn::NoTag)       ; :info/:warn/:error/:debug
     (uuid      :String)                ; from the WorkUnit
-    (tags      :wat::measure::Tags)    ; same map, attached to every log line
+    (tags      :wat::telemetry::Tags)    ; same map, attached to every log line
     (data      :wat::edn::Tagged)))    ; round-trip-safe message HolonAST
