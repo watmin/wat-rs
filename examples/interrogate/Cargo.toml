@@ -1,0 +1,16 @@
+[package]
+name = "interrogate-example"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Arc 093 worked-example binary — opens a sqlite-backed telemetry .db, streams Event::Log rows, filters via :wat::form::matches?, prints hits. End-to-end pry/gdb-shaped UX over the substrate's Stream<T> circuit + Clara matcher (arc 098)."
+
+[[bin]]
+name = "interrogate-example"
+path = "src/main.rs"
+
+[dependencies]
+wat = { path = "../.." }
+wat-telemetry = { path = "../../crates/wat-telemetry" }
+wat-sqlite = { path = "../../crates/wat-sqlite" }
+wat-telemetry-sqlite = { path = "../../crates/wat-telemetry-sqlite" }

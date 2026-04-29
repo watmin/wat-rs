@@ -12,6 +12,7 @@ members = [
     "examples/with-lru",
     "examples/with-loader",
     "examples/console-demo",
+    "examples/interrogate",
 ]
 # default-members makes `cargo test` / `cargo build` / `cargo check` cover
 # every workspace member, not just the root package. Without this an
@@ -33,6 +34,7 @@ default-members = [
     "examples/with-lru",
     "examples/with-loader",
     "examples/console-demo",
+    "examples/interrogate",
 ]
 
 [package]
