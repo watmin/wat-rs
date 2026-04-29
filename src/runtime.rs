@@ -2168,12 +2168,9 @@ fn dispatch_keyword_head(
         ":wat::core::quasiquote" => eval_quasiquote(args, env, sym),
         ":wat::core::struct->form" => eval_struct_to_form(args, env, sym),
         // Arc 098 — Clara-style single-item pattern matcher.
-        // Slice 1 lands the type-check side only; the runtime arm
-        // ships in slice 2.
-        ":wat::form::matches?" => Err(RuntimeError::MalformedForm {
-            head: ":wat::form::matches?".into(),
-            reason: "runtime walker not yet implemented (arc 098 slice 2)".into(),
-        }),
+        // Both type checker and runtime walk the same pattern grammar
+        // via the shared classifier in `crate::form_match`.
+        ":wat::form::matches?" => eval_form_matches(args, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, env, sym),
@@ -5354,6 +5351,281 @@ fn eval_struct_to_form(
         items.push(value_to_watast(OP, f.clone(), span.clone())?);
     }
     Ok(Value::wat__WatAST(Arc::new(WatAST::List(items, span))))
+}
+
+
+/// Arc 098 — `:wat::form::matches?` runtime walker. Clara-style
+/// single-item pattern matcher.
+///
+/// Shape:
+///
+/// ```text
+/// (:wat::form::matches? SUBJECT
+///   (:TYPE-NAME (= ?var :field) ... <constraint> ...))
+/// ```
+///
+/// Returns `:bool`. Per the DESIGN's runtime semantics:
+///
+/// - Subject is `:None` / `(Some non-struct)` / non-Struct / a
+///   Struct of a different type → `false` (no error; Clara
+///   semantics).
+/// - Subject is a `Struct` with the matching `type_name` → walk
+///   clauses; AND every constraint result.
+///
+/// Bindings (`(= ?var :field)`) push `?var → field-value` into the
+/// local environment for subsequent clauses (including `where`-
+/// bodies and comparisons). Constraint clauses evaluate against the
+/// accumulated scope; first failure short-circuits the walk.
+///
+/// Type-check side (`check.rs::infer_form_matches`) validates the
+/// pattern grammar at expansion. The runtime trusts that input —
+/// grammar errors at this layer are bugs in the type checker, not
+/// user errors.
+fn eval_form_matches(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::form::matches?";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+
+    // Eval the subject. Auto-unwrap one level of `Option(Some(_))`
+    // so callers can write `(matches? maybe-event (:Foo ...))`
+    // against `:Option<Value>` directly. None / non-Struct / wrong
+    // type → false.
+    let subject = eval(&args[0], env, sym)?;
+    let subject = match subject {
+        Value::Option(opt) => match (*opt).clone() {
+            Some(v) => v,
+            None => return Ok(Value::bool(false)),
+        },
+        other => other,
+    };
+
+    // Pattern shape: `(:TYPE-NAME clause ...)`. The type checker
+    // rejected anything else; here we just destructure.
+    let (type_name, clauses) = match &args[1] {
+        WatAST::List(items, _) if !items.is_empty() => match &items[0] {
+            WatAST::Keyword(k, _) => (k.as_str(), &items[1..]),
+            _ => {
+                return Err(RuntimeError::MalformedForm {
+                    head: OP.into(),
+                    reason: "pattern head must be a struct type keyword".into(),
+                });
+            }
+        },
+        _ => {
+            return Err(RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: "pattern must be a list `(:TYPE-NAME clause ...)`".into(),
+            });
+        }
+    };
+
+    let struct_value = match &subject {
+        Value::Struct(s) if s.type_name == type_name => s.clone(),
+        _ => return Ok(Value::bool(false)),
+    };
+
+    // Resolve the struct's declared field-name → index map. Falls
+    // back to empty if the type registry isn't attached (test
+    // harnesses that bypass freeze) — the result is that bindings
+    // can't resolve, so the matcher returns false at the first
+    // binding clause.
+    let field_names: Vec<String> = sym
+        .types()
+        .and_then(|t| match t.get(type_name) {
+            Some(crate::types::TypeDef::Struct(sd)) => {
+                Some(sd.fields.iter().map(|(n, _)| n.clone()).collect())
+            }
+            _ => None,
+        })
+        .unwrap_or_default();
+
+    // Walk clauses, threading env through bindings.
+    let mut current_env = env.clone();
+    for clause in clauses {
+        let (passed, new_env) = walk_match_clause(
+            clause,
+            &field_names,
+            &struct_value.fields,
+            current_env,
+            sym,
+        )?;
+        if !passed {
+            return Ok(Value::bool(false));
+        }
+        current_env = new_env;
+    }
+    Ok(Value::bool(true))
+}
+
+/// Walk a single clause. Returns `(passed, env)` — `passed` is the
+/// clause's truth value at runtime; `env` is the environment that
+/// subsequent clauses see (bindings flow forward).
+///
+/// For bindings, `passed` is always `true` and `env` carries the new
+/// `?var → field-value` mapping. For constraints, `passed` reflects
+/// the comparison/where result and `env` is unchanged.
+fn walk_match_clause(
+    clause: &WatAST,
+    field_names: &[String],
+    struct_fields: &[Value],
+    env: Environment,
+    sym: &SymbolTable,
+) -> Result<(bool, Environment), RuntimeError> {
+    use crate::form_match::{
+        classify_clause, keyword_payload, logic_var_name, CompareOp, RawClause,
+    };
+
+    let raw = classify_clause(clause).map_err(|e| RuntimeError::MalformedForm {
+        head: ":wat::form::matches?".into(),
+        reason: format!("classifier: {:?}", e),
+    })?;
+
+    match raw {
+        RawClause::Eq { left, right } => {
+            // Disambiguate binding vs equality by LHS shape and
+            // whether the variable is already in scope.
+            if let Some(var) = logic_var_name(left) {
+                if env.lookup(var).is_none() {
+                    // Fresh ?var — binding.
+                    let field_kw = keyword_payload(right).ok_or_else(|| {
+                        RuntimeError::MalformedForm {
+                            head: ":wat::form::matches?".into(),
+                            reason: format!(
+                                "binding RHS for {} must be a field keyword",
+                                var
+                            ),
+                        }
+                    })?;
+                    let field_lookup = field_kw.strip_prefix(':').unwrap_or(field_kw);
+                    let idx = field_names.iter().position(|n| n == field_lookup);
+                    let value = match idx {
+                        Some(i) if i < struct_fields.len() => struct_fields[i].clone(),
+                        _ => {
+                            // Type-check should have caught this;
+                            // hitting it at runtime means the
+                            // registry was missing or the pattern
+                            // skipped check. Return false rather
+                            // than error — Clara-style.
+                            return Ok((false, env));
+                        }
+                    };
+                    let new_env = env.child().bind(var.to_string(), value).build();
+                    return Ok((true, new_env));
+                }
+                // ?var already bound — fall through to comparison.
+            }
+            // Equality comparison. eval both sides; structural equality.
+            let a = eval(left, &env, sym)?;
+            let b = eval(right, &env, sym)?;
+            let eq = values_equal(&a, &b).unwrap_or(false);
+            Ok((eq, env))
+        }
+        RawClause::Compare { op, left, right } => {
+            let a = eval(left, &env, sym)?;
+            let b = eval(right, &env, sym)?;
+            match op {
+                CompareOp::NotEq => {
+                    let eq = values_equal(&a, &b).unwrap_or(false);
+                    Ok((!eq, env))
+                }
+                _ => {
+                    let order = match (&a, &b) {
+                        (Value::i64(x), Value::i64(y)) => x.cmp(y),
+                        (Value::u8(x), Value::u8(y)) => x.cmp(y),
+                        (Value::f64(x), Value::f64(y)) => {
+                            x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
+                        }
+                        (Value::i64(x), Value::f64(y)) => (*x as f64)
+                            .partial_cmp(y)
+                            .unwrap_or(std::cmp::Ordering::Equal),
+                        (Value::f64(x), Value::i64(y)) => x
+                            .partial_cmp(&(*y as f64))
+                            .unwrap_or(std::cmp::Ordering::Equal),
+                        (Value::String(x), Value::String(y)) => x.cmp(y),
+                        (Value::bool(x), Value::bool(y)) => x.cmp(y),
+                        (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => x.cmp(y),
+                        _ => return Ok((false, env)),
+                    };
+                    let pred = match op {
+                        CompareOp::Lt => order == std::cmp::Ordering::Less,
+                        CompareOp::Gt => order == std::cmp::Ordering::Greater,
+                        CompareOp::Le => order != std::cmp::Ordering::Greater,
+                        CompareOp::Ge => order != std::cmp::Ordering::Less,
+                        // Eq + NotEq handled above.
+                        CompareOp::Eq | CompareOp::NotEq => unreachable!(),
+                    };
+                    Ok((pred, env))
+                }
+            }
+        }
+        RawClause::And(subs) => {
+            let mut e = env;
+            for sub in subs {
+                let (p, e2) = walk_match_clause(sub, field_names, struct_fields, e, sym)?;
+                if !p {
+                    return Ok((false, e2));
+                }
+                e = e2;
+            }
+            Ok((true, e))
+        }
+        RawClause::Or(subs) => {
+            // For `or`, evaluate each branch with the env as it was
+            // entering the `or`. Bindings introduced inside an
+            // `or` branch don't survive past the `or` — they'd be
+            // ambiguous (which branch's bindings won?) and the
+            // type checker doesn't carry per-branch bindings into
+            // the post-`or` scope either.
+            let entry_env = env;
+            for sub in subs {
+                let (p, _) = walk_match_clause(
+                    sub,
+                    field_names,
+                    struct_fields,
+                    entry_env.clone(),
+                    sym,
+                )?;
+                if p {
+                    return Ok((true, entry_env));
+                }
+            }
+            Ok((false, entry_env))
+        }
+        RawClause::Not(sub) => {
+            // `not` flips the result. Sub-clause bindings (if any)
+            // don't survive the `not` — they only mean something
+            // when the sub-clause matched, which `not` rejects.
+            let entry_env = env;
+            let (p, _) = walk_match_clause(
+                sub,
+                field_names,
+                struct_fields,
+                entry_env.clone(),
+                sym,
+            )?;
+            Ok((!p, entry_env))
+        }
+        RawClause::Where(body) => {
+            let v = eval(body, &env, sym)?;
+            match v {
+                Value::bool(b) => Ok((b, env)),
+                other => Err(RuntimeError::TypeMismatch {
+                    op: ":wat::form::matches?".into(),
+                    expected: "bool from where-body",
+                    got: other.type_name(),
+                }),
+            }
+        }
+    }
 }
 
 
