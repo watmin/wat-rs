@@ -360,6 +360,67 @@ crates without authoring your own binary. For embedding wat in
 your own application, stick with the `wat::main!` macro shape
 above — the bundled CLI is for ad-hoc scripts, not embedding.
 
+### Build your own batteries-included CLI (arc 100)
+
+If the workspace's 5 default batteries are the wrong set — too
+much (you only need telemetry; rusqlite is overkill) or too
+little (you have your own `#[wat_dispatch]` crate) — vend
+`wat_cli::run` directly. Five-line `main.rs`:
+
+```rust
+fn main() -> std::process::ExitCode {
+    wat_cli::run(&[
+        (wat_telemetry::register, wat_telemetry::wat_sources),
+        (my_crate::register, my_crate::wat_sources),
+    ])
+}
+```
+
+Everything `wat_cli::run` does — argv parsing, `wat <entry.wat>`
+vs `wat test <path>` dispatch, signal handlers (SIGINT → kernel
+stop, SIGUSR1/2/HUP forwards), exit codes, dep registration via
+the same OnceLocks `wat::compose_and_run` uses — happens for free.
+You declare which `#[wat_dispatch]` extensions to install; `run`
+does the rest.
+
+The `Battery` type is a tuple alias:
+
+```rust
+pub type Battery = (
+    fn(&mut wat::rust_deps::RustDepsBuilder),
+    fn() -> &'static [wat::WatSource],
+);
+```
+
+Every extension crate following arc 013's external-crate contract
+exposes `pub fn register(builder: &mut RustDepsBuilder)` + `pub
+fn wat_sources() -> &'static [WatSource]` with these exact
+signatures, so the call site is just `(crate::register,
+crate::wat_sources)` per extension.
+
+Your `Cargo.toml`:
+
+```toml
+[package]
+name = "my-wat-cli"
+
+[[bin]]
+name = "my-wat"
+path = "src/main.rs"
+
+[dependencies]
+wat = { path = "../wat-rs" }
+wat-cli = { path = "../wat-rs/crates/wat-cli" }
+wat-telemetry = { path = "../wat-rs/crates/wat-telemetry" }
+my-crate = { path = "../my-crate" }
+```
+
+Build it, run `target/release/my-wat <script.wat>`, and your wat
+program can use `:wat::telemetry::*` plus whatever `my-crate`
+ships under `:rust::*` or `:my-crate::*`. The canonical
+`wat-cli/src/bin/wat.rs` is itself a 21-line example of this
+pattern — the only difference is which batteries it lists.
+
 ### Capability boundary — the Loader
 
 Wat's file-I/O is a **capability**, not a global. The host picks
