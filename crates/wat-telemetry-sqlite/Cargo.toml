@@ -1,0 +1,15 @@
+[package]
+name = "wat-telemetry-sqlite"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Sqlite-backed telemetry sink for wat — composes wat-telemetry's Service<E,G> shell with wat-sqlite's Db primitives. Ships :wat::telemetry::Sqlite/spawn + Sqlite/auto-spawn (enum-derived schema per arc 085) + the `:rust::sqlite::auto-{prep,install-schemas,dispatch}` shims. Arc 096."
+
+[dependencies]
+wat = { path = "../.." }
+wat-macros = { path = "../wat-macros" }
+wat-telemetry = { path = "../wat-telemetry" }
+wat-sqlite = { path = "../wat-sqlite" }
+wat-edn = { path = "../wat-edn" }
+holon = { path = "../../../holon-rs" }
+rusqlite = { version = "0.31", features = ["bundled"] }

@@ -1,19 +1,23 @@
-//! `wat-sqlite` — sqlite-backed telemetry destination for wat.
+//! `wat-sqlite` — general-purpose sqlite primitives for wat.
 //!
-//! Arc 083. Two surfaces:
+//! Arc 083 (initial) + arc 096 (scope narrowed to JUST the Db
+//! primitives — the sqlite-backed telemetry sink moved to a
+//! sibling `wat-telemetry-sqlite` crate that depends on both this
+//! crate and `wat-telemetry`).
+//!
+//! Single surface:
 //!
 //! - `:wat::sqlite::Db` — thread-owned Rust shim over
-//!   `rusqlite::Connection`. Open / execute-ddl / execute (with
-//!   parameter binding). Cannot cross thread boundaries (per the
-//!   substrate's ThreadOwnedCell discipline); the worker that opens
-//!   the Db is the one that uses it.
+//!   `rusqlite::Connection`. open / execute-ddl / execute (with
+//!   parameter binding) / pragma / begin / commit. Cannot cross
+//!   thread boundaries (per the substrate's ThreadOwnedCell
+//!   discipline); the worker that opens the Db is the one that
+//!   uses it.
 //!
-//! - `:wat::telemetry::Sqlite/spawn` — companion to
-//!   `:wat::telemetry::Console/dispatcher` under arc 080's
-//!   service contract. The sqlite-flavored telemetry destination:
-//!   spawns a worker that opens a Db, runs substrate's
-//!   Service/loop, dispatches each entry through the consumer's
-//!   init-fn-built closure. (Slice 2.)
+//! Consumers that want a Service<E,G>-fronted sqlite sink (with
+//! enum-derived schema, batch-as-protocol, ack lockstep) reach
+//! for `wat-telemetry-sqlite` — it composes this crate's Db
+//! primitives with `wat-telemetry`'s Service shell.
 //!
 //! # Using from a Rust binary crate
 //!
@@ -35,8 +39,6 @@ use rusqlite::Connection;
 use wat::runtime::Value;
 use wat_macros::wat_dispatch;
 
-mod auto;
-
 /// `:rust::sqlite::Db` — thread-owned SQLite handle.
 ///
 /// Wraps `rusqlite::Connection`. Single-thread discipline: open in
@@ -46,7 +48,14 @@ mod auto;
 /// rusqlite errors (a future arc may switch to `Result<()>` once
 /// a consumer wants graceful error handling).
 pub struct WatSqliteDb {
-    pub(crate) conn: Connection,
+    /// `pub` (not `pub(crate)`) since arc 096 — `wat-telemetry-sqlite`
+    /// (a sibling crate that wraps this one) needs `prepare_cached`
+    /// + `execute` access on the underlying Connection for the
+    /// auto-dispatch shims (arc 085). Consumers outside the
+    /// telemetry-sink layer should treat this as substrate-internal
+    /// and use the typed methods (`execute_ddl`, `execute`,
+    /// `pragma`, `begin`, `commit`) instead.
+    pub conn: Connection,
 }
 
 #[wat_dispatch(
@@ -198,20 +207,15 @@ pub fn wat_sources() -> &'static [wat::WatSource] {
             path: "wat-sqlite/sqlite/Db.wat",
             source: include_str!("../wat/sqlite/Db.wat"),
         },
-        wat::WatSource {
-            path: "wat-sqlite/std/telemetry/Sqlite.wat",
-            source: include_str!("../wat/std/telemetry/Sqlite.wat"),
-        },
     ];
     FILES
 }
 
-/// Registrar for wat-sqlite. Wires the `:rust::sqlite::Db` shim
-/// (open / execute-ddl / execute) through `#[wat_dispatch]`'s
-/// generated registration code, plus the arc-085 auto-spawn shims
-/// (auto-prep / auto-install-schemas / auto-dispatch) registered
-/// hand-written because they need direct `sym.types` access.
+/// Registrar for wat-sqlite. Wires just the `:rust::sqlite::Db`
+/// shim — open / execute-ddl / execute / pragma / begin / commit —
+/// through `#[wat_dispatch]`'s generated registration code. The
+/// arc-085 auto-spawn shims (auto-prep / install-schemas /
+/// dispatch) moved to `wat-telemetry-sqlite::register` per arc 096.
 pub fn register(builder: &mut wat::rust_deps::RustDepsBuilder) {
     __wat_dispatch_WatSqliteDb::register(builder);
-    auto::register(builder);
 }

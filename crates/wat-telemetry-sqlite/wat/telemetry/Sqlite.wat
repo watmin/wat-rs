@@ -30,7 +30,11 @@
 ;; closure) was considered and rejected: verbose is honest. Two flat
 ;; hooks compose without anticipating shared state no consumer needs.
 
-(:wat::load-file! "../../sqlite/Db.wat")
+;; Arc 096: this file moved out of wat-sqlite into wat-telemetry-sqlite.
+;; The old `(:wat::load-file! "../../sqlite/Db.wat")` form retired —
+;; wat-sqlite's Db.wat is now reached via `deps: [wat_sqlite, ...]`
+;; in the consumer's wat::main! / wat::test!, which composes Db.wat's
+;; types into the same parse pass as this file.
 
 (:wat::core::use! :rust::sqlite::auto-prep)
 (:wat::core::use! :rust::sqlite::auto-install-schemas)

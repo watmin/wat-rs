@@ -40,7 +40,7 @@ use wat::rust_deps::{
 use wat::runtime::{eval, Environment, RuntimeError, StructValue, SymbolTable, Value};
 use wat::types::{EnumDef, EnumVariant, TypeDef, TypeExpr};
 
-use crate::WatSqliteDb;
+use wat_sqlite::WatSqliteDb;
 
 /// One variant's pre-computed binder metadata. The CREATE TABLE
 /// for this variant lives in `AutoSchema.ordered_ddls`; install
