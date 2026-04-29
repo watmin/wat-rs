@@ -1,4 +1,4 @@
-;; :wat::std::telemetry::ConsoleLogger — direct-to-stdio structured
+;; :wat::telemetry::ConsoleLogger — direct-to-stdio structured
 ;; logger.
 ;;
 ;; Producer-side recorder bound to a Console destination. Closure
@@ -34,48 +34,48 @@
 ;; The line shape — named-field struct so EDN/JSON renderers emit a
 ;; map keyed by field names. Fields in producer-eyes order
 ;; (time, level, caller, data).
-(:wat::core::struct :wat::std::telemetry::LogLine<E>
+(:wat::core::struct :wat::telemetry::LogLine<E>
   (time :wat::time::Instant)
   (level :wat::core::keyword)
   (caller :wat::core::keyword)
   (data :E))
 
 
-(:wat::core::struct :wat::std::telemetry::ConsoleLogger
+(:wat::core::struct :wat::telemetry::ConsoleLogger
   (con-handle :wat::std::service::Console::Handle)
   (caller :wat::core::keyword)
   (now-fn :fn(())->wat::time::Instant)
-  (format :wat::std::telemetry::Console::Format))
+  (format :wat::telemetry::Console::Format))
 
 
 ;; Internal — build the LogLine struct + render it via the format-
 ;; selected wat-edn primitive. Format dispatch mirrors arc 081's
 ;; Console/dispatcher.
 (:wat::core::define
-  (:wat::std::telemetry::ConsoleLogger::render-line<E>
-    (logger :wat::std::telemetry::ConsoleLogger)
+  (:wat::telemetry::ConsoleLogger::render-line<E>
+    (logger :wat::telemetry::ConsoleLogger)
     (now :wat::time::Instant)
     (level :wat::core::keyword)
     (entry :E)
     -> :String)
   (:wat::core::let*
     (((caller :wat::core::keyword)
-      (:wat::std::telemetry::ConsoleLogger/caller logger))
-     ((format :wat::std::telemetry::Console::Format)
-      (:wat::std::telemetry::ConsoleLogger/format logger))
-     ((line-struct :wat::std::telemetry::LogLine<E>)
-      (:wat::std::telemetry::LogLine/new now level caller entry))
+      (:wat::telemetry::ConsoleLogger/caller logger))
+     ((format :wat::telemetry::Console::Format)
+      (:wat::telemetry::ConsoleLogger/format logger))
+     ((line-struct :wat::telemetry::LogLine<E>)
+      (:wat::telemetry::LogLine/new now level caller entry))
      ((line :String)
       (:wat::core::match format -> :String
-        (:wat::std::telemetry::Console::Format::Edn
+        (:wat::telemetry::Console::Format::Edn
           (:wat::edn::write line-struct))
-        (:wat::std::telemetry::Console::Format::Json
+        (:wat::telemetry::Console::Format::Json
           (:wat::edn::write-json line-struct))
-        (:wat::std::telemetry::Console::Format::Pretty
+        (:wat::telemetry::Console::Format::Pretty
           (:wat::edn::write-pretty line-struct))
-        (:wat::std::telemetry::Console::Format::NoTagEdn
+        (:wat::telemetry::Console::Format::NoTagEdn
           (:wat::edn::write-notag line-struct))
-        (:wat::std::telemetry::Console::Format::NoTagJson
+        (:wat::telemetry::Console::Format::NoTagJson
           (:wat::edn::write-json-natural line-struct)))))
     (:wat::core::string::concat line "\n")))
 
@@ -85,14 +85,14 @@
 ;; default to stdout (per the convention "structured signals go
 ;; through stdout; only WARN/ERROR break to stderr").
 (:wat::core::define
-  (:wat::std::telemetry::ConsoleLogger::route-by-level
-    (logger :wat::std::telemetry::ConsoleLogger)
+  (:wat::telemetry::ConsoleLogger::route-by-level
+    (logger :wat::telemetry::ConsoleLogger)
     (level :wat::core::keyword)
     (line :String)
     -> :())
   (:wat::core::let*
     (((handle :wat::std::service::Console::Handle)
-      (:wat::std::telemetry::ConsoleLogger/con-handle logger))
+      (:wat::telemetry::ConsoleLogger/con-handle logger))
      ((to-stderr :bool)
       (:wat::core::or
         (:wat::core::= level :warn)
@@ -106,19 +106,19 @@
 ;; when the level is computed; otherwise prefer the convenience
 ;; methods.
 (:wat::core::define
-  (:wat::std::telemetry::ConsoleLogger/log<E>
-    (logger :wat::std::telemetry::ConsoleLogger)
+  (:wat::telemetry::ConsoleLogger/log<E>
+    (logger :wat::telemetry::ConsoleLogger)
     (level :wat::core::keyword)
     (entry :E)
     -> :())
   (:wat::core::let*
     (((now-fn :fn(())->wat::time::Instant)
-      (:wat::std::telemetry::ConsoleLogger/now-fn logger))
+      (:wat::telemetry::ConsoleLogger/now-fn logger))
      ((now :wat::time::Instant) (now-fn ()))
      ((line :String)
-      (:wat::std::telemetry::ConsoleLogger::render-line
+      (:wat::telemetry::ConsoleLogger::render-line
         logger now level entry)))
-    (:wat::std::telemetry::ConsoleLogger::route-by-level
+    (:wat::telemetry::ConsoleLogger::route-by-level
       logger level line)))
 
 
@@ -126,29 +126,29 @@
 ;; Pure sugar over /log with the level baked in.
 
 (:wat::core::define
-  (:wat::std::telemetry::ConsoleLogger/debug<E>
-    (logger :wat::std::telemetry::ConsoleLogger)
+  (:wat::telemetry::ConsoleLogger/debug<E>
+    (logger :wat::telemetry::ConsoleLogger)
     (entry :E)
     -> :())
-  (:wat::std::telemetry::ConsoleLogger/log logger :debug entry))
+  (:wat::telemetry::ConsoleLogger/log logger :debug entry))
 
 (:wat::core::define
-  (:wat::std::telemetry::ConsoleLogger/info<E>
-    (logger :wat::std::telemetry::ConsoleLogger)
+  (:wat::telemetry::ConsoleLogger/info<E>
+    (logger :wat::telemetry::ConsoleLogger)
     (entry :E)
     -> :())
-  (:wat::std::telemetry::ConsoleLogger/log logger :info entry))
+  (:wat::telemetry::ConsoleLogger/log logger :info entry))
 
 (:wat::core::define
-  (:wat::std::telemetry::ConsoleLogger/warn<E>
-    (logger :wat::std::telemetry::ConsoleLogger)
+  (:wat::telemetry::ConsoleLogger/warn<E>
+    (logger :wat::telemetry::ConsoleLogger)
     (entry :E)
     -> :())
-  (:wat::std::telemetry::ConsoleLogger/log logger :warn entry))
+  (:wat::telemetry::ConsoleLogger/log logger :warn entry))
 
 (:wat::core::define
-  (:wat::std::telemetry::ConsoleLogger/error<E>
-    (logger :wat::std::telemetry::ConsoleLogger)
+  (:wat::telemetry::ConsoleLogger/error<E>
+    (logger :wat::telemetry::ConsoleLogger)
     (entry :E)
     -> :())
-  (:wat::std::telemetry::ConsoleLogger/log logger :error entry))
+  (:wat::telemetry::ConsoleLogger/log logger :error entry))

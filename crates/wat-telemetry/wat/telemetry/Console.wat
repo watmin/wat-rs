@@ -1,5 +1,5 @@
-;; :wat::std::telemetry::Console — render-and-print dispatcher
-;; factory for use with :wat::std::telemetry::Service<E,G>.
+;; :wat::telemetry::Console — render-and-print dispatcher
+;; factory for use with :wat::telemetry::Service<E,G>.
 ;;
 ;; Arc 081. The substrate's Console destination for the telemetry
 ;; service contract. Composes:
@@ -35,7 +35,7 @@
 ;;          (svc (Service/spawn 1 cadence dispatcher translator)))
 ;;     ...)
 
-(:wat::core::enum :wat::std::telemetry::Console::Format
+(:wat::core::enum :wat::telemetry::Console::Format
   :Edn          ;; render via :wat::edn::write (compact, tagged — round-trip-safe via :wat::edn::read)
   :Json         ;; render via :wat::edn::write-json (compact, sentinel-tagged JSON — round-trip-safe)
   :Pretty       ;; render via :wat::edn::write-pretty (multi-line indented, tagged)
@@ -47,7 +47,7 @@
 ;; per-batch dispatch contract takes (arc 089 slice 3). Aliasing
 ;; spares every downstream signature from `:fn(Vec<E>)->()`
 ;; nested inside another generic.
-(:wat::core::typealias :wat::std::telemetry::Console::Dispatcher<E>
+(:wat::core::typealias :wat::telemetry::Console::Dispatcher<E>
   :fn(Vec<E>)->())
 
 ;; The factory. Returns a closure that captures con-tx + format.
@@ -66,33 +66,33 @@
 ;; Lifted out of the dispatcher's lambda so the inner foldl reads
 ;; flat (one let* per function per memory `feedback_simple_forms_per_func`).
 (:wat::core::define
-  (:wat::std::telemetry::Console::render-line<E>
+  (:wat::telemetry::Console::render-line<E>
     (entry :E)
-    (format :wat::std::telemetry::Console::Format)
+    (format :wat::telemetry::Console::Format)
     -> :String)
   (:wat::core::let*
     (((line :String)
       (:wat::core::match format -> :String
-        (:wat::std::telemetry::Console::Format::Edn
+        (:wat::telemetry::Console::Format::Edn
           (:wat::edn::write entry))
-        (:wat::std::telemetry::Console::Format::Json
+        (:wat::telemetry::Console::Format::Json
           (:wat::edn::write-json entry))
-        (:wat::std::telemetry::Console::Format::Pretty
+        (:wat::telemetry::Console::Format::Pretty
           (:wat::edn::write-pretty entry))
-        (:wat::std::telemetry::Console::Format::NoTagEdn
+        (:wat::telemetry::Console::Format::NoTagEdn
           (:wat::edn::write-notag entry))
-        (:wat::std::telemetry::Console::Format::NoTagJson
+        (:wat::telemetry::Console::Format::NoTagJson
           (:wat::edn::write-json-natural entry)))))
     (:wat::core::string::concat line "\n")))
 
 
 (:wat::core::define
-  (:wat::std::telemetry::Console/dispatcher<E>
+  (:wat::telemetry::Console/dispatcher<E>
     (handle :wat::std::service::Console::Handle)
-    (format :wat::std::telemetry::Console::Format)
-    -> :wat::std::telemetry::Console::Dispatcher<E>)
+    (format :wat::telemetry::Console::Format)
+    -> :wat::telemetry::Console::Dispatcher<E>)
   (:wat::core::lambda ((entries :Vec<E>) -> :())
     (:wat::core::foldl entries ()
       (:wat::core::lambda ((_acc :()) (entry :E) -> :())
         (:wat::std::service::Console/out handle
-          (:wat::std::telemetry::Console::render-line entry format))))))
+          (:wat::telemetry::Console::render-line entry format))))))

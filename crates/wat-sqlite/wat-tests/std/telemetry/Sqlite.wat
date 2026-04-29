@@ -33,7 +33,7 @@
 
    (:wat::core::define
      (:wat-tests::std::telemetry::Sqlite::translate-empty
-       (_stats :wat::std::telemetry::Service::Stats)
+       (_stats :wat::telemetry::Service::Stats)
        -> :Vec<i64>)
      (:wat::core::vec :i64))
 
@@ -101,15 +101,15 @@
        (path :String)
        -> :wat::kernel::ProgramHandle<()>)
      (:wat::core::let*
-       (((spawn :wat::std::telemetry::Service::Spawn<i64>)
-         (:wat::std::telemetry::Sqlite/spawn
+       (((spawn :wat::telemetry::Service::Spawn<i64>)
+         (:wat::telemetry::Sqlite/spawn
            path 1
-           (:wat::std::telemetry::Service/null-metrics-cadence)
-           :wat::std::telemetry::Sqlite/null-pre-install
+           (:wat::telemetry::Service/null-metrics-cadence)
+           :wat::telemetry::Sqlite/null-pre-install
            :wat-tests::std::telemetry::Sqlite::install-noop
            :wat-tests::std::telemetry::Sqlite::dispatch-noop
            :wat-tests::std::telemetry::Sqlite::translate-empty))
-        ((pool :wat::std::telemetry::Service::HandlePool<i64>)
+        ((pool :wat::telemetry::Service::HandlePool<i64>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::ProgramHandle<()>)
          (:wat::core::second spawn))
@@ -121,10 +121,10 @@
    ;; in its own function so spawn-and-drop's outer let* stays simple.
    (:wat::core::define
      (:wat-tests::std::telemetry::Sqlite::drop-one-handle
-       (pool :wat::std::telemetry::Service::HandlePool<i64>)
+       (pool :wat::telemetry::Service::HandlePool<i64>)
        -> :())
      (:wat::core::let*
-       (((_handle :wat::std::telemetry::Service::Handle<i64>)
+       (((_handle :wat::telemetry::Service::Handle<i64>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :()) (:wat::kernel::HandlePool::finish pool)))
        ()))
@@ -136,15 +136,15 @@
        (path :String)
        -> :wat::kernel::ProgramHandle<()>)
      (:wat::core::let*
-       (((spawn :wat::std::telemetry::Service::Spawn<i64>)
-         (:wat::std::telemetry::Sqlite/spawn
+       (((spawn :wat::telemetry::Service::Spawn<i64>)
+         (:wat::telemetry::Sqlite/spawn
            path 1
-           (:wat::std::telemetry::Service/null-metrics-cadence)
+           (:wat::telemetry::Service/null-metrics-cadence)
            :wat-tests::std::telemetry::Sqlite::pragma-wal
            :wat-tests::std::telemetry::Sqlite::install-events
            :wat-tests::std::telemetry::Sqlite::dispatch-events
            :wat-tests::std::telemetry::Sqlite::translate-empty))
-        ((pool :wat::std::telemetry::Service::HandlePool<i64>)
+        ((pool :wat::telemetry::Service::HandlePool<i64>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::ProgramHandle<()>)
          (:wat::core::second spawn))
@@ -157,20 +157,20 @@
    ;; opposite ends are exactly what batch-log needs.
    (:wat::core::define
      (:wat-tests::std::telemetry::Sqlite::send-three
-       (pool :wat::std::telemetry::Service::HandlePool<i64>)
+       (pool :wat::telemetry::Service::HandlePool<i64>)
        -> :())
      (:wat::core::let*
-       (((handle :wat::std::telemetry::Service::Handle<i64>)
+       (((handle :wat::telemetry::Service::Handle<i64>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :()) (:wat::kernel::HandlePool::finish pool))
-        ((req-tx :wat::std::telemetry::Service::ReqTx<i64>)
+        ((req-tx :wat::telemetry::Service::ReqTx<i64>)
          (:wat::core::first handle))
-        ((ack-rx :wat::std::telemetry::Service::AckRx)
+        ((ack-rx :wat::telemetry::Service::AckRx)
          (:wat::core::second handle))
         ((entries :Vec<i64>)
          (:wat::core::vec :i64 7 11 13))
         ((_log :())
-         (:wat::std::telemetry::Service/batch-log
+         (:wat::telemetry::Service/batch-log
            req-tx ack-rx entries)))
        ()))))
 

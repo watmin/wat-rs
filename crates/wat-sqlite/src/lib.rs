@@ -8,8 +8,8 @@
 //!   substrate's ThreadOwnedCell discipline); the worker that opens
 //!   the Db is the one that uses it.
 //!
-//! - `:wat::std::telemetry::Sqlite/spawn` — companion to
-//!   `:wat::std::telemetry::Console/dispatcher` under arc 080's
+//! - `:wat::telemetry::Sqlite/spawn` — companion to
+//!   `:wat::telemetry::Console/dispatcher` under arc 080's
 //!   service contract. The sqlite-flavored telemetry destination:
 //!   spawns a worker that opens a Db, runs substrate's
 //!   Service/loop, dispatches each entry through the consumer's

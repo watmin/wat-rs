@@ -42,4 +42,4 @@
 ;; (req-tx, ack-tx, ack-rx) triple so scope's signature stays
 ;; flat. Per arc 077's "nested-generic alias" convention.
 (:wat::core::typealias :wat::measure::SinkHandles
-  :(wat::std::telemetry::Service::ReqTx<wat::measure::Event>,wat::std::telemetry::Service::AckTx,wat::std::telemetry::Service::AckRx))
+  :(wat::telemetry::Service::ReqTx<wat::measure::Event>,wat::telemetry::Service::AckTx,wat::telemetry::Service::AckRx))

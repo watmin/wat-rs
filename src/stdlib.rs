@@ -94,21 +94,15 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/std/test.wat",
         source: include_str!("../wat/std/test.wat"),
     },
+    // Arc 096 — `:wat::std::service::Console` (the paired-channel
+    // mini-TCP driver, arc 089 slice 5) STAYS in the substrate
+    // as a generic service-pattern reference. The telemetry-specific
+    // wrappers (Console-dispatcher, ConsoleLogger) and Service<E,G>
+    // moved to the wat-telemetry crate; consumers gain them via
+    // `deps: [wat_telemetry]`.
     WatSource {
         path: "wat/std/service/Console.wat",
         source: include_str!("../wat/std/service/Console.wat"),
-    },
-    WatSource {
-        path: "wat/std/telemetry/Service.wat",
-        source: include_str!("../wat/std/telemetry/Service.wat"),
-    },
-    WatSource {
-        path: "wat/std/telemetry/Console.wat",
-        source: include_str!("../wat/std/telemetry/Console.wat"),
-    },
-    WatSource {
-        path: "wat/std/telemetry/ConsoleLogger.wat",
-        source: include_str!("../wat/std/telemetry/ConsoleLogger.wat"),
     },
     // Arc 091 slice 1 — :wat::edn::Tagged + :wat::edn::NoTag newtypes
     // around HolonAST. Used by wat-sqlite's auto-dispatch (arc 085) to

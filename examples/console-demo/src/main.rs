@@ -4,4 +4,6 @@
 //! to stdout via EDN-per-line. Each domain event becomes one
 //! parseable EDN line; nothing free-form crosses the boundary.
 
-wat::main! {}
+wat::main! {
+    deps: [wat_telemetry],
+}

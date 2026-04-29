@@ -40,27 +40,27 @@
 
 (:wat::core::define
   (:demo::run
-    (logger :wat::std::telemetry::ConsoleLogger)
+    (logger :wat::telemetry::ConsoleLogger)
     -> :())
   (:wat::core::let*
     (;; Routine flow → stdout
      ((_a :())
-      (:wat::std::telemetry::ConsoleLogger/info logger
+      (:wat::telemetry::ConsoleLogger/info logger
         (:demo::Event::Buy 100.5 7)))
      ((_b :())
-      (:wat::std::telemetry::ConsoleLogger/info logger
+      (:wat::telemetry::ConsoleLogger/info logger
         (:demo::Event::Sell 102.25 3 "stop-loss")))
      ;; Diagnostic detail → stdout
      ((_c :())
-      (:wat::std::telemetry::ConsoleLogger/debug logger
+      (:wat::telemetry::ConsoleLogger/debug logger
         (:demo::Event::Buy 99.0 12)))
      ;; Concerning event → stderr
      ((_d :())
-      (:wat::std::telemetry::ConsoleLogger/warn logger
+      (:wat::telemetry::ConsoleLogger/warn logger
         (:demo::Event::CircuitBreak "spike-volume")))
      ;; Failure → stderr
      ((_e :())
-      (:wat::std::telemetry::ConsoleLogger/error logger
+      (:wat::telemetry::ConsoleLogger/error logger
         (:demo::Event::CircuitBreak "exchange-disconnected"))))
     ()))
 
@@ -76,9 +76,9 @@
   (:demo::make-logger
     (handle :wat::std::service::Console::Handle)
     (caller :wat::core::keyword)
-    (format :wat::std::telemetry::Console::Format)
-    -> :wat::std::telemetry::ConsoleLogger)
-  (:wat::std::telemetry::ConsoleLogger/new
+    (format :wat::telemetry::Console::Format)
+    -> :wat::telemetry::ConsoleLogger)
+  (:wat::telemetry::ConsoleLogger/new
     handle caller
     (:wat::core::lambda ((_u :()) -> :wat::time::Instant)
       (:wat::time::now))
@@ -111,40 +111,40 @@
          ((_banner-edn :())
           (:wat::std::service::Console/out handle
             "\n=== :Edn (tagged, round-trip-safe) ===\n"))
-         ((edn-logger :wat::std::telemetry::ConsoleLogger)
+         ((edn-logger :wat::telemetry::ConsoleLogger)
           (:demo::make-logger handle :market.observer
-            :wat::std::telemetry::Console::Format::Edn))
+            :wat::telemetry::Console::Format::Edn))
          ((_run-edn :()) (:demo::run edn-logger))
          ;; ── NoTagEdn (lossy, human-friendly) ──────────────────
          ((_banner-notag-edn :())
           (:wat::std::service::Console/out handle
             "\n=== :NoTagEdn (lossy, human-friendly) ===\n"))
-         ((notag-edn-logger :wat::std::telemetry::ConsoleLogger)
+         ((notag-edn-logger :wat::telemetry::ConsoleLogger)
           (:demo::make-logger handle :market.observer
-            :wat::std::telemetry::Console::Format::NoTagEdn))
+            :wat::telemetry::Console::Format::NoTagEdn))
          ((_run-notag-edn :()) (:demo::run notag-edn-logger))
          ;; ── JSON (round-trip-safe via sentinels) ──────────────
          ((_banner-json :())
           (:wat::std::service::Console/out handle
             "\n=== :Json (round-trip-safe sentinel-encoded) ===\n"))
-         ((json-logger :wat::std::telemetry::ConsoleLogger)
+         ((json-logger :wat::telemetry::ConsoleLogger)
           (:demo::make-logger handle :market.observer
-            :wat::std::telemetry::Console::Format::Json))
+            :wat::telemetry::Console::Format::Json))
          ((_run-json :()) (:demo::run json-logger))
          ;; ── NoTagJson (natural JSON for ingestion tooling) ────
          ((_banner-notag-json :())
           (:wat::std::service::Console/out handle
             "\n=== :NoTagJson (natural JSON for ELK/DataDog) ===\n"))
-         ((notag-json-logger :wat::std::telemetry::ConsoleLogger)
+         ((notag-json-logger :wat::telemetry::ConsoleLogger)
           (:demo::make-logger handle :market.observer
-            :wat::std::telemetry::Console::Format::NoTagJson))
+            :wat::telemetry::Console::Format::NoTagJson))
          ((_run-notag-json :()) (:demo::run notag-json-logger))
          ;; ── Pretty (tagged, multi-line) ───────────────────────
          ((_banner-pretty :())
           (:wat::std::service::Console/out handle
             "\n=== :Pretty (tagged, multi-line) ===\n"))
-         ((pretty-logger :wat::std::telemetry::ConsoleLogger)
+         ((pretty-logger :wat::telemetry::ConsoleLogger)
           (:demo::make-logger handle :market.observer
-            :wat::std::telemetry::Console::Format::Pretty)))
+            :wat::telemetry::Console::Format::Pretty)))
         (:demo::run pretty-logger))))
     (:wat::kernel::join con-driver)))

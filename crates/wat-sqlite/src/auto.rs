@@ -1,4 +1,4 @@
-//! `:wat::std::telemetry::Sqlite/auto-spawn` — enum-derived sqlite
+//! `:wat::telemetry::Sqlite/auto-spawn` — enum-derived sqlite
 //! sink. Arc 085.
 //!
 //! The substrate-side machinery for "consumer declares an enum,

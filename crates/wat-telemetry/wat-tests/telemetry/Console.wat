@@ -18,7 +18,7 @@
           ;; `Service::Spawn<trading::log::LogEntry>` — substrate
           ;; ships generic shapes, apps alias them concrete.
           (:wat::core::typealias :my::Dispatcher
-            :wat::std::telemetry::Console::Dispatcher<i64>)
+            :wat::telemetry::Console::Dispatcher<i64>)
 
           ;; Helper — takes a Console::Handle, builds an EDN
           ;; dispatcher, dispatches three i64 entries as ONE batch.
@@ -31,8 +31,8 @@
               -> :())
             (:wat::core::let*
               (((d :my::Dispatcher)
-                (:wat::std::telemetry::Console/dispatcher
-                  handle :wat::std::telemetry::Console::Format::Edn))
+                (:wat::telemetry::Console/dispatcher
+                  handle :wat::telemetry::Console::Format::Edn))
                ((batch :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
               (d batch)))
           ;; Main — outer holds Console driver; inner pops handle +
@@ -90,10 +90,10 @@
           ;; entry shape; Dispatcher is the dispatcher's concrete
           ;; type. Every signature site reads `:my::Dispatcher`
           ;; instead of `:fn(Vec<Vec<i64>>)->()` or
-          ;; `:wat::std::telemetry::Console::Dispatcher<Vec<i64>>`.
+          ;; `:wat::telemetry::Console::Dispatcher<Vec<i64>>`.
           (:wat::core::typealias :my::Row :Vec<i64>)
           (:wat::core::typealias :my::Dispatcher
-            :wat::std::telemetry::Console::Dispatcher<my::Row>)
+            :wat::telemetry::Console::Dispatcher<my::Row>)
 
           ;; Arc 089 slice 3: dispatcher takes Vec<E>. The
           ;; dispatcher renders each element on its own line —
@@ -104,8 +104,8 @@
               -> :())
             (:wat::core::let*
               (((d :my::Dispatcher)
-                (:wat::std::telemetry::Console/dispatcher
-                  handle :wat::std::telemetry::Console::Format::Json))
+                (:wat::telemetry::Console/dispatcher
+                  handle :wat::telemetry::Console::Format::Json))
                ((row :my::Row) (:wat::core::vec :i64 1 2 3))
                ((batch :Vec<my::Row>)
                 (:wat::core::vec :my::Row row)))

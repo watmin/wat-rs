@@ -1,0 +1,9 @@
+[package]
+name = "wat-telemetry"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Telemetry primitives for wat — :wat::telemetry::* (Service<E,G>, Console, ConsoleLogger, WorkUnit, Event, scope HOF). Slice 1 ships Service + Console + ConsoleLogger; slices 2+ fold WorkUnit/Event from the retired wat-measure crate. Arc 096."
+
+[dependencies]
+wat = { path = "../.." }

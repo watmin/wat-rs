@@ -9,3 +9,4 @@ description = "Measurement primitives for wat — :wat::measure::uuid::v4 (slice
 wat = { path = "../.." }
 wat-macros = { path = "../wat-macros" }
 wat-edn = { path = "../wat-edn", features = ["mint"] }
+wat-telemetry = { path = "../wat-telemetry" }

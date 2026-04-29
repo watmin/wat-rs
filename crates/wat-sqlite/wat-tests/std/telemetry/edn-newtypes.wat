@@ -24,15 +24,15 @@
    ;; send through batch-log, drop.
    (:wat::core::define
      (:test::Edn::send-one
-       (pool :wat::std::telemetry::Service::HandlePool<test::Edn::Event>)
+       (pool :wat::telemetry::Service::HandlePool<test::Edn::Event>)
        -> :())
      (:wat::core::let*
-       (((handle :wat::std::telemetry::Service::Handle<test::Edn::Event>)
+       (((handle :wat::telemetry::Service::Handle<test::Edn::Event>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :()) (:wat::kernel::HandlePool::finish pool))
-        ((req-tx :wat::std::telemetry::Service::ReqTx<test::Edn::Event>)
+        ((req-tx :wat::telemetry::Service::ReqTx<test::Edn::Event>)
          (:wat::core::first handle))
-        ((ack-rx :wat::std::telemetry::Service::AckRx)
+        ((ack-rx :wat::telemetry::Service::AckRx)
          (:wat::core::second handle))
         ((ast :wat::holon::HolonAST) (:wat::holon::Atom "hello"))
         ((tagged :wat::edn::Tagged)  (:wat::edn::Tagged/new ast))
@@ -41,7 +41,7 @@
          (:wat::core::vec :test::Edn::Event
            (:test::Edn::Event::Log tagged notag)))
         ((_log :())
-         (:wat::std::telemetry::Service/batch-log
+         (:wat::telemetry::Service/batch-log
            req-tx ack-rx entries)))
        ()))
 
@@ -51,13 +51,13 @@
        (path :String)
        -> :wat::kernel::ProgramHandle<()>)
      (:wat::core::let*
-       (((spawn :wat::std::telemetry::Service::Spawn<test::Edn::Event>)
-         (:wat::std::telemetry::Sqlite/auto-spawn
+       (((spawn :wat::telemetry::Service::Spawn<test::Edn::Event>)
+         (:wat::telemetry::Sqlite/auto-spawn
            :test::Edn::Event
            path 1
-           (:wat::std::telemetry::Service/null-metrics-cadence)
-           :wat::std::telemetry::Sqlite/null-pre-install))
-        ((pool :wat::std::telemetry::Service::HandlePool<test::Edn::Event>)
+           (:wat::telemetry::Service/null-metrics-cadence)
+           :wat::telemetry::Sqlite/null-pre-install))
+        ((pool :wat::telemetry::Service::HandlePool<test::Edn::Event>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::ProgramHandle<()>)
          (:wat::core::second spawn))

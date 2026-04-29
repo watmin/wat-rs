@@ -29,22 +29,22 @@
    ;; entries + drops. Function-decomposed per Step 9.
    (:wat::core::define
      (:test::send-events
-       (pool :wat::std::telemetry::Service::HandlePool<test::Event>)
+       (pool :wat::telemetry::Service::HandlePool<test::Event>)
        -> :())
      (:wat::core::let*
-       (((handle :wat::std::telemetry::Service::Handle<test::Event>)
+       (((handle :wat::telemetry::Service::Handle<test::Event>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :()) (:wat::kernel::HandlePool::finish pool))
-        ((req-tx :wat::std::telemetry::Service::ReqTx<test::Event>)
+        ((req-tx :wat::telemetry::Service::ReqTx<test::Event>)
          (:wat::core::first handle))
-        ((ack-rx :wat::std::telemetry::Service::AckRx)
+        ((ack-rx :wat::telemetry::Service::AckRx)
          (:wat::core::second handle))
         ((entries :Vec<test::Event>)
          (:wat::core::vec :test::Event
            (:test::Event::Buy 100.5 7)
            (:test::Event::Sell 102.25 3 "stop-loss" true)))
         ((_log :())
-         (:wat::std::telemetry::Service/batch-log
+         (:wat::telemetry::Service/batch-log
            req-tx ack-rx entries)))
        ()))
 
@@ -54,13 +54,13 @@
        (path :String)
        -> :wat::kernel::ProgramHandle<()>)
      (:wat::core::let*
-       (((spawn :wat::std::telemetry::Service::Spawn<test::Event>)
-         (:wat::std::telemetry::Sqlite/auto-spawn
+       (((spawn :wat::telemetry::Service::Spawn<test::Event>)
+         (:wat::telemetry::Sqlite/auto-spawn
            :test::Event
            path 1
-           (:wat::std::telemetry::Service/null-metrics-cadence)
-           :wat::std::telemetry::Sqlite/null-pre-install))
-        ((pool :wat::std::telemetry::Service::HandlePool<test::Event>)
+           (:wat::telemetry::Service/null-metrics-cadence)
+           :wat::telemetry::Sqlite/null-pre-install))
+        ((pool :wat::telemetry::Service::HandlePool<test::Event>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::ProgramHandle<()>)
          (:wat::core::second spawn))

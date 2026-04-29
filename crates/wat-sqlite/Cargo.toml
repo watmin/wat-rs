@@ -3,11 +3,12 @@ name = "wat-sqlite"
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "Sqlite-backed telemetry destination for wat — `:wat::sqlite::Db` (low-level Rust shim over rusqlite, thread-owned via ThreadOwnedCell) + `:wat::std::telemetry::Sqlite/spawn` (companion to wat/std/telemetry/Console under the arc 080 service contract)."
+description = "Sqlite-backed telemetry destination for wat — `:wat::sqlite::Db` (low-level Rust shim over rusqlite, thread-owned via ThreadOwnedCell) + `:wat::telemetry::Sqlite/spawn` (companion to wat/std/telemetry/Console under the arc 080 service contract)."
 
 [dependencies]
 wat = { path = "../.." }
 wat-macros = { path = "../wat-macros" }
 wat-edn = { path = "../wat-edn" }
+wat-telemetry = { path = "../wat-telemetry" }
 holon = { path = "../../../holon-rs" }
 rusqlite = { version = "0.31", features = ["bundled"] }

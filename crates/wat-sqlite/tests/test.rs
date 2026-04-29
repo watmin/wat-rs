@@ -8,5 +8,5 @@
 //! nothing. Slices 1 + 2 add real wat-tests.
 
 wat::test! {
-    deps: [wat_sqlite],
+    deps: [wat_telemetry, wat_sqlite],
 }

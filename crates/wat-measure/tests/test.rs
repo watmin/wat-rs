@@ -7,5 +7,5 @@
 //! explicit because wat-measure is its own first consumer.
 
 wat::test! {
-    deps: [wat_measure],
+    deps: [wat_telemetry, wat_measure],
 }
