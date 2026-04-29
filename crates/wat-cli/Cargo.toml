@@ -3,12 +3,16 @@ name = "wat-cli"
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "The wat command-line runner — substrate + every workspace #[wat_dispatch] battery linked in. Run wat scripts that use wat-telemetry, wat-telemetry-sqlite, wat-sqlite, wat-lru, wat-holon-lru without authoring a custom Rust binary. Arc 099."
+description = "The wat command-line runner. Library + binary: `wat_cli::run` is the public API for building your own batteries-included wat CLI; `[[bin]] wat` is the canonical batteries-included reference. Arc 099 + arc 100."
 repository = "https://github.com/watmin/wat-rs"
+
+[lib]
+name = "wat_cli"
+path = "src/lib.rs"
 
 [[bin]]
 name = "wat"
-path = "src/main.rs"
+path = "src/bin/wat.rs"
 
 [dependencies]
 wat = { path = "../.." }
