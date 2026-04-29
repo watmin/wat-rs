@@ -26,23 +26,23 @@
 //! `target/{debug,release}/wat` — it is a thin wrapper around
 //! [`run`] with the workspace defaults.
 //!
-//! # Two invocation shapes (what the user-facing binary exposes)
+//! # Single invocation shape
 //!
 //! ```text
 //! wat <entry.wat>      # run a program
-//! wat test <path>      # run tests — file or directory
 //! ```
 //!
-//! Program mode reads an entry `.wat` file, runs the full startup
-//! pipeline, installs OS signal handlers (SIGINT + SIGTERM → kernel
-//! stop flag), passes the real `io::Stdin` / `io::Stdout` / `io::Stderr`
+//! Reads an entry `.wat` file, runs the full startup pipeline,
+//! installs OS signal handlers (SIGINT + SIGTERM → kernel stop
+//! flag), passes the real `io::Stdin` / `io::Stdout` / `io::Stderr`
 //! handles to `:user::main`, and exits.
 //!
-//! Test mode freezes each input file, discovers registered functions
-//! whose path's last `::`-segment starts with `test-` and whose
-//! signature is `() -> :wat::kernel::RunResult`, shuffles the list
-//! (surfaces order-dependencies), invokes each, and reports
-//! cargo-test-style.
+//! There is no `wat test` subcommand — wat tests run via
+//! `cargo test` against a Rust crate that uses the `wat::test!`
+//! macro to compile the wat source into per-test `#[test] fn`s.
+//! The macro composes with cargo's reporting, `--release`,
+//! `RUST_BACKTRACE`, and the rest of the cargo testing surface.
+//! Arc 101 dropped the duplicate CLI subcommand.
 //!
 //! # `:user::main` contract
 //!
@@ -103,7 +103,6 @@ use wat::load::FsLoader;
 use wat::runtime::{
     request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2, Value,
 };
-use wat::test_runner::run_tests_from_dir;
 
 // ─── Public API ────────────────────────────────────────────────────────
 
@@ -127,10 +126,10 @@ pub type Battery = (
 
 /// Run the wat CLI with the supplied batteries.
 ///
-/// Reads `std::env::args()`, dispatches the program-mode and `wat
-/// test` subcommands, installs signal handlers, registers every
-/// supplied battery's `wat_sources` + Rust dep shims, and returns
-/// the matching exit code.
+/// Reads `std::env::args()`, runs the supplied entry `.wat` file
+/// through the full freeze + invoke pipeline, installs signal
+/// handlers, registers every supplied battery's `wat_sources` +
+/// Rust dep shims, and returns the matching exit code.
 ///
 /// Both halves of the external-crate contract install via
 /// process-global OnceLocks (per `wat::compose_and_run`'s docs);
@@ -169,19 +168,8 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
     let argv: Vec<String> = std::env::args().collect();
     let prog = argv.first().map(String::as_str).unwrap_or("wat");
 
-    // Subcommand dispatch. `wat test <path>` routes to the test runner;
-    // anything else falls through to the program-mode entry.
-    if argv.get(1).map(String::as_str) == Some("test") {
-        if argv.len() != 3 {
-            eprintln!("usage: {} test <path>", prog);
-            return ExitCode::from(64);
-        }
-        return run_tests_command(&argv[2]);
-    }
-
     if argv.len() != 2 {
         eprintln!("usage: {} <entry.wat>", prog);
-        eprintln!("       {} test <path>", prog);
         return ExitCode::from(64); // EX_USAGE
     }
     let entry_path = &argv[1];
@@ -312,49 +300,9 @@ fn install_signal_handlers() {
     }
 }
 
-// ─── `wat test` subcommand (arc 007 slice 4) ───────────────────────────
-//
-// Discovery convention (firmed up 2026-04-21):
-//   A top-level `:wat::core::define` is picked up as a test iff
-//   1. The path's final `::`-separated segment starts with `test-`.
-//   2. `param_types` is empty (zero-arg).
-//   3. `ret_type` is the plain path `:wat::kernel::RunResult`.
-//
-// Functions that match get shuffled (Fisher-Yates with a nanos-seeded
-// xorshift) — random order surfaces tests that have accidental
-// inter-dependencies. Each invocation is timed; results aggregate into
-// a cargo-test-style report.
-//
-// Exit code: 0 all-pass, non-zero any fail or empty discovery.
-
-const TEST_EXIT_OK: u8 = 0;
-const TEST_EXIT_FAILED: u8 = 1;
-/// Entry path wasn't found, or the directory contained no .wat files.
-const TEST_EXIT_NO_TESTS: u8 = 64;
-
-/// CLI wrapper around [`wat::test_runner::run_tests_from_dir`] — the
-/// library is the single source of truth for test discovery +
-/// freeze + run + per-test / summary printing (arc 015 slice 1).
-/// The CLI's job is just argv parsing and exit-code mapping.
-///
-/// Arc 099 — passes empty dep slices because batteries are already
-/// installed via the process-global OnceLock in [`install_batteries`]
-/// at startup. Test harnesses inside the freeze pipeline pick them
-/// up transparently.
-fn run_tests_command(entry: &str) -> ExitCode {
-    let path = std::path::Path::new(entry);
-    let summary = run_tests_from_dir(path, &[], &[]);
-    if summary.no_tests_discovered {
-        if summary.file_count == 0 {
-            eprintln!("wat test: no .wat files under {}", entry);
-        } else {
-            eprintln!("wat test: no test- prefixed functions found under {}", entry);
-        }
-        return ExitCode::from(TEST_EXIT_NO_TESTS);
-    }
-    if summary.failed == 0 {
-        ExitCode::from(TEST_EXIT_OK)
-    } else {
-        ExitCode::from(TEST_EXIT_FAILED)
-    }
-}
+// Arc 101 — the `wat test <path>` subcommand was dropped. Wat tests
+// run via `cargo test` against a Rust crate that uses the
+// `wat::test!` macro to compile the wat source into per-test
+// `#[test] fn`s. The macro's runtime arm is `wat::test_runner::
+// run_and_assert` — same library code the dropped CLI subcommand
+// used, but now reachable only through cargo-style harnesses.
