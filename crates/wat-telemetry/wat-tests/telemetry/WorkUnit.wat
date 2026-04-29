@@ -181,3 +181,27 @@
           (:wat::test::assert-eq uuid "test-uuid")))
       ((:wat::telemetry::Event::Log _ _ _ _ _ _ _)
         (:wat::test::assert-eq "expected-Metric-variant" "got-Log-instead")))))
+
+
+;; build-duration-metric — same shape as build-counter-metric but
+;; takes one f64 sample (not a count) and emits unit `:seconds`.
+;; ONE sample = ONE row (CloudWatch model). N samples in the wu's
+;; durations Vec mean N rows at scope-close, all sharing the same
+;; (start, end, namespace, uuid, tags, name) — only metric-value
+;; differs across them.
+(:deftest :wat-telemetry::WorkUnit::test-build-duration-metric
+  (:wat::core::let*
+    (((tags  :wat::telemetry::Tags)        (:wat-telemetry::empty-tags))
+     ((ns    :wat::holon::HolonAST)        (:wat::holon::Atom :my::ns))
+     ((name  :wat::holon::HolonAST)        (:wat::holon::Atom :sql-page))
+     ((event :wat::telemetry::Event)
+      (:wat::telemetry::WorkUnit/scope::build-duration-metric
+        300 400 ns "dur-uuid" tags name 0.5)))
+    (:wat::core::match event -> :()
+      ((:wat::telemetry::Event::Metric s e _ uuid _ _ _ _)
+        (:wat::core::let*
+          (((_a :()) (:wat::test::assert-eq s 300))
+           ((_b :()) (:wat::test::assert-eq e 400)))
+          (:wat::test::assert-eq uuid "dur-uuid")))
+      ((:wat::telemetry::Event::Log _ _ _ _ _ _ _)
+        (:wat::test::assert-eq "expected-Metric-variant" "got-Log-instead")))))

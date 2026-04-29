@@ -171,6 +171,31 @@
     (:wat::edn::NoTag/new (:wat::holon::leaf :count))))
 
 
+;; ONE sample → ONE row. The scope's foldl over durations-keys
+;; iterates each named timer; for each name it foldls over its
+;; samples Vec, calling this helper per sample. metric-value is
+;; the f64 lifted to HolonAST::F64 via leaf; unit is :seconds.
+(:wat::core::define
+  (:wat::telemetry::WorkUnit/scope::build-duration-metric
+    (start-time-ns :i64)
+    (end-time-ns   :i64)
+    (namespace     :wat::holon::HolonAST)
+    (uuid          :String)
+    (tags          :wat::telemetry::Tags)
+    (name          :wat::holon::HolonAST)
+    (sample        :f64)
+    -> :wat::telemetry::Event)
+  (:wat::telemetry::Event::Metric
+    start-time-ns
+    end-time-ns
+    (:wat::edn::NoTag/new namespace)
+    uuid
+    tags
+    (:wat::edn::NoTag/new name)
+    (:wat::edn::NoTag/new (:wat::holon::leaf sample))
+    (:wat::edn::NoTag/new (:wat::holon::leaf :seconds))))
+
+
 ;; ─── Tags — the third concern, IMMUTABLE for the scope ─────────
 ;;
 ;; Tags are declared upfront at WorkUnit::new and are immutable
