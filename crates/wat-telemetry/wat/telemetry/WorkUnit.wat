@@ -144,6 +144,42 @@
     result))
 
 
+;; ─── WorkUnit/make-scope — closure factory + auto-ship ──────────
+;;
+;; The user's direction (2026-04-29): "we want our deps to vanish
+;; as fast as possible. (make-unit-work-maker handle namespace) ->
+;; produces a func who does what (WorkUnit/scope ...) is maybe
+;; trying to do." Captures (handle, namespace) once. The returned
+;; closure takes only (tags, body) — tags vary per scope-call,
+;; namespace is fixed per producer. Body's T flows back to the
+;; caller; metrics ship at scope-close via batch-log on the
+;; captured handle.
+;;
+;; Returns :Scope<T> per the typealias in types.wat.
+(:wat::core::define
+  (:wat::telemetry::WorkUnit/make-scope<T>
+    (handle    :wat::telemetry::SinkHandles)
+    (namespace :wat::holon::HolonAST)
+    -> :wat::telemetry::WorkUnit::Scope<T>)
+  (:wat::core::lambda
+    ((tags :wat::telemetry::Tags)
+     (body :wat::telemetry::WorkUnit::Body<T>)
+     -> :T)
+    (:wat::core::let*
+      (((wu     :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new namespace tags))
+       ((result :T)                        (body wu))
+       ((start  :i64) (:wat::telemetry::WorkUnit/started-epoch-nanos wu))
+       ((end    :i64) (:wat::time::epoch-nanos (:wat::time::now)))
+       ((events :Vec<wat::telemetry::Event>)
+        (:wat::telemetry::WorkUnit/scope::collect-metric-events wu start end))
+       ((req-tx :wat::telemetry::Service::ReqTx<wat::telemetry::Event>)
+        (:wat::core::first handle))
+       ((ack-rx :wat::telemetry::Service::AckRx) (:wat::core::second handle))
+       ((_ship  :())
+        (:wat::telemetry::Service/batch-log req-tx ack-rx events)))
+      result)))
+
+
 ;; ─── Slice 4-ship helpers — build Event::Metric rows ────────────
 ;;
 ;; Each counter that the scope tracked emits ONE Event::Metric at

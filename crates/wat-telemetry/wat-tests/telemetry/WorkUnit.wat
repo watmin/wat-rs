@@ -33,31 +33,48 @@
   ((:wat::core::define
      (:wat-telemetry::empty-tags -> :wat::telemetry::Tags)
      (:wat::core::HashMap :wat::telemetry::Tag))
-   ;; Default namespace for tests that don't care about the
-   ;; specific value but need SOMETHING since WorkUnit::new
-   ;; demands it (per the user's "namespace adjacent to tags at
-   ;; instantiation" rule, 2026-04-29).
+
    (:wat::core::define
      (:wat-telemetry::default-ns -> :wat::holon::HolonAST)
      (:wat::holon::Atom :wat-telemetry::test::ns))
-   ;; Probe helper — `:fn(X)->fn(Y)->Z` shape. Tests whether wat
-   ;; supports nested fn return types (rejected as having "no
-   ;; precedent" per arc 083, but maybe the type system has grown
-   ;; since).
+
+   ;; Probe helper — `:fn(X)->fn(Y)->Z`. Locks the substrate's
+   ;; nested-fn-return capability that WorkUnit/make-scope needs.
    (:wat::core::define
      (:wat-telemetry::probe::make-adder
        (x :i64) -> :fn(i64)->i64)
      (:wat::core::lambda ((y :i64) -> :i64)
        (:wat::core::+ x y)))
 
-   ;; Rank-2 probe — factory generic over T, returns a closure that
-   ;; ITSELF is generic over T. Each call to make-runner instantiates
-   ;; T at the call-site.
+   ;; Rank-2 probe — generic factory returning generic-T closure.
+   ;; Each call instantiates T at the call site.
    (:wat::core::define
      (:wat-telemetry::probe::make-runner<T>
        (_label :String) -> :fn(fn()->T)->T)
      (:wat::core::lambda ((body :fn()->T) -> :T)
-       (body)))))
+       (body)))
+
+   ;; Stub dispatcher for the make-scope ship test — closes over
+   ;; a QueueSender<Event>; forwards each Event from the dispatched
+   ;; batch into the test's stub queue so the body can drain
+   ;; them after scope returns.
+   (:wat::core::define
+     (:wat-telemetry::scope::make-stub-dispatcher
+       (stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
+       -> :fn(Vec<wat::telemetry::Event>)->())
+     (:wat::core::lambda ((entries :Vec<wat::telemetry::Event>) -> :())
+       (:wat::core::foldl entries ()
+         (:wat::core::lambda ((_acc :()) (e :wat::telemetry::Event) -> :())
+           (:wat::core::match (:wat::kernel::send stub-tx e) -> :()
+             ((Some _) ())
+             (:None    ()))))))
+
+   ;; Empty stats translator — null cadence never fires anyway.
+   (:wat::core::define
+     (:wat-telemetry::scope::translate-empty
+       (_s :wat::telemetry::Service::Stats)
+       -> :Vec<wat::telemetry::Event>)
+     (:wat::core::vec :wat::telemetry::Event))))
 
 
 ;; ─── uuid is non-empty ────────────────────────────────────────────
@@ -328,3 +345,78 @@
       (:wat-telemetry::probe::make-runner "i64-runner"))
      ((result :i64) (runner (:wat::core::lambda (-> :i64) 42))))
     (:wat::test::assert-eq result 42)))
+
+
+;; ─── WorkUnit/make-scope — closure factory; auto-ship at close ───
+;;
+;; The user's direction (2026-04-29): "we want our deps to vanish
+;; as fast as possible. (make-unit-work-maker handle namespace) ->
+;; produces a func who does what (WorkUnit/scope ...) is maybe
+;; trying to do." Tags may be dynamic at scope-call time;
+;; namespace is the producer's identity (fixed per call site).
+;;
+;; make-scope captures BOTH the SinkHandles AND the namespace
+;; once; the returned fn takes only (tags, body) and ships at
+;; scope-close. body's T flows back to the caller. No handle or
+;; namespace threading at use sites.
+;;
+;; This test exercises the full path:
+;;   1. spawn Service<Event,_> with stub-tx-forwarding dispatcher
+;;   2. pop Handle (== SinkHandles)
+;;   3. (make-scope handle namespace) → scope-fn
+;;   4. (scope-fn tags body) — body increments a counter, returns 42
+;;   5. join driver
+;;   6. drain stub-rx — assert ONE Event arrived (one counter = one row,
+;;      CloudWatch model)
+;;   7. assert result == 42 (body's T flowed through)
+(:deftest :wat-telemetry::WorkUnit::test-make-scope-ships-counter
+  (:wat::core::let*
+    ;; Stub queue — collects the Events the dispatcher sees.
+    (((stub-pair :wat::kernel::QueuePair<wat::telemetry::Event>)
+      (:wat::kernel::make-bounded-queue :wat::telemetry::Event 16))
+     ((stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
+      (:wat::core::first stub-pair))
+     ((stub-rx :wat::kernel::QueueReceiver<wat::telemetry::Event>)
+      (:wat::core::second stub-pair))
+     ;; Dispatcher closure-over stub-tx; null cadence + empty translator.
+     ((dispatcher :fn(Vec<wat::telemetry::Event>)->())
+      (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
+     ((cadence :wat::telemetry::Service::MetricsCadence<()>)
+      (:wat::telemetry::Service/null-metrics-cadence))
+     ;; Spawn Service<Event,_> with one client slot.
+     ((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
+      (:wat::telemetry::Service/spawn 1 cadence dispatcher
+        :wat-telemetry::scope::translate-empty))
+     ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
+      (:wat::core::first spawn))
+     ((driver :wat::kernel::ProgramHandle<()>) (:wat::core::second spawn))
+     ;; Inner: pop Handle, finish pool, factory + scope-fn-with-counter.
+     ((result :i64)
+      (:wat::core::let*
+        (((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
+          (:wat::kernel::HandlePool::pop pool))
+         ((_finish :()) (:wat::kernel::HandlePool::finish pool))
+         ((ns :wat::holon::HolonAST) (:wat-telemetry::default-ns))
+         ((scope :wat::telemetry::WorkUnit::Scope<i64>)
+          (:wat::telemetry::WorkUnit/make-scope handle ns))
+         ((tags :wat::telemetry::Tags) (:wat-telemetry::empty-tags)))
+        (scope tags
+          (:wat::core::lambda
+            ((wu :wat::telemetry::WorkUnit) -> :i64)
+            (:wat::core::let*
+              (((_ :()) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
+              42)))))
+     ((_join :()) (:wat::kernel::join driver))
+     ;; Drain — recv ONE Event for the single counter (CloudWatch
+     ;; model: one counter = one row, established by
+     ;; test-collect-metrics-one-counter). recv'ing past the
+     ;; expected count would block on stub-tx — still alive in
+     ;; this scope until the let* body terminates — so we recv
+     ;; only what we KNOW was sent. Per the test's intent:
+     ;; "scope ships the Events" is proven by recv returning
+     ;; Some at all; the row's CONTENT is proven elsewhere.
+     ((r1 :Option<wat::telemetry::Event>) (:wat::kernel::recv stub-rx))
+     ((r1-some? :bool)
+      (:wat::core::match r1 -> :bool ((Some _) true) (:None false)))
+     ((_a :()) (:wat::test::assert-eq result 42)))
+    (:wat::test::assert-eq r1-some? true)))
