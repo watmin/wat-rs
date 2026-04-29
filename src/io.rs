@@ -1053,6 +1053,150 @@ pub fn eval_kernel_pipe(args: &[WatAST]) -> Result<Value, RuntimeError> {
     ])))
 }
 
+// ─── Scope-bound temp file + temp dir (arc 093 slice 1e) ─────────────────
+//
+// Wraps Rust's `tempfile` crate as substrate-internal primitives.
+// Both types create a fresh file/dir under `std::env::temp_dir()`
+// at construction; Drop auto-unlinks (or `remove_dir_all`s) when
+// the wat value's Arc-count reaches zero — i.e., when the binding
+// goes out of `let*` scope and no one else holds the cell.
+//
+// Caller idiom (tests, ad-hoc scripts):
+//
+// ```scheme
+// (:wat::core::let*
+//   (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
+//    ((path :String) (:wat::io::TempFile/path tf))
+//    ;; ... use path ...
+//    ((_ :()) (:do-stuff path)))
+//   ;; Drop fires here on exit — the file is gone.
+//   ())
+// ```
+//
+// `TempFile` creates a regular empty file with a random name;
+// `TempDir` creates an empty directory (recursive cleanup at
+// Drop). Use TempFile for "I want a path to write to"; use
+// TempDir for "I need a scratch directory for multiple files."
+
+use tempfile::{NamedTempFile, TempDir};
+
+/// `:wat::io::TempFile` — auto-deleting temp file. Wraps
+/// `tempfile::NamedTempFile`. Drop unlinks the file.
+pub struct WatTempFile {
+    /// `Option` so `Drop` can `take()` and let `tempfile`'s own
+    /// Drop run. Always `Some` while the value is alive.
+    pub inner: Option<NamedTempFile>,
+}
+
+impl WatTempFile {
+    pub fn new() -> Result<Self, RuntimeError> {
+        match NamedTempFile::new() {
+            Ok(f) => Ok(Self { inner: Some(f) }),
+            Err(e) => Err(RuntimeError::MalformedForm {
+                head: ":wat::io::TempFile/new".into(),
+                reason: format!("create temp file: {e}"),
+            }),
+        }
+    }
+
+    pub fn path(&self) -> Result<String, RuntimeError> {
+        match &self.inner {
+            Some(f) => Ok(f.path().display().to_string()),
+            None => Err(RuntimeError::MalformedForm {
+                head: ":wat::io::TempFile/path".into(),
+                reason: "TempFile already dropped".into(),
+            }),
+        }
+    }
+}
+
+/// `:wat::io::TempDir` — auto-deleting temp directory. Wraps
+/// `tempfile::TempDir`. Drop runs `remove_dir_all`.
+pub struct WatTempDir {
+    pub inner: Option<TempDir>,
+}
+
+impl WatTempDir {
+    pub fn new() -> Result<Self, RuntimeError> {
+        match TempDir::new() {
+            Ok(d) => Ok(Self { inner: Some(d) }),
+            Err(e) => Err(RuntimeError::MalformedForm {
+                head: ":wat::io::TempDir/new".into(),
+                reason: format!("create temp dir: {e}"),
+            }),
+        }
+    }
+
+    pub fn path(&self) -> Result<String, RuntimeError> {
+        match &self.inner {
+            Some(d) => Ok(d.path().display().to_string()),
+            None => Err(RuntimeError::MalformedForm {
+                head: ":wat::io::TempDir/path".into(),
+                reason: "TempDir already dropped".into(),
+            }),
+        }
+    }
+}
+
+// Constructors + accessors via the RustOpaque machinery (same
+// shape `wat-telemetry-sqlite`'s cursor uses for its hand-rolled
+// thread-owned types). Each wat call lands in one of these eval
+// functions; runtime.rs dispatches via keyword head.
+
+pub fn eval_io_temp_file_new(
+    _args: &[WatAST],
+    _env: &Environment,
+    _sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let f = WatTempFile::new()?;
+    Ok(crate::rust_deps::make_rust_opaque(
+        ":wat::io::TempFile",
+        crate::rust_deps::ThreadOwnedCell::new(f),
+    ))
+}
+
+pub fn eval_io_temp_file_path(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::TempFile/path";
+    arity(op, args, 1)?;
+    let v = eval(&args[0], env, sym)?;
+    let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempFile", op)?;
+    let cell: &crate::rust_deps::ThreadOwnedCell<WatTempFile> =
+        crate::rust_deps::downcast_ref_opaque(&inner, ":wat::io::TempFile", op)?;
+    let s = cell.with_ref(op, |f| f.path())??;
+    Ok(Value::String(Arc::new(s)))
+}
+
+pub fn eval_io_temp_dir_new(
+    _args: &[WatAST],
+    _env: &Environment,
+    _sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let d = WatTempDir::new()?;
+    Ok(crate::rust_deps::make_rust_opaque(
+        ":wat::io::TempDir",
+        crate::rust_deps::ThreadOwnedCell::new(d),
+    ))
+}
+
+pub fn eval_io_temp_dir_path(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::TempDir/path";
+    arity(op, args, 1)?;
+    let v = eval(&args[0], env, sym)?;
+    let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempDir", op)?;
+    let cell: &crate::rust_deps::ThreadOwnedCell<WatTempDir> =
+        crate::rust_deps::downcast_ref_opaque(&inner, ":wat::io::TempDir", op)?;
+    let s = cell.with_ref(op, |d| d.path())??;
+    Ok(Value::String(Arc::new(s)))
+}
+
 // ─── Unit tests for pipe-backed IO (arc 012 slice 1) ─────────────────────
 
 #[cfg(test)]

@@ -148,7 +148,7 @@
     -> :wat::std::stream::Stream<wat::telemetry::Event>)
   (:wat::core::let*
     (((path :String) (:wat::sqlite::ReadHandle/path handle)))
-    (:wat::std::stream::spawn-producer<wat::telemetry::Event>
+    (:wat::std::stream::spawn-producer
       (:wat::core::lambda
         ((tx :rust::crossbeam_channel::Sender<wat::telemetry::Event>) -> :())
         (:wat::core::let*
@@ -165,7 +165,7 @@
     -> :wat::std::stream::Stream<wat::telemetry::Event>)
   (:wat::core::let*
     (((path :String) (:wat::sqlite::ReadHandle/path handle)))
-    (:wat::std::stream::spawn-producer<wat::telemetry::Event>
+    (:wat::std::stream::spawn-producer
       (:wat::core::lambda
         ((tx :rust::crossbeam_channel::Sender<wat::telemetry::Event>) -> :())
         (:wat::core::let*

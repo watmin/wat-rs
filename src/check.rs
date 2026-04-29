@@ -5051,6 +5051,43 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: unit_ty(),
         },
     );
+    // Arc 093 — auto-deleting temp file / temp dir wrappers
+    // around Rust's `tempfile` crate. Drop unlinks the file/dir
+    // when the wat value's Arc-count reaches zero. Caller binds
+    // the handle in let*, pulls the path string when needed,
+    // lets Drop fire at scope exit.
+    env.register(
+        ":wat::io::TempFile/new".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Path(":wat::io::TempFile".into()),
+        },
+    );
+    env.register(
+        ":wat::io::TempFile/path".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::io::TempFile".into())],
+            ret: string_ty(),
+        },
+    );
+    env.register(
+        ":wat::io::TempDir/new".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Path(":wat::io::TempDir".into()),
+        },
+    );
+    env.register(
+        ":wat::io::TempDir/path".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::io::TempDir".into())],
+            ret: string_ty(),
+        },
+    );
 
     // :wat::kernel::run-sandboxed — arc 007 slice 2a.
     // (src: :String, stdin: :Vec<String>, scope: :Option<String>)

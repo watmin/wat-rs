@@ -2373,6 +2373,13 @@ fn dispatch_keyword_head(
         ":wat::io::IOWriter/write-all" => crate::io::eval_iowriter_write_all(args, env, sym),
         ":wat::io::IOWriter/write-string" => crate::io::eval_iowriter_write_string(args, env, sym),
         ":wat::io::IOWriter/print" => crate::io::eval_iowriter_print(args, env, sym),
+        // Arc 093 — auto-deleting temp file / temp dir wrappers
+        // around Rust's `tempfile` crate. Drop unlinks the
+        // file/dir when the wat value's Arc-count reaches zero.
+        ":wat::io::TempFile/new" => crate::io::eval_io_temp_file_new(args, env, sym),
+        ":wat::io::TempFile/path" => crate::io::eval_io_temp_file_path(args, env, sym),
+        ":wat::io::TempDir/new" => crate::io::eval_io_temp_dir_new(args, env, sym),
+        ":wat::io::TempDir/path" => crate::io::eval_io_temp_dir_path(args, env, sym),
         ":wat::io::IOWriter/println" => crate::io::eval_iowriter_println(args, env, sym),
         ":wat::io::IOWriter/writeln" => crate::io::eval_iowriter_writeln(args, env, sym),
         ":wat::io::IOWriter/flush" => crate::io::eval_iowriter_flush(args, env, sym),

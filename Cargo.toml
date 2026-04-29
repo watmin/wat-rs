@@ -52,6 +52,7 @@ crossbeam-channel = "0.5"
 libc = "0.2"
 regex = "1"
 chrono = "0.4"
+tempfile = "3"
 wat-macros = { path = "crates/wat-macros" }
 wat-edn = { path = "crates/wat-edn" }
 
