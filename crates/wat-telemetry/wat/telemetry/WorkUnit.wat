@@ -180,6 +180,39 @@
       result)))
 
 
+;; ─── WorkUnit/timed — bump + measure-around body ────────────────
+;;
+;; Composes `incr!` + epoch-nanos delta + `append-dt!` at the wat
+;; surface (no Rust required). One call:
+;;
+;;   - bumps `name`'s counter by 1
+;;   - captures wall-clock nanos before the body
+;;   - runs (body) — returns its T verbatim through this call
+;;   - captures wall-clock nanos after the body
+;;   - appends `(end - start) / 1e9` seconds to `name`'s duration list
+;;
+;; Single-name discipline (counter and duration share the key) keeps
+;; the row count predictable: N timed calls under one name ⇒ ONE
+;; counter row at scope-close (CloudWatch model: counter = N) plus
+;; N duration rows (one per sample).
+(:wat::core::define
+  (:wat::telemetry::WorkUnit/timed<T>
+    (wu   :wat::telemetry::WorkUnit)
+    (name :wat::holon::HolonAST)
+    (body :fn()->T)
+    -> :T)
+  (:wat::core::let*
+    (((_bump      :())  (:wat::telemetry::WorkUnit/incr! wu name))
+     ((start      :i64) (:wat::time::epoch-nanos (:wat::time::now)))
+     ((result     :T)   (body))
+     ((end        :i64) (:wat::time::epoch-nanos (:wat::time::now)))
+     ((delta-ns   :i64) (:wat::core::- end start))
+     ((delta-ns-f :f64) (:wat::core::i64::to-f64 delta-ns))
+     ((secs       :f64) (:wat::core::/ delta-ns-f 1000000000.0))
+     ((_dt        :())  (:wat::telemetry::WorkUnit/append-dt! wu name secs)))
+    result))
+
+
 ;; ─── Slice 4-ship helpers — build Event::Metric rows ────────────
 ;;
 ;; Each counter that the scope tracked emits ONE Event::Metric at

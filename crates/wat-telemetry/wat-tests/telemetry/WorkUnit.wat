@@ -149,6 +149,55 @@
     (:wat::test::assert-eq dts (:wat::core::vec :f64 0.5 1.5))))
 
 
+;; ─── timed — bump + measure-around body ─────────────────────────
+;;
+;; ONE timed call:
+;;   - counter for `name` bumps by 1
+;;   - durations for `name` gains ONE sample (the body's wall-clock seconds)
+;;   - body's T flows back verbatim
+;;
+;; The single-name discipline (counter and duration share the key)
+;; keeps the row count predictable: N calls under one name ⇒ N counter
+;; bumps (one row at scope-close) plus N duration samples (N rows at
+;; scope-close per the CloudWatch fanout).
+
+(:deftest :wat-telemetry::WorkUnit::test-timed-bumps-counter-records-duration
+  (:wat::core::let*
+    (((wu :wat::telemetry::WorkUnit)
+      (:wat::telemetry::WorkUnit::new
+        (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
+     ((name :wat::holon::HolonAST) (:wat::holon::Atom :sql-fetch))
+     ((result :i64)
+      (:wat::telemetry::WorkUnit/timed wu name
+        (:wat::core::lambda (-> :i64) 99)))
+     ((counter :i64) (:wat::telemetry::WorkUnit/counter wu name))
+     ((dts :Vec<f64>) (:wat::telemetry::WorkUnit/durations wu name))
+     ((n-dts :i64) (:wat::core::length dts))
+     ((_a :()) (:wat::test::assert-eq result 99))
+     ((_b :()) (:wat::test::assert-eq counter 1)))
+    (:wat::test::assert-eq n-dts 1)))
+
+
+;; Two timed calls under one name: counter = 2, durations has 2 samples.
+(:deftest :wat-telemetry::WorkUnit::test-timed-twice-accumulates
+  (:wat::core::let*
+    (((wu :wat::telemetry::WorkUnit)
+      (:wat::telemetry::WorkUnit::new
+        (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
+     ((name :wat::holon::HolonAST) (:wat::holon::Atom :work))
+     ((_r1 :i64)
+      (:wat::telemetry::WorkUnit/timed wu name
+        (:wat::core::lambda (-> :i64) 1)))
+     ((_r2 :i64)
+      (:wat::telemetry::WorkUnit/timed wu name
+        (:wat::core::lambda (-> :i64) 2)))
+     ((counter :i64) (:wat::telemetry::WorkUnit/counter wu name))
+     ((dts :Vec<f64>) (:wat::telemetry::WorkUnit/durations wu name))
+     ((n-dts :i64) (:wat::core::length dts))
+     ((_a :()) (:wat::test::assert-eq counter 2)))
+    (:wat::test::assert-eq n-dts 2)))
+
+
 ;; ─── Tags — immutable, declared at construction ───────────────
 
 ;; Empty tags map round-trips through the constructor.

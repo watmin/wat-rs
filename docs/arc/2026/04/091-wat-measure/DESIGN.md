@@ -358,11 +358,15 @@ Slice 4 — Event types + make-scope closure factory + ship walker  [SHIPPED 202
      end-time at scope-close; walks counters-keys + durations-keys
      to build Vec<Event>; batch-log + ack via the captured handle;
      returns body's val.
-   25 wat-side tests in wat-telemetry pass; full workspace cargo test green.
-   NOTE: `timed<T>` HOF was originally scoped here but deferred —
-     the call sites that wanted it ended up clearer with explicit
-     `incr!` + `append-dt!`. Will reopen if a real consumer reaches
-     for it.
+   The HOF:
+     :wat::telemetry::WorkUnit/timed<T>
+        (wu :WorkUnit) (name :HolonAST) (body :fn()->T) -> :T
+     Bumps `name`'s counter; runs body; appends `(end - start)/1e9`
+     seconds to `name`'s duration list; returns body's val. Pure
+     wat composition over incr! + epoch-nanos + append-dt!. Single-
+     name discipline so the row count is predictable: N timed calls
+     ⇒ 1 counter row + N duration rows under one metric-name.
+   27 wat-side tests in wat-telemetry pass; full workspace cargo test green.
 
 Slice 5 — Log emission primitives (the Log variant of Event)         [PENDING]
    :wat::telemetry::WorkUnit/info  wu data       ; emits Event::Log at :info
