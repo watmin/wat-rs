@@ -500,6 +500,23 @@ fn infer_list(
                     args: vec![TypeExpr::Path(":wat::WatAST".into())],
                 });
             }
+            ":wat::core::struct->form" => {
+                // Arc 091 slice 8 — lift a struct VALUE to its
+                // constructor-call FORM. ∀T. T → :wat::WatAST. The
+                // arg's type is inferred for context but not
+                // constrained (the runtime errors if T isn't a
+                // Struct). Return type is :wat::WatAST.
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: ":wat::core::struct->form".into(),
+                        expected: 1,
+                        got: args.len(),
+                    });
+                } else {
+                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Path(":wat::WatAST".into()));
+            }
             ":wat::core::macroexpand-1" | ":wat::core::macroexpand" => {
                 // Arc 030: macro debugging primitives.
                 // (:wat::core::macroexpand{-1}? <wat::WatAST>) -> :wat::WatAST
@@ -643,12 +660,19 @@ fn infer_list(
             | ":wat::load-file!"
             | ":wat::digest-load!"
             | ":wat::signed-load!"
-            | ":wat::core::quasiquote"
             | ":wat::core::unquote"
             | ":wat::core::unquote-splicing" => {
                 // Top-level forms / reader-macro heads don't participate
                 // in expression-level inference.
                 return None;
+            }
+            ":wat::core::quasiquote" => {
+                // Arc 091 slice 8 — runtime quasiquote returns
+                // :wat::WatAST. Body isn't fully type-checked (it's
+                // a template); unquoted expressions infer into
+                // local context but their types don't constrain the
+                // outer result.
+                return Some(TypeExpr::Path(":wat::WatAST".into()));
             }
             _ if k.starts_with(":wat::config::set-") => return None,
             _ if (k.starts_with(":wat::kernel::") || k.starts_with(":wat::std::"))

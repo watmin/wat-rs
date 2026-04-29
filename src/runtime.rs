@@ -2152,6 +2152,8 @@ fn dispatch_keyword_head(
         ":wat::core::if" => eval_if(args, env, sym),
         ":wat::core::cond" => eval_cond(args, env, sym),
         ":wat::core::quote" => eval_quote(args),
+        ":wat::core::quasiquote" => eval_quasiquote(args, env, sym),
+        ":wat::core::struct->form" => eval_struct_to_form(args, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, env, sym),
@@ -5091,6 +5093,190 @@ fn eval_quote(args: &[WatAST]) -> Result<Value, RuntimeError> {
     }
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
 }
+
+/// `(:wat::core::quasiquote <template>) -> :wat::WatAST`.
+///
+/// Arc 091 slice 8. Runtime quasiquote — same template shape
+/// `defmacro` bodies use, but at expression position. Walks the
+/// template; at each `(:wat::core::unquote X)` site evaluates X
+/// in the surrounding environment and converts the resulting Value
+/// to a WatAST literal node; returns the assembled form as a
+/// `Value::wat__WatAST`.
+///
+/// Differs from `eval_quote` in that unquoted expressions get
+/// evaluated AND substituted; differs from `expand_template` (the
+/// macro-expansion-time walker in `macros.rs`) in that the unquote
+/// substitution comes from runtime values, not macro-bound AST args.
+///
+/// Supported value-to-AST conversions at unquote sites:
+/// - `:i64` / `:f64` / `:bool` / `:String` / `:wat::core::keyword` →
+///   matching literal node
+/// - `:wat::WatAST` → the inner form directly (already an AST)
+///
+/// Other Value shapes (Struct, Enum, Vec, HashMap, HolonAST) error
+/// at the unquote site — those don't have a single canonical AST
+/// representation and the caller should pass a wat::WatAST shape
+/// (typically constructed via a nested quasiquote or `forms`).
+///
+/// Nested quasiquote tracks depth like `walk_template` does: a
+/// `(:wat::core::quasiquote X)` inside the body bumps depth + 1
+/// and preserves the wrapper; `(:wat::core::unquote X)` fires only
+/// at depth 1.
+fn eval_quasiquote(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::quasiquote";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let walked = walk_quasiquote(&args[0], env, sym, 1)?;
+    Ok(Value::wat__WatAST(Arc::new(walked)))
+}
+
+/// Recursive walker for runtime quasiquote — inverse of macros.rs's
+/// expansion-time walker, but evaluating unquotes against the
+/// runtime environment instead of substituting macro bindings.
+fn walk_quasiquote(
+    form: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    depth: u32,
+) -> Result<WatAST, RuntimeError> {
+    match form {
+        WatAST::List(items, span) => {
+            // Nested quasiquote — bump depth, preserve wrapper.
+            if let Some(arg) = match_qq_head(items, ":wat::core::quasiquote") {
+                let inner = walk_quasiquote(arg, env, sym, depth + 1)?;
+                return Ok(WatAST::List(
+                    vec![
+                        WatAST::Keyword(":wat::core::quasiquote".into(), span.clone()),
+                        inner,
+                    ],
+                    span.clone(),
+                ));
+            }
+            // Unquote — fires at depth 1; preserves+peels deeper.
+            if let Some(arg) = match_qq_head(items, ":wat::core::unquote") {
+                if depth == 1 {
+                    let v = eval(arg, env, sym)?;
+                    return value_to_watast(":wat::core::unquote", v, span.clone());
+                }
+                let inner = walk_quasiquote(arg, env, sym, depth - 1)?;
+                return Ok(WatAST::List(
+                    vec![
+                        WatAST::Keyword(":wat::core::unquote".into(), span.clone()),
+                        inner,
+                    ],
+                    span.clone(),
+                ));
+            }
+            // Plain list — walk children. Unquote-splicing not handled
+            // here (it requires the outer-list-context scan; not yet
+            // surfaced as a real lab need).
+            let walked: Result<Vec<_>, _> =
+                items.iter().map(|c| walk_quasiquote(c, env, sym, depth)).collect();
+            Ok(WatAST::List(walked?, span.clone()))
+        }
+        // Leaves are preserved verbatim.
+        other => Ok(other.clone()),
+    }
+}
+
+/// Pattern-match `(:wat::core::quasiquote X)` or
+/// `(:wat::core::unquote X)` — return Some(X) when items has exactly
+/// 2 entries and items[0] is the expected keyword.
+fn match_qq_head<'a>(items: &'a [WatAST], head: &str) -> Option<&'a WatAST> {
+    if items.len() != 2 {
+        return None;
+    }
+    if let WatAST::Keyword(k, _) = &items[0] {
+        if k == head {
+            return Some(&items[1]);
+        }
+    }
+    None
+}
+
+/// Convert a runtime Value to a literal WatAST node — used by
+/// `walk_quasiquote` at unquote sites. Inverse of the eval-eval
+/// path: this is "value back to source" for the supported leaf
+/// shapes.
+fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, RuntimeError> {
+    match v {
+        Value::i64(n) => Ok(WatAST::IntLit(n, span)),
+        Value::f64(x) => Ok(WatAST::FloatLit(x, span)),
+        Value::bool(b) => Ok(WatAST::BoolLit(b, span)),
+        Value::String(s) => Ok(WatAST::StringLit((*s).clone(), span)),
+        Value::wat__core__keyword(k) => Ok(WatAST::Keyword((*k).clone(), span)),
+        Value::wat__WatAST(a) => Ok((*a).clone()),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "primitive (i64/f64/bool/String/keyword) or :wat::WatAST",
+            got: other.type_name(),
+        }),
+    }
+}
+
+
+/// `(:wat::core::struct->form <struct-value>) -> :wat::WatAST`.
+///
+/// Arc 091 slice 8. Lift a struct VALUE to its constructor-call
+/// FORM. Reads the struct's `type_name` and field values; builds a
+/// `WatAST::List` shaped like `(:type-name/new field0 field1 ...)`
+/// with each field rendered via `value_to_watast`. The result is a
+/// `Value::wat__WatAST` ready to pass to `:wat::holon::Atom` or
+/// any consumer that wants a WatAST shape.
+///
+/// Surfaces the inverse of struct construction: where
+/// `(:my::Foo/new a b)` evaluates to a `Value::Struct`, this
+/// primitive recovers the constructor-call form from a built struct.
+/// Round-trips through `eval-ast!` → re-construction.
+///
+/// Lab use case: WorkUnitLog/info takes :wat::WatAST data; producers
+/// build domain structs and pass them via this primitive instead of
+/// hand-quasiquoting each field. Use site reads:
+///   (/info wlog wu (:wat::core::struct->form paper-resolved))
+fn eval_struct_to_form(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::struct->form";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    let s = match v {
+        Value::Struct(s) => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "struct value (e.g. `:my::Foo/new`'s output)",
+                got: other.type_name(),
+            });
+        }
+    };
+    // Build constructor keyword: `:my::Foo/new` from type_name `:my::Foo`.
+    let constructor = format!("{}/new", s.type_name);
+    let span = Span::unknown();
+    let mut items = Vec::with_capacity(s.fields.len() + 1);
+    items.push(WatAST::Keyword(constructor, span.clone()));
+    for f in s.fields.iter() {
+        items.push(value_to_watast(OP, f.clone(), span.clone())?);
+    }
+    Ok(Value::wat__WatAST(Arc::new(WatAST::List(items, span))))
+}
+
 
 /// `(:wat::core::forms f1 f2 ... fn)` → `:Vec<wat::WatAST>`.
 ///
