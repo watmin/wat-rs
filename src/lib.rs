@@ -96,6 +96,10 @@ pub use wat_macros::{main, test};
 
 pub use ast::WatAST;
 pub use check::{check_program, CheckEnv, CheckError, CheckErrors, TypeScheme};
+// Arc 093 — bridge EDN text to a runtime Value using the type
+// registry. `read_edn` is parse + bridge in one call;
+// `edn_to_value` operates on an already-parsed EDN tree.
+pub use edn_shim::{edn_to_value, read_edn, EdnReadError};
 pub use config::{
     collect_entry_file, collect_entry_file_with_inherit, CapacityMode, Config, ConfigError,
 };

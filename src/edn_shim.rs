@@ -198,26 +198,48 @@ pub fn eval_edn_read(
     })
 }
 
+/// Errors surfaced by [`read_edn`] / [`edn_to_value`] when an EDN
+/// document fails to coerce to a runtime [`Value`]. Substrate-
+/// consumer crates (e.g. `wat-telemetry-sqlite`'s row reify) match
+/// against these to surface diagnostic messages.
 #[derive(Debug)]
-enum EdnReadError {
+pub enum EdnReadError {
+    /// `#ns/Name {body}` whose `ns/Name` doesn't resolve to any
+    /// declared struct or enum in the type registry. `body_shape`
+    /// reports what was found ("Map", "Vector", "Nil", etc.) so
+    /// the caller can disambiguate "the type registry doesn't
+    /// have this name" from "the body shape doesn't match the
+    /// declared kind."
     UnknownTag {
         ns: String,
         name: String,
         body_shape: &'static str,
     },
+    /// A substrate-reserved tag the bridge doesn't currently
+    /// understand. `#inst` is handled by the underlying
+    /// `wat_edn` parser; everything else lands here.
     UnsupportedTag(String),
+    /// No type registry was attached. The bridge needs the
+    /// registry to interpret `#ns/Name` tags; without one,
+    /// any tagged value fails. Pass `None` only when you know
+    /// the EDN document contains no tagged values.
     NoTypeRegistry,
+    /// `#ns/Name {map}` referenced a key that isn't a declared
+    /// field of the named struct.
     UnknownStructField {
         type_path: String,
         key: String,
     },
+    /// `#ns/Name [body]` or `#ns/Name nil` referenced a variant
+    /// name that isn't declared on the named enum.
     EnumVariantNotFound {
         type_path: String,
         variant: String,
     },
-    /// Generic — the EDN value couldn't be coerced to a wat Value
-    /// for the listed structural reason (e.g. unsupported variant
-    /// of `wat_edn::Value` like Symbol or BigInt).
+    /// Catch-all — the EDN value couldn't be coerced to a wat
+    /// Value for the listed structural reason (e.g. unsupported
+    /// `wat_edn::Value` variant like Symbol or BigInt, or a
+    /// surface-level parse error wrapped here).
     Other(String),
 }
 
@@ -250,7 +272,37 @@ impl std::fmt::Display for EdnReadError {
 /// Walk a `wat_edn::OwnedValue` into a wat runtime `Value`. The
 /// inverse of [`value_to_edn_with`]; tags drive struct/enum
 /// reconstruction via the type registry.
-fn edn_to_value(
+/// Parse an EDN string into a runtime [`Value`], using `types`
+/// to interpret `#ns/Name` tags as struct or enum references.
+/// Higher-level convenience over [`edn_to_value`] — does the
+/// `wat_edn::parse_owned` step too, so callers that have a raw
+/// `&str` get one call instead of two.
+///
+/// Pass `Some(registry)` for any EDN containing tagged structs
+/// or enums; pass `None` only for primitive-only documents (the
+/// bridge will return [`EdnReadError::NoTypeRegistry`] on the
+/// first tagged value otherwise).
+///
+/// Public arc-093: arc-093's row-reify path in
+/// `wat-telemetry-sqlite` calls this per column to convert each
+/// `:wat::edn::Tagged` / `:wat::edn::NoTag` TEXT cell back into
+/// the typed runtime [`Value`] the cursor's `step!` shim returns
+/// to wat callers.
+pub fn read_edn(
+    s: &str,
+    types: Option<&crate::types::TypeEnv>,
+) -> Result<Value, EdnReadError> {
+    let edn = wat_edn::parse_owned(s)
+        .map_err(|e| EdnReadError::Other(format!("EDN parse error: {e}")))?;
+    edn_to_value(&edn, types)
+}
+
+/// Bridge a parsed `wat_edn::OwnedValue` to a runtime [`Value`],
+/// using `types` to interpret `#ns/Name` tags. Most consumers
+/// want [`read_edn`] (parse + bridge in one call); reach for
+/// this directly when you already have the parsed EDN tree (e.g.
+/// when bridging multiple sub-expressions of one document).
+pub fn edn_to_value(
     edn: &OwnedValue,
     types: Option<&crate::types::TypeEnv>,
 ) -> Result<Value, EdnReadError> {
