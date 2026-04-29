@@ -2167,6 +2167,13 @@ fn dispatch_keyword_head(
         ":wat::core::quote" => eval_quote(args),
         ":wat::core::quasiquote" => eval_quasiquote(args, env, sym),
         ":wat::core::struct->form" => eval_struct_to_form(args, env, sym),
+        // Arc 098 — Clara-style single-item pattern matcher.
+        // Slice 1 lands the type-check side only; the runtime arm
+        // ships in slice 2.
+        ":wat::form::matches?" => Err(RuntimeError::MalformedForm {
+            head: ":wat::form::matches?".into(),
+            reason: "runtime walker not yet implemented (arc 098 slice 2)".into(),
+        }),
         ":wat::core::forms" => Ok(eval_forms(args)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, env, sym),

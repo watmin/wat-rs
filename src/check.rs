@@ -576,6 +576,12 @@ fn infer_list(
                     k, args, env, locals, fresh, subst, errors,
                 );
             }
+            // Arc 098 — Clara-style single-item pattern matcher.
+            // Substrate-recognized special form (macros expand before
+            // type-checking and can't query the struct registry).
+            ":wat::form::matches?" => {
+                return infer_form_matches(args, env, locals, fresh, subst, errors);
+            }
             // Arc 052 — polymorphic algebra ops. Cosine and dot accept
             // HolonAST or Vector in either position; simhash accepts
             // HolonAST or Vector as its single argument. Arc 061
@@ -2982,6 +2988,261 @@ fn infer_polymorphic_time_arith(
             }
             Some(instant_ty)
         }
+    }
+}
+
+/// Arc 098 — type-check `:wat::form::matches?`. Substrate-recognized
+/// special form (not a user defmacro); macros expand before
+/// type-checking and can't query the struct registry, so the matcher
+/// has to dispatch directly through `infer_call`.
+///
+/// Shape:
+///
+/// ```text
+/// (:wat::form::matches? SUBJECT
+///   (:TYPE-NAME (= ?var :field) ... <constraint> ...))
+/// ```
+///
+/// The subject's static type is unconstrained — the matcher returns
+/// `false` at runtime when the subject is `:None`, non-Struct, or a
+/// Struct of the wrong type. We `infer` it anyway so nested errors
+/// (e.g. unknown function in a nested call) still surface.
+fn infer_form_matches(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    let bool_ty = TypeExpr::Path(":bool".into());
+
+    if args.len() != 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: ":wat::form::matches?".into(),
+            expected: 2,
+            got: args.len(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(bool_ty);
+    }
+
+    // Subject — drive nested errors but accept any type.
+    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+
+    // Pattern — must be `(:TYPE-NAME clause ...)`.
+    let pattern_items = match &args[1] {
+        WatAST::List(items, _) if !items.is_empty() => items,
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::form::matches?".into(),
+                reason: "pattern must be a list `(:TYPE-NAME clause ...)`".into(),
+            });
+            return Some(bool_ty);
+        }
+    };
+    let type_name = match &pattern_items[0] {
+        WatAST::Keyword(k, _) => k.as_str(),
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::form::matches?".into(),
+                reason: "pattern head must be a struct type keyword".into(),
+            });
+            return Some(bool_ty);
+        }
+    };
+
+    // Resolve struct fields.
+    let fields: Vec<(String, TypeExpr)> = match env.types().get(type_name) {
+        Some(crate::types::TypeDef::Struct(s)) => s.fields.clone(),
+        Some(_) => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::form::matches?".into(),
+                reason: format!(
+                    "pattern head {} names a non-struct type; matches? walks struct fields",
+                    type_name
+                ),
+            });
+            return Some(bool_ty);
+        }
+        None => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::form::matches?".into(),
+                reason: format!("unknown struct type {}", type_name),
+            });
+            return Some(bool_ty);
+        }
+    };
+
+    // Walk clauses, threading binding scope through `pattern_locals`.
+    // Bindings push `?var → field-type`; constraint sub-clauses
+    // (and/or/not) re-use the same scope (sub-clauses cannot
+    // introduce new bindings — see DESIGN §what's NOT in this arc).
+    let mut pattern_locals = locals.clone();
+    for clause in &pattern_items[1..] {
+        check_clause(
+            clause,
+            type_name,
+            &fields,
+            env,
+            &mut pattern_locals,
+            fresh,
+            subst,
+            errors,
+        );
+    }
+
+    Some(bool_ty)
+}
+
+/// Type-check a single clause inside a `:wat::form::matches?`
+/// pattern. Mutates `locals` to register fresh bindings; pushes
+/// errors for grammar / semantic violations.
+#[allow(clippy::too_many_arguments)]
+fn check_clause(
+    clause: &WatAST,
+    type_name: &str,
+    fields: &[(String, TypeExpr)],
+    env: &CheckEnv,
+    locals: &mut HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) {
+    use crate::form_match::{
+        classify_clause, keyword_payload, logic_var_name, RawClause,
+    };
+
+    let raw = match classify_clause(clause) {
+        Ok(r) => r,
+        Err(e) => {
+            errors.push(grammar_error_to_check_error(e));
+            return;
+        }
+    };
+
+    match raw {
+        RawClause::Eq { left, right } => {
+            // Disambiguate binding vs equality by the LHS shape and
+            // whether the variable is already in scope.
+            if let Some(var) = logic_var_name(left) {
+                if !locals.contains_key(var) {
+                    // Fresh ?var — this is a binding. RHS must be a
+                    // field keyword that exists on the struct.
+                    let field_name = match keyword_payload(right) {
+                        Some(k) => k,
+                        None => {
+                            errors.push(CheckError::MalformedForm {
+                                head: ":wat::form::matches?".into(),
+                                reason: format!(
+                                    "binding RHS for {} must be a field keyword like :field-name",
+                                    var
+                                ),
+                            });
+                            return;
+                        }
+                    };
+                    // Field name is the keyword stripped of leading `:`.
+                    let field_lookup = field_name.strip_prefix(':').unwrap_or(field_name);
+                    let field_ty = match fields.iter().find(|(n, _)| n == field_lookup) {
+                        Some((_, t)) => t.clone(),
+                        None => {
+                            errors.push(CheckError::MalformedForm {
+                                head: ":wat::form::matches?".into(),
+                                reason: format!(
+                                    "struct {} has no field {}",
+                                    type_name, field_name
+                                ),
+                            });
+                            return;
+                        }
+                    };
+                    locals.insert(var.to_string(), field_ty);
+                    return;
+                }
+                // ?var already bound — fall through to comparison.
+            } else {
+                // LHS isn't a ?var. Could be a literal-vs-?var
+                // comparison (e.g. `(= "Grace" ?outcome)`); both
+                // sides type-check below.
+            }
+            check_comparison(left, right, env, locals, fresh, subst, errors);
+        }
+        RawClause::Compare { left, right, .. } => {
+            check_comparison(left, right, env, locals, fresh, subst, errors);
+        }
+        RawClause::And(subs) | RawClause::Or(subs) => {
+            for sub in subs {
+                check_clause(sub, type_name, fields, env, locals, fresh, subst, errors);
+            }
+        }
+        RawClause::Not(sub) => {
+            check_clause(sub, type_name, fields, env, locals, fresh, subst, errors);
+        }
+        RawClause::Where(body) => {
+            // `where` body is arbitrary wat in the binding scope;
+            // it must type to `:bool`.
+            let body_ty = infer(body, env, locals, fresh, subst, errors);
+            if let Some(t) = body_ty {
+                let bool_ty = TypeExpr::Path(":bool".into());
+                if unify(&t, &bool_ty, subst, env.types()).is_err() {
+                    errors.push(CheckError::TypeMismatch {
+                        callee: ":wat::form::matches?".into(),
+                        param: "where-body".into(),
+                        expected: format_type(&bool_ty),
+                        got: format_type(&apply_subst(&t, subst)),
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// Type-check the two operands of a comparison clause. Both sides
+/// are inferred; if both have known types, they must unify to a
+/// common type (matches arc 050 polymorphic-compare semantics).
+fn check_comparison(
+    left: &WatAST,
+    right: &WatAST,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) {
+    let l_ty = infer(left, env, locals, fresh, subst, errors);
+    let r_ty = infer(right, env, locals, fresh, subst, errors);
+    if let (Some(l), Some(r)) = (l_ty, r_ty) {
+        if unify(&l, &r, subst, env.types()).is_err() {
+            errors.push(CheckError::TypeMismatch {
+                callee: ":wat::form::matches?".into(),
+                param: "comparison".into(),
+                expected: format_type(&apply_subst(&l, subst)),
+                got: format_type(&apply_subst(&r, subst)),
+            });
+        }
+    }
+}
+
+fn grammar_error_to_check_error(e: crate::form_match::ClauseGrammarError) -> CheckError {
+    use crate::form_match::ClauseGrammarError as G;
+    let reason = match e {
+        G::NotAList => "clause must be a list `(head ...)`".to_string(),
+        G::EmptyList => "empty clause `()` — clauses need a head".to_string(),
+        G::NonKeywordHead => "clause head must be a keyword (=, <, and, where, ...)".to_string(),
+        G::UnknownHead(h) => format!(
+            "unknown matcher head: {}; recognized: =, <, >, <=, >=, not=, and, or, not, where",
+            h
+        ),
+        G::NotArity { got } => format!("`not` takes exactly 1 sub-clause; got {}", got),
+        G::WhereArity { got } => format!("`where` takes exactly 1 expression; got {}", got),
+        G::BinaryArity { op, got } => format!("`{}` takes exactly 2 args; got {}", op.as_str(), got),
+    };
+    CheckError::MalformedForm {
+        head: ":wat::form::matches?".into(),
+        reason,
     }
 }
 

@@ -63,6 +63,7 @@ pub mod config;
 pub mod edn_shim;
 pub mod sigma;
 pub mod fork;
+pub mod form_match;
 pub mod harness;
 pub mod freeze;
 pub mod hash;
