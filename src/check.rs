@@ -6612,6 +6612,48 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+
+    // Arc 097 slice 3 — `ago` / `from-now` composers. Each takes a
+    // Duration and returns Instant (relative to wall-clock now).
+    for name in ["ago", "from-now"] {
+        env.register(
+            format!(":wat::time::{}", name),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![duration_ty()],
+                ret: instant_ty(),
+            },
+        );
+    }
+
+    // Arc 097 slice 4 — pre-composed unit-ago / unit-from-now sugars.
+    // 14 helpers (7 units × {ago, from-now}). Each takes :i64 and
+    // returns Instant relative to wall-clock now.
+    for name in [
+        "nanoseconds-ago",
+        "microseconds-ago",
+        "milliseconds-ago",
+        "seconds-ago",
+        "minutes-ago",
+        "hours-ago",
+        "days-ago",
+        "nanoseconds-from-now",
+        "microseconds-from-now",
+        "milliseconds-from-now",
+        "seconds-from-now",
+        "minutes-from-now",
+        "hours-from-now",
+        "days-from-now",
+    ] {
+        env.register(
+            format!(":wat::time::{}", name),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![i64_ty()],
+                ret: instant_ty(),
+            },
+        );
+    }
     // List/Vec primitives — Round 4a, per docs/058-backlog.md.
     //
     //   length   : ∀T. Vec<T> -> :i64

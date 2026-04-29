@@ -508,6 +508,332 @@ pub(crate) fn eval_time_add(
     Ok(Value::Instant(new_inst))
 }
 
+// ─── Arc 097 slice 3 — `ago` / `from-now` composers ─────────────────
+//
+// ActiveSupport-flavored "X ago" / "X from now" — relative to (now).
+// Each composer takes a Duration; computes Instant relative to wall-
+// clock now. Same semantic as Ruby's `1.hour.ago` and `2.days.from_now`.
+
+/// `(:wat::time::ago duration) -> :wat::time::Instant`. Equivalent to
+/// `(:wat::time::- (:wat::time::now) duration)`.
+pub(crate) fn eval_time_ago(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::time::ago";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let ns = require_duration(OP, eval(&args[0], env, sym)?)?;
+    let now = Utc::now();
+    let result = now
+        .checked_sub_signed(chrono::Duration::nanoseconds(ns))
+        .ok_or_else(|| RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "result-Instant in chrono representable range",
+            got: "out-of-range subtraction",
+        })?;
+    Ok(Value::Instant(result))
+}
+
+/// `(:wat::time::from-now duration) -> :wat::time::Instant`. Equivalent
+/// to `(:wat::time::+ (:wat::time::now) duration)`.
+pub(crate) fn eval_time_from_now(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::time::from-now";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let ns = require_duration(OP, eval(&args[0], env, sym)?)?;
+    let now = Utc::now();
+    let result = now
+        .checked_add_signed(chrono::Duration::nanoseconds(ns))
+        .ok_or_else(|| RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "result-Instant in chrono representable range",
+            got: "out-of-range addition",
+        })?;
+    Ok(Value::Instant(result))
+}
+
+// ─── Arc 097 slice 4 — pre-composed unit-ago / unit-from-now ────────
+//
+// 14 sugars (7 units × {ago, from-now}). Each computes the relative
+// Instant in one call: `(hours-ago 1)` instead of
+// `(:wat::time::ago (:wat::time::Hour 1))`. Reads cleaner at every
+// callsite.
+//
+// Implementation: each takes :i64, applies the unit's nanos
+// multiplier through the same construction guards as slice 1
+// (negative input → panic; overflow → panic), then computes the
+// relative Instant via slice 3's add/sub against `now`.
+
+fn unit_ago(
+    op: &'static str,
+    unit_nanos: i64,
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: op.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let n = require_i64(op, eval(&args[0], env, sym)?)?;
+    if n < 0 {
+        panic!(
+            "({} {}): count must be non-negative; \
+             X-ago / X-from-now express past / future intervals — \
+             direction is in the verb, not the count",
+            op, n
+        );
+    }
+    let nanos = n.checked_mul(unit_nanos).unwrap_or_else(|| {
+        panic!(
+            "({} {}): overflows representable Duration; \
+             max for this unit is ~{}",
+            op,
+            n,
+            i64::MAX / unit_nanos
+        )
+    });
+    let result = Utc::now()
+        .checked_sub_signed(chrono::Duration::nanoseconds(nanos))
+        .ok_or_else(|| RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "result-Instant in chrono representable range",
+            got: "out-of-range subtraction",
+        })?;
+    Ok(Value::Instant(result))
+}
+
+fn unit_from_now(
+    op: &'static str,
+    unit_nanos: i64,
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: op.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let n = require_i64(op, eval(&args[0], env, sym)?)?;
+    if n < 0 {
+        panic!(
+            "({} {}): count must be non-negative; \
+             X-ago / X-from-now express past / future intervals — \
+             direction is in the verb, not the count",
+            op, n
+        );
+    }
+    let nanos = n.checked_mul(unit_nanos).unwrap_or_else(|| {
+        panic!(
+            "({} {}): overflows representable Duration; \
+             max for this unit is ~{}",
+            op,
+            n,
+            i64::MAX / unit_nanos
+        )
+    });
+    let result = Utc::now()
+        .checked_add_signed(chrono::Duration::nanoseconds(nanos))
+        .ok_or_else(|| RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "result-Instant in chrono representable range",
+            got: "out-of-range addition",
+        })?;
+    Ok(Value::Instant(result))
+}
+
+// ─── Per-unit ago helpers ───────────────────────────────────────────
+
+pub(crate) fn eval_time_nanoseconds_ago(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_ago(":wat::time::nanoseconds-ago", 1, args, env, sym)
+}
+
+pub(crate) fn eval_time_microseconds_ago(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_ago(
+        ":wat::time::microseconds-ago",
+        NANOS_PER_MICRO,
+        args,
+        env,
+        sym,
+    )
+}
+
+pub(crate) fn eval_time_milliseconds_ago(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_ago(
+        ":wat::time::milliseconds-ago",
+        NANOS_PER_MILLI,
+        args,
+        env,
+        sym,
+    )
+}
+
+pub(crate) fn eval_time_seconds_ago(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_ago(
+        ":wat::time::seconds-ago",
+        NANOS_PER_SECOND,
+        args,
+        env,
+        sym,
+    )
+}
+
+pub(crate) fn eval_time_minutes_ago(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_ago(
+        ":wat::time::minutes-ago",
+        NANOS_PER_MINUTE,
+        args,
+        env,
+        sym,
+    )
+}
+
+pub(crate) fn eval_time_hours_ago(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_ago(":wat::time::hours-ago", NANOS_PER_HOUR, args, env, sym)
+}
+
+pub(crate) fn eval_time_days_ago(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_ago(":wat::time::days-ago", NANOS_PER_DAY, args, env, sym)
+}
+
+// ─── Per-unit from-now helpers ──────────────────────────────────────
+
+pub(crate) fn eval_time_nanoseconds_from_now(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_from_now(":wat::time::nanoseconds-from-now", 1, args, env, sym)
+}
+
+pub(crate) fn eval_time_microseconds_from_now(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_from_now(
+        ":wat::time::microseconds-from-now",
+        NANOS_PER_MICRO,
+        args,
+        env,
+        sym,
+    )
+}
+
+pub(crate) fn eval_time_milliseconds_from_now(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_from_now(
+        ":wat::time::milliseconds-from-now",
+        NANOS_PER_MILLI,
+        args,
+        env,
+        sym,
+    )
+}
+
+pub(crate) fn eval_time_seconds_from_now(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_from_now(
+        ":wat::time::seconds-from-now",
+        NANOS_PER_SECOND,
+        args,
+        env,
+        sym,
+    )
+}
+
+pub(crate) fn eval_time_minutes_from_now(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_from_now(
+        ":wat::time::minutes-from-now",
+        NANOS_PER_MINUTE,
+        args,
+        env,
+        sym,
+    )
+}
+
+pub(crate) fn eval_time_hours_from_now(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_from_now(
+        ":wat::time::hours-from-now",
+        NANOS_PER_HOUR,
+        args,
+        env,
+        sym,
+    )
+}
+
+pub(crate) fn eval_time_days_from_now(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_from_now(":wat::time::days-from-now", NANOS_PER_DAY, args, env, sym)
+}
+
 // ─── Helpers — local to this module ─────────────────────────────────
 
 fn require_i64(op: &'static str, v: Value) -> Result<i64, RuntimeError> {
@@ -538,6 +864,17 @@ fn require_instant(op: &'static str, v: Value) -> Result<DateTime<Utc>, RuntimeE
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::time::Instant",
+            got: other.type_name(),
+        }),
+    }
+}
+
+fn require_duration(op: &'static str, v: Value) -> Result<i64, RuntimeError> {
+    match v {
+        Value::Duration(ns) => Ok(ns),
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "wat::time::Duration",
             got: other.type_name(),
         }),
     }

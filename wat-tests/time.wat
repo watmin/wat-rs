@@ -326,3 +326,154 @@
      ((d :wat::time::Duration) (:wat::time::- t t)))
     ;; Same instant - itself = 0 ns Duration.
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 0ns>")))
+
+
+;; ─── Arc 097 slice 3 — `ago` / `from-now` composers ────────────────
+;;
+;; ActiveSupport-flavored. (ago d) = (- (now) d). (from-now d) =
+;; (+ (now) d). Both take Duration; return Instant relative to now.
+
+(:wat::test::deftest :wat-tests::time::test-ago-is-before-now
+  ()
+  (:wat::core::let*
+    (((past :wat::time::Instant)
+      (:wat::time::ago (:wat::time::Hour 1)))
+     ((now-i :wat::time::Instant) (:wat::time::now))
+     ;; Past minus now should be a NEGATIVE duration normally, but
+     ;; per §2 Durations are non-negative. So we reverse: now - past
+     ;; should produce a positive Duration.
+     ((elapsed :wat::time::Duration) (:wat::time::- now-i past)))
+    ;; Elapsed should be at least 3,599,000,000,000 ns (just under
+    ;; 1 hour, allowing for the few microseconds between the two
+    ;; `now` calls). Asserting >= 3_599_000_000_000.
+    (:wat::test::assert-eq
+      (:wat::core::>=
+        (:wat::core::-
+          (:wat::time::epoch-nanos now-i)
+          (:wat::time::epoch-nanos past))
+        3599000000000)
+      true)))
+
+(:wat::test::deftest :wat-tests::time::test-from-now-is-after-now
+  ()
+  (:wat::core::let*
+    (((future :wat::time::Instant)
+      (:wat::time::from-now (:wat::time::Hour 1)))
+     ((now-i :wat::time::Instant) (:wat::time::now))
+     ;; Future - now should yield positive Duration ~ 1 hour.
+     ((elapsed-ns :i64)
+      (:wat::core::-
+        (:wat::time::epoch-nanos future)
+        (:wat::time::epoch-nanos now-i))))
+    ;; At least 3_599_000_000_000 ns (just under 1 hour, allowing
+    ;; few microseconds for two `now` calls separating).
+    (:wat::test::assert-eq (:wat::core::>= elapsed-ns 3599000000000) true)))
+
+(:wat::test::deftest :wat-tests::time::test-ago-zero-equals-now
+  ()
+  ;; (ago (Hour 0)) = (now). Tolerance: same-second.
+  (:wat::core::let*
+    (((past :wat::time::Instant)
+      (:wat::time::ago (:wat::time::Hour 0)))
+     ((now-i :wat::time::Instant) (:wat::time::now))
+     ((past-s :i64) (:wat::time::epoch-seconds past))
+     ((now-s :i64) (:wat::time::epoch-seconds now-i)))
+    ;; Same second (or off-by-one if the test crosses a second
+    ;; boundary). Asserting absolute delta <= 1.
+    (:wat::test::assert-eq
+      (:wat::core::<= (:wat::core::- now-s past-s) 1)
+      true)))
+
+(:wat::test::deftest :wat-tests::time::test-from-now-zero-equals-now
+  ()
+  (:wat::core::let*
+    (((future :wat::time::Instant)
+      (:wat::time::from-now (:wat::time::Day 0)))
+     ((now-i :wat::time::Instant) (:wat::time::now))
+     ((delta-s :i64)
+      (:wat::core::-
+        (:wat::time::epoch-seconds future)
+        (:wat::time::epoch-seconds now-i))))
+    (:wat::test::assert-eq (:wat::core::<= delta-s 1) true)))
+
+
+;; ─── Arc 097 slice 4 — unit-ago / unit-from-now sugars ──────────────
+;;
+;; 14 sugars. (hours-ago 1) reads cleaner than
+;; (:wat::time::ago (:wat::time::Hour 1)) at every callsite.
+;; Equivalence at output: (hours-ago N) ≡ (ago (Hour N)).
+
+(:wat::test::deftest :wat-tests::time::test-hours-ago-equivalent-to-ago-hour
+  ()
+  (:wat::core::let*
+    (((via-sugar :wat::time::Instant) (:wat::time::hours-ago 1))
+     ((now-i :wat::time::Instant) (:wat::time::now))
+     ((delta-via-sugar :i64)
+      (:wat::core::-
+        (:wat::time::epoch-nanos now-i)
+        (:wat::time::epoch-nanos via-sugar))))
+    ;; (hours-ago 1) is now - 1h. Delta should be ~3.6e12 ns.
+    (:wat::test::assert-eq
+      (:wat::core::and
+        (:wat::core::>= delta-via-sugar 3599000000000)
+        (:wat::core::<= delta-via-sugar 3601000000000))
+      true)))
+
+(:wat::test::deftest :wat-tests::time::test-days-from-now-is-future
+  ()
+  (:wat::core::let*
+    (((future :wat::time::Instant) (:wat::time::days-from-now 1))
+     ((now-i :wat::time::Instant) (:wat::time::now))
+     ((delta-s :i64)
+      (:wat::core::-
+        (:wat::time::epoch-seconds future)
+        (:wat::time::epoch-seconds now-i))))
+    ;; ~86,400 seconds in a day, give or take a tick.
+    (:wat::test::assert-eq
+      (:wat::core::and
+        (:wat::core::>= delta-s 86399)
+        (:wat::core::<= delta-s 86401))
+      true)))
+
+(:wat::test::deftest :wat-tests::time::test-minutes-ago
+  ()
+  (:wat::core::let*
+    (((past :wat::time::Instant) (:wat::time::minutes-ago 5))
+     ((now-i :wat::time::Instant) (:wat::time::now))
+     ((delta-s :i64)
+      (:wat::core::-
+        (:wat::time::epoch-seconds now-i)
+        (:wat::time::epoch-seconds past))))
+    ;; 5 minutes = 300 seconds.
+    (:wat::test::assert-eq
+      (:wat::core::and
+        (:wat::core::>= delta-s 299)
+        (:wat::core::<= delta-s 301))
+      true)))
+
+(:wat::test::deftest :wat-tests::time::test-seconds-from-now
+  ()
+  (:wat::core::let*
+    (((future :wat::time::Instant) (:wat::time::seconds-from-now 60))
+     ((now-i :wat::time::Instant) (:wat::time::now))
+     ((delta-s :i64)
+      (:wat::core::-
+        (:wat::time::epoch-seconds future)
+        (:wat::time::epoch-seconds now-i))))
+    (:wat::test::assert-eq
+      (:wat::core::and
+        (:wat::core::>= delta-s 59)
+        (:wat::core::<= delta-s 61))
+      true)))
+
+(:wat::test::deftest :wat-tests::time::test-zero-hours-ago-is-roughly-now
+  ()
+  (:wat::core::let*
+    (((past :wat::time::Instant) (:wat::time::hours-ago 0))
+     ((now-i :wat::time::Instant) (:wat::time::now))
+     ((delta-s :i64)
+      (:wat::core::-
+        (:wat::time::epoch-seconds now-i)
+        (:wat::time::epoch-seconds past))))
+    ;; Same second (or off-by-one if crossing a boundary).
+    (:wat::test::assert-eq (:wat::core::<= delta-s 1) true)))

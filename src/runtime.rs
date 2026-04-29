@@ -2629,6 +2629,46 @@ fn dispatch_keyword_head(
         ":wat::time::-" => crate::time::eval_time_sub(args, env, sym),
         ":wat::time::+" => crate::time::eval_time_add(args, env, sym),
 
+        // Arc 097 slice 3 — ActiveSupport-flavored "X ago" / "X from now"
+        // composers. Each takes Duration; computes Instant relative to
+        // wall-clock now.
+        ":wat::time::ago" => crate::time::eval_time_ago(args, env, sym),
+        ":wat::time::from-now" => crate::time::eval_time_from_now(args, env, sym),
+
+        // Arc 097 slice 4 — pre-composed unit-ago / unit-from-now
+        // sugars. 14 helpers (7 units × {ago, from-now}). Each takes
+        // :i64 and returns Instant relative to wall-clock now.
+        ":wat::time::nanoseconds-ago" => {
+            crate::time::eval_time_nanoseconds_ago(args, env, sym)
+        }
+        ":wat::time::microseconds-ago" => {
+            crate::time::eval_time_microseconds_ago(args, env, sym)
+        }
+        ":wat::time::milliseconds-ago" => {
+            crate::time::eval_time_milliseconds_ago(args, env, sym)
+        }
+        ":wat::time::seconds-ago" => crate::time::eval_time_seconds_ago(args, env, sym),
+        ":wat::time::minutes-ago" => crate::time::eval_time_minutes_ago(args, env, sym),
+        ":wat::time::hours-ago" => crate::time::eval_time_hours_ago(args, env, sym),
+        ":wat::time::days-ago" => crate::time::eval_time_days_ago(args, env, sym),
+        ":wat::time::nanoseconds-from-now" => {
+            crate::time::eval_time_nanoseconds_from_now(args, env, sym)
+        }
+        ":wat::time::microseconds-from-now" => {
+            crate::time::eval_time_microseconds_from_now(args, env, sym)
+        }
+        ":wat::time::milliseconds-from-now" => {
+            crate::time::eval_time_milliseconds_from_now(args, env, sym)
+        }
+        ":wat::time::seconds-from-now" => {
+            crate::time::eval_time_seconds_from_now(args, env, sym)
+        }
+        ":wat::time::minutes-from-now" => {
+            crate::time::eval_time_minutes_from_now(args, env, sym)
+        }
+        ":wat::time::hours-from-now" => crate::time::eval_time_hours_from_now(args, env, sym),
+        ":wat::time::days-from-now" => crate::time::eval_time_days_from_now(args, env, sym),
+
         // :rust::* — dispatch through the rust-deps registry. Each
         // symbol's shim handles its own arg evaluation and marshaling.
         other if other.starts_with(":rust::") => {
