@@ -39,6 +39,9 @@ use rusqlite::Connection;
 use wat::runtime::Value;
 use wat_macros::wat_dispatch;
 
+mod read_handle;
+pub use read_handle::ReadHandle;
+
 /// `:rust::sqlite::Db` — thread-owned SQLite handle.
 ///
 /// Wraps `rusqlite::Connection`. Single-thread discipline: open in
@@ -207,15 +210,22 @@ pub fn wat_sources() -> &'static [wat::WatSource] {
             path: "wat-sqlite/sqlite/Db.wat",
             source: include_str!("../wat/sqlite/Db.wat"),
         },
+        // Arc 093 slice 1b — read-only sibling of Db.
+        wat::WatSource {
+            path: "wat-sqlite/sqlite/ReadHandle.wat",
+            source: include_str!("../wat/sqlite/ReadHandle.wat"),
+        },
     ];
     FILES
 }
 
-/// Registrar for wat-sqlite. Wires just the `:rust::sqlite::Db`
+/// Registrar for wat-sqlite. Wires the read-write `:rust::sqlite::Db`
 /// shim — open / execute-ddl / execute / pragma / begin / commit —
+/// plus the read-only `:rust::sqlite::ReadHandle` (arc 093 slice 1b)
 /// through `#[wat_dispatch]`'s generated registration code. The
 /// arc-085 auto-spawn shims (auto-prep / install-schemas /
 /// dispatch) moved to `wat-telemetry-sqlite::register` per arc 096.
 pub fn register(builder: &mut wat::rust_deps::RustDepsBuilder) {
     __wat_dispatch_WatSqliteDb::register(builder);
+    read_handle::register(builder);
 }

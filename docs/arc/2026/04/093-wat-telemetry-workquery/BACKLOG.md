@@ -28,15 +28,21 @@ Per user direction 2026-04-29:
 ## Slice 1 — read-handle + step-through stream sources + sqlite indexes — *in progress*
 
 - **Status:** in progress 2026-04-29.
-- **Adds (Rust):**
-  - `:wat::telemetry::sqlite::ReadHandle` — read-only sqlite
-    connection wrapping `rusqlite::Connection`. Opens with
-    `journal_mode=WAL` already-set on the writer side; reader
-    just opens read-only.
+- **Adds (Rust, generic — in `wat-sqlite`):**
+  - `:rust::sqlite::ReadHandle` — read-only sqlite connection
+    wrapping `rusqlite::Connection` with
+    `SQLITE_OPEN_READ_ONLY`. Sibling of `:rust::sqlite::Db`;
+    capability-honest (no execute / execute-ddl / pragma /
+    begin / commit on this type). Generic primitive, not
+    telemetry-specific — any reader-side workflow against a
+    sqlite file written by another process reuses it. WAL
+    persists across open/close so the writer's WAL mode is
+    inherited.
+- **Adds (Rust, telemetry-specific — in `wat-telemetry-sqlite`):**
   - `:wat::telemetry::sqlite::LogCursor` — prepared statement
+    borrowing a `:rust::sqlite::ReadHandle`'s connection;
     positioned for SELECT * FROM log ORDER BY time_ns ASC.
-    Thread-owned (per arc 053's discipline for stateful Rust
-    types under CSP).
+    Thread-owned (arc 053 discipline).
   - `:wat::telemetry::sqlite::MetricCursor` — same shape,
     SELECT * FROM metric ORDER BY start_time_ns ASC.
   - Step shims:
@@ -44,8 +50,9 @@ Per user direction 2026-04-29:
     - `(MetricCursor/step! cursor) -> :Option<Event::Metric>`
     Each yields one Tagged-decoded Event variant per call,
     returns `:None` when sqlite3_step says SQLITE_DONE.
-- **Adds (wat):**
-  - `(:wat::telemetry::sqlite/open path) -> ReadHandle`
+- **Adds (wat, generic — `wat-sqlite`):**
+  - `(:wat::sqlite::open-readonly path) -> :wat::sqlite::ReadHandle`
+- **Adds (wat, telemetry-specific — `wat-telemetry-sqlite`):**
   - `(:wat::telemetry::sqlite/log-cursor handle query) -> LogCursor`
   - `(:wat::telemetry::sqlite/metric-cursor handle query) -> MetricCursor`
   - `(:wat::telemetry::sqlite/stream-logs handle query) -> Stream<Event::Log>`
