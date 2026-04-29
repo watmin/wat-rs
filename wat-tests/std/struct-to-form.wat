@@ -13,7 +13,7 @@
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-roundtrip-via-eval
   ()
   (:wat::core::let*
-    (((_decl :())
+    (((_outcome :wat::kernel::RunResult)
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::struct :my::Pair
@@ -32,9 +32,8 @@
                ;; Just check the eval succeeded — the struct re-built
                ;; from its lifted form.
                (_ :() (:wat::test::assert-eq true true)))
-              ()))
-          (:wat::core::vec :String))))
-     (_ :() ()))
+              ())))
+        (:wat::core::vec :String))))
     (:wat::test::assert-eq true true)))
 
 
