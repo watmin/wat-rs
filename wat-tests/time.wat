@@ -243,3 +243,86 @@
   (:wat::core::let*
     (((d :wat::time::Duration) (:wat::time::Hour 0)))
     (:wat::test::assert-eq (:wat::core::show d) "<Duration 0ns>")))
+
+
+;; ─── Arc 097 slice 2 — Instant ± Duration arithmetic ────────────────
+;;
+;; :wat::time::- and :wat::time::+ dispatch on RHS variant:
+;;   Instant - Duration -> Instant   (subtract interval)
+;;   Instant - Instant  -> Duration  (elapsed between, panics on negative)
+;;   Instant + Duration -> Instant   (advance by interval)
+;;
+;; ActiveSupport-shaped: same operator, different result types per the
+;; RHS Value::Variant tag. The runtime checks at call time; the type
+;; checker checks at expansion.
+
+(:wat::test::deftest :wat-tests::time::test-instant-sub-duration-yields-instant
+  ()
+  (:wat::core::let*
+    (((origin :wat::time::Instant) (:wat::time::at 1000000))
+     ((one-min :wat::time::Duration) (:wat::time::Minute 1))
+     ((earlier :wat::time::Instant) (:wat::time::- origin one-min))
+     ((delta :i64)
+      (:wat::core::-
+        (:wat::time::epoch-seconds origin)
+        (:wat::time::epoch-seconds earlier))))
+    ;; 1 minute earlier = 60 seconds back.
+    (:wat::test::assert-eq delta 60)))
+
+(:wat::test::deftest :wat-tests::time::test-instant-add-duration-yields-instant
+  ()
+  (:wat::core::let*
+    (((origin :wat::time::Instant) (:wat::time::at 1000000))
+     ((one-hour :wat::time::Duration) (:wat::time::Hour 1))
+     ((later :wat::time::Instant) (:wat::time::+ origin one-hour))
+     ((delta :i64)
+      (:wat::core::-
+        (:wat::time::epoch-seconds later)
+        (:wat::time::epoch-seconds origin))))
+    ;; 1 hour later = 3600 seconds forward.
+    (:wat::test::assert-eq delta 3600)))
+
+(:wat::test::deftest :wat-tests::time::test-instant-sub-instant-yields-duration
+  ()
+  (:wat::core::let*
+    (((later :wat::time::Instant) (:wat::time::at 1000060))
+     ((earlier :wat::time::Instant) (:wat::time::at 1000000))
+     ;; Instant - Instant -> Duration. RHS dispatch picks the right arm.
+     ((elapsed :wat::time::Duration) (:wat::time::- later earlier)))
+    ;; 60 seconds = 60_000_000_000 nanos.
+    (:wat::test::assert-eq (:wat::core::show elapsed)
+                           "<Duration 60000000000ns>")))
+
+(:wat::test::deftest :wat-tests::time::test-add-then-sub-roundtrips
+  ()
+  (:wat::core::let*
+    (((origin :wat::time::Instant) (:wat::time::at 1000000))
+     ((d :wat::time::Duration) (:wat::time::Day 1))
+     ((later :wat::time::Instant) (:wat::time::+ origin d))
+     ((back :wat::time::Instant) (:wat::time::- later d))
+     ((delta :i64)
+      (:wat::core::-
+        (:wat::time::epoch-seconds back)
+        (:wat::time::epoch-seconds origin))))
+    ;; +1 day then -1 day returns to origin.
+    (:wat::test::assert-eq delta 0)))
+
+(:wat::test::deftest :wat-tests::time::test-zero-duration-is-identity-for-add
+  ()
+  (:wat::core::let*
+    (((origin :wat::time::Instant) (:wat::time::at 1000000))
+     ((zero :wat::time::Duration) (:wat::time::Hour 0))
+     ((same :wat::time::Instant) (:wat::time::+ origin zero))
+     ((delta :i64)
+      (:wat::core::-
+        (:wat::time::epoch-seconds same)
+        (:wat::time::epoch-seconds origin))))
+    (:wat::test::assert-eq delta 0)))
+
+(:wat::test::deftest :wat-tests::time::test-instant-sub-self-is-zero-duration
+  ()
+  (:wat::core::let*
+    (((t :wat::time::Instant) (:wat::time::at 1000000))
+     ((d :wat::time::Duration) (:wat::time::- t t)))
+    ;; Same instant - itself = 0 ns Duration.
+    (:wat::test::assert-eq (:wat::core::show d) "<Duration 0ns>")))

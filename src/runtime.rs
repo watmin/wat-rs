@@ -2621,6 +2621,14 @@ fn dispatch_keyword_head(
         ":wat::time::Hour" => crate::time::eval_time_unit_hour(args, env, sym),
         ":wat::time::Day" => crate::time::eval_time_unit_day(args, env, sym),
 
+        // Arc 097 slice 2 — polymorphic Instant ± Duration arithmetic.
+        // `:wat::time::-` dispatches on RHS variant: Instant - Duration
+        // → Instant; Instant - Instant → Duration. `:wat::time::+` is
+        // single-arm Instant + Duration → Instant. Same shape as
+        // ActiveSupport's time1 - time2 / time - 1.hour.
+        ":wat::time::-" => crate::time::eval_time_sub(args, env, sym),
+        ":wat::time::+" => crate::time::eval_time_add(args, env, sym),
+
         // :rust::* — dispatch through the rust-deps registry. Each
         // symbol's shim handles its own arg evaluation and marshaling.
         other if other.starts_with(":rust::") => {

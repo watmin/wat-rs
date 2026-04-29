@@ -386,6 +386,128 @@ pub(crate) fn eval_time_unit_day(
     unit_constructor(":wat::time::Day", NANOS_PER_DAY, args, env, sym)
 }
 
+// ─── Arc 097 — Polymorphic Instant ± Duration arithmetic ────────────
+//
+// `:wat::time::-` dispatches on the RHS Value variant:
+//   Instant - Duration -> Instant   (subtract interval)
+//   Instant - Instant  -> Duration  (elapsed between, panics if negative)
+//
+// `:wat::time::+` is single-arm:
+//   Instant + Duration -> Instant   (advance by interval)
+//
+// Same surface as ActiveSupport's `time1 - time2 = duration` and
+// `time - 1.hour = time`. The runtime checks the RHS variant and
+// picks the right behavior at call time. The type checker
+// (check.rs::infer_polymorphic_time_arith) does the same dispatch
+// at expansion time and reports the result type.
+//
+// Per arc 097 §2: Durations are non-negative. If `(- a b)` would
+// produce a negative interval (a is before b), panic with a
+// diagnostic asking the user to subtract in the other order.
+//
+// Duration ± Duration is NOT in this slice — defer until a real
+// consumer demands it. Users can compose by constructing the
+// duration they want directly (`(Hour 1)`, `(Minute 30)`).
+
+/// `(:wat::time::- a b)` — polymorphic on RHS variant.
+pub(crate) fn eval_time_sub(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::time::-";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let a = eval(&args[0], env, sym)?;
+    let b = eval(&args[1], env, sym)?;
+    let a_inst = require_instant(OP, a)?;
+    match b {
+        Value::Duration(ns) => {
+            // Instant - Duration -> Instant.
+            // ns is non-negative (constructor invariant); subtract
+            // by adding chrono::Duration::nanoseconds(-ns).
+            let new_inst = a_inst
+                .checked_sub_signed(chrono::Duration::nanoseconds(ns))
+                .ok_or_else(|| RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "result-Instant in chrono representable range",
+                    got: "out-of-range subtraction",
+                })?;
+            Ok(Value::Instant(new_inst))
+        }
+        Value::Instant(b_inst) => {
+            // Instant - Instant -> Duration. Compute elapsed via
+            // chrono's signed_duration_since; panic if negative
+            // per §2.
+            let dur = a_inst.signed_duration_since(b_inst);
+            let ns = dur.num_nanoseconds().ok_or_else(|| {
+                RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "elapsed nanoseconds in i64 range",
+                    got: "out-of-range duration",
+                }
+            })?;
+            if ns < 0 {
+                panic!(
+                    "({} a b): would produce negative Duration ({} ns); \
+                     Durations are non-negative — subtract in the other \
+                     order ((:wat::time::- b a)) or use the chronological \
+                     direction your script actually means",
+                    OP, ns
+                );
+            }
+            Ok(Value::Duration(ns))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "wat::time::Duration or wat::time::Instant",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::time::+ instant duration) -> Instant`.
+pub(crate) fn eval_time_add(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::time::+";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+    let a = eval(&args[0], env, sym)?;
+    let b = eval(&args[1], env, sym)?;
+    let a_inst = require_instant(OP, a)?;
+    let ns = match b {
+        Value::Duration(ns) => ns,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::time::Duration",
+                got: other.type_name(),
+            })
+        }
+    };
+    let new_inst = a_inst
+        .checked_add_signed(chrono::Duration::nanoseconds(ns))
+        .ok_or_else(|| RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "result-Instant in chrono representable range",
+            got: "out-of-range addition",
+        })?;
+    Ok(Value::Instant(new_inst))
+}
+
 // ─── Helpers — local to this module ─────────────────────────────────
 
 fn require_i64(op: &'static str, v: Value) -> Result<i64, RuntimeError> {

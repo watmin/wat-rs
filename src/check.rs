@@ -566,6 +566,16 @@ fn infer_list(
             | ":wat::core::/" => {
                 return infer_polymorphic_arith(k, args, env, locals, fresh, subst, errors);
             }
+            // Arc 097 slice 2 — polymorphic Instant ± Duration. Result
+            // type depends on the RHS variant:
+            //   Instant - Duration -> Instant
+            //   Instant - Instant  -> Duration
+            //   Instant + Duration -> Instant
+            ":wat::time::-" | ":wat::time::+" => {
+                return infer_polymorphic_time_arith(
+                    k, args, env, locals, fresh, subst, errors,
+                );
+            }
             // Arc 052 — polymorphic algebra ops. Cosine and dot accept
             // HolonAST or Vector in either position; simhash accepts
             // HolonAST or Vector as its single argument. Arc 061
@@ -2876,6 +2886,103 @@ fn infer_polymorphic_arith(
 /// Arc 050 — predicate. Recognizes `:i64` and `:f64` paths.
 fn is_numeric(t: &TypeExpr) -> bool {
     matches!(t, TypeExpr::Path(p) if p == ":i64" || p == ":f64")
+}
+
+/// Arc 097 slice 2 — polymorphic Instant ± Duration arithmetic.
+///
+/// Three valid shapes (LHS is always Instant):
+///
+/// ```text
+/// (:wat::time::- Instant Duration) -> Instant
+/// (:wat::time::- Instant Instant)  -> Duration
+/// (:wat::time::+ Instant Duration) -> Instant
+/// ```
+///
+/// The result type depends on (operator, RHS-variant). LHS-Duration
+/// is rejected; we don't ship Duration arithmetic in this slice.
+fn infer_polymorphic_time_arith(
+    op: &str,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    let instant_ty = TypeExpr::Path(":wat::time::Instant".into());
+    let duration_ty = TypeExpr::Path(":wat::time::Duration".into());
+
+    if args.len() != 2 {
+        errors.push(CheckError::ArityMismatch {
+            callee: op.into(),
+            expected: 2,
+            got: args.len(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(instant_ty);
+    }
+
+    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    let b_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    let a_resolved = a_ty.as_ref().map(|t| apply_subst(t, subst));
+    let b_resolved = b_ty.as_ref().map(|t| apply_subst(t, subst));
+
+    // LHS must be an Instant. Push a diagnostic if not, but continue
+    // and pick a fallback result type so downstream inference doesn't
+    // cascade.
+    let a_is_instant = a_resolved
+        .as_ref()
+        .map(|t| matches!(t, TypeExpr::Path(p) if p == ":wat::time::Instant"))
+        .unwrap_or(false);
+    if !a_is_instant {
+        if let Some(t) = &a_resolved {
+            errors.push(CheckError::TypeMismatch {
+                callee: op.into(),
+                param: "#1".into(),
+                expected: ":wat::time::Instant".into(),
+                got: format_type(t),
+            });
+        }
+    }
+
+    // Dispatch on RHS variant.
+    match (op, &b_resolved) {
+        (":wat::time::-", Some(b))
+            if matches!(b, TypeExpr::Path(p) if p == ":wat::time::Instant") =>
+        {
+            Some(duration_ty)
+        }
+        (":wat::time::-", Some(b))
+            if matches!(b, TypeExpr::Path(p) if p == ":wat::time::Duration") =>
+        {
+            Some(instant_ty)
+        }
+        (":wat::time::+", Some(b))
+            if matches!(b, TypeExpr::Path(p) if p == ":wat::time::Duration") =>
+        {
+            Some(instant_ty)
+        }
+        // RHS is something else — push a diagnostic, fall back to
+        // Instant so downstream callers see a stable type.
+        _ => {
+            if let Some(t) = &b_resolved {
+                let expected = if op == ":wat::time::+" {
+                    ":wat::time::Duration"
+                } else {
+                    ":wat::time::Duration or :wat::time::Instant"
+                };
+                errors.push(CheckError::TypeMismatch {
+                    callee: op.into(),
+                    param: "#2".into(),
+                    expected: expected.into(),
+                    got: format_type(t),
+                });
+            }
+            Some(instant_ty)
+        }
+    }
 }
 
 /// Arc 050 — predicate. Recognizes `:i64` path specifically.
