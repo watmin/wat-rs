@@ -24,7 +24,7 @@ fn integers() {
 
 #[test]
 fn floats() {
-    assert_eq!(parse("3.14").unwrap(), Value::Float(3.14));
+    assert_eq!(parse("2.5").unwrap(), Value::Float(2.5));
     assert_eq!(parse("1e10").unwrap(), Value::Float(1e10));
     assert_eq!(parse("1.5e-3").unwrap(), Value::Float(1.5e-3));
 }

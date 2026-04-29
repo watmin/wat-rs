@@ -414,7 +414,7 @@ fn is_canonical_uuid(s: &str) -> bool {
 mod tests {
     use super::*;
 
-    fn p(s: &str) -> Value {
+    fn p(s: &str) -> Value<'_> {
         Parser::new(s).parse_top().unwrap()
     }
 
@@ -425,7 +425,7 @@ mod tests {
         assert_eq!(p("false"), Value::Bool(false));
         assert_eq!(p("42"), Value::Integer(42));
         assert_eq!(p("-7"), Value::Integer(-7));
-        assert_eq!(p("3.14"), Value::Float(3.14));
+        assert_eq!(p("2.5"), Value::Float(2.5));
     }
 
     #[test]

@@ -429,12 +429,11 @@ pub fn value_to_edn_notag(
 }
 
 /// Natural-JSON walker. Same tagless transforms as `notag`, plus:
-///   - keywords downgrade to plain strings (no `:` prefix)
-///   - Instants render as bare ISO-8601 strings (no `#inst`
-///     sentinel wrapper)
-///   - enum unit variants render as plain strings
-/// Designed for ingestion-tooling consumers (ELK / DataDog /
-/// CloudWatch Logs).
+/// - keywords downgrade to plain strings (no `:` prefix)
+/// - Instants render as bare ISO-8601 strings (no `#inst` sentinel wrapper)
+/// - enum unit variants render as plain strings
+///
+/// Designed for ingestion-tooling consumers (ELK / DataDog / CloudWatch Logs).
 pub fn value_to_json_natural(
     v: &Value,
     types: Option<&crate::types::TypeEnv>,

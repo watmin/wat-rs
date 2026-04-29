@@ -50,7 +50,7 @@ use wat_macros::wat_dispatch;
 pub struct WatSqliteDb {
     /// `pub` (not `pub(crate)`) since arc 096 — `wat-telemetry-sqlite`
     /// (a sibling crate that wraps this one) needs `prepare_cached`
-    /// + `execute` access on the underlying Connection for the
+    /// and `execute` access on the underlying Connection for the
     /// auto-dispatch shims (arc 085). Consumers outside the
     /// telemetry-sink layer should treat this as substrate-internal
     /// and use the typed methods (`execute_ddl`, `execute`,

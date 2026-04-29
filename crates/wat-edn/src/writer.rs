@@ -340,7 +340,7 @@ mod tests {
         assert_eq!(write(&Value::Bool(false)), "false");
         assert_eq!(write(&Value::Integer(42)), "42");
         assert_eq!(write(&Value::Integer(-7)), "-7");
-        assert_eq!(write(&Value::Float(3.14)), "3.14");
+        assert_eq!(write(&Value::Float(2.5)), "2.5");
         assert_eq!(write(&Value::Float(42.0)), "42.0"); // forced
     }
 

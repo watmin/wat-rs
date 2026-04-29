@@ -328,8 +328,7 @@ fn dispatch_auto_dispatch(
         let mut stmt = db.conn.prepare_cached(&sql).unwrap_or_else(|e| {
             panic!("{OP}: prepare {sql:?}: {e}")
         });
-        let refs: Vec<&dyn ToSql> =
-            bound.iter().map(|b: &Box<dyn ToSql>| b.as_ref()).collect();
+        let refs: Vec<&dyn ToSql> = bound.iter().map(|b| b.as_ref()).collect();
         stmt.execute(refs.as_slice()).unwrap_or_else(|e| {
             panic!("{OP}: bind/exec {sql:?}: {e}")
         });

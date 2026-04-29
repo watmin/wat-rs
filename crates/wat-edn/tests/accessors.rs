@@ -16,8 +16,8 @@ fn all_variants() -> Vec<(&'static str, Value<'static>)> {
         ("bool", Value::Bool(true)),
         ("integer", Value::Integer(42)),
         ("bigint", Value::BigInt(Box::new(BigInt::from(123)))),
-        ("float", Value::Float(3.14)),
-        ("bigdec", Value::BigDec(Box::new(BigDecimal::from_str("3.14").unwrap()))),
+        ("float", Value::Float(2.5)),
+        ("bigdec", Value::BigDec(Box::new(BigDecimal::from_str("2.5").unwrap()))),
         ("string", Value::String("hello".into())),
         ("char", Value::Char('a')),
         ("symbol", Value::Symbol(Symbol::new("foo"))),
@@ -78,7 +78,7 @@ fn as_f64_matches() {
     for (name, v) in all_variants() {
         let r = v.as_f64();
         if name == "float" {
-            assert_eq!(r, Some(3.14));
+            assert_eq!(r, Some(2.5));
         } else {
             assert!(r.is_none(), "{} should not unwrap as f64", name);
         }

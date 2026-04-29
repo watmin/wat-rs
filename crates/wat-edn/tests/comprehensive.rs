@@ -53,8 +53,8 @@ fn integer_signs() {
 
 #[test]
 fn float_basic() {
-    assert_eq!(parse("3.14").unwrap(), Value::Float(3.14));
-    assert_eq!(parse("-3.14").unwrap(), Value::Float(-3.14));
+    assert_eq!(parse("2.5").unwrap(), Value::Float(2.5));
+    assert_eq!(parse("-2.5").unwrap(), Value::Float(-2.5));
     assert_eq!(parse("0.0").unwrap(), Value::Float(0.0));
 }
 
@@ -1118,7 +1118,7 @@ fn parse_all_mixed_forms() {
 // ROUND-TRIP IDENTITY
 // ═══════════════════════════════════════════════════════════════════════
 
-fn roundtrip(input: &str) -> Value {
+fn roundtrip(input: &str) -> Value<'_> {
     let v1 = parse(input).expect("parse 1");
     let s = write(&v1);
     let v2 = parse(&s).expect("re-parse");

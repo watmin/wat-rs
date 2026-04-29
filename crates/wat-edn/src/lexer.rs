@@ -568,10 +568,10 @@ mod tests {
         assert_eq!(lex_all("nil"), vec![Token::Nil]);
         assert_eq!(lex_all("true false"), vec![Token::True, Token::False]);
         assert_eq!(lex_all("42 -7 +3"), vec![Token::Integer(42), Token::Integer(-7), Token::Integer(3)]);
-        assert_eq!(lex_all("3.14"), vec![Token::Float(3.14)]);
+        assert_eq!(lex_all("2.5"), vec![Token::Float(2.5)]);
         assert_eq!(lex_all("1e10"), vec![Token::Float(1e10)]);
         assert_eq!(lex_all("42N"), vec![Token::BigInt("42")]);
-        assert_eq!(lex_all("3.14M"), vec![Token::BigDec("3.14")]);
+        assert_eq!(lex_all("2.5M"), vec![Token::BigDec("2.5")]);
     }
 
     #[test]
