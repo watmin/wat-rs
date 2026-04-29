@@ -1,6 +1,6 @@
 # Arc 091 — `:wat::telemetry::*` — DESIGN
 
-**Status:** slices 1–5 shipped 2026-04-29; slices 6 + 7 in flight.
+**Status:** SHIPPED 2026-04-29 (slices 1–8). See INSCRIPTION.md.
 
 > **Namespace + crate rename note (2026-04-29).** This arc was originally
 > scoped under `:wat::measure::*` in a `wat-measure` crate. Mid-arc the
