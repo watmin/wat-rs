@@ -75,11 +75,41 @@
   (:rust::sqlite::Db::execute db sql params))
 
 
+;; ─── Pragma + transaction primitives (arc 089) ─────────────────
+;;
+;; Substrate ships zero default pragmas — `open` is just
+;; `Connection::open`. Consumers pick journal_mode, synchronous,
+;; cache_size, foreign_keys, etc. via `pragma`. `begin` / `commit`
+;; wrap a batch of writes in one transaction (the archive's
+;; `flush()` discipline; arc 089 slice 1).
+
+(:wat::core::define
+  (:wat::sqlite::pragma
+    (db :wat::sqlite::Db)
+    (name :String)
+    (value :String)
+    -> :())
+  (:rust::sqlite::Db::pragma db name value))
+
+(:wat::core::define
+  (:wat::sqlite::begin
+    (db :wat::sqlite::Db)
+    -> :())
+  (:rust::sqlite::Db::begin db))
+
+(:wat::core::define
+  (:wat::sqlite::commit
+    (db :wat::sqlite::Db)
+    -> :())
+  (:rust::sqlite::Db::commit db))
+
+
 ;; ─── Surface notes ──────────────────────────────────────────────
 ;;
-;; Open or create a sqlite file. Panics on bad path / permission.
-;; Caller's responsibility to install schemas afterward via
-;; `execute-ddl`.
+;; Open or create a sqlite file. No pragmas set — substrate refuses
+;; to pick journal_mode / synchronous policy on the consumer's
+;; behalf. Use `pragma` after open to set whatever you want.
+;; Panics on bad path / permission.
 ;;
 ;;   (:wat::sqlite::Db::open "/tmp/test.db") -> :wat::sqlite::Db
 ;;
@@ -91,3 +121,14 @@
 ;;     db
 ;;     "CREATE TABLE IF NOT EXISTS events (id INTEGER, ts INTEGER)")
 ;;     -> :()
+;;
+;; Set a pragma. Thin proxy to `pragma_update`. Examples:
+;;
+;;   (:wat::sqlite::pragma db "journal_mode" "WAL")
+;;   (:wat::sqlite::pragma db "synchronous" "NORMAL")
+;;
+;; Wrap a batch of writes in one transaction:
+;;
+;;   (:wat::sqlite::begin db)
+;;   ...inserts...
+;;   (:wat::sqlite::commit db)

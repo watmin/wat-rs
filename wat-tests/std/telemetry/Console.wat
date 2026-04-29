@@ -12,19 +12,19 @@
       (:wat::test::run-hermetic-ast
         (:wat::test::program
           ;; Helper — takes the popped Console::Tx, builds an EDN
-          ;; dispatcher, dispatches 10/20/30. One let*; closure
-          ;; lives in the helper's scope, drops on return.
+          ;; dispatcher, dispatches three i64 entries as ONE batch.
+          ;; One let*; closure lives in the helper's scope, drops on
+          ;; return. Arc 089 slice 3: dispatcher takes Vec<E>.
           (:wat::core::define
             (:my::dispatch-three-edn
               (con-tx :wat::std::service::Console::Tx)
               -> :())
             (:wat::core::let*
-              (((d :fn(i64)->())
+              (((d :fn(Vec<i64>)->())
                 (:wat::std::telemetry::Console/dispatcher
                   con-tx :wat::std::telemetry::Console::Format::Edn))
-               ((_a :()) (d 10))
-               ((_b :()) (d 20)))
-              (d 30)))
+               ((batch :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
+              (d batch)))
           ;; Main — outer holds Console driver; inner pops handle +
           ;; calls helper; outer joins after inner exits.
           (:wat::core::define
@@ -76,16 +76,22 @@
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
         (:wat::test::program
+          ;; Arc 089 slice 3: dispatcher takes Vec<E>. Here E is
+          ;; Vec<i64>, so we wrap the row in a one-element batch.
+          ;; The dispatcher renders each element on its own line —
+          ;; one batch with one Vec<i64> entry → one line "[1,2,3]".
           (:wat::core::define
             (:my::dispatch-row-json
               (con-tx :wat::std::service::Console::Tx)
               -> :())
             (:wat::core::let*
-              (((d :fn(Vec<i64>)->())
+              (((d :fn(Vec<Vec<i64>>)->())
                 (:wat::std::telemetry::Console/dispatcher
                   con-tx :wat::std::telemetry::Console::Format::Json))
-               ((row :Vec<i64>) (:wat::core::vec :i64 1 2 3)))
-              (d row)))
+               ((row :Vec<i64>) (:wat::core::vec :i64 1 2 3))
+               ((batch :Vec<Vec<i64>>)
+                (:wat::core::vec :Vec<i64> row)))
+              (d batch)))
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)

@@ -27,7 +27,7 @@
    (:wat::core::define
      (:wat-tests::std::telemetry::Sqlite::dispatch-noop
        (_db :wat::sqlite::Db)
-       (_entry :i64)
+       (_entries :Vec<i64>)
        -> :())
      ())
 
@@ -40,6 +40,17 @@
 
    ;; ─── Hooks (insert; traffic test) ────────────────────────────
 
+   ;; pre-install — flips the worker's Db into WAL journal mode
+   ;; before schema-install runs. Mirrors the lab's policy choice;
+   ;; this test exercises slice-4's pre-install hook with a real
+   ;; non-trivial body. Verified out-of-band via `PRAGMA journal_mode`
+   ;; against the produced db file.
+   (:wat::core::define
+     (:wat-tests::std::telemetry::Sqlite::pragma-wal
+       (db :wat::sqlite::Db)
+       -> :())
+     (:wat::sqlite::pragma db "journal_mode" "WAL"))
+
    (:wat::core::define
      (:wat-tests::std::telemetry::Sqlite::install-events
        (db :wat::sqlite::Db)
@@ -47,11 +58,12 @@
      (:wat::sqlite::execute-ddl db
        "CREATE TABLE IF NOT EXISTS events (n INTEGER)"))
 
-   ;; SQL-string-concat insert is acceptable here — i64 is internally
-   ;; typed; no injection vector. A future slice's parameterized
-   ;; execute primitive removes the concat.
+   ;; Per-entry insert helper. Builds the SQL via string concat —
+   ;; acceptable because i64 is internally typed and there's no
+   ;; injection surface; a future slice's parameterized `execute`
+   ;; primitive supersedes the concat shape.
    (:wat::core::define
-     (:wat-tests::std::telemetry::Sqlite::dispatch-events
+     (:wat-tests::std::telemetry::Sqlite::insert-one-event
        (db :wat::sqlite::Db)
        (entry :i64)
        -> :())
@@ -63,6 +75,20 @@
              (:wat::core::i64::to-string entry)
              ")"))))
        (:wat::sqlite::execute-ddl db sql)))
+
+   ;; Per-batch dispatcher (arc 089 slice 3). Foldls each entry
+   ;; through insert-one-event. No begin/commit wrap here — that's a
+   ;; consumer choice (the trader's :trading::telemetry path opts in
+   ;; via Sqlite/auto-spawn's batched dispatch); this test just
+   ;; exercises the per-batch contract.
+   (:wat::core::define
+     (:wat-tests::std::telemetry::Sqlite::dispatch-events
+       (db :wat::sqlite::Db)
+       (entries :Vec<i64>)
+       -> :())
+     (:wat::core::foldl entries ()
+       (:wat::core::lambda ((_acc :()) (entry :i64) -> :())
+         (:wat-tests::std::telemetry::Sqlite::insert-one-event db entry))))
 
 
    ;; ─── Helpers — function-decomposed lockstep (Step 9) ────────
@@ -79,6 +105,7 @@
          (:wat::std::telemetry::Sqlite/spawn
            path 1
            (:wat::std::telemetry::Service/null-metrics-cadence)
+           :wat::std::telemetry::Sqlite/null-pre-install
            :wat-tests::std::telemetry::Sqlite::install-noop
            :wat-tests::std::telemetry::Sqlite::dispatch-noop
            :wat-tests::std::telemetry::Sqlite::translate-empty))
@@ -113,6 +140,7 @@
          (:wat::std::telemetry::Sqlite/spawn
            path 1
            (:wat::std::telemetry::Service/null-metrics-cadence)
+           :wat-tests::std::telemetry::Sqlite::pragma-wal
            :wat-tests::std::telemetry::Sqlite::install-events
            :wat-tests::std::telemetry::Sqlite::dispatch-events
            :wat-tests::std::telemetry::Sqlite::translate-empty))

@@ -43,33 +43,48 @@
   :NoTagJson)   ;; render via :wat::edn::write-json-natural (natural JSON for ELK/DataDog ingestion — lossy)
 
 ;; The factory. Returns a closure that captures con-tx + format.
-;; When the substrate Service calls dispatcher(entry), the closure:
-;;   1. Renders entry to text via the format-selected wat-edn primitive
-;;   2. Appends a newline (one entry, one line)
-;;   3. Sends through Console/out (tagged stdout-write — fire-and-forget)
+;; When the substrate Service calls dispatcher(entries), the closure
+;; foldls each entry through the format-selected wat-edn primitive
+;; and writes one line per entry through Console/out. Console-shaped
+;; sinks are per-line by nature; the per-batch contract (arc 089
+;; slice 3) doesn't change that — we just iterate inside the
+;; dispatcher instead of having Service/loop iterate for us.
 ;;
 ;; Closure-over con-tx + format is wat-lambda-with-captured-environment
 ;; per the lambda contract documented in the runtime.
+
+;; ─── Internal — render a single entry into the line shape ───────
+;;
+;; Lifted out of the dispatcher's lambda so the inner foldl reads
+;; flat (one let* per function per memory `feedback_simple_forms_per_func`).
+(:wat::core::define
+  (:wat::std::telemetry::Console::render-line<E>
+    (entry :E)
+    (format :wat::std::telemetry::Console::Format)
+    -> :String)
+  (:wat::core::let*
+    (((line :String)
+      (:wat::core::match format -> :String
+        (:wat::std::telemetry::Console::Format::Edn
+          (:wat::edn::write entry))
+        (:wat::std::telemetry::Console::Format::Json
+          (:wat::edn::write-json entry))
+        (:wat::std::telemetry::Console::Format::Pretty
+          (:wat::edn::write-pretty entry))
+        (:wat::std::telemetry::Console::Format::NoTagEdn
+          (:wat::edn::write-notag entry))
+        (:wat::std::telemetry::Console::Format::NoTagJson
+          (:wat::edn::write-json-natural entry)))))
+    (:wat::core::string::concat line "\n")))
+
 
 (:wat::core::define
   (:wat::std::telemetry::Console/dispatcher<E>
     (con-tx :wat::std::service::Console::Tx)
     (format :wat::std::telemetry::Console::Format)
-    -> :fn(E)->())
-  (:wat::core::lambda ((entry :E) -> :())
-    (:wat::core::let*
-      (((line :String)
-        (:wat::core::match format -> :String
-          (:wat::std::telemetry::Console::Format::Edn
-            (:wat::edn::write entry))
-          (:wat::std::telemetry::Console::Format::Json
-            (:wat::edn::write-json entry))
-          (:wat::std::telemetry::Console::Format::Pretty
-            (:wat::edn::write-pretty entry))
-          (:wat::std::telemetry::Console::Format::NoTagEdn
-            (:wat::edn::write-notag entry))
-          (:wat::std::telemetry::Console::Format::NoTagJson
-            (:wat::edn::write-json-natural entry))))
-       ((with-newline :String)
-        (:wat::core::string::concat line "\n")))
-      (:wat::std::service::Console/out con-tx with-newline))))
+    -> :fn(Vec<E>)->())
+  (:wat::core::lambda ((entries :Vec<E>) -> :())
+    (:wat::core::foldl entries ()
+      (:wat::core::lambda ((_acc :()) (entry :E) -> :())
+        (:wat::std::service::Console/out con-tx
+          (:wat::std::telemetry::Console::render-line entry format))))))

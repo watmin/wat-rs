@@ -55,8 +55,12 @@ pub struct WatSqliteDb {
 )]
 impl WatSqliteDb {
     /// `:rust::sqlite::Db::open path` — open or create a sqlite
-    /// file at `path`. Schema install is the consumer's job (call
-    /// `execute_ddl` afterward). Panics on rusqlite errors.
+    /// file at `path`. No pragmas are set; the substrate refuses to
+    /// pick a journal_mode / synchronous policy on the consumer's
+    /// behalf. Use `:rust::sqlite::Db::pragma` after open to set
+    /// whatever policy the consumer wants. Schema install is the
+    /// consumer's job (call `execute_ddl` afterward). Panics on
+    /// rusqlite errors.
     pub fn open(path: String) -> Self {
         let conn = Connection::open(&path).unwrap_or_else(|e| {
             panic!(":rust::sqlite::Db::open: cannot open {path}: {e}")
@@ -105,6 +109,49 @@ impl WatSqliteDb {
         let refs: Vec<&dyn ToSql> = bound.iter().map(|b| b.as_ref()).collect();
         stmt.execute(refs.as_slice()).unwrap_or_else(|e| {
             panic!(":rust::sqlite::Db::execute: bind/exec {sql:?}: {e}")
+        });
+    }
+
+    /// `:rust::sqlite::Db::pragma db name value` — set a pragma via
+    /// `conn.pragma_update(None, name, value)`. Substrate is a thin
+    /// proxy to rusqlite; consumers pick their own policy. The `value`
+    /// is a String (rusqlite's `&str` ToSql renders correctly for
+    /// SQLite's pragma syntax — bare or quoted). Examples:
+    ///
+    /// ```text
+    /// (:wat::sqlite::Db::pragma db "journal_mode" "WAL")
+    /// (:wat::sqlite::Db::pragma db "synchronous" "NORMAL")
+    /// (:wat::sqlite::Db::pragma db "cache_size" "10000")
+    /// (:wat::sqlite::Db::pragma db "foreign_keys" "ON")
+    /// ```
+    ///
+    /// Read form (`pragma_query`) deferred — add when a consumer needs it.
+    pub fn pragma(&mut self, name: String, value: String) {
+        self.conn
+            .pragma_update(None, name.as_str(), value.as_str())
+            .unwrap_or_else(|e| {
+                panic!(":rust::sqlite::Db::pragma: {name}={value}: {e}")
+            });
+    }
+
+    /// `:rust::sqlite::Db::begin db` — `BEGIN;`. Pairs with
+    /// `commit` to wrap a batch of inserts in one transaction (one
+    /// fsync for the whole batch instead of per-row auto-commit).
+    /// The archive's `flush()` discipline at
+    /// `archived/pre-wat-native/src/programs/stdlib/database.rs:224-231`.
+    pub fn begin(&mut self) {
+        self.conn.execute_batch("BEGIN").unwrap_or_else(|e| {
+            panic!(":rust::sqlite::Db::begin: {e}")
+        });
+    }
+
+    /// `:rust::sqlite::Db::commit db` — `COMMIT;`. Closes a
+    /// transaction opened by `begin`. On error, the panic surfaces
+    /// the rusqlite diagnostic; the caller is expected to wrap
+    /// inserts in begin/commit pairs at the per-batch boundary.
+    pub fn commit(&mut self) {
+        self.conn.execute_batch("COMMIT").unwrap_or_else(|e| {
+            panic!(":rust::sqlite::Db::commit: {e}")
         });
     }
 

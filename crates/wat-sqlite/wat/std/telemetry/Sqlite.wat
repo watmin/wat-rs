@@ -40,26 +40,61 @@
 ;; ─── Worker entry — opens Db, installs schemas, runs Service/loop ─
 
 ;; Top-level so :wat::kernel::spawn can route to it. Generic over E
-;; (consumer's entry type) and G (substrate cadence gate). Both
-;; hooks execute INSIDE this thread; the curried dispatcher closure
-;; captures the thread-local Db without crossing thread boundaries.
+;; (consumer's entry type) and G (substrate cadence gate). All three
+;; hooks (pre-install, schema-install, dispatcher) execute INSIDE
+;; this thread; the curried dispatcher closure captures the
+;; thread-local Db without crossing thread boundaries.
+;;
+;; Hook order, per the archive's `database()` discipline:
+;;
+;;   1. pre-install  — runs after open, before schema-install. The
+;;                     hook for pragma policy (journal_mode, synchronous,
+;;                     foreign_keys, mmap_size, etc.). Substrate ships
+;;                     ZERO default pragmas; consumers pick. Pass
+;;                     `Sqlite/null-pre-install` for the explicit
+;;                     "no policy" choice (arc 089 slice 4).
+;;
+;;   2. schema-install — runs after pre-install. The hook for DDL
+;;                       (CREATE TABLE / CREATE INDEX). Pragmas that
+;;                       MUST precede schema (e.g. `foreign_keys=ON`
+;;                       affects table creation) belong in pre-install,
+;;                       not schema-install.
+;;
+;;   3. dispatcher — runs per drained batch. Per-batch contract since
+;;                   arc 089 slice 3 — `:fn(Db,Vec<E>)->()`. The
+;;                   per-batch shape lets sinks observe the work-unit
+;;                   boundary and decide what to do with it (BEGIN/COMMIT
+;;                   wrap, single combined INSERT, etc.).
 (:wat::core::define
   (:wat::std::telemetry::Sqlite/run<E,G>
     (path :String)
     (rxs :Vec<wat::std::telemetry::Service::ReqRx<E>>)
     (cadence :wat::std::telemetry::Service::MetricsCadence<G>)
+    (pre-install :fn(wat::sqlite::Db)->())
     (schema-install :fn(wat::sqlite::Db)->())
-    (dispatcher :fn(wat::sqlite::Db,E)->())
+    (dispatcher :fn(wat::sqlite::Db,Vec<E>)->())
     (stats-translator :fn(wat::std::telemetry::Service::Stats)->Vec<E>)
     -> :())
   (:wat::core::let*
     (((db :wat::sqlite::Db) (:wat::sqlite::open path))
+     ((_pre :()) (pre-install db))
      ((_install :()) (schema-install db))
-     ((curried :fn(E)->())
-      (:wat::core::lambda ((entry :E) -> :())
-        (dispatcher db entry))))
+     ((curried :fn(Vec<E>)->())
+      (:wat::core::lambda ((entries :Vec<E>) -> :())
+        (dispatcher db entries))))
     (:wat::std::telemetry::Service/run
       rxs cadence curried stats-translator)))
+
+
+;; null-pre-install — fresh `:fn(Db)->()` that runs no pragmas.
+;; The opt-out for "I'm fine with sqlite's defaults." Mirrors
+;; `:wat::std::telemetry::Service/null-metrics-cadence` in shape:
+;; explicit zero, not implicit silence.
+(:wat::core::define
+  (:wat::std::telemetry::Sqlite/null-pre-install
+    (_db :wat::sqlite::Db)
+    -> :())
+  ())
 
 
 ;; ─── Sqlite/spawn — caller-side wiring ──────────────────────────
@@ -74,8 +109,9 @@
     (path :String)
     (count :i64)
     (cadence :wat::std::telemetry::Service::MetricsCadence<G>)
+    (pre-install :fn(wat::sqlite::Db)->())
     (schema-install :fn(wat::sqlite::Db)->())
-    (dispatcher :fn(wat::sqlite::Db,E)->())
+    (dispatcher :fn(wat::sqlite::Db,Vec<E>)->())
     (stats-translator :fn(wat::std::telemetry::Service::Stats)->Vec<E>)
     -> :wat::std::telemetry::Service::Spawn<E>)
   (:wat::core::let*
@@ -104,7 +140,7 @@
      ((driver :wat::kernel::ProgramHandle<()>)
       (:wat::kernel::spawn :wat::std::telemetry::Sqlite/run
         path req-rxs cadence
-        schema-install dispatcher stats-translator)))
+        pre-install schema-install dispatcher stats-translator)))
     (:wat::core::tuple pool driver)))
 
 
@@ -142,19 +178,44 @@
   (:wat::core::vec :E))
 
 
+;; Per-batch dispatcher used by auto-spawn. Wraps the per-entry
+;; INSERTs in BEGIN/COMMIT (arc 089 slice 3 — mirrors the archive's
+;; `flush()` discipline at
+;; `archived/pre-wat-native/src/programs/stdlib/database.rs:224-231`).
+;; Lifted out of the auto-spawn body as a top-level define because
+;; `:wat::kernel::spawn` routes to top-level functions only — and
+;; spawn's body composes this lambda inline below.
+(:wat::core::define
+  (:wat::std::telemetry::Sqlite::auto-dispatch-batch<E>
+    (enum-name :wat::core::keyword)
+    (db :wat::sqlite::Db)
+    (entries :Vec<E>)
+    -> :())
+  (:wat::core::let*
+    (((_b :()) (:wat::sqlite::begin db))
+     ((_d :())
+      (:wat::core::foldl entries ()
+        (:wat::core::lambda ((_acc :()) (e :E) -> :())
+          (:rust::sqlite::auto-dispatch db enum-name e)))))
+    (:wat::sqlite::commit db)))
+
+
 (:wat::core::define
   (:wat::std::telemetry::Sqlite/auto-spawn<E,G>
     (enum-name :wat::core::keyword)
     (path :String)
     (count :i64)
     (cadence :wat::std::telemetry::Service::MetricsCadence<G>)
+    (pre-install :fn(wat::sqlite::Db)->())
     -> :wat::std::telemetry::Service::Spawn<E>)
   (:wat::core::let*
     (((_prep :()) (:rust::sqlite::auto-prep enum-name)))
     (:wat::std::telemetry::Sqlite/spawn
       path count cadence
+      pre-install
       (:wat::core::lambda ((db :wat::sqlite::Db) -> :())
         (:rust::sqlite::auto-install-schemas db enum-name))
-      (:wat::core::lambda ((db :wat::sqlite::Db) (entry :E) -> :())
-        (:rust::sqlite::auto-dispatch db enum-name entry))
+      (:wat::core::lambda ((db :wat::sqlite::Db) (entries :Vec<E>) -> :())
+        (:wat::std::telemetry::Sqlite::auto-dispatch-batch
+          enum-name db entries))
       :wat::std::telemetry::Sqlite::auto-empty-translator)))

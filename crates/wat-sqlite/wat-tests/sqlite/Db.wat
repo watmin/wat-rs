@@ -58,3 +58,65 @@
           (:wat::sqlite::Param::F64 0.125)
           (:wat::sqlite::Param::Bool true)))))
     (:wat::test::assert-eq true true)))
+
+
+;; ─── Test 4: pragma sets WAL (arc 089 slice 1) ─────────────────
+;;
+;; Smoke test that `pragma` doesn't crash when setting a real
+;; pragma. Verification of journal_mode=WAL on disk happens
+;; out-of-band via sqlite3 CLI on the produced db file (look for
+;; -wal / -shm sidecar files after running). We can't observe
+;; pragma values from wat without the read form (deferred per
+;; arc 089 DESIGN).
+
+(:wat::test::deftest :wat-tests::sqlite::Db::test-pragma-wal
+  ()
+  (:wat::core::let*
+    (((db :wat::sqlite::Db)
+      (:wat::sqlite::open "/tmp/wat-sqlite-test-004.db"))
+     ((_p :())
+      (:wat::sqlite::pragma db "journal_mode" "WAL"))
+     ((_p2 :())
+      (:wat::sqlite::pragma db "synchronous" "NORMAL"))
+     ((_create :())
+      (:wat::sqlite::execute-ddl db
+        "CREATE TABLE IF NOT EXISTS smoke (n INTEGER NOT NULL);")))
+    (:wat::test::assert-eq true true)))
+
+
+;; ─── Test 5: begin/commit wraps inserts (arc 089 slice 1) ─────
+;;
+;; Open db, set WAL, create a counter table, run begin →
+;; three inserts → commit. Same panic-on-error posture as
+;; execute-ddl; success means the transaction round-tripped.
+
+(:wat::test::deftest :wat-tests::sqlite::Db::test-begin-commit
+  ()
+  (:wat::core::let*
+    (((db :wat::sqlite::Db)
+      (:wat::sqlite::open "/tmp/wat-sqlite-test-005.db"))
+     ((_p :())
+      (:wat::sqlite::pragma db "journal_mode" "WAL"))
+     ((_create :())
+      (:wat::sqlite::execute-ddl db
+        "CREATE TABLE IF NOT EXISTS counters (n INTEGER NOT NULL);"))
+     ((_clear :())
+      (:wat::sqlite::execute-ddl db "DELETE FROM counters;"))
+     ((_b :()) (:wat::sqlite::begin db))
+     ((_i1 :())
+      (:wat::sqlite::execute db
+        "INSERT INTO counters (n) VALUES (?1)"
+        (:wat::core::vec :wat::sqlite::Param
+          (:wat::sqlite::Param::I64 1))))
+     ((_i2 :())
+      (:wat::sqlite::execute db
+        "INSERT INTO counters (n) VALUES (?1)"
+        (:wat::core::vec :wat::sqlite::Param
+          (:wat::sqlite::Param::I64 2))))
+     ((_i3 :())
+      (:wat::sqlite::execute db
+        "INSERT INTO counters (n) VALUES (?1)"
+        (:wat::core::vec :wat::sqlite::Param
+          (:wat::sqlite::Param::I64 3))))
+     ((_c :()) (:wat::sqlite::commit db)))
+    (:wat::test::assert-eq true true)))

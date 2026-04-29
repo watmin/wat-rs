@@ -1606,14 +1606,37 @@ It walks a consumer-defined enum decl at startup, derives one
 `CREATE TABLE` per Tagged variant (variant PascalCase →
 table snake_case; field kebab → column snake; field type →
 SQLite affinity), derives the per-variant INSERT, and dispatches
-each entry by variant name. The consumer's enum is the schema.
+each batch (arc 089 slice 3 — per-batch contract; one transaction
+per drained batch via internal `Db/begin` … `Db/commit`). The
+consumer's enum is the schema.
+
+The `pre-install` hook (arc 089 slice 4) runs in the worker
+thread after `open` and before substrate auto-installs schemas.
+Substrate ships zero default pragmas — consumers pick
+`journal_mode`, `synchronous`, `foreign_keys`, etc. through this
+seam:
 
 ```scheme
+;; Lab-side pre-install — pick whatever pragmas your durability
+;; profile wants. Substrate forwards each `:wat::sqlite::pragma`
+;; call straight to `conn.pragma_update`.
+(:wat::core::define
+  (:my::pre-install
+    (db :wat::sqlite::Db) -> :())
+  (:wat::core::let*
+    (((_w :()) (:wat::sqlite::pragma db "journal_mode" "WAL"))
+     ((_s :()) (:wat::sqlite::pragma db "synchronous" "NORMAL")))
+    ()))
+
 ((sqlite-spawn :Service::Spawn<my::log::Entry>)
  (:wat::std::telemetry::Sqlite/auto-spawn
    :my::log::Entry "runs/today.db" 1
-   (:wat::std::telemetry::Service/null-metrics-cadence)))
+   (:wat::std::telemetry::Service/null-metrics-cadence)
+   :my::pre-install))
 ```
+
+For the explicit "I'm fine with sqlite's defaults" choice,
+pass `:wat::std::telemetry::Sqlite/null-pre-install`.
 
 ### Per-run file management — `IOWriter/open-file` (arc 088)
 

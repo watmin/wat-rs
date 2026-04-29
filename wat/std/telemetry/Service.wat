@@ -106,15 +106,18 @@
 ;; ─── Tick the heartbeat window ───────────────────────────────────
 
 ;; Always: tick the cadence; rebuild the cadence struct with the
-;; advanced gate. On fire: build Vec<E> via translator, dispatch
-;; each entry through the SAME closure that handles client batches,
-;; reset stats. On no-fire: stats unchanged; cadence advanced.
+;; advanced gate. On fire: build Vec<E> via translator, hand it to
+;; the per-batch dispatcher (arc 089 slice 3), reset stats. On
+;; no-fire: stats unchanged; cadence advanced. The translated
+;; vector goes through the SAME dispatcher that handles client
+;; batches — sinks see one cohesive batch shape regardless of
+;; whether it originated from clients or self-heartbeat.
 
 (:wat::core::define
   (:wat::std::telemetry::Service/tick-window<E,G>
     (stats :wat::std::telemetry::Service::Stats)
     (cadence :wat::std::telemetry::Service::MetricsCadence<G>)
-    (dispatcher :fn(E)->())
+    (dispatcher :fn(Vec<E>)->())
     (stats-translator :fn(wat::std::telemetry::Service::Stats)->Vec<E>)
     -> :wat::std::telemetry::Service::Step<G>)
   (:wat::core::let*
@@ -131,36 +134,180 @@
       -> :wat::std::telemetry::Service::Step<G>
       (:wat::core::let*
         (((entries :Vec<E>) (stats-translator stats))
-         ((_dispatch :())
-          (:wat::core::foldl entries ()
-            (:wat::core::lambda
-              ((acc :()) (e :E) -> :())
-              (dispatcher e)))))
+         ((_dispatch :()) (dispatcher entries)))
         (:wat::core::tuple
           (:wat::std::telemetry::Service::Stats/zero) cadence'))
       (:wat::core::tuple stats cadence'))))
 
 
-;; ─── Driver loop ─────────────────────────────────────────────────
+;; ─── Driver loop (arc 089 slice 2 — drain all clients) ──────────
 ;;
-;; Per-iteration order (per arc 029 Q10 batch + ack discipline plus
-;; arc 078 cadence threading):
-;;   1. select; on Some(req): foldl-dispatch the batch's entries
-;;   2. ack the client (release their batch-log call ASAP)
-;;   3. update Stats with this batch's contribution
-;;   4. tick-window — advance cadence; on fire, emit self-telemetry
-;;      via translator + dispatcher, reset stats
-;;   5. recurse with (stats', cadence')
-;;
-;; On :None: prune the disconnected receiver, recurse with stats +
-;; cadence unchanged. Loop exits when rxs is empty.
+;; Mirrors the archive's pattern at
+;; `archived/pre-wat-native/src/programs/stdlib/database.rs:127-211`.
+;; Per-iteration order:
+;;   1. select; blocks until ANY rx has data
+;;   2. on :None — remove the disconnected rx, recurse
+;;   3. on Some(first-req) — drain every OTHER rx via try-recv
+;;      (each rx is bounded(1), so at most one queued; the same
+;;      idx the select already consumed is empty until the producer
+;;      sends again, and they can't until we ack)
+;;   4. dispatch each entry through the per-entry dispatcher
+;;      (slice-3 will change this to per-batch)
+;;   5. ack EVERY contributing client — release their batch-log
+;;      calls (preserves the archive's "in-memory TCP" discipline:
+;;      producer's batch-log unblocks only after the work is done)
+;;   6. update Stats with combined batch size + tick window
+;;   7. recurse with (stats', cadence')
+
+;; Pending — accumulator threaded through drain-rest. The first
+;; tuple slot collects entries from all draining clients; the
+;; second collects their ack-tx handles. After dispatch, every
+;; ack-tx is released.
+(:wat::core::typealias :wat::std::telemetry::Service::Pending<E>
+  :(Vec<E>,Vec<wat::std::telemetry::Service::AckTx>))
+
+
+;; Merge one Request into the Pending accumulator. Extends entries
+;; with req.entries; appends req.ack-tx to the ack-txs list.
+(:wat::core::define
+  (:wat::std::telemetry::Service/extend<E>
+    (acc :wat::std::telemetry::Service::Pending<E>)
+    (req :wat::std::telemetry::Service::Request<E>)
+    -> :wat::std::telemetry::Service::Pending<E>)
+  (:wat::core::let*
+    (((entries :Vec<E>) (:wat::core::first acc))
+     ((acks :Vec<wat::std::telemetry::Service::AckTx>) (:wat::core::second acc))
+     ((req-entries :Vec<E>) (:wat::core::first req))
+     ((req-ack :wat::std::telemetry::Service::AckTx) (:wat::core::second req))
+     ((entries' :Vec<E>) (:wat::core::concat entries req-entries))
+     ((acks' :Vec<wat::std::telemetry::Service::AckTx>)
+      (:wat::core::concat acks
+        (:wat::core::vec :wat::std::telemetry::Service::AckTx req-ack))))
+    (:wat::core::tuple entries' acks')))
+
+
+;; If pair.idx == first-idx, skip — select already consumed that rx
+;; and we already extended with first-req. Otherwise try-recv
+;; (non-blocking); on Some, extend acc; on None, leave acc alone.
+(:wat::core::define
+  (:wat::std::telemetry::Service/maybe-merge<E>
+    (acc :wat::std::telemetry::Service::Pending<E>)
+    (first-idx :i64)
+    (pair :(wat::std::telemetry::Service::ReqRx<E>,i64))
+    -> :wat::std::telemetry::Service::Pending<E>)
+  (:wat::core::let*
+    (((rx :wat::std::telemetry::Service::ReqRx<E>) (:wat::core::first pair))
+     ((idx :i64) (:wat::core::second pair)))
+    (:wat::core::if (:wat::core::= idx first-idx)
+      -> :wat::std::telemetry::Service::Pending<E>
+      acc
+      (:wat::core::match (:wat::kernel::try-recv rx)
+        -> :wat::std::telemetry::Service::Pending<E>
+        ((Some req) (:wat::std::telemetry::Service/extend acc req))
+        (:None acc)))))
+
+
+;; Drain rest — try-recv each rx (other than first-idx). Returns
+;; the Pending accumulator with all in-flight batches merged in.
+(:wat::core::define
+  (:wat::std::telemetry::Service/drain-rest<E>
+    (rxs :Vec<wat::std::telemetry::Service::ReqRx<E>>)
+    (first-idx :i64)
+    (init :wat::std::telemetry::Service::Pending<E>)
+    -> :wat::std::telemetry::Service::Pending<E>)
+  (:wat::core::let*
+    (((indices :Vec<i64>)
+      (:wat::core::range 0 (:wat::core::length rxs)))
+     ((pairs :Vec<(wat::std::telemetry::Service::ReqRx<E>,i64)>)
+      (:wat::std::list::zip rxs indices)))
+    (:wat::core::foldl pairs init
+      (:wat::core::lambda
+        ((acc :wat::std::telemetry::Service::Pending<E>)
+         (pair :(wat::std::telemetry::Service::ReqRx<E>,i64))
+         -> :wat::std::telemetry::Service::Pending<E>)
+        (:wat::std::telemetry::Service/maybe-merge acc first-idx pair)))))
+
+
+;; Send () on every contributing client's ack-tx. Per-call swallow
+;; on disconnect (caller may have dropped while we were dispatching).
+(:wat::core::define
+  (:wat::std::telemetry::Service/ack-all
+    (ack-txs :Vec<wat::std::telemetry::Service::AckTx>)
+    -> :())
+  (:wat::core::foldl ack-txs ()
+    (:wat::core::lambda
+      ((_acc :()) (tx :wat::std::telemetry::Service::AckTx) -> :())
+      (:wat::core::match (:wat::kernel::send tx ()) -> :()
+        ((Some _) ())
+        (:None ())))))
+
+
+;; Update Stats with the combined batch's contribution. Lifted out
+;; of the loop body to keep the outer let* scannable.
+(:wat::core::define
+  (:wat::std::telemetry::Service/bump-stats
+    (stats :wat::std::telemetry::Service::Stats)
+    (batch-size :i64)
+    -> :wat::std::telemetry::Service::Stats)
+  (:wat::core::let*
+    (((max-prev :i64)
+      (:wat::std::telemetry::Service::Stats/max-batch-size stats))
+     ((max' :i64)
+      (:wat::core::if (:wat::core::> batch-size max-prev) -> :i64
+        batch-size
+        max-prev)))
+    (:wat::std::telemetry::Service::Stats/new
+      (:wat::core::+ (:wat::std::telemetry::Service::Stats/batches stats) 1)
+      (:wat::core::+ (:wat::std::telemetry::Service::Stats/entries stats) batch-size)
+      max')))
+
+
+;; One drain-and-dispatch cycle. Caller passes the rx-idx and the
+;; first Request select returned; we drain the rest, dispatch,
+;; ack everyone, tick the cadence, recurse into Service/loop.
+(:wat::core::define
+  (:wat::std::telemetry::Service/loop-step<E,G>
+    (rxs :Vec<wat::std::telemetry::Service::ReqRx<E>>)
+    (first-idx :i64)
+    (first-req :wat::std::telemetry::Service::Request<E>)
+    (stats :wat::std::telemetry::Service::Stats)
+    (cadence :wat::std::telemetry::Service::MetricsCadence<G>)
+    (dispatcher :fn(Vec<E>)->())
+    (stats-translator :fn(wat::std::telemetry::Service::Stats)->Vec<E>)
+    -> :())
+  (:wat::core::let*
+    (((seed :wat::std::telemetry::Service::Pending<E>)
+      (:wat::std::telemetry::Service/extend
+        (:wat::core::tuple
+          (:wat::core::vec :E)
+          (:wat::core::vec :wat::std::telemetry::Service::AckTx))
+        first-req))
+     ((pending :wat::std::telemetry::Service::Pending<E>)
+      (:wat::std::telemetry::Service/drain-rest rxs first-idx seed))
+     ((entries :Vec<E>) (:wat::core::first pending))
+     ((ack-txs :Vec<wat::std::telemetry::Service::AckTx>)
+      (:wat::core::second pending))
+     ((_apply :()) (dispatcher entries))
+     ((_ack :()) (:wat::std::telemetry::Service/ack-all ack-txs))
+     ((batch-size :i64) (:wat::core::length entries))
+     ((stats' :wat::std::telemetry::Service::Stats)
+      (:wat::std::telemetry::Service/bump-stats stats batch-size))
+     ((step :wat::std::telemetry::Service::Step<G>)
+      (:wat::std::telemetry::Service/tick-window
+        stats' cadence dispatcher stats-translator))
+     ((stats'' :wat::std::telemetry::Service::Stats) (:wat::core::first step))
+     ((cadence' :wat::std::telemetry::Service::MetricsCadence<G>)
+      (:wat::core::second step)))
+    (:wat::std::telemetry::Service/loop
+      rxs stats'' cadence' dispatcher stats-translator)))
+
 
 (:wat::core::define
   (:wat::std::telemetry::Service/loop<E,G>
     (rxs :Vec<wat::std::telemetry::Service::ReqRx<E>>)
     (stats :wat::std::telemetry::Service::Stats)
     (cadence :wat::std::telemetry::Service::MetricsCadence<G>)
-    (dispatcher :fn(E)->())
+    (dispatcher :fn(Vec<E>)->())
     (stats-translator :fn(wat::std::telemetry::Service::Stats)->Vec<E>)
     -> :())
   (:wat::core::if (:wat::core::empty? rxs) -> :()
@@ -172,44 +319,9 @@
        ((maybe :Option<wat::std::telemetry::Service::Request<E>>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :()
-        ((Some req)
-          (:wat::core::let*
-            (((entries :Vec<E>) (:wat::core::first req))
-             ((ack-tx :wat::std::telemetry::Service::AckTx)
-              (:wat::core::second req))
-             ;; Apply each entry. Caller's dispatcher closes over
-             ;; whatever destination state it needs.
-             ((_apply :())
-              (:wat::core::foldl entries ()
-                (:wat::core::lambda ((acc :()) (e :E) -> :())
-                  (dispatcher e))))
-             ;; Ack first — release client's batch-log call before
-             ;; running heartbeat tick.
-             ((_ack :Option<()>) (:wat::kernel::send ack-tx ()))
-             ;; Update Stats with this batch's contribution.
-             ((batch-size :i64) (:wat::core::length entries))
-             ((stats' :wat::std::telemetry::Service::Stats)
-              (:wat::std::telemetry::Service::Stats/new
-                (:wat::core::+
-                  (:wat::std::telemetry::Service::Stats/batches stats) 1)
-                (:wat::core::+
-                  (:wat::std::telemetry::Service::Stats/entries stats) batch-size)
-                (:wat::core::if
-                  (:wat::core::> batch-size
-                    (:wat::std::telemetry::Service::Stats/max-batch-size stats))
-                  -> :i64
-                  batch-size
-                  (:wat::std::telemetry::Service::Stats/max-batch-size stats))))
-             ;; Tick window — advance cadence; fire emits self-rows.
-             ((step :wat::std::telemetry::Service::Step<G>)
-              (:wat::std::telemetry::Service/tick-window
-                stats' cadence dispatcher stats-translator))
-             ((stats'' :wat::std::telemetry::Service::Stats)
-              (:wat::core::first step))
-             ((cadence' :wat::std::telemetry::Service::MetricsCadence<G>)
-              (:wat::core::second step)))
-            (:wat::std::telemetry::Service/loop
-              rxs stats'' cadence' dispatcher stats-translator)))
+        ((Some first-req)
+          (:wat::std::telemetry::Service/loop-step
+            rxs idx first-req stats cadence dispatcher stats-translator))
         (:None
           (:wat::std::telemetry::Service/loop
             (:wat::std::list::remove-at rxs idx)
@@ -243,7 +355,7 @@
   (:wat::std::telemetry::Service/run<E,G>
     (rxs :Vec<wat::std::telemetry::Service::ReqRx<E>>)
     (cadence :wat::std::telemetry::Service::MetricsCadence<G>)
-    (dispatcher :fn(E)->())
+    (dispatcher :fn(Vec<E>)->())
     (stats-translator :fn(wat::std::telemetry::Service::Stats)->Vec<E>)
     -> :())
   (:wat::std::telemetry::Service/loop
@@ -258,7 +370,7 @@
   (:wat::std::telemetry::Service/spawn<E,G>
     (count :i64)
     (cadence :wat::std::telemetry::Service::MetricsCadence<G>)
-    (dispatcher :fn(E)->())
+    (dispatcher :fn(Vec<E>)->())
     (stats-translator :fn(wat::std::telemetry::Service::Stats)->Vec<E>)
     -> :wat::std::telemetry::Service::Spawn<E>)
   (:wat::core::let*

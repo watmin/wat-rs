@@ -60,7 +60,8 @@
          (:wat::std::telemetry::Sqlite/auto-spawn
            :test::Event
            path 1
-           (:wat::std::telemetry::Service/null-metrics-cadence)))
+           (:wat::std::telemetry::Service/null-metrics-cadence)
+           :wat::std::telemetry::Sqlite/null-pre-install))
         ((pool :wat::std::telemetry::Service::ReqTxPool<test::Event>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::ProgramHandle<()>)
