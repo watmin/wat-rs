@@ -68,7 +68,7 @@
 (:wat::core::define
   (:wat::std::telemetry::Sqlite/run<E,G>
     (path :String)
-    (rxs :Vec<wat::std::telemetry::Service::ReqRx<E>>)
+    (pairs :Vec<wat::std::telemetry::Service::DriverPair<E>>)
     (cadence :wat::std::telemetry::Service::MetricsCadence<G>)
     (pre-install :fn(wat::sqlite::Db)->())
     (schema-install :fn(wat::sqlite::Db)->())
@@ -83,7 +83,7 @@
       (:wat::core::lambda ((entries :Vec<E>) -> :())
         (dispatcher db entries))))
     (:wat::std::telemetry::Service/run
-      rxs cadence curried stats-translator)))
+      pairs cadence curried stats-translator)))
 
 
 ;; null-pre-install — fresh `:fn(Db)->()` that runs no pragmas.
@@ -115,31 +115,55 @@
     (stats-translator :fn(wat::std::telemetry::Service::Stats)->Vec<E>)
     -> :wat::std::telemetry::Service::Spawn<E>)
   (:wat::core::let*
-    (((pairs :Vec<wat::std::telemetry::Service::ReqChannel<E>>)
+    (;; N request channels (client write, server read).
+     ((req-pairs :Vec<wat::std::telemetry::Service::ReqChannel<E>>)
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
           ((_i :i64) -> :wat::std::telemetry::Service::ReqChannel<E>)
           (:wat::kernel::make-bounded-queue
             :wat::std::telemetry::Service::Request<E> 1))))
-     ((req-txs :Vec<wat::std::telemetry::Service::ReqTx<E>>)
-      (:wat::core::map pairs
+     ;; N ack channels (server write, client read). Per arc 095:
+     ;; client and server hold opposite ends; nothing crosses in
+     ;; the request payload.
+     ((ack-pairs :Vec<wat::std::telemetry::Service::AckChannel>)
+      (:wat::core::map
+        (:wat::core::range 0 count)
         (:wat::core::lambda
-          ((p :wat::std::telemetry::Service::ReqChannel<E>)
-           -> :wat::std::telemetry::Service::ReqTx<E>)
-          (:wat::core::first p))))
-     ((req-rxs :Vec<wat::std::telemetry::Service::ReqRx<E>>)
-      (:wat::core::map pairs
+          ((_i :i64) -> :wat::std::telemetry::Service::AckChannel)
+          (:wat::kernel::make-bounded-queue :() 1))))
+     ;; Client-side Handles — (req-tx, ack-rx) pairs.
+     ((handles :Vec<wat::std::telemetry::Service::Handle<E>>)
+      (:wat::core::map
+        (:wat::std::list::zip req-pairs ack-pairs)
         (:wat::core::lambda
-          ((p :wat::std::telemetry::Service::ReqChannel<E>)
-           -> :wat::std::telemetry::Service::ReqRx<E>)
-          (:wat::core::second p))))
-     ((pool :wat::std::telemetry::Service::ReqTxPool<E>)
+          ((rp+ap :wat::std::telemetry::Service::Connection<E>)
+           -> :wat::std::telemetry::Service::Handle<E>)
+          (:wat::core::let*
+            (((rp :wat::std::telemetry::Service::ReqChannel<E>) (:wat::core::first rp+ap))
+             ((ap :wat::std::telemetry::Service::AckChannel) (:wat::core::second rp+ap))
+             ((req-tx :wat::std::telemetry::Service::ReqTx<E>) (:wat::core::first rp))
+             ((ack-rx :wat::std::telemetry::Service::AckRx) (:wat::core::second ap)))
+            (:wat::core::tuple req-tx ack-rx)))))
+     ;; Server-side DriverPairs — (req-rx, ack-tx) pairs.
+     ((driver-pairs :Vec<wat::std::telemetry::Service::DriverPair<E>>)
+      (:wat::core::map
+        (:wat::std::list::zip req-pairs ack-pairs)
+        (:wat::core::lambda
+          ((rp+ap :wat::std::telemetry::Service::Connection<E>)
+           -> :wat::std::telemetry::Service::DriverPair<E>)
+          (:wat::core::let*
+            (((rp :wat::std::telemetry::Service::ReqChannel<E>) (:wat::core::first rp+ap))
+             ((ap :wat::std::telemetry::Service::AckChannel) (:wat::core::second rp+ap))
+             ((req-rx :wat::std::telemetry::Service::ReqRx<E>) (:wat::core::second rp))
+             ((ack-tx :wat::std::telemetry::Service::AckTx) (:wat::core::first ap)))
+            (:wat::core::tuple req-rx ack-tx)))))
+     ((pool :wat::std::telemetry::Service::HandlePool<E>)
       (:wat::kernel::HandlePool::new
-        "wat::std::telemetry::Sqlite" req-txs))
+        "wat::std::telemetry::Sqlite" handles))
      ((driver :wat::kernel::ProgramHandle<()>)
       (:wat::kernel::spawn :wat::std::telemetry::Sqlite/run
-        path req-rxs cadence
+        path driver-pairs cadence
         pre-install schema-install dispatcher stats-translator)))
     (:wat::core::tuple pool driver)))
 

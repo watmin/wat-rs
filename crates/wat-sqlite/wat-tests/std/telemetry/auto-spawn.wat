@@ -29,25 +29,23 @@
    ;; entries + drops. Function-decomposed per Step 9.
    (:wat::core::define
      (:test::send-events
-       (pool :wat::std::telemetry::Service::ReqTxPool<test::Event>)
+       (pool :wat::std::telemetry::Service::HandlePool<test::Event>)
        -> :())
      (:wat::core::let*
-       (((req-tx :wat::std::telemetry::Service::ReqTx<test::Event>)
+       (((handle :wat::std::telemetry::Service::Handle<test::Event>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :()) (:wat::kernel::HandlePool::finish pool))
-        ((ack-pair :wat::std::telemetry::Service::AckChannel)
-         (:wat::kernel::make-bounded-queue :() 1))
-        ((ack-tx :wat::std::telemetry::Service::AckTx)
-         (:wat::core::first ack-pair))
+        ((req-tx :wat::std::telemetry::Service::ReqTx<test::Event>)
+         (:wat::core::first handle))
         ((ack-rx :wat::std::telemetry::Service::AckRx)
-         (:wat::core::second ack-pair))
+         (:wat::core::second handle))
         ((entries :Vec<test::Event>)
          (:wat::core::vec :test::Event
            (:test::Event::Buy 100.5 7)
            (:test::Event::Sell 102.25 3 "stop-loss" true)))
         ((_log :())
          (:wat::std::telemetry::Service/batch-log
-           req-tx ack-tx ack-rx entries)))
+           req-tx ack-rx entries)))
        ()))
 
 
@@ -62,7 +60,7 @@
            path 1
            (:wat::std::telemetry::Service/null-metrics-cadence)
            :wat::std::telemetry::Sqlite/null-pre-install))
-        ((pool :wat::std::telemetry::Service::ReqTxPool<test::Event>)
+        ((pool :wat::std::telemetry::Service::HandlePool<test::Event>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::ProgramHandle<()>)
          (:wat::core::second spawn))

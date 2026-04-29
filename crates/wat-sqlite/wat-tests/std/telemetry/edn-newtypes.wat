@@ -24,18 +24,16 @@
    ;; send through batch-log, drop.
    (:wat::core::define
      (:test::Edn::send-one
-       (pool :wat::std::telemetry::Service::ReqTxPool<test::Edn::Event>)
+       (pool :wat::std::telemetry::Service::HandlePool<test::Edn::Event>)
        -> :())
      (:wat::core::let*
-       (((req-tx :wat::std::telemetry::Service::ReqTx<test::Edn::Event>)
+       (((handle :wat::std::telemetry::Service::Handle<test::Edn::Event>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :()) (:wat::kernel::HandlePool::finish pool))
-        ((ack-pair :wat::std::telemetry::Service::AckChannel)
-         (:wat::kernel::make-bounded-queue :() 1))
-        ((ack-tx :wat::std::telemetry::Service::AckTx)
-         (:wat::core::first ack-pair))
+        ((req-tx :wat::std::telemetry::Service::ReqTx<test::Edn::Event>)
+         (:wat::core::first handle))
         ((ack-rx :wat::std::telemetry::Service::AckRx)
-         (:wat::core::second ack-pair))
+         (:wat::core::second handle))
         ((ast :wat::holon::HolonAST) (:wat::holon::Atom "hello"))
         ((tagged :wat::edn::Tagged)  (:wat::edn::Tagged/new ast))
         ((notag  :wat::edn::NoTag)   (:wat::edn::NoTag/new  ast))
@@ -44,7 +42,7 @@
            (:test::Edn::Event::Log tagged notag)))
         ((_log :())
          (:wat::std::telemetry::Service/batch-log
-           req-tx ack-tx ack-rx entries)))
+           req-tx ack-rx entries)))
        ()))
 
 
@@ -59,7 +57,7 @@
            path 1
            (:wat::std::telemetry::Service/null-metrics-cadence)
            :wat::std::telemetry::Sqlite/null-pre-install))
-        ((pool :wat::std::telemetry::Service::ReqTxPool<test::Edn::Event>)
+        ((pool :wat::std::telemetry::Service::HandlePool<test::Edn::Event>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::ProgramHandle<()>)
          (:wat::core::second spawn))

@@ -109,7 +109,7 @@
            :wat-tests::std::telemetry::Sqlite::install-noop
            :wat-tests::std::telemetry::Sqlite::dispatch-noop
            :wat-tests::std::telemetry::Sqlite::translate-empty))
-        ((pool :wat::std::telemetry::Service::ReqTxPool<i64>)
+        ((pool :wat::std::telemetry::Service::HandlePool<i64>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::ProgramHandle<()>)
          (:wat::core::second spawn))
@@ -121,10 +121,10 @@
    ;; in its own function so spawn-and-drop's outer let* stays simple.
    (:wat::core::define
      (:wat-tests::std::telemetry::Sqlite::drop-one-handle
-       (pool :wat::std::telemetry::Service::ReqTxPool<i64>)
+       (pool :wat::std::telemetry::Service::HandlePool<i64>)
        -> :())
      (:wat::core::let*
-       (((_tx :wat::std::telemetry::Service::ReqTx<i64>)
+       (((_handle :wat::std::telemetry::Service::Handle<i64>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :()) (:wat::kernel::HandlePool::finish pool)))
        ()))
@@ -144,7 +144,7 @@
            :wat-tests::std::telemetry::Sqlite::install-events
            :wat-tests::std::telemetry::Sqlite::dispatch-events
            :wat-tests::std::telemetry::Sqlite::translate-empty))
-        ((pool :wat::std::telemetry::Service::ReqTxPool<i64>)
+        ((pool :wat::std::telemetry::Service::HandlePool<i64>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::ProgramHandle<()>)
          (:wat::core::second spawn))
@@ -152,28 +152,26 @@
          (:wat-tests::std::telemetry::Sqlite::send-three pool)))
        driver))
 
-   ;; Pop one handle + build an ack channel + send one batch of three
-   ;; i64s + finish + drop. The popped req-tx and the ack pair all
-   ;; drop together when this function returns.
+   ;; Pop one Handle (req-tx, ack-rx — paired by the spawn step;
+   ;; arc 095) and send one batch of three i64s. The Handle's two
+   ;; opposite ends are exactly what batch-log needs.
    (:wat::core::define
      (:wat-tests::std::telemetry::Sqlite::send-three
-       (pool :wat::std::telemetry::Service::ReqTxPool<i64>)
+       (pool :wat::std::telemetry::Service::HandlePool<i64>)
        -> :())
      (:wat::core::let*
-       (((req-tx :wat::std::telemetry::Service::ReqTx<i64>)
+       (((handle :wat::std::telemetry::Service::Handle<i64>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :()) (:wat::kernel::HandlePool::finish pool))
-        ((ack-pair :wat::std::telemetry::Service::AckChannel)
-         (:wat::kernel::make-bounded-queue :() 1))
-        ((ack-tx :wat::std::telemetry::Service::AckTx)
-         (:wat::core::first ack-pair))
+        ((req-tx :wat::std::telemetry::Service::ReqTx<i64>)
+         (:wat::core::first handle))
         ((ack-rx :wat::std::telemetry::Service::AckRx)
-         (:wat::core::second ack-pair))
+         (:wat::core::second handle))
         ((entries :Vec<i64>)
          (:wat::core::vec :i64 7 11 13))
         ((_log :())
          (:wat::std::telemetry::Service/batch-log
-           req-tx ack-tx ack-rx entries)))
+           req-tx ack-rx entries)))
        ()))))
 
 
