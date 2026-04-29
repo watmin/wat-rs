@@ -53,12 +53,12 @@ Per user direction 2026-04-29:
     spawn-producer lambda, returns the Stream tuple.
   - `(:wat::telemetry::sqlite/stream-metrics handle query) -> Stream<Event::Metric>`
 - **Adds (auto-spawn schema):**
-  - Indexes on `log.time_ns`, `log.namespace`,
-    `metric.start_time_ns`, `metric.namespace` — load-bearing
-    for slice 2's pushdown. High-cardinality columns
-    (`uuid`, `metric_name`) intentionally NOT indexed (their
-    cardinality approaches row count; wat-side filters
-    post-narrowing).
+  - Indexes on `log.time_ns` and `metric.start_time_ns` only —
+    SQL narrows by time-range; every other predicate
+    (namespace / uuid / level / caller / metric_name / tags /
+    data) filters in wat via the stream + Clara matches?
+    predicate. Two indexes, line drawn in the sand per user
+    direction; revisit if a perf reason surfaces.
 - **Slice-1 query is a stub.** Empty `:wat::telemetry::LogQuery` /
   `MetricQuery` types accepted; SQL is unconstrained
   `SELECT * FROM <table> ORDER BY <time_col> ASC`. Slice 2 fills
@@ -69,29 +69,29 @@ Per user direction 2026-04-29:
 - **Done when:** `cargo test --workspace` green; reading a
   written .db round-trips through the new stream sources.
 
-## Slice 2 — Constraint enums + Clara-flavored builders + push-down — *ready when 1 lands*
+## Slice 2 — Time-range constraint enums + push-down — *ready when 1 lands*
 
 - **Status:** ready when slice 1 ships.
-- **Adds:**
-  - `:wat::telemetry::LogConstraint` enum (Since / Until /
-    Namespace / Caller / Uuid / Level variants).
-  - `:wat::telemetry::MetricConstraint` enum (Since / Until /
-    Namespace / Uuid / MetricName variants).
-  - Per-field builder defines (`since`, `until`, `namespace`,
-    `caller`, `uuid`, `level`, `metric-name`) — one-line wraps
-    around the variant constructors.
+- **Adds (collapsed per slice-1a §6 revision):**
+  - `:wat::telemetry::LogConstraint` enum — `Since(Instant) | Until(Instant)`.
+  - `:wat::telemetry::MetricConstraint` enum — `Since(Instant) | Until(Instant)`.
+  - Builder defines: `(since instant)` + `(until instant)` —
+    one-line wraps around the variant constructors.
   - Query constructors: `(log-query (vec :LogConstraint ...))`
-    and `(metric-query (vec :MetricConstraint ...))` — the
-    constraint vec IS the query.
-  - Producer-side: cursor opens with WHERE clause assembled from
-    the constraint vec. AND across constraints; each constraint
-    contributes a `?N` placeholder bound at prepare time.
-  - `Since` / `Until` take `:wat::time::Instant` (per arc 097)
-    — converted to epoch nanos for the WHERE clause.
-- **Done when:** worked-example queries from DESIGN §Worked
-  examples (Grace outcomes, Grace>5.0 + cohort metrics) execute
-  correctly with the indexes from slice 1 doing the heavy
-  filtering before the wat-side matches? predicate runs.
+    and `(metric-query (vec :MetricConstraint ...))`.
+  - Producer-side: cursor opens with WHERE clause assembled
+    from the constraint vec. AND across constraints; each
+    constraint contributes a `?N` placeholder. `Since`/`Until`
+    take `:wat::time::Instant` (per arc 097) — converted to
+    epoch nanos for the WHERE clause.
+- **Everything else** (namespace, caller, uuid, level,
+  metric_name, tags, data) → wat-side
+  `(stream::filter stream pred?)` with the user composing a
+  `matches?` lambda. Substrate doesn't ship constraint variants
+  for those; the matcher IS the surface.
+- **Done when:** the worked-example queries from DESIGN
+  §Worked examples (Grace outcomes, Grace>5.0 + cohort metrics)
+  execute — time-narrowed in SQL, content-filtered in wat.
 
 ## Slice 3 — Materialization helpers — *ready when 2 lands*
 

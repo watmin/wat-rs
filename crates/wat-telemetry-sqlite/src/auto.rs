@@ -66,28 +66,24 @@ struct AutoSchema {
 }
 
 /// Arc 093 §6 — column names that earn a single-column BTREE
-/// index alongside their CREATE TABLE in `derive_schema`. Only
-/// LOW-CARDINALITY columns: time / start_time bucket the entire
-/// run into ranges the planner narrows on; namespace partitions
-/// by producer identity. High-cardinality columns (`uuid`,
-/// `metric_name`) earn no index — their cardinality approaches
-/// row count, so the index storage dwarfs the data and the
-/// planner can't usefully range over them. Wat filters those
-/// post-narrowing (the matches? predicate runs over the time-
-/// or namespace-narrowed candidate set; an in-wat equality check
-/// is fast enough on a few hundred rows that an index would be
-/// strictly worse).
+/// index alongside their CREATE TABLE in `derive_schema`. Time
+/// columns ONLY: SQL narrows by time-range; everything else
+/// (namespace, uuid, level, caller, metric_name, tags, data)
+/// filters in wat via the stream + Clara matches? predicate.
 ///
-/// For `:wat::telemetry::Event` (substrate-defined) this yields:
-/// `log.time_ns` + `log.namespace` + `metric.start_time_ns` +
-/// `metric.namespace` — four indexes total. Consumer enums
-/// reusing these column names benefit transparently — no
+/// Per user direction 2026-04-29: *"i think we just do time
+/// filter in sqlite and do all other content filtering in our
+/// stream... just draw the line in the sand.. if there's a perf
+/// reason to do more in sqlite... we'll address it later."*
+///
+/// For `:wat::telemetry::Event` (substrate-defined) this yields
+/// two indexes: `log.time_ns` + `metric.start_time_ns`. Consumer
+/// enums reusing these column names benefit transparently — no
 /// configuration surface, no tunables; same opinionated property
 /// of the substrate's telemetry shape that the schema itself is.
 const INDEXABLE_COLUMNS: &[&str] = &[
     "time_ns",
     "start_time_ns",
-    "namespace",
 ];
 
 /// Process-wide cache. Keyed by enum keyword path (e.g.

@@ -641,63 +641,56 @@ encourage it. No `LogQuery/across-dbs` builder; no merge
 combinator across handles. If a real consumer demands it
 later, that's its own arc.
 
-### §6. Index set — SETTLED + revised mid-slice-1a
+### §6. Index set — SETTLED + revised twice mid-slice-1a
 
-**Settled — four indexes** (revised down from seven). The
-substrate indexes only the LOW-CARDINALITY columns:
+**Settled — two indexes** (revised down from seven, then again
+to two). The substrate indexes only TIME columns:
 
 - `log.time_ns`
-- `log.namespace`
 - `metric.start_time_ns`
-- `metric.namespace`
 
-`uuid` and `metric_name` were initially in the set but pulled
-out by the user during slice 1a (2026-04-29):
+Per the user (2026-04-29) — first revision:
 
 > *"i don't agree with uuid nor metric_name — high cardinality
 > fields shouldn't be indexed.. time.. yes... but not metric_name
 > nor uuid.. we'll filter on those in wat"*
 
-Their cardinality approaches row count — index storage dwarfs
-the data and the planner can't range-scan over them
-effectively. The right shape: time/namespace narrow the
-candidate set in SQL; uuid / metric_name filter post-narrowing
-in wat (where the matches? predicate runs over a few hundred
-rows and an equality check is faster than an index seek would
-be).
+Then — second revision, same conversation:
 
-Per the user (2026-04-29):
+> *"honestly... i think ... we just do time filter in sqlite and
+> do all other content filtering in our stream... just draw the
+> line in the sand.. if there's a perf reason to do more in
+> sqlite... we'll address it later.."*
 
-> *"this is tied to our opinionated scheme for logs and metrics —
-> we know what we these are because we are supplying them — i
-> expect us to never touch these again"*
-
-The schema is locked (substrate-defined Event::Metric +
-Event::Log; arc 091). The columns are locked. The indexes match
-the LOW-CARDINALITY columns the query layer narrows on; the
-HIGH-CARDINALITY columns get filtered post-narrowing in wat.
-There's no tuning surface — same as the schema itself doesn't
-have one. The indexes are an *opinionated property of the
-substrate's telemetry shape*, not a knob.
+The line in the sand: SQL narrows by time-range (the cheapest,
+most universally-applicable predicate); everything else
+(namespace, uuid, level, caller, metric_name, tags, data)
+filters in wat via the stream + Clara `matches?` predicate.
 
 What this means concretely:
-- `auto-spawn` (arc 085's schema derivation) gains
+- `auto-spawn` (arc 085's schema derivation) gains exactly two
   `CREATE INDEX ... IF NOT EXISTS` statements alongside the
-  `CREATE TABLE` it already emits, restricted to the four
-  low-cardinality columns above.
-- New databases get them at first-write time.
-- Existing databases (already-shipped pulse runs, proof_002/3/4
-  outputs) gain them when first opened by an arc-093 reader OR
-  retroactively via a one-shot migration.
-- We do not add a configuration knob like
-  `(query/extra-indexes ...)`. Future indexes ship as substrate
-  changes if the substrate's own queries demand them; not as
-  consumer tunables.
+  `CREATE TABLE`s it already emits — one per Event variant's
+  time column.
+- Slice 2's constraint enum collapses to a single shape:
+  `LogConstraint = Since(Instant) | Until(Instant)`,
+  `MetricConstraint = Since(Instant) | Until(Instant)`. No
+  `Namespace` / `Caller` / `Uuid` / `Level` / `MetricName`
+  variants — those filter via wat-side `(stream::filter stream
+  pred?)` with `matches?` or a regular lambda.
+- New databases get the indexes at first-write time.
+- Existing databases (already-shipped pulse runs) gain them
+  when first opened by an arc-093 reader OR retroactively via a
+  one-shot migration.
+- No configuration surface, no tunables. If a perf reason
+  surfaces to push more constraints into SQL, we revisit then —
+  not preemptively.
 
-No composite `(namespace, time_ns)` initially. The query
-planner picks one index per query; the time index plus
-namespace-equality (or the namespace index plus time-range) is
-enough.
+The schema is locked (substrate-defined Event::Metric +
+Event::Log; arc 091). The columns are locked. The substrate's
+opinion: time is the only universally-cheap filter; everything
+else can be expressed in the matcher + paid for at row-iteration
+speed.
 
 ### §7. `run-with` vs `filter` over Stream — SETTLED (rejected)
 
