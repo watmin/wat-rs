@@ -59,15 +59,28 @@ pub(crate) fn register(builder: &mut wat::rust_deps::RustDepsBuilder) {
 /// `:rust::sqlite::ReadHandle` — read-only sqlite connection.
 /// Thread-owned: open in the worker that will use it
 /// (CIRCUIT.md rule 1, same discipline as `:rust::sqlite::Db`).
+///
+/// Stores both the open `Connection` (the validation that the
+/// path is a real, openable sqlite file) AND the path itself.
+/// Consumers that want to spawn cursors inside a wat
+/// `spawn-producer` lambda (where the thread-owned ReadHandle
+/// can't follow the lambda capture) call `path()` to get the
+/// path back, capture that string, and re-open inside the
+/// producer thread.
 pub struct ReadHandle {
     /// `pub` (not `pub(crate)`) for the same reason `Db.conn` is
     /// `pub`: downstream cursor code in `wat-telemetry-sqlite`
-    /// (slice 1c) needs `prepare` access to drive sqlite3_step
-    /// iteration. Consumers outside the cursor layer should
-    /// treat this as substrate-internal and reach for the typed
-    /// methods that ship in slice 1b+ instead.
+    /// (slice 1c) may want direct `prepare` access in the future.
+    /// Consumers outside the cursor layer should treat this as
+    /// substrate-internal and reach for typed methods instead.
     #[allow(dead_code)]
     pub conn: Connection,
+    /// The path passed to `open`. Stashed so consumers can hand
+    /// the string off to a different thread (capture into a
+    /// `spawn-producer` lambda) and re-open a fresh ReadHandle
+    /// there. Connection itself doesn't expose `path()` cleanly
+    /// for our flow, so we keep it ourselves.
+    path: String,
 }
 
 #[wat_dispatch(
@@ -89,6 +102,16 @@ impl ReadHandle {
         .unwrap_or_else(|e| {
             panic!(":rust::sqlite::ReadHandle::open: cannot open {path}: {e}")
         });
-        Self { conn }
+        Self { conn, path }
+    }
+
+    /// `:rust::sqlite::ReadHandle::path handle` — borrow the path
+    /// the handle was opened with. Used by downstream readers
+    /// that need to spawn a producer in a different thread and
+    /// re-open a fresh ReadHandle there (the thread_owned
+    /// discipline forbids transferring this struct itself across
+    /// the spawn boundary; transferring the path is fine).
+    pub fn path(&self) -> String {
+        self.path.clone()
     }
 }

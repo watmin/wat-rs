@@ -45,3 +45,18 @@
     (path :String)
     -> :wat::sqlite::ReadHandle)
   (:rust::sqlite::ReadHandle::open path))
+
+;; (:wat::sqlite::ReadHandle/path handle) -> :String
+;;
+;; Borrow the path the handle was opened with. Used by readers
+;; that spawn a producer in a different thread and need to
+;; re-open a fresh ReadHandle inside that thread (the
+;; thread_owned discipline forbids transferring this struct
+;; itself across the spawn boundary; transferring the path
+;; string is fine, then opening a fresh handle inside the new
+;; thread is cheap).
+(:wat::core::define
+  (:wat::sqlite::ReadHandle/path
+    (handle :wat::sqlite::ReadHandle)
+    -> :String)
+  (:rust::sqlite::ReadHandle::path handle))
