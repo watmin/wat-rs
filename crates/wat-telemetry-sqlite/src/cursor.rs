@@ -74,6 +74,103 @@ use wat_sqlite::ReadHandle;
 /// (`"Log"` vs `"Metric"`) and field positions differ.
 const EVENT_TYPE_PATH: &str = ":wat::telemetry::Event";
 
+/// Type-path of `:wat::telemetry::TimeConstraint` (slice 2).
+const TIME_CONSTRAINT_TYPE_PATH: &str = ":wat::telemetry::TimeConstraint";
+
+// ─── Constraint → WHERE clause assembly ───────────────────────────
+
+/// Parsed narrowing for a cursor's prepared statement. Slice 2
+/// only ships time-range constraints; future slices may extend
+/// this shape (composite predicates, IN-lists, etc.) — but the
+/// substrate's stance is "anything that doesn't fit time-range
+/// goes through the wat-side matcher" per arc 093 §6.
+#[derive(Debug, Clone, Default)]
+struct WhereClause {
+    /// SQL fragment, including the leading " WHERE " when the
+    /// vec was non-empty; empty string when no constraints.
+    sql: String,
+    /// Positional parameters bound at prepare time. One per `?`
+    /// placeholder in `sql`. Slice 2: epoch-nanos i64s.
+    params: Vec<i64>,
+}
+
+/// Walk a `:Vec<wat::telemetry::TimeConstraint>` value and build
+/// a WhereClause against the cursor's time column. `time_col` is
+/// `"time_ns"` for log cursors, `"start_time_ns"` for metric
+/// cursors. Bare-string column name is safe — both values are
+/// substrate-controlled, never user input.
+fn parse_time_constraints(
+    op: &'static str,
+    time_col: &'static str,
+    constraints: &Value,
+) -> Result<WhereClause, RuntimeError> {
+    let xs = match constraints {
+        Value::Vec(xs) => xs.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected: ":Vec<wat::telemetry::TimeConstraint>",
+                got: other.type_name(),
+            });
+        }
+    };
+    let mut clauses: Vec<String> = Vec::with_capacity(xs.len());
+    let mut params: Vec<i64> = Vec::with_capacity(xs.len());
+    for (idx, v) in xs.iter().enumerate() {
+        let ev = match v {
+            Value::Enum(e) if e.type_path == TIME_CONSTRAINT_TYPE_PATH => e.clone(),
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: op.into(),
+                    expected: ":wat::telemetry::TimeConstraint",
+                    got: other.type_name(),
+                });
+            }
+        };
+        let instant = match ev.fields.first() {
+            Some(Value::Instant(i)) => *i,
+            _ => {
+                return Err(RuntimeError::MalformedForm {
+                    head: op.into(),
+                    reason: format!(
+                        "TimeConstraint::{} at index {idx} missing Instant field",
+                        ev.variant_name
+                    ),
+                });
+            }
+        };
+        let nanos = instant.timestamp_nanos_opt().ok_or_else(|| {
+            RuntimeError::MalformedForm {
+                head: op.into(),
+                reason: format!(
+                    "TimeConstraint::{} at index {idx}: Instant out of i64-nanos range",
+                    ev.variant_name
+                ),
+            }
+        })?;
+        let placeholder_idx = params.len() + 1;
+        match ev.variant_name.as_str() {
+            "Since" => clauses.push(format!("{time_col} >= ?{placeholder_idx}")),
+            "Until" => clauses.push(format!("{time_col} <= ?{placeholder_idx}")),
+            other => {
+                return Err(RuntimeError::MalformedForm {
+                    head: op.into(),
+                    reason: format!(
+                        "TimeConstraint variant {other}: only Since / Until are recognized"
+                    ),
+                });
+            }
+        }
+        params.push(nanos);
+    }
+    let sql = if clauses.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", clauses.join(" AND "))
+    };
+    Ok(WhereClause { sql, params })
+}
+
 // ─── Cursor structs ───────────────────────────────────────────────
 
 /// Receives reified `:wat::telemetry::Event::Log` values produced
@@ -90,13 +187,13 @@ pub struct LogCursor {
 }
 
 impl LogCursor {
-    fn new(handle: &ReadHandle) -> Self {
+    fn new(handle: &ReadHandle, narrowing: WhereClause) -> Self {
         let path = handle.path();
         let (tx, rx) = bounded::<Value>(1);
         let join = thread::Builder::new()
             .name("wat-telemetry-sqlite::LogCursor".into())
             .spawn(move || {
-                drive_log_cursor(&path, tx);
+                drive_log_cursor(&path, narrowing, tx);
             })
             .expect("spawn LogCursor producer thread");
         Self { rx, join: Some(join) }
@@ -130,13 +227,13 @@ pub struct MetricCursor {
 }
 
 impl MetricCursor {
-    fn new(handle: &ReadHandle) -> Self {
+    fn new(handle: &ReadHandle, narrowing: WhereClause) -> Self {
         let path = handle.path();
         let (tx, rx) = bounded::<Value>(1);
         let join = thread::Builder::new()
             .name("wat-telemetry-sqlite::MetricCursor".into())
             .spawn(move || {
-                drive_metric_cursor(&path, tx);
+                drive_metric_cursor(&path, narrowing, tx);
             })
             .expect("spawn MetricCursor producer thread");
         Self { rx, join: Some(join) }
@@ -161,9 +258,16 @@ impl Drop for MetricCursor {
 /// reifies each row; sends through `tx`. Exits on SQLITE_DONE
 /// or on `tx.send` returning `Err` (consumer disconnect).
 ///
-/// Slice 1: full-table scan, ORDER BY time_ns ASC. Slice 2 will
-/// thread query constraints (Since/Until) into the WHERE clause.
-fn drive_log_cursor(path: &str, tx: crossbeam_channel::Sender<Value>) {
+/// SQL shape: `SELECT … FROM log{narrowing.sql} ORDER BY time_ns
+/// ASC`. With an empty narrowing this is the slice-1 full-table
+/// scan; with `Since` / `Until` constraints the time index narrows
+/// the candidate set in O(log N) before the wat-side matcher
+/// runs.
+fn drive_log_cursor(
+    path: &str,
+    narrowing: WhereClause,
+    tx: crossbeam_channel::Sender<Value>,
+) {
     let conn = match Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
@@ -173,16 +277,23 @@ fn drive_log_cursor(path: &str, tx: crossbeam_channel::Sender<Value>) {
             "wat-telemetry-sqlite::LogCursor: re-open {path} for producer thread: {e}"
         ),
     };
-    let mut stmt = match conn.prepare("SELECT time_ns, namespace, caller, level, uuid, tags, data FROM log ORDER BY time_ns ASC") {
+    let sql = format!(
+        "SELECT time_ns, namespace, caller, level, uuid, tags, data \
+         FROM log{} ORDER BY time_ns ASC",
+        narrowing.sql
+    );
+    let mut stmt = match conn.prepare(&sql) {
         Ok(s) => s,
         Err(e) => panic!(
-            "wat-telemetry-sqlite::LogCursor: prepare SELECT FROM log: {e}"
+            "wat-telemetry-sqlite::LogCursor: prepare {sql:?}: {e}"
         ),
     };
-    let mut rows = match stmt.query([]) {
+    let bound: Vec<&dyn rusqlite::ToSql> =
+        narrowing.params.iter().map(|n| n as &dyn rusqlite::ToSql).collect();
+    let mut rows = match stmt.query(bound.as_slice()) {
         Ok(r) => r,
         Err(e) => panic!(
-            "wat-telemetry-sqlite::LogCursor: query SELECT FROM log: {e}"
+            "wat-telemetry-sqlite::LogCursor: query {sql:?}: {e}"
         ),
     };
     loop {
@@ -208,7 +319,11 @@ fn drive_log_cursor(path: &str, tx: crossbeam_channel::Sender<Value>) {
 
 /// Twin of `drive_log_cursor` for the `metric` table. Sort by
 /// `start_time_ns` ASC.
-fn drive_metric_cursor(path: &str, tx: crossbeam_channel::Sender<Value>) {
+fn drive_metric_cursor(
+    path: &str,
+    narrowing: WhereClause,
+    tx: crossbeam_channel::Sender<Value>,
+) {
     let conn = match Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
@@ -218,19 +333,23 @@ fn drive_metric_cursor(path: &str, tx: crossbeam_channel::Sender<Value>) {
             "wat-telemetry-sqlite::MetricCursor: re-open {path} for producer thread: {e}"
         ),
     };
-    let mut stmt = match conn.prepare(
+    let sql = format!(
         "SELECT start_time_ns, end_time_ns, namespace, uuid, tags, metric_name, metric_value, metric_unit \
-         FROM metric ORDER BY start_time_ns ASC"
-    ) {
+         FROM metric{} ORDER BY start_time_ns ASC",
+        narrowing.sql
+    );
+    let mut stmt = match conn.prepare(&sql) {
         Ok(s) => s,
         Err(e) => panic!(
-            "wat-telemetry-sqlite::MetricCursor: prepare SELECT FROM metric: {e}"
+            "wat-telemetry-sqlite::MetricCursor: prepare {sql:?}: {e}"
         ),
     };
-    let mut rows = match stmt.query([]) {
+    let bound: Vec<&dyn rusqlite::ToSql> =
+        narrowing.params.iter().map(|n| n as &dyn rusqlite::ToSql).collect();
+    let mut rows = match stmt.query(bound.as_slice()) {
         Ok(r) => r,
         Err(e) => panic!(
-            "wat-telemetry-sqlite::MetricCursor: query SELECT FROM metric: {e}"
+            "wat-telemetry-sqlite::MetricCursor: query {sql:?}: {e}"
         ),
     };
     loop {
@@ -479,10 +598,11 @@ fn scheme_cursor_new_inner(
     op: &'static str,
     cursor_path: &'static str,
 ) -> Option<TypeExpr> {
-    if args.len() != 1 {
-        ctx.push_arity_mismatch(op, 1, args.len());
+    if args.len() != 2 {
+        ctx.push_arity_mismatch(op, 2, args.len());
         return Some(TypeExpr::Path(cursor_path.into()));
     }
+    // #1 — :wat::sqlite::ReadHandle
     if let Some(t) = ctx.infer(&args[0]) {
         let expected = TypeExpr::Path(READ_HANDLE_PATH.into());
         if !ctx.unify_types(&t, &expected) {
@@ -490,6 +610,21 @@ fn scheme_cursor_new_inner(
                 op,
                 "#1",
                 READ_HANDLE_PATH.into(),
+                format!("{:?}", ctx.apply_subst(&t)),
+            );
+        }
+    }
+    // #2 — :Vec<:wat::telemetry::TimeConstraint>
+    if let Some(t) = ctx.infer(&args[1]) {
+        let expected = TypeExpr::Parametric {
+            head: "Vec".into(),
+            args: vec![TypeExpr::Path(TIME_CONSTRAINT_TYPE_PATH.into())],
+        };
+        if !ctx.unify_types(&t, &expected) {
+            ctx.push_type_mismatch(
+                op,
+                "#2",
+                ":Vec<wat::telemetry::TimeConstraint>".into(),
                 format!("{:?}", ctx.apply_subst(&t)),
             );
         }
@@ -517,8 +652,9 @@ fn dispatch_log_cursor_new(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let handle = arg_as_read_handle_clone(args, env, sym, ":rust::telemetry::sqlite::LogCursor::new")?;
-    let cursor = LogCursor::new(&handle);
+    const OP: &str = ":rust::telemetry::sqlite::LogCursor::new";
+    let (handle, narrowing) = eval_handle_and_constraints(args, env, sym, OP, "time_ns")?;
+    let cursor = LogCursor::new(&handle, narrowing);
     Ok(wat::rust_deps::make_rust_opaque(
         LOG_CURSOR_PATH,
         ThreadOwnedCell::new(cursor),
@@ -530,37 +666,43 @@ fn dispatch_metric_cursor_new(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let handle = arg_as_read_handle_clone(args, env, sym, ":rust::telemetry::sqlite::MetricCursor::new")?;
-    let cursor = MetricCursor::new(&handle);
+    const OP: &str = ":rust::telemetry::sqlite::MetricCursor::new";
+    let (handle, narrowing) = eval_handle_and_constraints(args, env, sym, OP, "start_time_ns")?;
+    let cursor = MetricCursor::new(&handle, narrowing);
     Ok(wat::rust_deps::make_rust_opaque(
         METRIC_CURSOR_PATH,
         ThreadOwnedCell::new(cursor),
     ))
 }
 
-/// Eval the single arg as a `ReadHandle`, copying the path out
-/// of the thread-owned cell so the cursor's producer thread can
-/// reopen its own connection. Returns a fresh ReadHandle (not a
-/// reference — different thread can't share the original cell).
-fn arg_as_read_handle_clone(
+/// Eval the cursor-constructor args as `(ReadHandle,
+/// Vec<TimeConstraint>)`. Returns a fresh ReadHandle (re-opened
+/// from the path stash; the original cell lives in the caller's
+/// thread and can't cross the spawn boundary) plus a parsed
+/// WhereClause keyed against the cursor's time column.
+fn eval_handle_and_constraints(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
     op: &'static str,
-) -> Result<ReadHandle, RuntimeError> {
-    if args.len() != 1 {
+    time_col: &'static str,
+) -> Result<(ReadHandle, WhereClause), RuntimeError> {
+    if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
-            expected: 1,
+            expected: 2,
             got: args.len(),
         });
     }
     let handle_val = eval(&args[0], env, sym)?;
     let inner = rust_opaque_arc(&handle_val, READ_HANDLE_PATH, op)?;
     let cell: &ThreadOwnedCell<ReadHandle> = downcast_ref_opaque(&inner, READ_HANDLE_PATH, op)?;
-    // We only need the path — re-open inside the producer.
     let path = cell.with_ref(op, |h| h.path())?;
-    Ok(ReadHandle::open(path))
+    let handle = ReadHandle::open(path);
+
+    let constraints_val = eval(&args[1], env, sym)?;
+    let narrowing = parse_time_constraints(op, time_col, &constraints_val)?;
+    Ok((handle, narrowing))
 }
 
 fn dispatch_log_cursor_step(

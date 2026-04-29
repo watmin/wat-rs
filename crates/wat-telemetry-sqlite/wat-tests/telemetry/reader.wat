@@ -85,7 +85,8 @@
        driver))))
 
 
-;; Round-trip the three Log rows through writer + reader.
+;; Round-trip the three Log rows through writer + reader with
+;; an empty constraint vec (full-table scan).
 (:deftest :wat-telemetry-sqlite::reader::test-roundtrip-three-logs
   (:wat::core::let*
     (;; Phase 1 — write fixture. Auto-deleting TempFile so the
@@ -99,13 +100,92 @@
      ((_join :()) (:wat::kernel::join driver))
 
      ;; Phase 2 — open as ReadHandle and stream the rows back.
+     ;; Empty constraint vec = full-table scan.
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
-     ((query :wat::telemetry::LogQuery)
-      (:wat::telemetry::LogQuery/new))
+     ((no-constraints :Vec<wat::telemetry::TimeConstraint>)
+      (:wat::core::vec :wat::telemetry::TimeConstraint))
      ((stream :wat::std::stream::Stream<wat::telemetry::Event>)
-      (:wat::telemetry::sqlite/stream-logs handle query))
+      (:wat::telemetry::sqlite/stream-logs handle no-constraints))
      ((events :Vec<wat::telemetry::Event>)
       (:wat::std::stream::collect stream))
      ((count :i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 3)))
+
+
+;; Slice 2 — verify the WHERE pushdown actually narrows. Fixture
+;; rows have time_ns ∈ {1000, 2000, 3000}; a Since cutoff at 2000
+;; should yield only the {2000, 3000} pair.
+(:deftest :wat-telemetry-sqlite::reader::test-since-narrowing
+  (:wat::core::let*
+    (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
+     ((path :String) (:wat::io::TempFile/path tf))
+     ((driver :wat::kernel::ProgramHandle<()>)
+      (:test::reader::write-fixture path))
+     ((_join :()) (:wat::kernel::join driver))
+
+     ((handle :wat::sqlite::ReadHandle)
+      (:wat::sqlite::open-readonly path))
+     ;; Since(instant @ time_ns=2000). The fixture writes rows
+     ;; with time_ns = 1000, 2000, 3000 — Since 2000 keeps the
+     ;; latter two.
+     ((cutoff :wat::time::Instant) (:wat::time::at-nanos 2000))
+     ((constraints :Vec<wat::telemetry::TimeConstraint>)
+      (:wat::core::vec :wat::telemetry::TimeConstraint
+        (:wat::telemetry::since cutoff)))
+     ((stream :wat::std::stream::Stream<wat::telemetry::Event>)
+      (:wat::telemetry::sqlite/stream-logs handle constraints))
+     ((events :Vec<wat::telemetry::Event>)
+      (:wat::std::stream::collect stream))
+     ((count :i64) (:wat::core::length events)))
+    (:wat::test::assert-eq count 2)))
+
+
+;; Slice 2 — Until cutoff drops the newer rows.
+(:deftest :wat-telemetry-sqlite::reader::test-until-narrowing
+  (:wat::core::let*
+    (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
+     ((path :String) (:wat::io::TempFile/path tf))
+     ((driver :wat::kernel::ProgramHandle<()>)
+      (:test::reader::write-fixture path))
+     ((_join :()) (:wat::kernel::join driver))
+
+     ((handle :wat::sqlite::ReadHandle)
+      (:wat::sqlite::open-readonly path))
+     ;; Until(instant @ time_ns=1500) — only the time_ns=1000 row.
+     ((cutoff :wat::time::Instant) (:wat::time::at-nanos 1500))
+     ((constraints :Vec<wat::telemetry::TimeConstraint>)
+      (:wat::core::vec :wat::telemetry::TimeConstraint
+        (:wat::telemetry::until cutoff)))
+     ((stream :wat::std::stream::Stream<wat::telemetry::Event>)
+      (:wat::telemetry::sqlite/stream-logs handle constraints))
+     ((events :Vec<wat::telemetry::Event>)
+      (:wat::std::stream::collect stream))
+     ((count :i64) (:wat::core::length events)))
+    (:wat::test::assert-eq count 1)))
+
+
+;; Slice 2 — Since AND Until compose to a window.
+(:deftest :wat-telemetry-sqlite::reader::test-since-and-until-window
+  (:wat::core::let*
+    (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
+     ((path :String) (:wat::io::TempFile/path tf))
+     ((driver :wat::kernel::ProgramHandle<()>)
+      (:test::reader::write-fixture path))
+     ((_join :()) (:wat::kernel::join driver))
+
+     ((handle :wat::sqlite::ReadHandle)
+      (:wat::sqlite::open-readonly path))
+     ;; Since(1500) AND Until(2500) — only the time_ns=2000 row.
+     ((lo :wat::time::Instant) (:wat::time::at-nanos 1500))
+     ((hi :wat::time::Instant) (:wat::time::at-nanos 2500))
+     ((constraints :Vec<wat::telemetry::TimeConstraint>)
+      (:wat::core::vec :wat::telemetry::TimeConstraint
+        (:wat::telemetry::since lo)
+        (:wat::telemetry::until hi)))
+     ((stream :wat::std::stream::Stream<wat::telemetry::Event>)
+      (:wat::telemetry::sqlite/stream-logs handle constraints))
+     ((events :Vec<wat::telemetry::Event>)
+      (:wat::std::stream::collect stream))
+     ((count :i64) (:wat::core::length events)))
+    (:wat::test::assert-eq count 1)))

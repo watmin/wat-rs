@@ -76,29 +76,34 @@ Per user direction 2026-04-29:
 - **Done when:** `cargo test --workspace` green; reading a
   written .db round-trips through the new stream sources.
 
-## Slice 2 — Time-range constraint enums + push-down — *ready when 1 lands*
+## Slice 2 — TimeConstraint enum + WHERE pushdown — *ready when 1 lands*
 
 - **Status:** ready when slice 1 ships.
-- **Adds (collapsed per slice-1a §6 revision):**
-  - `:wat::telemetry::LogConstraint` enum — `Since(Instant) | Until(Instant)`.
-  - `:wat::telemetry::MetricConstraint` enum — `Since(Instant) | Until(Instant)`.
+- **Adds (further-collapsed per slice-2 review):**
+  - **Single shared** `:wat::telemetry::TimeConstraint` enum —
+    `Since(Instant) | Until(Instant)`. After slice-1a's "time
+    only in SQL" revision, log and metric constraint enums had
+    identical shape; one type beats two synonyms. Both
+    stream-logs and stream-metrics consume `Vec<TimeConstraint>`.
   - Builder defines: `(since instant)` + `(until instant)` —
-    one-line wraps around the variant constructors.
-  - Query constructors: `(log-query (vec :LogConstraint ...))`
-    and `(metric-query (vec :MetricConstraint ...))`.
+    one-line variant-constructor wraps.
+  - Cursor signatures change from `(handle, empty_query)` to
+    `(handle, Vec<TimeConstraint>)`. Empty vec = full-table
+    scan (slice-1 behavior preserved).
   - Producer-side: cursor opens with WHERE clause assembled
     from the constraint vec. AND across constraints; each
-    constraint contributes a `?N` placeholder. `Since`/`Until`
-    take `:wat::time::Instant` (per arc 097) — converted to
-    epoch nanos for the WHERE clause.
+    contributes a `?N` placeholder bound to the constraint's
+    Instant converted to epoch nanos.
+  - Drops the slice-1 `LogQuery` / `MetricQuery` empty-struct
+    stubs — they had no consumer.
 - **Everything else** (namespace, caller, uuid, level,
   metric_name, tags, data) → wat-side
   `(stream::filter stream pred?)` with the user composing a
   `matches?` lambda. Substrate doesn't ship constraint variants
   for those; the matcher IS the surface.
-- **Done when:** the worked-example queries from DESIGN
-  §Worked examples (Grace outcomes, Grace>5.0 + cohort metrics)
-  execute — time-narrowed in SQL, content-filtered in wat.
+- **Done when:** the round-trip test extends to verify a `since`
+  cutoff drops the older row from the result set; cargo test
+  --workspace green.
 
 ## Slice 3 — Materialization helpers — *ready when 2 lands*
 

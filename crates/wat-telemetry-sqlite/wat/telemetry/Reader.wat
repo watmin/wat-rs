@@ -45,37 +45,59 @@
 (:wat::core::typealias :wat::telemetry::sqlite::MetricCursor
   :rust::telemetry::sqlite::MetricCursor)
 
-;; ─── Query stubs (slice 1) ──────────────────────────────────────
+;; ─── TimeConstraint (slice 2) ──────────────────────────────────
 ;;
-;; Slice 2 will replace these with constraint-vec structs:
+;; The only constraints the SQL layer accepts are time-range —
+;; `Since(Instant)` (renders as `time_col >= ?`) and
+;; `Until(Instant)` (renders as `time_col <= ?`). Every other
+;; predicate (namespace, uuid, level, caller, metric_name, tags,
+;; data) filters in wat via stream + matches? per arc 093 §6's
+;; line in the sand.
 ;;
-;;   (:wat::core::struct :wat::telemetry::LogQuery
-;;     (constraints :Vec<wat::telemetry::LogConstraint>))
+;; Both stream-logs and stream-metrics consume the SAME
+;; `Vec<TimeConstraint>`. They differ only in which time column
+;; the cursor's prepared statement binds against (`time_ns` vs
+;; `start_time_ns`) — the constraint enum doesn't need to know.
 ;;
-;; For slice 1 they're empty unit-shape types so the cursor
-;; constructor signature is forward-compatible — call sites pass
-;; an empty query and slice 2 changes the field set without
-;; rewriting them.
-(:wat::core::struct :wat::telemetry::LogQuery)
-(:wat::core::struct :wat::telemetry::MetricQuery)
+;; AND-semantics across the vec. Empty vec = no narrowing
+;; (full-table scan, slice-1 behavior preserved).
+(:wat::core::enum :wat::telemetry::TimeConstraint
+  (Since (instant :wat::time::Instant))
+  (Until (instant :wat::time::Instant)))
+
+;; Builders: one-line wraps around the variant constructors.
+;; Reads more naturally at the call site than the variant form —
+;; `(since (hours-ago 1))` vs
+;; `(:wat::telemetry::TimeConstraint::Since (hours-ago 1))`.
+(:wat::core::define
+  (:wat::telemetry::since
+    (instant :wat::time::Instant)
+    -> :wat::telemetry::TimeConstraint)
+  (:wat::telemetry::TimeConstraint::Since instant))
+
+(:wat::core::define
+  (:wat::telemetry::until
+    (instant :wat::time::Instant)
+    -> :wat::telemetry::TimeConstraint)
+  (:wat::telemetry::TimeConstraint::Until instant))
 
 ;; ─── Cursor constructors (thin Rust forwarders) ────────────────
 
-;; Slice 1 ignores the query (full-table scan); slice 2 threads
-;; constraints into the prepared statement's WHERE clause.
+;; Cursor constructors. The constraint vec narrows the prepared
+;; statement's WHERE clause; empty vec = full-table scan.
 (:wat::core::define
   (:wat::telemetry::sqlite/log-cursor
     (handle :wat::sqlite::ReadHandle)
-    (_query :wat::telemetry::LogQuery)
+    (constraints :Vec<wat::telemetry::TimeConstraint>)
     -> :wat::telemetry::sqlite::LogCursor)
-  (:rust::telemetry::sqlite::LogCursor::new handle))
+  (:rust::telemetry::sqlite::LogCursor::new handle constraints))
 
 (:wat::core::define
   (:wat::telemetry::sqlite/metric-cursor
     (handle :wat::sqlite::ReadHandle)
-    (_query :wat::telemetry::MetricQuery)
+    (constraints :Vec<wat::telemetry::TimeConstraint>)
     -> :wat::telemetry::sqlite::MetricCursor)
-  (:rust::telemetry::sqlite::MetricCursor::new handle))
+  (:rust::telemetry::sqlite::MetricCursor::new handle constraints))
 
 (:wat::core::define
   (:wat::telemetry::sqlite::LogCursor/step!
@@ -144,7 +166,7 @@
 (:wat::core::define
   (:wat::telemetry::sqlite/stream-logs
     (handle :wat::sqlite::ReadHandle)
-    (query :wat::telemetry::LogQuery)
+    (constraints :Vec<wat::telemetry::TimeConstraint>)
     -> :wat::std::stream::Stream<wat::telemetry::Event>)
   (:wat::core::let*
     (((path :String) (:wat::sqlite::ReadHandle/path handle)))
@@ -155,13 +177,13 @@
           (((local-handle :wat::sqlite::ReadHandle)
             (:wat::sqlite::open-readonly path))
            ((cursor :wat::telemetry::sqlite::LogCursor)
-            (:wat::telemetry::sqlite/log-cursor local-handle query)))
+            (:wat::telemetry::sqlite/log-cursor local-handle constraints)))
           (:wat::telemetry::sqlite/log-loop cursor tx))))))
 
 (:wat::core::define
   (:wat::telemetry::sqlite/stream-metrics
     (handle :wat::sqlite::ReadHandle)
-    (query :wat::telemetry::MetricQuery)
+    (constraints :Vec<wat::telemetry::TimeConstraint>)
     -> :wat::std::stream::Stream<wat::telemetry::Event>)
   (:wat::core::let*
     (((path :String) (:wat::sqlite::ReadHandle/path handle)))
@@ -172,5 +194,5 @@
           (((local-handle :wat::sqlite::ReadHandle)
             (:wat::sqlite::open-readonly path))
            ((cursor :wat::telemetry::sqlite::MetricCursor)
-            (:wat::telemetry::sqlite/metric-cursor local-handle query)))
+            (:wat::telemetry::sqlite/metric-cursor local-handle constraints)))
           (:wat::telemetry::sqlite/metric-loop cursor tx))))))
