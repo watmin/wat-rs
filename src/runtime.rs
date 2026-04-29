@@ -644,6 +644,14 @@ pub struct SymbolTable {
     /// Built-in default is [`crate::sigma::DefaultCoincidentSigma`];
     /// user override via `set-coincident-sigma!`.
     pub coincident_sigma_fn: Option<Arc<dyn crate::sigma::SigmaFn>>,
+    /// Frozen type registry — every struct / enum / newtype / alias
+    /// declared in user source plus the built-ins. Attached at freeze
+    /// time so `#[wat_dispatch]` shims can reflect on type
+    /// declarations (variant fields, struct fields, alias targets).
+    /// Arc 085 — needed by `:wat::std::telemetry::Sqlite/auto-spawn`
+    /// to walk the consumer's entry-enum decl and synthesize schemas
+    /// + INSERT statements without consumer code.
+    pub types: Option<Arc<crate::types::TypeEnv>>,
 }
 
 impl std::fmt::Debug for SymbolTable {
@@ -656,6 +664,7 @@ impl std::fmt::Debug for SymbolTable {
             .field("macro_registry", &self.macro_registry.is_some())
             .field("presence_sigma_fn", &self.presence_sigma_fn.is_some())
             .field("coincident_sigma_fn", &self.coincident_sigma_fn.is_some())
+            .field("types", &self.types.is_some())
             .finish()
     }
 }
@@ -736,6 +745,23 @@ impl SymbolTable {
         f: Arc<dyn crate::sigma::SigmaFn>,
     ) {
         self.coincident_sigma_fn = Some(f);
+    }
+
+    /// Attach the frozen type registry. Called once at freeze time by
+    /// [`crate::freeze::FrozenWorld::freeze`] so shims that need to
+    /// inspect declared types (`:wat::std::telemetry::Sqlite/auto-spawn`
+    /// walks an enum decl to synthesize schemas) can reach them through
+    /// the standard SymbolTable carrier.
+    pub fn set_types(&mut self, types: Arc<crate::types::TypeEnv>) {
+        self.types = Some(types);
+    }
+
+    /// Borrow the type registry, if one is attached. Shims that need
+    /// to reflect on declared types call this and raise an error on
+    /// `None` — a host that didn't attach the registry doesn't have
+    /// the capability.
+    pub fn types(&self) -> Option<&Arc<crate::types::TypeEnv>> {
+        self.types.as_ref()
     }
 
     /// Borrow the coincident-sigma function. `coincident?` calls this.
@@ -2321,6 +2347,7 @@ fn dispatch_keyword_head(
         ":wat::io::IOReader/read-line" => crate::io::eval_ioreader_read_line(args, env, sym),
         ":wat::io::IOReader/rewind" => crate::io::eval_ioreader_rewind(args, env, sym),
         ":wat::io::IOWriter/new" => crate::io::eval_iowriter_new(args, env, sym),
+        ":wat::io::IOWriter/open-file" => crate::io::eval_iowriter_open_file(args, env, sym),
         ":wat::io::IOWriter/to-bytes" => crate::io::eval_iowriter_to_bytes(args, env, sym),
         ":wat::io::IOWriter/to-string" => crate::io::eval_iowriter_to_string(args, env, sym),
         ":wat::io::IOWriter/write" => crate::io::eval_iowriter_write(args, env, sym),
@@ -2409,6 +2436,11 @@ fn dispatch_keyword_head(
         ":wat::edn::write" => crate::edn_shim::eval_edn_write(args, env, sym),
         ":wat::edn::write-pretty" => crate::edn_shim::eval_edn_write_pretty(args, env, sym),
         ":wat::edn::write-json" => crate::edn_shim::eval_edn_write_json(args, env, sym),
+        ":wat::edn::write-notag" => crate::edn_shim::eval_edn_write_notag(args, env, sym),
+        ":wat::edn::write-json-natural" => {
+            crate::edn_shim::eval_edn_write_json_natural(args, env, sym)
+        }
+        ":wat::edn::read" => crate::edn_shim::eval_edn_read(args, env, sym),
         ":wat::holon::vector-bind" => eval_holon_vector_bind(args, env, sym),
         ":wat::holon::vector-bundle" => eval_holon_vector_bundle(args, env, sym),
         ":wat::holon::vector-blend" => eval_holon_vector_blend(args, env, sym),

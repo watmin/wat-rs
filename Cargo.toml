@@ -8,6 +8,7 @@ members = [
     "crates/wat-sqlite",
     "examples/with-lru",
     "examples/with-loader",
+    "examples/console-demo",
 ]
 # default-members makes `cargo test` / `cargo build` / `cargo check` cover
 # every workspace member, not just the root package. Without this an
@@ -25,6 +26,7 @@ default-members = [
     "crates/wat-sqlite",
     "examples/with-lru",
     "examples/with-loader",
+    "examples/console-demo",
 ]
 
 [package]

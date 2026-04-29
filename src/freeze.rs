@@ -109,6 +109,10 @@ impl FrozenWorld {
         // Arc 030: runtime macroexpand / macroexpand-1 primitives need
         // access to the frozen macro registry.
         symbols.set_macro_registry(Arc::new(macros.clone()));
+        // Arc 085: shims that reflect on declared types (auto-spawn
+        // walks an enum decl) reach the registry through SymbolTable
+        // alongside the other capability carriers.
+        symbols.set_types(Arc::new(types.clone()));
 
         // Arc 077: the dim router is retired. Program-d lives in
         // `EncodingCtx.dim_count` set above; no router to install.

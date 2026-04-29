@@ -802,6 +802,48 @@ pub fn eval_iowriter_new(
     Ok(Value::io__IOWriter(writer))
 }
 
+/// `(:wat::io::IOWriter/open-file path)` → `:wat::io::IOWriter`. Opens
+/// (or creates+truncates) a regular file at `path` for writing and
+/// returns a file-backed IOWriter. Each `write` call goes through
+/// `libc::write(2)` on the underlying fd; `Drop` closes via OwnedFd.
+///
+/// Used by long-running wat programs that manage their own per-run
+/// log files (e.g., trader programs writing `runs/<id>.out` and
+/// `runs/<id>.err` instead of inheriting the parent process's
+/// stdout/stderr).
+///
+/// Panics on open errors via the panic-vs-Option discipline (memory
+/// `feedback_shim_panic_vs_option`): bad path / permission / disk-full
+/// at construction-time is an environment error worth halting on.
+pub fn eval_iowriter_open_file(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    use std::os::fd::OwnedFd;
+    let op = ":wat::io::IOWriter/open-file";
+    arity(op, args, 1)?;
+    let path = match crate::runtime::eval(&args[0], env, sym)? {
+        Value::String(s) => (*s).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected: ":String",
+                got: other.type_name(),
+            });
+        }
+    };
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&path)
+        .unwrap_or_else(|e| panic!(":wat::io::IOWriter/open-file {path:?}: {e}"));
+    let fd: OwnedFd = file.into();
+    let writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(fd));
+    Ok(Value::io__IOWriter(writer))
+}
+
 /// `(:wat::io::IOWriter/to-bytes <writer>)` → `:Vec<u8>`. Clones the
 /// accumulated buffer. Only valid for `StringIoWriter` — real stdio
 /// doesn't snapshot (returns MalformedForm).

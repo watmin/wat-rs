@@ -36,9 +36,11 @@
 ;;     ...)
 
 (:wat::core::enum :wat::std::telemetry::Console::Format
-  :Edn          ;; render via :wat::edn::write (compact single-line)
-  :Json         ;; render via :wat::edn::write-json (compact JSON)
-  :Pretty)      ;; render via :wat::edn::write-pretty (multi-line indented)
+  :Edn          ;; render via :wat::edn::write (compact, tagged — round-trip-safe via :wat::edn::read)
+  :Json         ;; render via :wat::edn::write-json (compact, sentinel-tagged JSON — round-trip-safe)
+  :Pretty       ;; render via :wat::edn::write-pretty (multi-line indented, tagged)
+  :NoTagEdn     ;; render via :wat::edn::write-notag (compact, no struct/enum tag — lossy, human-friendly)
+  :NoTagJson)   ;; render via :wat::edn::write-json-natural (natural JSON for ELK/DataDog ingestion — lossy)
 
 ;; The factory. Returns a closure that captures con-tx + format.
 ;; When the substrate Service calls dispatcher(entry), the closure:
@@ -63,7 +65,11 @@
           (:wat::std::telemetry::Console::Format::Json
             (:wat::edn::write-json entry))
           (:wat::std::telemetry::Console::Format::Pretty
-            (:wat::edn::write-pretty entry))))
+            (:wat::edn::write-pretty entry))
+          (:wat::std::telemetry::Console::Format::NoTagEdn
+            (:wat::edn::write-notag entry))
+          (:wat::std::telemetry::Console::Format::NoTagJson
+            (:wat::edn::write-json-natural entry))))
        ((with-newline :String)
         (:wat::core::string::concat line "\n")))
       (:wat::std::service::Console/out con-tx with-newline))))

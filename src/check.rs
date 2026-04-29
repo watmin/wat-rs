@@ -4569,6 +4569,14 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
+        ":wat::io::IOWriter/open-file".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":String".into())],
+            ret: iowriter_ty(),
+        },
+    );
+    env.register(
         ":wat::io::IOWriter/to-bytes".to_string(),
         TypeScheme {
             type_params: vec![],
@@ -5986,6 +5994,8 @@ fn register_builtins(env: &mut CheckEnv) {
         ":wat::edn::write",
         ":wat::edn::write-pretty",
         ":wat::edn::write-json",
+        ":wat::edn::write-notag",
+        ":wat::edn::write-json-natural",
     ] {
         env.register(
             op.into(),
@@ -5996,6 +6006,19 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+    // `(:wat::edn::read s)` → `:T`. Inverse of write — parses an
+    // EDN string into a wat runtime Value. Polymorphic-fresh-var
+    // return so the caller's binding context unifies with whatever
+    // shape the parsed value takes; runtime mismatches surface as
+    // pattern-match / accessor errors at the use site.
+    env.register(
+        ":wat::edn::read".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![TypeExpr::Path(":String".into())],
+            ret: t_var(),
+        },
+    );
     // Arc 053: Vector-tier algebra primitives. Operate on raw
     // materialized Vectors without round-tripping through HolonAST.
     // Used by Phase 4 learning code that holds emergent vectors.

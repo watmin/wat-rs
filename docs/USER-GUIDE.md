@@ -1556,6 +1556,124 @@ Every multi-threaded wat program routes output through Console.
 It's not a rule; it's what the substrate's discipline requires to
 stay honest.
 
+### Structured logging — `ConsoleLogger` + ledger db (arcs 086 / 087)
+
+`Console/out` and `Console/err` take strings. For anything beyond
+ad-hoc diagnostic markers, the substrate ships a structured
+logger and a sqlite-backed ledger. Both are layered on top of
+Console; the typical long-running program wires both.
+
+**`:wat::std::telemetry::ConsoleLogger`** is a closure-over-state
+struct: `(con-tx, caller, now-fn, format)`. Built once per
+producer; passed by reference into hot paths. Each emission gets
+its time auto-stamped and its `:caller` identity injected — the
+producer never self-identifies.
+
+```scheme
+((logger :wat::std::telemetry::ConsoleLogger)
+ (:wat::std::telemetry::ConsoleLogger/new
+   con-tx :market.observer
+   (:wat::core::lambda ((_u :()) -> :wat::time::Instant) (:wat::time::now))
+   :wat::std::telemetry::Console::Format::Edn))
+
+;; Per emission:
+(:wat::std::telemetry::ConsoleLogger/info  logger (:Event::Buy 100.5 7))
+(:wat::std::telemetry::ConsoleLogger/warn  logger (:Event::CircuitBreak "spike"))
+(:wat::std::telemetry::ConsoleLogger/error logger (:Event::CircuitBreak "down"))
+```
+
+Level routing: `:debug` and `:info` go to stdout via `Console/out`;
+`:warn` and `:error` go to stderr via `Console/err`. Custom keywords
+(e.g. `:trace`) fall through to stdout. The line shape is a
+`LogLine<E>` struct rendered as `[time level caller data]`.
+
+Five render formats via `Console::Format`:
+
+| Format | Output | Use case |
+|---|---|---|
+| `:Edn` | `#wat.std.telemetry/LogLine {:time ... :level ...}` | Round-trip-safe via `:wat::edn::read` |
+| `:NoTagEdn` | `{:time ... :level ... :data {:_type :ns/Variant ...}}` | Lossy; human-readable EDN logs |
+| `:Json` | `{"#tag":"wat.std.telemetry/LogLine","body":{...}}` | Round-trip-safe via wat-edn JSON↔EDN bridge |
+| `:NoTagJson` | `{"time":"...","level":"info","caller":"...","data":{"_type":"ns/Variant",...}}` | Lossy; ELK / DataDog / CloudWatch ingestion |
+| `:Pretty` | Multi-line indented EDN | Dev-time debug |
+
+The `_type` value in tagless variants is fully-qualified
+(`demo.Event/Buy`, not bare `Buy`) — bare variant names collide
+across enums; the FQDN is honest identity.
+
+**`:wat::std::telemetry::Sqlite/auto-spawn`** is the ledger side.
+It walks a consumer-defined enum decl at startup, derives one
+`CREATE TABLE` per Tagged variant (variant PascalCase →
+table snake_case; field kebab → column snake; field type →
+SQLite affinity), derives the per-variant INSERT, and dispatches
+each entry by variant name. The consumer's enum is the schema.
+
+```scheme
+((sqlite-spawn :Service::Spawn<my::log::Entry>)
+ (:wat::std::telemetry::Sqlite/auto-spawn
+   :my::log::Entry "runs/today.db" 1
+   (:wat::std::telemetry::Service/null-metrics-cadence)))
+```
+
+### Per-run file management — `IOWriter/open-file` (arc 088)
+
+A long-running program that wants its own per-run files
+(`runs/<id>.out`, `runs/<id>.err`, `runs/<id>.db`) opens
+file-backed writers at `:user::main` startup and passes them to
+Console instead of using the parent process's stdio:
+
+```scheme
+((out-writer :wat::io::IOWriter)
+ (:wat::io::IOWriter/open-file "runs/today.out"))
+((err-writer :wat::io::IOWriter)
+ (:wat::io::IOWriter/open-file "runs/today.err"))
+
+((con-spawn :Console::Spawn)
+ (:wat::std::service::Console/spawn out-writer err-writer 1))
+```
+
+Open mode is `write+create+truncate` — fresh file each invocation.
+Drop closes the fd; clean shutdown cascade releases all three
+files together. The wat program owns its outputs; no shell
+redirect needed.
+
+### The double-write discipline
+
+A producer that wants both surfaces takes both handles wired in:
+
+```scheme
+(:wat::core::define
+  (:my::worker/run
+    (logger :wat::std::telemetry::ConsoleLogger)
+    (sqlite-tx :wat::std::telemetry::Service::ReqTx<my::log::Entry>)
+    (ack-tx :wat::std::telemetry::Service::AckTx)
+    (ack-rx :wat::std::telemetry::Service::AckRx)
+    -> :())
+  (:wat::core::let*
+    (((_say :())
+      (:wat::std::telemetry::ConsoleLogger/info logger
+        (:my::Event::Heartbeat 0)))                   ;; occasional, human-friendly
+     ((entries :Vec<my::log::Entry>)
+      (:wat::core::vec :my::log::Entry
+        (:my::log::Entry::Resolved ...)
+        (:my::log::Entry::Resolved ...)))
+     ((_log :())
+      (:wat::std::telemetry::Service/batch-log         ;; high-fidelity archive
+        sqlite-tx ack-tx ack-rx entries)))
+    ()))
+```
+
+Console gets summary events ("this is happening"); sqlite gets the
+full record ("here's exactly what happened"). The same producer
+writes both. `:user::main` distributes the handles per CIRCUIT.md.
+
+For a runnable end-to-end example, see
+`holon-lab-trading/wat/programs/smoke.wat` — opens three files,
+spawns Console + Sqlite, runs a producer that double-writes, joins
+cascade. The post-run state is three files in `runs/`: `.out`,
+`.err`, `.db`. SQL queries for analysis; EDN-per-line for live
+tail.
+
 ---
 
 ## 12. Error handling

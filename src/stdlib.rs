@@ -106,6 +106,10 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/std/telemetry/Console.wat",
         source: include_str!("../wat/std/telemetry/Console.wat"),
     },
+    WatSource {
+        path: "wat/std/telemetry/ConsoleLogger.wat",
+        source: include_str!("../wat/std/telemetry/ConsoleLogger.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.

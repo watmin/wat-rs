@@ -1,0 +1,13 @@
+[package]
+name = "console-demo"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Walkable demo of the substrate's telemetry sink reporting EDN-per-line to stdout. Wires :wat::std::telemetry::Service<E,G> + :wat::std::telemetry::Console/dispatcher with a tiny domain enum."
+
+[[bin]]
+name = "console-demo"
+path = "src/main.rs"
+
+[dependencies]
+wat = { path = "../.." }

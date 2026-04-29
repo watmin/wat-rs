@@ -32,18 +32,57 @@
     -> :())
   (:rust::sqlite::Db::execute_ddl db ddl))
 
-;; A parameterized `execute db sql params` primitive ships in a
-;; follow-up slice once the `:wat::sqlite::Param` enum + the macro's
-;; Vec<enum> binding shape settle. Slice 1 callers use execute-ddl
-;; for DDL and SQL-string concatenation for INSERTs (acceptable
-;; for internal-typed values).
+;; ─── Param + execute (arc 084) ─────────────────────────────────
+;;
+;; `:wat::sqlite::Param` — typed wrapper for parameterized
+;; statement values. Each variant carries one of the four scalar
+;; shapes rusqlite's ToSql trait covers natively. Future arcs may
+;; add `Null`/`Blob`/`Date` variants when a consumer surfaces a
+;; need; today's lab forcing function (paper_resolutions +
+;; telemetry inserts) only needs these four.
+;;
+;; The verbose-but-honest binding shape from arc 083 DESIGN's Q1
+;; (rejected variadic + `:Any` per memory `feedback_no_new_types`):
+;; each value at the call site is explicitly tagged with its
+;; SQLite affinity. rusqlite hides this on the Rust side via
+;; `params![]`; wat surfaces it.
+(:wat::core::enum :wat::sqlite::Param
+  (I64  (n :i64))
+  (F64  (x :f64))
+  (Str  (s :String))
+  (Bool (b :bool)))
 
+;; Execute a parameterized statement. Each `?N` placeholder binds
+;; to `params[N-1]` (1-indexed per rusqlite/SQLite). Panics with a
+;; diagnostic on rusqlite errors (placeholder mismatch, constraint
+;; violations, syntax errors) — same panic-vs-Option posture as
+;; `execute-ddl`. Uses `prepare_cached` under the hood so repeated
+;; calls with the same SQL text hit rusqlite's prepared-statement
+;; cache.
+;;
+;;   (:wat::sqlite::execute db
+;;     "INSERT INTO events (id, ts) VALUES (?1, ?2)"
+;;     (:wat::core::vec :wat::sqlite::Param
+;;       (:wat::sqlite::Param::I64 7)
+;;       (:wat::sqlite::Param::I64 1730000000000)))
+;;     -> :()
+(:wat::core::define
+  (:wat::sqlite::execute
+    (db :wat::sqlite::Db)
+    (sql :String)
+    (params :Vec<wat::sqlite::Param>)
+    -> :())
+  (:rust::sqlite::Db::execute db sql params))
+
+
+;; ─── Surface notes ──────────────────────────────────────────────
+;;
 ;; Open or create a sqlite file. Panics on bad path / permission.
 ;; Caller's responsibility to install schemas afterward via
 ;; `execute-ddl`.
 ;;
 ;;   (:wat::sqlite::Db::open "/tmp/test.db") -> :wat::sqlite::Db
-
+;;
 ;; Execute a parameterless statement (CREATE TABLE, CREATE INDEX,
 ;; etc.) via execute_batch. Idempotent when DDL uses
 ;; `IF NOT EXISTS`.
@@ -52,17 +91,3 @@
 ;;     db
 ;;     "CREATE TABLE IF NOT EXISTS events (id INTEGER, ts INTEGER)")
 ;;     -> :()
-
-;; Execute a parameterized statement. Each `?` placeholder in the
-;; SQL binds to a positional value in `params`. Each param can be
-;; an i64, f64, String, bool, or Unit (NULL).
-;;
-;;   (:wat::sqlite::Db::execute
-;;     db
-;;     "INSERT INTO events (id, ts) VALUES (?1, ?2)"
-;;     (:wat::core::vec :Any 7 1730000000000))
-;;     -> :()
-;;
-;; Note: `Vec<Any>` here means the params can be heterogeneous;
-;; each Value's variant determines the rusqlite binding. The wat
-;; side passes them through as-is.

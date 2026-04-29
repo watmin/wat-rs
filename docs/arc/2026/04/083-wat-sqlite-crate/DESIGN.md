@@ -80,50 +80,64 @@ The lab's `:trading::telemetry::Sqlite/spawn` is generic machinery. Nothing trad
 ### Telemetry destination (substrate, companion to Console)
 
 ```scheme
-;; Like Console/dispatcher (arc 081): a factory that takes
-;; everything the worker needs, returns a Spawn ready for
-;; :user::main to wire.
+;; Like Console/dispatcher (arc 081): the factory takes everything
+;; the worker needs and returns a Spawn ready for :user::main to wire.
+;;
+;; TWO FLAT HOOKS, not one nested hook. An earlier draft proposed a
+;; single `init-fn :fn(Db)->fn(E)->()` that would install schemas
+;; AND return the per-entry dispatcher in one closure-returning-
+;; closure shape. Rejected — verbose is honest. The combined hook
+;; anticipates shared state (prepared statements, captured flags)
+;; no consumer needs today, and forces the substrate to parse a
+;; nested fn type that has no other precedent in wat. Two flat
+;; hooks compose cleanly without either gap.
 (:wat::std::telemetry::Sqlite/spawn<E,G>
   (path :String)
   (count :i64)
-  ;; init-fn runs once inside the worker thread. Receives the
-  ;; freshly opened Db; returns the per-entry dispatcher closure.
-  ;; The init body is where the consumer installs schemas.
-  (init-fn :fn(wat::sqlite::Db)->fn(E)->())
-  (stats-translator :fn(:wat::std::telemetry::Service::Stats)->Vec<E>)
   (cadence :wat::std::telemetry::Service::MetricsCadence<G>)
+  ;; Runs ONCE inside the worker thread, after Db open. Body is
+  ;; where the consumer issues `(:wat::sqlite::execute-ddl db ddl)`
+  ;; calls for each schema it needs.
+  (schema-install :fn(wat::sqlite::Db)->())
+  ;; Runs PER ENTRY inside the worker thread. The substrate curries
+  ;; Db over this fn before handing the resulting `:fn(E)->()` to
+  ;; Service/loop, so the per-entry handler reads naturally on the
+  ;; consumer side (Db + entry as flat positional args).
+  (dispatcher :fn(wat::sqlite::Db,E)->())
+  (stats-translator :fn(wat::std::telemetry::Service::Stats)->Vec<E>)
   -> :wat::std::telemetry::Service::Spawn<E>)
 ```
 
-The init-fn is the seam between substrate (knows about Db lifecycle) and consumer (knows about schemas + entry dispatch). One hook covers both setup AND per-entry dispatching.
+Two seams, each named for its role: schemas in one place, per-entry routing in another.
 
 ### Lab thin wrapper (lab-side, post-arc-083)
 
 ```scheme
 ;; In wat/io/telemetry/Sqlite.wat — replaces the lab's current
-;; loop-entry + Sqlite/spawn pair. Pre-supplies the trader's init.
+;; loop-entry + Sqlite/spawn pair. Pre-supplies the trader's two
+;; hooks.
 (:wat::core::define
   (:trading::telemetry::Sqlite/spawn<G>
     (path :String)
     (count :i64)
     (cadence :wat::std::telemetry::Service::MetricsCadence<G>)
     -> :wat::std::telemetry::Service::Spawn<trading::log::LogEntry>)
-  (:wat::std::telemetry::Sqlite/spawn path count
-    :trading::telemetry::sqlite-init
-    :trading::telemetry::translate-stats-via-default-maker
-    cadence))
+  (:wat::std::telemetry::Sqlite/spawn path count cadence
+    :trading::telemetry::install-schemas
+    :trading::telemetry::dispatch
+    :trading::telemetry::translate-stats-via-default-maker))
 
 (:wat::core::define
-  (:trading::telemetry::sqlite-init
+  (:trading::telemetry::install-schemas
     (db :wat::sqlite::Db)
-    -> :fn(trading::log::LogEntry)->())
-  (:wat::core::let*
-    (((_install :())
-      (:wat::core::foldl (:trading::log::all-schemas) ()
-        (:wat::core::lambda ((acc :()) (ddl :String) -> :())
-          (:wat::sqlite::execute-ddl db ddl)))))
-    (:wat::core::lambda ((entry :trading::log::LogEntry) -> :())
-      (:trading::telemetry::dispatch db entry))))
+    -> :())
+  (:wat::core::foldl (:trading::log::all-schemas) ()
+    (:wat::core::lambda ((acc :()) (ddl :String) -> :())
+      (:wat::sqlite::execute-ddl db ddl))))
+
+;; :trading::telemetry::dispatch already has the (db, entry) shape
+;; — see wat/io/telemetry/dispatch.wat. Substrate curries db before
+;; handing :fn(E)->() to Service/loop.
 ```
 
 ---

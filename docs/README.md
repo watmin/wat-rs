@@ -490,5 +490,60 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   lives here, historical record (arc 042 INSCRIPTION) stays
   frozen. 2026-04-24.
 
+> **Arc list drift note (2026-04-29):** the per-arc entries above
+> stop at 044. Arcs 045 through 088 have shipped (each with their
+> own `INSCRIPTION.md` in `arc/2026/04/`); the README's narrative
+> per-arc summaries haven't been backfilled. Browse the arc tree
+> directly for what's there:
+>
+> ```
+> arc/2026/04/{045..088}-*/INSCRIPTION.md
+> ```
+>
+> Highlight set from the cache + telemetry storyline (074-088):
+>
+> - **`074-holon-store/`** — coordinate-cell `HologramStore<V>` + the
+>   bounded `HologramCache` sibling. The cache primitive every
+>   subsequent arc builds on.
+> - **`076-therm-routed-hologram/`** — routing moved INSIDE Hologram;
+>   no caller-supplied pos.
+> - **`077-kill-the-router/`** — one program-`d` via
+>   `:wat::config::set-dim-count!`; multi-tier router retired.
+> - **`078-service-contract/`** — Reporter + MetricsCadence + null-
+>   helpers + typed Report enum. The canonical service-program
+>   recipe, codified in CONVENTIONS.md.
+> - **`079-wat-edn-shims/`** — `:wat::edn::write` / `write-pretty` /
+>   `write-json`. Render any wat value as deterministic EDN/JSON.
+> - **`080-telemetry-service-substrate/`** —
+>   `:wat::std::telemetry::Service<E,G>`. Generic queue-fronted
+>   shell, lifted from the lab's `:trading::rundb::Service`.
+> - **`081-telemetry-console/`** — `Console/dispatcher` factory.
+>   Per-entry rendering closure that composes with arc 080's shell.
+> - **`082-service-programs-nested-concerns/`** —
+>   `SERVICE-PROGRAMS.md § Step 9` (multi-driver shutdown via
+>   function decomposition).
+> - **`083-wat-sqlite-crate/`** — new sibling crate. `:wat::sqlite::Db`
+>   primitives + `:wat::std::telemetry::Sqlite/spawn`.
+> - **`084-sqlite-execute-params/`** — `:wat::sqlite::execute` with
+>   `Param` enum (typed parameter binding).
+> - **`085-enum-derived-sqlite-schemas/`** — `Sqlite/auto-spawn`
+>   reflects on a consumer's enum decl; substrate derives schemas +
+>   INSERTs + binders. The consumer's enum IS the schema.
+> - **`086-edn-roundtrip-and-natural/`** — `:wat::edn::read`
+>   round-trip via tag dispatch through `sym.types`; named-field
+>   struct render; `:wat::edn::write-notag` (lossy EDN);
+>   `:wat::edn::write-json-natural` (ingestion-tooling JSON with
+>   FQDN discriminator).
+> - **`087-console-logger/`** —
+>   `:wat::std::telemetry::ConsoleLogger`. Closure-over-(con-tx,
+>   caller, clock, format); 4 level methods (`/debug` `/info` `/warn`
+>   `/error`); stdout/stderr level routing.
+> - **`088-iowriter-open-file/`** — `:wat::io::IOWriter/open-file
+>   path`. File-backed writer for per-run log discipline
+>   (`runs/<descriptor>-<epoch>.{out,err,db}`).
+>
+> A full README arc-list backfill is outside any single arc's scope
+> and lands as its own doc-drift arc when builder calls for one.
+
 These docs are living — revised as slices ship. Superseded content
 stays in git history rather than being deleted.

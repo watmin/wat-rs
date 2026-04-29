@@ -30,8 +30,12 @@
 //! }
 //! ```
 
+use rusqlite::types::ToSql;
 use rusqlite::Connection;
+use wat::runtime::Value;
 use wat_macros::wat_dispatch;
+
+mod auto;
 
 /// `:rust::sqlite::Db` — thread-owned SQLite handle.
 ///
@@ -42,7 +46,7 @@ use wat_macros::wat_dispatch;
 /// rusqlite errors (a future arc may switch to `Result<()>` once
 /// a consumer wants graceful error handling).
 pub struct WatSqliteDb {
-    conn: Connection,
+    pub(crate) conn: Connection,
 }
 
 #[wat_dispatch(
@@ -70,31 +74,97 @@ impl WatSqliteDb {
         });
     }
 
+    /// `:rust::sqlite::Db::execute db sql params` — run a parameterized
+    /// statement. Each `?N` placeholder in `sql` binds positionally to
+    /// `params[N-1]` (1-indexed per SQLite/rusqlite convention).
+    ///
+    /// `params` is wat-side typed as `:Vec<wat::sqlite::Param>`; the
+    /// type checker enforces every element is a Param variant before
+    /// reaching this shim, so the runtime extraction below trusts the
+    /// shape and panics with a diagnostic on any deviation (treated
+    /// as type-checker-bug / programmer-error per the panic-vs-Option
+    /// discipline).
+    ///
+    /// Uses `prepare_cached` so repeated calls with the same SQL text
+    /// reuse rusqlite's prepared-statement cache — important for the
+    /// service-batch workloads this primitive was forced into shape
+    /// for (340+ inserts per proof in the lab's existing pattern).
+    pub fn execute(&mut self, sql: String, params: Vec<Value>) {
+        // Map each Value::Enum payload into a rusqlite-bindable scalar.
+        // The closure on each variant returns Box<dyn ToSql> so we can
+        // collect them into a single Vec without intermediate copies of
+        // the underlying String / i64 / f64 / bool.
+        let bound: Vec<Box<dyn ToSql>> = params
+            .into_iter()
+            .enumerate()
+            .map(|(idx, v)| param_value_to_tosql(idx, &sql, v))
+            .collect();
+        let mut stmt = self.conn.prepare_cached(&sql).unwrap_or_else(|e| {
+            panic!(":rust::sqlite::Db::execute: prepare {sql:?}: {e}")
+        });
+        let refs: Vec<&dyn ToSql> = bound.iter().map(|b| b.as_ref()).collect();
+        stmt.execute(refs.as_slice()).unwrap_or_else(|e| {
+            panic!(":rust::sqlite::Db::execute: bind/exec {sql:?}: {e}")
+        });
+    }
+
 }
 
-// Note: a parameterized `execute(sql, params)` primitive ships in a
-// follow-up slice. The wat type system bans `:Any` per 058-030; the
-// param-binding surface needs a typed enum (`:wat::sqlite::Param`
-// with I64/F64/Str/Bool variants) plus macro support for
-// `Vec<wat-enum>`. Slice 1 ships open + execute-ddl, which is
-// enough to install schemas. Consumers writing rows use SQL string
-// concat for now (acceptable for internal-typed values; SQL
-// injection isn't a concern when all values come from typed
-// programmatic sources).
+/// Map one `:wat::sqlite::Param::*` Value into a rusqlite-bindable
+/// boxed `ToSql`. Panics with a positional diagnostic if the value
+/// isn't a Param-shape — that's a type-checker contract violation,
+/// not a runtime input error.
+fn param_value_to_tosql(idx: usize, sql: &str, v: Value) -> Box<dyn ToSql> {
+    let ev = match &v {
+        Value::Enum(ev) => ev.clone(),
+        _ => panic!(
+            ":rust::sqlite::Db::execute: param[{idx}] in {sql:?}: \
+             expected :wat::sqlite::Param, got {}",
+            v.type_name()
+        ),
+    };
+    if ev.type_path != ":wat::sqlite::Param" {
+        panic!(
+            ":rust::sqlite::Db::execute: param[{idx}] in {sql:?}: \
+             expected :wat::sqlite::Param, got {}",
+            ev.type_path
+        );
+    }
+    match (ev.variant_name.as_str(), ev.fields.first()) {
+        ("I64", Some(Value::i64(n))) => Box::new(*n),
+        ("F64", Some(Value::f64(x))) => Box::new(*x),
+        ("Str", Some(Value::String(s))) => Box::new((**s).clone()),
+        ("Bool", Some(Value::bool(b))) => Box::new(*b),
+        (variant, payload) => panic!(
+            ":rust::sqlite::Db::execute: param[{idx}] in {sql:?}: \
+             malformed Param::{variant} (payload {payload:?})"
+        ),
+    }
+}
 
 // ─── Crate registrar ────────────────────────────────────────────
 
 /// wat source files this crate contributes.
 pub fn wat_sources() -> &'static [wat::WatSource] {
-    static FILES: &[wat::WatSource] = &[wat::WatSource {
-        path: "wat-sqlite/sqlite/Db.wat",
-        source: include_str!("../wat/sqlite/Db.wat"),
-    }];
+    static FILES: &[wat::WatSource] = &[
+        wat::WatSource {
+            path: "wat-sqlite/sqlite/Db.wat",
+            source: include_str!("../wat/sqlite/Db.wat"),
+        },
+        wat::WatSource {
+            path: "wat-sqlite/std/telemetry/Sqlite.wat",
+            source: include_str!("../wat/std/telemetry/Sqlite.wat"),
+        },
+    ];
     FILES
 }
 
-/// Registrar for wat-sqlite. Wires the `:rust::sqlite::Db`
-/// shim through `#[wat_dispatch]`'s generated registration code.
+/// Registrar for wat-sqlite. Wires the `:rust::sqlite::Db` shim
+/// (open / execute-ddl / execute) through `#[wat_dispatch]`'s
+/// generated registration code, plus the arc-085 auto-spawn shims
+/// (auto-prep / auto-install-schemas / auto-dispatch) registered
+/// hand-written because they need direct `sym.types` access.
 pub fn register(builder: &mut wat::rust_deps::RustDepsBuilder) {
     __wat_dispatch_WatSqliteDb::register(builder);
+    auto::register(builder);
 }

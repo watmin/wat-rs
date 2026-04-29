@@ -32,6 +32,29 @@
     (:wat::test::assert-eq true true)))
 
 
-;; (Test 3 — parameterized execute — defers to a future slice
-;; once the :wat::sqlite::Param enum + Vec<enum> dispatch surface
-;; settle. Slice 1 ships open + execute-ddl only.)
+;; ─── Test 3: execute with parameter binding (arc 084) ──────────
+
+(:wat::test::deftest :wat-tests::sqlite::Db::test-execute-params
+  ()
+  (:wat::core::let*
+    (((db :wat::sqlite::Db)
+      (:wat::sqlite::open "/tmp/wat-sqlite-test-003.db"))
+     ((_create :())
+      (:wat::sqlite::execute-ddl db
+        "CREATE TABLE IF NOT EXISTS rows (
+           run_name  TEXT NOT NULL,
+           paper_id  INTEGER NOT NULL,
+           residue   REAL NOT NULL,
+           ok        INTEGER NOT NULL
+         );"))
+     ((_clear :())
+      (:wat::sqlite::execute-ddl db "DELETE FROM rows;"))
+     ((_insert :())
+      (:wat::sqlite::execute db
+        "INSERT INTO rows (run_name, paper_id, residue, ok) VALUES (?1, ?2, ?3, ?4)"
+        (:wat::core::vec :wat::sqlite::Param
+          (:wat::sqlite::Param::Str "alpha-run")
+          (:wat::sqlite::Param::I64 42)
+          (:wat::sqlite::Param::F64 0.125)
+          (:wat::sqlite::Param::Bool true)))))
+    (:wat::test::assert-eq true true)))
