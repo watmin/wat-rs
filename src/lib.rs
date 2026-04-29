@@ -99,7 +99,13 @@ pub use check::{check_program, CheckEnv, CheckError, CheckErrors, TypeScheme};
 // Arc 093 — bridge EDN text to a runtime Value using the type
 // registry. `read_edn` is parse + bridge in one call;
 // `edn_to_value` operates on an already-parsed EDN tree.
-pub use edn_shim::{edn_to_value, read_edn, EdnReadError};
+// `read_holon_ast_tagged` / `read_holon_ast_natural` lift EDN
+// text back to a HolonAST — the inverse of arc 091/092's write
+// side that arc 093's reader cursor uses per `:wat::edn::Tagged`
+// / `:wat::edn::NoTag` column.
+pub use edn_shim::{
+    edn_to_value, read_edn, read_holon_ast_natural, read_holon_ast_tagged, EdnReadError,
+};
 pub use config::{
     collect_entry_file, collect_entry_file_with_inherit, CapacityMode, Config, ConfigError,
 };
