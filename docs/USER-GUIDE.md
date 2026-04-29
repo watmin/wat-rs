@@ -2161,6 +2161,14 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::time::from-iso8601` | `s:String` | `:Option<wat::time::Instant>` — `:None` on parse failure; accepts the RFC 3339 grammar |
 | `:wat::time::to-iso8601` | `instant digits:i64` | `:String` — UTC ISO 8601 with N fractional second digits; `digits` clamps to `[0, 9]` |
 | `:wat::time::epoch-seconds` / `epoch-millis` / `epoch-nanos` | `instant` | `:i64` — truncating; `epoch-nanos` panics outside i64-ns range (~1677–2262) |
+| `:wat::time::Duration` | type | Non-negative time interval as i64 nanos (arc 097). Distinct from Instant so polymorphic `:wat::time::-` can dispatch on RHS variant. Always non-negative — direction lives in the operation, not the sign |
+| `:wat::time::Nanosecond` / `Microsecond` / `Millisecond` / `Second` / `Minute` / `Hour` / `Day` | `n:i64` | `:wat::time::Duration` — unit constructors, ActiveSupport-style. `(:wat::time::Hour 1)` reads as "1 Hour." Panics on negative input or i64 overflow (~290k year max for Hour) (arc 097 slice 1) |
+| `:wat::time::-` | `instant duration` OR `instant_a instant_b` | `:wat::time::Instant` (subtract interval) OR `:wat::time::Duration` (elapsed between, panics if negative); polymorphic on RHS variant — same shape as ActiveSupport's `time1 - time2 / time - 1.hour` (arc 097 slice 2) |
+| `:wat::time::+` | `instant duration` | `:wat::time::Instant` — advance by interval. LHS-Duration arithmetic not in this arc (arc 097 slice 2) |
+| `:wat::time::ago` | `duration` | `:wat::time::Instant` — `(- (now) duration)`. The Ruby `1.hour.ago` shape (arc 097 slice 3) |
+| `:wat::time::from-now` | `duration` | `:wat::time::Instant` — `(+ (now) duration)`. The Ruby `2.days.from_now` shape (arc 097 slice 3) |
+| `:wat::time::nanoseconds-ago` / `microseconds-ago` / `milliseconds-ago` / `seconds-ago` / `minutes-ago` / `hours-ago` / `days-ago` | `n:i64` | `:wat::time::Instant` — pre-composed sugar; `(hours-ago 1)` ≡ `(ago (Hour 1))`. Reads cleaner at every callsite (arc 097 slice 4) |
+| `:wat::time::nanoseconds-from-now` / `microseconds-from-now` / `milliseconds-from-now` / `seconds-from-now` / `minutes-from-now` / `hours-from-now` / `days-from-now` | `n:i64` | `:wat::time::Instant` — pre-composed sugar; `(days-from-now 2)` ≡ `(from-now (Day 2))` (arc 097 slice 4) |
 | `:wat::core::i64::to-string` / `to-f64` | `n` | infallible — `:String` / `:f64` |
 | `:wat::core::f64::to-string` / `to-i64` | `x` | `:String` / `:Option<i64>` (NaN/inf/out-of-range → `:None`) |
 | `:wat::core::string::to-i64` / `to-f64` / `to-bool` | `s` | `:Option<T>` (unparseable → `:None`) |

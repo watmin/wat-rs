@@ -954,32 +954,24 @@ No reflection, no introspection — direct match on enum variants.
 - arc 095 (Service<E,G> paired channels) — shipped 2026-04-29 (writer side; reader doesn't ride on it but the connection-pool concepts settled there)
 - `:wat::time::*` shipped surface: `now`, `epoch-{nanos,millis,seconds}`, `at-{nanos,millis}`, `at`, `from-iso8601`, `to-iso8601`. Conversion primitives only.
 
-**Sibling arcs needed (TBD numbers — next free):**
+**Sibling arcs:**
+
+- **Arc 097 — `:wat::time::Duration` + arithmetic +
+  ActiveSupport-flavored helpers — SHIPPED 2026-04-29**
+  ([INSCRIPTION](../097-wat-time-duration/INSCRIPTION.md)).
+  Provides `Value::Duration(i64)` runtime variant, 7 unit
+  constructors (`Hour` / `Minute` / etc., PascalCase),
+  polymorphic `:wat::time::-` (Instant - Duration → Instant;
+  Instant - Instant → Duration), `:wat::time::+`,
+  `:wat::time::ago` / `from-now` composers, and 14 pre-composed
+  unit sugars (`hours-ago` / `days-from-now` / etc.). Arc 093's
+  `Since(Instant)` / `Until(Instant)` constraint variants and
+  the worked-example queries depend on these.
 
 - **Clara-style form-matcher** (`:wat::form::matches?` macro;
   see Sibling arc — Clara-style form-matching primitive section).
-  Slice 4 of 093 depends on it for example scripts.
-
-- **`:wat::time::Duration` + arithmetic + ActiveSupport-flavored
-  helpers.** Currently shipped surface is conversions only — no
-  Duration type, no `(- instant duration)` arithmetic, no
-  `(hours-ago n)` / `(days-ago n)` / `(from-iso8601 "..." )`
-  ergonomics. Without these, the `since` / `until` constraints
-  force users to write
-  `(:wat::time::epoch-nanos (:wat::time::at-nanos (- (epoch-nanos (now)) (* 3600 1000000000))))`
-  every time. With them, queries read like Ruby's
-  `Time.now - 1.hour`. Sibling arc ships:
-  - `:wat::time::Duration` typealias (i64 nanos as offset).
-  - Constructors: `Hour`, `Minute`, `Second`, `Day`,
-    `Millisecond`, `Microsecond`, `Nanosecond`.
-  - `:wat::time::-` and `:wat::time::+` (Instant ± Duration → Instant).
-  - `:wat::time::ago` / `:wat::time::from-now` (Duration → Instant).
-  - Composed: `hours-ago`, `minutes-ago`, `days-ago`,
-    `seconds-ago`.
-
-  Slice 2 of 093 depends on these — the `Since(Instant)` /
-  `Until(Instant)` constraint variants take Instant, and the
-  worked examples assume `(hours-ago 1)` etc. read cleanly.
+  TBD arc number; slice 4 of 093 depends on it for example
+  scripts.
 
 ## What this enables
 
