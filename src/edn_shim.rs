@@ -417,6 +417,12 @@ pub fn value_to_edn_notag(
                 Box::new(value_to_edn_notag(inner, types)),
             ),
         },
+        // HolonAST: render in natural form — primitive leaves
+        // unwrap to their bare EDN equivalent; Atom drops its
+        // wrapper. Composite operators (Bind, Bundle, Permute,
+        // Thermometer, SlotMarker, Blend) keep their tags because
+        // dropping them loses the operation's identity.
+        Value::holon__HolonAST(h) => holon_ast_to_edn_notag(h),
         // ── Everything else: same as the tagged walker ───────────
         _ => value_to_edn_with(v, types),
     }
@@ -1053,5 +1059,32 @@ fn holon_ast_to_edn(h: &holon::HolonAST) -> OwnedValue {
                 ),
             ])),
         ),
+    }
+}
+
+/// Render a HolonAST as a tagless EDN value — primitives unwrap to
+/// their bare EDN form; `Atom` drops its wrapper. Composite operators
+/// (Bind, Bundle, Permute, Thermometer, SlotMarker, Blend) keep their
+/// `#wat-edn.holon/...` tag because dropping it would lose the
+/// operation's identity (Bind vs Bundle vs Blend all carry vectors of
+/// children — only the tag tells them apart).
+///
+/// Used by `value_to_edn_notag` (arc 091) when a `:wat::edn::NoTag`
+/// field of a struct is a HolonAST. Indexed-column queries match
+/// against the natural form: `:metrics` instead of
+/// `#wat-edn.holon/Symbol "metrics"`; `"request_count"` instead of
+/// `#wat-edn.holon/String "request_count"`.
+fn holon_ast_to_edn_notag(h: &holon::HolonAST) -> OwnedValue {
+    use holon::HolonAST;
+    match h {
+        HolonAST::Symbol(s) => keyword_from_wat_path(&format!(":{}", s)),
+        HolonAST::String(s) => OwnedValue::String(std::borrow::Cow::Owned(s.to_string())),
+        HolonAST::I64(n) => OwnedValue::Integer(*n),
+        HolonAST::F64(x) => OwnedValue::Float(*x),
+        HolonAST::Bool(b) => OwnedValue::Bool(*b),
+        HolonAST::Atom(inner) => holon_ast_to_edn_notag(inner),
+        // Composites: keep the tag so the operation's identity
+        // survives the strip — same rule that keeps :Result tagged.
+        _ => holon_ast_to_edn(h),
     }
 }

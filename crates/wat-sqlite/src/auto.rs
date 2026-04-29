@@ -37,7 +37,7 @@ use wat::rust_deps::{
     downcast_ref_opaque, rust_opaque_arc, RustDispatch, RustScheme, RustSymbol, SchemeCtx,
     ThreadOwnedCell,
 };
-use wat::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
+use wat::runtime::{eval, Environment, RuntimeError, StructValue, SymbolTable, Value};
 use wat::types::{EnumDef, EnumVariant, TypeDef, TypeExpr};
 
 use crate::WatSqliteDb;
@@ -319,7 +319,7 @@ fn dispatch_auto_dispatch(
         .iter()
         .zip(av.field_types.iter())
         .enumerate()
-        .map(|(i, (v, t))| value_to_tosql(OP, &enum_name, &ev.variant_name, i, v, t))
+        .map(|(i, (v, t))| value_to_tosql(OP, &enum_name, &ev.variant_name, i, v, t, sym))
         .collect::<Result<_, _>>()?;
     let inner = rust_opaque_arc(&db_val, TYPE_PATH, OP)?;
     let cell: &ThreadOwnedCell<WatSqliteDb> = downcast_ref_opaque(&inner, TYPE_PATH, OP)?;
@@ -395,6 +395,12 @@ fn type_to_affinity(t: &TypeExpr) -> Option<&'static str> {
             ":i64" => Some("INTEGER NOT NULL"),
             ":f64" => Some("REAL NOT NULL"),
             ":bool" => Some("INTEGER NOT NULL"),
+            // Arc 091 slice 1 — HolonAST values land in TEXT via the EDN
+            // write-strategy newtype the field is declared with.
+            // Tagged → :wat::edn::write (round-trip-safe).
+            // NoTag  → :wat::edn::write-notag (lossy, natural form).
+            ":wat::edn::Tagged" => Some("TEXT NOT NULL"),
+            ":wat::edn::NoTag" => Some("TEXT NOT NULL"),
             _ => None,
         };
     }
@@ -423,6 +429,7 @@ fn value_to_tosql(
     idx: usize,
     v: &Value,
     t: &TypeExpr,
+    sym: &SymbolTable,
 ) -> Result<Box<dyn ToSql>, RuntimeError> {
     let path = match t {
         TypeExpr::Path(p) => p.as_str(),
@@ -431,7 +438,8 @@ fn value_to_tosql(
                 head: op.into(),
                 reason: format!(
                     "{enum_name}::{variant_name}#{idx}: non-scalar field type — \
-                     auto-spawn slice 1 supports :String/:i64/:f64/:bool only"
+                     auto-spawn supports :String/:i64/:f64/:bool plus the \
+                     :wat::edn::Tagged / :wat::edn::NoTag newtypes around HolonAST"
                 ),
             });
         }
@@ -441,11 +449,67 @@ fn value_to_tosql(
         (":i64", Value::i64(n)) => Ok(Box::new(*n)),
         (":f64", Value::f64(x)) => Ok(Box::new(*x)),
         (":bool", Value::bool(b)) => Ok(Box::new(*b)),
+
+        // Arc 091 slice 1 — Tagged/NoTag newtypes around HolonAST.
+        // Runtime: Value::Struct{type_name: ":wat::edn::Tagged"|":wat::edn::NoTag",
+        //                        fields: [Value::holon__HolonAST(_)]}
+        // We match on type_name (declared field type AND struct type-name agree
+        // since the constructor's body builds Struct{type_name: declared-type}).
+        // Then extract field[0]; render via the matching write strategy; bind
+        // as TEXT.
+        (":wat::edn::Tagged", Value::Struct(s)) if s.type_name == ":wat::edn::Tagged" => {
+            let inner = extract_holon_field(s, op, enum_name, variant_name, idx)?;
+            let edn = wat::edn_shim::value_to_edn_with(
+                &Value::holon__HolonAST(inner),
+                sym.types().map(|a| a.as_ref()),
+            );
+            Ok(Box::new(wat_edn::write(&edn)))
+        }
+        (":wat::edn::NoTag", Value::Struct(s)) if s.type_name == ":wat::edn::NoTag" => {
+            let inner = extract_holon_field(s, op, enum_name, variant_name, idx)?;
+            let edn = wat::edn_shim::value_to_edn_notag(
+                &Value::holon__HolonAST(inner),
+                sym.types().map(|a| a.as_ref()),
+            );
+            Ok(Box::new(wat_edn::write(&edn)))
+        }
+
         _ => Err(RuntimeError::MalformedForm {
             head: op.into(),
             reason: format!(
                 "{enum_name}::{variant_name}#{idx}: field type {path} doesn't match value {}",
                 v.type_name()
+            ),
+        }),
+    }
+}
+
+/// Extract the inner HolonAST from a `:wat::edn::Tagged` or
+/// `:wat::edn::NoTag` struct value. The newtype's compile shape is
+/// arity-1 tuple struct (per arc 049); the inner value lives at
+/// `fields[0]` and must be `Value::holon__HolonAST`.
+fn extract_holon_field(
+    s: &StructValue,
+    op: &str,
+    enum_name: &str,
+    variant_name: &str,
+    idx: usize,
+) -> Result<Arc<holon::HolonAST>, RuntimeError> {
+    let f0 = s.fields.first().ok_or_else(|| RuntimeError::MalformedForm {
+        head: op.into(),
+        reason: format!(
+            "{enum_name}::{variant_name}#{idx}: {} value has no inner field",
+            s.type_name
+        ),
+    })?;
+    match f0 {
+        Value::holon__HolonAST(h) => Ok(h.clone()),
+        other => Err(RuntimeError::MalformedForm {
+            head: op.into(),
+            reason: format!(
+                "{enum_name}::{variant_name}#{idx}: {}'s inner must be HolonAST, got {}",
+                s.type_name,
+                other.type_name()
             ),
         }),
     }

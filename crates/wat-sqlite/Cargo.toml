@@ -8,4 +8,6 @@ description = "Sqlite-backed telemetry destination for wat — `:wat::sqlite::Db
 [dependencies]
 wat = { path = "../.." }
 wat-macros = { path = "../wat-macros" }
+wat-edn = { path = "../wat-edn" }
+holon = { path = "../../../holon-rs" }
 rusqlite = { version = "0.31", features = ["bundled"] }

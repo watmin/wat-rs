@@ -110,6 +110,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/std/telemetry/ConsoleLogger.wat",
         source: include_str!("../wat/std/telemetry/ConsoleLogger.wat"),
     },
+    // Arc 091 slice 1 — :wat::edn::Tagged + :wat::edn::NoTag newtypes
+    // around HolonAST. Used by wat-sqlite's auto-dispatch (arc 085) to
+    // pick :wat::edn::write vs :wat::edn::write-notag at TEXT-bind time.
+    WatSource {
+        path: "wat/std/edn.wat",
+        source: include_str!("../wat/std/edn.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.
