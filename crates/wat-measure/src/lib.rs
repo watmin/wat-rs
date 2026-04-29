@@ -54,14 +54,22 @@ pub mod workunit;
 /// `wat::test!` / `wat::compose_and_run`.
 pub fn wat_sources() -> &'static [wat::WatSource] {
     static FILES: &[wat::WatSource] = &[
-        // types.wat first — Tag + Tags typealiases that WorkUnit.wat
-        // and the future Event types reference. Earlier files in
+        // types.wat first — Tag, Tags, SinkHandles typealiases that
+        // every later file references. Earlier files in
         // wat_sources() are registered before later ones, so
         // typealiases declared here are visible everywhere
-        // downstream without explicit load!.
+        // downstream without explicit load!. Note: types.wat
+        // references `:wat::measure::Event` in SinkHandles, but
+        // Event is declared in Event.wat below; wat type aliases
+        // resolve lazily so forward-references through the
+        // crate's combined source set are fine.
         wat::WatSource {
             path: "wat-measure/measure/types.wat",
             source: include_str!("../wat/measure/types.wat"),
+        },
+        wat::WatSource {
+            path: "wat-measure/measure/Event.wat",
+            source: include_str!("../wat/measure/Event.wat"),
         },
         wat::WatSource {
             path: "wat-measure/measure/uuid.wat",

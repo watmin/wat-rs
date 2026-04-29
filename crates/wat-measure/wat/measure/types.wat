@@ -33,3 +33,13 @@
 ;; declaration site.
 (:wat::core::typealias :wat::measure::Tags
   :HashMap<wat::holon::HolonAST,wat::holon::HolonAST>)
+
+
+;; The bundled Service<Event,_> handles the consumer's
+;; `WorkUnit/scope` body needs to ship Events at scope-close.
+;; The substrate-defined `:wat::measure::Event` enum is what the
+;; consumer's Service is parameterized on; SinkHandles wraps the
+;; (req-tx, ack-tx, ack-rx) triple so scope's signature stays
+;; flat. Per arc 077's "nested-generic alias" convention.
+(:wat::core::typealias :wat::measure::SinkHandles
+  :(wat::std::telemetry::Service::ReqTx<wat::measure::Event>,wat::std::telemetry::Service::AckTx,wat::std::telemetry::Service::AckRx))
