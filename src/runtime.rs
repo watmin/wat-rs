@@ -11249,16 +11249,16 @@ fn eval_form_ast(
                 });
             }
         };
-        // Arc 066 — honor the static scheme (`Result<HolonAST,
-        // EvalError>`) at the runtime boundary. Pre-arc-066 the
-        // result was the bare Value (e.g. `i64(4)` for `(+ 2 2)`);
-        // callers matching `(Ok h)` got `h` typed-as-HolonAST per
-        // the checker but actually a bare i64 at runtime, and any
-        // `atom-value h` call ran into a TypeMismatch. value_to_holon
-        // wraps the inner-eval result as the matching HolonAST
-        // variant so the static type matches the dynamic value.
-        let inner = run_constrained(&ast, env, sym)?;
-        value_to_holon(":wat::eval-ast!", inner)
+        // Arc 102 — return the bare Value (revert arc 066's
+        // `value_to_holon` wrap). The static scheme is now
+        // `Result<:T, :EvalError>` polymorphic; T unifies with
+        // whatever the caller binds. Callers who want the
+        // HolonAST shape annotate `T = :wat::holon::HolonAST`
+        // and the runtime's inner Value has to be a HolonAST
+        // already (the substrate's static-T trust-the-caller
+        // discipline that `:wat::edn::read` / `:wat::eval-edn!`
+        // already use).
+        run_constrained(&ast, env, sym)
     })())
 }
 
@@ -13843,18 +13843,19 @@ mod tests {
 
     #[test]
     fn eval_ast_bang_runs_a_parsed_program() {
-        // Arc 066 — eval-ast! returns the form's terminal value
-        // wrapped as HolonAST per its scheme. (40 + 2) → I64(42)
-        // wrapped as Value::holon__HolonAST(HolonAST::I64(42)).
+        // Arc 102 — eval-ast! returns the form's terminal value
+        // bare (reverts arc 066's value_to_holon wrap). (40 + 2)
+        // → Value::i64(42); the polymorphic Result<:T, :EvalError>
+        // scheme has T = i64 here. Caller match-arm gets the
+        // bare i64 directly.
         let program = parse_one("(:wat::core::i64::+ 40 2)").unwrap();
         let result =
             run_with_ast_local("(:wat::eval-ast! program)", program).unwrap();
         let inner = eval_ok_inner(result);
-        let h = match inner {
-            Value::holon__HolonAST(h) => h,
-            other => panic!("expected HolonAST, got {:?}", other),
-        };
-        assert_eq!(h.as_i64(), Some(42));
+        match inner {
+            Value::i64(42) => {}
+            other => panic!("expected i64(42), got {:?}", other),
+        }
     }
 
     #[test]
@@ -17507,18 +17508,20 @@ mod tests {
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 
-    // ─── eval-ast! returns wrapped HolonAST (arc 066) ──────────────────
+    // ─── eval-ast! returns bare Value (arc 102 — reverts arc 066's wrap) ──
 
     #[test]
-    fn eval_ast_wraps_i64_result_as_holon_leaf() {
-        // (eval-ast! (quote (+ 2 2))) → Ok(HolonAST::I64(4)) per
-        // the post-arc-066 scheme. atom-value extracts the i64.
+    fn eval_ast_returns_bare_i64_result() {
+        // Arc 102: scheme is `Result<:T, :EvalError>` polymorphic.
+        // Caller binds T = :i64 and the (Ok n) arm gets the i64
+        // directly — no atom-value extraction needed (arc 066's
+        // value_to_holon wrap was reverted).
         let src = r#"
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::core::i64::+ 2 2)))
               -> :i64
-              ((Ok h) (:wat::core::atom-value h))
+              ((Ok n) n)
               ((Err _) -1))
         "#;
         match eval_expr(src).unwrap() {
@@ -17528,13 +17531,13 @@ mod tests {
     }
 
     #[test]
-    fn eval_ast_wraps_bool_result_as_holon_leaf() {
+    fn eval_ast_returns_bare_bool_result() {
         let src = r#"
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::core::i64::> 5 3)))
               -> :bool
-              ((Ok h) (:wat::core::atom-value h))
+              ((Ok b) b)
               ((Err _) false))
         "#;
         match eval_expr(src).unwrap() {
@@ -17544,14 +17547,14 @@ mod tests {
     }
 
     #[test]
-    fn eval_ast_wraps_string_result_as_holon_leaf() {
+    fn eval_ast_returns_bare_string_result() {
         let src = r#"
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote
                   (:wat::core::string::concat "hello, " "world")))
               -> :String
-              ((Ok h) (:wat::core::atom-value h))
+              ((Ok s) s)
               ((Err _) "fail"))
         "#;
         match eval_expr(src).unwrap() {
@@ -17562,9 +17565,10 @@ mod tests {
 
     #[test]
     fn eval_ast_passes_through_holon_result() {
-        // When the form's result is itself a HolonAST, eval-ast!
-        // returns it directly — no double-wrap. The caller's
-        // (Ok h) match arm gets the HolonAST as-is.
+        // When the form's result is itself a HolonAST, the caller
+        // binds T = :wat::holon::HolonAST and (Ok h) gets the
+        // HolonAST directly. atom-value still works on it because
+        // the runtime IS returning a HolonAST in this case.
         let src = r#"
             (:wat::core::match
               (:wat::eval-ast!
@@ -17581,21 +17585,22 @@ mod tests {
     }
 
     #[test]
-    fn eval_ast_rejects_non_holon_expressible_result() {
-        // A form whose terminal value has no HolonAST representation
-        // (e.g., a Vec) returns Err with a TypeMismatch-shaped
-        // EvalError. The caller's (Err _) arm fires.
+    fn eval_ast_passes_through_vec_result() {
+        // Arc 102: pre-arc-102, a Vec result errored because
+        // value_to_holon couldn't wrap it. With arc 102's revert,
+        // Vec results pass through cleanly — caller binds
+        // T = :Vec<:i64> and (Ok xs) gets the Vec directly.
         let src = r#"
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::core::vec :i64 1 2 3)))
               -> :i64
-              ((Ok _) 999)
+              ((Ok xs) (:wat::core::length xs))
               ((Err _) -1))
         "#;
         match eval_expr(src).unwrap() {
-            Value::i64(-1) => {}
-            v => panic!("expected -1 (Err arm), got {:?}", v),
+            Value::i64(3) => {}
+            v => panic!("expected 3 (vec length), got {:?}", v),
         }
     }
 
@@ -18145,10 +18150,12 @@ mod tests {
                 expected,
                 h
             );
-            // eval-ast! agreement.
+            // eval-ast! agreement. Arc 102: bare i64 returned
+            // directly via the polymorphic Result<:T, :EvalError>
+            // scheme; no atom-value extraction needed.
             let eval_src = format!(
                 "(:wat::core::match (:wat::eval-ast! (:wat::core::quote {})) -> :i64 \
-                  ((Ok h) (:wat::core::atom-value h)) ((Err _) -1))",
+                  ((Ok n) n) ((Err _) -1))",
                 form
             );
             match eval_expr(&eval_src).unwrap() {
@@ -18337,9 +18344,9 @@ mod tests {
     #[test]
     fn to_watast_eval_ast_round_trip_for_form() {
         // A wat form built via `from-watast` round-trips through
-        // `to-watast` → `eval-ast!` to its terminal value
-        // (HolonAST-wrapped). This is the arc-057-docstring claim
-        // made literal by arc 066.
+        // `to-watast` → `eval-ast!` to its terminal value (bare,
+        // post-arc-102). The arc-057 round-trip claim, now with
+        // T = :i64 since arc 102 makes eval-ast! polymorphic.
         let src = r#"
             (:wat::core::let*
               (((form :wat::holon::HolonAST)
@@ -18347,7 +18354,7 @@ mod tests {
                   (:wat::core::quote (:wat::core::i64::+ 40 2))))
                ((ast :wat::WatAST) (:wat::holon::to-watast form)))
               (:wat::core::match (:wat::eval-ast! ast) -> :i64
-                ((Ok h) (:wat::core::atom-value h))
+                ((Ok n) n)
                 ((Err _) -1)))
         "#;
         match eval_expr(src).unwrap() {

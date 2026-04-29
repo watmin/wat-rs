@@ -5771,12 +5771,26 @@ fn register_builtins(env: &mut CheckEnv) {
     // source/path directly as the first arg; no interface keyword.
     // eval-edn! narrowed to string-only (one source shape per form,
     // like load! / load-string!).
+    // Arc 102 — `:wat::eval-ast!` returns `Result<:T, :EvalError>`
+    // polymorphic. Same trust-the-caller discipline as
+    // `:wat::edn::read` / `:wat::eval-edn!`: the caller annotates
+    // T with the type they expect the inner eval to produce; the
+    // runtime returns whatever it actually produces (bare Value,
+    // not the arc-066 `value_to_holon` wrap that arc 102 reverts).
+    // Type-mismatched downstream ops fail at runtime in the same
+    // way they would for any `read-edn`-typed binding.
     env.register(
         ":wat::eval-ast!".into(),
         TypeScheme {
-            type_params: vec![],
+            type_params: vec!["T".into()],
             params: vec![wat_ast_ty()],
-            ret: eval_result_ty(),
+            ret: TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![
+                    TypeExpr::Path("T".into()),
+                    TypeExpr::Path(":wat::core::EvalError".into()),
+                ],
+            },
         },
     );
     // :wat::eval-step! (arc 068) — one CBV reduction at the leftmost-
