@@ -340,6 +340,26 @@ still errors). Pick whichever shape reads more naturally — split-tree
 `src/main.rs` is literally one `wat::main!` invocation; `tests/smoke.rs`
 exercises the built binary. Copy that shape.
 
+### The bundled `wat` CLI (arc 099)
+
+If you don't need a custom binary, the workspace ships
+`crates/wat-cli/` — a batteries-included CLI that links every
+`#[wat_dispatch]` extension (wat-telemetry, wat-telemetry-sqlite,
+wat-sqlite, wat-lru, wat-holon-lru) at startup. Build with
+`cargo build --release` (the workspace's default-members covers
+it) and the binary lands at `target/release/wat`. Two shapes:
+
+```
+wat <entry.wat>      # run a program
+wat test <path>      # run tests — file or directory
+```
+
+Use this when you want to interrogate a `runs/pulse-*.db` (arc
+093) or generally run scripts that consume the bundled extension
+crates without authoring your own binary. For embedding wat in
+your own application, stick with the `wat::main!` macro shape
+above — the bundled CLI is for ad-hoc scripts, not embedding.
+
 ### Capability boundary — the Loader
 
 Wat's file-I/O is a **capability**, not a global. The host picks
