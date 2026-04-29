@@ -5,7 +5,7 @@
 ;; dispatches three i64 entries, and a :user::main that just
 ;; orchestrates spawn + delegate + join.
 
-(:wat::test::deftest :wat-tests::std::telemetry::Console::test-dispatcher-edn
+(:wat::test::deftest :wat-telemetry::Console::test-dispatcher-edn
   ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
@@ -80,7 +80,7 @@
 
 ;; ─── Test 2: JSON format renders Vec<i64> as JSON array ──────────
 
-(:wat::test::deftest :wat-tests::std::telemetry::Console::test-dispatcher-json
+(:wat::test::deftest :wat-telemetry::Console::test-dispatcher-json
   ()
   (:wat::core::let*
     (((r :wat::kernel::RunResult)

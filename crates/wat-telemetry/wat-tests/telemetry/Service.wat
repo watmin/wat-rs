@@ -19,7 +19,7 @@
 
 ;; ─── Test 1: spawn + drop + join (no traffic) ────────────────────
 
-(:wat::test::deftest :wat-tests::std::telemetry::test-spawn-drop-join
+(:wat::test::deftest :wat-telemetry::test-spawn-drop-join
   ()
   (:wat::core::let*
     (((stub-pair :wat::kernel::QueuePair<i64>)
@@ -60,7 +60,7 @@
 ;; Send one batch of 3 entries; drain the stub-rx; assert all three
 ;; arrived in order.
 
-(:wat::test::deftest :wat-tests::std::telemetry::test-batch-roundtrip
+(:wat::test::deftest :wat-telemetry::test-batch-roundtrip
   ()
   (:wat::core::let*
     (((stub-pair :wat::kernel::QueuePair<i64>)
@@ -116,7 +116,7 @@
 
 ;; ─── Test 3: cadence fires → translator called ───────────────────
 
-(:wat::test::deftest :wat-tests::std::telemetry::test-cadence-fires
+(:wat::test::deftest :wat-telemetry::test-cadence-fires
   ()
   (:wat::core::let*
     (((stub-pair :wat::kernel::QueuePair<i64>)

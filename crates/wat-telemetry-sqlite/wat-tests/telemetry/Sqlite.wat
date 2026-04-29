@@ -19,20 +19,20 @@
   (;; ─── Hooks (no-ops; lifecycle test) ─────────────────────────
 
    (:wat::core::define
-     (:wat-tests::std::telemetry::Sqlite::install-noop
+     (:wat-telemetry-sqlite::Sqlite::install-noop
        (_db :wat::sqlite::Db)
        -> :())
      ())
 
    (:wat::core::define
-     (:wat-tests::std::telemetry::Sqlite::dispatch-noop
+     (:wat-telemetry-sqlite::Sqlite::dispatch-noop
        (_db :wat::sqlite::Db)
        (_entries :Vec<i64>)
        -> :())
      ())
 
    (:wat::core::define
-     (:wat-tests::std::telemetry::Sqlite::translate-empty
+     (:wat-telemetry-sqlite::Sqlite::translate-empty
        (_stats :wat::telemetry::Service::Stats)
        -> :Vec<i64>)
      (:wat::core::vec :i64))
@@ -46,13 +46,13 @@
    ;; non-trivial body. Verified out-of-band via `PRAGMA journal_mode`
    ;; against the produced db file.
    (:wat::core::define
-     (:wat-tests::std::telemetry::Sqlite::pragma-wal
+     (:wat-telemetry-sqlite::Sqlite::pragma-wal
        (db :wat::sqlite::Db)
        -> :())
      (:wat::sqlite::pragma db "journal_mode" "WAL"))
 
    (:wat::core::define
-     (:wat-tests::std::telemetry::Sqlite::install-events
+     (:wat-telemetry-sqlite::Sqlite::install-events
        (db :wat::sqlite::Db)
        -> :())
      (:wat::sqlite::execute-ddl db
@@ -63,7 +63,7 @@
    ;; injection surface; a future slice's parameterized `execute`
    ;; primitive supersedes the concat shape.
    (:wat::core::define
-     (:wat-tests::std::telemetry::Sqlite::insert-one-event
+     (:wat-telemetry-sqlite::Sqlite::insert-one-event
        (db :wat::sqlite::Db)
        (entry :i64)
        -> :())
@@ -82,13 +82,13 @@
    ;; via Sqlite/auto-spawn's batched dispatch); this test just
    ;; exercises the per-batch contract.
    (:wat::core::define
-     (:wat-tests::std::telemetry::Sqlite::dispatch-events
+     (:wat-telemetry-sqlite::Sqlite::dispatch-events
        (db :wat::sqlite::Db)
        (entries :Vec<i64>)
        -> :())
      (:wat::core::foldl entries ()
        (:wat::core::lambda ((_acc :()) (entry :i64) -> :())
-         (:wat-tests::std::telemetry::Sqlite::insert-one-event db entry))))
+         (:wat-telemetry-sqlite::Sqlite::insert-one-event db entry))))
 
 
    ;; ─── Helpers — function-decomposed lockstep (Step 9) ────────
@@ -97,7 +97,7 @@
    ;; outer holds the driver; inner owns the popped Sender. Returns
    ;; the driver for the test body to join.
    (:wat::core::define
-     (:wat-tests::std::telemetry::Sqlite::spawn-and-drop
+     (:wat-telemetry-sqlite::Sqlite::spawn-and-drop
        (path :String)
        -> :wat::kernel::ProgramHandle<()>)
      (:wat::core::let*
@@ -106,21 +106,21 @@
            path 1
            (:wat::telemetry::Service/null-metrics-cadence)
            :wat::telemetry::Sqlite/null-pre-install
-           :wat-tests::std::telemetry::Sqlite::install-noop
-           :wat-tests::std::telemetry::Sqlite::dispatch-noop
-           :wat-tests::std::telemetry::Sqlite::translate-empty))
+           :wat-telemetry-sqlite::Sqlite::install-noop
+           :wat-telemetry-sqlite::Sqlite::dispatch-noop
+           :wat-telemetry-sqlite::Sqlite::translate-empty))
         ((pool :wat::telemetry::Service::HandlePool<i64>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::ProgramHandle<()>)
          (:wat::core::second spawn))
         ((_inner :())
-         (:wat-tests::std::telemetry::Sqlite::drop-one-handle pool)))
+         (:wat-telemetry-sqlite::Sqlite::drop-one-handle pool)))
        driver))
 
    ;; The inner-scope body — pop one handle + finish + drop. Lives
    ;; in its own function so spawn-and-drop's outer let* stays simple.
    (:wat::core::define
-     (:wat-tests::std::telemetry::Sqlite::drop-one-handle
+     (:wat-telemetry-sqlite::Sqlite::drop-one-handle
        (pool :wat::telemetry::Service::HandlePool<i64>)
        -> :())
      (:wat::core::let*
@@ -132,7 +132,7 @@
    ;; Spawn + batch-log three entries + drop. Same lockstep shape as
    ;; spawn-and-drop, with traffic.
    (:wat::core::define
-     (:wat-tests::std::telemetry::Sqlite::spawn-and-batch
+     (:wat-telemetry-sqlite::Sqlite::spawn-and-batch
        (path :String)
        -> :wat::kernel::ProgramHandle<()>)
      (:wat::core::let*
@@ -140,23 +140,23 @@
          (:wat::telemetry::Sqlite/spawn
            path 1
            (:wat::telemetry::Service/null-metrics-cadence)
-           :wat-tests::std::telemetry::Sqlite::pragma-wal
-           :wat-tests::std::telemetry::Sqlite::install-events
-           :wat-tests::std::telemetry::Sqlite::dispatch-events
-           :wat-tests::std::telemetry::Sqlite::translate-empty))
+           :wat-telemetry-sqlite::Sqlite::pragma-wal
+           :wat-telemetry-sqlite::Sqlite::install-events
+           :wat-telemetry-sqlite::Sqlite::dispatch-events
+           :wat-telemetry-sqlite::Sqlite::translate-empty))
         ((pool :wat::telemetry::Service::HandlePool<i64>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::ProgramHandle<()>)
          (:wat::core::second spawn))
         ((_inner :())
-         (:wat-tests::std::telemetry::Sqlite::send-three pool)))
+         (:wat-telemetry-sqlite::Sqlite::send-three pool)))
        driver))
 
    ;; Pop one Handle (req-tx, ack-rx — paired by the spawn step;
    ;; arc 095) and send one batch of three i64s. The Handle's two
    ;; opposite ends are exactly what batch-log needs.
    (:wat::core::define
-     (:wat-tests::std::telemetry::Sqlite::send-three
+     (:wat-telemetry-sqlite::Sqlite::send-three
        (pool :wat::telemetry::Service::HandlePool<i64>)
        -> :())
      (:wat::core::let*
@@ -177,10 +177,10 @@
 
 ;; ─── Test 1: spawn + drop + join (lifecycle) ───────────────────
 
-(:deftest :wat-tests::std::telemetry::Sqlite::test-spawn-drop
+(:deftest :wat-telemetry-sqlite::Sqlite::test-spawn-drop
   (:wat::core::let*
     (((driver :wat::kernel::ProgramHandle<()>)
-      (:wat-tests::std::telemetry::Sqlite::spawn-and-drop
+      (:wat-telemetry-sqlite::Sqlite::spawn-and-drop
         "/tmp/wat-sqlite-test-spawn-001.db"))
      ((_join :()) (:wat::kernel::join driver)))
     (:wat::test::assert-eq true true)))
@@ -188,10 +188,10 @@
 
 ;; ─── Test 2: send three entries + drop + join ─────────────────
 
-(:deftest :wat-tests::std::telemetry::Sqlite::test-batch-log
+(:deftest :wat-telemetry-sqlite::Sqlite::test-batch-log
   (:wat::core::let*
     (((driver :wat::kernel::ProgramHandle<()>)
-      (:wat-tests::std::telemetry::Sqlite::spawn-and-batch
+      (:wat-telemetry-sqlite::Sqlite::spawn-and-batch
         "/tmp/wat-sqlite-test-batch-001.db"))
      ((_join :()) (:wat::kernel::join driver)))
     (:wat::test::assert-eq true true)))

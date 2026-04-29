@@ -69,7 +69,7 @@
        driver))))
 
 
-(:deftest :wat-tests::std::telemetry::auto-spawn::test-event-roundtrip
+(:deftest :wat-telemetry-sqlite::auto-spawn::test-event-roundtrip
   (:wat::core::let*
     (((driver :wat::kernel::ProgramHandle<()>)
       (:test::auto-spawn-events

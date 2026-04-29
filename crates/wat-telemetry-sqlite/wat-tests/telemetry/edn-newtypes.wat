@@ -66,7 +66,7 @@
        driver))))
 
 
-(:deftest :wat-tests::std::telemetry::edn-newtypes::test-tagged-and-notag-bind
+(:deftest :wat-telemetry-sqlite::edn-newtypes::test-tagged-and-notag-bind
   (:wat::core::let*
     (((driver :wat::kernel::ProgramHandle<()>)
       (:test::Edn::auto-spawn-one
