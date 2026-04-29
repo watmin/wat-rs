@@ -265,6 +265,127 @@ pub(crate) fn eval_time_epoch_nanos(
     Ok(Value::i64(ns))
 }
 
+// ─── Arc 097 — Duration constructors ────────────────────────────────
+//
+// Seven unit constructors at `:wat::time::*` (Nanosecond, Microsecond,
+// Millisecond, Second, Minute, Hour, Day). Each takes `:i64`, panics
+// on negative input (durations are non-negative; direction lives in
+// the operation, not the sign), panics on i64 multiplication overflow
+// (~290k years for Hour at i64::MAX nanos; nobody hits it; check is
+// free; clear error when someone mistypes a constant).
+//
+// The shared `unit_constructor` helper does arity check, type check,
+// negativity check, overflow-on-multiply check; the seven public
+// functions just thread their unit's nanos-per-unit constant.
+
+const NANOS_PER_MICRO: i64 = 1_000;
+const NANOS_PER_MILLI: i64 = 1_000_000;
+const NANOS_PER_SECOND: i64 = 1_000_000_000;
+const NANOS_PER_MINUTE: i64 = 60 * NANOS_PER_SECOND;
+const NANOS_PER_HOUR: i64 = 60 * NANOS_PER_MINUTE;
+const NANOS_PER_DAY: i64 = 24 * NANOS_PER_HOUR;
+
+fn unit_constructor(
+    op: &'static str,
+    unit_nanos: i64,
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: op.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let n = require_i64(op, eval(&args[0], env, sym)?)?;
+    if n < 0 {
+        panic!(
+            "({} {}): Duration must be non-negative; use ago / from-now \
+             helpers (or :wat::time::- on Instants) to express past or \
+             future intervals — direction lives in the operation, not \
+             the sign of the duration",
+            op, n
+        );
+    }
+    let nanos = n.checked_mul(unit_nanos).unwrap_or_else(|| {
+        panic!(
+            "({} {}): overflows representable Duration; i64 nanos \
+             saturates at ~9.2e18, so unit constants larger than \
+             {} are out of range (e.g. Hour caps at ~2.5M; ~290k \
+             years)",
+            op,
+            n,
+            i64::MAX / unit_nanos
+        )
+    });
+    Ok(Value::Duration(nanos))
+}
+
+/// `(:wat::time::Nanosecond n:i64) -> :wat::time::Duration`.
+pub(crate) fn eval_time_unit_nanosecond(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_constructor(":wat::time::Nanosecond", 1, args, env, sym)
+}
+
+/// `(:wat::time::Microsecond n:i64) -> :wat::time::Duration`.
+pub(crate) fn eval_time_unit_microsecond(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_constructor(":wat::time::Microsecond", NANOS_PER_MICRO, args, env, sym)
+}
+
+/// `(:wat::time::Millisecond n:i64) -> :wat::time::Duration`.
+pub(crate) fn eval_time_unit_millisecond(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_constructor(":wat::time::Millisecond", NANOS_PER_MILLI, args, env, sym)
+}
+
+/// `(:wat::time::Second n:i64) -> :wat::time::Duration`.
+pub(crate) fn eval_time_unit_second(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_constructor(":wat::time::Second", NANOS_PER_SECOND, args, env, sym)
+}
+
+/// `(:wat::time::Minute n:i64) -> :wat::time::Duration`.
+pub(crate) fn eval_time_unit_minute(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_constructor(":wat::time::Minute", NANOS_PER_MINUTE, args, env, sym)
+}
+
+/// `(:wat::time::Hour n:i64) -> :wat::time::Duration`.
+pub(crate) fn eval_time_unit_hour(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_constructor(":wat::time::Hour", NANOS_PER_HOUR, args, env, sym)
+}
+
+/// `(:wat::time::Day n:i64) -> :wat::time::Duration`.
+pub(crate) fn eval_time_unit_day(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    unit_constructor(":wat::time::Day", NANOS_PER_DAY, args, env, sym)
+}
+
 // ─── Helpers — local to this module ─────────────────────────────────
 
 fn require_i64(op: &'static str, v: Value) -> Result<i64, RuntimeError> {

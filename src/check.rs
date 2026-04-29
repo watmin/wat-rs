@@ -6482,6 +6482,29 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
+
+    // Arc 097 — Duration constructors. Seven unit constructors at
+    // :wat::time::* (Nanosecond, Microsecond, Millisecond, Second,
+    // Minute, Hour, Day). Each :i64 -> :wat::time::Duration.
+    let duration_ty = || TypeExpr::Path(":wat::time::Duration".into());
+    for name in [
+        "Nanosecond",
+        "Microsecond",
+        "Millisecond",
+        "Second",
+        "Minute",
+        "Hour",
+        "Day",
+    ] {
+        env.register(
+            format!(":wat::time::{}", name),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![i64_ty()],
+                ret: duration_ty(),
+            },
+        );
+    }
     // List/Vec primitives — Round 4a, per docs/058-backlog.md.
     //
     //   length   : ∀T. Vec<T> -> :i64

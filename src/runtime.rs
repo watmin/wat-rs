@@ -342,10 +342,22 @@ pub enum Value {
     /// no `ThreadOwnedCell` needed). Constructed via
     /// `:wat::time::now`/`at`/`at-millis`/`at-nanos`/`from-iso8601`;
     /// rendered via `to-iso8601`; integer-accessible via
-    /// `epoch-seconds`/`epoch-millis`/`epoch-nanos`. Duration
-    /// measurement is `(now)` before, `(now)` after, subtract integer
-    /// accessors — no separate `Duration` type.
+    /// `epoch-seconds`/`epoch-millis`/`epoch-nanos`.
+    ///
+    /// Arc 056 originally chose no separate Duration type; arc 097
+    /// reversed that decision when the lab's debugging UX called for
+    /// ActiveSupport-flavored "X ago" composers and `Instant - Instant
+    /// → Duration` arithmetic. See [`Value::Duration`].
     Instant(chrono::DateTime<chrono::Utc>),
+    /// Arc 097 — `:wat::time::Duration`. Non-negative time interval
+    /// expressed in nanoseconds. Distinct runtime variant from
+    /// `Value::i64` so polymorphic `:wat::time::-` can dispatch on
+    /// the second argument's tag (Instant - Duration → Instant vs
+    /// Instant - Instant → Duration, ActiveSupport-shaped). Always
+    /// non-negative — constructors panic on negative input;
+    /// arithmetic that would produce a negative duration panics.
+    /// Constructed via `:wat::time::Hour`/`Minute`/`Second`/`Day`/etc.
+    Duration(i64),
 }
 
 /// The payload of a [`Value::Struct`] — the struct's fully-qualified
@@ -434,6 +446,7 @@ impl Value {
             Value::EngramLibrary(_) => "wat::holon::EngramLibrary",
             Value::Hologram(_) => "wat::holon::Hologram",
             Value::Instant(_) => "wat::time::Instant",
+            Value::Duration(_) => "wat::time::Duration",
         }
     }
 }
@@ -2596,6 +2609,17 @@ fn dispatch_keyword_head(
         ":wat::time::epoch-seconds" => crate::time::eval_time_epoch_seconds(args, env, sym),
         ":wat::time::epoch-millis" => crate::time::eval_time_epoch_millis(args, env, sym),
         ":wat::time::epoch-nanos" => crate::time::eval_time_epoch_nanos(args, env, sym),
+
+        // Arc 097 — Duration constructors. Each takes :i64 and
+        // returns a Value::Duration (non-negative nanoseconds).
+        // Negative input panics; i64 overflow panics.
+        ":wat::time::Nanosecond" => crate::time::eval_time_unit_nanosecond(args, env, sym),
+        ":wat::time::Microsecond" => crate::time::eval_time_unit_microsecond(args, env, sym),
+        ":wat::time::Millisecond" => crate::time::eval_time_unit_millisecond(args, env, sym),
+        ":wat::time::Second" => crate::time::eval_time_unit_second(args, env, sym),
+        ":wat::time::Minute" => crate::time::eval_time_unit_minute(args, env, sym),
+        ":wat::time::Hour" => crate::time::eval_time_unit_hour(args, env, sym),
+        ":wat::time::Day" => crate::time::eval_time_unit_day(args, env, sym),
 
         // :rust::* — dispatch through the rust-deps registry. Each
         // symbol's shim handles its own arg evaluation and marshaling.
@@ -8543,6 +8567,7 @@ fn render_value(v: &Value, depth: usize) -> String {
         Value::EngramLibrary(_) => "<EngramLibrary>".to_string(),
         Value::Hologram(_) => "<Hologram>".to_string(),
         Value::Instant(t) => format!("<Instant {}>", t.to_rfc3339()),
+        Value::Duration(ns) => format!("<Duration {}ns>", ns),
     }
 }
 

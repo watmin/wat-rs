@@ -170,3 +170,76 @@
     ;; ms truncates to int, sec*1000 = 1234567890000, ms = 1234567890123.
     ;; Difference is the sub-second portion (123 ms).
     (:wat::test::assert-eq (:wat::core::- ms derived) 123)))
+
+
+;; ─── Arc 097 — Duration constructors ────────────────────────────────
+;;
+;; Seven unit constructors at :wat::time::* (Nanosecond, Microsecond,
+;; Millisecond, Second, Minute, Hour, Day). Each takes :i64, returns
+;; a :wat::time::Duration carrying the equivalent nanos count.
+
+(:wat::test::deftest :wat-tests::time::test-duration-nanosecond
+  ()
+  (:wat::core::let*
+    (((d :wat::time::Duration) (:wat::time::Nanosecond 42)))
+    ;; Sanity: round-trip via render. 42 ns is the input.
+    (:wat::test::assert-eq (:wat::core::show d) "<Duration 42ns>")))
+
+(:wat::test::deftest :wat-tests::time::test-duration-microsecond
+  ()
+  (:wat::core::let*
+    (((d :wat::time::Duration) (:wat::time::Microsecond 1)))
+    (:wat::test::assert-eq (:wat::core::show d) "<Duration 1000ns>")))
+
+(:wat::test::deftest :wat-tests::time::test-duration-millisecond
+  ()
+  (:wat::core::let*
+    (((d :wat::time::Duration) (:wat::time::Millisecond 1)))
+    (:wat::test::assert-eq (:wat::core::show d) "<Duration 1000000ns>")))
+
+(:wat::test::deftest :wat-tests::time::test-duration-second
+  ()
+  (:wat::core::let*
+    (((d :wat::time::Duration) (:wat::time::Second 1)))
+    (:wat::test::assert-eq (:wat::core::show d) "<Duration 1000000000ns>")))
+
+(:wat::test::deftest :wat-tests::time::test-duration-minute
+  ()
+  (:wat::core::let*
+    (((d :wat::time::Duration) (:wat::time::Minute 1)))
+    (:wat::test::assert-eq (:wat::core::show d) "<Duration 60000000000ns>")))
+
+(:wat::test::deftest :wat-tests::time::test-duration-hour
+  ()
+  (:wat::core::let*
+    (((d :wat::time::Duration) (:wat::time::Hour 1)))
+    (:wat::test::assert-eq (:wat::core::show d) "<Duration 3600000000000ns>")))
+
+(:wat::test::deftest :wat-tests::time::test-duration-day
+  ()
+  (:wat::core::let*
+    (((d :wat::time::Duration) (:wat::time::Day 1)))
+    (:wat::test::assert-eq (:wat::core::show d) "<Duration 86400000000000ns>")))
+
+;; Compositional sanity — arithmetic relationships.
+(:wat::test::deftest :wat-tests::time::test-duration-hour-equals-60-minutes
+  ()
+  (:wat::core::let*
+    (((h :wat::time::Duration) (:wat::time::Hour 1))
+     ((m60 :wat::time::Duration) (:wat::time::Minute 60)))
+    ;; Same nanos count → same Duration → same render.
+    (:wat::test::assert-eq (:wat::core::show h) (:wat::core::show m60))))
+
+(:wat::test::deftest :wat-tests::time::test-duration-day-equals-24-hours
+  ()
+  (:wat::core::let*
+    (((d :wat::time::Duration) (:wat::time::Day 1))
+     ((h24 :wat::time::Duration) (:wat::time::Hour 24)))
+    (:wat::test::assert-eq (:wat::core::show d) (:wat::core::show h24))))
+
+;; Zero is a valid non-negative Duration.
+(:wat::test::deftest :wat-tests::time::test-duration-zero-is-valid
+  ()
+  (:wat::core::let*
+    (((d :wat::time::Duration) (:wat::time::Hour 0)))
+    (:wat::test::assert-eq (:wat::core::show d) "<Duration 0ns>")))

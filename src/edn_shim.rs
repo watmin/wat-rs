@@ -443,6 +443,7 @@ pub fn value_to_json_natural(
         Value::Instant(t) => OwnedValue::String(Cow::Owned(
             t.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         )),
+        Value::Duration(ns) => OwnedValue::Integer(*ns),
         Value::wat__core__keyword(k) => {
             OwnedValue::String(Cow::Owned(strip_keyword_colon(k)))
         }
@@ -916,6 +917,7 @@ pub fn value_to_edn_with(
         Value::EngramLibrary(_) => opaque_nil("wat-edn.opaque", "EngramLibrary"),
         Value::Hologram(_) => opaque_nil("wat-edn.opaque", "Hologram"),
         Value::Instant(t) => OwnedValue::Inst(*t),
+        Value::Duration(ns) => OwnedValue::Integer(*ns),
     }
 }
 
