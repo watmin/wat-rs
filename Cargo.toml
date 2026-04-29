@@ -1,7 +1,7 @@
 [workspace]
 members = [
     ".",
-    "wat-macros",
+    "crates/wat-macros",
     "crates/wat-lru",
     "crates/wat-edn",
     "crates/wat-holon-lru",
@@ -18,7 +18,7 @@ members = [
 # at every checkpoint.
 default-members = [
     ".",
-    "wat-macros",
+    "crates/wat-macros",
     "crates/wat-lru",
     "crates/wat-edn",
     "crates/wat-holon-lru",
@@ -44,7 +44,7 @@ crossbeam-channel = "0.5"
 libc = "0.2"
 regex = "1"
 chrono = "0.4"
-wat-macros = { path = "wat-macros" }
+wat-macros = { path = "crates/wat-macros" }
 wat-edn = { path = "crates/wat-edn" }
 
 [dev-dependencies]

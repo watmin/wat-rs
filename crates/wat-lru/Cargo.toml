@@ -7,5 +7,5 @@ description = "LRU cache for wat — surfaces :rust::lru::LruCache<K,V> as :wat:
 
 [dependencies]
 wat = { path = "../.." }
-wat-macros = { path = "../../wat-macros" }
+wat-macros = { path = "../wat-macros" }
 lru = "0.12"
