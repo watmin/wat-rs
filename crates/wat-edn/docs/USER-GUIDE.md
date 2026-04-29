@@ -340,6 +340,28 @@ match v {
 - The simple form (no hyphens) and URN form are REJECTED — stricter
   than `uuid::Uuid::parse_str`'s default
 
+### Minting v4 UUIDs (`mint` feature, arc 092)
+
+Default-feature wat-edn parses and writes existing `#uuid` values but
+does NOT generate new ones. Enable the `mint` Cargo feature to gain
+`new_uuid_v4()`:
+
+```toml
+wat-edn = { path = "...", features = ["mint"] }
+```
+
+```rust
+use wat_edn::{new_uuid_v4, write, Value};
+
+let id = new_uuid_v4();                      // uuid::Uuid
+let edn = write(&Value::Uuid(id));           // "#uuid \"550e8400-...\""
+```
+
+The feature pulls `uuid`'s `v4` capability and `getrandom` for entropy.
+Parser-only consumers (no `mint`) never link `getrandom`. The
+write/parse roundtrip on minted values is locked by
+`tests/uuid_v4_mint.rs`.
+
 ---
 
 ## 7. JSON conversion

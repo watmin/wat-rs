@@ -138,3 +138,32 @@ pub fn parse_owned(input: &str) -> Result<OwnedValue> {
 pub fn parse_all(input: &str) -> Result<Vec<Value<'_>>> {
     Parser::new(input).parse_all()
 }
+
+/// Mint a fresh v4 (random) UUID. Output is canonical 8-4-4-4-12
+/// hyphenated form when stringified, the only form wat-edn's `#uuid`
+/// parser accepts (per RFC 9562 + the wat-edn strictness on round-trip
+/// fidelity).
+///
+/// Available only with the `mint` feature enabled (see Cargo.toml) —
+/// the feature pulls in `uuid`'s `v4` capability and transitively the
+/// `getrandom` system entropy source. Parser-only consumers stay lean.
+///
+/// Arc 092. The first consumer is `wat-measure`'s `WorkUnit`, which
+/// keys every measurement scope by uuid.
+///
+/// # Example
+///
+/// ```
+/// # #[cfg(feature = "mint")] {
+/// use wat_edn::{new_uuid_v4, parse, write, Value};
+///
+/// let id = new_uuid_v4();
+/// let edn = write(&Value::Uuid(id));
+/// let parsed = parse(&edn).expect("EDN must parse");
+/// assert_eq!(parsed.as_uuid(), Some(&id));
+/// # }
+/// ```
+#[cfg(feature = "mint")]
+pub fn new_uuid_v4() -> uuid::Uuid {
+    uuid::Uuid::new_v4()
+}

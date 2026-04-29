@@ -5,6 +5,14 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Spec-conforming EDN parser and writer for Rust — typed wire format for the wat language and wider Clojure-EDN ecosystem."
 
+[features]
+# Default ships the parser/writer/JSON-bridge — pure transform, no entropy.
+default = []
+# `mint` enables `new_uuid_v4()` — pulls `uuid`'s `v4` feature, which links
+# `getrandom`. Off by default so parser-only consumers don't pay for entropy
+# init they don't use. Arc 092.
+mint = ["uuid/v4"]
+
 [dependencies]
 chrono       = { version = "0.4", default-features = false, features = ["std", "clock"] }
 uuid         = "1"
