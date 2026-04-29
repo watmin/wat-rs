@@ -1,6 +1,6 @@
 # Arc 091 — `:wat::telemetry::*` — DESIGN
 
-**Status:** slices 1–4 shipped 2026-04-29; slices 5–6 pending.
+**Status:** slices 1–5 shipped 2026-04-29; slice 6 pending.
 
 > **Namespace + crate rename note (2026-04-29).** This arc was originally
 > scoped under `:wat::measure::*` in a `wat-measure` crate. Mid-arc the
@@ -368,18 +368,43 @@ Slice 4 — Event types + make-scope closure factory + ship walker  [SHIPPED 202
      ⇒ 1 counter row + N duration rows under one metric-name.
    27 wat-side tests in wat-telemetry pass; full workspace cargo test green.
 
-Slice 5 — Log emission primitives (the Log variant of Event)         [PENDING]
-   :wat::telemetry::WorkUnit/info  wu data       ; emits Event::Log at :info
-   :wat::telemetry::WorkUnit/warn  wu data
-   :wat::telemetry::WorkUnit/error wu data
-   :wat::telemetry::WorkUnit/debug wu data
-   Each renders the substrate's Event::Log variant inline; ships
-   through the same captured handle the make-scope factory holds.
-   Open question: does the wu carry the handle internally so emit-sites
-   don't repeat it? Likely yes — slice 4's make-scope closes over the
-   handle; slice 5 should follow the same shape (the closure or the wu
-   knows; emit-site signature stays just (wu, data)).
-   tests verify uuid join with metrics from the same scope, level routing.
+Slice 5 — Log emission primitives (the Log variant of Event)  [SHIPPED 2026-04-29]
+   :wat::telemetry::WorkUnitLog — struct closure mirroring arc 087's
+     ConsoleLogger pattern. Closes over (handle, caller, now-fn);
+     built once per producer; passed by reference into hot paths.
+       (handle :wat::telemetry::SinkHandles)
+       (caller :wat::core::keyword)
+       (now-fn :fn(())->wat::time::Instant)
+   Universal:
+     :wat::telemetry::WorkUnitLog/log   logger wu level data -> ()
+   Convenience (level baked; all four ship through the same handle —
+   unlike ConsoleLogger, no stdout/stderr split since WorkUnitLog
+   has ONE destination; level is a column value, not a routing key):
+     :wat::telemetry::WorkUnitLog/debug logger wu data -> ()
+     :wat::telemetry::WorkUnitLog/info  logger wu data -> ()
+     :wat::telemetry::WorkUnitLog/warn  logger wu data -> ()
+     :wat::telemetry::WorkUnitLog/error logger wu data -> ()
+   data is :wat::holon::HolonAST per the labels-are-ASTs rule; the
+   logger wraps Tagged/new internally before stamping the row.
+   Sync-per-event: each /log builds a single-element Vec<Event>,
+   calls Service/batch-log, blocks on ack. Same model as the lab
+   archive's `DatabaseHandle.send(entry)` (pre-wat-native/src/programs/
+   stdlib/database.rs:60) and arc 087's render-and-send-synchronously
+   ConsoleLogger.
+   Construction is independent of make-scope — per arc 087's
+   precedent and the lab archive's `db_tx: DatabaseHandle<LogEntry>`
+   injection pattern. Two loggers can share a destination by
+   closing over clones of the same handle. Two tests verify the
+   surface end-to-end:
+     - test-info-emits-log-event: /info ships an Event::Log row;
+       level keyword round-trips through Atom + NoTag/0 + atom-value
+     - test-each-level-emits-log: /debug /info /warn /error each
+       produce one Log row with the correct level keyword
+   29 wat-tests in wat-telemetry pass; full workspace cargo test green.
+   Future work (not in scope): auto-magic caller detection (the
+   equivalent of Rust's `module_path!()`) so producers don't have
+   to pass `:caller` explicitly. Verbose-is-honest stays the
+   default; the auto-magic form would be additive when it lands.
 
 Slice 6 — lab refactor: consume substrate Event directly             [PENDING]
    The lab's :trading::log::LogEntry retires its Telemetry variant in

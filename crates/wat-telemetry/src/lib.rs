@@ -65,6 +65,14 @@ pub fn wat_sources() -> &'static [wat::WatSource] {
             path: "wat-telemetry/telemetry/WorkUnit.wat",
             source: include_str!("../wat/telemetry/WorkUnit.wat"),
         },
+        // WorkUnitLog.wat — producer-side Log emitter. Closure over
+        // (handle, caller, now-fn); ships Event::Log rows through
+        // Service<Event,_>. Depends on WorkUnit (for namespace /
+        // uuid / tags accessors at emit time) + Event types.
+        wat::WatSource {
+            path: "wat-telemetry/telemetry/WorkUnitLog.wat",
+            source: include_str!("../wat/telemetry/WorkUnitLog.wat"),
+        },
         // Console.wat — dispatcher factory. Wraps the substrate's
         // `:wat::std::service::Console::*` driver (paired-channel
         // mini-TCP from arc 089 slice 5); the driver itself stays
