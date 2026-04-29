@@ -498,11 +498,13 @@ These are the things we don't yet know that shape the rest. The
 user is going to come at me with these; capturing them so the
 answers land in the right place.
 
-### §1. Form-matcher: sibling arc — SETTLED
+### §1. Form-matcher: sibling arc — SETTLED + SHIPPED
 
-**Settled.** Sibling arc (probably arc 097, or next free). Ships
-the Clara-style `:wat::form::matches?` defmacro. Reusable beyond
-telemetry. Arc 093 depends on it for slice 4's example scripts.
+**Settled and shipped.** Arc 098 (2026-04-29). Substrate-
+recognized special form (not a defmacro — macros expand before
+type-checking and can't query the struct registry).
+[INSCRIPTION](../098-wat-form-matches/INSCRIPTION.md). Reusable
+beyond telemetry. Arc 093 slice 4's example scripts unblocked.
 
 Per the user (2026-04-29): *"i have a such strong bias for clara
 style - this is well understood? this is an amazing UX."*
@@ -938,9 +940,8 @@ No reflection, no introspection — direct match on enum variants.
   a real `runs/pulse-*.db`. Lives in `wat-rs/examples/interrogate/`
   (TBD on exact location).
 - This slice **gates on the sibling arc shipping** the Clara-style
-  `:wat::form::matches?` macro. Either schedule the sibling first,
-  or land slice 1+2+3 of arc 093 with the matcher TBD and pick up
-  slice 4 once the sibling closes.
+  `:wat::form::matches?` macro. ✅ Resolved: arc 098 shipped
+  2026-04-29 — slice 4 is unblocked.
 
 **Slice 5** — INSCRIPTION + CIRCUIT.md update + 058 FOUNDATION-CHANGELOG row.
 
@@ -968,10 +969,18 @@ No reflection, no introspection — direct match on enum variants.
   `Since(Instant)` / `Until(Instant)` constraint variants and
   the worked-example queries depend on these.
 
-- **Clara-style form-matcher** (`:wat::form::matches?` macro;
-  see Sibling arc — Clara-style form-matching primitive section).
-  TBD arc number; slice 4 of 093 depends on it for example
-  scripts.
+- **Arc 098 — `:wat::form::matches?` Clara-style pattern matcher
+  — SHIPPED 2026-04-29**
+  ([INSCRIPTION](../098-wat-form-matches/INSCRIPTION.md)).
+  Substrate-recognized special form (not a defmacro — macros
+  expand before type-checking and can't query the struct
+  registry). Pattern grammar: `(:TYPE-NAME (= ?var :field) ...
+  <constraint> ...)`. Recognized constraint heads: `=`, `<`,
+  `>`, `<=`, `>=`, `not=`, `and`, `or`, `not`, `where`. The
+  `where` escape evaluates an arbitrary wat expression in the
+  binding scope. Subject can be any `Value`; non-matching subject
+  shapes (`:None`, non-Struct, wrong type) return `false` per
+  Clara semantics. Slice 4's example scripts are unblocked.
 
 ## What this enables
 

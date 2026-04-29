@@ -2218,6 +2218,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::holon::eval-edn-coincident?` | `a-src b-src` | `:Result<:bool, EvalError>` |
 | `:wat::holon::eval-digest-coincident?` | `<8 args>` | `:Result<:bool, EvalError>` — 4 per side, SHA-256 |
 | `:wat::holon::eval-signed-coincident?` | `<12 args>` | `:Result<:bool, EvalError>` — 6 per side, Ed25519 |
+| `:wat::form::matches?` | `subject (:TYPE-NAME clause ...)` | `:bool` — Clara-style single-item pattern matcher (arc 098). Substrate-recognized special form. Subject can be any value; `:None` / `(Some non-struct)` / non-Struct / wrong-type-Struct return `false` (Clara semantics — no error). Clauses are bindings or constraints. Bindings `(= ?var :field)` push `?var → field-value` into scope for subsequent clauses. Constraint vocabulary inside clauses (no `:wat::core::` prefix needed): `=` `<` `>` `<=` `>=` `not=` `and` `or` `not` `where`. The `where` escape evaluates an arbitrary wat expression in the binding scope; must return `:bool`. Logic variables (`?var`) lex natively per the wat tokenizer. Pattern grammar errors surface at type-check |
 | `:wat::core::quote` | `<form>` | `:wat::WatAST` — captures AST as data |
 | `:wat::core::forms` | `f1 f2 ... fn` | `:Vec<wat::WatAST>` — variadic quote |
 | `:wat::core::macroexpand` | `<quoted-form>` | `:wat::WatAST` — expands until non-macro head (arc 030) |
