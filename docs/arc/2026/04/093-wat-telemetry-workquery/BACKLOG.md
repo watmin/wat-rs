@@ -53,9 +53,12 @@ Per user direction 2026-04-29:
     spawn-producer lambda, returns the Stream tuple.
   - `(:wat::telemetry::sqlite/stream-metrics handle query) -> Stream<Event::Metric>`
 - **Adds (auto-spawn schema):**
-  - Indexes on `log.time_ns`, `log.uuid`, `log.namespace`,
-    `metric.start_time_ns`, `metric.uuid`, `metric.namespace`,
-    `metric.metric_name` — load-bearing for slice 2's pushdown.
+  - Indexes on `log.time_ns`, `log.namespace`,
+    `metric.start_time_ns`, `metric.namespace` — load-bearing
+    for slice 2's pushdown. High-cardinality columns
+    (`uuid`, `metric_name`) intentionally NOT indexed (their
+    cardinality approaches row count; wat-side filters
+    post-narrowing).
 - **Slice-1 query is a stub.** Empty `:wat::telemetry::LogQuery` /
   `MetricQuery` types accepted; SQL is unconstrained
   `SELECT * FROM <table> ORDER BY <time_col> ASC`. Slice 2 fills

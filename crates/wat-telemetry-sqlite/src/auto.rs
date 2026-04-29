@@ -65,6 +65,31 @@ struct AutoSchema {
     ordered_ddls: Vec<String>,
 }
 
+/// Arc 093 §6 — column names that earn a single-column BTREE
+/// index alongside their CREATE TABLE in `derive_schema`. Only
+/// LOW-CARDINALITY columns: time / start_time bucket the entire
+/// run into ranges the planner narrows on; namespace partitions
+/// by producer identity. High-cardinality columns (`uuid`,
+/// `metric_name`) earn no index — their cardinality approaches
+/// row count, so the index storage dwarfs the data and the
+/// planner can't usefully range over them. Wat filters those
+/// post-narrowing (the matches? predicate runs over the time-
+/// or namespace-narrowed candidate set; an in-wat equality check
+/// is fast enough on a few hundred rows that an index would be
+/// strictly worse).
+///
+/// For `:wat::telemetry::Event` (substrate-defined) this yields:
+/// `log.time_ns` + `log.namespace` + `metric.start_time_ns` +
+/// `metric.namespace` — four indexes total. Consumer enums
+/// reusing these column names benefit transparently — no
+/// configuration surface, no tunables; same opinionated property
+/// of the substrate's telemetry shape that the schema itself is.
+const INDEXABLE_COLUMNS: &[&str] = &[
+    "time_ns",
+    "start_time_ns",
+    "namespace",
+];
+
 /// Process-wide cache. Keyed by enum keyword path (e.g.
 /// `:trading::log::LogEntry`). `auto-prep` populates; the
 /// install/dispatch shims read.
@@ -382,6 +407,26 @@ fn derive_schema(def: &EnumDef, types: &TypeEnv) -> Result<AutoSchema, String> {
             placeholders.join(", ")
         );
         ordered_ddls.push(create_ddl);
+
+        // Arc 093 — index any column whose name matches the locked
+        // set of telemetry-shape predicates. For
+        // `:wat::telemetry::Event` this produces the 7 indexes
+        // arc 093 §6 settled (`log.time_ns` / `log.uuid` /
+        // `log.namespace` + `metric.start_time_ns` / `metric.uuid`
+        // / `metric.namespace` / `metric.metric_name`). Consumer
+        // enums whose tables happen to share these column names
+        // benefit transparently — same opinionated property of the
+        // substrate's telemetry shape, no tuning surface. Column
+        // names not in the set get no index (the writer-side cost
+        // of an index per row is real; we add them only for
+        // columns the read layer actually pushes down on).
+        for col in &col_names {
+            if INDEXABLE_COLUMNS.contains(&col.as_str()) {
+                ordered_ddls.push(format!(
+                    "CREATE INDEX IF NOT EXISTS idx_{table}_{col} ON {table}({col});"
+                ));
+            }
+        }
         by_variant.insert(
             name.clone(),
             AutoVariant {

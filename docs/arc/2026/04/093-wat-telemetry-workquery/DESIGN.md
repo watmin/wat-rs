@@ -641,17 +641,30 @@ encourage it. No `LogQuery/across-dbs` builder; no merge
 combinator across handles. If a real consumer demands it
 later, that's its own arc.
 
-### §6. Index set — SETTLED
+### §6. Index set — SETTLED + revised mid-slice-1a
 
-**Settled.** Four indexes, set once, never touched again:
+**Settled — four indexes** (revised down from seven). The
+substrate indexes only the LOW-CARDINALITY columns:
 
 - `log.time_ns`
-- `log.uuid`
 - `log.namespace`
 - `metric.start_time_ns`
-- `metric.uuid`
 - `metric.namespace`
-- `metric.metric_name`
+
+`uuid` and `metric_name` were initially in the set but pulled
+out by the user during slice 1a (2026-04-29):
+
+> *"i don't agree with uuid nor metric_name — high cardinality
+> fields shouldn't be indexed.. time.. yes... but not metric_name
+> nor uuid.. we'll filter on those in wat"*
+
+Their cardinality approaches row count — index storage dwarfs
+the data and the planner can't range-scan over them
+effectively. The right shape: time/namespace narrow the
+candidate set in SQL; uuid / metric_name filter post-narrowing
+in wat (where the matches? predicate runs over a few hundred
+rows and an equality check is faster than an index seek would
+be).
 
 Per the user (2026-04-29):
 
@@ -661,15 +674,17 @@ Per the user (2026-04-29):
 
 The schema is locked (substrate-defined Event::Metric +
 Event::Log; arc 091). The columns are locked. The indexes match
-the columns the query layer pushes down on. There's no tuning
-surface — same as the schema itself doesn't have one. The
-indexes are an *opinionated property of the substrate's
-telemetry shape*, not a knob.
+the LOW-CARDINALITY columns the query layer narrows on; the
+HIGH-CARDINALITY columns get filtered post-narrowing in wat.
+There's no tuning surface — same as the schema itself doesn't
+have one. The indexes are an *opinionated property of the
+substrate's telemetry shape*, not a knob.
 
 What this means concretely:
 - `auto-spawn` (arc 085's schema derivation) gains
   `CREATE INDEX ... IF NOT EXISTS` statements alongside the
-  `CREATE TABLE` it already emits.
+  `CREATE TABLE` it already emits, restricted to the four
+  low-cardinality columns above.
 - New databases get them at first-write time.
 - Existing databases (already-shipped pulse runs, proof_002/3/4
   outputs) gain them when first opened by an arc-093 reader OR
@@ -680,9 +695,9 @@ What this means concretely:
   consumer tunables.
 
 No composite `(namespace, time_ns)` initially. The query
-planner picks one index per query; with all the predicates in
-slice 2 being equality-or-range single-column, the time index
-plus column-equality is enough.
+planner picks one index per query; the time index plus
+namespace-equality (or the namespace index plus time-range) is
+enough.
 
 ### §7. `run-with` vs `filter` over Stream — SETTLED (rejected)
 
