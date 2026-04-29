@@ -1568,23 +1568,23 @@ ad-hoc diagnostic markers, the substrate ships a structured
 logger and a sqlite-backed ledger. Both are layered on top of
 Console; the typical long-running program wires both.
 
-**`:wat::std::telemetry::ConsoleLogger`** is a closure-over-state
+**`:wat::telemetry::ConsoleLogger`** is a closure-over-state
 struct: `(con-tx, caller, now-fn, format)`. Built once per
 producer; passed by reference into hot paths. Each emission gets
 its time auto-stamped and its `:caller` identity injected — the
 producer never self-identifies.
 
 ```scheme
-((logger :wat::std::telemetry::ConsoleLogger)
- (:wat::std::telemetry::ConsoleLogger/new
+((logger :wat::telemetry::ConsoleLogger)
+ (:wat::telemetry::ConsoleLogger/new
    con-tx :market.observer
    (:wat::core::lambda ((_u :()) -> :wat::time::Instant) (:wat::time::now))
-   :wat::std::telemetry::Console::Format::Edn))
+   :wat::telemetry::Console::Format::Edn))
 
 ;; Per emission:
-(:wat::std::telemetry::ConsoleLogger/info  logger (:Event::Buy 100.5 7))
-(:wat::std::telemetry::ConsoleLogger/warn  logger (:Event::CircuitBreak "spike"))
-(:wat::std::telemetry::ConsoleLogger/error logger (:Event::CircuitBreak "down"))
+(:wat::telemetry::ConsoleLogger/info  logger (:Event::Buy 100.5 7))
+(:wat::telemetry::ConsoleLogger/warn  logger (:Event::CircuitBreak "spike"))
+(:wat::telemetry::ConsoleLogger/error logger (:Event::CircuitBreak "down"))
 ```
 
 Level routing: `:debug` and `:info` go to stdout via `Console/out`;
@@ -1606,7 +1606,7 @@ The `_type` value in tagless variants is fully-qualified
 (`demo.Event/Buy`, not bare `Buy`) — bare variant names collide
 across enums; the FQDN is honest identity.
 
-**`:wat::std::telemetry::Sqlite/auto-spawn`** is the ledger side.
+**`:wat::telemetry::Sqlite/auto-spawn`** is the ledger side.
 It walks a consumer-defined enum decl at startup, derives one
 `CREATE TABLE` per Tagged variant (variant PascalCase →
 table snake_case; field kebab → column snake; field type →
@@ -1634,14 +1634,14 @@ seam:
     ()))
 
 ((sqlite-spawn :Service::Spawn<my::log::Entry>)
- (:wat::std::telemetry::Sqlite/auto-spawn
+ (:wat::telemetry::Sqlite/auto-spawn
    :my::log::Entry "runs/today.db" 1
-   (:wat::std::telemetry::Service/null-metrics-cadence)
+   (:wat::telemetry::Service/null-metrics-cadence)
    :my::pre-install))
 ```
 
 For the explicit "I'm fine with sqlite's defaults" choice,
-pass `:wat::std::telemetry::Sqlite/null-pre-install`.
+pass `:wat::telemetry::Sqlite/null-pre-install`.
 
 ### Per-run file management — `IOWriter/open-file` (arc 088)
 
@@ -1672,21 +1672,21 @@ A producer that wants both surfaces takes both handles wired in:
 ```scheme
 (:wat::core::define
   (:my::worker/run
-    (logger :wat::std::telemetry::ConsoleLogger)
-    (sqlite-tx :wat::std::telemetry::Service::ReqTx<my::log::Entry>)
-    (ack-tx :wat::std::telemetry::Service::AckTx)
-    (ack-rx :wat::std::telemetry::Service::AckRx)
+    (logger :wat::telemetry::ConsoleLogger)
+    (sqlite-tx :wat::telemetry::Service::ReqTx<my::log::Entry>)
+    (ack-tx :wat::telemetry::Service::AckTx)
+    (ack-rx :wat::telemetry::Service::AckRx)
     -> :())
   (:wat::core::let*
     (((_say :())
-      (:wat::std::telemetry::ConsoleLogger/info logger
+      (:wat::telemetry::ConsoleLogger/info logger
         (:my::Event::Heartbeat 0)))                   ;; occasional, human-friendly
      ((entries :Vec<my::log::Entry>)
       (:wat::core::vec :my::log::Entry
         (:my::log::Entry::Resolved ...)
         (:my::log::Entry::Resolved ...)))
      ((_log :())
-      (:wat::std::telemetry::Service/batch-log         ;; high-fidelity archive
+      (:wat::telemetry::Service/batch-log         ;; high-fidelity archive
         sqlite-tx ack-tx ack-rx entries)))
     ()))
 ```

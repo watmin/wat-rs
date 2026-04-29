@@ -515,7 +515,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
 > - **`079-wat-edn-shims/`** — `:wat::edn::write` / `write-pretty` /
 >   `write-json`. Render any wat value as deterministic EDN/JSON.
 > - **`080-telemetry-service-substrate/`** —
->   `:wat::std::telemetry::Service<E,G>`. Generic queue-fronted
+>   `:wat::telemetry::Service<E,G>`. Generic queue-fronted
 >   shell, lifted from the lab's `:trading::rundb::Service`.
 > - **`081-telemetry-console/`** — `Console/dispatcher` factory.
 >   Per-entry rendering closure that composes with arc 080's shell.
@@ -523,7 +523,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
 >   `SERVICE-PROGRAMS.md § Step 9` (multi-driver shutdown via
 >   function decomposition).
 > - **`083-wat-sqlite-crate/`** — new sibling crate. `:wat::sqlite::Db`
->   primitives + `:wat::std::telemetry::Sqlite/spawn`.
+>   primitives + `:wat::telemetry::Sqlite/spawn`.
 > - **`084-sqlite-execute-params/`** — `:wat::sqlite::execute` with
 >   `Param` enum (typed parameter binding).
 > - **`085-enum-derived-sqlite-schemas/`** — `Sqlite/auto-spawn`
@@ -535,7 +535,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
 >   `:wat::edn::write-json-natural` (ingestion-tooling JSON with
 >   FQDN discriminator).
 > - **`087-console-logger/`** —
->   `:wat::std::telemetry::ConsoleLogger`. Closure-over-(con-tx,
+>   `:wat::telemetry::ConsoleLogger`. Closure-over-(con-tx,
 >   caller, clock, format); 4 level methods (`/debug` `/info` `/warn`
 >   `/error`); stdout/stderr level routing.
 > - **`088-iowriter-open-file/`** — `:wat::io::IOWriter/open-file

@@ -648,7 +648,7 @@ pub struct SymbolTable {
     /// declared in user source plus the built-ins. Attached at freeze
     /// time so `#[wat_dispatch]` shims can reflect on type
     /// declarations (variant fields, struct fields, alias targets).
-    /// Arc 085 — needed by `:wat::std::telemetry::Sqlite/auto-spawn`
+    /// Arc 085 — needed by `:wat::telemetry::Sqlite/auto-spawn`
     /// to walk the consumer's entry-enum decl and synthesize schemas
     /// + INSERT statements without consumer code.
     pub types: Option<Arc<crate::types::TypeEnv>>,
@@ -749,7 +749,7 @@ impl SymbolTable {
 
     /// Attach the frozen type registry. Called once at freeze time by
     /// [`crate::freeze::FrozenWorld::freeze`] so shims that need to
-    /// inspect declared types (`:wat::std::telemetry::Sqlite/auto-spawn`
+    /// inspect declared types (`:wat::telemetry::Sqlite/auto-spawn`
     /// walks an enum decl to synthesize schemas) can reach them through
     /// the standard SymbolTable carrier.
     pub fn set_types(&mut self, types: Arc<crate::types::TypeEnv>) {
