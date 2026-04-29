@@ -161,7 +161,7 @@ pub fn value_to_edn(v: &Value) -> OwnedValue {
                 .enumerate()
                 .map(|(i, fv)| {
                     (
-                        OwnedValue::Keyword(Keyword::new(&format!("field-{}", i))),
+                        OwnedValue::Keyword(Keyword::new(format!("field-{}", i))),
                         value_to_edn(fv),
                     )
                 })

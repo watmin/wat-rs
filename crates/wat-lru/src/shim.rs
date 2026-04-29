@@ -118,6 +118,11 @@ impl WatLruCache {
     pub fn len(&self) -> i64 {
         self.inner.len() as i64
     }
+
+    /// `true` iff the cache holds no entries.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
 }
 
 /// Registrar for `:rust::lru::LruCache`. Forwards to the macro-

@@ -45,6 +45,7 @@
 ///   2. `HologramCacheService.wat` — queue-addressed wrapper over the
 ///      cache, with the Reporter + MetricsCadence service contract
 ///      (arc 078).
+///
 /// Consumers who want either pass `[wat_lru, wat_holon_lru]` (in
 /// that order — wat-lru registers `LocalCache` first, then this
 /// crate's wat layers on top).

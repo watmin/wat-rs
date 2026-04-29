@@ -103,6 +103,11 @@ impl Hologram {
         self.slots.iter().map(|s| s.len()).sum()
     }
 
+    /// `true` iff no slot holds any entry.
+    pub fn is_empty(&self) -> bool {
+        self.slots.iter().all(|s| s.is_empty())
+    }
+
     /// Insert `(key, val)`. Slot is derived from `key`'s structure: the
     /// first Thermometer leaf's normalized floor, or slot 0 if no
     /// Thermometer is present. Existing key gets overwritten — the
