@@ -111,6 +111,52 @@
     -> :Option<wat::telemetry::Event>)
   (:rust::telemetry::sqlite::MetricCursor::step cursor))
 
+;; ─── Event::Log/data-ast / data-value (slice 3) ─────────────
+;;
+;; Materialization helpers that bridge a streamed Event back to
+;; the shape it was logged at:
+;;
+;; - `data-ast` extracts the raw HolonAST from the Tagged data
+;;   column. Cheap: pattern-match + newtype unwrap. Use when
+;;   you want to grep the AST shape directly (e.g., "did this
+;;   log carry a Bind structure?").
+;; - `data-value<T>` runs the AST through eval-ast! (arc 102's
+;;   polymorphic Result<:T, :EvalError> shape) to lift it to a
+;;   live Value of whatever type the log was. Caller annotates
+;;   T at the binding site:
+;;
+;;     ((paper :Option<:trading::PaperResolved>)
+;;      (:wat::telemetry::Event::Log/data-value e))
+;;
+;;   The lifted Value::Struct is what arc 098's :wat::form::matches?
+;;   accepts as subject — the pry/gdb UX the arc 093 worked
+;;   examples were designed around.
+;;
+;; Both return `:None` on the Metric variant (no data column).
+
+(:wat::core::define
+  (:wat::telemetry::Event::Log/data-ast
+    (e :wat::telemetry::Event)
+    -> :Option<wat::holon::HolonAST>)
+  (:wat::core::match e -> :Option<wat::holon::HolonAST>
+    ((:wat::telemetry::Event::Log _ _ _ _ _ _ data)
+      (Some (:wat::edn::Tagged/0 data)))
+    (_ :None)))
+
+(:wat::core::define
+  (:wat::telemetry::Event::Log/data-value<T>
+    (e :wat::telemetry::Event)
+    -> :Option<T>)
+  (:wat::core::match e -> :Option<T>
+    ((:wat::telemetry::Event::Log _ _ _ _ _ _ data)
+      (:wat::core::match
+        (:wat::eval-ast!
+          (:wat::holon::to-watast (:wat::edn::Tagged/0 data)))
+        -> :Option<T>
+        ((Ok v) (Some v))
+        ((Err _) :None)))
+    (_ :None)))
+
 ;; ─── Stream sources via spawn-producer ─────────────────────────
 ;;
 ;; The producer-loop helpers iterate a cursor, sending each event

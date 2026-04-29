@@ -189,3 +189,71 @@
       (:wat::std::stream::collect stream))
      ((count :i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 1)))
+
+
+;; Slice 3 — data-ast extracts the Tagged HolonAST from a Log
+;; event. The fixture writes data via `(:leaf msg)` for each
+;; row; data-ast unwraps it back to a HolonAST::String leaf;
+;; atom-value extracts the original message string.
+(:deftest :wat-telemetry-sqlite::reader::test-data-ast-extracts-holon
+  (:wat::core::let*
+    (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
+     ((path :String) (:wat::io::TempFile/path tf))
+     ((driver :wat::kernel::ProgramHandle<()>)
+      (:test::reader::write-fixture path))
+     ((_join :()) (:wat::kernel::join driver))
+     ((handle :wat::sqlite::ReadHandle)
+      (:wat::sqlite::open-readonly path))
+     ((no-constraints :Vec<wat::telemetry::TimeConstraint>)
+      (:wat::core::vec :wat::telemetry::TimeConstraint))
+     ((events :Vec<wat::telemetry::Event>)
+      (:wat::std::stream::collect
+        (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
+     ;; First event is the {time_ns=1000, "first"} row.
+     ((first-evt :wat::telemetry::Event)
+      (:wat::core::match (:wat::core::first events) -> :wat::telemetry::Event
+        ((Some e) e)
+        (:None
+          (:wat::test::assertion-failed
+            "expected at least one event"))))
+     ;; data-ast returns Some(HolonAST::String "first").
+     ((msg :String)
+      (:wat::core::match
+        (:wat::telemetry::Event::Log/data-ast first-evt)
+        -> :String
+        ((Some h) (:wat::core::atom-value h))
+        (:None "fail"))))
+    (:wat::test::assert-eq msg "first")))
+
+
+;; Slice 3 — data-value<:String> lifts the Tagged AST to a bare
+;; String via eval-ast!. Same fixture as data-ast, but skips the
+;; explicit atom-value step — the lift goes straight to T.
+(:deftest :wat-telemetry-sqlite::reader::test-data-value-lifts-string
+  (:wat::core::let*
+    (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
+     ((path :String) (:wat::io::TempFile/path tf))
+     ((driver :wat::kernel::ProgramHandle<()>)
+      (:test::reader::write-fixture path))
+     ((_join :()) (:wat::kernel::join driver))
+     ((handle :wat::sqlite::ReadHandle)
+      (:wat::sqlite::open-readonly path))
+     ((no-constraints :Vec<wat::telemetry::TimeConstraint>)
+      (:wat::core::vec :wat::telemetry::TimeConstraint))
+     ((events :Vec<wat::telemetry::Event>)
+      (:wat::std::stream::collect
+        (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
+     ((first-evt :wat::telemetry::Event)
+      (:wat::core::match (:wat::core::first events) -> :wat::telemetry::Event
+        ((Some e) e)
+        (:None
+          (:wat::test::assertion-failed
+            "expected at least one event"))))
+     ;; data-value<:String> — lift Tagged HolonAST → String.
+     ((msg :String)
+      (:wat::core::match
+        (:wat::telemetry::Event::Log/data-value first-evt)
+        -> :String
+        ((Some s) s)
+        (:None "fail"))))
+    (:wat::test::assert-eq msg "first")))
