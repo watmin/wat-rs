@@ -893,7 +893,11 @@ when you want the answer, not the path.
 
 ;; Story 2 — value. Lift back, run.
 ((reveal :wat::WatAST) (:wat::holon::to-watast form-atom))
-(:wat::eval-ast! reveal)        ; → :Result<wat::holon::HolonAST, EvalError>
+(:wat::eval-ast! reveal)        ; → :Result<:T, :EvalError> (arc 102)
+                                 ; T unifies with the value the form
+                                 ; evaluates to — bind with the type
+                                 ; you expect (i64, HolonAST, your
+                                 ; struct, etc.)
 ```
 
 The two stories compose: cache-check Story 1 ("have I seen this form
@@ -2312,7 +2316,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::keys` | `m` | `:Vec<K>` — order unspecified; sort post-call for determinism (arc 058) |
 | `:wat::core::values` | `m` | `:Vec<V>` — order unspecified; sort post-call for determinism (arc 058) |
 | `:wat::core::empty?` | `coll` | `:bool` — polymorphic over Vec/HashMap/HashSet (extended in arc 058) |
-| `:wat::eval-ast!` | `<wat-ast>` | `:Result<wat::holon::HolonAST, wat::core::EvalError>` — evaluates already-parsed AST (arc 028); arc 066 wraps the terminal value as HolonAST per scheme so `(Ok h)` is genuinely a HolonAST (use `:wat::core::atom-value` to extract the primitive). Forms whose terminal value has no HolonAST representation (Vec / Tuple / channels / etc.) return `Err` |
+| `:wat::eval-ast!` | `<wat-ast>` | `:Result<:T, :wat::core::EvalError>` (arc 102, polymorphic) — evaluates already-parsed AST (arc 028) and returns the bare terminal value; T unifies with the binding's annotated type. Same trust-the-caller discipline as `:wat::edn::read` / `:wat::eval-edn!`: caller annotates `T` with the type they expect (`:i64`, `:wat::holon::HolonAST`, a user struct, anything); type-mismatched downstream ops fail at runtime if the expectation is wrong. Reverts arc 066's `value_to_holon` HolonAST-wrap — the wrap was a workaround for a type-vs-runtime lie that arc 102 fixes at the type level instead. |
 | `:wat::eval-step!` | `<wat-ast>` | `:Result<wat::eval::StepResult, wat::core::EvalError>` — performs ONE call-by-value reduction at the leftmost-outermost redex (arc 068). Returns `StepNext form` when a rewrite happened (`form` is the next WatAST to feed back), `StepTerminal value` when this step reduced a redex (chain length ≥ 1), `AlreadyTerminal value` when the input was already a value-shape (arc 070; chain length 0 — `to-watast(holon)` round-trips, holon-constructor calls with all-canonical args, primitive literals). Effectful ops (`:wat::kernel::*`, `:wat::io::*`, `:wat::eval-*`, `:wat::load*`, `:wat::config::*`) refuse with `EvalError(kind="effectful-in-step")`; ops without a step rule yet refuse with `kind="no-step-rule"`. The substrate primitive backing BOOK Chapter 59's dual-LRU coordinate cache: every intermediate form is its own cache key |
 | `:wat::eval::StepResult` | enum | `StepNext { form: :wat::WatAST }` / `StepTerminal { value: :wat::holon::HolonAST }` / `AlreadyTerminal { value: :wat::holon::HolonAST }` — three outcomes of a single reduction step (arc 068, arc 070). Match by full keyword path: `((:wat::eval::StepResult::StepNext next) ...)` / `((:wat::eval::StepResult::StepTerminal h) ...)` / `((:wat::eval::StepResult::AlreadyTerminal h) ...)` |
 | `:wat::eval::walk` | `<form> <init> <visit>` | `:Result<(:wat::holon::HolonAST, :A), :wat::core::EvalError>` — fold over the eval-step! chain (arc 070). Visitor fires once per coordinate with `(acc, form, step-result)` and returns `WalkStep<A>`: `Continue(acc')` keeps walking, `Skip(terminal, acc')` short-circuits with the caller's terminal. The substrate primitive that lifts the walker pattern proofs 015/016/017/018 each reimplemented |
