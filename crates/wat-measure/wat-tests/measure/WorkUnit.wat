@@ -137,3 +137,20 @@
      ((looked-up :Option<wat::holon::HolonAST>)
       (:wat::core::get got asset-key)))
     (:wat::test::assert-eq looked-up (Some asset-val))))
+
+
+;; ─── WorkUnit/scope<T> — bare HOF (open + run + return) ──────────
+
+;; Body sees the wu, mutates it, returns T; scope returns body's
+;; T. The bare scope (no auto-ship yet — that lands in slice
+;; 4-ship) is the smallest piece of the HOF contract.
+(:deftest :wat-measure::WorkUnit::test-scope-passes-result
+  (:wat::core::let*
+    (((tags   :wat::measure::Tags) (:wat-measure::empty-tags))
+     ((result :i64)
+      (:wat::measure::WorkUnit/scope tags
+        (:wat::core::lambda ((wu :wat::measure::WorkUnit) -> :i64)
+          (:wat::core::let*
+            (((_ :()) (:wat::measure::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
+            42)))))
+    (:wat::test::assert-eq result 42)))

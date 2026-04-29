@@ -112,6 +112,30 @@
   (:rust::measure::WorkUnit::durations_keys wu))
 
 
+;; ─── WorkUnit/scope<T> — measurement HOF ─────────────────────────
+;;
+;; Opens a fresh WorkUnit, runs body with it, returns body's value.
+;; Body is `:fn(WorkUnit) -> T` — 1-arity, receives the wu so it
+;; can incr! / append-dt! / read tags / etc. The scope HOF is
+;; pure-wat; no Rust-side eval needed.
+;;
+;; Slice 4 ships this bare shape. The companion slice (4-ship)
+;; adds the auto-ship at scope-close that walks counters +
+;; durations into Vec<Event::Metric> rows and batch-logs them
+;; through SinkHandles. Splitting the slice keeps each stepping
+;; stone testable independently.
+
+(:wat::core::define
+  (:wat::measure::WorkUnit/scope<T>
+    (tags :wat::measure::Tags)
+    (body :fn(wat::measure::WorkUnit)->T)
+    -> :T)
+  (:wat::core::let*
+    (((wu     :wat::measure::WorkUnit) (:wat::measure::WorkUnit::new tags))
+     ((result :T)                       (body wu)))
+    result))
+
+
 ;; ─── Tags — the third concern, IMMUTABLE for the scope ─────────
 ;;
 ;; Tags are declared upfront at WorkUnit::new and are immutable
