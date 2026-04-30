@@ -626,7 +626,7 @@ fn sigterm_cascades_two_levels_via_process_group() {
                  ;; polls stopped?. Pgid inherited from parent (no
                  ;; setpgid in child_branch); cascade reaches it via
                  ;; the cli's killpg.
-                 ((child :wat::kernel::ForkedChild<(),()>)
+                 ((child :wat::kernel::Process<(),()>)
                   (:wat::kernel::fork-program-ast
                     (:wat::test::program
                       (:wat::core::define (:demo::poll-loop -> :())
@@ -642,11 +642,11 @@ fn sigterm_cascades_two_levels_via_process_group() {
                           (((_ :()) (:wat::io::IOWriter/println gstdout "GRANDCHILD READY")))
                           (:demo::poll-loop))))))
                  ((rx :wat::io::IOReader)
-                  (:wat::kernel::ForkedChild/stdout child))
-                 ((handle :wat::kernel::ChildHandle)
-                  (:wat::kernel::ForkedChild/handle child))
-                 ((_ :()) (:demo::forward-loop rx stdout))
-                 ((_exit :i64) (:wat::kernel::wait-child handle)))
+                  (:wat::kernel::Process/stdout child))
+                 ((_ :Result<(),wat::kernel::ProcessDiedError>)
+                  (:wat::core::let*
+                    (((_ :()) (:demo::forward-loop rx stdout)))
+                    (:wat::kernel::Process/join-result child))))
                 ()))
         "#;
         let path = write_temp(program);

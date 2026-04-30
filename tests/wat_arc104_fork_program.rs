@@ -13,10 +13,9 @@
 //!   transforms, writes response; parent reads response. Same shape
 //!   as the spawn-program round-trip test.
 //! - Drop cascade: closing parent's stdin writer → child's stdin
-//!   read-line returns `:None` → child exits cleanly → wait-child
-//!   returns 0.
-//! - Bad source: parse error in child → exit code 3 surfaces via
-//!   wait-child.
+//!   read-line returns `:None` → child exits cleanly → Process/join-result
+//!   returns Ok(()).
+//! - Bad source: parse error in child → Process/join-result returns Err.
 
 use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};
@@ -40,10 +39,19 @@ fn unwrap_some_string(v: Value) -> String {
     }
 }
 
-fn unwrap_i64(v: Value) -> i64 {
+fn unwrap_ok_result(v: Value) -> bool {
+    // Returns true if the value is Result::Ok(_).
     match v {
-        Value::i64(n) => n,
-        other => panic!("expected i64; got {:?}", other),
+        Value::Result(r) => r.is_ok(),
+        other => panic!("expected Result; got {:?}", other),
+    }
+}
+
+fn unwrap_err_result(v: Value) -> bool {
+    // Returns true if the value is Result::Err(_).
+    match v {
+        Value::Result(r) => r.is_err(),
+        other => panic!("expected Result; got {:?}", other),
     }
 }
 
@@ -57,10 +65,10 @@ fn fork_program_child_writes_stdout_parent_reads_line() {
           (:wat::core::let*
             (((inner-src :String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::io::IOWriter/println stdout \"hello-from-fork\"))")
-             ((child :wat::kernel::ForkedChild<(),()>)
+             ((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program inner-src :None))
              ((out-r :wat::io::IOReader)
-              (:wat::kernel::ForkedChild/stdout child)))
+              (:wat::kernel::Process/stdout child)))
             (:wat::io::IOReader/read-line out-r)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "hello-from-fork");
@@ -80,10 +88,10 @@ fn fork_program_round_trip_via_pipes() {
           (:wat::core::let*
             (((inner-src :String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :() (:None ()) ((Some line) (:wat::io::IOWriter/println stdout (:wat::core::string::concat line line)))))")
-             ((child :wat::kernel::ForkedChild<(),()>)
+             ((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program inner-src :None))
-             ((in-w  :wat::io::IOWriter) (:wat::kernel::ForkedChild/stdin child))
-             ((out-r :wat::io::IOReader) (:wat::kernel::ForkedChild/stdout child))
+             ((in-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin child))
+             ((out-r :wat::io::IOReader) (:wat::kernel::Process/stdout child))
              ((_ :()) (:wat::io::IOWriter/println in-w "ping")))
             (:wat::io::IOReader/read-line out-r)))
     "#;
@@ -95,22 +103,20 @@ fn fork_program_round_trip_via_pipes() {
 #[test]
 fn fork_program_clean_exit_code_via_wait_child() {
     // Child reads stdin to EOF, exits. Parent closes stdin writer,
-    // then wait-child reaps the exit code. Should be 0 (clean exit).
+    // then Process/join-result reaps the exit. Should be Ok(()) (clean exit).
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
           (:wat::core::let*
             (((inner-src :String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :() (:None ()) ((Some _) ())))")
-             ((child :wat::kernel::ForkedChild<(),()>)
+             ((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program inner-src :None))
-             ((in-w :wat::io::IOWriter) (:wat::kernel::ForkedChild/stdin child))
-             ((_close :()) (:wat::io::IOWriter/close in-w))
-             ((handle :wat::kernel::ChildHandle)
-              (:wat::kernel::ForkedChild/handle child)))
-            (:wat::kernel::wait-child handle)))
+             ((in-w :wat::io::IOWriter) (:wat::kernel::Process/stdin child))
+             ((_close :()) (:wat::io::IOWriter/close in-w)))
+            (:wat::kernel::Process/join-result child)))
     "#;
-    assert_eq!(unwrap_i64(run(src)), 0);
+    assert!(unwrap_ok_result(run(src)), "expected Ok(()) for clean exit");
 }
 
 // ─── bad source surfaces as exit code 3 (EXIT_STARTUP_ERROR) ─────────
@@ -119,27 +125,22 @@ fn fork_program_clean_exit_code_via_wait_child() {
 fn fork_program_parse_error_surfaces_as_exit_3() {
     // Source missing :user::main → child's startup_from_source fails
     // (no entry point) → child writes "startup: ..." to stderr →
-    // child exits 3 → parent's wait-child returns 3.
+    // child dies → parent's Process/join-result returns Err.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
           (:wat::core::let*
             (((bad-src :String)
               "(:wat::core::define (:demo::not-main (x :i64) -> :i64) x)")
-             ((child :wat::kernel::ForkedChild<(),()>)
-              (:wat::kernel::fork-program bad-src :None))
-             ((handle :wat::kernel::ChildHandle)
-              (:wat::kernel::ForkedChild/handle child)))
-            (:wat::kernel::wait-child handle)))
+             ((child :wat::kernel::Process<(),()>)
+              (:wat::kernel::fork-program bad-src :None)))
+            (:wat::kernel::Process/join-result child)))
     "#;
-    let code = unwrap_i64(run(src));
     // EXIT_STARTUP_ERROR (3) for missing :user::main, OR
     // EXIT_MAIN_SIGNATURE (4) if startup succeeds but main signature
-    // doesn't match. Either is the honest "child rejected this source"
-    // signal.
+    // doesn't match. Either way, ProcessDiedError surfaces as Err.
     assert!(
-        code == 3 || code == 4,
-        "expected 3 or 4 (startup/sig failure); got {}",
-        code
+        unwrap_err_result(run(src)),
+        "expected Err(ProcessDiedError) for startup/sig failure"
     );
 }

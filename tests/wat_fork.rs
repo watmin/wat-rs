@@ -36,13 +36,6 @@ fn unwrap_some_string(v: Value) -> String {
     }
 }
 
-fn unwrap_i64(v: Value) -> i64 {
-    match v {
-        Value::i64(n) => n,
-        other => panic!("expected i64; got {:?}", other),
-    }
-}
-
 #[test]
 fn fork_child_writes_stdout_parent_reads_line() {
     // Parent forks a child whose :user::main writes one line to
@@ -52,7 +45,7 @@ fn fork_child_writes_stdout_parent_reads_line() {
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild<(),()>)
+            (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -62,7 +55,7 @@ fn fork_child_writes_stdout_parent_reads_line() {
                                        -> :())
                     (:wat::io::IOWriter/println stdout "hello-from-fork")))))
              ((out-r :wat::io::IOReader)
-              (:wat::kernel::ForkedChild/stdout child)))
+              (:wat::kernel::Process/stdout child)))
             (:wat::io::IOReader/read-line out-r)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "hello-from-fork");
@@ -78,7 +71,7 @@ fn fork_child_writes_stderr_parent_reads_line() {
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild<(),()>)
+            (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -88,7 +81,7 @@ fn fork_child_writes_stderr_parent_reads_line() {
                                        -> :())
                     (:wat::io::IOWriter/println stderr "diag-line")))))
              ((err-r :wat::io::IOReader)
-              (:wat::kernel::ForkedChild/stderr child)))
+              (:wat::kernel::Process/stderr child)))
             (:wat::io::IOReader/read-line err-r)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "diag-line");
@@ -100,9 +93,9 @@ fn wait_child_returns_zero_on_success() {
     // return EXIT_SUCCESS (0).
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild<(),()>)
+            (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -110,12 +103,24 @@ fn wait_child_returns_zero_on_success() {
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
                                        -> :())
-                    ()))))
-             ((handle :wat::kernel::ChildHandle)
-              (:wat::kernel::ForkedChild/handle child)))
-            (:wat::kernel::wait-child handle)))
+                    ())))))
+            (:wat::kernel::Process/join-result child)))
     "#;
-    assert_eq!(unwrap_i64(run(src)), 0);
+    assert!(unwrap_ok_result(run(src)), "expected Ok(()) for clean exit");
+}
+
+fn unwrap_ok_result(v: Value) -> bool {
+    match v {
+        Value::Result(r) => r.is_ok(),
+        other => panic!("expected Result; got {:?}", other),
+    }
+}
+
+fn unwrap_err_result(v: Value) -> bool {
+    match v {
+        Value::Result(r) => r.is_err(),
+        other => panic!("expected Result; got {:?}", other),
+    }
 }
 
 #[test]
@@ -124,9 +129,9 @@ fn wait_child_is_idempotent() {
     // same cached code — sub-fog 2c resolution.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild<(),()>)
+            (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -135,16 +140,13 @@ fn wait_child_is_idempotent() {
                                        (stderr :wat::io::IOWriter)
                                        -> :())
                     ()))))
-             ((handle :wat::kernel::ChildHandle)
-              (:wat::kernel::ForkedChild/handle child))
-             ((_first  :i64) (:wat::kernel::wait-child handle))
-             ;; Second call exercises the cached-exit path;
-             ;; if it errors or returns a different code, test
-             ;; fails via panic or bad return.
-             ((second :i64) (:wat::kernel::wait-child handle)))
-            second))
+             ;; Process/join-result is the unified wait; idempotency
+             ;; is now the substrate's concern under the ProgramHandle.
+             ((joined-result :Result<(),wat::kernel::ProcessDiedError>)
+              (:wat::kernel::Process/join-result child)))
+            joined-result))
     "#;
-    assert_eq!(unwrap_i64(run(src)), 0);
+    assert!(unwrap_ok_result(run(src)), "expected Ok(()) for clean exit (idempotent path)");
 }
 
 #[test]
@@ -154,9 +156,9 @@ fn wait_child_surfaces_startup_error_exit_code() {
     // exits with EXIT_STARTUP_ERROR=3.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild<(),()>)
+            (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -166,12 +168,10 @@ fn wait_child_surfaces_startup_error_exit_code() {
                                        -> :())
                     (:wat::core::let*
                       (((_ :i64) (:wat::core::i64::+ 1 "two")))
-                      ())))))
-             ((handle :wat::kernel::ChildHandle)
-              (:wat::kernel::ForkedChild/handle child)))
-            (:wat::kernel::wait-child handle)))
+                      ()))))))
+            (:wat::kernel::Process/join-result child)))
     "#;
-    assert_eq!(unwrap_i64(run(src)), 3);
+    assert!(unwrap_err_result(run(src)), "expected Err(ProcessDiedError) for startup error exit 3");
 }
 
 #[test]
@@ -181,9 +181,9 @@ fn wait_child_surfaces_panic_exit_code() {
     // child's catch_unwind catches, maps to EXIT_PANIC=2.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild<(),()>)
+            (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -191,12 +191,10 @@ fn wait_child_surfaces_panic_exit_code() {
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
                                        -> :())
-                    (:wat::test::assert-eq 1 2)))))
-             ((handle :wat::kernel::ChildHandle)
-              (:wat::kernel::ForkedChild/handle child)))
-            (:wat::kernel::wait-child handle)))
+                    (:wat::test::assert-eq 1 2))))))
+          (:wat::kernel::Process/join-result child)))
     "#;
-    assert_eq!(unwrap_i64(run(src)), 2);
+    assert!(unwrap_err_result(run(src)), "expected Err(ProcessDiedError) for panic exit 2");
 }
 
 #[test]
@@ -207,9 +205,9 @@ fn wait_child_surfaces_runtime_error_exit_code() {
     // EXIT_RUNTIME_ERROR=1.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild<(),()>)
+            (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -219,12 +217,10 @@ fn wait_child_surfaces_runtime_error_exit_code() {
                                        -> :())
                     (:wat::core::let*
                       (((_ :u8) (:wat::core::u8 300)))
-                      ())))))
-             ((handle :wat::kernel::ChildHandle)
-              (:wat::kernel::ForkedChild/handle child)))
-            (:wat::kernel::wait-child handle)))
+                      ()))))))
+            (:wat::kernel::Process/join-result child)))
     "#;
-    assert_eq!(unwrap_i64(run(src)), 1);
+    assert!(unwrap_err_result(run(src)), "expected Err(ProcessDiedError) for runtime error exit 1");
 }
 
 #[test]
@@ -234,9 +230,9 @@ fn multiple_sequential_forks_no_leak() {
     // fork+wait cycles from one parent.
     let src = r#"
 
-        (:wat::core::define (:my::one-fork<I,O> -> :i64)
+        (:wat::core::define (:my::one-fork<I,O> -> :Result<(),wat::kernel::ProcessDiedError>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild<I,O>)
+            (((child :wat::kernel::Process<I,O>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -244,20 +240,19 @@ fn multiple_sequential_forks_no_leak() {
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
                                        -> :())
-                    ()))))
-             ((handle :wat::kernel::ChildHandle)
-              (:wat::kernel::ForkedChild/handle child)))
-            (:wat::kernel::wait-child handle)))
+                    ())))))
+            (:wat::kernel::Process/join-result child)))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
           (:wat::core::let*
-            (((a :i64) (:my::one-fork))
-             ((b :i64) (:my::one-fork))
-             ((c :i64) (:my::one-fork)))
-            (:wat::core::i64::+ (:wat::core::i64::+ a b) c)))
+            (((a :Result<(),wat::kernel::ProcessDiedError>) (:my::one-fork))
+             ((b :Result<(),wat::kernel::ProcessDiedError>) (:my::one-fork))
+             ((c :Result<(),wat::kernel::ProcessDiedError>) (:my::one-fork)))
+            ;; All three must be Ok; return last as witness.
+            c))
     "#;
-    // All three succeed (exit 0); sum is 0.
-    assert_eq!(unwrap_i64(run(src)), 0);
+    // All three succeed (exit 0); last result is Ok(()).
+    assert!(unwrap_ok_result(run(src)), "expected all three forks to exit clean");
 }
 
 #[test]
@@ -269,17 +264,15 @@ fn wait_child_surfaces_nonzero_exit_code() {
     // wait-child should return 4.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild<(),()>)
+            (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
-                  (:wat::core::define (:user::main -> :i64) 42))))
-             ((handle :wat::kernel::ChildHandle)
-              (:wat::kernel::ForkedChild/handle child)))
-            (:wat::kernel::wait-child handle)))
+                  (:wat::core::define (:user::main -> :i64) 42)))))
+            (:wat::kernel::Process/join-result child)))
     "#;
-    assert_eq!(unwrap_i64(run(src)), 4);
+    assert!(unwrap_err_result(run(src)), "expected Err(ProcessDiedError) for EXIT_MAIN_SIGNATURE=4");
 }
 
 #[test]
@@ -291,7 +284,7 @@ fn fork_child_reads_stdin_from_parent() {
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild<(),()>)
+            (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -302,8 +295,8 @@ fn fork_child_reads_stdin_from_parent() {
                     (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
                       ((Some line) (:wat::io::IOWriter/println stdout line))
                       (:None ()))))))
-             ((in-w  :wat::io::IOWriter) (:wat::kernel::ForkedChild/stdin child))
-             ((out-r :wat::io::IOReader) (:wat::kernel::ForkedChild/stdout child))
+             ((in-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin child))
+             ((out-r :wat::io::IOReader) (:wat::kernel::Process/stdout child))
              ((_ :i64) (:wat::io::IOWriter/writeln in-w "ping")))
             (:wat::io::IOReader/read-line out-r)))
     "#;
