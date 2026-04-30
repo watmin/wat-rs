@@ -42,6 +42,42 @@ abs-path resolution + auto-builds the binary on first invocation):
 | `count-logs.wat` | Count Event::Log rows; print `logs: N`. |
 | `metrics-summary.wat` | Count both Event::Log and Event::Metric rows in one script; print a one-line summary. Proves multiple streams can run sequentially off the same ReadHandle. |
 
+### EDN-stdin dispatcher (arc 103c)
+
+The hologram-nesting pattern from arc 103a, made operational. The
+dispatcher reads one `#demo/Job` EDN line from stdin, reads the
+named query-program's source via `:wat::io::read-file`, spawns it
+via `:wat::kernel::spawn-program` with the db-path piped in as the
+inner's stdin, forwards the inner's stdout to the dispatcher's own
+stdout. Two wat programs, two frozen worlds, three OS pipes
+between them.
+
+| Script | Purpose |
+|---|---|
+| `dispatch.wat` | Read `#demo/Job {:db-path :query-program}`, spawn the named program, mediate IO. |
+
+```bash
+$ echo /tmp/dispatch-demo.db | ./target/release/wat ./wat-scripts/seed-fixture.wat
+seeded 5 logs to: /tmp/dispatch-demo.db
+
+$ echo '#demo/Job {:db-path "/tmp/dispatch-demo.db" :query-program "./wat-scripts/count-logs.wat"}' \
+    | ./target/release/wat ./wat-scripts/dispatch.wat
+logs: 5
+
+$ echo '#demo/Job {:db-path "/tmp/dispatch-demo.db" :query-program "./wat-scripts/metrics-summary.wat"}' \
+    | ./target/release/wat ./wat-scripts/dispatch.wat
+logs: 5  metrics: 0
+```
+
+The inner programs (`count-logs.wat`, `metrics-summary.wat`) run
+in their own frozen worlds — they cannot see the dispatcher's
+bindings or symbol table. They share the binary's Rust shims
+(`:wat::sqlite::*`, etc.) but otherwise communicate only through
+the three OS pipes the dispatcher allocated.
+
+See `docs/arc/2026/04/103-kernel-spawn/HOLOGRAM.md` for the
+framing — this is the hologram model in operational form.
+
 ### Pipeline composition (arc 103a)
 
 A four-stage Unix-pipe demo that proves the EDN+newline protocol
