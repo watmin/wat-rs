@@ -182,6 +182,7 @@ mod tests {
                 callee_path: ":my::app::foo".into(),
                 call_span: mk_span("wat-tests/foo.wat", 12, 5),
             }],
+            upstream_chain: None,
         };
         let mut out = Vec::new();
         write_assertion_failure(&mut out, &payload);
@@ -206,6 +207,7 @@ mod tests {
             expected: None,
             location: None,
             frames: Vec::new(),
+            upstream_chain: None,
         };
         let mut out = Vec::new();
         write_assertion_failure(&mut out, &payload);

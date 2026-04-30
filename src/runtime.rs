@@ -6208,10 +6208,10 @@ fn eval_option_expect(
     match opt {
         Value::Option(o) => match std::sync::Arc::try_unwrap(o) {
             Ok(Some(v)) => Ok(v),
-            Ok(None) => expect_panic(":wat::core::option::expect", &args[3], env, sym, args[2].span().clone()),
+            Ok(None) => expect_panic(":wat::core::option::expect", &args[3], env, sym, args[2].span().clone(), None),
             Err(shared) => match &*shared {
                 Some(v) => Ok(v.clone()),
-                None => expect_panic(":wat::core::option::expect", &args[3], env, sym, args[2].span().clone()),
+                None => expect_panic(":wat::core::option::expect", &args[3], env, sym, args[2].span().clone(), None),
             },
         },
         other => Err(RuntimeError::TypeMismatch {
@@ -6240,13 +6240,15 @@ fn eval_result_expect(
     match res {
         Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
             Ok(std::result::Result::Ok(ok)) => Ok(ok),
-            Ok(std::result::Result::Err(_e)) => {
-                expect_panic(":wat::core::result::expect", &args[3], env, sym, args[2].span().clone())
+            Ok(std::result::Result::Err(e)) => {
+                let chain = extract_died_chain(&e);
+                expect_panic(":wat::core::result::expect", &args[3], env, sym, args[2].span().clone(), chain)
             }
             Err(shared) => match &*shared {
                 std::result::Result::Ok(ok) => Ok(ok.clone()),
-                std::result::Result::Err(_e) => {
-                    expect_panic(":wat::core::result::expect", &args[3], env, sym, args[2].span().clone())
+                std::result::Result::Err(e) => {
+                    let chain = extract_died_chain(e);
+                    expect_panic(":wat::core::result::expect", &args[3], env, sym, args[2].span().clone(), chain)
                 }
             },
         },
@@ -6258,16 +6260,44 @@ fn eval_result_expect(
     }
 }
 
+/// Arc 113 slice 2 — pull the `Vec<*DiedError>` chain out of a
+/// `Value::Result`'s Err arm so `result::expect` can carry it
+/// through the panic. The Err arg's runtime shape post-arc-113
+/// slice 1 is a `Value::Vec` of `Value::Struct` (each one a
+/// `:wat::kernel::ThreadDiedError` or `:wat::kernel::ProcessDiedError`).
+///
+/// Returns `Some(chain)` when the Err arg is a Vec (the post-slice-1
+/// shape); `None` otherwise (defensive — pre-slice-1 shapes or
+/// user-code that put a non-Vec in the Err arm of a custom
+/// `Result<T, E>` they own). Falling back to `None` keeps the
+/// chain machinery additive: callers without chains see no
+/// behavior change.
+fn extract_died_chain(err: &Value) -> Option<Vec<Value>> {
+    match err {
+        Value::Vec(items) => Some((**items).clone()),
+        _ => None,
+    }
+}
+
 /// Shared panic helper for `option::expect` / `result::expect`. Evals
 /// the msg expression (refusing non-String payloads), captures the
 /// call stack, builds an `AssertionPayload` with the supplied span as
 /// `location`, then `panic_any`s. Never returns.
+///
+/// The `upstream_chain` arg is `Some(chain)` only when called from
+/// `result::expect` on an Err arm whose payload was a `Vec<*DiedError>`
+/// (arc 113 slice 2). The chain rides through the panic so the
+/// surrounding spawn driver can conj this thread's death onto the
+/// front when synthesizing the join outcome — the cascade
+/// accumulation. `option::expect` always passes `None` (Option has no
+/// upstream).
 fn expect_panic(
     op: &'static str,
     msg_ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     location: crate::span::Span,
+    upstream_chain: Option<Vec<Value>>,
 ) -> Result<Value, RuntimeError> {
     let msg = match eval(msg_ast, env, sym)? {
         Value::String(s) => (*s).clone(),
@@ -6286,6 +6316,7 @@ fn expect_panic(
         expected: None,
         location: Some(location),
         frames,
+        upstream_chain,
     };
     std::panic::panic_any(payload);
 }
@@ -11347,9 +11378,15 @@ fn eval_kernel_join_result(
             Ok(SpawnOutcome::RuntimeErr(e)) => Value::Result(Arc::new(Err(single_died_chain(
                 thread_died_error_runtime(e.to_string()),
             )))),
-            Ok(SpawnOutcome::Panic { message, assertion }) => Value::Result(Arc::new(Err(
-                single_died_chain(thread_died_error_panic(message, assertion.clone())),
-            ))),
+            Ok(SpawnOutcome::Panic { message, assertion }) => {
+                // Arc 113 slice 2 — preserve the upstream chain when
+                // the panic was a `result::expect` on an Err that
+                // carried one. conj_died_chain pushes THIS thread's
+                // death onto the front of the inherited tail.
+                let upstream = assertion.as_ref().and_then(|a| a.upstream_chain.clone());
+                let fresh = thread_died_error_panic(message, assertion.clone());
+                Value::Result(Arc::new(Err(conj_died_chain(fresh, upstream))))
+            }
             Err(_) => Value::Result(Arc::new(Err(single_died_chain(
                 thread_died_error_channel_disconnected(),
             )))),
@@ -11430,9 +11467,14 @@ fn eval_kernel_process_join_result(
             Ok(SpawnOutcome::RuntimeErr(e)) => Value::Result(Arc::new(Err(single_died_chain(
                 process_died_error_runtime(e.to_string()),
             )))),
-            Ok(SpawnOutcome::Panic { message, assertion }) => Value::Result(Arc::new(Err(
-                single_died_chain(process_died_error_panic(message, assertion.clone())),
-            ))),
+            Ok(SpawnOutcome::Panic { message, assertion }) => {
+                // Arc 113 slice 2 — same chain accumulation as the bare
+                // join-result; ProcessDiedError::Panic gets conj'd onto
+                // the head of any inherited upstream chain.
+                let upstream = assertion.as_ref().and_then(|a| a.upstream_chain.clone());
+                let fresh = process_died_error_panic(message, assertion.clone());
+                Value::Result(Arc::new(Err(conj_died_chain(fresh, upstream))))
+            }
             Err(_) => Value::Result(Arc::new(Err(single_died_chain(
                 process_died_error_channel_disconnected(),
             )))),
@@ -11682,6 +11724,11 @@ fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -
         expected,
         location,
         frames,
+        // Arc 113 — chain rides on the panic payload but doesn't
+        // become part of the Failure struct (Failure pre-dates the
+        // chain; cascade reconstruction lives one layer up, in
+        // join-result).
+        upstream_chain: _,
     } = p;
     let location_field = match location {
         Some(span) => Value::Option(Arc::new(Some(value_from_span(span)))),
@@ -11765,17 +11812,33 @@ fn thread_died_error_channel_disconnected() -> Value {
 }
 
 /// Arc 113 slice 1 — wrap a single DiedError Value in a
-/// `Vec<DiedError>` chain. Slice 1 always emits a singleton chain
-/// (no auto-conj yet); slice 2 wires the per-thread panic cell
-/// + Sender back-ref so cascades produce real multi-element chains
-/// at every cross-thread hand-off boundary.
+/// `Vec<DiedError>` chain.
 ///
 /// The Vec is the chain. Head = the immediate peer that died; tail
 /// = whatever killed it, transitively. Consumers reach for
-/// `(:wat::core::Vector/first chain)` to recover the head when
-/// they don't care about the trail.
+/// `(:wat::core::first chain)` to recover the head when they don't
+/// care about the trail.
 fn single_died_chain(died: Value) -> Value {
     Value::Vec(Arc::new(vec![died]))
+}
+
+/// Arc 113 slice 2 — conj a fresh DiedError onto the FRONT of an
+/// existing chain (or build a singleton when no upstream exists).
+///
+/// Cascade semantics: when `result::expect` panics on an Err that
+/// carried a chain, that chain rides through the panic on the
+/// `AssertionPayload`. The spawn driver's catch_unwind reads it
+/// here and pushes THIS thread's death (`fresh`) onto the head of
+/// the inherited chain. Future joiners walking from the front see
+/// the death-chain in causality order: head = the thread the
+/// joiner waited on; second = whoever killed it; … last = the
+/// originating cause.
+fn conj_died_chain(fresh: Value, upstream: Option<Vec<Value>>) -> Value {
+    let mut chain = vec![fresh];
+    if let Some(tail) = upstream {
+        chain.extend(tail);
+    }
+    Value::Vec(Arc::new(chain))
 }
 
 /// Build a `:wat::kernel::ProcessDiedError::Panic` enum value
@@ -17798,6 +17861,70 @@ mod tests {
             v => panic!("expected ThreadDiedError enum, got {:?}", v),
         };
         assert_eq!(&*msg, "intentional panic");
+    }
+
+    #[test]
+    fn join_result_cascade_accumulates_chain_across_two_levels() {
+        // Arc 113 slice 2 — when an outer thread `result::expect`s on
+        // an Err that carried a Vec<ThreadDiedError> chain, the chain
+        // rides through the panic and the spawn driver conjs the
+        // outer's death onto the FRONT. Joining the outer yields a
+        // 2-element chain in causality order:
+        //   chain[0] = outer's panic ("outer: inner died")
+        //   chain[1] = inner's panic ("inner died")
+        let src = r#"
+            (:wat::core::define (:my::inner -> :())
+              (:wat::kernel::assertion-failed! "inner died" :None :None))
+            (:wat::core::define (:my::outer -> :())
+              (:wat::core::let*
+                (((handle :wat::kernel::ProgramHandle<()>)
+                  (:wat::kernel::spawn :my::inner))
+                 ((_ :())
+                  (:wat::core::result::expect -> :()
+                    (:wat::kernel::join-result handle)
+                    "outer: inner died")))
+                ()))
+            (:wat::kernel::join-result (:wat::kernel::spawn :my::outer))
+        "#;
+        let result = run(src).unwrap();
+        let chain = match result {
+            Value::Result(r) => match &*r {
+                Err(Value::Vec(xs)) => xs.clone(),
+                Err(v) => panic!("expected Err Vec, got {:?}", v),
+                Ok(_) => panic!("expected Err"),
+            },
+            v => panic!("expected Result, got {:?}", v),
+        };
+        assert_eq!(
+            chain.len(),
+            2,
+            "expected 2-element cascade chain, got {} entries",
+            chain.len()
+        );
+        // Head — outer's death (the joined thread).
+        let head_msg = match &chain[0] {
+            Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
+                assert_eq!(ev.variant_name, "Panic");
+                match &ev.fields[0] {
+                    Value::String(s) => s.clone(),
+                    v => panic!("expected String, got {:?}", v),
+                }
+            }
+            v => panic!("expected ThreadDiedError, got {:?}", v),
+        };
+        assert_eq!(&*head_msg, "outer: inner died");
+        // Tail — inner's death (the cause).
+        let tail_msg = match &chain[1] {
+            Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
+                assert_eq!(ev.variant_name, "Panic");
+                match &ev.fields[0] {
+                    Value::String(s) => s.clone(),
+                    v => panic!("expected String, got {:?}", v),
+                }
+            }
+            v => panic!("expected ThreadDiedError, got {:?}", v),
+        };
+        assert_eq!(&*tail_msg, "inner died");
     }
 
     #[test]

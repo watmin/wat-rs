@@ -56,6 +56,16 @@ pub struct AssertionPayload {
     /// frame is `(callee_path, call_span)` — the callee's keyword
     /// path + where in the caller the invocation was written.
     pub frames: Vec<FrameInfo>,
+    /// Arc 113 — chain of upstream deaths the panic inherits.
+    /// Set by `:wat::core::result::expect` when the Err arm carries
+    /// a `Vec<*DiedError>` (the post-arc-113 wire shape): the chain
+    /// is extracted and stashed here so the spawn driver's
+    /// catch_unwind can conj this thread's death onto the FRONT
+    /// when synthesizing the outcome. `None` for plain panics,
+    /// option::expect-on-None, and assert-* failures (no upstream).
+    /// Each element is a runtime `:wat::kernel::ThreadDiedError` /
+    /// `:wat::kernel::ProcessDiedError` enum value.
+    pub upstream_chain: Option<Vec<Value>>,
 }
 
 /// `(:wat::kernel::assertion-failed! message actual expected)` → `:()`.
@@ -112,6 +122,7 @@ pub fn eval_kernel_assertion_failed(
         expected,
         location,
         frames,
+        upstream_chain: None,
     };
 
     // panic_any carries the typed payload through catch_unwind's
