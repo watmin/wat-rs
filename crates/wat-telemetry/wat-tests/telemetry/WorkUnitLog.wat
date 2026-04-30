@@ -51,8 +51,8 @@
        (:wat::core::foldl entries ()
          (:wat::core::lambda ((_acc :()) (e :wat::telemetry::Event) -> :())
            (:wat::core::match (:wat::kernel::send stub-tx e) -> :()
-             ((Some _) ())
-             (:None    ()))))))
+             ((Ok _) ())
+             ((Err _) ()))))))
 
    (:wat::core::define
      (:wat-telemetry::log-test::translate-empty
@@ -107,7 +107,7 @@
      ;; atom-value to recover the keyword. Match-at-source per arc 110.
      ((level-back :wat::core::keyword)
       (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
-        ((Some event)
+        ((Ok (Some event))
           (:wat::core::match event -> :wat::core::keyword
             ((:wat::telemetry::Event::Log
                _t _ns _c level-notag _u _tags _d)
@@ -116,7 +116,8 @@
             ((:wat::telemetry::Event::Metric
                _s _e _ns _u _tags _n _v _unit)
               :wrong-variant-metric)))
-        (:None :no-event))))
+        ((Ok :None) :no-event)
+        ((Err _died) :no-event))))
     (:wat::test::assert-eq level-back :info)))
 
 
@@ -182,20 +183,24 @@
             :wrong-variant-metric))))
      ((l1 :wat::core::keyword)
       (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
-        ((Some event) (extract-level event))
-        (:None :no-event)))
+        ((Ok (Some event)) (extract-level event))
+        ((Ok :None) :no-event)
+        ((Err _died) :no-event)))
      ((l2 :wat::core::keyword)
       (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
-        ((Some event) (extract-level event))
-        (:None :no-event)))
+        ((Ok (Some event)) (extract-level event))
+        ((Ok :None) :no-event)
+        ((Err _died) :no-event)))
      ((l3 :wat::core::keyword)
       (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
-        ((Some event) (extract-level event))
-        (:None :no-event)))
+        ((Ok (Some event)) (extract-level event))
+        ((Ok :None) :no-event)
+        ((Err _died) :no-event)))
      ((l4 :wat::core::keyword)
       (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
-        ((Some event) (extract-level event))
-        (:None :no-event)))
+        ((Ok (Some event)) (extract-level event))
+        ((Ok :None) :no-event)
+        ((Err _died) :no-event)))
      ((_a :()) (:wat::test::assert-eq l1 :debug))
      ((_b :()) (:wat::test::assert-eq l2 :info))
      ((_c :()) (:wat::test::assert-eq l3 :warn)))

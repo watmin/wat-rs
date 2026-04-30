@@ -178,7 +178,7 @@ fn alias_over_fn_type_works_at_spawn() {
             (((job :my::Job)
               (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
                 (:wat::core::let*
-                  (((_ :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx 7) "test producer: tx disconnected")))
+                  (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 7) "test producer: tx disconnected")))
                   ())))
              ((pair :(rust::crossbeam_channel::Sender<i64>,rust::crossbeam_channel::Receiver<i64>))
               (:wat::kernel::make-bounded-queue :i64 1))
@@ -187,8 +187,9 @@ fn alias_over_fn_type_works_at_spawn() {
              ((h :wat::kernel::ProgramHandle<()>) (:wat::kernel::spawn job tx))
              ((_ :()) (:wat::kernel::join h)))
             (:wat::core::match (:wat::kernel::recv rx) -> :i64
-              ((Some v) v)
-              (:None 0))))
+              ((Ok (Some v)) v)
+              ((Ok :None) 0)
+              ((Err _died) -1))))
     "#;
     assert!(matches!(run(src), Value::i64(7)));
 }

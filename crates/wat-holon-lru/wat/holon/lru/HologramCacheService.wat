@@ -204,7 +204,7 @@
           (((result :Option<wat::holon::HolonAST>)
             (:wat::holon::lru::HologramCache/get cache probe))
            ((_send :())
-            (:wat::core::option::expect -> :()
+            (:wat::core::result::expect -> :()
               (:wat::kernel::send reply-tx result)
               "HologramCacheService::Request::Get reply-tx disconnected — caller died?"))
            ((hit-delta :wat::core::i64)
@@ -304,10 +304,10 @@
       (((chosen :wat::kernel::Chosen<wat::holon::lru::HologramCacheService::Request>)
         (:wat::kernel::select req-rxs))
        ((idx :wat::core::i64) (:wat::core::first chosen))
-       ((maybe :Option<wat::holon::lru::HologramCacheService::Request>)
+       ((maybe :wat::kernel::CommResult<wat::holon::lru::HologramCacheService::Request>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::holon::lru::HologramCacheService::State
-        ((Some req)
+        ((Ok (Some req))
           (:wat::core::let*
             (((after-handle :wat::holon::lru::HologramCacheService::State)
               (:wat::holon::lru::HologramCacheService/handle req state))
@@ -320,10 +320,11 @@
               (:wat::core::second step)))
             (:wat::holon::lru::HologramCacheService/loop
               req-rxs next-state reporter cadence')))
-        (:None
+        ((Ok :None)
           (:wat::holon::lru::HologramCacheService/loop
             (:wat::std::list::remove-at req-rxs idx)
-            state reporter metrics-cadence))))))
+            state reporter metrics-cadence))
+        ((Err _died) state)))))
 
 ;; ─── Worker entry — owns the cache for its full lifetime ──────
 ;;

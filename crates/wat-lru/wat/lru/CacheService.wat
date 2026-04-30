@@ -176,7 +176,7 @@
      ;; program tree learns the discipline broke instead of
      ;; silently dropping the reply.
      ((_send :())
-      (:wat::core::option::expect -> :()
+      (:wat::core::result::expect -> :()
         (:wat::kernel::send reply-to resp)
         "CacheService/handle: reply-to disconnected — client died mid-request?"))
      ((stats' :wat::lru::CacheService::Stats)
@@ -276,13 +276,13 @@
   (:wat::core::if (:wat::core::empty? req-rxs) -> :()
     ()
     (:wat::core::let*
-      (((chosen :(i64,Option<wat::lru::CacheService::Request<K,V>>))
+      (((chosen :wat::kernel::Chosen<wat::lru::CacheService::Request<K,V>>)
         (:wat::kernel::select req-rxs))
        ((idx :wat::core::i64) (:wat::core::first chosen))
-       ((maybe :Option<wat::lru::CacheService::Request<K,V>>)
+       ((maybe :wat::kernel::CommResult<wat::lru::CacheService::Request<K,V>>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :()
-        ((Some req)
+        ((Ok (Some req))
           (:wat::core::let*
             (((after-handle :wat::lru::CacheService::State<K,V>)
               (:wat::lru::CacheService/handle req state))
@@ -295,11 +295,12 @@
               (:wat::core::second step)))
             (:wat::lru::CacheService/loop-step
               next-state req-rxs reporter cadence')))
-        (:None
+        ((Ok :None)
           (:wat::lru::CacheService/loop-step
             state
             (:wat::std::list::remove-at req-rxs idx)
-            reporter metrics-cadence))))))
+            reporter metrics-cadence))
+        ((Err _died) ())))))
 
 ;; --- Client helpers ---
 ;;
@@ -324,12 +325,14 @@
      ;; with a meaningful message rather than silently returning
      ;; :None and pretending we got a "miss."
      ((_send :())
-      (:wat::core::option::expect -> :()
+      (:wat::core::result::expect -> :()
         (:wat::kernel::send req-tx req)
         "CacheService/get: req-tx disconnected — driver died?")))
     (:wat::core::option::expect -> :Option<V>
-      (:wat::kernel::recv reply-rx)
-      "CacheService/get: reply-rx disconnected — driver died mid-request?")))
+      (:wat::core::result::expect -> :Option<Option<V>>
+        (:wat::kernel::recv reply-rx)
+        "CacheService/get: reply-rx disconnected — driver died mid-request?")
+      "CacheService/get: reply channel closed — driver dropped reply-tx?")))
 
 (:wat::core::define
   (:wat::lru::CacheService/put<K,V>
@@ -348,11 +351,11 @@
      ;; is catastrophic; panic with a meaningful message rather than
      ;; silently absorbing the disconnect.
      ((_send :())
-      (:wat::core::option::expect -> :()
+      (:wat::core::result::expect -> :()
         (:wat::kernel::send req-tx req)
         "CacheService/put: req-tx disconnected — driver died?"))
-     ((_recv :Option<V>)
-      (:wat::core::option::expect -> :Option<V>
+     ((_recv :Option<Option<V>>)
+      (:wat::core::result::expect -> :Option<Option<V>>
         (:wat::kernel::recv reply-rx)
         "CacheService/put: reply-rx disconnected — driver died mid-request?")))
     ()))

@@ -34,10 +34,11 @@
        (acc :wat::core::i64)
        -> :wat::core::i64)
      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
-       ((Some _v)
+       ((Ok (Some _v))
          (:wat-tests::holon::lru::HologramCacheService::count-recv
            rx (:wat::core::i64::+ acc 1)))
-       (:None acc)))
+       ((Ok :None) acc)
+       ((Err _died) acc)))
 
    (:wat::core::define
      (:wat-tests::holon::lru::HologramCacheService::run-counter
@@ -94,9 +95,9 @@
          ((h :wat::kernel::ProgramHandle<i64>)
           (:wat::kernel::spawn
             :wat-tests::holon::lru::HologramCacheService::run-counter rx))
-         ((_s1 :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx 10) "test send _s1: peer disconnected"))
-         ((_s2 :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx 20) "test send _s2: peer disconnected"))
-         ((_s3 :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx 30) "test send _s3: peer disconnected")))
+         ((_s1 :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 10) "test send _s1: peer disconnected"))
+         ((_s2 :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 20) "test send _s2: peer disconnected"))
+         ((_s3 :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 30) "test send _s3: peer disconnected")))
         h)))
     (:wat::core::match (:wat::kernel::join-result handle) -> :()
       ((Ok 3) ())
@@ -130,13 +131,13 @@
          ((k3 :wat::holon::HolonAST) (:wat::holon::leaf :gamma))
          ((v3 :wat::holon::HolonAST) (:wat::holon::leaf :gv))
          ((_p1 :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+          (:wat::core::result::expect -> :() (:wat::kernel::send tx
             (:wat::holon::lru::HologramCacheService::Request::Put k1 v1)) "test send _p1: peer disconnected"))
          ((_p2 :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+          (:wat::core::result::expect -> :() (:wat::kernel::send tx
             (:wat::holon::lru::HologramCacheService::Request::Put k2 v2)) "test send _p2: peer disconnected"))
          ((_p3 :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+          (:wat::core::result::expect -> :() (:wat::kernel::send tx
             (:wat::holon::lru::HologramCacheService::Request::Put k3 v3)) "test send _p3: peer disconnected")))
         h)))
     (:wat::core::match (:wat::kernel::join-result handle) -> :()
@@ -178,18 +179,19 @@
          ((v :wat::holon::HolonAST) (:wat::holon::leaf :av))
 
          ((_p :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send req-tx
+          (:wat::core::result::expect -> :() (:wat::kernel::send req-tx
             (:wat::holon::lru::HologramCacheService::Request::Put k v)) "test send _p: peer disconnected"))
          ((_g :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send req-tx
+          (:wat::core::result::expect -> :() (:wat::kernel::send req-tx
             (:wat::holon::lru::HologramCacheService::Request::Get k reply-tx)) "test send _g: peer disconnected"))
          ((_check :())
           (:wat::core::match (:wat::kernel::recv reply-rx) -> :()
-            ((Some inner)
+            ((Ok (Some inner))
               (:wat::core::match inner -> :()
                 ((Some _val) ())
                 (:None (:wat::test::assert-eq "cache-miss" ""))))
-            (:None (:wat::test::assert-eq "no-reply" "")))))
+            ((Ok :None) (:wat::test::assert-eq "no-reply" ""))
+            ((Err _died) (:wat::test::assert-eq "no-reply" "")))))
         h)))
     (:wat::core::match (:wat::kernel::join-result handle) -> :()
       ((Ok _) ())
@@ -237,33 +239,35 @@
 
          ;; Client A: Put + Get on alpha
          ((_pa :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send tx-a
+          (:wat::core::result::expect -> :() (:wat::kernel::send tx-a
             (:wat::holon::lru::HologramCacheService::Request::Put k-a v-a)) "test send _pa: peer disconnected"))
          ((_ga :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send tx-a
+          (:wat::core::result::expect -> :() (:wat::kernel::send tx-a
             (:wat::holon::lru::HologramCacheService::Request::Get k-a reply-tx-a)) "test send _ga: peer disconnected"))
          ((_check-a :())
           (:wat::core::match (:wat::kernel::recv reply-rx-a) -> :()
-            ((Some inner)
+            ((Ok (Some inner))
               (:wat::core::match inner -> :()
                 ((Some _val) ())
                 (:None (:wat::test::assert-eq "client-a-miss" ""))))
-            (:None (:wat::test::assert-eq "client-a-no-reply" ""))))
+            ((Ok :None) (:wat::test::assert-eq "client-a-no-reply" ""))
+            ((Err _died) (:wat::test::assert-eq "client-a-no-reply" ""))))
 
          ;; Client B: Put + Get on beta
          ((_pb :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send tx-b
+          (:wat::core::result::expect -> :() (:wat::kernel::send tx-b
             (:wat::holon::lru::HologramCacheService::Request::Put k-b v-b)) "test send _pb: peer disconnected"))
          ((_gb :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send tx-b
+          (:wat::core::result::expect -> :() (:wat::kernel::send tx-b
             (:wat::holon::lru::HologramCacheService::Request::Get k-b reply-tx-b)) "test send _gb: peer disconnected"))
          ((_check-b :())
           (:wat::core::match (:wat::kernel::recv reply-rx-b) -> :()
-            ((Some inner)
+            ((Ok (Some inner))
               (:wat::core::match inner -> :()
                 ((Some _val) ())
                 (:None (:wat::test::assert-eq "client-b-miss" ""))))
-            (:None (:wat::test::assert-eq "client-b-no-reply" "")))))
+            ((Ok :None) (:wat::test::assert-eq "client-b-no-reply" ""))
+            ((Err _died) (:wat::test::assert-eq "client-b-no-reply" "")))))
         driver)))
     (:wat::core::match (:wat::kernel::join-result handle) -> :()
       ((Ok _) ())
@@ -307,38 +311,40 @@
 
          ;; Three puts at cap=2; k1 gets evicted by k3.
          ((_p1 :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+          (:wat::core::result::expect -> :() (:wat::kernel::send tx
             (:wat::holon::lru::HologramCacheService::Request::Put k1 v)) "test send _p1: peer disconnected"))
          ((_p2 :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+          (:wat::core::result::expect -> :() (:wat::kernel::send tx
             (:wat::holon::lru::HologramCacheService::Request::Put k2 v)) "test send _p2: peer disconnected"))
          ((_p3 :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+          (:wat::core::result::expect -> :() (:wat::kernel::send tx
             (:wat::holon::lru::HologramCacheService::Request::Put k3 v)) "test send _p3: peer disconnected"))
 
          ;; Get k1 — evicted, expect None.
          ((_g1 :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+          (:wat::core::result::expect -> :() (:wat::kernel::send tx
             (:wat::holon::lru::HologramCacheService::Request::Get k1 reply-tx)) "test send _g1: peer disconnected"))
          ((_check-1 :())
           (:wat::core::match (:wat::kernel::recv reply-rx) -> :()
-            ((Some inner)
+            ((Ok (Some inner))
               (:wat::core::match inner -> :()
                 ((Some _) (:wat::test::assert-eq "k1-not-evicted" ""))
                 (:None ())))
-            (:None (:wat::test::assert-eq "no-reply-1" ""))))
+            ((Ok :None) (:wat::test::assert-eq "no-reply-1" ""))
+            ((Err _died) (:wat::test::assert-eq "no-reply-1" ""))))
 
          ;; Get k2 — survived, expect Some.
          ((_g2 :())
-          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+          (:wat::core::result::expect -> :() (:wat::kernel::send tx
             (:wat::holon::lru::HologramCacheService::Request::Get k2 reply-tx)) "test send _g2: peer disconnected"))
          ((_check-2 :())
           (:wat::core::match (:wat::kernel::recv reply-rx) -> :()
-            ((Some inner)
+            ((Ok (Some inner))
               (:wat::core::match inner -> :()
                 ((Some _) ())
                 (:None (:wat::test::assert-eq "k2-evicted" ""))))
-            (:None (:wat::test::assert-eq "no-reply-2" "")))))
+            ((Ok :None) (:wat::test::assert-eq "no-reply-2" ""))
+            ((Err _died) (:wat::test::assert-eq "no-reply-2" "")))))
         driver)))
     (:wat::core::match (:wat::kernel::join-result handle) -> :()
       ((Ok _) ())

@@ -10542,9 +10542,14 @@ fn eval_kernel_send(
         }
     };
     let msg = eval(&args[1], env, sym)?;
+    // Arc 111 slice 1 — return type is Result<(), ThreadDiedError>.
+    // Ok(()) on landed; Err(ChannelDisconnected) on disconnect.
+    // Slice 2 wires the OnceLock plumbing so the panic case surfaces as
+    // Err(Panic msg failure); slice 1 ships the type shape with Err
+    // always carrying ChannelDisconnected as a stand-in.
     match sender.send(msg) {
-        Ok(()) => Ok(Value::Option(Arc::new(Some(Value::Unit)))),
-        Err(_) => Ok(Value::Option(Arc::new(None))),
+        Ok(()) => Ok(Value::Result(Arc::new(Ok(Value::Unit)))),
+        Err(_) => Ok(Value::Result(Arc::new(Err(thread_died_error_channel_disconnected())))),
     }
 }
 
@@ -10575,9 +10580,10 @@ fn eval_kernel_recv(
             });
         }
     };
+    // Arc 111 slice 1 — return type is Result<Option<T>, ThreadDiedError>.
     match receiver.recv() {
-        Ok(v) => Ok(Value::Option(Arc::new(Some(v)))),
-        Err(_) => Ok(Value::Option(Arc::new(None))),
+        Ok(v) => Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v))))))),
+        Err(_) => Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None)))))),
     }
 }
 
@@ -10609,9 +10615,10 @@ fn eval_kernel_try_recv(
             });
         }
     };
+    // Arc 111 slice 1 — return type is Result<Option<T>, ThreadDiedError>.
     match receiver.try_recv() {
-        Ok(v) => Ok(Value::Option(Arc::new(Some(v)))),
-        Err(_) => Ok(Value::Option(Arc::new(None))),
+        Ok(v) => Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v))))))),
+        Err(_) => Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None)))))),
     }
 }
 
@@ -11028,9 +11035,11 @@ fn eval_kernel_select(
     let oper = sel.select();
     let idx = oper.index();
     let result = oper.recv(rxs[idx].as_ref());
+    // Arc 111 slice 1 — second tuple element is
+    // Result<Option<T>, ThreadDiedError>. Slice 2 wires the panic case.
     let inner = match result {
-        Ok(v) => Value::Option(Arc::new(Some(v))),
-        Err(_) => Value::Option(Arc::new(None)),
+        Ok(v) => Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(v)))))),
+        Err(_) => Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))),
     };
     Ok(Value::Tuple(Arc::new(vec![Value::i64(idx as i64), inner])))
 }
@@ -15878,10 +15887,13 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
-               ((sent :Option<()>) (:wat::kernel::send tx 42)))
+               ((_sent :()) (:wat::core::result::expect -> :()
+                              (:wat::kernel::send tx 42)
+                              "roundtrip: send failed")))
               (:wat::core::match (:wat::kernel::recv rx) -> :i64
-                ((Some v) v)
-                (:None 0)))
+                ((Ok (Some v)) v)
+                ((Ok :None) 0)
+                ((Err _died) -1)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(42) => {}
@@ -17153,8 +17165,9 @@ mod tests {
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1)))
               (:wat::core::match (:wat::kernel::try-recv rx) -> :bool
-                ((Some _) false)
-                (:None true)))
+                ((Ok (Some _)) false)
+                ((Ok :None) true)
+                ((Err _died) false)))
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
@@ -17167,10 +17180,13 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
-               ((_ :Option<()>) (:wat::kernel::send tx 7)))
+               ((_ :()) (:wat::core::result::expect -> :()
+                          (:wat::kernel::send tx 7)
+                          "try_recv_on_ready: send failed")))
               (:wat::core::match (:wat::kernel::try-recv rx) -> :i64
-                ((Some v) v)
-                (:None 0)))
+                ((Ok (Some v)) v)
+                ((Ok :None) 0)
+                ((Err _died) -1)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(7) => {}
@@ -18849,15 +18865,24 @@ mod tests {
         match result {
             Value::Tuple(items) => {
                 assert_eq!(items.len(), 2);
-                // select may pick index 0 (disconnected, :None) or
-                // index 1 (Some 7). Both are valid because crossbeam's
-                // select doesn't promise ordering. Accept either and
-                // assert the OPTION is consistent with the index.
+                // Arc 111 — select now returns CommResult<T> =
+                // Result<Option<T>, ThreadDiedError> as the second
+                // element. select may pick index 0 (disconnected,
+                // Ok(:None)) or index 1 (Ok(Some 7)). Both are
+                // valid because crossbeam's select doesn't promise
+                // ordering. Accept either and assert the result is
+                // consistent with the index.
                 match (&items[0], &items[1]) {
-                    (Value::i64(0), Value::Option(opt)) if opt.is_none() => {}
-                    (Value::i64(1), Value::Option(opt)) => match &**opt {
-                        Some(Value::i64(7)) => {}
-                        other => panic!("index 1 should carry Some 7; got {:?}", other),
+                    (Value::i64(0), Value::Result(res)) => match &**res {
+                        Ok(Value::Option(opt)) if opt.is_none() => {}
+                        other => panic!("index 0 should be Ok(:None); got {:?}", other),
+                    },
+                    (Value::i64(1), Value::Result(res)) => match &**res {
+                        Ok(Value::Option(opt)) => match &**opt {
+                            Some(Value::i64(7)) => {}
+                            other => panic!("index 1 inner should be Some(7); got {:?}", other),
+                        },
+                        other => panic!("index 1 should be Ok(Some 7); got {:?}", other),
                     },
                     other => panic!("unexpected select result {:?}", other),
                 }
@@ -19039,16 +19064,17 @@ mod tests {
                                  (tx :rust::crossbeam_channel::Sender<i64>)
                                  -> :())
               (:wat::core::match (:wat::kernel::send tx 99) -> :()
-                ((Some _) ())
-                (:None ())))
+                ((Ok _) ())
+                ((Err _) ())))
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
                ((handle :wat::kernel::ProgramHandle<()>)
                 (:wat::kernel::spawn :my::producer tx))
                ((_ :()) (:wat::kernel::join handle)))
               (:wat::core::match (:wat::kernel::recv rx) -> :i64
-                ((Some v) v)
-                (:None 0)))
+                ((Ok (Some v)) v)
+                ((Ok :None) 0)
+                ((Err _died) -1)))
         "#;
         match run(src).unwrap() {
             Value::i64(99) => {}

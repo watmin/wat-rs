@@ -182,9 +182,9 @@
       (:wat::core::match
         (:wat::kernel::send tx event)
         -> :()
-        (:None ())
-        ((Some _)
-          (:wat::telemetry::sqlite/log-loop cursor tx))))))
+        ((Ok _)
+          (:wat::telemetry::sqlite/log-loop cursor tx))
+        ((Err _) ())))))
 
 (:wat::core::define
   (:wat::telemetry::sqlite/metric-loop
@@ -199,9 +199,9 @@
       (:wat::core::match
         (:wat::kernel::send tx event)
         -> :()
-        (:None ())
-        ((Some _)
-          (:wat::telemetry::sqlite/metric-loop cursor tx))))))
+        ((Ok _)
+          (:wat::telemetry::sqlite/metric-loop cursor tx))
+        ((Err _) ())))))
 
 ;; (sqlite/stream-logs handle query) -> Stream<Event>
 ;;

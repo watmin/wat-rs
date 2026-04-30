@@ -118,20 +118,32 @@ impl fmt::Display for CheckError {
                 param,
                 expected,
                 got,
-            } => write!(
-                f,
-                "{}: parameter {} expects {}; got {}",
-                callee, param, expected, got
-            ),
+            } => {
+                write!(
+                    f,
+                    "{}: parameter {} expects {}; got {}",
+                    callee, param, expected, got
+                )?;
+                if let Some(hint) = arc_111_migration_hint(callee, expected, got) {
+                    write!(f, "\n  hint: {}", hint)?;
+                }
+                Ok(())
+            }
             CheckError::ReturnTypeMismatch {
                 function,
                 expected,
                 got,
-            } => write!(
-                f,
-                "{}: body produces {}; signature declares {}",
-                function, got, expected
-            ),
+            } => {
+                write!(
+                    f,
+                    "{}: body produces {}; signature declares {}",
+                    function, got, expected
+                )?;
+                if let Some(hint) = arc_111_migration_hint(function, expected, got) {
+                    write!(f, "\n  hint: {}", hint)?;
+                }
+                Ok(())
+            }
             CheckError::UnknownCallee { callee } => {
                 write!(f, "unknown callee: {}", callee)
             }
@@ -140,7 +152,7 @@ impl fmt::Display for CheckError {
             }
             CheckError::CommCallOutOfPosition { callee } => write!(
                 f,
-                "{} may appear only as the scrutinee of `:wat::core::match` or the value-position of `:wat::core::option::expect`; silent disconnect (the `:None` arm) must be handled at every comm call",
+                "{} may appear only as the scrutinee of `:wat::core::match`, the value-position of `:wat::core::result::expect`, or the value-position of `:wat::core::option::expect`; silent disconnect must be handled at every comm call",
                 callee
             ),
         }
@@ -148,6 +160,52 @@ impl fmt::Display for CheckError {
 }
 
 impl std::error::Error for CheckError {}
+
+/// Arc 111 migration: detect type-mismatches that smell like the
+/// kernel-comm shape change and append a self-describing hint so a
+/// reader (human or agent) knows the fix path without consulting
+/// the arc doc. Pre-arc-111 send returned `:Option<()>` and
+/// recv/try-recv returned `:Option<T>`; arc 111 lifts these to
+/// `:Result<:(), :ThreadDiedError>` and
+/// `:Result<:Option<T>, :ThreadDiedError>` respectively.
+///
+/// The hint fires when ONE of the involved types contains
+/// `Result<...,wat::kernel::ThreadDiedError>` and the other doesn't.
+/// That covers all four directions (sender expected/received vs
+/// recvd; old wat code finding new substrate types or vice versa).
+fn arc_111_migration_hint(callee: &str, expected: &str, got: &str) -> Option<String> {
+    let arc_marker = "wat::kernel::ThreadDiedError";
+    let expected_has = expected.contains(arc_marker);
+    let got_has = got.contains(arc_marker);
+    if expected_has == got_has {
+        return None;
+    }
+
+    // Worker recv-loops + producer-stage match-on-send: grow arms.
+    let mut hint = String::new();
+    hint.push_str(
+        "arc 111 — `:wat::kernel::send` returns `:Result<:(),:wat::kernel::ThreadDiedError>` and `:wat::kernel::recv` / `try-recv` return `:Result<:Option<T>,:wat::kernel::ThreadDiedError>`. ",
+    );
+
+    if callee == ":wat::core::match" {
+        hint.push_str(
+            "Migrate match arms: `((Some v) ...)` → `((Ok (Some v)) ...)`; `(:None ...)` → `((Ok :None) ...)` (recv) OR `((Err _) ...)` (send); add a third arm `((Err _died) ...)` for recv to handle peer-thread panic. Slice 1 ships `Err` always carrying `ChannelDisconnected`; slice 2 wires the rich `Panic msg failure` payload.",
+        );
+    } else if callee == ":wat::core::option::expect" {
+        hint.push_str(
+            "Migrate the call site: `(:wat::core::option::expect -> :T (recv rx) \"msg\")` → `(:wat::core::result::expect -> :Option<T> (recv rx) \"msg\")` returns the inner Option<T>. For panic-on-clean-disconnect-too, nest: `(option::expect -> :T (result::expect -> :Option<T> (recv rx) \"thread-died msg\") \"clean-disconnect msg\")`.",
+        );
+    } else if callee == ":wat::core::let*" || callee.starts_with(':') {
+        hint.push_str(
+            "If the binding's RHS is a `:wat::kernel::send` / `recv` call, change the binding's declared type to the new Result-shape OR move the comm call into a `:wat::core::match` / `:wat::core::result::expect` parent.",
+        );
+    } else {
+        hint.push_str(
+            "Find the `:wat::kernel::send` / `recv` site upstream and route it through `:wat::core::match` (3 arms) or `:wat::core::result::expect` (returns the inner Option<T> / `()`).",
+        );
+    }
+    Some(hint)
+}
 
 /// Aggregated errors — `check_program` returns all findings together.
 #[derive(Debug)]
@@ -366,7 +424,7 @@ pub fn check_program(
 
 /// Arc 110 — parent-context tag for the `validate_comm_positions`
 /// walk. Every sub-expression descends with one of these; comm calls
-/// are legal only under the two non-Forbidden tags.
+/// are legal only under the three non-Forbidden tags.
 #[derive(Clone, Copy)]
 enum CommCtx {
     /// Top-level form, function/lambda body, struct field, call
@@ -374,13 +432,20 @@ enum CommCtx {
     /// past. The default for every recursive descent.
     Forbidden,
     /// Discriminant slot of `:wat::core::match`. The match form
-    /// requires both Some and None arms, so the terminal `:None` is
-    /// honestly handled.
+    /// requires every arm of the comm result's three states
+    /// (Ok(Some _), Ok(:None), Err _) to be handled per arc 111.
     MatchScrutinee,
-    /// Value-position slot of `:wat::core::option::expect`. The
-    /// caller is declaring "this thread cannot survive its peer
-    /// dying" — runtime panic with a meaningful message replaces
-    /// silent ignore.
+    /// Value-position slot of `:wat::core::result::expect`. Since
+    /// arc 111, send/recv return Result<Option<T>, ThreadDiedError>;
+    /// result::expect unwraps the Result (panic on Err), leaving
+    /// the inner Option<T> for the caller to handle.
+    ResultExpectValue,
+    /// Value-position slot of `:wat::core::option::expect`. Reserved
+    /// for callers that have already unwrapped a Result somewhere
+    /// upstream and want to panic on the inner :None. (Direct
+    /// kernel::send/recv calls won't fit here under arc 111 — their
+    /// type is Result<Option<_>, _>, not Option<_>; they fit
+    /// `ResultExpectValue` instead.)
     OptionExpectValue,
 }
 
@@ -410,7 +475,13 @@ fn validate_comm_positions(
 
     // (1) THIS node is a kernel-comm call.
     if matches!(head_str, ":wat::kernel::send" | ":wat::kernel::recv") {
-        if matches!(ctx, CommCtx::Forbidden) {
+        let permitted = matches!(
+            ctx,
+            CommCtx::MatchScrutinee
+                | CommCtx::ResultExpectValue
+                | CommCtx::OptionExpectValue,
+        );
+        if !permitted {
             errors.push(CheckError::CommCallOutOfPosition {
                 callee: head_str.into(),
             });
@@ -433,8 +504,26 @@ fn validate_comm_positions(
         return;
     }
 
-    // (3) `:wat::core::option::expect` — items[3] is the value-position
-    //     (permitted slot). Layout: (expect -> :T <opt> <msg>).
+    // (3) `:wat::core::result::expect` — items[3] is the value-position.
+    //     Layout: (result::expect -> :T <res> <msg>).
+    //     Arc 111: send/recv now return Result<Option<_>, _>; this is
+    //     their natural panic-on-Err home.
+    if head_str == ":wat::core::result::expect" && items.len() >= 5 {
+        for (i, child) in items.iter().enumerate() {
+            let child_ctx = if i == 3 {
+                CommCtx::ResultExpectValue
+            } else {
+                CommCtx::Forbidden
+            };
+            validate_comm_positions(child, child_ctx, errors);
+        }
+        return;
+    }
+
+    // (4) `:wat::core::option::expect` — items[3] is the value-position.
+    //     Pre-arc-111 home for kernel comm; kept for callers who have
+    //     ALREADY unwrapped the outer Result (their own match/expect)
+    //     and want to panic on the inner :None.
     if head_str == ":wat::core::option::expect" && items.len() >= 5 {
         for (i, child) in items.iter().enumerate() {
             let child_ctx = if i == 3 {
@@ -447,7 +536,7 @@ fn validate_comm_positions(
         return;
     }
 
-    // (4) Default — every child descends as Forbidden.
+    // (5) Default — every child descends as Forbidden.
     for child in items {
         validate_comm_positions(child, CommCtx::Forbidden, errors);
     }
@@ -1069,6 +1158,12 @@ fn infer_match(
     let mut covers_result_ok = false;
     let mut covers_result_err = false;
     let mut wildcard_seen = false;
+    // Arc 111 — when the Result's Ok-inner type is Option<T>, the
+    // caller may write two partial Ok arms — `(Ok (Some v))` and
+    // `(Ok :None)` — that together cover all Ok cases. Track them
+    // separately so the combined check can set covers_result_ok.
+    let mut covers_result_ok_inner_some = false;
+    let mut covers_result_ok_inner_none = false;
     // Arc 048 — track which user-enum variant names have arms.
     let mut covered_enum_variants: std::collections::HashSet<String> =
         std::collections::HashSet::new();
@@ -1095,7 +1190,29 @@ fn infer_match(
             Some(Coverage::OptionSome { full: true }) => covers_option_some = true,
             Some(Coverage::OptionSome { full: false }) => {}
             Some(Coverage::ResultOk { full: true }) => covers_result_ok = true,
-            Some(Coverage::ResultOk { full: false }) => {}
+            // Arc 111 — partial Ok arm. Check if this is one of the
+            // two canonical Option-unwrapping sub-arms:
+            //   `(Ok (Some v))` → covers_result_ok_inner_some
+            //   `(Ok :None)`    → covers_result_ok_inner_none
+            // If both are seen and the inner type IS Option<T>, the
+            // pair together constitutes full Ok coverage.
+            Some(Coverage::ResultOk { full: false }) => {
+                if let WatAST::List(pat_items, _) = pattern {
+                    if let Some(sub) = pat_items.get(1) {
+                        match sub {
+                            WatAST::List(sub_items, _)
+                                if sub_items.first().map(|h| matches!(h, WatAST::Symbol(s, _) if s.as_str() == "Some")).unwrap_or(false) =>
+                            {
+                                covers_result_ok_inner_some = true;
+                            }
+                            WatAST::Keyword(k, _) if k.as_str() == ":None" => {
+                                covers_result_ok_inner_none = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
             Some(Coverage::ResultErr { full: true }) => covers_result_err = true,
             Some(Coverage::ResultErr { full: false }) => {}
             Some(Coverage::EnumVariant { name, full: true }) => {
@@ -1110,6 +1227,19 @@ fn infer_match(
                 covers_result_err = true;
             }
             None => continue,
+        }
+        // Arc 111 — combined Option-unwrapping Ok coverage: if the
+        // Result's inner Ok type is Option<T> and we've seen both
+        // `(Ok (Some _))` and `(Ok :None)` arms, promote to full Ok
+        // coverage. This lets recv-loop workers use the 3-arm pattern
+        // `(Ok (Some v)) / (Ok :None) / (Err _died)` without a
+        // fallback arm.
+        if covers_result_ok_inner_some && covers_result_ok_inner_none {
+            if let MatchShape::Result(ok_ty, _) = &shape {
+                if matches!(ok_ty, TypeExpr::Parametric { head, .. } if head == "Option") {
+                    covers_result_ok = true;
+                }
+            }
         }
 
         // Each arm body checked against the declared `:T` independently.
@@ -6609,11 +6739,37 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
     }
-    // (:wat::kernel::send sender value) — ∀T. Sender<T> × T -> :Option<()>.
-    // `(Some ())` on a successful send; `:None` when the receiver has
-    // been dropped. Symmetric with `recv`'s Option-return; disconnect
-    // on either endpoint is a value, not an error. See FOUNDATION-
-    // CHANGELOG (wat-rs slice; pending) and runtime's `eval_kernel_send`.
+    // Arc 111 — three states surfaced at the type level:
+    //   recv: Result<Option<T>, ThreadDiedError>
+    //         Ok(Some v)      — value flowed
+    //         Ok(:None)       — clean shutdown (every sender dropped via scope)
+    //         Err(ThreadDied) — sender thread panicked
+    //   send: Result<(), ThreadDiedError>
+    //         Ok(())          — delivered
+    //         Err(ThreadDied) — receiver gone (clean vs panic in the
+    //                           ThreadDiedError variants per arc 060)
+    // Slice 2 wires the OnceLock plumbing so Err carries the rich panic
+    // message; slice 1 ships the type shape with Err unreachable from
+    // the runtime path (still always ChannelDisconnected as a stand-in).
+    let comm_ok_option_t = || TypeExpr::Parametric {
+        head: "Result".into(),
+        args: vec![
+            TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![t_var()],
+            },
+            TypeExpr::Path(":wat::kernel::ThreadDiedError".into()),
+        ],
+    };
+    let comm_send_ret = || TypeExpr::Parametric {
+        head: "Result".into(),
+        args: vec![
+            TypeExpr::Tuple(vec![]),
+            TypeExpr::Path(":wat::kernel::ThreadDiedError".into()),
+        ],
+    };
+    // (:wat::kernel::send sender value) —
+    //   ∀T. Sender<T> × T -> Result<(), ThreadDiedError>.
     env.register(
         ":wat::kernel::send".into(),
         TypeScheme {
@@ -6625,14 +6781,13 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
                 t_var(),
             ],
-            ret: TypeExpr::Parametric {
-                head: "Option".into(),
-                args: vec![TypeExpr::Tuple(vec![])],
-            },
+            ret: comm_send_ret(),
         },
     );
-    // (:wat::kernel::try-recv receiver) — ∀T. Receiver<T> -> :Option<T>.
-    // Non-blocking; `:None` covers both empty and disconnected.
+    // (:wat::kernel::try-recv receiver) —
+    //   ∀T. Receiver<T> -> Result<Option<T>, ThreadDiedError>.
+    // Ok(:None) covers both empty and clean-disconnected (try-recv
+    // doesn't block; Err only fires for sender-thread panic).
     env.register(
         ":wat::kernel::try-recv".into(),
         TypeScheme {
@@ -6641,14 +6796,11 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "rust::crossbeam_channel::Receiver".into(),
                 args: vec![t_var()],
             }],
-            ret: TypeExpr::Parametric {
-                head: "Option".into(),
-                args: vec![t_var()],
-            },
+            ret: comm_ok_option_t(),
         },
     );
-    // (:wat::kernel::recv receiver) — ∀T. Receiver<T> -> :Option<T>.
-    // `:None` is the disconnect signal; `(Some v)` carries the payload.
+    // (:wat::kernel::recv receiver) —
+    //   ∀T. Receiver<T> -> Result<Option<T>, ThreadDiedError>.
     env.register(
         ":wat::kernel::recv".into(),
         TypeScheme {
@@ -6657,10 +6809,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "rust::crossbeam_channel::Receiver".into(),
                 args: vec![t_var()],
             }],
-            ret: TypeExpr::Parametric {
-                head: "Option".into(),
-                args: vec![t_var()],
-            },
+            ret: comm_ok_option_t(),
         },
     );
     // (:wat::kernel::join handle) — ∀R. ProgramHandle<R> -> R.
@@ -6768,9 +6917,10 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Tuple(vec![]),
         },
     );
-    // (:wat::kernel::select receivers) — ∀T. Vec<Receiver<T>> -> :(i64, Option<T>).
-    // Spec calls for :usize on the index; wat-rs returns :i64 until
-    // :usize lands as a value variant.
+    // (:wat::kernel::select receivers) —
+    //   ∀T. Vec<Receiver<T>> -> :(i64, Result<Option<T>, ThreadDiedError>).
+    // Arc 111 — second tuple element grows from :Option<T> to
+    // :Result<:Option<T>, :ThreadDiedError> for symmetry with recv.
     env.register(
         ":wat::kernel::select".into(),
         TypeScheme {
@@ -6784,10 +6934,7 @@ fn register_builtins(env: &mut CheckEnv) {
             }],
             ret: TypeExpr::Tuple(vec![
                 TypeExpr::Path(":i64".into()),
-                TypeExpr::Parametric {
-                    head: "Option".into(),
-                    args: vec![t_var()],
-                },
+                comm_ok_option_t(),
             ]),
         },
     );

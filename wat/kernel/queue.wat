@@ -11,11 +11,15 @@
 ;;   QueueReceiver<T>  — single receiver end of a substrate channel
 ;;   QueuePair<T>      — what `make-bounded/unbounded-queue` returns
 ;;   Chosen<T>         — what `:wat::kernel::select` returns
-;;                       (idx, Option<T>) — which receiver fired,
-;;                       and what it produced (Some v) or disconnected (:None)
-;;   Sent              — what `:wat::kernel::send` returns
-;;                       Some(()) on placed; None on disconnect.
-;;                       Mirrors the recv side's :Option<T> shape.
+;;                       (idx, Result<Option<T>, ThreadDiedError>) per arc 111
+;;                       — which receiver fired, and what it produced.
+;;   CommResult<T>     — what `recv` / `try-recv` return
+;;                       (and the inner shape of `send`'s :CommResult<()>)
+;;                       Result<Option<T>, ThreadDiedError> per arc 111:
+;;                       Ok(Some v) — value flowed; Ok(:None) — clean
+;;                       shutdown (every sender dropped via scope);
+;;                       Err(ThreadDied) — sender thread panicked.
+;;                       Replaces arc-110-era `:wat::kernel::Sent`.
 ;;
 ;; Sister to `:wat::std::stream::Stream<T>` (a tuple alias in
 ;; stream.wat for `(Receiver<T>, ProgramHandle<()>)`). These three
@@ -36,8 +40,8 @@
 (:wat::core::typealias :wat::kernel::QueuePair<T>
   :(wat::kernel::QueueSender<T>,wat::kernel::QueueReceiver<T>))
 
-(:wat::core::typealias :wat::kernel::Chosen<T>
-  :(i64,Option<T>))
+(:wat::core::typealias :wat::kernel::CommResult<T>
+  :Result<Option<T>,wat::kernel::ThreadDiedError>)
 
-(:wat::core::typealias :wat::kernel::Sent
-  :Option<()>)
+(:wat::core::typealias :wat::kernel::Chosen<T>
+  :(i64,wat::kernel::CommResult<T>))

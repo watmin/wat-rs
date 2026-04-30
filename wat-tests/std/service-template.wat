@@ -98,7 +98,7 @@
        ((:svc::Request::Ack reply-tx)
          (:wat::core::let*
            (((_ack :())
-             (:wat::core::option::expect -> :()
+             (:wat::core::result::expect -> :()
                (:wat::kernel::send reply-tx ())
                "Service/handle Ack: reply-tx disconnected — caller died?")))
            (:svc::State/new
@@ -111,7 +111,7 @@
        ((:svc::Request::Get reply-tx)
          (:wat::core::let*
            (((_send :())
-             (:wat::core::option::expect -> :()
+             (:wat::core::result::expect -> :()
                (:wat::kernel::send reply-tx state)
                "Service/handle Get: reply-tx disconnected — caller died?")))
            state))))
@@ -134,13 +134,15 @@
        (:wat::core::let*
          (((chosen :wat::kernel::Chosen<svc::Request>) (:wat::kernel::select req-rxs))
           ((idx :wat::core::i64) (:wat::core::first chosen))
-          ((maybe :Option<svc::Request>) (:wat::core::second chosen)))
+          ((maybe :wat::kernel::CommResult<svc::Request>) (:wat::core::second chosen)))
          (:wat::core::match maybe -> :svc::State
-           ((Some req)
+           ((Ok (Some req))
              (:wat::core::let*
                (((next :svc::State) (:svc::Service/handle req state)))
                (:svc::Service/loop req-rxs next)))
-           (:None
+           ((Ok :None)
+             (:svc::Service/loop (:wat::std::list::remove-at req-rxs idx) state))
+           ((Err _died)
              (:svc::Service/loop (:wat::std::list::remove-at req-rxs idx) state))))))
 
 
@@ -216,35 +218,39 @@
          ;; in option::expect: in-memory peer-death is catastrophic;
          ;; the service driver dying mid-test must surface, not hang.
          ((_p1 :())
-          (:wat::core::option::expect -> :()
+          (:wat::core::result::expect -> :()
             (:wat::kernel::send req-tx (:svc::Request::Push 100))
             "test send Push 100: req-tx disconnected — driver died?"))
          ((_p2 :())
-          (:wat::core::option::expect -> :()
+          (:wat::core::result::expect -> :()
             (:wat::kernel::send req-tx (:svc::Request::Push 200))
             "test send Push 200: req-tx disconnected — driver died?"))
 
          ;; 1 Ack — confirm-receipt round-trip.
          ((_a :())
-          (:wat::core::option::expect -> :()
+          (:wat::core::result::expect -> :()
             (:wat::kernel::send req-tx (:svc::Request::Ack ack-tx))
             "test send Ack: req-tx disconnected — driver died?"))
          ((_r :())
           (:wat::core::option::expect -> :()
-            (:wat::kernel::recv ack-rx)
-            "test recv ack: ack-rx disconnected — driver died mid-Ack?"))
+            (:wat::core::result::expect -> :Option<()>
+              (:wat::kernel::recv ack-rx)
+              "test recv ack: ack-rx peer thread died")
+            "test recv ack: ack-rx clean disconnect — driver died mid-Ack?"))
 
          ;; 1 Get — expect (push=2, ack=1). expect on the recv unwraps
          ;; Option<State> directly into State; :None panics with a
          ;; meaningful diagnostic rather than masking as a "no snap".
          ((_g1 :())
-          (:wat::core::option::expect -> :()
+          (:wat::core::result::expect -> :()
             (:wat::kernel::send req-tx (:svc::Request::Get get-tx))
             "test send Get #1: req-tx disconnected — driver died?"))
          ((snap1 :svc::State)
           (:wat::core::option::expect -> :svc::State
-            (:wat::kernel::recv get-rx)
-            "test recv get #1: get-rx disconnected — driver died mid-Get?"))
+            (:wat::core::result::expect -> :Option<svc::State>
+              (:wat::kernel::recv get-rx)
+              "test recv get #1: peer thread died")
+            "test recv get #1: clean disconnect — driver died mid-Get?"))
          ((_check1a :())
           (:wat::core::if (:wat::core::= (:svc::State/push-count snap1) 2) -> :()
             ()
@@ -257,17 +263,19 @@
          ;; 1 more Push, then Get — expect (push=3, ack=1).
          ;; Proves Get reads LIVE state, not a frozen capture.
          ((_p3 :())
-          (:wat::core::option::expect -> :()
+          (:wat::core::result::expect -> :()
             (:wat::kernel::send req-tx (:svc::Request::Push 300))
             "test send Push 300: req-tx disconnected — driver died?"))
          ((_g2 :())
-          (:wat::core::option::expect -> :()
+          (:wat::core::result::expect -> :()
             (:wat::kernel::send req-tx (:svc::Request::Get get-tx))
             "test send Get #2: req-tx disconnected — driver died?"))
          ((snap2 :svc::State)
           (:wat::core::option::expect -> :svc::State
-            (:wat::kernel::recv get-rx)
-            "test recv get #2: get-rx disconnected — driver died mid-Get?"))
+            (:wat::core::result::expect -> :Option<svc::State>
+              (:wat::kernel::recv get-rx)
+              "test recv get #2: peer thread died")
+            "test recv get #2: clean disconnect — driver died mid-Get?"))
          ((_check2a :())
           (:wat::core::if (:wat::core::= (:svc::State/push-count snap2) 3) -> :()
             ()

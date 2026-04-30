@@ -109,13 +109,13 @@
             ((p :wat::std::service::Console::DriverPair)
              -> :wat::std::service::Console::Rx)
             (:wat::core::first p))))
-       ((chosen :(i64,Option<wat::std::service::Console::Message>))
+       ((chosen :wat::kernel::Chosen<wat::std::service::Console::Message>)
         (:wat::kernel::select rxs))
        ((idx :wat::core::i64) (:wat::core::first chosen))
-       ((maybe :Option<wat::std::service::Console::Message>)
+       ((maybe :wat::kernel::CommResult<wat::std::service::Console::Message>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :()
-        ((Some tagged)
+        ((Ok (Some tagged))
           (:wat::core::let*
             (((tag :wat::core::i64) (:wat::core::first tagged))
              ((msg :wat::core::String) (:wat::core::second tagged))
@@ -125,7 +125,12 @@
              ((_ack :())
               (:wat::std::service::Console/ack-at pairs idx)))
             (:wat::std::service::Console/loop pairs stdout stderr)))
-        (:None
+        ((Ok :None)
+          (:wat::std::service::Console/loop
+            (:wat::std::list::remove-at pairs idx)
+            stdout
+            stderr))
+        ((Err _died)
           (:wat::std::service::Console/loop
             (:wat::std::list::remove-at pairs idx)
             stdout
@@ -149,7 +154,7 @@
       (:wat::core::let*
         (((ack-tx :wat::std::service::Console::AckTx)
           (:wat::core::second pair)))
-        (:wat::core::option::expect -> :()
+        (:wat::core::result::expect -> :()
           (:wat::kernel::send ack-tx ())
           "Console/ack-at: ack-tx disconnected — producer scope died mid-write?")))
     (:None ())))
@@ -180,12 +185,14 @@
     (((tx :wat::std::service::Console::Tx) (:wat::core::first handle))
      ((ack-rx :wat::std::service::Console::AckRx) (:wat::core::second handle))
      ((_send :())
-      (:wat::core::option::expect -> :()
+      (:wat::core::result::expect -> :()
         (:wat::kernel::send tx (:wat::core::tuple 0 msg))
-        "Console/out: tx disconnected — Console driver died?")))
-    (:wat::core::option::expect -> :()
-      (:wat::kernel::recv ack-rx)
-      "Console/out: ack-rx disconnected — Console driver died mid-write?")))
+        "Console/out: tx disconnected — Console driver died?"))
+     ((_ack :Option<()>)
+      (:wat::core::result::expect -> :Option<()>
+        (:wat::kernel::recv ack-rx)
+        "Console/out: ack-rx disconnected — Console driver died mid-write?")))
+    ()))
 
 (:wat::core::define
   (:wat::std::service::Console/err
@@ -196,12 +203,14 @@
     (((tx :wat::std::service::Console::Tx) (:wat::core::first handle))
      ((ack-rx :wat::std::service::Console::AckRx) (:wat::core::second handle))
      ((_send :())
-      (:wat::core::option::expect -> :()
+      (:wat::core::result::expect -> :()
         (:wat::kernel::send tx (:wat::core::tuple 1 msg))
-        "Console/err: tx disconnected — Console driver died?")))
-    (:wat::core::option::expect -> :()
-      (:wat::kernel::recv ack-rx)
-      "Console/err: ack-rx disconnected — Console driver died mid-write?")))
+        "Console/err: tx disconnected — Console driver died?"))
+     ((_ack :Option<()>)
+      (:wat::core::result::expect -> :Option<()>
+        (:wat::kernel::recv ack-rx)
+        "Console/err: ack-rx disconnected — Console driver died mid-write?")))
+    ()))
 
 ;; --- Console setup ---
 ;;

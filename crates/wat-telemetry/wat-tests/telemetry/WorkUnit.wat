@@ -66,8 +66,8 @@
        (:wat::core::foldl entries ()
          (:wat::core::lambda ((_acc :()) (e :wat::telemetry::Event) -> :())
            (:wat::core::match (:wat::kernel::send stub-tx e) -> :()
-             ((Some _) ())
-             (:None    ()))))))
+             ((Ok _) ())
+             ((Err _) ()))))))
 
    ;; Empty stats translator — null cadence never fires anyway.
    (:wat::core::define
@@ -465,6 +465,6 @@
      ;; "scope ships the Events" is proven by recv returning
      ;; Some at all; the row's CONTENT is proven elsewhere.
      ((r1-some? :wat::core::bool)
-      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool ((Some _) true) (:None false)))
+      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool ((Ok (Some _)) true) ((Ok :None) false) ((Err _) false)))
      ((_a :()) (:wat::test::assert-eq result 42)))
     (:wat::test::assert-eq r1-some? true)))

@@ -48,14 +48,25 @@ checks against `src/check.rs`, `src/runtime.rs`, `src/parser.rs`,
 | `:bool` | `:wat::core::bool` |
 | `:String` | `:wat::core::String` |
 | `:u8` | `:wat::core::u8` |
-| `:()` (unit) | `:wat::core::()` |
+| `:()` (unit) | `:wat::core::unit` (additive — `:()` stays as the empty-tuple literal) |
 | `:wat::core::keyword` | already FQDN ✓ |
 | `:wat::core::Bytes` | already FQDN ✓ |
 | `:wat::core::EvalError` | already FQDN ✓ |
 
-All five primitive type names move under `:wat::core::*`, including
-the unit type. (`:()` is the empty-tuple literal but its TYPE name
-is provided by the substrate; FQDN it.)
+The five named primitive types (`i64`/`f64`/`bool`/`String`/`u8`) move
+under `:wat::core::*` and the bare forms retire (slice 1a → 1b → 1c).
+
+The unit type is a slightly different shape — `:()` is the natural
+empty-tuple syntax (zero-element structural form), not a bare-string
+name like `:i64`. **Slice 1d is additive only:** `:wat::core::unit`
+joins as a typealias for `:()`; both spellings unify; `:()` is NOT
+retired. Substrate-provided signatures gradually adopt
+`:wat::core::unit` for symmetry with `:wat::core::i64` etc.; user
+code can spell it either way. `unit` is the structural-honest name —
+matches Rust / ML / Haskell tradition. (No `unit?` predicate — per
+arc 110 / 111 doctrine, absence is `:None`, emptiness is `empty?`,
+errors are `:Err`; the unit type's static-known one-inhabitant
+makes a runtime predicate tautological.)
 
 ## B. Parametric type heads
 
@@ -230,13 +241,63 @@ graduates to its own top-level tier:
 - `:wat::std::list::*` → `:wat::list::*`
 - `:wat::std::math::*` → `:wat::math::*`
 - `:wat::std::stat::*` → `:wat::stat::*`
+- `:wat::std::stream::*` → `:wat::stream::*` (the 14 stream HOFs:
+  `spawn-producer`, `from-receiver`, `map`, `filter`, `inspect`,
+  `fold`, `for-each`, `chunks`, `chunks-by`, `take`, `flat-map`,
+  `with-state`, `drain-items`, `collect`, `window`, plus the
+  `Stream<T>` / `Producer<T>` / `ChunkStep<T>` / `KeyedChunkStep<K,T>`
+  typealiases). Stream is to channels what `:wat::list::*` is to
+  Vecs — collection-shaped HOFs at the honest tier.
+- `:wat::std::service::Console::*` → `:wat::console::Console::*`
+  (the typealiases `Message` / `Tx` / `Rx` / `AckTx` / `AckRx` /
+  `Handle` / `DriverPair` / `Spawn` plus the verbs `Console/loop` /
+  `Console/ack-at` / `Console/out` / `Console/err` / `Console/spawn`).
+  Parallels `:wat::lru::CacheService`, `:wat::telemetry::Service`,
+  `:wat::holon::lru::HologramCacheService` — services live at
+  concept-named tiers, not under `service::*`. The "service" word
+  is what they ARE; the tier is what they WORK ON.
+
+### Filesystem path mirrors FQDN
+
+The same FQDN doctrine applies to **file paths** as to symbol
+paths. A file at `wat/std/edn.wat` shipping `:wat::edn::*` is
+exactly as dishonest as a file at `wat/edn.wat` shipping
+`:wat::std::edn::*` — the `std/` segment is in the lie either
+way; what matters is whether file path and shipped symbols agree.
+
+**The rule:** the directory tree under `wat/` mirrors the FQDN
+tree under `:wat::*`. A file shipping `:wat::edn::read` /
+`:wat::edn::write` lives at `wat/edn.wat`. A file shipping
+`:wat::kernel::*` extensions lives at `wat/kernel/<name>.wat`
+(joining `wat/kernel/queue.wat`, which is already honest).
+
+Already-honest filesystem layout (path matches shipped FQDN):
+
+- `wat/holon/*.wat` ships `:wat::holon::*` ✓
+- `wat/kernel/queue.wat` ships `:wat::kernel::*` typealiases ✓
+
+Dishonest layout (path does NOT match shipped FQDN — six files):
+
+| Today's file | Today's shipped paths | After arc 109 |
+|---|---|---|
+| `wat/std/edn.wat` | `:wat::edn::*` | `wat/edn.wat` (file move; symbols unchanged) |
+| `wat/std/test.wat` | `:wat::test::*` | `wat/test.wat` (file move; symbols unchanged) |
+| `wat/std/sandbox.wat` | `:wat::kernel::run-sandboxed*` | `wat/kernel/sandbox.wat` |
+| `wat/std/hermetic.wat` | `:wat::kernel::run-sandboxed-hermetic*` etc. | `wat/kernel/hermetic.wat` |
+| `wat/std/stream.wat` | `:wat::std::stream::*` | `wat/stream.wat` (path AND symbols both rename per slice 9d) |
+| `wat/std/service/Console.wat` | `:wat::std::service::Console::*` | `wat/console/Console.wat` (path AND symbols both rename per slice 9e) |
+
+After arc 109 closes, `wat/std/` is gone. Every file's path
+matches its shipped FQDN by inspection. A reader navigating the
+substrate sees one tree, not two.
 
 Each tier's name now says exactly what lives there at first
 contact, with no "library miscellany" indirection. The pattern
 matches the rest of the substrate (`:wat::core::*`,
 `:wat::kernel::*`, `:wat::holon::*`, `:wat::io::*`,
-`:wat::time::*`, etc.) — every namespace is a substrate concern,
-not a tier-of-organization.
+`:wat::time::*`, `:wat::lru::*`, `:wat::telemetry::*`,
+`:wat::edn::*`, `:wat::test::*`, etc.) — every namespace is a
+substrate concern, not a tier-of-organization.
 
 ### Name resolved by /gaze (2026-04-29) — `:wat::poly::*`
 
@@ -415,9 +476,14 @@ This refactor is wide. Each family is its own slice — additive
 acceptance first, then retirement of the bare form. Order minimizes
 churn-on-churn:
 
-1. **Slice 1 — Section A (primitive types).** Both `:i64` and
-   `:wat::core::i64` accepted; substrate stdlib + lab swept;
-   then bare `:i64` errors at startup.
+1. **Slice 1 — Section A (primitive types).** Four sub-slices:
+   - **1a** — both `:i64` and `:wat::core::i64` accepted (additive).
+   - **1b** — substrate stdlib + lab swept to FQDN.
+   - **1c** — bare `:i64`/`:f64`/`:bool`/`:String`/`:u8` errors at
+     startup with self-describing redirect.
+   - **1d** — `:wat::core::unit` typealias added for `:()`. Additive
+     only — `:()` stays as the natural empty-tuple syntax. No
+     retirement phase. Slice 1d can land independently of 1c.
 2. **Slice 2 — Section B + D' (parametric heads + Option/Result
    method forms).** `Vec → Vector`, `Option`/`Result`/`HashMap`/
    `HashSet` move to `:wat::core::*`, AND the four
@@ -433,31 +499,52 @@ churn-on-churn:
    `Ok` / `Err` / `:None` to `:wat::core::*` form. This is the
    widest sweep — every match arm and every constructor.
 5. **Slice 5 — Section E (`:else`).** Smallest; quick.
-6. **Slice 6 — Section A's `:()` → `:wat::core::()`.** Probably
-   ride along with another slice; the unit type appears in every
-   `:fn(...) -> :()` signature.
-7. **Slice 7 — Retire deprecated aliases.** `:wat::core::try`,
+6. **Slice 6 — Retire deprecated aliases.** `:wat::core::try`,
    `:wat::core::option::expect`, `:wat::core::result::expect`
    error at startup; only the `Type/verb` forms remain.
-8. **Slice 8 — Section H tier reclassification.** Move the
+7. **Slice 7 — Section H tier reclassification.** Move the
    HOF set (`map`, `foldl`, `foldr`, `filter`, `sort-by`,
    `find-last-index`, `take`, `drop`, `reverse`, `concat`,
    `range`, `last`, `second`, `third`) from `:wat::core::*` to
    `:wat::list::*`. Both names accepted in the additive
    phase; consumers swept; bare `:wat::core::map` etc. error at
    startup once green.
-9. **Slice 9 — `:wat::poly::*` graduation.** Move polymorphic
+8. **Slice 8 — `:wat::poly::*` graduation.** Move polymorphic
    ops (`+`, `-`, `*`, `/`, `<`, `<=`, `=`, `>`, `>=`, `not=`,
    `empty?`, `length`, `contains?`, `get`, `show`) from
    `:wat::core::*` to `:wat::poly::*`. Sweep consumers. Bare
    `:wat::core::+` etc. error once green.
-10. **Slice 10 — `:wat::std::*` flattens.**
-    `:wat::std::list::*` → `:wat::list::*` (the existing four
-    `map-with-index` / `remove-at` / `window` / `zip`);
-    `:wat::std::math::*` → `:wat::math::*`;
-    `:wat::std::stat::*` → `:wat::stat::*`. After this slice,
-    `:wat::std::*` is empty — every substrate concern is named
-    at its own top-level tier.
+9. **Slice 9 — `:wat::std::*` and `wat/std/` both empty.** Each
+   sub-slice fixes BOTH the symbol path AND the file path so they
+   mirror — that's the rule. Symbol-only sweeps (9a-9c) just move
+   the wat:: paths; symbol+file sweeps (9d, 9e) move both;
+   file-only sweeps (9f-9i) just relocate already-honest files.
+   - **9a** — `:wat::std::list::*` → `:wat::list::*` (substrate
+     register-side; `wat/std/list/` doesn't exist as a file).
+   - **9b** — `:wat::std::math::*` → `:wat::math::*` (same shape).
+   - **9c** — `:wat::std::stat::*` → `:wat::stat::*` (same shape).
+   - **9d** — `:wat::std::stream::*` → `:wat::stream::*`; AND
+     `wat/std/stream.wat` → `wat/stream.wat`. The 14 HOFs + 4
+     typealiases repath.
+   - **9e** — `:wat::std::service::Console::*` →
+     `:wat::console::Console::*`; AND
+     `wat/std/service/Console.wat` → `wat/console/Console.wat`.
+     Parallels concept-tiered services
+     (`:wat::lru::CacheService` / `:wat::telemetry::Service` /
+     `:wat::holon::lru::HologramCacheService`).
+   - **9f** — `wat/std/edn.wat` → `wat/edn.wat` (file move only;
+     already ships `:wat::edn::*`).
+   - **9g** — `wat/std/test.wat` → `wat/test.wat` (file move only;
+     already ships `:wat::test::*`).
+   - **9h** — `wat/std/sandbox.wat` → `wat/kernel/sandbox.wat`
+     (file move only; already extends `:wat::kernel::*`).
+   - **9i** — `wat/std/hermetic.wat` → `wat/kernel/hermetic.wat`
+     (file move only; already extends `:wat::kernel::*`).
+   After 9 closes: `wat/std/` directory deleted, `:wat::std::*`
+   namespace empty, every file's path matches its shipped FQDN.
+   File moves require updating `register_stdlib_*` paths in
+   `src/stdlib.rs` (where files are baked into the binary via
+   `include_str!`).
 
 Each slice ends with cargo test --workspace green + lab green
 before the bare form errors out.

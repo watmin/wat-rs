@@ -215,9 +215,10 @@
       (:wat::telemetry::Service/extend acc first-entries ack)
       (:wat::core::match (:wat::kernel::try-recv rx)
         -> :wat::telemetry::Service::Pending<E>
-        ((Some req-entries)
+        ((Ok (Some req-entries))
           (:wat::telemetry::Service/extend acc req-entries ack))
-        (:None acc)))))
+        ((Ok :None) acc)
+        ((Err _died) acc)))))
 
 
 ;; Drain — single foldl over all pairs. The first-idx pair gets
@@ -251,8 +252,8 @@
     (:wat::core::lambda
       ((_acc :()) (tx :wat::telemetry::Service::AckTx) -> :())
       (:wat::core::match (:wat::kernel::send tx ()) -> :()
-        ((Some _) ())
-        (:None ())))))
+        ((Ok _) ())
+        ((Err _) ())))))
 
 
 (:wat::core::define
@@ -336,19 +337,20 @@
     (:wat::core::let*
       (((rxs :Vec<wat::telemetry::Service::ReqRx<E>>)
         (:wat::telemetry::Service/pair-rxs pairs))
-       ((chosen :(i64,Option<wat::telemetry::Service::Request<E>>))
+       ((chosen :wat::kernel::Chosen<wat::telemetry::Service::Request<E>>)
         (:wat::kernel::select rxs))
        ((idx :wat::core::i64) (:wat::core::first chosen))
-       ((maybe :Option<wat::telemetry::Service::Request<E>>)
+       ((maybe :wat::kernel::CommResult<wat::telemetry::Service::Request<E>>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :()
-        ((Some first-entries)
+        ((Ok (Some first-entries))
           (:wat::telemetry::Service/loop-step
             pairs idx first-entries stats cadence dispatcher stats-translator))
-        (:None
+        ((Ok :None)
           (:wat::telemetry::Service/loop
             (:wat::std::list::remove-at pairs idx)
-            stats cadence dispatcher stats-translator))))))
+            stats cadence dispatcher stats-translator))
+        ((Err _died) ())))))
 
 
 ;; ─── Client helper — single primitive, batch + ack ───────────────
@@ -364,11 +366,11 @@
     -> :())
   (:wat::core::let*
     (((_send :())
-      (:wat::core::option::expect -> :()
+      (:wat::core::result::expect -> :()
         (:wat::kernel::send req-tx entries)
         "Service/batch-log: req-tx disconnected — telemetry service died?"))
-     ((_recv :())
-      (:wat::core::option::expect -> :()
+     ((_recv :Option<()>)
+      (:wat::core::result::expect -> :Option<()>
         (:wat::kernel::recv ack-rx)
         "Service/batch-log: ack-rx disconnected — telemetry service died mid-flush?")))
     ()))
