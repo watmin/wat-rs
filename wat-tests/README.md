@@ -77,7 +77,7 @@ The substrate primitives the macros expand to:
   single-thread; reach for it directly when you need to drive
   the sandbox by hand.
 - **`:wat::test::run-hermetic-ast`** — the wat stdlib wrapper
-  that forks a child via `:wat::kernel::fork-with-forms` and
+  that forks a child via `:wat::kernel::fork-program-ast` and
   runs the inner program with fd-backed thread-safe stdio
   (`PipeReader` / `PipeWriter`). Used for programs that spawn
   threads and write from them (Console, Cache). See

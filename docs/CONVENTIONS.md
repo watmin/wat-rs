@@ -355,7 +355,7 @@ Entry files commit capacity-mode (and any optional
 `set-dim-router!` / sigma-fn overrides — arcs 024 + 037) via
 top-level `(:wat::config::set-*!)` setters. A sandbox created
 inside an entry (via `:wat::kernel::run-sandboxed-ast`,
-`run-sandboxed-hermetic-ast`, or `fork-with-forms`) inherits
+`run-sandboxed-hermetic-ast`, or `fork-program-ast`) inherits
 those committed values by default. Inner setters still override
 when present; absence means "take the caller's value."
 

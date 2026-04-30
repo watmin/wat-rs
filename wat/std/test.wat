@@ -247,7 +247,7 @@
 ;; inner program in a forked child with real thread-safe stdio.
 ;;
 ;; Arc 012 slice 3: the implementation lives in wat/std/hermetic.wat
-;; (pure wat stdlib on top of fork-with-forms + wait-child). The
+;; (pure wat stdlib on top of fork-program-ast + wait-child). The
 ;; child inherits AST in memory via COW — no subprocess reload, no
 ;; serialization, no binary-path coupling.
 (:wat::core::define
@@ -325,7 +325,7 @@
 ;;
 ;; Identical to `deftest` except the sandboxed program runs in a forked
 ;; child via `:wat::kernel::run-sandboxed-hermetic-ast` (→ wat/std/
-;; hermetic.wat → :wat::kernel::fork-with-forms). Use for tests that
+;; hermetic.wat → :wat::kernel::fork-program-ast). Use for tests that
 ;; exercise services spawning driver threads (Console, Cache) —
 ;; in-process run-ast uses StringIo stdio (ThreadOwnedCell, single-
 ;; thread) and cross-thread writes from a driver panic silently.

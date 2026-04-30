@@ -110,7 +110,7 @@ impl WatAST {
 // wat_ast_to_source / wat_ast_program_to_source — RETIRED in arc
 // 012 slice 3 (the task-#269 commit). Added in arc 011 to bridge
 // the AST → source → subprocess boundary of the old hermetic-ast
-// primitive. With fork-with-forms, the child inherits AST in
+// primitive. With fork-program-ast, the child inherits AST in
 // memory via COW — no textual round-trip, no serializer needed.
 // Zero remaining callers. If a future use case surfaces (pretty-
 // printer, REPL history, or a :wat::core::ast-to-source stdlib

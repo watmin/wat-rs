@@ -1,4 +1,4 @@
-//! End-to-end tests for `:wat::kernel::fork-with-forms` — arc 012
+//! End-to-end tests for `:wat::kernel::fork-program-ast` — arc 012
 //! slice 2 core.
 //!
 //! Slice 2 core ships the fork primitive + ForkedChild struct +
@@ -53,7 +53,7 @@ fn fork_child_writes_stdout_parent_reads_line() {
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
-              (:wat::kernel::fork-with-forms
+              (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
@@ -79,7 +79,7 @@ fn fork_child_writes_stderr_parent_reads_line() {
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
-              (:wat::kernel::fork-with-forms
+              (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
@@ -103,7 +103,7 @@ fn wait_child_returns_zero_on_success() {
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
-              (:wat::kernel::fork-with-forms
+              (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
@@ -127,7 +127,7 @@ fn wait_child_is_idempotent() {
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
-              (:wat::kernel::fork-with-forms
+              (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
@@ -157,7 +157,7 @@ fn wait_child_surfaces_startup_error_exit_code() {
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
-              (:wat::kernel::fork-with-forms
+              (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
@@ -184,7 +184,7 @@ fn wait_child_surfaces_panic_exit_code() {
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
-              (:wat::kernel::fork-with-forms
+              (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
@@ -210,7 +210,7 @@ fn wait_child_surfaces_runtime_error_exit_code() {
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
-              (:wat::kernel::fork-with-forms
+              (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
@@ -237,7 +237,7 @@ fn multiple_sequential_forks_no_leak() {
         (:wat::core::define (:my::one-fork -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
-              (:wat::kernel::fork-with-forms
+              (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)
@@ -272,7 +272,7 @@ fn wait_child_surfaces_nonzero_exit_code() {
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
-              (:wat::kernel::fork-with-forms
+              (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main -> :i64) 42))))
              ((handle :wat::kernel::ChildHandle)
@@ -292,7 +292,7 @@ fn fork_child_reads_stdin_from_parent() {
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
             (((child :wat::kernel::ForkedChild)
-              (:wat::kernel::fork-with-forms
+              (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
                                        (stdin  :wat::io::IOReader)

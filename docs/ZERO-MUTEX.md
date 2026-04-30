@@ -392,7 +392,7 @@ pair-by-index Console handle — the substrate just swapped the
 bytes-on-the-wire layer.
 
 `:wat::kernel::spawn-program` (thread, in-process address space)
-and `:wat::kernel::fork-with-forms` (separate OS process,
+and `:wat::kernel::fork-program-ast` (separate OS process,
 COW-isolated) both expose this shape. The wat program author
 picks containment depth per call site; the wire protocol is the
 same.

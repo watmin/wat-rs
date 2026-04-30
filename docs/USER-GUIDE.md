@@ -492,7 +492,7 @@ Every wat program lives in a coordinate with two axes.
 
 1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
 2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
-3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `join`, `HandlePool`, `stopped?`, `pipe`, `fork-with-forms`, `wait-child`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes between processes.
+3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `join`, `HandlePool`, `stopped?`, `pipe`, `fork-program-ast`, `wait-child`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes between processes.
 4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), services (`:wat::std::service::Console`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel.
 
 ### Axis 2 — two namespaces
@@ -1323,7 +1323,7 @@ The mini-TCP discipline applies (see `docs/ZERO-MUTEX.md`): producer
 control returns. Mutual blocking IS the synchronization. Bytes
 shape: line-delimited EDN, one value per line. **Same protocol the
 shell uses to talk to wat** — symmetric across thread boundaries
-(spawn-program), process boundaries (`fork-with-forms`), and
+(spawn-program), process boundaries (`fork-program-ast`), and
 machine boundaries (any future networked transport that speaks
 the same wire format).
 
@@ -1355,12 +1355,12 @@ Running demos:
 - `wat-scripts/ping-pong.wat` — 5 round trips of EDN over kernel
   pipes; thread containment.
 - `wat-scripts/ping-pong-fork.wat` — same but child runs as a
-  real OS process via `:wat::kernel::fork-with-forms`.
+  real OS process via `:wat::kernel::fork-program-ast`.
 - `wat-scripts/dispatch.wat` — EDN-stdin RPC; reads a `:demo::Job`
   from stdin, spawns the named program, forwards stdout.
 
 Reach for `spawn-program` for in-process containment (logical jail
-via separate frozen world). Reach for `fork-with-forms` for
+via separate frozen world). Reach for `fork-program-ast` for
 OS-process containment (separate address space, separate fd table,
 separate `_exit`). The user-facing surface is identical — both
 return a struct with three pipe ends + a join handle. Pick by cost:
@@ -2404,9 +2404,9 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::regex::matches?` | `pattern haystack` | `:bool` — unanchored |
 | `:wat::kernel::run-sandboxed` | `src stdin scope` | `:wat::kernel::RunResult` |
 | `:wat::kernel::run-sandboxed-ast` | `forms stdin scope` | `:wat::kernel::RunResult` |
-| `:wat::kernel::run-sandboxed-hermetic-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — forks a child via `:wat::kernel::fork-with-forms`; wat stdlib define in `wat/std/hermetic.wat` |
+| `:wat::kernel::run-sandboxed-hermetic-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — forks a child via `:wat::kernel::fork-program-ast`; wat stdlib define in `wat/std/hermetic.wat` |
 | `:wat::kernel::pipe` | — | `:(IOWriter, IOReader)` — libc::pipe(2), PipeWriter first |
-| `:wat::kernel::fork-with-forms` | `forms` | `:wat::kernel::ForkedChild` — libc::fork(2) + three pipes |
+| `:wat::kernel::fork-program-ast` | `forms` | `:wat::kernel::ForkedChild` — libc::fork(2) + three pipes |
 | `:wat::kernel::wait-child` | `handle` | `:i64` — waitpid, idempotent |
 | `:wat::kernel::assertion-failed!` | `message actual expected` | `:()` — panics with AssertionPayload |
 | `:wat::std::stream::spawn-producer` | `producer-fn` | `:Stream<T>` |

@@ -130,7 +130,7 @@ const STDLIB_FILES: &[WatSource] = &[
 /// fork) uses this function, so external wat crates' wat surface
 /// is uniformly available to any wat code running in the process —
 /// including code inside `:wat::kernel::run-sandboxed-ast` and
-/// `:wat::kernel::fork-with-forms`.
+/// `:wat::kernel::fork-program-ast`.
 ///
 /// Called by [`crate::freeze::startup_from_source`] and
 /// [`crate::freeze::startup_from_forms`] to register stdlib

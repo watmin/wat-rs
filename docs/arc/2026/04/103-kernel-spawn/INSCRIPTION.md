@@ -7,7 +7,7 @@ waits on a follow-up arc that surfaces spawn-program's startup
 errors as `:Result<Process, StartupError>` data.
 
 **Predecessor:** [arc 012](../012-fork-and-pipes/INSCRIPTION.md) —
-`fork-with-forms`, the heavyweight OS-process sibling. Arc 103 is
+`fork-program-ast`, the heavyweight OS-process sibling. Arc 103 is
 its in-thread counterpart.
 
 **Surfaced by:** the arc-093 follow-up dispatcher conversation
@@ -73,11 +73,11 @@ drop → the other side sees EOF.
 double-fork-without-value during the conversation. Today's
 "hermetic" distinction means **separate-OS-process isolation** —
 `wat/std/hermetic.wat` is already a wat-level wrapper over
-`fork-with-forms` (real fork, fresh address space, fresh frozen
+`fork-program-ast` (real fork, fresh address space, fresh frozen
 world). For an in-thread spawn, "hermetic" reduces to "inner
 declares its own Config preamble" — a wat-level discipline, not a
 substrate primitive. Two substrate primitives plus the existing
-`fork-with-forms` cover the matrix; nothing called "hermetic"
+`fork-program-ast` cover the matrix; nothing called "hermetic"
 needs to live at the Rust layer.
 
 **6 tests** in `tests/wat_arc103_spawn_program.rs`:

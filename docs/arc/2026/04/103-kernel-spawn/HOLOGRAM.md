@@ -142,13 +142,13 @@ visible to both unless the shim was designed to namespace).
 Honest caveat: spawn-program isolates **wat state**, not **OS
 process state**. For genuine OS-level isolation (separate address
 space, separate `_exit`, COW initial state), reach for
-`fork-with-forms` (arc 012). Three escalating jails:
+`fork-program-ast` (arc 012). Three escalating jails:
 
 | Mechanism | Wat-state isolation | OS-process isolation | Cost |
 |---|---|---|---|
 | `let*` scoping inside one program | ✓ (lexical) | shared | free |
 | `spawn-program` (arc 103a) | ✓ (frozen world per spawn) | shared | one thread + 3 pipes |
-| `fork-with-forms` (arc 012) | ✓ | ✓ | one process + 3 pipes + COW |
+| `fork-program-ast` (arc 012) | ✓ | ✓ | one process + 3 pipes + COW |
 
 Each layer up adds a real boundary.
 
@@ -169,7 +169,7 @@ This is why the same protocol works at every transport layer
 
 - Shell → wat (real OS pipes)
 - wat → wat in-thread (`spawn-program`)
-- wat → wat cross-process (`fork-with-forms`)
+- wat → wat cross-process (`fork-program-ast`)
 - Future: wat ↔ Clojure/Python/anything (real OS pipes again)
 - Future: wat ↔ remote wat (line-delimited EDN over TCP)
 

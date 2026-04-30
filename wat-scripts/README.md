@@ -55,7 +55,7 @@ crossbeam channels.
 |---|---|
 | `ping-pong.wat` | Parent. Spawns `pong.wat` via `:wat::kernel::spawn-program` (thread). Sends Ping, reads Pong, repeats 5 times, closes child stdin, joins. |
 | `pong.wat` | Child responder for ping-pong.wat. Reads each Ping, mirrors the n in a Pong, recurses. EOF → exit. |
-| `ping-pong-fork.wat` | Same shape as ping-pong.wat but the child runs in a **real OS process** via `:wat::kernel::fork-with-forms` instead of a thread. Inline child forms (no separate file). De-risks the always-fork wat-cli rewrite by exercising fork-with-forms under bidirectional traffic. |
+| `ping-pong-fork.wat` | Same shape as ping-pong.wat but the child runs in a **real OS process** via `:wat::kernel::fork-program-ast` instead of a thread. Inline child forms (no separate file). De-risks the always-fork wat-cli rewrite by exercising fork-program-ast under bidirectional traffic. |
 
 ```bash
 $ ./target/release/wat ./wat-scripts/ping-pong.wat
@@ -89,7 +89,7 @@ ping-pong.wat (thread containment):
 ping-pong-fork.wat (OS process containment):
   wat-cli (OS process A)
     └─ ping-pong-fork.wat (frozen world A, main thread of A)
-         └─ :wat::kernel::fork-with-forms ──fork(2)──┐
+         └─ :wat::kernel::fork-program-ast ──fork(2)──┐
                                                      ↓
                                             OS process B (separate
                                             address space, separate

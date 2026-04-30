@@ -6,7 +6,7 @@
 ;; StringIoWriter under `ThreadOwnedCell` (single-thread) and would
 ;; panic on cross-thread writes, so this test runs through
 ;; `:wat::test::run-hermetic-ast` — real subprocess (forked via arc
-;; 012's fork-with-forms, COW-inherits the parent test binary's
+;; 012's fork-program-ast, COW-inherits the parent test binary's
 ;; installed dep_sources OnceLock so wat-lru's surface is reachable
 ;; in the child). Real stdio, AST-entry so the inner program reads
 ;; as s-expressions not an escaped string.

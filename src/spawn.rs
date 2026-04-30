@@ -1,6 +1,6 @@
 //! `:wat::kernel::spawn-program` — kernel pipes for sandboxed runs.
 //!
-//! Arc 103. The in-thread sibling of `:wat::kernel::fork-with-forms`
+//! Arc 103. The in-thread sibling of `:wat::kernel::fork-program-ast`
 //! (arc 012). Same `Process` shape (stdin `IOWriter`, stdout +
 //! stderr `IOReader`, join `ProgramHandle<()>`) but the inner
 //! program runs on a `std::thread` instead of a forked OS process.
@@ -114,7 +114,7 @@ pub fn eval_kernel_spawn_program_ast(
 // No `spawn-program-hermetic-ast` substrate primitive. The hermetic
 // distinction in wat-rs has always meant "separate OS process,
 // fresh frozen world" (today's `wat/std/hermetic.wat` is a wat-level
-// wrapper over `fork-with-forms`). For an in-thread spawn, "hermetic"
+// wrapper over `fork-program-ast`). For an in-thread spawn, "hermetic"
 // would only mean "skip Config inheritance" — which a caller
 // expresses by writing the inner forms with explicit
 // `(:wat::config::set-*!)` preamble. No substrate plumbing needed.

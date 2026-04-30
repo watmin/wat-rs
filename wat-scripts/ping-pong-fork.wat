@@ -1,7 +1,7 @@
 ;; wat-scripts/ping-pong-fork.wat — fork variant of the ping-pong
 ;; proof. Same shape as ping-pong.wat (5 round trips of EDN over
 ;; pipes), but the child runs in a real OS process via
-;; :wat::kernel::fork-with-forms instead of :wat::kernel::spawn-
+;; :wat::kernel::fork-program-ast instead of :wat::kernel::spawn-
 ;; program (thread).
 ;;
 ;; Usage:
@@ -20,18 +20,18 @@
 ;;   wat-cli (Rust binary, OS process A)
 ;;     └─ ping-pong-fork.wat (frozen world A, main thread of A)
 ;;          ├─ stdin/stdout/stderr → real OS handles
-;;          └─ :wat::kernel::fork-with-forms ──fork(2)──┐
+;;          └─ :wat::kernel::fork-program-ast ──fork(2)──┐
 ;;                                                      ↓
 ;;   OS process B (child of A, separate address space, separate fd table)
 ;;     └─ pong loop (frozen world B, this process's :user::main)
 ;;          └─ stdin/stdout/stderr → 3 OS pipe ends (dup2'd to 0/1/2
-;;             via fork-with-forms's child branch)
+;;             via fork-program-ast's child branch)
 ;;
 ;; Bidirectional traffic over real cross-process pipes. The first
 ;; honest fork-pipe demo with interleaved Ping/Pong — every prior
-;; fork-with-forms user (run-sandboxed-hermetic-ast, wat_fork.rs
+;; fork-program-ast user (run-sandboxed-hermetic-ast, wat_fork.rs
 ;; tests) was monologue (child writes, parent reads after). This
-;; proves fork-with-forms holds up under round-trip pressure.
+;; proves fork-program-ast holds up under round-trip pressure.
 ;;
 ;; Why this matters: it de-risks a hypothetical wat-cli rewrite
 ;; (always-fork-the-program, "the cli is the surface") that would
@@ -92,9 +92,9 @@
   (:wat::core::let*
     (((total :i64) 5)
      ;; The child program — a fresh frozen world built by
-     ;; fork-with-forms in process B. The forms are captured
+     ;; fork-program-ast in process B. The forms are captured
      ;; UNEVALUATED via :wat::core::forms (the variadic-quote
-     ;; substrate); fork-with-forms hands them to startup_from_forms
+     ;; substrate); fork-program-ast hands them to startup_from_forms
      ;; in the child branch.
      ((child-forms :Vec<wat::WatAST>)
       (:wat::core::forms
@@ -128,7 +128,7 @@
      ;; pipe-backed stdio. Returns a ForkedChild struct with the
      ;; parent-side pipe ends + a ChildHandle for waitpid.
      ((child :wat::kernel::ForkedChild)
-      (:wat::kernel::fork-with-forms child-forms))
+      (:wat::kernel::fork-program-ast child-forms))
      ((req-w  :wat::io::IOWriter) (:wat::kernel::ForkedChild/stdin child))
      ((resp-r :wat::io::IOReader) (:wat::kernel::ForkedChild/stdout child))
      ;; The conversation. Five round trips; mutual blocking on each.

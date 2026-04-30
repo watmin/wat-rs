@@ -611,7 +611,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     }));
 
     // :wat::kernel::ForkedChild — return type of
-    // `:wat::kernel::fork-with-forms` (arc 012 slice 2). Holds the
+    // `:wat::kernel::fork-program-ast` (arc 012 slice 2). Holds the
     // child's pid-bearing handle plus the three parent-side pipe
     // ends. Fields:
     //   - handle — opaque ChildHandle; feeds into wait-child.

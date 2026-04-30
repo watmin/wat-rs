@@ -383,7 +383,7 @@ pub fn startup_from_source(
 // Dep sources now install globally via `wat::source::install_dep_sources`
 // before any freezing; `stdlib_forms()` concatenates baked + installed
 // so every freeze pass — including `:wat::kernel::run-sandboxed-ast`
-// and `:wat::kernel::fork-with-forms` children — sees dep surface
+// and `:wat::kernel::fork-program-ast` children — sees dep surface
 // transparently. Callers build the composition through `compose_and_run`
 // / `Harness::from_source_with_deps` / `test_runner::run_tests_from_dir`,
 // each of which installs then calls `startup_from_source`.
@@ -414,7 +414,7 @@ pub fn startup_from_forms(
 /// than erroring on required-field-missing.
 ///
 /// Called by `:wat::kernel::run-sandboxed-ast`,
-/// `:wat::kernel::run-sandboxed-hermetic-ast`, and `:wat::kernel::fork-with-forms`
+/// `:wat::kernel::run-sandboxed-hermetic-ast`, and `:wat::kernel::fork-program-ast`
 /// children — each passes the active runtime's [`Config`] as `inherit`.
 /// Arc 031.
 pub fn startup_from_forms_with_inherit(

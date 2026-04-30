@@ -8,7 +8,7 @@ inside the test convenience layer where collected output is the
 assertion target.
 
 **Predecessors:** arc 007 (`run-sandboxed`), arc 012
-(`fork-with-forms` — already does this exact shape over `fork(2)`
+(`fork-program-ast` — already does this exact shape over `fork(2)`
 + pipes; this arc is its in-process sibling).
 
 **Foundational reference:** ZERO-MUTEX.md §"Mini-TCP via paired
@@ -87,13 +87,13 @@ thread driver underneath.
 **No `spawn-program-hermetic-ast`.** Today's hermetic distinction
 means **separate-OS-process isolation** — `wat/std/hermetic.wat`'s
 `run-sandboxed-hermetic-ast` is already a wat-level wrapper over
-`fork-with-forms`, which gives the inner program its own address
+`fork-program-ast`, which gives the inner program its own address
 space and fresh frozen world. For an in-thread spawn the only
 remaining sense of "hermetic" is "don't inherit the caller's
 Config" — and that's a wat-level discipline (have the inner forms
 declare their own `(:wat::config::set-*!)` preamble), not a
 substrate primitive. Two substrate primitives plus the existing
-`fork-with-forms` cover the matrix; nothing called "hermetic"
+`fork-program-ast` cover the matrix; nothing called "hermetic"
 needs to live at the Rust layer.
 
 ### Drop-cascade
@@ -201,7 +201,7 @@ that collects output explicitly so tests can assert on it.
 - `src/sandbox.rs::eval_kernel_run_sandboxed_ast` — **DELETE**.
 - `src/sandbox.rs::eval_kernel_run_sandboxed_hermetic_ast` —
   **UNTOUCHED.** It's already a thin wrapper that's been replaced
-  in practice by `wat/std/hermetic.wat` over `fork-with-forms`. If
+  in practice by `wat/std/hermetic.wat` over `fork-program-ast`. If
   the Rust impl still exists at the start of slice 103b, that's a
   separate cleanup; arc 103 doesn't need to remove it.
 - `src/check.rs` — drop the three `run-sandboxed*` schemes.
@@ -218,7 +218,7 @@ that collects output explicitly so tests can assert on it.
 ### Untouched
 
 - `:wat::kernel::pipe` — already exists, already correct.
-- `:wat::kernel::fork-with-forms` — heavyweight OS-process sibling.
+- `:wat::kernel::fork-program-ast` — heavyweight OS-process sibling.
   Untouched. The `Process` struct shape mirrors `ForkedChild`'s
   but the lifetimes differ (JoinHandle vs pid + waitpid); we don't
   unify them.

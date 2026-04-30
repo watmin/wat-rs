@@ -1,6 +1,6 @@
 //! End-to-end tests for `:wat::kernel::spawn-program` family — arc 103a.
 //!
-//! The in-thread sibling of `fork-with-forms`. Allocates three
+//! The in-thread sibling of `fork-program-ast`. Allocates three
 //! `pipe(2)` pairs, spawns a `std::thread` running `invoke_user_main`
 //! with the child-side pipe ends, returns a `:wat::kernel::Process`
 //! struct holding the parent-side ends + a `ProgramHandle<()>`.

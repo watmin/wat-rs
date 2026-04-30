@@ -126,7 +126,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
 - **`arc/2026/04/012-fork-and-pipes/`** — **shipped.** Raw Unix
   `fork(2)` + `pipe(2)` + `waitpid(2)` as kernel primitives.
   `:wat::kernel::pipe` + PipeReader/PipeWriter (direct-syscall
-  writes, no `std::io::stdout` Mutex coupling) + `fork-with-forms`
+  writes, no `std::io::stdout` Mutex coupling) + `fork-program-ast`
   returning a `ForkedChild` struct + `ChildHandle` opaque type +
   `wait-child` idempotent via OnceLock-cached exit. Hermetic
   moved from a Rust primitive to wat stdlib
@@ -318,7 +318,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
 
 - **`arc/2026/04/031-sandbox-inherits-config/`** — **shipped.**
   Sandbox freeze (`run-sandboxed-ast`, `run-sandboxed-hermetic-ast`,
-  `fork-with-forms` child) inherits the caller's committed
+  `fork-program-ast` child) inherits the caller's committed
   Config by default. All four `:wat::test::*` macros drop their
   `mode` + `dims` parameters — tests inherit from the test
   file's top-level preamble. Path B shipped: one declaration

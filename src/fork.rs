@@ -1,4 +1,4 @@
-//! `:wat::kernel::fork-with-forms` — the fork substrate (arc 012 slice 2).
+//! `:wat::kernel::fork-program-ast` — the fork substrate (arc 012 slice 2).
 //!
 //! Creates three pipe pairs, calls `libc::fork(2)`, redirects the
 //! child's stdio to the pipes via `dup2`, runs the caller's forms
@@ -276,7 +276,7 @@ fn write_direct_to_stderr(s: &str) {
     }
 }
 
-/// `(:wat::kernel::fork-with-forms (forms :Vec<wat::WatAST>)) ->
+/// `(:wat::kernel::fork-program-ast (forms :Vec<wat::WatAST>)) ->
 /// :wat::kernel::ForkedChild`.
 ///
 /// Forks a fresh wat evaluation on top of the current runtime's
@@ -284,12 +284,12 @@ fn write_direct_to_stderr(s: &str) {
 /// `:user::main`-bearing program with captured stdio; the parent
 /// gets the ForkedChild struct (handle + stdin writer + stdout
 /// reader + stderr reader).
-pub fn eval_kernel_fork_with_forms(
+pub fn eval_kernel_fork_program_ast(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::fork-with-forms";
+    const OP: &str = ":wat::kernel::fork-program-ast";
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),

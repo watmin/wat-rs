@@ -584,7 +584,7 @@ fn build_run_result(
 // - `eval_kernel_run_sandboxed_hermetic_ast` (AST-entry) was
 //   retired in the previous commit (0dfd9e0). Replaced by a wat
 //   stdlib define in wat/std/hermetic.wat on top of
-//   `:wat::kernel::fork-with-forms` + `wait-child`.
+//   `:wat::kernel::fork-program-ast` + `wait-child`.
 //
 // - `eval_kernel_run_sandboxed_hermetic` (string-entry) retires
 //   here. The AST-entry path is the honest shape for hand-written

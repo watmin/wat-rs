@@ -7,7 +7,7 @@
 ;; program in isolation. That primitive coupled the runtime to its
 ;; own binary path — honest for its time, dishonest long-term.
 ;;
-;; The fork substrate (pipe + fork-with-forms + wait-child, arc
+;; The fork substrate (pipe + fork-program-ast + wait-child, arc
 ;; 012 slices 1 + 2) makes hermetic expressible in wat. The child
 ;; inherits the parent's loaded runtime via COW and builds a fresh
 ;; FrozenWorld from the caller's inherited Vec<wat::WatAST> — no
@@ -111,7 +111,7 @@
     (:None
      (:wat::core::let*
        (((child :wat::kernel::ForkedChild)
-         (:wat::kernel::fork-with-forms forms))
+         (:wat::kernel::fork-program-ast forms))
         ((handle :wat::kernel::ChildHandle)
          (:wat::kernel::ForkedChild/handle child))
         ;; Write stdin (if any). An empty vec joins to "", which

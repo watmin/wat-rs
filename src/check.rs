@@ -5146,7 +5146,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // :wat::kernel::run-sandboxed-hermetic (string-entry) — retired
     // in arc 012 slice 3. The AST-entry sibling
     // (:wat::kernel::run-sandboxed-hermetic-ast) lives in wat stdlib
-    // on top of fork-with-forms; callers with raw source can parse
+    // on top of fork-program-ast; callers with raw source can parse
     // at the Rust boundary or (future) via a :wat::core::parse
     // primitive when a wat-level caller demands one.
 
@@ -5179,7 +5179,7 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // :wat::kernel::run-sandboxed-hermetic-ast — retired as a Rust
     // primitive in arc 012 slice 3. Shipped as wat stdlib in
-    // wat/std/hermetic.wat on top of fork-with-forms + wait-child
+    // wat/std/hermetic.wat on top of fork-program-ast + wait-child
     // + struct-new. The keyword path + signature + return type are
     // identical; only the implementation layer moved. See
     // docs/arc/2026/04/012-fork-and-pipes/ for the arc's record.
@@ -6168,13 +6168,13 @@ fn register_builtins(env: &mut CheckEnv) {
             ]),
         },
     );
-    // (:wat::kernel::fork-with-forms forms) → :wat::kernel::ForkedChild.
+    // (:wat::kernel::fork-program-ast forms) → :wat::kernel::ForkedChild.
     // Arc 012 slice 2. Forks the current wat process (COW-inheriting
     // the loaded substrate), runs the caller's forms as a fresh
     // :user::main in the child, returns the ForkedChild struct
     // holding the child's handle + stdio pipe ends.
     env.register(
-        ":wat::kernel::fork-with-forms".into(),
+        ":wat::kernel::fork-program-ast".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Parametric {
@@ -6187,7 +6187,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // (:wat::kernel::spawn-program src scope) → :wat::kernel::Process.
     // (:wat::kernel::spawn-program-ast forms scope) → :wat::kernel::Process.
     //
-    // Arc 103. The in-thread sibling of `fork-with-forms` — same
+    // Arc 103. The in-thread sibling of `fork-program-ast` — same
     // `(IOWriter, IOReader, IOReader, ProgramHandle<()>)` shape, but
     // the inner program runs on a `std::thread` instead of a forked
     // OS process. Caller writes EDN+newline to `proc.stdin`, blocks
@@ -6195,7 +6195,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // See `docs/ZERO-MUTEX.md` §"Mini-TCP via paired channels".
     //
     // No substrate `spawn-program-hermetic-ast`. Today's hermetic
-    // distinction means real fork (`fork-with-forms`); in-thread
+    // distinction means real fork (`fork-program-ast`); in-thread
     // "hermetic" reduces to "inner program declares its own Config
     // preamble," which is a wat-level discipline.
     env.register(

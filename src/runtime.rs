@@ -253,7 +253,7 @@ pub enum Value {
         rx: Arc<crossbeam_channel::Receiver<Value>>,
     },
     /// A handle to a child process spawned via
-    /// `:wat::kernel::fork-with-forms` (arc 012 slice 2). Opaque from
+    /// `:wat::kernel::fork-program-ast` (arc 012 slice 2). Opaque from
     /// wat's POV — produced by fork, consumed by
     /// `:wat::kernel::wait-child`. `Drop` SIGKILLs + reaps if the
     /// caller never waited, keeping zombies out of the process
@@ -2565,7 +2565,7 @@ fn dispatch_keyword_head(
         ":wat::kernel::make-bounded-queue" => eval_make_bounded_queue(args, env, sym),
         ":wat::kernel::make-unbounded-queue" => eval_make_unbounded_queue(args),
         ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args),
-        ":wat::kernel::fork-with-forms" => crate::fork::eval_kernel_fork_with_forms(args, env, sym),
+        ":wat::kernel::fork-program-ast" => crate::fork::eval_kernel_fork_program_ast(args, env, sym),
         ":wat::kernel::spawn-program" => crate::spawn::eval_kernel_spawn_program(args, env, sym),
         ":wat::kernel::spawn-program-ast" => {
             crate::spawn::eval_kernel_spawn_program_ast(args, env, sym)
@@ -10043,7 +10043,7 @@ pub fn apply_function(
 // `Failure.location` / `Failure.frames` with wat-level source
 // locations (not Rust-level).
 //
-// Out-of-process (fork-with-forms child): each process has its own
+// Out-of-process (fork-program-ast child): each process has its own
 // thread-local, initialized empty. The parent's stack doesn't carry
 // into the child (the child's freeze rebuilds from its own AST
 // forms).
