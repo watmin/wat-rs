@@ -457,67 +457,108 @@ fn program_writes_multiple_times_to_stdout() {
 }
 
 #[test]
-fn sigterm_to_cli_forwards_to_child() {
-    // Arc 104d: SIGTERM sent to wat-cli should propagate to the
-    // child via kill(2). The child runs a tail-recursive read-line
-    // loop that never EOFs (nothing closes stdin); without signal
-    // forwarding it would hang forever. With forwarding, SIGTERM
-    // reaches the child's default handler (reset to SIG_DFL post-
-    // fork by child_branch_from_source), and the child terminates.
-    // wat-cli's wait_child observes WIFSIGNALED + WTERMSIG=SIGTERM
-    // and returns 128 + 15 = 143.
-    let program = r#"
-        (:wat::core::define (:demo::loop
-                             (stdin :wat::io::IOReader)
-                             -> :())
-          (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
-            (:None ())
-            ((Some _) (:demo::loop stdin))))
+fn sigterm_to_cli_cascades_via_polling_contract() {
+    // Arc 106 — the wat-native polling contract through fork. The
+    // contract this test exercises:
+    //
+    //   1. cli installs wat signal handlers at startup; child
+    //      installs the same handlers post-fork (substrate, not
+    //      SIG_DFL — arc 106 replaced the SIG_DFL reset block in
+    //      `child_branch_from_source` with `install_substrate_signal_handlers`).
+    //   2. The child becomes its own process group leader via
+    //      `setpgid(0, 0)` post-fork. The cli's CHILD_PGID atomic
+    //      tracks this group.
+    //   3. SIGTERM arrives at cli's handler → flips KERNEL_STOPPED
+    //      in cli's memory + `killpg(CHILD_PGID, SIGTERM)` to
+    //      broadcast.
+    //   4. Kernel delivers SIGTERM to every group member; each
+    //      child's wat handler flips its own KERNEL_STOPPED.
+    //   5. Wat program polls `(:wat::kernel::stopped?)` → observes
+    //      true → returns cleanly. :user::main returns ().
+    //   6. Child _exits 0. Cli's waitpid returns WIFEXITED with
+    //      code 0. Cli exits 0.
+    //
+    // Lock-step via stdout marker. The program prints "READY" once
+    // it's about to enter the polling loop — by then the cli has
+    // forked it, set CHILD_PGID, the child has setpgid'd into its
+    // own group, installed handlers, loaded the program. Test reads
+    // stdout until READY, THEN sends SIGTERM. No sleep; the wire IS
+    // the synchronization.
+    //
+    // The test runs in a forked subprocess via `wat::fork::run_in_fork`
+    // for hermetic isolation — fresh signal-handler state, no SIGCHLD
+    // residue from earlier tests in this binary. Same isolation
+    // pattern `tests/wat_harness_deps.rs` uses against OnceLock
+    // contention.
+    wat::fork::run_in_fork(|| {
+        let program = r#"
+            (:wat::core::define (:demo::loop
+                                 (stdout :wat::io::IOWriter)
+                                 -> :())
+              (:wat::core::if (:wat::kernel::stopped?) -> :()
+                ()                                       ; observed stop → return clean
+                (:demo::loop stdout)))                   ; tight poll loop
 
-        (:wat::core::define (:user::main
-                             (stdin  :wat::io::IOReader)
-                             (stdout :wat::io::IOWriter)
-                             (stderr :wat::io::IOWriter)
-                             -> :())
-          (:demo::loop stdin))
-    "#;
-    let path = write_temp(program);
-    let bin = env!("CARGO_BIN_EXE_wat");
-    let mut child = Command::new(bin)
-        .arg(&path)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("spawn wat");
+            (:wat::core::define (:user::main
+                                 (stdin  :wat::io::IOReader)
+                                 (stdout :wat::io::IOWriter)
+                                 (stderr :wat::io::IOWriter)
+                                 -> :())
+              (:wat::core::let*
+                (((_ :()) (:wat::io::IOWriter/println stdout "READY")))
+                (:demo::loop stdout)))
+        "#;
+        let path = write_temp(program);
+        let bin = env!("CARGO_BIN_EXE_wat");
+        let mut child = Command::new(bin)
+            .arg(&path)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn wat");
 
-    // Give the child a moment to fork + start its read loop. Race
-    // tolerance: if SIGTERM arrives before the cli has called fork(),
-    // CHILD_PID is still -1 and forward_signal no-ops; the cli
-    // inherits SIGTERM's default action (terminate). Either way the
-    // wat process tree dies; the test is robust to both timings.
-    std::thread::sleep(std::time::Duration::from_millis(100));
+        // Lock-step: read stdout until we see READY. By the time the
+        // child wat process has println'd READY, every cascade
+        // prerequisite is settled — cli has fork()ed + set CHILD_PGID,
+        // child has setpgid'd, child has installed wat handlers, child
+        // has loaded program, child is in the polling loop. SIGTERM
+        // is now safe to deliver; no race window.
+        use std::io::{BufRead, BufReader};
+        let stdout = child.stdout.take().expect("child stdout");
+        let mut reader = BufReader::new(stdout);
+        let mut line = String::new();
+        reader.read_line(&mut line).expect("read READY");
+        assert_eq!(line.trim(), "READY", "expected READY marker; got {:?}", line);
 
-    // Send SIGTERM to wat-cli. The signal handler forwards it to the
-    // child via kill(2); child terminates with default action.
-    let cli_pid = child.id() as libc::pid_t;
-    unsafe {
-        libc::kill(cli_pid, libc::SIGTERM);
-    }
+        // Send SIGTERM to wat-cli. The handler flips KERNEL_STOPPED
+        // in cli + killpg(CHILD_PGID, SIGTERM) cascades to every
+        // process in the group. Child's wat handler flips its own
+        // KERNEL_STOPPED; child polls; child exits clean.
+        let cli_pid = child.id() as libc::pid_t;
+        unsafe {
+            libc::kill(cli_pid, libc::SIGTERM);
+        }
 
-    let status = child.wait().expect("wait wat-cli");
-    let code = status.code();
-    let _ = std::fs::remove_file(&path);
+        let status = child.wait().expect("wait wat-cli");
+        let code = status.code();
+        let _ = std::fs::remove_file(&path);
 
-    // Expected: child died from SIGTERM (signal 15) → wat-cli's
-    // wait_child returns 128 + 15 = 143 → cli exits 143. Tolerate
-    // raw 143 OR (rare race) the cli being killed directly by
-    // SIGTERM before fork — in which case Rust reports None.
-    match code {
-        Some(143) => {} // happy path
-        Some(n) => panic!("expected exit 143 (128+SIGTERM); got {}", n),
-        None => {} // race: cli killed by SIGTERM before fork
-    }
+        // Polling contract: child exits 0 (clean shutdown via
+        // observed stop flag). NOT 143 (which would mean the child
+        // was killed by SIGTERM's default action — pre-arc-106
+        // contract). NOT None (which would mean the cli process
+        // itself was killed by signal before forwarding — impossible
+        // post-arc-106 because the cli's wat handler runs on signal,
+        // doesn't terminate the cli).
+        assert_eq!(
+            code,
+            Some(0),
+            "polling contract: cli should exit 0 after child observes stopped? \
+             and returns clean; got {:?}",
+            code
+        );
+    });
 }
 
 

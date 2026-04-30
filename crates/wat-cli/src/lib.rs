@@ -101,13 +101,21 @@ use std::os::fd::{AsRawFd, OwnedFd};
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
 
-// ─── Child PID atomic for signal forwarding (arc 104d) ──────────────────
+// ─── Child process-group atomic for signal cascade (arc 104d → arc 106) ─
 //
 // Set after fork; read by signal handlers. -1 sentinel = no child yet
 // (cli is still in argv parsing or pre-fork). Handlers check >= 0
-// before calling kill(2) to avoid sending signals to PID 0 (process
-// group) or PID -1 (every process the cli has permission to signal).
-static CHILD_PID: AtomicI32 = AtomicI32::new(-1);
+// before calling killpg(2) to avoid signaling pgid 0 (the cli's own
+// group, which would loop) or -1 (every process the cli can signal).
+//
+// Arc 106 generalizes arc 104d's CHILD_PID to a process-group ID. The
+// substrate's `child_branch_from_source` calls `setpgid(0, 0)` so the
+// child is its own group leader — pgid == child_pid. Subsequent
+// `:wat::kernel::fork-program` calls in the wat program inherit the
+// pgid by POSIX default; the kernel tracks group membership; the cli's
+// `killpg(CHILD_PGID, sig)` cascades to every descendant in one
+// syscall. No registry maintenance required.
+static CHILD_PGID: AtomicI32 = AtomicI32::new(-1);
 
 use wat::fork::fork_program_from_source;
 use wat::load::FsLoader;
@@ -229,12 +237,14 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
 
     let child_pid = handles.child_handle.pid;
 
-    // Publish the child PID for signal-handler forwarding (arc 104d).
-    // Handlers read this atomic and kill(2) the child with the same
-    // signal. The atomic is the only race-safe way to thread the PID
-    // from the post-fork parent into the async-signal-safe handler
-    // closure.
-    CHILD_PID.store(child_pid, Ordering::SeqCst);
+    // Publish the child's process-group ID for signal-handler cascade
+    // (arc 104d → arc 106). The substrate's `child_branch_from_source`
+    // called `setpgid(0, 0)` post-fork, so the child is its own pgid
+    // leader — pgid == child_pid. Handlers read this atomic and call
+    // `killpg(pgid, sig)` to broadcast to every process in the group
+    // (child + any grandchildren the wat program forked via
+    // `:wat::kernel::fork-program`). One syscall, kernel-driven fanout.
+    CHILD_PGID.store(child_pid, Ordering::SeqCst);
 
     // Spawn the three proxy threads. Each runs a tight read/write
     // loop bridging real OS stdio to the child's pipe end. They
@@ -258,10 +268,10 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
         .reaped
         .store(true, Ordering::SeqCst);
 
-    // Clear the published child PID so any late signal arriving
-    // between waitpid and exit doesn't get sent to a PID that's
+    // Clear the published child PGID so any late signal arriving
+    // between waitpid and exit doesn't get killpg'd to a group that's
     // since been reused by the OS.
-    CHILD_PID.store(-1, Ordering::SeqCst);
+    CHILD_PGID.store(-1, Ordering::SeqCst);
 
     // Join the proxy threads. Each sees its peer fd close (child
     // exit closes the child-side fds → parent's read returns 0 →
@@ -419,15 +429,23 @@ fn install_batteries(batteries: &[Battery]) {
 //    own handlers via :wat::kernel::sigusr1?-style polling — same
 //    primitives, but they hook the child's flags, not the cli's.)
 //
-// The forward_signal helper reads CHILD_PID; if -1 (no child yet),
-// no-op. If >= 0, kill(pid, sig). Async-signal-safe — atomic load +
-// libc::kill are both legal in handler context.
+// The forward_signal helper reads CHILD_PGID; if -1 (no child yet),
+// no-op. If > 0, killpg(pgid, sig) — broadcasts to every process in
+// the child's process group (child + any wat-program-forked
+// grandchildren, recursively). Async-signal-safe: atomic load +
+// libc::killpg are both legal in handler context.
+//
+// Arc 106 swap: kill(pid, sig) → killpg(pgid, sig). The substrate's
+// `child_branch_from_source` calls `setpgid(0, 0)` so the child's
+// pgid == its pid, and inherited fork-program calls keep the same
+// pgid. One syscall reaches every descendant; the kernel's process-
+// group abstraction is the substrate's child-tracking mechanism.
 
 extern "C" fn forward_signal(sig: libc::c_int) {
-    let pid = CHILD_PID.load(Ordering::SeqCst);
-    if pid > 0 {
+    let pgid = CHILD_PGID.load(Ordering::SeqCst);
+    if pgid > 0 {
         unsafe {
-            libc::kill(pid, sig);
+            libc::killpg(pgid, sig);
         }
     }
 }

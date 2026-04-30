@@ -61,6 +61,74 @@ pub const EXIT_MAIN_SIGNATURE: i32 = 4;
 /// touches process-global state can use the same pattern —
 /// `tests/wat_harness_deps.rs`'s OnceLock race being the second
 /// caller.
+// ─── Arc 106 — substrate-level signal handlers for fork children ─────
+//
+// Wat programs in forked children must observe SIGTERM / SIGINT /
+// SIGUSR1/2 / SIGHUP through the same `(:wat::kernel::stopped?)` /
+// `(:wat::kernel::sigusr1?)` polling contract that worked when the
+// program ran in the cli's process pre-arc-104. The handlers below
+// flip the substrate's kernel flags; the wat program polls; the
+// program returns cleanly when the flag is observed.
+//
+// Distinct from `crates/wat-cli/src/lib.rs`'s handlers: the cli's
+// handlers ALSO call `killpg(CHILD_PGID, sig)` to cascade. The
+// substrate's handlers only flip flags — fork children rely on the
+// kernel's process-group delivery (cli broadcasts via killpg; the
+// kernel delivers to every group member; each child's handler runs
+// in its own process). No forwarding logic needed in substrate
+// children.
+
+extern "C" fn substrate_on_stop_signal(_sig: libc::c_int) {
+    crate::runtime::request_kernel_stop();
+}
+
+extern "C" fn substrate_on_sigusr1(_sig: libc::c_int) {
+    crate::runtime::set_kernel_sigusr1();
+}
+
+extern "C" fn substrate_on_sigusr2(_sig: libc::c_int) {
+    crate::runtime::set_kernel_sigusr2();
+}
+
+extern "C" fn substrate_on_sighup(_sig: libc::c_int) {
+    crate::runtime::set_kernel_sighup();
+}
+
+/// Install the substrate's wat signal handlers in the calling process.
+///
+/// Called by `child_branch_from_source` after fork to give the forked
+/// child a working `(:wat::kernel::stopped?)` / `(sigusr1?)` / etc.
+/// polling contract. The handlers reference substrate-level static
+/// atomics (KERNEL_STOPPED, KERNEL_SIGUSR1, etc.) which are COW-copied
+/// at fork; each process flips its own copy independently.
+///
+/// Must be async-signal-safe. The handlers do exactly one atomic
+/// store; nothing else.
+pub fn install_substrate_signal_handlers() {
+    unsafe {
+        libc::signal(
+            libc::SIGINT,
+            substrate_on_stop_signal as *const () as libc::sighandler_t,
+        );
+        libc::signal(
+            libc::SIGTERM,
+            substrate_on_stop_signal as *const () as libc::sighandler_t,
+        );
+        libc::signal(
+            libc::SIGUSR1,
+            substrate_on_sigusr1 as *const () as libc::sighandler_t,
+        );
+        libc::signal(
+            libc::SIGUSR2,
+            substrate_on_sigusr2 as *const () as libc::sighandler_t,
+        );
+        libc::signal(
+            libc::SIGHUP,
+            substrate_on_sighup as *const () as libc::sighandler_t,
+        );
+    }
+}
+
 pub fn run_in_fork<F>(body: F)
 where
     F: FnOnce() + std::panic::UnwindSafe,
@@ -725,22 +793,32 @@ fn child_branch_from_source(
     drop(stdout_pair.1);
     drop(stderr_pair.1);
 
-    // Reset signal handlers to defaults (arc 104 DESIGN open question
-    // 3) — fork inherits the parent's handler addresses; those reference
-    // parent-process atomics now in the child's COW-copy. Resetting
-    // forces the child to use the kernel-default action; arc 104c's
-    // wat-cli forwarding then drives child signal delivery via kill(2).
-    unsafe {
-        for sig in [
-            libc::SIGINT,
-            libc::SIGTERM,
-            libc::SIGUSR1,
-            libc::SIGUSR2,
-            libc::SIGHUP,
-        ] {
-            libc::signal(sig, libc::SIG_DFL);
+    // Make the child the leader of its own process group. Per arc 106:
+    // every fork child becomes its own group; subsequent `fork-program`
+    // calls inside the wat program inherit the pgid (POSIX default),
+    // so the cli's `killpg(child_pgid, sig)` cascades to every
+    // descendant — grandchildren, great-grandchildren, recursively.
+    // The kernel does the bookkeeping; the substrate doesn't maintain
+    // a child registry. Failure here is non-recoverable — the cascade
+    // contract is broken — so we _exit. EPERM should not happen
+    // (child is not a session leader; cli does not call setsid).
+    if unsafe { libc::setpgid(0, 0) } < 0 {
+        let err = std::io::Error::last_os_error();
+        let msg = format!("setpgid(0, 0) failed: {}\n", err);
+        unsafe {
+            libc::write(2, msg.as_ptr() as *const libc::c_void, msg.len());
         }
+        unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
     }
+
+    // Install wat signal handlers (arc 106 — replaces the arc 104d
+    // SIG_DFL reset). The handlers flip the same KERNEL_STOPPED /
+    // KERNEL_SIGUSR1 / etc. flags wat programs poll via
+    // `(:wat::kernel::stopped?)` etc. The polling contract works
+    // through fork now; a wat program in a forked child observes
+    // the cascade and exits cleanly. SIG_DFL would have killed the
+    // child by default action — wrong contract, racy waitpid window.
+    install_substrate_signal_handlers();
 
     // Hygiene: close every inherited fd above 2.
     close_inherited_fds_above_stdio();
