@@ -1256,8 +1256,8 @@ spell the channel surface in short form:
 | `:wat::kernel::QueueSender<T>` | `:rust::crossbeam_channel::Sender<T>` |
 | `:wat::kernel::QueueReceiver<T>` | `:rust::crossbeam_channel::Receiver<T>` |
 | `:wat::kernel::QueuePair<T>` | `:(QueueSender<T>, QueueReceiver<T>)` — what `make-bounded/unbounded-queue` returns |
-| `:wat::kernel::Chosen<T>` | `:(i64, Option<T>)` — what `select` returns (which receiver fired, and what it gave) |
-| `:wat::kernel::Sent` | `:Option<()>` — what `send` returns (`Some(())` on placed, `:None` on disconnect) |
+| `:wat::kernel::CommResult<T>` | `:Result<:Option<T>, :wat::kernel::ThreadDiedError>` — what `recv` / `try-recv` return (arc 111). Three states: `Ok(Some v)` value flowed; `Ok(:None)` clean shutdown (every sender dropped via scope); `Err(...)` sender thread died |
+| `:wat::kernel::Chosen<T>` | `:(i64, :wat::kernel::CommResult<T>)` — what `select` returns (which receiver fired, and the recv outcome) |
 
 Reach for them in let* bindings, function signatures, and Vec carriers
 wherever you'd otherwise type the long `rust::crossbeam_channel::*`
@@ -1266,34 +1266,105 @@ path. Aliases and their expansion are interchangeable at unification.
 ### Send and receive
 
 ```scheme
-(:wat::kernel::send sender value)          ; → :wat::kernel::Sent  ≡ :Option<()>  — Some(()) on sent; None on disconnect
-(:wat::kernel::recv receiver)              ; → :Option<T>   — Some(v) on recv; None on disconnect
-(:wat::kernel::try-recv receiver)          ; → :Option<T>   — None if empty OR disconnected
-(:wat::kernel::drop handle)                ; → :()          — readability marker; see § Channel close is scope-based
+(:wat::kernel::send sender value)          ; → :Result<:(), :ThreadDiedError>   — Ok(()) on landed; Err on disconnect
+(:wat::kernel::recv receiver)              ; → :Result<:Option<T>, :ThreadDiedError>  — Ok(Some v) value; Ok(:None) clean shutdown; Err sender-thread died
+(:wat::kernel::try-recv receiver)          ; → :Result<:Option<T>, :ThreadDiedError>  — same shape, non-blocking
+(:wat::kernel::drop handle)                ; → :()  — readability marker; see § Channel close is scope-based
 ```
 
-Both channel endpoints report disconnect through the same `:Option`
-shape — `send` returns `:wat::kernel::Sent` (≡ `:Option<()>`) symmetric
-with `recv`'s `:Option<T>`.
+**Arc 111 — three states, three arms.** Both endpoints surface
+the comm outcome as data the receiver can match on:
+
+- **recv** distinguishes value (`Ok(Some v)`), clean shutdown
+  (`Ok(:None)` — every sender dropped via scope exit; the
+  protocol's last message), and catastrophic peer-death
+  (`Err(ThreadDiedError)` — sender thread panicked). The same
+  `ThreadDiedError` enum `:wat::kernel::join-result` returns;
+  programs that already match on join-result's `Err` arms write
+  identical code at recv sites.
+- **send** distinguishes delivered (`Ok(())`) from
+  receiver-gone (`Err(ThreadDiedError)`). The Err-variant
+  payload tells the producer whether the receiver dropped
+  cleanly or panicked.
+
+Slice 1 of arc 111 ships the type shape; arc 113 wires the rich
+`Err(Panic { message, failure })` payload that propagates the
+sender-thread's actual panic message. Pre-arc-113, `Err` always
+carries `ChannelDisconnected` as a stand-in.
 
 **Arc 110 — silent disconnect is a compile error.** Every
 `:wat::kernel::send` / `:wat::kernel::recv` call MUST appear as
-either the scrutinee of `:wat::core::match` (handles `Some` and the
-terminal `:None` arms explicitly) or the value-position of
-`:wat::core::option::expect` (declares peer-death is catastrophic;
-panic with a meaningful message). Any other context — let-binding
-RHS, function-call argument, struct field, bare return value — is a
-compile-time error (`CommCallOutOfPosition`). The substrate refuses
-to compile programs that ignore the comm result; the silent
-producer-keeps-going-on-dead-peer hang from proof_004 is structurally
-impossible.
+the scrutinee of `:wat::core::match`, the value-position of
+`:wat::core::result::expect`, or the value-position of
+`:wat::core::option::expect`. Any other context — let-binding
+RHS, function-call argument, struct field, bare return value —
+is a compile-time error (`CommCallOutOfPosition`). The substrate
+refuses to compile programs that ignore the comm result; the
+silent producer-keeps-going-on-dead-peer hang from proof_004 is
+structurally impossible.
 
-In-memory peer-death is catastrophic — there's no remote host, no
-recoverable disconnect — so `option::expect` is the default. `match`
-is the narrow case: worker recv-loops where `:None` IS the legitimate
-end-of-work signal (all clients dropped their Senders), and producer
-stages where `:None` from a send means "downstream consumer dropped,
-stop producing."
+In-memory peer-death is catastrophic — there's no remote host,
+no recoverable disconnect — so `:wat::core::result::expect` is
+the default. The 3-arm `match` is the narrow case: worker
+recv-loops where `Ok(:None)` IS the legitimate end-of-work
+signal (all clients dropped their Senders), and producer stages
+that handle downstream-closed.
+
+### Three-arm recv pattern
+
+```scheme
+(:wat::core::match (:wat::kernel::recv rx) -> :T
+  ((Ok (Some v))
+    ;; value flowed; do work, recurse
+    (:my::worker::loop rx new-state))
+  ((Ok :None)
+    ;; clean shutdown — every sender dropped via scope exit.
+    ;; Worker recv-loops terminate here.
+    state)
+  ((Err _died)
+    ;; sender thread panicked. Slice 1: _died is always
+    ;; ChannelDisconnected. Arc 113: _died carries Panic { message,
+    ;; failure } with the dying thread's message.
+    (re-raise-or-handle _died)))
+```
+
+### Strict-recv via `result::expect`
+
+When the caller's program cannot continue meaningfully without
+this recv's value:
+
+```scheme
+((maybe-v :Option<T>)
+  (:wat::core::result::expect -> :Option<T>
+    (:wat::kernel::recv rx)
+    "rx: peer thread died — driver panicked?"))
+```
+
+`result::expect` panics on `Err` (with the supplied message; arc
+113 prepends the dying thread's panic message). Returns
+`:Option<T>` — the inner Option survives so the caller can
+distinguish "value received" from "clean shutdown" if they
+care. To panic on either disconnect kind, nest:
+
+```scheme
+((v :T)
+  (:wat::core::option::expect -> :T
+    (:wat::core::result::expect -> :Option<T>
+      (:wat::kernel::recv rx)
+      "rx: peer thread died")
+    "rx: clean disconnect — peer dropped its sender"))
+```
+
+### Strict-send via `result::expect`
+
+```scheme
+((_send :())
+  (:wat::core::result::expect -> :()
+    (:wat::kernel::send tx msg)
+    "tx disconnected — driver died?"))
+```
+
+Single stage — send's Ok branch returns `()` directly.
 
 Senders and receivers are **single-owner** — not cloneable. A sender
 belongs to exactly one producer; a receiver to one consumer. Match
@@ -1324,7 +1395,7 @@ worker's `recv` never returns `:None`:
    ((handle :wat::kernel::ProgramHandle<()>)
     (:wat::kernel::spawn :my::worker rx))
    ((_send :())
-    (:wat::core::option::expect -> :() (:wat::kernel::send tx 1) "tx disconnected"))
+    (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "tx disconnected"))
    ((_drop :()) (:wat::kernel::drop tx)))   ;; ← no-op; tx still bound
   (:wat::kernel::join handle))               ;; ← worker recv-loops forever
 ```
