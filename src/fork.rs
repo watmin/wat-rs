@@ -366,6 +366,47 @@ fn write_direct_to_stderr(s: &str) {
     }
 }
 
+/// Arc 113 slice 3 — emit the cascade chain as a tagged EDN line
+/// on stderr just before `_exit`. Stderr is the diagnostic
+/// channel by convention; the wat-side sandbox driver (which
+/// already drains stderr) scans for the marker and hands the
+/// parsed chain to `failure-from-process-died`. No new fd, no
+/// new substrate primitive — stderr already serves this role.
+///
+/// Marker form (one line, terminated by `\n`):
+///
+/// ```text
+/// #wat.kernel/Panics [#wat.kernel/ProcessDiedError::Panic [...] ...]
+/// ```
+///
+/// Renders via the world's `TypeEnv` so struct fields land with
+/// their declared names (the reader's `reconstruct_struct` walks
+/// `def.fields` by name; positional `:field-N` keys would fail to
+/// rejoin). The full chain — head's `ProcessDiedError::Panic`
+/// (carrying the structured `Failure` from `AssertionPayload`)
+/// plus any inherited upstream — round-trips cleanly through
+/// `value_to_edn_with` + `wat_edn::write` ↔ `wat_edn::parse_owned`
+/// + `edn_to_value`.
+///
+/// Best-effort: if the write fails or the EDN render shape is
+/// somehow malformed, the parent falls back to the singleton
+/// "exited N" path (current pre-arc-113-slice-3 behavior). This
+/// is enrichment, not a contract.
+fn emit_panics_to_stderr(
+    world: &crate::freeze::FrozenWorld,
+    payload: &crate::assertion::AssertionPayload,
+) {
+    let fresh = crate::runtime::process_died_error_panic_value(
+        payload.message.clone(),
+        Some(payload.clone()),
+    );
+    let upstream = payload.upstream_chain.clone();
+    let chain = crate::runtime::conj_died_chain_value(fresh, upstream);
+    let edn = crate::edn_shim::value_to_edn_with(&chain, Some(world.types()));
+    let line = format!("#wat.kernel/Panics {}\n", wat_edn::write(&edn));
+    write_direct_to_stderr(&line);
+}
+
 /// `(:wat::kernel::fork-program-ast (forms :Vec<wat::WatAST>)) ->
 /// :wat::kernel::ForkedChild`.
 ///
@@ -569,6 +610,19 @@ fn child_branch(
         unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
     }
 
+    // Arc 113 slice 3 — keep stderr's wat-side IOWriter Arc alive
+    // past the catch_unwind closure. The Arc<dyn WatWriter> wraps an
+    // OwnedFd over fd 2; when ALL Arcs drop, the OwnedFd's Drop
+    // closes fd 2. invoke_user_main consumes its argument vector;
+    // when the closure returns (Ok or Err), the moved Arc inside
+    // main_args drops. Without this clone, fd 2 closes BEFORE the
+    // panic-arm writes run — write_direct_to_stderr's libc::write
+    // hits EBADF and the cascade-chain marker never reaches the
+    // parent's pipe. The held clone keeps the refcount at ≥1
+    // through the post-catch writes; dropped after _exit (which
+    // never returns, so it's effectively a leak the kernel reaps).
+    let stderr_keepalive = Arc::clone(&stderr_writer);
+
     let main_args = vec![
         Value::io__IOReader(stdin_reader),
         Value::io__IOWriter(stdout_writer),
@@ -578,6 +632,7 @@ fn child_branch(
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         invoke_user_main(&world, main_args)
     }));
+    let _ = &stderr_keepalive; // borrow-check: prove the clone is held until here
 
     match outcome {
         Ok(Ok(_)) => unsafe { libc::_exit(EXIT_SUCCESS) },
@@ -585,7 +640,19 @@ fn child_branch(
             write_direct_to_stderr(&format!("runtime: {:?}\n", runtime_err));
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
-        Err(_panic_payload) => {
+        Err(panic_payload) => {
+            // Arc 113 slice 3 — when the panic carried an
+            // AssertionPayload (the only path with an
+            // `upstream_chain`), emit the cascade chain as a
+            // tagged EDN line on stderr so the parent's wat-side
+            // `extract-panics` can rebuild it. Plain panics
+            // (a bare String / &str payload) skip the emit; the
+            // parent observes the singleton "exited N" path.
+            if let Some(payload) =
+                panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
+            {
+                emit_panics_to_stderr(&world, payload);
+            }
             write_direct_to_stderr("panic: sandboxed :user::main panicked\n");
             unsafe { libc::_exit(EXIT_PANIC) };
         }
@@ -881,6 +948,12 @@ fn child_branch_from_source(
         unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
     }
 
+    // Arc 113 slice 3 — see child_branch's matching keepalive
+    // for the full rationale: stderr_writer's OwnedFd over fd 2
+    // would close when main_args drops; the held Arc clone keeps
+    // fd 2 alive through the catch_unwind Err arm.
+    let stderr_keepalive = Arc::clone(&stderr_writer);
+
     let main_args = vec![
         Value::io__IOReader(stdin_reader),
         Value::io__IOWriter(stdout_writer),
@@ -890,6 +963,7 @@ fn child_branch_from_source(
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         invoke_user_main(&world, main_args)
     }));
+    let _ = &stderr_keepalive;
 
     match outcome {
         Ok(Ok(_)) => unsafe { libc::_exit(EXIT_SUCCESS) },
@@ -897,7 +971,13 @@ fn child_branch_from_source(
             write_direct_to_stderr(&format!("runtime: {:?}\n", runtime_err));
             unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
         }
-        Err(_panic_payload) => {
+        Err(panic_payload) => {
+            // Arc 113 slice 3 — same chain emit as `child_branch`.
+            if let Some(payload) =
+                panic_payload.downcast_ref::<crate::assertion::AssertionPayload>()
+            {
+                emit_panics_to_stderr(&world, payload);
+            }
             write_direct_to_stderr("panic: forked :user::main panicked\n");
             unsafe { libc::_exit(EXIT_PANIC) };
         }

@@ -738,20 +738,52 @@ fn reconstruct_struct(
     }
     // Walk declared fields in declaration order; build positional
     // field values that StructValue expects.
+    //
+    // Arc 113 slice 3 — Option-aware re-wrapping. wat-edn's writer
+    // unwraps `Value::Option(Some(x))` → bare `x` on the wire (and
+    // `None` → Nil). To round-trip cleanly, the reader needs to put
+    // the Option layer back when the declared field type is
+    // `Option<T>`. Without this, a Failure with `actual:
+    // Option<String>` reads back as `Value::String` instead of
+    // `Value::Option(Some(String))`, and downstream pattern-matches
+    // (`(Some a)` / `(:None ...)`) hit `PatternMatchFailed`. Same
+    // logic applies for any struct field declared as Option-of-T.
     let mut fields: Vec<Value> = Vec::with_capacity(def.fields.len());
-    for (fname, _fty) in &def.fields {
+    for (fname, fty) in &def.fields {
         let fv = by_key.get(fname.as_str()).ok_or_else(|| {
             EdnReadError::UnknownStructField {
                 type_path: path.clone(),
                 key: fname.clone(),
             }
         })?;
-        fields.push(edn_to_value(fv, Some(types))?);
+        let inner = edn_to_value(fv, Some(types))?;
+        let wrapped = rewrap_option_field(fty, inner);
+        fields.push(wrapped);
     }
     Ok(Value::Struct(Arc::new(crate::runtime::StructValue {
         type_name: path,
         fields,
     })))
+}
+
+/// Arc 113 slice 3 — when a declared field type is `Option<T>` but
+/// the EDN-bridged value isn't already a `Value::Option`, wrap it.
+/// `Value::Unit` (Nil round-trip) → `None`; anything else → `Some`.
+/// Already-Option values pass through. Non-Option declared types
+/// pass through unchanged.
+fn rewrap_option_field(fty: &crate::types::TypeExpr, v: Value) -> Value {
+    let is_option = matches!(
+        fty,
+        crate::types::TypeExpr::Parametric { head, .. } if head == "Option"
+    );
+    if !is_option {
+        return v;
+    }
+    match v {
+        Value::Option(_) => v, // already wrapped
+        Value::Unit => Value::Option(Arc::new(None)),
+        other => Value::Option(Arc::new(Some(other))),
+    }
 }
 
 fn reconstruct_enum_tagged(
@@ -771,7 +803,7 @@ fn reconstruct_enum_tagged(
             });
         }
     };
-    let _variant = def
+    let variant = def
         .variants
         .iter()
         .find(|v| match v {
@@ -782,10 +814,23 @@ fn reconstruct_enum_tagged(
             type_path: path.clone(),
             variant: variant_name.to_string(),
         })?;
-    let fields: Vec<Value> = items
-        .iter()
-        .map(|x| edn_to_value(x, Some(types)))
-        .collect::<Result<_, _>>()?;
+    // Arc 113 slice 3 — Option-aware field wrapping (same shape as
+    // reconstruct_struct). Variant field types come from
+    // `EnumVariant::Tagged.fields`; bridge each item, then rewrap
+    // Option layers wat-edn dropped on the wire.
+    let declared_fields: &[(String, crate::types::TypeExpr)] = match variant {
+        crate::types::EnumVariant::Tagged { fields, .. } => fields.as_slice(),
+        crate::types::EnumVariant::Unit(_) => &[],
+    };
+    let mut fields: Vec<Value> = Vec::with_capacity(items.len());
+    for (idx, item) in items.iter().enumerate() {
+        let inner = edn_to_value(item, Some(types))?;
+        let wrapped = match declared_fields.get(idx) {
+            Some((_, fty)) => rewrap_option_field(fty, inner),
+            None => inner,
+        };
+        fields.push(wrapped);
+    }
     Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
         type_path: path,
         variant_name: variant_name.to_string(),

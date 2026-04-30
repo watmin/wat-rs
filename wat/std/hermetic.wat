@@ -106,14 +106,25 @@
          (:wat::kernel::drain-lines stdout-r))
         ((stderr-lines :Vec<String>)
          (:wat::kernel::drain-lines stderr-r))
-        ((failure :Option<wat::kernel::Failure>)
-         ;; Arc 113 — Err arm carries Vec<ProcessDiedError>; route
-         ;; through sandbox.wat's failure-from-process-died helper
-         ;; which walks the chain head and renders via the substrate
-         ;; accessor.
+        ;; Arc 113 slice 3 — same stderr-EDN preference as
+         ;; drive-sandbox. The forked child renders the cascade
+         ;; chain to stderr on AssertionPayload panic; we recover
+         ;; it here and use it instead of the singleton from
+         ;; Process/join-result. Falls back when the marker is
+         ;; absent (clean exit, plain panic, runtime error). The
+         ;; chain shape at the caller is identical regardless of
+         ;; which transport delivered it.
+         ((stderr-chain :Option<Vec<wat::kernel::ProcessDiedError>>)
+          (:wat::kernel::extract-panics stderr-lines))
+         ((failure :Option<wat::kernel::Failure>)
          (:wat::core::match joined-result -> :Option<wat::kernel::Failure>
            ((Ok _)       :None)
-           ((Err chain) (Some (:wat::kernel::failure-from-process-died chain))))))
+           ((Err chain)
+            (Some (:wat::kernel::failure-from-process-died
+                    (:wat::core::match stderr-chain
+                      -> :Vec<wat::kernel::ProcessDiedError>
+                      ((Some sc) sc)
+                      (:None     chain))))))))
        (:wat::core::struct-new :wat::kernel::RunResult
          stdout-lines
          stderr-lines

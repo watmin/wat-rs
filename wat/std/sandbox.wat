@@ -109,10 +109,27 @@
      ((stderr-lines :Vec<String>)    (:wat::kernel::drain-lines stderr-r))
      ((joined-result :Result<(),Vec<wat::kernel::ProcessDiedError>>)
       (:wat::kernel::Process/join-result proc))
+     ;; Arc 113 slice 3 — symmetry with the thread cascade. When
+     ;; the forked child panicked with an upstream-chain-bearing
+     ;; AssertionPayload, fork.rs's emit_panics_to_stderr
+     ;; rendered the chain as a tagged EDN line on stderr. The
+     ;; substrate verb extract-panics walks stderr lines and
+     ;; recovers the typed Vec<ProcessDiedError>; we prefer it over
+     ;; Process/join-result's singleton "exited N" shape.
+     ;; Threads pass DiedError values directly through crossbeam;
+     ;; processes pass them as EDN over kernel pipes; the chain at
+     ;; the caller is identical regardless. Only the wire differs.
+     ((stderr-chain :Option<Vec<wat::kernel::ProcessDiedError>>)
+      (:wat::kernel::extract-panics stderr-lines))
      ((failure :Option<wat::kernel::Failure>)
       (:wat::core::match joined-result -> :Option<wat::kernel::Failure>
         ((Ok _)    :None)
-        ((Err err) (Some (:wat::kernel::failure-from-process-died err))))))
+        ((Err err)
+         (Some (:wat::kernel::failure-from-process-died
+                 (:wat::core::match stderr-chain
+                   -> :Vec<wat::kernel::ProcessDiedError>
+                   ((Some chain) chain)
+                   (:None         err))))))))
     (:wat::core::struct-new :wat::kernel::RunResult
       stdout-lines stderr-lines failure)))
 

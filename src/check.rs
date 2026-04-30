@@ -7202,6 +7202,40 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Path(":wat::kernel::Failure".into()),
         },
     );
+    // (:wat::kernel::extract-panics (lines :Vec<String>))
+    //   -> :Option<Vec<wat::kernel::ProcessDiedError>>
+    //
+    // Arc 113 slice 3 — process side of the cascade. Stderr is the
+    // diagnostic side channel; the child writes a tagged EDN line
+    // `#wat.kernel/Panics [...]` on AssertionPayload panic. This verb
+    // walks the captured stderr-lines from end to start, locates
+    // the marker, parses the body via the type registry, returns
+    // the chain. The wat-side `drive-sandbox` prefers the parsed
+    // chain when present; otherwise falls back to the singleton
+    // shape from `Process/join-result`.
+    //
+    // Symmetry note: threads pass DiedError values directly through
+    // crossbeam (zero-copy); processes pass them as EDN over kernel
+    // pipes. The CHAIN SHAPE at the caller surface is identical —
+    // `Result<R, Vec<*DiedError>>`. Only the transport differs;
+    // `extract-panics` is the EDN side of the same coin.
+    env.register(
+        ":wat::kernel::extract-panics".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Parametric {
+                head: "Vec".into(),
+                args: vec![TypeExpr::Path(":String".into())],
+            }],
+            ret: TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
+                }],
+            },
+        },
+    );
     // HandlePool — claim-or-panic discipline.
     //   new    : ∀T. :String -> :Vec<T> -> :HandlePool<T>
     //   pop    : ∀T. :HandlePool<T> -> :T

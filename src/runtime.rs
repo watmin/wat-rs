@@ -2593,6 +2593,9 @@ fn dispatch_keyword_head(
         ":wat::kernel::ProcessDiedError/to-failure" => {
             eval_process_died_error_to_failure(args, env, sym)
         }
+        ":wat::kernel::extract-panics" => {
+            eval_kernel_extract_panics(args, env, sym)
+        }
         ":wat::kernel::Process/join-result" => {
             eval_kernel_process_join_result(args, env, sym)
         }
@@ -6241,13 +6244,13 @@ fn eval_result_expect(
         Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
             Ok(std::result::Result::Ok(ok)) => Ok(ok),
             Ok(std::result::Result::Err(e)) => {
-                let chain = extract_died_chain(&e);
+                let chain = extract_panics(&e);
                 expect_panic(":wat::core::result::expect", &args[3], env, sym, args[2].span().clone(), chain)
             }
             Err(shared) => match &*shared {
                 std::result::Result::Ok(ok) => Ok(ok.clone()),
                 std::result::Result::Err(e) => {
-                    let chain = extract_died_chain(e);
+                    let chain = extract_panics(e);
                     expect_panic(":wat::core::result::expect", &args[3], env, sym, args[2].span().clone(), chain)
                 }
             },
@@ -6272,7 +6275,7 @@ fn eval_result_expect(
 /// `Result<T, E>` they own). Falling back to `None` keeps the
 /// chain machinery additive: callers without chains see no
 /// behavior change.
-fn extract_died_chain(err: &Value) -> Option<Vec<Value>> {
+fn extract_panics(err: &Value) -> Option<Vec<Value>> {
     match err {
         Value::Vec(items) => Some((**items).clone()),
         _ => None,
@@ -11841,6 +11844,16 @@ fn conj_died_chain(fresh: Value, upstream: Option<Vec<Value>>) -> Value {
     Value::Vec(Arc::new(chain))
 }
 
+/// Cross-module sibling of [`conj_died_chain`] for `src/fork.rs`'s
+/// child-branch panic emission (arc 113 slice 3 — chain rendered
+/// to stderr as EDN). Renames-but-otherwise-identical so the
+/// fork-side call site reads naturally; the `_value` suffix signals
+/// "produces a runtime Value" the way the parallel
+/// `process_died_error_panic_value` does.
+pub(crate) fn conj_died_chain_value(fresh: Value, upstream: Option<Vec<Value>>) -> Value {
+    conj_died_chain(fresh, upstream)
+}
+
 /// Build a `:wat::kernel::ProcessDiedError::Panic` enum value
 /// (arc 112). Sibling of `thread_died_error_panic` for the
 /// Process<I,O> subject. Same payload shape; the type_path
@@ -11858,6 +11871,18 @@ fn process_died_error_panic(
         variant_name: "Panic".into(),
         fields: vec![Value::String(Arc::new(message)), failure_field],
     }))
+}
+
+/// Cross-module sibling of [`process_died_error_panic`] for
+/// `src/fork.rs`'s child-branch panic emission (arc 113 slice 3).
+/// The child renders its own ProcessDiedError::Panic to EDN on
+/// stderr so the parent's wat-side `extract-panics` can read
+/// it back into matching Value shapes.
+pub(crate) fn process_died_error_panic_value(
+    message: String,
+    assertion: Option<crate::assertion::AssertionPayload>,
+) -> Value {
+    process_died_error_panic(message, assertion)
 }
 
 /// Build a `:wat::kernel::ProcessDiedError::RuntimeError(message)`
@@ -11996,6 +12021,82 @@ pub fn eval_process_died_error_to_failure(
     eval_died_error_to_failure(args, env, sym, ":wat::kernel::ProcessDiedError")
 }
 
+/// Arc 113 slice 3 — `(:wat::kernel::extract-panics
+///   (lines :Vec<String>)) -> :Option<Vec<wat::kernel::ProcessDiedError>>`.
+///
+/// Walks `lines` from end to start; for each, attempts to parse it
+/// as a single EDN expression; if the result is `Tagged` with
+/// `wat.kernel/Panics`, bridges the body via `edn_to_value` (with the
+/// frozen TypeEnv so struct/enum tags resolve to the right Value
+/// shapes); returns the parsed Vec wrapped in `Some`.
+///
+/// Symmetry with the thread path: when a spawned thread panics
+/// with an upstream-chain-bearing AssertionPayload, slice 2's
+/// `expect_panic` rides the chain through the panic and the
+/// spawn driver's catch_unwind conjes onto the front in
+/// `eval_kernel_join_result`. The result is `Result<R,
+/// Vec<ThreadDiedError>>` with a multi-element chain. Slice 3
+/// makes the same shape reachable across forks: the child
+/// renders the chain to stderr; this verb reads it back. Same
+/// shape at the caller; only the wire differs.
+///
+/// Returns `:None` when no marker line is present (the common
+/// case — most exits aren't AssertionPayload panics) or when
+/// every parse attempt fails. Failure paths are silent because
+/// this is enrichment, not contract: drive-sandbox falls back to
+/// the singleton chain from `Process/join-result` when this
+/// returns `:None`.
+fn eval_kernel_extract_panics(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::extract-panics";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let lines = match eval(&args[0], env, sym)? {
+        Value::Vec(items) => items,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Vec<String>",
+                got: other.type_name(),
+            });
+        }
+    };
+    let types = sym.types().map(|a| a.as_ref());
+    // Walk from end to start — most recent marker wins. (In
+    // practice the child only writes one; iterating in reverse
+    // also short-circuits as soon as we hit it.)
+    for line in lines.iter().rev() {
+        let line_str = match line {
+            Value::String(s) => &**s,
+            _ => continue,
+        };
+        let trimmed = line_str.trim();
+        if !trimmed.starts_with("#wat.kernel/Panics") {
+            continue;
+        }
+        let parsed = match wat_edn::parse_owned(trimmed) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        if let wat_edn::OwnedValue::Tagged(tag, body) = parsed {
+            if tag.namespace() == "wat.kernel" && tag.name() == "Panics" {
+                if let Ok(v) = crate::edn_shim::edn_to_value(&body, types) {
+                    return Ok(Value::Option(Arc::new(Some(v))));
+                }
+            }
+        }
+    }
+    Ok(Value::Option(Arc::new(None)))
+}
+
 /// Shared backbone for ThreadDiedError/to-failure and
 /// ProcessDiedError/to-failure — variants are identical; only the
 /// expected type_path differs.
@@ -12027,6 +12128,14 @@ fn eval_died_error_to_failure(
                             got: "non-String at field 0",
                         }),
                     };
+                    // Field 1 is declared `Option<Failure>`. The
+                    // EDN reader's reconstruct_struct + Tagged
+                    // arms (arc 113 slice 3) wrap Option layers
+                    // back during bridge, so both wat-side
+                    // builds and post-EDN round trips arrive
+                    // here as `Value::Option(_)`. `Some(failure)`
+                    // → return the inner Failure clone; `None` →
+                    // fall through to message-only.
                     if let Some(Value::Option(opt)) = ev.fields.get(1) {
                         if let Some(failure) = opt.as_ref() {
                             return Ok(failure.clone());
