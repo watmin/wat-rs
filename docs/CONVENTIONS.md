@@ -697,6 +697,40 @@ INSCRIPTION. Both are memory entries
 (`feedback_absence_is_signal`, `feedback_verbose_is_honest`)
 because both recur across sessions.
 
+## spawn vs fork — containment naming convention (arc 104)
+
+Two words for two transports:
+
+- `spawn` = **thread**. Runs in the same OS process; shares
+  address space, fd table, atexit handlers. Cheap (~µs).
+- `fork` = **process**. Real `fork(2)`; separate address space
+  (COW), separate fd table, separate `_exit`. Heavier (~ms);
+  honest containment.
+
+The matrix that follows composes left-to-right:
+
+| Action | Source entry | AST entry |
+|---|---|---|
+| Thread (spawn) | `:wat::kernel::spawn-program` | `:wat::kernel::spawn-program-ast` |
+| Process (fork) | `:wat::kernel::fork-program` | `:wat::kernel::fork-program-ast` |
+
+A reader walking in cold can pick the right primitive without
+reaching for docs:
+- `spawn-program` → "thread-spawn a program from source"
+- `fork-program-ast` → "process-fork a program from AST"
+
+Validation: POSIX uses `pthread_create` (thread) and `fork(2)`
+(process); wat-rs uses `spawn` for thread since arc 003's
+`:wat::kernel::spawn`. The convention is internally consistent.
+
+Rust's `std::thread::spawn` and `std::process::Command::spawn` both
+use "spawn" — one tradition that doesn't distinguish — but wat-rs's
+chosen convention is sharper.
+
+`:wat::kernel::spawn` (the function-on-thread primitive from arc
+003) is grandfathered: it predates the convention; renaming would
+break embedders. The matrix above governs new primitives.
+
 ## Sources of truth
 
 - **Canonical primitive list**:

@@ -364,6 +364,53 @@ uses `wat::test!` (see §13). The CLI does not run wat tests —
 arc 101 dropped the `wat test <path>` subcommand because cargo
 is the canonical answer.
 
+#### The cli always forks the entry program (arc 104)
+
+As of arc 104, `wat <entry.wat>` does NOT run the entry program in
+the cli's main thread. Instead the cli forks the entry into a
+separate OS process (via `:wat::kernel::fork-program`), proxies
+stdio between real fd 0/1/2 and the child's pipe ends, forwards
+signals via `kill(2)`, and propagates the child's exit code via
+`waitpid`. The cli's job collapses to two responsibilities:
+
+1. **Provide symbols** — compile-time batteries (this arc 099 +
+   100 mechanism, unchanged).
+2. **Contain** — fork + 3 proxy threads + waitpid + exit-code
+   propagation.
+
+Wat code physically cannot reach into the cli's process state —
+separate heap (COW), separate fd table, separate atexit, separate
+`_exit`. The hologram metaphor (see
+`docs/arc/2026/04/103-kernel-spawn/HOLOGRAM.md`) becomes geometric,
+not aspirational.
+
+**Cost:** ~1ms per invocation for the fork. Invisible for long-
+running programs; cumulative ~100ms / 100 invocations for shell
+loops. If you're invoking `wat` that often, reach for wat's spawn
+primitives instead — `:wat::kernel::spawn-program` /
+`:wat::kernel::fork-program` from inside a single wat program is
+the idiomatic shape.
+
+**Exit codes** (post-arc-104, aligned with `EXIT_*` from
+`fork-program-ast`):
+
+| Code | Meaning |
+|---|---|
+| 0 | success |
+| 1 | runtime error (in child's `:user::main` body) |
+| 2 | panic during eval |
+| 3 | startup error (parse / type-check / config) |
+| 4 | `:user::main` signature mismatch |
+| 64 | usage error (cli, pre-fork) — wrong argv |
+| 66 | entry-file read failed (cli, pre-fork) |
+| 128 + N | child killed by signal N (Bash convention; e.g., 143 = SIGTERM) |
+
+**Battery contract:** batteries register only stateless capabilities
+(function pointers in `OnceLock<RustDeps>`). Live OS resources are
+opened by wat code at runtime, in the child's process, after fork.
+Today's shipped batteries (wat-telemetry, wat-sqlite, wat-lru,
+wat-holon-lru) comply.
+
 ### Build your own batteries-included CLI (arc 100)
 
 If the workspace's 5 default batteries are the wrong set — too

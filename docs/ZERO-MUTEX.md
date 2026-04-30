@@ -404,6 +404,48 @@ kernel pipes. See also
 `docs/arc/2026/04/103-kernel-spawn/HOLOGRAM.md` for the framing
 (the wat binary as one-way projection surface).
 
+### The wat-cli as containment surface (arc 104)
+
+Arc 104 made the hologram structural at the outermost boundary.
+wat-cli always forks the entry program; user code runs in a
+separate OS process; the cli proxies stdio + forwards signals.
+
+```
+real OS stdin ──read─→ cli proxy thread ──write─→ child stdin pipe
+child stdout pipe ──read─→ cli proxy thread ──write─→ real OS stdout
+child stderr pipe ──read─→ cli proxy thread ──write─→ real OS stderr
+
+  [cli's responsibility:                 [child's responsibility:
+   provide symbols (batteries),           run :user::main, write
+   contain (fork + proxy +                 EDN+newline to its stdio,
+   waitpid + signal forwarding)]           exit when stdin EOFs]
+```
+
+Three proxy threads in the cli, no Mutex. Each runs a tight
+`libc::read` / `libc::write` loop over `OwnedFd` pairs — direct
+syscalls, no `std::io::Stdin`'s reentrant Mutex. Same discipline
+as arc 012's PipeReader / PipeWriter.
+
+The cli's only mutable shared state is `static AtomicI32 CHILD_PID`
+— set after fork, read by signal handlers for `kill(2)` forwarding,
+cleared after `waitpid`. One atomic. No lock. Async-signal-safe by
+construction (atomic load + libc::kill are both legal in handler
+context).
+
+**Why this is mutex-free, not "low-contention":** there's no
+contention at all. The proxy threads each own one direction of
+one pipe — the parent writes its stdin proxy's `from_fd` (real
+stdin) and the proxy thread writes its `to_fd` (child stdin pipe);
+no other thread touches either. Same for stdout/stderr. The
+CHILD_PID atomic has one writer (the main thread post-fork +
+post-waitpid) and one reader (the signal handler). Single-writer
+single-reader; an atomic is sufficient.
+
+The wat-cli boundary is now part of the same architecture the rest
+of the substrate has been since arc 003: state lives in tiers, the
+right tier is picked per situation, and zero Mutex appears anywhere
+in the call graph.
+
 ---
 
 ## What Rust contributes
