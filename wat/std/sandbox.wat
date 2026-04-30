@@ -1,17 +1,32 @@
-;; wat/std/sandbox.wat — :wat::kernel::run-sandboxed and -ast
-;; reimplemented as wat stdlib on top of the arc 103a spawn-program
-;; substrate.
+;; wat/std/sandbox.wat — :wat::kernel::run-sandboxed and -ast.
 ;;
-;; What this file replaces: the Rust primitives of the same names
-;; in src/sandbox.rs, which collected stdin / stdout / stderr as
-;; Vec<String> buffers — buffer-in / buffer-out, no interleaving,
-;; no back-pressure. The arc 103a spawn-program substrate gives us
-;; real kernel pipes; this file moves the test-convenience
-;; "collect output to Vec<String>" shape to the wat layer where it
-;; belongs (Vec<String> is the ASSERTION TARGET, not a substrate
-;; concern). Same surface (`run-sandboxed src stdin scope` →
-;; `RunResult`); same return shape; same wat-test calls — only the
-;; mechanism changed.
+;; Reimplements the test-convenience `run-sandboxed` family on top
+;; of the arc 103a spawn-program substrate + arc 105a's Result-
+;; returning failure-as-data shape + arc 105b's
+;; ThreadDiedError/message accessor.
+;;
+;; What this file replaces (arc 105c): the Rust primitives of the
+;; same names in src/sandbox.rs, which collected stdin / stdout /
+;; stderr as Vec<String> buffers — buffer-in / buffer-out, no
+;; interleaving, no back-pressure. The arc 103a spawn-program
+;; substrate gives real kernel pipes; this file moves the test-
+;; convenience "collect output to Vec<String>" shape to the wat
+;; layer where it belongs. Vec<String> is the ASSERTION TARGET
+;; for tests, not a substrate concern. Same surface (run-sandboxed
+;; src stdin scope → RunResult); same return shape; same wat-test
+;; calls — only the mechanism changed.
+;;
+;; Failure path:
+;; - spawn-program returns :Result<:Process, :StartupError>.
+;;   On (Err startup-err), drive-sandbox synthesizes a RunResult
+;;   with empty stdout/stderr + Some(Failure) carrying the error
+;;   message. Same shape the deleted substrate produced.
+;; - join-result returns :Result<(), :ThreadDiedError> after a
+;;   successful spawn. On (Err thread-died), drive-sandbox builds
+;;   a Failure with ThreadDiedError/message extracting the panic
+;;   or runtime-error message regardless of variant. Captured
+;;   stdout/stderr (whatever the child wrote before dying) are
+;;   preserved.
 ;;
 ;; Limitations as shipped (same as hermetic.wat):
 ;; - No concurrent drain of stdout vs stderr. Parent writes stdin,
@@ -22,27 +37,40 @@
 ;;   deadlock; not seen in any shipped test, follow-up substrate
 ;;   work when a caller needs it.
 
-;; Build a generic Failure payload when join-result reports the
-;; child thread died. v1 doesn't discriminate Panic vs RuntimeError
-;; vs ChannelDisconnected — wat-side pattern matching on
-;; `:wat::kernel::ThreadDiedError` variants is on the follow-up
-;; backlog (the type-checker currently mis-infers the scrutinee).
-;; In practice tests check `failure: Some _ vs :None`; the message
-;; contents are observed only through the captured stderr lines,
-;; which carry the actual diagnostic text.
+;; Build a Failure payload from a StartupError. Spawn-program
+;; failures (parse, type-check, signature mismatch) flow through
+;; here.
 (:wat::core::define
-  (:wat::kernel::generic-failure -> :wat::kernel::Failure)
+  (:wat::kernel::failure-from-startup
+    (err :wat::kernel::StartupError)
+    -> :wat::kernel::Failure)
   (:wat::core::struct-new :wat::kernel::Failure
-    "[child thread died]"
+    (:wat::core::string::concat
+      "startup: " (:wat::kernel::StartupError/message err))
     :None
     (:wat::core::vec :wat::kernel::Frame)
     :None
     :None))
 
-;; Common driver — runs a Process (already spawned), pre-seeds
-;; stdin, closes the writer to signal EOF, drains stdout / stderr,
-;; joins. Returns the canonical RunResult shape every test author
-;; matches against.
+;; Build a Failure payload from a ThreadDiedError. The substrate
+;; accessor `:wat::kernel::ThreadDiedError/to-failure` (arc 105c)
+;; preserves arc 064's structured actual / expected / location /
+;; frames when the panic carried an AssertionPayload (assert-eq
+;; failure); falls back to a message-only Failure for plain
+;; panics, runtime errors, and the unit ChannelDisconnected
+;; variant. No wat-side variant pattern matching needed.
+(:wat::core::define
+  (:wat::kernel::failure-from-thread-died
+    (err :wat::kernel::ThreadDiedError)
+    -> :wat::kernel::Failure)
+  (:wat::kernel::ThreadDiedError/to-failure err))
+
+;; Common driver — runs a Process (already spawned successfully),
+;; pre-seeds stdin, closes the writer to signal EOF, drains
+;; stdout / stderr, joins. Returns the canonical RunResult shape
+;; every test author matches against. Always returns Ok-from-
+;; spawn shape; spawn-time failures are handled before drive-
+;; sandbox runs (in the run-sandboxed wrappers below).
 ;;
 ;; The seeded stdin is joined with '\n' between elements (no
 ;; trailing newline) — same convention the deleted Rust primitive
@@ -68,10 +96,24 @@
       (:wat::kernel::join-result join-h))
      ((failure :Option<wat::kernel::Failure>)
       (:wat::core::match joined-result -> :Option<wat::kernel::Failure>
-        ((Ok _)   :None)
-        ((Err _)  (Some (:wat::kernel::generic-failure))))))
+        ((Ok _)    :None)
+        ((Err err) (Some (:wat::kernel::failure-from-thread-died err))))))
     (:wat::core::struct-new :wat::kernel::RunResult
       stdout-lines stderr-lines failure)))
+
+;; Build a RunResult that captures a startup-time spawn failure.
+;; Empty stdout/stderr (the child never ran); failure carries the
+;; StartupError message. Mirrors what the deleted substrate
+;; eval_kernel_run_sandboxed did when startup_from_source returned
+;; Err.
+(:wat::core::define
+  (:wat::kernel::startup-failure-result
+    (err :wat::kernel::StartupError)
+    -> :wat::kernel::RunResult)
+  (:wat::core::struct-new :wat::kernel::RunResult
+    (:wat::core::vec :String)
+    (:wat::core::vec :String)
+    (Some (:wat::kernel::failure-from-startup err))))
 
 
 ;; --- :wat::kernel::run-sandboxed (source-string entry) ---
@@ -81,9 +123,10 @@
     (stdin :Vec<String>)
     (scope :Option<String>)
     -> :wat::kernel::RunResult)
-  (:wat::kernel::drive-sandbox
-    (:wat::kernel::spawn-program src scope)
-    stdin))
+  (:wat::core::match (:wat::kernel::spawn-program src scope)
+    -> :wat::kernel::RunResult
+    ((Ok proc)  (:wat::kernel::drive-sandbox proc stdin))
+    ((Err err)  (:wat::kernel::startup-failure-result err))))
 
 
 ;; --- :wat::kernel::run-sandboxed-ast (AST entry) ---
@@ -93,6 +136,7 @@
     (stdin :Vec<String>)
     (scope :Option<String>)
     -> :wat::kernel::RunResult)
-  (:wat::kernel::drive-sandbox
-    (:wat::kernel::spawn-program-ast forms scope)
-    stdin))
+  (:wat::core::match (:wat::kernel::spawn-program-ast forms scope)
+    -> :wat::kernel::RunResult
+    ((Ok proc)  (:wat::kernel::drive-sandbox proc stdin))
+    ((Err err)  (:wat::kernel::startup-failure-result err))))

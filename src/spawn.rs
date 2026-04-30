@@ -34,7 +34,7 @@ use crate::freeze::{
 // inside `eval_kernel_spawn_program_ast`.
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use crate::runtime::{
-    eval, format_panic_payload, Environment, RuntimeError, SpawnOutcome, StructValue, SymbolTable,
+    eval, extract_panic_payload, Environment, RuntimeError, SpawnOutcome, StructValue, SymbolTable,
     Value,
 };
 use crate::sandbox::resolve_sandbox_loader;
@@ -179,7 +179,10 @@ fn spawn_with_world_into_result(
         })) {
             Ok(Ok(v)) => SpawnOutcome::Ok(v),
             Ok(Err(e)) => SpawnOutcome::RuntimeErr(e),
-            Err(payload) => SpawnOutcome::Panic(format_panic_payload(&payload)),
+            Err(payload) => {
+                let (message, assertion) = extract_panic_payload(payload);
+                SpawnOutcome::Panic { message, assertion }
+            }
         };
         let _ = tx.send(outcome);
         // Thread closure returns; child-side pipe Arcs drop; child's

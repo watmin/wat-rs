@@ -90,16 +90,22 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/std/hermetic.wat",
         source: include_str!("../wat/std/hermetic.wat"),
     },
-    // Arc 103b — wat/std/sandbox.wat (a wat-level reimplementation
-    // of run-sandboxed atop spawn-program) is INTENTIONALLY NOT
-    // bundled. The substrate Rust impls in src/sandbox.rs absorb
-    // startup / validation / panic failures into RunResult.failure;
-    // the wat-level path can't replicate that capture without a
-    // spawn-program error-as-data refactor (returning
-    // `:Result<Process, StartupError>` instead of raising). The
-    // refactor is its own arc; until then, the Rust dispatch arms
-    // keep winning and the wat-level scaffold lives in source as
-    // documentation of the future shape. See arc 103's DESIGN.md.
+    // Arc 105c — wat/std/sandbox.wat is now bundled. With arc
+    // 105a's spawn-program-returns-Result + arc 105b's
+    // ThreadDiedError/message accessor, the wat-level
+    // `:wat::kernel::run-sandboxed` / `-ast` defines replace the
+    // substrate Rust impls (deleted in arc 105c). Vec<String>
+    // exits the kernel boundary; it survives only inside this
+    // wat-level test-convenience helper where collected output IS
+    // the assertion target — the discipline arc 103 named.
+    //
+    // Loads BEFORE test.wat so test.wat's `run` / `run-ast`
+    // wrappers resolve through these defines instead of substrate
+    // dispatch.
+    WatSource {
+        path: "wat/std/sandbox.wat",
+        source: include_str!("../wat/std/sandbox.wat"),
+    },
     WatSource {
         path: "wat/std/test.wat",
         source: include_str!("../wat/std/test.wat"),

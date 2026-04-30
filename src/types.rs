@@ -476,9 +476,26 @@ fn register_builtin_types(env: &mut TypeEnv) {
         name: ":wat::kernel::ThreadDiedError".into(),
         type_params: vec![],
         variants: vec![
+            // Arc 105c: Panic variant carries TWO fields. `message`
+            // is always populated. `failure` is `:Some(...)` when
+            // the panic was an arc-016/064 AssertionPayload (assert-eq
+            // failure), `:None` for plain `panic!()`. Wat callers
+            // route through `:wat::kernel::ThreadDiedError/to-failure`
+            // (also arc 105c) which builds a Failure regardless of
+            // variant — sandbox.wat doesn't pattern-match the variant
+            // at all.
             EnumVariant::Tagged {
                 name: "Panic".into(),
-                fields: vec![("message".into(), TypeExpr::Path(":String".into()))],
+                fields: vec![
+                    ("message".into(), TypeExpr::Path(":String".into())),
+                    (
+                        "failure".into(),
+                        TypeExpr::Parametric {
+                            head: "Option".into(),
+                            args: vec![TypeExpr::Path(":wat::kernel::Failure".into())],
+                        },
+                    ),
+                ],
             },
             EnumVariant::Tagged {
                 name: "RuntimeError".into(),

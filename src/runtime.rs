@@ -405,9 +405,19 @@ pub enum SpawnOutcome {
     /// Spawned function returned an `Err` from a Result-typed eval
     /// path (or any other RuntimeError surfaced by the eval).
     RuntimeErr(RuntimeError),
-    /// Spawned function panicked; `catch_unwind` caught the payload
-    /// and we coerced it to a String via `format!`.
-    Panic(String),
+    /// Spawned function panicked; `catch_unwind` caught the payload.
+    /// `message` is always populated (formatted from whatever the
+    /// payload carried). `assertion` is `Some(...)` when the panic
+    /// was an `AssertionPayload` (arc 016 + 064 — assert-eq's rich
+    /// actual/expected/location/frames info); `None` for plain
+    /// `panic!()` payloads. Arc 105c preserves arc 064's promise
+    /// that assert-eq failures route their structured fields
+    /// through run-sandboxed; widening this variant from a bare
+    /// String was the minimum substrate change to make that work.
+    Panic {
+        message: String,
+        assertion: Option<crate::assertion::AssertionPayload>,
+    },
 }
 
 impl Value {
@@ -2541,27 +2551,22 @@ fn dispatch_keyword_head(
         ":wat::kernel::ThreadDiedError/message" => {
             eval_thread_died_error_message(args, env, sym)
         }
+        ":wat::kernel::ThreadDiedError/to-failure" => {
+            eval_thread_died_error_to_failure(args, env, sym)
+        }
         ":wat::kernel::select" => eval_kernel_select(args, env, sym),
         ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym),
         ":wat::kernel::HandlePool::pop" => eval_handle_pool_pop(args, env, sym),
         ":wat::kernel::HandlePool::finish" => eval_handle_pool_finish(args, env, sym),
-        // Arc 103b — wat/std/sandbox.wat ships wat-level defines at
-        // the same paths as the run-sandboxed family, atop the new
-        // spawn-program substrate. The Rust dispatch arms below
-        // still win at runtime because they're matched before the
-        // symbol-table lookup. The wat-level defines stand as
-        // scaffolding; the full flip waits on spawn-program
-        // surfacing startup errors as `:Result<Process, _>` data
-        // (the existing run-sandboxed Rust impl absorbs startup /
-        // validation / panic failures into RunResult.failure, which
-        // the spawn-program path can't yet replicate without the
-        // error-as-data refactor). Substrate `Vec<String>` therefore
-        // survives ONE more round at the test-convenience boundary;
-        // a follow-up arc closes the gap.
-        ":wat::kernel::run-sandboxed" => crate::sandbox::eval_kernel_run_sandboxed(args, env, sym),
-        ":wat::kernel::run-sandboxed-ast" => {
-            crate::sandbox::eval_kernel_run_sandboxed_ast(args, env, sym)
-        }
+        // Arc 105c — substrate `:wat::kernel::run-sandboxed` /
+        // `-ast` dispatch arms are GONE. The wat-level defines in
+        // `wat/std/sandbox.wat` (bundled in `src/stdlib.rs`) atop
+        // arc 105a's Result-returning spawn-program +
+        // arc 105b's ThreadDiedError/message accessor are now
+        // canonical. Vec<String> exits the substrate boundary; the
+        // wat-level helper is the only place collected-output-as-
+        // Vec<String> survives, where it earns its keep as the
+        // test assertion target.
         ":wat::kernel::assertion-failed!" => {
             crate::assertion::eval_kernel_assertion_failed(args, env, sym)
         }
@@ -10980,7 +10985,10 @@ fn eval_kernel_spawn(
         })) {
             Ok(Ok(v)) => SpawnOutcome::Ok(v),
             Ok(Err(e)) => SpawnOutcome::RuntimeErr(e),
-            Err(payload) => SpawnOutcome::Panic(format_panic_payload(&payload)),
+            Err(payload) => {
+                let (message, assertion) = extract_panic_payload(payload);
+                SpawnOutcome::Panic { message, assertion }
+            }
         };
         let _ = tx.send(outcome);
     });
@@ -10997,6 +11005,11 @@ fn eval_kernel_spawn(
 /// Order tried: `&str` (literal `panic!("...")`); `String`
 /// (formatted `panic!("{}", ...)`); `AssertionPayload` (substrate's
 /// structured assertion shape); fallback marker.
+///
+/// Borrows the payload — caller retains ownership for further
+/// inspection. `extract_panic_payload` (below) is the
+/// owning sibling that takes the box and recovers the
+/// AssertionPayload's structured fields when present.
 pub(crate) fn format_panic_payload(payload: &Box<dyn std::any::Any + Send>) -> String {
     if let Some(s) = payload.downcast_ref::<&'static str>() {
         return (*s).to_string();
@@ -11008,6 +11021,32 @@ pub(crate) fn format_panic_payload(payload: &Box<dyn std::any::Any + Send>) -> S
         return p.message.clone();
     }
     "panic with non-string payload".to_string()
+}
+
+/// Owning extraction. Arc 105c: `SpawnOutcome::Panic` widened to
+/// carry both the message string AND the structured
+/// `AssertionPayload` (when present) so arc 064's "assert-eq
+/// surfaces actual / expected through run-sandboxed" promise
+/// survives the substrate-shrinkage cleanup.
+///
+/// Takes the payload by value so we can `downcast::<T>()` (which
+/// transfers ownership and lets us keep the AssertionPayload's
+/// owned String fields). On non-AssertionPayload payloads, falls
+/// back to formatting via the same logic as `format_panic_payload`.
+pub(crate) fn extract_panic_payload(
+    payload: Box<dyn std::any::Any + Send>,
+) -> (String, Option<crate::assertion::AssertionPayload>) {
+    match payload.downcast::<crate::assertion::AssertionPayload>() {
+        Ok(boxed) => {
+            let p = *boxed;
+            (p.message.clone(), Some(p))
+        }
+        Err(p) => {
+            // Not an AssertionPayload — format via the borrow-taking
+            // helper. Same string the previous shape produced.
+            (format_panic_payload(&p), None)
+        }
+    }
 }
 
 /// `(:wat::kernel::join handle)` — block until the spawned program
@@ -11053,8 +11092,8 @@ fn eval_kernel_join(
     match handle.recv() {
         Ok(SpawnOutcome::Ok(v)) => Ok(v),
         Ok(SpawnOutcome::RuntimeErr(e)) => Err(e),
-        Ok(SpawnOutcome::Panic(msg)) => Err(RuntimeError::ChannelDisconnected {
-            op: format!(":wat::kernel::join (spawned thread panicked: {})", msg),
+        Ok(SpawnOutcome::Panic { message, .. }) => Err(RuntimeError::ChannelDisconnected {
+            op: format!(":wat::kernel::join (spawned thread panicked: {})", message),
         }),
         Err(_) => Err(RuntimeError::ChannelDisconnected {
             op: ":wat::kernel::join (channel disconnected; substrate bug — \
@@ -11108,21 +11147,110 @@ fn eval_kernel_join_result(
         Ok(SpawnOutcome::RuntimeErr(e)) => {
             Value::Result(Arc::new(Err(thread_died_error_runtime(e.to_string()))))
         }
-        Ok(SpawnOutcome::Panic(msg)) => {
-            Value::Result(Arc::new(Err(thread_died_error_panic(msg))))
+        Ok(SpawnOutcome::Panic { message, assertion }) => {
+            Value::Result(Arc::new(Err(thread_died_error_panic(message, assertion))))
         }
         Err(_) => Value::Result(Arc::new(Err(thread_died_error_channel_disconnected()))),
     };
     Ok(value)
 }
 
-/// Build a `:wat::kernel::ThreadDiedError::Panic(message)` enum
-/// value (arc 060).
-fn thread_died_error_panic(message: String) -> Value {
+/// Build a `:wat::kernel::ThreadDiedError::Panic` enum value
+/// (arc 060 + arc 105c). Variant carries two fields:
+/// `message: String` always populated; `failure: Option<Failure>`
+/// populated when the panic was an `AssertionPayload` carrying
+/// arc 064's structured actual / expected / location / frames
+/// info, `:None` for plain panics.
+fn thread_died_error_panic(
+    message: String,
+    assertion: Option<crate::assertion::AssertionPayload>,
+) -> Value {
+    let failure_field = match assertion {
+        Some(p) => {
+            // Build a :wat::kernel::Failure Value::Struct out of the
+            // AssertionPayload's owned fields. Same shape arc 064
+            // produced via the now-deleted build_failure helper in
+            // src/sandbox.rs.
+            Value::Option(Arc::new(Some(failure_value_from_assertion_payload(p))))
+        }
+        None => Value::Option(Arc::new(None)),
+    };
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::ThreadDiedError".into(),
         variant_name: "Panic".into(),
-        fields: vec![Value::String(Arc::new(message))],
+        fields: vec![Value::String(Arc::new(message)), failure_field],
+    }))
+}
+
+/// Convert an [`AssertionPayload`] into a `:wat::kernel::Failure`
+/// Value::Struct. Field order mirrors the type registration:
+/// `(message, location, frames, actual, expected)`.
+fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -> Value {
+    let crate::assertion::AssertionPayload {
+        message,
+        actual,
+        expected,
+        location,
+        frames,
+    } = p;
+    let location_field = match location {
+        Some(span) => Value::Option(Arc::new(Some(value_from_span(span)))),
+        None => Value::Option(Arc::new(None)),
+    };
+    let frames_field = Value::Vec(Arc::new(
+        frames
+            .into_iter()
+            .map(value_from_frame_info)
+            .collect::<Vec<_>>(),
+    ));
+    let actual_field = match actual {
+        Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s))))),
+        None => Value::Option(Arc::new(None)),
+    };
+    let expected_field = match expected {
+        Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s))))),
+        None => Value::Option(Arc::new(None)),
+    };
+    Value::Struct(Arc::new(StructValue {
+        type_name: ":wat::kernel::Failure".into(),
+        fields: vec![
+            Value::String(Arc::new(message)),
+            location_field,
+            frames_field,
+            actual_field,
+            expected_field,
+        ],
+    }))
+}
+
+/// Convert a `Span` into a `:wat::kernel::Location` Value::Struct.
+/// Field order: `(file, line, col)`.
+fn value_from_span(span: crate::span::Span) -> Value {
+    Value::Struct(Arc::new(StructValue {
+        type_name: ":wat::kernel::Location".into(),
+        fields: vec![
+            Value::String(Arc::new((*span.file).clone())),
+            Value::i64(span.line),
+            Value::i64(span.col),
+        ],
+    }))
+}
+
+/// Convert a `FrameInfo` (wat call-stack frame from the trampoline)
+/// into a `:wat::kernel::Frame` Value::Struct. Field order matches
+/// the arc 016 type registration: `(file, line, symbol)`. The
+/// callee path becomes the `symbol` field.
+fn value_from_frame_info(frame: FrameInfo) -> Value {
+    let FrameInfo { callee_path, call_span } = frame;
+    Value::Struct(Arc::new(StructValue {
+        type_name: ":wat::kernel::Frame".into(),
+        fields: vec![
+            Value::Option(Arc::new(Some(Value::String(Arc::new(
+                (*call_span.file).clone(),
+            ))))),
+            Value::Option(Arc::new(Some(Value::i64(call_span.line)))),
+            Value::Option(Arc::new(Some(Value::String(Arc::new(callee_path))))),
+        ],
     }))
 }
 
@@ -11152,14 +11280,13 @@ fn thread_died_error_channel_disconnected() -> Value {
 /// `:wat::kernel::ThreadDiedError` variant; returns the literal
 /// `"channel disconnected"` for the unit variant. Routes around
 /// the wat-side enum-variant pattern-matcher gap that arc 103b
-/// surfaced — wat callers (notably `wat/std/sandbox.wat` in arc
-/// 105c) need a message string for `RunResult.failure.message`,
-/// not variant discrimination.
+/// surfaced — wat callers can ask for a generic message without
+/// discriminating variants.
 ///
-/// Fixing the pattern-matcher gap (extending arc 055's recursive
-/// patterns to handle enum scrutinees in this specific shape) is
-/// its own future arc; the accessor is the right surface even
-/// after that lands.
+/// Field 0 is `message` for both `Panic` (which under arc 105c
+/// carries a 2nd `failure` field) and `RuntimeError`.
+/// `ChannelDisconnected` is a unit variant; we synthesize a
+/// constant string.
 pub fn eval_thread_died_error_message(
     args: &[WatAST],
     env: &Environment,
@@ -11176,8 +11303,6 @@ pub fn eval_thread_died_error_message(
     let val = eval(&args[0], env, sym)?;
     match val {
         Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
-            // Panic / RuntimeError variants carry a single :String
-            // field; ChannelDisconnected is a unit variant.
             match ev.variant_name.as_str() {
                 "Panic" | "RuntimeError" => match ev.fields.first() {
                     Some(Value::String(s)) => Ok(Value::String(s.clone())),
@@ -11203,6 +11328,100 @@ pub fn eval_thread_died_error_message(
             got: other.type_name(),
         }),
     }
+}
+
+/// `(:wat::kernel::ThreadDiedError/to-failure err) -> :wat::kernel::Failure`.
+///
+/// Arc 105c. Always returns a structured `:wat::kernel::Failure`
+/// regardless of which `ThreadDiedError` variant was passed in.
+/// Preserves arc 064's promise that assert-eq surfaces actual /
+/// expected / location / frames through run-sandboxed:
+///
+/// - `Panic` with assertion payload (field 1 = `Some(failure)`):
+///   return that captured Failure as-is.
+/// - `Panic` without assertion payload (field 1 = `None`): build a
+///   message-only Failure from field 0.
+/// - `RuntimeError(message)`: build a message-only Failure.
+/// - `ChannelDisconnected`: build a Failure with the constant
+///   `"channel disconnected"` message.
+///
+/// `wat/std/sandbox.wat` calls this once in `failure-from-thread-
+/// died` — no per-variant pattern matching needed.
+pub fn eval_thread_died_error_to_failure(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::ThreadDiedError/to-failure";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let val = eval(&args[0], env, sym)?;
+    match val {
+        Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
+            match ev.variant_name.as_str() {
+                "Panic" => {
+                    // Field 0: message. Field 1: Option<Failure>.
+                    let msg = match ev.fields.first() {
+                        Some(Value::String(s)) => (**s).clone(),
+                        _ => return Err(RuntimeError::TypeMismatch {
+                            op: OP.into(),
+                            expected: "String at Panic.message",
+                            got: "non-String at field 0",
+                        }),
+                    };
+                    if let Some(Value::Option(opt)) = ev.fields.get(1) {
+                        if let Some(failure) = opt.as_ref() {
+                            return Ok(failure.clone());
+                        }
+                    }
+                    // No structured assertion payload — message-only.
+                    Ok(message_only_failure(msg))
+                }
+                "RuntimeError" => match ev.fields.first() {
+                    Some(Value::String(s)) => Ok(message_only_failure((**s).clone())),
+                    _ => Err(RuntimeError::TypeMismatch {
+                        op: OP.into(),
+                        expected: "String at RuntimeError.message",
+                        got: "non-String at field 0",
+                    }),
+                },
+                "ChannelDisconnected" => {
+                    Ok(message_only_failure("channel disconnected".to_string()))
+                }
+                _ => Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "ThreadDiedError variant",
+                    got: "unknown ThreadDiedError variant",
+                }),
+            }
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "wat::kernel::ThreadDiedError",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// Build a `:wat::kernel::Failure` Value::Struct with just the
+/// message populated; actual / expected / location are `:None`,
+/// frames is empty `Vec<Frame>`.
+fn message_only_failure(message: String) -> Value {
+    Value::Struct(Arc::new(StructValue {
+        type_name: ":wat::kernel::Failure".into(),
+        fields: vec![
+            Value::String(Arc::new(message)),
+            Value::Option(Arc::new(None)),       // location
+            Value::Vec(Arc::new(Vec::new())),    // frames
+            Value::Option(Arc::new(None)),       // actual
+            Value::Option(Arc::new(None)),       // expected
+        ],
+    }))
 }
 
 /// Map a [`RuntimeError`] to an [`EvalError`] struct value — the
@@ -16943,8 +17162,12 @@ mod tests {
     fn join_result_captures_panic_as_data() {
         // Spawned function calls `assertion-failed!`, which panics
         // with a structured `AssertionPayload`. arc 060's
-        // `format_panic_payload` extracts the message; join-result
-        // returns `(Err (Panic msg))` instead of unwinding the caller.
+        // `extract_panic_payload` (arc 105c rewrite) extracts both
+        // message AND structured assertion data; join-result returns
+        // `(Err (Panic msg failure-opt))` instead of unwinding the
+        // caller. The 2-field shape preserves arc 064's actual /
+        // expected propagation; this test extracts just the message
+        // to confirm the variant fired.
         let src = r#"
             (:wat::core::define (:my::boom -> :())
               (:wat::kernel::assertion-failed! "intentional panic" :None :None))
@@ -16952,7 +17175,7 @@ mod tests {
               (:wat::kernel::join-result (:wat::kernel::spawn :my::boom))
               -> :String
               ((Ok _) "unexpected ok")
-              ((Err (:wat::kernel::ThreadDiedError::Panic msg)) msg)
+              ((Err (:wat::kernel::ThreadDiedError::Panic msg _failure)) msg)
               ((Err _) "wrong-variant"))
         "#;
         match run(src).unwrap() {

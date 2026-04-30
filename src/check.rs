@@ -5115,67 +5115,19 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // :wat::kernel::run-sandboxed — arc 007 slice 2a.
-    // (src: :String, stdin: :Vec<String>, scope: :Option<String>)
-    //   -> :wat::kernel::RunResult
+    // :wat::kernel::run-sandboxed (string entry) and
+    // :wat::kernel::run-sandboxed-ast (forms entry) — arc 007.
+    // RETIRED at the substrate level by arc 105c. Both now live as
+    // wat-level defines in `wat/std/sandbox.wat`, atop:
+    //   - arc 105a's :wat::kernel::spawn-program (Result-returning)
+    //   - arc 105b's :wat::kernel::ThreadDiedError/message accessor
+    // Their schemes register from the wat-level (define ...) forms
+    // at startup; this comment block stands as the substrate-side
+    // grave marker so future readers can find the relocation.
     //
-    // Runs wat source in a fresh frozen world with captured stdio.
-    // Scope None -> InMemoryLoader (no disk); Some path -> ScopedLoader
-    // rooted at path. Result carries stdout / stderr Vec<String> and
-    // an Option<Failure> (currently always :None on the happy path;
-    // slice 2b populates via catch_unwind).
-    env.register(
-        ":wat::kernel::run-sandboxed".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![
-                string_ty(),
-                TypeExpr::Parametric {
-                    head: "Vec".into(),
-                    args: vec![string_ty()],
-                },
-                TypeExpr::Parametric {
-                    head: "Option".into(),
-                    args: vec![string_ty()],
-                },
-            ],
-            ret: TypeExpr::Path(":wat::kernel::RunResult".into()),
-        },
-    );
-
-    // :wat::kernel::run-sandboxed-hermetic (string-entry) — retired
-    // in arc 012 slice 3. The AST-entry sibling
-    // (:wat::kernel::run-sandboxed-hermetic-ast) lives in wat stdlib
-    // on top of fork-program-ast; callers with raw source can parse
-    // at the Rust boundary or (future) via a :wat::core::parse
-    // primitive when a wat-level caller demands one.
-
-    // :wat::kernel::run-sandboxed-ast — arc 007 slice 3b. Same
-    // semantics as run-sandboxed but takes already-parsed forms as a
-    // Vec<wat::WatAST> instead of source text. Typical caller: the
-    // expansion of :wat::test::deftest, or any code that has AST in
-    // hand. See sandbox.rs for the implementation.
-    env.register(
-        ":wat::kernel::run-sandboxed-ast".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![
-                TypeExpr::Parametric {
-                    head: "Vec".into(),
-                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
-                },
-                TypeExpr::Parametric {
-                    head: "Vec".into(),
-                    args: vec![string_ty()],
-                },
-                TypeExpr::Parametric {
-                    head: "Option".into(),
-                    args: vec![string_ty()],
-                },
-            ],
-            ret: TypeExpr::Path(":wat::kernel::RunResult".into()),
-        },
-    );
+    // The string-entry hermetic primitive was retired in arc 012
+    // slice 3; its AST-entry sibling lives in wat/std/hermetic.wat
+    // atop fork-program-ast.
 
     // :wat::kernel::run-sandboxed-hermetic-ast — retired as a Rust
     // primitive in arc 012 slice 3. Shipped as wat stdlib in
@@ -6405,6 +6357,20 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
             ret: TypeExpr::Path(":String".into()),
+        },
+    );
+    // (:wat::kernel::ThreadDiedError/to-failure err) -> :wat::kernel::Failure
+    // — arc 105c. Always returns a structured Failure, preserving
+    // arc 064's actual/expected/location/frames through run-sandboxed
+    // when the panic carried an AssertionPayload. Plain panics and
+    // non-panic variants get a message-only Failure. wat/std/
+    // sandbox.wat's failure-from-thread-died routes through this.
+    env.register(
+        ":wat::kernel::ThreadDiedError/to-failure".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
+            ret: TypeExpr::Path(":wat::kernel::Failure".into()),
         },
     );
     // HandlePool — claim-or-panic discipline.
