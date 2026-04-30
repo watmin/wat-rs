@@ -119,9 +119,8 @@
   (:wat::core::match (:wat::kernel::recv in) -> :()
     ((Some v)
       (:wat::core::let*
-        (((u :U) (f v))
-         ((sent :Option<()>) (:wat::kernel::send out u)))
-        (:wat::core::match sent -> :()
+        (((u :U) (f v)))
+        (:wat::core::match (:wat::kernel::send out u) -> :()
           ((Some _) (:wat::std::stream::map-worker in out f))
           (:None ()))))
     (:None ())))
@@ -215,11 +214,9 @@
   (:wat::core::match (:wat::kernel::recv in) -> :()
     ((Some v)
       (:wat::core::if (pred v) -> :()
-        (:wat::core::let*
-          (((sent :Option<()>) (:wat::kernel::send out v)))
-          (:wat::core::match sent -> :()
-            ((Some _) (:wat::std::stream::filter-worker in out pred))
-            (:None ())))
+        (:wat::core::match (:wat::kernel::send out v) -> :()
+          ((Some _) (:wat::std::stream::filter-worker in out pred))
+          (:None ()))
         (:wat::std::stream::filter-worker in out pred)))
     (:None ())))
 
@@ -255,9 +252,8 @@
   (:wat::core::match (:wat::kernel::recv in) -> :()
     ((Some v)
       (:wat::core::let*
-        (((_ :()) (f v))
-         ((sent :Option<()>) (:wat::kernel::send out v)))
-        (:wat::core::match sent -> :()
+        (((_ :()) (f v)))
+        (:wat::core::match (:wat::kernel::send out v) -> :()
           ((Some _) (:wat::std::stream::inspect-worker in out f))
           (:None ()))))
     (:None ())))
@@ -353,9 +349,8 @@
     (:wat::core::match (:wat::core::first items) -> :Option<()>
       ((Some item)
         (:wat::core::let*
-          (((rest-items :Vec<U>) (:wat::core::rest items))
-           ((sent :Option<()>) (:wat::kernel::send out item)))
-          (:wat::core::match sent -> :Option<()>
+          (((rest-items :Vec<U>) (:wat::core::rest items)))
+          (:wat::core::match (:wat::kernel::send out item) -> :Option<()>
             ((Some _)
               (:wat::std::stream::drain-items out rest-items))
             (:None :None))))
@@ -615,13 +610,11 @@
     ()
     (:wat::core::match (:wat::kernel::recv in) -> :()
       ((Some v)
-        (:wat::core::let*
-          (((sent :Option<()>) (:wat::kernel::send out v)))
-          (:wat::core::match sent -> :()
-            ((Some _)
-              (:wat::std::stream::take-worker in out
-                (:wat::core::i64::- remaining 1)))
-            (:None ()))))
+        (:wat::core::match (:wat::kernel::send out v) -> :()
+          ((Some _)
+            (:wat::std::stream::take-worker in out
+              (:wat::core::i64::- remaining 1)))
+          (:None ())))
       (:None ()))))
 
 (:wat::core::define
@@ -668,9 +661,8 @@
     (:wat::core::match (:wat::core::first pending) -> :()
       ((Some item)
         (:wat::core::let*
-          (((rest-items :Vec<U>) (:wat::core::rest pending))
-           ((sent :Option<()>) (:wat::kernel::send out item)))
-          (:wat::core::match sent -> :()
+          (((rest-items :Vec<U>) (:wat::core::rest pending)))
+          (:wat::core::match (:wat::kernel::send out item) -> :()
             ((Some _)
               (:wat::std::stream::flat-map-worker in out f rest-items))
             (:None ()))))

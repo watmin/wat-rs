@@ -171,9 +171,14 @@
               (((_ :Option<(K,V)>) (:wat::lru::LocalCache::put cache key v)))
               :None))
           (:None :None))))
-     ;; reply-to may have been dropped (client no longer interested);
-     ;; `send` returns :Option<()>, swallow either way.
-     ((_ :Option<()>) (:wat::kernel::send reply-to resp))
+     ;; Per arc 110: client dropping reply-to mid-protocol is a
+     ;; protocol violation in this in-memory CSP. Panic so the
+     ;; program tree learns the discipline broke instead of
+     ;; silently dropping the reply.
+     ((_send :())
+      (:wat::core::option::expect -> :()
+        (:wat::kernel::send reply-to resp)
+        "CacheService/handle: reply-to disconnected — client died mid-request?"))
      ((stats' :wat::lru::CacheService::Stats)
       (:wat::core::if (:wat::core::= tag 0) -> :wat::lru::CacheService::Stats
         ;; GET — bump lookups + hits/misses
@@ -314,14 +319,17 @@
       (:wat::core::tuple 0 key :None))
      ((req :wat::lru::CacheService::Request<K,V>)
       (:wat::core::tuple body reply-tx))
-     ;; If the driver dropped before we wrote, `send` returns :None.
-     ;; The subsequent `recv` will then also see the reply-tx dropped
-     ;; and return :None, so either way we fall through to the
-     ;; :None arm below — caller observes "miss."
-     ((_ :Option<()>) (:wat::kernel::send req-tx req)))
-    (:wat::core::match (:wat::kernel::recv reply-rx) -> :Option<V>
-      ((Some resp) resp)
-      (:None :None))))
+     ;; Arc 110: in-memory peer-death is catastrophic; cache driver
+     ;; dying means our state-of-the-world claim is invalid. Panic
+     ;; with a meaningful message rather than silently returning
+     ;; :None and pretending we got a "miss."
+     ((_send :())
+      (:wat::core::option::expect -> :()
+        (:wat::kernel::send req-tx req)
+        "CacheService/get: req-tx disconnected — driver died?")))
+    (:wat::core::option::expect -> :Option<V>
+      (:wat::kernel::recv reply-rx)
+      "CacheService/get: reply-rx disconnected — driver died mid-request?")))
 
 (:wat::core::define
   (:wat::lru::CacheService/put<K,V>
@@ -336,11 +344,17 @@
       (:wat::core::tuple 1 key (Some value)))
      ((req :wat::lru::CacheService::Request<K,V>)
       (:wat::core::tuple body reply-tx))
-     ;; Same swallow as CacheService/get above: either send lands and
-     ;; the recv acks, or the driver is gone and both short-circuit
-     ;; through :None. Callers receive :() either way.
-     ((_ :Option<()>) (:wat::kernel::send req-tx req))
-     ((_ :Option<Option<V>>) (:wat::kernel::recv reply-rx)))
+     ;; Arc 110: same as CacheService/get — driver dying mid-protocol
+     ;; is catastrophic; panic with a meaningful message rather than
+     ;; silently absorbing the disconnect.
+     ((_send :())
+      (:wat::core::option::expect -> :()
+        (:wat::kernel::send req-tx req)
+        "CacheService/put: req-tx disconnected — driver died?"))
+     ((_recv :Option<V>)
+      (:wat::core::option::expect -> :Option<V>
+        (:wat::kernel::recv reply-rx)
+        "CacheService/put: reply-rx disconnected — driver died mid-request?")))
     ()))
 
 ;; --- CacheService setup ---

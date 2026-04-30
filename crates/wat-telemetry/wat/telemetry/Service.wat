@@ -363,8 +363,14 @@
     (entries :Vec<E>)
     -> :())
   (:wat::core::let*
-    (((_send :Option<()>) (:wat::kernel::send req-tx entries))
-     ((_recv :Option<()>) (:wat::kernel::recv ack-rx)))
+    (((_send :())
+      (:wat::core::option::expect -> :()
+        (:wat::kernel::send req-tx entries)
+        "Service/batch-log: req-tx disconnected — telemetry service died?"))
+     ((_recv :())
+      (:wat::core::option::expect -> :()
+        (:wat::kernel::recv ack-rx)
+        "Service/batch-log: ack-rx disconnected — telemetry service died mid-flush?")))
     ()))
 
 

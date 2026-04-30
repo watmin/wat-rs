@@ -103,11 +103,10 @@
           (:wat::telemetry::WorkUnitLog/info logger wu (:wat::core::quote :hello))))
         ()))
      ((_join :()) (:wat::kernel::join driver))
-     ((r1 :Option<wat::telemetry::Event>) (:wat::kernel::recv stub-rx))
      ;; Pattern-match — Log variant; extract level via NoTag/0 +
-     ;; atom-value to recover the keyword.
+     ;; atom-value to recover the keyword. Match-at-source per arc 110.
      ((level-back :wat::core::keyword)
-      (:wat::core::match r1 -> :wat::core::keyword
+      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
         ((Some event)
           (:wat::core::match event -> :wat::core::keyword
             ((:wat::telemetry::Event::Log
@@ -167,24 +166,36 @@
          ((_e :()) (:wat::telemetry::WorkUnitLog/error logger wu data)))
         ()))
      ((_join :()) (:wat::kernel::join driver))
-     ((extract-level :fn(Option<wat::telemetry::Event>)->wat::core::keyword)
+     ;; Arc 110: extract-level takes the unwrapped Event; the
+     ;; match-at-source on recv at each call site supplies the
+     ;; :None default. recv can no longer hide inside a function-arg.
+     ((extract-level :fn(wat::telemetry::Event)->wat::core::keyword)
       (:wat::core::lambda
-        ((opt :Option<wat::telemetry::Event>) -> :wat::core::keyword)
-        (:wat::core::match opt -> :wat::core::keyword
-          ((Some event)
-            (:wat::core::match event -> :wat::core::keyword
-              ((:wat::telemetry::Event::Log
-                 _t _ns _c level-notag _u _tags _d)
-                (:wat::core::atom-value
-                  (:wat::edn::NoTag/0 level-notag)))
-              ((:wat::telemetry::Event::Metric
-                 _s _e _ns _u _tags _n _v _unit)
-                :wrong-variant-metric)))
-          (:None :no-event))))
-     ((l1 :wat::core::keyword) (extract-level (:wat::kernel::recv stub-rx)))
-     ((l2 :wat::core::keyword) (extract-level (:wat::kernel::recv stub-rx)))
-     ((l3 :wat::core::keyword) (extract-level (:wat::kernel::recv stub-rx)))
-     ((l4 :wat::core::keyword) (extract-level (:wat::kernel::recv stub-rx)))
+        ((event :wat::telemetry::Event) -> :wat::core::keyword)
+        (:wat::core::match event -> :wat::core::keyword
+          ((:wat::telemetry::Event::Log
+             _t _ns _c level-notag _u _tags _d)
+            (:wat::core::atom-value
+              (:wat::edn::NoTag/0 level-notag)))
+          ((:wat::telemetry::Event::Metric
+             _s _e _ns _u _tags _n _v _unit)
+            :wrong-variant-metric))))
+     ((l1 :wat::core::keyword)
+      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
+        ((Some event) (extract-level event))
+        (:None :no-event)))
+     ((l2 :wat::core::keyword)
+      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
+        ((Some event) (extract-level event))
+        (:None :no-event)))
+     ((l3 :wat::core::keyword)
+      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
+        ((Some event) (extract-level event))
+        (:None :no-event)))
+     ((l4 :wat::core::keyword)
+      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
+        ((Some event) (extract-level event))
+        (:None :no-event)))
      ((_a :()) (:wat::test::assert-eq l1 :debug))
      ((_b :()) (:wat::test::assert-eq l2 :info))
      ((_c :()) (:wat::test::assert-eq l3 :warn)))

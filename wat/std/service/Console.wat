@@ -148,9 +148,10 @@
     ((Some pair)
       (:wat::core::let*
         (((ack-tx :wat::std::service::Console::AckTx)
-          (:wat::core::second pair))
-         ((_ :Option<()>) (:wat::kernel::send ack-tx ())))
-        ()))
+          (:wat::core::second pair)))
+        (:wat::core::option::expect -> :()
+          (:wat::kernel::send ack-tx ())
+          "Console/ack-at: ack-tx disconnected — producer scope died mid-write?")))
     (:None ())))
 
 ;; --- Client helpers ---
@@ -165,10 +166,11 @@
 ;; producer's req-rx by index inside `Console/loop`, so the
 ;; routing falls out of `select` for free.
 ;;
-;; If the Console driver has already shut down: send → :None
-;; (req channel disconnected), recv → :None (ack-tx the driver
-;; held has been dropped). Both arms collapse to :() so callers
-;; don't need to care about late-lifecycle disconnect.
+;; If the Console driver has already shut down: send → :None (req
+;; channel disconnected), recv → :None (ack-tx the driver held
+;; dropped). Per arc 110: in-memory peer-death is catastrophic.
+;; Either disconnect panics here so the caller's program tree
+;; learns its sink is dead instead of silently dropping prints.
 (:wat::core::define
   (:wat::std::service::Console/out
     (handle :wat::std::service::Console::Handle)
@@ -177,10 +179,13 @@
   (:wat::core::let*
     (((tx :wat::std::service::Console::Tx) (:wat::core::first handle))
      ((ack-rx :wat::std::service::Console::AckRx) (:wat::core::second handle))
-     ((_send :Option<()>)
-      (:wat::kernel::send tx (:wat::core::tuple 0 msg)))
-     ((_recv :Option<()>) (:wat::kernel::recv ack-rx)))
-    ()))
+     ((_send :())
+      (:wat::core::option::expect -> :()
+        (:wat::kernel::send tx (:wat::core::tuple 0 msg))
+        "Console/out: tx disconnected — Console driver died?")))
+    (:wat::core::option::expect -> :()
+      (:wat::kernel::recv ack-rx)
+      "Console/out: ack-rx disconnected — Console driver died mid-write?")))
 
 (:wat::core::define
   (:wat::std::service::Console/err
@@ -190,10 +195,13 @@
   (:wat::core::let*
     (((tx :wat::std::service::Console::Tx) (:wat::core::first handle))
      ((ack-rx :wat::std::service::Console::AckRx) (:wat::core::second handle))
-     ((_send :Option<()>)
-      (:wat::kernel::send tx (:wat::core::tuple 1 msg)))
-     ((_recv :Option<()>) (:wat::kernel::recv ack-rx)))
-    ()))
+     ((_send :())
+      (:wat::core::option::expect -> :()
+        (:wat::kernel::send tx (:wat::core::tuple 1 msg))
+        "Console/err: tx disconnected — Console driver died?")))
+    (:wat::core::option::expect -> :()
+      (:wat::kernel::recv ack-rx)
+      "Console/err: ack-rx disconnected — Console driver died mid-write?")))
 
 ;; --- Console setup ---
 ;;

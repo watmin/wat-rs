@@ -92,11 +92,15 @@
            (:svc::State/ack-count state)))
 
        ;; Ack — confirm-receipt. Bump ack-count, send unit reply.
-       ;; Send returns :wat::kernel::Sent; we ignore (caller's reply-rx may
-       ;; have dropped — they get nothing back, we move on).
+       ;; Per arc 110: client dropping its reply-rx mid-protocol is a
+       ;; protocol violation; expect makes the disconnect a panic so
+       ;; the program tree learns the breakage instead of silent drop.
        ((:svc::Request::Ack reply-tx)
          (:wat::core::let*
-           (((_ack :wat::kernel::Sent) (:wat::kernel::send reply-tx ())))
+           (((_ack :())
+             (:wat::core::option::expect -> :()
+               (:wat::kernel::send reply-tx ())
+               "Service/handle Ack: reply-tx disconnected — caller died?")))
            (:svc::State/new
              (:svc::State/push-count state)
              (:wat::core::+ (:svc::State/ack-count state) 1))))
@@ -106,7 +110,10 @@
        ;; not look like a mutation).
        ((:svc::Request::Get reply-tx)
          (:wat::core::let*
-           (((_send :wat::kernel::Sent) (:wat::kernel::send reply-tx state)))
+           (((_send :())
+             (:wat::core::option::expect -> :()
+               (:wat::kernel::send reply-tx state)
+               "Service/handle Get: reply-tx disconnected — caller died?")))
            state))))
 
 
@@ -205,51 +212,70 @@
          ((get-tx :wat::kernel::QueueSender<svc::State>) (:wat::core::first get-pair))
          ((get-rx :wat::kernel::QueueReceiver<svc::State>) (:wat::core::second get-pair))
 
-         ;; 2 Pushes — fire and forget.
-         ((_p1 :wat::kernel::Sent) (:wat::kernel::send req-tx (:svc::Request::Push 100)))
-         ((_p2 :wat::kernel::Sent) (:wat::kernel::send req-tx (:svc::Request::Push 200)))
+         ;; 2 Pushes — fire and forget. Per arc 110, every send wraps
+         ;; in option::expect: in-memory peer-death is catastrophic;
+         ;; the service driver dying mid-test must surface, not hang.
+         ((_p1 :())
+          (:wat::core::option::expect -> :()
+            (:wat::kernel::send req-tx (:svc::Request::Push 100))
+            "test send Push 100: req-tx disconnected — driver died?"))
+         ((_p2 :())
+          (:wat::core::option::expect -> :()
+            (:wat::kernel::send req-tx (:svc::Request::Push 200))
+            "test send Push 200: req-tx disconnected — driver died?"))
 
          ;; 1 Ack — confirm-receipt round-trip.
-         ((_a :wat::kernel::Sent) (:wat::kernel::send req-tx (:svc::Request::Ack ack-tx)))
-         ((_r :wat::kernel::Sent) (:wat::kernel::recv ack-rx))
+         ((_a :())
+          (:wat::core::option::expect -> :()
+            (:wat::kernel::send req-tx (:svc::Request::Ack ack-tx))
+            "test send Ack: req-tx disconnected — driver died?"))
+         ((_r :())
+          (:wat::core::option::expect -> :()
+            (:wat::kernel::recv ack-rx)
+            "test recv ack: ack-rx disconnected — driver died mid-Ack?"))
 
-         ;; 1 Get — expect (push=2, ack=1).
-         ((_g1 :wat::kernel::Sent) (:wat::kernel::send req-tx (:svc::Request::Get get-tx)))
-         ((snap1 :Option<svc::State>) (:wat::kernel::recv get-rx))
-         ((_check1 :())
-          (:wat::core::match snap1 -> :()
-            ((Some s)
-              (:wat::core::let*
-                (((pc :wat::core::i64) (:svc::State/push-count s))
-                 ((ac :wat::core::i64) (:svc::State/ack-count s))
-                 ((_ :())
-                  (:wat::core::if (:wat::core::= pc 2) -> :()
-                    ()
-                    (:wat::test::assert-eq "snap1 push != 2" ""))))
-                (:wat::core::if (:wat::core::= ac 1) -> :()
-                  ()
-                  (:wat::test::assert-eq "snap1 ack != 1" ""))))
-            (:None (:wat::test::assert-eq "no snap1" ""))))
+         ;; 1 Get — expect (push=2, ack=1). expect on the recv unwraps
+         ;; Option<State> directly into State; :None panics with a
+         ;; meaningful diagnostic rather than masking as a "no snap".
+         ((_g1 :())
+          (:wat::core::option::expect -> :()
+            (:wat::kernel::send req-tx (:svc::Request::Get get-tx))
+            "test send Get #1: req-tx disconnected — driver died?"))
+         ((snap1 :svc::State)
+          (:wat::core::option::expect -> :svc::State
+            (:wat::kernel::recv get-rx)
+            "test recv get #1: get-rx disconnected — driver died mid-Get?"))
+         ((_check1a :())
+          (:wat::core::if (:wat::core::= (:svc::State/push-count snap1) 2) -> :()
+            ()
+            (:wat::test::assert-eq "snap1 push != 2" "")))
+         ((_check1b :())
+          (:wat::core::if (:wat::core::= (:svc::State/ack-count snap1) 1) -> :()
+            ()
+            (:wat::test::assert-eq "snap1 ack != 1" "")))
 
          ;; 1 more Push, then Get — expect (push=3, ack=1).
          ;; Proves Get reads LIVE state, not a frozen capture.
-         ((_p3 :wat::kernel::Sent) (:wat::kernel::send req-tx (:svc::Request::Push 300)))
-         ((_g2 :wat::kernel::Sent) (:wat::kernel::send req-tx (:svc::Request::Get get-tx)))
-         ((snap2 :Option<svc::State>) (:wat::kernel::recv get-rx))
-         ((_check2 :())
-          (:wat::core::match snap2 -> :()
-            ((Some s)
-              (:wat::core::let*
-                (((pc :wat::core::i64) (:svc::State/push-count s))
-                 ((ac :wat::core::i64) (:svc::State/ack-count s))
-                 ((_ :())
-                  (:wat::core::if (:wat::core::= pc 3) -> :()
-                    ()
-                    (:wat::test::assert-eq "snap2 push != 3" ""))))
-                (:wat::core::if (:wat::core::= ac 1) -> :()
-                  ()
-                  (:wat::test::assert-eq "snap2 ack != 1" ""))))
-            (:None (:wat::test::assert-eq "no snap2" "")))))
+         ((_p3 :())
+          (:wat::core::option::expect -> :()
+            (:wat::kernel::send req-tx (:svc::Request::Push 300))
+            "test send Push 300: req-tx disconnected — driver died?"))
+         ((_g2 :())
+          (:wat::core::option::expect -> :()
+            (:wat::kernel::send req-tx (:svc::Request::Get get-tx))
+            "test send Get #2: req-tx disconnected — driver died?"))
+         ((snap2 :svc::State)
+          (:wat::core::option::expect -> :svc::State
+            (:wat::kernel::recv get-rx)
+            "test recv get #2: get-rx disconnected — driver died mid-Get?"))
+         ((_check2a :())
+          (:wat::core::if (:wat::core::= (:svc::State/push-count snap2) 3) -> :()
+            ()
+            (:wat::test::assert-eq "snap2 push != 3" "")))
+         ((_check2b :())
+          (:wat::core::if (:wat::core::= (:svc::State/ack-count snap2) 1) -> :()
+            ()
+            (:wat::test::assert-eq "snap2 ack != 1" ""))))
         ()))
 
      ;; Final state via join-result. Should match the last snapshot.

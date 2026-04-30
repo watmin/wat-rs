@@ -464,8 +464,7 @@
      ;; only what we KNOW was sent. Per the test's intent:
      ;; "scope ships the Events" is proven by recv returning
      ;; Some at all; the row's CONTENT is proven elsewhere.
-     ((r1 :Option<wat::telemetry::Event>) (:wat::kernel::recv stub-rx))
      ((r1-some? :wat::core::bool)
-      (:wat::core::match r1 -> :wat::core::bool ((Some _) true) (:None false)))
+      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool ((Some _) true) (:None false)))
      ((_a :()) (:wat::test::assert-eq result 42)))
     (:wat::test::assert-eq r1-some? true)))

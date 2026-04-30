@@ -95,6 +95,14 @@ pub enum CheckError {
         head: String,
         reason: String,
     },
+    /// Arc 110 — `:wat::kernel::send` / `:wat::kernel::recv` appeared
+    /// somewhere other than the discriminant of `:wat::core::match`
+    /// or the value-position of `:wat::core::option::expect`.
+    /// Silent-disconnect bugs (proof_004) are the class this rule
+    /// makes structurally impossible.
+    CommCallOutOfPosition {
+        callee: String,
+    },
 }
 
 impl fmt::Display for CheckError {
@@ -130,6 +138,11 @@ impl fmt::Display for CheckError {
             CheckError::MalformedForm { head, reason } => {
                 write!(f, "malformed {} form: {}", head, reason)
             }
+            CheckError::CommCallOutOfPosition { callee } => write!(
+                f,
+                "{} may appear only as the scrutinee of `:wat::core::match` or the value-position of `:wat::core::option::expect`; silent disconnect (the `:None` arm) must be handled at every comm call",
+                callee
+            ),
         }
     }
 }
@@ -321,6 +334,17 @@ pub fn check_program(
     let mut errors = Vec::new();
     let mut fresh = InferCtx::default();
 
+    // Arc 110 — every kernel-comm call must land in match-scrutinee
+    // or option::expect-value position. Run the walk before inference
+    // so a misplaced send/recv reports as the structural problem it
+    // is, not as a downstream type mismatch.
+    for func in sym.functions.values() {
+        validate_comm_positions(&func.body, CommCtx::Forbidden, &mut errors);
+    }
+    for form in forms {
+        validate_comm_positions(form, CommCtx::Forbidden, &mut errors);
+    }
+
     // Check each user define's body against its declared return type.
     for (path, func) in &sym.functions {
         if let Some(scheme) = env.get(path) {
@@ -337,6 +361,95 @@ pub fn check_program(
         Ok(())
     } else {
         Err(CheckErrors(errors))
+    }
+}
+
+/// Arc 110 — parent-context tag for the `validate_comm_positions`
+/// walk. Every sub-expression descends with one of these; comm calls
+/// are legal only under the two non-Forbidden tags.
+#[derive(Clone, Copy)]
+enum CommCtx {
+    /// Top-level form, function/lambda body, struct field, call
+    /// argument, let RHS — anywhere a `:None` would silently slip
+    /// past. The default for every recursive descent.
+    Forbidden,
+    /// Discriminant slot of `:wat::core::match`. The match form
+    /// requires both Some and None arms, so the terminal `:None` is
+    /// honestly handled.
+    MatchScrutinee,
+    /// Value-position slot of `:wat::core::option::expect`. The
+    /// caller is declaring "this thread cannot survive its peer
+    /// dying" — runtime panic with a meaningful message replaces
+    /// silent ignore.
+    OptionExpectValue,
+}
+
+/// Arc 110 — refuse to compile programs that ignore a kernel-comm
+/// terminal `:None`. Walks the AST tracking the parent's syntactic
+/// context; whenever a `:wat::kernel::send` or `:wat::kernel::recv`
+/// call appears outside the two permitted slots, push an error.
+///
+/// The rule is local — comm calls live where they're consumed; helper
+/// functions that wrap a recv must do the consumption (match-or-expect)
+/// internally and return a non-Option value.
+fn validate_comm_positions(
+    node: &WatAST,
+    ctx: CommCtx,
+    errors: &mut Vec<CheckError>,
+) {
+    let WatAST::List(items, _) = node else { return; };
+    let head_str = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => {
+            for child in items {
+                validate_comm_positions(child, CommCtx::Forbidden, errors);
+            }
+            return;
+        }
+    };
+
+    // (1) THIS node is a kernel-comm call.
+    if matches!(head_str, ":wat::kernel::send" | ":wat::kernel::recv") {
+        if matches!(ctx, CommCtx::Forbidden) {
+            errors.push(CheckError::CommCallOutOfPosition {
+                callee: head_str.into(),
+            });
+        }
+        // Comm-call arguments are ordinary expressions; nested comm
+        // calls inside them are themselves Forbidden.
+        for child in &items[1..] {
+            validate_comm_positions(child, CommCtx::Forbidden, errors);
+        }
+        return;
+    }
+
+    // (2) `:wat::core::match` — items[1] is the scrutinee (permitted slot).
+    //     Layout: (match scrut -> :T arm1 arm2 ...)
+    if head_str == ":wat::core::match" && items.len() >= 4 {
+        validate_comm_positions(&items[1], CommCtx::MatchScrutinee, errors);
+        for child in &items[2..] {
+            validate_comm_positions(child, CommCtx::Forbidden, errors);
+        }
+        return;
+    }
+
+    // (3) `:wat::core::option::expect` — items[3] is the value-position
+    //     (permitted slot). Layout: (expect -> :T <opt> <msg>).
+    if head_str == ":wat::core::option::expect" && items.len() >= 5 {
+        for (i, child) in items.iter().enumerate() {
+            let child_ctx = if i == 3 {
+                CommCtx::OptionExpectValue
+            } else {
+                CommCtx::Forbidden
+            };
+            validate_comm_positions(child, child_ctx, errors);
+        }
+        return;
+    }
+
+    // (4) Default — every child descends as Forbidden.
+    for child in items {
+        validate_comm_positions(child, CommCtx::Forbidden, errors);
     }
 }
 

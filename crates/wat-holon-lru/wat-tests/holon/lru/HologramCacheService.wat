@@ -94,9 +94,9 @@
          ((h :wat::kernel::ProgramHandle<i64>)
           (:wat::kernel::spawn
             :wat-tests::holon::lru::HologramCacheService::run-counter rx))
-         ((_s1 :wat::kernel::Sent) (:wat::kernel::send tx 10))
-         ((_s2 :wat::kernel::Sent) (:wat::kernel::send tx 20))
-         ((_s3 :wat::kernel::Sent) (:wat::kernel::send tx 30)))
+         ((_s1 :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx 10) "test send _s1: peer disconnected"))
+         ((_s2 :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx 20) "test send _s2: peer disconnected"))
+         ((_s3 :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx 30) "test send _s3: peer disconnected")))
         h)))
     (:wat::core::match (:wat::kernel::join-result handle) -> :()
       ((Ok 3) ())
@@ -129,15 +129,15 @@
          ((v2 :wat::holon::HolonAST) (:wat::holon::leaf :bv))
          ((k3 :wat::holon::HolonAST) (:wat::holon::leaf :gamma))
          ((v3 :wat::holon::HolonAST) (:wat::holon::leaf :gv))
-         ((_p1 :wat::kernel::Sent)
-          (:wat::kernel::send tx
-            (:wat::holon::lru::HologramCacheService::Request::Put k1 v1)))
-         ((_p2 :wat::kernel::Sent)
-          (:wat::kernel::send tx
-            (:wat::holon::lru::HologramCacheService::Request::Put k2 v2)))
-         ((_p3 :wat::kernel::Sent)
-          (:wat::kernel::send tx
-            (:wat::holon::lru::HologramCacheService::Request::Put k3 v3))))
+         ((_p1 :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+            (:wat::holon::lru::HologramCacheService::Request::Put k1 v1)) "test send _p1: peer disconnected"))
+         ((_p2 :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+            (:wat::holon::lru::HologramCacheService::Request::Put k2 v2)) "test send _p2: peer disconnected"))
+         ((_p3 :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+            (:wat::holon::lru::HologramCacheService::Request::Put k3 v3)) "test send _p3: peer disconnected")))
         h)))
     (:wat::core::match (:wat::kernel::join-result handle) -> :()
       ((Ok 3) ())
@@ -177,16 +177,14 @@
          ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
          ((v :wat::holon::HolonAST) (:wat::holon::leaf :av))
 
-         ((_p :wat::kernel::Sent)
-          (:wat::kernel::send req-tx
-            (:wat::holon::lru::HologramCacheService::Request::Put k v)))
-         ((_g :wat::kernel::Sent)
-          (:wat::kernel::send req-tx
-            (:wat::holon::lru::HologramCacheService::Request::Get k reply-tx)))
-         ((maybe-reply :Option<Option<wat::holon::HolonAST>>)
-          (:wat::kernel::recv reply-rx))
+         ((_p :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send req-tx
+            (:wat::holon::lru::HologramCacheService::Request::Put k v)) "test send _p: peer disconnected"))
+         ((_g :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send req-tx
+            (:wat::holon::lru::HologramCacheService::Request::Get k reply-tx)) "test send _g: peer disconnected"))
          ((_check :())
-          (:wat::core::match maybe-reply -> :()
+          (:wat::core::match (:wat::kernel::recv reply-rx) -> :()
             ((Some inner)
               (:wat::core::match inner -> :()
                 ((Some _val) ())
@@ -238,16 +236,14 @@
          ((v-b :wat::holon::HolonAST) (:wat::holon::leaf :bv))
 
          ;; Client A: Put + Get on alpha
-         ((_pa :wat::kernel::Sent)
-          (:wat::kernel::send tx-a
-            (:wat::holon::lru::HologramCacheService::Request::Put k-a v-a)))
-         ((_ga :wat::kernel::Sent)
-          (:wat::kernel::send tx-a
-            (:wat::holon::lru::HologramCacheService::Request::Get k-a reply-tx-a)))
-         ((reply-a :Option<Option<wat::holon::HolonAST>>)
-          (:wat::kernel::recv reply-rx-a))
+         ((_pa :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send tx-a
+            (:wat::holon::lru::HologramCacheService::Request::Put k-a v-a)) "test send _pa: peer disconnected"))
+         ((_ga :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send tx-a
+            (:wat::holon::lru::HologramCacheService::Request::Get k-a reply-tx-a)) "test send _ga: peer disconnected"))
          ((_check-a :())
-          (:wat::core::match reply-a -> :()
+          (:wat::core::match (:wat::kernel::recv reply-rx-a) -> :()
             ((Some inner)
               (:wat::core::match inner -> :()
                 ((Some _val) ())
@@ -255,16 +251,14 @@
             (:None (:wat::test::assert-eq "client-a-no-reply" ""))))
 
          ;; Client B: Put + Get on beta
-         ((_pb :wat::kernel::Sent)
-          (:wat::kernel::send tx-b
-            (:wat::holon::lru::HologramCacheService::Request::Put k-b v-b)))
-         ((_gb :wat::kernel::Sent)
-          (:wat::kernel::send tx-b
-            (:wat::holon::lru::HologramCacheService::Request::Get k-b reply-tx-b)))
-         ((reply-b :Option<Option<wat::holon::HolonAST>>)
-          (:wat::kernel::recv reply-rx-b))
+         ((_pb :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send tx-b
+            (:wat::holon::lru::HologramCacheService::Request::Put k-b v-b)) "test send _pb: peer disconnected"))
+         ((_gb :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send tx-b
+            (:wat::holon::lru::HologramCacheService::Request::Get k-b reply-tx-b)) "test send _gb: peer disconnected"))
          ((_check-b :())
-          (:wat::core::match reply-b -> :()
+          (:wat::core::match (:wat::kernel::recv reply-rx-b) -> :()
             ((Some inner)
               (:wat::core::match inner -> :()
                 ((Some _val) ())
@@ -312,24 +306,22 @@
          ((v :wat::holon::HolonAST) (:wat::holon::leaf :payload))
 
          ;; Three puts at cap=2; k1 gets evicted by k3.
-         ((_p1 :wat::kernel::Sent)
-          (:wat::kernel::send tx
-            (:wat::holon::lru::HologramCacheService::Request::Put k1 v)))
-         ((_p2 :wat::kernel::Sent)
-          (:wat::kernel::send tx
-            (:wat::holon::lru::HologramCacheService::Request::Put k2 v)))
-         ((_p3 :wat::kernel::Sent)
-          (:wat::kernel::send tx
-            (:wat::holon::lru::HologramCacheService::Request::Put k3 v)))
+         ((_p1 :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+            (:wat::holon::lru::HologramCacheService::Request::Put k1 v)) "test send _p1: peer disconnected"))
+         ((_p2 :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+            (:wat::holon::lru::HologramCacheService::Request::Put k2 v)) "test send _p2: peer disconnected"))
+         ((_p3 :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+            (:wat::holon::lru::HologramCacheService::Request::Put k3 v)) "test send _p3: peer disconnected"))
 
          ;; Get k1 — evicted, expect None.
-         ((_g1 :wat::kernel::Sent)
-          (:wat::kernel::send tx
-            (:wat::holon::lru::HologramCacheService::Request::Get k1 reply-tx)))
-         ((reply-1 :Option<Option<wat::holon::HolonAST>>)
-          (:wat::kernel::recv reply-rx))
+         ((_g1 :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+            (:wat::holon::lru::HologramCacheService::Request::Get k1 reply-tx)) "test send _g1: peer disconnected"))
          ((_check-1 :())
-          (:wat::core::match reply-1 -> :()
+          (:wat::core::match (:wat::kernel::recv reply-rx) -> :()
             ((Some inner)
               (:wat::core::match inner -> :()
                 ((Some _) (:wat::test::assert-eq "k1-not-evicted" ""))
@@ -337,13 +329,11 @@
             (:None (:wat::test::assert-eq "no-reply-1" ""))))
 
          ;; Get k2 — survived, expect Some.
-         ((_g2 :wat::kernel::Sent)
-          (:wat::kernel::send tx
-            (:wat::holon::lru::HologramCacheService::Request::Get k2 reply-tx)))
-         ((reply-2 :Option<Option<wat::holon::HolonAST>>)
-          (:wat::kernel::recv reply-rx))
+         ((_g2 :())
+          (:wat::core::option::expect -> :() (:wat::kernel::send tx
+            (:wat::holon::lru::HologramCacheService::Request::Get k2 reply-tx)) "test send _g2: peer disconnected"))
          ((_check-2 :())
-          (:wat::core::match reply-2 -> :()
+          (:wat::core::match (:wat::kernel::recv reply-rx) -> :()
             ((Some inner)
               (:wat::core::match inner -> :()
                 ((Some _) ())
