@@ -211,7 +211,7 @@ to report.
 
 ## The program is the equation
 
-User, sometime before chapter 10:
+User to his younger brother, sometime before chapter 10:
 
 > dude.. i have math equations are implementing signal
 > messaging... the actual equations move data between systems....
@@ -238,10 +238,10 @@ expression's scopes don't compose. Arc 110 made one class of
 shape-problem a compile error; arc 111 lifted the comm types so
 the third state in that algebra is reachable.
 
-The user's brother joke wasn't wrong. It was early. The wat
-machine is what happens when "my whole program is one math
-equation" is taken seriously, in code, with a type checker that
-enforces the algebra as you write.
+That joke wasn't wrong. It was early. The wat machine is what
+happens when "my whole program is one math equation" is taken
+seriously, in code, with a type checker that enforces the
+algebra as you write.
 
 Three layers of the same realization, bottom-up:
 
