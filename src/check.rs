@@ -6393,6 +6393,20 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         },
     );
+    // (:wat::kernel::ThreadDiedError/message err) -> :String — arc 105b.
+    // Extracts the carried message from any ThreadDiedError variant;
+    // returns "channel disconnected" for the unit variant. Routes
+    // around the wat-side enum-pattern type-checker gap that arc 103b
+    // surfaced. Wat callers (wat/std/sandbox.wat) use this to build
+    // RunResult.failure.message without variant discrimination.
+    env.register(
+        ":wat::kernel::ThreadDiedError/message".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
+            ret: TypeExpr::Path(":String".into()),
+        },
+    );
     // HandlePool — claim-or-panic discipline.
     //   new    : ∀T. :String -> :Vec<T> -> :HandlePool<T>
     //   pop    : ∀T. :HandlePool<T> -> :T

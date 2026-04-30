@@ -2538,6 +2538,9 @@ fn dispatch_keyword_head(
         ":wat::kernel::spawn" => eval_kernel_spawn(args, env, sym),
         ":wat::kernel::join" => eval_kernel_join(args, env, sym),
         ":wat::kernel::join-result" => eval_kernel_join_result(args, env, sym),
+        ":wat::kernel::ThreadDiedError/message" => {
+            eval_thread_died_error_message(args, env, sym)
+        }
         ":wat::kernel::select" => eval_kernel_select(args, env, sym),
         ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym),
         ":wat::kernel::HandlePool::pop" => eval_handle_pool_pop(args, env, sym),
@@ -11141,6 +11144,65 @@ fn thread_died_error_channel_disconnected() -> Value {
         variant_name: "ChannelDisconnected".into(),
         fields: vec![],
     }))
+}
+
+/// `(:wat::kernel::ThreadDiedError/message err) -> :String`.
+///
+/// Arc 105b. Extracts the carried String from any
+/// `:wat::kernel::ThreadDiedError` variant; returns the literal
+/// `"channel disconnected"` for the unit variant. Routes around
+/// the wat-side enum-variant pattern-matcher gap that arc 103b
+/// surfaced — wat callers (notably `wat/std/sandbox.wat` in arc
+/// 105c) need a message string for `RunResult.failure.message`,
+/// not variant discrimination.
+///
+/// Fixing the pattern-matcher gap (extending arc 055's recursive
+/// patterns to handle enum scrutinees in this specific shape) is
+/// its own future arc; the accessor is the right surface even
+/// after that lands.
+pub fn eval_thread_died_error_message(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::ThreadDiedError/message";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let val = eval(&args[0], env, sym)?;
+    match val {
+        Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
+            // Panic / RuntimeError variants carry a single :String
+            // field; ChannelDisconnected is a unit variant.
+            match ev.variant_name.as_str() {
+                "Panic" | "RuntimeError" => match ev.fields.first() {
+                    Some(Value::String(s)) => Ok(Value::String(s.clone())),
+                    _ => Err(RuntimeError::TypeMismatch {
+                        op: OP.into(),
+                        expected: "String inside ThreadDiedError variant",
+                        got: "non-String payload",
+                    }),
+                },
+                "ChannelDisconnected" => {
+                    Ok(Value::String(Arc::new("channel disconnected".to_string())))
+                }
+                _ => Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "ThreadDiedError variant",
+                    got: "unknown ThreadDiedError variant",
+                }),
+            }
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "wat::kernel::ThreadDiedError",
+            got: other.type_name(),
+        }),
+    }
 }
 
 /// Map a [`RuntimeError`] to an [`EvalError`] struct value — the
