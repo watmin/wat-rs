@@ -273,12 +273,33 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
     // since been reused by the OS.
     CHILD_PGID.store(-1, Ordering::SeqCst);
 
-    // Join the proxy threads. Each sees its peer fd close (child
-    // exit closes the child-side fds → parent's read returns 0 →
-    // proxy thread exits its loop).
-    let _ = stdin_proxy.join();
+    // Join the OUTPUT proxies. Each sees its peer fd close (child
+    // exit closes the child-side write end → parent's read returns
+    // 0 → proxy exits cleanly).
     let _ = stdout_proxy.join();
     let _ = stderr_proxy.join();
+
+    // DO NOT join stdin_proxy. The stdin proxy reads from the cli's
+    // real stdin (fd 0) — typically a tty under interactive use —
+    // and writes to the child's stdin pipe. When the child has
+    // exited, the child-side read end of the pipe has closed, so
+    // the proxy's NEXT write will fail with EPIPE and the proxy
+    // will exit. But it can't reach that write while it's still
+    // blocked on `libc::read(STDIN_FILENO, ...)`, and a tty's read
+    // doesn't return until the user types something or sends EOF.
+    //
+    // Joining here would hang the cli for any wat program that
+    // exits before consuming all of stdin (a panic, an early
+    // return, anything quick). Per arc 107a's diagnosis: detected
+    // when `:wat::std::option::expect` / `:wat::std::result::expect`
+    // panic'd in interactive runs and the cli hung indefinitely
+    // afterward instead of surfacing the panic.
+    //
+    // Instead, let the proxy die with the process. The OS reaps
+    // its thread + fd when the cli's main returns. Any bytes the
+    // proxy already buffered but hadn't written are lost — fine,
+    // the child wouldn't have read them anyway.
+    drop(stdin_proxy);
 
     if exit_code >= 0 && exit_code <= 255 {
         ExitCode::from(exit_code as u8)

@@ -694,6 +694,43 @@ enclosing function with `Err e`. NOT try/catch — each function in a
 chain either `try`s (propagate) or `match`es (handle explicitly).
 Details in section 12.
 
+### `expect` — panic on the failure variant (arc 107)
+
+```scheme
+((v :i64)
+ (:wat::std::option::expect
+   (:wat::kernel::send tx msg)
+   "send to broker disconnected — broker died unexpectedly"))
+```
+
+The companion to `try`: where `try` propagates `Err` / `:None` UP
+the call stack as the enclosing function's return, `expect`
+**panics** with the caller-supplied message. Use at sites where
+the failure variant represents a contract violation, not data
+the caller will handle.
+
+| Verb | Failure case | Where |
+|---|---|---|
+| `:wat::core::try` | `Err(e)` propagates UP | inside a fn returning `:Result<_, E>` |
+| `:wat::std::option::expect` | `:None` panics with message | anywhere |
+| `:wat::std::result::expect` | `Err(_)` panics with message | anywhere |
+
+Mirrors Rust: `?` (try) propagates; `.expect("msg")` panics.
+
+`expect`'s primary defense is the silent-disconnect cascade:
+`(:wat::kernel::send tx v)` returns `:Option<()>` and most callers
+bind it to `_` and discard. When the consumer thread has died,
+that's a silent dead-service the caller will ride into a recv
+hang on a reply channel they themselves still own. Wrap the send
+in `option::expect` and the disconnect surfaces at the call site
+as a clean panic.
+
+> Naming note: arc 107 ships these in `:wat::std::*` as wat-level
+> functions. Arc 108 (queued) promotes them to special forms in
+> `:wat::core::*` next to `match` / `if` / `try` and adds the
+> `-> :T` arm-result annotation for symmetry with the rest of the
+> branching family.
+
 ### `if` — typed boolean branch
 
 ```scheme

@@ -5174,13 +5174,18 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // :wat::kernel::assertion-failed! — arc 007 slice 3. Raises via
     // panic_any(AssertionPayload) so run-sandboxed's catch_unwind can
-    // downcast and populate Failure.actual / Failure.expected. Declared
-    // return type is :() since wat has no `!` / never type; the body
-    // never returns.
+    // downcast and populate Failure.actual / Failure.expected. The op
+    // NEVER RETURNS at runtime — the panic unwinds the stack — so the
+    // return type is polymorphic per arc 107: `∀T. ... -> :T`. T
+    // unifies with whatever the caller's context demands, including
+    // `:()` (existing test-stdlib call sites) AND non-`:()` types
+    // (`:wat::std::option::expect<T>` and `:wat::std::result::expect<T,E>`
+    // need `:T` arms). The previous declared `:()` was a lie since
+    // wat has no `Never` type; T is the honest scheme.
     env.register(
         ":wat::kernel::assertion-failed!".to_string(),
         TypeScheme {
-            type_params: vec![],
+            type_params: vec!["T".into()],
             params: vec![
                 string_ty(),
                 TypeExpr::Parametric {
@@ -5192,7 +5197,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     args: vec![string_ty()],
                 },
             ],
-            ret: unit_ty(),
+            ret: TypeExpr::Path(":T".into()),
         },
     );
 
