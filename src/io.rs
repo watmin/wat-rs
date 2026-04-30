@@ -76,6 +76,17 @@ pub trait WatWriter: Send + Sync + std::fmt::Debug {
     fn snapshot(&self) -> Option<Vec<u8>> {
         None
     }
+
+    /// Idempotent close. Default no-op for backings without an
+    /// explicit-close concept (StringIoWriter, RealStdout, RealStderr).
+    /// Pipe-backed writers override to release the fd early so the
+    /// peer reader sees EOF without waiting for the Arc count to
+    /// reach zero — needed when the writer Arc is held by a struct
+    /// (e.g., `:wat::kernel::Process.stdin`) that outlives the write
+    /// phase. Subsequent writes to a closed writer return an error.
+    fn close(&self) -> Result<(), RuntimeError> {
+        Ok(())
+    }
 }
 
 // ─── Real stdio wrappers ─────────────────────────────────────────────────
@@ -412,7 +423,8 @@ impl WatWriter for StringIoWriter {
 // `from_owned_fd(OwnedFd::from_raw_fd(0))` etc. Same type, different
 // owning fd.
 
-use std::os::fd::{AsRawFd, OwnedFd};
+use std::os::fd::{AsRawFd, IntoRawFd, OwnedFd};
+use std::sync::atomic::{AtomicI32, Ordering};
 
 /// `:wat::io::IOReader` backed by a raw fd. Wraps an `OwnedFd`;
 /// `Drop` calls `close(2)` via `OwnedFd`'s stdlib impl. Read paths
@@ -543,32 +555,57 @@ impl WatReader for PipeReader {
     }
 }
 
-/// `:wat::io::IOWriter` backed by a raw fd. Wraps an `OwnedFd`;
-/// `Drop` calls `close(2)`. Write paths call `libc::write(2)`
-/// directly — no `std::io::Write` detour, no lock inheritance
-/// across fork.
+/// `:wat::io::IOWriter` backed by a raw fd. The fd lives in an
+/// `AtomicI32` so explicit `close()` can release it before the Arc
+/// count reaches zero — needed when the writer Arc is held by a
+/// struct (e.g., `:wat::kernel::Process.stdin`) and the caller
+/// wants the peer reader to see EOF mid-program. Lock-free; one
+/// atomic swap per close.
+///
+/// Sentinel `-1` means closed; reads + writes against the closed
+/// fd return errors.
 #[derive(Debug)]
 pub struct PipeWriter {
-    fd: OwnedFd,
+    fd: AtomicI32,
 }
 
 impl PipeWriter {
     /// Take ownership of an already-opened writable fd. Caller
-    /// guarantees the fd is valid and writable.
+    /// guarantees the fd is valid and writable. We strip the
+    /// `OwnedFd` wrapper because the AtomicI32 is now responsible
+    /// for the fd's lifetime — Drop calls `close(2)` ourselves.
     pub fn from_owned_fd(fd: OwnedFd) -> Self {
-        Self { fd }
+        Self {
+            fd: AtomicI32::new(fd.into_raw_fd()),
+        }
+    }
+}
+
+impl Drop for PipeWriter {
+    /// Idempotent. If the fd is still live, swap to -1 and
+    /// `close(2)` the original; if already closed, no-op.
+    fn drop(&mut self) {
+        let raw = self.fd.swap(-1, Ordering::SeqCst);
+        if raw >= 0 {
+            unsafe {
+                libc::close(raw);
+            }
+        }
     }
 }
 
 impl WatWriter for PipeWriter {
     fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
         loop {
+            let raw = self.fd.load(Ordering::SeqCst);
+            if raw < 0 {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::io::write".into(),
+                    reason: "pipe write: writer is closed".into(),
+                });
+            }
             let ret = unsafe {
-                libc::write(
-                    self.fd.as_raw_fd(),
-                    bytes.as_ptr() as *const _,
-                    bytes.len(),
-                )
+                libc::write(raw, bytes.as_ptr() as *const _, bytes.len())
             };
             if ret < 0 {
                 let err = std::io::Error::last_os_error();
@@ -602,6 +639,20 @@ impl WatWriter for PipeWriter {
     fn flush(&self) -> Result<(), RuntimeError> {
         // Pipes have no user-level buffer. Kernel-buffered bytes
         // become readable to the peer as soon as write(2) returns.
+        Ok(())
+    }
+
+    fn close(&self) -> Result<(), RuntimeError> {
+        let raw = self.fd.swap(-1, Ordering::SeqCst);
+        if raw >= 0 {
+            // Errors from close(2) are advisory (typically EINTR or
+            // EIO from a previously-failed write). Don't surface;
+            // the swap already marked the writer closed, and the
+            // caller's interest is just "release the fd."
+            unsafe {
+                libc::close(raw);
+            }
+        }
         Ok(())
     }
 }
@@ -1011,6 +1062,33 @@ pub fn eval_iowriter_flush(
     arity(op, args, 1)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
     writer.flush()?;
+    Ok(Value::Unit)
+}
+
+/// `(:wat::io::IOWriter/close <writer>)` → `:()`. Idempotent.
+///
+/// For pipe-backed writers, releases the fd immediately — peer
+/// readers see EOF on next read. Needed because the writer Arc may
+/// be held by an enclosing struct (e.g.,
+/// `:wat::kernel::Process.stdin`) that outlives the write phase;
+/// without explicit close, the kernel pipe stays open until the
+/// struct drops. For non-pipe backings (StringIoWriter, RealStdout,
+/// RealStderr) close is a no-op — closing real OS stdio would
+/// break the parent process. Subsequent writes against a closed
+/// pipe writer return an error.
+///
+/// Arc 103b enabler. The wat-level `run-sandboxed` helper writes
+/// each pre-seeded stdin line to `proc.stdin`, calls close to
+/// signal EOF, then drains `proc.stdout` / `proc.stderr`.
+pub fn eval_iowriter_close(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::IOWriter/close";
+    arity(op, args, 1)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
+    writer.close()?;
     Ok(Value::Unit)
 }
 

@@ -90,6 +90,16 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/std/hermetic.wat",
         source: include_str!("../wat/std/hermetic.wat"),
     },
+    // Arc 103b — wat/std/sandbox.wat (a wat-level reimplementation
+    // of run-sandboxed atop spawn-program) is INTENTIONALLY NOT
+    // bundled. The substrate Rust impls in src/sandbox.rs absorb
+    // startup / validation / panic failures into RunResult.failure;
+    // the wat-level path can't replicate that capture without a
+    // spawn-program error-as-data refactor (returning
+    // `:Result<Process, StartupError>` instead of raising). The
+    // refactor is its own arc; until then, the Rust dispatch arms
+    // keep winning and the wat-level scaffold lives in source as
+    // documentation of the future shape. See arc 103's DESIGN.md.
     WatSource {
         path: "wat/std/test.wat",
         source: include_str!("../wat/std/test.wat"),

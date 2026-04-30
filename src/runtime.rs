@@ -2384,6 +2384,7 @@ fn dispatch_keyword_head(
         ":wat::io::IOWriter/println" => crate::io::eval_iowriter_println(args, env, sym),
         ":wat::io::IOWriter/writeln" => crate::io::eval_iowriter_writeln(args, env, sym),
         ":wat::io::IOWriter/flush" => crate::io::eval_iowriter_flush(args, env, sym),
+        ":wat::io::IOWriter/close" => crate::io::eval_iowriter_close(args, env, sym),
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
         ":wat::holon::Atom" => eval_algebra_atom(args, env, sym),
@@ -2541,6 +2542,19 @@ fn dispatch_keyword_head(
         ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym),
         ":wat::kernel::HandlePool::pop" => eval_handle_pool_pop(args, env, sym),
         ":wat::kernel::HandlePool::finish" => eval_handle_pool_finish(args, env, sym),
+        // Arc 103b — wat/std/sandbox.wat ships wat-level defines at
+        // the same paths as the run-sandboxed family, atop the new
+        // spawn-program substrate. The Rust dispatch arms below
+        // still win at runtime because they're matched before the
+        // symbol-table lookup. The wat-level defines stand as
+        // scaffolding; the full flip waits on spawn-program
+        // surfacing startup errors as `:Result<Process, _>` data
+        // (the existing run-sandboxed Rust impl absorbs startup /
+        // validation / panic failures into RunResult.failure, which
+        // the spawn-program path can't yet replicate without the
+        // error-as-data refactor). Substrate `Vec<String>` therefore
+        // survives ONE more round at the test-convenience boundary;
+        // a follow-up arc closes the gap.
         ":wat::kernel::run-sandboxed" => crate::sandbox::eval_kernel_run_sandboxed(args, env, sym),
         ":wat::kernel::run-sandboxed-ast" => {
             crate::sandbox::eval_kernel_run_sandboxed_ast(args, env, sym)

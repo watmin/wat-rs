@@ -5051,6 +5051,18 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: unit_ty(),
         },
     );
+    // Arc 103b — explicit close for pipe-backed writers. Idempotent.
+    // For non-pipe backings (StringIoWriter, RealStdout, RealStderr)
+    // close is a no-op — closing real OS stdio would break the
+    // parent process.
+    env.register(
+        ":wat::io::IOWriter/close".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![iowriter_ty()],
+            ret: unit_ty(),
+        },
+    );
     // Arc 093 — auto-deleting temp file / temp dir wrappers
     // around Rust's `tempfile` crate. Drop unlinks the file/dir
     // when the wat value's Arc-count reaches zero. Caller binds
