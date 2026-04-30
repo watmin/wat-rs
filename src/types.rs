@@ -640,7 +640,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // in the symbol table at freeze time via register_struct_methods.
     env.register_builtin(TypeDef::Struct(StructDef {
         name: ":wat::kernel::ForkedChild".into(),
-        type_params: vec![],
+        type_params: vec!["I".into(), "O".into()],
         fields: vec![
             (
                 "handle".into(),
@@ -690,7 +690,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // symbol table at freeze time via register_struct_methods.
     env.register_builtin(TypeDef::Struct(StructDef {
         name: ":wat::kernel::Process".into(),
-        type_params: vec![],
+        type_params: vec!["I".into(), "O".into()],
         fields: vec![
             (
                 "stdin".into(),

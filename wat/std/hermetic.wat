@@ -90,7 +90,7 @@
 ;; user surface: same keyword path, same (forms, stdin, scope)
 ;; signature, same :wat::kernel::RunResult return shape.
 (:wat::core::define
-  (:wat::kernel::run-sandboxed-hermetic-ast
+  (:wat::kernel::run-sandboxed-hermetic-ast<I,O>
     (forms :Vec<wat::WatAST>)
     (stdin :Vec<String>)
     (scope :Option<String>)
@@ -110,7 +110,7 @@
                :None))))
     (:None
      (:wat::core::let*
-       (((child :wat::kernel::ForkedChild)
+       (((child :wat::kernel::ForkedChild<I,O>)
          (:wat::kernel::fork-program-ast forms))
         ((handle :wat::kernel::ChildHandle)
          (:wat::kernel::ForkedChild/handle child))

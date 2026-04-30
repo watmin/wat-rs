@@ -52,7 +52,7 @@ fn fork_child_writes_stdout_parent_reads_line() {
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild)
+            (((child :wat::kernel::ForkedChild<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -78,7 +78,7 @@ fn fork_child_writes_stderr_parent_reads_line() {
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild)
+            (((child :wat::kernel::ForkedChild<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -102,7 +102,7 @@ fn wait_child_returns_zero_on_success() {
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild)
+            (((child :wat::kernel::ForkedChild<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -126,7 +126,7 @@ fn wait_child_is_idempotent() {
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild)
+            (((child :wat::kernel::ForkedChild<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -156,7 +156,7 @@ fn wait_child_surfaces_startup_error_exit_code() {
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild)
+            (((child :wat::kernel::ForkedChild<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -183,7 +183,7 @@ fn wait_child_surfaces_panic_exit_code() {
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild)
+            (((child :wat::kernel::ForkedChild<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -209,7 +209,7 @@ fn wait_child_surfaces_runtime_error_exit_code() {
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild)
+            (((child :wat::kernel::ForkedChild<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -234,9 +234,9 @@ fn multiple_sequential_forks_no_leak() {
     // fork+wait cycles from one parent.
     let src = r#"
 
-        (:wat::core::define (:my::one-fork -> :i64)
+        (:wat::core::define (:my::one-fork<I,O> -> :i64)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild)
+            (((child :wat::kernel::ForkedChild<I,O>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -271,7 +271,7 @@ fn wait_child_surfaces_nonzero_exit_code() {
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild)
+            (((child :wat::kernel::ForkedChild<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main -> :i64) 42))))
@@ -291,7 +291,7 @@ fn fork_child_reads_stdin_from_parent() {
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
-            (((child :wat::kernel::ForkedChild)
+            (((child :wat::kernel::ForkedChild<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main

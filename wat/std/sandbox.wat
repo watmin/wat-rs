@@ -78,8 +78,8 @@
 ;; is a no-op on zero bytes; close still fires; child sees EOF on
 ;; first read-line.
 (:wat::core::define
-  (:wat::kernel::drive-sandbox
-    (proc  :wat::kernel::Process)
+  (:wat::kernel::drive-sandbox<I,O>
+    (proc  :wat::kernel::Process<I,O>)
     (stdin :Vec<String>)
     -> :wat::kernel::RunResult)
   (:wat::core::let*

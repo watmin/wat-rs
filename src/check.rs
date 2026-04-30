@@ -6602,31 +6602,35 @@ fn register_builtins(env: &mut CheckEnv) {
             ]),
         },
     );
-    // (:wat::kernel::fork-program-ast forms) → :wat::kernel::ForkedChild.
-    // Arc 012 slice 2. Forks the current wat process (COW-inheriting
-    // the loaded substrate), runs the caller's forms as a fresh
-    // :user::main in the child, returns the ForkedChild struct
-    // holding the child's handle + stdio pipe ends.
+    // (:wat::kernel::fork-program-ast forms) → :wat::kernel::ForkedChild<I, O>.
+    // Arc 012 slice 2 + arc 112 phantom-param lift. Forks the current
+    // wat process (COW-inheriting the loaded substrate), runs the
+    // caller's forms as a fresh :user::main in the child, returns the
+    // ForkedChild struct holding the child's handle + stdio pipe ends.
+    let forked_child_ty = || TypeExpr::Parametric {
+        head: "wat::kernel::ForkedChild".into(),
+        args: vec![
+            TypeExpr::Path(":I".into()),
+            TypeExpr::Path(":O".into()),
+        ],
+    };
     env.register(
         ":wat::kernel::fork-program-ast".into(),
         TypeScheme {
-            type_params: vec![],
+            type_params: vec!["I".into(), "O".into()],
             params: vec![TypeExpr::Parametric {
                 head: "Vec".into(),
                 args: vec![TypeExpr::Path(":wat::WatAST".into())],
             }],
-            ret: TypeExpr::Path(":wat::kernel::ForkedChild".into()),
+            ret: forked_child_ty(),
         },
     );
-    // (:wat::kernel::fork-program src scope) → :wat::kernel::ForkedChild.
-    // Arc 104b. Source-string sibling of fork-program-ast. Source is
-    // parsed inside the child branch (post-fork); parse errors surface
-    // as exit code 3 + stderr text. The source-entry primitive that
-    // arc 104c's wat-cli builds on.
+    // (:wat::kernel::fork-program src scope) → :wat::kernel::ForkedChild<I, O>.
+    // Arc 104b + arc 112.
     env.register(
         ":wat::kernel::fork-program".into(),
         TypeScheme {
-            type_params: vec![],
+            type_params: vec!["I".into(), "O".into()],
             params: vec![
                 TypeExpr::Path(":String".into()),
                 TypeExpr::Parametric {
@@ -6634,7 +6638,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ],
-            ret: TypeExpr::Path(":wat::kernel::ForkedChild".into()),
+            ret: forked_child_ty(),
         },
     );
     // (:wat::kernel::spawn-program src scope) →
@@ -6657,17 +6661,25 @@ fn register_builtins(env: &mut CheckEnv) {
     // distinction means real fork (`fork-program-ast`); in-thread
     // "hermetic" reduces to "inner program declares its own Config
     // preamble," which is a wat-level discipline.
-    let process_or_startup_error = TypeExpr::Parametric {
+    // Arc 112 — Process<I, O> phantom-param lift.
+    let process_ty = || TypeExpr::Parametric {
+        head: "wat::kernel::Process".into(),
+        args: vec![
+            TypeExpr::Path(":I".into()),
+            TypeExpr::Path(":O".into()),
+        ],
+    };
+    let process_or_startup_error = || TypeExpr::Parametric {
         head: "Result".into(),
         args: vec![
-            TypeExpr::Path(":wat::kernel::Process".into()),
+            process_ty(),
             TypeExpr::Path(":wat::kernel::StartupError".into()),
         ],
     };
     env.register(
         ":wat::kernel::spawn-program".into(),
         TypeScheme {
-            type_params: vec![],
+            type_params: vec!["I".into(), "O".into()],
             params: vec![
                 TypeExpr::Path(":String".into()),
                 TypeExpr::Parametric {
@@ -6675,13 +6687,13 @@ fn register_builtins(env: &mut CheckEnv) {
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ],
-            ret: process_or_startup_error.clone(),
+            ret: process_or_startup_error(),
         },
     );
     env.register(
         ":wat::kernel::spawn-program-ast".into(),
         TypeScheme {
-            type_params: vec![],
+            type_params: vec!["I".into(), "O".into()],
             params: vec![
                 TypeExpr::Parametric {
                     head: "Vec".into(),
@@ -6692,7 +6704,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ],
-            ret: process_or_startup_error,
+            ret: process_or_startup_error(),
         },
     );
     // (:wat::kernel::wait-child handle) → :i64. Blocks on waitpid;
