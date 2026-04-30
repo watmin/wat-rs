@@ -2449,12 +2449,17 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::string::trim` | `s` | `:String` |
 | `:wat::core::string::split` / `join` | `hay sep` / `sep pieces` | `:Vec<String>` / `:String` |
 | `:wat::core::regex::matches?` | `pattern haystack` | `:bool` — unanchored |
-| `:wat::kernel::run-sandboxed` | `src stdin scope` | `:wat::kernel::RunResult` |
-| `:wat::kernel::run-sandboxed-ast` | `forms stdin scope` | `:wat::kernel::RunResult` |
+| `:wat::kernel::run-sandboxed` | `src stdin scope` | `:wat::kernel::RunResult` — wat stdlib define in `wat/std/sandbox.wat` (arc 105c), atop spawn-program |
+| `:wat::kernel::run-sandboxed-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — same file, atop spawn-program-ast |
 | `:wat::kernel::run-sandboxed-hermetic-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — forks a child via `:wat::kernel::fork-program-ast`; wat stdlib define in `wat/std/hermetic.wat` |
 | `:wat::kernel::pipe` | — | `:(IOWriter, IOReader)` — libc::pipe(2), PipeWriter first |
-| `:wat::kernel::fork-program-ast` | `forms` | `:wat::kernel::ForkedChild` — libc::fork(2) + three pipes |
+| `:wat::kernel::spawn-program` | `src scope` | `:Result<:wat::kernel::Process, :wat::kernel::StartupError>` — thread; arc 103a / arc 105a |
+| `:wat::kernel::spawn-program-ast` | `forms scope` | `:Result<:wat::kernel::Process, :wat::kernel::StartupError>` — thread; arc 103a / arc 105a |
+| `:wat::kernel::fork-program` | `src scope` | `:wat::kernel::ForkedChild` — libc::fork(2); arc 104b |
+| `:wat::kernel::fork-program-ast` | `forms` | `:wat::kernel::ForkedChild` — libc::fork(2); was `fork-with-forms` pre-arc-104a |
 | `:wat::kernel::wait-child` | `handle` | `:i64` — waitpid, idempotent |
+| `:wat::kernel::ThreadDiedError/message` | `err` | `:String` — extracts msg regardless of variant; arc 105b |
+| `:wat::kernel::ThreadDiedError/to-failure` | `err` | `:wat::kernel::Failure` — preserves arc 064 actual/expected when assertion-payload-carrying; arc 105c |
 | `:wat::kernel::assertion-failed!` | `message actual expected` | `:()` — panics with AssertionPayload |
 | `:wat::std::stream::spawn-producer` | `producer-fn` | `:Stream<T>` |
 | `:wat::std::stream::from-receiver` | `rx handle` | `:Stream<T>` |
