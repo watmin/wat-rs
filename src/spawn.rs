@@ -202,7 +202,9 @@ fn spawn_with_world_into_result(
             Value::io__IOWriter(parent_stdin),
             Value::io__IOReader(parent_stdout),
             Value::io__IOReader(parent_stderr),
-            Value::wat__kernel__ProgramHandle(Arc::new(rx)),
+            Value::wat__kernel__ProgramHandle(Arc::new(
+                crate::runtime::ProgramHandleInner::InThread(rx),
+            )),
         ],
     }));
     Ok(Value::Result(Arc::new(Ok(process))))

@@ -226,21 +226,23 @@ pub enum Value {
     /// `((a b ...) rhs)` binder shape. The unit type `:()` stays on
     /// [`Value::Unit`] — tuples start at arity 1.
     Tuple(Arc<Vec<Value>>),
-    /// A spawned program's handle — `:ProgramHandle<R>` per
-    /// FOUNDATION. Returned by `:wat::kernel::spawn`; consumed by
-    /// `:wat::kernel::join` (panic on death) or
-    /// `:wat::kernel::join-result` (death-as-data; arc 060).
-    /// Structurally a one-shot result channel: the spawned thread
-    /// sends its outcome on the receiver end once; either join verb
-    /// does `recv`. No Mutex — the channel itself is the
-    /// synchronization. The spawn body is wrapped in `catch_unwind`
-    /// so a panic in the spawned function's eval becomes a captured
-    /// [`SpawnOutcome::Panic`] message rather than an unwinding
-    /// thread death; both join verbs see the captured message
-    /// in-band. If the substrate's catch_unwind itself fails (rare;
-    /// substrate bug) the channel disconnects and the join verbs
-    /// surface that distinctly.
-    wat__kernel__ProgramHandle(Arc<crossbeam_channel::Receiver<SpawnOutcome>>),
+    /// A program's handle — `:ProgramHandle<R>` per FOUNDATION.
+    /// Pre-arc-112 the wait mechanism was thread-only (a one-shot
+    /// crossbeam result channel); arc 112 lifts the inner repr to
+    /// an enum so the SAME wat-level type can carry either an
+    /// in-thread receiver (the classic spawn / spawn-program path)
+    /// OR a forked-process pid (the fork-program path). Returned
+    /// by `:wat::kernel::spawn` (InThread) and stored as the
+    /// internal wait field of `:wat::kernel::Process<I,O>` (InThread
+    /// or Forked depending on whether the Process came from
+    /// spawn-program or fork-program). Consumed by
+    /// `:wat::kernel::join` / `:wat::kernel::join-result` (operating
+    /// on the bare handle from `spawn` — InThread arm only) and
+    /// `:wat::kernel::Process/join-result` (operating on a Process —
+    /// dispatches on either variant). The InThread arm preserves
+    /// arc 060's catch_unwind contract; the Forked arm wraps
+    /// waitpid + exit-code interpretation.
+    wat__kernel__ProgramHandle(Arc<ProgramHandleInner>),
     /// A claim-or-panic handle pool — `:HandlePool<T>` per FOUNDATION.
     /// Backing: a bounded crossbeam channel pre-filled with N handles
     /// and its sender dropped immediately, so `is_empty` means the
@@ -418,6 +420,35 @@ pub enum SpawnOutcome {
         message: String,
         assertion: Option<crate::assertion::AssertionPayload>,
     },
+}
+
+/// Internal repr of a [`Value::wat__kernel__ProgramHandle`] (arc
+/// 112 unification). Two variants discriminate the wait mechanism:
+///
+/// - [`Self::InThread`] — the classic in-thread spawn / spawn-program
+///   path. The handle owns one end of a one-shot crossbeam channel
+///   the spawned thread sends its [`SpawnOutcome`] on. Wait =
+///   `recv` on the channel; produces `ThreadDiedError` variants on
+///   failure.
+/// - [`Self::Forked`] — the fork-program path. The handle owns an
+///   `Arc<ChildHandleInner>` (libc pid + reaped flag + cached exit).
+///   Wait = `waitpid` on the pid; produces `ProcessDiedError`
+///   variants synthesized from the exit code + (in slice 2b) any
+///   captured stderr framing.
+///
+/// The wat-level type is `:wat::kernel::ProgramHandle<R>` regardless
+/// of variant; bare `:wat::kernel::join-result` operates only on the
+/// InThread arm and returns `Result<R, ThreadDiedError>`. The new
+/// `:wat::kernel::Process/join-result` (arc 112) operates on either
+/// arm via the Process struct's internal handle, returning
+/// `Result<(), ProcessDiedError>`. The Forked arm of a bare-handle
+/// `join-result` call is a usage error today (the handle would have
+/// to come from a Process/join field accessor); slice 2a routes
+/// the canonical Process wait path through Process/join-result.
+#[derive(Debug)]
+pub enum ProgramHandleInner {
+    InThread(crossbeam_channel::Receiver<SpawnOutcome>),
+    Forked(Arc<crate::fork::ChildHandleInner>),
 }
 
 impl Value {
@@ -11123,7 +11154,9 @@ fn eval_kernel_spawn(
         };
         let _ = tx.send(outcome);
     });
-    Ok(Value::wat__kernel__ProgramHandle(Arc::new(rx)))
+    Ok(Value::wat__kernel__ProgramHandle(Arc::new(
+        ProgramHandleInner::InThread(rx),
+    )))
 }
 
 /// Coerce a `catch_unwind` panic payload to a printable String —
@@ -11211,7 +11244,7 @@ fn eval_kernel_join(
         });
     }
     let handle = match eval(&args[0], env, sym)? {
-        Value::wat__kernel__ProgramHandle(rx) => rx,
+        Value::wat__kernel__ProgramHandle(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::join".into(),
@@ -11220,17 +11253,38 @@ fn eval_kernel_join(
             });
         }
     };
-    match handle.recv() {
-        Ok(SpawnOutcome::Ok(v)) => Ok(v),
-        Ok(SpawnOutcome::RuntimeErr(e)) => Err(e),
-        Ok(SpawnOutcome::Panic { message, .. }) => Err(RuntimeError::ChannelDisconnected {
-            op: format!(":wat::kernel::join (spawned thread panicked: {})", message),
-        }),
-        Err(_) => Err(RuntimeError::ChannelDisconnected {
-            op: ":wat::kernel::join (channel disconnected; substrate bug — \
-                 no panic payload captured)"
-                .into(),
-        }),
+    match handle.as_ref() {
+        ProgramHandleInner::InThread(rx) => match rx.recv() {
+            Ok(SpawnOutcome::Ok(v)) => Ok(v),
+            Ok(SpawnOutcome::RuntimeErr(e)) => Err(e),
+            Ok(SpawnOutcome::Panic { message, .. }) => Err(RuntimeError::ChannelDisconnected {
+                op: format!(":wat::kernel::join (spawned thread panicked: {})", message),
+            }),
+            Err(_) => Err(RuntimeError::ChannelDisconnected {
+                op: ":wat::kernel::join (channel disconnected; substrate bug — \
+                     no panic payload captured)"
+                    .into(),
+            }),
+        },
+        ProgramHandleInner::Forked(child) => {
+            // Arc 112 — bare `join` on a forked-program handle blocks
+            // on waitpid (matching the "trust this program" stance);
+            // exit 0 yields :() (the Process<I,O> R is always () today),
+            // any non-zero exit panics the caller with the exit code
+            // baked into the message. Equivalent abstraction layer to
+            // arc 060's bare join: the caller has chosen to NOT match
+            // on death-as-data and accepts that catastrophic exit is
+            // a panic. Death-as-data callers reach for
+            // `:wat::kernel::Process/join-result` instead.
+            let code = child.wait_or_cached();
+            if code == 0 {
+                Ok(Value::Unit)
+            } else {
+                Err(RuntimeError::ChannelDisconnected {
+                    op: format!(":wat::kernel::join (forked program exited {})", code),
+                })
+            }
+        }
     }
 }
 
@@ -11264,7 +11318,7 @@ fn eval_kernel_join_result(
         });
     }
     let handle = match eval(&args[0], env, sym)? {
-        Value::wat__kernel__ProgramHandle(rx) => rx,
+        Value::wat__kernel__ProgramHandle(h) => h,
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::kernel::join-result".into(),
@@ -11273,15 +11327,34 @@ fn eval_kernel_join_result(
             });
         }
     };
-    let value = match handle.recv() {
-        Ok(SpawnOutcome::Ok(v)) => Value::Result(Arc::new(Ok(v))),
-        Ok(SpawnOutcome::RuntimeErr(e)) => {
-            Value::Result(Arc::new(Err(thread_died_error_runtime(e.to_string()))))
+    let value = match handle.as_ref() {
+        ProgramHandleInner::InThread(rx) => match rx.recv() {
+            Ok(SpawnOutcome::Ok(v)) => Value::Result(Arc::new(Ok(v))),
+            Ok(SpawnOutcome::RuntimeErr(e)) => {
+                Value::Result(Arc::new(Err(thread_died_error_runtime(e.to_string()))))
+            }
+            Ok(SpawnOutcome::Panic { message, assertion }) => Value::Result(Arc::new(Err(
+                thread_died_error_panic(message, assertion.clone()),
+            ))),
+            Err(_) => Value::Result(Arc::new(Err(thread_died_error_channel_disconnected()))),
+        },
+        ProgramHandleInner::Forked(child) => {
+            // Arc 112 — bare `join-result` on a forked handle waits via
+            // waitpid and renders the outcome as ThreadDiedError (the
+            // bare-Thread-side error type) preserving this verb's
+            // arc-060 surface. Death-as-data with the Process subject
+            // honored (ProcessDiedError) lives on
+            // `:wat::kernel::Process/join-result`.
+            let code = child.wait_or_cached();
+            if code == 0 {
+                Value::Result(Arc::new(Ok(Value::Unit)))
+            } else {
+                Value::Result(Arc::new(Err(thread_died_error_panic(
+                    format!("forked program exited {}", code),
+                    None,
+                ))))
+            }
         }
-        Ok(SpawnOutcome::Panic { message, assertion }) => {
-            Value::Result(Arc::new(Err(thread_died_error_panic(message, assertion))))
-        }
-        Err(_) => Value::Result(Arc::new(Err(thread_died_error_channel_disconnected()))),
     };
     Ok(value)
 }

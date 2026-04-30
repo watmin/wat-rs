@@ -192,6 +192,28 @@ impl ChildHandleInner {
             cached_exit: OnceLock::new(),
         }
     }
+
+    /// Block on `waitpid` (idempotently) and return the exit code.
+    /// Caches the first observation; subsequent calls return the
+    /// cached value. Used by both legacy `wait-child` and arc-112's
+    /// unified ProgramHandle Forked variant + Process/join-result.
+    pub fn wait_or_cached(&self) -> i64 {
+        if let Some(&code) = self.cached_exit.get() {
+            return code;
+        }
+        let mut status: libc::c_int = 0;
+        let ret = unsafe { libc::waitpid(self.pid, &mut status, 0) };
+        if ret < 0 {
+            // waitpid failure (rare; ECHILD or EINTR). Surface as a
+            // sentinel non-zero exit so the caller treats it as
+            // catastrophic. The errno ride-along would land in arc 113.
+            return -1;
+        }
+        let code = extract_exit_code(status);
+        let _ = self.cached_exit.set(code);
+        self.reaped.store(true, Ordering::SeqCst);
+        code
+    }
 }
 
 impl Drop for ChildHandleInner {
