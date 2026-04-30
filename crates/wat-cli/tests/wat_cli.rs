@@ -561,9 +561,145 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
     });
 }
 
+#[test]
+fn sigterm_cascades_two_levels_via_process_group() {
+    // Arc 106 slice 3 — the cascade-depth proof.
+    //
+    // The cli's direct child IS its own process group leader (slice 1's
+    // setpgid). When the wat program in that child calls
+    // `:wat::kernel::fork-program-ast` to spawn a grandchild, the
+    // grandchild inherits the parent's pgid by POSIX default — no
+    // setpgid call in the grandchild's `child_branch` path. Result: cli
+    // + child + grandchild are all in the same process group; the cli's
+    // `killpg(CHILD_PGID, sig)` cascades to every member in one syscall.
+    //
+    // This test verifies the cascade reaches depth 2:
+    //   1. cli forks parent (depth 1 — child_branch_from_source: setpgid).
+    //   2. Parent wat program forks grandchild (depth 2 — child_branch:
+    //      no setpgid, inherits parent's pgid).
+    //   3. Both processes poll `(:wat::kernel::stopped?)`.
+    //   4. Both print READY markers; parent forwards grandchild's READY
+    //      to its own stdout for the test to observe.
+    //   5. Test sends SIGTERM to cli.
+    //   6. cli's handler: flips KERNEL_STOPPED + killpg → kernel
+    //      delivers SIGTERM to BOTH parent and grandchild.
+    //   7. Each handler flips its own KERNEL_STOPPED.
+    //   8. Both poll loops observe stopped → return clean.
+    //   9. Grandchild exits 0 → its stdout closes → parent's
+    //      forward-loop sees :None → returns.
+    //   10. Parent calls wait-child → reaps grandchild → exits 0.
+    //   11. cli's waitpid sees WIFEXITED 0 → cli exits 0.
+    //
+    // If pgid inheritance broke (grandchild in its own group), step 6
+    // would only signal the parent; grandchild keeps running; parent's
+    // forward-loop never returns; test hangs. The test's clean exit IS
+    // the cascade proof.
+    wat::fork::run_in_fork(|| {
+        let program = r#"
+            ;; Parent: forks grandchild via fork-program-ast, then
+            ;; forwards grandchild's stdout to its own stdout. When
+            ;; SIGTERM cascades through the group, grandchild observes
+            ;; stopped, returns, closes its stdout — parent's
+            ;; read-line returns :None — parent exits its forward
+            ;; loop, reaps grandchild via wait-child, returns ().
 
+            (:wat::core::define
+              (:demo::forward-loop
+                (rx :wat::io::IOReader)
+                (out :wat::io::IOWriter)
+                -> :())
+              (:wat::core::match (:wat::io::IOReader/read-line rx) -> :()
+                (:None ())
+                ((Some line)
+                  (:wat::core::let*
+                    (((_ :()) (:wat::io::IOWriter/println out line)))
+                    (:demo::forward-loop rx out)))))
 
+            (:wat::core::define (:user::main
+                                 (stdin  :wat::io::IOReader)
+                                 (stdout :wat::io::IOWriter)
+                                 (stderr :wat::io::IOWriter)
+                                 -> :())
+              (:wat::core::let*
+                (((_ :()) (:wat::io::IOWriter/println stdout "PARENT READY"))
+                 ;; Grandchild source: prints GRANDCHILD READY then
+                 ;; polls stopped?. Pgid inherited from parent (no
+                 ;; setpgid in child_branch); cascade reaches it via
+                 ;; the cli's killpg.
+                 ((child :wat::kernel::ForkedChild)
+                  (:wat::kernel::fork-program-ast
+                    (:wat::test::program
+                      (:wat::core::define (:demo::poll-loop -> :())
+                        (:wat::core::if (:wat::kernel::stopped?) -> :()
+                          ()
+                          (:demo::poll-loop)))
+                      (:wat::core::define (:user::main
+                                           (gstdin  :wat::io::IOReader)
+                                           (gstdout :wat::io::IOWriter)
+                                           (gstderr :wat::io::IOWriter)
+                                           -> :())
+                        (:wat::core::let*
+                          (((_ :()) (:wat::io::IOWriter/println gstdout "GRANDCHILD READY")))
+                          (:demo::poll-loop))))))
+                 ((rx :wat::io::IOReader)
+                  (:wat::kernel::ForkedChild/stdout child))
+                 ((handle :wat::kernel::ChildHandle)
+                  (:wat::kernel::ForkedChild/handle child))
+                 ((_ :()) (:demo::forward-loop rx stdout))
+                 ((_exit :i64) (:wat::kernel::wait-child handle)))
+                ()))
+        "#;
+        let path = write_temp(program);
+        let bin = env!("CARGO_BIN_EXE_wat");
+        let mut child = Command::new(bin)
+            .arg(&path)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn wat");
 
+        // Lock-step: read both READY markers. Order is deterministic —
+        // parent prints PARENT READY before forking, then forks +
+        // forwards grandchild's stdout. Once the parent's read-line
+        // returns the GRANDCHILD READY line, the parent forwards it.
+        // Test reads two lines.
+        use std::io::{BufRead, BufReader};
+        let stdout = child.stdout.take().expect("child stdout");
+        let mut reader = BufReader::new(stdout);
+        let mut parent_line = String::new();
+        let mut grandchild_line = String::new();
+        reader.read_line(&mut parent_line).expect("read parent READY");
+        reader
+            .read_line(&mut grandchild_line)
+            .expect("read grandchild READY");
+        assert_eq!(parent_line.trim(), "PARENT READY");
+        assert_eq!(grandchild_line.trim(), "GRANDCHILD READY");
+
+        // Both processes are in the polling loop. SIGTERM the cli;
+        // cascade reaches both via process group.
+        let cli_pid = child.id() as libc::pid_t;
+        unsafe {
+            libc::kill(cli_pid, libc::SIGTERM);
+        }
+
+        let status = child.wait().expect("wait wat-cli");
+        let code = status.code();
+        let _ = std::fs::remove_file(&path);
+
+        // The grandchild observed stopped via cascade → exited 0;
+        // parent's forward-loop saw :None → returned; parent reaped
+        // grandchild → exited 0; cli waitpid → 0. The cascade is the
+        // load-bearing claim; cli's exit 0 is the proof.
+        assert_eq!(
+            code,
+            Some(0),
+            "cascade proof: cli should exit 0 — both parent AND grandchild \
+             observed stopped? via process-group cascade and returned clean; got {:?}",
+            code
+        );
+    });
+}
 
 
 
