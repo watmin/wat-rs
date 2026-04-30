@@ -42,6 +42,46 @@ abs-path resolution + auto-builds the binary on first invocation):
 | `count-logs.wat` | Count Event::Log rows; print `logs: N`. |
 | `metrics-summary.wat` | Count both Event::Log and Event::Metric rows in one script; print a one-line summary. Proves multiple streams can run sequentially off the same ReadHandle. |
 
+### Bidirectional ping-pong (arc 103a in operational form)
+
+A wat program spawns a wat program. They exchange `:demo::Ping` /
+`:demo::Pong` messages over kernel pipes for N round trips; both
+shut down cleanly when the conversation ends. The mini-TCP
+discipline from `docs/ZERO-MUTEX.md` §"Mini-TCP via paired
+channels" — same shape, transported over `pipe(2)` instead of
+crossbeam channels.
+
+| Script | Purpose |
+|---|---|
+| `ping-pong.wat` | Parent. Spawns `pong.wat`, sends Ping, reads Pong, repeats 5 times, closes child stdin, joins. |
+| `pong.wat` | Child responder. Reads each Ping, mirrors the n in a Pong, recurses. EOF → exit. |
+
+```bash
+$ ./target/release/wat ./wat-scripts/ping-pong.wat
+round 1: ping → pong
+round 2: ping → pong
+round 3: ping → pong
+round 4: ping → pong
+round 5: ping → pong
+done — 5 round trips
+```
+
+The shape:
+
+```
+wat-cli (Rust binary)
+  └─ ping-pong.wat (frozen world A)
+       ├─ stdin/stdout/stderr → real OS handles
+       └─ :wat::kernel::spawn-program (./pong.wat)
+            └─ pong.wat (frozen world B, on a thread)
+                 └─ stdin/stdout/stderr → 3 OS pipe ends
+```
+
+Two wat programs, two frozen worlds, three OS pipes. Neither side
+can reach into the other's bindings; both share the binary's Rust
+shims; communication only crosses the pipe surface. Bidirectional
+back-pressure paces every round-trip.
+
 ### EDN-stdin dispatcher (arc 103c)
 
 The hologram-nesting pattern from arc 103a, made operational. The
