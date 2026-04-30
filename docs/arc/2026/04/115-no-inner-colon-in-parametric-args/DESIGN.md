@@ -155,14 +155,26 @@ we want freeze-only.
 The new mode:
 
 ```
-wat check <file>          # load + parse + type-check + freeze; exit 0 if green
-wat check <file> --json   # diagnostics as structured EDN/JSON for tools
+wat --check <file>          # load + parse + type-check + freeze; exit 0 if green
+wat --check --json <file>   # diagnostics as structured EDN/JSON for tools
 ```
 
-Equivalent to `cargo check` vs `cargo run` in Rust ergonomics:
+Equivalent to `cargo check` vs `cargo run` in Rust ergonomics
+(but expressed as a flag instead of a subcommand to keep
+the today-CLI surface unchanged for existing users):
+
 - `wat <file>` — load + freeze + invoke `:user::main` (today's default)
-- `wat check <file>` — load + freeze + STOP. No `:user::main` call.
+- `wat --check <file>` — load + freeze + STOP. No `:user::main` call.
   Exit 0 if freeze succeeded; non-zero with diagnostics if not.
+
+User direction (2026-04-30):
+
+> i think... we add this into wat-cli as `wat --check some-file.wat`
+> and it either compiles or it doesn't
+
+The flag form means existing tooling, scripts, and editor
+integrations that invoke `wat <file>` keep working unchanged;
+adding `--check` is opt-in, additive.
 
 The freeze stage (parse → type-check → config preamble → macro
 expand → register definitions) is exactly the surface arc 115's
@@ -172,9 +184,10 @@ introduce side effects + uncertainty that have nothing to do with
 
 ### Implementation shape
 
-- New subcommand at `crates/wat-cli/`: `wat check <file>` invokes
-  `wat::freeze::startup_from_source` (or the path-loader equivalent)
-  and exits 0 on success.
+- New `--check` flag at `crates/wat-cli/`: `wat --check <file>`
+  invokes `wat::freeze::startup_from_source` (or the path-loader
+  equivalent) and exits 0 on success. Skips the
+  `invoke_user_main` call the bare-arg form runs.
 - Diagnostics flow through the normal Display path (same migration
   hints, same arc-N references, same line/col when available).
 - `--json` flag emits structured diagnostics suitable for editor
@@ -184,7 +197,7 @@ introduce side effects + uncertainty that have nothing to do with
 ### Why this lives in arc 115 (not a separate arc)
 
 Arc 115's detection-and-sweep cycle benefits from `wat check`
-existing. The sonnet sweep agent runs `wat check probe.wat` to
+existing. The sonnet sweep agent runs `wat --check probe.wat` to
 gauge progress without spawning child processes. Editor users
 run `wat check` on save without execution side effects. The mode
 is a natural prerequisite + companion to the new error class.
@@ -205,15 +218,15 @@ is a natural prerequisite + companion to the new error class.
 
 ## Implementation
 
-### Slice 1 — `wat check` mode
+### Slice 1 — `wat --check` mode
 
-New CLI subcommand at `crates/wat-cli/`. Invokes
+New `--check` flag at `crates/wat-cli/`. Invokes
 `wat::freeze::startup_from_source` (or the path-loader
 equivalent) without calling `invoke_user_main`. Exit 0 on
 freeze success; non-zero with diagnostics on freeze failure.
 
-`--json` flag emits structured EDN-per-line diagnostics for
-editor / agent tooling consumption.
+`--json` flag (composes with `--check`) emits structured
+EDN-per-line diagnostics for editor / agent tooling consumption.
 
 This slice ships independently — useful even before slice 2 lands
 the new error class. Substrate hygiene + future arcs benefit
