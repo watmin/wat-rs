@@ -505,6 +505,44 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::ProcessDiedError — populated in the Err slot of
+    // the :Result returned by verbs that operate on
+    // :wat::kernel::Process<I,O> (arc 112): join-result on a
+    // Process/join handle, process-recv, process-send. Three
+    // variants identical in shape to ThreadDiedError; the name
+    // tracks the SUBJECT (Process — a running Program — vs
+    // ThreadDiedError's thread peer on a channel). After arc 112
+    // unifies spawn-program (in-thread) and fork-program
+    // (out-of-process) under a single Process<I,O> return type, the
+    // Forked variant of ProgramHandle synthesizes ProcessDiedError
+    // from waitpid + exit code; the InThread variant of
+    // ProgramHandle (returned by :wat::kernel::spawn) keeps
+    // ThreadDiedError because its peer is genuinely a thread.
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::kernel::ProcessDiedError".into(),
+        type_params: vec![],
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Panic".into(),
+                fields: vec![
+                    ("message".into(), TypeExpr::Path(":String".into())),
+                    (
+                        "failure".into(),
+                        TypeExpr::Parametric {
+                            head: "Option".into(),
+                            args: vec![TypeExpr::Path(":wat::kernel::Failure".into())],
+                        },
+                    ),
+                ],
+            },
+            EnumVariant::Tagged {
+                name: "RuntimeError".into(),
+                fields: vec![("message".into(), TypeExpr::Path(":String".into()))],
+            },
+            EnumVariant::Unit("ChannelDisconnected".into()),
+        ],
+    }));
+
     // :wat::kernel::Location — a point in a source file. Populated by
     // `:wat::kernel::run-sandboxed` when a panic carries a PanicInfo
     // location, and by future assertion primitives whose failure-payload

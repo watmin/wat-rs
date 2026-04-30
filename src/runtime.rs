@@ -2556,6 +2556,12 @@ fn dispatch_keyword_head(
         ":wat::kernel::ThreadDiedError/to-failure" => {
             eval_thread_died_error_to_failure(args, env, sym)
         }
+        ":wat::kernel::ProcessDiedError/message" => {
+            eval_process_died_error_message(args, env, sym)
+        }
+        ":wat::kernel::ProcessDiedError/to-failure" => {
+            eval_process_died_error_to_failure(args, env, sym)
+        }
         ":wat::kernel::select" => eval_kernel_select(args, env, sym),
         ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym),
         ":wat::kernel::HandlePool::pop" => eval_handle_pool_pop(args, env, sym),
@@ -11399,6 +11405,48 @@ fn thread_died_error_channel_disconnected() -> Value {
     }))
 }
 
+/// Build a `:wat::kernel::ProcessDiedError::Panic` enum value
+/// (arc 112). Sibling of `thread_died_error_panic` for the
+/// Process<I,O> subject. Same payload shape; the type_path
+/// distinguishes them at runtime + at the type-checker.
+#[allow(dead_code)]
+fn process_died_error_panic(
+    message: String,
+    assertion: Option<crate::assertion::AssertionPayload>,
+) -> Value {
+    let failure_field = match assertion {
+        Some(p) => Value::Option(Arc::new(Some(failure_value_from_assertion_payload(p)))),
+        None => Value::Option(Arc::new(None)),
+    };
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ":wat::kernel::ProcessDiedError".into(),
+        variant_name: "Panic".into(),
+        fields: vec![Value::String(Arc::new(message)), failure_field],
+    }))
+}
+
+/// Build a `:wat::kernel::ProcessDiedError::RuntimeError(message)`
+/// enum value (arc 112).
+#[allow(dead_code)]
+fn process_died_error_runtime(message: String) -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ":wat::kernel::ProcessDiedError".into(),
+        variant_name: "RuntimeError".into(),
+        fields: vec![Value::String(Arc::new(message))],
+    }))
+}
+
+/// Build a `:wat::kernel::ProcessDiedError::ChannelDisconnected`
+/// (unit variant) enum value (arc 112).
+#[allow(dead_code)]
+fn process_died_error_channel_disconnected() -> Value {
+    Value::Enum(Arc::new(EnumValue {
+        type_path: ":wat::kernel::ProcessDiedError".into(),
+        variant_name: "ChannelDisconnected".into(),
+        fields: vec![],
+    }))
+}
+
 /// `(:wat::kernel::ThreadDiedError/message err) -> :String`.
 ///
 /// Arc 105b. Extracts the carried String from any
@@ -11417,23 +11465,47 @@ pub fn eval_thread_died_error_message(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::ThreadDiedError/message";
+    eval_died_error_message(args, env, sym, ":wat::kernel::ThreadDiedError")
+}
+
+/// Arc 112 sibling — `(:wat::kernel::ProcessDiedError/message err)
+/// -> :String`. Same shape as `ThreadDiedError/message`; only the
+/// type_path of the enum value differs.
+pub fn eval_process_died_error_message(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    eval_died_error_message(args, env, sym, ":wat::kernel::ProcessDiedError")
+}
+
+/// Shared backbone for ThreadDiedError/message and
+/// ProcessDiedError/message — variants are identical; only the
+/// expected type_path differs.
+fn eval_died_error_message(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    expected_type_path: &'static str,
+) -> Result<Value, RuntimeError> {
+    let op_string = format!("{}/message", expected_type_path);
+    let op: &str = &op_string;
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
+            op: op.into(),
             expected: 1,
             got: args.len(),
         });
     }
     let val = eval(&args[0], env, sym)?;
     match val {
-        Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
+        Value::Enum(ev) if ev.type_path == expected_type_path => {
             match ev.variant_name.as_str() {
                 "Panic" | "RuntimeError" => match ev.fields.first() {
                     Some(Value::String(s)) => Ok(Value::String(s.clone())),
                     _ => Err(RuntimeError::TypeMismatch {
-                        op: OP.into(),
-                        expected: "String inside ThreadDiedError variant",
+                        op: op.into(),
+                        expected: "String inside *DiedError variant",
                         got: "non-String payload",
                     }),
                 },
@@ -11441,15 +11513,15 @@ pub fn eval_thread_died_error_message(
                     Ok(Value::String(Arc::new("channel disconnected".to_string())))
                 }
                 _ => Err(RuntimeError::TypeMismatch {
-                    op: OP.into(),
-                    expected: "ThreadDiedError variant",
-                    got: "unknown ThreadDiedError variant",
+                    op: op.into(),
+                    expected: "*DiedError variant",
+                    got: "unknown *DiedError variant",
                 }),
             }
         }
         other => Err(RuntimeError::TypeMismatch {
-            op: OP.into(),
-            expected: "wat::kernel::ThreadDiedError",
+            op: op.into(),
+            expected: "wat::kernel::*DiedError",
             got: other.type_name(),
         }),
     }
@@ -11477,24 +11549,47 @@ pub fn eval_thread_died_error_to_failure(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::kernel::ThreadDiedError/to-failure";
+    eval_died_error_to_failure(args, env, sym, ":wat::kernel::ThreadDiedError")
+}
+
+/// Arc 112 sibling — `(:wat::kernel::ProcessDiedError/to-failure
+/// err) -> :wat::kernel::Failure`. Same shape as
+/// `ThreadDiedError/to-failure`; only the type_path differs.
+pub fn eval_process_died_error_to_failure(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    eval_died_error_to_failure(args, env, sym, ":wat::kernel::ProcessDiedError")
+}
+
+/// Shared backbone for ThreadDiedError/to-failure and
+/// ProcessDiedError/to-failure — variants are identical; only the
+/// expected type_path differs.
+fn eval_died_error_to_failure(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+    expected_type_path: &'static str,
+) -> Result<Value, RuntimeError> {
+    let op_string = format!("{}/to-failure", expected_type_path);
+    let op: &str = &op_string;
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
+            op: op.into(),
             expected: 1,
             got: args.len(),
         });
     }
     let val = eval(&args[0], env, sym)?;
     match val {
-        Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
+        Value::Enum(ev) if ev.type_path == expected_type_path => {
             match ev.variant_name.as_str() {
                 "Panic" => {
-                    // Field 0: message. Field 1: Option<Failure>.
                     let msg = match ev.fields.first() {
                         Some(Value::String(s)) => (**s).clone(),
                         _ => return Err(RuntimeError::TypeMismatch {
-                            op: OP.into(),
+                            op: op.into(),
                             expected: "String at Panic.message",
                             got: "non-String at field 0",
                         }),
@@ -11504,13 +11599,12 @@ pub fn eval_thread_died_error_to_failure(
                             return Ok(failure.clone());
                         }
                     }
-                    // No structured assertion payload — message-only.
                     Ok(message_only_failure(msg))
                 }
                 "RuntimeError" => match ev.fields.first() {
                     Some(Value::String(s)) => Ok(message_only_failure((**s).clone())),
                     _ => Err(RuntimeError::TypeMismatch {
-                        op: OP.into(),
+                        op: op.into(),
                         expected: "String at RuntimeError.message",
                         got: "non-String at field 0",
                     }),
@@ -11519,15 +11613,15 @@ pub fn eval_thread_died_error_to_failure(
                     Ok(message_only_failure("channel disconnected".to_string()))
                 }
                 _ => Err(RuntimeError::TypeMismatch {
-                    op: OP.into(),
-                    expected: "ThreadDiedError variant",
-                    got: "unknown ThreadDiedError variant",
+                    op: op.into(),
+                    expected: "*DiedError variant",
+                    got: "unknown *DiedError variant",
                 }),
             }
         }
         other => Err(RuntimeError::TypeMismatch {
-            op: OP.into(),
-            expected: "wat::kernel::ThreadDiedError",
+            op: op.into(),
+            expected: "wat::kernel::*DiedError",
             got: other.type_name(),
         }),
     }

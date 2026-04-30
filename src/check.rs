@@ -6886,6 +6886,28 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Path(":wat::kernel::Failure".into()),
         },
     );
+    // (:wat::kernel::ProcessDiedError/message err) -> :String — arc 112.
+    // Sibling of ThreadDiedError/message for the Process<I,O> subject.
+    env.register(
+        ":wat::kernel::ProcessDiedError/message".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
+            ret: TypeExpr::Path(":String".into()),
+        },
+    );
+    // (:wat::kernel::ProcessDiedError/to-failure err) -> :wat::kernel::Failure
+    // — arc 112. Sibling of ThreadDiedError/to-failure. Builds a
+    // structured Failure regardless of variant; preserves arc-064
+    // assertion-payload structure when present.
+    env.register(
+        ":wat::kernel::ProcessDiedError/to-failure".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
+            ret: TypeExpr::Path(":wat::kernel::Failure".into()),
+        },
+    );
     // HandlePool — claim-or-panic discipline.
     //   new    : ∀T. :String -> :Vec<T> -> :HandlePool<T>
     //   pop    : ∀T. :HandlePool<T> -> :T
