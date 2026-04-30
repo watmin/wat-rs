@@ -601,6 +601,43 @@ done by today's bare `:wat::kernel::join-result` (arc 060) which
 operates on `:wat::kernel::ProgramHandle<R>`. Arc 109's resolution
 pass migrates that handle name to `Thread<R>`.
 
+### The error hierarchy mirrors the type hierarchy
+
+```
+:wat::kernel::Program<I,O>      ⟸  :wat::kernel::Thread<I,O>
+                                 |  :wat::kernel::Process<I,O>
+
+:wat::kernel::ProgramDiedError  ⟸  :wat::kernel::ThreadDiedError
+                                 |  :wat::kernel::ProcessDiedError
+```
+
+`:wat::kernel::ProgramDiedError` is the supertype/protocol for
+"a Program (Thread or Process) died." Both `ThreadDiedError`
+(arc 060) and `ProcessDiedError` (arc 112) satisfy it via the
+typeclass mechanism slice 10d mints. Same three variants in
+both — `Panic { message, failure }`, `RuntimeError { message }`,
+`ChannelDisconnected` — only the type-name distinguishes the
+subject (Thread vs. Process).
+
+User-facing reading:
+
+- **Code that doesn't care about host** matches against
+  `:wat::kernel::ProgramDiedError`. One arm covers both. Most
+  receivers live at this level — they want "did the peer die?"
+  not "WHICH host's peer died?"
+- **Code that DOES care about host** pattern-matches on the
+  concrete satisfier. `((ThreadDiedError-Panic msg _) ...)` for
+  thread-specific handling; `((ProcessDiedError-Panic msg _)
+  ...)` for process-specific. Available when needed; not
+  required.
+
+This is the second instance of typeclass-level dispatch arc
+109 § J slice 10d mints — same mechanism handles both
+`Program<I,O>` (the running thing) and `ProgramDiedError`
+(the failure shape). Arc 113's chained-cause backtrace
+(`Vec<ProgramDiedError>`) propagates uniformly across host
+boundaries because it reads against the supertype.
+
 ### `:wat::kernel::join-result` becomes polymorphic over `Program<I,O>`
 
 The polymorphism arc 109 lands:
@@ -628,8 +665,8 @@ mechanism; arc 109 is where it's minted.
 | **10a** | Mint `:wat::kernel::Program<I,O>` as supertype kind. Define satisfaction rule (a struct satisfies Program<I,O> if it has fields `stdin: IOWriter, stdout: IOReader, stderr: IOReader` and a wait-handle that resolves to `Result<(), E>` where `E` extends a "DiedError" supertype). |
 | **10b** | Rename arc-112's unified `:wat::kernel::Process<I,O>` (returned by both spawn-program and fork-program) to `:wat::kernel::Program<I,O>`. Sonnet sweep against TypeMismatch output. |
 | **10c** | Split `Program<I,O>` back into two concrete types: `Thread<I,O>` (returned by `spawn-program` / `spawn-program-ast`; has wait yielding `ThreadDiedError`) and `Process<I,O>` (returned by `fork-program` / `fork-program-ast`; has wait yielding `ProcessDiedError`). Both satisfy the abstract `Program<I,O>`. |
-| **10d** | Mint `:wat::kernel::Thread/join-result` (typed wait on Thread). Mint typeclass dispatch for the polymorphic `:wat::kernel::join-result` verb on `Program<I,O>`. Bare `:wat::kernel::join-result` on a raw `:wat::kernel::ProgramHandle<R>` (from `:wat::kernel::spawn` arc 060) keeps its current `Result<R, ThreadDiedError>` shape — that's the bare-spawn path; the new poly verb is for typed Programs. |
-| **10e** | Sonnet sweep call sites: `Process<...>` annotations from spawn-program → `Thread<...>`; `Process<...>` annotations from fork-program stay; bare `(:wat::kernel::join-result proc)` calls work polymorphically; explicit `(:wat::kernel::Process/join-result ...)` and `(:wat::kernel::Thread/join-result ...)` available for type-explicit code. |
+| **10d** | Mint `:wat::kernel::Thread/join-result` (typed wait on Thread). Mint `:wat::kernel::ProgramDiedError` as the error supertype; both `ThreadDiedError` and `ProcessDiedError` satisfy it. Mint typeclass dispatch for the polymorphic `:wat::kernel::join-result` verb on `Program<I,O>` AND for matching against `ProgramDiedError` at the protocol level (concrete satisfiers still pattern-matchable when subject matters). Bare `:wat::kernel::join-result` on a raw `:wat::kernel::ProgramHandle<R>` (from `:wat::kernel::spawn` arc 060) keeps its current `Result<R, ThreadDiedError>` shape — that's the bare-spawn path; the new poly verb is for typed Programs. |
+| **10e** | Sonnet sweep call sites: `Process<...>` annotations from spawn-program → `Thread<...>`; `Process<...>` annotations from fork-program stay; bare `(:wat::kernel::join-result proc)` calls work polymorphically; explicit `(:wat::kernel::Process/join-result ...)` and `(:wat::kernel::Thread/join-result ...)` available for type-explicit code. Match arms against `:wat::kernel::ProgramDiedError` (host-agnostic) work via the typeclass; specific `ThreadDiedError`/`ProcessDiedError` arms available when subject matters. |
 
 ### Why this is arc 109's problem and not arc 112's
 
@@ -656,6 +693,15 @@ sonnet sweep):
 >
 > :wat::kernel::Thread/join-result and
 > :wat::kernel::Process/join-result are used in the poly
+
+Follow-up direction (same conversation, after arc 113 sketch):
+
+> ProgramDiedError is satisfied by ThreadDiedError and
+> ProcessDiedError -- yea?
+
+Confirmed — the error hierarchy mirrors the type hierarchy. Same
+typeclass mechanism slice 10d mints serves both. See "The error
+hierarchy mirrors the type hierarchy" subsection above.
 
 ## Cross-references
 

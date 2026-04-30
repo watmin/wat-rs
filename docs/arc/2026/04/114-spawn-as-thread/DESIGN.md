@@ -319,14 +319,35 @@ write more code post-migration). Long-term: stronger — one
 pattern (channels for data, join for terminal-state) covers
 every concurrency primitive.
 
+## Error hierarchy parallel
+
+Arc 114's Thread<I,O> uses `:wat::kernel::ThreadDiedError` as
+the Err arm of `Thread/join-result` — same enum arc 060 minted.
+Arc 109 § J slice 10d adds `:wat::kernel::ProgramDiedError` as
+the supertype both `ThreadDiedError` and `ProcessDiedError`
+satisfy; receivers that don't care about host match against
+`ProgramDiedError` and read both kinds via the typeclass.
+
+```
+:wat::kernel::Program<I,O>      ⟸  Thread<I,O>      |  Process<I,O>
+:wat::kernel::ProgramDiedError  ⟸  ThreadDiedError  |  ProcessDiedError
+```
+
+Arc 113 (`Vec<ProgramDiedError>` chained-cause backtrace)
+generalizes naturally over arc 114's Thread output — every conj
+at every hand-off operates against the supertype; the chain
+crosses host boundaries data-faithfully.
+
 ## Cross-references
 
 - `docs/arc/2026/04/060-join-result/INSCRIPTION.md` — the original
   spawn+ThreadDiedError shape arc 114 generalizes.
 - `docs/arc/2026/04/109-kill-std/INVENTORY.md` § J — the
-  Program/Thread/Process supertype split arc 114 lands into.
+  Program/Thread/Process supertype split arc 114 lands into;
+  also where `ProgramDiedError` supertype lives.
 - `docs/arc/2026/04/112-inter-process-result-shape/DESIGN.md` —
   the "Programs have R = unit" commitment arc 114 generalizes
   across the substrate.
-- `docs/arc/2026/04/113-...` (pending) — `Vec<*DiedError>`
-  backtrace arc 114's Thread/join-result lifts cleanly into.
+- `docs/arc/2026/04/113-cascading-runtime-errors/DESIGN.md` —
+  `Vec<ProgramDiedError>` chained-cause backtrace arc 114's
+  Thread/join-result lifts cleanly into.

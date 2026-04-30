@@ -1,5 +1,41 @@
 # Arc 112 — inter-process `Result<Option<T>, ProcessDiedError>` shape over Process<I,O> stdio
 
+## Future evolution (architectural pointer; arc 109 § J / 113 / 114)
+
+Arc 112 slice 2a unified `:wat::kernel::Process<I,O>` as the
+single struct returned by both spawn-program and fork-program.
+That's the right structural mirror for arc 111 (one type, one
+verb pair); it's also a STEPPING STONE toward a sharper
+architecture captured across arcs 109 / 113 / 114:
+
+```
+Program<I,O>          ⟸  Thread<I,O>      |  Process<I,O>
+ProgramDiedError      ⟸  ThreadDiedError  |  ProcessDiedError
+Vec<ProgramDiedError> ← chained-cause backtrace, conj at every hand-off
+```
+
+**Today's `Process<I,O>` (slice 2a's name) becomes tomorrow's
+`Program<I,O>` (the abstract supertype).** Concrete satisfiers
+`Thread<I,O>` (in-thread, from spawn-program) and
+`Process<I,O>` (out-of-process, from fork-program) split out
+under the supertype with different transport mechanisms
+(crossbeam vs pipe+EDN) but uniform protocol surface.
+
+Pointers:
+- `docs/arc/2026/04/109-kill-std/INVENTORY.md` § J — Program /
+  Thread / Process supertype split + ProgramDiedError mirror.
+  Slice 10d mints the typeclass infrastructure.
+- `docs/arc/2026/04/113-cascading-runtime-errors/DESIGN.md` —
+  `Vec<ProgramDiedError>` chained-cause backtrace.
+- `docs/arc/2026/04/114-spawn-as-thread/DESIGN.md` — kill
+  spawn's R; the meta-principle "hosting is user choice;
+  protocol is fixed."
+
+Arc 112's slice 2a shipment is forward-compatible — every
+`Process<I,O>` annotation in the substrate + lab today migrates
+to the new shape via mechanical sweeps (arcs 109 § J / 114 each
+do their own substrate-as-teacher pass).
+
 ## Status
 
 Drafted 2026-04-30. Slice 1 shipped (`592f564`) — phantom params
