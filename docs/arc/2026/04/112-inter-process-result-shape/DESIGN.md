@@ -1,14 +1,34 @@
-# Arc 112 — inter-process `Result<Option<T>, ThreadDiedError>` shape over fork-program stdio
+# Arc 112 — inter-process `Result<Option<T>, ProcessDiedError>` shape over Process<I,O> stdio
 
 ## Status
 
-Drafted 2026-04-30. Generalizes arc 111's intra-process type
-shape to fork-program subprocess pipes. Same `Result<Option<T>,
-E>` surface; different transport (bytes-on-pipe + EDN
-serialization vs. typed Arc-on-channel). Includes the inter-
-process equivalent of arc 110's grammar rule. Lands after arc
-111 closure; arc 113 (rich-Err propagation) fills in the panic
-payload uniformly across in-memory and inter-process channels.
+Drafted 2026-04-30. Slice 1 shipped (`592f564`) — phantom params
+on `Process<I,O>` and `ForkedChild<I,O>`. **Re-scoped 2026-04-30
+session-2** to mirror arc 111 structurally: ONE typed-channel
+struct (`Process<I,O>`) returned by both `spawn-program` AND
+`fork-program`; ONE pair of bare verbs (`process-send` /
+`process-recv`); ONE error type for Process-side death
+(`ProcessDiedError`, distinct from `ThreadDiedError` because
+the subjects are distinct — channels' peer is a thread,
+processes' peer is a Program). Same `Result<Option<T>, E>`
+surface; different transport (bytes-on-pipe + EDN serialization
+vs. typed Arc-on-channel). Includes the inter-process equivalent
+of arc 110's grammar rule. Arc 113 (rich-Err propagation) fills
+in the panic payload uniformly across in-memory and inter-
+process channels.
+
+User direction (2026-04-30, session 2):
+
+> we are mirroring this for inter-process comms - the prior arc
+> handled intra-process -- we are making inter-process
+> structurally identical
+>
+> ThreadDiedError should become ProcessDiedError when using
+> processes?
+>
+> if you need to resolve something to provide the building blocks
+> of simple things who compose into some complex thing with a
+> simple surface - we do it / there are no shortcuts
 
 ## The pathology
 
@@ -47,19 +67,28 @@ follow-up):
 
 ```
 (:wat::kernel::process-send proc value)
-   -> :Result<:(), :wat::kernel::ThreadDiedError>
+   -> :Result<:(), :wat::kernel::ProcessDiedError>
 
 (:wat::kernel::process-recv proc)
-   -> :Result<:Option<T>, :wat::kernel::ThreadDiedError>
+   -> :Result<:Option<T>, :wat::kernel::ProcessDiedError>
 ```
 
 Symmetric with arc 111's intra-process forms. The verbs are
 named `process-*` to distinguish from `:wat::kernel::send` /
 `:wat::kernel::recv` (which operate on crossbeam channels).
 
-`proc` is a `:wat::kernel::Process<I, O>` (or `ForkedChild<I,
-O>`) — a typed wrapper over the existing untyped fork-program /
-spawn-program return:
+`proc` is a `:wat::kernel::Process<I, O>` — a typed wrapper that
+arc 112 unifies as the SINGLE return shape for both
+`spawn-program` (in-thread) AND `fork-program` (out-of-process).
+Pre-arc-112 the substrate had two near-identical struct types
+(`Process<I,O>` for spawn, `ForkedChild<I,O>` for fork) that
+carried the same stdio fields plus a different wait-handle
+field. Arc 112 collapses them: `Process<I,O>` is the canonical
+type, its `join` field a `ProgramHandle<()>` whose internal
+representation discriminates between in-thread (Arc-on-channel
+SpawnOutcome) and out-of-process (waitpid-on-pid). The wait
+mechanism becomes implementation detail; the user sees one
+type, one set of accessors, one wait verb.
 
 - `I` — input payload type the parent sends to child's stdin
 - `O` — output payload type the child sends to parent's stdout
@@ -67,6 +96,38 @@ spawn-program return:
 stderr carries panic / diagnostic info; surfaces in the `Err`
 variant of process-recv's Result, separate from the `O`-typed
 stdout stream.
+
+### The error type — `ProcessDiedError`
+
+Arc 112 introduces `:wat::kernel::ProcessDiedError` as the Err
+type for verbs that operate on `Process<I,O>`. Channels keep
+`:wat::kernel::ThreadDiedError`. Both have identical variant
+shapes:
+
+- `Panic { message: String, failure: Option<Failure> }`
+- `RuntimeError { message: String }`
+- `ChannelDisconnected`
+
+Why two enums with identical variants: the subject's name
+tracks at the type. A receiver holding a `Receiver<T>` (channel
+peer = thread) gets `ThreadDiedError`; a receiver holding a
+`Process<I,O>` (peer = Program — in-thread or forked) gets
+`ProcessDiedError`. Receivers write `((Err died) ...)` either
+way; the type annotation at the binding signals which subject
+died.
+
+Arc 060's `:wat::kernel::join-result` becomes polymorphic on
+the `ProgramHandle<T>` it operates on. A `ProgramHandle<T>`
+returned by `:wat::kernel::spawn` keeps `Result<T,
+ThreadDiedError>` (arc 060 unchanged at that surface). A
+`ProgramHandle<()>` accessed via `Process/join` returns
+`Result<(), ProcessDiedError>`. Same handle TYPE shape; the Err
+variant tracks the subject the handle was minted for.
+
+Arc 113's `Vec<TDE>` chained-cause backtrace generalizes
+naturally: `Vec<ProcessDiedError>` for Process-side, `Vec<ThreadDiedError>`
+for channel-side. Same chain shape; element type tracks the
+subject.
 
 ## The three states (recv side)
 
@@ -77,7 +138,7 @@ Same arms as arc 111's intra-process recv:
 - `Ok(:None)` — child closed stdout cleanly; clean shutdown.
   Both stdout and stderr returned EOF without an error
   signal; child exited 0.
-- `Err(ThreadDiedError)` — one of three sub-conditions:
+- `Err(ProcessDiedError)` — one of three sub-conditions:
   - Child wrote to stderr (anything non-empty) — `Err(Panic
     { message, failure })` carries the stderr bytes (or a
     parsed assertion payload if the framing matches arc 064's
@@ -92,52 +153,90 @@ the implementation underneath does the multiplexing work.
 
 ## Implementation
 
-### Slice 1 — `Process<I, O>` typed wrapper struct
+### Slice 1 (SHIPPED 2026-04-30, `592f564`) — phantom params
 
-A new substrate type that wraps the existing
-`(IOWriter, IOReader, IOReader, ProgramHandle<()>)` shape:
+`Process<I, O>` and `ForkedChild<I, O>` both gained two phantom
+type params. Schemes for `spawn-program` / `spawn-program-ast`
+/ `fork-program` / `fork-program-ast` lifted to parametric
+returns. 22-site fixture sweep + REALIZATIONS captured (the
+eprintln-as-debug-primitive realization). Slice 1 is annotation-
+only; no runtime change.
 
-```rust
-struct WatProcess {
-    stdin: Arc<dyn WatWriter>,        // existing IOWriter
-    stdout: Arc<dyn WatReader>,       // existing IOReader
-    stderr: Arc<dyn WatReader>,       // existing IOReader
-    handle: ProgramHandle<Value>,     // existing handle
-    // type information visible only at the type-checker level;
-    // not stored at runtime (Rust generics erase, so the wrapper
-    // is monomorphic at the value layer)
-}
-```
+Slice 1 left BOTH types alive. Slice 2a unifies them.
 
-`:wat::kernel::Process<I, O>` is the typed face. `fork-program`
-and `spawn-program` return the typed shape; user code can still
-access the raw pipes via accessors if they need bytes-only
-channels (e.g., the wat-cli stdio proxy).
+### Slice 2a — unify `Process<I,O>` and `ForkedChild<I,O>`
 
-Two new accessors:
+The structural-mirror requirement (one channel-type, one verb
+pair, like arc 111) demands one Process struct. `ForkedChild<I,
+O>` retires; `fork-program` / `fork-program-ast` return
+`Process<I, O>`.
 
-- `(:wat::kernel::Process/stdin proc)` — returns the
-  `IOWriter` for raw bytes (escape hatch).
-- `(:wat::kernel::Process/handle proc)` — returns the
-  `ProgramHandle<()>` for join-result.
+Substrate (Rust):
 
-The stdout/stderr readers are NOT exposed as separate
-accessors; arc 112's contract is that you talk to a process
-through `process-send` / `process-recv`, OR you opt out and
-use the raw `IOWriter`/`IOReader`s. Mixing typed and raw on
-the same Process is a usage bug; unenforced today, possibly
-a runtime check in arc 113 if it surfaces as a real defect.
+- `Value::wat__kernel__ProgramHandle` lifts from
+  `Arc<crossbeam_channel::Receiver<SpawnOutcome>>` to an inner
+  enum:
+  ```rust
+  enum ProgramHandleInner {
+      InThread(crossbeam_channel::Receiver<SpawnOutcome>),
+      Forked(Arc<ChildHandleInner>),
+  }
+  ```
+- `eval_kernel_join_result` dispatches on the variant. InThread
+  arm: arc 060 logic unchanged (returns
+  `Result<R, ThreadDiedError>` when called on a spawn-handle).
+  Forked arm: waitpid + exit-code interpretation (returns
+  `Result<(), ProcessDiedError>` when called on a Process/join
+  handle).
+- `:wat::kernel::ProcessDiedError` enum minted with the same
+  three variants as `ThreadDiedError`: `Panic { message,
+  failure }`, `RuntimeError { message }`, `ChannelDisconnected`.
+- `fork-program-ast` / `fork-program` return
+  `Value::Struct { type_name: ":wat::kernel::Process", ... }`
+  with `join: ProgramHandle<()>` carrying the Forked variant.
+- `Value::wat__kernel__ChildHandle` retires (or stays as an
+  internal-only payload of the Forked variant; not user-visible).
+- `:wat::kernel::wait-child` retires. Callers reach for
+  `(:wat::kernel::join-result (:wat::kernel::Process/join proc))`.
+- `:wat::kernel::ForkedChild` type retires from `types.rs`.
 
-### Slice 2 — `process-send` and `process-recv` substrate fns
+Substrate stdlib (wat):
+
+- `wat/std/sandbox.wat::drive-sandbox` already uses Process; no
+  change.
+- `wat/std/hermetic.wat::run-sandboxed-hermetic-ast` swaps
+  `ForkedChild<I,O>` → `Process<I,O>`. The exit-code
+  interpretation (`failure-from-exit`, `exit-code-prefix`,
+  `failure-message-for-code`) MOVES into substrate
+  `eval_kernel_join_result`'s Forked arm — its result lands as
+  `Result<(), ProcessDiedError>` and the `Err` variants map
+  cleanly to `Failure` via the existing
+  `ThreadDiedError/to-failure` accessor (arc 105c) which gains
+  a `ProcessDiedError/to-failure` sibling. The hand-written
+  exit-code-to-prefix logic in hermetic.wat collapses.
+
+Migration hint: `src/check.rs::arc_112_migration_hint(callee,
+expected, got)` detects:
+- `:ForkedChild<I,O>` annotations → suggest `:Process<I,O>`.
+- `(:wait-child handle) → :i64` → suggest
+  `(:join-result handle) → :Result<(),:ProcessDiedError>`.
+- Type mismatch involving `:Result<:Option<T>,
+  :ThreadDiedError>` on a Process subject → suggest
+  `:Result<:Option<T>, :ProcessDiedError>`.
+
+Self-describing pattern. Same three-audience read as arc 111
+(humans / agents / orchestrators).
+
+### Slice 2b — `process-send` / `process-recv` substrate fns
 
 `eval_kernel_process_send(proc, value)`:
 
 1. Render `value` via `:wat::edn::write` (arc 092 EDN v4).
 2. Append newline.
 3. Write to `proc.stdin` via `IOWriter/write-string`.
-4. Return `Ok(())` on successful write; `Err(ChannelDisconnected)`
-   if the pipe is closed (child exited or panicked before
-   reading).
+4. Return `Ok(())` on successful write;
+   `Err(ChannelDisconnected)` if the pipe is closed (child
+   exited or panicked before reading).
 
 `eval_kernel_process_recv(proc)`:
 
@@ -162,6 +261,11 @@ two oneshot reader threads, OR `mio` / `nix::poll` on the
 two fds. Spawn-thread per pipe is the simplest portable
 shape and matches the existing wat-cli stdio-proxy pattern.
 
+Schemes register `process-send` and `process-recv` polymorphic
+over `<I, O>`, taking `Process<I, O>` as the first arg. `T` in
+`Result<Option<T>, ProcessDiedError>` resolves to `O` for
+`process-recv`; `process-send`'s second arg is typed `:I`.
+
 ### Slice 3 — grammar rule extends to inter-process comm
 
 `validate_comm_positions` from arc 110 currently flags
@@ -180,22 +284,42 @@ if matches!(head_str,
 }
 ```
 
-The `arc_111_migration_hint` extends to detect arc-112-shape
-mismatches too — same self-describing pattern (substrate is
-the teacher / progress meter / brief).
+The `arc_112_migration_hint` covers slice 2a's type rename
+cases AND slice 2b's send/recv shape. Same self-describing
+pattern (substrate is the teacher / progress meter / brief).
 
 ### Slice 4 — sweep consumers
 
-The wat-cli is the primary consumer of fork-program; its stdio
-proxy code currently does raw byte forwarding. Likely stays on
-the raw escape-hatch path — bytes ARE its job. The dispatcher
-and ping-pong demos (arc 103c, 141) DO talk EDN over fork
-pipes; they migrate to `process-send` / `process-recv`. Worked
-examples in arc 103/104/106 documentation examples follow.
+After slice 2a lands, the substrate emits arc-112 migration
+hints at every breakage point. The sweep is mechanical:
+
+- `tests/wat_arc104_fork_program.rs`,
+  `tests/wat_fork.rs`,
+  `crates/wat-cli/tests/wat_cli.rs` —
+  ForkedChild → Process; wait-child → join-result + match.
+- The wat-cli's stdio proxy is the bytes-on-pipe path; stays on
+  the raw escape-hatch path (its job IS bytes, not values).
+- Dispatcher and ping-pong demos (arc 103c, 141) DO talk EDN
+  over fork pipes; migrate to `process-send` / `process-recv`.
+
+Sonnet sweep dispatched against the substrate's natural
+diagnostic output (same pattern as arc 111).
 
 ### Slice 5 — INSCRIPTION + USER-GUIDE + 058 row
 
 Same closure shape as arcs 110 + 111.
+
+### Test discipline
+
+Following the arc-111-validated pattern: write a small probe.wat
+on disk that intentionally surfaces the new error class, run the
+wat interpreter, verify the migration hint stream is exact. Then
+sonnet sweep against `cargo test` output. `grep -c "hint: arc
+112"` is the orchestrator-visible progress meter.
+
+The arc 112 slice 1 probe (`tests/arc112_scheme_probe.rs`,
+shipped 2026-04-30) is the unit-test promotion of that pattern;
+slices 2a / 2b add a probe for the new error class.
 
 ## What this arc does NOT do
 
@@ -204,16 +328,15 @@ Same closure shape as arcs 110 + 111.
   rich payload via a uniform mechanism (the OnceLock pieces
   generalize: stderr framing IS the cross-process equivalent
   of an in-memory panic-cell write).
-- Does NOT change `fork-program` / `spawn-program`'s outer
-  signature. Both still return `ForkedChild` / `Process<I,O>`
-  / `Result<Process, StartupError>`. Slice 1 just types `I`
-  and `O` and adds the accessors.
 - Does NOT make raw `IOWriter` / `IOReader` access illegal.
   The wat-cli's stdio proxy and any program doing genuine
   byte-level work keeps the raw path. The typed primitives
   are the ergonomic default; raw is the escape hatch.
 - Does NOT remove arc 110's grammar rule for the in-process
   primitives. Slice 3 extends the rule; doesn't replace it.
+- Does NOT rename `ThreadDiedError`. Channels keep that error
+  type — their peer IS a thread. Only `Process<I,O>`-side death
+  uses the new `ProcessDiedError`.
 
 ## The four questions
 
@@ -244,15 +367,17 @@ algebra.
 
 ## Slicing summary
 
-| Slice | Work |
-|---|---|
-| **1** | `Process<I, O>` typed wrapper + accessors |
-| **2** | `process-send` / `process-recv` runtime + schemes |
-| **3** | Grammar rule extension (arc 110 +process-* verbs) |
-| **4** | Sweep consumers (dispatcher/ping-pong demos; doc examples) |
-| **5** | INSCRIPTION + USER-GUIDE + 058 row |
+| Slice | Work | Status |
+|---|---|---|
+| **1** | Phantom params on Process<I,O> + ForkedChild<I,O> | shipped `592f564` |
+| **2a** | Unify Process<I,O> = ForkedChild<I,O>; mint ProcessDiedError; collapse wait-child into join-result | this slice |
+| **2b** | `process-send` / `process-recv` runtime + schemes | this slice |
+| **3** | Grammar rule extension (arc 110 +process-* verbs) | next |
+| **4** | Sweep consumers (dispatcher/ping-pong demos; doc examples) | sonnet, after substrate green |
+| **5** | INSCRIPTION + USER-GUIDE + 058 row | closure |
 
-Each slice ends green. Slice 1+2 are the structural shipment;
+Each slice ends green. Slice 2a is the structural shipment
+(the type unification building block); 2b lands the verb pair;
 3 is the discipline; 4+5 close the arc.
 
 ## Cross-references
