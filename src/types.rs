@@ -1244,8 +1244,22 @@ fn parse_type_inner(s: &str, original: &str) -> Result<TypeExpr, TypeError> {
         let args = parse_type_list(inside, original)?;
         return Ok(TypeExpr::Parametric { head, args });
     }
-    // Plain path.
-    Ok(TypeExpr::Path(format!(":{}", s)))
+    // Plain path. Arc 109 slice 1a: accept FQDN forms for the
+    // built-in primitive types (`:wat::core::i64`, `:wat::core::f64`,
+    // `:wat::core::bool`, `:wat::core::String`, `:wat::core::u8`).
+    // Canonicalize to the internal bare form during the additive
+    // phase — same TypeExpr regardless of which spelling the user
+    // wrote. Slice 1c retires the bare form at the parser level.
+    let raw_path = format!(":{}", s);
+    let canonical = match raw_path.as_str() {
+        ":wat::core::i64" => ":i64".to_string(),
+        ":wat::core::f64" => ":f64".to_string(),
+        ":wat::core::bool" => ":bool".to_string(),
+        ":wat::core::String" => ":String".to_string(),
+        ":wat::core::u8" => ":u8".to_string(),
+        _ => raw_path,
+    };
+    Ok(TypeExpr::Path(canonical))
 }
 
 /// Parse the body of a tuple-literal type.
