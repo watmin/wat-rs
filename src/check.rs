@@ -6771,6 +6771,73 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         },
     );
+    // (:wat::kernel::process-send proc :I) →
+    //   :Result<:(), :wat::kernel::ProcessDiedError>
+    // Arc 112 slice 2b — typed value send to a Process's stdin.
+    // Renders the value via :wat::edn::write (arc 092 EDN v4),
+    // appends a newline, writes to proc.stdin via
+    // IOWriter/write-string. Returns Ok(()) on landed write;
+    // Err(ProcessDiedError::ChannelDisconnected) when the pipe is
+    // closed (peer Process exited or panicked before reading).
+    //
+    // Pre-§J spelling. Post-arc-109 § J slice 10f this verb
+    // becomes :wat::kernel::Process/send under the typed-method
+    // naming convention; same shape, just renamed.
+    env.register(
+        ":wat::kernel::process-send".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![process_ty(), TypeExpr::Path(":I".into())],
+            ret: TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![
+                    TypeExpr::Tuple(vec![]),
+                    TypeExpr::Path(":wat::kernel::ProcessDiedError".into()),
+                ],
+            },
+        },
+    );
+    // (:wat::kernel::process-recv proc) →
+    //   :Result<:Option<:O>, :wat::kernel::ProcessDiedError>
+    // Arc 112 slice 2b — typed value recv from a Process's stdout.
+    // Reads one line from stdout via IOReader/read-line, parses
+    // via :wat::edn::read (arc 092). Three-state shape mirrors
+    // arc 111's intra-process recv:
+    //
+    //   Ok(Some v)  — child wrote one EDN-framed O; parsed; here.
+    //   Ok(:None)   — child stdout EOF + clean exit (no stderr,
+    //                 exit code 0).
+    //   Err(died)   — child stdout EOF + non-zero exit OR stderr
+    //                 lines populated. died.message carries the
+    //                 stderr contents joined; arc 113 widens this
+    //                 to a Vec<ProgramDiedError> chain.
+    //
+    // Slice-2b limitation (matches arc 105c hermetic.wat's pattern):
+    // reads stdout primarily; stderr drained only on stdout EOF.
+    // Children that write to stderr WHILE stdout is being read
+    // surface stderr only after stdout EOFs. Multiplex-during-stream
+    // is follow-up substrate work when a caller needs it.
+    //
+    // Pre-§J spelling. Post-arc-109 § J slice 10f this verb
+    // becomes :wat::kernel::Process/recv under the typed-method
+    // naming convention; same shape, just renamed.
+    env.register(
+        ":wat::kernel::process-recv".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![process_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![
+                    TypeExpr::Parametric {
+                        head: "Option".into(),
+                        args: vec![TypeExpr::Path(":O".into())],
+                    },
+                    TypeExpr::Path(":wat::kernel::ProcessDiedError".into()),
+                ],
+            },
+        },
+    );
     // User-signal surface — 2026-04-19 stance: kernel measures, userland
     // owns transitions. Six nullary primitives: three pollers return
     // :bool; three resetters return :(). SIGINT / SIGTERM stay on the
