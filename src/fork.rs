@@ -376,7 +376,7 @@ fn write_direct_to_stderr(s: &str) {
 /// Marker form (one line, terminated by `\n`):
 ///
 /// ```text
-/// #wat.kernel/Panics [#wat.kernel/ProcessDiedError::Panic [...] ...]
+/// #wat.kernel/ProcessPanics [#wat.kernel/ProcessDiedError::Panic [...] ...]
 /// ```
 ///
 /// Renders via the world's `TypeEnv` so struct fields land with
@@ -403,7 +403,7 @@ fn emit_panics_to_stderr(
     let upstream = payload.upstream_chain.clone();
     let chain = crate::runtime::conj_died_chain_value(fresh, upstream);
     let edn = crate::edn_shim::value_to_edn_with(&chain, Some(world.types()));
-    let line = format!("#wat.kernel/Panics {}\n", wat_edn::write(&edn));
+    let line = format!("#wat.kernel/ProcessPanics {}\n", wat_edn::write(&edn));
     write_direct_to_stderr(&line);
 }
 

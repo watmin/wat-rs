@@ -729,6 +729,28 @@ Post-§J the call sites swap to either typed (`Process/send`) or
 polymorphic (`send`); the substrate as teacher pattern handles
 the migration.
 
+Further direction (same conversation, after arc 113 slice 3
+landed `Vec<*DiedError>` chain typealiases):
+
+> ProgramPanics should be satisfied by ProcessPanics and ThreadPanics
+
+Arc 113 closure shipped concrete typealiases:
+
+| Typealias                      | Body                              |
+|---|---|
+| `:wat::kernel::ProcessPanics`  | `Vec<wat::kernel::ProcessDiedError>` |
+| `:wat::kernel::ThreadPanics`   | `Vec<wat::kernel::ThreadDiedError>`  |
+
+§J adds the supertype `:wat::kernel::ProgramPanics` satisfied by
+both — same typeclass mechanism slice 10d uses for join-result.
+Polymorphic match arms against `ProgramPanics` work uniformly;
+specific `ProcessPanics` / `ThreadPanics` arms remain available
+when subject matters. The chain shape at the caller surface
+stays identical regardless of transport (this was the arc 113
+through-line — threads pass DiedError values through crossbeam,
+processes pass them as EDN over kernel pipes; same Result<R,
+ProgramPanics> at every call site).
+
 ## Cross-references
 
 - Arc 005 — stdlib naming audit (the inventory this arc updates).

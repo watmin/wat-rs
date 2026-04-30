@@ -42,11 +42,28 @@
 
 ;; Arc 113 — Err arm widened to a Vec<ThreadDiedError> so cascades
 ;; carry the chain. Head = the immediate peer that died; tail =
-;; whatever killed it, transitively. (:wat::core::Vector/first
-;; chain) recovers the head when consumers don't care about the
-;; trail.
+;; whatever killed it, transitively. (:wat::core::first chain)
+;; recovers the head when consumers don't care about the trail.
+;;
+;; The named-chain typealiases below let consumers spell the
+;; cascade type without re-typing `Vec<wat::kernel::*DiedError>`
+;; at every binding site. `ProcessPanics` is the cross-fork
+;; shape (the element type ProcessDiedError matches what
+;; fork-program-ast's substrate emits in its
+;; `#wat.kernel/ProcessPanics` stderr marker per arc 113 slice 3);
+;; `ThreadPanics` is the in-process cousin (chain produced by
+;; spawn-thread cascade). Arc 109 § J will introduce a shared
+;; supertype `ProgramPanics` satisfied by both — same shape from
+;; the caller's vantage; the per-program-kind concrete name is
+;; what surfaces today.
+(:wat::core::typealias :wat::kernel::ProcessPanics
+  :Vec<wat::kernel::ProcessDiedError>)
+
+(:wat::core::typealias :wat::kernel::ThreadPanics
+  :Vec<wat::kernel::ThreadDiedError>)
+
 (:wat::core::typealias :wat::kernel::CommResult<T>
-  :Result<Option<T>,Vec<wat::kernel::ThreadDiedError>>)
+  :Result<Option<T>,wat::kernel::ThreadPanics>)
 
 (:wat::core::typealias :wat::kernel::Chosen<T>
   :(i64,wat::kernel::CommResult<T>))

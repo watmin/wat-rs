@@ -2621,6 +2621,7 @@ fn dispatch_keyword_head(
         ":wat::kernel::assertion-failed!" => {
             crate::assertion::eval_kernel_assertion_failed(args, env, sym)
         }
+        ":wat::kernel::raise!" => eval_kernel_raise(args, env, sym),
         ":wat::kernel::make-bounded-queue" => eval_make_bounded_queue(args, env, sym),
         ":wat::kernel::make-unbounded-queue" => eval_make_unbounded_queue(args),
         ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args),
@@ -6320,6 +6321,66 @@ fn expect_panic(
         location: Some(location),
         frames,
         upstream_chain,
+    };
+    std::panic::panic_any(payload);
+}
+
+/// `(:wat::kernel::raise! data) -> :T` — arc 113 closure. The
+/// data-as-payload sibling of `assertion-failed!`.
+///
+/// **The `message` field IS the data field.** Failure's
+/// `message: String` is just the EDN-rendered form of whatever
+/// the panic carried; serialization to text is what Rust forces,
+/// but the conceptual content is data. `raise!` renders its
+/// HolonAST argument via `:wat::edn::write` and uses that
+/// string as the message — receivers recover the original
+/// HolonAST via `(:wat::edn::read (Failure/message f))`.
+///
+/// Once panics ride as Values through fork+thread boundaries
+/// (slices 1-3), the same wire lets ANY wat data ride — and
+/// since the chain's panic message is itself EDN, the data
+/// round-trips naturally without any new fields on Failure.
+///
+/// Argument: `:wat::holon::HolonAST`. Return type: polymorphic
+/// `:T` (never returns; same convention as assertion-failed!).
+fn eval_kernel_raise(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::raise!";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let data = eval(&args[0], env, sym)?;
+    match &data {
+        Value::holon__HolonAST(_) => {}
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST",
+                got: other.type_name(),
+            });
+        }
+    };
+    // Render data → EDN string. The HolonAST flows through the
+    // wat-edn writer's holon-tagged path; reading it back via
+    // `:wat::edn::read` reconstructs the original HolonAST shape.
+    let edn = crate::edn_shim::value_to_edn_with(&data, sym.types().map(|a| a.as_ref()));
+    let message = wat_edn::write(&edn);
+    let frames = snapshot_call_stack();
+    let location = frames.first().map(|f| f.call_span.clone());
+    let payload = crate::assertion::AssertionPayload {
+        message,
+        actual: None,
+        expected: None,
+        location,
+        frames,
+        upstream_chain: None,
     };
     std::panic::panic_any(payload);
 }
@@ -12079,7 +12140,7 @@ fn eval_kernel_extract_panics(
             _ => continue,
         };
         let trimmed = line_str.trim();
-        if !trimmed.starts_with("#wat.kernel/Panics") {
+        if !trimmed.starts_with("#wat.kernel/ProcessPanics") {
             continue;
         }
         let parsed = match wat_edn::parse_owned(trimmed) {
@@ -12087,7 +12148,7 @@ fn eval_kernel_extract_panics(
             Err(_) => continue,
         };
         if let wat_edn::OwnedValue::Tagged(tag, body) = parsed {
-            if tag.namespace() == "wat.kernel" && tag.name() == "Panics" {
+            if tag.namespace() == "wat.kernel" && tag.name() == "ProcessPanics" {
                 if let Ok(v) = crate::edn_shim::edn_to_value(&body, types) {
                     return Ok(Value::Option(Arc::new(Some(v))));
                 }

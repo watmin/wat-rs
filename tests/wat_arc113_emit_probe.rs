@@ -1,5 +1,5 @@
 //! Direct probe — does a forked child panicking with assertion-failed!
-//! emit `#wat.kernel/Panics ...` on stderr? Bypasses hermetic.wat /
+//! emit `#wat.kernel/ProcessPanics ...` on stderr? Bypasses hermetic.wat /
 //! sandbox.wat to read raw stderr from the fork pipe directly.
 
 use std::sync::Arc;
@@ -44,8 +44,8 @@ fn child_assertion_writes_died_chain_to_stderr() {
     };
     eprintln!("STDERR_LINES: {:#?}", lines);
     assert!(
-        lines.iter().any(|l| l.starts_with("#wat.kernel/Panics")),
-        "expected a #wat.kernel/Panics marker line; got: {:?}",
+        lines.iter().any(|l| l.starts_with("#wat.kernel/ProcessPanics")),
+        "expected a #wat.kernel/ProcessPanics marker line; got: {:?}",
         lines
     );
 }

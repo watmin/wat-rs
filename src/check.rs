@@ -5833,6 +5833,30 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // :wat::kernel::raise! — arc 113 closure. Panics with a
+    // structured HolonAST payload riding the AssertionPayload's
+    // `data` field. Catches in run-sandboxed populate
+    // `Failure/data` with the original HolonAST — the receiver
+    // gets the data Value back, not a stringified rendering.
+    //
+    // Sibling of `assertion-failed!`: same panic_any mechanism,
+    // same catch path, same polymorphic return (`∀T. -> :T` —
+    // never returns; T unifies with caller context). The
+    // difference is what's emitted: `assertion-failed!` carries
+    // (message, actual, expected) for assert-* failures;
+    // `raise!` carries an arbitrary HolonAST under `data` for
+    // user-defined structured errors. Once the chain is in EDN,
+    // panic messages stop being strings — they become Values
+    // with addressable fields.
+    env.register(
+        ":wat::kernel::raise!".to_string(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+            ret: TypeExpr::Path(":T".into()),
+        },
+    );
+
     // Integer arithmetic — strict i64 × i64 → i64 under the
     // `:wat::core::i64::*` namespace.
     for op in &[
