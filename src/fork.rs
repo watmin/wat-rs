@@ -217,7 +217,7 @@ pub fn eval_kernel_wait_child(
 }
 
 /// Allocate a pipe pair; returns `(read_end, write_end)` as OwnedFds.
-fn make_pipe(op: &str) -> Result<(OwnedFd, OwnedFd), RuntimeError> {
+pub(crate) fn make_pipe(op: &str) -> Result<(OwnedFd, OwnedFd), RuntimeError> {
     let mut fds = [0i32; 2];
     let ret = unsafe { libc::pipe(fds.as_mut_ptr()) };
     if ret != 0 {

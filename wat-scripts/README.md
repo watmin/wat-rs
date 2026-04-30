@@ -34,11 +34,43 @@ abs-path resolution + auto-builds the binary on first invocation):
 
 ## Scripts
 
+### Telemetry interrogation (arc 093)
+
 | Script | Purpose |
 |---|---|
 | `seed-fixture.wat` | Write 5 sample Event::Log rows to the path on stdin (use this once to create a `.db` you can query with the other scripts). |
 | `count-logs.wat` | Count Event::Log rows; print `logs: N`. |
 | `metrics-summary.wat` | Count both Event::Log and Event::Metric rows in one script; print a one-line summary. Proves multiple streams can run sequentially off the same ReadHandle. |
+
+### Pipeline composition (arc 103a)
+
+A four-stage Unix-pipe demo that proves the EDN+newline protocol
+composes across N independent wat processes. Each stage reads one
+typed shape from stdin, writes another typed shape to stdout. Same
+discipline `:wat::kernel::spawn-program` exposes for in-process
+spawning — the shell is the parent here.
+
+| Script | Reads | Writes | Purpose |
+|---|---|---|---|
+| `router.wat` | `:demo::Event` | `:demo::Hit` | Drop events with `n <= 0`; forward positives. |
+| `aggregator.wat` | `:demo::Hit` | `:demo::Partial` | Maintain running sum; emit after each. |
+| `sink.wat` | `:demo::Partial` | `:demo::Total` | On EOF, emit the last partial as a final total. |
+
+```bash
+$ cat wat-scripts/events.edn \
+    | ./target/release/wat ./wat-scripts/router.wat \
+    | ./target/release/wat ./wat-scripts/aggregator.wat \
+    | ./target/release/wat ./wat-scripts/sink.wat
+
+#demo/Total {:total 6}
+```
+
+The fixture (`events.edn`) is five `:demo::Event` lines; three are
+hits (`n` = 1, 2, 3); the pipeline sums the hits and reports `6`.
+Drop-cascade through the OS pipes mirrors the substrate's
+crossbeam discipline: when the shell closes its end, each stage's
+`read-line` returns `:None`, the program returns from its loop,
+its stdout fd closes, and the next stage sees EOF.
 
 ## Adding a new script
 

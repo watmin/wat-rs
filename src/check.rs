@@ -5088,6 +5088,20 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: string_ty(),
         },
     );
+    // `(:wat::io::read-file path) -> :String` — read file
+    // content via the host-attached SourceLoader. Same
+    // capability discipline as `:wat::load-file!` /
+    // `:wat::eval-file!`. First consumer: dispatcher-style
+    // scripts that read EDN from stdin and forward a query
+    // program's source to `:wat::kernel::run-sandboxed`.
+    env.register(
+        ":wat::io::read-file".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: string_ty(),
+        },
+    );
 
     // :wat::kernel::run-sandboxed — arc 007 slice 2a.
     // (src: :String, stdin: :Vec<String>, scope: :Option<String>)
@@ -6156,6 +6170,51 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![TypeExpr::Path(":wat::WatAST".into())],
             }],
             ret: TypeExpr::Path(":wat::kernel::ForkedChild".into()),
+        },
+    );
+    // (:wat::kernel::spawn-program src scope) → :wat::kernel::Process.
+    // (:wat::kernel::spawn-program-ast forms scope) → :wat::kernel::Process.
+    //
+    // Arc 103. The in-thread sibling of `fork-with-forms` — same
+    // `(IOWriter, IOReader, IOReader, ProgramHandle<()>)` shape, but
+    // the inner program runs on a `std::thread` instead of a forked
+    // OS process. Caller writes EDN+newline to `proc.stdin`, blocks
+    // on `read-line` from `proc.stdout` — mini-TCP via kernel pipes.
+    // See `docs/ZERO-MUTEX.md` §"Mini-TCP via paired channels".
+    //
+    // No substrate `spawn-program-hermetic-ast`. Today's hermetic
+    // distinction means real fork (`fork-with-forms`); in-thread
+    // "hermetic" reduces to "inner program declares its own Config
+    // preamble," which is a wat-level discipline.
+    env.register(
+        ":wat::kernel::spawn-program".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Path(":String".into()),
+                TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![TypeExpr::Path(":String".into())],
+                },
+            ],
+            ret: TypeExpr::Path(":wat::kernel::Process".into()),
+        },
+    );
+    env.register(
+        ":wat::kernel::spawn-program-ast".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![TypeExpr::Path(":wat::WatAST".into())],
+                },
+                TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![TypeExpr::Path(":String".into())],
+                },
+            ],
+            ret: TypeExpr::Path(":wat::kernel::Process".into()),
         },
     );
     // (:wat::kernel::wait-child handle) → :i64. Blocks on waitpid;

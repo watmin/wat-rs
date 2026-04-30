@@ -644,6 +644,43 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::Process — return type of
+    // `:wat::kernel::spawn-program` and siblings (arc 103). The
+    // in-thread sibling of `:wat::kernel::ForkedChild`. Holds the
+    // three parent-side pipe ends plus a `ProgramHandle<()>` the
+    // caller `join`s on. `:user::main`'s return type is fixed at
+    // `:()` by the kernel contract, so the join handle is always
+    // `:wat::kernel::ProgramHandle<()>` — no per-program R type
+    // parameter on Process itself.
+    //
+    // Auto-generated `Process/new` + per-field accessors land in the
+    // symbol table at freeze time via register_struct_methods.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::kernel::Process".into(),
+        type_params: vec![],
+        fields: vec![
+            (
+                "stdin".into(),
+                TypeExpr::Path(":wat::io::IOWriter".into()),
+            ),
+            (
+                "stdout".into(),
+                TypeExpr::Path(":wat::io::IOReader".into()),
+            ),
+            (
+                "stderr".into(),
+                TypeExpr::Path(":wat::io::IOReader".into()),
+            ),
+            (
+                "join".into(),
+                TypeExpr::Parametric {
+                    head: "wat::kernel::ProgramHandle".into(),
+                    args: vec![TypeExpr::Tuple(vec![])],
+                },
+            ),
+        ],
+    }));
+
     // :wat::holon::CoincidentExplanation — arc 069 diagnostic record
     // returned by `:wat::holon::coincident-explain`. Bundles the raw
     // cosine, the current coincident floor, the dim where comparison

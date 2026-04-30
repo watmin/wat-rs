@@ -45,7 +45,7 @@ use std::sync::Arc;
 ///   harnesses that build a `SymbolTable` directly without going
 ///   through freeze end up here; preserving the pre-arc-027 default
 ///   keeps them working unchanged.
-fn resolve_sandbox_loader(
+pub(crate) fn resolve_sandbox_loader(
     scope_opt: Option<String>,
     sym: &SymbolTable,
     op: &'static str,

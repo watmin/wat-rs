@@ -1197,6 +1197,44 @@ pub fn eval_io_temp_dir_path(
     Ok(Value::String(Arc::new(s)))
 }
 
+// ─── read-file (arc 093 follow-on, dispatcher pattern) ───────────────────
+//
+// `(:wat::io::read-file <path-string>) -> :String` — return the
+// contents of `<path>` as a String. Routes through the SymbolTable's
+// SourceLoader so the same capability discipline that gates
+// `:wat::load-file!` / `:wat::eval-file!` applies (FsLoader for
+// the wat-cli; ScopedLoader for sandboxed scripts; InMemoryLoader
+// in tests). Panics if no loader is attached (the host didn't
+// install one — programmer error, not data-flow).
+//
+// First consumer: dispatcher-style scripts that read EDN from
+// stdin specifying both a data path and a query-program path,
+// then read the program's source so they can hand it to
+// :wat::kernel::run-sandboxed. Useful generally for any wat
+// script that wants to operate on file content as a string.
+pub fn eval_io_read_file(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    let op = ":wat::io::read-file";
+    arity(op, args, 1)?;
+    let path = expect_string(op, eval(&args[0], env, sym)?)?;
+    let loader = sym.source_loader().ok_or_else(|| RuntimeError::MalformedForm {
+        head: op.into(),
+        reason: "no SourceLoader attached to SymbolTable; \
+                 the host must provide one (FsLoader / ScopedLoader / InMemoryLoader)"
+            .into(),
+    })?;
+    let loaded = loader.fetch_source_file(&path, None).map_err(|e| {
+        RuntimeError::MalformedForm {
+            head: op.into(),
+            reason: format!("loader fetch_source_file({path:?}): {e}"),
+        }
+    })?;
+    Ok(Value::String(Arc::new(loaded.source)))
+}
+
 // ─── Unit tests for pipe-backed IO (arc 012 slice 1) ─────────────────────
 
 #[cfg(test)]

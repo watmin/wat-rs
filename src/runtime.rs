@@ -2380,6 +2380,7 @@ fn dispatch_keyword_head(
         ":wat::io::TempFile/path" => crate::io::eval_io_temp_file_path(args, env, sym),
         ":wat::io::TempDir/new" => crate::io::eval_io_temp_dir_new(args, env, sym),
         ":wat::io::TempDir/path" => crate::io::eval_io_temp_dir_path(args, env, sym),
+        ":wat::io::read-file" => crate::io::eval_io_read_file(args, env, sym),
         ":wat::io::IOWriter/println" => crate::io::eval_iowriter_println(args, env, sym),
         ":wat::io::IOWriter/writeln" => crate::io::eval_iowriter_writeln(args, env, sym),
         ":wat::io::IOWriter/flush" => crate::io::eval_iowriter_flush(args, env, sym),
@@ -2551,6 +2552,10 @@ fn dispatch_keyword_head(
         ":wat::kernel::make-unbounded-queue" => eval_make_unbounded_queue(args),
         ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args),
         ":wat::kernel::fork-with-forms" => crate::fork::eval_kernel_fork_with_forms(args, env, sym),
+        ":wat::kernel::spawn-program" => crate::spawn::eval_kernel_spawn_program(args, env, sym),
+        ":wat::kernel::spawn-program-ast" => {
+            crate::spawn::eval_kernel_spawn_program_ast(args, env, sym)
+        }
         ":wat::kernel::wait-child" => crate::fork::eval_kernel_wait_child(args, env, sym),
         ":wat::kernel::sigusr1?" => {
             eval_user_signal_query(args, ":wat::kernel::sigusr1?", &KERNEL_SIGUSR1)
@@ -10972,7 +10977,7 @@ fn eval_kernel_spawn(
 /// Order tried: `&str` (literal `panic!("...")`); `String`
 /// (formatted `panic!("{}", ...)`); `AssertionPayload` (substrate's
 /// structured assertion shape); fallback marker.
-fn format_panic_payload(payload: &Box<dyn std::any::Any + Send>) -> String {
+pub(crate) fn format_panic_payload(payload: &Box<dyn std::any::Any + Send>) -> String {
     if let Some(s) = payload.downcast_ref::<&'static str>() {
         return (*s).to_string();
     }
