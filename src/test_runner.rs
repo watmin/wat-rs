@@ -284,19 +284,24 @@ pub fn run_tests_from_dir_with_loader(
             }));
             let elapsed_ms = start.elapsed().as_millis();
             match invoke {
-                Ok(Ok(value)) => match extract_failure(&value) {
+                Ok(Ok(value)) => match failure_to_diagnostic(&value) {
                     None => {
                         println!("... ok ({}ms)", elapsed_ms);
                         summary.passed += 1;
                     }
-                    Some(fail) => {
+                    Some(diag) => {
                         println!("... FAILED ({}ms)", elapsed_ms);
+                        emit_structured_diagnostic(&label, &diag);
+                        let fail = render_failure_text(&diag);
                         summary.failure_summaries.push(format!("{}\n{}", label, fail));
                         summary.failed += 1;
                     }
                 },
                 Ok(Err(err)) => {
                     println!("... FAILED ({}ms)", elapsed_ms);
+                    let diag = crate::diagnostic::Diagnostic::new("RuntimeError")
+                        .field("message", format!("{}", err));
+                    emit_structured_diagnostic(&label, &diag);
                     summary.failure_summaries.push(format!(
                         "{}\n  runtime: {}",
                         label, err
@@ -305,6 +310,11 @@ pub fn run_tests_from_dir_with_loader(
                 }
                 Err(_) => {
                     println!("... FAILED ({}ms)", elapsed_ms);
+                    let diag = crate::diagnostic::Diagnostic::new("TestPanicEscaped").field(
+                        "reason",
+                        "panic escaped test body (assertion panics should be caught inside)",
+                    );
+                    emit_structured_diagnostic(&label, &diag);
                     summary.failure_summaries.push(format!(
                         "{}\n  panic escaped test body (assertion panics should be caught inside)",
                         label
@@ -505,15 +515,40 @@ fn strip_leading_colon(s: &str) -> &str {
     s.strip_prefix(':').unwrap_or(s)
 }
 
-fn extract_failure(v: &Value) -> Option<String> {
+/// Arc 116 slice 1 — extract the failure as a structured
+/// [`Diagnostic`] from a RunResult. Returns `None` when the
+/// RunResult.failure slot is `:None` (test passed) and `Some(diag)`
+/// when it carries a Failure struct.
+///
+/// The Diagnostic carries the same fields the text renderer uses
+/// (message, location, actual, expected, frames). Renderers
+/// (text via [`render_failure_text`], EDN via
+/// `wat::diagnostic::render_edn`, JSON via `render_json`) consume
+/// this single source of truth.
+///
+/// **Data first.** The substrate's :wat::kernel::Failure struct
+/// already IS structured (arc 064); arc 116 stops flattening it
+/// at the test runner's panic boundary.
+fn failure_to_diagnostic(v: &Value) -> Option<crate::diagnostic::Diagnostic> {
+    use crate::diagnostic::Diagnostic;
     let sv = match v {
         Value::Struct(s) if s.type_name == ":wat::kernel::RunResult" => s,
-        _ => return Some("  test did not return :wat::kernel::RunResult".into()),
+        _ => {
+            return Some(
+                Diagnostic::new("MalformedTestResult")
+                    .field("reason", "test did not return :wat::kernel::RunResult"),
+            );
+        }
     };
     let failure_field = sv.fields.get(2)?;
     let failure_opt = match failure_field {
         Value::Option(opt) => opt,
-        _ => return Some("  malformed RunResult.failure slot".into()),
+        _ => {
+            return Some(
+                Diagnostic::new("MalformedTestResult")
+                    .field("reason", "malformed RunResult.failure slot"),
+            );
+        }
     };
     let failure = match &**failure_opt {
         Some(v) => v,
@@ -521,43 +556,148 @@ fn extract_failure(v: &Value) -> Option<String> {
     };
     let fv = match failure {
         Value::Struct(s) if s.type_name == ":wat::kernel::Failure" => s,
-        _ => return Some("  failure slot is not :wat::kernel::Failure".into()),
+        _ => {
+            return Some(
+                Diagnostic::new("MalformedTestResult")
+                    .field("reason", "failure slot is not :wat::kernel::Failure"),
+            );
+        }
     };
     let message = match fv.fields.first() {
         Some(Value::String(s)) => (**s).clone(),
         _ => "<missing message>".to_string(),
     };
-    // Arc 064 — surface the source location captured by arc 016's
-    // snapshot_call_stack(). The Failure struct's `location` field
-    // (index 1) is :Option<wat::kernel::Location { file, line, col }>;
-    // populated whenever the panic site has a non-unknown Span.
     let location = fv.fields.get(1).and_then(failure_location);
     let actual = fv.fields.get(3).and_then(option_string_field);
     let expected = fv.fields.get(4).and_then(option_string_field);
-    let mut out = format!("  failure: {}", message);
+
+    // Discriminate AssertionFailed from generic Panic by whether
+    // actual/expected are populated — arc 064's `assert-eq` pathway
+    // populates both; plain `panic!` calls leave them `:None`.
+    let kind = if actual.is_some() && expected.is_some() {
+        "AssertionFailed"
+    } else {
+        "Panic"
+    };
+    let mut diag = Diagnostic::new(kind).field("message", message);
     if let Some(loc) = location {
-        out.push_str(&format!("\n    at:       {}", loc));
+        diag = diag.field("location", loc);
     }
     if let Some(a) = actual {
-        out.push_str(&format!("\n    actual:   {}", a));
+        diag = diag.field("actual", a);
     }
     if let Some(e) = expected {
+        diag = diag.field("expected", e);
+    }
+    // Frames render as repeated `frame_N` fields — preserves order;
+    // each tooling consumer (LSP, GitHub Actions, agent) decides
+    // how to lay them out.
+    if let Some(frames) = fv.fields.get(2).and_then(failure_frames_vec) {
+        for (i, frame) in frames.iter().enumerate() {
+            diag = diag.field(format!("frame_{}", i), frame.as_str());
+        }
+    }
+    Some(diag)
+}
+
+/// Render a failure Diagnostic as the human-readable text block
+/// `extract_failure` used to produce inline. Walks the Diagnostic's
+/// fields in order; preserves the existing `cargo test` output
+/// shape so users see the same view as before arc 116.
+fn render_failure_text(diag: &crate::diagnostic::Diagnostic) -> String {
+    use crate::diagnostic::DiagnosticValue;
+
+    let backtrace_on = std::env::var("RUST_BACKTRACE")
+        .map(|v| v != "0" && !v.is_empty())
+        .unwrap_or(false);
+
+    let get = |name: &str| -> Option<String> {
+        diag.fields.iter().find_map(|(k, v)| {
+            if k == name {
+                match v {
+                    DiagnosticValue::String(s) => Some(s.clone()),
+                    DiagnosticValue::Int(n) => Some(n.to_string()),
+                }
+            } else {
+                None
+            }
+        })
+    };
+
+    let message = get("message").unwrap_or_default();
+    let mut out = format!("  failure: {}", message);
+    if let Some(loc) = get("location") {
+        out.push_str(&format!("\n    at:       {}", loc));
+    }
+    if let Some(a) = get("actual") {
+        out.push_str(&format!("\n    actual:   {}", a));
+    }
+    if let Some(e) = get("expected") {
         out.push_str(&format!("\n    expected: {}", e));
     }
-    // Frames stack newest-first, surfaced under RUST_BACKTRACE=1
-    // per arc 016's existing convention. Field index 2 of the
-    // Failure struct holds :Vec<wat::kernel::Frame>.
-    if std::env::var("RUST_BACKTRACE")
-        .map(|v| v != "0" && !v.is_empty())
-        .unwrap_or(false)
-    {
-        if let Some(frames_str) = fv.fields.get(2).and_then(failure_frames) {
-            if !frames_str.is_empty() {
-                out.push_str(&format!("\n    frames (newest first):\n{}", frames_str));
+    if backtrace_on {
+        // Walk frame_0, frame_1, ... in order.
+        let frames: Vec<String> = (0..)
+            .map_while(|i| get(&format!("frame_{}", i)))
+            .collect();
+        if !frames.is_empty() {
+            out.push_str("\n    frames (newest first):");
+            for (i, frame) in frames.iter().enumerate() {
+                out.push_str(&format!("\n      #{}  {}", i, frame));
             }
         }
     }
-    Some(out)
+    out
+}
+
+/// Arc 116 slice 3 — `WAT_TEST_OUTPUT` env var controls structured
+/// emission of failure Diagnostics to stdout. Set to `"edn"` for
+/// EDN records (one per line, arc 092 v4 wire format) or `"json"`
+/// for JSON records (one object per line). Default (unset): no
+/// structured output — only the human-readable text via stderr at
+/// the test-suite-end panic.
+///
+/// Tooling consumers (CI, agents, editor LSP) opt in by setting
+/// `WAT_TEST_OUTPUT=json cargo test` and parse one record per
+/// failure as it streams.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StructuredOutputFormat {
+    Edn,
+    Json,
+}
+
+fn structured_output_format() -> Option<StructuredOutputFormat> {
+    match std::env::var("WAT_TEST_OUTPUT").ok().as_deref() {
+        Some("edn") => Some(StructuredOutputFormat::Edn),
+        Some("json") => Some(StructuredOutputFormat::Json),
+        _ => None,
+    }
+}
+
+/// Emit one structured diagnostic record to stdout, prefixed with
+/// the test label so consumers can correlate. No-op when
+/// `WAT_TEST_OUTPUT` is unset.
+fn emit_structured_diagnostic(label: &str, diag: &crate::diagnostic::Diagnostic) {
+    let format = match structured_output_format() {
+        Some(f) => f,
+        None => return,
+    };
+    // Inject the test label as the first field so the consumer can
+    // correlate without parsing the test_runner's text output.
+    let with_label = crate::diagnostic::Diagnostic {
+        kind: diag.kind.clone(),
+        fields: std::iter::once((
+            "test".to_string(),
+            crate::diagnostic::DiagnosticValue::String(label.to_string()),
+        ))
+        .chain(diag.fields.iter().cloned())
+        .collect(),
+    };
+    let line = match format {
+        StructuredOutputFormat::Edn => crate::diagnostic::render_edn(&with_label),
+        StructuredOutputFormat::Json => crate::diagnostic::render_json(&with_label),
+    };
+    println!("{}", line);
 }
 
 /// Extract `file:line:col` from the Failure's `location` field
@@ -588,15 +728,19 @@ fn failure_location(v: &Value) -> Option<String> {
     Some(format!("{}:{}:{}", file, line, col))
 }
 
-/// Render the Failure's `frames` field (Vec<Frame { file, line,
-/// symbol }>) as a newline-separated string, newest first.
-fn failure_frames(v: &Value) -> Option<String> {
+/// Arc 116 — walk the Failure's `frames` field
+/// (`Vec<Frame { file, line, symbol }>`) into a Vec of `"symbol
+/// (file:line)"` strings, newest-first. The Diagnostic produced by
+/// [`failure_to_diagnostic`] stores each as a separate `frame_N`
+/// field so structured renderers can lay them out their way; the
+/// text renderer joins with newlines.
+fn failure_frames_vec(v: &Value) -> Option<Vec<String>> {
     let xs = match v {
         Value::Vec(xs) => xs,
         _ => return None,
     };
-    let mut out = String::new();
-    for (i, frame_v) in xs.iter().enumerate() {
+    let mut out = Vec::with_capacity(xs.len());
+    for frame_v in xs.iter() {
         let f = match frame_v {
             Value::Struct(s) if s.type_name == ":wat::kernel::Frame" => s,
             _ => continue,
@@ -618,10 +762,7 @@ fn failure_frames(v: &Value) -> Option<String> {
             .get(2)
             .and_then(option_string_field)
             .unwrap_or_else(|| "<symbol>".to_string());
-        if i > 0 {
-            out.push('\n');
-        }
-        out.push_str(&format!("      #{}  {} ({}:{})", i, symbol, file, line));
+        out.push(format!("{} ({}:{})", symbol, file, line));
     }
     if out.is_empty() {
         None
@@ -673,5 +814,163 @@ fn shuffle<T>(items: &mut [T], rng: &mut Xorshift64) {
     for i in (1..items.len()).rev() {
         let j = (rng.next() as usize) % (i + 1);
         items.swap(i, j);
+    }
+}
+
+#[cfg(test)]
+mod arc116_diagnostic_tests {
+    use super::*;
+    use crate::diagnostic::{render_edn, render_json, DiagnosticValue};
+    use crate::runtime::StructValue;
+    use std::sync::Arc;
+
+    /// Build a synthetic :wat::kernel::Failure Value mimicking the
+    /// shape arc 064 produces from an assert-eq.
+    fn make_failure(
+        message: &str,
+        location: Option<(&str, i64, i64)>,
+        actual: Option<&str>,
+        expected: Option<&str>,
+    ) -> Value {
+        let location_field = match location {
+            Some((file, line, col)) => Value::Option(Arc::new(Some(Value::Struct(Arc::new(
+                StructValue {
+                    type_name: ":wat::kernel::Location".into(),
+                    fields: vec![
+                        Value::String(Arc::new(file.to_string())),
+                        Value::i64(line),
+                        Value::i64(col),
+                    ],
+                },
+            ))))),
+            None => Value::Option(Arc::new(None)),
+        };
+        let actual_field = match actual {
+            Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s.to_string()))))),
+            None => Value::Option(Arc::new(None)),
+        };
+        let expected_field = match expected {
+            Some(s) => Value::Option(Arc::new(Some(Value::String(Arc::new(s.to_string()))))),
+            None => Value::Option(Arc::new(None)),
+        };
+        Value::Struct(Arc::new(StructValue {
+            type_name: ":wat::kernel::Failure".into(),
+            fields: vec![
+                Value::String(Arc::new(message.to_string())),
+                location_field,
+                Value::Vec(Arc::new(Vec::new())), // no frames
+                actual_field,
+                expected_field,
+            ],
+        }))
+    }
+
+    fn make_run_result(failure: Option<Value>) -> Value {
+        let failure_field = match failure {
+            Some(f) => Value::Option(Arc::new(Some(f))),
+            None => Value::Option(Arc::new(None)),
+        };
+        Value::Struct(Arc::new(StructValue {
+            type_name: ":wat::kernel::RunResult".into(),
+            fields: vec![
+                Value::Vec(Arc::new(Vec::new())), // stdout
+                Value::Vec(Arc::new(Vec::new())), // stderr
+                failure_field,
+            ],
+        }))
+    }
+
+    #[test]
+    fn passing_run_result_yields_no_diagnostic() {
+        let rr = make_run_result(None);
+        assert!(failure_to_diagnostic(&rr).is_none());
+    }
+
+    #[test]
+    fn assertion_failure_yields_assertion_failed_diagnostic() {
+        let failure = make_failure(
+            "assert-eq failed",
+            Some(("test.wat", 42, 13)),
+            Some("1"),
+            Some("2"),
+        );
+        let rr = make_run_result(Some(failure));
+        let diag = failure_to_diagnostic(&rr).expect("diagnostic produced");
+        assert_eq!(diag.kind, "AssertionFailed");
+
+        let get = |name: &str| -> Option<&DiagnosticValue> {
+            diag.fields.iter().find_map(|(k, v)| {
+                if k == name {
+                    Some(v)
+                } else {
+                    None
+                }
+            })
+        };
+        assert!(matches!(get("message"), Some(DiagnosticValue::String(s)) if s == "assert-eq failed"));
+        assert!(matches!(get("location"), Some(DiagnosticValue::String(s)) if s == "test.wat:42:13"));
+        assert!(matches!(get("actual"), Some(DiagnosticValue::String(s)) if s == "1"));
+        assert!(matches!(get("expected"), Some(DiagnosticValue::String(s)) if s == "2"));
+    }
+
+    #[test]
+    fn plain_panic_yields_panic_kind_no_actual_expected() {
+        let failure = make_failure("intentional panic", None, None, None);
+        let rr = make_run_result(Some(failure));
+        let diag = failure_to_diagnostic(&rr).expect("diagnostic produced");
+        assert_eq!(diag.kind, "Panic");
+        // No actual/expected fields when not an assertion.
+        assert!(!diag.fields.iter().any(|(k, _)| k == "actual"));
+        assert!(!diag.fields.iter().any(|(k, _)| k == "expected"));
+    }
+
+    #[test]
+    fn render_edn_assertion_failure_round_trip() {
+        let failure = make_failure(
+            "assert-eq failed",
+            Some(("step-A.wat", 42, 13)),
+            Some("1"),
+            Some("2"),
+        );
+        let rr = make_run_result(Some(failure));
+        let diag = failure_to_diagnostic(&rr).expect("diagnostic produced");
+        let edn = render_edn(&diag);
+        assert!(edn.starts_with("#wat.diag/AssertionFailed"));
+        assert!(edn.contains(r#":message "assert-eq failed""#));
+        assert!(edn.contains(r#":location "step-A.wat:42:13""#));
+        assert!(edn.contains(r#":actual "1""#));
+        assert!(edn.contains(r#":expected "2""#));
+    }
+
+    #[test]
+    fn render_json_assertion_failure_round_trip() {
+        let failure = make_failure("assert-eq failed", None, Some("1"), Some("2"));
+        let rr = make_run_result(Some(failure));
+        let diag = failure_to_diagnostic(&rr).expect("diagnostic produced");
+        let json = render_json(&diag);
+        assert!(json.contains(r#""kind":"AssertionFailed""#));
+        assert!(json.contains(r#""message":"assert-eq failed""#));
+        assert!(json.contains(r#""actual":"1""#));
+        assert!(json.contains(r#""expected":"2""#));
+    }
+
+    #[test]
+    fn text_render_preserves_pre_arc_116_shape() {
+        // Sanity check: the human-readable text output for a typical
+        // assertion failure stays compatible with what cargo test users
+        // see today (arc 064's surface).
+        let failure = make_failure(
+            "assert-eq failed",
+            Some(("test.wat", 42, 13)),
+            Some("1"),
+            Some("2"),
+        );
+        let rr = make_run_result(Some(failure));
+        let diag = failure_to_diagnostic(&rr).expect("diagnostic produced");
+        let text = render_failure_text(&diag);
+        assert!(text.contains("failure: assert-eq failed"));
+        assert!(text.contains("at:       test.wat:42:13"));
+        assert!(text.contains("actual:   1"));
+        assert!(text.contains("expected: 2"));
     }
 }
