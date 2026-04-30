@@ -6,9 +6,12 @@
 //!   :wat::kernel::process-recv
 //!     :Process<I,O>    -> :Result<:Option<O>, :wat::kernel::ProcessDiedError>
 //!
-//! Probe asserts that a wat program annotating these verbs against
-//! a `Process<i64,i64>` freezes successfully (instantiate + unify
-//! resolve `I` and `O` correctly; return type matches the binding).
+//! Probe asserts that a wat program freezes successfully:
+//!   - process-send used in a let* binding (allowed — Result<()> doesn't
+//!     gate on disconnection).
+//!   - process-recv used as a match-scrutinee (required by arc 110 +
+//!     arc 112 slice 3 grammar rule — silent disconnect is a compile
+//!     error; receiver must match all three states).
 
 use std::sync::Arc;
 use wat::freeze::startup_from_source;
@@ -27,13 +30,18 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
             (((proc :wat::kernel::Process<i64,i64>)
               (:wat::kernel::fork-program-ast
                 (:wat::core::vec :wat::WatAST)))
-             ;; process-send: takes Process<i64,i64> + i64 → Result<(),ProcessDiedError>
-             ((sent :Result<(),wat::kernel::ProcessDiedError>)
-              (:wat::kernel::process-send proc 42))
-             ;; process-recv: takes Process<i64,i64> → Result<Option<i64>,ProcessDiedError>
-             ((rcv :Result<Option<i64>,wat::kernel::ProcessDiedError>)
-              (:wat::kernel::process-recv proc)))
-            ()))
+             ;; process-send: must be matched (slice 3 grammar rule).
+             ;; Use result::expect to panic on disconnect; same shape
+             ;; sandbox.wat / hermetic.wat use for write paths.
+             ((_sent :())
+              (:wat::core::result::expect -> :()
+                (:wat::kernel::process-send proc 42)
+                "send to forked program failed")))
+            ;; process-recv: matched as scrutinee — three-state shape.
+            (:wat::core::match (:wat::kernel::process-recv proc) -> :()
+              ((Ok (Some _v))    ())
+              ((Ok :None)        ())
+              ((Err _died)       ()))))
     "##;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     if let Err(e) = result {

@@ -510,7 +510,13 @@ fn validate_comm_positions(
     };
 
     // (1) THIS node is a kernel-comm call.
-    if matches!(head_str, ":wat::kernel::send" | ":wat::kernel::recv") {
+    if matches!(
+        head_str,
+        ":wat::kernel::send"
+            | ":wat::kernel::recv"
+            | ":wat::kernel::process-send"
+            | ":wat::kernel::process-recv"
+    ) {
         let permitted = matches!(
             ctx,
             CommCtx::MatchScrutinee
