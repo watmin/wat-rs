@@ -6184,6 +6184,25 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Path(":wat::kernel::ForkedChild".into()),
         },
     );
+    // (:wat::kernel::fork-program src scope) → :wat::kernel::ForkedChild.
+    // Arc 104b. Source-string sibling of fork-program-ast. Source is
+    // parsed inside the child branch (post-fork); parse errors surface
+    // as exit code 3 + stderr text. The source-entry primitive that
+    // arc 104c's wat-cli builds on.
+    env.register(
+        ":wat::kernel::fork-program".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Path(":String".into()),
+                TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![TypeExpr::Path(":String".into())],
+                },
+            ],
+            ret: TypeExpr::Path(":wat::kernel::ForkedChild".into()),
+        },
+    );
     // (:wat::kernel::spawn-program src scope) → :wat::kernel::Process.
     // (:wat::kernel::spawn-program-ast forms scope) → :wat::kernel::Process.
     //

@@ -2565,7 +2565,10 @@ fn dispatch_keyword_head(
         ":wat::kernel::make-bounded-queue" => eval_make_bounded_queue(args, env, sym),
         ":wat::kernel::make-unbounded-queue" => eval_make_unbounded_queue(args),
         ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args),
-        ":wat::kernel::fork-program-ast" => crate::fork::eval_kernel_fork_program_ast(args, env, sym),
+        ":wat::kernel::fork-program-ast" => {
+            crate::fork::eval_kernel_fork_program_ast(args, env, sym)
+        }
+        ":wat::kernel::fork-program" => crate::fork::eval_kernel_fork_program(args, env, sym),
         ":wat::kernel::spawn-program" => crate::spawn::eval_kernel_spawn_program(args, env, sym),
         ":wat::kernel::spawn-program-ast" => {
             crate::spawn::eval_kernel_spawn_program_ast(args, env, sym)

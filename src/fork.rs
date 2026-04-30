@@ -23,11 +23,11 @@
 use crate::ast::WatAST;
 use crate::config::Config;
 use crate::freeze::{
-    invoke_user_main, startup_from_forms, startup_from_forms_with_inherit,
+    invoke_user_main, startup_from_forms, startup_from_forms_with_inherit, startup_from_source,
     validate_user_main_signature,
 };
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use crate::load::InMemoryLoader;
+use crate::load::{InMemoryLoader, ScopedLoader, SourceLoader};
 use crate::runtime::{eval, Environment, RuntimeError, StructValue, SymbolTable, Value};
 
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
@@ -491,6 +491,319 @@ fn child_branch(
         }
         Err(_panic_payload) => {
             write_direct_to_stderr("panic: sandboxed :user::main panicked\n");
+            unsafe { libc::_exit(EXIT_PANIC) };
+        }
+    }
+}
+
+// ─── Source-string entry — `:wat::kernel::fork-program` (arc 104b) ──────
+//
+// Sibling of `fork-program-ast`. Takes a source string instead of pre-
+// parsed forms; the parse happens INSIDE the child branch (post-fork).
+// This keeps the parent honest with its role — it owns bytes, not ASTs.
+//
+// Two entry points:
+//
+//   - `eval_kernel_fork_program` is the wat-level dispatch arm. wat
+//     code calls `(:wat::kernel::fork-program src scope)` to spawn a
+//     fresh OS-process child.
+//   - `fork_program_from_source` is the Rust-level entry point. wat-
+//     cli (arc 104c) calls this directly, with `Arc<dyn SourceLoader>`
+//     resolved from the cli's argv-derived canonical path.
+//
+// Both share `child_branch_from_source` for the post-fork pipeline.
+
+/// Bundle of pipe ends + child handle returned by
+/// `fork_program_from_source` for Rust callers (arc 104c's wat-cli).
+/// The wat-level `eval_kernel_fork_program` wraps these into a
+/// `:wat::kernel::ForkedChild` struct value.
+pub struct ForkedProgramHandles {
+    pub child_handle: Arc<ChildHandleInner>,
+    pub stdin_w: OwnedFd,
+    pub stdout_r: OwnedFd,
+    pub stderr_r: OwnedFd,
+}
+
+/// Fork a fresh OS-process child running the supplied wat source.
+/// Source is parsed + frozen inside the child branch. Parent gets
+/// the parent-side pipe ends + the child handle.
+///
+/// The Rust-level entry point. Arc 104c's wat-cli calls this directly
+/// to fork the user's entry program; arc 104b's wat-level dispatch
+/// arm `:wat::kernel::fork-program` wraps the result into a
+/// `:wat::kernel::ForkedChild` Value::Struct.
+///
+/// Loader semantics:
+/// - `Some(path)` → `ScopedLoader` rooted at canonical-of-path. The
+///   child's `(:wat::load-file! "...")` reads can reach files under
+///   that root.
+/// - `None` → `InMemoryLoader`. No disk access for the child.
+pub fn fork_program_from_source(
+    source: &str,
+    canonical: Option<&str>,
+    scope: Option<&str>,
+    inherit_config: Option<&Config>,
+) -> Result<ForkedProgramHandles, RuntimeError> {
+    const OP: &str = ":wat::kernel::fork-program";
+
+    // Resolve loader BEFORE fork — caller's scope path may be invalid;
+    // surface that in the parent rather than the child.
+    let loader: Arc<dyn SourceLoader> = match scope {
+        Some(path) => {
+            let scoped = ScopedLoader::new(path).map_err(|e| RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: format!("scope path {:?}: {}", path, e),
+            })?;
+            Arc::new(scoped)
+        }
+        None => Arc::new(InMemoryLoader::new()),
+    };
+
+    // Three pipes for stdin/stdout/stderr.
+    let (stdin_r, stdin_w) = make_pipe(OP)?;
+    let (stdout_r, stdout_w) = make_pipe(OP)?;
+    let (stderr_r, stderr_w) = make_pipe(OP)?;
+
+    let stdin_r_raw = stdin_r.as_raw_fd();
+    let stdout_w_raw = stdout_w.as_raw_fd();
+    let stderr_w_raw = stderr_w.as_raw_fd();
+
+    // Snapshot source + canonical + inherit-config so the child branch
+    // owns its copies. `String::from(source)` is a heap copy in the
+    // parent; after fork the child inherits it via COW.
+    let owned_source = source.to_string();
+    let owned_canonical = canonical.map(|s| s.to_string());
+    let owned_inherit_config = inherit_config.cloned();
+
+    // SAFETY: same conditions as `fork-program-ast` — child branch
+    // restricts itself to syscalls and fresh-world wat eval.
+    let pid = unsafe { libc::fork() };
+    if pid < 0 {
+        let err = std::io::Error::last_os_error();
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!("fork(2): {}", err),
+        });
+    }
+
+    if pid == 0 {
+        // ── CHILD BRANCH ─────────────────────────────────────────
+        child_branch_from_source(
+            owned_source,
+            owned_canonical,
+            owned_inherit_config,
+            loader,
+            stdin_r_raw,
+            stdout_w_raw,
+            stderr_w_raw,
+            (stdin_r, stdin_w),
+            (stdout_r, stdout_w),
+            (stderr_r, stderr_w),
+        );
+    }
+
+    // ── PARENT BRANCH ────────────────────────────────────────────
+    // Close child-side fds (our copies; child still has them).
+    drop(stdin_r);
+    drop(stdout_w);
+    drop(stderr_w);
+
+    Ok(ForkedProgramHandles {
+        child_handle: Arc::new(ChildHandleInner::new(pid)),
+        stdin_w,
+        stdout_r,
+        stderr_r,
+    })
+}
+
+/// `(:wat::kernel::fork-program (src :String) (scope :Option<String>))
+/// -> :wat::kernel::ForkedChild`.
+///
+/// Wat-level dispatch arm. Parses arguments, calls
+/// `fork_program_from_source`, wraps the resulting handles into a
+/// `:wat::kernel::ForkedChild` Value::Struct so wat callers see the
+/// same shape as `fork-program-ast`.
+pub fn eval_kernel_fork_program(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::fork-program";
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 2,
+            got: args.len(),
+        });
+    }
+
+    let src = match eval(&args[0], env, sym)? {
+        Value::String(s) => (*s).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "String",
+                got: other.type_name(),
+            });
+        }
+    };
+
+    let scope_opt: Option<String> = match eval(&args[1], env, sym)? {
+        Value::Option(opt) => match &*opt {
+            Some(Value::String(s)) => Some((**s).clone()),
+            Some(other) => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "Option<String>",
+                    got: other.type_name(),
+                });
+            }
+            None => None,
+        },
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Option<String>",
+                got: other.type_name(),
+            });
+        }
+    };
+
+    // Inherit caller's Config through fork's COW (arc 031 discipline).
+    let inherit_config: Option<Config> = sym.encoding_ctx().map(|ctx| ctx.config.clone());
+
+    let handles = fork_program_from_source(
+        &src,
+        None,
+        scope_opt.as_deref(),
+        inherit_config.as_ref(),
+    )?;
+
+    let stdin_writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(handles.stdin_w));
+    let stdout_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(handles.stdout_r));
+    let stderr_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(handles.stderr_r));
+
+    Ok(Value::Struct(Arc::new(StructValue {
+        type_name: ":wat::kernel::ForkedChild".into(),
+        fields: vec![
+            Value::wat__kernel__ChildHandle(handles.child_handle),
+            Value::io__IOWriter(stdin_writer),
+            Value::io__IOReader(stdout_reader),
+            Value::io__IOReader(stderr_reader),
+        ],
+    })))
+}
+
+/// Child's post-fork pipeline for source-string entry. Mirrors
+/// `child_branch` (forms entry) but parses + freezes from a String
+/// instead of an inherited Vec<WatAST>. Same EXIT_* codes; same
+/// dup2-then-_exit discipline.
+#[allow(clippy::too_many_arguments)]
+fn child_branch_from_source(
+    source: String,
+    canonical: Option<String>,
+    inherit_config: Option<Config>,
+    loader: Arc<dyn SourceLoader>,
+    stdin_r_raw: i32,
+    stdout_w_raw: i32,
+    stderr_w_raw: i32,
+    stdin_pair: (OwnedFd, OwnedFd),
+    stdout_pair: (OwnedFd, OwnedFd),
+    stderr_pair: (OwnedFd, OwnedFd),
+) -> ! {
+    // Drop parent-side pipe ends.
+    drop(stdin_pair.1);
+    drop(stdout_pair.0);
+    drop(stderr_pair.0);
+
+    // Redirect stdio onto child-side pipes via dup2.
+    unsafe {
+        if libc::dup2(stdin_r_raw, 0) < 0 {
+            libc::_exit(EXIT_STARTUP_ERROR);
+        }
+        if libc::dup2(stdout_w_raw, 1) < 0 {
+            libc::_exit(EXIT_STARTUP_ERROR);
+        }
+        if libc::dup2(stderr_w_raw, 2) < 0 {
+            libc::_exit(EXIT_STARTUP_ERROR);
+        }
+    }
+    drop(stdin_pair.0);
+    drop(stdout_pair.1);
+    drop(stderr_pair.1);
+
+    // Reset signal handlers to defaults (arc 104 DESIGN open question
+    // 3) — fork inherits the parent's handler addresses; those reference
+    // parent-process atomics now in the child's COW-copy. Resetting
+    // forces the child to use the kernel-default action; arc 104c's
+    // wat-cli forwarding then drives child signal delivery via kill(2).
+    unsafe {
+        for sig in [
+            libc::SIGINT,
+            libc::SIGTERM,
+            libc::SIGUSR1,
+            libc::SIGUSR2,
+            libc::SIGHUP,
+        ] {
+            libc::signal(sig, libc::SIG_DFL);
+        }
+    }
+
+    // Hygiene: close every inherited fd above 2.
+    close_inherited_fds_above_stdio();
+
+    // Build wat-level stdio over fd 0/1/2.
+    let stdin_reader: Arc<dyn WatReader> =
+        Arc::new(PipeReader::from_owned_fd(unsafe { OwnedFd::from_raw_fd(0) }));
+    let stdout_writer: Arc<dyn WatWriter> =
+        Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(1) }));
+    let stderr_writer: Arc<dyn WatWriter> =
+        Arc::new(PipeWriter::from_owned_fd(unsafe { OwnedFd::from_raw_fd(2) }));
+
+    // Parse + freeze source. startup_from_source handles the full
+    // pipeline (parse → config pass → macro expand → resolve → type-
+    // check → freeze). Per the inherit_config path: the source-string
+    // entry's analog of `startup_from_forms_with_inherit` doesn't exist
+    // yet — wat-cli (the canonical caller) doesn't inherit Config from
+    // anywhere because there's no outer wat program. Wat-level callers
+    // CAN have inherit_config, but a source-string program is expected
+    // to declare its own preamble (it's not a defmacro-emitted snippet
+    // like the AST entry). When inherit_config is Some, we silently
+    // ignore — startup_from_source's child-internal config pass handles
+    // explicit setters in the source.
+    let _ = inherit_config; // see comment above
+
+    let world = match startup_from_source(&source, canonical.as_deref(), loader) {
+        Ok(w) => w,
+        Err(e) => {
+            write_direct_to_stderr(&format!("startup: {}\n", e));
+            unsafe { libc::_exit(EXIT_STARTUP_ERROR) };
+        }
+    };
+
+    if let Err(msg) = validate_user_main_signature(&world) {
+        write_direct_to_stderr(&format!(":user::main: {}\n", msg));
+        unsafe { libc::_exit(EXIT_MAIN_SIGNATURE) };
+    }
+
+    let main_args = vec![
+        Value::io__IOReader(stdin_reader),
+        Value::io__IOWriter(stdout_writer),
+        Value::io__IOWriter(stderr_writer),
+    ];
+
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        invoke_user_main(&world, main_args)
+    }));
+
+    match outcome {
+        Ok(Ok(_)) => unsafe { libc::_exit(EXIT_SUCCESS) },
+        Ok(Err(runtime_err)) => {
+            write_direct_to_stderr(&format!("runtime: {:?}\n", runtime_err));
+            unsafe { libc::_exit(EXIT_RUNTIME_ERROR) };
+        }
+        Err(_panic_payload) => {
+            write_direct_to_stderr("panic: forked :user::main panicked\n");
             unsafe { libc::_exit(EXIT_PANIC) };
         }
     }
