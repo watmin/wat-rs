@@ -1297,6 +1297,79 @@ spawn-thread genuinely shouldn't fail.
     ()))
 ```
 
+### Spawning a whole wat program — `spawn-program` (arc 103a)
+
+`:wat::kernel::spawn` runs a *function* on a thread, sharing the
+parent's symbol table. `:wat::kernel::spawn-program` runs a whole
+**wat program** — its own `:user::main`, its own frozen world,
+its own `:wat::config` — on a thread, communicating with the
+parent via three OS pipes.
+
+```scheme
+(:wat::kernel::spawn-program
+  (src   :String)             ;; or use spawn-program-ast for forms entry
+  (scope :Option<String>)     ;; loader scope; :None inherits caller's
+  -> :wat::kernel::Process)
+
+;; :wat::kernel::Process is a struct:
+;;   { stdin   :wat::io::IOWriter        ← parent writes, child reads
+;;     stdout  :wat::io::IOReader        ← child writes, parent reads
+;;     stderr  :wat::io::IOReader        ← child writes, parent reads
+;;     join    :wat::kernel::ProgramHandle<()> }
+```
+
+The mini-TCP discipline applies (see `docs/ZERO-MUTEX.md`): producer
+`writeln`s an EDN line; blocks on `read-line` for the response;
+control returns. Mutual blocking IS the synchronization. Bytes
+shape: line-delimited EDN, one value per line. **Same protocol the
+shell uses to talk to wat** — symmetric across thread boundaries
+(spawn-program), process boundaries (`fork-with-forms`), and
+machine boundaries (any future networked transport that speaks
+the same wire format).
+
+```scheme
+(:wat::core::let*
+  (((proc :wat::kernel::Process)
+    (:wat::kernel::spawn-program inner-src :None))
+   ((req-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin proc))
+   ((resp-r :wat::io::IOReader) (:wat::kernel::Process/stdout proc))
+   ;; send a request
+   ((_ :()) (:wat::io::IOWriter/println req-w
+              (:wat::edn::write request-value)))
+   ;; block on the response
+   ((line :Option<String>) (:wat::io::IOReader/read-line resp-r))
+   ((response :MyResponse)
+    (:wat::edn::read (:wat::core::expect line)))
+   ;; close child's stdin → child sees EOF, exits its loop
+   ((_close :()) (:wat::io::IOWriter/close req-w))
+   ;; wait for clean exit
+   ((join-h :wat::kernel::ProgramHandle<()>)
+    (:wat::kernel::Process/join proc))
+   ((_join :()) (:wat::kernel::join join-h)))
+  ;; ...use response...
+  )
+```
+
+Running demos:
+
+- `wat-scripts/ping-pong.wat` — 5 round trips of EDN over kernel
+  pipes; thread containment.
+- `wat-scripts/ping-pong-fork.wat` — same but child runs as a
+  real OS process via `:wat::kernel::fork-with-forms`.
+- `wat-scripts/dispatch.wat` — EDN-stdin RPC; reads a `:demo::Job`
+  from stdin, spawns the named program, forwards stdout.
+
+Reach for `spawn-program` for in-process containment (logical jail
+via separate frozen world). Reach for `fork-with-forms` for
+OS-process containment (separate address space, separate fd table,
+separate `_exit`). The user-facing surface is identical — both
+return a struct with three pipe ends + a join handle. Pick by cost:
+thread is cheap and fast; fork is heavier but truly isolated.
+
+See `docs/arc/2026/04/103-kernel-spawn/HOLOGRAM.md` for the framing
+— the wat binary as a one-way projection surface, holograms nesting
+through the EDN+newline protocol that crosses every transport.
+
 ### Handle pools — claim-or-panic
 
 When you have N client handles to distribute across N consumers,

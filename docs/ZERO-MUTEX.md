@@ -364,6 +364,46 @@ because each producer's queue is exactly one slot wide.**
   Rare; default to mini-TCP and downgrade only when measurement
   shows the ack is wasted.
 
+### Mini-TCP across kernel pipes (arc 103a)
+
+The pattern transports cleanly to OS pipes. Same shape; bytes on
+the wire instead of typed Rust values.
+
+```
+PARENT WAT PROGRAM                       CHILD WAT PROGRAM
+══════════════════                       ═════════════════
+
+proc.stdin ─writeln EDN→ child stdin    (reads via IOReader/read-line,
+                                          parses via :wat::edn::read)
+
+proc.stdout ←readln EDN─ child stdout   (writes via :wat::edn::write +
+                                          IOWriter/println)
+
+  parent's three pipe ends                child's three pipe ends
+   from :wat::kernel::Process              from :user::main args
+   { stdin, stdout, stderr, join }
+```
+
+The parent's `:wat::io::IOWriter/println` IS the bounded send (OS
+pipe buffer). The parent's `:wat::io::IOReader/read-line` IS the
+recv that blocks until the child writes. Mutual blocking IS the
+synchronization. The discipline is identical to the in-process
+pair-by-index Console handle — the substrate just swapped the
+bytes-on-the-wire layer.
+
+`:wat::kernel::spawn-program` (thread, in-process address space)
+and `:wat::kernel::fork-with-forms` (separate OS process,
+COW-isolated) both expose this shape. The wat program author
+picks containment depth per call site; the wire protocol is the
+same.
+
+End-to-end demo at `wat-scripts/ping-pong.wat` (thread variant)
+and `wat-scripts/ping-pong-fork.wat` (real fork variant). Both
+exchange 5 round trips of `:demo::Ping` / `:demo::Pong` over real
+kernel pipes. See also
+`docs/arc/2026/04/103-kernel-spawn/HOLOGRAM.md` for the framing
+(the wat binary as one-way projection surface).
+
 ---
 
 ## What Rust contributes
