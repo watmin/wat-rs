@@ -127,6 +127,9 @@ impl fmt::Display for CheckError {
                 if let Some(hint) = arc_111_migration_hint(callee, expected, got) {
                     write!(f, "\n  hint: {}", hint)?;
                 }
+                if let Some(hint) = arc_112_migration_hint(callee, expected, got) {
+                    write!(f, "\n  hint: {}", hint)?;
+                }
                 Ok(())
             }
             CheckError::ReturnTypeMismatch {
@@ -140,6 +143,9 @@ impl fmt::Display for CheckError {
                     function, got, expected
                 )?;
                 if let Some(hint) = arc_111_migration_hint(function, expected, got) {
+                    write!(f, "\n  hint: {}", hint)?;
+                }
+                if let Some(hint) = arc_112_migration_hint(function, expected, got) {
                     write!(f, "\n  hint: {}", hint)?;
                 }
                 Ok(())
@@ -173,6 +179,36 @@ impl std::error::Error for CheckError {}
 /// `Result<...,wat::kernel::ThreadDiedError>` and the other doesn't.
 /// That covers all four directions (sender expected/received vs
 /// recvd; old wat code finding new substrate types or vice versa).
+fn arc_112_migration_hint(_callee: &str, expected: &str, got: &str) -> Option<String> {
+    // Detect ForkedChild ↔ Process collision (slice 2a's primary
+    // breakage class). When fixture code annotates a binding as
+    // :ForkedChild<I,O> but the substrate now returns :Process<I,O>,
+    // the message reads "expects :ForkedChild<...>; got :Process<...>"
+    // — the migration is a one-token swap.
+    let expected_forked = expected.contains("wat::kernel::ForkedChild");
+    let got_forked = got.contains("wat::kernel::ForkedChild");
+    let expected_process = expected.contains("wat::kernel::Process<");
+    let got_process = got.contains("wat::kernel::Process<");
+    if (expected_forked && got_process) || (got_forked && expected_process) {
+        return Some(
+            "arc 112 — `:wat::kernel::ForkedChild<I,O>` retired; both `fork-program` AND `spawn-program` now return the unified `:wat::kernel::Process<I,O>`. \
+             Migrate annotations: `:wat::kernel::ForkedChild<I,O>` → `:wat::kernel::Process<I,O>`. \
+             Migrate accessors: `(:wat::kernel::ForkedChild/stdin x)` → `(:wat::kernel::Process/stdin x)` (same for /stdout, /stderr). \
+             Migrate the wait verb: `(:wat::kernel::ForkedChild/handle x)` + `(:wat::kernel::wait-child h)` returning `:i64` → `(:wat::kernel::Process/join-result x)` returning `:Result<:(), :wat::kernel::ProcessDiedError>`. The match arm becomes `((Ok _) ...) ((Err died) ...)` instead of an exit-code branch.".into()
+        );
+    }
+    // Detect ChildHandle ↔ Process/join collision: pre-arc-112 callers
+    // pulled (ForkedChild/handle child) → :ChildHandle and called
+    // wait-child on it. Both ForkedChild/handle and wait-child are gone.
+    if expected.contains("wat::kernel::ChildHandle") || got.contains("wat::kernel::ChildHandle") {
+        return Some(
+            "arc 112 — `:wat::kernel::ChildHandle` is no longer wat-visible; the wait mechanism lives inside `Process<I,O>`'s `join` field (a `ProgramHandle<()>` whose internal variant discriminates Forked vs InThread). \
+             Replace `(ForkedChild/handle child) + (wait-child handle) :i64` with the single call `(:wat::kernel::Process/join-result proc) :Result<:(), :wat::kernel::ProcessDiedError>`.".into()
+        );
+    }
+    None
+}
+
 fn arc_111_migration_hint(callee: &str, expected: &str, got: &str) -> Option<String> {
     let arc_marker = "wat::kernel::ThreadDiedError";
     let expected_has = expected.contains(arc_marker);
@@ -6602,13 +6638,18 @@ fn register_builtins(env: &mut CheckEnv) {
             ]),
         },
     );
-    // (:wat::kernel::fork-program-ast forms) → :wat::kernel::ForkedChild<I, O>.
-    // Arc 012 slice 2 + arc 112 phantom-param lift. Forks the current
+    // (:wat::kernel::fork-program-ast forms) → :wat::kernel::Process<I, O>.
+    // Arc 012 slice 2 + arc 112 unification. Forks the current
     // wat process (COW-inheriting the loaded substrate), runs the
     // caller's forms as a fresh :user::main in the child, returns the
-    // ForkedChild struct holding the child's handle + stdio pipe ends.
-    let forked_child_ty = || TypeExpr::Parametric {
-        head: "wat::kernel::ForkedChild".into(),
+    // unified Process<I,O> struct (same shape spawn-program returns;
+    // only the internal join handle's variant differs — Forked vs
+    // InThread). Pre-arc-112 returned a separate :wat::kernel::ForkedChild
+    // type; that type retired in arc 112 because the only difference
+    // from Process was the wait mechanism, which lives inside
+    // ProgramHandle's enum variant.
+    let process_ty = || TypeExpr::Parametric {
+        head: "wat::kernel::Process".into(),
         args: vec![
             TypeExpr::Path(":I".into()),
             TypeExpr::Path(":O".into()),
@@ -6622,11 +6663,11 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Vec".into(),
                 args: vec![TypeExpr::Path(":wat::WatAST".into())],
             }],
-            ret: forked_child_ty(),
+            ret: process_ty(),
         },
     );
-    // (:wat::kernel::fork-program src scope) → :wat::kernel::ForkedChild<I, O>.
-    // Arc 104b + arc 112.
+    // (:wat::kernel::fork-program src scope) → :wat::kernel::Process<I, O>.
+    // Arc 104b + arc 112 unification.
     env.register(
         ":wat::kernel::fork-program".into(),
         TypeScheme {
@@ -6638,7 +6679,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ],
-            ret: forked_child_ty(),
+            ret: process_ty(),
         },
     );
     // (:wat::kernel::spawn-program src scope) →
@@ -6661,14 +6702,8 @@ fn register_builtins(env: &mut CheckEnv) {
     // distinction means real fork (`fork-program-ast`); in-thread
     // "hermetic" reduces to "inner program declares its own Config
     // preamble," which is a wat-level discipline.
-    // Arc 112 — Process<I, O> phantom-param lift.
-    let process_ty = || TypeExpr::Parametric {
-        head: "wat::kernel::Process".into(),
-        args: vec![
-            TypeExpr::Path(":I".into()),
-            TypeExpr::Path(":O".into()),
-        ],
-    };
+    // Arc 112 — Process<I, O> phantom-param lift; uses the
+    // `process_ty` closure declared above for fork-program-ast.
     let process_or_startup_error = || TypeExpr::Parametric {
         head: "Result".into(),
         args: vec![
@@ -6707,16 +6742,33 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: process_or_startup_error(),
         },
     );
-    // (:wat::kernel::wait-child handle) → :i64. Blocks on waitpid;
-    // returns the child's exit code (WEXITSTATUS on normal exit,
-    // 128+signum on signal termination). Idempotent — repeated
-    // calls on the same handle return the cached code.
+    // (:wat::kernel::Process/join-result proc) →
+    //   :Result<:(), :wat::kernel::ProcessDiedError>.
+    // Arc 112 — the canonical death-as-data wait verb on a unified
+    // Process<I,O>. Internally dispatches on the Process's join-field
+    // ProgramHandle variant: InThread (spawn-program origin) does
+    // arc 060's recv-on-channel; Forked (fork-program origin) does
+    // waitpid. Both arms synthesize the outcome as ProcessDiedError
+    // so the receiver matches one shape regardless of how the Program
+    // was spawned. Symmetric with arc 060's bare
+    // `:wat::kernel::join-result handle :ProgramHandle<R>`, which
+    // continues to return `Result<R, ThreadDiedError>` on the bare
+    // Thread side. Pre-arc-112 callers used the now-retired
+    // `:wat::kernel::wait-child` returning :i64; the migration is
+    // `(wait-child (ForkedChild/handle child))` →
+    // `(:wat::kernel::Process/join-result proc)`.
     env.register(
-        ":wat::kernel::wait-child".into(),
+        ":wat::kernel::Process/join-result".into(),
         TypeScheme {
-            type_params: vec![],
-            params: vec![TypeExpr::Path(":wat::kernel::ChildHandle".into())],
-            ret: TypeExpr::Path(":i64".into()),
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![process_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![
+                    TypeExpr::Tuple(vec![]),
+                    TypeExpr::Path(":wat::kernel::ProcessDiedError".into()),
+                ],
+            },
         },
     );
     // User-signal surface — 2026-04-19 stance: kernel measures, userland

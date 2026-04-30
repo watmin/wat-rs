@@ -665,39 +665,18 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // :wat::kernel::ForkedChild — return type of
-    // `:wat::kernel::fork-program-ast` (arc 012 slice 2). Holds the
-    // child's pid-bearing handle plus the three parent-side pipe
-    // ends. Fields:
-    //   - handle — opaque ChildHandle; feeds into wait-child.
-    //   - stdin  — parent writes, child reads fd 0.
-    //   - stdout — parent reads, child wrote fd 1.
-    //   - stderr — parent reads, child wrote fd 2.
-    //
-    // Auto-generated `ForkedChild/new` + per-field accessors land
-    // in the symbol table at freeze time via register_struct_methods.
-    env.register_builtin(TypeDef::Struct(StructDef {
-        name: ":wat::kernel::ForkedChild".into(),
-        type_params: vec!["I".into(), "O".into()],
-        fields: vec![
-            (
-                "handle".into(),
-                TypeExpr::Path(":wat::kernel::ChildHandle".into()),
-            ),
-            (
-                "stdin".into(),
-                TypeExpr::Path(":wat::io::IOWriter".into()),
-            ),
-            (
-                "stdout".into(),
-                TypeExpr::Path(":wat::io::IOReader".into()),
-            ),
-            (
-                "stderr".into(),
-                TypeExpr::Path(":wat::io::IOReader".into()),
-            ),
-        ],
-    }));
+    // :wat::kernel::ForkedChild RETIRED 2026-04-30 (arc 112).
+    // The struct collapsed into :wat::kernel::Process<I,O> — both
+    // spawn-program and fork-program now return the unified Process
+    // shape. The wait mechanism lives inside ProgramHandle's
+    // InThread / Forked enum variant; the ChildHandle is no longer
+    // wat-visible. Pre-arc-112 fixtures used:
+    //   (child :wat::kernel::ForkedChild<I,O>) (fork-program-ast forms)
+    //   (handle :wat::kernel::ChildHandle)     (ForkedChild/handle child)
+    //   (exit  :i64)                           (wait-child handle)
+    // Migration:
+    //   (proc  :wat::kernel::Process<I,O>)     (fork-program-ast forms)
+    //   (rcv   :Result<:(),:ProcessDiedError>) (Process/join-result proc)
 
     // :wat::kernel::StartupError — error variant of the Result
     // returned by `:wat::kernel::spawn-program` / `-ast` (arc 105a).

@@ -2593,6 +2593,9 @@ fn dispatch_keyword_head(
         ":wat::kernel::ProcessDiedError/to-failure" => {
             eval_process_died_error_to_failure(args, env, sym)
         }
+        ":wat::kernel::Process/join-result" => {
+            eval_kernel_process_join_result(args, env, sym)
+        }
         ":wat::kernel::select" => eval_kernel_select(args, env, sym),
         ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym),
         ":wat::kernel::HandlePool::pop" => eval_handle_pool_pop(args, env, sym),
@@ -2620,7 +2623,10 @@ fn dispatch_keyword_head(
         ":wat::kernel::spawn-program-ast" => {
             crate::spawn::eval_kernel_spawn_program_ast(args, env, sym)
         }
-        ":wat::kernel::wait-child" => crate::fork::eval_kernel_wait_child(args, env, sym),
+        // :wat::kernel::wait-child retired in arc 112 — replaced by
+        // :wat::kernel::Process/join-result returning Result<(),
+        // ProcessDiedError>. The runtime fn in src/fork.rs is left
+        // for now (unreferenced) and removed in slice 5 closure.
         ":wat::kernel::sigusr1?" => {
             eval_user_signal_query(args, ":wat::kernel::sigusr1?", &KERNEL_SIGUSR1)
         }
@@ -11359,6 +11365,81 @@ fn eval_kernel_join_result(
     Ok(value)
 }
 
+/// `(:wat::kernel::Process/join-result proc) ->
+/// :Result<:(), :wat::kernel::ProcessDiedError>` — arc 112's
+/// canonical wait verb on the unified Process<I,O>. Pulls the
+/// Process struct's join field (a ProgramHandle), dispatches on
+/// the InThread / Forked variant, and synthesizes the outcome as
+/// ProcessDiedError so the receiver matches one shape regardless
+/// of how the Program was spawned.
+///
+/// Symmetric with arc 060's bare `:wat::kernel::join-result` which
+/// continues to operate on a raw ProgramHandle<R> from
+/// `:wat::kernel::spawn` and returns ThreadDiedError. Different
+/// subjects (Thread vs Process) → different error names; same
+/// match-arm shape.
+fn eval_kernel_process_join_result(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Process/join-result";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let proc_value = eval(&args[0], env, sym)?;
+    let proc_struct = match proc_value {
+        Value::Struct(s) if s.type_name == ":wat::kernel::Process" => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::kernel::Process",
+                got: other.type_name(),
+            });
+        }
+    };
+    // Process struct field order: stdin, stdout, stderr, join.
+    // The join field carries the ProgramHandle.
+    let handle = match proc_struct.fields.get(3) {
+        Some(Value::wat__kernel__ProgramHandle(h)) => h.clone(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Process.join (ProgramHandle)",
+                got: "missing or wrong-type field",
+            });
+        }
+    };
+    let value = match handle.as_ref() {
+        ProgramHandleInner::InThread(rx) => match rx.recv() {
+            Ok(SpawnOutcome::Ok(_)) => Value::Result(Arc::new(Ok(Value::Unit))),
+            Ok(SpawnOutcome::RuntimeErr(e)) => {
+                Value::Result(Arc::new(Err(process_died_error_runtime(e.to_string()))))
+            }
+            Ok(SpawnOutcome::Panic { message, assertion }) => Value::Result(Arc::new(Err(
+                process_died_error_panic(message, assertion.clone()),
+            ))),
+            Err(_) => Value::Result(Arc::new(Err(process_died_error_channel_disconnected()))),
+        },
+        ProgramHandleInner::Forked(child) => {
+            let code = child.wait_or_cached();
+            if code == 0 {
+                Value::Result(Arc::new(Ok(Value::Unit)))
+            } else {
+                Value::Result(Arc::new(Err(process_died_error_panic(
+                    format!("forked program exited {}", code),
+                    None,
+                ))))
+            }
+        }
+    };
+    Ok(value)
+}
+
 /// Build a `:wat::kernel::ThreadDiedError::Panic` enum value
 /// (arc 060 + arc 105c). Variant carries two fields:
 /// `message: String` always populated; `failure: Option<Failure>`
@@ -11482,7 +11563,6 @@ fn thread_died_error_channel_disconnected() -> Value {
 /// (arc 112). Sibling of `thread_died_error_panic` for the
 /// Process<I,O> subject. Same payload shape; the type_path
 /// distinguishes them at runtime + at the type-checker.
-#[allow(dead_code)]
 fn process_died_error_panic(
     message: String,
     assertion: Option<crate::assertion::AssertionPayload>,
@@ -11500,7 +11580,6 @@ fn process_died_error_panic(
 
 /// Build a `:wat::kernel::ProcessDiedError::RuntimeError(message)`
 /// enum value (arc 112).
-#[allow(dead_code)]
 fn process_died_error_runtime(message: String) -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::ProcessDiedError".into(),
@@ -11511,7 +11590,6 @@ fn process_died_error_runtime(message: String) -> Value {
 
 /// Build a `:wat::kernel::ProcessDiedError::ChannelDisconnected`
 /// (unit variant) enum value (arc 112).
-#[allow(dead_code)]
 fn process_died_error_channel_disconnected() -> Value {
     Value::Enum(Arc::new(EnumValue {
         type_path: ":wat::kernel::ProcessDiedError".into(),

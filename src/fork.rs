@@ -472,13 +472,19 @@ pub fn eval_kernel_fork_program_ast(
     let stdout_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stdout_r));
     let stderr_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stderr_r));
 
+    // Arc 112 — fork-program-ast returns the same :wat::kernel::Process
+    // struct shape spawn-program returns. The join field carries a
+    // ProgramHandle whose internal variant is Forked (waitpid-backed)
+    // rather than InThread (channel-backed).
     Ok(Value::Struct(Arc::new(StructValue {
-        type_name: ":wat::kernel::ForkedChild".into(),
+        type_name: ":wat::kernel::Process".into(),
         fields: vec![
-            Value::wat__kernel__ChildHandle(handle),
             Value::io__IOWriter(stdin_writer),
             Value::io__IOReader(stdout_reader),
             Value::io__IOReader(stderr_reader),
+            Value::wat__kernel__ProgramHandle(Arc::new(
+                crate::runtime::ProgramHandleInner::Forked(handle),
+            )),
         ],
     })))
 }
@@ -767,13 +773,16 @@ pub fn eval_kernel_fork_program(
     let stdout_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(handles.stdout_r));
     let stderr_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(handles.stderr_r));
 
+    // Arc 112 — fork-program returns Process<I,O> like fork-program-ast.
     Ok(Value::Struct(Arc::new(StructValue {
-        type_name: ":wat::kernel::ForkedChild".into(),
+        type_name: ":wat::kernel::Process".into(),
         fields: vec![
-            Value::wat__kernel__ChildHandle(handles.child_handle),
             Value::io__IOWriter(stdin_writer),
             Value::io__IOReader(stdout_reader),
             Value::io__IOReader(stderr_reader),
+            Value::wat__kernel__ProgramHandle(Arc::new(
+                crate::runtime::ProgramHandleInner::Forked(handles.child_handle),
+            )),
         ],
     })))
 }

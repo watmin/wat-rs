@@ -7,23 +7,31 @@
 ;; program in isolation. That primitive coupled the runtime to its
 ;; own binary path — honest for its time, dishonest long-term.
 ;;
-;; The fork substrate (pipe + fork-program-ast + wait-child, arc
-;; 012 slices 1 + 2) makes hermetic expressible in wat. The child
+;; The fork substrate (pipe + fork-program-ast + Process/join-result,
+;; arc 012 + arc 112) makes hermetic expressible in wat. The child
 ;; inherits the parent's loaded runtime via COW and builds a fresh
 ;; FrozenWorld from the caller's inherited Vec<wat::WatAST> — no
 ;; binary reload, no tempfile, no re-parse.
 ;;
+;; Arc 112 — fork-program-ast now returns the unified
+;; :wat::kernel::Process<I,O> (same struct spawn-program-ast returns).
+;; The wait mechanism is hidden inside ProgramHandle's Forked variant;
+;; (:wat::kernel::Process/join-result proc) produces Result<(),
+;; ProcessDiedError> uniformly. The pre-arc-112 ForkedChild +
+;; wait-child + per-exit-code prefix logic collapsed: the substrate
+;; renders exit-code interpretation directly in the ProcessDiedError
+;; payload.
+;;
 ;; Limitations as shipped:
-;; - No concurrent drain of stdout vs stderr. Parent waits-child
+;; - No concurrent drain of stdout vs stderr. Parent waits-program
 ;;   first, then drains serially. Works when the child's output
 ;;   fits in pipe buffers (typically 64KB+). A child that writes
 ;;   more to one stream than the buffer holds would deadlock; no
 ;;   demand yet.
 ;; - No force-close of the parent's stdin writer. The child's main
-;;   sees EOF on stdin only when the outer ForkedChild binding
-;;   drops (at :user::main exit). Children that read stdin to EOF
-;;   as a prerequisite to further work would deadlock; no demand
-;;   yet.
+;;   sees EOF on stdin only when the outer Process binding drops
+;;   (at :user::main exit). Children that read stdin to EOF as a
+;;   prerequisite to further work would deadlock; no demand yet.
 ;;
 ;; Both limitations are follow-up substrate work when a caller
 ;; needs them.
@@ -46,49 +54,12 @@
   (:wat::kernel::drain-lines (r :wat::io::IOReader) -> :Vec<String>)
   (:wat::kernel::drain-lines-acc r (:wat::core::vec :wat::core::String)))
 
-;; Translate an EXIT_* code into a short message prefix used in
-;; Failure.message. Keep in sync with src/fork.rs's EXIT_* consts.
-(:wat::core::define
-  (:wat::kernel::exit-code-prefix (code :wat::core::i64) -> :wat::core::String)
-  (:wat::core::cond -> :wat::core::String
-    ((:wat::core::= code 1) "[runtime error]")
-    ((:wat::core::= code 2) "[panic]")
-    ((:wat::core::= code 3) "[startup error]")
-    ((:wat::core::= code 4) "[:user::main signature]")
-    (:else                  "[nonzero exit]")))
-
-;; Compose a Failure.message from the prefix + the child's stderr
-;; lines joined with newlines.
-(:wat::core::define
-  (:wat::kernel::failure-message-for-code
-    (code   :wat::core::i64)
-    (stderr :Vec<String>)
-    -> :wat::core::String)
-  (:wat::core::string::join "\n"
-    (:wat::core::conj
-      (:wat::core::vec :wat::core::String (:wat::kernel::exit-code-prefix code))
-      (:wat::core::string::join "\n" stderr))))
-
-;; Build the Option<Failure> from the child's exit code + stderr.
-;; Exit 0 → :None; any nonzero exit → Some with a reconstructed
-;; Failure struct carrying the exit category + stderr content.
-(:wat::core::define
-  (:wat::kernel::failure-from-exit
-    (code   :wat::core::i64)
-    (stderr :Vec<String>)
-    -> :Option<wat::kernel::Failure>)
-  (:wat::core::if (:wat::core::= code 0) -> :Option<wat::kernel::Failure>
-    :None
-    (Some (:wat::core::struct-new :wat::kernel::Failure
-            (:wat::kernel::failure-message-for-code code stderr)
-            :None
-            (:wat::core::vec :wat::kernel::Frame)
-            :None
-            :None))))
-
 ;; The main event. Replaces the Rust primitive bit-for-bit at the
 ;; user surface: same keyword path, same (forms, stdin, scope)
-;; signature, same :wat::kernel::RunResult return shape.
+;; signature, same :wat::kernel::RunResult return shape. Now atop
+;; the unified arc-112 Process<I,O> — no ForkedChild handle
+;; threading, no exit-code prefix logic; ProcessDiedError/to-failure
+;; carries the right message.
 (:wat::core::define
   (:wat::kernel::run-sandboxed-hermetic-ast<I,O>
     (forms :Vec<wat::WatAST>)
@@ -110,37 +81,35 @@
                :None))))
     (:None
      (:wat::core::let*
-       (((child :wat::kernel::ForkedChild<I,O>)
+       (((proc :wat::kernel::Process<I,O>)
          (:wat::kernel::fork-program-ast forms))
-        ((handle :wat::kernel::ChildHandle)
-         (:wat::kernel::ForkedChild/handle child))
         ;; Write stdin (if any). An empty vec joins to "", which
-        ;; write-all handles as a zero-byte write. Inner scope
-        ;; mostly for readability — the writer Arc stays alive
-        ;; via the enclosing child binding either way.
+        ;; write-all handles as a zero-byte write.
         ((_ :wat::core::i64)
          (:wat::core::let*
            (((stdin-wr :wat::io::IOWriter)
-             (:wat::kernel::ForkedChild/stdin child))
+             (:wat::kernel::Process/stdin proc))
             ((joined :wat::core::String)
              (:wat::core::string::join "\n" stdin)))
            (:wat::io::IOWriter/write-string stdin-wr joined)))
-        ;; Wait for the child to exit first. With small outputs
+        ;; Wait for the program to exit first. With small outputs
         ;; (< pipe buffer), the child's writes complete without
         ;; the parent needing to drain. This keeps the drain
         ;; code single-threaded — no spawn + join ceremony.
-        ((exit-code :wat::core::i64)
-         (:wat::kernel::wait-child handle))
+        ((joined-result :Result<(),wat::kernel::ProcessDiedError>)
+         (:wat::kernel::Process/join-result proc))
         ((stdout-r :wat::io::IOReader)
-         (:wat::kernel::ForkedChild/stdout child))
+         (:wat::kernel::Process/stdout proc))
         ((stderr-r :wat::io::IOReader)
-         (:wat::kernel::ForkedChild/stderr child))
+         (:wat::kernel::Process/stderr proc))
         ((stdout-lines :Vec<String>)
          (:wat::kernel::drain-lines stdout-r))
         ((stderr-lines :Vec<String>)
          (:wat::kernel::drain-lines stderr-r))
         ((failure :Option<wat::kernel::Failure>)
-         (:wat::kernel::failure-from-exit exit-code stderr-lines)))
+         (:wat::core::match joined-result -> :Option<wat::kernel::Failure>
+           ((Ok _)    :None)
+           ((Err err) (Some (:wat::kernel::ProcessDiedError/to-failure err))))))
        (:wat::core::struct-new :wat::kernel::RunResult
          stdout-lines
          stderr-lines

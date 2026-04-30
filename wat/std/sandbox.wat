@@ -52,25 +52,29 @@
     :None
     :None))
 
-;; Build a Failure payload from a ThreadDiedError. The substrate
-;; accessor `:wat::kernel::ThreadDiedError/to-failure` (arc 105c)
+;; Build a Failure payload from a ProcessDiedError (arc 112). The
+;; substrate accessor :wat::kernel::ProcessDiedError/to-failure
 ;; preserves arc 064's structured actual / expected / location /
-;; frames when the panic carried an AssertionPayload (assert-eq
-;; failure); falls back to a message-only Failure for plain
-;; panics, runtime errors, and the unit ChannelDisconnected
-;; variant. No wat-side variant pattern matching needed.
+;; frames when the panic carried an AssertionPayload; falls back to
+;; a message-only Failure for plain panics, runtime errors, and the
+;; unit ChannelDisconnected variant. No wat-side variant pattern
+;; matching needed. (Pre-arc-112 the equivalent was
+;; failure-from-thread-died wrapping ThreadDiedError/to-failure;
+;; with the unified Process<I,O> the Err side of Process/join-result
+;; is ProcessDiedError.)
 (:wat::core::define
-  (:wat::kernel::failure-from-thread-died
-    (err :wat::kernel::ThreadDiedError)
+  (:wat::kernel::failure-from-process-died
+    (err :wat::kernel::ProcessDiedError)
     -> :wat::kernel::Failure)
-  (:wat::kernel::ThreadDiedError/to-failure err))
+  (:wat::kernel::ProcessDiedError/to-failure err))
 
 ;; Common driver — runs a Process (already spawned successfully),
 ;; pre-seeds stdin, closes the writer to signal EOF, drains
-;; stdout / stderr, joins. Returns the canonical RunResult shape
-;; every test author matches against. Always returns Ok-from-
-;; spawn shape; spawn-time failures are handled before drive-
-;; sandbox runs (in the run-sandboxed wrappers below).
+;; stdout / stderr, joins via Process/join-result. Returns the
+;; canonical RunResult shape every test author matches against.
+;; Always returns Ok-from-spawn shape; spawn-time failures are
+;; handled before drive-sandbox runs (in the run-sandboxed
+;; wrappers below).
 ;;
 ;; The seeded stdin is joined with '\n' between elements (no
 ;; trailing newline) — same convention the deleted Rust primitive
@@ -91,13 +95,12 @@
      ((stderr-r :wat::io::IOReader)  (:wat::kernel::Process/stderr proc))
      ((stdout-lines :Vec<String>)    (:wat::kernel::drain-lines stdout-r))
      ((stderr-lines :Vec<String>)    (:wat::kernel::drain-lines stderr-r))
-     ((join-h :wat::kernel::ProgramHandle<()>) (:wat::kernel::Process/join proc))
-     ((joined-result :Result<(),wat::kernel::ThreadDiedError>)
-      (:wat::kernel::join-result join-h))
+     ((joined-result :Result<(),wat::kernel::ProcessDiedError>)
+      (:wat::kernel::Process/join-result proc))
      ((failure :Option<wat::kernel::Failure>)
       (:wat::core::match joined-result -> :Option<wat::kernel::Failure>
         ((Ok _)    :None)
-        ((Err err) (Some (:wat::kernel::failure-from-thread-died err))))))
+        ((Err err) (Some (:wat::kernel::failure-from-process-died err))))))
     (:wat::core::struct-new :wat::kernel::RunResult
       stdout-lines stderr-lines failure)))
 
