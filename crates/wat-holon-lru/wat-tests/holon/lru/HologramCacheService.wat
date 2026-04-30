@@ -167,7 +167,7 @@
             :wat::holon::lru::HologramCacheService/null-reporter
             (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
 
-         ((reply-pair :wat::kernel::QueuePair<Option<wat::holon::HolonAST>>)
+         ((reply-pair :wat::holon::lru::HologramCacheService::GetReplyPair)
           (:wat::kernel::make-bounded-queue :Option<wat::holon::HolonAST> 1))
          ((reply-tx :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair))
@@ -218,14 +218,14 @@
           (:wat::kernel::HandlePool::pop pool))
          ((_finish :()) (:wat::kernel::HandlePool::finish pool))
 
-         ((reply-pair-a :wat::kernel::QueuePair<Option<wat::holon::HolonAST>>)
+         ((reply-pair-a :wat::holon::lru::HologramCacheService::GetReplyPair)
           (:wat::kernel::make-bounded-queue :Option<wat::holon::HolonAST> 1))
          ((reply-tx-a :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair-a))
          ((reply-rx-a :wat::holon::lru::HologramCacheService::GetReplyRx)
           (:wat::core::second reply-pair-a))
 
-         ((reply-pair-b :wat::kernel::QueuePair<Option<wat::holon::HolonAST>>)
+         ((reply-pair-b :wat::holon::lru::HologramCacheService::GetReplyPair)
           (:wat::kernel::make-bounded-queue :Option<wat::holon::HolonAST> 1))
          ((reply-tx-b :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair-b))
@@ -299,7 +299,7 @@
           (:wat::kernel::HandlePool::pop pool))
          ((_finish :()) (:wat::kernel::HandlePool::finish pool))
 
-         ((reply-pair :wat::kernel::QueuePair<Option<wat::holon::HolonAST>>)
+         ((reply-pair :wat::holon::lru::HologramCacheService::GetReplyPair)
           (:wat::kernel::make-bounded-queue :Option<wat::holon::HolonAST> 1))
          ((reply-tx :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair))

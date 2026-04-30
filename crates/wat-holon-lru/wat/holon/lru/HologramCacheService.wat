@@ -42,6 +42,9 @@
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::GetReplyRx
   :wat::kernel::QueueReceiver<Option<wat::holon::HolonAST>>)
 
+(:wat::core::typealias :wat::holon::lru::HologramCacheService::GetReplyPair
+  :wat::kernel::QueuePair<Option<wat::holon::HolonAST>>)
+
 ;; ─── Request enum ───────────────────────────────────────────────
 
 (:wat::core::enum :wat::holon::lru::HologramCacheService::Request
