@@ -6203,8 +6203,9 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: TypeExpr::Path(":wat::kernel::ForkedChild".into()),
         },
     );
-    // (:wat::kernel::spawn-program src scope) → :wat::kernel::Process.
-    // (:wat::kernel::spawn-program-ast forms scope) → :wat::kernel::Process.
+    // (:wat::kernel::spawn-program src scope) →
+    //   :Result<:wat::kernel::Process, :wat::kernel::StartupError>.
+    // (:wat::kernel::spawn-program-ast forms scope) → same.
     //
     // Arc 103. The in-thread sibling of `fork-program-ast` — same
     // `(IOWriter, IOReader, IOReader, ProgramHandle<()>)` shape, but
@@ -6213,10 +6214,22 @@ fn register_builtins(env: &mut CheckEnv) {
     // on `read-line` from `proc.stdout` — mini-TCP via kernel pipes.
     // See `docs/ZERO-MUTEX.md` §"Mini-TCP via paired channels".
     //
+    // Arc 105a: failures during freeze (parse / type-check / config)
+    // or `:user::main` signature validation surface as
+    // `(Err startup-error)` data instead of raising — wat-level
+    // callers pattern-match. A successful spawn yields `(Ok proc)`.
+    //
     // No substrate `spawn-program-hermetic-ast`. Today's hermetic
     // distinction means real fork (`fork-program-ast`); in-thread
     // "hermetic" reduces to "inner program declares its own Config
     // preamble," which is a wat-level discipline.
+    let process_or_startup_error = TypeExpr::Parametric {
+        head: "Result".into(),
+        args: vec![
+            TypeExpr::Path(":wat::kernel::Process".into()),
+            TypeExpr::Path(":wat::kernel::StartupError".into()),
+        ],
+    };
     env.register(
         ":wat::kernel::spawn-program".into(),
         TypeScheme {
@@ -6228,7 +6241,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ],
-            ret: TypeExpr::Path(":wat::kernel::Process".into()),
+            ret: process_or_startup_error.clone(),
         },
     );
     env.register(
@@ -6245,7 +6258,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     args: vec![TypeExpr::Path(":String".into())],
                 },
             ],
-            ret: TypeExpr::Path(":wat::kernel::Process".into()),
+            ret: process_or_startup_error,
         },
     );
     // (:wat::kernel::wait-child handle) → :i64. Blocks on waitpid;

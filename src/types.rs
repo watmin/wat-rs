@@ -644,6 +644,22 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::StartupError — error variant of the Result
+    // returned by `:wat::kernel::spawn-program` / `-ast` (arc 105a).
+    // Captured when freeze (parse + type-check + config + macro)
+    // or `:user::main` signature validation fails. Single field
+    // for now (the diagnostic message); extensible to kind /
+    // location if a real consumer surfaces.
+    //
+    // Auto-generated `StartupError/new` + `StartupError/message`
+    // accessor land in the symbol table at freeze time via
+    // register_struct_methods.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::kernel::StartupError".into(),
+        type_params: vec![],
+        fields: vec![("message".into(), TypeExpr::Path(":String".into()))],
+    }));
+
     // :wat::kernel::Process — return type of
     // `:wat::kernel::spawn-program` and siblings (arc 103). The
     // in-thread sibling of `:wat::kernel::ForkedChild`. Holds the

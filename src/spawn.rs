@@ -69,13 +69,12 @@ pub fn eval_kernel_spawn_program(
     let scope_opt = expect_option_string(OP, eval(&args[1], env, sym)?)?;
 
     let loader = resolve_sandbox_loader(scope_opt, sym, OP)?;
-    let world =
-        startup_from_source(&src, None, loader).map_err(|e| RuntimeError::MalformedForm {
-            head: OP.into(),
-            reason: format!("startup: {}", e),
-        })?;
+    let world = match startup_from_source(&src, None, loader) {
+        Ok(w) => w,
+        Err(e) => return Ok(startup_error_result(format!("{}", e))),
+    };
 
-    spawn_with_world(OP, world)
+    spawn_with_world_into_result(OP, world)
 }
 
 /// `(:wat::kernel::spawn-program-ast forms scope)` →
@@ -99,16 +98,16 @@ pub fn eval_kernel_spawn_program_ast(
     let loader = resolve_sandbox_loader(scope_opt, sym, OP)?;
     let inherit_config: Option<Config> = sym.encoding_ctx().map(|ctx| ctx.config.clone());
 
-    let world = match inherit_config {
+    let startup_outcome = match inherit_config {
         Some(cfg) => startup_from_forms_with_inherit(forms, None, loader, &cfg),
         None => startup_from_forms(forms, None, loader),
-    }
-    .map_err(|e| RuntimeError::MalformedForm {
-        head: OP.into(),
-        reason: format!("startup: {}", e),
-    })?;
+    };
+    let world = match startup_outcome {
+        Ok(w) => w,
+        Err(e) => return Ok(startup_error_result(format!("{}", e))),
+    };
 
-    spawn_with_world(OP, world)
+    spawn_with_world_into_result(OP, world)
 }
 
 // No `spawn-program-hermetic-ast` substrate primitive. The hermetic
@@ -121,15 +120,29 @@ pub fn eval_kernel_spawn_program_ast(
 
 // ─── Shared spawn driver ─────────────────────────────────────────────
 
-/// The post-freeze plumbing all three primitives share. Validates
-/// the inner `:user::main` signature, allocates the three pipe
-/// pairs, builds the child + parent IO Values, spawns the worker
-/// thread, returns the parent's `Process` struct.
-fn spawn_with_world(op: &'static str, world: FrozenWorld) -> Result<Value, RuntimeError> {
-    validate_user_main_signature(&world).map_err(|msg| RuntimeError::MalformedForm {
-        head: op.into(),
-        reason: format!(":user::main: {}", msg),
-    })?;
+/// Build a `Value::Result(Err(StartupError{message}))` ready to
+/// hand back to the caller. Arc 105a: spawn-program failures are
+/// data, not raised RuntimeErrors.
+fn startup_error_result(message: String) -> Value {
+    let err_struct = Value::Struct(Arc::new(StructValue {
+        type_name: ":wat::kernel::StartupError".into(),
+        fields: vec![Value::String(Arc::new(message))],
+    }));
+    Value::Result(Arc::new(Err(err_struct)))
+}
+
+/// The post-freeze plumbing both primitives share. Validates the
+/// inner `:user::main` signature; on failure returns `(Err
+/// startup-error)`. On success, allocates the three pipe pairs,
+/// builds child + parent IO Values, spawns the worker thread,
+/// wraps the parent's `Process` struct in `(Ok ...)`.
+fn spawn_with_world_into_result(
+    op: &'static str,
+    world: FrozenWorld,
+) -> Result<Value, RuntimeError> {
+    if let Err(msg) = validate_user_main_signature(&world) {
+        return Ok(startup_error_result(format!(":user::main: {}", msg)));
+    }
 
     // Allocate three pipes. Each `make_pipe` returns
     // `(read_end, write_end)` as OwnedFds; ownership is split
@@ -180,7 +193,7 @@ fn spawn_with_world(op: &'static str, world: FrozenWorld) -> Result<Value, Runti
     let parent_stdout: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stdout_r));
     let parent_stderr: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(stderr_r));
 
-    Ok(Value::Struct(Arc::new(StructValue {
+    let process = Value::Struct(Arc::new(StructValue {
         type_name: ":wat::kernel::Process".into(),
         fields: vec![
             Value::io__IOWriter(parent_stdin),
@@ -188,7 +201,8 @@ fn spawn_with_world(op: &'static str, world: FrozenWorld) -> Result<Value, Runti
             Value::io__IOReader(parent_stderr),
             Value::wat__kernel__ProgramHandle(Arc::new(rx)),
         ],
-    })))
+    }));
+    Ok(Value::Result(Arc::new(Ok(process))))
 }
 
 // ─── Arg-parsing helpers ─────────────────────────────────────────────

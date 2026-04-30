@@ -96,8 +96,20 @@
       (:wat::io::read-file "./wat-scripts/pong.wat"))
      ;; Spawn the child in its own frozen world. :None scope means
      ;; the child inherits this program's loader (per arc 027).
+     ;; Arc 105a: spawn-program returns Result; pattern-match
+     ;; immediately because :user::main's `-> :()` signature can't
+     ;; propagate Err via `:wat::core::try`. A real failure here
+     ;; means the embedded child source has a startup error —
+     ;; demo author's bug, panic is the right surface.
      ((proc :wat::kernel::Process)
-      (:wat::kernel::spawn-program child-src :None))
+      (:wat::core::match (:wat::kernel::spawn-program child-src :None)
+        -> :wat::kernel::Process
+        ((Ok p) p)
+        ((Err err)
+         (:wat::core::panic!
+           (:wat::core::string::concat
+             "ping-pong: spawn failed: "
+             (:wat::kernel::StartupError/message err))))))
      ((req-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin proc))
      ((resp-r :wat::io::IOReader) (:wat::kernel::Process/stdout proc))
      ;; The conversation. Five round trips; mutual blocking on each.

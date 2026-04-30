@@ -57,29 +57,46 @@ fn unwrap_unit(v: Value) {
     }
 }
 
+/// Strip one `:Result<T, _>` layer. Used to unwrap the test's
+/// `:user::main` return after arc 105a — main returns
+/// `:Result<X, :wat::kernel::StartupError>` so that
+/// `:wat::core::try` can propagate spawn failures cleanly. On Err,
+/// the test fails with the captured StartupError message.
+fn unwrap_ok(v: Value) -> Value {
+    match v {
+        Value::Result(r) => match &*r {
+            Ok(inner) => inner.clone(),
+            Err(e) => panic!("expected Ok; got Err({:?})", e),
+        },
+        other => panic!("expected Result; got {:?}", other),
+    }
+}
+
 // ─── ast entry — child writes to stdout, parent reads ────────────────────
 
 #[test]
 fn spawn_program_ast_child_writes_stdout_parent_reads_line() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main
+                             -> :Result<Option<String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Process)
-              (:wat::kernel::spawn-program-ast
-                (:wat::test::program
-                  (:wat::core::define (:user::main
-                                       (stdin  :wat::io::IOReader)
-                                       (stdout :wat::io::IOWriter)
-                                       (stderr :wat::io::IOWriter)
-                                       -> :())
-                    (:wat::io::IOWriter/println stdout "hello-from-thread")))
-                :None))
+              (:wat::core::try
+                (:wat::kernel::spawn-program-ast
+                  (:wat::test::program
+                    (:wat::core::define (:user::main
+                                         (stdin  :wat::io::IOReader)
+                                         (stdout :wat::io::IOWriter)
+                                         (stderr :wat::io::IOWriter)
+                                         -> :())
+                      (:wat::io::IOWriter/println stdout "hello-from-thread")))
+                  :None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc)))
-            (:wat::io::IOReader/read-line out-r)))
+            (Ok (:wat::io::IOReader/read-line out-r))))
     "#;
-    assert_eq!(unwrap_some_string(run(src)), "hello-from-thread");
+    assert_eq!(unwrap_some_string(unwrap_ok(run(src))), "hello-from-thread");
 }
 
 // ─── mini-TCP round trip — request / response ────────────────────────────
@@ -91,28 +108,30 @@ fn spawn_program_ast_round_trip_via_pipes() {
     // mini-TCP shape: writeln request → blocks on readln response.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main
+                             -> :Result<Option<String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Process)
-              (:wat::kernel::spawn-program-ast
-                (:wat::test::program
-                  (:wat::core::define (:user::main
-                                       (stdin  :wat::io::IOReader)
-                                       (stdout :wat::io::IOWriter)
-                                       (stderr :wat::io::IOWriter)
-                                       -> :())
-                    (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
-                      (:None ())
-                      ((Some line)
-                       (:wat::io::IOWriter/println stdout
-                         (:wat::core::string::concat line line))))))
-                :None))
+              (:wat::core::try
+                (:wat::kernel::spawn-program-ast
+                  (:wat::test::program
+                    (:wat::core::define (:user::main
+                                         (stdin  :wat::io::IOReader)
+                                         (stdout :wat::io::IOWriter)
+                                         (stderr :wat::io::IOWriter)
+                                         -> :())
+                      (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
+                        (:None ())
+                        ((Some line)
+                         (:wat::io::IOWriter/println stdout
+                           (:wat::core::string::concat line line))))))
+                  :None)))
              ((in-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin proc))
              ((out-r :wat::io::IOReader) (:wat::kernel::Process/stdout proc))
              ((_ :()) (:wat::io::IOWriter/println in-w "ping")))
-            (:wat::io::IOReader/read-line out-r)))
+            (Ok (:wat::io::IOReader/read-line out-r))))
     "#;
-    assert_eq!(unwrap_some_string(run(src)), "pingping");
+    assert_eq!(unwrap_some_string(unwrap_ok(run(src))), "pingping");
 }
 
 // ─── drop cascade — second read on stdout sees EOF after child exit ──────
@@ -126,18 +145,20 @@ fn spawn_program_ast_stdout_eof_after_child_returns() {
     // drop-cascade in DESIGN.md, made testable.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main
+                             -> :Result<Option<String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Process)
-              (:wat::kernel::spawn-program-ast
-                (:wat::test::program
-                  (:wat::core::define (:user::main
-                                       (stdin  :wat::io::IOReader)
-                                       (stdout :wat::io::IOWriter)
-                                       (stderr :wat::io::IOWriter)
-                                       -> :())
-                    (:wat::io::IOWriter/println stdout "only-line")))
-                :None))
+              (:wat::core::try
+                (:wat::kernel::spawn-program-ast
+                  (:wat::test::program
+                    (:wat::core::define (:user::main
+                                         (stdin  :wat::io::IOReader)
+                                         (stdout :wat::io::IOWriter)
+                                         (stderr :wat::io::IOWriter)
+                                         -> :())
+                      (:wat::io::IOWriter/println stdout "only-line")))
+                  :None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc))
              ((first :Option<String>)
@@ -150,9 +171,9 @@ fn spawn_program_ast_stdout_eof_after_child_returns() {
                 (:None (:wat::core::panic! "expected first line")))))
             ;; Second read — child has returned, its writer dropped,
             ;; pipe is empty + closed → :None.
-            (:wat::io::IOReader/read-line out-r)))
+            (Ok (:wat::io::IOReader/read-line out-r))))
     "#;
-    unwrap_none(run(src));
+    unwrap_none(unwrap_ok(run(src)));
 }
 
 // ─── stderr is its own pipe ──────────────────────────────────────────────
@@ -161,23 +182,25 @@ fn spawn_program_ast_stdout_eof_after_child_returns() {
 fn spawn_program_ast_stderr_is_separate_pipe() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main
+                             -> :Result<Option<String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Process)
-              (:wat::kernel::spawn-program-ast
-                (:wat::test::program
-                  (:wat::core::define (:user::main
-                                       (stdin  :wat::io::IOReader)
-                                       (stdout :wat::io::IOWriter)
-                                       (stderr :wat::io::IOWriter)
-                                       -> :())
-                    (:wat::io::IOWriter/println stderr "diag-line")))
-                :None))
+              (:wat::core::try
+                (:wat::kernel::spawn-program-ast
+                  (:wat::test::program
+                    (:wat::core::define (:user::main
+                                         (stdin  :wat::io::IOReader)
+                                         (stdout :wat::io::IOWriter)
+                                         (stderr :wat::io::IOWriter)
+                                         -> :())
+                      (:wat::io::IOWriter/println stderr "diag-line")))
+                  :None)))
              ((err-r :wat::io::IOReader)
               (:wat::kernel::Process/stderr proc)))
-            (:wat::io::IOReader/read-line err-r)))
+            (Ok (:wat::io::IOReader/read-line err-r))))
     "#;
-    assert_eq!(unwrap_some_string(run(src)), "diag-line");
+    assert_eq!(unwrap_some_string(unwrap_ok(run(src))), "diag-line");
 }
 
 // ─── join surfaces clean exit ────────────────────────────────────────────
@@ -187,23 +210,27 @@ fn spawn_program_ast_join_returns_unit_on_clean_exit() {
     // Inner main returns :() cleanly; ProgramHandle<()> joins to :().
     let src = r#"
 
-        (:wat::core::define (:user::main -> :())
+        (:wat::core::define (:user::main
+                             -> :Result<(),wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Process)
-              (:wat::kernel::spawn-program-ast
-                (:wat::test::program
-                  (:wat::core::define (:user::main
-                                       (stdin  :wat::io::IOReader)
-                                       (stdout :wat::io::IOWriter)
-                                       (stderr :wat::io::IOWriter)
-                                       -> :())
-                    ()))
-                :None))
+              (:wat::core::try
+                (:wat::kernel::spawn-program-ast
+                  (:wat::test::program
+                    (:wat::core::define (:user::main
+                                         (stdin  :wat::io::IOReader)
+                                         (stdout :wat::io::IOWriter)
+                                         (stderr :wat::io::IOWriter)
+                                         -> :())
+                      ()))
+                  :None)))
              ((handle :wat::kernel::ProgramHandle<()>)
-              (:wat::kernel::Process/join proc)))
-            (:wat::kernel::join handle)))
+              (:wat::kernel::Process/join proc))
+             ((_ :())
+              (:wat::kernel::join handle)))
+            (Ok ())))
     "#;
-    unwrap_unit(run(src));
+    unwrap_unit(unwrap_ok(run(src)));
 }
 
 // ─── source-string entry — same shape, src instead of forms ──────────────
@@ -212,15 +239,16 @@ fn spawn_program_ast_join_returns_unit_on_clean_exit() {
 fn spawn_program_source_string_entry() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main
+                             -> :Result<Option<String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((inner-src :String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::io::IOWriter/println stdout \"from-source\"))")
              ((proc :wat::kernel::Process)
-              (:wat::kernel::spawn-program inner-src :None))
+              (:wat::core::try (:wat::kernel::spawn-program inner-src :None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc)))
-            (:wat::io::IOReader/read-line out-r)))
+            (Ok (:wat::io::IOReader/read-line out-r))))
     "#;
-    assert_eq!(unwrap_some_string(run(src)), "from-source");
+    assert_eq!(unwrap_some_string(unwrap_ok(run(src))), "from-source");
 }

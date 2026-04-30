@@ -51,24 +51,28 @@
 ;; db-path to its stdin, closes that pipe (so the inner's first
 ;; read-line returns the path then `:None`), forwards the inner's
 ;; stdout, joins the inner's thread.
+;; Returns Result so spawn-program failures (arc 105a) propagate
+;; through `:wat::core::try` to :user::main, which writes the
+;; StartupError message to stderr instead of panicking.
 (:wat::core::define
   (:demo::dispatch::run
     (job    :demo::Job)
     (stdout :wat::io::IOWriter)
-    -> :())
+    -> :Result<(),wat::kernel::StartupError>)
   (:wat::core::let*
     (((db-path :String) (:demo::Job/db-path job))
      ((qp      :String) (:demo::Job/query-program job))
      ((src     :String) (:wat::io::read-file qp))
      ((proc    :wat::kernel::Process)
-      (:wat::kernel::spawn-program src :None))
+      (:wat::core::try (:wat::kernel::spawn-program src :None)))
      ((in-w    :wat::io::IOWriter)             (:wat::kernel::Process/stdin proc))
      ((_w      :i64)                           (:wat::io::IOWriter/write-string in-w db-path))
      ((_close  :())                            (:wat::io::IOWriter/close in-w))
      ((out-r   :wat::io::IOReader)             (:wat::kernel::Process/stdout proc))
      ((_pump   :())                            (:demo::dispatch::pump out-r stdout))
-     ((join-h  :wat::kernel::ProgramHandle<()>) (:wat::kernel::Process/join proc)))
-    (:wat::kernel::join join-h)))
+     ((join-h  :wat::kernel::ProgramHandle<()>) (:wat::kernel::Process/join proc))
+     ((_join   :())                            (:wat::kernel::join join-h)))
+    (Ok ())))
 
 
 (:wat::core::define
@@ -83,5 +87,12 @@
         "dispatch: expected a #demo/Job EDN line on stdin"))
     ((Some line)
      (:wat::core::let*
-       (((job :demo::Job) (:wat::edn::read line)))
-       (:demo::dispatch::run job stdout)))))
+       (((job    :demo::Job)                            (:wat::edn::read line))
+        ((result :Result<(),wat::kernel::StartupError>) (:demo::dispatch::run job stdout)))
+       (:wat::core::match result -> :()
+         ((Ok _) ())
+         ((Err err)
+          (:wat::io::IOWriter/println stderr
+            (:wat::core::string::concat
+              "dispatch: spawn failed: "
+              (:wat::kernel::StartupError/message err)))))))))
