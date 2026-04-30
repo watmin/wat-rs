@@ -97,6 +97,95 @@ out-of-process (or vice versa) changes ONE call site (the
 `spawn-thread` ↔ `fork-program`) and nothing else. Hosting
 becomes a tunable, not a rewrite.
 
+## Transport asymmetry: same protocol, two implementations
+
+The protocol surface (`process-send` / `process-recv` on
+`Program<I,O>`) is uniform — but the substrate's TRANSPORT
+mechanism under the hood differs by host:
+
+| Host | Stdin | Stdout / Stderr | Wire format |
+|---|---|---|---|
+| **Thread<I,O>** (in-memory) | crossbeam `Sender<Value>` | crossbeam `Receiver<Value>` | `Arc<Value>` zero-copy enqueued in-memory |
+| **Process<I,O>** (forked OS process) | OS pipe `IOWriter` | OS pipe `IOReader` | EDN-serialized `String` per line |
+
+User direction (2026-04-30):
+
+> threads need to use crossbeam to pass values - not edn - in
+> threads we can pass concrete things in memory - forks cannot do
+> this so its edn strings between them
+
+This is not a contract leak — it's a substrate optimization the
+protocol surface hides. The honest read:
+
+- **Thread<I,O> can pass Value-as-Arc.** Both ends share memory;
+  the crossbeam channel ferries `Arc<Value>` zero-copy.
+  Serialization is wasted work; types are preserved natively;
+  arbitrary Rust `Value` shapes survive the transport without
+  `:wat::edn::write` / `:wat::edn::read` round-trips. EDN at
+  the call site would be a tax for crossing nothing.
+- **Process<I,O> cannot.** The forked child shares zero memory
+  with the parent post-fork; pointers / Arcs are meaningless
+  across the boundary. The wire is bytes on a pipe; the framing
+  is line-delimited EDN per arc 092. Every send/recv is
+  serialize → write → read → parse.
+
+The user-visible verbs (`process-send` / `process-recv`) are the
+same on both. Substrate dispatches on the concrete `Program`
+satisfier:
+
+```rust
+fn eval_kernel_process_send(prog: Value, value: Value) -> ... {
+    match prog {
+        Thread<I,O> => sender.send(Arc::new(value)),     // crossbeam
+        Process<I,O> => {                                // pipe + EDN
+            let edn = render_edn(&value);
+            iowriter.write_string(format!("{}\n", edn))
+        }
+    }
+}
+```
+
+User code that does
+`(:wat::kernel::process-send prog (:my::struct/new ...))` reads
+identically regardless of host. The internal cost differs (zero-
+copy vs. EDN render+parse); the surface doesn't.
+
+### Implications for arc 109 § J's Program supertype
+
+`:wat::kernel::Program<I,O>` is the abstraction. Concrete satisfiers
+have DIFFERENT field shapes internally:
+
+- `Thread<I,O>` fields: `stdin: Sender<Value>`, `stdout:
+  Receiver<Value>`, `stderr: Receiver<Value>`, internal
+  ProgramHandle.
+- `Process<I,O>` fields: `stdin: IOWriter`, `stdout: IOReader`,
+  `stderr: IOReader`, internal ProgramHandle.
+
+The supertype satisfaction rule isn't "same field types" — it's
+"same operations supported." The polymorphic verbs
+(`process-send`, `process-recv`, `Program/join-result`) work on
+either; the user-visible accessors (`Thread/stdin`,
+`Process/stdin`) might return different concrete types but the
+typed comm verbs work uniformly.
+
+This makes Program<I,O> a **typeclass / protocol** in the formal
+sense — it's defined by the operations it supports, not by its
+internal field shape. The substrate's first such abstraction.
+
+### Direct accessor escape hatch
+
+For programs that want to bypass the protocol (e.g., wat-cli's
+stdio proxy moves bytes; a direct-Sender consumer wants the raw
+crossbeam reference), the typed accessors stay available:
+
+- `:wat::kernel::Thread/stdout` returns `:Receiver<O>`.
+- `:wat::kernel::Process/stdout` returns `:wat::io::IOReader`.
+
+Caller chooses: protocol-level (`process-recv` works on either)
+or implementation-level (`Thread/stdout` for the crossbeam
+receiver; `Process/stdout` for the pipe). The protocol is the
+ergonomic default; the raw accessors are the escape hatch.
+
 ## The pathology
 
 Today's substrate has TWO different shapes for "do work on
