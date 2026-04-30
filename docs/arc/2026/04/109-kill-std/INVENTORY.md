@@ -191,7 +191,7 @@ These ops live at `:wat::*` directly and remain there:
 | `:wat::time::*` | stays |
 | `:wat::edn::*` | stays |
 | `:wat::io::*` | stays |
-| `:wat::std::*` (list, math, stat) | stays |
+| `:wat::std::*` (list, math, stat) | **flattens** — see Section G; std empties out |
 | `:wat::verify::*` | stays |
 | `:wat::test::*` | stays |
 
@@ -202,7 +202,7 @@ the substrate (load/eval/macroexpand machinery, IO, time, EDN,
 config, std). Everything is named explicitly; the partition
 within `:wat::*` is by concern, not by FQDN-ness.
 
-## I. Three-tier substrate organization
+## G. Three-tier substrate organization
 
 **User direction (2026-04-29):**
 > "right now :wat::core::- handles floats and ints... that's
@@ -219,8 +219,8 @@ two-tier core/std split:
 | Tier | What lives here | Honesty rule |
 |---|---|---|
 | `:wat::core::*` | **Single-type primitives.** Mono-typed. No polymorphism. Lisp-canonical irreducibles + Rust `std::ops`-style type-attached methods. | If the op dispatches on operand TYPE, it does NOT live here. |
-| `:wat::poly::*` (new) | **Polymorphic conveniences.** Cross-type operators that runtime-dispatch on operand type (numeric `+`/`-`/`*`/`/`, polymorphic `empty?`/`length`/`contains?`/`get`, `show`). Reasonable defaults for ergonomics. | If the op exists ONLY because it makes the surface less verbose, this is its home. |
-| `:wat::list::*` | **List-like (iterable) operations.** HOF over collection types (`map`, `foldl`, `filter`, `range`, etc.). Implementation can be Rust; the namespace acknowledges the conceptual tier. | "Composable from primitives, but worth shipping for ergonomics." Same Lisp-stdlib / Rust-`Iterator` flavor as before — flattened from `:wat::list::*` to `:wat::list::*` since list is a substrate concern, not a sub-niche of std. |
+| `:wat::poly::*` (new) | **Runtime-polymorphic dispatchers.** One name; runtime selects the implementation based on operand type. Numeric `+`/`-`/`*`/`/`, polymorphic `empty?`/`length`/`contains?`/`get`, `show`. | **Admission rule (Hickey, 2026-04-29 review):** an op earns `:wat::poly::*` ONLY if it dispatches on operand type to give one name across many types. "It feels convenient" is NOT enough — that's the rule that turns this tier into a new `std`. Every member must answer: which type tag selects which mono-typed primitive? If the op has no type-driven story, it does not belong here. |
+| `:wat::list::*` | **List-like (iterable) operations.** HOF over collection types (`map`, `foldl`, `filter`, `range`, etc.). Implementation can be Rust; the namespace acknowledges the conceptual tier. | "Composable from primitives, but worth shipping for ergonomics." Same Lisp-stdlib / Rust-`Iterator` flavor as before — flattened from `:wat::std::list::*` to `:wat::list::*` since list is a substrate concern, not a sub-niche of std. |
 
 ### What `:wat::std::*` becomes after this re-org
 
@@ -330,10 +330,11 @@ harder than `poly`.
 | `:wat::core::second` | `:wat::list::second` | Lisp `cadr`; composable from `first`+`rest` |
 | `:wat::core::third` | `:wat::list::third` | Lisp `caddr`; composable |
 
-The substrate already has `:wat::list::*` for exactly this
-tier (`map-with-index`, `remove-at`, `window`, `zip`). The
-fourteen above join their siblings; impls stay Rust for
-efficiency.
+The substrate has four ops that already fit this tier today —
+they live at `:wat::std::list::*` (`map-with-index`,
+`remove-at`, `window`, `zip`). Slice 10 flattens that namespace
+to `:wat::list::*`, where the fourteen above join them. Impls
+stay Rust for efficiency.
 
 ### Stays in `:wat::core::*` — true primitives
 
@@ -369,17 +370,17 @@ efficiency.
 The four already-shipped `:wat::std::list::*` ops
 (`map-with-index`, `remove-at`, `window`, `zip`) move to the new
 `:wat::list::*` namespace alongside the fourteen new arrivals.
-Section I's three-tier reorganization treats `list` as a
+Section G's three-tier reorganization treats `list` as a
 substrate concern (not a sub-niche of std); the existing four
 ops are no exception.
 
 After arc 109's slice 8, every list-like op lives at
 `:wat::list::*`. The old `:wat::std::list::*` namespace empties
 out; `:wat::std::*` retains only `:wat::std::math::*` and
-`:wat::std::stat::*` (subject to question 4 in Section I —
+`:wat::std::stat::*` (subject to question 4 in Section G —
 whether those also flatten).
 
-## G. Already FQDN — out of scope
+## I. Already FQDN — out of scope
 
 For reference; these are the families already named correctly:
 
