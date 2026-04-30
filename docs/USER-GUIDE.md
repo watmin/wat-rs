@@ -2475,6 +2475,25 @@ struct carries `/cost` (actual count) and `/budget` (the limit
 at the active `d`) accessors so the error path can shape its
 recovery against real numbers.
 
+**Inner colon on a parametric arg.** Type expressions inside
+`<>`, `()`, or `fn(...)` use bare Rust symbols — NO leading
+colon. The colon prefix marks wat keywords and lives at the
+OUTERMOST type position only.
+
+| Illegal | Canonical |
+|---|---|
+| `:Vec<:String>` | `:Vec<String>` |
+| `:Result<:Option<i64>,:wat::kernel::ThreadDiedError>` | `:Result<Option<i64>,wat::kernel::ThreadDiedError>` |
+| `:fn(:i64)->:bool` | `:fn(i64)->bool` |
+| `:Vec<:wat::core::String>` | `:Vec<wat::core::String>` |
+
+Arc 115 turned this into a self-describing compile error that
+names the rule and shows the fix. Pre-arc-115 the substrate
+accepted the malformed shape silently and let users discover it
+via cryptic downstream "expects X; got Y" mismatches; post-arc-
+115, it rejects at the binding site with the canonical form
+suggested.
+
 **Pipeline deadlocks.** If a pipeline stage reads from its input
 but NEVER sends to its output, the upstream's `bounded(1)` send
 eventually blocks; the whole pipeline stalls. Two common causes:
