@@ -68,9 +68,9 @@
 ;; Ack channel — unit signal. Same shape both sides; the (tx, rx)
 ;; pair is split between server and client, NOT bundled on either.
 (:wat::core::typealias :wat::telemetry::Service::AckTx
-  :rust::crossbeam_channel::Sender<()>)
+  :wat::kernel::QueueSender<()>)
 (:wat::core::typealias :wat::telemetry::Service::AckRx
-  :rust::crossbeam_channel::Receiver<()>)
+  :wat::kernel::QueueReceiver<()>)
 (:wat::core::typealias :wat::telemetry::Service::AckChannel
   :(wat::telemetry::Service::AckTx,wat::telemetry::Service::AckRx))
 
@@ -81,9 +81,9 @@
   :Vec<E>)
 
 (:wat::core::typealias :wat::telemetry::Service::ReqTx<E>
-  :rust::crossbeam_channel::Sender<wat::telemetry::Service::Request<E>>)
+  :wat::kernel::QueueSender<wat::telemetry::Service::Request<E>>)
 (:wat::core::typealias :wat::telemetry::Service::ReqRx<E>
-  :rust::crossbeam_channel::Receiver<wat::telemetry::Service::Request<E>>)
+  :wat::kernel::QueueReceiver<wat::telemetry::Service::Request<E>>)
 
 (:wat::core::typealias :wat::telemetry::Service::ReqChannel<E>
   :(wat::telemetry::Service::ReqTx<E>,wat::telemetry::Service::ReqRx<E>))

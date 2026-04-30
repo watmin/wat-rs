@@ -24,7 +24,7 @@
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3 4 5 6))
      ((stream :wat::std::stream::Stream<i64>)
       (:wat::std::stream::spawn-producer
-        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+        (:wat::core::lambda ((tx :wat::kernel::QueueSender<i64>) -> :())
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :()) (item :i64) -> :())
               (:wat::core::match (:wat::kernel::send tx item) -> :()
@@ -44,7 +44,7 @@
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3 4 5))
      ((stream :wat::std::stream::Stream<i64>)
       (:wat::std::stream::spawn-producer
-        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+        (:wat::core::lambda ((tx :wat::kernel::QueueSender<i64>) -> :())
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :()) (item :i64) -> :())
               (:wat::core::match (:wat::kernel::send tx item) -> :()
@@ -65,7 +65,7 @@
   (:wat::core::let*
     (((stream :wat::std::stream::Stream<i64>)
       (:wat::std::stream::spawn-producer
-        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :()) ())))
+        (:wat::core::lambda ((tx :wat::kernel::QueueSender<i64>) -> :()) ())))
      ((chunked :wat::std::stream::Stream<Vec<i64>>)
       (:wat::std::stream::chunks stream 3))
      ((collected :Vec<Vec<i64>>) (:wat::std::stream::collect chunked))
@@ -85,7 +85,7 @@
     (((source :Vec<i64>) (:wat::core::vec :i64 1 1 2 2 2 3 1 1))
      ((stream :wat::std::stream::Stream<i64>)
       (:wat::std::stream::spawn-producer
-        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+        (:wat::core::lambda ((tx :wat::kernel::QueueSender<i64>) -> :())
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :()) (item :i64) -> :())
               (:wat::core::match (:wat::kernel::send tx item) -> :()
@@ -121,7 +121,7 @@
     (((source :Vec<i64>) (:wat::core::vec :i64 10 20 30))
      ((stream :wat::std::stream::Stream<i64>)
       (:wat::std::stream::spawn-producer
-        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+        (:wat::core::lambda ((tx :wat::kernel::QueueSender<i64>) -> :())
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :()) (item :i64) -> :())
               (:wat::core::match (:wat::kernel::send tx item) -> :()
@@ -165,7 +165,7 @@
     (((source :Vec<i64>) (:wat::core::vec :i64 1 1 2 3 3 3 1))
      ((stream :wat::std::stream::Stream<i64>)
       (:wat::std::stream::spawn-producer
-        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+        (:wat::core::lambda ((tx :wat::kernel::QueueSender<i64>) -> :())
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :()) (item :i64) -> :())
               (:wat::core::match (:wat::kernel::send tx item) -> :()
@@ -191,7 +191,7 @@
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3))
      ((stream :wat::std::stream::Stream<i64>)
       (:wat::std::stream::spawn-producer
-        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+        (:wat::core::lambda ((tx :wat::kernel::QueueSender<i64>) -> :())
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :()) (item :i64) -> :())
               (:wat::core::match (:wat::kernel::send tx item) -> :()
@@ -215,7 +215,7 @@
   (:wat::core::let*
     (((stream :wat::std::stream::Stream<i64>)
       (:wat::std::stream::spawn-producer
-        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :()) ())))
+        (:wat::core::lambda ((tx :wat::kernel::QueueSender<i64>) -> :()) ())))
      ((id :fn(i64)->i64)
       (:wat::core::lambda ((x :i64) -> :i64) x))
      ((grouped :wat::std::stream::Stream<Vec<i64>>)
@@ -233,7 +233,7 @@
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3 4 5))
      ((stream :wat::std::stream::Stream<i64>)
       (:wat::std::stream::spawn-producer
-        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+        (:wat::core::lambda ((tx :wat::kernel::QueueSender<i64>) -> :())
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :()) (item :i64) -> :())
               (:wat::core::match (:wat::kernel::send tx item) -> :()
@@ -256,7 +256,7 @@
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2))
      ((stream :wat::std::stream::Stream<i64>)
       (:wat::std::stream::spawn-producer
-        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+        (:wat::core::lambda ((tx :wat::kernel::QueueSender<i64>) -> :())
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :()) (item :i64) -> :())
               (:wat::core::match (:wat::kernel::send tx item) -> :()
@@ -277,7 +277,7 @@
     (((source :Vec<i64>) (:wat::core::vec :i64 1 2 3))
      ((stream :wat::std::stream::Stream<i64>)
       (:wat::std::stream::spawn-producer
-        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+        (:wat::core::lambda ((tx :wat::kernel::QueueSender<i64>) -> :())
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :()) (item :i64) -> :())
               (:wat::core::match (:wat::kernel::send tx item) -> :()
@@ -297,7 +297,7 @@
   (:wat::core::let*
     (((stream :wat::std::stream::Stream<i64>)
       (:wat::std::stream::spawn-producer
-        (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :()) ())))
+        (:wat::core::lambda ((tx :wat::kernel::QueueSender<i64>) -> :()) ())))
      ((windowed :wat::std::stream::Stream<Vec<i64>>)
       (:wat::std::stream::window stream 3))
      ((collected :Vec<Vec<i64>>) (:wat::std::stream::collect windowed))

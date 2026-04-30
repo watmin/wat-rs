@@ -109,13 +109,13 @@
 
 (:wat::core::define
   (:wat::telemetry::WorkUnit/counters-keys
-    (wu :wat::telemetry::WorkUnit) -> :Vec<wat::holon::HolonAST>)
+    (wu :wat::telemetry::WorkUnit) -> :wat::holon::Holons)
   (:rust::telemetry::WorkUnit::counters_keys wu))
 
 
 (:wat::core::define
   (:wat::telemetry::WorkUnit/durations-keys
-    (wu :wat::telemetry::WorkUnit) -> :Vec<wat::holon::HolonAST>)
+    (wu :wat::telemetry::WorkUnit) -> :wat::holon::Holons)
   (:rust::telemetry::WorkUnit::durations_keys wu))
 
 
@@ -315,8 +315,8 @@
     (((namespace      :wat::holon::HolonAST)        (:wat::telemetry::WorkUnit/namespace wu))
      ((uuid           :String)                     (:wat::telemetry::WorkUnit/uuid wu))
      ((tags           :wat::telemetry::Tags)        (:wat::telemetry::WorkUnit/tags wu))
-     ((counter-keys   :Vec<wat::holon::HolonAST>)   (:wat::telemetry::WorkUnit/counters-keys wu))
-     ((duration-keys  :Vec<wat::holon::HolonAST>)   (:wat::telemetry::WorkUnit/durations-keys wu))
+     ((counter-keys   :wat::holon::Holons)   (:wat::telemetry::WorkUnit/counters-keys wu))
+     ((duration-keys  :wat::holon::Holons)   (:wat::telemetry::WorkUnit/durations-keys wu))
      ((counter-events :Vec<wat::telemetry::Event>)
       (:wat::core::foldl counter-keys
         (:wat::core::vec :wat::telemetry::Event)

@@ -38,9 +38,9 @@
 (:wat::core::typealias :wat::std::service::Console::Message
   :(i64,String))
 (:wat::core::typealias :wat::std::service::Console::Tx
-  :rust::crossbeam_channel::Sender<wat::std::service::Console::Message>)
+  :wat::kernel::QueueSender<wat::std::service::Console::Message>)
 (:wat::core::typealias :wat::std::service::Console::Rx
-  :rust::crossbeam_channel::Receiver<wat::std::service::Console::Message>)
+  :wat::kernel::QueueReceiver<wat::std::service::Console::Message>)
 
 
 ;; --- Ack channel + handle typealiases (arc 089 slice 5) ---
@@ -56,9 +56,9 @@
 ;; Console/err. The driver's internal pairs hold the matching
 ;; (Rx, AckTx) — paired by index inside Console/spawn.
 (:wat::core::typealias :wat::std::service::Console::AckTx
-  :rust::crossbeam_channel::Sender<()>)
+  :wat::kernel::QueueSender<()>)
 (:wat::core::typealias :wat::std::service::Console::AckRx
-  :rust::crossbeam_channel::Receiver<()>)
+  :wat::kernel::QueueReceiver<()>)
 (:wat::core::typealias :wat::std::service::Console::Handle
   :(wat::std::service::Console::Tx,wat::std::service::Console::AckRx))
 (:wat::core::typealias :wat::std::service::Console::DriverPair

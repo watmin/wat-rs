@@ -43,13 +43,13 @@
 (:wat::core::typealias :wat::lru::CacheService::Body<K,V>
   :(i64,K,Option<V>))
 (:wat::core::typealias :wat::lru::CacheService::ReplyTx<V>
-  :rust::crossbeam_channel::Sender<Option<V>>)
+  :wat::kernel::QueueSender<Option<V>>)
 (:wat::core::typealias :wat::lru::CacheService::Request<K,V>
   :(wat::lru::CacheService::Body<K,V>,wat::lru::CacheService::ReplyTx<V>))
 (:wat::core::typealias :wat::lru::CacheService::ReqTx<K,V>
-  :rust::crossbeam_channel::Sender<wat::lru::CacheService::Request<K,V>>)
+  :wat::kernel::QueueSender<wat::lru::CacheService::Request<K,V>>)
 (:wat::core::typealias :wat::lru::CacheService::ReqRx<K,V>
-  :rust::crossbeam_channel::Receiver<wat::lru::CacheService::Request<K,V>>)
+  :wat::kernel::QueueReceiver<wat::lru::CacheService::Request<K,V>>)
 
 ;; The (ReqTx, ReqRx) pair as a single name. Used by the spawn body
 ;; to keep nested `<>` depth tractable when iterating bounded-queue
@@ -306,7 +306,7 @@
   (:wat::lru::CacheService/get<K,V>
     (req-tx :wat::lru::CacheService::ReqTx<K,V>)
     (reply-tx :wat::lru::CacheService::ReplyTx<V>)
-    (reply-rx :rust::crossbeam_channel::Receiver<Option<V>>)
+    (reply-rx :wat::kernel::QueueReceiver<Option<V>>)
     (key :K)
     -> :Option<V>)
   (:wat::core::let*
@@ -327,7 +327,7 @@
   (:wat::lru::CacheService/put<K,V>
     (req-tx :wat::lru::CacheService::ReqTx<K,V>)
     (reply-tx :wat::lru::CacheService::ReplyTx<V>)
-    (reply-rx :rust::crossbeam_channel::Receiver<Option<V>>)
+    (reply-rx :wat::kernel::QueueReceiver<Option<V>>)
     (key :K)
     (value :V)
     -> :())

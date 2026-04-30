@@ -35,13 +35,13 @@
 ;; the tuple and this name interchangeable at unification.
 (:wat::core::typealias
   :wat::std::stream::Stream<T>
-  :(rust::crossbeam_channel::Receiver<T>,wat::kernel::ProgramHandle<()>))
+  :(wat::kernel::QueueReceiver<T>,wat::kernel::ProgramHandle<()>))
 
 ;; Producer<T> — the function shape spawn-producer accepts: takes the
 ;; Sender end of a bounded queue, writes values, returns when done.
 (:wat::core::typealias
   :wat::std::stream::Producer<T>
-  :fn(rust::crossbeam_channel::Sender<T>)->())
+  :fn(wat::kernel::QueueSender<T>)->())
 
 ;; --- with-state step shapes ---
 ;;
@@ -74,10 +74,10 @@
     (producer :wat::std::stream::Producer<T>)
     -> :wat::std::stream::Stream<T>)
   (:wat::core::let*
-    (((pair :(rust::crossbeam_channel::Sender<T>,rust::crossbeam_channel::Receiver<T>))
+    (((pair :wat::kernel::QueuePair<T>)
       (:wat::kernel::make-bounded-queue :T 1))
-     ((tx :rust::crossbeam_channel::Sender<T>) (:wat::core::first pair))
-     ((rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::second pair))
+     ((tx :wat::kernel::QueueSender<T>) (:wat::core::first pair))
+     ((rx :wat::kernel::QueueReceiver<T>) (:wat::core::second pair))
      ((handle :wat::kernel::ProgramHandle<()>)
       (:wat::kernel::spawn producer tx)))
     (:wat::core::tuple rx handle)))
@@ -97,7 +97,7 @@
 ;; joined, which is a broken shutdown story. Don't hide that.
 (:wat::core::define
   (:wat::std::stream::from-receiver<T>
-    (rx :rust::crossbeam_channel::Receiver<T>)
+    (rx :wat::kernel::QueueReceiver<T>)
     (handle :wat::kernel::ProgramHandle<()>)
     -> :wat::std::stream::Stream<T>)
   (:wat::core::tuple rx handle))
@@ -112,8 +112,8 @@
 
 (:wat::core::define
   (:wat::std::stream::map-worker<T,U>
-    (in :rust::crossbeam_channel::Receiver<T>)
-    (out :rust::crossbeam_channel::Sender<U>)
+    (in :wat::kernel::QueueReceiver<T>)
+    (out :wat::kernel::QueueSender<U>)
     (f :fn(T)->U)
     -> :())
   (:wat::core::match (:wat::kernel::recv in) -> :()
@@ -132,11 +132,11 @@
     (f :fn(T)->U)
     -> :wat::std::stream::Stream<U>)
   (:wat::core::let*
-    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
-     ((pair :(rust::crossbeam_channel::Sender<U>,rust::crossbeam_channel::Receiver<U>))
+    (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
+     ((pair :wat::kernel::QueuePair<U>)
       (:wat::kernel::make-bounded-queue :U 1))
-     ((tx :rust::crossbeam_channel::Sender<U>) (:wat::core::first pair))
-     ((rx :rust::crossbeam_channel::Receiver<U>) (:wat::core::second pair))
+     ((tx :wat::kernel::QueueSender<U>) (:wat::core::first pair))
+     ((rx :wat::kernel::QueueReceiver<U>) (:wat::core::second pair))
      ((handle :wat::kernel::ProgramHandle<()>)
       (:wat::kernel::spawn :wat::std::stream::map-worker up-rx tx f)))
     (:wat::core::tuple rx handle)))
@@ -150,7 +150,7 @@
 
 (:wat::core::define
   (:wat::std::stream::for-each-drain<T>
-    (rx :rust::crossbeam_channel::Receiver<T>)
+    (rx :wat::kernel::QueueReceiver<T>)
     (handler :fn(T)->())
     -> :())
   (:wat::core::match (:wat::kernel::recv rx) -> :()
@@ -166,7 +166,7 @@
     (handler :fn(T)->())
     -> :())
   (:wat::core::let*
-    (((rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first stream))
+    (((rx :wat::kernel::QueueReceiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::ProgramHandle<()>) (:wat::core::second stream))
      ((_ :()) (:wat::std::stream::for-each-drain rx handler))
      ((_ :()) (:wat::kernel::join handle)))
@@ -181,7 +181,7 @@
 
 (:wat::core::define
   (:wat::std::stream::collect-drain<T>
-    (rx :rust::crossbeam_channel::Receiver<T>)
+    (rx :wat::kernel::QueueReceiver<T>)
     (acc :Vec<T>)
     -> :Vec<T>)
   (:wat::core::match (:wat::kernel::recv rx) -> :Vec<T>
@@ -194,7 +194,7 @@
     (stream :wat::std::stream::Stream<T>)
     -> :Vec<T>)
   (:wat::core::let*
-    (((rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first stream))
+    (((rx :wat::kernel::QueueReceiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::ProgramHandle<()>) (:wat::core::second stream))
      ((items :Vec<T>)
       (:wat::std::stream::collect-drain rx (:wat::core::vec :T)))
@@ -208,8 +208,8 @@
 ;; Same tail-recursive shape as map. Empty downstream drops.
 (:wat::core::define
   (:wat::std::stream::filter-worker<T>
-    (in :rust::crossbeam_channel::Receiver<T>)
-    (out :rust::crossbeam_channel::Sender<T>)
+    (in :wat::kernel::QueueReceiver<T>)
+    (out :wat::kernel::QueueSender<T>)
     (pred :fn(T)->bool)
     -> :())
   (:wat::core::match (:wat::kernel::recv in) -> :()
@@ -229,11 +229,11 @@
     (pred :fn(T)->bool)
     -> :wat::std::stream::Stream<T>)
   (:wat::core::let*
-    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
-     ((pair :(rust::crossbeam_channel::Sender<T>,rust::crossbeam_channel::Receiver<T>))
+    (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
+     ((pair :wat::kernel::QueuePair<T>)
       (:wat::kernel::make-bounded-queue :T 1))
-     ((tx :rust::crossbeam_channel::Sender<T>) (:wat::core::first pair))
-     ((rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::second pair))
+     ((tx :wat::kernel::QueueSender<T>) (:wat::core::first pair))
+     ((rx :wat::kernel::QueueReceiver<T>) (:wat::core::second pair))
      ((handle :wat::kernel::ProgramHandle<()>)
       (:wat::kernel::spawn :wat::std::stream::filter-worker up-rx tx pred)))
     (:wat::core::tuple rx handle)))
@@ -248,8 +248,8 @@
 ;; without perturbing the values.
 (:wat::core::define
   (:wat::std::stream::inspect-worker<T>
-    (in :rust::crossbeam_channel::Receiver<T>)
-    (out :rust::crossbeam_channel::Sender<T>)
+    (in :wat::kernel::QueueReceiver<T>)
+    (out :wat::kernel::QueueSender<T>)
     (f :fn(T)->())
     -> :())
   (:wat::core::match (:wat::kernel::recv in) -> :()
@@ -268,11 +268,11 @@
     (f :fn(T)->())
     -> :wat::std::stream::Stream<T>)
   (:wat::core::let*
-    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
-     ((pair :(rust::crossbeam_channel::Sender<T>,rust::crossbeam_channel::Receiver<T>))
+    (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
+     ((pair :wat::kernel::QueuePair<T>)
       (:wat::kernel::make-bounded-queue :T 1))
-     ((tx :rust::crossbeam_channel::Sender<T>) (:wat::core::first pair))
-     ((rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::second pair))
+     ((tx :wat::kernel::QueueSender<T>) (:wat::core::first pair))
+     ((rx :wat::kernel::QueueReceiver<T>) (:wat::core::second pair))
      ((handle :wat::kernel::ProgramHandle<()>)
       (:wat::kernel::spawn :wat::std::stream::inspect-worker up-rx tx f)))
     (:wat::core::tuple rx handle)))
@@ -285,7 +285,7 @@
 ;; one-liners. Joins the handle; returns the final accumulator.
 (:wat::core::define
   (:wat::std::stream::fold-drain<T,Acc>
-    (rx :rust::crossbeam_channel::Receiver<T>)
+    (rx :wat::kernel::QueueReceiver<T>)
     (acc :Acc)
     (f :fn(Acc,T)->Acc)
     -> :Acc)
@@ -301,7 +301,7 @@
     (f :fn(Acc,T)->Acc)
     -> :Acc)
   (:wat::core::let*
-    (((rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first stream))
+    (((rx :wat::kernel::QueueReceiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::ProgramHandle<()>) (:wat::core::second stream))
      ((result :Acc) (:wat::std::stream::fold-drain rx init f))
      ((_ :()) (:wat::kernel::join handle)))
@@ -338,7 +338,7 @@
 
 (:wat::core::define
   (:wat::std::stream::drain-items<U>
-    (out :rust::crossbeam_channel::Sender<U>)
+    (out :wat::kernel::QueueSender<U>)
     (items :Vec<U>)
     -> :Option<()>)
   ;; Tail-recursive helper: send every item in `items`, stop early
@@ -363,8 +363,8 @@
 
 (:wat::core::define
   (:wat::std::stream::with-state-worker<T,U,Acc>
-    (in :rust::crossbeam_channel::Receiver<T>)
-    (out :rust::crossbeam_channel::Sender<U>)
+    (in :wat::kernel::QueueReceiver<T>)
+    (out :wat::kernel::QueueSender<U>)
     (step :fn(Acc,T)->(Acc,Vec<U>))
     (flush :fn(Acc)->Vec<U>)
     (acc :Acc)
@@ -399,11 +399,11 @@
     (flush :fn(Acc)->Vec<U>)
     -> :wat::std::stream::Stream<U>)
   (:wat::core::let*
-    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
-     ((pair :(rust::crossbeam_channel::Sender<U>,rust::crossbeam_channel::Receiver<U>))
+    (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
+     ((pair :wat::kernel::QueuePair<U>)
       (:wat::kernel::make-bounded-queue :U 1))
-     ((tx :rust::crossbeam_channel::Sender<U>) (:wat::core::first pair))
-     ((rx :rust::crossbeam_channel::Receiver<U>) (:wat::core::second pair))
+     ((tx :wat::kernel::QueueSender<U>) (:wat::core::first pair))
+     ((rx :wat::kernel::QueueReceiver<U>) (:wat::core::second pair))
      ((handle :wat::kernel::ProgramHandle<()>)
       (:wat::kernel::spawn :wat::std::stream::with-state-worker
         up-rx tx step flush init)))
@@ -607,8 +607,8 @@
 ;; exits, downstream gets :None naturally.
 (:wat::core::define
   (:wat::std::stream::take-worker<T>
-    (in :rust::crossbeam_channel::Receiver<T>)
-    (out :rust::crossbeam_channel::Sender<T>)
+    (in :wat::kernel::QueueReceiver<T>)
+    (out :wat::kernel::QueueSender<T>)
     (remaining :i64)
     -> :())
   (:wat::core::if (:wat::core::<= remaining 0) -> :()
@@ -630,11 +630,11 @@
     (n :i64)
     -> :wat::std::stream::Stream<T>)
   (:wat::core::let*
-    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
-     ((pair :(rust::crossbeam_channel::Sender<T>,rust::crossbeam_channel::Receiver<T>))
+    (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
+     ((pair :wat::kernel::QueuePair<T>)
       (:wat::kernel::make-bounded-queue :T 1))
-     ((tx :rust::crossbeam_channel::Sender<T>) (:wat::core::first pair))
-     ((rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::second pair))
+     ((tx :wat::kernel::QueueSender<T>) (:wat::core::first pair))
+     ((rx :wat::kernel::QueueReceiver<T>) (:wat::core::second pair))
      ((handle :wat::kernel::ProgramHandle<()>)
       (:wat::kernel::spawn :wat::std::stream::take-worker up-rx tx n)))
     (:wat::core::tuple rx handle)))
@@ -653,8 +653,8 @@
 ;; the same pattern chunks uses for its accumulator.
 (:wat::core::define
   (:wat::std::stream::flat-map-worker<T,U>
-    (in :rust::crossbeam_channel::Receiver<T>)
-    (out :rust::crossbeam_channel::Sender<U>)
+    (in :wat::kernel::QueueReceiver<T>)
+    (out :wat::kernel::QueueSender<U>)
     (f :fn(T)->Vec<U>)
     (pending :Vec<U>)
     -> :())
@@ -682,11 +682,11 @@
     (f :fn(T)->Vec<U>)
     -> :wat::std::stream::Stream<U>)
   (:wat::core::let*
-    (((up-rx :rust::crossbeam_channel::Receiver<T>) (:wat::core::first upstream))
-     ((pair :(rust::crossbeam_channel::Sender<U>,rust::crossbeam_channel::Receiver<U>))
+    (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
+     ((pair :wat::kernel::QueuePair<U>)
       (:wat::kernel::make-bounded-queue :U 1))
-     ((tx :rust::crossbeam_channel::Sender<U>) (:wat::core::first pair))
-     ((rx :rust::crossbeam_channel::Receiver<U>) (:wat::core::second pair))
+     ((tx :wat::kernel::QueueSender<U>) (:wat::core::first pair))
+     ((rx :wat::kernel::QueueReceiver<U>) (:wat::core::second pair))
      ((handle :wat::kernel::ProgramHandle<()>)
       (:wat::kernel::spawn :wat::std::stream::flat-map-worker
         up-rx tx f (:wat::core::vec :U))))
