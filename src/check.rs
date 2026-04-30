@@ -266,8 +266,11 @@ impl CheckError {
     ///
     /// Each variant maps to one `Diagnostic` with `kind` = the variant
     /// name and field-name → field-value pairs that mirror the Rust
-    /// struct fields. Migration hints (arc 111 / arc 112) populate an
-    /// optional `hint` field when applicable.
+    /// struct fields. **One `hint` field, optional**: present when the
+    /// substrate has migration guidance for the error; absent otherwise.
+    /// Multiple applicable hints (e.g., arc 111 + arc 112 both firing
+    /// on the same TypeMismatch) join with a blank line — each hint
+    /// already self-identifies via its leading `"arc N — "` prefix.
     pub fn diagnostic(&self) -> crate::diagnostic::Diagnostic {
         use crate::diagnostic::Diagnostic;
         match self {
@@ -283,11 +286,8 @@ impl CheckError {
                     .field("param", param.as_str())
                     .field("expected", expected.as_str())
                     .field("got", got.as_str());
-                if let Some(hint) = arc_111_migration_hint(callee, expected, got) {
-                    diag = diag.field("arc_111_hint", hint);
-                }
-                if let Some(hint) = arc_112_migration_hint(callee, expected, got) {
-                    diag = diag.field("arc_112_hint", hint);
+                if let Some(hint) = collect_hints(callee, expected, got) {
+                    diag = diag.field("hint", hint);
                 }
                 diag
             }
@@ -296,11 +296,8 @@ impl CheckError {
                     .field("function", function.as_str())
                     .field("expected", expected.as_str())
                     .field("got", got.as_str());
-                if let Some(hint) = arc_111_migration_hint(function, expected, got) {
-                    diag = diag.field("arc_111_hint", hint);
-                }
-                if let Some(hint) = arc_112_migration_hint(function, expected, got) {
-                    diag = diag.field("arc_112_hint", hint);
+                if let Some(hint) = collect_hints(function, expected, got) {
+                    diag = diag.field("hint", hint);
                 }
                 diag
             }
@@ -316,6 +313,30 @@ impl CheckError {
                 Diagnostic::new("CommCallOutOfPosition").field("callee", callee.as_str())
             }
         }
+    }
+}
+
+/// Collect all migration hints that fire for this (callee, expected,
+/// got) triple into a single string. Each hint already self-identifies
+/// via its leading `"arc N — "` prefix; we just concatenate.
+///
+/// Returns `None` when no hint applies. As migration arcs land their
+/// retirement closures (arc 111 task #168, arc 112 follow-up, etc.),
+/// the corresponding `arc_N_migration_hint` helpers get deleted from
+/// this file and silently drop out of the output stream — same
+/// substrate-as-teacher lifecycle the helpers were minted under.
+fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
+    let hints: Vec<String> = [
+        arc_111_migration_hint(callee, expected, got),
+        arc_112_migration_hint(callee, expected, got),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    if hints.is_empty() {
+        None
+    } else {
+        Some(hints.join("\n\n"))
     }
 }
 
