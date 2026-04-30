@@ -553,6 +553,98 @@ Per the user's
 [`feedback_iterative_complexity.md`](../../../../../../../home/watmin/.claude/projects/-home-watmin-work-holon/memory/feedback_iterative_complexity.md):
 build small steps, prove each, never one-shot.
 
+## J. Program / Thread / Process — typed-program supertype split
+
+Arc 112 slice 2a UNIFIED the spawn-program (in-thread) and
+fork-program (out-of-process) returns under a single
+`:wat::kernel::Process<I,O>` struct, with the wait mechanism
+hidden inside `ProgramHandle`'s internal `InThread` / `Forked`
+enum variant. That was the right structural mirror for arc 111
+(one verb pair on one type), but it conflates two genuinely
+different runtime contexts behind one name. The honest naming —
+captured here for arc 109's resolution pass — is a **supertype
+split**:
+
+```
+:wat::kernel::Program<I,O>      ← abstract supertype
+  ├─ :wat::kernel::Thread<I,O>  ← concrete; spawn-program returns
+  └─ :wat::kernel::Process<I,O> ← concrete; fork-program returns
+```
+
+A **Program** is the abstract notion of "a wat program running
+somewhere with a typed I/O channel." A Thread is a Program
+running in-thread (current OS process); a Process is a Program
+running in a separate OS process via fork. Both have the same
+field shape (stdin / stdout / stderr / wait-mechanism). They
+differ only in failure-reporting flavor:
+
+- `:wat::kernel::Thread/join-result` returns
+  `:Result<(), :wat::kernel::ThreadDiedError>`.
+- `:wat::kernel::Process/join-result` returns
+  `:Result<(), :wat::kernel::ProcessDiedError>`.
+
+Arc 112 introduced `ProcessDiedError` for slice 2a. The
+**Thread/join-result** verb does not yet exist; its work is
+done by today's bare `:wat::kernel::join-result` (arc 060) which
+operates on `:wat::kernel::ProgramHandle<R>`. Arc 109's resolution
+pass migrates that handle name to `Thread<R>`.
+
+### `:wat::kernel::join-result` becomes polymorphic over `Program<I,O>`
+
+The polymorphism arc 109 lands:
+
+```
+(:wat::kernel::join-result p :Program<I,O>)
+   -> :Result<(), :{Thread,Process}DiedError>
+```
+
+Dispatch site sees the concrete type of `p` and routes to either
+`Thread/join-result` or `Process/join-result`. The user-visible
+verb name stays `join-result` (no Thread/ or Process/ prefix
+required at the call site). The typed forms remain available
+when the user wants to be explicit.
+
+This is the first wat substrate verb that needs **typeclass-level
+dispatch** — picking implementation based on a concrete-type's
+satisfaction of a supertype. Today's substrate doesn't have this
+mechanism; arc 109 is where it's minted.
+
+### Slice plan (slots into the existing slice numbering)
+
+| Slice | Work |
+|---|---|
+| **10a** | Mint `:wat::kernel::Program<I,O>` as supertype kind. Define satisfaction rule (a struct satisfies Program<I,O> if it has fields `stdin: IOWriter, stdout: IOReader, stderr: IOReader` and a wait-handle that resolves to `Result<(), E>` where `E` extends a "DiedError" supertype). |
+| **10b** | Rename arc-112's unified `:wat::kernel::Process<I,O>` (returned by both spawn-program and fork-program) to `:wat::kernel::Program<I,O>`. Sonnet sweep against TypeMismatch output. |
+| **10c** | Split `Program<I,O>` back into two concrete types: `Thread<I,O>` (returned by `spawn-program` / `spawn-program-ast`; has wait yielding `ThreadDiedError`) and `Process<I,O>` (returned by `fork-program` / `fork-program-ast`; has wait yielding `ProcessDiedError`). Both satisfy the abstract `Program<I,O>`. |
+| **10d** | Mint `:wat::kernel::Thread/join-result` (typed wait on Thread). Mint typeclass dispatch for the polymorphic `:wat::kernel::join-result` verb on `Program<I,O>`. Bare `:wat::kernel::join-result` on a raw `:wat::kernel::ProgramHandle<R>` (from `:wat::kernel::spawn` arc 060) keeps its current `Result<R, ThreadDiedError>` shape — that's the bare-spawn path; the new poly verb is for typed Programs. |
+| **10e** | Sonnet sweep call sites: `Process<...>` annotations from spawn-program → `Thread<...>`; `Process<...>` annotations from fork-program stay; bare `(:wat::kernel::join-result proc)` calls work polymorphically; explicit `(:wat::kernel::Process/join-result ...)` and `(:wat::kernel::Thread/join-result ...)` available for type-explicit code. |
+
+### Why this is arc 109's problem and not arc 112's
+
+Arc 112's structural mirror to arc 111 demands one verb pair on
+one type — slice 2a delivered that. The honest name for that
+type is "Program" (abstract running thing), not "Process" (which
+in OS terms specifically means out-of-process). Arc 109's stated
+goal is "name everything correctly"; carrying the
+Process-as-misnamed-Program through arc 112's closure into 109
+is the right place to fix it. Arc 113 (cascading runtime errors
+as `Vec<*DiedError>`) generalizes naturally over the
+`Thread/Process` distinction once it exists.
+
+User direction (2026-04-30, captured during arc 112 slice 2a
+sonnet sweep):
+
+> :wat::kernel::Process<I,O> — this needs to become
+> :wat::kernel::Program<I,O>
+>
+> :wat::kernel::Thread<I,O> and :wat::kernel::Process<I,O> both
+> satisfy this
+>
+> we need to have :wat::kernel::join-result be poly on this
+>
+> :wat::kernel::Thread/join-result and
+> :wat::kernel::Process/join-result are used in the poly
+
 ## Cross-references
 
 - Arc 005 — stdlib naming audit (the inventory this arc updates).
@@ -563,3 +655,6 @@ build small steps, prove each, never one-shot.
   `:wat::core::result::expect`; arc 109 will reshape to use the
   PascalCase Type/method form (`:wat::core::Option/expect`,
   `:wat::core::Result/expect`) once Section C lands.
+- Arc 112 — minted the unified `:wat::kernel::Process<I,O>`
+  + `:wat::kernel::ProcessDiedError`; arc 109 section J above
+  evolves the naming to Program + Thread/Process refinement.
