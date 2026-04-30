@@ -3270,7 +3270,23 @@ fn process_let_binding(
         let declared = match &binder[1] {
             WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
                 Ok(t) => t,
-                Err(_) => return,
+                Err(e) => {
+                    // Arc 115 slice 2 — surface the parse error as a
+                    // type-check error instead of silently dropping
+                    // it. Pre-arc-115 the substrate accepted a
+                    // malformed-but-recognizable type annotation
+                    // (e.g., `:Vec<:String>`) silently and let the
+                    // user discover it via a downstream "expects X;
+                    // got Y" mismatch. Now the parser-level error
+                    // (with the new InnerColonInCompoundArg
+                    // variant's self-describing message) surfaces
+                    // directly at the binding site.
+                    errors.push(CheckError::MalformedForm {
+                        head: form.into(),
+                        reason: format!("binding '{}': {}", name, e),
+                    });
+                    return;
+                }
             },
             _ => return,
         };

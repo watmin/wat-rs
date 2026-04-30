@@ -789,6 +789,22 @@ pub enum TypeError {
         expected: usize,
         got: usize,
     },
+    /// Arc 115 slice 2 — a type argument inside a compound (`<>`,
+    /// `()`, `fn(...)`, fn return after `->`) carried a leading
+    /// `:` it shouldn't. The colon prefix is the wat keyword
+    /// marker and lives at the OUTERMOST type position only. Inside
+    /// compounds, args are bare Rust symbols.
+    ///
+    /// Examples (all illegal):
+    /// - `:Vec<:String>` — drop the inner `:` → `:Vec<String>`
+    /// - `:Result<:Option<i64>,:wat::kernel::ThreadDiedError>` →
+    ///   `:Result<Option<i64>,wat::kernel::ThreadDiedError>`
+    /// - `:fn(:i64)->:bool` → `:fn(i64)->bool`
+    /// - `:(:String,:i64)` → `:(String,i64)`
+    InnerColonInCompoundArg {
+        raw: String,
+        offending: String,
+    },
 }
 
 impl fmt::Display for TypeError {
@@ -832,6 +848,16 @@ impl fmt::Display for TypeError {
                 f,
                 "typealias {} declared with {} type parameter(s), used with {}",
                 name, expected, got
+            ),
+            TypeError::InnerColonInCompoundArg { raw, offending } => write!(
+                f,
+                "type expression {} contains an illegal leading ':' on the inner argument {}: \
+                 inside `<>`, `()`, or `fn(...)`, type arguments are bare Rust symbols. \
+                 The colon prefix marks wat keywords and lives at the OUTERMOST type position \
+                 only. Drop the leading ':' on the inner: write {} instead.",
+                raw,
+                offending,
+                raw.replacen(&format!(":{}", offending.trim_start_matches(':')), offending.trim_start_matches(':'), 1)
             ),
         }
     }
@@ -1230,7 +1256,20 @@ fn reject_any(expr: &TypeExpr, raw: &str) -> Result<(), TypeError> {
 
 /// Parse the content of a type keyword after the leading ':' has been
 /// stripped. `original` is the full keyword string for error reporting.
+///
+/// Arc 115 slice 2 — reject any leading ':' on `s`. The outermost
+/// `parse_type_expr` strips the legitimate leading colon before
+/// delegating; any leading colon that survives here means we're
+/// parsing an arg from inside a compound (`<>`, `()`, fn args, fn
+/// return), where the colon prefix is illegal. Inside compounds,
+/// args are bare Rust symbols.
 fn parse_type_inner(s: &str, original: &str) -> Result<TypeExpr, TypeError> {
+    if s.starts_with(':') {
+        return Err(TypeError::InnerColonInCompoundArg {
+            raw: original.into(),
+            offending: s.to_string(),
+        });
+    }
     // Tuple literal — `(T,U,...)`. Must appear at the start; inner
     // types respect top-level comma splitting.
     if let Some(rest) = s.strip_prefix('(') {
@@ -1574,6 +1613,48 @@ fn check_alias_reaches(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Arc 115 slice 2 — verify parse_type_expr rejects illegal
+    // inner-colon forms.
+    #[test]
+    fn arc115_inner_colon_path_rejected() {
+        let r = parse_type_expr(":Vec<:String>");
+        assert!(r.is_err(), "should reject :Vec<:String>; got: {:?}", r);
+    }
+
+    #[test]
+    fn arc115_inner_colon_fqdn_rejected() {
+        let r = parse_type_expr(":Result<:wat::core::String,:wat::kernel::ThreadDiedError>");
+        assert!(r.is_err(), "should reject inner colon on FQDN args; got: {:?}", r);
+    }
+
+    #[test]
+    fn arc115_inner_colon_in_fn_args_rejected() {
+        let r = parse_type_expr(":fn(:i64)->bool");
+        assert!(r.is_err(), "should reject inner colon on fn arg; got: {:?}", r);
+    }
+
+    #[test]
+    fn arc115_inner_colon_in_fn_ret_rejected() {
+        let r = parse_type_expr(":fn(i64)->:bool");
+        assert!(r.is_err(), "should reject inner colon on fn ret; got: {:?}", r);
+    }
+
+    #[test]
+    fn arc115_legal_compound_args_pass() {
+        // Canonical forms — no inner colons.
+        for input in &[
+            ":Vec<String>",
+            ":Vec<i64>",
+            ":Result<Option<i64>,wat::kernel::ThreadDiedError>",
+            ":fn(i64)->bool",
+            ":fn(Vec<String>)->Option<i64>",
+            ":HashMap<String,Vec<i64>>",
+        ] {
+            let r = parse_type_expr(input);
+            assert!(r.is_ok(), "expected {} to parse; got: {:?}", input, r);
+        }
+    }
     use crate::parser::parse_all;
 
     fn collect(src: &str) -> Result<(TypeEnv, Vec<WatAST>), TypeError> {
