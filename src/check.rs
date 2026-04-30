@@ -1451,13 +1451,49 @@ fn pattern_coverage(
                     e.clone(),
                 ),
                 (other, _) => {
-                    errors.push(CheckError::MalformedForm {
-                        head: ":wat::core::match".into(),
-                        reason: format!(
+                    // Arc 105 follow-up — when the bare-symbol head
+                    // (`other`) names an actual variant of the
+                    // scrutinee's user enum, hint at the keyword
+                    // form. Bare-symbol heads are reserved for
+                    // built-in `Some` / `Ok` / `Err`; user enums
+                    // require the namespaced keyword path. The pre-
+                    // hint message correctly identifies the failure
+                    // but doesn't tell the user how to fix it.
+                    let reason = if let MatchShape::Enum(enum_path) = shape {
+                        let is_variant = matches!(
+                            env.types().get(enum_path.as_str()),
+                            Some(crate::types::TypeDef::Enum(e))
+                                if e.variants.iter().any(|v| match v {
+                                    crate::types::EnumVariant::Tagged { name, .. } => name == other,
+                                    crate::types::EnumVariant::Unit(name) => name == other,
+                                })
+                        );
+                        if is_variant {
+                            format!(
+                                "match arm pattern `({} ...)` uses a bare-symbol head, \
+                                 but `{}` is a variant of user enum `{}`. Bare-symbol \
+                                 heads are reserved for built-in `Some` / `Ok` / `Err`; \
+                                 user-enum variants must use the keyword form: write \
+                                 `({}::{} ...)` instead.",
+                                other, other, enum_path, enum_path, other
+                            )
+                        } else {
+                            format!(
+                                "variant constructor `{}` does not match scrutinee shape ({})",
+                                other,
+                                format_type(&shape.as_type())
+                            )
+                        }
+                    } else {
+                        format!(
                             "variant constructor `{}` does not match scrutinee shape ({})",
                             other,
                             format_type(&shape.as_type())
-                        ),
+                        )
+                    };
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason,
                     });
                     return None;
                 }

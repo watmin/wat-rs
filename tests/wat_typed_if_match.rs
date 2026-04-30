@@ -287,3 +287,55 @@ fn typed_if_inside_typed_match_arm_composes() {
     "#;
     assert!(matches!(run(src), Value::i64(3)));
 }
+
+// ─── Bare-symbol variant pattern hint (arc 105 follow-up) ──────────────
+
+#[test]
+fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
+    // Pre-fix: detect_match_shape silently defaulted to Option<fresh>
+    // when patterns didn't classify; the resulting "expected
+    // Option<?>, got <enum>" misled users into thinking the
+    // SCRUTINEE was wrong. Fix: when scrutinee/shape unify fails AND
+    // the scrutinee is a user enum AND any arm pattern uses a bare-
+    // symbol head matching one of that enum's variants, emit a
+    // MalformedForm pointing the user at the keyword form.
+    //
+    // Wat-rs convention: built-in `Some` / `Ok` / `Err` use bare
+    // symbols; user-enum variants must be qualified with the enum's
+    // keyword path (`:wat::kernel::ThreadDiedError::Panic`, not
+    // `Panic`). Disambiguation discipline — two enums could both
+    // declare `Panic`; the keyword path resolves the namespace.
+    let src = r#"
+        (:wat::core::define
+          (:user::main -> :String)
+          (:wat::core::let*
+            (((handle :wat::kernel::ProgramHandle<i64>)
+              (:wat::kernel::spawn (:wat::core::lambda (-> :i64) 42)))
+             ((result :Result<i64,wat::kernel::ThreadDiedError>)
+              (:wat::kernel::join-result handle))
+             ((err :wat::kernel::ThreadDiedError)
+              (:wat::core::match result -> :wat::kernel::ThreadDiedError
+                ((Ok _)   (:wat::core::panic! "test wants Err"))
+                ((Err e)  e))))
+            ;; The bug-trigger pattern: bare-symbol `Panic` head
+            ;; against ThreadDiedError. Pre-fix produced
+            ;; "expected Option<?>"; post-fix produces a hint
+            ;; pointing at :wat::kernel::ThreadDiedError::Panic.
+            (:wat::core::match err -> :String
+              ((Panic m)        m)
+              ((RuntimeError m) m)
+              (:wat::kernel::ThreadDiedError::ChannelDisconnected "disc"))))
+    "#;
+    let errs = check_errors(src);
+    assert_malformed_mentioning(
+        &errs,
+        ":wat::core::match",
+        ":wat::kernel::ThreadDiedError::Panic",
+    );
+    // The hint should also explain WHY (bare-symbol heads are reserved).
+    assert_malformed_mentioning(
+        &errs,
+        ":wat::core::match",
+        "bare-symbol",
+    );
+}
