@@ -297,7 +297,10 @@ fn presence_proof_hello_world() {
 #[test]
 fn missing_user_main_rejected() {
     // Valid setup but no :user::main defined — signature enforcement
-    // should halt with exit 3.
+    // halts the child with EXIT_MAIN_SIGNATURE (4).  Arc 104 cli
+    // forks the entry and propagates the child's exit code; the
+    // signature check moved from cli → child branch, so the code
+    // is now 4 (was 3 pre-arc-104, when cli ran user code in-thread).
     let program = r#"
     "#;
     let path = write_temp(program);
@@ -310,7 +313,7 @@ fn missing_user_main_rejected() {
     let _ = std::fs::remove_file(&path);
 
     let code = output.status.code();
-    assert_eq!(code, Some(3), "expected exit 3; got {:?}", code);
+    assert_eq!(code, Some(4), "expected exit 4; got {:?}", code);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains(":user::main"),
@@ -322,7 +325,7 @@ fn missing_user_main_rejected() {
 #[test]
 fn wrong_arity_user_main_rejected() {
     // :user::main declared with zero args — signature check rejects
-    // (wat requires 3 args).
+    // (wat requires 3 args). EXIT_MAIN_SIGNATURE=4 from the child.
     let program = r#"
         (:wat::core::define (:user::main -> :()) ())
     "#;
@@ -335,7 +338,7 @@ fn wrong_arity_user_main_rejected() {
         .expect("spawn wat");
     let _ = std::fs::remove_file(&path);
 
-    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(output.status.code(), Some(4));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("parameters"),
@@ -347,6 +350,7 @@ fn wrong_arity_user_main_rejected() {
 #[test]
 fn wrong_arg_type_user_main_rejected() {
     // First arg typed :i64 instead of :wat::io::IOReader.
+    // EXIT_MAIN_SIGNATURE=4 from the child.
     let program = r#"
         (:wat::core::define (:user::main
                              (stdin  :i64)
@@ -364,7 +368,7 @@ fn wrong_arg_type_user_main_rejected() {
         .expect("spawn wat");
     let _ = std::fs::remove_file(&path);
 
-    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(output.status.code(), Some(4));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("parameter #1") || stderr.contains("stdin"),
@@ -392,11 +396,14 @@ fn missing_entry_file_is_ex_noinput() {
 }
 
 #[test]
-fn startup_error_bubbles_up_as_exit_1() {
+fn startup_error_bubbles_up_as_exit_3() {
     // Arc 037 retired required-ness for dims/capacity-mode. A remaining
     // startup failure surface: malformed config setter (bad type) still
-    // halts startup with exit 1. set-capacity-mode! takes a keyword;
-    // passing a string triggers ConfigError::BadType.
+    // halts startup. Arc 104 cli forks the entry; startup happens IN
+    // THE CHILD now, so the failure exits the child with
+    // EXIT_STARTUP_ERROR=3 (was 1 pre-arc-104, when cli ran startup
+    // in-thread). set-capacity-mode! takes a keyword; passing a string
+    // triggers ConfigError::BadType.
     let program = r#"
         (:wat::config::set-capacity-mode! "oops")
     "#;
@@ -408,9 +415,15 @@ fn startup_error_bubbles_up_as_exit_1() {
         .output()
         .expect("spawn");
     let _ = std::fs::remove_file(&path);
-    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.status.code(), Some(3));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("wat: startup:"));
+    // Child's "startup: ..." prefix (no "wat:" — that was a pre-arc-104
+    // cli prefix; the proxy forwards the child's stderr verbatim).
+    assert!(
+        stderr.contains("startup:"),
+        "stderr should contain 'startup:'; got: {}",
+        stderr
+    );
 }
 
 #[test]

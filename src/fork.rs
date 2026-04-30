@@ -529,35 +529,22 @@ pub struct ForkedProgramHandles {
 /// the parent-side pipe ends + the child handle.
 ///
 /// The Rust-level entry point. Arc 104c's wat-cli calls this directly
-/// to fork the user's entry program; arc 104b's wat-level dispatch
-/// arm `:wat::kernel::fork-program` wraps the result into a
-/// `:wat::kernel::ForkedChild` Value::Struct.
+/// (passing `Arc<FsLoader>` for full disk access); arc 104b's wat-
+/// level dispatch arm `:wat::kernel::fork-program` builds a
+/// ScopedLoader / InMemoryLoader from the wat-side `scope :Option<String>`
+/// argument and calls through to here.
 ///
-/// Loader semantics:
-/// - `Some(path)` → `ScopedLoader` rooted at canonical-of-path. The
-///   child's `(:wat::load-file! "...")` reads can reach files under
-///   that root.
-/// - `None` → `InMemoryLoader`. No disk access for the child.
+/// Loader is the caller's choice — the substrate doesn't impose a
+/// policy. wat-cli passes `Arc<FsLoader>` (cwd-relative file reads,
+/// no scope restriction). The wat dispatch arm passes ScopedLoader
+/// or InMemoryLoader per its scope argument.
 pub fn fork_program_from_source(
     source: &str,
     canonical: Option<&str>,
-    scope: Option<&str>,
-    inherit_config: Option<&Config>,
+    loader: Arc<dyn SourceLoader>,
+    _inherit_config: Option<&Config>,
 ) -> Result<ForkedProgramHandles, RuntimeError> {
     const OP: &str = ":wat::kernel::fork-program";
-
-    // Resolve loader BEFORE fork — caller's scope path may be invalid;
-    // surface that in the parent rather than the child.
-    let loader: Arc<dyn SourceLoader> = match scope {
-        Some(path) => {
-            let scoped = ScopedLoader::new(path).map_err(|e| RuntimeError::MalformedForm {
-                head: OP.into(),
-                reason: format!("scope path {:?}: {}", path, e),
-            })?;
-            Arc::new(scoped)
-        }
-        None => Arc::new(InMemoryLoader::new()),
-    };
 
     // Three pipes for stdin/stdout/stderr.
     let (stdin_r, stdin_w) = make_pipe(OP)?;
@@ -568,12 +555,11 @@ pub fn fork_program_from_source(
     let stdout_w_raw = stdout_w.as_raw_fd();
     let stderr_w_raw = stderr_w.as_raw_fd();
 
-    // Snapshot source + canonical + inherit-config so the child branch
-    // owns its copies. `String::from(source)` is a heap copy in the
-    // parent; after fork the child inherits it via COW.
+    // Snapshot source + canonical so the child branch owns its
+    // copies. `String::from(source)` is a heap copy in the parent;
+    // after fork the child inherits it via COW.
     let owned_source = source.to_string();
     let owned_canonical = canonical.map(|s| s.to_string());
-    let owned_inherit_config = inherit_config.cloned();
 
     // SAFETY: same conditions as `fork-program-ast` — child branch
     // restricts itself to syscalls and fresh-world wat eval.
@@ -591,7 +577,6 @@ pub fn fork_program_from_source(
         child_branch_from_source(
             owned_source,
             owned_canonical,
-            owned_inherit_config,
             loader,
             stdin_r_raw,
             stdout_w_raw,
@@ -672,12 +657,21 @@ pub fn eval_kernel_fork_program(
     // Inherit caller's Config through fork's COW (arc 031 discipline).
     let inherit_config: Option<Config> = sym.encoding_ctx().map(|ctx| ctx.config.clone());
 
-    let handles = fork_program_from_source(
-        &src,
-        None,
-        scope_opt.as_deref(),
-        inherit_config.as_ref(),
-    )?;
+    // Build loader from the wat-level scope arg.
+    //   :None       → InMemoryLoader (no disk reach)
+    //   :Some path  → ScopedLoader rooted at canonical-of-path
+    let loader: Arc<dyn SourceLoader> = match scope_opt.as_deref() {
+        Some(path) => {
+            let scoped = ScopedLoader::new(path).map_err(|e| RuntimeError::MalformedForm {
+                head: OP.into(),
+                reason: format!("scope path {:?}: {}", path, e),
+            })?;
+            Arc::new(scoped)
+        }
+        None => Arc::new(InMemoryLoader::new()),
+    };
+
+    let handles = fork_program_from_source(&src, None, loader, inherit_config.as_ref())?;
 
     let stdin_writer: Arc<dyn WatWriter> = Arc::new(PipeWriter::from_owned_fd(handles.stdin_w));
     let stdout_reader: Arc<dyn WatReader> = Arc::new(PipeReader::from_owned_fd(handles.stdout_r));
@@ -702,7 +696,6 @@ pub fn eval_kernel_fork_program(
 fn child_branch_from_source(
     source: String,
     canonical: Option<String>,
-    inherit_config: Option<Config>,
     loader: Arc<dyn SourceLoader>,
     stdin_r_raw: i32,
     stdout_w_raw: i32,
@@ -762,17 +755,10 @@ fn child_branch_from_source(
 
     // Parse + freeze source. startup_from_source handles the full
     // pipeline (parse → config pass → macro expand → resolve → type-
-    // check → freeze). Per the inherit_config path: the source-string
-    // entry's analog of `startup_from_forms_with_inherit` doesn't exist
-    // yet — wat-cli (the canonical caller) doesn't inherit Config from
-    // anywhere because there's no outer wat program. Wat-level callers
-    // CAN have inherit_config, but a source-string program is expected
-    // to declare its own preamble (it's not a defmacro-emitted snippet
-    // like the AST entry). When inherit_config is Some, we silently
-    // ignore — startup_from_source's child-internal config pass handles
-    // explicit setters in the source.
-    let _ = inherit_config; // see comment above
-
+    // check → freeze). A source-string program is expected to declare
+    // its own preamble; the AST-entry sibling (fork-program-ast) is
+    // where Config-inheritance lives because that path is the
+    // defmacro-emit shape.
     let world = match startup_from_source(&source, canonical.as_deref(), loader) {
         Ok(w) => w,
         Err(e) => {

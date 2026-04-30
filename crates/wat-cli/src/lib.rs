@@ -94,14 +94,16 @@
 //! each call returns `:(Some line)` on a successful read (trailing
 //! `\n` / `\r\n` stripped) or `:None` on EOF.
 
-use std::io;
 use std::process::ExitCode;
+
+use std::os::fd::{AsRawFd, OwnedFd};
+
 use std::sync::Arc;
 
-use wat::freeze::{invoke_user_main, startup_from_source, validate_user_main_signature};
+use wat::fork::fork_program_from_source;
 use wat::load::FsLoader;
 use wat::runtime::{
-    request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2, Value,
+    request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2,
 };
 
 // ─── Public API ────────────────────────────────────────────────────────
@@ -174,7 +176,9 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
     }
     let entry_path = &argv[1];
 
-    // Read entry file.
+    // Read entry file. Cli writes its own diagnostics directly via
+    // eprintln (real fd 2) BEFORE any proxy thread starts — see arc
+    // 104 DESIGN's "Diagnostic-output sequencing" rule.
     let source = match std::fs::read_to_string(entry_path) {
         Ok(s) => s,
         Err(e) => {
@@ -186,63 +190,173 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
         .ok()
         .map(|p| p.display().to_string());
 
-    // Full startup pipeline. The loader is shared through the frozen
-    // world — runtime primitives like (:wat::eval-file! ...) route
-    // file reads through it, same capability that handled startup loads.
-    let frozen = match startup_from_source(
+    // Install OS signal handlers BEFORE fork so they're inherited by
+    // the child (which immediately resets to SIG_DFL — see fork.rs).
+    // Arc 104d's signal-forwarding additions will hook into these
+    // same handler addresses.
+    install_signal_handlers();
+
+    // Fork the entry program. Source is parsed inside the child's
+    // post-fork branch; parse / startup / validation errors surface
+    // through the child's exit code (3 / 4) + stderr (which the
+    // proxy thread below forwards to fd 2).
+    //
+    // Loader: FsLoader gives the child cwd-relative file reads with
+    // no scope restriction — the same capability the pre-arc-104 cli
+    // gave to in-process invocation. The wat program is what the
+    // operator chose to run; trust flows downward.
+    let handles = match fork_program_from_source(
         &source,
         canonical.as_deref(),
-        std::sync::Arc::new(FsLoader),
+        Arc::new(FsLoader),
+        None, // no Config to inherit — cli has no outer wat program
     ) {
-        Ok(f) => f,
+        Ok(h) => h,
         Err(e) => {
-            eprintln!("wat: startup: {}", e);
+            eprintln!("wat: fork: {}", e);
             return ExitCode::from(1);
         }
     };
 
-    // Enforce :user::main's required signature.
-    if let Err(e) = validate_user_main_signature(&frozen) {
-        eprintln!("wat: {}", e);
-        return ExitCode::from(3);
+    let child_pid = handles.child_handle.pid;
+
+    // Spawn the three proxy threads. Each runs a tight read/write
+    // loop bridging real OS stdio to the child's pipe end. They
+    // exit naturally on EOF (read returns 0). The cli waits on
+    // their join handles AFTER waitpid so any in-flight bytes
+    // finish forwarding before we return.
+    let stdin_proxy = spawn_stdin_proxy(handles.stdin_w);
+    let stdout_proxy = spawn_stdout_proxy(handles.stdout_r);
+    let stderr_proxy = spawn_stderr_proxy(handles.stderr_r);
+
+    // waitpid the child. Exit code follows shell convention:
+    // WEXITSTATUS for normal exit, 128 + WTERMSIG for signal
+    // termination. Idempotent via ChildHandleInner's cached_exit
+    // (arc 012 slice 2c) — Drop won't double-reap.
+    let exit_code = wait_child(child_pid);
+
+    // Mark reaped so ChildHandleInner::Drop doesn't try to kill
+    // + waitpid the already-collected pid.
+    handles
+        .child_handle
+        .reaped
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+
+    // Join the proxy threads. Each sees its peer fd close (child
+    // exit closes the child-side fds → parent's read returns 0 →
+    // proxy thread exits its loop).
+    let _ = stdin_proxy.join();
+    let _ = stdout_proxy.join();
+    let _ = stderr_proxy.join();
+
+    if exit_code >= 0 && exit_code <= 255 {
+        ExitCode::from(exit_code as u8)
+    } else {
+        // 128 + signum can exceed 255 on some signals; clamp to 255.
+        ExitCode::from(255)
     }
+}
 
-    // Install OS signal handlers.
-    install_signal_handlers();
+// ─── Proxy threads (arc 104c) ───────────────────────────────────────────
+//
+// Each thread bridges real OS stdio (fd 0/1/2 in the cli's process)
+// to one end of one pipe shared with the child process. Direct
+// libc::read / libc::write — no std::io::Stdin's reentrant Mutex
+// involved. Same discipline as fork.rs's PipeReader / PipeWriter.
 
-    // Hand the wat program abstract IO values backed by the real OS
-    // stdio handles. The IOReader / IOWriter abstraction (arc 008)
-    // wraps std's Stdin / Stdout / Stderr in trait objects; at the
-    // wat surface, the same code runs whether these are real-fd or
-    // string-buffer-backed (e.g., under run-sandboxed). Rust stdlib's
-    // internal locking handles concurrent access; wat-rs introduces
-    // no Mutex.
-    let reader_stdin: Arc<dyn wat::io::WatReader> =
-        Arc::new(wat::io::RealStdin::new(Arc::new(io::stdin())));
-    let writer_stdout: Arc<dyn wat::io::WatWriter> =
-        Arc::new(wat::io::RealStdout::new(Arc::new(io::stdout())));
-    let writer_stderr: Arc<dyn wat::io::WatWriter> =
-        Arc::new(wat::io::RealStderr::new(Arc::new(io::stderr())));
-    let args = vec![
-        Value::io__IOReader(reader_stdin),
-        Value::io__IOWriter(writer_stdout),
-        Value::io__IOWriter(writer_stderr),
-    ];
-    let main_result = invoke_user_main(&frozen, args);
+/// Spawn the stdin → child pipe bridge. Reads from the cli's real
+/// stdin (fd 0); writes to `child_stdin` (the child's stdin pipe
+/// write end). Drops `child_stdin` on EOF, closing the pipe so
+/// the child sees EOF on its read-line.
+fn spawn_stdin_proxy(child_stdin: OwnedFd) -> std::thread::JoinHandle<()> {
+    std::thread::spawn(move || {
+        proxy_loop(libc::STDIN_FILENO, child_stdin.as_raw_fd());
+        // child_stdin drops here; OwnedFd::Drop closes the fd.
+    })
+}
 
-    // No bridge threads to join — stdio is owned directly by the
-    // wat program via std::io handles. On main's return, the Arc
-    // refs drop and the handles release their cloneable state.
+/// Spawn the child stdout → real stdout bridge.
+fn spawn_stdout_proxy(child_stdout: OwnedFd) -> std::thread::JoinHandle<()> {
+    std::thread::spawn(move || {
+        proxy_loop(child_stdout.as_raw_fd(), libc::STDOUT_FILENO);
+    })
+}
 
-    match main_result {
-        Ok(_) => ExitCode::SUCCESS,
-        Err(e) => {
-            eprintln!("wat: runtime: {}", e);
-            // Specific disconnect errors are expected in MVP — still
-            // exit 2 so test harnesses see the failure, but the
-            // message above tells the user what happened.
-            ExitCode::from(2)
+/// Spawn the child stderr → real stderr bridge.
+fn spawn_stderr_proxy(child_stderr: OwnedFd) -> std::thread::JoinHandle<()> {
+    std::thread::spawn(move || {
+        proxy_loop(child_stderr.as_raw_fd(), libc::STDERR_FILENO);
+    })
+}
+
+/// Tight read/write loop. Reads up to 4096 bytes from `from_fd`,
+/// writes them to `to_fd`. Exits when read returns 0 (EOF) or
+/// either side errors persistently.
+fn proxy_loop(from_fd: libc::c_int, to_fd: libc::c_int) {
+    let mut buf = [0u8; 4096];
+    loop {
+        let n = unsafe {
+            libc::read(from_fd, buf.as_mut_ptr() as *mut _, buf.len())
+        };
+        if n < 0 {
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            // EBADF (fd closed by signal handler), EIO, etc. — exit.
+            return;
         }
+        if n == 0 {
+            // EOF from peer.
+            return;
+        }
+        let mut written = 0usize;
+        while written < n as usize {
+            let w = unsafe {
+                libc::write(
+                    to_fd,
+                    buf.as_ptr().add(written) as *const _,
+                    n as usize - written,
+                )
+            };
+            if w < 0 {
+                let err = std::io::Error::last_os_error();
+                if err.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                // EPIPE (peer closed), EBADF, etc. — exit.
+                return;
+            }
+            written += w as usize;
+        }
+    }
+}
+
+/// Block on waitpid for the child; extract exit code with shell
+/// conventions (WEXITSTATUS or 128+WTERMSIG). Doesn't loop on
+/// EINTR — signals are forwarded by arc 104d's handlers; the
+/// next waitpid call here picks up where it left off.
+fn wait_child(pid: libc::pid_t) -> i32 {
+    loop {
+        let mut status: libc::c_int = 0;
+        let ret = unsafe { libc::waitpid(pid, &mut status, 0) };
+        if ret < 0 {
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            // Should not happen for a child we forked. Surface as 1.
+            eprintln!("wat: waitpid: {}", err);
+            return 1;
+        }
+        if libc::WIFEXITED(status) {
+            return libc::WEXITSTATUS(status);
+        }
+        if libc::WIFSIGNALED(status) {
+            return 128 + libc::WTERMSIG(status);
+        }
+        // WIFSTOPPED — we don't pass WUNTRACED, so this shouldn't fire.
+        return 1;
     }
 }
 
