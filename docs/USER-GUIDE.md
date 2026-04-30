@@ -416,7 +416,7 @@ broadcast — one syscall, kernel-driven fanout to every descendant.
 Each descendant's wat handler flips its own `KERNEL_STOPPED` (or
 `KERNEL_SIGUSR1`/etc.); wat programs polling `(:wat::kernel::stopped?)`
 observe the cascade and return cleanly. `:user::main` returns,
-`_exit(0)`, parent reaps via `wait-child`, the cascade unwinds. The
+`_exit(0)`, parent reaps via `:wat::kernel::Process/join-result` (arc 112; pre-arc-112 was `wait-child`), the cascade unwinds. The
 **polling contract works through fork** post-arc-106 — pre-arc-106 the
 fork child reset signal handlers to SIG_DFL, breaking the polling
 contract; arc 106 installs wat handlers in the child instead.
@@ -555,7 +555,7 @@ Every wat program lives in a coordinate with two axes.
 
 1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
 2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
-3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `join`, `HandlePool`, `stopped?`, `pipe`, `fork-program-ast`, `wait-child`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes between processes.
+3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `join`, `HandlePool`, `stopped?`, `pipe`, `spawn-program{,-ast}`, `fork-program{,-ast}` (both return `Process<I,O>` — arc 112 unification), `Process/join-result`, `process-send`, `process-recv`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes (or typed values) between Programs.
 4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), services (`:wat::std::service::Console`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel.
 
 ### Axis 2 — two namespaces
@@ -1525,44 +1525,54 @@ shell uses to talk to wat** — symmetric across thread boundaries
 machine boundaries (any future networked transport that speaks
 the same wire format).
 
+Arc 112 lifts the bytes-and-EDN protocol to typed verbs:
+`:wat::kernel::process-send` renders + writes; `process-recv`
+reads + parses; both return `Result<…, ProcessDiedError>` with
+the arc-111 three-state shape (`Ok(Some)`/`Ok(:None)`/`Err(died)`).
+
 ```scheme
 (:wat::core::let*
-  (((proc :wat::kernel::Process)
-    (:wat::kernel::spawn-program inner-src :None))
-   ((req-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin proc))
-   ((resp-r :wat::io::IOReader) (:wat::kernel::Process/stdout proc))
-   ;; send a request
-   ((_ :()) (:wat::io::IOWriter/println req-w
-              (:wat::edn::write request-value)))
-   ;; block on the response
-   ((line :Option<String>) (:wat::io::IOReader/read-line resp-r))
-   ((response :MyResponse)
-    (:wat::edn::read (:wat::core::expect line)))
-   ;; close child's stdin → child sees EOF, exits its loop
-   ((_close :()) (:wat::io::IOWriter/close req-w))
-   ;; wait for clean exit
-   ((join-h :wat::kernel::ProgramHandle<()>)
-    (:wat::kernel::Process/join proc))
-   ((_join :()) (:wat::kernel::join join-h)))
-  ;; ...use response...
-  )
+  (((proc :wat::kernel::Process<MyRequest,MyResponse>)
+    (:wat::core::result::expect -> :wat::kernel::Process<MyRequest,MyResponse>
+      (:wat::kernel::spawn-program inner-src :None)
+      "spawn-program failed"))
+   ;; typed send — substrate handles EDN render + newline + write
+   ((_sent :())
+    (:wat::core::result::expect -> :()
+      (:wat::kernel::process-send proc request-value)
+      "send to inner program failed")))
+  ;; typed recv — three-arm match required by arc 110 + 112 slice 3
+  (:wat::core::match (:wat::kernel::process-recv proc)
+    -> :MyResponse
+    ((Ok (Some response))   response)
+    ((Ok :None)             (:wat::core::panic! "child closed before responding"))
+    ((Err _died)            (:wat::core::panic! "child died"))))
 ```
+
+For a clean-shutdown wait at end-of-conversation, use
+`:wat::kernel::Process/join-result` — returns `Result<:(),
+:wat::kernel::ProcessDiedError>` matching the same three-state
+discipline.
 
 Running demos:
 
-- `wat-scripts/ping-pong.wat` — 5 round trips of EDN over kernel
-  pipes; thread containment.
+- `wat-scripts/ping-pong.wat` — 5 round trips of typed Ping/Pong
+  via `process-send`/`process-recv` (in-thread Process).
 - `wat-scripts/ping-pong-fork.wat` — same but child runs as a
-  real OS process via `:wat::kernel::fork-program-ast`.
+  real OS process via `:wat::kernel::fork-program-ast`. The
+  `process-send`/`process-recv` API is identical — only the
+  hosting differs.
 - `wat-scripts/dispatch.wat` — EDN-stdin RPC; reads a `:demo::Job`
   from stdin, spawns the named program, forwards stdout.
 
 Reach for `spawn-program` for in-process containment (logical jail
-via separate frozen world). Reach for `fork-program-ast` for
-OS-process containment (separate address space, separate fd table,
-separate `_exit`). The user-facing surface is identical — both
-return a struct with three pipe ends + a join handle. Pick by cost:
-thread is cheap and fast; fork is heavier but truly isolated.
+via separate frozen world; in-thread). Reach for `fork-program-ast`
+for OS-process containment (separate address space, separate fd
+table, separate `_exit`). **The user-facing surface is identical**
+— both return `:wat::kernel::Process<I,O>`; both work with the
+same `process-send` / `process-recv` / `Process/join-result`
+verbs. Pick by cost: thread is cheap and fast; fork is heavier
+but truly isolated. The protocol never changes.
 
 See `docs/arc/2026/04/103-kernel-spawn/HOLOGRAM.md` for the framing
 — the wat binary as a one-way projection surface, holograms nesting
@@ -2604,13 +2614,17 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::run-sandboxed-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — same file, atop spawn-program-ast |
 | `:wat::kernel::run-sandboxed-hermetic-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — forks a child via `:wat::kernel::fork-program-ast`; wat stdlib define in `wat/std/hermetic.wat` |
 | `:wat::kernel::pipe` | — | `:(IOWriter, IOReader)` — libc::pipe(2), PipeWriter first |
-| `:wat::kernel::spawn-program` | `src scope` | `:Result<:wat::kernel::Process, :wat::kernel::StartupError>` — thread; arc 103a / arc 105a |
-| `:wat::kernel::spawn-program-ast` | `forms scope` | `:Result<:wat::kernel::Process, :wat::kernel::StartupError>` — thread; arc 103a / arc 105a |
-| `:wat::kernel::fork-program` | `src scope` | `:wat::kernel::ForkedChild` — libc::fork(2); arc 104b |
-| `:wat::kernel::fork-program-ast` | `forms` | `:wat::kernel::ForkedChild` — libc::fork(2); was `fork-with-forms` pre-arc-104a |
-| `:wat::kernel::wait-child` | `handle` | `:i64` — waitpid, idempotent |
+| `:wat::kernel::spawn-program` | `src scope` | `:Result<:wat::kernel::Process<I,O>, :wat::kernel::StartupError>` — in-thread; arc 103a / 105a / 112 |
+| `:wat::kernel::spawn-program-ast` | `forms scope` | `:Result<:wat::kernel::Process<I,O>, :wat::kernel::StartupError>` — in-thread; arc 103a / 105a / 112 |
+| `:wat::kernel::fork-program` | `src scope` | `:wat::kernel::Process<I,O>` — libc::fork(2); arc 104b / 112 (ForkedChild retired in arc 112 slice 2a) |
+| `:wat::kernel::fork-program-ast` | `forms` | `:wat::kernel::Process<I,O>` — libc::fork(2); arc 104a / 112 |
+| `:wat::kernel::Process/join-result` | `proc` | `:Result<:(), :wat::kernel::ProcessDiedError>` — death-as-data wait verb; arc 112. Replaces `wait-child` returning `:i64` |
+| `:wat::kernel::process-send` | `proc value` | `:Result<:(), :wat::kernel::ProcessDiedError>` — typed value send to Process.stdin via EDN; arc 112 slice 2b |
+| `:wat::kernel::process-recv` | `proc` | `:Result<:Option<O>, :wat::kernel::ProcessDiedError>` — typed value recv from Process.stdout; arc 112 slice 2b |
 | `:wat::kernel::ThreadDiedError/message` | `err` | `:String` — extracts msg regardless of variant; arc 105b |
 | `:wat::kernel::ThreadDiedError/to-failure` | `err` | `:wat::kernel::Failure` — preserves arc 064 actual/expected when assertion-payload-carrying; arc 105c |
+| `:wat::kernel::ProcessDiedError/message` | `err` | `:String` — sibling of ThreadDiedError/message for Process subjects; arc 112 |
+| `:wat::kernel::ProcessDiedError/to-failure` | `err` | `:wat::kernel::Failure` — sibling of ThreadDiedError/to-failure; arc 112 |
 | `:wat::kernel::assertion-failed!` | `message actual expected` | `:()` — panics with AssertionPayload |
 | `:wat::std::stream::spawn-producer` | `producer-fn` | `:Stream<T>` |
 | `:wat::std::stream::from-receiver` | `rx handle` | `:Stream<T>` |
