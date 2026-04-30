@@ -2187,6 +2187,8 @@ fn dispatch_keyword_head(
         ":wat::core::atom-value" => eval_atom_value(args, env, sym),
         ":wat::core::match" => eval_match(args, env, sym),
         ":wat::core::try" => eval_try(args, env, sym),
+        ":wat::core::option::expect" => eval_option_expect(args, env, sym),
+        ":wat::core::result::expect" => eval_result_expect(args, env, sym),
         ":wat::core::struct-new" => eval_struct_new(args, env, sym),
         ":wat::core::struct-field" => eval_struct_field(args, env, sym),
         ":wat::core::variant" => eval_variant(args, env, sym),
@@ -6123,6 +6125,120 @@ fn eval_try(
             got: other.type_name(),
         }),
     }
+}
+
+/// `(:wat::core::option::expect -> :T <opt> <msg>)` — the
+/// panic-on-:None companion to `:wat::core::try`'s propagation form.
+/// Arc 108.
+///
+/// `args[0]` is the `->` symbol; `args[1]` is the declared arm-result
+/// type keyword `:T`; `args[2]` is the opt-expr (must evaluate to
+/// `:Option<T>`); `args[3]` is the msg-expr (must evaluate to
+/// `:String`). Type declared at HEAD position before any value
+/// producer — see `infer_option_expect` in check.rs for the
+/// rationale.
+///
+/// On `Some(v)` returns `v`. On `:None` evaluates the msg, snapshots
+/// the wat call stack, builds an `AssertionPayload` with the
+/// opt-expression's span as `location`, and `panic_any`s. Caught by
+/// the substrate's catch_unwind in run-sandboxed-ast / by Rust's
+/// default panic handler outside a sandbox.
+fn eval_option_expect(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 4 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::option::expect".into(),
+            expected: 4,
+            got: args.len(),
+        });
+    }
+    let opt = eval(&args[2], env, sym)?;
+    match opt {
+        Value::Option(o) => match std::sync::Arc::try_unwrap(o) {
+            Ok(Some(v)) => Ok(v),
+            Ok(None) => expect_panic(":wat::core::option::expect", &args[3], env, sym, args[2].span().clone()),
+            Err(shared) => match &*shared {
+                Some(v) => Ok(v.clone()),
+                None => expect_panic(":wat::core::option::expect", &args[3], env, sym, args[2].span().clone()),
+            },
+        },
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::option::expect".into(),
+            expected: "Option<T>",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::core::result::expect -> :T <res> <msg>)` — the panic-on-Err
+/// sibling of `option::expect`. Arc 108.
+fn eval_result_expect(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 4 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::result::expect".into(),
+            expected: 4,
+            got: args.len(),
+        });
+    }
+    let res = eval(&args[2], env, sym)?;
+    match res {
+        Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
+            Ok(std::result::Result::Ok(ok)) => Ok(ok),
+            Ok(std::result::Result::Err(_e)) => {
+                expect_panic(":wat::core::result::expect", &args[3], env, sym, args[2].span().clone())
+            }
+            Err(shared) => match &*shared {
+                std::result::Result::Ok(ok) => Ok(ok.clone()),
+                std::result::Result::Err(_e) => {
+                    expect_panic(":wat::core::result::expect", &args[3], env, sym, args[2].span().clone())
+                }
+            },
+        },
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::result::expect".into(),
+            expected: "Result<T,E>",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// Shared panic helper for `option::expect` / `result::expect`. Evals
+/// the msg expression (refusing non-String payloads), captures the
+/// call stack, builds an `AssertionPayload` with the supplied span as
+/// `location`, then `panic_any`s. Never returns.
+fn expect_panic(
+    op: &'static str,
+    msg_ast: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    location: crate::span::Span,
+) -> Result<Value, RuntimeError> {
+    let msg = match eval(msg_ast, env, sym)? {
+        Value::String(s) => (*s).clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: op.into(),
+                expected: "String",
+                got: other.type_name(),
+            });
+        }
+    };
+    let frames = snapshot_call_stack();
+    let payload = crate::assertion::AssertionPayload {
+        message: msg,
+        actual: None,
+        expected: None,
+        location: Some(location),
+        frames,
+    };
+    std::panic::panic_any(payload);
 }
 
 /// `(:wat::core::struct-new <type-name-keyword> <v1> <v2> ...)` — the

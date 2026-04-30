@@ -127,18 +127,6 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/std/edn.wat",
         source: include_str!("../wat/std/edn.wat"),
     },
-    // Arc 107 — `:wat::std::option::expect<T>` and
-    // `:wat::std::result::expect<T,E>`. Panic-on-failure siblings
-    // of `:wat::core::try`'s propagation form. Pure wat composition
-    // over `match` + `assertion-failed!`.
-    WatSource {
-        path: "wat/std/option.wat",
-        source: include_str!("../wat/std/option.wat"),
-    },
-    WatSource {
-        path: "wat/std/result.wat",
-        source: include_str!("../wat/std/result.wat"),
-    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.

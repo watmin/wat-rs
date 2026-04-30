@@ -694,28 +694,41 @@ enclosing function with `Err e`. NOT try/catch — each function in a
 chain either `try`s (propagate) or `match`es (handle explicitly).
 Details in section 12.
 
-### `expect` — panic on the failure variant (arc 107)
+### `expect` — panic on the failure variant (arc 108)
 
 ```scheme
 ((v :i64)
- (:wat::std::option::expect
+ (:wat::core::option::expect -> :i64
    (:wat::kernel::send tx msg)
    "send to broker disconnected — broker died unexpectedly"))
+
+((v :wat::holon::HolonAST)
+ (:wat::core::result::expect -> :wat::holon::HolonAST
+   (:wat::sqlite::ReadHandle/open path)
+   "rundb read-handle could not open — file missing?"))
 ```
 
-The companion to `try`: where `try` propagates `Err` / `:None` UP
-the call stack as the enclosing function's return, `expect`
-**panics** with the caller-supplied message. Use at sites where
-the failure variant represents a contract violation, not data
-the caller will handle.
+Special form. The companion to `try`: where `try` propagates
+`Err` / `:None` UP the call stack as the enclosing function's
+return, `expect` **panics** with the caller-supplied message. Use
+at sites where the failure variant represents a contract
+violation, not data the caller will handle.
 
 | Verb | Failure case | Where |
 |---|---|---|
 | `:wat::core::try` | `Err(e)` propagates UP | inside a fn returning `:Result<_, E>` |
-| `:wat::std::option::expect` | `:None` panics with message | anywhere |
-| `:wat::std::result::expect` | `Err(_)` panics with message | anywhere |
+| `:wat::core::option::expect` | `:None` panics with message | anywhere |
+| `:wat::core::result::expect` | `Err(_)` panics with message | anywhere |
 
 Mirrors Rust: `?` (try) propagates; `.expect("msg")` panics.
+
+**Why `-> :T` at HEAD position.** `match` and `if` put `-> :T`
+AFTER their first arg (scrutinee / cond) — those args are
+dispatch-determiners that don't themselves produce the result.
+`expect`'s value expression DOES produce the result (the Some/Ok
+arm yields its inner). So `-> :T` lands at HEAD, declared before
+any value producer; the form reads "declare result T; derive it
+from this value or panic with this message."
 
 `expect`'s primary defense is the silent-disconnect cascade:
 `(:wat::kernel::send tx v)` returns `:Option<()>` and most callers
@@ -724,12 +737,6 @@ that's a silent dead-service the caller will ride into a recv
 hang on a reply channel they themselves still own. Wrap the send
 in `option::expect` and the disconnect surfaces at the call site
 as a clean panic.
-
-> Naming note: arc 107 ships these in `:wat::std::*` as wat-level
-> functions. Arc 108 (queued) promotes them to special forms in
-> `:wat::core::*` next to `match` / `if` / `try` and adds the
-> `-> :T` arm-result annotation for symmetry with the rest of the
-> branching family.
 
 ### `if` — typed boolean branch
 

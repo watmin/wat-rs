@@ -460,6 +460,12 @@ fn infer_list(
             ":wat::core::let" => return infer_let(args, env, locals, fresh, subst, errors),
             ":wat::core::let*" => return infer_let_star(args, env, locals, fresh, subst, errors),
             ":wat::core::try" => return infer_try(args, env, locals, fresh, subst, errors),
+            ":wat::core::option::expect" => {
+                return infer_option_expect(args, env, locals, fresh, subst, errors)
+            }
+            ":wat::core::result::expect" => {
+                return infer_result_expect(args, env, locals, fresh, subst, errors)
+            }
             ":wat::core::vec" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::tuple" => return infer_tuple_constructor(args, env, locals, fresh, subst, errors),
@@ -2303,6 +2309,198 @@ fn infer_try(
     // Result, now refined by unification with the enclosing function's
     // shape.
     Some(apply_subst(&fresh_t, subst))
+}
+
+/// `(:wat::core::option::expect -> :T <opt> <msg>)` — the
+/// panic-on-:None companion to `:wat::core::try`'s propagation form.
+/// Arc 108.
+///
+/// Argument order parallels `if` / `match` semantically but with the
+/// type declared FIRST (before any value producer): in `if`/`match`,
+/// the first arg (cond/scrutinee) is a dispatch-determiner that does
+/// NOT itself produce the result; `-> :T` lands between the
+/// determiner and the value-producing arms. In `expect`, the value
+/// expression IS a producer (Some/Ok-arm yields its inner). So the
+/// honest position for `-> :T` is HEAD-POSITION — declared before
+/// any producer.
+///
+/// Type rules:
+/// 1. Exactly four arguments (`->`, type, opt, msg). Otherwise
+///    `MalformedForm` naming the expected shape.
+/// 2. `args[0]` is the symbol `->`.
+/// 3. `args[1]` is the declared arm-result type `:T`. Parsed via
+///    `parse_type_expr`.
+/// 4. `args[2]` (the opt expression) must unify with `:Option<T>`.
+/// 5. `args[3]` (the msg expression) must unify with `:String`.
+///
+/// On success the form's type is `T` — the Some-inner refined by
+/// unification with the declared arm-result type.
+fn infer_option_expect(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 4 {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::option::expect".into(),
+            reason: format!(
+                "expected (:wat::core::option::expect -> :T <opt> <msg>) — 4 args; got {}",
+                args.len()
+            ),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return None;
+    }
+    // `->` marker at head position.
+    match &args[0] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::option::expect".into(),
+                reason: "expected `->` as the first argument; (option::expect -> :T <opt> <msg>)".into(),
+            });
+            return None;
+        }
+    }
+    // Declared arm-result type.
+    let declared_ty = match &args[1] {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(e) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::option::expect".into(),
+                    reason: format!("declared type {:?} failed to parse: {}", k, e),
+                });
+                return None;
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::option::expect".into(),
+                reason: "expected type keyword after `->`".into(),
+            });
+            return None;
+        }
+    };
+    // Opt expression must unify with :Option<T> where T is the
+    // declared arm-result type.
+    let opt_ty = infer(&args[2], env, locals, fresh, subst, errors)?;
+    let expected_opt = TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![declared_ty.clone()],
+    };
+    if unify(&opt_ty, &expected_opt, subst, env.types()).is_err() {
+        errors.push(CheckError::TypeMismatch {
+            callee: ":wat::core::option::expect".into(),
+            param: "opt".into(),
+            expected: format_type(&apply_subst(&expected_opt, subst)),
+            got: format_type(&apply_subst(&opt_ty, subst)),
+        });
+        return None;
+    }
+    // Msg must be :String.
+    let msg_ty = infer(&args[3], env, locals, fresh, subst, errors);
+    if let Some(m) = msg_ty {
+        if unify(&m, &TypeExpr::Path(":String".into()), subst, env.types()).is_err() {
+            errors.push(CheckError::TypeMismatch {
+                callee: ":wat::core::option::expect".into(),
+                param: "msg".into(),
+                expected: ":String".into(),
+                got: format_type(&apply_subst(&m, subst)),
+            });
+        }
+    }
+    Some(apply_subst(&declared_ty, subst))
+}
+
+/// `(:wat::core::result::expect -> :T <res> <msg>)` — the panic-on-Err
+/// sibling of `option::expect`. Arc 108.
+///
+/// Same shape as `option::expect` but `args[2]` unifies with
+/// `:Result<T, fresh_E>` (Err variant is discarded at runtime; its
+/// type is left to inference).
+fn infer_result_expect(
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 4 {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::result::expect".into(),
+            reason: format!(
+                "expected (:wat::core::result::expect -> :T <res> <msg>) — 4 args; got {}",
+                args.len()
+            ),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return None;
+    }
+    match &args[0] {
+        WatAST::Symbol(s, _) if s.as_str() == "->" => {}
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::result::expect".into(),
+                reason: "expected `->` as the first argument; (result::expect -> :T <res> <msg>)".into(),
+            });
+            return None;
+        }
+    }
+    let declared_ty = match &args[1] {
+        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
+            Ok(t) => t,
+            Err(e) => {
+                errors.push(CheckError::MalformedForm {
+                    head: ":wat::core::result::expect".into(),
+                    reason: format!("declared type {:?} failed to parse: {}", k, e),
+                });
+                return None;
+            }
+        },
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::result::expect".into(),
+                reason: "expected type keyword after `->`".into(),
+            });
+            return None;
+        }
+    };
+    let res_ty = infer(&args[2], env, locals, fresh, subst, errors)?;
+    let fresh_e = fresh.fresh();
+    let expected_res = TypeExpr::Parametric {
+        head: "Result".into(),
+        args: vec![declared_ty.clone(), fresh_e],
+    };
+    if unify(&res_ty, &expected_res, subst, env.types()).is_err() {
+        errors.push(CheckError::TypeMismatch {
+            callee: ":wat::core::result::expect".into(),
+            param: "res".into(),
+            expected: format_type(&apply_subst(&expected_res, subst)),
+            got: format_type(&apply_subst(&res_ty, subst)),
+        });
+        return None;
+    }
+    let msg_ty = infer(&args[3], env, locals, fresh, subst, errors);
+    if let Some(m) = msg_ty {
+        if unify(&m, &TypeExpr::Path(":String".into()), subst, env.types()).is_err() {
+            errors.push(CheckError::TypeMismatch {
+                callee: ":wat::core::result::expect".into(),
+                param: "msg".into(),
+                expected: ":String".into(),
+                got: format_type(&apply_subst(&m, subst)),
+            });
+        }
+    }
+    Some(apply_subst(&declared_ty, subst))
 }
 
 /// Sequential let — same binding shapes as parallel `let`, but each
