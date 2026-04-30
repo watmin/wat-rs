@@ -369,9 +369,10 @@ is the canonical answer.
 As of arc 104, `wat <entry.wat>` does NOT run the entry program in
 the cli's main thread. Instead the cli forks the entry into a
 separate OS process (via `:wat::kernel::fork-program`), proxies
-stdio between real fd 0/1/2 and the child's pipe ends, forwards
-signals via `kill(2)`, and propagates the child's exit code via
-`waitpid`. The cli's job collapses to two responsibilities:
+stdio between real fd 0/1/2 and the child's pipe ends, cascades
+signals via `killpg(2)` to the child's process group (post-arc-106),
+and propagates the child's exit code via `waitpid`. The cli's job
+collapses to two responsibilities:
 
 1. **Provide symbols** — compile-time batteries (this arc 099 +
    100 mechanism, unchanged).
@@ -403,7 +404,22 @@ the idiomatic shape.
 | 4 | `:user::main` signature mismatch |
 | 64 | usage error (cli, pre-fork) — wrong argv |
 | 66 | entry-file read failed (cli, pre-fork) |
-| 128 + N | child killed by signal N (Bash convention; e.g., 143 = SIGTERM) |
+| 128 + N | child killed by signal N (Bash convention; rare post-arc-106 — clean exit via polling contract is the normal path) |
+
+**Signal cascade (arc 106).** Every fork child becomes its own process
+group leader via `setpgid(0, 0)` in
+`child_branch_from_source`. Wat-program-forked grandchildren via
+`:wat::kernel::fork-program-ast` inherit the parent's pgid by POSIX
+default. The cli's signal handler calls `killpg(CHILD_PGID, sig)` to
+broadcast — one syscall, kernel-driven fanout to every descendant.
+**No per-process child registry; the kernel tracks group membership.**
+Each descendant's wat handler flips its own `KERNEL_STOPPED` (or
+`KERNEL_SIGUSR1`/etc.); wat programs polling `(:wat::kernel::stopped?)`
+observe the cascade and return cleanly. `:user::main` returns,
+`_exit(0)`, parent reaps via `wait-child`, the cascade unwinds. The
+**polling contract works through fork** post-arc-106 — pre-arc-106 the
+fork child reset signal handlers to SIG_DFL, breaking the polling
+contract; arc 106 installs wat handlers in the child instead.
 
 **Battery contract:** batteries register only stateless capabilities
 (function pointers in `OnceLock<RustDeps>`). Live OS resources are
