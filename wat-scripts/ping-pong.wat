@@ -42,13 +42,12 @@
   (n :i64))
 
 
-;; Recursive ping-pong loop. Sends a Ping, reads the Pong, asserts
-;; the n echoes correctly, logs the round, recurses with round+1
-;; until round == total.
+;; Recursive ping-pong loop. Sends a Ping via process-send, reads the
+;; Pong via process-recv, asserts the n echoes correctly, logs the
+;; round, recurses with round+1 until round == total.
 (:wat::core::define
   (:demo::ping-pong::loop
-    (req-w   :wat::io::IOWriter)         ;; → child stdin
-    (resp-r  :wat::io::IOReader)         ;; ← child stdout
+    (proc    :wat::kernel::Process<demo::Ping,demo::Pong>)
     (out     :wat::io::IOWriter)         ;; → real OS stdout (status log)
     (round   :i64)
     (total   :i64)
@@ -58,13 +57,16 @@
     (:wat::core::let*
       (((ping :demo::Ping) (:demo::Ping/new round))
        ((_send :())
-        (:wat::io::IOWriter/println req-w (:wat::edn::write ping)))
-       ((line :Option<String>)
-        (:wat::io::IOReader/read-line resp-r))
+        (:wat::core::result::expect -> :()
+          (:wat::kernel::process-send proc ping)
+          "ping-pong: send to child failed"))
        ((pong :demo::Pong)
-        (:wat::core::match line -> :demo::Pong
-          (:None     (:wat::core::panic! "ping-pong: child closed stdout early"))
-          ((Some s)  (:wat::edn::read s))))
+        (:wat::core::match (:wat::kernel::process-recv proc) -> :demo::Pong
+          ((Ok (Some v)) v)
+          ((Ok :None)
+           (:wat::core::panic! "ping-pong: child closed stdout early"))
+          ((Err _died)
+           (:wat::core::panic! "ping-pong: child died"))))
        ((n-back :i64) (:demo::Pong/n pong))
        ((_check :())
         (:wat::core::if (:wat::core::= n-back round) -> :()
@@ -77,7 +79,7 @@
               "round "
               (:wat::core::i64::to-string (:wat::core::i64::+ round 1)))
             ": ping → pong"))))
-      (:demo::ping-pong::loop req-w resp-r out
+      (:demo::ping-pong::loop proc out
         (:wat::core::i64::+ round 1) total))))
 
 
@@ -101,29 +103,28 @@
      ;; propagate Err via `:wat::core::try`. A real failure here
      ;; means the embedded child source has a startup error —
      ;; demo author's bug, panic is the right surface.
-     ((proc :wat::kernel::Process)
+     ((proc :wat::kernel::Process<demo::Ping,demo::Pong>)
       (:wat::core::match (:wat::kernel::spawn-program child-src :None)
-        -> :wat::kernel::Process
+        -> :wat::kernel::Process<demo::Ping,demo::Pong>
         ((Ok p) p)
         ((Err err)
          (:wat::core::panic!
            (:wat::core::string::concat
              "ping-pong: spawn failed: "
              (:wat::kernel::StartupError/message err))))))
-     ((req-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin proc))
-     ((resp-r :wat::io::IOReader) (:wat::kernel::Process/stdout proc))
      ;; The conversation. Five round trips; mutual blocking on each.
-     ((_loop :()) (:demo::ping-pong::loop req-w resp-r stdout 0 total))
-     ;; End the conversation. Closing req-w releases the kernel
-     ;; pipe write-end → child's read-line returns :None → child
-     ;; exits its loop and returns from :user::main.
-     ((_close :()) (:wat::io::IOWriter/close req-w))
-     ;; Wait for child thread. ProgramHandle<()> joins to :();
-     ;; surfaces panic-as-data via join (which raises on death —
-     ;; clean exit returns unit).
-     ((join-h :wat::kernel::ProgramHandle<()>)
-      (:wat::kernel::Process/join proc))
-     ((_join :()) (:wat::kernel::join join-h)))
+     ((_loop :()) (:demo::ping-pong::loop proc stdout 0 total))
+     ;; End the conversation. Closing the child's stdin via the
+     ;; Process stdin accessor releases the kernel pipe write-end
+     ;; → child's read-line returns :None → child exits its loop
+     ;; and returns from :user::main.
+     ((_close :()) (:wat::io::IOWriter/close (:wat::kernel::Process/stdin proc)))
+     ;; Wait for child thread via Process/join-result.
+     ((_wait :())
+      (:wat::core::match (:wat::kernel::Process/join-result proc) -> :()
+        ((Ok _) ())
+        ((Err _died)
+         (:wat::core::panic! "ping-pong: child died unexpectedly")))))
     (:wat::io::IOWriter/println stdout
       (:wat::core::string::concat
         "done — "
