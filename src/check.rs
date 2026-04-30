@@ -259,6 +259,73 @@ impl fmt::Display for CheckErrors {
 
 impl std::error::Error for CheckErrors {}
 
+impl CheckError {
+    /// Arc 115 slice 1 — produce a structured [`Diagnostic`] for this
+    /// error variant. Renderers (text via Display, EDN, JSON) consume
+    /// the same data without parsing string forms.
+    ///
+    /// Each variant maps to one `Diagnostic` with `kind` = the variant
+    /// name and field-name → field-value pairs that mirror the Rust
+    /// struct fields. Migration hints (arc 111 / arc 112) populate an
+    /// optional `hint` field when applicable.
+    pub fn diagnostic(&self) -> crate::diagnostic::Diagnostic {
+        use crate::diagnostic::Diagnostic;
+        match self {
+            CheckError::ArityMismatch { callee, expected, got } => {
+                Diagnostic::new("ArityMismatch")
+                    .field("callee", callee.as_str())
+                    .field("expected", *expected)
+                    .field("got", *got)
+            }
+            CheckError::TypeMismatch { callee, param, expected, got } => {
+                let mut diag = Diagnostic::new("TypeMismatch")
+                    .field("callee", callee.as_str())
+                    .field("param", param.as_str())
+                    .field("expected", expected.as_str())
+                    .field("got", got.as_str());
+                if let Some(hint) = arc_111_migration_hint(callee, expected, got) {
+                    diag = diag.field("arc_111_hint", hint);
+                }
+                if let Some(hint) = arc_112_migration_hint(callee, expected, got) {
+                    diag = diag.field("arc_112_hint", hint);
+                }
+                diag
+            }
+            CheckError::ReturnTypeMismatch { function, expected, got } => {
+                let mut diag = Diagnostic::new("ReturnTypeMismatch")
+                    .field("function", function.as_str())
+                    .field("expected", expected.as_str())
+                    .field("got", got.as_str());
+                if let Some(hint) = arc_111_migration_hint(function, expected, got) {
+                    diag = diag.field("arc_111_hint", hint);
+                }
+                if let Some(hint) = arc_112_migration_hint(function, expected, got) {
+                    diag = diag.field("arc_112_hint", hint);
+                }
+                diag
+            }
+            CheckError::UnknownCallee { callee } => {
+                Diagnostic::new("UnknownCallee").field("callee", callee.as_str())
+            }
+            CheckError::MalformedForm { head, reason } => {
+                Diagnostic::new("MalformedForm")
+                    .field("head", head.as_str())
+                    .field("reason", reason.as_str())
+            }
+            CheckError::CommCallOutOfPosition { callee } => {
+                Diagnostic::new("CommCallOutOfPosition").field("callee", callee.as_str())
+            }
+        }
+    }
+}
+
+impl CheckErrors {
+    /// Arc 115 slice 1 — produce one [`Diagnostic`] per CheckError.
+    pub fn diagnostics(&self) -> Vec<crate::diagnostic::Diagnostic> {
+        self.0.iter().map(|e| e.diagnostic()).collect()
+    }
+}
+
 /// Cross-cutting context threaded through every `infer_*` helper.
 /// Owns two concerns that need global scope during a single
 /// `check_program` run:

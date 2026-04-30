@@ -290,6 +290,50 @@ fn check_sigma_fn_signature(
     Ok(())
 }
 
+impl StartupError {
+    /// Arc 115 slice 1 — produce structured [`Diagnostic`] records
+    /// for this error. The `Check` arm yields one record per
+    /// `CheckError`; other arms yield ONE record with `kind` matching
+    /// the variant name and a `message` field carrying the inner
+    /// error's Display rendering.
+    ///
+    /// **Data first.** Renderers (`render_edn`, `render_json`,
+    /// `Display` itself) consume this — no parsing of text forms.
+    pub fn diagnostics(&self) -> Vec<crate::diagnostic::Diagnostic> {
+        use crate::diagnostic::Diagnostic;
+        match self {
+            StartupError::Check(errors) => errors.diagnostics(),
+            StartupError::Parse(e) => {
+                vec![Diagnostic::new("Parse").field("message", format!("{}", e))]
+            }
+            StartupError::Config(e) => {
+                vec![Diagnostic::new("Config").field("message", format!("{}", e))]
+            }
+            StartupError::Load(e) => {
+                vec![Diagnostic::new("Load").field("message", format!("{}", e))]
+            }
+            StartupError::Macro(e) => {
+                vec![Diagnostic::new("Macro").field("message", format!("{}", e))]
+            }
+            StartupError::Type(e) => {
+                vec![Diagnostic::new("Type").field("message", format!("{}", e))]
+            }
+            StartupError::Resolve(e) => {
+                vec![Diagnostic::new("Resolve").field("message", format!("{}", e))]
+            }
+            StartupError::Runtime(e) => {
+                vec![Diagnostic::new("Runtime").field("message", format!("{}", e))]
+            }
+            StartupError::Stdlib(e) => {
+                vec![Diagnostic::new("Stdlib").field("message", format!("{}", e))]
+            }
+            StartupError::SigmaFn(msg) => {
+                vec![Diagnostic::new("SigmaFn").field("message", msg.as_str())]
+            }
+        }
+    }
+}
+
 impl std::error::Error for StartupError {}
 
 impl From<ParseError> for StartupError {

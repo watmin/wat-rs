@@ -118,10 +118,80 @@ use std::sync::Arc;
 static CHILD_PGID: AtomicI32 = AtomicI32::new(-1);
 
 use wat::fork::fork_program_from_source;
+use wat::freeze::startup_from_source;
 use wat::load::FsLoader;
 use wat::runtime::{
     request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2,
 };
+
+/// Arc 115 slice 1 — output format for `wat --check` diagnostics.
+/// Default (None) is text via stderr; `--check-output edn` emits EDN
+/// records on stdout (one per diagnostic, line-delimited per arc 092
+/// v4); `--check-output json` emits JSON records on stdout (same
+/// shape, JSON encoding via wat-edn's sentinel-tagged-object
+/// convention).
+#[derive(Debug, Clone, Copy)]
+enum CheckOutputFormat {
+    Edn,
+    Json,
+}
+
+/// Emit `--check` failure diagnostics in the requested format.
+///
+/// **Data first.** All three modes consume the same source: the
+/// structured `StartupError::diagnostics()` Vec (arc 115 slice 1).
+/// Renderers vary; data shape is shared.
+///
+/// - **Text mode** (default): writes the StartupError's Display to
+///   stderr — same shape `wat <file>` shows on freeze failure.
+/// - **EDN mode**: prefixes each diagnostic record with a `:file`
+///   tag identifying the entry path, then emits one EDN record
+///   per Diagnostic to stdout (line-delimited; arc 092 v4 wire
+///   format).
+/// - **JSON mode**: same record-per-Diagnostic shape; JSON encoding.
+///
+/// Each Diagnostic carries the original Rust struct fields verbatim
+/// (callee, param, expected, got, etc.) — tooling consumers don't
+/// have to parse Display strings.
+fn emit_check_failure(
+    entry_path: &str,
+    err: &wat::freeze::StartupError,
+    format: Option<CheckOutputFormat>,
+) {
+    match format {
+        None => {
+            eprintln!("{}", err);
+        }
+        Some(CheckOutputFormat::Edn) => {
+            for diag in err.diagnostics() {
+                let with_file = wat::diagnostic::Diagnostic {
+                    kind: diag.kind,
+                    fields: std::iter::once((
+                        "file".to_string(),
+                        wat::diagnostic::DiagnosticValue::String(entry_path.to_string()),
+                    ))
+                    .chain(diag.fields)
+                    .collect(),
+                };
+                println!("{}", wat::diagnostic::render_edn(&with_file));
+            }
+        }
+        Some(CheckOutputFormat::Json) => {
+            for diag in err.diagnostics() {
+                let with_file = wat::diagnostic::Diagnostic {
+                    kind: diag.kind,
+                    fields: std::iter::once((
+                        "file".to_string(),
+                        wat::diagnostic::DiagnosticValue::String(entry_path.to_string()),
+                    ))
+                    .chain(diag.fields)
+                    .collect(),
+                };
+                println!("{}", wat::diagnostic::render_json(&with_file));
+            }
+        }
+    }
+}
 
 // ─── Public API ────────────────────────────────────────────────────────
 
@@ -187,11 +257,50 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
     let argv: Vec<String> = std::env::args().collect();
     let prog = argv.first().map(String::as_str).unwrap_or("wat");
 
-    if argv.len() != 2 {
-        eprintln!("usage: {} <entry.wat>", prog);
+    // Arc 115 — `--check` flag: load + parse + type-check + freeze
+    // without invoking :user::main. Cargo-check ergonomics for wat.
+    // Optional `--check-output edn` / `--check-output json` selects
+    // structured (machine-readable) diagnostic output for editor /
+    // agent / orchestrator tooling. Default (no --check-output): the
+    // standard text Display via stderr (same shape `wat <file>` shows
+    // on freeze failure).
+    let mut check_only = false;
+    let mut check_output_format: Option<CheckOutputFormat> = None;
+    let mut positional: Vec<&str> = Vec::new();
+    let mut iter = argv.iter().skip(1);
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--check" => check_only = true,
+            "--check-output" => match iter.next().map(String::as_str) {
+                Some("edn") => check_output_format = Some(CheckOutputFormat::Edn),
+                Some("json") => check_output_format = Some(CheckOutputFormat::Json),
+                Some(other) => {
+                    eprintln!(
+                        "wat: --check-output expects 'edn' or 'json'; got {:?}",
+                        other
+                    );
+                    return ExitCode::from(64);
+                }
+                None => {
+                    eprintln!("wat: --check-output expects 'edn' or 'json'");
+                    return ExitCode::from(64);
+                }
+            },
+            other => positional.push(other),
+        }
+    }
+    if check_output_format.is_some() && !check_only {
+        eprintln!("wat: --check-output requires --check");
+        return ExitCode::from(64);
+    }
+    if positional.len() != 1 {
+        eprintln!(
+            "usage: {} [--check [--check-output edn|json]] <entry.wat>",
+            prog
+        );
         return ExitCode::from(64); // EX_USAGE
     }
-    let entry_path = &argv[1];
+    let entry_path = positional[0];
 
     // Read entry file. Cli writes its own diagnostics directly via
     // eprintln (real fd 2) BEFORE any proxy thread starts — see arc
@@ -206,6 +315,25 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
     let canonical = std::fs::canonicalize(entry_path)
         .ok()
         .map(|p| p.display().to_string());
+
+    // Arc 115 slice 1 — `--check` short-circuit. Run startup_from_source
+    // (parse + type-check + freeze) inline; exit 0 on success, non-zero
+    // with diagnostic on freeze failure. No fork; no :user::main; no
+    // signal handlers; no proxy threads. Side-effect-free verification
+    // suitable for editor save hooks and agent sweep loops.
+    if check_only {
+        let loader: Arc<dyn wat::load::SourceLoader> = Arc::new(FsLoader);
+        match startup_from_source(&source, canonical.as_deref(), loader) {
+            Ok(_world) => {
+                // Successful freeze. The world is dropped without invocation.
+                return ExitCode::from(0);
+            }
+            Err(e) => {
+                emit_check_failure(entry_path, &e, check_output_format);
+                return ExitCode::from(1);
+            }
+        }
+    }
 
     // Install OS signal handlers BEFORE fork so they're inherited by
     // the child (which immediately resets to SIG_DFL — see fork.rs).

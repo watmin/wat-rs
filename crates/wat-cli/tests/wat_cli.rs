@@ -701,5 +701,152 @@ fn sigterm_cascades_two_levels_via_process_group() {
     });
 }
 
+// ─── Arc 115 slice 1 — `wat --check` mode ────────────────────────────────
 
+const ARC115_GOOD_PROGRAM: &str = r#"
+(:wat::core::define
+  (:user::main
+    (stdin :wat::io::IOReader)
+    (stdout :wat::io::IOWriter)
+    (stderr :wat::io::IOWriter)
+    -> :())
+  ())
+"#;
 
+const ARC115_BAD_PROGRAM: &str = r#"
+(:wat::core::define
+  (:user::main
+    (stdin :wat::io::IOReader)
+    (stdout :wat::io::IOWriter)
+    (stderr :wat::io::IOWriter)
+    -> :())
+  (:wat::kernel::send no-such-thing 42))
+"#;
+
+#[test]
+fn check_mode_exits_zero_on_good_program() {
+    let path = write_temp(ARC115_GOOD_PROGRAM);
+    let bin = env!("CARGO_BIN_EXE_wat");
+    let output = Command::new(bin)
+        .arg("--check")
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn");
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(output.status.code(), Some(0));
+    assert!(
+        output.stdout.is_empty(),
+        "stdout should be empty in default mode; got: {:?}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn check_mode_exits_nonzero_on_bad_program() {
+    let path = write_temp(ARC115_BAD_PROGRAM);
+    let bin = env!("CARGO_BIN_EXE_wat");
+    let output = Command::new(bin)
+        .arg("--check")
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn");
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Default mode → text Display via stderr.
+    assert!(
+        stderr.contains("type-check error"),
+        "stderr should contain type-check error; got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn check_output_edn_emits_record_per_diagnostic() {
+    let path = write_temp(ARC115_BAD_PROGRAM);
+    let bin = env!("CARGO_BIN_EXE_wat");
+    let output = Command::new(bin)
+        .args(["--check", "--check-output", "edn"])
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn");
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // ARC115_BAD_PROGRAM produces 2 type-check errors: one
+    // CommCallOutOfPosition + one ReturnTypeMismatch. Each surfaces
+    // as one EDN record on its own line.
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(
+        lines.len(),
+        2,
+        "expected 2 EDN records (one per CheckError); got {}: {}",
+        lines.len(),
+        stdout
+    );
+    assert!(
+        lines[0].starts_with("#wat.diag/CommCallOutOfPosition"),
+        "first line should be CommCallOutOfPosition tag; got: {}",
+        lines[0]
+    );
+    assert!(
+        lines[1].starts_with("#wat.diag/ReturnTypeMismatch"),
+        "second line should be ReturnTypeMismatch tag; got: {}",
+        lines[1]
+    );
+    // Structured fields preserved verbatim — not text-wrapped.
+    assert!(lines[0].contains(":callee \":wat::kernel::send\""));
+    assert!(lines[1].contains(":function \":user::main\""));
+}
+
+#[test]
+fn check_output_json_emits_record_per_diagnostic() {
+    let path = write_temp(ARC115_BAD_PROGRAM);
+    let bin = env!("CARGO_BIN_EXE_wat");
+    let output = Command::new(bin)
+        .args(["--check", "--check-output", "json"])
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn");
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(
+        lines.len(),
+        2,
+        "expected 2 JSON records (one per CheckError); got {}: {}",
+        lines.len(),
+        stdout
+    );
+    assert!(
+        lines[0].contains("\"kind\":\"CommCallOutOfPosition\""),
+        "first line should have kind=CommCallOutOfPosition; got: {}",
+        lines[0]
+    );
+    assert!(
+        lines[1].contains("\"kind\":\"ReturnTypeMismatch\""),
+        "second line should have kind=ReturnTypeMismatch; got: {}",
+        lines[1]
+    );
+    assert!(lines[0].contains("\"callee\":\":wat::kernel::send\""));
+    assert!(lines[1].contains("\"function\":\":user::main\""));
+}
+
+#[test]
+fn check_output_without_check_flag_is_usage_error() {
+    let path = write_temp(ARC115_GOOD_PROGRAM);
+    let bin = env!("CARGO_BIN_EXE_wat");
+    let output = Command::new(bin)
+        .args(["--check-output", "edn"])
+        .arg(&path)
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn");
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(output.status.code(), Some(64)); // EX_USAGE
+}
