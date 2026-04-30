@@ -667,6 +667,8 @@ mechanism; arc 109 is where it's minted.
 | **10c** | Split `Program<I,O>` back into two concrete types: `Thread<I,O>` (returned by `spawn-program` / `spawn-program-ast`; has wait yielding `ThreadDiedError`) and `Process<I,O>` (returned by `fork-program` / `fork-program-ast`; has wait yielding `ProcessDiedError`). Both satisfy the abstract `Program<I,O>`. |
 | **10d** | Mint `:wat::kernel::Thread/join-result` (typed wait on Thread). Mint `:wat::kernel::ProgramDiedError` as the error supertype; both `ThreadDiedError` and `ProcessDiedError` satisfy it. Mint typeclass dispatch for the polymorphic `:wat::kernel::join-result` verb on `Program<I,O>` AND for matching against `ProgramDiedError` at the protocol level (concrete satisfiers still pattern-matchable when subject matters). Bare `:wat::kernel::join-result` on a raw `:wat::kernel::ProgramHandle<R>` (from `:wat::kernel::spawn` arc 060) keeps its current `Result<R, ThreadDiedError>` shape — that's the bare-spawn path; the new poly verb is for typed Programs. |
 | **10e** | Sonnet sweep call sites: `Process<...>` annotations from spawn-program → `Thread<...>`; `Process<...>` annotations from fork-program stay; bare `(:wat::kernel::join-result proc)` calls work polymorphically; explicit `(:wat::kernel::Process/join-result ...)` and `(:wat::kernel::Thread/join-result ...)` available for type-explicit code. Match arms against `:wat::kernel::ProgramDiedError` (host-agnostic) work via the typeclass; specific `ThreadDiedError`/`ProcessDiedError` arms available when subject matters. |
+| **10f** | Mint typed comm verbs on each concrete satisfier: `:wat::kernel::Thread/send` + `:wat::kernel::Thread/recv` (zero-copy crossbeam under the hood; arc 114 transport asymmetry); `:wat::kernel::Process/send` + `:wat::kernel::Process/recv` (these are arc 112 slice 2b's `process-send`/`process-recv` renamed under §J's naming convention; pipe + EDN under the hood). |
+| **10g** | Mint polymorphic `:wat::kernel::send` and `:wat::kernel::recv` over `Program<I,O>` via the same typeclass mechanism slice 10d minted for `join-result`. The current arc-111 `:wat::kernel::send` / `:wat::kernel::recv` operate on `Sender<T>` / `Receiver<T>` (channel halves) — they keep that shape; the poly extension adds Program<I,O> as an additional satisfier. Sonnet sweep call sites: explicit `Thread/send`, `Process/send`, `Thread/recv`, `Process/recv` available when subject matters; bare `send` / `recv` works polymorphically across channel-halves AND Programs. |
 
 ### Why this is arc 109's problem and not arc 112's
 
@@ -702,6 +704,30 @@ Follow-up direction (same conversation, after arc 113 sketch):
 Confirmed — the error hierarchy mirrors the type hierarchy. Same
 typeclass mechanism slice 10d mints serves both. See "The error
 hierarchy mirrors the type hierarchy" subsection above.
+
+Further direction (same conversation, after arc 112 slice 2a
+closure decision):
+
+> we need to update 109 to have thread-{send,recv} and a poly
+> {send,recv}
+
+Captured as slices 10f (typed `Thread/send` / `Thread/recv` and
+`Process/send` / `Process/recv` — the latter being arc 112 slice
+2b's `process-send` / `process-recv` under §J naming) and 10g
+(polymorphic `:wat::kernel::send` / `:wat::kernel::recv` over
+Program<I,O>). The verb-naming pattern unifies fully:
+
+| Verb at protocol level | Concrete satisfiers |
+|---|---|
+| `:wat::kernel::join-result` | `Thread/join-result` (zero-copy crossbeam) \| `Process/join-result` (waitpid + stderr-EDN) |
+| `:wat::kernel::send`        | `Thread/send` (crossbeam Sender<I>) \| `Process/send` (EDN + IOWriter) |
+| `:wat::kernel::recv`        | `Thread/recv` (crossbeam Receiver<O>) \| `Process/recv` (multiplex stdout/stderr + EDN parse) |
+
+Pre-§J the user reaches for `process-send` / `process-recv` (arc
+112 slice 2b's spelling) on the slice-2a unified Process<I,O>.
+Post-§J the call sites swap to either typed (`Process/send`) or
+polymorphic (`send`); the substrate as teacher pattern handles
+the migration.
 
 ## Cross-references
 
