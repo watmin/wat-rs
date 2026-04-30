@@ -6,15 +6,96 @@ value** — they stream results out via channels. The contract.
 
 User direction (2026-04-30):
 
-> a new arc may be in order.. i don't think i want threads to have
-> a meaningful ret val... they stream results out.. that's the
-> contract
+> i don't think i want threads to have a meaningful ret val... they
+> stream results out.. that's the contract
+>
+> i want the user to choose if they want intra-process or
+> inter-process comms - they make the choice "does this belong in
+> a fork or a thread?" but the contract is the same on how to
+> interface with these programs - the hosting platform is a user
+> choice - the protocol isn't
+
+Arc 114 names the principle the substrate has been growing toward
+since arc 103: **the hosting platform is a user choice; the
+protocol is fixed.**
+
+- **Hosting platform** (the user chooses): in-thread (spawn-thread)
+  vs. out-of-process (fork-program). Trade-offs are engineering —
+  memory isolation, fault isolation, OS resource limits, copy-on-
+  write efficiency, IPC cost. Different concerns at different
+  scales.
+- **Protocol** (the substrate fixes): every running Program — Thread
+  or Process — exposes the SAME interface. `stdin: IOWriter`,
+  `stdout: IOReader` (typed `O` via `process-recv` /
+  `process-send`), `stderr: IOReader` (typed errors), and a wait
+  verb (`Program/join-result` → `:Result<:wat::core::unit,
+  *DiedError>`). Code that interacts with a Program does NOT
+  branch on host kind.
 
 Arc 114 generalizes arc 112's "Programs have R = unit" stance to
 ALL thread-side abstractions. After arc 114 closes, no
 substrate-provided thread/process verb yields a typed `R` via the
 join channel — every running computation that wants to convey
-data does so via a Channel/pipe.
+data does so via a Channel/pipe. The shape of "I have a Program;
+let me feed it data and read its output" is one thing the user
+writes once, regardless of which host they picked.
+
+## The principle: hosting is a user choice; protocol is fixed
+
+This is the architectural commitment arc 114 names. It lives
+beyond arc 114's lifetime — every future substrate decision about
+"running a Program somewhere" defers to it.
+
+```
+USER CHOICE                       SUBSTRATE INVARIANT
+                                  (the protocol)
+
+  ┌───────────────────┐
+  │ spawn-thread<I,O> │──────────►┐
+  │ (in-thread host)  │           │
+  └───────────────────┘           ▼
+                          ┌─────────────────────┐
+                          │  Program<I,O>       │
+                          │  ─────────────────  │
+                          │  stdin  : IOWriter  │
+                          │  stdout : IOReader  │
+                          │  stderr : IOReader  │
+                          │  join-result :      │
+                          │    Result<unit,     │
+                          │      *DiedError>    │
+                          └─────────────────────┘
+                                  ▲
+  ┌───────────────────┐           │
+  │ fork-program<I,O> │──────────►┘
+  │ (out-of-process)  │
+  └───────────────────┘
+```
+
+**Reading the picture:** the user picks the box on the left based
+on engineering trade-offs (cost, isolation, fault tolerance). The
+box on the right is what they GET — the same shape regardless of
+the choice. Calling code on top of the right-side shape is
+hosting-agnostic; nobody on the right of the picture knows or
+cares whether the program runs in a thread or a forked process.
+
+This generalizes prior wat substrate principles:
+
+- **Arc 103** unified channels under `Sender<T>` / `Receiver<T>`
+  with one send/recv API regardless of bounded vs. unbounded
+  backing.
+- **Arc 110** made silent kernel-comm illegal — one grammar rule
+  applies to every comm site.
+- **Arc 111** made the recv-result shape uniform —
+  `Result<Option<T>, ThreadDiedError>` regardless of channel kind.
+- **Arc 112** unified the typed Program shape across in-thread
+  and forked hosts.
+- **Arc 114** names the meta-principle these instances express:
+  the substrate fixes the interface; the user picks the host.
+
+After arc 114, code that wants to swap a Program from in-thread to
+out-of-process (or vice versa) changes ONE call site (the
+`spawn-thread` ↔ `fork-program`) and nothing else. Hosting
+becomes a tunable, not a rewrite.
 
 ## The pathology
 
