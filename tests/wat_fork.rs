@@ -93,7 +93,7 @@ fn wait_child_returns_zero_on_success() {
     // return EXIT_SUCCESS (0).
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
+        (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
             (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
@@ -129,7 +129,7 @@ fn wait_child_is_idempotent() {
     // same cached code — sub-fog 2c resolution.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
+        (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
             (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
@@ -142,7 +142,7 @@ fn wait_child_is_idempotent() {
                     ()))))
              ;; Process/join-result is the unified wait; idempotency
              ;; is now the substrate's concern under the ProgramHandle.
-             ((joined-result :Result<(),wat::kernel::ProcessDiedError>)
+             ((joined-result :Result<(),Vec<wat::kernel::ProcessDiedError>>)
               (:wat::kernel::Process/join-result child)))
             joined-result))
     "#;
@@ -156,7 +156,7 @@ fn wait_child_surfaces_startup_error_exit_code() {
     // exits with EXIT_STARTUP_ERROR=3.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
+        (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
             (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
@@ -181,7 +181,7 @@ fn wait_child_surfaces_panic_exit_code() {
     // child's catch_unwind catches, maps to EXIT_PANIC=2.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
+        (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
             (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
@@ -205,7 +205,7 @@ fn wait_child_surfaces_runtime_error_exit_code() {
     // EXIT_RUNTIME_ERROR=1.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
+        (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
             (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast
@@ -230,7 +230,7 @@ fn multiple_sequential_forks_no_leak() {
     // fork+wait cycles from one parent.
     let src = r#"
 
-        (:wat::core::define (:my::one-fork<I,O> -> :Result<(),wat::kernel::ProcessDiedError>)
+        (:wat::core::define (:my::one-fork<I,O> -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
             (((child :wat::kernel::Process<I,O>)
               (:wat::kernel::fork-program-ast
@@ -243,11 +243,11 @@ fn multiple_sequential_forks_no_leak() {
                     ())))))
             (:wat::kernel::Process/join-result child)))
 
-        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
+        (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
-            (((a :Result<(),wat::kernel::ProcessDiedError>) (:my::one-fork))
-             ((b :Result<(),wat::kernel::ProcessDiedError>) (:my::one-fork))
-             ((c :Result<(),wat::kernel::ProcessDiedError>) (:my::one-fork)))
+            (((a :Result<(),Vec<wat::kernel::ProcessDiedError>>) (:my::one-fork))
+             ((b :Result<(),Vec<wat::kernel::ProcessDiedError>>) (:my::one-fork))
+             ((c :Result<(),Vec<wat::kernel::ProcessDiedError>>) (:my::one-fork)))
             ;; All three must be Ok; return last as witness.
             c))
     "#;
@@ -264,7 +264,7 @@ fn wait_child_surfaces_nonzero_exit_code() {
     // wait-child should return 4.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<(),wat::kernel::ProcessDiedError>)
+        (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
             (((child :wat::kernel::Process<(),()>)
               (:wat::kernel::fork-program-ast

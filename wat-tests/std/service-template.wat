@@ -287,7 +287,7 @@
         ()))
 
      ;; Final state via join-result. Should match the last snapshot.
-     ((result :Result<svc::State,wat::kernel::ThreadDiedError>)
+     ((result :Result<svc::State,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::join-result driver)))
     (:wat::core::match result -> :()
       ((Ok s)

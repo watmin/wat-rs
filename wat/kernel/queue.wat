@@ -40,8 +40,13 @@
 (:wat::core::typealias :wat::kernel::QueuePair<T>
   :(wat::kernel::QueueSender<T>,wat::kernel::QueueReceiver<T>))
 
+;; Arc 113 — Err arm widened to a Vec<ThreadDiedError> so cascades
+;; carry the chain. Head = the immediate peer that died; tail =
+;; whatever killed it, transitively. (:wat::core::Vector/first
+;; chain) recovers the head when consumers don't care about the
+;; trail.
 (:wat::core::typealias :wat::kernel::CommResult<T>
-  :Result<Option<T>,wat::kernel::ThreadDiedError>)
+  :Result<Option<T>,Vec<wat::kernel::ThreadDiedError>>)
 
 (:wat::core::typealias :wat::kernel::Chosen<T>
   :(i64,wat::kernel::CommResult<T>))

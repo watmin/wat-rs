@@ -124,10 +124,7 @@ impl fmt::Display for CheckError {
                     "{}: parameter {} expects {}; got {}",
                     callee, param, expected, got
                 )?;
-                if let Some(hint) = arc_111_migration_hint(callee, expected, got) {
-                    write!(f, "\n  hint: {}", hint)?;
-                }
-                if let Some(hint) = arc_112_migration_hint(callee, expected, got) {
+                if let Some(hint) = collect_hints(callee, expected, got) {
                     write!(f, "\n  hint: {}", hint)?;
                 }
                 Ok(())
@@ -142,10 +139,7 @@ impl fmt::Display for CheckError {
                     "{}: body produces {}; signature declares {}",
                     function, got, expected
                 )?;
-                if let Some(hint) = arc_111_migration_hint(function, expected, got) {
-                    write!(f, "\n  hint: {}", hint)?;
-                }
-                if let Some(hint) = arc_112_migration_hint(function, expected, got) {
+                if let Some(hint) = collect_hints(function, expected, got) {
                     write!(f, "\n  hint: {}", hint)?;
                 }
                 Ok(())
@@ -243,6 +237,56 @@ fn arc_111_migration_hint(callee: &str, expected: &str, got: &str) -> Option<Str
     Some(hint)
 }
 
+/// Arc 113 migration: detect type-mismatches that smell like the
+/// died-error chain shape change and append a self-describing hint.
+/// Pre-arc-113 the `Err` arm of every comm/join Result carried a
+/// single `ThreadDiedError` / `ProcessDiedError`. Arc 113 widens it to
+/// `Vec<wat::kernel::ThreadDiedError>` / `Vec<wat::kernel::ProcessDiedError>`
+/// — the chain (head = immediate peer that died; tail = whatever
+/// killed it, transitively).
+///
+/// The hint fires when ONE side wraps the died-error in `Vec<...>`
+/// and the other doesn't (covers old fixture annotations finding new
+/// substrate types and vice versa). Both `ThreadDiedError` and
+/// `ProcessDiedError` are checked — the migration is identical for
+/// both transports.
+fn arc_113_migration_hint(_callee: &str, expected: &str, got: &str) -> Option<String> {
+    let smells = |s: &str, ty: &str| -> (bool, bool) {
+        let vec_form = format!("Vec<wat::kernel::{}>", ty);
+        let bare_form = format!("wat::kernel::{}", ty);
+        let has_vec = s.contains(&vec_form);
+        // Bare match counts only if the Vec form isn't there at the
+        // same offset — the Vec form contains the bare token as a
+        // substring. We check by stripping the Vec form first.
+        let stripped = s.replace(&vec_form, "");
+        let has_bare = stripped.contains(&bare_form);
+        (has_vec, has_bare)
+    };
+    let mismatch = |ty: &str| -> bool {
+        let (e_vec, e_bare) = smells(expected, ty);
+        let (g_vec, g_bare) = smells(got, ty);
+        // Mismatch when one side has the bare form and the other has
+        // the Vec form. Same-shape on both sides → not an arc-113
+        // smell (some other axis differs).
+        (e_bare && g_vec) || (g_bare && e_vec)
+    };
+    if !mismatch("ThreadDiedError") && !mismatch("ProcessDiedError") {
+        return None;
+    }
+    Some(
+        "arc 113 — every `Err` arm carrying a died-error now carries a CHAIN: \
+         `:Result<T, :wat::kernel::ThreadDiedError>` → `:Result<T, :Vec<:wat::kernel::ThreadDiedError>>` \
+         (and the same for `ProcessDiedError`). The Vec is the cascade — head = the immediate peer that died; \
+         tail = whatever killed that peer, transitively. \
+         Migrate annotations: wrap the died-error in `Vec<...>` everywhere it appears as a Result Err arg \
+         (let* bindings, function return types, typealias bodies, match scrutinee annotations). \
+         Match arms unchanged in pattern shape: `((Err died) ...)` still binds; `died` is now `:Vec<*DiedError>`. \
+         To recover the immediate-peer death (the typical case): `(:wat::core::first died)` → `:Option<*DiedError>`. \
+         Verbs affected: `send`, `recv`, `try-recv`, `select`, `join-result`, `Process/join-result`, \
+         `process-send`, `process-recv`, and the `:wat::kernel::CommResult<T>` / `Chosen<T>` typealiases.".into()
+    )
+}
+
 /// Aggregated errors — `check_program` returns all findings together.
 #[derive(Debug)]
 pub struct CheckErrors(pub Vec<CheckError>);
@@ -329,6 +373,7 @@ fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
     let hints: Vec<String> = [
         arc_111_migration_hint(callee, expected, got),
         arc_112_migration_hint(callee, expected, got),
+        arc_113_migration_hint(callee, expected, got),
     ]
     .into_iter()
     .flatten()
@@ -6867,6 +6912,11 @@ fn register_builtins(env: &mut CheckEnv) {
     // `:wat::kernel::wait-child` returning :i64; the migration is
     // `(wait-child (ForkedChild/handle child))` →
     // `(:wat::kernel::Process/join-result proc)`.
+    // Arc 113 — Err arm widens to Vec<ProcessDiedError> chain.
+    let process_died_chain_ty = || TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
+    };
     env.register(
         ":wat::kernel::Process/join-result".into(),
         TypeScheme {
@@ -6876,7 +6926,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Result".into(),
                 args: vec![
                     TypeExpr::Tuple(vec![]),
-                    TypeExpr::Path(":wat::kernel::ProcessDiedError".into()),
+                    process_died_chain_ty(),
                 ],
             },
         },
@@ -6902,7 +6952,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Result".into(),
                 args: vec![
                     TypeExpr::Tuple(vec![]),
-                    TypeExpr::Path(":wat::kernel::ProcessDiedError".into()),
+                    process_died_chain_ty(),
                 ],
             },
         },
@@ -6943,7 +6993,7 @@ fn register_builtins(env: &mut CheckEnv) {
                         head: "Option".into(),
                         args: vec![TypeExpr::Path(":O".into())],
                     },
-                    TypeExpr::Path(":wat::kernel::ProcessDiedError".into()),
+                    process_died_chain_ty(),
                 ],
             },
         },
@@ -6992,6 +7042,19 @@ fn register_builtins(env: &mut CheckEnv) {
     // Slice 2 wires the OnceLock plumbing so Err carries the rich panic
     // message; slice 1 ships the type shape with Err unreachable from
     // the runtime path (still always ChannelDisconnected as a stand-in).
+    // Arc 113 — Err arm widens from a single ThreadDiedError to a
+    // `Vec<ThreadDiedError>` (chained-cause backtrace). Vec is the
+    // chain: head = the immediate peer that died; tail = whatever
+    // killed it, transitively. Slice 1 ships the wire shape; slice 2
+    // wires auto-conj at every cross-thread hand-off boundary so the
+    // substrate produces real chains. Pre-arc-113 consumers matching
+    // `((Err died) ...)` against a single ThreadDiedError now match
+    // against a Vec<ThreadDiedError>; common shape `((Err chain)
+    // (handle (:wat::core::Vector/first chain)))` to recover head.
+    let died_chain_ty = || TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
+    };
     let comm_ok_option_t = || TypeExpr::Parametric {
         head: "Result".into(),
         args: vec![
@@ -6999,14 +7062,14 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Option".into(),
                 args: vec![t_var()],
             },
-            TypeExpr::Path(":wat::kernel::ThreadDiedError".into()),
+            died_chain_ty(),
         ],
     };
     let comm_send_ret = || TypeExpr::Parametric {
         head: "Result".into(),
         args: vec![
             TypeExpr::Tuple(vec![]),
-            TypeExpr::Path(":wat::kernel::ThreadDiedError".into()),
+            died_chain_ty(),
         ],
     };
     // (:wat::kernel::send sender value) —
@@ -7066,10 +7129,12 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: r_var(),
         },
     );
-    // (:wat::kernel::join-result handle) — arc 060.
-    //   ∀R. ProgramHandle<R> -> Result<R, wat::kernel::ThreadDiedError>
+    // (:wat::kernel::join-result handle) — arc 060 + arc 113.
+    //   ∀R. ProgramHandle<R> -> Result<R, Vec<wat::kernel::ThreadDiedError>>
     // Sibling to join: same blocking recv on the spawn channel; differs
     // in failure handling (data-as-Result instead of panic-the-caller).
+    // Arc 113 widened the Err arm to a Vec — head = the spawned thread's
+    // death; tail = whatever killed it transitively.
     env.register(
         ":wat::kernel::join-result".into(),
         TypeScheme {
@@ -7082,7 +7147,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Result".into(),
                 args: vec![
                     r_var(),
-                    TypeExpr::Path(":wat::kernel::ThreadDiedError".into()),
+                    died_chain_ty(),
                 ],
             },
         },

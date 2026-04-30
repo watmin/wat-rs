@@ -96,7 +96,7 @@
         ;; (< pipe buffer), the child's writes complete without
         ;; the parent needing to drain. This keeps the drain
         ;; code single-threaded — no spawn + join ceremony.
-        ((joined-result :Result<(),wat::kernel::ProcessDiedError>)
+        ((joined-result :Result<(),Vec<wat::kernel::ProcessDiedError>>)
          (:wat::kernel::Process/join-result proc))
         ((stdout-r :wat::io::IOReader)
          (:wat::kernel::Process/stdout proc))
@@ -107,9 +107,13 @@
         ((stderr-lines :Vec<String>)
          (:wat::kernel::drain-lines stderr-r))
         ((failure :Option<wat::kernel::Failure>)
+         ;; Arc 113 — Err arm carries Vec<ProcessDiedError>; route
+         ;; through sandbox.wat's failure-from-process-died helper
+         ;; which walks the chain head and renders via the substrate
+         ;; accessor.
          (:wat::core::match joined-result -> :Option<wat::kernel::Failure>
-           ((Ok _)    :None)
-           ((Err err) (Some (:wat::kernel::ProcessDiedError/to-failure err))))))
+           ((Ok _)       :None)
+           ((Err chain) (Some (:wat::kernel::failure-from-process-died chain))))))
        (:wat::core::struct-new :wat::kernel::RunResult
          stdout-lines
          stderr-lines

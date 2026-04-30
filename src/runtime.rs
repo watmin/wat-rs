@@ -10598,7 +10598,9 @@ fn eval_kernel_send(
     // always carrying ChannelDisconnected as a stand-in.
     match sender.send(msg) {
         Ok(()) => Ok(Value::Result(Arc::new(Ok(Value::Unit)))),
-        Err(_) => Ok(Value::Result(Arc::new(Err(thread_died_error_channel_disconnected())))),
+        Err(_) => Ok(Value::Result(Arc::new(Err(single_died_chain(
+            thread_died_error_channel_disconnected(),
+        ))))),
     }
 }
 
@@ -11342,13 +11344,15 @@ fn eval_kernel_join_result(
     let value = match handle.as_ref() {
         ProgramHandleInner::InThread(rx) => match rx.recv() {
             Ok(SpawnOutcome::Ok(v)) => Value::Result(Arc::new(Ok(v))),
-            Ok(SpawnOutcome::RuntimeErr(e)) => {
-                Value::Result(Arc::new(Err(thread_died_error_runtime(e.to_string()))))
-            }
+            Ok(SpawnOutcome::RuntimeErr(e)) => Value::Result(Arc::new(Err(single_died_chain(
+                thread_died_error_runtime(e.to_string()),
+            )))),
             Ok(SpawnOutcome::Panic { message, assertion }) => Value::Result(Arc::new(Err(
-                thread_died_error_panic(message, assertion.clone()),
+                single_died_chain(thread_died_error_panic(message, assertion.clone())),
             ))),
-            Err(_) => Value::Result(Arc::new(Err(thread_died_error_channel_disconnected()))),
+            Err(_) => Value::Result(Arc::new(Err(single_died_chain(
+                thread_died_error_channel_disconnected(),
+            )))),
         },
         ProgramHandleInner::Forked(child) => {
             // Arc 112 — bare `join-result` on a forked handle waits via
@@ -11361,10 +11365,10 @@ fn eval_kernel_join_result(
             if code == 0 {
                 Value::Result(Arc::new(Ok(Value::Unit)))
             } else {
-                Value::Result(Arc::new(Err(thread_died_error_panic(
+                Value::Result(Arc::new(Err(single_died_chain(thread_died_error_panic(
                     format!("forked program exited {}", code),
                     None,
-                ))))
+                )))))
             }
         }
     };
@@ -11423,23 +11427,25 @@ fn eval_kernel_process_join_result(
     let value = match handle.as_ref() {
         ProgramHandleInner::InThread(rx) => match rx.recv() {
             Ok(SpawnOutcome::Ok(_)) => Value::Result(Arc::new(Ok(Value::Unit))),
-            Ok(SpawnOutcome::RuntimeErr(e)) => {
-                Value::Result(Arc::new(Err(process_died_error_runtime(e.to_string()))))
-            }
+            Ok(SpawnOutcome::RuntimeErr(e)) => Value::Result(Arc::new(Err(single_died_chain(
+                process_died_error_runtime(e.to_string()),
+            )))),
             Ok(SpawnOutcome::Panic { message, assertion }) => Value::Result(Arc::new(Err(
-                process_died_error_panic(message, assertion.clone()),
+                single_died_chain(process_died_error_panic(message, assertion.clone())),
             ))),
-            Err(_) => Value::Result(Arc::new(Err(process_died_error_channel_disconnected()))),
+            Err(_) => Value::Result(Arc::new(Err(single_died_chain(
+                process_died_error_channel_disconnected(),
+            )))),
         },
         ProgramHandleInner::Forked(child) => {
             let code = child.wait_or_cached();
             if code == 0 {
                 Value::Result(Arc::new(Ok(Value::Unit)))
             } else {
-                Value::Result(Arc::new(Err(process_died_error_panic(
+                Value::Result(Arc::new(Err(single_died_chain(process_died_error_panic(
                     format!("forked program exited {}", code),
                     None,
-                ))))
+                )))))
             }
         }
     };
@@ -11499,9 +11505,9 @@ fn eval_kernel_process_send(
 
     match stdin_writer.write_all(payload.as_bytes()) {
         Ok(()) => Ok(Value::Result(Arc::new(Ok(Value::Unit)))),
-        Err(_) => Ok(Value::Result(Arc::new(Err(
+        Err(_) => Ok(Value::Result(Arc::new(Err(single_died_chain(
             process_died_error_channel_disconnected(),
-        )))),
+        ))))),
     }
 }
 
@@ -11592,8 +11598,8 @@ fn eval_kernel_process_recv(
             Ok(value) => Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(Some(
                 value,
             ))))))),
-            Err(e) => Ok(Value::Result(Arc::new(Err(process_died_error_runtime(
-                format!("EDN parse on Process.stdout line: {}", e),
+            Err(e) => Ok(Value::Result(Arc::new(Err(single_died_chain(
+                process_died_error_runtime(format!("EDN parse on Process.stdout line: {}", e)),
             ))))),
         }
     } else {
@@ -11626,17 +11632,14 @@ fn eval_kernel_process_recv(
                 // Clean shutdown — no stderr, exit 0.
                 Ok(Value::Result(Arc::new(Ok(Value::Option(Arc::new(None))))))
             }
-            (Ok(()), false) => Ok(Value::Result(Arc::new(Err(process_died_error_panic(
-                stderr_msg,
-                None,
+            (Ok(()), false) => Ok(Value::Result(Arc::new(Err(single_died_chain(
+                process_died_error_panic(stderr_msg, None),
             ))))),
-            (Err(exit_msg), true) => Ok(Value::Result(Arc::new(Err(process_died_error_panic(
-                exit_msg,
-                None,
+            (Err(exit_msg), true) => Ok(Value::Result(Arc::new(Err(single_died_chain(
+                process_died_error_panic(exit_msg, None),
             ))))),
-            (Err(exit_msg), false) => Ok(Value::Result(Arc::new(Err(process_died_error_panic(
-                format!("{}\n{}", exit_msg, stderr_msg),
-                None,
+            (Err(exit_msg), false) => Ok(Value::Result(Arc::new(Err(single_died_chain(
+                process_died_error_panic(format!("{}\n{}", exit_msg, stderr_msg), None),
             ))))),
         }
     }
@@ -11759,6 +11762,20 @@ fn thread_died_error_channel_disconnected() -> Value {
         variant_name: "ChannelDisconnected".into(),
         fields: vec![],
     }))
+}
+
+/// Arc 113 slice 1 — wrap a single DiedError Value in a
+/// `Vec<DiedError>` chain. Slice 1 always emits a singleton chain
+/// (no auto-conj yet); slice 2 wires the per-thread panic cell
+/// + Sender back-ref so cascades produce real multi-element chains
+/// at every cross-thread hand-off boundary.
+///
+/// The Vec is the chain. Head = the immediate peer that died; tail
+/// = whatever killed it, transitively. Consumers reach for
+/// `(:wat::core::Vector/first chain)` to recover the head when
+/// they don't care about the trail.
+fn single_died_chain(died: Value) -> Value {
+    Value::Vec(Arc::new(vec![died]))
 }
 
 /// Build a `:wat::kernel::ProcessDiedError::Panic` enum value
@@ -17747,26 +17764,40 @@ mod tests {
         // caller. The 2-field shape preserves arc 064's actual /
         // expected propagation; this test extracts just the message
         // to confirm the variant fired.
+        // Arc 113 — Err arm carries Vec<ThreadDiedError> chain. The
+        // wat program returns the Result Value as-is; this test
+        // inspects it at the Rust level (Value::Result → Err →
+        // Value::Vec → head TDE → message field).
         let src = r#"
             (:wat::core::define (:my::boom -> :())
               (:wat::kernel::assertion-failed! "intentional panic" :None :None))
-            (:wat::core::match
-              (:wat::kernel::join-result (:wat::kernel::spawn :my::boom))
-              -> :String
-              ((Ok _) "unexpected ok")
-              ((Err (:wat::kernel::ThreadDiedError::Panic msg _failure)) msg)
-              ((Err _) "wrong-variant"))
+            (:wat::kernel::join-result (:wat::kernel::spawn :my::boom))
         "#;
-        match run(src).unwrap() {
-            Value::String(s) => {
-                assert_eq!(
-                    &*s, "intentional panic",
-                    "expected captured panic message, got {:?}",
-                    s
-                );
+        let result = run(src).unwrap();
+        let err_chain = match result {
+            Value::Result(r) => match &*r {
+                Err(v) => v.clone(),
+                Ok(_) => panic!("expected Err"),
+            },
+            v => panic!("expected Result, got {:?}", v),
+        };
+        let chain = match err_chain {
+            Value::Vec(xs) => xs,
+            v => panic!("expected Vec<ThreadDiedError>, got {:?}", v),
+        };
+        assert!(!chain.is_empty(), "expected at least one chain entry");
+        let head = &chain[0];
+        let msg = match head {
+            Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
+                assert_eq!(ev.variant_name, "Panic");
+                match &ev.fields[0] {
+                    Value::String(s) => s.clone(),
+                    v => panic!("expected String message, got {:?}", v),
+                }
             }
-            v => panic!("expected String, got {:?}", v),
-        }
+            v => panic!("expected ThreadDiedError enum, got {:?}", v),
+        };
+        assert_eq!(&*msg, "intentional panic");
     }
 
     #[test]
@@ -17778,20 +17809,27 @@ mod tests {
         let src = r#"
             (:wat::core::define (:my::div-zero -> :i64)
               (:wat::core::i64::/ 1 0))
-            (:wat::core::match
-              (:wat::kernel::join-result (:wat::kernel::spawn :my::div-zero))
-              -> :String
-              ((Ok _) "unexpected ok")
-              ((Err (:wat::kernel::ThreadDiedError::RuntimeError msg)) msg)
-              ((Err _) "wrong-variant"))
+            (:wat::kernel::join-result (:wat::kernel::spawn :my::div-zero))
         "#;
-        match run(src).unwrap() {
-            Value::String(s) => {
-                assert_ne!(&*s, "unexpected ok");
-                assert_ne!(&*s, "wrong-variant");
-                assert!(!s.is_empty(), "expected non-empty RuntimeError message");
+        let result = run(src).unwrap();
+        let chain = match result {
+            Value::Result(r) => match &*r {
+                Err(Value::Vec(xs)) => xs.clone(),
+                Err(v) => panic!("expected Err Vec, got {:?}", v),
+                Ok(_) => panic!("expected Err"),
+            },
+            v => panic!("expected Result, got {:?}", v),
+        };
+        assert!(!chain.is_empty());
+        match &chain[0] {
+            Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
+                assert_eq!(
+                    ev.variant_name, "RuntimeError",
+                    "expected RuntimeError variant; got {:?}",
+                    ev.variant_name
+                );
             }
-            v => panic!("expected String, got {:?}", v),
+            v => panic!("expected ThreadDiedError enum, got {:?}", v),
         }
     }
 

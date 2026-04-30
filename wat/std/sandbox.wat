@@ -52,21 +52,33 @@
     :None
     :None))
 
-;; Build a Failure payload from a ProcessDiedError (arc 112). The
-;; substrate accessor :wat::kernel::ProcessDiedError/to-failure
+;; Build a Failure payload from a ProcessDiedError chain (arc 112 +
+;; 113). Arc 113 widened the Err arm to Vec<PDE> so cascading
+;; failures carry the full chain; this helper takes the chain and
+;; renders the HEAD's structured Failure (the immediate peer that
+;; died). Future-arc consumers can walk the tail via
+;; (:wat::core::rest chain) — :wat::core::first gives the head.
+;; The substrate accessor :wat::kernel::ProcessDiedError/to-failure
 ;; preserves arc 064's structured actual / expected / location /
-;; frames when the panic carried an AssertionPayload; falls back to
-;; a message-only Failure for plain panics, runtime errors, and the
-;; unit ChannelDisconnected variant. No wat-side variant pattern
-;; matching needed. (Pre-arc-112 the equivalent was
-;; failure-from-thread-died wrapping ThreadDiedError/to-failure;
-;; with the unified Process<I,O> the Err side of Process/join-result
-;; is ProcessDiedError.)
+;; frames when the panic carried an AssertionPayload; falls back
+;; to a message-only Failure for plain panics, runtime errors, and
+;; the unit ChannelDisconnected variant.
 (:wat::core::define
   (:wat::kernel::failure-from-process-died
-    (err :wat::kernel::ProcessDiedError)
+    (chain :Vec<wat::kernel::ProcessDiedError>)
     -> :wat::kernel::Failure)
-  (:wat::kernel::ProcessDiedError/to-failure err))
+  (:wat::core::match (:wat::core::first chain)
+    -> :wat::kernel::Failure
+    ((Some err) (:wat::kernel::ProcessDiedError/to-failure err))
+    (:None
+     ;; Empty chain — should not occur; substrate always emits at
+     ;; least the immediate-peer death. Defensive default.
+     (:wat::core::struct-new :wat::kernel::Failure
+       "empty died-chain (substrate bug)"
+       :None
+       (:wat::core::vec :wat::kernel::Frame)
+       :None
+       :None))))
 
 ;; Common driver — runs a Process (already spawned successfully),
 ;; pre-seeds stdin, closes the writer to signal EOF, drains
@@ -95,7 +107,7 @@
      ((stderr-r :wat::io::IOReader)  (:wat::kernel::Process/stderr proc))
      ((stdout-lines :Vec<String>)    (:wat::kernel::drain-lines stdout-r))
      ((stderr-lines :Vec<String>)    (:wat::kernel::drain-lines stderr-r))
-     ((joined-result :Result<(),wat::kernel::ProcessDiedError>)
+     ((joined-result :Result<(),Vec<wat::kernel::ProcessDiedError>>)
       (:wat::kernel::Process/join-result proc))
      ((failure :Option<wat::kernel::Failure>)
       (:wat::core::match joined-result -> :Option<wat::kernel::Failure>
