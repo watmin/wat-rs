@@ -2389,6 +2389,65 @@ shelling out to the `wat` binary. Not a sandbox — no panic isolation;
 for containment, call `:wat::kernel::run-sandboxed` from inside your
 wat program. See `arc/2026/04/007-wat-tests-wat/INSCRIPTION.md`.
 
+### Phenomenal cargo debugging — `wat --check` and `WAT_TEST_OUTPUT`
+
+Two arc-115 / arc-116 features make `cargo test` debugging
+substantially better:
+
+**Compile-only check (arc 115)** — verify a `.wat` file freezes
+cleanly without running `:user::main`:
+
+```bash
+wat --check path/to/program.wat                      # exit 0 if green
+wat --check --check-output edn path/to/program.wat   # structured EDN diagnostics
+wat --check --check-output json path/to/program.wat  # structured JSON diagnostics
+```
+
+Editor save hooks, sweep cycles, agent iteration loops use this
+without invoking program side effects.
+
+**Structured test failure output (arc 116)** — `cargo test` opt-in
+structured emission:
+
+```bash
+WAT_TEST_OUTPUT=edn cargo test    # emit one EDN record per failure to stdout
+WAT_TEST_OUTPUT=json cargo test   # emit one JSON record per failure to stdout
+cargo test                        # text-only (default)
+```
+
+EDN format:
+```
+#wat.diag/AssertionFailed {:test ":proof::004::step-A" :message "assert-eq failed" :location "step-A.wat:42:13" :actual "1" :expected "2"}
+```
+
+JSON format:
+```
+{"kind":"AssertionFailed","test":":proof::004::step-A","message":"assert-eq failed","location":"step-A.wat:42:13","actual":"1","expected":"2"}
+```
+
+Each failure surfaces as one record, line-delimited, written as
+the failure happens. Fields preserve arc 064's structured Failure
+shape verbatim (location, actual, expected, frames). CI annotations
+/ LSP integrations / agent sweep loops consume the records without
+parsing cargo test text output. Default behavior is unchanged for
+human users.
+
+**The `kind` discriminator**:
+- `AssertionFailed` — `assert-eq` (or sibling) panicked; actual /
+  expected populated.
+- `Panic` — plain `panic!` from wat code; actual / expected absent.
+- `RuntimeError` — substrate-level error during test execution.
+- `TestPanicEscaped` — a panic broke out of the test body's
+  `catch_unwind` (substrate-internal — should not happen in
+  practice).
+- (Test-discovery freeze failures) — `TypeMismatch`,
+  `CommCallOutOfPosition`, etc. — same diagnostic kinds `wat
+  --check` produces.
+
+The substrate is data first; renderers are layered. See
+`arc/2026/04/115-no-inner-colon-in-parametric-args/INSCRIPTION.md`
+and `arc/2026/04/116-phenomenal-cargo-debugging/INSCRIPTION.md`.
+
 ---
 
 ## 14. Common gotchas

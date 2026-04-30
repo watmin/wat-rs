@@ -236,6 +236,17 @@ pub fn run_tests_from_dir_with_loader(
         ) {
             Ok(f) => f,
             Err(e) => {
+                // Arc 116 slice 4 — emit one structured Diagnostic per
+                // freeze error to stdout (when WAT_TEST_OUTPUT set);
+                // text rendering preserves today's "test-runner: file:
+                // startup: <error>" shape so cargo test users see no
+                // change. The structured stream gives tooling consumers
+                // (LSP, agents, CI) field-level access to expected /
+                // got / hint without parsing text.
+                let label = format!("test-runner: {}", file.display());
+                for diag in e.diagnostics() {
+                    emit_structured_diagnostic(&label, &diag);
+                }
                 summary.failure_summaries.push(format!(
                     "test-runner: {}: startup: {}",
                     file.display(),
