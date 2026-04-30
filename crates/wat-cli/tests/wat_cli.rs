@@ -456,6 +456,70 @@ fn program_writes_multiple_times_to_stdout() {
     assert_eq!(stdout, "hello world", "got: {:?}", stdout);
 }
 
+#[test]
+fn sigterm_to_cli_forwards_to_child() {
+    // Arc 104d: SIGTERM sent to wat-cli should propagate to the
+    // child via kill(2). The child runs a tail-recursive read-line
+    // loop that never EOFs (nothing closes stdin); without signal
+    // forwarding it would hang forever. With forwarding, SIGTERM
+    // reaches the child's default handler (reset to SIG_DFL post-
+    // fork by child_branch_from_source), and the child terminates.
+    // wat-cli's wait_child observes WIFSIGNALED + WTERMSIG=SIGTERM
+    // and returns 128 + 15 = 143.
+    let program = r#"
+        (:wat::core::define (:demo::loop
+                             (stdin :wat::io::IOReader)
+                             -> :())
+          (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
+            (:None ())
+            ((Some _) (:demo::loop stdin))))
+
+        (:wat::core::define (:user::main
+                             (stdin  :wat::io::IOReader)
+                             (stdout :wat::io::IOWriter)
+                             (stderr :wat::io::IOWriter)
+                             -> :())
+          (:demo::loop stdin))
+    "#;
+    let path = write_temp(program);
+    let bin = env!("CARGO_BIN_EXE_wat");
+    let mut child = Command::new(bin)
+        .arg(&path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn wat");
+
+    // Give the child a moment to fork + start its read loop. Race
+    // tolerance: if SIGTERM arrives before the cli has called fork(),
+    // CHILD_PID is still -1 and forward_signal no-ops; the cli
+    // inherits SIGTERM's default action (terminate). Either way the
+    // wat process tree dies; the test is robust to both timings.
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    // Send SIGTERM to wat-cli. The signal handler forwards it to the
+    // child via kill(2); child terminates with default action.
+    let cli_pid = child.id() as libc::pid_t;
+    unsafe {
+        libc::kill(cli_pid, libc::SIGTERM);
+    }
+
+    let status = child.wait().expect("wait wat-cli");
+    let code = status.code();
+    let _ = std::fs::remove_file(&path);
+
+    // Expected: child died from SIGTERM (signal 15) → wat-cli's
+    // wait_child returns 128 + 15 = 143 → cli exits 143. Tolerate
+    // raw 143 OR (rare race) the cli being killed directly by
+    // SIGTERM before fork — in which case Rust reports None.
+    match code {
+        Some(143) => {} // happy path
+        Some(n) => panic!("expected exit 143 (128+SIGTERM); got {}", n),
+        None => {} // race: cli killed by SIGTERM before fork
+    }
+}
+
 
 
 

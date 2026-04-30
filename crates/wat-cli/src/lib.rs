@@ -98,7 +98,16 @@ use std::process::ExitCode;
 
 use std::os::fd::{AsRawFd, OwnedFd};
 
+use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
+
+// ─── Child PID atomic for signal forwarding (arc 104d) ──────────────────
+//
+// Set after fork; read by signal handlers. -1 sentinel = no child yet
+// (cli is still in argv parsing or pre-fork). Handlers check >= 0
+// before calling kill(2) to avoid sending signals to PID 0 (process
+// group) or PID -1 (every process the cli has permission to signal).
+static CHILD_PID: AtomicI32 = AtomicI32::new(-1);
 
 use wat::fork::fork_program_from_source;
 use wat::load::FsLoader;
@@ -220,6 +229,13 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
 
     let child_pid = handles.child_handle.pid;
 
+    // Publish the child PID for signal-handler forwarding (arc 104d).
+    // Handlers read this atomic and kill(2) the child with the same
+    // signal. The atomic is the only race-safe way to thread the PID
+    // from the post-fork parent into the async-signal-safe handler
+    // closure.
+    CHILD_PID.store(child_pid, Ordering::SeqCst);
+
     // Spawn the three proxy threads. Each runs a tight read/write
     // loop bridging real OS stdio to the child's pipe end. They
     // exit naturally on EOF (read returns 0). The cli waits on
@@ -240,7 +256,12 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
     handles
         .child_handle
         .reaped
-        .store(true, std::sync::atomic::Ordering::SeqCst);
+        .store(true, Ordering::SeqCst);
+
+    // Clear the published child PID so any late signal arriving
+    // between waitpid and exit doesn't get sent to a PID that's
+    // since been reused by the OS.
+    CHILD_PID.store(-1, Ordering::SeqCst);
 
     // Join the proxy threads. Each sees its peer fd close (child
     // exit closes the child-side fds → parent's read returns 0 →
@@ -379,29 +400,56 @@ fn install_batteries(batteries: &[Battery]) {
 
 // ─── OS signal handlers ────────────────────────────────────────────────
 
-/// SIGINT / SIGTERM handler. Both terminal signals route here; the
-/// handler writes the kernel stop flag and returns. One atomic write,
-/// no allocation — minimal handler surface per standard practice.
-extern "C" fn on_stop_signal(_sig: libc::c_int) {
+// ─── Signal handlers (arc 104d signal forwarding) ──────────────────────
+//
+// Handlers do TWO things, in this order:
+//
+// 1. Flip the cli's local atomic flag (kernel_stop, sigusr1, etc.).
+//    These flags are inherited from pre-arc-104; they're harmless under
+//    the fork model because the cli isn't running user code, but they
+//    stay so test harnesses that spin up the cli's library API
+//    (wat::Harness::*) without going through fork still observe them.
+//
+// 2. Forward the SAME signal to the child PID via kill(2). The child
+//    has its own copy of every signal handler reset to SIG_DFL (per
+//    fork.rs::child_branch_from_source) and observes default behavior:
+//    SIGINT/SIGTERM/SIGHUP terminate; SIGUSR1/SIGUSR2 either terminate
+//    or are ignored unless the child installs its own handler. (A
+//    long-running wat program running in the child can install its
+//    own handlers via :wat::kernel::sigusr1?-style polling — same
+//    primitives, but they hook the child's flags, not the cli's.)
+//
+// The forward_signal helper reads CHILD_PID; if -1 (no child yet),
+// no-op. If >= 0, kill(pid, sig). Async-signal-safe — atomic load +
+// libc::kill are both legal in handler context.
+
+extern "C" fn forward_signal(sig: libc::c_int) {
+    let pid = CHILD_PID.load(Ordering::SeqCst);
+    if pid > 0 {
+        unsafe {
+            libc::kill(pid, sig);
+        }
+    }
+}
+
+extern "C" fn on_stop_signal(sig: libc::c_int) {
     request_kernel_stop();
+    forward_signal(sig);
 }
 
-/// SIGUSR1 handler. Flips the user-signal flag true; userland is
-/// responsible for polling and resetting.
-extern "C" fn on_sigusr1(_sig: libc::c_int) {
+extern "C" fn on_sigusr1(sig: libc::c_int) {
     set_kernel_sigusr1();
+    forward_signal(sig);
 }
 
-/// SIGUSR2 handler. Flips the user-signal flag true; userland is
-/// responsible for polling and resetting.
-extern "C" fn on_sigusr2(_sig: libc::c_int) {
+extern "C" fn on_sigusr2(sig: libc::c_int) {
     set_kernel_sigusr2();
+    forward_signal(sig);
 }
 
-/// SIGHUP handler. Flips the user-signal flag true; userland is
-/// responsible for polling and resetting.
-extern "C" fn on_sighup(_sig: libc::c_int) {
+extern "C" fn on_sighup(sig: libc::c_int) {
     set_kernel_sighup();
+    forward_signal(sig);
 }
 
 fn install_signal_handlers() {
