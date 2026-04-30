@@ -306,6 +306,82 @@ expect — the in-memory peer-death is catastrophic.
 Each slice ends green. The sweep is mechanical once slice 1 is in;
 the compiler tells you exactly what to fix.
 
+## Follow-up — `Result<Option<T>, E>` recv shape (next arc)
+
+User insight, captured here so it doesn't get lost:
+
+> we expect Option<T> to flow in the good case .... so its a
+> Result<Option<T>, E> ... that's our actual shape?.. we can have
+> propagation go this way?... a terminal state is when Option<T>
+> is a None?
+
+Yes. The current `:Option<T>` from recv conflates two distinct
+states under one `:None`:
+
+- "Every sender dropped cleanly via scope exit" — terminal data,
+  the protocol's last message.
+- "A sender thread panicked, taking its sender clone with it" —
+  upstream catastrophe; the near-side has lost data.
+
+`Result<Option<T>, E>` separates them:
+
+- `Ok(Some(v))` — value flowed.
+- `Ok(:None)` — stream alive but terminal (clean shutdown).
+- `Err(e)` — sender thread panicked; `e` carries its message.
+
+Call sites get three arms instead of two. Arc 110's grammar rule
+still applies — recv lands in match-discriminant or
+result::expect-value; the match arms grow.
+
+This is task #165's cross-thread panic propagation, surfaced at
+the type level. Substrate work needed:
+
+1. Sender carries a back-ref to its spawning ProgramHandle (or
+   per-thread panic registry).
+2. Channel disconnect-detection queries "did any sender thread
+   panic" — if yes, return `Err(panic-message)`; otherwise `Ok(None)`.
+3. recv return type: `:Option<T>` → `:Result<Option<T>, ThreadDiedError>`.
+4. Sweep call sites AGAIN — grammar stays valid; arms grow from 2 to 3.
+
+Land arc 110 first (the grammar rule is correct regardless of the
+type change); the result-shape arc is additive and the sweep is
+the same kind of mechanical work.
+
+### The same shape generalizes to inter-process comms
+
+User extension (2026-04-30, after arc 110 closure):
+
+> once we make this work on in memory comms, then we'll do the
+> same of inter process comms.. send on std in, recv on stdout
+> -> good, recv on stderr -> bad
+>
+> this has the same shape as Result<Option<T>,E>  the Option<T>
+> is sent on stdout and E is sent on stderr
+
+In-process and out-of-process channels collapse to one
+abstraction:
+
+| In-process (crossbeam) | Inter-process (fork stdio) |
+|---|---|
+| `Sender<T>` | child's `stdin` (input) |
+| `Receiver<T>` good values | child's `stdout` |
+| Far-side panic (channel disconnect with panic-tagged sender) | child's `stderr` (or non-zero exit) |
+
+Both surface as `Result<Option<T>, E>`:
+- `Ok(Some v)` — bytes/value flowed.
+- `Ok(:None)` — clean EOF / clean disconnect.
+- `Err(e)` — child panicked / wrote to stderr / exited non-zero.
+
+Arc 111 implements this for in-memory; an arc 112 (or arc 111
+slice 5) extends to subprocess pipes via the same return type.
+The wat program reading from a subprocess gets the same arms it
+gets from an in-memory channel — the only differences are
+transport (bytes-on-pipe vs. T-on-Arc) and serialization
+(EDN vs. native).
+
+The grammar rule from arc 110 still applies at every comm call,
+in-process or out-of-process. The sweep is uniform.
+
 ## Cross-references
 
 - `docs/arc/2026/04/107-option-result-expect/INSCRIPTION.md` — the

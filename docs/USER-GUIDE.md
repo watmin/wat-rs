@@ -1274,10 +1274,26 @@ path. Aliases and their expansion are interchangeable at unification.
 
 Both channel endpoints report disconnect through the same `:Option`
 shape — `send` returns `:wat::kernel::Sent` (≡ `:Option<()>`) symmetric
-with `recv`'s `:Option<T>`. A producer matches on its send result to
-handle the "consumer went away" case cleanly; a stage that doesn't
-need disconnect awareness can `((_ :wat::kernel::Sent) (:wat::kernel::send ...))`
-and ignore.
+with `recv`'s `:Option<T>`.
+
+**Arc 110 — silent disconnect is a compile error.** Every
+`:wat::kernel::send` / `:wat::kernel::recv` call MUST appear as
+either the scrutinee of `:wat::core::match` (handles `Some` and the
+terminal `:None` arms explicitly) or the value-position of
+`:wat::core::option::expect` (declares peer-death is catastrophic;
+panic with a meaningful message). Any other context — let-binding
+RHS, function-call argument, struct field, bare return value — is a
+compile-time error (`CommCallOutOfPosition`). The substrate refuses
+to compile programs that ignore the comm result; the silent
+producer-keeps-going-on-dead-peer hang from proof_004 is structurally
+impossible.
+
+In-memory peer-death is catastrophic — there's no remote host, no
+recoverable disconnect — so `option::expect` is the default. `match`
+is the narrow case: worker recv-loops where `:None` IS the legitimate
+end-of-work signal (all clients dropped their Senders), and producer
+stages where `:None` from a send means "downstream consumer dropped,
+stop producing."
 
 Senders and receivers are **single-owner** — not cloneable. A sender
 belongs to exactly one producer; a receiver to one consumer. Match
@@ -1307,7 +1323,8 @@ worker's `recv` never returns `:None`:
    ((rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second pair))
    ((handle :wat::kernel::ProgramHandle<()>)
     (:wat::kernel::spawn :my::worker rx))
-   ((_send :Option<()>) (:wat::kernel::send tx 1))
+   ((_send :())
+    (:wat::core::option::expect -> :() (:wat::kernel::send tx 1) "tx disconnected"))
    ((_drop :()) (:wat::kernel::drop tx)))   ;; ← no-op; tx still bound
   (:wat::kernel::join handle))               ;; ← worker recv-loops forever
 ```
@@ -1327,7 +1344,10 @@ the worker exits; the outer `join` unblocks:
        ((tx :wat::kernel::QueueSender<i64>) (:wat::core::first pair))
        ((rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second pair))
        ((h :wat::kernel::ProgramHandle<()>) (:wat::kernel::spawn :my::worker rx))
-       ((_send :wat::kernel::Sent) (:wat::kernel::send tx 1)))
+       ((_send :())
+        (:wat::core::option::expect -> :()
+          (:wat::kernel::send tx 1)
+          "send 1: tx disconnected — :my::worker died?")))
       h)))                                    ;; ← pair, tx, rx all drop here
   (:wat::kernel::join handle))                ;; ← worker has exited cleanly
 ```
