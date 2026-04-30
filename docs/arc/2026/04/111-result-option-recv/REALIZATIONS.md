@@ -209,6 +209,35 @@ spent reading transcripts. No risk of context overflow. The
 substrate already does the bookkeeping; you're just asking it
 to report.
 
+### Validation — the meter's prediction was load-bearing
+
+User, after the sonnet returned: 
+
+> you were right btw... your 85% completed means ~15 min was
+> pretty close.. i think it was like maybe 8-12min later... i
+> wasn't watching closely.. i was able to think about different
+> things while sonnet cleaned up
+
+The estimate was 15–25 minutes; actual was 8–12. Within the
+margin of an hour-long sweep, that's calibrated.
+
+But the more important payoff is the second sentence: **the
+user was free to think about different things.** A poll-and-grep
+status check is cheap enough to ask occasionally, and trustworthy
+enough to act on. The orchestrator doesn't have to babysit the
+agent. The substrate's diagnostic stream becomes the trust
+boundary — when the count is dropping, the work is happening;
+when the count hits zero, the work is done; in between, the
+human is free.
+
+That's the real shape of the realization. Not just "we have a
+progress bar" — it's "the substrate's honest output is enough
+of a contract that the human can hand off." Same shape arc 110
+landed structurally (the substrate refuses to compile silent
+disconnects so the human doesn't have to police call sites);
+applied here to delegation (the substrate reports remaining work
+so the human doesn't have to monitor the agent).
+
 ## The program is the equation
 
 User to his younger brother, sometime before chapter 10:
