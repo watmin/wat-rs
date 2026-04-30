@@ -31,9 +31,9 @@
    (:wat::core::define
      (:wat-tests::holon::lru::HologramCacheService::count-recv
        (rx :wat::kernel::QueueReceiver<i64>)
-       (acc :i64)
-       -> :i64)
-     (:wat::core::match (:wat::kernel::recv rx) -> :i64
+       (acc :wat::core::i64)
+       -> :wat::core::i64)
+     (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
        ((Some _v)
          (:wat-tests::holon::lru::HologramCacheService::count-recv
            rx (:wat::core::i64::+ acc 1)))
@@ -41,7 +41,7 @@
 
    (:wat::core::define
      (:wat-tests::holon::lru::HologramCacheService::run-counter
-       (rx :wat::kernel::QueueReceiver<i64>) -> :i64)
+       (rx :wat::kernel::QueueReceiver<i64>) -> :wat::core::i64)
      (:wat-tests::holon::lru::HologramCacheService::count-recv rx 0))
 
    ;; ─── Step 3 helper — drive Service/loop, return final len ──
@@ -52,8 +52,8 @@
    (:wat::core::define
      (:wat-tests::holon::lru::HologramCacheService::run-loop-then-len
        (req-rxs :Vec<wat::holon::lru::HologramCacheService::ReqRx>)
-       (cap :i64)
-       -> :i64)
+       (cap :wat::core::i64)
+       -> :wat::core::i64)
      (:wat::core::let*
        (((cache :wat::holon::lru::HologramCache)
          (:wat::holon::lru::HologramCache/make
@@ -88,7 +88,7 @@
     (((handle :wat::kernel::ProgramHandle<i64>)
       (:wat::core::let*
         (((pair :wat::kernel::QueuePair<i64>)
-          (:wat::kernel::make-bounded-queue :i64 1))
+          (:wat::kernel::make-bounded-queue :wat::core::i64 1))
          ((tx :wat::kernel::QueueSender<i64>) (:wat::core::first pair))
          ((rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second pair))
          ((h :wat::kernel::ProgramHandle<i64>)

@@ -78,13 +78,13 @@
      ((now-fn :fn(())->wat::time::Instant)
       (:wat::telemetry::WorkUnitLog/now-fn logger))
      ((now :wat::time::Instant) (now-fn ()))
-     ((time-ns :i64) (:wat::time::epoch-nanos now))
+     ((time-ns :wat::core::i64) (:wat::time::epoch-nanos now))
      ;; Per-scope identity — pulled from the wu at every emit so
      ;; each row carries the scope's uuid for cross-table joins
      ;; (Event::Log.uuid == Event::Metric.uuid for rows from the
      ;; same scope).
      ((ns    :wat::holon::HolonAST) (:wat::telemetry::WorkUnit/namespace wu))
-     ((uuid  :String)               (:wat::telemetry::WorkUnit/uuid wu))
+     ((uuid  :wat::core::String)               (:wat::telemetry::WorkUnit/uuid wu))
      ((tags  :wat::telemetry::Tags) (:wat::telemetry::WorkUnit/tags wu))
      ;; Lift keyword → HolonAST → NoTag. Atom is polymorphic per
      ;; arc 057 (∀T. T → HolonAST); a runtime keyword Value lifts

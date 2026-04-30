@@ -31,8 +31,8 @@
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-vec
   ()
   (:wat::core::let*
-    (((a :Vec<String>) (:wat::core::vec :String "x" "y"))
-     ((b :Vec<String>) (:wat::core::vec :String "x" "y")))
+    (((a :Vec<String>) (:wat::core::vec :wat::core::String "x" "y"))
+     ((b :Vec<String>) (:wat::core::vec :wat::core::String "x" "y")))
     (:wat::test::assert-eq a b)))
 
 ;; ─── assert-eq — fail case surfaces message ───────────────────────────
@@ -50,7 +50,7 @@
               (stderr :wat::io::IOWriter)
               -> :())
             (:wat::test::assert-eq 42 43)))
-        (:wat::core::vec :String)))
+        (:wat::core::vec :wat::core::String)))
      ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :()
       ((Some f) (:wat::test::assert-eq
@@ -79,7 +79,7 @@
               (stderr :wat::io::IOWriter)
               -> :())
             (:wat::test::assert-contains "hello" "xyz")))
-        (:wat::core::vec :String)))
+        (:wat::core::vec :wat::core::String)))
      ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :()
       ((Some f)
@@ -126,7 +126,7 @@
             (:wat::test::assert-coincident
               (:wat::holon::Atom "alice")
               (:wat::holon::Atom "charlie"))))
-        (:wat::core::vec :String)))
+        (:wat::core::vec :wat::core::String)))
      ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :()
       ((Some f)
@@ -166,8 +166,8 @@
               (((_ :()) (:wat::io::IOWriter/println stdout "alpha"))
                ((_ :()) (:wat::io::IOWriter/println stdout "beta")))
               ())))
-        (:wat::core::vec :String)))
-     ((expected :Vec<String>) (:wat::core::vec :String "alpha" "beta")))
+        (:wat::core::vec :wat::core::String)))
+     ((expected :Vec<String>) (:wat::core::vec :wat::core::String "alpha" "beta")))
     (:wat::test::assert-stdout-is inner expected)))
 
 ;; ─── assert-stderr-matches — pass + fail-reports-pattern ──────────────
@@ -185,7 +185,7 @@
               (stderr :wat::io::IOWriter)
               -> :())
             (:wat::io::IOWriter/println stderr "error: code 42")))
-        (:wat::core::vec :String))))
+        (:wat::core::vec :wat::core::String))))
     (:wat::test::assert-stderr-matches inner "code [0-9]+")))
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
@@ -216,9 +216,9 @@
                         (stderr :wat::io::IOWriter)
                         -> :())
                       ()))
-                  (:wat::core::vec :String))))
+                  (:wat::core::vec :wat::core::String))))
               (:wat::test::assert-stderr-matches silent "my-pattern"))))
-        (:wat::core::vec :String)))
+        (:wat::core::vec :wat::core::String)))
      ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :()
       ((Some f)
@@ -249,8 +249,8 @@
                               (stderr :wat::io::IOWriter)
                               -> :())
            (:wat::io::IOWriter/println stdout \"from-string\"))"
-        (:wat::core::vec :String)))
-     ((expected :Vec<String>) (:wat::core::vec :String "from-string")))
+        (:wat::core::vec :wat::core::String)))
+     ((expected :Vec<String>) (:wat::core::vec :wat::core::String "from-string")))
     (:wat::test::assert-stdout-is r expected)))
 
 ;; ─── :wat::test::run-ast — AST-entry path via :wat::test::program ────
@@ -268,8 +268,8 @@
               (stderr :wat::io::IOWriter)
               -> :())
             (:wat::io::IOWriter/println stdout "from-ast")))
-        (:wat::core::vec :String)))
-     ((expected :Vec<String>) (:wat::core::vec :String "from-ast")))
+        (:wat::core::vec :wat::core::String)))
+     ((expected :Vec<String>) (:wat::core::vec :wat::core::String "from-ast")))
     (:wat::test::assert-stdout-is r expected)))
 
 ;; deftest's self-test is redundant here — every other passing deftest

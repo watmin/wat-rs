@@ -19,10 +19,10 @@
       (:wat::holon::lru::HologramCache/make
         (:wat::holon::filter-coincident)
         16))
-     ((n :i64) (:wat::holon::lru::HologramCache/len store))
-     ((cap :i64) (:wat::holon::lru::HologramCache/capacity store)))
+     ((n :wat::core::i64) (:wat::holon::lru::HologramCache/len store))
+     ((cap :wat::core::i64) (:wat::holon::lru::HologramCache/capacity store)))
     (:wat::test::assert-eq
-      (:wat::core::if (:wat::core::= n 0) -> :bool
+      (:wat::core::if (:wat::core::= n 0) -> :wat::core::bool
         (:wat::core::= cap 100)
         false)
       true)))
@@ -62,7 +62,7 @@
      ((v2 :wat::holon::HolonAST) (:wat::holon::leaf :gv))
      ((_ :()) (:wat::holon::lru::HologramCache/put store k1 v1))
      ((_ :()) (:wat::holon::lru::HologramCache/put store k2 v2))
-     ((n :i64) (:wat::holon::lru::HologramCache/len store)))
+     ((n :wat::core::i64) (:wat::holon::lru::HologramCache/len store)))
     (:wat::test::assert-eq n 2)))
 
 ;; ─── LRU eviction at capacity drops oldest from Hologram ────────
@@ -86,24 +86,24 @@
      ((_ :()) (:wat::holon::lru::HologramCache/put store k2 v))
      ((_ :()) (:wat::holon::lru::HologramCache/put store k3 v))
      ;; Total entries = 2 (k1 evicted by k3's put).
-     ((total :i64) (:wat::holon::lru::HologramCache/len store))
+     ((total :wat::core::i64) (:wat::holon::lru::HologramCache/len store))
      ;; k1 specifically gone from Hologram.
      ((g1 :Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k1))
-     ((k1-evicted :bool)
-      (:wat::core::match g1 -> :bool
+     ((k1-evicted :wat::core::bool)
+      (:wat::core::match g1 -> :wat::core::bool
         ((Some _) false)
         (:None    true)))
      ;; k2 still there.
      ((g2 :Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k2))
-     ((k2-present :bool)
-      (:wat::core::match g2 -> :bool
+     ((k2-present :wat::core::bool)
+      (:wat::core::match g2 -> :wat::core::bool
         ((Some _) true)
         (:None    false))))
     (:wat::test::assert-eq
-      (:wat::core::if (:wat::core::= total 2) -> :bool
-        (:wat::core::if k1-evicted -> :bool k2-present false)
+      (:wat::core::if (:wat::core::= total 2) -> :wat::core::bool
+        (:wat::core::if k1-evicted -> :wat::core::bool k2-present false)
         false)
       true)))
 
@@ -133,19 +133,19 @@
      ;; k1 should STILL be present (was MRU after the bump).
      ((g1 :Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k1))
-     ((k1-present :bool)
-      (:wat::core::match g1 -> :bool
+     ((k1-present :wat::core::bool)
+      (:wat::core::match g1 -> :wat::core::bool
         ((Some _) true)
         (:None    false)))
      ;; k2 should be evicted.
      ((g2 :Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k2))
-     ((k2-evicted :bool)
-      (:wat::core::match g2 -> :bool
+     ((k2-evicted :wat::core::bool)
+      (:wat::core::match g2 -> :wat::core::bool
         ((Some _) false)
         (:None    true))))
     (:wat::test::assert-eq
-      (:wat::core::if k1-present -> :bool k2-evicted false)
+      (:wat::core::if k1-present -> :wat::core::bool k2-evicted false)
       true)))
 
 ;; ─── Therm-form round-trip via HologramCache ──────────────────────

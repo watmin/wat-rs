@@ -40,9 +40,9 @@
 ;; ─── Self-heartbeat contract — Stats + MetricsCadence ────────────
 
 (:wat::core::struct :wat::telemetry::Service::Stats
-  (batches :i64)
-  (entries :i64)
-  (max-batch-size :i64))
+  (batches :wat::core::i64)
+  (entries :wat::core::i64)
+  (max-batch-size :wat::core::i64))
 
 (:wat::core::struct :wat::telemetry::Service::MetricsCadence<G>
   (gate :G)
@@ -137,7 +137,7 @@
       (:wat::telemetry::Service::MetricsCadence/tick cadence))
      ((tick :(G,bool)) (tick-fn gate stats))
      ((gate' :G) (:wat::core::first tick))
-     ((fired :bool) (:wat::core::second tick))
+     ((fired :wat::core::bool) (:wat::core::second tick))
      ((cadence' :wat::telemetry::Service::MetricsCadence<G>)
       (:wat::telemetry::Service::MetricsCadence/new gate' tick-fn)))
     (:wat::core::if fired
@@ -201,13 +201,13 @@
 (:wat::core::define
   (:wat::telemetry::Service/maybe-merge<E>
     (acc :wat::telemetry::Service::Pending<E>)
-    (first-idx :i64)
+    (first-idx :wat::core::i64)
     (first-entries :Vec<E>)
     (indexed :wat::telemetry::Service::IndexedDriverPair<E>)
     -> :wat::telemetry::Service::Pending<E>)
   (:wat::core::let*
     (((pair :wat::telemetry::Service::DriverPair<E>) (:wat::core::first indexed))
-     ((idx :i64) (:wat::core::second indexed))
+     ((idx :wat::core::i64) (:wat::core::second indexed))
      ((rx :wat::telemetry::Service::ReqRx<E>) (:wat::core::first pair))
      ((ack :wat::telemetry::Service::AckTx) (:wat::core::second pair)))
     (:wat::core::if (:wat::core::= idx first-idx)
@@ -225,7 +225,7 @@
 (:wat::core::define
   (:wat::telemetry::Service/drain-pairs<E>
     (pairs :Vec<wat::telemetry::Service::DriverPair<E>>)
-    (first-idx :i64)
+    (first-idx :wat::core::i64)
     (first-entries :Vec<E>)
     (init :wat::telemetry::Service::Pending<E>)
     -> :wat::telemetry::Service::Pending<E>)
@@ -258,13 +258,13 @@
 (:wat::core::define
   (:wat::telemetry::Service/bump-stats
     (stats :wat::telemetry::Service::Stats)
-    (batch-size :i64)
+    (batch-size :wat::core::i64)
     -> :wat::telemetry::Service::Stats)
   (:wat::core::let*
-    (((max-prev :i64)
+    (((max-prev :wat::core::i64)
       (:wat::telemetry::Service::Stats/max-batch-size stats))
-     ((max' :i64)
-      (:wat::core::if (:wat::core::> batch-size max-prev) -> :i64
+     ((max' :wat::core::i64)
+      (:wat::core::if (:wat::core::> batch-size max-prev) -> :wat::core::i64
         batch-size
         max-prev)))
     (:wat::telemetry::Service::Stats/new
@@ -291,7 +291,7 @@
 (:wat::core::define
   (:wat::telemetry::Service/loop-step<E,G>
     (pairs :Vec<wat::telemetry::Service::DriverPair<E>>)
-    (first-idx :i64)
+    (first-idx :wat::core::i64)
     (first-entries :Vec<E>)
     (stats :wat::telemetry::Service::Stats)
     (cadence :wat::telemetry::Service::MetricsCadence<G>)
@@ -310,7 +310,7 @@
       (:wat::core::second pending))
      ((_apply :()) (dispatcher entries))
      ((_ack :()) (:wat::telemetry::Service/ack-all ack-txs))
-     ((batch-size :i64) (:wat::core::length entries))
+     ((batch-size :wat::core::i64) (:wat::core::length entries))
      ((stats' :wat::telemetry::Service::Stats)
       (:wat::telemetry::Service/bump-stats stats batch-size))
      ((step :wat::telemetry::Service::Step<G>)
@@ -338,7 +338,7 @@
         (:wat::telemetry::Service/pair-rxs pairs))
        ((chosen :(i64,Option<wat::telemetry::Service::Request<E>>))
         (:wat::kernel::select rxs))
-       ((idx :i64) (:wat::core::first chosen))
+       ((idx :wat::core::i64) (:wat::core::first chosen))
        ((maybe :Option<wat::telemetry::Service::Request<E>>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :()
@@ -392,7 +392,7 @@
 
 (:wat::core::define
   (:wat::telemetry::Service/spawn<E,G>
-    (count :i64)
+    (count :wat::core::i64)
     (cadence :wat::telemetry::Service::MetricsCadence<G>)
     (dispatcher :fn(Vec<E>)->())
     (stats-translator :fn(wat::telemetry::Service::Stats)->Vec<E>)
@@ -402,14 +402,14 @@
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
-          ((_i :i64) -> :wat::telemetry::Service::ReqChannel<E>)
+          ((_i :wat::core::i64) -> :wat::telemetry::Service::ReqChannel<E>)
           (:wat::kernel::make-bounded-queue
             :wat::telemetry::Service::Request<E> 1))))
      ((ack-pairs :Vec<wat::telemetry::Service::AckChannel>)
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
-          ((_i :i64) -> :wat::telemetry::Service::AckChannel)
+          ((_i :wat::core::i64) -> :wat::telemetry::Service::AckChannel)
           (:wat::kernel::make-bounded-queue :() 1))))
      ((handles :Vec<wat::telemetry::Service::Handle<E>>)
       (:wat::core::map

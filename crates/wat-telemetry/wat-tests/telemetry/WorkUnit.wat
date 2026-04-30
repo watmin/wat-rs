@@ -42,15 +42,15 @@
    ;; nested-fn-return capability that WorkUnit/make-scope needs.
    (:wat::core::define
      (:wat-telemetry::probe::make-adder
-       (x :i64) -> :fn(i64)->i64)
-     (:wat::core::lambda ((y :i64) -> :i64)
+       (x :wat::core::i64) -> :fn(i64)->i64)
+     (:wat::core::lambda ((y :wat::core::i64) -> :wat::core::i64)
        (:wat::core::+ x y)))
 
    ;; Rank-2 probe — generic factory returning generic-T closure.
    ;; Each call instantiates T at the call site.
    (:wat::core::define
      (:wat-telemetry::probe::make-runner<T>
-       (_label :String) -> :fn(fn()->T)->T)
+       (_label :wat::core::String) -> :fn(fn()->T)->T)
      (:wat::core::lambda ((body :fn()->T) -> :T)
        (body)))
 
@@ -82,8 +82,8 @@
 (:deftest :wat-telemetry::WorkUnit::test-uuid-non-empty
   (:wat::core::let*
     (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
-     ((id :String) (:wat::telemetry::WorkUnit/uuid wu)))
-    ;; A canonical 8-4-4-4-12 hex uuid is 36 chars — but :String
+     ((id :wat::core::String) (:wat::telemetry::WorkUnit/uuid wu)))
+    ;; A canonical 8-4-4-4-12 hex uuid is 36 chars — but :wat::core::String
     ;; has no length primitive in slice-3 wat surface, and the
     ;; rigorous format checks live in arc 092's Rust tests. Here
     ;; we just prove the read returns SOME string — the empty
@@ -98,8 +98,8 @@
   (:wat::core::let*
     (((wu1 :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((wu2 :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
-     ((id1 :String) (:wat::telemetry::WorkUnit/uuid wu1))
-     ((id2 :String) (:wat::telemetry::WorkUnit/uuid wu2)))
+     ((id1 :wat::core::String) (:wat::telemetry::WorkUnit/uuid wu1))
+     ((id2 :wat::core::String) (:wat::telemetry::WorkUnit/uuid wu2)))
     (:wat::test::assert-eq (:wat::core::= id1 id2) false)))
 
 
@@ -109,7 +109,7 @@
   (:wat::core::let*
     (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :never-incremented))
-     ((n :i64) (:wat::telemetry::WorkUnit/counter wu name)))
+     ((n :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name)))
     (:wat::test::assert-eq n 0)))
 
 
@@ -120,7 +120,7 @@
     (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :requests))
      ((_ :()) (:wat::telemetry::WorkUnit/incr! wu name))
-     ((n :i64) (:wat::telemetry::WorkUnit/counter wu name)))
+     ((n :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name)))
     (:wat::test::assert-eq n 1)))
 
 
@@ -133,7 +133,7 @@
      ((_a :()) (:wat::telemetry::WorkUnit/incr! wu name))
      ((_b :()) (:wat::telemetry::WorkUnit/incr! wu name))
      ((_c :()) (:wat::telemetry::WorkUnit/incr! wu name))
-     ((n :i64) (:wat::telemetry::WorkUnit/counter wu name)))
+     ((n :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name)))
     (:wat::test::assert-eq n 3)))
 
 
@@ -146,7 +146,7 @@
      ((_a :()) (:wat::telemetry::WorkUnit/append-dt! wu name 0.5))
      ((_b :()) (:wat::telemetry::WorkUnit/append-dt! wu name 1.5))
      ((dts :Vec<f64>) (:wat::telemetry::WorkUnit/durations wu name)))
-    (:wat::test::assert-eq dts (:wat::core::vec :f64 0.5 1.5))))
+    (:wat::test::assert-eq dts (:wat::core::vec :wat::core::f64 0.5 1.5))))
 
 
 ;; ─── timed — bump + measure-around body ─────────────────────────
@@ -167,12 +167,12 @@
       (:wat::telemetry::WorkUnit::new
         (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :sql-fetch))
-     ((result :i64)
+     ((result :wat::core::i64)
       (:wat::telemetry::WorkUnit/timed wu name
-        (:wat::core::lambda (-> :i64) 99)))
-     ((counter :i64) (:wat::telemetry::WorkUnit/counter wu name))
+        (:wat::core::lambda (-> :wat::core::i64) 99)))
+     ((counter :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name))
      ((dts :Vec<f64>) (:wat::telemetry::WorkUnit/durations wu name))
-     ((n-dts :i64) (:wat::core::length dts))
+     ((n-dts :wat::core::i64) (:wat::core::length dts))
      ((_a :()) (:wat::test::assert-eq result 99))
      ((_b :()) (:wat::test::assert-eq counter 1)))
     (:wat::test::assert-eq n-dts 1)))
@@ -185,15 +185,15 @@
       (:wat::telemetry::WorkUnit::new
         (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :work))
-     ((_r1 :i64)
+     ((_r1 :wat::core::i64)
       (:wat::telemetry::WorkUnit/timed wu name
-        (:wat::core::lambda (-> :i64) 1)))
-     ((_r2 :i64)
+        (:wat::core::lambda (-> :wat::core::i64) 1)))
+     ((_r2 :wat::core::i64)
       (:wat::telemetry::WorkUnit/timed wu name
-        (:wat::core::lambda (-> :i64) 2)))
-     ((counter :i64) (:wat::telemetry::WorkUnit/counter wu name))
+        (:wat::core::lambda (-> :wat::core::i64) 2)))
+     ((counter :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name))
      ((dts :Vec<f64>) (:wat::telemetry::WorkUnit/durations wu name))
-     ((n-dts :i64) (:wat::core::length dts))
+     ((n-dts :wat::core::i64) (:wat::core::length dts))
      ((_a :()) (:wat::test::assert-eq counter 2)))
     (:wat::test::assert-eq n-dts 2)))
 
@@ -240,9 +240,9 @@
   (:wat::core::let*
     (((tags   :wat::telemetry::Tags) (:wat-telemetry::empty-tags))
      ((ns     :wat::holon::HolonAST) (:wat-telemetry::default-ns))
-     ((result :i64)
+     ((result :wat::core::i64)
       (:wat::telemetry::WorkUnit/scope ns tags
-        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :i64)
+        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
           (:wat::core::let*
             (((_ :()) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
             42)))))
@@ -362,7 +362,7 @@
   (:wat::core::let*
     (((adder :fn(i64)->i64)
       (:wat-telemetry::probe::make-adder 10))
-     ((sum :i64) (adder 5)))
+     ((sum :wat::core::i64) (adder 5)))
     (:wat::test::assert-eq sum 15)))
 
 
@@ -392,7 +392,7 @@
   (:wat::core::let*
     (((runner :fn(fn()->i64)->i64)
       (:wat-telemetry::probe::make-runner "i64-runner"))
-     ((result :i64) (runner (:wat::core::lambda (-> :i64) 42))))
+     ((result :wat::core::i64) (runner (:wat::core::lambda (-> :wat::core::i64) 42))))
     (:wat::test::assert-eq result 42)))
 
 
@@ -440,7 +440,7 @@
       (:wat::core::first spawn))
      ((driver :wat::kernel::ProgramHandle<()>) (:wat::core::second spawn))
      ;; Inner: pop Handle, finish pool, factory + scope-fn-with-counter.
-     ((result :i64)
+     ((result :wat::core::i64)
       (:wat::core::let*
         (((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
           (:wat::kernel::HandlePool::pop pool))
@@ -451,7 +451,7 @@
          ((tags :wat::telemetry::Tags) (:wat-telemetry::empty-tags)))
         (scope tags
           (:wat::core::lambda
-            ((wu :wat::telemetry::WorkUnit) -> :i64)
+            ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
             (:wat::core::let*
               (((_ :()) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
               42)))))
@@ -465,7 +465,7 @@
      ;; "scope ships the Events" is proven by recv returning
      ;; Some at all; the row's CONTENT is proven elsewhere.
      ((r1 :Option<wat::telemetry::Event>) (:wat::kernel::recv stub-rx))
-     ((r1-some? :bool)
-      (:wat::core::match r1 -> :bool ((Some _) true) (:None false)))
+     ((r1-some? :wat::core::bool)
+      (:wat::core::match r1 -> :wat::core::bool ((Some _) true) (:None false)))
      ((_a :()) (:wat::test::assert-eq result 42)))
     (:wat::test::assert-eq r1-some? true)))

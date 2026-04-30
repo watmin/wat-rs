@@ -54,12 +54,12 @@
                    ((_finish :()) (:wat::kernel::HandlePool::finish pool)))
                   (:wat::std::service::Console/out handle "hello via Console"))))
               (:wat::kernel::join console-driver))))
-        (:wat::core::vec :String)))
+        (:wat::core::vec :wat::core::String)))
      ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))
      ;; first returns Option<String> via arc 047. Test asserts the
      ;; expected first line; pattern-match unwraps.
-     ((first-line :String)
-      (:wat::core::match (:wat::core::first stdout) -> :String
+     ((first-line :wat::core::String)
+      (:wat::core::match (:wat::core::first stdout) -> :wat::core::String
         ((Some s) s)
         (:None ""))))
     (:wat::test::assert-eq first-line "hello via Console")))
@@ -85,7 +85,7 @@
           (:wat::core::define
             (:my::worker
               (handle :wat::std::service::Console::Handle)
-              (msg :String)
+              (msg :wat::core::String)
               -> :())
             (:wat::std::service::Console/out handle msg))
           (:wat::core::define
@@ -116,24 +116,24 @@
                    ((_2 :()) (:wat::kernel::join w1)))
                   (:wat::kernel::join w2))))
               (:wat::kernel::join console-driver))))
-        (:wat::core::vec :String)))
+        (:wat::core::vec :wat::core::String)))
      ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))
-     ((seen-alpha :bool)
+     ((seen-alpha :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :String) -> :bool)
+                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
                            (:wat::core::= s "alpha"))))
                      1))
-     ((seen-bravo :bool)
+     ((seen-bravo :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :String) -> :bool)
+                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
                            (:wat::core::= s "bravo"))))
                      1))
-     ((seen-charlie :bool)
+     ((seen-charlie :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :String) -> :bool)
+                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
                            (:wat::core::= s "charlie"))))
                      1))
      ((_ :()) (:wat::test::assert-eq seen-alpha true))

@@ -24,7 +24,7 @@
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-accept-any)))
-     ((n :i64) (:wat::holon::Hologram/len store)))
+     ((n :wat::core::i64) (:wat::holon::Hologram/len store)))
     (:wat::test::assert-eq n 0)))
 
 ;; ─── capacity returns floor(sqrt(d)) ────────────────────────────
@@ -35,7 +35,7 @@
     (((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make
         (:wat::holon::filter-accept-any)))
-     ((cap :i64) (:wat::holon::Hologram/capacity store)))
+     ((cap :wat::core::i64) (:wat::holon::Hologram/capacity store)))
     (:wat::test::assert-eq cap 100)))
 
 ;; Note: alternate d (e.g. 4096 → cap 64) is exercised by the Rust
@@ -57,7 +57,7 @@
      ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :beta))
      ((_  :()) (:wat::holon::Hologram/put store k v))
-     ((n :i64) (:wat::holon::Hologram/len store)))
+     ((n :wat::core::i64) (:wat::holon::Hologram/len store)))
     (:wat::test::assert-eq n 1)))
 
 ;; ─── put idempotent on same key ─────────────────────────────────
@@ -73,7 +73,7 @@
      ((v2 :wat::holon::HolonAST) (:wat::holon::leaf :second))
      ((_  :()) (:wat::holon::Hologram/put store k v1))
      ((_  :()) (:wat::holon::Hologram/put store k v2))
-     ((n :i64) (:wat::holon::Hologram/len store)))
+     ((n :wat::core::i64) (:wat::holon::Hologram/len store)))
     (:wat::test::assert-eq n 1)))
 
 ;; ─── non-therm round-trip via slot 0 ────────────────────────────
@@ -131,8 +131,8 @@
      ((probe :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
      ((got :Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store probe))
-     ((is-none :bool)
-      (:wat::core::match got -> :bool
+     ((is-none :wat::core::bool)
+      (:wat::core::match got -> :wat::core::bool
         ((Some _) false)
         (:None    true))))
     (:wat::test::assert-eq is-none true)))
@@ -147,7 +147,7 @@
   ()
   (:wat::core::let*
     (((reject-all :fn(f64)->bool)
-      (:wat::core::lambda ((_ :f64) -> :bool) false))
+      (:wat::core::lambda ((_ :wat::core::f64) -> :wat::core::bool) false))
      ((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make reject-all))
      ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
@@ -155,8 +155,8 @@
      ((_ :()) (:wat::holon::Hologram/put store k v))
      ((got :Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store k))
-     ((is-none :bool)
-      (:wat::core::match got -> :bool
+     ((is-none :wat::core::bool)
+      (:wat::core::match got -> :wat::core::bool
         ((Some _) false)
         (:None    true))))
     (:wat::test::assert-eq is-none true)))
@@ -240,8 +240,8 @@
      ((probe :wat::holon::HolonAST) (:wat::holon::Thermometer 42.5 0.0 100.0))
      ((got :Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store probe))
-     ((is-some :bool)
-      (:wat::core::match got -> :bool
+     ((is-some :wat::core::bool)
+      (:wat::core::match got -> :wat::core::bool
         ((Some _) true)
         (:None    false))))
     (:wat::test::assert-eq is-some true)))
@@ -322,11 +322,11 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-presence-floor-positive
   ()
   (:wat::core::let*
-    (((floor :f64) (:wat::holon::presence-floor 10000)))
+    (((floor :wat::core::f64) (:wat::holon::presence-floor 10000)))
     (:wat::test::assert-eq (:wat::core::> floor 0.0) true)))
 
 (:wat::test::deftest :wat-tests::holon::Hologram::test-coincident-floor-positive
   ()
   (:wat::core::let*
-    (((floor :f64) (:wat::holon::coincident-floor 10000)))
+    (((floor :wat::core::f64) (:wat::holon::coincident-floor 10000)))
     (:wat::test::assert-eq (:wat::core::> floor 0.0) true)))

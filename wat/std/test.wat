@@ -16,9 +16,9 @@
 ;;                        -> :())
 ;;     (:wat::core::let*
 ;;       (((r :wat::kernel::RunResult)
-;;         (:wat::test::run "(:user::main ...)" (:wat::core::vec :String))))
+;;         (:wat::test::run "(:user::main ...)" (:wat::core::vec :wat::core::String))))
 ;;       (:wat::test::assert-stdout-is r
-;;         (:wat::core::conj (:wat::core::vec :String) "expected-line"))))
+;;         (:wat::core::conj (:wat::core::vec :wat::core::String) "expected-line"))))
 ;;
 ;; An assertion that fails panics internally; the outer run-sandboxed
 ;; catches the panic and surfaces the failure in its own RunResult.
@@ -57,13 +57,13 @@
 
 ;; ─── assert-contains ──────────────────────────────────────────────────
 ;;
-;; String substring check. Unlike assert-eq, both sides are :String so
+;; String substring check. Unlike assert-eq, both sides are :wat::core::String so
 ;; we can populate actual/expected with the real values — the failure
 ;; in a RunResult shows the user which haystack/needle fired.
 (:wat::core::define
   (:wat::test::assert-contains
-    (haystack :String)
-    (needle :String)
+    (haystack :wat::core::String)
+    (needle :wat::core::String)
     -> :())
   (:wat::core::if (:wat::core::string::contains? haystack needle) -> :()
     ()
@@ -102,7 +102,7 @@
   (:wat::core::let*
     (((expl :wat::holon::CoincidentExplanation)
       (:wat::holon::coincident-explain a b))
-     ((ok :bool)
+     ((ok :wat::core::bool)
       (:wat::holon::CoincidentExplanation/coincident expl)))
     (:wat::core::if ok -> :()
       ()
@@ -119,7 +119,7 @@
 (:wat::core::define
   (:wat::test::render-coincident-explanation
     (expl :wat::holon::CoincidentExplanation)
-    -> :String)
+    -> :wat::core::String)
   (:wat::core::string::concat
     "\n  cosine            = "
     (:wat::core::f64::to-string
@@ -164,17 +164,17 @@
 ;; matches — a straightforward "any" without a new primitive.
 (:wat::core::define
   (:wat::test::any-line-matches
-    (pattern :String)
+    (pattern :wat::core::String)
     (lines :Vec<String>)
-    -> :bool)
+    -> :wat::core::bool)
   (:wat::core::foldl lines false
-    (:wat::core::lambda ((acc :bool) (line :String) -> :bool)
+    (:wat::core::lambda ((acc :wat::core::bool) (line :wat::core::String) -> :wat::core::bool)
       (:wat::core::or acc (:wat::core::regex::matches? pattern line)))))
 
 (:wat::core::define
   (:wat::test::assert-stderr-matches
     (result :wat::kernel::RunResult)
-    (pattern :String)
+    (pattern :wat::core::String)
     -> :())
   (:wat::core::let*
     (((stderr-lines :Vec<String>) (:wat::kernel::RunResult/stderr result)))
@@ -193,16 +193,16 @@
 ;; fixture files.
 (:wat::core::define
   (:wat::test::run
-    (src :String)
+    (src :wat::core::String)
     (stdin :Vec<String>)
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed src stdin :None))
 
 (:wat::core::define
   (:wat::test::run-in-scope
-    (src :String)
+    (src :wat::core::String)
     (stdin :Vec<String>)
-    (scope :String)
+    (scope :wat::core::String)
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed src stdin (Some scope)))
 
@@ -218,7 +218,7 @@
 ;;   (:wat::test::run-ast
 ;;     (:wat::test::program
 ;;       (:wat::core::define (:user::main ...) <body>))
-;;     (:wat::core::vec :String))
+;;     (:wat::core::vec :wat::core::String))
 ;;
 ;; `:wat::test::program` expands to `:wat::core::forms` — the
 ;; variadic-quote substrate. Each top-level form captured as
@@ -299,7 +299,7 @@
 ;;                              (stderr :wat::io::IOWriter)
 ;;                              -> :())
 ;;           <body>))
-;;       (:wat::core::vec :String)
+;;       (:wat::core::vec :wat::core::String)
 ;;       :None))
 (:wat::core::defmacro
   (:wat::test::deftest
@@ -318,7 +318,7 @@
              (stderr :wat::io::IOWriter)
              -> :())
            ,body))
-       (:wat::core::vec :String)
+       (:wat::core::vec :wat::core::String)
        :None)))
 
 ;; ─── deftest-hermetic — same shape, forked child for isolation ────────
@@ -349,7 +349,7 @@
              (stderr :wat::io::IOWriter)
              -> :())
            ,body))
-       (:wat::core::vec :String)
+       (:wat::core::vec :wat::core::String)
        :None)))
 
 ;; ─── make-deftest — configured-deftest factory (arc 029; arc 031) ─────

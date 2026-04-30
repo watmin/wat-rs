@@ -16,13 +16,13 @@
   (;; Tiny test enum with two Tagged variants and mixed types.
    (:wat::core::enum :test::Event
      (Buy
-       (price :f64)
-       (qty :i64))
+       (price :wat::core::f64)
+       (qty :wat::core::i64))
      (Sell
-       (price :f64)
-       (qty :i64)
-       (reason :String)
-       (forced :bool)))
+       (price :wat::core::f64)
+       (qty :wat::core::i64)
+       (reason :wat::core::String)
+       (forced :wat::core::bool)))
 
 
    ;; Two-level let* helper — outer holds driver; inner sends
@@ -51,7 +51,7 @@
 
    (:wat::core::define
      (:test::auto-spawn-events
-       (path :String)
+       (path :wat::core::String)
        -> :wat::kernel::ProgramHandle<()>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<test::Event>)

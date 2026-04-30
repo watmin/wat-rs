@@ -44,13 +44,13 @@
 
 (:wat::core::define
   (:wat::kernel::drain-lines (r :wat::io::IOReader) -> :Vec<String>)
-  (:wat::kernel::drain-lines-acc r (:wat::core::vec :String)))
+  (:wat::kernel::drain-lines-acc r (:wat::core::vec :wat::core::String)))
 
 ;; Translate an EXIT_* code into a short message prefix used in
 ;; Failure.message. Keep in sync with src/fork.rs's EXIT_* consts.
 (:wat::core::define
-  (:wat::kernel::exit-code-prefix (code :i64) -> :String)
-  (:wat::core::cond -> :String
+  (:wat::kernel::exit-code-prefix (code :wat::core::i64) -> :wat::core::String)
+  (:wat::core::cond -> :wat::core::String
     ((:wat::core::= code 1) "[runtime error]")
     ((:wat::core::= code 2) "[panic]")
     ((:wat::core::= code 3) "[startup error]")
@@ -61,12 +61,12 @@
 ;; lines joined with newlines.
 (:wat::core::define
   (:wat::kernel::failure-message-for-code
-    (code   :i64)
+    (code   :wat::core::i64)
     (stderr :Vec<String>)
-    -> :String)
+    -> :wat::core::String)
   (:wat::core::string::join "\n"
     (:wat::core::conj
-      (:wat::core::vec :String (:wat::kernel::exit-code-prefix code))
+      (:wat::core::vec :wat::core::String (:wat::kernel::exit-code-prefix code))
       (:wat::core::string::join "\n" stderr))))
 
 ;; Build the Option<Failure> from the child's exit code + stderr.
@@ -74,7 +74,7 @@
 ;; Failure struct carrying the exit category + stderr content.
 (:wat::core::define
   (:wat::kernel::failure-from-exit
-    (code   :i64)
+    (code   :wat::core::i64)
     (stderr :Vec<String>)
     -> :Option<wat::kernel::Failure>)
   (:wat::core::if (:wat::core::= code 0) -> :Option<wat::kernel::Failure>
@@ -100,8 +100,8 @@
      ;; Scope-forwarding through fork is a separate slice when a
      ;; caller demands. Today: :Some returns Failure.
      (:wat::core::struct-new :wat::kernel::RunResult
-       (:wat::core::vec :String)
-       (:wat::core::vec :String)
+       (:wat::core::vec :wat::core::String)
+       (:wat::core::vec :wat::core::String)
        (Some (:wat::core::struct-new :wat::kernel::Failure
                "scope not yet supported in hermetic mode (:None only for now)"
                :None
@@ -118,18 +118,18 @@
         ;; write-all handles as a zero-byte write. Inner scope
         ;; mostly for readability — the writer Arc stays alive
         ;; via the enclosing child binding either way.
-        ((_ :i64)
+        ((_ :wat::core::i64)
          (:wat::core::let*
            (((stdin-wr :wat::io::IOWriter)
              (:wat::kernel::ForkedChild/stdin child))
-            ((joined :String)
+            ((joined :wat::core::String)
              (:wat::core::string::join "\n" stdin)))
            (:wat::io::IOWriter/write-string stdin-wr joined)))
         ;; Wait for the child to exit first. With small outputs
         ;; (< pipe buffer), the child's writes complete without
         ;; the parent needing to drain. This keeps the drain
         ;; code single-threaded — no spawn + join ceremony.
-        ((exit-code :i64)
+        ((exit-code :wat::core::i64)
          (:wat::kernel::wait-child handle))
         ((stdout-r :wat::io::IOReader)
          (:wat::kernel::ForkedChild/stdout child))

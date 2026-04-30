@@ -33,7 +33,7 @@
               (((d :my::Dispatcher)
                 (:wat::telemetry::Console/dispatcher
                   handle :wat::telemetry::Console::Format::Edn))
-               ((batch :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
+               ((batch :Vec<i64>) (:wat::core::vec :wat::core::i64 10 20 30)))
               (d batch)))
           ;; Main — outer holds Console driver; inner pops handle +
           ;; calls helper; outer joins after inner exits.
@@ -53,24 +53,24 @@
                    ((_0 :()) (:wat::kernel::HandlePool::finish pool)))
                   (:my::dispatch-three-edn handle))))
               (:wat::kernel::join console-driver))))
-        (:wat::core::vec :String)))
+        (:wat::core::vec :wat::core::String)))
      ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))
-     ((seen-10 :bool)
+     ((seen-10 :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :String) -> :bool)
+                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
                            (:wat::core::= s "10"))))
                      1))
-     ((seen-20 :bool)
+     ((seen-20 :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :String) -> :bool)
+                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
                            (:wat::core::= s "20"))))
                      1))
-     ((seen-30 :bool)
+     ((seen-30 :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :String) -> :bool)
+                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
                            (:wat::core::= s "30"))))
                      1))
      ((u1 :()) (:wat::test::assert-eq seen-10 true))
@@ -106,7 +106,7 @@
               (((d :my::Dispatcher)
                 (:wat::telemetry::Console/dispatcher
                   handle :wat::telemetry::Console::Format::Json))
-               ((row :my::Row) (:wat::core::vec :i64 1 2 3))
+               ((row :my::Row) (:wat::core::vec :wat::core::i64 1 2 3))
                ((batch :Vec<my::Row>)
                 (:wat::core::vec :my::Row row)))
               (d batch)))
@@ -126,12 +126,12 @@
                    ((_0 :()) (:wat::kernel::HandlePool::finish pool)))
                   (:my::dispatch-row-json handle))))
               (:wat::kernel::join console-driver))))
-        (:wat::core::vec :String)))
+        (:wat::core::vec :wat::core::String)))
      ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))
-     ((seen-row :bool)
+     ((seen-row :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :String) -> :bool)
+                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
                            (:wat::core::= s "[1,2,3]"))))
                      1)))
     (:wat::test::assert-eq seen-row true)))

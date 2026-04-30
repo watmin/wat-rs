@@ -22,8 +22,8 @@
    ;; directly so we don't need a WorkUnit for the test.
    (:wat::core::define
      (:test::reader::make-log
-       (time-ns :i64)
-       (msg :String)
+       (time-ns :wat::core::i64)
+       (msg :wat::core::String)
        -> :wat::telemetry::Event)
      (:wat::core::let*
        (((ns-ast    :wat::holon::HolonAST) (:wat::holon::leaf :test::reader))
@@ -67,7 +67,7 @@
 
    (:wat::core::define
      (:test::reader::write-fixture
-       (path :String)
+       (path :wat::core::String)
        -> :wat::kernel::ProgramHandle<()>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
@@ -94,7 +94,7 @@
      ;; binding's Arc-count reaches zero); no /tmp leak across
      ;; test runs.
      ((tf :wat::io::TempFile) (:wat::io::TempFile/new))
-     ((path :String) (:wat::io::TempFile/path tf))
+     ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::ProgramHandle<()>)
       (:test::reader::write-fixture path))
      ((_join :()) (:wat::kernel::join driver))
@@ -109,7 +109,7 @@
       (:wat::telemetry::sqlite/stream-logs handle no-constraints))
      ((events :Vec<wat::telemetry::Event>)
       (:wat::std::stream::collect stream))
-     ((count :i64) (:wat::core::length events)))
+     ((count :wat::core::i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 3)))
 
 
@@ -119,7 +119,7 @@
 (:deftest :wat-telemetry-sqlite::reader::test-since-narrowing
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
-     ((path :String) (:wat::io::TempFile/path tf))
+     ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::ProgramHandle<()>)
       (:test::reader::write-fixture path))
      ((_join :()) (:wat::kernel::join driver))
@@ -137,7 +137,7 @@
       (:wat::telemetry::sqlite/stream-logs handle constraints))
      ((events :Vec<wat::telemetry::Event>)
       (:wat::std::stream::collect stream))
-     ((count :i64) (:wat::core::length events)))
+     ((count :wat::core::i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 2)))
 
 
@@ -145,7 +145,7 @@
 (:deftest :wat-telemetry-sqlite::reader::test-until-narrowing
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
-     ((path :String) (:wat::io::TempFile/path tf))
+     ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::ProgramHandle<()>)
       (:test::reader::write-fixture path))
      ((_join :()) (:wat::kernel::join driver))
@@ -161,7 +161,7 @@
       (:wat::telemetry::sqlite/stream-logs handle constraints))
      ((events :Vec<wat::telemetry::Event>)
       (:wat::std::stream::collect stream))
-     ((count :i64) (:wat::core::length events)))
+     ((count :wat::core::i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 1)))
 
 
@@ -169,7 +169,7 @@
 (:deftest :wat-telemetry-sqlite::reader::test-since-and-until-window
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
-     ((path :String) (:wat::io::TempFile/path tf))
+     ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::ProgramHandle<()>)
       (:test::reader::write-fixture path))
      ((_join :()) (:wat::kernel::join driver))
@@ -187,7 +187,7 @@
       (:wat::telemetry::sqlite/stream-logs handle constraints))
      ((events :Vec<wat::telemetry::Event>)
       (:wat::std::stream::collect stream))
-     ((count :i64) (:wat::core::length events)))
+     ((count :wat::core::i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 1)))
 
 
@@ -198,7 +198,7 @@
 (:deftest :wat-telemetry-sqlite::reader::test-data-ast-extracts-holon
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
-     ((path :String) (:wat::io::TempFile/path tf))
+     ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::ProgramHandle<()>)
       (:test::reader::write-fixture path))
      ((_join :()) (:wat::kernel::join driver))
@@ -217,22 +217,22 @@
           (:wat::test::assertion-failed
             "expected at least one event"))))
      ;; data-ast returns Some(HolonAST::String "first").
-     ((msg :String)
+     ((msg :wat::core::String)
       (:wat::core::match
         (:wat::telemetry::Event::Log/data-ast first-evt)
-        -> :String
+        -> :wat::core::String
         ((Some h) (:wat::core::atom-value h))
         (:None "fail"))))
     (:wat::test::assert-eq msg "first")))
 
 
-;; Slice 3 — data-value<:String> lifts the Tagged AST to a bare
+;; Slice 3 — data-value<:wat::core::String> lifts the Tagged AST to a bare
 ;; String via eval-ast!. Same fixture as data-ast, but skips the
 ;; explicit atom-value step — the lift goes straight to T.
 (:deftest :wat-telemetry-sqlite::reader::test-data-value-lifts-string
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
-     ((path :String) (:wat::io::TempFile/path tf))
+     ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::ProgramHandle<()>)
       (:test::reader::write-fixture path))
      ((_join :()) (:wat::kernel::join driver))
@@ -249,11 +249,11 @@
         (:None
           (:wat::test::assertion-failed
             "expected at least one event"))))
-     ;; data-value<:String> — lift Tagged HolonAST → String.
-     ((msg :String)
+     ;; data-value<:wat::core::String> — lift Tagged HolonAST → String.
+     ((msg :wat::core::String)
       (:wat::core::match
         (:wat::telemetry::Event::Log/data-value first-evt)
-        -> :String
+        -> :wat::core::String
         ((Some s) s)
         (:None "fail"))))
     (:wat::test::assert-eq msg "first")))

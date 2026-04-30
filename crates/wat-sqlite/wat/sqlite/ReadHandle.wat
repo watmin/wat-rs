@@ -42,11 +42,11 @@
 ;;     -> :wat::sqlite::ReadHandle
 (:wat::core::define
   (:wat::sqlite::open-readonly
-    (path :String)
+    (path :wat::core::String)
     -> :wat::sqlite::ReadHandle)
   (:rust::sqlite::ReadHandle::open path))
 
-;; (:wat::sqlite::ReadHandle/path handle) -> :String
+;; (:wat::sqlite::ReadHandle/path handle) -> :wat::core::String
 ;;
 ;; Borrow the path the handle was opened with. Used by readers
 ;; that spawn a producer in a different thread and need to
@@ -58,5 +58,5 @@
 (:wat::core::define
   (:wat::sqlite::ReadHandle/path
     (handle :wat::sqlite::ReadHandle)
-    -> :String)
+    -> :wat::core::String)
   (:rust::sqlite::ReadHandle::path handle))

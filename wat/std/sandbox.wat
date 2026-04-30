@@ -84,8 +84,8 @@
     -> :wat::kernel::RunResult)
   (:wat::core::let*
     (((stdin-w :wat::io::IOWriter)   (:wat::kernel::Process/stdin proc))
-     ((joined  :String)              (:wat::core::string::join "\n" stdin))
-     ((_n      :i64)                 (:wat::io::IOWriter/write-string stdin-w joined))
+     ((joined  :wat::core::String)              (:wat::core::string::join "\n" stdin))
+     ((_n      :wat::core::i64)                 (:wat::io::IOWriter/write-string stdin-w joined))
      ((_close  :())                  (:wat::io::IOWriter/close stdin-w))
      ((stdout-r :wat::io::IOReader)  (:wat::kernel::Process/stdout proc))
      ((stderr-r :wat::io::IOReader)  (:wat::kernel::Process/stderr proc))
@@ -111,15 +111,15 @@
     (err :wat::kernel::StartupError)
     -> :wat::kernel::RunResult)
   (:wat::core::struct-new :wat::kernel::RunResult
-    (:wat::core::vec :String)
-    (:wat::core::vec :String)
+    (:wat::core::vec :wat::core::String)
+    (:wat::core::vec :wat::core::String)
     (Some (:wat::kernel::failure-from-startup err))))
 
 
 ;; --- :wat::kernel::run-sandboxed (source-string entry) ---
 (:wat::core::define
   (:wat::kernel::run-sandboxed
-    (src   :String)
+    (src   :wat::core::String)
     (stdin :Vec<String>)
     (scope :Option<String>)
     -> :wat::kernel::RunResult)

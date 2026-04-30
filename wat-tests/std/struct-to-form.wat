@@ -17,8 +17,8 @@
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::struct :my::Pair
-            (a :i64)
-            (b :i64))
+            (a :wat::core::i64)
+            (b :wat::core::i64))
           (:wat::core::define
             (:user::main
               (_stdin :wat::io::IOReader)
@@ -33,15 +33,15 @@
                ;; from its lifted form.
                (_ :() (:wat::test::assert-eq true true)))
               ())))
-        (:wat::core::vec :String))))
+        (:wat::core::vec :wat::core::String))))
     (:wat::test::assert-eq true true)))
 
 
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-quasiquote-splices-runtime-values
   ()
   (:wat::core::let*
-    (((x :i64) 42)
-     ((y :String) "hello")
+    (((x :wat::core::i64) 42)
+     ((y :wat::core::String) "hello")
      ((form :wat::WatAST)
       (:wat::core::quasiquote (:my::Foo/new ,x ,y))))
     ;; Quasiquote at runtime: ,x evaluated to 42; ,y to "hello";

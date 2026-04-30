@@ -19,8 +19,8 @@
   ()
   (:wat::core::let*
     (((opt :Option<i64>) (Some 42))
-     ((v :i64)
-      (:wat::core::option::expect -> :i64
+     ((v :wat::core::i64)
+      (:wat::core::option::expect -> :wat::core::i64
         opt
         "should be Some")))
     (:wat::test::assert-eq v 42)))
@@ -32,8 +32,8 @@
   ()
   (:wat::core::let*
     (((opt :Option<String>) (Some "hello"))
-     ((v :String)
-      (:wat::core::option::expect -> :String
+     ((v :wat::core::String)
+      (:wat::core::option::expect -> :wat::core::String
         opt
         "should be Some")))
     (:wat::test::assert-eq v "hello")))
@@ -49,8 +49,8 @@
       (:wat::core::option::expect -> :Option<i64>
         opt
         "outer should be Some"))
-     ((v :i64)
-      (:wat::core::option::expect -> :i64
+     ((v :wat::core::i64)
+      (:wat::core::option::expect -> :wat::core::i64
         inner
         "inner should be Some")))
     (:wat::test::assert-eq v 7)))
@@ -72,12 +72,12 @@
               -> :())
             (:wat::core::let*
               (((opt :Option<i64>) :None)
-               ((_v :i64)
-                (:wat::core::option::expect -> :i64
+               ((_v :wat::core::i64)
+                (:wat::core::option::expect -> :wat::core::i64
                   opt
                   "broker disconnected")))
               ())))
-        (:wat::core::vec :String)))
+        (:wat::core::vec :wat::core::String)))
      ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :()
       ((Some f)

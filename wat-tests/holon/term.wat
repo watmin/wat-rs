@@ -98,7 +98,7 @@
         ((Ok h)  h)
         ((Err _) (:wat::holon::Atom "unreachable"))))
      ((slots :Vec<f64>) (:wat::holon::term::slots form))
-     ((n :i64) (:wat::core::length slots)))
+     ((n :wat::core::i64) (:wat::core::length slots)))
     (:wat::test::assert-eq n 2)))
 
 ;; ─── Slots and ranges parallel in length ──────────────────────────
@@ -115,9 +115,9 @@
       (:wat::core::match bundled -> :wat::holon::HolonAST
         ((Ok h)  h)
         ((Err _) (:wat::holon::Atom "unreachable"))))
-     ((slot-count :i64)
+     ((slot-count :wat::core::i64)
       (:wat::core::length (:wat::holon::term::slots form)))
-     ((range-count :i64)
+     ((range-count :wat::core::i64)
       (:wat::core::length (:wat::holon::term::ranges form))))
     (:wat::test::assert-eq slot-count range-count)))
 
@@ -131,7 +131,7 @@
         (:wat::holon::leaf :x)
         (:wat::holon::leaf 42)))
      ((slots :Vec<f64>) (:wat::holon::term::slots form))
-     ((n :i64) (:wat::core::length slots)))
+     ((n :wat::core::i64) (:wat::core::length slots)))
     (:wat::test::assert-eq n 0)))
 
 ;; ─── Decomposing a template yields no slots ───────────────────────
@@ -149,7 +149,7 @@
         (:wat::holon::Thermometer 70.0 0.0 100.0)))
      ((tpl :wat::holon::HolonAST) (:wat::holon::term::template form))
      ((slots :Vec<f64>) (:wat::holon::term::slots tpl))
-     ((n :i64) (:wat::core::length slots)))
+     ((n :wat::core::i64) (:wat::core::length slots)))
     (:wat::test::assert-eq n 0)))
 
 ;; ─── matches? — same form against itself ─────────────────────────

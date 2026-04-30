@@ -23,8 +23,8 @@
      ((_ :Option<(String,i64)>) (:wat::lru::LocalCache::put cache "answer" 42))
      ((got :Option<i64>)
       (:wat::lru::LocalCache::get cache "answer"))
-     ((result :i64)
-      (:wat::core::match got -> :i64
+     ((result :wat::core::i64)
+      (:wat::core::match got -> :wat::core::i64
         ((Some v) v)
         (:None -1))))
     (:wat::test::assert-eq result 42)))
@@ -38,8 +38,8 @@
       (:wat::lru::LocalCache::new 16))
      ((got :Option<i64>)
       (:wat::lru::LocalCache::get cache "missing"))
-     ((is-none :bool)
-      (:wat::core::match got -> :bool
+     ((is-none :wat::core::bool)
+      (:wat::core::match got -> :wat::core::bool
         ((Some _v) false)
         (:None true))))
     (:wat::test::assert-eq is-none true)))
@@ -55,8 +55,8 @@
      ((_ :Option<(String,i64)>) (:wat::lru::LocalCache::put cache "k" 99))
      ((got :Option<i64>)
       (:wat::lru::LocalCache::get cache "k"))
-     ((result :i64)
-      (:wat::core::match got -> :i64
+     ((result :wat::core::i64)
+      (:wat::core::match got -> :wat::core::i64
         ((Some v) v)
         (:None -1))))
     (:wat::test::assert-eq result 99)))
@@ -74,8 +74,8 @@
      ((_ :Option<(i64,i64)>) (:wat::lru::LocalCache::put cache 3 30))
      ((got :Option<i64>)
       (:wat::lru::LocalCache::get cache 1))
-     ((is-none :bool)
-      (:wat::core::match got -> :bool
+     ((is-none :wat::core::bool)
+      (:wat::core::match got -> :wat::core::bool
         ((Some _v) false)
         (:None true))))
     (:wat::test::assert-eq is-none true)))

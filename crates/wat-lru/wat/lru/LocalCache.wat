@@ -13,7 +13,7 @@
 ;;   (let* (((cache :wat::lru::LocalCache<String,i64>)
 ;;           (:wat::lru::LocalCache::new 16))
 ;;          ((_ :()) (:wat::lru::LocalCache::put cache "k" 42)))
-;;     (:wat::core::match (:wat::lru::LocalCache::get cache "k") -> :i64
+;;     (:wat::core::match (:wat::lru::LocalCache::get cache "k") -> :wat::core::i64
 ;;       ((Some v) v)
 ;;       (:None 0)))
 
@@ -27,7 +27,7 @@
 
 (:wat::core::define
   (:wat::lru::LocalCache::new<K,V>
-    (capacity :i64)
+    (capacity :wat::core::i64)
     -> :wat::lru::LocalCache<K,V>)
   (:rust::lru::LruCache::new capacity))
 
@@ -52,5 +52,5 @@
 (:wat::core::define
   (:wat::lru::LocalCache::len<K,V>
     (cache :wat::lru::LocalCache<K,V>)
-    -> :i64)
+    -> :wat::core::i64)
   (:rust::lru::LruCache::len cache))

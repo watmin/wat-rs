@@ -38,8 +38,8 @@
    ;; pattern; in your service, these are your real domain fields
    ;; (an LRU map, a treasury record, a registry table, etc.).
    (:wat::core::struct :svc::State
-     (push-count :i64)
-     (ack-count  :i64))
+     (push-count :wat::core::i64)
+     (ack-count  :wat::core::i64))
 
    (:wat::core::define
      (:svc::State::fresh -> :svc::State)
@@ -59,7 +59,7 @@
    ;; Request — three reply shapes side by side. Every in-memory
    ;; request/reply service is some combination of these.
    (:wat::core::enum :svc::Request
-     (Push (value :i64))
+     (Push (value :wat::core::i64))
      (Ack  (reply-tx :svc::AckReplyTx))
      (Get  (reply-tx :wat::kernel::QueueSender<svc::State>)))
 
@@ -126,7 +126,7 @@
        state
        (:wat::core::let*
          (((chosen :wat::kernel::Chosen<svc::Request>) (:wat::kernel::select req-rxs))
-          ((idx :i64) (:wat::core::first chosen))
+          ((idx :wat::core::i64) (:wat::core::first chosen))
           ((maybe :Option<svc::Request>) (:wat::core::second chosen)))
          (:wat::core::match maybe -> :svc::State
            ((Some req)
@@ -150,12 +150,12 @@
    ;;   <inner scope: pop N handles, finish, do work, exit>
    ;;   (:wat::kernel::join driver)
    (:wat::core::define
-     (:svc::Service (count :i64) -> :svc::Spawn)
+     (:svc::Service (count :wat::core::i64) -> :svc::Spawn)
      (:wat::core::let*
        (((pairs :Vec<wat::kernel::QueuePair<svc::Request>>)
          (:wat::core::map
            (:wat::core::range 0 count)
-           (:wat::core::lambda ((_i :i64) -> :wat::kernel::QueuePair<svc::Request>)
+           (:wat::core::lambda ((_i :wat::core::i64) -> :wat::kernel::QueuePair<svc::Request>)
              (:wat::kernel::make-bounded-queue :svc::Request 1))))
 
         ((req-txs :Vec<svc::ReqTx>)
@@ -220,8 +220,8 @@
           (:wat::core::match snap1 -> :()
             ((Some s)
               (:wat::core::let*
-                (((pc :i64) (:svc::State/push-count s))
-                 ((ac :i64) (:svc::State/ack-count s))
+                (((pc :wat::core::i64) (:svc::State/push-count s))
+                 ((ac :wat::core::i64) (:svc::State/ack-count s))
                  ((_ :())
                   (:wat::core::if (:wat::core::= pc 2) -> :()
                     ()
@@ -240,8 +240,8 @@
           (:wat::core::match snap2 -> :()
             ((Some s)
               (:wat::core::let*
-                (((pc :i64) (:svc::State/push-count s))
-                 ((ac :i64) (:svc::State/ack-count s))
+                (((pc :wat::core::i64) (:svc::State/push-count s))
+                 ((ac :wat::core::i64) (:svc::State/ack-count s))
                  ((_ :())
                   (:wat::core::if (:wat::core::= pc 3) -> :()
                     ()
@@ -258,8 +258,8 @@
     (:wat::core::match result -> :()
       ((Ok s)
         (:wat::core::let*
-          (((pc :i64) (:svc::State/push-count s))
-           ((ac :i64) (:svc::State/ack-count s))
+          (((pc :wat::core::i64) (:svc::State/push-count s))
+           ((ac :wat::core::i64) (:svc::State/ack-count s))
            ((_ :())
             (:wat::core::if (:wat::core::= pc 3) -> :()
               ()

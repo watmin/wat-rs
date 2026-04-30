@@ -11,7 +11,7 @@
 ;; Surface mirrors Hologram's:
 ;;
 ;;   Hologram/make         (filter :fn(f64)->bool) -> Hologram
-;;   HologramCache/make      (filter :fn(f64)->bool) (cap :i64) -> HologramCache
+;;   HologramCache/make      (filter :fn(f64)->bool) (cap :wat::core::i64) -> HologramCache
 ;;
 ;;   Hologram/put          store key val -> ()
 ;;   HologramCache/put       store key val -> ()      ;; ALSO updates LRU + drops evicted
@@ -35,7 +35,7 @@
 (:wat::core::define
   (:wat::holon::lru::HologramCache/make
     (filter :fn(f64)->bool)
-    (cap :i64)
+    (cap :wat::core::i64)
     -> :wat::holon::lru::HologramCache)
   (:wat::holon::lru::HologramCache/new
     (:wat::holon::Hologram/make filter)
@@ -103,7 +103,7 @@
 (:wat::core::define
   (:wat::holon::lru::HologramCache/len
     (store :wat::holon::lru::HologramCache)
-    -> :i64)
+    -> :wat::core::i64)
   (:wat::holon::Hologram/len
     (:wat::holon::lru::HologramCache/hologram store)))
 
@@ -111,6 +111,6 @@
 (:wat::core::define
   (:wat::holon::lru::HologramCache/capacity
     (store :wat::holon::lru::HologramCache)
-    -> :i64)
+    -> :wat::core::i64)
   (:wat::holon::Hologram/capacity
     (:wat::holon::lru::HologramCache/hologram store)))

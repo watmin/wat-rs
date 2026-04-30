@@ -69,10 +69,10 @@
   (:wat::telemetry::Console::render-line<E>
     (entry :E)
     (format :wat::telemetry::Console::Format)
-    -> :String)
+    -> :wat::core::String)
   (:wat::core::let*
-    (((line :String)
-      (:wat::core::match format -> :String
+    (((line :wat::core::String)
+      (:wat::core::match format -> :wat::core::String
         (:wat::telemetry::Console::Format::Edn
           (:wat::edn::write entry))
         (:wat::telemetry::Console::Format::Json

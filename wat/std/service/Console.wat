@@ -8,7 +8,7 @@
 ;;   - Console owns BOTH stdout and stderr (the real crossbeam
 ;;     senders the wat passes to :user::main).
 ;;   - Each client gets ONE queue carrying tagged messages
-;;     `(tag :i64, msg :String)` — tag 0 = stdout, tag 1 = stderr.
+;;     `(tag :wat::core::i64, msg :wat::core::String)` — tag 0 = stdout, tag 1 = stderr.
 ;;   - Users call the thin wrappers `Console/out` / `Console/err`
 ;;     which encode the tag; the Console driver decodes and forwards.
 ;;   - One select loop, one thread, N fan-in sources. Clean.
@@ -30,7 +30,7 @@
 
 ;; --- Message typealias ---
 ;;
-;; A Console message is (tag :i64, msg :String). The ack address
+;; A Console message is (tag :wat::core::i64, msg :wat::core::String). The ack address
 ;; isn't carried in the payload — the driver pairs each rx with
 ;; its matching ack-tx by index when select fires (see the loop
 ;; below). One write pipe + one ack pipe per producer scope; the
@@ -111,15 +111,15 @@
             (:wat::core::first p))))
        ((chosen :(i64,Option<wat::std::service::Console::Message>))
         (:wat::kernel::select rxs))
-       ((idx :i64) (:wat::core::first chosen))
+       ((idx :wat::core::i64) (:wat::core::first chosen))
        ((maybe :Option<wat::std::service::Console::Message>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :()
         ((Some tagged)
           (:wat::core::let*
-            (((tag :i64) (:wat::core::first tagged))
-             ((msg :String) (:wat::core::second tagged))
-             ((_ :i64) (:wat::core::if (:wat::core::= tag 0) -> :i64
+            (((tag :wat::core::i64) (:wat::core::first tagged))
+             ((msg :wat::core::String) (:wat::core::second tagged))
+             ((_ :wat::core::i64) (:wat::core::if (:wat::core::= tag 0) -> :wat::core::i64
                         (:wat::io::IOWriter/write-string stdout msg)
                         (:wat::io::IOWriter/write-string stderr msg)))
              ((_ack :())
@@ -142,7 +142,7 @@
 (:wat::core::define
   (:wat::std::service::Console/ack-at
     (pairs :Vec<wat::std::service::Console::DriverPair>)
-    (idx :i64)
+    (idx :wat::core::i64)
     -> :())
   (:wat::core::match (:wat::core::get pairs idx) -> :()
     ((Some pair)
@@ -172,7 +172,7 @@
 (:wat::core::define
   (:wat::std::service::Console/out
     (handle :wat::std::service::Console::Handle)
-    (msg :String)
+    (msg :wat::core::String)
     -> :())
   (:wat::core::let*
     (((tx :wat::std::service::Console::Tx) (:wat::core::first handle))
@@ -185,7 +185,7 @@
 (:wat::core::define
   (:wat::std::service::Console/err
     (handle :wat::std::service::Console::Handle)
-    (msg :String)
+    (msg :wat::core::String)
     -> :())
   (:wat::core::let*
     (((tx :wat::std::service::Console::Tx) (:wat::core::first handle))
@@ -210,7 +210,7 @@
   (:wat::std::service::Console/spawn
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
-    (count :i64)
+    (count :wat::core::i64)
     -> :wat::std::service::Console::Spawn)
   (:wat::core::let*
     ;; Build N request pairs and N ack pairs in lock-step. The
@@ -221,7 +221,7 @@
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
-          ((_i :i64)
+          ((_i :wat::core::i64)
            -> :(wat::std::service::Console::Tx,wat::std::service::Console::Rx))
           (:wat::kernel::make-bounded-queue
             :wat::std::service::Console::Message 1))))
@@ -229,7 +229,7 @@
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
-          ((_i :i64)
+          ((_i :wat::core::i64)
            -> :(wat::std::service::Console::AckTx,wat::std::service::Console::AckRx))
           (:wat::kernel::make-bounded-queue :() 1))))
      ;; Producer-side: pop a Handle = (req-Tx, ack-Rx).

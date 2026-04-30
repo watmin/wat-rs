@@ -1,7 +1,7 @@
 ;; :wat::holon::Amplify — scaled component emphasis per 058-015.
 ;;
 ;; (Amplify x y s) expands to (Blend x y 1 s): anchor x at unit
-;; emphasis, scale y's contribution by s. `s` is a runtime :f64
+;; emphasis, scale y's contribution by s. `s` is a runtime :wat::core::f64
 ;; expression — the Blend weights are literal at hash time because the
 ;; macro expansion commits the `1` and captures whatever the caller
 ;; wrote for `s`.

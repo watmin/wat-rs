@@ -429,7 +429,7 @@
   (:wat::std::stream::chunks-step<T>
     (buffer :Vec<T>)
     (item :T)
-    (size :i64)
+    (size :wat::core::i64)
     -> :wat::std::stream::ChunkStep<T>)
   (:wat::core::let*
     (((new-buffer :Vec<T>) (:wat::core::conj buffer item)))
@@ -453,7 +453,7 @@
 (:wat::core::define
   (:wat::std::stream::chunks<T>
     (upstream :wat::std::stream::Stream<T>)
-    (size :i64)
+    (size :wat::core::i64)
     -> :wat::std::stream::Stream<Vec<T>>)
   ;; chunks-step takes (buf, item, size) — three args — but with-state
   ;; wants (buf, item). The `size` parameter has to close over the
@@ -547,11 +547,11 @@
   (:wat::std::stream::window-step<T>
     (buffer :Vec<T>)
     (item :T)
-    (size :i64)
+    (size :wat::core::i64)
     -> :wat::std::stream::ChunkStep<T>)
   (:wat::core::let*
     (((new-buf :Vec<T>) (:wat::core::conj buffer item))
-     ((new-len :i64) (:wat::core::length new-buf)))
+     ((new-len :wat::core::i64) (:wat::core::length new-buf)))
     (:wat::core::cond -> :wat::std::stream::ChunkStep<T>
       ;; Over-size — slide: drop first, emit trimmed window, keep trimmed.
       ((:wat::core::> new-len size)
@@ -568,7 +568,7 @@
 (:wat::core::define
   (:wat::std::stream::window-flush<T>
     (buffer :Vec<T>)
-    (size :i64)
+    (size :wat::core::i64)
     -> :Vec<Vec<T>>)
   ;; Flush-partial IFF buffer contains items that were never emitted
   ;; as a full window. That's exactly the case len(buf) < size AND
@@ -583,7 +583,7 @@
 (:wat::core::define
   (:wat::std::stream::window<T>
     (upstream :wat::std::stream::Stream<T>)
-    (size :i64)
+    (size :wat::core::i64)
     -> :wat::std::stream::Stream<Vec<T>>)
   ;; Both step and flush close over size — two lambda wrappers.
   (:wat::std::stream::with-state upstream
@@ -609,7 +609,7 @@
   (:wat::std::stream::take-worker<T>
     (in :wat::kernel::QueueReceiver<T>)
     (out :wat::kernel::QueueSender<T>)
-    (remaining :i64)
+    (remaining :wat::core::i64)
     -> :())
   (:wat::core::if (:wat::core::<= remaining 0) -> :()
     ()
@@ -627,7 +627,7 @@
 (:wat::core::define
   (:wat::std::stream::take<T>
     (upstream :wat::std::stream::Stream<T>)
-    (n :i64)
+    (n :wat::core::i64)
     -> :wat::std::stream::Stream<T>)
   (:wat::core::let*
     (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))

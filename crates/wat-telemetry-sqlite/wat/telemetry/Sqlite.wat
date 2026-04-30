@@ -71,7 +71,7 @@
 ;;                   wrap, single combined INSERT, etc.).
 (:wat::core::define
   (:wat::telemetry::Sqlite/run<E,G>
-    (path :String)
+    (path :wat::core::String)
     (pairs :Vec<wat::telemetry::Service::DriverPair<E>>)
     (cadence :wat::telemetry::Service::MetricsCadence<G>)
     (pre-install :fn(wat::sqlite::Db)->())
@@ -110,8 +110,8 @@
 ;; CIRCUIT.md wiring discipline.
 (:wat::core::define
   (:wat::telemetry::Sqlite/spawn<E,G>
-    (path :String)
-    (count :i64)
+    (path :wat::core::String)
+    (count :wat::core::i64)
     (cadence :wat::telemetry::Service::MetricsCadence<G>)
     (pre-install :fn(wat::sqlite::Db)->())
     (schema-install :fn(wat::sqlite::Db)->())
@@ -124,7 +124,7 @@
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
-          ((_i :i64) -> :wat::telemetry::Service::ReqChannel<E>)
+          ((_i :wat::core::i64) -> :wat::telemetry::Service::ReqChannel<E>)
           (:wat::kernel::make-bounded-queue
             :wat::telemetry::Service::Request<E> 1))))
      ;; N ack channels (server write, client read). Per arc 095:
@@ -134,7 +134,7 @@
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
-          ((_i :i64) -> :wat::telemetry::Service::AckChannel)
+          ((_i :wat::core::i64) -> :wat::telemetry::Service::AckChannel)
           (:wat::kernel::make-bounded-queue :() 1))))
      ;; Client-side Handles — (req-tx, ack-rx) pairs.
      ((handles :Vec<wat::telemetry::Service::Handle<E>>)
@@ -231,8 +231,8 @@
 (:wat::core::define
   (:wat::telemetry::Sqlite/auto-spawn<E,G>
     (enum-name :wat::core::keyword)
-    (path :String)
-    (count :i64)
+    (path :wat::core::String)
+    (count :wat::core::i64)
     (cadence :wat::telemetry::Service::MetricsCadence<G>)
     (pre-install :fn(wat::sqlite::Db)->())
     -> :wat::telemetry::Service::Spawn<E>)

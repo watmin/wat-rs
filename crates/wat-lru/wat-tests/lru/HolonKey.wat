@@ -31,8 +31,8 @@
       (:wat::holon::Atom (:wat::core::quote :the-form)))
      ((_ :Option<(wat::holon::HolonAST,i64)>) (:wat::lru::LocalCache::put cache k 42))
      ((got :Option<i64>) (:wat::lru::LocalCache::get cache k))
-     ((result :i64)
-      (:wat::core::match got -> :i64
+     ((result :wat::core::i64)
+      (:wat::core::match got -> :wat::core::i64
         ((Some v) v)
         (:None -1))))
     (:wat::test::assert-eq result 42)))
@@ -51,8 +51,8 @@
      ((k2 :wat::holon::HolonAST) (:wat::holon::Atom (:wat::core::quote :b)))
      ((_ :Option<(wat::holon::HolonAST,i64)>) (:wat::lru::LocalCache::put cache k1 1))
      ((got :Option<i64>) (:wat::lru::LocalCache::get cache k2))
-     ((is-none :bool)
-      (:wat::core::match got -> :bool
+     ((is-none :wat::core::bool)
+      (:wat::core::match got -> :wat::core::bool
         ((Some _v) false)
         (:None true))))
     (:wat::test::assert-eq is-none true)))
@@ -80,8 +80,8 @@
         (:wat::holon::Atom (:wat::core::quote :filler))))
      ((_ :Option<(wat::holon::HolonAST,i64)>) (:wat::lru::LocalCache::put cache k1 99))
      ((got :Option<i64>) (:wat::lru::LocalCache::get cache k2))
-     ((result :i64)
-      (:wat::core::match got -> :i64
+     ((result :wat::core::i64)
+      (:wat::core::match got -> :wat::core::i64
         ((Some v) v)
         (:None -1))))
     (:wat::test::assert-eq result 99)))

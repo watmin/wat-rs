@@ -13,14 +13,14 @@
   (;; Test enum + struct used across the deftests below.
    (:wat::core::enum :test::Event
      (Buy
-       (price :f64)
-       (qty :i64))
+       (price :wat::core::f64)
+       (qty :wat::core::i64))
      (Sell
-       (price :f64)
-       (qty :i64)
-       (reason :String)))
+       (price :wat::core::f64)
+       (qty :wat::core::i64)
+       (reason :wat::core::String)))
    (:wat::core::struct :test::Wrapper<E>
-     (label :String)
+     (label :wat::core::String)
      (value :E))))
 
 
@@ -28,20 +28,20 @@
 
 (:deftest :wat-tests::edn::roundtrip-i64
   (:wat::core::let*
-    (((s :String) (:wat::edn::write 42))
-     ((back :i64) (:wat::edn::read s)))
+    (((s :wat::core::String) (:wat::edn::write 42))
+     ((back :wat::core::i64) (:wat::edn::read s)))
     (:wat::test::assert-eq back 42)))
 
 (:deftest :wat-tests::edn::roundtrip-string
   (:wat::core::let*
-    (((s :String) (:wat::edn::write "hello"))
-     ((back :String) (:wat::edn::read s)))
+    (((s :wat::core::String) (:wat::edn::write "hello"))
+     ((back :wat::core::String) (:wat::edn::read s)))
     (:wat::test::assert-eq back "hello")))
 
 (:deftest :wat-tests::edn::roundtrip-bool
   (:wat::core::let*
-    (((s :String) (:wat::edn::write true))
-     ((back :bool) (:wat::edn::read s)))
+    (((s :wat::core::String) (:wat::edn::write true))
+     ((back :wat::core::bool) (:wat::edn::read s)))
     (:wat::test::assert-eq back true)))
 
 
@@ -49,8 +49,8 @@
 
 (:deftest :wat-tests::edn::roundtrip-vec
   (:wat::core::let*
-    (((v :Vec<i64>) (:wat::core::vec :i64 1 2 3))
-     ((s :String) (:wat::edn::write v))
+    (((v :Vec<i64>) (:wat::core::vec :wat::core::i64 1 2 3))
+     ((s :wat::core::String) (:wat::edn::write v))
      ((back :Vec<i64>) (:wat::edn::read s)))
     (:wat::test::assert-eq back v)))
 
@@ -60,7 +60,7 @@
 (:deftest :wat-tests::edn::roundtrip-enum-variant
   (:wat::core::let*
     (((e :test::Event) (:test::Event::Buy 100.5 7))
-     ((s :String) (:wat::edn::write e))
+     ((s :wat::core::String) (:wat::edn::write e))
      ((back :test::Event) (:wat::edn::read s)))
     (:wat::test::assert-eq back e)))
 
@@ -70,7 +70,7 @@
 (:deftest :wat-tests::edn::roundtrip-struct
   (:wat::core::let*
     (((w :test::Wrapper<i64>) (:test::Wrapper/new "score" 42))
-     ((s :String) (:wat::edn::write w))
+     ((s :wat::core::String) (:wat::edn::write w))
      ((back :test::Wrapper<i64>) (:wat::edn::read s)))
     (:wat::test::assert-eq back w)))
 
@@ -81,6 +81,6 @@
   (:wat::core::let*
     (((w :test::Wrapper<test::Event>)
       (:test::Wrapper/new "trade" (:test::Event::Sell 102.25 3 "stop")))
-     ((s :String) (:wat::edn::write w))
+     ((s :wat::core::String) (:wat::edn::write w))
      ((back :test::Wrapper<test::Event>) (:wat::edn::read s)))
     (:wat::test::assert-eq back w)))

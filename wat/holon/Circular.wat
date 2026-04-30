@@ -15,7 +15,7 @@
 ;;     when callers want the type-guard behavior.
 ;;   - `:wat::std::math::pi` was written bare in the proposal; it's a
 ;;     nullary primitive, called as `(:wat::std::math::pi)` here.
-;;   - let* bindings carry explicit `:f64` types.
+;;   - let* bindings carry explicit `:wat::core::f64` types.
 ;; Same math, enforcement-correct wat.
 
 (:wat::core::defmacro
@@ -24,11 +24,11 @@
     (period :AST<f64>)
     -> :AST<wat::holon::HolonAST>)
   `(:wat::core::let*
-     (((frac :f64)
+     (((frac :wat::core::f64)
        (:wat::core::/ ,value ,period))
-      ((two-pi :f64)
+      ((two-pi :wat::core::f64)
        (:wat::core::* 2.0 (:wat::std::math::pi)))
-      ((theta :f64)
+      ((theta :wat::core::f64)
        (:wat::core::* two-pi frac)))
      (:wat::holon::Blend
        (:wat::holon::Atom :wat::std::circular-cos-basis)

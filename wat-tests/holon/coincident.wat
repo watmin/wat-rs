@@ -66,10 +66,10 @@
     ;; presence? fires (atom's signal IS in the bundle).
     (:wat::test::assert-eq
       (:wat::core::if (:wat::holon::presence? atom bundle)
-                      -> :bool
+                      -> :wat::core::bool
         ;; And coincident? does NOT fire (the bundle is not the atom).
         (:wat::core::if (:wat::holon::coincident? atom bundle)
-                        -> :bool
+                        -> :wat::core::bool
           false    ;; would mean they coincide — wrong
           true)
         false)     ;; presence? false means test setup is wrong

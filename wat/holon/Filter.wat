@@ -1,7 +1,7 @@
 ;; :wat::holon::Filter — substrate-default filter funcs for Hologram/get
 ;;
 ;; The arc-074 Hologram get takes a user-supplied filter
-;; `:fn(:f64) -> :bool` that decides whether the highest-cosine
+;; `:fn(:wat::core::f64) -> :wat::core::bool` that decides whether the highest-cosine
 ;; candidate is "close enough" to return. The substrate ships three
 ;; opinionated factories so consumers don't have to hand-roll the
 ;; canonical thresholds.
@@ -47,9 +47,9 @@
   (:wat::holon::filter-coincident
     -> :fn(f64)->bool)
   (:wat::core::let*
-    (((floor :f64)
+    (((floor :wat::core::f64)
       (:wat::holon::coincident-floor (:wat::config::dim-count))))
-    (:wat::core::lambda ((cos :f64) -> :bool)
+    (:wat::core::lambda ((cos :wat::core::f64) -> :wat::core::bool)
       (:wat::core::< (:wat::core::- 1.0 cos) floor))))
 
 ;; ─── filter-present — looser, "signal detected above noise" ───────
@@ -64,9 +64,9 @@
   (:wat::holon::filter-present
     -> :fn(f64)->bool)
   (:wat::core::let*
-    (((floor :f64)
+    (((floor :wat::core::f64)
       (:wat::holon::presence-floor (:wat::config::dim-count))))
-    (:wat::core::lambda ((cos :f64) -> :bool)
+    (:wat::core::lambda ((cos :wat::core::f64) -> :wat::core::bool)
       (:wat::core::> cos floor))))
 
 ;; ─── filter-accept-any — null gate, returns whatever scored best ──
@@ -78,4 +78,4 @@
 (:wat::core::define
   (:wat::holon::filter-accept-any
     -> :fn(f64)->bool)
-  (:wat::core::lambda ((_ :f64) -> :bool) true))
+  (:wat::core::lambda ((_ :wat::core::f64) -> :wat::core::bool) true))

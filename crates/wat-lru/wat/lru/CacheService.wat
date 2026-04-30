@@ -19,7 +19,7 @@
 ;; the explicit "no reporting" choice.
 ;;
 ;; Protocol:
-;;   Body<K,V>     = (tag :i64, key :K, put-val :Option<V>)
+;;   Body<K,V>     = (tag :wat::core::i64, key :K, put-val :Option<V>)
 ;;   ReplyTx<V>    = :Sender<Option<V>>
 ;;   Request<K,V>  = (Body<K,V>, ReplyTx<V>)
 ;;   Response<V>   = :Option<V>
@@ -75,11 +75,11 @@
 ;; the explicit "no reporting" choice.
 
 (:wat::core::struct :wat::lru::CacheService::Stats
-  (lookups :i64)        ;; total Gets in this window
-  (hits :i64)           ;; Gets returning Some
-  (misses :i64)         ;; Gets returning :None
-  (puts :i64)           ;; total Puts in this window
-  (cache-size :i64))    ;; LocalCache::len at gate-fire time
+  (lookups :wat::core::i64)        ;; total Gets in this window
+  (hits :wat::core::i64)           ;; Gets returning Some
+  (misses :wat::core::i64)         ;; Gets returning :None
+  (puts :wat::core::i64)           ;; total Puts in this window
+  (cache-size :wat::core::i64))    ;; LocalCache::len at gate-fire time
 
 ;; Slice 4 ships ONE variant (Metrics, gated by metrics-cadence).
 ;; Future variants (lifecycle, errors, evictions) extend additively
@@ -159,7 +159,7 @@
       (:wat::lru::CacheService::State/stats state))
      ((body :wat::lru::CacheService::Body<K,V>) (:wat::core::first req))
      ((reply-to :wat::lru::CacheService::ReplyTx<V>) (:wat::core::second req))
-     ((tag :i64) (:wat::core::first body))
+     ((tag :wat::core::i64) (:wat::core::first body))
      ((key :K) (:wat::core::second body))
      ((put-val :Option<V>) (:wat::core::third body))
      ((resp :Option<V>)
@@ -178,11 +178,11 @@
       (:wat::core::if (:wat::core::= tag 0) -> :wat::lru::CacheService::Stats
         ;; GET — bump lookups + hits/misses
         (:wat::core::let*
-          (((hit-delta :i64)
-            (:wat::core::match resp -> :i64
+          (((hit-delta :wat::core::i64)
+            (:wat::core::match resp -> :wat::core::i64
               ((Some _) 1)
               (:None 0)))
-           ((miss-delta :i64)
+           ((miss-delta :wat::core::i64)
             (:wat::core::i64::- 1 hit-delta)))
           (:wat::lru::CacheService::Stats/new
             (:wat::core::i64::+ (:wat::lru::CacheService::Stats/lookups stats) 1)
@@ -216,7 +216,7 @@
       (:wat::lru::CacheService::MetricsCadence/tick metrics-cadence))
      ((tick :(G,bool)) (tick-fn gate stats))
      ((gate' :G) (:wat::core::first tick))
-     ((fired :bool) (:wat::core::second tick))
+     ((fired :wat::core::bool) (:wat::core::second tick))
      ((cadence' :wat::lru::CacheService::MetricsCadence<G>)
       (:wat::lru::CacheService::MetricsCadence/new gate' tick-fn)))
     (:wat::core::if fired -> :wat::lru::CacheService::Step<K,V,G>
@@ -243,7 +243,7 @@
 ;; driver). Then delegates to `CacheService/loop-step` for the recursion.
 (:wat::core::define
   (:wat::lru::CacheService/loop<K,V,G>
-    (capacity :i64)
+    (capacity :wat::core::i64)
     (req-rxs :Vec<wat::lru::CacheService::ReqRx<K,V>>)
     (reporter :wat::lru::CacheService::Reporter)
     (metrics-cadence :wat::lru::CacheService::MetricsCadence<G>)
@@ -273,7 +273,7 @@
     (:wat::core::let*
       (((chosen :(i64,Option<wat::lru::CacheService::Request<K,V>>))
         (:wat::kernel::select req-rxs))
-       ((idx :i64) (:wat::core::first chosen))
+       ((idx :wat::core::i64) (:wat::core::first chosen))
        ((maybe :Option<wat::lru::CacheService::Request<K,V>>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :()
@@ -356,8 +356,8 @@
 ;; "no reporting" choice. See CONVENTIONS.md "Service contract".
 (:wat::core::define
   (:wat::lru::CacheService/spawn<K,V,G>
-    (capacity :i64)
-    (count :i64)
+    (capacity :wat::core::i64)
+    (count :wat::core::i64)
     (reporter :wat::lru::CacheService::Reporter)
     (metrics-cadence :wat::lru::CacheService::MetricsCadence<G>)
     -> :wat::lru::CacheService::Spawn<K,V>)
@@ -365,7 +365,7 @@
     (((pairs :Vec<wat::lru::CacheService::ReqPair<K,V>>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda ((_i :i64) -> :wat::lru::CacheService::ReqPair<K,V>)
+        (:wat::core::lambda ((_i :wat::core::i64) -> :wat::lru::CacheService::ReqPair<K,V>)
           (:wat::kernel::make-bounded-queue :wat::lru::CacheService::Request<K,V> 1))))
      ((req-txs :Vec<wat::lru::CacheService::ReqTx<K,V>>)
       (:wat::core::map pairs

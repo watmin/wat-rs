@@ -13,8 +13,8 @@
   ()
   (:wat::core::let*
     (((res :Result<i64,String>) (Ok 99))
-     ((v :i64)
-      (:wat::core::result::expect -> :i64
+     ((v :wat::core::i64)
+      (:wat::core::result::expect -> :wat::core::i64
         res
         "should be Ok")))
     (:wat::test::assert-eq v 99)))
@@ -26,8 +26,8 @@
   ()
   (:wat::core::let*
     (((res :Result<String,i64>) (Ok "yes"))
-     ((v :String)
-      (:wat::core::result::expect -> :String
+     ((v :wat::core::String)
+      (:wat::core::result::expect -> :wat::core::String
         res
         "should be Ok")))
     (:wat::test::assert-eq v "yes")))
@@ -49,12 +49,12 @@
               -> :())
             (:wat::core::let*
               (((res :Result<i64,String>) (Err "rundb crashed"))
-               ((_v :i64)
-                (:wat::core::result::expect -> :i64
+               ((_v :wat::core::i64)
+                (:wat::core::result::expect -> :wat::core::i64
                   res
                   "expected Ok value")))
               ())))
-        (:wat::core::vec :String)))
+        (:wat::core::vec :wat::core::String)))
      ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :()
       ((Some f)

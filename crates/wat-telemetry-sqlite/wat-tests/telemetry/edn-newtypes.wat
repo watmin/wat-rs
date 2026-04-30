@@ -48,7 +48,7 @@
 
    (:wat::core::define
      (:test::Edn::auto-spawn-one
-       (path :String)
+       (path :wat::core::String)
        -> :wat::kernel::ProgramHandle<()>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<test::Edn::Event>)

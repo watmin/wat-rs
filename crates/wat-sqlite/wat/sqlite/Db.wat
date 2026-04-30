@@ -21,14 +21,14 @@
 ;; to the underlying #[wat_dispatch]'d Rust method.
 (:wat::core::define
   (:wat::sqlite::open
-    (path :String)
+    (path :wat::core::String)
     -> :wat::sqlite::Db)
   (:rust::sqlite::Db::open path))
 
 (:wat::core::define
   (:wat::sqlite::execute-ddl
     (db :wat::sqlite::Db)
-    (ddl :String)
+    (ddl :wat::core::String)
     -> :())
   (:rust::sqlite::Db::execute_ddl db ddl))
 
@@ -47,10 +47,10 @@
 ;; SQLite affinity. rusqlite hides this on the Rust side via
 ;; `params![]`; wat surfaces it.
 (:wat::core::enum :wat::sqlite::Param
-  (I64  (n :i64))
-  (F64  (x :f64))
-  (Str  (s :String))
-  (Bool (b :bool)))
+  (I64  (n :wat::core::i64))
+  (F64  (x :wat::core::f64))
+  (Str  (s :wat::core::String))
+  (Bool (b :wat::core::bool)))
 
 ;; Execute a parameterized statement. Each `?N` placeholder binds
 ;; to `params[N-1]` (1-indexed per rusqlite/SQLite). Panics with a
@@ -69,7 +69,7 @@
 (:wat::core::define
   (:wat::sqlite::execute
     (db :wat::sqlite::Db)
-    (sql :String)
+    (sql :wat::core::String)
     (params :Vec<wat::sqlite::Param>)
     -> :())
   (:rust::sqlite::Db::execute db sql params))
@@ -86,8 +86,8 @@
 (:wat::core::define
   (:wat::sqlite::pragma
     (db :wat::sqlite::Db)
-    (name :String)
-    (value :String)
+    (name :wat::core::String)
+    (value :wat::core::String)
     -> :())
   (:rust::sqlite::Db::pragma db name value))
 

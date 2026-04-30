@@ -23,7 +23,7 @@
   `(:wat::core::let*
      (((positioned :wat::holon::Holons)
        (:wat::std::list::map-with-index ,items
-         (:wat::core::lambda ((item :wat::holon::HolonAST) (i :i64) -> :wat::holon::HolonAST)
+         (:wat::core::lambda ((item :wat::holon::HolonAST) (i :wat::core::i64) -> :wat::holon::HolonAST)
            (:wat::core::if (:wat::core::= i 0) -> :wat::holon::HolonAST
              item
              (:wat::holon::Permute item i))))))

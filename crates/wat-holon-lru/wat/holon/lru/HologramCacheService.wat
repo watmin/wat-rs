@@ -100,17 +100,17 @@
 ;;
 ;;   G = :()                   null-metrics-cadence (never fires)
 ;;   G = :wat::time::Instant   wall-clock rate gate via tick-gate
-;;   G = :i64                  counter-mod-N gate
+;;   G = :wat::core::i64                  counter-mod-N gate
 ;;
 ;; Both injection points are required. Pass null-reporter and
 ;; (null-metrics-cadence) for the explicit "no reporting" choice.
 
 (:wat::core::struct :wat::holon::lru::HologramCacheService::Stats
-  (lookups :i64)        ;; total Gets in this window
-  (hits :i64)           ;; Gets returning Some
-  (misses :i64)         ;; Gets returning :None
-  (puts :i64)           ;; total Puts in this window
-  (cache-size :i64))    ;; HologramCache/len at gate-fire time
+  (lookups :wat::core::i64)        ;; total Gets in this window
+  (hits :wat::core::i64)           ;; Gets returning Some
+  (misses :wat::core::i64)         ;; Gets returning :None
+  (puts :wat::core::i64)           ;; total Puts in this window
+  (cache-size :wat::core::i64))    ;; HologramCache/len at gate-fire time
 
 ;; Report — discriminated outbound messages the cache emits.
 ;; Slice 1 ships ONE variant (Metrics, gated by metrics-cadence). Future
@@ -205,11 +205,11 @@
             (:wat::holon::lru::HologramCache/get cache probe))
            ((_send :wat::kernel::Sent)
             (:wat::kernel::send reply-tx result))
-           ((hit-delta :i64)
-            (:wat::core::match result -> :i64
+           ((hit-delta :wat::core::i64)
+            (:wat::core::match result -> :wat::core::i64
               ((Some _) 1)
               (:None 0)))
-           ((miss-delta :i64)
+           ((miss-delta :wat::core::i64)
             (:wat::core::i64::- 1 hit-delta))
            ((stats' :wat::holon::lru::HologramCacheService::Stats)
             (:wat::holon::lru::HologramCacheService::Stats/new
@@ -259,7 +259,7 @@
       (:wat::holon::lru::HologramCacheService::MetricsCadence/tick metrics-cadence))
      ((tick :(G,bool)) (tick-fn gate stats))
      ((gate' :G) (:wat::core::first tick))
-     ((fired :bool) (:wat::core::second tick))
+     ((fired :wat::core::bool) (:wat::core::second tick))
      ((cadence' :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
       (:wat::holon::lru::HologramCacheService::MetricsCadence/new gate' tick-fn)))
     (:wat::core::if fired -> :wat::holon::lru::HologramCacheService::Step<G>
@@ -301,7 +301,7 @@
     (:wat::core::let*
       (((chosen :wat::kernel::Chosen<wat::holon::lru::HologramCacheService::Request>)
         (:wat::kernel::select req-rxs))
-       ((idx :i64) (:wat::core::first chosen))
+       ((idx :wat::core::i64) (:wat::core::first chosen))
        ((maybe :Option<wat::holon::lru::HologramCacheService::Request>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::holon::lru::HologramCacheService::State
@@ -333,7 +333,7 @@
 (:wat::core::define
   (:wat::holon::lru::HologramCacheService/run<G>
     (req-rxs :Vec<wat::holon::lru::HologramCacheService::ReqRx>)
-    (cap :i64)
+    (cap :wat::core::i64)
     (reporter :wat::holon::lru::HologramCacheService::Reporter)
     (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
     -> :())
@@ -368,8 +368,8 @@
 
 (:wat::core::define
   (:wat::holon::lru::HologramCacheService/spawn<G>
-    (count :i64)
-    (cap :i64)
+    (count :wat::core::i64)
+    (cap :wat::core::i64)
     (reporter :wat::holon::lru::HologramCacheService::Reporter)
     (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
     -> :wat::holon::lru::HologramCacheService::Spawn)
@@ -378,7 +378,7 @@
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
-          ((_i :i64)
+          ((_i :wat::core::i64)
            -> :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)
           (:wat::kernel::make-bounded-queue
             :wat::holon::lru::HologramCacheService::Request 1))))

@@ -78,18 +78,18 @@
                ((_ :()) (:wat::kernel::join driver))
                ((_ :()) (:wat::kernel::join con-drv)))
               ())))
-        (:wat::core::vec :String)))
+        (:wat::core::vec :wat::core::String)))
      ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))
      ((stderr :Vec<String>) (:wat::kernel::RunResult/stderr r))
      ;; Assertions:
      ;;   - stdout first line is "hit" (put→get round-trip succeeded)
      ;;   - stderr contains each of the T1/T2/T3 checkpoints
-     ((hit-line :String)
-      (:wat::core::match (:wat::core::first stdout) -> :String
+     ((hit-line :wat::core::String)
+      (:wat::core::match (:wat::core::first stdout) -> :wat::core::String
         ((Some s) s)
         (:None "<missing>")))
      ((_ :()) (:wat::test::assert-eq hit-line "hit"))
-     ((stderr-blob :String) (:wat::core::string::join "\n" stderr))
+     ((stderr-blob :wat::core::String) (:wat::core::string::join "\n" stderr))
      ((_ :()) (:wat::test::assert-contains stderr-blob "T1: about-to-put"))
      ((_ :()) (:wat::test::assert-contains stderr-blob "T2: put-acked")))
     (:wat::test::assert-contains stderr-blob "T3: get-returned")))

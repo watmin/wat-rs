@@ -28,7 +28,7 @@
         (:wat::core::quote (:wat::core::i64::+ 2 2))
         (:wat::core::quote (:wat::core::i64::* 1 4)))))
     (:wat::test::assert-eq
-      (:wat::core::match r -> :bool
+      (:wat::core::match r -> :wat::core::bool
         ((Ok b)  b)
         ((Err _) false))
       true)))
@@ -43,7 +43,7 @@
         (:wat::core::quote 4)
         (:wat::core::quote 5))))
     (:wat::test::assert-eq
-      (:wat::core::match r -> :bool
+      (:wat::core::match r -> :wat::core::bool
         ((Ok b)  b)
         ((Err _) false))
       false)))
@@ -58,7 +58,7 @@
         (:wat::core::quote "rsi")
         (:wat::core::quote "rsi"))))
     (:wat::test::assert-eq
-      (:wat::core::match r -> :bool
+      (:wat::core::match r -> :wat::core::bool
         ((Ok b)  b)
         ((Err _) false))
       true)))
@@ -75,7 +75,7 @@
         (:wat::core::quote
           (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))))))
     (:wat::test::assert-eq
-      (:wat::core::match r -> :bool
+      (:wat::core::match r -> :wat::core::bool
         ((Ok b)  b)
         ((Err _) false))
       true)))
@@ -90,7 +90,7 @@
  "(:wat::core::i64::+ 2 2)"
  "(:wat::core::i64::* 1 4)")))
     (:wat::test::assert-eq
-      (:wat::core::match r -> :bool
+      (:wat::core::match r -> :wat::core::bool
         ((Ok b)  b)
         ((Err _) false))
       true)))
@@ -103,7 +103,7 @@
  "(:wat::core::i64::+ 2 2)"
  "(:wat::core::i64::+ 2 3)")))
     (:wat::test::assert-eq
-      (:wat::core::match r -> :bool
+      (:wat::core::match r -> :wat::core::bool
         ((Ok b)  b)
         ((Err _) false))
       false)))
@@ -131,7 +131,7 @@
         :wat::verify::digest-sha256
         :wat::verify::string "3571299726bb0f014a3cea5e91cd1623a94fffb7ac1641525ff1ca56c7140e45")))
     (:wat::test::assert-eq
-      (:wat::core::match r -> :bool
+      (:wat::core::match r -> :wat::core::bool
         ((Ok b)  b)
         ((Err _) false))
       true)))
@@ -150,7 +150,7 @@
         :wat::verify::digest-sha256
         :wat::verify::string "3571299726bb0f014a3cea5e91cd1623a94fffb7ac1641525ff1ca56c7140e45")))
     (:wat::test::assert-eq
-      (:wat::core::match r -> :bool
+      (:wat::core::match r -> :wat::core::bool
         ((Ok _)  true)     ;; unexpected — verify should have failed
         ((Err _) false))
       false)))
@@ -182,7 +182,7 @@
         :wat::verify::string "PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")))
     (:wat::test::assert-eq
-      (:wat::core::match r -> :bool
+      (:wat::core::match r -> :wat::core::bool
         ((Ok b)  b)
         ((Err _) false))
       true)))
@@ -203,7 +203,7 @@
         :wat::verify::string "PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")))
     (:wat::test::assert-eq
-      (:wat::core::match r -> :bool
+      (:wat::core::match r -> :wat::core::bool
         ((Ok _)  true)     ;; unexpected — verify should have failed
         ((Err _) false))
       false)))

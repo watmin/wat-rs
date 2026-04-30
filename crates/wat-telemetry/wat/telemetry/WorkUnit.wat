@@ -10,7 +10,7 @@
 ;;   - WorkUnit::new                                     -> WorkUnit
 ;;   - WorkUnit/uuid       wu                            -> String
 ;;   - WorkUnit/incr!      wu (name :HolonAST)           -> ()
-;;   - WorkUnit/append-dt! wu (name :HolonAST) (s :f64)  -> ()
+;;   - WorkUnit/append-dt! wu (name :HolonAST) (s :wat::core::f64)  -> ()
 ;;   - WorkUnit/counter    wu (name :HolonAST)           -> i64
 ;;   - WorkUnit/durations  wu (name :HolonAST)           -> Vec<f64>
 ;;
@@ -54,7 +54,7 @@
 
 (:wat::core::define
   (:wat::telemetry::WorkUnit/uuid
-    (wu :wat::telemetry::WorkUnit) -> :String)
+    (wu :wat::telemetry::WorkUnit) -> :wat::core::String)
   (:rust::telemetry::WorkUnit::uuid wu))
 
 
@@ -70,7 +70,7 @@
   (:wat::telemetry::WorkUnit/append-dt!
     (wu :wat::telemetry::WorkUnit)
     (name :wat::holon::HolonAST)
-    (secs :f64)
+    (secs :wat::core::f64)
     -> :())
   ;; The Rust shim's path mirrors its Rust ident verbatim — the
   ;; #[wat_dispatch] macro uses `method.sig.ident` directly, so the
@@ -84,7 +84,7 @@
   (:wat::telemetry::WorkUnit/counter
     (wu :wat::telemetry::WorkUnit)
     (name :wat::holon::HolonAST)
-    -> :i64)
+    -> :wat::core::i64)
   (:rust::telemetry::WorkUnit::counter wu name))
 
 
@@ -100,7 +100,7 @@
 
 (:wat::core::define
   (:wat::telemetry::WorkUnit/started-epoch-nanos
-    (wu :wat::telemetry::WorkUnit) -> :i64)
+    (wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
   ;; Rust ident `started_epoch_nanos`; the macro registers with
   ;; underscore (cf. slice-3's append_dt). The wat-side keeps the
   ;; kebab name.
@@ -168,8 +168,8 @@
     (:wat::core::let*
       (((wu     :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new namespace tags))
        ((result :T)                        (body wu))
-       ((start  :i64) (:wat::telemetry::WorkUnit/started-epoch-nanos wu))
-       ((end    :i64) (:wat::time::epoch-nanos (:wat::time::now)))
+       ((start  :wat::core::i64) (:wat::telemetry::WorkUnit/started-epoch-nanos wu))
+       ((end    :wat::core::i64) (:wat::time::epoch-nanos (:wat::time::now)))
        ((events :Vec<wat::telemetry::Event>)
         (:wat::telemetry::WorkUnit/scope::collect-metric-events wu start end))
        ((req-tx :wat::telemetry::Service::ReqTx<wat::telemetry::Event>)
@@ -203,12 +203,12 @@
     -> :T)
   (:wat::core::let*
     (((_bump      :())  (:wat::telemetry::WorkUnit/incr! wu name))
-     ((start      :i64) (:wat::time::epoch-nanos (:wat::time::now)))
+     ((start      :wat::core::i64) (:wat::time::epoch-nanos (:wat::time::now)))
      ((result     :T)   (body))
-     ((end        :i64) (:wat::time::epoch-nanos (:wat::time::now)))
-     ((delta-ns   :i64) (:wat::core::- end start))
-     ((delta-ns-f :f64) (:wat::core::i64::to-f64 delta-ns))
-     ((secs       :f64) (:wat::core::/ delta-ns-f 1000000000.0))
+     ((end        :wat::core::i64) (:wat::time::epoch-nanos (:wat::time::now)))
+     ((delta-ns   :wat::core::i64) (:wat::core::- end start))
+     ((delta-ns-f :wat::core::f64) (:wat::core::i64::to-f64 delta-ns))
+     ((secs       :wat::core::f64) (:wat::core::/ delta-ns-f 1000000000.0))
      ((_dt        :())  (:wat::telemetry::WorkUnit/append-dt! wu name secs)))
     result))
 
@@ -229,13 +229,13 @@
 
 (:wat::core::define
   (:wat::telemetry::WorkUnit/scope::build-counter-metric
-    (start-time-ns :i64)
-    (end-time-ns   :i64)
+    (start-time-ns :wat::core::i64)
+    (end-time-ns   :wat::core::i64)
     (namespace     :wat::holon::HolonAST)
-    (uuid          :String)
+    (uuid          :wat::core::String)
     (tags          :wat::telemetry::Tags)
     (name          :wat::holon::HolonAST)
-    (count         :i64)
+    (count         :wat::core::i64)
     -> :wat::telemetry::Event)
   (:wat::telemetry::Event::Metric
     start-time-ns
@@ -254,13 +254,13 @@
 ;; the f64 lifted to HolonAST::F64 via leaf; unit is :seconds.
 (:wat::core::define
   (:wat::telemetry::WorkUnit/scope::build-duration-metric
-    (start-time-ns :i64)
-    (end-time-ns   :i64)
+    (start-time-ns :wat::core::i64)
+    (end-time-ns   :wat::core::i64)
     (namespace     :wat::holon::HolonAST)
-    (uuid          :String)
+    (uuid          :wat::core::String)
     (tags          :wat::telemetry::Tags)
     (name          :wat::holon::HolonAST)
-    (sample        :f64)
+    (sample        :wat::core::f64)
     -> :wat::telemetry::Event)
   (:wat::telemetry::Event::Metric
     start-time-ns
@@ -280,10 +280,10 @@
 ;; foldl over that name's samples Vec.
 (:wat::core::define
   (:wat::telemetry::WorkUnit/scope::collect-duration-events-for-name
-    (start-time-ns :i64)
-    (end-time-ns   :i64)
+    (start-time-ns :wat::core::i64)
+    (end-time-ns   :wat::core::i64)
     (namespace     :wat::holon::HolonAST)
-    (uuid          :String)
+    (uuid          :wat::core::String)
     (tags          :wat::telemetry::Tags)
     (name          :wat::holon::HolonAST)
     (samples       :Vec<f64>)
@@ -292,7 +292,7 @@
     (:wat::core::vec :wat::telemetry::Event)
     (:wat::core::lambda
       ((acc    :Vec<wat::telemetry::Event>)
-       (sample :f64)
+       (sample :wat::core::f64)
        -> :Vec<wat::telemetry::Event>)
       (:wat::core::concat acc
         (:wat::core::vec :wat::telemetry::Event
@@ -308,12 +308,12 @@
 (:wat::core::define
   (:wat::telemetry::WorkUnit/scope::collect-metric-events
     (wu            :wat::telemetry::WorkUnit)
-    (start-time-ns :i64)
-    (end-time-ns   :i64)
+    (start-time-ns :wat::core::i64)
+    (end-time-ns   :wat::core::i64)
     -> :Vec<wat::telemetry::Event>)
   (:wat::core::let*
     (((namespace      :wat::holon::HolonAST)        (:wat::telemetry::WorkUnit/namespace wu))
-     ((uuid           :String)                     (:wat::telemetry::WorkUnit/uuid wu))
+     ((uuid           :wat::core::String)                     (:wat::telemetry::WorkUnit/uuid wu))
      ((tags           :wat::telemetry::Tags)        (:wat::telemetry::WorkUnit/tags wu))
      ((counter-keys   :wat::holon::Holons)   (:wat::telemetry::WorkUnit/counters-keys wu))
      ((duration-keys  :wat::holon::Holons)   (:wat::telemetry::WorkUnit/durations-keys wu))
@@ -325,7 +325,7 @@
            (key :wat::holon::HolonAST)
            -> :Vec<wat::telemetry::Event>)
           (:wat::core::let*
-            (((count :i64) (:wat::telemetry::WorkUnit/counter wu key))
+            (((count :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu key))
              ((event :wat::telemetry::Event)
               (:wat::telemetry::WorkUnit/scope::build-counter-metric
                 start-time-ns end-time-ns namespace uuid tags key count)))

@@ -31,19 +31,19 @@
 
 (:wat::core::enum :wat::telemetry::Event
   (Metric
-    (start-time-ns :i64)              ; wu start (wall-clock epoch ns)
-    (end-time-ns   :i64)              ; wu end
+    (start-time-ns :wat::core::i64)              ; wu start (wall-clock epoch ns)
+    (end-time-ns   :wat::core::i64)              ; wu end
     (namespace     :wat::edn::NoTag)  ; producing fn's fqdn keyword
-    (uuid          :String)           ; from the WorkUnit
+    (uuid          :wat::core::String)           ; from the WorkUnit
     (tags          :wat::telemetry::Tags) ; HolonAST→HolonAST map
     (metric-name   :wat::edn::NoTag)  ; the counter/duration key
     (metric-value  :wat::edn::NoTag)  ; primitive HolonAST leaf — never a Bundle
     (metric-unit   :wat::edn::NoTag)) ; :count, :seconds, etc.
   (Log
-    (time-ns   :i64)                   ; emit moment (wall-clock epoch ns)
+    (time-ns   :wat::core::i64)                   ; emit moment (wall-clock epoch ns)
     (namespace :wat::edn::NoTag)       ; producing fn's fqdn keyword
     (caller    :wat::edn::NoTag)       ; producer identity
     (level     :wat::edn::NoTag)       ; :info/:warn/:error/:debug
-    (uuid      :String)                ; from the WorkUnit
+    (uuid      :wat::core::String)                ; from the WorkUnit
     (tags      :wat::telemetry::Tags)    ; same map, attached to every log line
     (data      :wat::edn::Tagged)))    ; round-trip-safe message HolonAST

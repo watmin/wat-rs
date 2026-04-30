@@ -35,7 +35,7 @@
      (:wat-telemetry-sqlite::Sqlite::translate-empty
        (_stats :wat::telemetry::Service::Stats)
        -> :Vec<i64>)
-     (:wat::core::vec :i64))
+     (:wat::core::vec :wat::core::i64))
 
 
    ;; ─── Hooks (insert; traffic test) ────────────────────────────
@@ -65,10 +65,10 @@
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::insert-one-event
        (db :wat::sqlite::Db)
-       (entry :i64)
+       (entry :wat::core::i64)
        -> :())
      (:wat::core::let*
-       (((sql :String)
+       (((sql :wat::core::String)
          (:wat::core::string::concat
            "INSERT INTO events (n) VALUES ("
            (:wat::core::string::concat
@@ -87,7 +87,7 @@
        (entries :Vec<i64>)
        -> :())
      (:wat::core::foldl entries ()
-       (:wat::core::lambda ((_acc :()) (entry :i64) -> :())
+       (:wat::core::lambda ((_acc :()) (entry :wat::core::i64) -> :())
          (:wat-telemetry-sqlite::Sqlite::insert-one-event db entry))))
 
 
@@ -98,7 +98,7 @@
    ;; the driver for the test body to join.
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::spawn-and-drop
-       (path :String)
+       (path :wat::core::String)
        -> :wat::kernel::ProgramHandle<()>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<i64>)
@@ -133,7 +133,7 @@
    ;; spawn-and-drop, with traffic.
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::spawn-and-batch
-       (path :String)
+       (path :wat::core::String)
        -> :wat::kernel::ProgramHandle<()>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<i64>)
@@ -168,7 +168,7 @@
         ((ack-rx :wat::telemetry::Service::AckRx)
          (:wat::core::second handle))
         ((entries :Vec<i64>)
-         (:wat::core::vec :i64 7 11 13))
+         (:wat::core::vec :wat::core::i64 7 11 13))
         ((_log :())
          (:wat::telemetry::Service/batch-log
            req-tx ack-rx entries)))
