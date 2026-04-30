@@ -206,6 +206,95 @@ If §J slips, arc 113 ships as `Vec<ThreadDiedError>` first;
 widening to `Vec<ProgramDiedError>` is a one-element-type
 change post-§J.
 
+## Use case: cross-host test failure diagnostics
+
+This is the use case arc 113 lights up most dramatically.
+
+User direction (2026-04-30):
+
+> once the vec<err> arrives - we can have /very/ good test failure
+> reasons?...
+
+Yes. Today (post-arc-105c), when a wat-test forks a Program that
+forks a Program that forks a Program, and `assert-eq` fires in the
+deepest layer, the test runner sees ONE frame:
+
+```
+test FAILED: multi-process-test
+  child exited code 1, stderr:
+  assert-eq failed
+    actual:   1
+    expected: 2
+    location: layer-3.wat:42:13
+```
+
+The failure is at layer-3, but everything between the test and the
+leaf is bytes — stderr text approximating what was once typed
+data. The cross-host journey is lost the moment we leave the first
+process.
+
+Post-arc-113: every hand-off conjs onto the chain. The test runner
+renders `Vec<ProgramDiedError>` directly:
+
+```
+test FAILED: multi-process-test
+  caused by chain (deepest first):
+
+  [3] :proof::layer-3 (Process) — Panic
+        :wat::kernel::Failure {
+          message: "assert-eq failed"
+          actual:   "1"
+          expected: "2"
+          location: layer-3.wat:42:13
+          frames:   [layer-3.wat:42 → :proof::work,
+                     layer-3.wat:8  → :user::main]
+        }
+
+  [2] :proof::layer-2 (Process) — Panic
+        message: "peer process died (chain propagated)"
+        from:    Process/process-recv at layer-2.wat:23:7
+
+  [1] :proof::layer-1 (Thread) — Panic
+        message: "peer process died (chain propagated)"
+        from:    Thread/recv at layer-1.wat:15:9
+        (the thread the test joined on)
+```
+
+The leaf carries arc 064's full structured AssertionPayload —
+actual, expected, location, frames — preserved through the EDN
+wire format on every host boundary. Each intermediate layer names
+WHICH host it was (Thread or Process — concrete satisfier of
+ProgramDiedError) and WHERE in the source the comm verb was that
+saw the peer's death.
+
+The test runner code is `(map render-died chain)` — no string
+parsing, no stderr scraping, no "best-effort approximation." The
+data is the truth.
+
+What this lights up:
+
+- **proof_004-style integration tests** that already span multiple
+  Programs get full causal traces across host boundaries. Today's
+  proof_004 test failures bottom out at "child exited; here's
+  stderr"; arc 113 makes them bottom out at "leaf assertion's
+  actual/expected with the full propagation path."
+- **wat-test runners** (`wat-tests-integ/`) that fork sandboxed
+  subprocesses get assertion-payload-faithful failures. The
+  `:wat::kernel::Failure` arc 105c lifts is preserved, not
+  re-rendered.
+- **Production telemetry** (arc 091 / 096) can record
+  `Vec<ProgramDiedError>` directly as structured event data —
+  query by leaf assertion type, by chain depth, by host transition
+  point, by location.
+- **Operator dashboards** can surface chain depth as a metric:
+  high-cardinality chains signal cascading failure modes; single-
+  entry chains are isolated panics.
+
+The arc-064 `Failure` (and arc-105c `Panic.failure: Option<Failure>`
+field) becomes the leaf-level data; the chain is the structural
+context. No information loss across the whole stack, in either
+in-thread or out-of-process hops.
+
 ## What this arc does NOT do
 
 - Does NOT add a separate "Caused by" construct or recursive
