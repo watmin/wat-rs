@@ -48,7 +48,7 @@ checks against `src/check.rs`, `src/runtime.rs`, `src/parser.rs`,
 | `:bool` | `:wat::core::bool` |
 | `:String` | `:wat::core::String` |
 | `:u8` | `:wat::core::u8` |
-| `:()` (unit) | `:wat::core::unit` (additive — `:()` stays as the empty-tuple literal) |
+| `:()` (unit, as a TYPE) | `:wat::kernel::unit` (replaces — `:()` retires as a type annotation) |
 | `:wat::core::keyword` | already FQDN ✓ |
 | `:wat::core::Bytes` | already FQDN ✓ |
 | `:wat::core::EvalError` | already FQDN ✓ |
@@ -56,17 +56,27 @@ checks against `src/check.rs`, `src/runtime.rs`, `src/parser.rs`,
 The five named primitive types (`i64`/`f64`/`bool`/`String`/`u8`) move
 under `:wat::core::*` and the bare forms retire (slice 1a → 1b → 1c).
 
-The unit type is a slightly different shape — `:()` is the natural
-empty-tuple syntax (zero-element structural form), not a bare-string
-name like `:i64`. **Slice 1d is additive only:** `:wat::core::unit`
-joins as a typealias for `:()`; both spellings unify; `:()` is NOT
-retired. Substrate-provided signatures gradually adopt
-`:wat::core::unit` for symmetry with `:wat::core::i64` etc.; user
-code can spell it either way. `unit` is the structural-honest name —
-matches Rust / ML / Haskell tradition. (No `unit?` predicate — per
-arc 110 / 111 doctrine, absence is `:None`, emptiness is `empty?`,
-errors are `:Err`; the unit type's static-known one-inhabitant
-makes a runtime predicate tautological.)
+The unit TYPE moves under `:wat::kernel::*` rather than `:wat::core::*`
+because it carries kernel-level semantic — "no useful return value"
+is the architectural commitment Program / Thread / Process all share
+(see Section J), not a primitive data shape like i64. Pre-arc-109
+the type is spelled `:()` (zero-element structural form, parses as
+empty tuple); slice 1d retires that spelling as a type annotation.
+The empty-tuple LITERAL VALUE `()` stays untouched — only the
+TYPE annotation `:()` is renamed.
+
+`unit` is the structural-honest name — matches Rust / ML / Haskell
+tradition. (No `unit?` predicate — per arc 110 / 111 doctrine,
+absence is `:None`, emptiness is `empty?`, errors are `:Err`; the
+unit type's static-known one-inhabitant makes a runtime predicate
+tautological.)
+
+User direction (2026-04-30, captured during arc 112 slice 2a sweep,
+following the Program / Thread / Process supertype split conversation
+in Section J):
+
+> i want us to remove () as the type in 109 - it needs to be swapped
+> to :wat::kernel::unit
 
 ## B. Parametric type heads
 
@@ -481,9 +491,16 @@ churn-on-churn:
    - **1b** — substrate stdlib + lab swept to FQDN.
    - **1c** — bare `:i64`/`:f64`/`:bool`/`:String`/`:u8` errors at
      startup with self-describing redirect.
-   - **1d** — `:wat::core::unit` typealias added for `:()`. Additive
-     only — `:()` stays as the natural empty-tuple syntax. No
-     retirement phase. Slice 1d can land independently of 1c.
+   - **1d** — `:wat::kernel::unit` minted; `:()` retires as a TYPE
+     annotation (the empty-tuple literal VALUE `()` stays). Three
+     sub-sub-slices mirror 1a → 1b → 1c: (1d-α) both `:()` and
+     `:wat::kernel::unit` accepted as type annotations (additive);
+     (1d-β) substrate stdlib + lab swept to `:wat::kernel::unit`;
+     (1d-γ) bare `:()` as a type annotation errors at startup with a
+     self-describing redirect. Placement under `:wat::kernel::*` (not
+     `:wat::core::*`) tracks the kernel-level semantic — unit signals
+     "no useful return value" tied to Program/Thread/Process
+     termination (see Section J).
 2. **Slice 2 — Section B + D' (parametric heads + Option/Result
    method forms).** `Vec → Vector`, `Option`/`Result`/`HashMap`/
    `HashSet` move to `:wat::core::*`, AND the four
@@ -579,9 +596,9 @@ field shape (stdin / stdout / stderr / wait-mechanism). They
 differ only in failure-reporting flavor:
 
 - `:wat::kernel::Thread/join-result` returns
-  `:Result<(), :wat::kernel::ThreadDiedError>`.
+  `:Result<:wat::kernel::unit, :wat::kernel::ThreadDiedError>`.
 - `:wat::kernel::Process/join-result` returns
-  `:Result<(), :wat::kernel::ProcessDiedError>`.
+  `:Result<:wat::kernel::unit, :wat::kernel::ProcessDiedError>`.
 
 Arc 112 introduced `ProcessDiedError` for slice 2a. The
 **Thread/join-result** verb does not yet exist; its work is
