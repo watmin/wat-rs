@@ -2,7 +2,7 @@
 //! `:wat::test::assert-*` stdlib forms.
 //!
 //! Arc 007 slice 3: one new kernel primitive + one panic-payload type.
-//! The wat stdlib `wat/std/test.wat` builds `assert-eq`, `assert-
+//! The wat stdlib `wat/test.wat` builds `assert-eq`, `assert-
 //! contains`, etc. on top of this single raise; `run-sandboxed`'s
 //! `catch_unwind` downcasts [`AssertionPayload`] out of the panic box
 //! and populates the `actual` / `expected` slots on the emitted

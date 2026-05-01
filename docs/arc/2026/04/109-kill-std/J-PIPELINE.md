@@ -438,6 +438,18 @@ slice plans name.
                   Stream stdlib's path now mirrors its shipped
                   FQDN per § G's filesystem-path rule.
 
+[done]  arc 109 slice 9f-9g — pure file moves for edn + test
+                  (basenames already align with namespace leaves;
+                  no symbol changes). git mv ×2 + src/stdlib.rs
+                  include path updates ×2 + 1 doc-comment fix in
+                  src/assertion.rs. cargo test workspace 1476/0
+                  (SLICE-9F-9G.md). Smallest substrate slice in
+                  the catalog. Originally bundled as 9f-9i;
+                  gaze ward (2026-05-01) split sandbox+hermetic
+                  out as K.thread-process (twins differing only
+                  in transport — Thread vs Process; symbols
+                  rename to Thread/run-ast + Process/run-ast).
+
 [next]  § J 10d — typeclass dispatch + ProgramDiedError supertype
                   (mint ProgramDiedError; mint Program<I,O> as
                   abstract protocol; mint poly Program/join-result;
@@ -455,7 +467,9 @@ slice plans name.
                   element-type change in the typealiases)
 
 [parallel-shippable, sonnet-delegatable] independent sweeps:
-        § 9f-9i (file-path moves for already-honest-symbol files)
+        K.thread-process (sandbox/hermetic → Thread/Process per
+                          gaze finding; subsumes original 9h+9i
+                          plan; symbol renames + file moves)
 
         § K.console (Console grouping noun → :wat::console::*
                      flatten; SUBSUMES the original § 9e plan

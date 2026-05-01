@@ -298,10 +298,10 @@ Dishonest layout (path does NOT match shipped FQDN — six files):
 
 | Today's file | Today's shipped paths | After arc 109 |
 |---|---|---|
-| `wat/std/edn.wat` | `:wat::edn::*` | `wat/edn.wat` (file move; symbols unchanged) |
-| `wat/std/test.wat` | `:wat::test::*` | `wat/test.wat` (file move; symbols unchanged) |
-| `wat/std/sandbox.wat` | `:wat::kernel::run-sandboxed*` | `wat/kernel/sandbox.wat` |
-| `wat/std/hermetic.wat` | `:wat::kernel::run-sandboxed-hermetic*` etc. | `wat/kernel/hermetic.wat` |
+| ✓ `wat/std/edn.wat` | `:wat::edn::*` | `wat/edn.wat` (shipped slice 9f 2026-05-01) |
+| ✓ `wat/std/test.wat` | `:wat::test::*` | `wat/test.wat` (shipped slice 9g 2026-05-01) |
+| `wat/std/sandbox.wat` | `:wat::kernel::run-sandboxed*` | `wat/kernel/thread.wat` (deferred to slice K.thread-process — gaze flagged 2026-05-01: file is the Thread half of a twin pair, not a sandbox sub-namespace; symbols rename to `:wat::kernel::Thread/run-ast`) |
+| `wat/std/hermetic.wat` | `:wat::kernel::run-sandboxed-hermetic*` | `wat/kernel/process.wat` (deferred to slice K.thread-process — file is the Process half; symbols rename to `:wat::kernel::Process/run-ast`) |
 | ✓ `wat/std/stream.wat` | `:wat::std::stream::*` | `wat/stream.wat` (path AND symbols both renamed; shipped slice 9d 2026-05-01) |
 | `wat/std/service/Console.wat` | `:wat::std::service::Console::*` | `wat/console/Console.wat` (path AND symbols both rename per slice 9e) |
 
@@ -944,6 +944,51 @@ The two patterns coexist:
 § K's cleanup keeps `Type/method` honest by removing every site
 where the LHS isn't a real Type. § J adds typeclass dispatch as a
 parallel mechanism for the genuinely-polymorphic cases.
+
+### K.thread-process — kernel sandbox/hermetic flatten (gaze finding 2026-05-01)
+
+**Provenance:** during slice 9f-9i exploration, gaze ward
+(invoked on the sandbox/hermetic naming question) returned a
+Level 1 finding:
+
+> `run-sandboxed-hermetic-ast` is doubly-named for one
+> property. The actual axis that varies between sandbox.wat
+> and hermetic.wat is **transport** (Thread vs Process via
+> fork) — both flavors are equally sandboxed; "hermetic" is
+> just the fork case. Sandbox and hermetic are twins.
+
+**The renaming aligned with § J's Thread/Process axis** (which
+the rest of arc 109 already commits to):
+
+| Today | After K.thread-process |
+|---|---|
+| `wat/std/sandbox.wat` | `wat/kernel/thread.wat` |
+| `wat/std/hermetic.wat` | `wat/kernel/process.wat` |
+| `:wat::kernel::run-sandboxed-ast` | `:wat::kernel::Thread/run-ast` |
+| `:wat::kernel::run-sandboxed-hermetic-ast` | `:wat::kernel::Process/run-ast` |
+| `:wat::kernel::run-sandboxed` (helper) | `:wat::kernel::Thread/run` |
+| `drive-sandbox` (shared driver) | `:wat::kernel::Program/drive` (poly over Program<I,O>) |
+
+`Thread` and `Process` are real Types per § K (structural
+satisfiers of `Program<I,O>`); `/run-ast` returns RunResult
+so the constructor-flavor honesty test passes; the polymorphic
+`:wat::kernel::run-ast` falls out of § J slice 10d's typeclass
+mechanism for free when callers want host-agnostic. The shared
+driver becomes one definition (Program/drive) since both
+Thread and Process satisfy Program<I,O> post-arc-114.
+
+**Slice work**: Pattern 2 verb retirement (poison the legacy
+`:wat::kernel::run-sandboxed*` heads); Pattern 3 walker for
+prefix detection; file moves (`git mv`); `src/stdlib.rs`
+include path updates; consumer sweep. Bigger than file-only
+move because symbols are also renaming.
+
+User direction (2026-05-01):
+
+> i support this renaming - add this kernel work to the
+> backlog - do the other std/ files first
+
+Tracked as task #197.
 
 ### Slice plan (rolled into 109's J-PIPELINE)
 

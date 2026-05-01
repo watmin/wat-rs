@@ -107,8 +107,8 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/std/sandbox.wat"),
     },
     WatSource {
-        path: "wat/std/test.wat",
-        source: include_str!("../wat/std/test.wat"),
+        path: "wat/test.wat",
+        source: include_str!("../wat/test.wat"),
     },
     // Arc 096 — `:wat::std::service::Console` (the paired-channel
     // mini-TCP driver, arc 089 slice 5) STAYS in the substrate
@@ -124,8 +124,8 @@ const STDLIB_FILES: &[WatSource] = &[
     // around HolonAST. Used by wat-sqlite's auto-dispatch (arc 085) to
     // pick :wat::edn::write vs :wat::edn::write-notag at TEXT-bind time.
     WatSource {
-        path: "wat/std/edn.wat",
-        source: include_str!("../wat/std/edn.wat"),
+        path: "wat/edn.wat",
+        source: include_str!("../wat/edn.wat"),
     },
 ];
 
