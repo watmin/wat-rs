@@ -67,11 +67,11 @@
        (acc :wat::core::i64)
        -> :wat::core::i64)
      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
-       ((Ok (:wat::core::Some _v))
+       ((:wat::core::Ok (:wat::core::Some _v))
          (:wat-tests::holon::lru::HologramCacheService::count-recv
            rx (:wat::core::i64::+ acc 1)))
-       ((Ok :wat::core::None) acc)
-       ((Err _died) acc)))
+       ((:wat::core::Ok :wat::core::None) acc)
+       ((:wat::core::Err _died) acc)))
 
    (:wat::core::define
      (:wat-tests::holon::lru::HologramCacheService::counter-worker
@@ -133,8 +133,8 @@
           "step1: thread died before sending len")
         "step1: thread output closed without sending len")))
     (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :wat::core::unit
-      ((Ok _) ())
-      ((Err _) (:wat::test::assert-eq "spawn-died" "")))))
+      ((:wat::core::Ok _) ())
+      ((:wat::core::Err _) (:wat::test::assert-eq "spawn-died" "")))))
 
 ;; ─── Step 2 — counted recv via a caller-allocated channel ──────
 
@@ -180,11 +180,11 @@
           "step2: thread died before sending count")
         "step2: thread output closed without sending count")))
     (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :wat::core::unit
-      ((Ok _)
+      ((:wat::core::Ok _)
         (:wat::core::if (:wat::core::= count 3) -> :wat::core::unit
           ()
           (:wat::test::assert-eq "wrong-count" "")))
-      ((Err _) (:wat::test::assert-eq "worker-died" "")))))
+      ((:wat::core::Err _) (:wat::test::assert-eq "worker-died" "")))))
 
 ;; ─── Step 3 — Service/loop drives the real Request enum (Put only) ──
 
@@ -247,11 +247,11 @@
           "step3: thread died before sending len")
         "step3: thread output closed without sending len")))
     (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :wat::core::unit
-      ((Ok _)
+      ((:wat::core::Ok _)
         (:wat::core::if (:wat::core::= len 3) -> :wat::core::unit
           ()
           (:wat::test::assert-eq "wrong-len" "")))
-      ((Err _) (:wat::test::assert-eq "service-died" "")))))
+      ((:wat::core::Err _) (:wat::test::assert-eq "service-died" "")))))
 
 ;; ─── Step 4 — Put then Get round-trip via reply-tx ──────────────
 ;;
@@ -310,16 +310,16 @@
             "step4 send Get: peer disconnected"))
          ((_check :wat::core::unit)
           (:wat::core::match (:wat::kernel::recv reply-rx) -> :wat::core::unit
-            ((Ok (:wat::core::Some inner))
+            ((:wat::core::Ok (:wat::core::Some inner))
               (:wat::core::match inner -> :wat::core::unit
                 ((:wat::core::Some _val) ())
                 (:wat::core::None (:wat::test::assert-eq "cache-miss" ""))))
-            ((Ok :wat::core::None) (:wat::test::assert-eq "no-reply" ""))
-            ((Err _died) (:wat::test::assert-eq "no-reply" "")))))
+            ((:wat::core::Ok :wat::core::None) (:wat::test::assert-eq "no-reply" ""))
+            ((:wat::core::Err _died) (:wat::test::assert-eq "no-reply" "")))))
         h)))
     (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :wat::core::unit
-      ((Ok _) ())
-      ((Err _) (:wat::test::assert-eq "service-died" "")))))
+      ((:wat::core::Ok _) ())
+      ((:wat::core::Err _) (:wat::test::assert-eq "service-died" "")))))
 
 ;; ─── Step 5 — full Service constructor + HandlePool fan-in ──────
 
@@ -378,12 +378,12 @@
             "step5 client-a send Get: peer disconnected"))
          ((_check-a :wat::core::unit)
           (:wat::core::match (:wat::kernel::recv reply-rx-a) -> :wat::core::unit
-            ((Ok (:wat::core::Some inner))
+            ((:wat::core::Ok (:wat::core::Some inner))
               (:wat::core::match inner -> :wat::core::unit
                 ((:wat::core::Some _val) ())
                 (:wat::core::None (:wat::test::assert-eq "client-a-miss" ""))))
-            ((Ok :wat::core::None) (:wat::test::assert-eq "client-a-no-reply" ""))
-            ((Err _died) (:wat::test::assert-eq "client-a-no-reply" ""))))
+            ((:wat::core::Ok :wat::core::None) (:wat::test::assert-eq "client-a-no-reply" ""))
+            ((:wat::core::Err _died) (:wat::test::assert-eq "client-a-no-reply" ""))))
 
          ;; Client B: Put + Get on beta
          ((_pb :wat::core::unit)
@@ -398,16 +398,16 @@
             "step5 client-b send Get: peer disconnected"))
          ((_check-b :wat::core::unit)
           (:wat::core::match (:wat::kernel::recv reply-rx-b) -> :wat::core::unit
-            ((Ok (:wat::core::Some inner))
+            ((:wat::core::Ok (:wat::core::Some inner))
               (:wat::core::match inner -> :wat::core::unit
                 ((:wat::core::Some _val) ())
                 (:wat::core::None (:wat::test::assert-eq "client-b-miss" ""))))
-            ((Ok :wat::core::None) (:wat::test::assert-eq "client-b-no-reply" ""))
-            ((Err _died) (:wat::test::assert-eq "client-b-no-reply" "")))))
+            ((:wat::core::Ok :wat::core::None) (:wat::test::assert-eq "client-b-no-reply" ""))
+            ((:wat::core::Err _died) (:wat::test::assert-eq "client-b-no-reply" "")))))
         d)))
     (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::unit
-      ((Ok _) ())
-      ((Err _) (:wat::test::assert-eq "service-died" "")))))
+      ((:wat::core::Ok _) ())
+      ((:wat::core::Err _) (:wat::test::assert-eq "service-died" "")))))
 
 ;; ─── Step 6 — LRU eviction visible through Service Get/Put round-trips ──
 ;;
@@ -472,12 +472,12 @@
             "step6 send Get k1: peer disconnected"))
          ((_check-1 :wat::core::unit)
           (:wat::core::match (:wat::kernel::recv reply-rx) -> :wat::core::unit
-            ((Ok (:wat::core::Some inner))
+            ((:wat::core::Ok (:wat::core::Some inner))
               (:wat::core::match inner -> :wat::core::unit
                 ((:wat::core::Some _) (:wat::test::assert-eq "k1-not-evicted" ""))
                 (:wat::core::None ())))
-            ((Ok :wat::core::None) (:wat::test::assert-eq "no-reply-1" ""))
-            ((Err _died) (:wat::test::assert-eq "no-reply-1" ""))))
+            ((:wat::core::Ok :wat::core::None) (:wat::test::assert-eq "no-reply-1" ""))
+            ((:wat::core::Err _died) (:wat::test::assert-eq "no-reply-1" ""))))
 
          ;; Get k2 — survived, expect Some.
          ((_g2 :wat::core::unit)
@@ -487,13 +487,13 @@
             "step6 send Get k2: peer disconnected"))
          ((_check-2 :wat::core::unit)
           (:wat::core::match (:wat::kernel::recv reply-rx) -> :wat::core::unit
-            ((Ok (:wat::core::Some inner))
+            ((:wat::core::Ok (:wat::core::Some inner))
               (:wat::core::match inner -> :wat::core::unit
                 ((:wat::core::Some _) ())
                 (:wat::core::None (:wat::test::assert-eq "k2-evicted" ""))))
-            ((Ok :wat::core::None) (:wat::test::assert-eq "no-reply-2" ""))
-            ((Err _died) (:wat::test::assert-eq "no-reply-2" "")))))
+            ((:wat::core::Ok :wat::core::None) (:wat::test::assert-eq "no-reply-2" ""))
+            ((:wat::core::Err _died) (:wat::test::assert-eq "no-reply-2" "")))))
         d)))
     (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::unit
-      ((Ok _) ())
-      ((Err _) (:wat::test::assert-eq "service-died" "")))))
+      ((:wat::core::Ok _) ())
+      ((:wat::core::Err _) (:wat::test::assert-eq "service-died" "")))))

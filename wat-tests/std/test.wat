@@ -314,8 +314,8 @@
       (:wat::core::macroexpand-1
         (:wat::core::quote (:wat::core::i64::+ 2 2))))
     -> :wat::core::unit
-    ((Ok _) (:wat::test::assert-eq true true))
-    ((Err _) (:wat::test::assert-eq true false))))
+    ((:wat::core::Ok _) (:wat::test::assert-eq true true))
+    ((:wat::core::Err _) (:wat::test::assert-eq true false))))
 
 (:wat::test::deftest :wat-tests::std::test::test-macroexpand-fixpoint-evaluates
   ()
@@ -326,5 +326,5 @@
       (:wat::core::macroexpand
         (:wat::core::quote (:wat::core::i64::* 3 4))))
     -> :wat::core::unit
-    ((Ok _) (:wat::test::assert-eq true true))
-    ((Err _) (:wat::test::assert-eq true false))))
+    ((:wat::core::Ok _) (:wat::test::assert-eq true true))
+    ((:wat::core::Err _) (:wat::test::assert-eq true false))))

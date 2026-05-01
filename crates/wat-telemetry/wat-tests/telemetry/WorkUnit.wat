@@ -66,8 +66,8 @@
        (:wat::core::foldl entries ()
          (:wat::core::lambda ((_acc :wat::core::unit) (e :wat::telemetry::Event) -> :wat::core::unit)
            (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::unit
-             ((Ok _) ())
-             ((Err _) ()))))))
+             ((:wat::core::Ok _) ())
+             ((:wat::core::Err _) ()))))))
 
    ;; Empty stats translator — null cadence never fires anyway.
    (:wat::core::define
@@ -471,7 +471,7 @@
          ;; past one would block (stub-tx is still alive in this scope),
          ;; so we recv only what we KNOW was sent.
          ((r1-some? :wat::core::bool)
-          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool ((Ok (:wat::core::Some _)) true) ((Ok :wat::core::None) false) ((Err _) false))))
+          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool ((:wat::core::Ok (:wat::core::Some _)) true) ((:wat::core::Ok :wat::core::None) false) ((:wat::core::Err _) false))))
         (:wat::core::Tuple d result r1-some?)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-result-some))
      ((result :wat::core::i64) (:wat::core::second thr-result-some))

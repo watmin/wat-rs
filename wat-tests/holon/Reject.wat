@@ -37,8 +37,8 @@
      (:wat::core::match
        (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b))
        -> :wat::holon::HolonAST
-       ((Ok h) h)
-       ((Err _) (:wat::holon::leaf 0)))))
+       ((:wat::core::Ok h) h)
+       ((:wat::core::Err _) (:wat::holon::leaf 0)))))
   (:wat::core::let*
     (((y :wat::holon::HolonAST) (:wat::holon::Atom "y"))
      ((noise :wat::holon::HolonAST) (:wat::holon::Atom "noise"))
@@ -58,8 +58,8 @@
      (:wat::core::match
        (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b))
        -> :wat::holon::HolonAST
-       ((Ok h) h)
-       ((Err _) (:wat::holon::leaf 0)))))
+       ((:wat::core::Ok h) h)
+       ((:wat::core::Err _) (:wat::holon::leaf 0)))))
   (:wat::core::let*
     (((y :wat::holon::HolonAST) (:wat::holon::Atom "y"))
      ((noise :wat::holon::HolonAST) (:wat::holon::Atom "noise"))

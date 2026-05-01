@@ -37,8 +37,8 @@
             (:wat::core::foldl entries ()
               (:wat::core::lambda ((_acc :wat::core::unit) (e :wat::core::i64) -> :wat::core::unit)
                 (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::unit
-                  ((Ok _) ())
-                  ((Err _) ()))))))
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))))
          ((stats-translator :fn(wat::telemetry::Service::Stats)->wat::core::Vector<wat::core::i64>)
           (:wat::core::lambda
             ((_s :wat::telemetry::Service::Stats) -> :wat::core::Vector<wat::core::i64>)
@@ -86,8 +86,8 @@
             (:wat::core::foldl entries ()
               (:wat::core::lambda ((_acc :wat::core::unit) (e :wat::core::i64) -> :wat::core::unit)
                 (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::unit
-                  ((Ok _) ())
-                  ((Err _) ()))))))
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))))
          ((stats-translator :fn(wat::telemetry::Service::Stats)->wat::core::Vector<wat::core::i64>)
           (:wat::core::lambda
             ((_s :wat::telemetry::Service::Stats) -> :wat::core::Vector<wat::core::i64>)
@@ -119,11 +119,11 @@
       (:wat::kernel::Thread/join-result driver))
      ;; Drain the stub-rx — three Some values. Match-at-source per arc 110.
      ((v1 :wat::core::i64)
-      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((Ok (:wat::core::Some v)) v) ((Ok :wat::core::None) -1) ((Err _) -1)))
+      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((:wat::core::Ok (:wat::core::Some v)) v) ((:wat::core::Ok :wat::core::None) -1) ((:wat::core::Err _) -1)))
      ((v2 :wat::core::i64)
-      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((Ok (:wat::core::Some v)) v) ((Ok :wat::core::None) -1) ((Err _) -1)))
+      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((:wat::core::Ok (:wat::core::Some v)) v) ((:wat::core::Ok :wat::core::None) -1) ((:wat::core::Err _) -1)))
      ((v3 :wat::core::i64)
-      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((Ok (:wat::core::Some v)) v) ((Ok :wat::core::None) -1) ((Err _) -1)))
+      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((:wat::core::Ok (:wat::core::Some v)) v) ((:wat::core::Ok :wat::core::None) -1) ((:wat::core::Err _) -1)))
      ((u1 :wat::core::unit) (:wat::test::assert-eq v1 10))
      ((u2 :wat::core::unit) (:wat::test::assert-eq v2 20)))
     (:wat::test::assert-eq v3 30)))
@@ -148,8 +148,8 @@
             (:wat::core::foldl entries ()
               (:wat::core::lambda ((_acc :wat::core::unit) (e :wat::core::i64) -> :wat::core::unit)
                 (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::unit
-                  ((Ok _) ())
-                  ((Err _) ()))))))
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))))
          ((stats-translator :fn(wat::telemetry::Service::Stats)->wat::core::Vector<wat::core::i64>)
           (:wat::core::lambda
             ((_s :wat::telemetry::Service::Stats) -> :wat::core::Vector<wat::core::i64>)
@@ -183,9 +183,9 @@
      ((stub-rx :wat::kernel::QueueReceiver<wat::core::i64>) (:wat::core::second thr-and-rx))
      ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
-     ((v1 :wat::core::i64) (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((Ok (:wat::core::Some v)) v) ((Ok :wat::core::None) 0) ((Err _) 0)))
-     ((v2 :wat::core::i64) (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((Ok (:wat::core::Some v)) v) ((Ok :wat::core::None) 0) ((Err _) 0)))
-     ((v3 :wat::core::i64) (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((Ok (:wat::core::Some v)) v) ((Ok :wat::core::None) 0) ((Err _) 0)))
+     ((v1 :wat::core::i64) (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((:wat::core::Ok (:wat::core::Some v)) v) ((:wat::core::Ok :wat::core::None) 0) ((:wat::core::Err _) 0)))
+     ((v2 :wat::core::i64) (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((:wat::core::Ok (:wat::core::Some v)) v) ((:wat::core::Ok :wat::core::None) 0) ((:wat::core::Err _) 0)))
+     ((v3 :wat::core::i64) (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((:wat::core::Ok (:wat::core::Some v)) v) ((:wat::core::Ok :wat::core::None) 0) ((:wat::core::Err _) 0)))
      ((u1 :wat::core::unit) (:wat::test::assert-eq v1 100))
      ((u2 :wat::core::unit) (:wat::test::assert-eq v2 200)))
     (:wat::test::assert-eq v3 -1)))

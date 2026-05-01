@@ -165,13 +165,13 @@
           ((idx :wat::core::i64) (:wat::core::first chosen))
           ((maybe :wat::kernel::CommResult<svc::Request>) (:wat::core::second chosen)))
          (:wat::core::match maybe -> :wat::core::unit
-           ((Ok (:wat::core::Some req))
+           ((:wat::core::Ok (:wat::core::Some req))
              (:wat::core::let*
                (((next :svc::State) (:svc::Service/handle req state)))
                (:svc::Service/loop req-rxs next out)))
-           ((Ok :wat::core::None)
+           ((:wat::core::Ok :wat::core::None)
              (:svc::Service/loop (:wat::std::list::remove-at req-rxs idx) state out))
-           ((Err _died)
+           ((:wat::core::Err _died)
              (:svc::Service/loop (:wat::std::list::remove-at req-rxs idx) state out))))))
 
 
@@ -321,7 +321,7 @@
         ((join-result :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
          (:wat::kernel::Thread/join-result thr)))
        (:wat::core::match join-result -> :wat::core::unit
-         ((Ok _)
+         ((:wat::core::Ok _)
            (:wat::core::let*
              (((pc :wat::core::i64) (:svc::State/push-count final-state))
               ((ac :wat::core::i64) (:svc::State/ack-count final-state))
@@ -332,4 +332,4 @@
              (:wat::core::if (:wat::core::= ac 1) -> :wat::core::unit
                ()
                (:wat::test::assert-eq "final ack != 1" ""))))
-         ((Err _) (:wat::test::assert-eq "driver-died" "")))))
+         ((:wat::core::Err _) (:wat::test::assert-eq "driver-died" "")))))

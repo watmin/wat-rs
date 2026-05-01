@@ -95,8 +95,8 @@
           (:wat::holon::Thermometer 0.25 -1.0 1.0))))
      ((form :wat::holon::HolonAST)
       (:wat::core::match bundled -> :wat::holon::HolonAST
-        ((Ok h)  h)
-        ((Err _) (:wat::holon::Atom "unreachable"))))
+        ((:wat::core::Ok h)  h)
+        ((:wat::core::Err _) (:wat::holon::Atom "unreachable"))))
      ((slots :wat::core::Vector<wat::core::f64>) (:wat::holon::term::slots form))
      ((n :wat::core::i64) (:wat::core::length slots)))
     (:wat::test::assert-eq n 2)))
@@ -113,8 +113,8 @@
           (:wat::holon::Thermometer 0.25 -1.0 1.0))))
      ((form :wat::holon::HolonAST)
       (:wat::core::match bundled -> :wat::holon::HolonAST
-        ((Ok h)  h)
-        ((Err _) (:wat::holon::Atom "unreachable"))))
+        ((:wat::core::Ok h)  h)
+        ((:wat::core::Err _) (:wat::holon::Atom "unreachable"))))
      ((slot-count :wat::core::i64)
       (:wat::core::length (:wat::holon::term::slots form)))
      ((range-count :wat::core::i64)
