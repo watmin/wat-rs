@@ -146,10 +146,10 @@
 (:wat::core::define
   (:wat::test::assert-stdout-is
     (result :wat::kernel::RunResult)
-    (expected :Vec<String>)
+    (expected :Vec<wat::core::String>)
     -> :())
   (:wat::core::let*
-    (((actual :Vec<String>) (:wat::kernel::RunResult/stdout result)))
+    (((actual :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout result)))
     (:wat::core::if (:wat::core::= actual expected) -> :()
       ()
       (:wat::kernel::assertion-failed!
@@ -165,7 +165,7 @@
 (:wat::core::define
   (:wat::test::any-line-matches
     (pattern :wat::core::String)
-    (lines :Vec<String>)
+    (lines :Vec<wat::core::String>)
     -> :wat::core::bool)
   (:wat::core::foldl lines false
     (:wat::core::lambda ((acc :wat::core::bool) (line :wat::core::String) -> :wat::core::bool)
@@ -177,7 +177,7 @@
     (pattern :wat::core::String)
     -> :())
   (:wat::core::let*
-    (((stderr-lines :Vec<String>) (:wat::kernel::RunResult/stderr result)))
+    (((stderr-lines :Vec<wat::core::String>) (:wat::kernel::RunResult/stderr result)))
     (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) -> :()
       ()
       (:wat::kernel::assertion-failed!
@@ -194,14 +194,14 @@
 (:wat::core::define
   (:wat::test::run
     (src :wat::core::String)
-    (stdin :Vec<String>)
+    (stdin :Vec<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed src stdin :None))
 
 (:wat::core::define
   (:wat::test::run-in-scope
     (src :wat::core::String)
-    (stdin :Vec<String>)
+    (stdin :Vec<wat::core::String>)
     (scope :wat::core::String)
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed src stdin (Some scope)))
@@ -233,7 +233,7 @@
 (:wat::core::define
   (:wat::test::run-ast
     (forms :Vec<wat::WatAST>)
-    (stdin :Vec<String>)
+    (stdin :Vec<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed-ast forms stdin :None))
 
@@ -253,7 +253,7 @@
 (:wat::core::define
   (:wat::test::run-hermetic-ast
     (forms :Vec<wat::WatAST>)
-    (stdin :Vec<String>)
+    (stdin :Vec<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed-hermetic-ast forms stdin :None))
 

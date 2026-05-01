@@ -11,9 +11,9 @@
 
 (:wat::core::defmacro
   (:wat::holon::Log
-    (value :AST<f64>)
-    (min :AST<f64>)
-    (max :AST<f64>)
+    (value :AST<wat::core::f64>)
+    (min :AST<wat::core::f64>)
+    (max :AST<wat::core::f64>)
     -> :AST<wat::holon::HolonAST>)
   `(:wat::holon::Thermometer
      (:wat::std::math::ln ,value)

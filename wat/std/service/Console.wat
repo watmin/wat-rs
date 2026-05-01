@@ -36,7 +36,7 @@
 ;; below). One write pipe + one ack pipe per producer scope; the
 ;; two pipes mutually block each other through bounded(1).
 (:wat::core::typealias :wat::std::service::Console::Message
-  :(i64,String))
+  :(wat::core::i64,wat::core::String))
 (:wat::core::typealias :wat::std::service::Console::Tx
   :wat::kernel::QueueSender<wat::std::service::Console::Message>)
 (:wat::core::typealias :wat::std::service::Console::Rx

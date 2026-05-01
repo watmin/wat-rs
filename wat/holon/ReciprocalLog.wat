@@ -30,8 +30,8 @@
 
 (:wat::core::defmacro
   (:wat::holon::ReciprocalLog
-    (n :AST<f64>)
-    (value :AST<f64>)
+    (n :AST<wat::core::f64>)
+    (value :AST<wat::core::f64>)
     -> :AST<wat::holon::HolonAST>)
   `(:wat::holon::Log
      ,value

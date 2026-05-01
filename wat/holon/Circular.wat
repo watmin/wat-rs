@@ -20,8 +20,8 @@
 
 (:wat::core::defmacro
   (:wat::holon::Circular
-    (value :AST<f64>)
-    (period :AST<f64>)
+    (value :AST<wat::core::f64>)
+    (period :AST<wat::core::f64>)
     -> :AST<wat::holon::HolonAST>)
   `(:wat::core::let*
      (((frac :wat::core::f64)

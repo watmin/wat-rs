@@ -41,7 +41,7 @@
 
 ;; --- Protocol typealiases ---
 (:wat::core::typealias :wat::lru::CacheService::Body<K,V>
-  :(i64,K,Option<V>))
+  :(wat::core::i64,K,Option<V>))
 (:wat::core::typealias :wat::lru::CacheService::ReplyTx<V>
   :wat::kernel::QueueSender<Option<V>>)
 (:wat::core::typealias :wat::lru::CacheService::Request<K,V>
@@ -95,7 +95,7 @@
 ;; invariant.
 (:wat::core::struct :wat::lru::CacheService::MetricsCadence<G>
   (gate :G)
-  (tick :fn(G,wat::lru::CacheService::Stats)->(G,bool)))
+  (tick :fn(G,wat::lru::CacheService::Stats)->(G,wat::core::bool)))
 
 (:wat::core::typealias :wat::lru::CacheService::Reporter
   :fn(wat::lru::CacheService::Report)->())
@@ -108,7 +108,7 @@
   (:wat::lru::CacheService::MetricsCadence/new
     ()
     (:wat::core::lambda
-      ((gate :()) (_stats :wat::lru::CacheService::Stats) -> :((),bool))
+      ((gate :()) (_stats :wat::lru::CacheService::Stats) -> :((),wat::core::bool))
       (:wat::core::tuple gate false))))
 
 ;; null-reporter — discards every Report variant.
@@ -218,9 +218,9 @@
       (:wat::lru::CacheService::State/stats state))
      ((gate :G)
       (:wat::lru::CacheService::MetricsCadence/gate metrics-cadence))
-     ((tick-fn :fn(G,wat::lru::CacheService::Stats)->(G,bool))
+     ((tick-fn :fn(G,wat::lru::CacheService::Stats)->(G,wat::core::bool))
       (:wat::lru::CacheService::MetricsCadence/tick metrics-cadence))
-     ((tick :(G,bool)) (tick-fn gate stats))
+     ((tick :(G,wat::core::bool)) (tick-fn gate stats))
      ((gate' :G) (:wat::core::first tick))
      ((fired :wat::core::bool) (:wat::core::second tick))
      ((cadence' :wat::lru::CacheService::MetricsCadence<G>)

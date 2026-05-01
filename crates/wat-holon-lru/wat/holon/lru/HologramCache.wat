@@ -34,7 +34,7 @@
 ;; point is `dim-capacity * 100` for ~100 entries per slot on average.
 (:wat::core::define
   (:wat::holon::lru::HologramCache/make
-    (filter :fn(f64)->bool)
+    (filter :fn(wat::core::f64)->wat::core::bool)
     (cap :wat::core::i64)
     -> :wat::holon::lru::HologramCache)
   (:wat::holon::lru::HologramCache/new

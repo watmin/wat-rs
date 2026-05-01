@@ -66,4 +66,4 @@
   :Result<Option<T>,wat::kernel::ThreadPanics>)
 
 (:wat::core::typealias :wat::kernel::Chosen<T>
-  :(i64,wat::kernel::CommResult<T>))
+  :(wat::core::i64,wat::kernel::CommResult<T>))

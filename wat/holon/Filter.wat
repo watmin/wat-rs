@@ -45,7 +45,7 @@
 ;; entire store carries the same threshold.
 (:wat::core::define
   (:wat::holon::filter-coincident
-    -> :fn(f64)->bool)
+    -> :fn(wat::core::f64)->wat::core::bool)
   (:wat::core::let*
     (((floor :wat::core::f64)
       (:wat::holon::coincident-floor (:wat::config::dim-count))))
@@ -62,7 +62,7 @@
 ;; Arc 076: d is read from the ambient `:wat::config::dim-count`.
 (:wat::core::define
   (:wat::holon::filter-present
-    -> :fn(f64)->bool)
+    -> :fn(wat::core::f64)->wat::core::bool)
   (:wat::core::let*
     (((floor :wat::core::f64)
       (:wat::holon::presence-floor (:wat::config::dim-count))))
@@ -77,5 +77,5 @@
 ;; their own gate downstream.
 (:wat::core::define
   (:wat::holon::filter-accept-any
-    -> :fn(f64)->bool)
+    -> :fn(wat::core::f64)->wat::core::bool)
   (:wat::core::lambda ((_ :wat::core::f64) -> :wat::core::bool) true))

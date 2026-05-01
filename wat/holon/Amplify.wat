@@ -10,6 +10,6 @@
   (:wat::holon::Amplify
     (x :AST<wat::holon::HolonAST>)
     (y :AST<wat::holon::HolonAST>)
-    (s :AST<f64>)
+    (s :AST<wat::core::f64>)
     -> :AST<wat::holon::HolonAST>)
   `(:wat::holon::Blend ,x ,y 1.0 ,s))

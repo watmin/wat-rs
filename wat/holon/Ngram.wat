@@ -21,7 +21,7 @@
 
 (:wat::core::defmacro
   (:wat::holon::Ngram
-    (n :AST<i64>)
+    (n :AST<wat::core::i64>)
     (xs :AST<List<wat::holon::HolonAST>>)
     -> :AST<wat::holon::BundleResult>)
   `(:wat::holon::Bundle

@@ -92,7 +92,7 @@
   (:wat::telemetry::WorkUnit/durations
     (wu :wat::telemetry::WorkUnit)
     (name :wat::holon::HolonAST)
-    -> :Vec<f64>)
+    -> :Vec<wat::core::f64>)
   (:rust::telemetry::WorkUnit::durations wu name))
 
 
@@ -286,7 +286,7 @@
     (uuid          :wat::core::String)
     (tags          :wat::telemetry::Tags)
     (name          :wat::holon::HolonAST)
-    (samples       :Vec<f64>)
+    (samples       :Vec<wat::core::f64>)
     -> :Vec<wat::telemetry::Event>)
   (:wat::core::foldl samples
     (:wat::core::vec :wat::telemetry::Event)
@@ -339,7 +339,7 @@
            (key :wat::holon::HolonAST)
            -> :Vec<wat::telemetry::Event>)
           (:wat::core::let*
-            (((samples :Vec<f64>)
+            (((samples :Vec<wat::core::f64>)
               (:wat::telemetry::WorkUnit/durations wu key))
              ((per-name :Vec<wat::telemetry::Event>)
               (:wat::telemetry::WorkUnit/scope::collect-duration-events-for-name

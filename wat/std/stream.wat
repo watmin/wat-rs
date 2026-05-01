@@ -236,7 +236,7 @@
   (:wat::std::stream::filter-worker<T>
     (in :wat::kernel::QueueReceiver<T>)
     (out :wat::kernel::QueueSender<T>)
-    (pred :fn(T)->bool)
+    (pred :fn(T)->wat::core::bool)
     -> :())
   (:wat::core::match (:wat::kernel::recv in) -> :()
     ((Ok (Some v))
@@ -251,7 +251,7 @@
 (:wat::core::define
   (:wat::std::stream::filter<T>
     (upstream :wat::std::stream::Stream<T>)
-    (pred :fn(T)->bool)
+    (pred :fn(T)->wat::core::bool)
     -> :wat::std::stream::Stream<T>)
   (:wat::core::let*
     (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))

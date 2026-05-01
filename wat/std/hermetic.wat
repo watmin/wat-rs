@@ -41,9 +41,9 @@
 (:wat::core::define
   (:wat::kernel::drain-lines-acc
     (r   :wat::io::IOReader)
-    (acc :Vec<String>)
-    -> :Vec<String>)
-  (:wat::core::match (:wat::io::IOReader/read-line r) -> :Vec<String>
+    (acc :Vec<wat::core::String>)
+    -> :Vec<wat::core::String>)
+  (:wat::core::match (:wat::io::IOReader/read-line r) -> :Vec<wat::core::String>
     ((Some line)
      (:wat::kernel::drain-lines-acc
        r
@@ -51,7 +51,7 @@
     (:None acc)))
 
 (:wat::core::define
-  (:wat::kernel::drain-lines (r :wat::io::IOReader) -> :Vec<String>)
+  (:wat::kernel::drain-lines (r :wat::io::IOReader) -> :Vec<wat::core::String>)
   (:wat::kernel::drain-lines-acc r (:wat::core::vec :wat::core::String)))
 
 ;; The main event. Replaces the Rust primitive bit-for-bit at the
@@ -63,8 +63,8 @@
 (:wat::core::define
   (:wat::kernel::run-sandboxed-hermetic-ast<I,O>
     (forms :Vec<wat::WatAST>)
-    (stdin :Vec<String>)
-    (scope :Option<String>)
+    (stdin :Vec<wat::core::String>)
+    (scope :Option<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::core::match scope -> :wat::kernel::RunResult
     ((Some _)
@@ -102,9 +102,9 @@
          (:wat::kernel::Process/stdout proc))
         ((stderr-r :wat::io::IOReader)
          (:wat::kernel::Process/stderr proc))
-        ((stdout-lines :Vec<String>)
+        ((stdout-lines :Vec<wat::core::String>)
          (:wat::kernel::drain-lines stdout-r))
-        ((stderr-lines :Vec<String>)
+        ((stderr-lines :Vec<wat::core::String>)
          (:wat::kernel::drain-lines stderr-r))
         ;; Arc 113 slice 3 — same stderr-EDN preference as
          ;; drive-sandbox. The forked child renders the cascade

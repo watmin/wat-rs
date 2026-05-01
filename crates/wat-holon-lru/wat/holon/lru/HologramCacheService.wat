@@ -131,7 +131,7 @@
 ;; through the loop; the tick function itself is invariant.
 (:wat::core::struct :wat::holon::lru::HologramCacheService::MetricsCadence<G>
   (gate :G)
-  (tick :fn(G,wat::holon::lru::HologramCacheService::Stats)->(G,bool)))
+  (tick :fn(G,wat::holon::lru::HologramCacheService::Stats)->(G,wat::core::bool)))
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::Reporter
   :fn(wat::holon::lru::HologramCacheService::Report)->())
@@ -144,7 +144,7 @@
   (:wat::holon::lru::HologramCacheService::MetricsCadence/new
     ()
     (:wat::core::lambda
-      ((gate :()) (_stats :wat::holon::lru::HologramCacheService::Stats) -> :((),bool))
+      ((gate :()) (_stats :wat::holon::lru::HologramCacheService::Stats) -> :((),wat::core::bool))
       (:wat::core::tuple gate false))))
 
 ;; null-reporter — discards every Report variant.
@@ -257,9 +257,9 @@
       (:wat::holon::lru::HologramCacheService::State/stats state))
      ((gate :G)
       (:wat::holon::lru::HologramCacheService::MetricsCadence/gate metrics-cadence))
-     ((tick-fn :fn(G,wat::holon::lru::HologramCacheService::Stats)->(G,bool))
+     ((tick-fn :fn(G,wat::holon::lru::HologramCacheService::Stats)->(G,wat::core::bool))
       (:wat::holon::lru::HologramCacheService::MetricsCadence/tick metrics-cadence))
-     ((tick :(G,bool)) (tick-fn gate stats))
+     ((tick :(G,wat::core::bool)) (tick-fn gate stats))
      ((gate' :G) (:wat::core::first tick))
      ((fired :wat::core::bool) (:wat::core::second tick))
      ((cadence' :wat::holon::lru::HologramCacheService::MetricsCadence<G>)

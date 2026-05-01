@@ -46,7 +46,7 @@
 
 (:wat::core::struct :wat::telemetry::Service::MetricsCadence<G>
   (gate :G)
-  (tick :fn(G,wat::telemetry::Service::Stats)->(G,bool)))
+  (tick :fn(G,wat::telemetry::Service::Stats)->(G,wat::core::bool)))
 
 (:wat::core::define
   (:wat::telemetry::Service/null-metrics-cadence
@@ -54,7 +54,7 @@
   (:wat::telemetry::Service::MetricsCadence/new
     ()
     (:wat::core::lambda
-      ((gate :()) (_stats :wat::telemetry::Service::Stats) -> :((),bool))
+      ((gate :()) (_stats :wat::telemetry::Service::Stats) -> :((),wat::core::bool))
       (:wat::core::tuple gate false))))
 
 (:wat::core::define
@@ -109,7 +109,7 @@
 ;; Used by drain-rest's foldl to skip the rx select already
 ;; consumed (first-idx) and look up the matching ack-tx by position.
 (:wat::core::typealias :wat::telemetry::Service::IndexedDriverPair<E>
-  :(wat::telemetry::Service::DriverPair<E>,i64))
+  :(wat::telemetry::Service::DriverPair<E>,wat::core::i64))
 
 (:wat::core::typealias :wat::telemetry::Service::HandlePool<E>
   :wat::kernel::HandlePool<wat::telemetry::Service::Handle<E>>)
@@ -133,9 +133,9 @@
   (:wat::core::let*
     (((gate :G)
       (:wat::telemetry::Service::MetricsCadence/gate cadence))
-     ((tick-fn :fn(G,wat::telemetry::Service::Stats)->(G,bool))
+     ((tick-fn :fn(G,wat::telemetry::Service::Stats)->(G,wat::core::bool))
       (:wat::telemetry::Service::MetricsCadence/tick cadence))
-     ((tick :(G,bool)) (tick-fn gate stats))
+     ((tick :(G,wat::core::bool)) (tick-fn gate stats))
      ((gate' :G) (:wat::core::first tick))
      ((fired :wat::core::bool) (:wat::core::second tick))
      ((cadence' :wat::telemetry::Service::MetricsCadence<G>)
@@ -231,7 +231,7 @@
     (init :wat::telemetry::Service::Pending<E>)
     -> :wat::telemetry::Service::Pending<E>)
   (:wat::core::let*
-    (((indices :Vec<i64>)
+    (((indices :Vec<wat::core::i64>)
       (:wat::core::range 0 (:wat::core::length pairs)))
      ((indexed :Vec<wat::telemetry::Service::IndexedDriverPair<E>>)
       (:wat::std::list::zip pairs indices)))

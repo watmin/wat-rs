@@ -96,7 +96,7 @@
 (:wat::core::define
   (:wat::kernel::drive-sandbox<I,O>
     (proc  :wat::kernel::Program<I,O>)
-    (stdin :Vec<String>)
+    (stdin :Vec<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::core::let*
     (((stdin-w :wat::io::IOWriter)   (:wat::kernel::Process/stdin proc))
@@ -105,8 +105,8 @@
      ((_close  :())                  (:wat::io::IOWriter/close stdin-w))
      ((stdout-r :wat::io::IOReader)  (:wat::kernel::Process/stdout proc))
      ((stderr-r :wat::io::IOReader)  (:wat::kernel::Process/stderr proc))
-     ((stdout-lines :Vec<String>)    (:wat::kernel::drain-lines stdout-r))
-     ((stderr-lines :Vec<String>)    (:wat::kernel::drain-lines stderr-r))
+     ((stdout-lines :Vec<wat::core::String>)    (:wat::kernel::drain-lines stdout-r))
+     ((stderr-lines :Vec<wat::core::String>)    (:wat::kernel::drain-lines stderr-r))
      ((joined-result :Result<(),Vec<wat::kernel::ProcessDiedError>>)
       (:wat::kernel::Process/join-result proc))
      ;; Arc 113 slice 3 — symmetry with the thread cascade. When
@@ -152,8 +152,8 @@
 (:wat::core::define
   (:wat::kernel::run-sandboxed
     (src   :wat::core::String)
-    (stdin :Vec<String>)
-    (scope :Option<String>)
+    (stdin :Vec<wat::core::String>)
+    (scope :Option<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::core::match (:wat::kernel::spawn-program src scope)
     -> :wat::kernel::RunResult
@@ -165,8 +165,8 @@
 (:wat::core::define
   (:wat::kernel::run-sandboxed-ast
     (forms :Vec<wat::WatAST>)
-    (stdin :Vec<String>)
-    (scope :Option<String>)
+    (stdin :Vec<wat::core::String>)
+    (scope :Option<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::core::match (:wat::kernel::spawn-program-ast forms scope)
     -> :wat::kernel::RunResult
