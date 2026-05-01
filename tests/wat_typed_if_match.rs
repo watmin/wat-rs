@@ -318,8 +318,8 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
                   ())))
              ((result :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
               (:wat::kernel::Thread/join-result handle))
-             ((chain :Vec<wat::kernel::ThreadDiedError>)
-              (:wat::core::match result -> :Vec<wat::kernel::ThreadDiedError>
+             ((chain :wat::core::Vector<wat::kernel::ThreadDiedError>)
+              (:wat::core::match result -> :wat::core::Vector<wat::kernel::ThreadDiedError>
                 ((Ok _)   (:wat::core::panic! "test wants Err"))
                 ((Err e)  e)))
              ((err :wat::kernel::ThreadDiedError)

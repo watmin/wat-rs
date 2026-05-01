@@ -42,14 +42,14 @@ fn reckoner_discrete_construct_dims_labels() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((labels :Vec<wat::holon::HolonAST>)
-              (:wat::core::vec :wat::holon::HolonAST
+            (((labels :wat::core::Vector<wat::holon::HolonAST>)
+              (:wat::core::Vector :wat::holon::HolonAST
                 (:wat::holon::Atom "up")
                 (:wat::holon::Atom "down")))
              ((r :wat::holon::Reckoner)
               (:wat::holon::Reckoner/new-discrete "test-rec" 10000 100 labels))
              ((d :wat::core::i64) (:wat::holon::Reckoner/dims r))
-             ((label-list :Vec<wat::core::i64>) (:wat::holon::Reckoner/labels r))
+             ((label-list :wat::core::Vector<wat::core::i64>) (:wat::holon::Reckoner/labels r))
              ((nlabels :wat::core::i64) (:wat::core::length label-list)))
             (:wat::io::IOWriter/println stdout
               (:wat::core::if
@@ -69,8 +69,8 @@ fn reckoner_observe_then_predict() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((labels :Vec<wat::holon::HolonAST>)
-              (:wat::core::vec :wat::holon::HolonAST
+            (((labels :wat::core::Vector<wat::holon::HolonAST>)
+              (:wat::core::Vector :wat::holon::HolonAST
                 (:wat::holon::Atom "up")
                 (:wat::holon::Atom "down")))
              ((r :wat::holon::Reckoner)
@@ -79,7 +79,7 @@ fn reckoner_observe_then_predict() {
              ((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((u1 :wat::core::unit) (:wat::holon::Reckoner/observe r v 0 1.0))
              ((u2 :wat::core::unit) (:wat::holon::Reckoner/observe r v 1 1.0))
-             ((pred :(Vec<(wat::core::i64,wat::core::f64)>,wat::core::Option<wat::core::i64>,wat::core::f64,wat::core::f64))
+             ((pred :(wat::core::Vector<(wat::core::i64,wat::core::f64)>,wat::core::Option<wat::core::i64>,wat::core::f64,wat::core::f64))
               (:wat::holon::Reckoner/predict r v))
              ((conviction :wat::core::f64) (:wat::core::third pred)))
             ;; Predict returns a tuple — we just verify the call ran

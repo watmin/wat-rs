@@ -86,7 +86,7 @@ fn subspace_eigenvalues_returns_k_floats() {
             -> :())
           (:wat::core::let*
             (((s :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 8))
-             ((eigs :Vec<wat::core::f64>) (:wat::holon::OnlineSubspace/eigenvalues s))
+             ((eigs :wat::core::Vector<wat::core::f64>) (:wat::holon::OnlineSubspace/eigenvalues s))
              ((len :wat::core::i64) (:wat::core::length eigs)))
             (:wat::io::IOWriter/println stdout
               (:wat::core::if (:wat::core::= len 8) -> :wat::core::String "k-eigs" "wrong-len"))))

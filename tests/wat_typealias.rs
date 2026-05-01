@@ -124,7 +124,7 @@ fn tuple_alias_works_at_hashmap_constructor_arg() {
     // constructor's first-arg check expands aliases before its
     // Tuple-shape match, so `(:wat::core::HashMap :my::KV ...)` is
     // accepted exactly as if the literal `:(wat::core::String,wat::core::i64)` were
-    // written. Mirrors `:wat::core::Bytes ≡ :Vec<u8>` resolving
+    // written. Mirrors `:wat::core::Bytes ≡ :wat::core::Vector<wat::core::u8>` resolving
     // structurally at call sites.
     let src = r#"
         (:wat::core::typealias :my::KV :(wat::core::String,wat::core::i64))
@@ -191,7 +191,7 @@ fn alias_over_fn_type_works_at_spawn() {
                    (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
                    -> :wat::core::unit)
                   (job tx))))
-             ((_ :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+             ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
               (:wat::kernel::Thread/join-result h)))
             (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
               ((Ok (Some v)) v)

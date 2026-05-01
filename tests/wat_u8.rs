@@ -3,7 +3,7 @@
 //! Covers:
 //! - `(:wat::core::u8 <i64>)` cast: in-range produces `:u8`; out-of-range errors.
 //! - Comparison (`:wat::core::=`) works on `:u8` values.
-//! - `:Vec<u8>` construction via `(:wat::core::vec :u8 ...)` round-trips.
+//! - `:wat::core::Vector<u8>` construction via `(:wat::core::Vector :u8 ...)` round-trips.
 //! - Passing `:u8` values through function parameters and return types.
 
 use std::sync::Arc;
@@ -107,11 +107,11 @@ fn u8_inequality_works() {
 
 #[test]
 fn vec_u8_construction_round_trips() {
-    // (:wat::core::vec :u8 0 65 127 255) — cast each from i64 literal.
+    // (:wat::core::Vector :u8 0 65 127 255) — cast each from i64 literal.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::u8>)
-          (:wat::core::vec :wat::core::u8
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::u8>)
+          (:wat::core::Vector :wat::core::u8
             (:wat::core::u8 0)
             (:wat::core::u8 65)
             (:wat::core::u8 127)

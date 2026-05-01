@@ -8942,13 +8942,13 @@ mod tests {
 
     #[test]
     fn list_same_type_passes() {
-        assert!(check("(:wat::core::vec :wat::core::i64 1 2 3)").is_ok());
-        assert!(check(r#"(:wat::core::vec :wat::core::String "a" "b")"#).is_ok());
+        assert!(check("(:wat::core::Vector :wat::core::i64 1 2 3)").is_ok());
+        assert!(check(r#"(:wat::core::Vector :wat::core::String "a" "b")"#).is_ok());
     }
 
     #[test]
     fn list_mixed_types_rejected() {
-        let err = check(r#"(:wat::core::vec :i64 1 "two" 3)"#).unwrap_err();
+        let err = check(r#"(:wat::core::Vector :wat::core::i64 1 "two" 3)"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
@@ -8957,7 +8957,7 @@ mod tests {
         // Bundle takes :wat::holon::Holons. A list of (Atom ...) calls
         // returns :wat::holon::Holons, so Bundle(list(Atoms...)) type-checks.
         assert!(check(
-            r#"(:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST
+            r#"(:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST
                  (:wat::holon::Atom 1)
                  (:wat::holon::Atom 2)))"#
         )
@@ -8966,8 +8966,8 @@ mod tests {
 
     #[test]
     fn bundle_of_list_of_ints_rejected() {
-        // Bundle wants :wat::holon::Holons, but this is :Vec<i64>.
-        let err = check(r#"(:wat::holon::Bundle (:wat::core::vec :i64 1 2 3))"#).unwrap_err();
+        // Bundle wants :wat::holon::Holons, but this is :wat::core::Vector<wat::core::i64>.
+        let err = check(r#"(:wat::holon::Bundle (:wat::core::Vector :wat::core::i64 1 2 3))"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 

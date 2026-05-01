@@ -2,7 +2,7 @@
 //! (arc 007 slice 3b — AST-entry sandbox).
 //!
 //! Pattern: outer `:user::main` constructs a `Vec<wat::WatAST>` via
-//! `(:wat::core::vec :wat::WatAST (:wat::core::quote <form>) ...)` and
+//! `(:wat::core::Vector :wat::WatAST (:wat::core::quote <form>) ...)` and
 //! hands it to run-sandboxed-ast. Outer reads the inner RunResult and
 //! writes an observation to stdout; Rust asserts on stdout.
 
@@ -51,8 +51,8 @@ fn ast_entry_prints_hello() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((forms :Vec<wat::WatAST>)
-              (:wat::core::vec :wat::WatAST
+            (((forms :wat::core::Vector<wat::WatAST>)
+              (:wat::core::Vector :wat::WatAST
                 (:wat::core::quote (:wat::config::set-capacity-mode! :error))
                 (:wat::core::quote
                   (:wat::core::define (:user::main
@@ -62,8 +62,8 @@ fn ast_entry_prints_hello() {
                                        -> :wat::core::unit)
                     (:wat::io::IOWriter/println stdout "hello")))))
              ((r :wat::kernel::RunResult)
-              (:wat::kernel::run-sandboxed-ast forms (:wat::core::vec :wat::core::String) :None))
-             ((lines :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
+              (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :None))
+             ((lines :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
              ((line :wat::core::String)
               (:wat::core::match (:wat::core::first lines) -> :wat::core::String
                 ((Some s) s)
@@ -90,8 +90,8 @@ fn ast_entry_captures_assertion_failure() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((forms :Vec<wat::WatAST>)
-              (:wat::core::vec :wat::WatAST
+            (((forms :wat::core::Vector<wat::WatAST>)
+              (:wat::core::Vector :wat::WatAST
                 (:wat::core::quote (:wat::config::set-capacity-mode! :error))
                 (:wat::core::quote
                   (:wat::core::define (:user::main
@@ -101,7 +101,7 @@ fn ast_entry_captures_assertion_failure() {
                                        -> :wat::core::unit)
                     (:wat::test::assert-eq 1 2)))))
              ((r :wat::kernel::RunResult)
-              (:wat::kernel::run-sandboxed-ast forms (:wat::core::vec :wat::core::String) :None))
+              (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :None))
              ((fail :wat::core::Option<wat::kernel::Failure>)
               (:wat::kernel::RunResult/failure r)))
             (:wat::core::match fail -> :wat::core::unit

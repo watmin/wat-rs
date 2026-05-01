@@ -94,7 +94,7 @@ fn library_match_returns_named_pairs() {
              ((r :wat::core::f64) (:wat::holon::OnlineSubspace/update sub v))
              ((u :wat::core::unit) (:wat::holon::EngramLibrary/add lib "alpha" sub))
              ;; Match against the same vector — should return 1 pair (name, residual).
-             ((matches :Vec<(wat::core::String,wat::core::f64)>)
+             ((matches :wat::core::Vector<(wat::core::String,wat::core::f64)>)
               (:wat::holon::EngramLibrary/match-vec lib v 5 5))
              ((nmatches :wat::core::i64) (:wat::core::length matches)))
             (:wat::io::IOWriter/println stdout

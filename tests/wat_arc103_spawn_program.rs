@@ -209,7 +209,7 @@ fn spawn_program_ast_stderr_is_separate_pipe() {
 fn spawn_program_ast_join_returns_unit_on_clean_exit() {
     // Inner main returns :() cleanly; Process/join-result yields
     // Ok(:()) on the success arm. Arc 114: ProgramHandle<R> retired;
-    // every clean Process/Thread join returns :wat::core::Result<:wat::core::unit, :Vec<...>>.
+    // every clean Process/Thread join returns :wat::core::Result<:wat::core::unit, :wat::core::Vector<...>>.
     let src = r#"
 
         (:wat::core::define (:user::main
@@ -226,7 +226,7 @@ fn spawn_program_ast_join_returns_unit_on_clean_exit() {
                                          -> :wat::core::unit)
                       ()))
                   :None)))
-             ((joined :wat::core::Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
+             ((joined :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ProcessDiedError>>)
               (:wat::kernel::Process/join-result proc)))
             (:wat::core::match joined -> :wat::core::Result<wat::core::unit,wat::kernel::StartupError>
               ((Ok _)   (Ok ()))

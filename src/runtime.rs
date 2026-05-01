@@ -7853,7 +7853,7 @@ fn eval_algebra_bundle(
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Bundle".into(),
-                expected: "List<wat::holon::HolonAST> from (:wat::core::vec ...)",
+                expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
                 got: other.type_name(),
             });
         }
@@ -18273,7 +18273,7 @@ mod tests {
                     (stderr :wat::io::IOWriter)
                     -> :wat::core::unit)
                   (:wat::test::assert-eq 1 2)))
-              (:wat::core::vec :wat::core::String))
+              (:wat::core::Vector :wat::core::String))
         "#;
         let result = run(src).unwrap();
         // Walk RunResult.failure (field 2) → Failure { actual (3),

@@ -46,8 +46,8 @@ fn sort_by_ascending_i64() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<wat::core::i64>) (:wat::core::vec :wat::core::i64 3 1 4 1 5 9 2 6))
-             ((sorted :Vec<wat::core::i64>)
+            (((xs :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 3 1 4 1 5 9 2 6))
+             ((sorted :wat::core::Vector<wat::core::i64>)
               (:wat::core::sort-by xs
                 (:wat::core::lambda ((a :wat::core::i64) (b :wat::core::i64) -> :wat::core::bool)
                   (:wat::core::< a b)))))
@@ -70,8 +70,8 @@ fn sort_by_descending_f64() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64 1.5 0.5 2.5 1.0))
-             ((sorted :Vec<wat::core::f64>)
+            (((xs :wat::core::Vector<wat::core::f64>) (:wat::core::Vector :wat::core::f64 1.5 0.5 2.5 1.0))
+             ((sorted :wat::core::Vector<wat::core::f64>)
               (:wat::core::sort-by xs
                 (:wat::core::lambda ((a :wat::core::f64) (b :wat::core::f64) -> :wat::core::bool)
                   (:wat::core::> a b)))))
@@ -94,8 +94,8 @@ fn sort_by_string() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<wat::core::String>) (:wat::core::vec :wat::core::String "banana" "apple" "cherry"))
-             ((sorted :Vec<wat::core::String>)
+            (((xs :wat::core::Vector<wat::core::String>) (:wat::core::Vector :wat::core::String "banana" "apple" "cherry"))
+             ((sorted :wat::core::Vector<wat::core::String>)
               (:wat::core::sort-by xs
                 (:wat::core::lambda ((a :wat::core::String) (b :wat::core::String) -> :wat::core::bool)
                   (:wat::core::< a b)))))
@@ -114,8 +114,8 @@ fn sort_by_empty_vec() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<wat::core::i64>) (:wat::core::vec :wat::core::i64))
-             ((sorted :Vec<wat::core::i64>)
+            (((xs :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64))
+             ((sorted :wat::core::Vector<wat::core::i64>)
               (:wat::core::sort-by xs
                 (:wat::core::lambda ((a :wat::core::i64) (b :wat::core::i64) -> :wat::core::bool)
                   (:wat::core::< a b))))
@@ -135,12 +135,12 @@ fn sort_by_tuple_first_field_key() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<(wat::core::i64,wat::core::String)>)
-              (:wat::core::vec :(wat::core::i64,wat::core::String)
+            (((xs :wat::core::Vector<(wat::core::i64,wat::core::String)>)
+              (:wat::core::Vector :(wat::core::i64,wat::core::String)
                 (:wat::core::tuple 30 "alice")
                 (:wat::core::tuple 25 "carol")
                 (:wat::core::tuple 28 "bob")))
-             ((sorted :Vec<(wat::core::i64,wat::core::String)>)
+             ((sorted :wat::core::Vector<(wat::core::i64,wat::core::String)>)
               (:wat::core::sort-by xs
                 (:wat::core::lambda ((a :(wat::core::i64,wat::core::String)) (b :(wat::core::i64,wat::core::String)) -> :wat::core::bool)
                   (:wat::core::< (:wat::core::first a) (:wat::core::first b))))))

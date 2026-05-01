@@ -105,7 +105,7 @@ fn io_reader_read_returns_up_to_n_bytes() {
     // "hello" is 5 bytes. Read 3, expect [h, e, l].
     let src = r#"
 
-        (:wat::core::define (:user::main -> :wat::core::Option<Vec<wat::core::u8>>)
+        (:wat::core::define (:user::main -> :wat::core::Option<wat::core::Vector<wat::core::u8>>)
           (:wat::core::let*
             (((r :wat::io::IOReader)
               (:wat::io::IOReader/from-string "hello")))
@@ -127,12 +127,12 @@ fn io_reader_read_returns_up_to_n_bytes() {
 fn io_reader_read_at_eof_is_none() {
     let src = r#"
 
-        (:wat::core::define (:my::drain (r :wat::io::IOReader) -> :wat::core::Option<Vec<wat::core::u8>>)
+        (:wat::core::define (:my::drain (r :wat::io::IOReader) -> :wat::core::Option<wat::core::Vector<wat::core::u8>>)
           (:wat::core::let*
-            (((_ :wat::core::Option<Vec<wat::core::u8>>) (:wat::io::IOReader/read r 100)))
+            (((_ :wat::core::Option<wat::core::Vector<wat::core::u8>>) (:wat::io::IOReader/read r 100)))
             (:wat::io::IOReader/read r 100)))
 
-        (:wat::core::define (:user::main -> :wat::core::Option<Vec<wat::core::u8>>)
+        (:wat::core::define (:user::main -> :wat::core::Option<wat::core::Vector<wat::core::u8>>)
           (:wat::core::let*
             (((r :wat::io::IOReader)
               (:wat::io::IOReader/from-string "hi")))
@@ -147,7 +147,7 @@ fn io_reader_read_at_eof_is_none() {
 fn io_reader_read_all_returns_everything() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::u8>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::u8>)
           (:wat::core::let*
             (((r :wat::io::IOReader)
               (:wat::io::IOReader/from-string "hello")))
@@ -164,13 +164,13 @@ fn io_reader_rewind_restarts_from_beginning() {
     // Read everything, rewind, read again. Second read must succeed.
     let src = r#"
 
-        (:wat::core::define (:my::read-twice (r :wat::io::IOReader) -> :Vec<wat::core::u8>)
+        (:wat::core::define (:my::read-twice (r :wat::io::IOReader) -> :wat::core::Vector<wat::core::u8>)
           (:wat::core::let*
-            (((_ :Vec<wat::core::u8>) (:wat::io::IOReader/read-all r))
+            (((_ :wat::core::Vector<wat::core::u8>) (:wat::io::IOReader/read-all r))
              ((_ :wat::core::unit) (:wat::io::IOReader/rewind r)))
             (:wat::io::IOReader/read-all r)))
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::u8>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::u8>)
           (:wat::core::let*
             (((r :wat::io::IOReader)
               (:wat::io::IOReader/from-string "again")))
@@ -217,8 +217,8 @@ fn io_writer_write_returns_byte_count() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((w :wat::io::IOWriter) (:wat::io::IOWriter/new))
-             ((bytes :Vec<wat::core::u8>)
-              (:wat::core::vec :wat::core::u8
+             ((bytes :wat::core::Vector<wat::core::u8>)
+              (:wat::core::Vector :wat::core::u8
                 (:wat::core::u8 72)
                 (:wat::core::u8 105)
                 (:wat::core::u8 33))))
@@ -231,11 +231,11 @@ fn io_writer_write_returns_byte_count() {
 fn io_writer_write_all_then_to_bytes_round_trips() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::u8>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::u8>)
           (:wat::core::let*
             (((w :wat::io::IOWriter) (:wat::io::IOWriter/new))
-             ((bytes :Vec<wat::core::u8>)
-              (:wat::core::vec :wat::core::u8
+             ((bytes :wat::core::Vector<wat::core::u8>)
+              (:wat::core::Vector :wat::core::u8
                 (:wat::core::u8 65)
                 (:wat::core::u8 66)
                 (:wat::core::u8 67)))

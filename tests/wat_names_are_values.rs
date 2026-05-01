@@ -63,7 +63,7 @@ fn named_define_is_a_function_value() {
              ((result :wat::core::i64) (f 21)))
             (:wat::io::IOWriter/println stdout
               (:wat::core::string::join ""
-                (:wat::core::conj (:wat::core::vec :wat::core::String) "result-is-")))))
+                (:wat::core::conj (:wat::core::Vector :wat::core::String) "result-is-")))))
     "##;
     // We can't stringify i64 without a fmt primitive. Check the call
     // worked by threading through a known branch.
@@ -209,7 +209,7 @@ fn named_define_as_stream_map_fn() {
                     ()))))
              ((doubled :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::map source :my::double))
-             ((collected :Vec<wat::core::i64>) (:wat::std::stream::collect doubled))
+             ((collected :wat::core::Vector<wat::core::i64>) (:wat::std::stream::collect doubled))
              ((first :wat::core::i64)
               (:wat::core::match (:wat::core::first collected) -> :wat::core::i64
                 ((Some n) n)

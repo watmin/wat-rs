@@ -48,7 +48,7 @@ fn mean_known_input() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
+            (((xs :wat::core::Vector<wat::core::f64>) (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
              ((m :wat::core::Option<wat::core::f64>) (:wat::std::stat::mean xs))
              ((v :wat::core::f64)
               (:wat::core::match m -> :wat::core::f64
@@ -68,7 +68,7 @@ fn mean_empty_is_none() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64))
+            (((xs :wat::core::Vector<wat::core::f64>) (:wat::core::Vector :wat::core::f64))
              ((m :wat::core::Option<wat::core::f64>) (:wat::std::stat::mean xs))
              ((label :wat::core::String)
               (:wat::core::match m -> :wat::core::String
@@ -90,7 +90,7 @@ fn variance_population_known_input() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
+            (((xs :wat::core::Vector<wat::core::f64>) (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
              ((v :wat::core::f64)
               (:wat::core::match (:wat::std::stat::variance xs) -> :wat::core::f64
                 ((Some x) x) (:None -1.0))))
@@ -109,7 +109,7 @@ fn variance_single_point_zero() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64 7.0))
+            (((xs :wat::core::Vector<wat::core::f64>) (:wat::core::Vector :wat::core::f64 7.0))
              ((v :wat::core::f64)
               (:wat::core::match (:wat::std::stat::variance xs) -> :wat::core::f64
                 ((Some x) x) (:None -1.0))))
@@ -129,7 +129,7 @@ fn stddev_known_input() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
+            (((xs :wat::core::Vector<wat::core::f64>) (:wat::core::Vector :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
              ((sd :wat::core::f64)
               (:wat::core::match (:wat::std::stat::stddev xs) -> :wat::core::f64
                 ((Some x) x) (:None -1.0))))

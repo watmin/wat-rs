@@ -49,9 +49,9 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
     // head's structured payload; actual = "1", expected = "2".
     let src = r##"
         (:wat::core::define
-          (:user::main -> :Vec<wat::core::String>)
+          (:user::main -> :wat::core::Vector<wat::core::String>)
           (:wat::core::let*
-            (((forms :Vec<wat::WatAST>)
+            (((forms :wat::core::Vector<wat::WatAST>)
               (:wat::test::program
                 (:wat::core::define (:user::main
                                      (stdin  :wat::io::IOReader)
@@ -62,14 +62,14 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-hermetic-ast
                 forms
-                (:wat::core::vec :wat::core::String)
+                (:wat::core::Vector :wat::core::String)
                 :None))
              ((fail :wat::core::Option<wat::kernel::Failure>)
               (:wat::kernel::RunResult/failure r))
-             ((rendered :Vec<wat::core::String>)
-              (:wat::core::match fail -> :Vec<wat::core::String>
+             ((rendered :wat::core::Vector<wat::core::String>)
+              (:wat::core::match fail -> :wat::core::Vector<wat::core::String>
                 ((Some f)
-                 (:wat::core::vec :wat::core::String
+                 (:wat::core::Vector :wat::core::String
                    (:wat::kernel::Failure/message f)
                    (:wat::core::match (:wat::kernel::Failure/actual f) -> :wat::core::String
                      ((Some a) a)
@@ -78,7 +78,7 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
                      ((Some e) e)
                      (:None ":None"))))
                 (:None
-                 (:wat::core::vec :wat::core::String "NO-FAILURE")))))
+                 (:wat::core::Vector :wat::core::String "NO-FAILURE")))))
             rendered))
     "##;
     let result = run(src);

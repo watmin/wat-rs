@@ -69,7 +69,7 @@ fn vector_bundle_singleton_returns_input() {
           (:wat::core::let*
             (((va :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((bundled :wat::holon::Vector)
-              (:wat::holon::vector-bundle (:wat::core::vec :wat::holon::Vector va)))
+              (:wat::holon::vector-bundle (:wat::core::Vector :wat::holon::Vector va)))
              ;; Cosine should be ~1.0 (same sign pattern).
              ((c :wat::core::f64) (:wat::holon::cosine va bundled)))
             (:wat::io::IOWriter/println stdout

@@ -209,7 +209,9 @@ fn lower_bundle(args: &[WatAST]) -> Result<HolonAST, LowerError> {
         WatAST::List(items, _) => {
             let head = items.first().ok_or(LowerError::BundleShape)?;
             match head {
-                WatAST::Keyword(k, _) if k == ":wat::core::vec" => {
+                WatAST::Keyword(k, _)
+                    if k == ":wat::core::vec" || k == ":wat::core::Vector" =>
+                {
                     if items.len() < 2 {
                         return Err(LowerError::BundleShape);
                     }

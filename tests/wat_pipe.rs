@@ -101,7 +101,7 @@ fn pipe_multiple_writelns_read_line_by_line() {
             (:wat::core::match a -> :wat::core::String
               ((Some sa)
                (:wat::core::match b -> :wat::core::String
-                 ((Some sb) (:wat::core::string::join "," (:wat::core::vec :wat::core::String sa sb)))
+                 ((Some sb) (:wat::core::string::join "," (:wat::core::Vector :wat::core::String sa sb)))
                  (:None     "second-missing")))
               (:None "first-missing"))))
     "#;
@@ -121,7 +121,7 @@ fn pipe_write_string_then_read_exact_bytes() {
              ((w :wat::io::IOWriter) (:wat::core::first pair))
              ((r :wat::io::IOReader) (:wat::core::second pair))
              ((n :wat::core::i64) (:wat::io::IOWriter/write-string w "hello"))
-             ((got :wat::core::Option<Vec<wat::core::u8>>) (:wat::io::IOReader/read r 5)))
+             ((got :wat::core::Option<wat::core::Vector<wat::core::u8>>) (:wat::io::IOReader/read r 5)))
             (:wat::core::match got -> :wat::core::i64
               ((Some bytes) n)
               (:None        -1))))

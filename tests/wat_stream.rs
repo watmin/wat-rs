@@ -73,7 +73,7 @@ fn from_receiver_wraps_raw_queue_into_stream() {
                     ())))))
             (:wat::std::stream::from-receiver rx handle)))
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::std::stream::collect (:test::build-stream)))
     "#;
     assert_eq!(collected_i64(src), vec![10, 20, 30]);
@@ -104,7 +104,7 @@ fn from_receiver_composes_with_map() {
                     ())))))
             (:wat::std::stream::from-receiver rx handle)))
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>) (:test::build-stream))
              ((doubled :wat::std::stream::Stream<wat::core::i64>)
@@ -122,7 +122,7 @@ fn from_receiver_composes_with_map() {
 fn spawn_producer_plus_collect_round_trips_three_values() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::std::stream::collect
             (:wat::std::stream::spawn-producer
               (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
@@ -141,7 +141,7 @@ fn spawn_producer_plus_collect_round_trips_three_values() {
 fn spawn_producer_map_collect_doubles_each_value() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
@@ -170,7 +170,7 @@ fn three_stage_pipeline_map_map_collect() {
     // Stream<T>'s tuple. Drop cascade flushes on termination.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((s0 :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
@@ -200,7 +200,7 @@ fn three_stage_pipeline_map_map_collect() {
 fn empty_producer_yields_empty_collected_vec() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::std::stream::collect
             (:wat::std::stream::spawn-producer
               (:wat::core::lambda ((_tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
@@ -235,7 +235,7 @@ fn filter_keeps_only_passing_values() {
     // 1..=6, keep evens → [2, 4, 6].
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
@@ -311,7 +311,7 @@ fn chunks_groups_by_size_flushes_remainder() {
     // every future stateful-stage with EOS cleanup.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<Vec<i64>>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::Vector<wat::core::i64>>)
           (:wat::std::stream::collect
             (:wat::std::stream::chunks
               (:wat::std::stream::spawn-producer
@@ -357,7 +357,7 @@ fn chunks_with_exact_multiple_emits_no_partial_flush() {
     // 6 items, size 3 → [[1,2,3], [4,5,6]]. No partial flush.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<Vec<i64>>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::Vector<wat::core::i64>>)
           (:wat::std::stream::collect
             (:wat::std::stream::chunks
               (:wat::std::stream::spawn-producer
@@ -399,7 +399,7 @@ fn chunks_into_map_composes() {
     // [[1,2], [3,4], [5]] → [3, 7, 5].
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::std::stream::collect
             (:wat::std::stream::map
               (:wat::std::stream::chunks
@@ -413,7 +413,7 @@ fn chunks_into_map_composes() {
                        ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 5) "test producer: tx disconnected")))
                       ())))
                 2)
-              (:wat::core::lambda ((batch :Vec<wat::core::i64>) -> :wat::core::i64)
+              (:wat::core::lambda ((batch :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
                 (:wat::core::foldl batch 0
                   (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
                     (:wat::core::i64::+ acc x)))))))
@@ -431,7 +431,7 @@ fn take_cuts_off_at_n_with_producer_that_would_send_more() {
     // is the core test that take's drop cascade works.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
@@ -461,7 +461,7 @@ fn take_returns_all_when_n_exceeds_available() {
     // counter hits 0; exits cleanly; collect returns the 2 items.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
@@ -483,7 +483,7 @@ fn take_zero_emits_nothing() {
     // on first recv; collect returns empty.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
@@ -506,7 +506,7 @@ fn take_composes_with_map() {
     // producer.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
@@ -538,7 +538,7 @@ fn inspect_passes_values_through_unchanged() {
     // before the effect is observable.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
@@ -563,7 +563,7 @@ fn inspect_composes_between_map_and_collect() {
     // pass-through — output = (n+1)*10 per input.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((s0 :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
@@ -596,7 +596,7 @@ fn flat_map_expands_each_input_to_two_outputs() {
     // 1:N — each n becomes [n, n*10]. 3 inputs → 6 outputs.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
@@ -608,8 +608,8 @@ fn flat_map_expands_each_input_to_two_outputs() {
                     ()))))
              ((expanded :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::flat-map source
-                (:wat::core::lambda ((n :wat::core::i64) -> :Vec<wat::core::i64>)
-                  (:wat::core::vec :wat::core::i64 n (:wat::core::i64::* n 10))))))
+                (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::Vector<wat::core::i64>)
+                  (:wat::core::Vector :wat::core::i64 n (:wat::core::i64::* n 10))))))
             (:wat::std::stream::collect expanded)))
     "#;
     assert_eq!(collected_i64(src), vec![1, 10, 2, 20, 3, 30]);
@@ -621,7 +621,7 @@ fn flat_map_empty_expansion_emits_nothing() {
     // downstream emissions. collect returns empty Vec.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
@@ -632,8 +632,8 @@ fn flat_map_empty_expansion_emits_nothing() {
                     ()))))
              ((expanded :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::flat-map source
-                (:wat::core::lambda ((_n :wat::core::i64) -> :Vec<wat::core::i64>)
-                  (:wat::core::vec :wat::core::i64)))))
+                (:wat::core::lambda ((_n :wat::core::i64) -> :wat::core::Vector<wat::core::i64>)
+                  (:wat::core::Vector :wat::core::i64)))))
             (:wat::std::stream::collect expanded)))
     "#;
     assert_eq!(collected_i64(src), Vec::<i64>::new());
@@ -645,7 +645,7 @@ fn flat_map_mixed_expansion_sizes() {
     // → total 5 outputs in input order.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
+        (:wat::core::define (:user::main -> :wat::core::Vector<wat::core::i64>)
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
@@ -657,12 +657,12 @@ fn flat_map_mixed_expansion_sizes() {
                     ()))))
              ((expanded :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::flat-map source
-                (:wat::core::lambda ((n :wat::core::i64) -> :Vec<wat::core::i64>)
-                  (:wat::core::if (:wat::core::= n 1) -> :Vec<wat::core::i64>
-                    (:wat::core::vec :wat::core::i64 100 101 102)
-                    (:wat::core::if (:wat::core::= n 2) -> :Vec<wat::core::i64>
-                      (:wat::core::vec :wat::core::i64)
-                      (:wat::core::vec :wat::core::i64 300 301)))))))
+                (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::Vector<wat::core::i64>)
+                  (:wat::core::if (:wat::core::= n 1) -> :wat::core::Vector<wat::core::i64>
+                    (:wat::core::Vector :wat::core::i64 100 101 102)
+                    (:wat::core::if (:wat::core::= n 2) -> :wat::core::Vector<wat::core::i64>
+                      (:wat::core::Vector :wat::core::i64)
+                      (:wat::core::Vector :wat::core::i64 300 301)))))))
             (:wat::std::stream::collect expanded)))
     "#;
     assert_eq!(collected_i64(src), vec![100, 101, 102, 300, 301]);

@@ -72,7 +72,7 @@ fn noop_main_yields_empty_stdout_and_stderr() {
                                   (stderr :wat::io::IOWriter)
                                   -> :wat::core::unit)
                ())"
-            (:wat::core::vec :wat::core::String)
+            (:wat::core::Vector :wat::core::String)
             :None))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
@@ -96,7 +96,7 @@ fn main_writes_single_line_to_stdout() {
                                   (stderr :wat::io::IOWriter)
                                   -> :wat::core::unit)
                (:wat::io::IOWriter/println stdout \"hello\"))"
-            (:wat::core::vec :wat::core::String)
+            (:wat::core::Vector :wat::core::String)
             :None))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
@@ -124,7 +124,7 @@ fn main_writes_to_both_stdout_and_stderr() {
                   ((_ :wat::core::unit) (:wat::io::IOWriter/println stdout \"two\"))
                   ((_ :wat::core::unit) (:wat::io::IOWriter/println stderr \"oops\")))
                  ()))"
-            (:wat::core::vec :wat::core::String)
+            (:wat::core::Vector :wat::core::String)
             :None))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
@@ -152,7 +152,7 @@ fn main_echoes_stdin_to_stdout() {
                (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::unit
                  ((Some line) (:wat::io::IOWriter/println stdout line))
                  (:None ())))"
-            (:wat::core::vec :wat::core::String "watmin")
+            (:wat::core::Vector :wat::core::String "watmin")
             :None))
     "##;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
@@ -182,7 +182,7 @@ fn print_without_newline_does_not_split_into_lines() {
                   ((_ :wat::core::unit) (:wat::io::IOWriter/print stdout \"b\"))
                   ((_ :wat::core::unit) (:wat::io::IOWriter/print stdout \"c\")))
                  ()))"
-            (:wat::core::vec :wat::core::String)
+            (:wat::core::Vector :wat::core::String)
             :None))
     "#;
     let (stdout, _, _) = unwrap_run_result(run(src));
@@ -228,7 +228,7 @@ fn parse_error_in_source_surfaces_as_failure() {
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) \"unclosed"
-            (:wat::core::vec :wat::core::String)
+            (:wat::core::Vector :wat::core::String)
             :None))
     "##;
     let (stdout, stderr, failure) = unwrap_run_result_with_failure(run(src));
@@ -252,7 +252,7 @@ fn main_signature_mismatch_surfaces_as_failure() {
           (:wat::kernel::run-sandboxed
             "(:wat::config::set-capacity-mode! :error)
              (:wat::core::define (:user::main -> :wat::core::unit) ())"
-            (:wat::core::vec :wat::core::String)
+            (:wat::core::Vector :wat::core::String)
             :None))
     "##;
     let (_, _, failure) = unwrap_run_result_with_failure(run(src));
@@ -271,7 +271,7 @@ fn missing_user_main_surfaces_as_failure() {
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             "(:wat::config::set-capacity-mode! :error)"
-            (:wat::core::vec :wat::core::String)
+            (:wat::core::Vector :wat::core::String)
             :None))
     "##;
     let (_, _, failure) = unwrap_run_result_with_failure(run(src));
@@ -315,7 +315,7 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
                      (:wat::core::list :wat::holon::HolonAST
                        {atoms}))))
                  ()))"
-            (:wat::core::vec :wat::core::String)
+            (:wat::core::Vector :wat::core::String)
             :None))
     "##);
     let src = src.as_str();
@@ -399,7 +399,7 @@ fn scoped_file_eval_inside_scope_succeeds() {
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             {inner_src:?}
-            (:wat::core::vec :wat::core::String)
+            (:wat::core::Vector :wat::core::String)
             (Some {scope:?})))
         "##,
         inner_src = inner_src,
@@ -456,7 +456,7 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             {inner_src:?}
-            (:wat::core::vec :wat::core::String)
+            (:wat::core::Vector :wat::core::String)
             (Some {scope:?})))
         "##,
         inner_src = inner_src,
@@ -504,7 +504,7 @@ fn main_reads_multiple_stdin_lines() {
                                   (stderr :wat::io::IOWriter)
                                   -> :wat::core::unit)
                (:my::echo-all stdin stdout))"
-            (:wat::core::vec :wat::core::String "alpha" "beta" "gamma")
+            (:wat::core::Vector :wat::core::String "alpha" "beta" "gamma")
             :None))
     "##;
     let (stdout, _, _) = unwrap_run_result(run(src));

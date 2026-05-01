@@ -29,7 +29,7 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::i64,wat::core::i64>)
               (:wat::kernel::fork-program-ast
-                (:wat::core::vec :wat::WatAST)))
+                (:wat::core::Vector :wat::WatAST)))
              ;; process-send: must be matched (slice 3 grammar rule).
              ;; Use result::expect to panic on disconnect; same shape
              ;; sandbox.wat / hermetic.wat use for write paths.

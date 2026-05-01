@@ -147,7 +147,7 @@ fn split_produces_vec() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((pieces :Vec<wat::core::String>)
+            (((pieces :wat::core::Vector<wat::core::String>)
               (:wat::core::string::split "a,b,c" ",")))
             (:wat::io::IOWriter/println stdout
               (:wat::core::string::join "|" pieces))))
@@ -165,7 +165,7 @@ fn split_empty_separator_rejected() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((_ :Vec<wat::core::String>)
+            (((_ :wat::core::Vector<wat::core::String>)
               (:wat::core::string::split "abc" "")))
             ()))
     "#;

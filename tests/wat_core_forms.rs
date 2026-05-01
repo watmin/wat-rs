@@ -3,7 +3,7 @@
 //! defmacro that expands to it.
 //!
 //! `forms` is the variadic sibling of `quote`. `(:wat::core::forms
-//! f1 f2 ... fn)` evaluates to a `:Vec<wat::WatAST>` where each
+//! f1 f2 ... fn)` evaluates to a `:wat::core::Vector<wat::WatAST>` where each
 //! element is the corresponding unevaluated form captured as data.
 
 use std::sync::Arc;
@@ -52,7 +52,7 @@ fn forms_captures_each_arg_as_wat_ast() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((captured :Vec<wat::WatAST>)
+            (((captured :wat::core::Vector<wat::WatAST>)
               (:wat::core::forms (foo 1) (bar 2) (baz 3)))
              ((n :wat::core::i64) (:wat::core::length captured)))
             (:wat::core::if (:wat::core::= n 3) -> :wat::core::unit
@@ -64,7 +64,7 @@ fn forms_captures_each_arg_as_wat_ast() {
 
 #[test]
 fn forms_empty_produces_empty_vec() {
-    // Zero-arity must produce an empty Vec — same shape as (:wat::core::vec :wat::WatAST).
+    // Zero-arity must produce an empty Vec — same shape as (:wat::core::Vector :wat::WatAST).
     let src = r##"
 
         (:wat::core::define
@@ -74,7 +74,7 @@ fn forms_empty_produces_empty_vec() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((captured :Vec<wat::WatAST>) (:wat::core::forms))
+            (((captured :wat::core::Vector<wat::WatAST>) (:wat::core::forms))
              ((n :wat::core::i64) (:wat::core::length captured)))
             (:wat::core::if (:wat::core::= n 0) -> :wat::core::unit
               (:wat::io::IOWriter/println stdout "pass")
@@ -96,7 +96,7 @@ fn forms_args_are_not_evaluated() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((captured :Vec<wat::WatAST>)
+            (((captured :wat::core::Vector<wat::WatAST>)
               (:wat::core::forms (:this::is::not::a::real::function 1 2 3)))
              ((n :wat::core::i64) (:wat::core::length captured)))
             (:wat::core::if (:wat::core::= n 1) -> :wat::core::unit
@@ -121,7 +121,7 @@ fn forms_composes_with_run_sandboxed_ast() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((program :Vec<wat::WatAST>)
+            (((program :wat::core::Vector<wat::WatAST>)
               (:wat::core::forms
                 (:wat::core::define
                   (:user::main
@@ -132,8 +132,8 @@ fn forms_composes_with_run_sandboxed_ast() {
                   (:wat::io::IOWriter/println stdout "hello-from-inside"))))
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-ast program
-                (:wat::core::vec :wat::core::String) :None))
-             ((captured :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
+                (:wat::core::Vector :wat::core::String) :None))
+             ((captured :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
              ((line :wat::core::String)
               (:wat::core::match (:wat::core::first captured) -> :wat::core::String
                 ((Some s) s)
@@ -158,7 +158,7 @@ fn test_program_macro_expands_correctly() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((captured :Vec<wat::WatAST>)
+            (((captured :wat::core::Vector<wat::WatAST>)
               (:wat::test::program (a 1) (b 2) (c 3)))
              ((n :wat::core::i64) (:wat::core::length captured)))
             (:wat::core::if (:wat::core::= n 3) -> :wat::core::unit
@@ -194,8 +194,8 @@ fn test_run_ast_via_test_program_roundtrips_hello() {
                       (stderr :wat::io::IOWriter)
                       -> :wat::core::unit)
                     (:wat::io::IOWriter/println stdout "hi")))
-                (:wat::core::vec :wat::core::String)))
-             ((captured :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
+                (:wat::core::Vector :wat::core::String)))
+             ((captured :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
              ((line :wat::core::String)
               (:wat::core::match (:wat::core::first captured) -> :wat::core::String
                 ((Some s) s)

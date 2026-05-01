@@ -17,7 +17,7 @@ fn run(src: &str) -> Value {
 fn child_assertion_writes_died_chain_to_stderr() {
     let src = r##"
         (:wat::core::define
-          (:user::main -> :Vec<wat::core::String>)
+          (:user::main -> :wat::core::Vector<wat::core::String>)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::i64,wat::core::i64>)
               (:wat::kernel::fork-program-ast
@@ -28,10 +28,10 @@ fn child_assertion_writes_died_chain_to_stderr() {
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::unit)
                     (:wat::test::assert-eq 1 2)))))
-             ((joined :wat::core::Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
+             ((joined :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ProcessDiedError>>)
               (:wat::kernel::Process/join-result proc))
              ((stderr-r :wat::io::IOReader) (:wat::kernel::Process/stderr proc))
-             ((lines :Vec<wat::core::String>) (:wat::kernel::drain-lines stderr-r)))
+             ((lines :wat::core::Vector<wat::core::String>) (:wat::kernel::drain-lines stderr-r)))
             lines))
     "##;
     let v = run(src);
@@ -59,7 +59,7 @@ fn child_plain_exit_writes_panic_marker_to_stderr() {
     // we're reading).
     let src = r##"
         (:wat::core::define
-          (:user::main -> :Vec<wat::core::String>)
+          (:user::main -> :wat::core::Vector<wat::core::String>)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::i64,wat::core::i64>)
               (:wat::kernel::fork-program-ast
@@ -70,10 +70,10 @@ fn child_plain_exit_writes_panic_marker_to_stderr() {
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::unit)
                     (:wat::io::IOWriter/println stderr "from-child-stderr")))))
-             ((joined :wat::core::Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
+             ((joined :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ProcessDiedError>>)
               (:wat::kernel::Process/join-result proc))
              ((stderr-r :wat::io::IOReader) (:wat::kernel::Process/stderr proc))
-             ((lines :Vec<wat::core::String>) (:wat::kernel::drain-lines stderr-r)))
+             ((lines :wat::core::Vector<wat::core::String>) (:wat::kernel::drain-lines stderr-r)))
             lines))
     "##;
     let v = run(src);
