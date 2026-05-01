@@ -177,7 +177,7 @@
      ;; program tree learns the discipline broke instead of
      ;; silently dropping the reply.
      ((_send :wat::core::unit)
-      (:wat::core::result::expect -> :wat::core::unit
+      (:wat::core::Result/expect -> :wat::core::unit
         (:wat::kernel::send reply-to resp)
         "CacheService/handle: reply-to disconnected — client died mid-request?"))
      ((stats' :wat::lru::CacheService::Stats)
@@ -326,11 +326,11 @@
      ;; with a meaningful message rather than silently returning
      ;; :None and pretending we got a "miss."
      ((_send :wat::core::unit)
-      (:wat::core::result::expect -> :wat::core::unit
+      (:wat::core::Result/expect -> :wat::core::unit
         (:wat::kernel::send req-tx req)
         "CacheService/get: req-tx disconnected — driver died?")))
-    (:wat::core::option::expect -> :wat::core::Option<V>
-      (:wat::core::result::expect -> :wat::core::Option<wat::core::Option<V>>
+    (:wat::core::Option/expect -> :wat::core::Option<V>
+      (:wat::core::Result/expect -> :wat::core::Option<wat::core::Option<V>>
         (:wat::kernel::recv reply-rx)
         "CacheService/get: reply-rx disconnected — driver died mid-request?")
       "CacheService/get: reply channel closed — driver dropped reply-tx?")))
@@ -352,11 +352,11 @@
      ;; is catastrophic; panic with a meaningful message rather than
      ;; silently absorbing the disconnect.
      ((_send :wat::core::unit)
-      (:wat::core::result::expect -> :wat::core::unit
+      (:wat::core::Result/expect -> :wat::core::unit
         (:wat::kernel::send req-tx req)
         "CacheService/put: req-tx disconnected — driver died?"))
      ((_recv :wat::core::Option<wat::core::Option<V>>)
-      (:wat::core::result::expect -> :wat::core::Option<wat::core::Option<V>>
+      (:wat::core::Result/expect -> :wat::core::Option<wat::core::Option<V>>
         (:wat::kernel::recv reply-rx)
         "CacheService/put: reply-rx disconnected — driver died mid-request?")))
     ()))

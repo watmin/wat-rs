@@ -204,7 +204,7 @@
           (((result :wat::core::Option<wat::holon::HolonAST>)
             (:wat::holon::lru::HologramCache/get cache probe))
            ((_send :wat::core::unit)
-            (:wat::core::result::expect -> :wat::core::unit
+            (:wat::core::Result/expect -> :wat::core::unit
               (:wat::kernel::send reply-tx result)
               "HologramCacheService::Request::Get reply-tx disconnected — caller died?"))
            ((hit-delta :wat::core::i64)

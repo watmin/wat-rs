@@ -366,11 +366,11 @@
     -> :wat::core::unit)
   (:wat::core::let*
     (((_send :wat::core::unit)
-      (:wat::core::result::expect -> :wat::core::unit
+      (:wat::core::Result/expect -> :wat::core::unit
         (:wat::kernel::send req-tx entries)
         "Service/batch-log: req-tx disconnected — telemetry service died?"))
      ((_recv :wat::core::Option<wat::core::unit>)
-      (:wat::core::result::expect -> :wat::core::Option<wat::core::unit>
+      (:wat::core::Result/expect -> :wat::core::Option<wat::core::unit>
         (:wat::kernel::recv ack-rx)
         "Service/batch-log: ack-rx disconnected — telemetry service died mid-flush?")))
     ()))
