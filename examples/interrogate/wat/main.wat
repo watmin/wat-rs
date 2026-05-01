@@ -110,10 +110,10 @@
 (:wat::core::define
   (:demo::big-buy?
     (event :wat::telemetry::Event)
-    -> :bool)
+    -> :wat::core::bool)
   (:wat::core::match
     (:wat::telemetry::Event::Log/data-value event)
-    -> :bool
+    -> :wat::core::bool
     ((Some trade)
       (:wat::form::matches? trade
         (:demo::Trade
@@ -135,7 +135,7 @@
   (:wat::core::let*
     (;; Auto-deleting fixture path.
      ((tf :wat::io::TempFile) (:wat::io::TempFile/new))
-     ((path :String) (:wat::io::TempFile/path tf))
+     ((path :wat::core::String) (:wat::io::TempFile/path tf))
 
      ;; Phase 1.
      ((driver :wat::kernel::Thread<(),()>)
@@ -154,7 +154,7 @@
      ((all-events :Vec<wat::telemetry::Event>)
       (:wat::std::stream::collect
         (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
-     ((q1-count :i64) (:wat::core::length all-events))
+     ((q1-count :wat::core::i64) (:wat::core::length all-events))
      ((_p2 :())
       (:wat::io::IOWriter/println stdout
         (:wat::core::string::concat
@@ -175,7 +175,7 @@
         (:wat::std::stream::filter
           (:wat::telemetry::sqlite/stream-logs handle2 no-constraints2)
           :demo::big-buy?)))
-     ((q2-count :i64) (:wat::core::length big-buys))
+     ((q2-count :wat::core::i64) (:wat::core::length big-buys))
      ((_p5 :())
       (:wat::io::IOWriter/println stdout
         (:wat::core::string::concat
