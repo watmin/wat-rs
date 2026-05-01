@@ -97,45 +97,59 @@
               (stderr :wat::io::IOWriter)
               -> :())
             (:wat::core::let*
-              (((pool console-driver)
-                (:wat::std::service::Console/spawn stdout stderr 3))
-               ((_ :())
+              ;; Outer holds only console-driver Thread. Middle owns
+              ;; the spawn-tuple destructure + worker setup; middle
+              ;; returns just console-driver. Each worker is spawned
+              ;; in its own inner-most let* that owns its handle —
+              ;; the handle drops at inner-most exit (only the
+              ;; lambda's closure clone survives, on the worker
+              ;; thread). Joins happen at a level WITHOUT the
+              ;; per-worker handles in scope. Arc 117 satisfied.
+              (((console-driver :wat::kernel::Thread<(),()>)
                 (:wat::core::let*
-                  (((h0 :wat::std::service::Console::Handle)
-                    (:wat::kernel::HandlePool::pop pool))
-                   ((h1 :wat::std::service::Console::Handle)
-                    (:wat::kernel::HandlePool::pop pool))
-                   ((h2 :wat::std::service::Console::Handle)
-                    (:wat::kernel::HandlePool::pop pool))
-                   ((_0 :()) (:wat::kernel::HandlePool::finish pool))
+                  (((spawn :(wat::kernel::HandlePool<wat::std::service::Console::Handle>,wat::kernel::Thread<(),()>))
+                    (:wat::std::service::Console/spawn stdout stderr 3))
+                   ((pool :wat::kernel::HandlePool<wat::std::service::Console::Handle>)
+                    (:wat::core::first spawn))
+                   ((cd :wat::kernel::Thread<(),()>) (:wat::core::second spawn))
                    ((w0 :wat::kernel::Thread<(),()>)
-                    (:wat::kernel::spawn-thread
-                      (:wat::core::lambda
-                        ((_in :rust::crossbeam_channel::Receiver<()>)
-                         (_out :rust::crossbeam_channel::Sender<()>)
-                         -> :())
-                        (:my::worker h0 "alpha\n"))))
+                    (:wat::core::let*
+                      (((h0 :wat::std::service::Console::Handle)
+                        (:wat::kernel::HandlePool::pop pool)))
+                      (:wat::kernel::spawn-thread
+                        (:wat::core::lambda
+                          ((_in :rust::crossbeam_channel::Receiver<()>)
+                           (_out :rust::crossbeam_channel::Sender<()>)
+                           -> :())
+                          (:my::worker h0 "alpha\n")))))
                    ((w1 :wat::kernel::Thread<(),()>)
-                    (:wat::kernel::spawn-thread
-                      (:wat::core::lambda
-                        ((_in :rust::crossbeam_channel::Receiver<()>)
-                         (_out :rust::crossbeam_channel::Sender<()>)
-                         -> :())
-                        (:my::worker h1 "bravo\n"))))
+                    (:wat::core::let*
+                      (((h1 :wat::std::service::Console::Handle)
+                        (:wat::kernel::HandlePool::pop pool)))
+                      (:wat::kernel::spawn-thread
+                        (:wat::core::lambda
+                          ((_in :rust::crossbeam_channel::Receiver<()>)
+                           (_out :rust::crossbeam_channel::Sender<()>)
+                           -> :())
+                          (:my::worker h1 "bravo\n")))))
                    ((w2 :wat::kernel::Thread<(),()>)
-                    (:wat::kernel::spawn-thread
-                      (:wat::core::lambda
-                        ((_in :rust::crossbeam_channel::Receiver<()>)
-                         (_out :rust::crossbeam_channel::Sender<()>)
-                         -> :())
-                        (:my::worker h2 "charlie\n"))))
+                    (:wat::core::let*
+                      (((h2 :wat::std::service::Console::Handle)
+                        (:wat::kernel::HandlePool::pop pool)))
+                      (:wat::kernel::spawn-thread
+                        (:wat::core::lambda
+                          ((_in :rust::crossbeam_channel::Receiver<()>)
+                           (_out :rust::crossbeam_channel::Sender<()>)
+                           -> :())
+                          (:my::worker h2 "charlie\n")))))
+                   ((_0 :()) (:wat::kernel::HandlePool::finish pool))
                    ((_1 :Result<(),Vec<wat::kernel::ThreadDiedError>>)
                     (:wat::kernel::Thread/join-result w0))
                    ((_2 :Result<(),Vec<wat::kernel::ThreadDiedError>>)
                     (:wat::kernel::Thread/join-result w1))
                    ((_3 :Result<(),Vec<wat::kernel::ThreadDiedError>>)
                     (:wat::kernel::Thread/join-result w2)))
-                  ()))
+                  cd))
                ((_4 :Result<(),Vec<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result console-driver)))
               ())))

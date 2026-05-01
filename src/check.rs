@@ -909,43 +909,77 @@ fn type_is_thread_kind(ty: &TypeExpr, types: &TypeEnv) -> bool {
 }
 
 /// Does this type, after alias resolution and recursive descent into
-/// arguments and tuple elements, contain a Sender-bearing parametric
-/// ANYWHERE in its structure? Returns the descriptor of the first
-/// match found, used in the diagnostic.
+/// arguments and tuple elements, contain a `:wat::kernel::QueueSender<T>`
+/// ANYWHERE in its structure? Returns "QueueSender" on hit.
 ///
-/// Matched heads (canonical, alias-resolved):
-///   - `rust::crossbeam_channel::Sender`
-///   - `wat::kernel::QueueSender`
-///   - `wat::kernel::QueuePair` (contains both halves; sender-bearing)
-///   - `wat::kernel::HandlePool` (carries N Sender clones)
+/// Why QueueSender (and not also bare `Sender`, `HandlePool`):
+///   - `:wat::kernel::QueuePair<T>` is a typealias to
+///     `:(QueueSender<T>, QueueReceiver<T>)`. `expand_alias` unwraps
+///     it; after resolution, only QueueSender shows up. Detecting
+///     QueueSender catches both the explicit `QueuePair` case and
+///     any direct `QueueSender` binding.
+///   - `:rust::crossbeam_channel::Sender<T>` (the raw substrate
+///     primitive) is NOT flagged in isolation — it appears in many
+///     non-deadlocking shapes (e.g., a Sender alongside a Thread
+///     for unrelated state). Caller-allocated wat-level pairs always
+///     surface as `QueueSender<T>` after alias resolution, which IS
+///     the deadlock anchor.
+///   - `:wat::kernel::HandlePool<T>` carries N Senders too but feeds
+///     a separate service driver; a sibling pool alongside a worker
+///     Thread isn't necessarily a deadlock (Console.wat case). Pool
+///     ↔ service-driver siblings ARE a deadlock but require detection
+///     of the spawn-tuple-destructure pattern; future arc.
 fn type_contains_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static str> {
-    let canonical = crate::types::expand_alias(ty, types);
-    match canonical {
-        TypeExpr::Parametric { head, args } => {
-            match head.as_str() {
-                "rust::crossbeam_channel::Sender" => return Some("Sender"),
-                "wat::kernel::QueueSender" => return Some("QueueSender"),
-                "wat::kernel::QueuePair" => return Some("QueuePair"),
-                "wat::kernel::HandlePool" => return Some("HandlePool"),
-                _ => {}
-            }
-            for arg in &args {
-                if let Some(k) = type_contains_sender_kind(arg, types) {
-                    return Some(k);
-                }
-            }
-            None
+    // Match wat-level Sender-anchor heads at the SURFACE first — `expand_alias`
+    // would unwrap `QueuePair` → `(QueueSender, QueueReceiver)` and then
+    // `QueueSender` → `rust::crossbeam_channel::Sender`, which is too generic
+    // to flag (Console.wat etc. would false-positive).
+    if let TypeExpr::Parametric { head, args } = ty {
+        if matches!(
+            head.as_str(),
+            "wat::kernel::QueuePair" | "wat::kernel::QueueSender"
+        ) {
+            return Some("QueueSender");
         }
-        TypeExpr::Tuple(elements) => {
-            for e in &elements {
-                if let Some(k) = type_contains_sender_kind(e, types) {
-                    return Some(k);
-                }
+        // Not a direct match; try peeling an alias ONCE in case `head` is a
+        // user typealias that points at QueuePair/QueueSender.
+        let peeled = crate::types::expand_alias(ty, types);
+        if let TypeExpr::Parametric { head: h2, .. } = &peeled {
+            if h2 != head {
+                return type_contains_sender_kind(&peeled, types);
             }
-            None
+        } else if !matches!(peeled, TypeExpr::Parametric { .. }) {
+            return type_contains_sender_kind(&peeled, types);
         }
-        _ => None,
+        // Recurse into args (handles e.g. `Vec<QueueSender<T>>`).
+        for arg in args {
+            if let Some(k) = type_contains_sender_kind(arg, types) {
+                return Some(k);
+            }
+        }
+        return None;
     }
+    if let TypeExpr::Tuple(elements) = ty {
+        for e in elements {
+            if let Some(k) = type_contains_sender_kind(e, types) {
+                return Some(k);
+            }
+        }
+        return None;
+    }
+    if let TypeExpr::Path(_) = ty {
+        // A bare path may be a user typealias.
+        let peeled = crate::types::expand_alias(ty, types);
+        if let TypeExpr::Path(p2) = &peeled {
+            if let TypeExpr::Path(p1) = ty {
+                if p1 == p2 {
+                    return None;
+                }
+            }
+        }
+        return type_contains_sender_kind(&peeled, types);
+    }
+    None
 }
 
 /// Walk `node` looking for `(:wat::kernel::Thread/join-result thr)` or

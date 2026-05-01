@@ -229,14 +229,16 @@
 ;; pattern — final state delivered on `out`, not via join's R).
 (:deftest :svc::test-template-end-to-end
      (:wat::core::let*
-       (((spawn :svc::Spawn) (:svc::Service 1))
-        ((pool :svc::ReqTxPool) (:wat::core::first spawn))
-        ((thr :wat::kernel::Thread<(),svc::State>) (:wat::core::second spawn))
-        ((final-rx :rust::crossbeam_channel::Receiver<svc::State>)
-         (:wat::kernel::Thread/output thr))
-        ((_inner :())
+       ;; Outer holds only the Thread (and the final-rx Receiver
+       ;; cloned from it). Inner owns the spawn-tuple + pool + every
+       ;; per-request channel; inner returns the Thread; pool drops
+       ;; at inner exit. Arc 117 enforces this nesting.
+       (((thr :wat::kernel::Thread<(),svc::State>)
          (:wat::core::let*
-           (((req-tx :svc::ReqTx) (:wat::kernel::HandlePool::pop pool))
+           (((spawn :svc::Spawn) (:svc::Service 1))
+            ((pool :svc::ReqTxPool) (:wat::core::first spawn))
+            ((d :wat::kernel::Thread<(),svc::State>) (:wat::core::second spawn))
+            ((req-tx :svc::ReqTx) (:wat::kernel::HandlePool::pop pool))
             ((_finish :()) (:wat::kernel::HandlePool::finish pool))
             ((ack-pair :wat::kernel::QueuePair<()>)
              (:wat::kernel::make-bounded-queue :() 1))
@@ -304,9 +306,11 @@
              (:wat::core::if (:wat::core::= (:svc::State/ack-count snap2) 1) -> :()
                ()
                (:wat::test::assert-eq "snap2 ack != 1" ""))))
-           ()))
-        ;; inner scope dropped req-tx + reply channels; driver's last
-        ;; rx disconnects; Service/loop's empty-Vec arm sends final
+           d))
+        ((final-rx :rust::crossbeam_channel::Receiver<svc::State>)
+         (:wat::kernel::Thread/output thr))
+        ;; inner scope dropped pool + req-tx + reply channels; driver's
+        ;; last rx disconnects; Service/loop's empty-Vec arm sends final
         ;; state on `out`. Recv it here.
         ((final-state :svc::State)
          (:wat::core::option::expect -> :svc::State
@@ -314,9 +318,6 @@
              (:wat::kernel::recv final-rx)
              "test recv final-state: thread died before delivering final state")
            "test recv final-state: thread output closed without delivering final state"))
-        ;; Confirm clean exit. Err here would mean the driver panicked
-        ;; AFTER sending final state, which shouldn't happen but is a
-        ;; substrate-author-visible breakage if it does.
         ((join-result :Result<(),Vec<wat::kernel::ThreadDiedError>>)
          (:wat::kernel::Thread/join-result thr)))
        (:wat::core::match join-result -> :()

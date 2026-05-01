@@ -263,38 +263,41 @@
 
 (:deftest-hermetic :wat-tests::holon::lru::HologramCacheService::test-step4-put-get-roundtrip
   (:wat::core::let*
-    (((req-pair :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)
-      (:wat::kernel::make-bounded-queue
-        :wat::holon::lru::HologramCacheService::Request 1))
-     ((req-tx :wat::holon::lru::HologramCacheService::ReqTx)
-      (:wat::core::first req-pair))
-     ((req-rx :wat::holon::lru::HologramCacheService::ReqRx)
-      (:wat::core::second req-pair))
-     ((rxs :Vec<wat::holon::lru::HologramCacheService::ReqRx>)
-      (:wat::core::conj
-        (:wat::core::vec :wat::holon::lru::HologramCacheService::ReqRx)
-        req-rx))
-     ((thr :wat::kernel::Thread<(),()>)
-      (:wat::kernel::spawn-thread
-        (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<()>)
-           (_out :rust::crossbeam_channel::Sender<()>)
-           -> :())
-          (:wat::holon::lru::HologramCacheService/run rxs 16
-            :wat::holon::lru::HologramCacheService/null-reporter
-            (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))))
-     ((_inner :())
+    ;; Outer holds the Thread. Inner owns the request queue + Sender
+    ;; clones + reply channel; inner returns the Thread; pair drops at
+    ;; inner exit. SERVICE-PROGRAMS.md § "The lockstep". Arc 117's
+    ;; check ensures the structural shape — sibling Sender bindings
+    ;; alongside Thread/join-result is a compile error.
+    (((thr :wat::kernel::Thread<(),()>)
       (:wat::core::let*
-        (((reply-pair :wat::holon::lru::HologramCacheService::GetReplyPair)
+        (((req-pair :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)
+          (:wat::kernel::make-bounded-queue
+            :wat::holon::lru::HologramCacheService::Request 1))
+         ((req-tx :wat::holon::lru::HologramCacheService::ReqTx)
+          (:wat::core::first req-pair))
+         ((req-rx :wat::holon::lru::HologramCacheService::ReqRx)
+          (:wat::core::second req-pair))
+         ((rxs :Vec<wat::holon::lru::HologramCacheService::ReqRx>)
+          (:wat::core::conj
+            (:wat::core::vec :wat::holon::lru::HologramCacheService::ReqRx)
+            req-rx))
+         ((h :wat::kernel::Thread<(),()>)
+          (:wat::kernel::spawn-thread
+            (:wat::core::lambda
+              ((_in :rust::crossbeam_channel::Receiver<()>)
+               (_out :rust::crossbeam_channel::Sender<()>)
+               -> :())
+              (:wat::holon::lru::HologramCacheService/run rxs 16
+                :wat::holon::lru::HologramCacheService/null-reporter
+                (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))))
+         ((reply-pair :wat::holon::lru::HologramCacheService::GetReplyPair)
           (:wat::kernel::make-bounded-queue :Option<wat::holon::HolonAST> 1))
          ((reply-tx :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair))
          ((reply-rx :wat::holon::lru::HologramCacheService::GetReplyRx)
           (:wat::core::second reply-pair))
-
          ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
          ((v :wat::holon::HolonAST) (:wat::holon::leaf :av))
-
          ((_p :())
           (:wat::core::result::expect -> :()
             (:wat::kernel::send req-tx
@@ -313,7 +316,7 @@
                 (:None (:wat::test::assert-eq "cache-miss" ""))))
             ((Ok :None) (:wat::test::assert-eq "no-reply" ""))
             ((Err _died) (:wat::test::assert-eq "no-reply" "")))))
-        ())))
+        h)))
     (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :()
       ((Ok _) ())
       ((Err _) (:wat::test::assert-eq "service-died" "")))))
@@ -322,17 +325,22 @@
 
 (:deftest-hermetic :wat-tests::holon::lru::HologramCacheService::test-step5-multi-client-via-constructor
   (:wat::core::let*
-    (((spawn :wat::holon::lru::HologramCacheService::Spawn)
-      (:wat::holon::lru::HologramCacheService/spawn 2 16
-        :wat::holon::lru::HologramCacheService/null-reporter
-        (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
-     ((pool :wat::holon::lru::HologramCacheService::ReqTxPool)
-      (:wat::core::first spawn))
-     ((driver :wat::kernel::Thread<(),()>)
-      (:wat::core::second spawn))
-     ((_inner :())
+    ;; Outer holds only the driver Thread. Inner owns the spawn-tuple
+    ;; (pool + driver), pops Senders, drives the protocol, drops
+    ;; everything but the driver Thread which inner returns. Pool
+    ;; holds N Sender clones; arc 117 catches sibling-pool-with-driver
+    ;; alongside Thread/join-result.
+    (((driver :wat::kernel::Thread<(),()>)
       (:wat::core::let*
-        (((tx-a :wat::holon::lru::HologramCacheService::ReqTx)
+        (((spawn :wat::holon::lru::HologramCacheService::Spawn)
+          (:wat::holon::lru::HologramCacheService/spawn 2 16
+            :wat::holon::lru::HologramCacheService/null-reporter
+            (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
+         ((pool :wat::holon::lru::HologramCacheService::ReqTxPool)
+          (:wat::core::first spawn))
+         ((d :wat::kernel::Thread<(),()>)
+          (:wat::core::second spawn))
+         ((tx-a :wat::holon::lru::HologramCacheService::ReqTx)
           (:wat::kernel::HandlePool::pop pool))
          ((tx-b :wat::holon::lru::HologramCacheService::ReqTx)
           (:wat::kernel::HandlePool::pop pool))
@@ -396,7 +404,7 @@
                 (:None (:wat::test::assert-eq "client-b-miss" ""))))
             ((Ok :None) (:wat::test::assert-eq "client-b-no-reply" ""))
             ((Err _died) (:wat::test::assert-eq "client-b-no-reply" "")))))
-        ())))
+        d)))
     (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :()
       ((Ok _) ())
       ((Err _) (:wat::test::assert-eq "service-died" "")))))
@@ -411,17 +419,19 @@
 
 (:deftest-hermetic :wat-tests::holon::lru::HologramCacheService::test-step6-lru-eviction-via-service
   (:wat::core::let*
-    (((spawn :wat::holon::lru::HologramCacheService::Spawn)
-      (:wat::holon::lru::HologramCacheService/spawn 1 2
-        :wat::holon::lru::HologramCacheService/null-reporter
-        (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
-     ((pool :wat::holon::lru::HologramCacheService::ReqTxPool)
-      (:wat::core::first spawn))
-     ((driver :wat::kernel::Thread<(),()>)
-      (:wat::core::second spawn))
-     ((_inner :())
+    ;; Outer holds only the driver Thread. Inner owns spawn-tuple,
+    ;; pops Sender, drives the protocol, drops everything but driver.
+    (((driver :wat::kernel::Thread<(),()>)
       (:wat::core::let*
-        (((tx :wat::holon::lru::HologramCacheService::ReqTx)
+        (((spawn :wat::holon::lru::HologramCacheService::Spawn)
+          (:wat::holon::lru::HologramCacheService/spawn 1 2
+            :wat::holon::lru::HologramCacheService/null-reporter
+            (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
+         ((pool :wat::holon::lru::HologramCacheService::ReqTxPool)
+          (:wat::core::first spawn))
+         ((d :wat::kernel::Thread<(),()>)
+          (:wat::core::second spawn))
+         ((tx :wat::holon::lru::HologramCacheService::ReqTx)
           (:wat::kernel::HandlePool::pop pool))
          ((_finish :()) (:wat::kernel::HandlePool::finish pool))
 
@@ -483,7 +493,7 @@
                 (:None (:wat::test::assert-eq "k2-evicted" ""))))
             ((Ok :None) (:wat::test::assert-eq "no-reply-2" ""))
             ((Err _died) (:wat::test::assert-eq "no-reply-2" "")))))
-        ())))
+        d)))
     (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :()
       ((Ok _) ())
       ((Err _) (:wat::test::assert-eq "service-died" "")))))
