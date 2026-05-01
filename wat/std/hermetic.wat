@@ -44,11 +44,11 @@
     (acc :wat::core::Vector<wat::core::String>)
     -> :wat::core::Vector<wat::core::String>)
   (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::Vector<wat::core::String>
-    ((Some line)
+    ((:wat::core::Some line)
      (:wat::kernel::drain-lines-acc
        r
        (:wat::core::conj acc line)))
-    (:None acc)))
+    (:wat::core::None acc)))
 
 (:wat::core::define
   (:wat::kernel::drain-lines (r :wat::io::IOReader) -> :wat::core::Vector<wat::core::String>)
@@ -67,19 +67,19 @@
     (scope :wat::core::Option<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::core::match scope -> :wat::kernel::RunResult
-    ((Some _)
+    ((:wat::core::Some _)
      ;; Scope-forwarding through fork is a separate slice when a
      ;; caller demands. Today: :Some returns Failure.
      (:wat::core::struct-new :wat::kernel::RunResult
        (:wat::core::Vector :wat::core::String)
        (:wat::core::Vector :wat::core::String)
-       (Some (:wat::core::struct-new :wat::kernel::Failure
+       (:wat::core::Some (:wat::core::struct-new :wat::kernel::Failure
                "scope not yet supported in hermetic mode (:None only for now)"
-               :None
+               :wat::core::None
                (:wat::core::Vector :wat::kernel::Frame)
-               :None
-               :None))))
-    (:None
+               :wat::core::None
+               :wat::core::None))))
+    (:wat::core::None
      (:wat::core::let*
        (((proc :wat::kernel::Program<I,O>)
          (:wat::kernel::fork-program-ast forms))
@@ -118,13 +118,13 @@
           (:wat::kernel::extract-panics stderr-lines))
          ((failure :wat::core::Option<wat::kernel::Failure>)
          (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
-           ((Ok _)       :None)
+           ((Ok _)       :wat::core::None)
            ((Err chain)
-            (Some (:wat::kernel::failure-from-process-died
+            (:wat::core::Some (:wat::kernel::failure-from-process-died
                     (:wat::core::match stderr-chain
                       -> :wat::core::Vector<wat::kernel::ProcessDiedError>
-                      ((Some sc) sc)
-                      (:None     chain))))))))
+                      ((:wat::core::Some sc) sc)
+                      (:wat::core::None     chain))))))))
        (:wat::core::struct-new :wat::kernel::RunResult
          stdout-lines
          stderr-lines

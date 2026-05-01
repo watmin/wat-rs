@@ -64,13 +64,13 @@
      ((evicted :wat::core::Option<(wat::holon::HolonAST,wat::core::unit)>)
       (:wat::lru::LocalCache::put lru key ())))
     (:wat::core::match evicted -> :wat::core::unit
-      ((Some pair)
+      ((:wat::core::Some pair)
         (:wat::core::let*
           (((evicted-key :wat::holon::HolonAST) (:wat::core::first pair))
            ((_ :wat::core::Option<wat::holon::HolonAST>)
             (:wat::holon::Hologram/remove h evicted-key)))
           ()))
-      (:None ()))))
+      (:wat::core::None ()))))
 
 ;; ─── get — find + filter + LRU bump on hit ───────────────────────
 ;;
@@ -90,14 +90,14 @@
     (:wat::core::match
       (:wat::holon::Hologram/find h probe)
       -> :wat::core::Option<wat::holon::HolonAST>
-      ((Some pair)
+      ((:wat::core::Some pair)
         (:wat::core::let*
           (((matched-key :wat::holon::HolonAST) (:wat::core::first pair))
            ((val :wat::holon::HolonAST) (:wat::core::second pair))
            ((_ :wat::core::Option<(wat::holon::HolonAST,wat::core::unit)>)
             (:wat::lru::LocalCache::put lru matched-key ())))
-          (Some val)))
-      (:None :None))))
+          (:wat::core::Some val)))
+      (:wat::core::None :wat::core::None))))
 
 ;; ─── len — total entries across all slots ────────────────────────
 (:wat::core::define

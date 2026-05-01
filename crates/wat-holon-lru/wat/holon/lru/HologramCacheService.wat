@@ -209,8 +209,8 @@
               "HologramCacheService::Request::Get reply-tx disconnected — caller died?"))
            ((hit-delta :wat::core::i64)
             (:wat::core::match result -> :wat::core::i64
-              ((Some _) 1)
-              (:None 0)))
+              ((:wat::core::Some _) 1)
+              (:wat::core::None 0)))
            ((miss-delta :wat::core::i64)
             (:wat::core::i64::- 1 hit-delta))
            ((stats' :wat::holon::lru::HologramCacheService::Stats)
@@ -307,7 +307,7 @@
        ((maybe :wat::kernel::CommResult<wat::holon::lru::HologramCacheService::Request>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::holon::lru::HologramCacheService::State
-        ((Ok (Some req))
+        ((Ok (:wat::core::Some req))
           (:wat::core::let*
             (((after-handle :wat::holon::lru::HologramCacheService::State)
               (:wat::holon::lru::HologramCacheService/handle req state))
@@ -320,7 +320,7 @@
               (:wat::core::second step)))
             (:wat::holon::lru::HologramCacheService/loop
               req-rxs next-state reporter cadence')))
-        ((Ok :None)
+        ((Ok :wat::core::None)
           (:wat::holon::lru::HologramCacheService/loop
             (:wat::std::list::remove-at req-rxs idx)
             state reporter metrics-cadence))

@@ -134,13 +134,13 @@
     (f :fn(T)->U)
     -> :wat::core::unit)
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
-    ((Ok (Some v))
+    ((Ok (:wat::core::Some v))
       (:wat::core::let*
         (((u :U) (f v)))
         (:wat::core::match (:wat::kernel::send out u) -> :wat::core::unit
           ((Ok _) (:wat::std::stream::map-worker in out f))
           ((Err _) ()))))
-    ((Ok :None) ())
+    ((Ok :wat::core::None) ())
     ((Err _died) ())))
 
 (:wat::core::define
@@ -176,11 +176,11 @@
     (handler :fn(T)->wat::core::unit)
     -> :wat::core::unit)
   (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::unit
-    ((Ok (Some v))
+    ((Ok (:wat::core::Some v))
       (:wat::core::let*
         (((_ :wat::core::unit) (handler v)))
         (:wat::std::stream::for-each-drain rx handler)))
-    ((Ok :None) ())
+    ((Ok :wat::core::None) ())
     ((Err _died) ())))
 
 (:wat::core::define
@@ -209,9 +209,9 @@
     (acc :wat::core::Vector<T>)
     -> :wat::core::Vector<T>)
   (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::Vector<T>
-    ((Ok (Some v))
+    ((Ok (:wat::core::Some v))
       (:wat::std::stream::collect-drain rx (:wat::core::conj acc v)))
-    ((Ok :None) acc)
+    ((Ok :wat::core::None) acc)
     ((Err _died) acc)))
 
 (:wat::core::define
@@ -239,13 +239,13 @@
     (pred :fn(T)->wat::core::bool)
     -> :wat::core::unit)
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
-    ((Ok (Some v))
+    ((Ok (:wat::core::Some v))
       (:wat::core::if (pred v) -> :wat::core::unit
         (:wat::core::match (:wat::kernel::send out v) -> :wat::core::unit
           ((Ok _) (:wat::std::stream::filter-worker in out pred))
           ((Err _) ()))
         (:wat::std::stream::filter-worker in out pred)))
-    ((Ok :None) ())
+    ((Ok :wat::core::None) ())
     ((Err _died) ())))
 
 (:wat::core::define
@@ -283,13 +283,13 @@
     (f :fn(T)->wat::core::unit)
     -> :wat::core::unit)
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
-    ((Ok (Some v))
+    ((Ok (:wat::core::Some v))
       (:wat::core::let*
         (((_ :wat::core::unit) (f v)))
         (:wat::core::match (:wat::kernel::send out v) -> :wat::core::unit
           ((Ok _) (:wat::std::stream::inspect-worker in out f))
           ((Err _) ()))))
-    ((Ok :None) ())
+    ((Ok :wat::core::None) ())
     ((Err _died) ())))
 
 (:wat::core::define
@@ -325,9 +325,9 @@
     (f :fn(Acc,T)->Acc)
     -> :Acc)
   (:wat::core::match (:wat::kernel::recv rx) -> :Acc
-    ((Ok (Some v))
+    ((Ok (:wat::core::Some v))
       (:wat::std::stream::fold-drain rx (f acc v) f))
-    ((Ok :None) acc)
+    ((Ok :wat::core::None) acc)
     ((Err _died) acc)))
 
 (:wat::core::define
@@ -383,19 +383,19 @@
   ;; full drain; returns :None if any send failed, signaling the
   ;; caller to exit.
   (:wat::core::if (:wat::core::empty? items) -> :wat::core::Option<wat::core::unit>
-    (Some ())
+    (:wat::core::Some ())
     ;; Vec is non-empty (just checked); first returns Some<U> via
     ;; arc 047. The :None arm is unreachable but the type checker
     ;; demands totality.
     (:wat::core::match (:wat::core::first items) -> :wat::core::Option<wat::core::unit>
-      ((Some item)
+      ((:wat::core::Some item)
         (:wat::core::let*
           (((rest-items :wat::core::Vector<U>) (:wat::core::rest items)))
           (:wat::core::match (:wat::kernel::send out item) -> :wat::core::Option<wat::core::unit>
             ((Ok _)
               (:wat::std::stream::drain-items out rest-items))
-            ((Err _) :None))))
-      (:None :None))))
+            ((Err _) :wat::core::None))))
+      (:wat::core::None :wat::core::None))))
 
 (:wat::core::define
   (:wat::std::stream::with-state-worker<T,U,Acc>
@@ -406,7 +406,7 @@
     (acc :Acc)
     -> :wat::core::unit)
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
-    ((Ok (Some item))
+    ((Ok (:wat::core::Some item))
       (:wat::core::let*
         (((stepped :(Acc,wat::core::Vector<U>)) (step acc item))
          ((new-acc :Acc) (:wat::core::first stepped))
@@ -414,10 +414,10 @@
          ((drain-result :wat::core::Option<wat::core::unit>)
           (:wat::std::stream::drain-items out to-emit)))
         (:wat::core::match drain-result -> :wat::core::unit
-          ((Some _)
+          ((:wat::core::Some _)
             (:wat::std::stream::with-state-worker in out step flush new-acc))
-          (:None ()))))
-    ((Ok :None)
+          (:wat::core::None ()))))
+    ((Ok :wat::core::None)
       ;; Upstream disconnected. Flush final state; drain whatever it
       ;; produced. Consumer-dropped during flush is swallowed silently
       ;; — same behavior chunks had for its final partial buffer.
@@ -528,21 +528,21 @@
      ((buffer :wat::core::Vector<T>) (:wat::core::second state))
      ((k :K) (key-fn item)))
     (:wat::core::match last-key -> :wat::std::stream::KeyedChunkStep<K,T>
-      (:None
+      (:wat::core::None
         ;; First item — start the run, emit nothing yet.
         (:wat::core::Tuple
-          (:wat::core::Tuple (Some k) (:wat::core::Vector :T item))
+          (:wat::core::Tuple (:wat::core::Some k) (:wat::core::Vector :T item))
           (:wat::core::Vector :wat::core::Vector<T>)))
-      ((Some prev)
+      ((:wat::core::Some prev)
         (:wat::core::if (:wat::core::= prev k)
           -> :wat::std::stream::KeyedChunkStep<K,T>
           ;; Same key — append to current run, emit nothing.
           (:wat::core::Tuple
-            (:wat::core::Tuple (Some k) (:wat::core::conj buffer item))
+            (:wat::core::Tuple (:wat::core::Some k) (:wat::core::conj buffer item))
             (:wat::core::Vector :wat::core::Vector<T>))
           ;; Key change — emit completed run, start new run.
           (:wat::core::Tuple
-            (:wat::core::Tuple (Some k) (:wat::core::Vector :T item))
+            (:wat::core::Tuple (:wat::core::Some k) (:wat::core::Vector :T item))
             (:wat::core::Vector :wat::core::Vector<T> buffer)))))))
 
 (:wat::core::define
@@ -563,7 +563,7 @@
   ;; init = (None, empty) — no key seen yet, no items buffered.
   ;; step closes over key-fn; flush is size-agnostic so passes by name.
   (:wat::std::stream::with-state upstream
-    (:wat::core::Tuple :None (:wat::core::Vector :T))
+    (:wat::core::Tuple :wat::core::None (:wat::core::Vector :T))
     (:wat::core::lambda ((state :(wat::core::Option<K>,wat::core::Vector<T>)) (item :T)
                          -> :wat::std::stream::KeyedChunkStep<K,T>)
       (:wat::std::stream::chunks-by-step state item key-fn))
@@ -655,13 +655,13 @@
   (:wat::core::if (:wat::core::<= remaining 0) -> :wat::core::unit
     ()
     (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
-      ((Ok (Some v))
+      ((Ok (:wat::core::Some v))
         (:wat::core::match (:wat::kernel::send out v) -> :wat::core::unit
           ((Ok _)
             (:wat::std::stream::take-worker in out
               (:wat::core::i64::- remaining 1)))
           ((Err _) ())))
-      ((Ok :None) ())
+      ((Ok :wat::core::None) ())
       ((Err _died) ()))))
 
 (:wat::core::define
@@ -705,21 +705,21 @@
     -> :wat::core::unit)
   (:wat::core::if (:wat::core::empty? pending) -> :wat::core::unit
     (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
-      ((Ok (Some v))
+      ((Ok (:wat::core::Some v))
         (:wat::std::stream::flat-map-worker in out f (f v)))
-      ((Ok :None) ())
+      ((Ok :wat::core::None) ())
       ((Err _died) ()))
     ;; pending is non-empty; first returns Some<U> via arc 047.
     ;; :None arm is unreachable but type-required.
     (:wat::core::match (:wat::core::first pending) -> :wat::core::unit
-      ((Some item)
+      ((:wat::core::Some item)
         (:wat::core::let*
           (((rest-items :wat::core::Vector<U>) (:wat::core::rest pending)))
           (:wat::core::match (:wat::kernel::send out item) -> :wat::core::unit
             ((Ok _)
               (:wat::std::stream::flat-map-worker in out f rest-items))
             ((Err _) ()))))
-      (:None ()))))
+      (:wat::core::None ()))))
 
 (:wat::core::define
   (:wat::std::stream::flat-map<T,U>

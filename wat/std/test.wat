@@ -52,8 +52,8 @@
     ()
     (:wat::kernel::assertion-failed!
       "assert-eq failed"
-      (Some (:wat::core::show actual))
-      (Some (:wat::core::show expected)))))
+      (:wat::core::Some (:wat::core::show actual))
+      (:wat::core::Some (:wat::core::show expected)))))
 
 ;; ─── assert-contains ──────────────────────────────────────────────────
 ;;
@@ -69,8 +69,8 @@
     ()
     (:wat::kernel::assertion-failed!
       "assert-contains failed"
-      (Some haystack)
-      (Some needle))))
+      (:wat::core::Some haystack)
+      (:wat::core::Some needle))))
 
 ;; ─── assert-coincident ────────────────────────────────────────────────
 ;;
@@ -108,8 +108,8 @@
       ()
       (:wat::kernel::assertion-failed!
         "assert-coincident failed — holons not at the same point"
-        (Some (:wat::test::render-coincident-explanation expl))
-        :None))))
+        (:wat::core::Some (:wat::test::render-coincident-explanation expl))
+        :wat::core::None))))
 
 ;; Helper — turn a CoincidentExplanation into a multi-line, named-
 ;; field string for assertion failure displays. Each field on its own
@@ -154,8 +154,8 @@
       ()
       (:wat::kernel::assertion-failed!
         "assert-stdout-is failed"
-        (Some (:wat::core::string::join "\n" actual))
-        (Some (:wat::core::string::join "\n" expected))))))
+        (:wat::core::Some (:wat::core::string::join "\n" actual))
+        (:wat::core::Some (:wat::core::string::join "\n" expected))))))
 
 ;; ─── assert-stderr-matches ────────────────────────────────────────────
 ;;
@@ -182,8 +182,8 @@
       ()
       (:wat::kernel::assertion-failed!
         "assert-stderr-matches failed — no stderr line matched pattern"
-        (Some (:wat::core::string::join "\n" stderr-lines))
-        (Some pattern)))))
+        (:wat::core::Some (:wat::core::string::join "\n" stderr-lines))
+        (:wat::core::Some pattern)))))
 
 ;; ─── run / run-in-scope ───────────────────────────────────────────────
 ;;
@@ -196,7 +196,7 @@
     (src :wat::core::String)
     (stdin :wat::core::Vector<wat::core::String>)
     -> :wat::kernel::RunResult)
-  (:wat::kernel::run-sandboxed src stdin :None))
+  (:wat::kernel::run-sandboxed src stdin :wat::core::None))
 
 (:wat::core::define
   (:wat::test::run-in-scope
@@ -204,7 +204,7 @@
     (stdin :wat::core::Vector<wat::core::String>)
     (scope :wat::core::String)
     -> :wat::kernel::RunResult)
-  (:wat::kernel::run-sandboxed src stdin (Some scope)))
+  (:wat::kernel::run-sandboxed src stdin (:wat::core::Some scope)))
 
 ;; ─── run-ast + program — AST-entry test sandbox ──────────────────────
 ;;
@@ -235,7 +235,7 @@
     (forms :wat::core::Vector<wat::WatAST>)
     (stdin :wat::core::Vector<wat::core::String>)
     -> :wat::kernel::RunResult)
-  (:wat::kernel::run-sandboxed-ast forms stdin :None))
+  (:wat::kernel::run-sandboxed-ast forms stdin :wat::core::None))
 
 ;; --- run-hermetic-ast — AST-entry hermetic sandbox ---
 ;;
@@ -255,7 +255,7 @@
     (forms :wat::core::Vector<wat::WatAST>)
     (stdin :wat::core::Vector<wat::core::String>)
     -> :wat::kernel::RunResult)
-  (:wat::kernel::run-sandboxed-hermetic-ast forms stdin :None))
+  (:wat::kernel::run-sandboxed-hermetic-ast forms stdin :wat::core::None))
 
 ;; ─── deftest — Clojure-style ergonomic shell (arc 007 slice 3b; arc 027 slice 4; arc 031) ───
 ;;
@@ -319,7 +319,7 @@
              -> :wat::core::unit)
            ,body))
        (:wat::core::Vector :wat::core::String)
-       :None)))
+       :wat::core::None)))
 
 ;; ─── deftest-hermetic — same shape, forked child for isolation ────────
 ;;
@@ -350,7 +350,7 @@
              -> :wat::core::unit)
            ,body))
        (:wat::core::Vector :wat::core::String)
-       :None)))
+       :wat::core::None)))
 
 ;; ─── make-deftest — configured-deftest factory (arc 029; arc 031) ─────
 ;;

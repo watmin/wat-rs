@@ -167,11 +167,11 @@
       (:wat::core::if (:wat::core::= tag 0) -> :wat::core::Option<V>
         (:wat::lru::LocalCache::get cache key)
         (:wat::core::match put-val -> :wat::core::Option<V>
-          ((Some v)
+          ((:wat::core::Some v)
             (:wat::core::let*
               (((_ :wat::core::Option<(K,V)>) (:wat::lru::LocalCache::put cache key v)))
-              :None))
-          (:None :None))))
+              :wat::core::None))
+          (:wat::core::None :wat::core::None))))
      ;; Per arc 110: client dropping reply-to mid-protocol is a
      ;; protocol violation in this in-memory CSP. Panic so the
      ;; program tree learns the discipline broke instead of
@@ -186,8 +186,8 @@
         (:wat::core::let*
           (((hit-delta :wat::core::i64)
             (:wat::core::match resp -> :wat::core::i64
-              ((Some _) 1)
-              (:None 0)))
+              ((:wat::core::Some _) 1)
+              (:wat::core::None 0)))
            ((miss-delta :wat::core::i64)
             (:wat::core::i64::- 1 hit-delta)))
           (:wat::lru::CacheService::Stats/new
@@ -283,7 +283,7 @@
        ((maybe :wat::kernel::CommResult<wat::lru::CacheService::Request<K,V>>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::core::unit
-        ((Ok (Some req))
+        ((Ok (:wat::core::Some req))
           (:wat::core::let*
             (((after-handle :wat::lru::CacheService::State<K,V>)
               (:wat::lru::CacheService/handle req state))
@@ -296,7 +296,7 @@
               (:wat::core::second step)))
             (:wat::lru::CacheService/loop-step
               next-state req-rxs reporter cadence')))
-        ((Ok :None)
+        ((Ok :wat::core::None)
           (:wat::lru::CacheService/loop-step
             state
             (:wat::std::list::remove-at req-rxs idx)
@@ -318,7 +318,7 @@
     -> :wat::core::Option<V>)
   (:wat::core::let*
     (((body :wat::lru::CacheService::Body<K,V>)
-      (:wat::core::Tuple 0 key :None))
+      (:wat::core::Tuple 0 key :wat::core::None))
      ((req :wat::lru::CacheService::Request<K,V>)
       (:wat::core::Tuple body reply-tx))
      ;; Arc 110: in-memory peer-death is catastrophic; cache driver
@@ -345,7 +345,7 @@
     -> :wat::core::unit)
   (:wat::core::let*
     (((body :wat::lru::CacheService::Body<K,V>)
-      (:wat::core::Tuple 1 key (Some value)))
+      (:wat::core::Tuple 1 key (:wat::core::Some value)))
      ((req :wat::lru::CacheService::Request<K,V>)
       (:wat::core::Tuple body reply-tx))
      ;; Arc 110: same as CacheService/get — driver dying mid-protocol

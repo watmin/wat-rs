@@ -47,10 +47,10 @@
   (:wat::core::struct-new :wat::kernel::Failure
     (:wat::core::string::concat
       "startup: " (:wat::kernel::StartupError/message err))
-    :None
+    :wat::core::None
     (:wat::core::Vector :wat::kernel::Frame)
-    :None
-    :None))
+    :wat::core::None
+    :wat::core::None))
 
 ;; Build a Failure payload from a ProcessDiedError chain (arc 112 +
 ;; 113). Arc 113 widened the Err arm to wat::core::Vector<PDE> so cascading
@@ -69,16 +69,16 @@
     -> :wat::kernel::Failure)
   (:wat::core::match (:wat::core::first chain)
     -> :wat::kernel::Failure
-    ((Some err) (:wat::kernel::ProcessDiedError/to-failure err))
-    (:None
+    ((:wat::core::Some err) (:wat::kernel::ProcessDiedError/to-failure err))
+    (:wat::core::None
      ;; Empty chain — should not occur; substrate always emits at
      ;; least the immediate-peer death. Defensive default.
      (:wat::core::struct-new :wat::kernel::Failure
        "empty died-chain (substrate bug)"
-       :None
+       :wat::core::None
        (:wat::core::Vector :wat::kernel::Frame)
-       :None
-       :None))))
+       :wat::core::None
+       :wat::core::None))))
 
 ;; Common driver — runs a Process (already spawned successfully),
 ;; pre-seeds stdin, closes the writer to signal EOF, drains
@@ -123,13 +123,13 @@
       (:wat::kernel::extract-panics stderr-lines))
      ((failure :wat::core::Option<wat::kernel::Failure>)
       (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
-        ((Ok _)    :None)
+        ((Ok _)    :wat::core::None)
         ((Err err)
-         (Some (:wat::kernel::failure-from-process-died
+         (:wat::core::Some (:wat::kernel::failure-from-process-died
                  (:wat::core::match stderr-chain
                    -> :wat::core::Vector<wat::kernel::ProcessDiedError>
-                   ((Some chain) chain)
-                   (:None         err))))))))
+                   ((:wat::core::Some chain) chain)
+                   (:wat::core::None         err))))))))
     (:wat::core::struct-new :wat::kernel::RunResult
       stdout-lines stderr-lines failure)))
 
@@ -145,7 +145,7 @@
   (:wat::core::struct-new :wat::kernel::RunResult
     (:wat::core::Vector :wat::core::String)
     (:wat::core::Vector :wat::core::String)
-    (Some (:wat::kernel::failure-from-startup err))))
+    (:wat::core::Some (:wat::kernel::failure-from-startup err))))
 
 
 ;; --- :wat::kernel::run-sandboxed (source-string entry) ---

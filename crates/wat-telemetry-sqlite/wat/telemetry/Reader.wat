@@ -140,8 +140,8 @@
     -> :wat::core::Option<wat::holon::HolonAST>)
   (:wat::core::match e -> :wat::core::Option<wat::holon::HolonAST>
     ((:wat::telemetry::Event::Log _ _ _ _ _ _ data)
-      (Some (:wat::edn::Tagged/0 data)))
-    (_ :None)))
+      (:wat::core::Some (:wat::edn::Tagged/0 data)))
+    (_ :wat::core::None)))
 
 (:wat::core::define
   (:wat::telemetry::Event::Log/data-value<T>
@@ -153,9 +153,9 @@
         (:wat::eval-ast!
           (:wat::holon::to-watast (:wat::edn::Tagged/0 data)))
         -> :wat::core::Option<T>
-        ((Ok v) (Some v))
-        ((Err _) :None)))
-    (_ :None)))
+        ((Ok v) (:wat::core::Some v))
+        ((Err _) :wat::core::None)))
+    (_ :wat::core::None)))
 
 ;; ─── Stream sources via spawn-producer ─────────────────────────
 ;;
@@ -177,8 +177,8 @@
   (:wat::core::match
     (:wat::telemetry::sqlite::LogCursor/step! cursor)
     -> :wat::core::unit
-    (:None ())
-    ((Some event)
+    (:wat::core::None ())
+    ((:wat::core::Some event)
       (:wat::core::match
         (:wat::kernel::send tx event)
         -> :wat::core::unit
@@ -194,8 +194,8 @@
   (:wat::core::match
     (:wat::telemetry::sqlite::MetricCursor/step! cursor)
     -> :wat::core::unit
-    (:None ())
-    ((Some event)
+    (:wat::core::None ())
+    ((:wat::core::Some event)
       (:wat::core::match
         (:wat::kernel::send tx event)
         -> :wat::core::unit

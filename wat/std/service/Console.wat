@@ -115,7 +115,7 @@
        ((maybe :wat::kernel::CommResult<wat::std::service::Console::Message>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::core::unit
-        ((Ok (Some tagged))
+        ((Ok (:wat::core::Some tagged))
           (:wat::core::let*
             (((tag :wat::core::i64) (:wat::core::first tagged))
              ((msg :wat::core::String) (:wat::core::second tagged))
@@ -125,7 +125,7 @@
              ((_ack :wat::core::unit)
               (:wat::std::service::Console/ack-at pairs idx)))
             (:wat::std::service::Console/loop pairs stdout stderr)))
-        ((Ok :None)
+        ((Ok :wat::core::None)
           (:wat::std::service::Console/loop
             (:wat::std::list::remove-at pairs idx)
             stdout
@@ -150,14 +150,14 @@
     (idx :wat::core::i64)
     -> :wat::core::unit)
   (:wat::core::match (:wat::core::get pairs idx) -> :wat::core::unit
-    ((Some pair)
+    ((:wat::core::Some pair)
       (:wat::core::let*
         (((ack-tx :wat::std::service::Console::AckTx)
           (:wat::core::second pair)))
         (:wat::core::result::expect -> :wat::core::unit
           (:wat::kernel::send ack-tx ())
           "Console/ack-at: ack-tx disconnected — producer scope died mid-write?")))
-    (:None ())))
+    (:wat::core::None ())))
 
 ;; --- Client helpers ---
 ;;

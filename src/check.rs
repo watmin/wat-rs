@@ -2516,7 +2516,16 @@ fn pattern_coverage(
             // Arc 048 — user-enum tagged variant pattern: head is a
             // keyword path `:enum::Variant`. Split, validate, bind
             // fields by position.
+            //
+            // Arc 109 slice 1h — but FQDN built-in variant constructors
+            // (`:wat::core::Some`, `:wat::core::Ok`, `:wat::core::Err`)
+            // are NOT user enums; let them fall through to the
+            // built-in dispatch below (line ~2620).
             if let WatAST::Keyword(variant_path, _) = head {
+                let is_builtin_fqdn = variant_path == ":wat::core::Some"
+                    || variant_path == ":wat::core::Ok"
+                    || variant_path == ":wat::core::Err";
+                if !is_builtin_fqdn {
                 let enum_path = match shape {
                     MatchShape::Enum(p) => p,
                     _ => {
@@ -2609,6 +2618,7 @@ fn pattern_coverage(
                     name: variant_name.to_string(),
                     full: all_full,
                 });
+                } // close `if !is_builtin_fqdn`
             }
             // Arc 109 slice 1h — list-pattern head accepts both
             // bare-Symbol (legacy grammar exception) and FQDN-keyword
@@ -2914,9 +2924,17 @@ fn check_subpattern(
             };
             // Variant-constructor list at this sub-position:
             // dispatch on expected_ty's shape.
-            // Built-in Some/Ok/Err — head is Symbol.
-            if let WatAST::Symbol(ident, _) = head {
-                match (ident.as_str(), expected_ty) {
+            // Built-in Some/Ok/Err — head is Symbol (legacy bare) OR
+            // FQDN keyword (arc 109 slice 1h+1i canonical form).
+            let builtin_ident = match head {
+                WatAST::Symbol(ident, _) => Some(ident.as_str()),
+                WatAST::Keyword(k, _) if k == ":wat::core::Some" => Some("Some"),
+                WatAST::Keyword(k, _) if k == ":wat::core::Ok" => Some("Ok"),
+                WatAST::Keyword(k, _) if k == ":wat::core::Err" => Some("Err"),
+                _ => None,
+            };
+            if let Some(ident) = builtin_ident {
+                match (ident, expected_ty) {
                     ("Some", TypeExpr::Parametric { head: h, args })
                         if h == "Option" && args.len() == 1 =>
                     {
@@ -2974,7 +2992,31 @@ fn check_subpattern(
                 }
             }
             // User-enum tagged variant: head is Keyword `:enum::Variant`.
+            // Arc 109 slice 1h — FQDN built-in variant constructors
+            // (`:wat::core::Some`, `:wat::core::Ok`, `:wat::core::Err`)
+            // are handled by the built-in dispatch above; if we got here
+            // with an unmatched expected_ty, fall through to tuple/error
+            // path so the diagnostic surfaces cleanly as "(Some _) takes
+            // exactly one field" or similar, not a spurious "user enum"
+            // mismatch.
             if let WatAST::Keyword(variant_path, _) = head {
+                let is_builtin_fqdn = variant_path == ":wat::core::Some"
+                    || variant_path == ":wat::core::Ok"
+                    || variant_path == ":wat::core::Err";
+                if is_builtin_fqdn {
+                    // Built-in already dispatched above; if we reach
+                    // here, the `expected_ty` didn't match the
+                    // constructor's shape. Surface a precise mismatch.
+                    errors.push(CheckError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "{} pattern in {} position",
+                            variant_path,
+                            format_type(expected_ty)
+                        ),
+                    });
+                    return None;
+                }
                 let enum_path = match expected_ty {
                     TypeExpr::Path(p) => p.as_str(),
                     other => {

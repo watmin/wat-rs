@@ -31,10 +31,10 @@
      ;; expects non-empty input by contract; the :None arm is
      ;; unreachable but the type checker demands totality.
      (:wat::core::match (:wat::core::first positioned) -> :wat::holon::HolonAST
-       ((Some head)
+       ((:wat::core::Some head)
          (:wat::core::foldl
            (:wat::core::rest positioned)
            head
            (:wat::core::lambda ((acc :wat::holon::HolonAST) (x :wat::holon::HolonAST) -> :wat::holon::HolonAST)
              (:wat::holon::Bind acc x))))
-       (:None (:wat::holon::Atom "Sequential-empty-input")))))
+       (:wat::core::None (:wat::holon::Atom "Sequential-empty-input")))))

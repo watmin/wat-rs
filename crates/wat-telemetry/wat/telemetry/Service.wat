@@ -215,9 +215,9 @@
       (:wat::telemetry::Service/extend acc first-entries ack)
       (:wat::core::match (:wat::kernel::try-recv rx)
         -> :wat::telemetry::Service::Pending<E>
-        ((Ok (Some req-entries))
+        ((Ok (:wat::core::Some req-entries))
           (:wat::telemetry::Service/extend acc req-entries ack))
-        ((Ok :None) acc)
+        ((Ok :wat::core::None) acc)
         ((Err _died) acc)))))
 
 
@@ -343,10 +343,10 @@
        ((maybe :wat::kernel::CommResult<wat::telemetry::Service::Request<E>>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::core::unit
-        ((Ok (Some first-entries))
+        ((Ok (:wat::core::Some first-entries))
           (:wat::telemetry::Service/loop-step
             pairs idx first-entries stats cadence dispatcher stats-translator))
-        ((Ok :None)
+        ((Ok :wat::core::None)
           (:wat::telemetry::Service/loop
             (:wat::std::list::remove-at pairs idx)
             stats cadence dispatcher stats-translator))
