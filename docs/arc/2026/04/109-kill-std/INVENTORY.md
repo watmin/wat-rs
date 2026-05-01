@@ -926,7 +926,7 @@ That distinction is **load-bearing**. Don't lose it to uniform
 |---|---|---|---|
 | ✓ Telemetry | A | already canonical | shipped K.telemetry 2026-05-01; no channel changes — Pattern A reference |
 | ✓ Console | A | `Tx`/`Rx` (Level 2 mumble — implicit Req) | shipped K.console 2026-05-01: renamed to `ReqTx`/`ReqRx`; added `ReqChannel` + `AckChannel` typealiases — mirrors Telemetry's Pattern A reference |
-| LRU CacheService | B | `ReplyTx<V>` exists; no `ReplyRx<V>` (Level 2 mumble — unallocated rx has no domain name) | add `ReplyRx<V>` + `ReplyChannel<V>` typealiases |
+| ✓ LRU CacheService | B | `ReplyTx<V>` exists; no `ReplyRx<V>` (Level 2 mumble — unallocated rx has no domain name) | shipped K.lru 2026-05-01: added `ReplyRx<V>` + `ReplyChannel<V>` typealiases; renamed `ReqPair<K,V>` → `ReqChannel<K,V>` (in-crate suffix mumble per gaze 2026-05-01); LRU is now the Pattern B canonical reference |
 | HolonLRU | B | variant-scoped `GetReplyTx`/`GetReplyRx` already correct | add a one-line comment: "Put is fire-and-forget — no `PutReply*` types by design" |
 
 #### Cross-references

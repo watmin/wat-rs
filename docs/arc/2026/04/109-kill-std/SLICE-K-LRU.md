@@ -1,7 +1,48 @@
-# Arc 109 Slice K.lru — `CacheService` grouping noun → namespace flatten + Pattern B fill-in
+# Arc 109 Slice K.lru — `CacheService` grouping noun → namespace flatten + Pattern B fill-in + ReqPair → ReqChannel rename
 
-**Compaction-amnesia anchor.** Read this first if you're picking
-up slice K.lru mid-flight.
+**Status: shipped 2026-05-01.** Substrate (commit `158dbef`) +
+consumer sweep. 8 files swept (1 substrate + 7 consumer); 131
+internal renames in CacheService.wat + ~36 consumer renames; 3
+new typealiases (ReqChannel — replacing ReqPair; ReplyRx;
+ReplyChannel); cargo test --release --workspace 1476/0.
+
+Three coupled transformations validated atomically:
+
+1. **§ K grouping-noun retirement** — same mechanism as
+   K.telemetry / K.console; rehearsed.
+2. **Pattern B canonicalization (gaze finding)** — ReqPair
+   renamed to ReqChannel; eliminates the in-crate
+   ReqPair/ReplyChannel suffix mumble. Substrate-wide every
+   service crate now uses the "Channel" suffix.
+3. **Pattern B fill-in (gaze finding)** — added missing
+   `ReplyRx<V>` + `ReplyChannel<V>` typealiases; the
+   unallocated reply receiver in get/put now has a domain name.
+
+LRU is now the **Pattern B canonical reference** alongside
+Telemetry's Pattern A reference.
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record.** Slice K.lru is the
+sixth Pattern 3 application after slices 1c/1d/1e/9d/K.telemetry/
+K.console. First slice to validate § K's doctrine on Pattern B
+(Request + Reply), and first to consolidate the channel-naming
+patterns substrate-wide via the ReqPair → ReqChannel rename.
+
+**Walker shape:** `validate_legacy_lru_cache_service_path` is
+K.console's walker plus a `canonical_lru_leaf` helper that maps
+`ReqPair → ReqChannel`. Otherwise identical Pattern 3 keyword-
+prefix detection.
+
+**Sweep notes:** the consumer-sweep agent surfaced an additional
+contextual finding — `:wat::lru::CacheService<K,V>` (program-
+level grouping references in live docs) didn't have a 1:1
+replacement under § K's flatten rule (the program-as-grouping is
+exactly what retires). Agent rewrote those to
+`:wat::lru::*` (the cluster) + `:wat::lru::spawn<K,V,G>` (the
+verb) per the substrate header's canonical phrasing. Plus
+discovered a stale USER-GUIDE example call-site
+`(:wat::lru::CacheService 1024 8)` already wrong per arc 078
+(spawn now takes 4 args); updated to current signature.
 
 ## Audit result (2026-05-01)
 

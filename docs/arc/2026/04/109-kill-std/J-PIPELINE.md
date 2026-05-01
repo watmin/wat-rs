@@ -438,6 +438,23 @@ slice plans name.
                   Stream stdlib's path now mirrors its shipped
                   FQDN per § G's filesystem-path rule.
 
+[done]  arc 109 slice K.lru — CacheService grouping noun retired
+                  + Pattern B canonicalization + ReqPair → ReqChannel
+                  rename (third § K application; first to validate the
+                  doctrine on Pattern B). CacheService::* +
+                  CacheService/* flatten to :wat::lru::*. Real types
+                  Stats / MetricsCadence / State / Report keep
+                  /methods. Pattern B fill-in: NEW ReplyRx<V> +
+                  ReplyChannel<V> typealiases. ReqPair → ReqChannel
+                  per gaze 2026-05-01 (in-crate suffix mumble).
+                  Pattern 3 walker (BareLegacyLruCacheServicePath) —
+                  sixth Pattern 3 application; canonical_lru_leaf
+                  handles ReqPair → ReqChannel. 8 files swept;
+                  ~167 total renames (131 substrate + ~36 consumer);
+                  cargo test workspace 1476/0 (commits 158dbef +
+                  sweep; SLICE-K-LRU.md). LRU is now the Pattern B
+                  canonical reference alongside Telemetry's Pattern A.
+
 [done]  arc 109 slice K.console — Console grouping noun retired
                   + Pattern A canonicalization + file move (second
                   § K application; first slice to bundle § K

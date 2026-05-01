@@ -194,7 +194,8 @@ proven concurrency pattern that is not a lock.
   unblocks only AFTER the bytes are durable. The "Console is the
   lock, except there's no lock" case — see also "Mini-TCP via
   paired channels" below.
-- **`:wat::lru::CacheService<K,V>`** — the L2 caching program
+- **`:wat::lru::*`** — the L2 caching program (spawn via
+  `:wat::lru::spawn<K,V,G>`)
   (external workspace member `crates/wat-lru/`; namespace promoted
   to `:wat::*` via arc 036). Owns its own LocalCache internally
   (on the driver's thread, using tier-2 ThreadOwnedCell). Clients
@@ -501,7 +502,7 @@ goes in wat-rs.
 (`Arc<HashMap<...>>`, immutable). Is it one program's private hash
 map? Tier 2 (`ThreadOwnedCell<HashMap<...>>`). Is it shared across
 programs? Tier 3 — wrap it in a program with a mailbox
-(`:wat::lru::CacheService<K,V>` is the template).
+(`:wat::lru::*` is the template; spawn via `:wat::lru::spawn`).
 
 **"I have a shared connection pool."**
 → Tier 3. The pool itself is a program that hands out connections
@@ -511,7 +512,7 @@ dropped. No lock on the pool; the HandlePool mechanism handles
 distribution lock-free.
 
 **"I have a complex cache with multiple readers and writers."**
-→ Tier 3. `:wat::lru::CacheService<K,V>` or a specialization.
+→ Tier 3. `:wat::lru::*` (spawn via `:wat::lru::spawn`) or a specialization.
 Multiple clients; one program owns the data; requests/replies
 through channels.
 

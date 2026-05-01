@@ -36,10 +36,10 @@
                 (:wat::console::spawn stdout stderr 2))
                ((con-drv :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
                 (:wat::core::second con-state))
-               ((state :wat::lru::CacheService::Spawn<wat::core::String,wat::core::i64>)
-                (:wat::lru::CacheService/spawn 16 1
-                  :wat::lru::CacheService/null-reporter
-                  (:wat::lru::CacheService/null-metrics-cadence)))
+               ((state :wat::lru::Spawn<wat::core::String,wat::core::i64>)
+                (:wat::lru::spawn 16 1
+                  :wat::lru::null-reporter
+                  (:wat::lru::null-metrics-cadence)))
                ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
                 (:wat::core::second state))
 
@@ -53,9 +53,9 @@
                     (:wat::kernel::HandlePool::pop con-pool))
                    ((_ :wat::core::unit) (:wat::kernel::HandlePool::finish con-pool))
 
-                   ((pool :wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<wat::core::String,wat::core::i64>>)
+                   ((pool :wat::kernel::HandlePool<wat::lru::ReqTx<wat::core::String,wat::core::i64>>)
                     (:wat::core::first state))
-                   ((req-tx :wat::lru::CacheService::ReqTx<wat::core::String,wat::core::i64>)
+                   ((req-tx :wat::lru::ReqTx<wat::core::String,wat::core::i64>)
                     (:wat::kernel::HandlePool::pop pool))
                    ((_ :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
                    ((reply-pair :wat::kernel::QueuePair<wat::core::Option<wat::core::i64>>)
@@ -66,10 +66,10 @@
                     (:wat::core::second reply-pair))
 
                    ((_ :wat::core::unit) (:wat::console::err diag "T1: about-to-put\n"))
-                   ((_ :wat::core::unit) (:wat::lru::CacheService/put req-tx reply-tx reply-rx "answer" 42))
+                   ((_ :wat::core::unit) (:wat::lru::put req-tx reply-tx reply-rx "answer" 42))
                    ((_ :wat::core::unit) (:wat::console::err diag "T2: put-acked\n"))
                    ((got :wat::core::Option<wat::core::i64>)
-                    (:wat::lru::CacheService/get req-tx reply-tx reply-rx "answer"))
+                    (:wat::lru::get req-tx reply-tx reply-rx "answer"))
                    ((_ :wat::core::unit) (:wat::console::err diag "T3: get-returned\n")))
                   (:wat::core::match got -> :wat::core::unit
                     ((:wat::core::Some _v) (:wat::console::out diag "hit\n"))

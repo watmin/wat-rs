@@ -453,8 +453,8 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   `wat-rs/docs/ZERO-MUTEX.md` drift-only sync. Three Edits total
   — the smallest implementation surface of any doc-audit arc so
   far. Sole drift was three `:wat::std::service::Cache<K,V>`
-  references migrating to `:wat::lru::CacheService<K,V>` per arcs
-  013 + 036. Architectural prose otherwise current — the
+  references migrating to `:wat::lru::*` (CacheService grouping
+  noun retired in arc 109 slice K.lru) per arcs 013 + 036. Architectural prose otherwise current — the
   three-tier framing (immutable / thread-owned / program-owned),
   HandlePool discipline, spawn/send/recv/select primitives, and
   the empirical claim are all unaffected by arcs 028-037. The

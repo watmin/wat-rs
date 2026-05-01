@@ -1880,20 +1880,20 @@ Lives in that program's thread; no channel overhead.
 
 Tier 2 — thread-owned. The cache never leaves this program's thread.
 
-### CacheService — shared across programs
+### `:wat::lru::*` cache service — shared across programs
 
-When multiple programs need to share a cache, spawn a CacheService.
+When multiple programs need to share a cache, spawn a cache service.
 The program owns the cache on its own thread; clients send requests
 through channels.
 
 ```scheme
 (:wat::core::let*
-  (((state :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<String,i64>>,
+  (((state :(wat::kernel::HandlePool<wat::lru::ReqTx<String,i64>>,
              wat::kernel::ProgramHandle<()>))
-    (:wat::lru::CacheService 1024 8))   ;; capacity 1024, 8 client handles
+    (:wat::lru::spawn 1024 8 reporter cadence))  ;; capacity 1024, 8 client handles
    ((pool :wat::kernel::HandlePool<...>) (:wat::core::first state))
    ((driver :wat::kernel::ProgramHandle<()>) (:wat::core::second state))
-   ((client1 :wat::lru::CacheService::ReqTx<String,i64>)
+   ((client1 :wat::lru::ReqTx<String,i64>)
     (:wat::kernel::HandlePool::pop pool))
    (... eight clients ...)
    ((_ :()) (:wat::kernel::HandlePool::finish pool)))
@@ -1902,7 +1902,7 @@ through channels.
 ```
 
 Tier 3 — program-owned, message-addressed. The single-threaded
-CacheService driver serializes access without locks.
+cache-service driver serializes access without locks.
 
 ---
 
@@ -2770,7 +2770,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::stopped?` / `sigusr1?` / ... | `()` | `:bool` |
 | `:wat::kernel::HandlePool::new` / `pop` / `finish` | various | pool ops |
 | `:wat::console` | `stdout stderr n` | `(HandlePool, Driver)` |
-| `:wat::lru::CacheService` (wat-lru) | `capacity count` | `(HandlePool, Driver)` |
+| `:wat::lru::spawn` (wat-lru) | `capacity count reporter cadence` | `(HandlePool, Driver)` |
 | `:wat::lru::LocalCache::new` / `put` / `get` (wat-lru) | various | per-program LRU |
 | `:wat::holon::Atom` | `<value>` | `:wat::holon::HolonAST` — polymorphic dispatcher (arc 057). Primitive → matching typed leaf; HolonAST → opaque-identity wrap; quoted wat form → structural lowering. New code: prefer the named siblings `:wat::holon::leaf` (primitives) and `:wat::holon::from-watast` (quoted forms) — one verb per move (arc 065). Polymorphism preserved for back-compat. |
 | `:wat::holon::leaf` | `<primitive>` | `:wat::holon::HolonAST` — lift a primitive (i64/f64/bool/String/keyword) to a typed HolonAST leaf (arc 065). Honest verb for the "wrap a value as a leaf" move that Atom's polymorphism left ambiguous. |

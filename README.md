@@ -539,9 +539,10 @@ Caches (external — `crates/wat-lru/`; arc 013 externalization):
   over `:rust::lru::LruCache`. Single-thread-owned. Fastest memoization.
   Ships in the `wat-lru` sibling crate; consumers add `wat-lru =
   "..."` to `Cargo.toml` + `deps: [wat_lru]` to their `wat::main!`.
-- `:wat::lru::CacheService<K,V>` — L2 shared cache.
-  Driver thread owns its `LocalCache`; clients send tagged requests
-  with an embedded reply channel. Also in `wat-lru`.
+- `:wat::lru::*` — L2 shared cache (multi-client service program;
+  spawn via `:wat::lru::spawn<K,V,G>`). Driver thread owns its
+  `LocalCache`; clients send tagged requests with an embedded reply
+  channel. Also in `wat-lru`.
 
 Services (long-running driver programs with client handles, baked):
 - `:wat::console` — the single gateway to stdout+stderr.

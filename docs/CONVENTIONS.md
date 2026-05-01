@@ -423,7 +423,7 @@ the arity and side-effects from the suffix alone.
 (:wat::holon::lru::HologramCache/make filter cap)
 
 ;; Type/spawn — factory that ALSO spawns a driver thread
-(:wat::lru::CacheService/spawn capacity count reporter metrics-cadence)
+(:wat::lru::spawn capacity count reporter metrics-cadence)
    ; -> CacheService::Spawn<K,V>
 (:wat::console::spawn stdout stderr 4)
    ; -> Console::Spawn
@@ -449,7 +449,7 @@ vs `/spawn` distinction is wat-side only.
 
 A *service* is a queue-addressed program with a request enum, a
 driver loop, and per-request state. The substrate ships two:
-`:wat::lru::CacheService<K,V>` and
+`:wat::lru::*` (spawn via `:wat::lru::spawn`) and
 `:wat::holon::lru::HologramCacheService`. Both follow the same
 contract; future stdlib services do too.
 
@@ -571,17 +571,17 @@ If a function's return type contains **three or more** `<` characters, name it. 
 
 ```scheme
 ;; Before — 3 angle brackets at every Service factory site
-(:wat::lru::CacheService/spawn<K,V>
+(:wat::lru::spawn<K,V>
   (capacity :i64) (count :i64)
-  -> :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
+  -> :(wat::kernel::HandlePool<wat::lru::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
 
 ;; After — alias near the protocol typealiases
-(:wat::core::typealias :wat::lru::CacheService::Spawn<K,V>
-  :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
+(:wat::core::typealias :wat::lru::Spawn<K,V>
+  :(wat::kernel::HandlePool<wat::lru::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
 
-(:wat::lru::CacheService/spawn<K,V>
+(:wat::lru::spawn<K,V>
   (capacity :i64) (count :i64)
-  -> :wat::lru::CacheService::Spawn<K,V>)
+  -> :wat::lru::Spawn<K,V>)
 ```
 
 ### Aliases that ship in the substrate
@@ -595,9 +595,9 @@ If a function's return type contains **three or more** `<` characters, name it. 
 | `:wat::std::stream::ChunkStep<T>` | `:(Vec<T>,Vec<Vec<T>>)` | `wat/std/stream.wat` |
 | `:wat::std::stream::KeyedChunkStep<K,T>` | `:((Option<K>,Vec<T>),Vec<Vec<T>>)` | `wat/std/stream.wat` |
 | `:wat::console::Spawn` | factory return shape | `wat/std/service/Console.wat` |
-| `:wat::lru::CacheService::Spawn<K,V>` | factory return shape | `crates/wat-lru/wat/lru/CacheService.wat` |
-| `:wat::lru::CacheService::Step<K,V,G>` | one loop-step output | `crates/wat-lru/wat/lru/CacheService.wat` |
-| `:wat::lru::CacheService::ReqPair<K,V>` | `:(ReqTx<K,V>,ReqRx<K,V>)` | `crates/wat-lru/wat/lru/CacheService.wat` |
+| `:wat::lru::Spawn<K,V>` | factory return shape | `crates/wat-lru/wat/lru/CacheService.wat` |
+| `:wat::lru::Step<K,V,G>` | one loop-step output | `crates/wat-lru/wat/lru/CacheService.wat` |
+| `:wat::lru::ReqChannel<K,V>` | `:(ReqTx<K,V>,ReqRx<K,V>)` | `crates/wat-lru/wat/lru/CacheService.wat` |
 | `:wat::holon::lru::HologramCacheService::Spawn` | factory return shape | `crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat` |
 | `:wat::holon::lru::HologramCacheService::Step<G>` | one loop-step output | `crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat` |
 
