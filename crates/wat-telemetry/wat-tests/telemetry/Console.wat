@@ -27,7 +27,7 @@
           ;; so the per-entry Console/out call gets in-memory TCP for free.
           (:wat::core::define
             (:my::dispatch-three-edn
-              (handle :wat::std::service::Console::Handle)
+              (handle :wat::console::Handle)
               -> :wat::core::unit)
             (:wat::core::let*
               (((d :my::Dispatcher)
@@ -45,10 +45,10 @@
               -> :wat::core::unit)
             (:wat::core::let*
               (((pool console-driver)
-                (:wat::std::service::Console/spawn stdout stderr 1))
+                (:wat::console::spawn stdout stderr 1))
                ((_ :wat::core::unit)
                 (:wat::core::let*
-                  (((handle :wat::std::service::Console::Handle)
+                  (((handle :wat::console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
                    ((_0 :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
                   (:my::dispatch-three-edn handle)))
@@ -102,7 +102,7 @@
           ;; one batch with one Row entry → one line "[1,2,3]".
           (:wat::core::define
             (:my::dispatch-row-json
-              (handle :wat::std::service::Console::Handle)
+              (handle :wat::console::Handle)
               -> :wat::core::unit)
             (:wat::core::let*
               (((d :my::Dispatcher)
@@ -120,10 +120,10 @@
               -> :wat::core::unit)
             (:wat::core::let*
               (((pool console-driver)
-                (:wat::std::service::Console/spawn stdout stderr 1))
+                (:wat::console::spawn stdout stderr 1))
                ((_ :wat::core::unit)
                 (:wat::core::let*
-                  (((handle :wat::std::service::Console::Handle)
+                  (((handle :wat::console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
                    ((_0 :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
                   (:my::dispatch-row-json handle)))

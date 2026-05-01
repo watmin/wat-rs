@@ -544,7 +544,7 @@ Caches (external — `crates/wat-lru/`; arc 013 externalization):
   with an embedded reply channel. Also in `wat-lru`.
 
 Services (long-running driver programs with client handles, baked):
-- `:wat::std::service::Console` — the single gateway to stdout+stderr.
+- `:wat::console` — the single gateway to stdout+stderr.
   Hands out pooled `Sender<(i64,String)>` via `:wat::kernel::HandlePool`;
   tag 0 = stdout, tag 1 = stderr.
 

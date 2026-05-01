@@ -27,7 +27,7 @@ No computation in main. No I/O in main. No state in main. Just wiring.
     ;; 1. Construct the consumers — each spawn returns a HandlePool
     ;;    of senders + the driver's ProgramHandle.
     (((con-spawn   :Console::Spawn)
-      (:wat::std::service::Console/spawn stdout stderr 4))
+      (:wat::console::spawn stdout stderr 4))
      ((con-pool    :HandlePool<Console::Tx>) (:wat::core::first con-spawn))
      ((con-driver  :ProgramHandle<()>)        (:wat::core::second con-spawn))
 

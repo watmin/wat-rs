@@ -110,12 +110,13 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/test.wat",
         source: include_str!("../wat/test.wat"),
     },
-    // Arc 096 — `:wat::std::service::Console` (the paired-channel
-    // mini-TCP driver, arc 089 slice 5) STAYS in the substrate
-    // as a generic service-pattern reference. The telemetry-specific
-    // wrappers (Console-dispatcher, ConsoleLogger) and Service<E,G>
-    // moved to the wat-telemetry crate; consumers gain them via
-    // `deps: [wat_telemetry]`.
+    // Arc 096 — `:wat::console::*` (the paired-channel mini-TCP
+    // driver, arc 089 slice 5; flattened from
+    // `:wat::std::service::Console::*` in arc 109 slice K.console)
+    // STAYS in the substrate as a generic service-pattern reference.
+    // The telemetry-specific wrappers (Console-dispatcher,
+    // ConsoleLogger) and Service<E,G> moved to the wat-telemetry
+    // crate; consumers gain them via `deps: [wat_telemetry]`.
     WatSource {
         path: "wat/console.wat",
         source: include_str!("../wat/console.wat"),

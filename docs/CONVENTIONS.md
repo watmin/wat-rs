@@ -425,7 +425,7 @@ the arity and side-effects from the suffix alone.
 ;; Type/spawn — factory that ALSO spawns a driver thread
 (:wat::lru::CacheService/spawn capacity count reporter metrics-cadence)
    ; -> CacheService::Spawn<K,V>
-(:wat::std::service::Console/spawn stdout stderr 4)
+(:wat::console::spawn stdout stderr 4)
    ; -> Console::Spawn
 (:wat::holon::lru::HologramCacheService/spawn count cap reporter metrics-cadence)
    ; -> HologramCacheService::Spawn
@@ -594,7 +594,7 @@ If a function's return type contains **three or more** `<` characters, name it. 
 | `:wat::std::stream::Stream<T>` | `:(Receiver<T>,ProgramHandle<()>)` | `wat/std/stream.wat` |
 | `:wat::std::stream::ChunkStep<T>` | `:(Vec<T>,Vec<Vec<T>>)` | `wat/std/stream.wat` |
 | `:wat::std::stream::KeyedChunkStep<K,T>` | `:((Option<K>,Vec<T>),Vec<Vec<T>>)` | `wat/std/stream.wat` |
-| `:wat::std::service::Console::Spawn` | factory return shape | `wat/std/service/Console.wat` |
+| `:wat::console::Spawn` | factory return shape | `wat/std/service/Console.wat` |
 | `:wat::lru::CacheService::Spawn<K,V>` | factory return shape | `crates/wat-lru/wat/lru/CacheService.wat` |
 | `:wat::lru::CacheService::Step<K,V,G>` | one loop-step output | `crates/wat-lru/wat/lru/CacheService.wat` |
 | `:wat::lru::CacheService::ReqPair<K,V>` | `:(ReqTx<K,V>,ReqRx<K,V>)` | `crates/wat-lru/wat/lru/CacheService.wat` |

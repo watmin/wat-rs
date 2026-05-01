@@ -181,7 +181,7 @@ proven concurrency pattern that is not a lock.
 
 **The substrate examples:**
 
-- **`:wat::std::service::Console`** — owns the real `io::Stdout`
+- **`:wat::console`** — owns the real `io::Stdout`
   and `io::Stderr` handles. Every program that wants to print
   pops a `Console::Handle = (Tx, AckRx)` from a HandlePool and
   uses it through `Console/out` / `Console/err`. The Console

@@ -9,7 +9,7 @@
 //! - **Service<E,G>** — generic queue-fronted destination service
 //!   with paired-channel batch+ack discipline (arc 089 + arc 095).
 //! - **Console** — dispatcher factory wrapping the substrate's
-//!   `:wat::std::service::Console` driver.
+//!   `:wat::console` driver.
 //! - **ConsoleLogger** — typed logger struct on top of Console.
 //! - **WorkUnit + Event + scope HOF** — measurement-scope state +
 //!   the events it ships at scope-close. Folded in from the
@@ -74,7 +74,7 @@ pub fn wat_sources() -> &'static [wat::WatSource] {
             source: include_str!("../wat/telemetry/WorkUnitLog.wat"),
         },
         // Console.wat — dispatcher factory. Wraps the substrate's
-        // `:wat::std::service::Console::*` driver (paired-channel
+        // `:wat::console::*` driver (paired-channel
         // mini-TCP from arc 089 slice 5); the driver itself stays
         // in the substrate as a generic service-pattern reference.
         wat::WatSource {

@@ -1,7 +1,37 @@
 # Arc 109 Slice K.console — Console grouping noun → namespace flatten + Pattern A canonicalization + file move
 
-**Compaction-amnesia anchor.** Read this first if you're picking
-up slice K.console mid-flight.
+**Status: shipped 2026-05-01.** Substrate (commit `6a15b72`) +
+consumer sweep + 2 historical-doc fixes. 16 files swept (2
+substrate moves + 13 consumer rename + 2 src/ doc-comment
+updates); 49/49 pure rename in consumer scope; cargo test
+--release --workspace 1476/0.
+
+Three coupled transformations validated atomically:
+
+1. **§ K grouping-noun retirement** — same mechanism as
+   K.telemetry; rehearsed.
+2. **§ K Pattern A canonicalization** — Tx/Rx → ReqTx/ReqRx;
+   ADD ReqChannel + AckChannel typealiases. Console now mirrors
+   Telemetry's Pattern A canonical shape.
+3. **File move** — `wat/std/service/Console.wat` →
+   `wat/console.wat` (subsumes original arc 109 § 9e plan); plus
+   `wat-tests/std/service/Console.wat` →
+   `wat-tests/console.wat`. After K.console:
+   `wat-tests/std/` is FULLY EMPTY (deleted); `wat/std/`
+   contains only sandbox.wat + hermetic.wat (K.thread-process
+   targets).
+
+**Walker shape:** `validate_legacy_console_path` is K.telemetry's
+walker plus a `canonical_console_leaf` helper that maps
+`Tx → ReqTx, Rx → ReqRx`. Otherwise identical Pattern 3 shape.
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record.** Slice K.console is the
+fifth Pattern 3 application after slices 1c/1d/1e/9d/K.telemetry.
+First slice to bundle § K grouping-noun retirement + Pattern A
+channel canonicalization + file move atomically — proves the K
+mechanism scales to bigger surfaces with multiple coupled
+transformations.
 
 ## What this slice does
 

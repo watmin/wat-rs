@@ -438,6 +438,30 @@ slice plans name.
                   Stream stdlib's path now mirrors its shipped
                   FQDN per § G's filesystem-path rule.
 
+[done]  arc 109 slice K.console — Console grouping noun retired
+                  + Pattern A canonicalization + file move (second
+                  § K application; first slice to bundle § K
+                  grouping-noun + Pattern A channel-rename + file
+                  move atomically).
+                  :wat::std::service::Console::* → :wat::console::*
+                  (typealiases) + :wat::std::service::Console/* →
+                  :wat::console::* (verbs). Tx/Rx renamed to
+                  ReqTx/ReqRx per gaze finding; ReqChannel +
+                  AckChannel typealiases minted (mirrors
+                  Telemetry's Pattern A reference). File moves:
+                  wat/std/service/Console.wat → wat/console.wat;
+                  wat-tests/std/service/Console.wat →
+                  wat-tests/console.wat. After K.console:
+                  wat-tests/std/ FULLY EMPTY; wat/std/ contains
+                  only sandbox.wat + hermetic.wat (K.thread-process
+                  targets). Pattern 3 walker
+                  (BareLegacyConsolePath) — fifth Pattern 3
+                  application; canonical_console_leaf helper
+                  handles the Tx/Rx → ReqTx/ReqRx leaf rename.
+                  16 files swept; 49/49 pure rename in consumer
+                  scope; cargo test workspace 1476/0 (commits
+                  6a15b72 + sweep; SLICE-K-CONSOLE.md).
+
 [done]  arc 109 slice K.telemetry — Service grouping noun retired
                   (first § K application). :wat::telemetry::Service::*
                   → :wat::telemetry::* (typealiases) +

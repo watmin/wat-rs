@@ -4,7 +4,7 @@
 
 ## What we're building
 
-The substrate's logging story today is shaped by accident: `:trading::rundb::Service` (lab-side) wraps sqlite, accepts a hardcoded `LogEntry` enum, and is the only destination available. Console output (`:wat::std::service::Console`) takes free-form `:String`. There is no shared rendering primitive; consumers stringify-at-the-callsite when they want logs to be readable.
+The substrate's logging story today is shaped by accident: `:trading::rundb::Service` (lab-side) wraps sqlite, accepts a hardcoded `LogEntry` enum, and is the only destination available. Console output (`:wat::console`) takes free-form `:String`. There is no shared rendering primitive; consumers stringify-at-the-callsite when they want logs to be readable.
 
 We're rebuilding it under one principle: **users operate on structured data; renderers run at the boundary**. Substrate ships generic shells; consumers define their own entry types; one Reporter swap chooses sqlite vs console as the destination.
 

@@ -556,7 +556,7 @@ Every wat program lives in a coordinate with two axes.
 1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
 2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
 3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn-thread` (arc 114; returns `Thread<I,O>`), `Thread/input`, `Thread/output`, `Thread/join-result`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `HandlePool`, `stopped?`, `pipe`, `spawn-program{,-ast}`, `fork-program{,-ast}` (both return `Process<I,O>` — arc 112 unification), `Process/join-result`, `process-send`, `process-recv`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes (or typed values) between Programs. Arc 114 names the contract: hosting is a user choice (Thread vs Process); the protocol (input / output / error mechanism through join) is fixed.
-4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), services (`:wat::std::service::Console`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel.
+4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), services (`:wat::console`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel.
 
 ### Axis 2 — two namespaces
 
@@ -1451,7 +1451,7 @@ structurally; see `WAT-CHEATSHEET.md § 10` for the rule and
 ```
 
 The caller owns the select loop — remove disconnected receivers from
-the list, exit when the list is empty. `:wat::std::service::Console`'s
+the list, exit when the list is empty. `:wat::console`'s
 driver is the canonical example.
 
 `:wat::kernel::Chosen<T>` is the fourth substrate alias from
@@ -1934,13 +1934,13 @@ stream. One writer, serialized, no garbled output.
                     -> :())
   (:wat::core::let*
     ;; One Console for the whole program
-    (((pool console-driver) (:wat::std::service::Console stdout stderr 4))
+    (((pool console-driver) (:wat::console stdout stderr 4))
      ((main-sender :Sender<(i64,String)>) (:wat::kernel::HandlePool::pop pool))
      (... three more pops for three workers ...)
      ((_ :()) (:wat::kernel::HandlePool::finish pool)))
     ;; After this, ignore the raw stdout/stderr bindings —
     ;; everything goes through Console.
-    (:wat::std::service::Console/out main-sender "main started")
+    (:wat::console::out main-sender "main started")
     (... spawn workers with their handles ...)
     (:wat::kernel::join console-driver)))
 ```
@@ -2045,7 +2045,7 @@ Console instead of using the parent process's stdio:
  (:wat::io::IOWriter/open-file "runs/today.err"))
 
 ((con-spawn :Console::Spawn)
- (:wat::std::service::Console/spawn out-writer err-writer 1))
+ (:wat::console::spawn out-writer err-writer 1))
 ```
 
 Open mode is `write+create+truncate` — fresh file each invocation.
@@ -2367,13 +2367,13 @@ s-expressions:
                                (stderr :wat::io::IOWriter)
                                -> :())
             (:wat::core::let*
-              (((pool driver) (:wat::std::service::Console stdout stderr 1))
+              (((pool driver) (:wat::console stdout stderr 1))
                ((_ :())
                 (:wat::core::let*
                   (((c :rust::crossbeam_channel::Sender<(i64,String)>)
                     (:wat::kernel::HandlePool::pop pool))
                    ((_2 :()) (:wat::kernel::HandlePool::finish pool)))
-                  (:wat::std::service::Console/out c "hello via Console"))))
+                  (:wat::console::out c "hello via Console"))))
               (:wat::kernel::join driver))))
         (:wat::core::vec :String)))
      ((lines :Vec<String>) (:wat::kernel::RunResult/stdout r)))
@@ -2769,7 +2769,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::drop` | `handle` | `:()` |
 | `:wat::kernel::stopped?` / `sigusr1?` / ... | `()` | `:bool` |
 | `:wat::kernel::HandlePool::new` / `pop` / `finish` | various | pool ops |
-| `:wat::std::service::Console` | `stdout stderr n` | `(HandlePool, Driver)` |
+| `:wat::console` | `stdout stderr n` | `(HandlePool, Driver)` |
 | `:wat::lru::CacheService` (wat-lru) | `capacity count` | `(HandlePool, Driver)` |
 | `:wat::lru::LocalCache::new` / `put` / `get` (wat-lru) | various | per-program LRU |
 | `:wat::holon::Atom` | `<value>` | `:wat::holon::HolonAST` — polymorphic dispatcher (arc 057). Primitive → matching typed leaf; HolonAST → opaque-identity wrap; quoted wat form → structural lowering. New code: prefer the named siblings `:wat::holon::leaf` (primitives) and `:wat::holon::from-watast` (quoted forms) — one verb per move (arc 065). Polymorphism preserved for back-compat. |

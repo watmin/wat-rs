@@ -74,7 +74,7 @@
 
 (:wat::core::define
   (:demo::make-logger
-    (handle :wat::std::service::Console::Handle)
+    (handle :wat::console::Handle)
     (caller :wat::core::keyword)
     (format :wat::telemetry::Console::Format)
     -> :wat::telemetry::ConsoleLogger)
@@ -96,20 +96,20 @@
     (stderr :wat::io::IOWriter)
     -> :wat::core::unit)
   (:wat::core::let*
-    (((con-spawn :wat::std::service::Console::Spawn)
-      (:wat::std::service::Console/spawn stdout stderr 1))
-     ((con-pool :wat::kernel::HandlePool<wat::std::service::Console::Handle>)
+    (((con-spawn :wat::console::Spawn)
+      (:wat::console::spawn stdout stderr 1))
+     ((con-pool :wat::kernel::HandlePool<wat::console::Handle>)
       (:wat::core::first con-spawn))
      ((con-driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::core::second con-spawn))
      ((_inner :wat::core::unit)
       (:wat::core::let*
-        (((handle :wat::std::service::Console::Handle)
+        (((handle :wat::console::Handle)
           (:wat::kernel::HandlePool::pop con-pool))
          ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish con-pool))
          ;; ── EDN format (tagged, round-trip-safe) ──────────────
          ((_banner-edn :wat::core::unit)
-          (:wat::std::service::Console/out handle
+          (:wat::console::out handle
             "\n=== :Edn (tagged, round-trip-safe) ===\n"))
          ((edn-logger :wat::telemetry::ConsoleLogger)
           (:demo::make-logger handle :market.observer
@@ -117,7 +117,7 @@
          ((_run-edn :wat::core::unit) (:demo::run edn-logger))
          ;; ── NoTagEdn (lossy, human-friendly) ──────────────────
          ((_banner-notag-edn :wat::core::unit)
-          (:wat::std::service::Console/out handle
+          (:wat::console::out handle
             "\n=== :NoTagEdn (lossy, human-friendly) ===\n"))
          ((notag-edn-logger :wat::telemetry::ConsoleLogger)
           (:demo::make-logger handle :market.observer
@@ -125,7 +125,7 @@
          ((_run-notag-edn :wat::core::unit) (:demo::run notag-edn-logger))
          ;; ── JSON (round-trip-safe via sentinels) ──────────────
          ((_banner-json :wat::core::unit)
-          (:wat::std::service::Console/out handle
+          (:wat::console::out handle
             "\n=== :Json (round-trip-safe sentinel-encoded) ===\n"))
          ((json-logger :wat::telemetry::ConsoleLogger)
           (:demo::make-logger handle :market.observer
@@ -133,7 +133,7 @@
          ((_run-json :wat::core::unit) (:demo::run json-logger))
          ;; ── NoTagJson (natural JSON for ingestion tooling) ────
          ((_banner-notag-json :wat::core::unit)
-          (:wat::std::service::Console/out handle
+          (:wat::console::out handle
             "\n=== :NoTagJson (natural JSON for ELK/DataDog) ===\n"))
          ((notag-json-logger :wat::telemetry::ConsoleLogger)
           (:demo::make-logger handle :market.observer
@@ -141,7 +141,7 @@
          ((_run-notag-json :wat::core::unit) (:demo::run notag-json-logger))
          ;; ── Pretty (tagged, multi-line) ───────────────────────
          ((_banner-pretty :wat::core::unit)
-          (:wat::std::service::Console/out handle
+          (:wat::console::out handle
             "\n=== :Pretty (tagged, multi-line) ===\n"))
          ((pretty-logger :wat::telemetry::ConsoleLogger)
           (:demo::make-logger handle :market.observer

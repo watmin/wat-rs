@@ -42,7 +42,7 @@
 
 
 (:wat::core::struct :wat::telemetry::ConsoleLogger
-  (con-handle :wat::std::service::Console::Handle)
+  (con-handle :wat::console::Handle)
   (caller :wat::core::keyword)
   (now-fn :fn(wat::core::unit)->wat::time::Instant)
   (format :wat::telemetry::Console::Format))
@@ -91,15 +91,15 @@
     (line :wat::core::String)
     -> :wat::core::unit)
   (:wat::core::let*
-    (((handle :wat::std::service::Console::Handle)
+    (((handle :wat::console::Handle)
       (:wat::telemetry::ConsoleLogger/con-handle logger))
      ((to-stderr :wat::core::bool)
       (:wat::core::or
         (:wat::core::= level :warn)
         (:wat::core::= level :error))))
     (:wat::core::if to-stderr -> :wat::core::unit
-      (:wat::std::service::Console/err handle line)
-      (:wat::std::service::Console/out handle line))))
+      (:wat::console::err handle line)
+      (:wat::console::out handle line))))
 
 
 ;; Universal log form. Caller passes the level explicitly. Use this

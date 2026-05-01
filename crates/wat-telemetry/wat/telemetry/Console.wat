@@ -88,11 +88,11 @@
 
 (:wat::core::define
   (:wat::telemetry::Console/dispatcher<E>
-    (handle :wat::std::service::Console::Handle)
+    (handle :wat::console::Handle)
     (format :wat::telemetry::Console::Format)
     -> :wat::telemetry::Console::Dispatcher<E>)
   (:wat::core::lambda ((entries :wat::core::Vector<E>) -> :wat::core::unit)
     (:wat::core::foldl entries ()
       (:wat::core::lambda ((_acc :wat::core::unit) (entry :E) -> :wat::core::unit)
-        (:wat::std::service::Console/out handle
+        (:wat::console::out handle
           (:wat::telemetry::Console::render-line entry format))))))

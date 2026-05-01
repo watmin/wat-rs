@@ -266,14 +266,14 @@ graduates to its own top-level tier:
   `Producer<T>` / `ChunkStep<T>` / `KeyedChunkStep<K,T>`
   typealiases). Stream is to channels what `:wat::list::*` is to
   Vecs — collection-shaped HOFs at the honest tier.
-- `:wat::std::service::Console::*` → `:wat::console::Console::*`
-  (the typealiases `Message` / `Tx` / `Rx` / `AckTx` / `AckRx` /
-  `Handle` / `DriverPair` / `Spawn` plus the verbs `Console/loop` /
-  `Console/ack-at` / `Console/out` / `Console/err` / `Console/spawn`).
-  Parallels `:wat::lru::CacheService`, `:wat::telemetry::Service`,
-  `:wat::holon::lru::HologramCacheService` — services live at
-  concept-named tiers, not under `service::*`. The "service" word
-  is what they ARE; the tier is what they WORK ON.
+- ✓ `:wat::std::service::Console::*` → `:wat::console::*` (shipped
+  K.console 2026-05-01; the Console grouping noun retired —
+  typealiases and verbs flattened to the namespace level. Pattern A
+  canonicalization rode this slice: `Tx`/`Rx` renamed to
+  `ReqTx`/`ReqRx`; `ReqChannel` + `AckChannel` typealiases minted
+  to mirror Telemetry's Pattern A reference shape. K.console
+  closes the Console grouping-noun cleanup AND the file-move
+  goal (`wat/std/service/Console.wat` → `wat/console.wat`).)
 
 ### Filesystem path mirrors FQDN
 
@@ -303,7 +303,7 @@ Dishonest layout (path does NOT match shipped FQDN — six files):
 | `wat/std/sandbox.wat` | `:wat::kernel::run-sandboxed*` | `wat/kernel/thread.wat` (deferred to slice K.thread-process — gaze flagged 2026-05-01: file is the Thread half of a twin pair, not a sandbox sub-namespace; symbols rename to `:wat::kernel::Thread/run-ast`) |
 | `wat/std/hermetic.wat` | `:wat::kernel::run-sandboxed-hermetic*` | `wat/kernel/process.wat` (deferred to slice K.thread-process — file is the Process half; symbols rename to `:wat::kernel::Process/run-ast`) |
 | ✓ `wat/std/stream.wat` | `:wat::std::stream::*` | `wat/stream.wat` (path AND symbols both renamed; shipped slice 9d 2026-05-01) |
-| `wat/std/service/Console.wat` | `:wat::std::service::Console::*` | `wat/console/Console.wat` (path AND symbols both rename per slice 9e) |
+| ✓ `wat/std/service/Console.wat` | `:wat::std::service::Console::*` | `wat/console.wat` (shipped K.console 2026-05-01; path AND symbols both renamed; subsumed prior § 9e plan) |
 
 After arc 109 closes, `wat/std/` is gone. Every file's path
 matches its shipped FQDN by inspection. A reader navigating the
@@ -925,7 +925,7 @@ That distinction is **load-bearing**. Don't lose it to uniform
 | Crate | Family | Today | After (rides K.<crate>) |
 |---|---|---|---|
 | ✓ Telemetry | A | already canonical | shipped K.telemetry 2026-05-01; no channel changes — Pattern A reference |
-| Console | A | `Tx`/`Rx` (Level 2 mumble — implicit Req) | rename to `ReqTx`/`ReqRx`; add `ReqChannel` + `AckChannel` typealiases |
+| ✓ Console | A | `Tx`/`Rx` (Level 2 mumble — implicit Req) | shipped K.console 2026-05-01: renamed to `ReqTx`/`ReqRx`; added `ReqChannel` + `AckChannel` typealiases — mirrors Telemetry's Pattern A reference |
 | LRU CacheService | B | `ReplyTx<V>` exists; no `ReplyRx<V>` (Level 2 mumble — unallocated rx has no domain name) | add `ReplyRx<V>` + `ReplyChannel<V>` typealiases |
 | HolonLRU | B | variant-scoped `GetReplyTx`/`GetReplyRx` already correct | add a one-line comment: "Put is fire-and-forget — no `PutReply*` types by design" |
 
