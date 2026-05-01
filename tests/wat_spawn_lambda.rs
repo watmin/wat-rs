@@ -1,3 +1,13 @@
+// ARC 114 MANUAL — needs type-design review
+// Every test in this file exercises R-via-join: spawn a body returning
+// :i64, join to recover the value. Arc 114 retires that contract;
+// programs deliver values through their output channel only. The
+// equivalent property for spawn-thread (lambda-or-keyword body, closure
+// capture across thread boundary) needs new tests that route values
+// through Sender<I>/Receiver<O>; the rewrite is design work, not an
+// auto-sweep. File preserved as the ledger of the retired verb's
+// behavior; do not edit, do not delete.
+
 //! End-to-end tests for `:wat::kernel::spawn` accepting lambda values.
 //!
 //! Per the 2026-04-20 relaxation, spawn's first argument may be either

@@ -98,9 +98,9 @@
   (:wat::core::let*
     (((con-spawn :wat::std::service::Console::Spawn)
       (:wat::std::service::Console/spawn stdout stderr 1))
-     ((con-pool :wat::kernel::HandlePool<wat::std::service::Console::Tx>)
+     ((con-pool :wat::kernel::HandlePool<wat::std::service::Console::Handle>)
       (:wat::core::first con-spawn))
-     ((con-driver :wat::kernel::ProgramHandle<()>)
+     ((con-driver :wat::kernel::Thread<(),()>)
       (:wat::core::second con-spawn))
      ((_inner :())
       (:wat::core::let*
@@ -146,5 +146,7 @@
          ((pretty-logger :wat::telemetry::ConsoleLogger)
           (:demo::make-logger handle :market.observer
             :wat::telemetry::Console::Format::Pretty)))
-        (:demo::run pretty-logger))))
-    (:wat::kernel::join con-driver)))
+        (:demo::run pretty-logger)))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result con-driver)))
+    ()))

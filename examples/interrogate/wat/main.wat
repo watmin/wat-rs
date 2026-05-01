@@ -69,7 +69,7 @@
 (:wat::core::define
   (:demo::write-fixture
     (path :String)
-    -> :wat::kernel::ProgramHandle<()>)
+    -> :wat::kernel::Thread<(),()>)
   (:wat::core::let*
     (((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
       (:wat::telemetry::Sqlite/auto-spawn
@@ -79,7 +79,7 @@
         :wat::telemetry::Sqlite/null-pre-install))
      ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
       (:wat::core::first spawn))
-     ((driver :wat::kernel::ProgramHandle<()>)
+     ((driver :wat::kernel::Thread<(),()>)
       (:wat::core::second spawn))
      ;; Six sample trades — 4 buys + 2 sells, varied qtys.
      ((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
@@ -138,9 +138,10 @@
      ((path :String) (:wat::io::TempFile/path tf))
 
      ;; Phase 1.
-     ((driver :wat::kernel::ProgramHandle<()>)
+     ((driver :wat::kernel::Thread<(),()>)
       (:demo::write-fixture path))
-     ((_join :()) (:wat::kernel::join driver))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver))
      ((_p1 :())
       (:wat::io::IOWriter/println stdout
         "── Q1: warmup — count all logged trades ──"))

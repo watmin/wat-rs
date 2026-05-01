@@ -309,14 +309,23 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
         (:wat::core::define
           (:user::main -> :String)
           (:wat::core::let*
-            (((handle :wat::kernel::ProgramHandle<i64>)
-              (:wat::kernel::spawn (:wat::core::lambda (-> :i64) 42)))
-             ((result :Result<i64,wat::kernel::ThreadDiedError>)
-              (:wat::kernel::join-result handle))
-             ((err :wat::kernel::ThreadDiedError)
-              (:wat::core::match result -> :wat::kernel::ThreadDiedError
+            (((handle :wat::kernel::Thread<(),()>)
+              (:wat::kernel::spawn-thread
+                (:wat::core::lambda
+                  ((_in :rust::crossbeam_channel::Receiver<()>)
+                   (_out :rust::crossbeam_channel::Sender<()>)
+                   -> :())
+                  ())))
+             ((result :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+              (:wat::kernel::Thread/join-result handle))
+             ((chain :Vec<wat::kernel::ThreadDiedError>)
+              (:wat::core::match result -> :Vec<wat::kernel::ThreadDiedError>
                 ((Ok _)   (:wat::core::panic! "test wants Err"))
-                ((Err e)  e))))
+                ((Err e)  e)))
+             ((err :wat::kernel::ThreadDiedError)
+              (:wat::core::match (:wat::core::first chain) -> :wat::kernel::ThreadDiedError
+                ((Some e) e)
+                (:None    (:wat::core::panic! "expected non-empty chain")))))
             ;; The bug-trigger pattern: bare-symbol `Panic` head
             ;; against ThreadDiedError. Pre-fix produced
             ;; "expected Option<?>"; post-fix produces a hint

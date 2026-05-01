@@ -184,8 +184,15 @@ fn alias_over_fn_type_works_at_spawn() {
               (:wat::kernel::make-bounded-queue :i64 1))
              ((tx :rust::crossbeam_channel::Sender<i64>) (:wat::core::first pair))
              ((rx :rust::crossbeam_channel::Receiver<i64>) (:wat::core::second pair))
-             ((h :wat::kernel::ProgramHandle<()>) (:wat::kernel::spawn job tx))
-             ((_ :()) (:wat::kernel::join h)))
+             ((h :wat::kernel::Thread<(),()>)
+              (:wat::kernel::spawn-thread
+                (:wat::core::lambda
+                  ((_in :rust::crossbeam_channel::Receiver<()>)
+                   (_out :rust::crossbeam_channel::Sender<()>)
+                   -> :())
+                  (job tx))))
+             ((_ :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+              (:wat::kernel::Thread/join-result h)))
             (:wat::core::match (:wat::kernel::recv rx) -> :i64
               ((Ok (Some v)) v)
               ((Ok :None) 0)

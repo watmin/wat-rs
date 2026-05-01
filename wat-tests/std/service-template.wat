@@ -1,3 +1,10 @@
+;; ARC 114 MANUAL — needs type-design review
+;; This template's driver returns the final State via join (R-via-join
+;; ferrying); arc 114 retires that contract. The state must travel out
+;; via a channel — either Get-on-shutdown or a dedicated final-state
+;; reply pipe. Pattern + the test exercising it are bigger than an
+;; auto-sweep can address; surfacing for human design.
+;;
 ;; wat-tests/std/service-template.wat — the canonical in-memory
 ;; request/reply service program in wat.
 ;;
