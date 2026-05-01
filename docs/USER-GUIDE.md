@@ -2618,9 +2618,16 @@ digest. Startup halts if verification fails.
 
 - **`../README.md`** — the crate-level README. What's shipped,
   status, test counts, API highlights.
+- **`WAT-CHEATSHEET.md`** — single-page syntax reference. Colon
+  quoting, FQDN namespace, whitespace rule, comm-call position,
+  control-form shapes, special-form arg shapes. Read while writing
+  wat to avoid the iteration loop.
 - **`CONVENTIONS.md`** — naming rules for new primitives and the
   three gates on adding one (stdlib-as-blueprint, absence-is-signal,
   verbose-is-honest).
+- **`SUBSTRATE-AS-TEACHER.md`** — the migration discipline for
+  structural arcs. The four-step recipe; the substrate-as-progress-
+  meter observation; the poison patterns for retiring verbs.
 - **`ZERO-MUTEX.md`** — the concurrency architecture stated as
   principle. The three tiers in depth; every "I need a Mutex"
   scenario mapped to a tier.

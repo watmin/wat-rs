@@ -30,6 +30,13 @@ to run the binary. For the *why*, read the proposal.
 
 ## Also in this directory
 
+**[`WAT-CHEATSHEET.md`](./WAT-CHEATSHEET.md)** — single-page syntax
+reference. The rules the lexer / parser / type-checker enforce
+(colon quoting, FQDN namespace, no whitespace inside `<>`, comm-call
+position, control-form shapes, special-form arg shapes). Read this
+BEFORE writing wat by hand; the substrate teaches you when you break
+a rule, but the cheatsheet shortens the iteration loop.
+
 **[`USER-GUIDE.md`](./USER-GUIDE.md)** — if you're BUILDING an
 application on wat, start here. Crate setup, first program, mental
 model, writing functions, structs, algebra forms, concurrency
@@ -45,6 +52,17 @@ new primitives. Privileged prefixes, namespace roles
 and the two lessons that gate new additions (absence is signal;
 verbose is honest). Read before proposing a new `:wat::*` or
 `:wat::std::*` primitive.
+
+**[`SUBSTRATE-AS-TEACHER.md`](./SUBSTRATE-AS-TEACHER.md)** — the
+migration discipline. When a structural arc lands a breaking
+change, the type-checker's diagnostic stream encodes the migration
+path; sonnet (or a human) sweeps from the hint output without
+consulting the arc doc. Four-step recipe: add a hint helper, verify
+on a broken probe, brief the agent ("iterate until green"), retire
+the helper when the sweep clears. The substrate is also the
+progress meter — `grep -c "hint: arc N"` is the bar. Originated
+arc 109 slice 1c; named arc 111; applied across 109 / 111 / 112 /
+113 / 114.
 
 **[`ZERO-MUTEX.md`](./ZERO-MUTEX.md)** — the concurrency architecture,
 stated plainly. wat runs dozens of threads, serializes writes to
