@@ -923,7 +923,8 @@ pub enum RuntimeError {
     /// consumers can distinguish "out of scope by design" from "not
     /// taught yet."
     NoStepRule { op: String },
-    /// Internal control-flow signal raised by `:wat::core::try` on an
+    /// Internal control-flow signal raised by `:wat::core::Result/try`
+    /// (post-slice-1j; pre-slice spelling `:wat::core::try`) on an
     /// `Err` value. Carries the `Err` payload up to the innermost
     /// enclosing function/lambda boundary; [`apply_function`] catches
     /// it and converts it into the function's own `Err(e)` return.
@@ -936,6 +937,19 @@ pub enum RuntimeError {
     /// constrained eval (which doesn't have an enclosing function for
     /// propagation — that's a planned follow-up slice).
     TryPropagate(Value),
+    /// Arc 109 slice 1j — Option-side propagation signal raised by
+    /// `:wat::core::Option/try` on a `:None` value. Mirror of
+    /// [`TryPropagate`] for the Option-returning function family.
+    /// Carries no payload (the propagation produces `:None` at the
+    /// enclosing function's return).
+    ///
+    /// [`apply_function`] catches the signal at the innermost
+    /// function/lambda boundary and converts it into the function's
+    /// own `Value::Option(Arc::new(None))` return value. Like
+    /// [`TryPropagate`], the type checker guarantees the enclosing
+    /// function returns `:Option<_>` whenever `Option/try` is used,
+    /// so this variant must not surface to `:user::main`.
+    OptionPropagate,
     /// Internal tail-call signal raised by `eval_tail` when it
     /// recognizes a user-defined function call in tail position.
     /// Carries the next function and its already-evaluated args up
@@ -1070,7 +1084,11 @@ impl fmt::Display for RuntimeError {
             ),
             RuntimeError::TryPropagate(_) => write!(
                 f,
-                ":wat::core::try: internal error — an Err propagation escaped its enclosing Result-returning function. The type checker should prevent this; reaching it indicates a checker gap or a try used in a context without a Result return type.",
+                ":wat::core::Result/try: internal error — an Err propagation escaped its enclosing Result-returning function. The type checker should prevent this; reaching it indicates a checker gap or a try used in a context without a Result return type.",
+            ),
+            RuntimeError::OptionPropagate => write!(
+                f,
+                ":wat::core::Option/try: internal error — a :None propagation escaped its enclosing Option-returning function. The type checker should prevent this; reaching it indicates a checker gap or an Option/try used in a context without an Option return type.",
             ),
             RuntimeError::TailCall { .. } => write!(
                 f,
@@ -2232,9 +2250,30 @@ fn dispatch_keyword_head(
         ":wat::core::macroexpand" => eval_macroexpand(args, env, sym),
         ":wat::core::atom-value" => eval_atom_value(args, env, sym),
         ":wat::core::match" => eval_match(args, env, sym),
-        ":wat::core::try" => eval_try(args, env, sym),
-        ":wat::core::option::expect" => eval_option_expect(args, env, sym),
-        ":wat::core::result::expect" => eval_result_expect(args, env, sym),
+        // Arc 109 slice 1j — § D' Option/Result method forms.
+        // Three retiring verbs (Pattern 2): pre-slice spellings still
+        // dispatch (so the program runs through type-check + execution
+        // even with old call sites) but the type checker poisons them
+        // with a redirect to the canonical `Type/verb` shape.
+        ":wat::core::try" => eval_try(":wat::core::try", args, env, sym),
+        ":wat::core::option::expect" => {
+            eval_option_expect(":wat::core::option::expect", args, env, sym)
+        }
+        ":wat::core::result::expect" => {
+            eval_result_expect(":wat::core::result::expect", args, env, sym)
+        }
+        // Canonical post-slice forms.
+        ":wat::core::Result/try" => eval_try(":wat::core::Result/try", args, env, sym),
+        ":wat::core::Result/expect" => {
+            eval_result_expect(":wat::core::Result/expect", args, env, sym)
+        }
+        ":wat::core::Option/expect" => {
+            eval_option_expect(":wat::core::Option/expect", args, env, sym)
+        }
+        // New substrate addition (Option-side propagation).
+        ":wat::core::Option/try" => {
+            eval_option_try(":wat::core::Option/try", args, env, sym)
+        }
         ":wat::core::struct-new" => eval_struct_new(args, env, sym),
         ":wat::core::struct-field" => eval_struct_field(args, env, sym),
         ":wat::core::variant" => eval_variant(args, env, sym),
@@ -6170,9 +6209,13 @@ fn eval_err_ctor(
     Ok(Value::Result(Arc::new(Err(v))))
 }
 
-/// `(:wat::core::try <result-expr>)` — unwrap a `:Result<T,E>` to its
-/// inner `T`, or short-circuit the enclosing Result-returning function
-/// with `Err(e)`.
+/// `(:wat::core::Result/try <result-expr>)` — unwrap a `:Result<T,E>`
+/// to its inner `T`, or short-circuit the enclosing Result-returning
+/// function with `Err(e)`.
+///
+/// Pre-slice-1j spelling: `:wat::core::try`. The dispatcher passes the
+/// user-typed head string in `op` so error messages reflect the form
+/// the user wrote.
 ///
 /// Semantics on the inner Result:
 /// - `(Ok v)` — evaluates to `v`; execution continues.
@@ -6189,13 +6232,14 @@ fn eval_err_ctor(
 /// Type error (not a checker guarantee — the runtime still guards):
 /// arg is not a `Value::Result`. Caller surfaces `TypeMismatch`.
 fn eval_try(
+    op: &str,
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::core::try".into(),
+            op: op.into(),
             expected: 1,
             got: args.len(),
         });
@@ -6211,8 +6255,55 @@ fn eval_try(
             },
         },
         other => Err(RuntimeError::TypeMismatch {
-            op: ":wat::core::try".into(),
+            op: op.into(),
             expected: "Result<T,E>",
+            got: other.type_name(),
+        }),
+    }
+}
+
+/// `(:wat::core::Option/try <option-expr>)` — Arc 109 slice 1j. The
+/// Option-side mirror of `Result/try`: unwrap a `:Option<T>` to its
+/// inner `T`, or short-circuit the enclosing Option-returning
+/// function with `:None`.
+///
+/// Semantics on the inner Option:
+/// - `(Some v)` — evaluates to `v`; execution continues.
+/// - `:None` — raises [`RuntimeError::OptionPropagate`]. The walker
+///   unwinds through `let*` / `match` / `if` / any nested form until
+///   it reaches the innermost enclosing [`apply_function`], which
+///   catches the signal and packages it as the function's own
+///   `Value::Option(Arc::new(None))` return value.
+///
+/// The type checker (see `crate::check::infer_option_try`) guarantees
+/// the enclosing function returns `:Option<_>`. The dispatcher
+/// assumes this invariant and does not re-verify at runtime.
+fn eval_option_try(
+    op: &str,
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: op.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    match v {
+        Value::Option(o) => match std::sync::Arc::try_unwrap(o) {
+            Ok(Some(inner)) => Ok(inner),
+            Ok(None) => Err(RuntimeError::OptionPropagate),
+            Err(shared) => match &*shared {
+                Some(inner) => Ok(inner.clone()),
+                None => Err(RuntimeError::OptionPropagate),
+            },
+        },
+        other => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "Option<T>",
             got: other.type_name(),
         }),
     }
@@ -6235,13 +6326,14 @@ fn eval_try(
 /// the substrate's catch_unwind in run-sandboxed-ast / by Rust's
 /// default panic handler outside a sandbox.
 fn eval_option_expect(
+    op: &str,
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 4 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::core::option::expect".into(),
+            op: op.into(),
             expected: 4,
             got: args.len(),
         });
@@ -6250,14 +6342,14 @@ fn eval_option_expect(
     match opt {
         Value::Option(o) => match std::sync::Arc::try_unwrap(o) {
             Ok(Some(v)) => Ok(v),
-            Ok(None) => expect_panic(":wat::core::option::expect", &args[3], env, sym, args[2].span().clone(), None),
+            Ok(None) => expect_panic(op, &args[3], env, sym, args[2].span().clone(), None),
             Err(shared) => match &*shared {
                 Some(v) => Ok(v.clone()),
-                None => expect_panic(":wat::core::option::expect", &args[3], env, sym, args[2].span().clone(), None),
+                None => expect_panic(op, &args[3], env, sym, args[2].span().clone(), None),
             },
         },
         other => Err(RuntimeError::TypeMismatch {
-            op: ":wat::core::option::expect".into(),
+            op: op.into(),
             expected: "Option<T>",
             got: other.type_name(),
         }),
@@ -6267,13 +6359,14 @@ fn eval_option_expect(
 /// `(:wat::core::result::expect -> :T <res> <msg>)` — the panic-on-Err
 /// sibling of `option::expect`. Arc 108.
 fn eval_result_expect(
+    op: &str,
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 4 {
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::core::result::expect".into(),
+            op: op.into(),
             expected: 4,
             got: args.len(),
         });
@@ -6284,18 +6377,18 @@ fn eval_result_expect(
             Ok(std::result::Result::Ok(ok)) => Ok(ok),
             Ok(std::result::Result::Err(e)) => {
                 let chain = extract_panics(&e);
-                expect_panic(":wat::core::result::expect", &args[3], env, sym, args[2].span().clone(), chain)
+                expect_panic(op, &args[3], env, sym, args[2].span().clone(), chain)
             }
             Err(shared) => match &*shared {
                 std::result::Result::Ok(ok) => Ok(ok.clone()),
                 std::result::Result::Err(e) => {
                     let chain = extract_panics(e);
-                    expect_panic(":wat::core::result::expect", &args[3], env, sym, args[2].span().clone(), chain)
+                    expect_panic(op, &args[3], env, sym, args[2].span().clone(), chain)
                 }
             },
         },
         other => Err(RuntimeError::TypeMismatch {
-            op: ":wat::core::result::expect".into(),
+            op: op.into(),
             expected: "Result<T,E>",
             got: other.type_name(),
         }),
@@ -6334,7 +6427,7 @@ fn extract_panics(err: &Value) -> Option<Vec<Value>> {
 /// accumulation. `option::expect` always passes `None` (Option has no
 /// upstream).
 fn expect_panic(
-    op: &'static str,
+    op: &str,
     msg_ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
@@ -10373,6 +10466,9 @@ pub fn apply_function(
             Err(RuntimeError::TryPropagate(e)) => {
                 return Ok(Value::Result(Arc::new(Err(e))));
             }
+            Err(RuntimeError::OptionPropagate) => {
+                return Ok(Value::Option(Arc::new(None)));
+            }
             Err(other) => return Err(other),
         }
     }
@@ -12330,12 +12426,15 @@ fn runtime_error_to_eval_error_value(err: &RuntimeError) -> Value {
         RuntimeError::NotCallable { got } => {
             ("not-callable", format!("not callable: {}", got))
         }
-        // Control-flow signals (TryPropagate, and a future TailCall)
-        // must NOT pass through this helper — callers filter those out
-        // before reaching here. This arm exists to keep the match
-        // exhaustive and name the invariant in code.
+        // Control-flow signals (TryPropagate / OptionPropagate / a
+        // future TailCall) must NOT pass through this helper — callers
+        // filter those out before reaching here. These arms exist to
+        // keep the match exhaustive and name the invariant in code.
         RuntimeError::TryPropagate(_) => {
             ("runtime-error", "internal: TryPropagate reached EvalError mapper (checker invariant violation)".into())
+        }
+        RuntimeError::OptionPropagate => {
+            ("runtime-error", "internal: OptionPropagate reached EvalError mapper (checker invariant violation)".into())
         }
         // Fallback for variants that don't deserve a dedicated kind.
         other => ("runtime-error", format!("{}", other)),
@@ -12352,13 +12451,15 @@ fn runtime_error_to_eval_error_value(err: &RuntimeError) -> Value {
 /// Wrap an inner evaluation's `Result<Value, RuntimeError>` as the
 /// `Value::Result<V, EvalError>` the eval-family forms return.
 ///
-/// Preserves the `TryPropagate` control-flow signal so `:wat::core::try`
-/// inside eval'd code still propagates to the calling function. Every
+/// Preserves the `TryPropagate` / `OptionPropagate` control-flow
+/// signals so `:wat::core::Result/try` and `:wat::core::Option/try`
+/// inside eval'd code still propagate to the calling function. Every
 /// other runtime error becomes `Err(EvalError{...})` as a value.
 fn wrap_as_eval_result(inner: Result<Value, RuntimeError>) -> Result<Value, RuntimeError> {
     match inner {
         Ok(v) => Ok(Value::Result(Arc::new(Ok(v)))),
         Err(RuntimeError::TryPropagate(_)) => inner, // pass through
+        Err(RuntimeError::OptionPropagate) => inner, // pass through
         Err(e) => {
             let err_struct = runtime_error_to_eval_error_value(&e);
             Ok(Value::Result(Arc::new(Err(err_struct))))

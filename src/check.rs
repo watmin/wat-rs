@@ -241,7 +241,7 @@ impl fmt::Display for CheckError {
             }
             CheckError::CommCallOutOfPosition { callee } => write!(
                 f,
-                "{} may appear only as the scrutinee of `:wat::core::match`, the value-position of `:wat::core::result::expect`, or the value-position of `:wat::core::option::expect`; silent disconnect must be handled at every comm call",
+                "{} may appear only as the scrutinee of `:wat::core::match`, the value-position of `:wat::core::Result/expect`, or the value-position of `:wat::core::Option/expect`; silent disconnect must be handled at every comm call",
                 callee
             ),
             CheckError::ScopeDeadlock {
@@ -593,6 +593,71 @@ fn arc_109_err_variant_migration_hint(callee: &str, _expected: &str, _got: &str)
     )
 }
 
+/// Arc 109 slice 1j — fires when the dispatcher has poisoned the
+/// retired `:wat::core::try` head. Canonical form is
+/// `:wat::core::Result/try` (per the `Type/verb` shape minted in
+/// slice 1j; see `INVENTORY.md` § D').
+fn arc_109_try_verb_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
+    if callee != ":wat::core::try" {
+        return None;
+    }
+    Some(
+        "arc 109 slice 1j — `:wat::core::try` is retired. Canonical \
+         form is `:wat::core::Result/try` (the Result-side method-form \
+         per § D' — sibling to the brand-new `:wat::core::Option/try` \
+         minted in the same slice). Rename `:wat::core::try` → \
+         `:wat::core::Result/try` at the offending site. The substrate \
+         produces the same value; only the spelling changes."
+            .into(),
+    )
+}
+
+/// Arc 109 slice 1j — fires when the dispatcher has poisoned the
+/// retired `:wat::core::option::expect` head. Canonical form is
+/// `:wat::core::Option/expect` (PascalCase Type + slash-verb).
+fn arc_109_option_expect_migration_hint(
+    callee: &str,
+    _expected: &str,
+    _got: &str,
+) -> Option<String> {
+    if callee != ":wat::core::option::expect" {
+        return None;
+    }
+    Some(
+        "arc 109 slice 1j — `:wat::core::option::expect` is retired. \
+         Canonical form is `:wat::core::Option/expect` (PascalCase \
+         Type + slash-verb per § D' — matches the `Stats/new` / \
+         `HandlePool/pop` family). Rename \
+         `:wat::core::option::expect` → `:wat::core::Option/expect` \
+         at the offending site. The shape (-> :T <opt> <msg>) and \
+         semantics (panic on :None with msg) are unchanged."
+            .into(),
+    )
+}
+
+/// Arc 109 slice 1j — fires when the dispatcher has poisoned the
+/// retired `:wat::core::result::expect` head. Canonical form is
+/// `:wat::core::Result/expect`.
+fn arc_109_result_expect_migration_hint(
+    callee: &str,
+    _expected: &str,
+    _got: &str,
+) -> Option<String> {
+    if callee != ":wat::core::result::expect" {
+        return None;
+    }
+    Some(
+        "arc 109 slice 1j — `:wat::core::result::expect` is retired. \
+         Canonical form is `:wat::core::Result/expect` (PascalCase \
+         Type + slash-verb per § D'). Rename \
+         `:wat::core::result::expect` → `:wat::core::Result/expect` \
+         at the offending site. The shape (-> :T <res> <msg>) and \
+         semantics (panic on Err with msg, carrying any \
+         `Vec<*DiedError>` chain) are unchanged."
+            .into(),
+    )
+}
+
 fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
     let hints: Vec<String> = [
         arc_114_migration_hint(callee, expected, got),
@@ -603,6 +668,9 @@ fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
         arc_109_none_variant_migration_hint(callee, expected, got),
         arc_109_ok_variant_migration_hint(callee, expected, got),
         arc_109_err_variant_migration_hint(callee, expected, got),
+        arc_109_try_verb_migration_hint(callee, expected, got),
+        arc_109_option_expect_migration_hint(callee, expected, got),
+        arc_109_result_expect_migration_hint(callee, expected, got),
     ]
     .into_iter()
     .flatten()
@@ -935,11 +1003,18 @@ fn validate_comm_positions(
         return;
     }
 
-    // (3) `:wat::core::result::expect` — items[3] is the value-position.
-    //     Layout: (result::expect -> :T <res> <msg>).
+    // (3) Result-side `expect` form — items[3] is the value-position.
+    //     Layout: (Result/expect -> :T <res> <msg>). Arc 109 slice 1j
+    //     renamed `:wat::core::result::expect` to
+    //     `:wat::core::Result/expect`; both heads still dispatch (the
+    //     retired form fires a Pattern 2 poison) so both are
+    //     recognized here for the duration of the migration.
     //     Arc 111: send/recv now return Result<Option<_>, _>; this is
     //     their natural panic-on-Err home.
-    if head_str == ":wat::core::result::expect" && items.len() >= 5 {
+    if (head_str == ":wat::core::Result/expect"
+        || head_str == ":wat::core::result::expect")
+        && items.len() >= 5
+    {
         for (i, child) in items.iter().enumerate() {
             let child_ctx = if i == 3 {
                 CommCtx::ResultExpectValue
@@ -951,11 +1026,19 @@ fn validate_comm_positions(
         return;
     }
 
-    // (4) `:wat::core::option::expect` — items[3] is the value-position.
-    //     Pre-arc-111 home for kernel comm; kept for callers who have
-    //     ALREADY unwrapped the outer Result (their own match/expect)
-    //     and want to panic on the inner :None.
-    if head_str == ":wat::core::option::expect" && items.len() >= 5 {
+    // (4) Option-side `expect` form — items[3] is the value-position.
+    //     Layout: (Option/expect -> :T <opt> <msg>). Arc 109 slice 1j
+    //     renamed `:wat::core::option::expect` to
+    //     `:wat::core::Option/expect`; both heads recognized for the
+    //     migration window (same poison-and-dispatch shape as the
+    //     Result form above). Pre-arc-111 home for kernel comm; kept
+    //     for callers who have ALREADY unwrapped the outer Result
+    //     (their own match/expect) and want to panic on the inner
+    //     :None.
+    if (head_str == ":wat::core::Option/expect"
+        || head_str == ":wat::core::option::expect")
+        && items.len() >= 5
+    {
         for (i, child) in items.iter().enumerate() {
             let child_ctx = if i == 3 {
                 CommCtx::OptionExpectValue
@@ -1537,12 +1620,63 @@ fn infer_list(
             ":wat::core::cond" => return infer_cond(args, env, locals, fresh, subst, errors),
             ":wat::core::let" => return infer_let(args, env, locals, fresh, subst, errors),
             ":wat::core::let*" => return infer_let_star(args, env, locals, fresh, subst, errors),
-            ":wat::core::try" => return infer_try(args, env, locals, fresh, subst, errors),
+            // Arc 109 slice 1j — § D' Option/Result method forms.
+            // Three retired verbs (Pattern 2 poison + dispatch) and
+            // four new canonical heads (the three renames plus the
+            // brand-new Option-side propagation primitive).
+            ":wat::core::try" => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::try".into(),
+                    param: "(retired verb)".into(),
+                    expected: ":wat::core::Result/try".into(),
+                    got: ":wat::core::try".into(),
+                });
+                return infer_try(":wat::core::try", args, env, locals, fresh, subst, errors);
+            }
             ":wat::core::option::expect" => {
-                return infer_option_expect(args, env, locals, fresh, subst, errors)
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::option::expect".into(),
+                    param: "(retired verb)".into(),
+                    expected: ":wat::core::Option/expect".into(),
+                    got: ":wat::core::option::expect".into(),
+                });
+                return infer_option_expect(
+                    ":wat::core::option::expect",
+                    args, env, locals, fresh, subst, errors,
+                );
             }
             ":wat::core::result::expect" => {
-                return infer_result_expect(args, env, locals, fresh, subst, errors)
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::result::expect".into(),
+                    param: "(retired verb)".into(),
+                    expected: ":wat::core::Result/expect".into(),
+                    got: ":wat::core::result::expect".into(),
+                });
+                return infer_result_expect(
+                    ":wat::core::result::expect",
+                    args, env, locals, fresh, subst, errors,
+                );
+            }
+            ":wat::core::Result/try" => {
+                return infer_try(":wat::core::Result/try", args, env, locals, fresh, subst, errors);
+            }
+            ":wat::core::Option/try" => {
+                return infer_option_try(
+                    ":wat::core::Option/try",
+                    args, env, locals, fresh, subst, errors,
+                );
+            }
+            ":wat::core::Option/expect" => {
+                return infer_option_expect(
+                    ":wat::core::Option/expect",
+                    args, env, locals, fresh, subst, errors,
+                );
+            }
+            ":wat::core::Result/expect" => {
+                return infer_result_expect(
+                    ":wat::core::Result/expect",
+                    args, env, locals, fresh, subst, errors,
+                );
             }
             ":wat::core::vec" => {
                 // Arc 109 slice 1f — :wat::core::vec retires; the
@@ -3537,6 +3671,7 @@ fn infer_let(
 ///   `apply_function` packages it as the function's own `Err(e)`
 ///   return value.
 fn infer_try(
+    callee: &str,
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
@@ -3546,7 +3681,7 @@ fn infer_try(
 ) -> Option<TypeExpr> {
     if args.len() != 1 {
         errors.push(CheckError::ArityMismatch {
-            callee: ":wat::core::try".into(),
+            callee: callee.into(),
             expected: 1,
             got: args.len(),
         });
@@ -3563,8 +3698,11 @@ fn infer_try(
         Some(r) => r,
         None => {
             errors.push(CheckError::MalformedForm {
-                head: ":wat::core::try".into(),
-                reason: "used outside any function or lambda body; `try` requires an enclosing Result-returning scope to propagate into".into(),
+                head: callee.into(),
+                reason: format!(
+                    "used outside any function or lambda body; `{}` requires an enclosing Result-returning scope to propagate into",
+                    callee
+                ),
             });
             let _ = infer(&args[0], env, locals, fresh, subst, errors);
             return None;
@@ -3582,10 +3720,11 @@ fn infer_try(
         }
         _ => {
             errors.push(CheckError::MalformedForm {
-                head: ":wat::core::try".into(),
+                head: callee.into(),
                 reason: format!(
-                    "enclosing function returns {}; `try` requires the enclosing function to return :Result<T,E>",
-                    format_type(&enclosing)
+                    "enclosing function returns {}; `{}` requires the enclosing function to return :Result<T,E>",
+                    format_type(&enclosing),
+                    callee
                 ),
             });
             let _ = infer(&args[0], env, locals, fresh, subst, errors);
@@ -3605,7 +3744,7 @@ fn infer_try(
     };
     if unify(&arg_ty, &expected, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
-            callee: ":wat::core::try".into(),
+            callee: callee.into(),
             param: "arg".into(),
             expected: format_type(&apply_subst(&expected, subst)),
             got: format_type(&apply_subst(&arg_ty, subst)),
@@ -3616,6 +3755,98 @@ fn infer_try(
     // The try expression's type is T — the Ok-inner of the argument's
     // Result, now refined by unification with the enclosing function's
     // shape.
+    Some(apply_subst(&fresh_t, subst))
+}
+
+/// `(:wat::core::Option/try <option-expr>)` — Arc 109 slice 1j. The
+/// Option-side mirror of `Result/try`.
+///
+/// Type rules:
+/// 1. Exactly one argument.
+/// 2. The innermost enclosing function/lambda must declare its return
+///    type as `:Option<_>`. Otherwise `MalformedForm` — `Option/try`
+///    has nowhere to propagate to.
+/// 3. The argument's type must unify with `:Option<T>`.
+/// 4. On success, the form's type is `T` — the Some-inner of the
+///    argument's Option.
+///
+/// Runtime behavior (see `crate::runtime::eval_option_try`):
+/// - `Some(v)` → evaluates to `v`.
+/// - `:None` → raises `RuntimeError::OptionPropagate`; the innermost
+///   `apply_function` packages it as the function's own
+///   `Value::Option(None)` return value.
+fn infer_option_try(
+    callee: &str,
+    args: &[WatAST],
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 1 {
+        errors.push(CheckError::ArityMismatch {
+            callee: callee.into(),
+            expected: 1,
+            got: args.len(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return None;
+    }
+
+    let enclosing = match fresh.enclosing_ret().cloned() {
+        Some(r) => r,
+        None => {
+            errors.push(CheckError::MalformedForm {
+                head: callee.into(),
+                reason: format!(
+                    "used outside any function or lambda body; `{}` requires an enclosing Option-returning scope to propagate into",
+                    callee
+                ),
+            });
+            let _ = infer(&args[0], env, locals, fresh, subst, errors);
+            return None;
+        }
+    };
+    let enclosing_reduced = reduce(&enclosing, subst, env.types());
+    match &enclosing_reduced {
+        TypeExpr::Parametric { head, args: type_args }
+            if head == "Option" && type_args.len() == 1 => {}
+        _ => {
+            errors.push(CheckError::MalformedForm {
+                head: callee.into(),
+                reason: format!(
+                    "enclosing function returns {}; `{}` requires the enclosing function to return :Option<T>",
+                    format_type(&enclosing),
+                    callee
+                ),
+            });
+            let _ = infer(&args[0], env, locals, fresh, subst, errors);
+            return None;
+        }
+    };
+
+    // Argument must unify with Option<fresh_T>. Unlike Result/try the
+    // shape carries no Err variant to reconcile against the enclosing
+    // function — :None is the sole propagation payload.
+    let arg_ty = infer(&args[0], env, locals, fresh, subst, errors)?;
+    let fresh_t = fresh.fresh();
+    let expected = TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![fresh_t.clone()],
+    };
+    if unify(&arg_ty, &expected, subst, env.types()).is_err() {
+        errors.push(CheckError::TypeMismatch {
+            callee: callee.into(),
+            param: "arg".into(),
+            expected: format_type(&apply_subst(&expected, subst)),
+            got: format_type(&apply_subst(&arg_ty, subst)),
+        });
+        return None;
+    }
+
     Some(apply_subst(&fresh_t, subst))
 }
 
@@ -3644,6 +3875,7 @@ fn infer_try(
 /// On success the form's type is `T` — the Some-inner refined by
 /// unification with the declared arm-result type.
 fn infer_option_expect(
+    callee: &str,
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
@@ -3653,9 +3885,10 @@ fn infer_option_expect(
 ) -> Option<TypeExpr> {
     if args.len() != 4 {
         errors.push(CheckError::MalformedForm {
-            head: ":wat::core::option::expect".into(),
+            head: callee.into(),
             reason: format!(
-                "expected (:wat::core::option::expect -> :T <opt> <msg>) — 4 args; got {}",
+                "expected ({} -> :T <opt> <msg>) — 4 args; got {}",
+                callee,
                 args.len()
             ),
         });
@@ -3669,8 +3902,11 @@ fn infer_option_expect(
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
             errors.push(CheckError::MalformedForm {
-                head: ":wat::core::option::expect".into(),
-                reason: "expected `->` as the first argument; (option::expect -> :T <opt> <msg>)".into(),
+                head: callee.into(),
+                reason: format!(
+                    "expected `->` as the first argument; ({} -> :T <opt> <msg>)",
+                    callee
+                ),
             });
             return None;
         }
@@ -3681,7 +3917,7 @@ fn infer_option_expect(
             Ok(t) => t,
             Err(e) => {
                 errors.push(CheckError::MalformedForm {
-                    head: ":wat::core::option::expect".into(),
+                    head: callee.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                 });
                 return None;
@@ -3689,7 +3925,7 @@ fn infer_option_expect(
         },
         _ => {
             errors.push(CheckError::MalformedForm {
-                head: ":wat::core::option::expect".into(),
+                head: callee.into(),
                 reason: "expected type keyword after `->`".into(),
             });
             return None;
@@ -3704,7 +3940,7 @@ fn infer_option_expect(
     };
     if unify(&opt_ty, &expected_opt, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
-            callee: ":wat::core::option::expect".into(),
+            callee: callee.into(),
             param: "opt".into(),
             expected: format_type(&apply_subst(&expected_opt, subst)),
             got: format_type(&apply_subst(&opt_ty, subst)),
@@ -3716,7 +3952,7 @@ fn infer_option_expect(
     if let Some(m) = msg_ty {
         if unify(&m, &TypeExpr::Path(":String".into()), subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
-                callee: ":wat::core::option::expect".into(),
+                callee: callee.into(),
                 param: "msg".into(),
                 expected: ":String".into(),
                 got: format_type(&apply_subst(&m, subst)),
@@ -3733,6 +3969,7 @@ fn infer_option_expect(
 /// `:Result<T, fresh_E>` (Err variant is discarded at runtime; its
 /// type is left to inference).
 fn infer_result_expect(
+    callee: &str,
     args: &[WatAST],
     env: &CheckEnv,
     locals: &HashMap<String, TypeExpr>,
@@ -3742,9 +3979,10 @@ fn infer_result_expect(
 ) -> Option<TypeExpr> {
     if args.len() != 4 {
         errors.push(CheckError::MalformedForm {
-            head: ":wat::core::result::expect".into(),
+            head: callee.into(),
             reason: format!(
-                "expected (:wat::core::result::expect -> :T <res> <msg>) — 4 args; got {}",
+                "expected ({} -> :T <res> <msg>) — 4 args; got {}",
+                callee,
                 args.len()
             ),
         });
@@ -3757,8 +3995,11 @@ fn infer_result_expect(
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         _ => {
             errors.push(CheckError::MalformedForm {
-                head: ":wat::core::result::expect".into(),
-                reason: "expected `->` as the first argument; (result::expect -> :T <res> <msg>)".into(),
+                head: callee.into(),
+                reason: format!(
+                    "expected `->` as the first argument; ({} -> :T <res> <msg>)",
+                    callee
+                ),
             });
             return None;
         }
@@ -3768,7 +4009,7 @@ fn infer_result_expect(
             Ok(t) => t,
             Err(e) => {
                 errors.push(CheckError::MalformedForm {
-                    head: ":wat::core::result::expect".into(),
+                    head: callee.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
                 });
                 return None;
@@ -3776,7 +4017,7 @@ fn infer_result_expect(
         },
         _ => {
             errors.push(CheckError::MalformedForm {
-                head: ":wat::core::result::expect".into(),
+                head: callee.into(),
                 reason: "expected type keyword after `->`".into(),
             });
             return None;
@@ -3790,7 +4031,7 @@ fn infer_result_expect(
     };
     if unify(&res_ty, &expected_res, subst, env.types()).is_err() {
         errors.push(CheckError::TypeMismatch {
-            callee: ":wat::core::result::expect".into(),
+            callee: callee.into(),
             param: "res".into(),
             expected: format_type(&apply_subst(&expected_res, subst)),
             got: format_type(&apply_subst(&res_ty, subst)),
@@ -3801,7 +4042,7 @@ fn infer_result_expect(
     if let Some(m) = msg_ty {
         if unify(&m, &TypeExpr::Path(":String".into()), subst, env.types()).is_err() {
             errors.push(CheckError::TypeMismatch {
-                callee: ":wat::core::result::expect".into(),
+                callee: callee.into(),
                 param: "msg".into(),
                 expected: ":String".into(),
                 got: format_type(&apply_subst(&m, subst)),
