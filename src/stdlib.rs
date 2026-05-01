@@ -117,8 +117,8 @@ const STDLIB_FILES: &[WatSource] = &[
     // moved to the wat-telemetry crate; consumers gain them via
     // `deps: [wat_telemetry]`.
     WatSource {
-        path: "wat/std/service/Console.wat",
-        source: include_str!("../wat/std/service/Console.wat"),
+        path: "wat/console.wat",
+        source: include_str!("../wat/console.wat"),
     },
     // Arc 091 slice 1 — :wat::edn::Tagged + :wat::edn::NoTag newtypes
     // around HolonAST. Used by wat-sqlite's auto-dispatch (arc 085) to

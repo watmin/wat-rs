@@ -239,6 +239,29 @@ pub enum CheckError {
         /// prefix.
         span: Span,
     },
+    /// Arc 109 slice K.console — a keyword carrying the legacy
+    /// `:wat::std::service::Console::` (typealias path) or
+    /// `:wat::std::service::Console/` (verb path) prefix appears
+    /// in user code. The Console grouping noun retires per § K's
+    /// "/ requires a real Type" doctrine; verbs and typealiases
+    /// live at the namespace level (`:wat::console::*`).
+    ///
+    /// Pattern A canonicalization rides this slice: `Tx` and `Rx`
+    /// rename to `ReqTx` / `ReqRx` (per the channel-naming-
+    /// patterns subsection of § K — Console mirrors Telemetry's
+    /// canonical Pattern A shape post-K.console).
+    BareLegacyConsolePath {
+        /// User-source keyword — `":wat::std::service::Console/spawn"`,
+        /// `":wat::std::service::Console::Tx"`, etc.
+        old: String,
+        /// Canonical replacement — `":wat::console::spawn"`,
+        /// `":wat::console::ReqTx"` (Tx → ReqTx is the channel
+        /// canonicalization), `":wat::console::Message"`, etc.
+        new: String,
+        /// Source location of the keyword carrying the legacy
+        /// prefix.
+        span: Span,
+    },
 }
 
 impl fmt::Display for CheckError {
@@ -324,6 +347,11 @@ impl fmt::Display for CheckError {
             CheckError::BareLegacyTelemetryServicePath { old, new, span } => write!(
                 f,
                 "legacy telemetry-service path '{}' at {} is retired (arc 109 slice K.telemetry); canonical form is '{}'. The :wat::telemetry::Service grouping noun retired per § K's '/ requires a real Type' doctrine — Service has no struct, no value, no kind. Verbs and typealiases live at the namespace level. Real types Stats and MetricsCadence keep their PascalCase + /methods because they ARE structs (just one less namespace segment deep). Rename '{}' → '{}' at the offending site.",
+                old, span, new, old, new
+            ),
+            CheckError::BareLegacyConsolePath { old, new, span } => write!(
+                f,
+                "legacy console path '{}' at {} is retired (arc 109 slice K.console); canonical form is '{}'. The :wat::std::service::Console grouping noun retired per § K's '/ requires a real Type' doctrine. Plus Pattern A canonicalization: Tx/Rx renamed to ReqTx/ReqRx (mirrors Telemetry's Pattern A reference shape). File moved: wat/std/service/Console.wat → wat/console.wat. Rename '{}' → '{}' at the offending site.",
                 old, span, new, old, new
             ),
         }
@@ -504,6 +532,12 @@ impl CheckError {
             }
             CheckError::BareLegacyTelemetryServicePath { old, new, span } => {
                 Diagnostic::new("BareLegacyTelemetryServicePath")
+                    .field("old", old.as_str())
+                    .field("new", new.as_str())
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyConsolePath { old, new, span } => {
+                Diagnostic::new("BareLegacyConsolePath")
                     .field("old", old.as_str())
                     .field("new", new.as_str())
                     .field("location", format!("{}", span))
@@ -990,6 +1024,19 @@ pub fn check_program(
         validate_legacy_telemetry_service_path(form, &mut errors);
     }
 
+    // Arc 109 slice K.console — refuse the legacy
+    // `:wat::std::service::Console::*` (typealias) and
+    // `:wat::std::service::Console/*` (verb) prefixes. The Console
+    // grouping noun retires per § K; verbs and typealiases live at
+    // `:wat::console::*`. Plus Pattern A channel canonicalization:
+    // Tx/Rx rename to ReqTx/ReqRx mirroring Telemetry's reference.
+    for func in sym.functions.values() {
+        validate_legacy_console_path(&func.body, &mut errors);
+    }
+    for form in forms {
+        validate_legacy_console_path(form, &mut errors);
+    }
+
     // Check each user define's body against its declared return type.
     for (path, func) in &sym.functions {
         if let Some(scheme) = env.get(path) {
@@ -1399,6 +1446,62 @@ fn walk_for_legacy_telemetry_service(node: &WatAST, errors: &mut Vec<CheckError>
         WatAST::List(items, _) => {
             for item in items {
                 walk_for_legacy_telemetry_service(item, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Arc 109 slice K.console — same shape as
+/// `validate_legacy_telemetry_service_path` plus the Pattern A
+/// channel canonicalization for Tx/Rx → ReqTx/ReqRx. Catches both
+/// `:wat::std::service::Console::X` (typealias) and
+/// `:wat::std::service::Console/X` (verb); canonical replacement
+/// strips the `:wat::std::service::Console::` or
+/// `:wat::std::service::Console/` segment and substitutes the
+/// canonical leaf for `Tx` / `Rx`.
+fn validate_legacy_console_path(node: &WatAST, errors: &mut Vec<CheckError>) {
+    walk_for_legacy_console(node, errors);
+}
+
+const LEGACY_CONSOLE_TYPEALIAS_PREFIX: &str = ":wat::std::service::Console::";
+const LEGACY_CONSOLE_VERB_PREFIX: &str = ":wat::std::service::Console/";
+const CANONICAL_CONSOLE_PREFIX: &str = ":wat::console::";
+
+fn canonical_console_leaf(tail: &str) -> &str {
+    match tail {
+        "Tx" => "ReqTx",
+        "Rx" => "ReqRx",
+        other => other,
+    }
+}
+
+fn walk_for_legacy_console(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::Keyword(s, span) => {
+            if let Some(tail) = s.strip_prefix(LEGACY_CONSOLE_TYPEALIAS_PREFIX) {
+                let new = format!(
+                    "{}{}",
+                    CANONICAL_CONSOLE_PREFIX,
+                    canonical_console_leaf(tail)
+                );
+                errors.push(CheckError::BareLegacyConsolePath {
+                    old: s.clone(),
+                    new,
+                    span: span.clone(),
+                });
+            } else if let Some(tail) = s.strip_prefix(LEGACY_CONSOLE_VERB_PREFIX) {
+                let new = format!("{}{}", CANONICAL_CONSOLE_PREFIX, tail);
+                errors.push(CheckError::BareLegacyConsolePath {
+                    old: s.clone(),
+                    new,
+                    span: span.clone(),
+                });
+            }
+        }
+        WatAST::List(items, _) => {
+            for item in items {
+                walk_for_legacy_console(item, errors);
             }
         }
         _ => {}

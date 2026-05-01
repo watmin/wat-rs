@@ -46,13 +46,13 @@
               -> :wat::core::unit)
             (:wat::core::let*
               (((pool console-driver)
-                (:wat::std::service::Console/spawn stdout stderr 1))
+                (:wat::console::spawn stdout stderr 1))
                ((_ :wat::core::unit)
                 (:wat::core::let*
-                  (((handle :wat::std::service::Console::Handle)
+                  (((handle :wat::console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
                    ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
-                  (:wat::std::service::Console/out handle "hello via Console")))
+                  (:wat::console::out handle "hello via Console")))
                ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result console-driver)))
               ())))
@@ -86,10 +86,10 @@
         (:wat::test::program
           (:wat::core::define
             (:my::worker
-              (handle :wat::std::service::Console::Handle)
+              (handle :wat::console::Handle)
               (msg :wat::core::String)
               -> :wat::core::unit)
-            (:wat::std::service::Console/out handle msg))
+            (:wat::console::out handle msg))
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)
@@ -107,14 +107,14 @@
               ;; per-worker handles in scope. Arc 117 satisfied.
               (((console-driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
                 (:wat::core::let*
-                  (((spawn :(wat::kernel::HandlePool<wat::std::service::Console::Handle>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
-                    (:wat::std::service::Console/spawn stdout stderr 3))
-                   ((pool :wat::kernel::HandlePool<wat::std::service::Console::Handle>)
+                  (((spawn :(wat::kernel::HandlePool<wat::console::Handle>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
+                    (:wat::console::spawn stdout stderr 3))
+                   ((pool :wat::kernel::HandlePool<wat::console::Handle>)
                     (:wat::core::first spawn))
                    ((cd :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
                    ((w0 :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
                     (:wat::core::let*
-                      (((h0 :wat::std::service::Console::Handle)
+                      (((h0 :wat::console::Handle)
                         (:wat::kernel::HandlePool::pop pool)))
                       (:wat::kernel::spawn-thread
                         (:wat::core::lambda
@@ -124,7 +124,7 @@
                           (:my::worker h0 "alpha\n")))))
                    ((w1 :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
                     (:wat::core::let*
-                      (((h1 :wat::std::service::Console::Handle)
+                      (((h1 :wat::console::Handle)
                         (:wat::kernel::HandlePool::pop pool)))
                       (:wat::kernel::spawn-thread
                         (:wat::core::lambda
@@ -134,7 +134,7 @@
                           (:my::worker h1 "bravo\n")))))
                    ((w2 :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
                     (:wat::core::let*
-                      (((h2 :wat::std::service::Console::Handle)
+                      (((h2 :wat::console::Handle)
                         (:wat::kernel::HandlePool::pop pool)))
                       (:wat::kernel::spawn-thread
                         (:wat::core::lambda
