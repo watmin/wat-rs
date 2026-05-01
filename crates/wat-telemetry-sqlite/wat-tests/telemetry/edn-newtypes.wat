@@ -37,8 +37,8 @@
         ((ast :wat::holon::HolonAST) (:wat::holon::Atom "hello"))
         ((tagged :wat::edn::Tagged)  (:wat::edn::Tagged/new ast))
         ((notag  :wat::edn::NoTag)   (:wat::edn::NoTag/new  ast))
-        ((entries :Vec<test::Edn::Event>)
-         (:wat::core::vec :test::Edn::Event
+        ((entries :wat::core::Vector<test::Edn::Event>)
+         (:wat::core::Vector :test::Edn::Event
            (:test::Edn::Event::Log tagged notag)))
         ((_log :wat::core::unit)
          (:wat::telemetry::Service/batch-log
@@ -71,6 +71,6 @@
     (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::Edn::auto-spawn-one
         "/tmp/wat-sqlite-test-edn-newtypes-001.db"))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

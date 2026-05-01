@@ -49,9 +49,9 @@
 
 (:deftest :wat-tests::edn::roundtrip-vec
   (:wat::core::let*
-    (((v :Vec<wat::core::i64>) (:wat::core::vec :wat::core::i64 1 2 3))
+    (((v :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
      ((s :wat::core::String) (:wat::edn::write v))
-     ((back :Vec<wat::core::i64>) (:wat::edn::read s)))
+     ((back :wat::core::Vector<wat::core::i64>) (:wat::edn::read s)))
     (:wat::test::assert-eq back v)))
 
 

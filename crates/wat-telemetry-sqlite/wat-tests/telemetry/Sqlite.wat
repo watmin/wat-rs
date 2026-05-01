@@ -27,15 +27,15 @@
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::dispatch-noop
        (_db :wat::sqlite::Db)
-       (_entries :Vec<wat::core::i64>)
+       (_entries :wat::core::Vector<wat::core::i64>)
        -> :wat::core::unit)
      ())
 
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::translate-empty
        (_stats :wat::telemetry::Service::Stats)
-       -> :Vec<wat::core::i64>)
-     (:wat::core::vec :wat::core::i64))
+       -> :wat::core::Vector<wat::core::i64>)
+     (:wat::core::Vector :wat::core::i64))
 
 
    ;; ─── Hooks (insert; traffic test) ────────────────────────────
@@ -84,7 +84,7 @@
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::dispatch-events
        (db :wat::sqlite::Db)
-       (entries :Vec<wat::core::i64>)
+       (entries :wat::core::Vector<wat::core::i64>)
        -> :wat::core::unit)
      (:wat::core::foldl entries ()
        (:wat::core::lambda ((_acc :wat::core::unit) (entry :wat::core::i64) -> :wat::core::unit)
@@ -167,8 +167,8 @@
          (:wat::core::first handle))
         ((ack-rx :wat::telemetry::Service::AckRx)
          (:wat::core::second handle))
-        ((entries :Vec<wat::core::i64>)
-         (:wat::core::vec :wat::core::i64 7 11 13))
+        ((entries :wat::core::Vector<wat::core::i64>)
+         (:wat::core::Vector :wat::core::i64 7 11 13))
         ((_log :wat::core::unit)
          (:wat::telemetry::Service/batch-log
            req-tx ack-rx entries)))
@@ -182,7 +182,7 @@
     (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat-telemetry-sqlite::Sqlite::spawn-and-drop
         "/tmp/wat-sqlite-test-spawn-001.db"))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))
 
@@ -194,6 +194,6 @@
     (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat-telemetry-sqlite::Sqlite::spawn-and-batch
         "/tmp/wat-sqlite-test-batch-001.db"))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

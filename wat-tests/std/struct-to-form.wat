@@ -33,7 +33,7 @@
                ;; from its lifted form.
                (_ :wat::core::unit (:wat::test::assert-eq true true)))
               ())))
-        (:wat::core::vec :wat::core::String))))
+        (:wat::core::Vector :wat::core::String))))
     (:wat::test::assert-eq true true)))
 
 

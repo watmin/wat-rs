@@ -39,8 +39,8 @@
          (:wat::core::first handle))
         ((ack-rx :wat::telemetry::Service::AckRx)
          (:wat::core::second handle))
-        ((entries :Vec<test::Event>)
-         (:wat::core::vec :test::Event
+        ((entries :wat::core::Vector<test::Event>)
+         (:wat::core::Vector :test::Event
            (:test::Event::Buy 100.5 7)
            (:test::Event::Sell 102.25 3 "stop-loss" true)))
         ((_log :wat::core::unit)
@@ -74,6 +74,6 @@
     (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::auto-spawn-events
         "/tmp/wat-sqlite-test-auto-001.db"))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

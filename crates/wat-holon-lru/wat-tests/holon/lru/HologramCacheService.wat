@@ -93,7 +93,7 @@
    ;; reporting.
    (:wat::core::define
      (:wat-tests::holon::lru::HologramCacheService::loop-then-len-worker
-       (req-rxs :Vec<wat::holon::lru::HologramCacheService::ReqRx>)
+       (req-rxs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReqRx>)
        (cap :wat::core::i64)
        (out :rust::crossbeam_channel::Sender<wat::core::i64>)
        -> :wat::core::unit)
@@ -204,9 +204,9 @@
           (:wat::core::first pair))
          ((rx :wat::holon::lru::HologramCacheService::ReqRx)
           (:wat::core::second pair))
-         ((rxs :Vec<wat::holon::lru::HologramCacheService::ReqRx>)
+         ((rxs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReqRx>)
           (:wat::core::conj
-            (:wat::core::vec :wat::holon::lru::HologramCacheService::ReqRx)
+            (:wat::core::Vector :wat::holon::lru::HologramCacheService::ReqRx)
             rx))
          ((h :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
           (:wat::kernel::spawn-thread
@@ -277,9 +277,9 @@
           (:wat::core::first req-pair))
          ((req-rx :wat::holon::lru::HologramCacheService::ReqRx)
           (:wat::core::second req-pair))
-         ((rxs :Vec<wat::holon::lru::HologramCacheService::ReqRx>)
+         ((rxs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReqRx>)
           (:wat::core::conj
-            (:wat::core::vec :wat::holon::lru::HologramCacheService::ReqRx)
+            (:wat::core::Vector :wat::holon::lru::HologramCacheService::ReqRx)
             req-rx))
          ((h :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
           (:wat::kernel::spawn-thread

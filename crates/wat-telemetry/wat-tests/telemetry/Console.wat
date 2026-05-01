@@ -22,7 +22,7 @@
 
           ;; Helper — takes a Console::Handle, builds an EDN
           ;; dispatcher, dispatches three i64 entries as ONE batch.
-          ;; Arc 089 slice 3: dispatcher takes Vec<E>.
+          ;; Arc 089 slice 3: dispatcher takes wat::core::Vector<E>.
           ;; Arc 089 slice 5: dispatcher closes over a Console::Handle
           ;; so the per-entry Console/out call gets in-memory TCP for free.
           (:wat::core::define
@@ -33,7 +33,7 @@
               (((d :my::Dispatcher)
                 (:wat::telemetry::Console/dispatcher
                   handle :wat::telemetry::Console::Format::Edn))
-               ((batch :Vec<wat::core::i64>) (:wat::core::vec :wat::core::i64 10 20 30)))
+               ((batch :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 10 20 30)))
               (d batch)))
           ;; Main — outer holds Console driver; inner pops handle +
           ;; calls helper; outer joins after inner exits.
@@ -52,11 +52,11 @@
                     (:wat::kernel::HandlePool::pop pool))
                    ((_0 :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
                   (:my::dispatch-three-edn handle)))
-               ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+               ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result console-driver)))
               ())))
-        (:wat::core::vec :wat::core::String)))
-     ((stdout :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
+        (:wat::core::Vector :wat::core::String)))
+     ((stdout :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
      ((seen-10 :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout
@@ -80,7 +80,7 @@
     (:wat::test::assert-eq seen-30 true)))
 
 
-;; ─── Test 2: JSON format renders Vec<i64> as JSON array ──────────
+;; ─── Test 2: JSON format renders wat::core::Vector<i64> as JSON array ──────────
 
 (:wat::test::deftest :wat-telemetry::Console::test-dispatcher-json
   ()
@@ -91,13 +91,13 @@
           ;; App-level concrete aliases. Two layers — Row is the
           ;; entry shape; Dispatcher is the dispatcher's concrete
           ;; type. Every signature site reads `:my::Dispatcher`
-          ;; instead of `:fn(Vec<Vec<i64>>)->()` or
-          ;; `:wat::telemetry::Console::Dispatcher<Vec<i64>>`.
-          (:wat::core::typealias :my::Row :Vec<wat::core::i64>)
+          ;; instead of `:fn(wat::core::Vector<wat::core::Vector<i64>>)->()` or
+          ;; `:wat::telemetry::Console::Dispatcher<wat::core::Vector<i64>>`.
+          (:wat::core::typealias :my::Row :wat::core::Vector<wat::core::i64>)
           (:wat::core::typealias :my::Dispatcher
             :wat::telemetry::Console::Dispatcher<my::Row>)
 
-          ;; Arc 089 slice 3: dispatcher takes Vec<E>. The
+          ;; Arc 089 slice 3: dispatcher takes wat::core::Vector<E>. The
           ;; dispatcher renders each element on its own line —
           ;; one batch with one Row entry → one line "[1,2,3]".
           (:wat::core::define
@@ -108,9 +108,9 @@
               (((d :my::Dispatcher)
                 (:wat::telemetry::Console/dispatcher
                   handle :wat::telemetry::Console::Format::Json))
-               ((row :my::Row) (:wat::core::vec :wat::core::i64 1 2 3))
-               ((batch :Vec<my::Row>)
-                (:wat::core::vec :my::Row row)))
+               ((row :my::Row) (:wat::core::Vector :wat::core::i64 1 2 3))
+               ((batch :wat::core::Vector<my::Row>)
+                (:wat::core::Vector :my::Row row)))
               (d batch)))
           (:wat::core::define
             (:user::main
@@ -127,11 +127,11 @@
                     (:wat::kernel::HandlePool::pop pool))
                    ((_0 :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
                   (:my::dispatch-row-json handle)))
-               ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+               ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result console-driver)))
               ())))
-        (:wat::core::vec :wat::core::String)))
-     ((stdout :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
+        (:wat::core::Vector :wat::core::String)))
+     ((stdout :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
      ((seen-row :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout

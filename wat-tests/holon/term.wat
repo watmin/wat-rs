@@ -8,8 +8,8 @@
 ;;
 ;;   template :HolonAST -> :HolonAST            ;; replace Thermometer values
 ;;                                              ;; with SlotMarker (min, max)
-;;   slots    :HolonAST -> :Vec<wat::core::f64>            ;; pre-order Thermometer values
-;;   ranges   :HolonAST -> :Vec<(f64,f64)>      ;; pre-order Thermometer ranges
+;;   slots    :HolonAST -> :wat::core::Vector<wat::core::f64>            ;; pre-order Thermometer values
+;;   ranges   :HolonAST -> :wat::core::Vector<(f64,f64)>      ;; pre-order Thermometer ranges
 ;;
 ;; Templates compare exactly (HashMap-keyable). Slots and ranges are
 ;; parallel in length and order; the TermStore::get path uses them
@@ -90,14 +90,14 @@
   (:wat::core::let*
     (((bundled :wat::holon::BundleResult)
       (:wat::holon::Bundle
-        (:wat::core::vec :wat::holon::HolonAST
+        (:wat::core::Vector :wat::holon::HolonAST
           (:wat::holon::Thermometer 70.0 0.0 100.0)
           (:wat::holon::Thermometer 0.25 -1.0 1.0))))
      ((form :wat::holon::HolonAST)
       (:wat::core::match bundled -> :wat::holon::HolonAST
         ((Ok h)  h)
         ((Err _) (:wat::holon::Atom "unreachable"))))
-     ((slots :Vec<wat::core::f64>) (:wat::holon::term::slots form))
+     ((slots :wat::core::Vector<wat::core::f64>) (:wat::holon::term::slots form))
      ((n :wat::core::i64) (:wat::core::length slots)))
     (:wat::test::assert-eq n 2)))
 
@@ -108,7 +108,7 @@
   (:wat::core::let*
     (((bundled :wat::holon::BundleResult)
       (:wat::holon::Bundle
-        (:wat::core::vec :wat::holon::HolonAST
+        (:wat::core::Vector :wat::holon::HolonAST
           (:wat::holon::Thermometer 70.0 0.0 100.0)
           (:wat::holon::Thermometer 0.25 -1.0 1.0))))
      ((form :wat::holon::HolonAST)
@@ -130,7 +130,7 @@
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
         (:wat::holon::leaf 42)))
-     ((slots :Vec<wat::core::f64>) (:wat::holon::term::slots form))
+     ((slots :wat::core::Vector<wat::core::f64>) (:wat::holon::term::slots form))
      ((n :wat::core::i64) (:wat::core::length slots)))
     (:wat::test::assert-eq n 0)))
 
@@ -148,7 +148,7 @@
         (:wat::holon::leaf :rsi-thought)
         (:wat::holon::Thermometer 70.0 0.0 100.0)))
      ((tpl :wat::holon::HolonAST) (:wat::holon::term::template form))
-     ((slots :Vec<wat::core::f64>) (:wat::holon::term::slots tpl))
+     ((slots :wat::core::Vector<wat::core::f64>) (:wat::holon::term::slots tpl))
      ((n :wat::core::i64) (:wat::core::length slots)))
     (:wat::test::assert-eq n 0)))
 

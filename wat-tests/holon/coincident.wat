@@ -54,7 +54,7 @@
   (:wat::core::let*
     (((bundled :wat::holon::BundleResult)
       (:wat::holon::Bundle
-        (:wat::core::vec :wat::holon::HolonAST
+        (:wat::core::Vector :wat::holon::HolonAST
           (:wat::holon::Atom "a")
           (:wat::holon::Atom "b")
           (:wat::holon::Atom "c"))))

@@ -37,8 +37,8 @@
              (:wat::core::HashMap :wat::telemetry::Tag)
              (:wat::holon::Atom :asset) (:wat::holon::Atom :BTC))
            (:wat::holon::Atom :stage) (:wat::holon::Atom :market)))
-        ((entries :Vec<test::Tagged::Event>)
-         (:wat::core::vec :test::Tagged::Event
+        ((entries :wat::core::Vector<test::Tagged::Event>)
+         (:wat::core::Vector :test::Tagged::Event
            (:test::Tagged::Event::Log tags)))
         ((_log :wat::core::unit)
          (:wat::telemetry::Service/batch-log
@@ -71,6 +71,6 @@
     (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::Tagged::auto-spawn-one
         "/tmp/wat-sqlite-test-hashmap-field-001.db"))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

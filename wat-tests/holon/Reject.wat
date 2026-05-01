@@ -35,7 +35,7 @@
        (b :wat::holon::HolonAST)
        -> :wat::holon::HolonAST)
      (:wat::core::match
-       (:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST a b))
+       (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b))
        -> :wat::holon::HolonAST
        ((Ok h) h)
        ((Err _) (:wat::holon::leaf 0)))))
@@ -56,7 +56,7 @@
        (b :wat::holon::HolonAST)
        -> :wat::holon::HolonAST)
      (:wat::core::match
-       (:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST a b))
+       (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST a b))
        -> :wat::holon::HolonAST
        ((Ok h) h)
        ((Err _) (:wat::holon::leaf 0)))))

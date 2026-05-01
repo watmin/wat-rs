@@ -15,7 +15,7 @@
 ;; Arc 089 slice 5 — Console gained mini-TCP via paired channels.
 ;; Each producer pops a Console::Handle = (Tx, AckRx) from the
 ;; pool; the driver internally pairs req-Rx with ack-Tx by index
-;; in Vec<DriverPair>. Console/out and Console/err take the
+;; in wat::core::Vector<DriverPair>. Console/out and Console/err take the
 ;; Handle and block on ack-rx until the driver has written. The
 ;; bounded(1) on each pipe is the organic backoff — producer
 ;; can't queue another message until the previous one acked.
@@ -53,11 +53,11 @@
                     (:wat::kernel::HandlePool::pop pool))
                    ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
                   (:wat::std::service::Console/out handle "hello via Console")))
-               ((_ :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+               ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result console-driver)))
               ())))
-        (:wat::core::vec :wat::core::String)))
-     ((stdout :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
+        (:wat::core::Vector :wat::core::String)))
+     ((stdout :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
      ;; first returns wat::core::Option<String> via arc 047. Test asserts the
      ;; expected first line; pattern-match unwraps.
      ((first-line :wat::core::String)
@@ -143,18 +143,18 @@
                            -> :wat::core::unit)
                           (:my::worker h2 "charlie\n")))))
                    ((_0 :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-                   ((_1 :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+                   ((_1 :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                     (:wat::kernel::Thread/join-result w0))
-                   ((_2 :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+                   ((_2 :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                     (:wat::kernel::Thread/join-result w1))
-                   ((_3 :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+                   ((_3 :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                     (:wat::kernel::Thread/join-result w2)))
                   cd))
-               ((_4 :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+               ((_4 :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result console-driver)))
               ())))
-        (:wat::core::vec :wat::core::String)))
-     ((stdout :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
+        (:wat::core::Vector :wat::core::String)))
+     ((stdout :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
      ((seen-alpha :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout

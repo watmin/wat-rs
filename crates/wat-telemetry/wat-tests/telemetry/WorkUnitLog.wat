@@ -46,8 +46,8 @@
    (:wat::core::define
      (:wat-telemetry::log-test::make-stub-dispatcher
        (stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
-       -> :fn(Vec<wat::telemetry::Event>)->wat::core::unit)
-     (:wat::core::lambda ((entries :Vec<wat::telemetry::Event>) -> :wat::core::unit)
+       -> :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
+     (:wat::core::lambda ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::unit)
        (:wat::core::foldl entries ()
          (:wat::core::lambda ((_acc :wat::core::unit) (e :wat::telemetry::Event) -> :wat::core::unit)
            (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::unit
@@ -57,8 +57,8 @@
    (:wat::core::define
      (:wat-telemetry::log-test::translate-empty
        (_s :wat::telemetry::Service::Stats)
-       -> :Vec<wat::telemetry::Event>)
-     (:wat::core::vec :wat::telemetry::Event))))
+       -> :wat::core::Vector<wat::telemetry::Event>)
+     (:wat::core::Vector :wat::telemetry::Event))))
 
 
 ;; ─── /info ships an Event::Log row through the captured handle ───
@@ -80,7 +80,7 @@
           (:wat::core::first stub-pair))
          ((stub-rx :wat::kernel::QueueReceiver<wat::telemetry::Event>)
           (:wat::core::second stub-pair))
-         ((dispatcher :fn(Vec<wat::telemetry::Event>)->wat::core::unit)
+         ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
           (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))
          ((cadence :wat::telemetry::Service::MetricsCadence<wat::core::unit>)
           (:wat::telemetry::Service/null-metrics-cadence))
@@ -127,7 +127,7 @@
         (:wat::core::tuple d level-back)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-level))
      ((level-back :wat::core::keyword) (:wat::core::second thr-and-level))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq level-back :info)))
 
@@ -155,7 +155,7 @@
           (:wat::core::first stub-pair))
          ((stub-rx :wat::kernel::QueueReceiver<wat::telemetry::Event>)
           (:wat::core::second stub-pair))
-         ((dispatcher :fn(Vec<wat::telemetry::Event>)->wat::core::unit)
+         ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
           (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))
          ((cadence :wat::telemetry::Service::MetricsCadence<wat::core::unit>)
           (:wat::telemetry::Service/null-metrics-cadence))
@@ -225,6 +225,6 @@
         (:wat::core::tuple d l4)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-l4))
      ((l4 :wat::core::keyword) (:wat::core::second thr-and-l4))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq l4 :error)))

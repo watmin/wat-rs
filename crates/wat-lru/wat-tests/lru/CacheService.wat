@@ -75,14 +75,14 @@
                     ((Some _v) (:wat::std::service::Console/out diag "hit\n"))
                     (:None     (:wat::std::service::Console/out diag "miss\n")))))
 
-               ((_ :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+               ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result driver))
-               ((_ :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+               ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result con-drv)))
               ())))
-        (:wat::core::vec :wat::core::String)))
-     ((stdout :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
-     ((stderr :Vec<wat::core::String>) (:wat::kernel::RunResult/stderr r))
+        (:wat::core::Vector :wat::core::String)))
+     ((stdout :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
+     ((stderr :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stderr r))
      ;; Assertions:
      ;;   - stdout first line is "hit" (put→get round-trip succeeded)
      ;;   - stderr contains each of the T1/T2/T3 checkpoints

@@ -77,7 +77,7 @@
                   opt
                   "broker disconnected")))
               ())))
-        (:wat::core::vec :wat::core::String)))
+        (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
       ((Some f)

@@ -148,7 +148,7 @@
    ;; calling Thread/join-result.
    (:wat::core::define
      (:svc::Service/loop
-       (req-rxs :Vec<svc::ReqRx>)
+       (req-rxs :wat::core::Vector<svc::ReqRx>)
        (state :svc::State)
        (out :svc::DriverOut)
        -> :wat::core::unit)
@@ -192,18 +192,18 @@
    (:wat::core::define
      (:svc::Service (count :wat::core::i64) -> :svc::Spawn)
      (:wat::core::let*
-       (((pairs :Vec<wat::kernel::QueuePair<svc::Request>>)
+       (((pairs :wat::core::Vector<wat::kernel::QueuePair<svc::Request>>)
          (:wat::core::map
            (:wat::core::range 0 count)
            (:wat::core::lambda ((_i :wat::core::i64) -> :wat::kernel::QueuePair<svc::Request>)
              (:wat::kernel::make-bounded-queue :svc::Request 1))))
 
-        ((req-txs :Vec<svc::ReqTx>)
+        ((req-txs :wat::core::Vector<svc::ReqTx>)
          (:wat::core::map pairs
            (:wat::core::lambda ((p :wat::kernel::QueuePair<svc::Request>) -> :svc::ReqTx)
              (:wat::core::first p))))
 
-        ((req-rxs :Vec<svc::ReqRx>)
+        ((req-rxs :wat::core::Vector<svc::ReqRx>)
          (:wat::core::map pairs
            (:wat::core::lambda ((p :wat::kernel::QueuePair<svc::Request>) -> :svc::ReqRx)
              (:wat::core::second p))))
@@ -318,7 +318,7 @@
              (:wat::kernel::recv final-rx)
              "test recv final-state: thread died before delivering final state")
            "test recv final-state: thread output closed without delivering final state"))
-        ((join-result :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+        ((join-result :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
          (:wat::kernel::Thread/join-result thr)))
        (:wat::core::match join-result -> :wat::core::unit
          ((Ok _)

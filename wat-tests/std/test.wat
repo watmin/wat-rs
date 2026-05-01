@@ -31,8 +31,8 @@
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-vec
   ()
   (:wat::core::let*
-    (((a :Vec<wat::core::String>) (:wat::core::vec :wat::core::String "x" "y"))
-     ((b :Vec<wat::core::String>) (:wat::core::vec :wat::core::String "x" "y")))
+    (((a :wat::core::Vector<wat::core::String>) (:wat::core::Vector :wat::core::String "x" "y"))
+     ((b :wat::core::Vector<wat::core::String>) (:wat::core::Vector :wat::core::String "x" "y")))
     (:wat::test::assert-eq a b)))
 
 ;; ─── assert-eq — fail case surfaces message ───────────────────────────
@@ -50,7 +50,7 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::unit)
             (:wat::test::assert-eq 42 43)))
-        (:wat::core::vec :wat::core::String)))
+        (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
       ((Some f) (:wat::test::assert-eq
@@ -79,7 +79,7 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::unit)
             (:wat::test::assert-contains "hello" "xyz")))
-        (:wat::core::vec :wat::core::String)))
+        (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
       ((Some f)
@@ -126,7 +126,7 @@
             (:wat::test::assert-coincident
               (:wat::holon::Atom "alice")
               (:wat::holon::Atom "charlie"))))
-        (:wat::core::vec :wat::core::String)))
+        (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
       ((Some f)
@@ -166,8 +166,8 @@
               (((_ :wat::core::unit) (:wat::io::IOWriter/println stdout "alpha"))
                ((_ :wat::core::unit) (:wat::io::IOWriter/println stdout "beta")))
               ())))
-        (:wat::core::vec :wat::core::String)))
-     ((expected :Vec<wat::core::String>) (:wat::core::vec :wat::core::String "alpha" "beta")))
+        (:wat::core::Vector :wat::core::String)))
+     ((expected :wat::core::Vector<wat::core::String>) (:wat::core::Vector :wat::core::String "alpha" "beta")))
     (:wat::test::assert-stdout-is inner expected)))
 
 ;; ─── assert-stderr-matches — pass + fail-reports-pattern ──────────────
@@ -185,7 +185,7 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::unit)
             (:wat::io::IOWriter/println stderr "error: code 42")))
-        (:wat::core::vec :wat::core::String))))
+        (:wat::core::Vector :wat::core::String))))
     (:wat::test::assert-stderr-matches inner "code [0-9]+")))
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
@@ -216,9 +216,9 @@
                         (stderr :wat::io::IOWriter)
                         -> :wat::core::unit)
                       ()))
-                  (:wat::core::vec :wat::core::String))))
+                  (:wat::core::Vector :wat::core::String))))
               (:wat::test::assert-stderr-matches silent "my-pattern"))))
-        (:wat::core::vec :wat::core::String)))
+        (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
       ((Some f)
@@ -249,8 +249,8 @@
                               (stderr :wat::io::IOWriter)
                               -> :wat::core::unit)
            (:wat::io::IOWriter/println stdout \"from-string\"))"
-        (:wat::core::vec :wat::core::String)))
-     ((expected :Vec<wat::core::String>) (:wat::core::vec :wat::core::String "from-string")))
+        (:wat::core::Vector :wat::core::String)))
+     ((expected :wat::core::Vector<wat::core::String>) (:wat::core::Vector :wat::core::String "from-string")))
     (:wat::test::assert-stdout-is r expected)))
 
 ;; ─── :wat::test::run-ast — AST-entry path via :wat::test::program ────
@@ -268,8 +268,8 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::unit)
             (:wat::io::IOWriter/println stdout "from-ast")))
-        (:wat::core::vec :wat::core::String)))
-     ((expected :Vec<wat::core::String>) (:wat::core::vec :wat::core::String "from-ast")))
+        (:wat::core::Vector :wat::core::String)))
+     ((expected :wat::core::Vector<wat::core::String>) (:wat::core::Vector :wat::core::String "from-ast")))
     (:wat::test::assert-stdout-is r expected)))
 
 ;; deftest's self-test is redundant here — every other passing deftest

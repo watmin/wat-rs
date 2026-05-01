@@ -61,8 +61,8 @@
    (:wat::core::define
      (:wat-telemetry::scope::make-stub-dispatcher
        (stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
-       -> :fn(Vec<wat::telemetry::Event>)->wat::core::unit)
-     (:wat::core::lambda ((entries :Vec<wat::telemetry::Event>) -> :wat::core::unit)
+       -> :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
+     (:wat::core::lambda ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::unit)
        (:wat::core::foldl entries ()
          (:wat::core::lambda ((_acc :wat::core::unit) (e :wat::telemetry::Event) -> :wat::core::unit)
            (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::unit
@@ -73,8 +73,8 @@
    (:wat::core::define
      (:wat-telemetry::scope::translate-empty
        (_s :wat::telemetry::Service::Stats)
-       -> :Vec<wat::telemetry::Event>)
-     (:wat::core::vec :wat::telemetry::Event))))
+       -> :wat::core::Vector<wat::telemetry::Event>)
+     (:wat::core::Vector :wat::telemetry::Event))))
 
 
 ;; ─── uuid is non-empty ────────────────────────────────────────────
@@ -145,8 +145,8 @@
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :sql-page))
      ((_a :wat::core::unit) (:wat::telemetry::WorkUnit/append-dt! wu name 0.5))
      ((_b :wat::core::unit) (:wat::telemetry::WorkUnit/append-dt! wu name 1.5))
-     ((dts :Vec<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name)))
-    (:wat::test::assert-eq dts (:wat::core::vec :wat::core::f64 0.5 1.5))))
+     ((dts :wat::core::Vector<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name)))
+    (:wat::test::assert-eq dts (:wat::core::Vector :wat::core::f64 0.5 1.5))))
 
 
 ;; ─── timed — bump + measure-around body ─────────────────────────
@@ -171,7 +171,7 @@
       (:wat::telemetry::WorkUnit/timed wu name
         (:wat::core::lambda (-> :wat::core::i64) 99)))
      ((counter :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name))
-     ((dts :Vec<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name))
+     ((dts :wat::core::Vector<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name))
      ((n-dts :wat::core::i64) (:wat::core::length dts))
      ((_a :wat::core::unit) (:wat::test::assert-eq result 99))
      ((_b :wat::core::unit) (:wat::test::assert-eq counter 1)))
@@ -192,7 +192,7 @@
       (:wat::telemetry::WorkUnit/timed wu name
         (:wat::core::lambda (-> :wat::core::i64) 2)))
      ((counter :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name))
-     ((dts :Vec<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name))
+     ((dts :wat::core::Vector<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name))
      ((n-dts :wat::core::i64) (:wat::core::length dts))
      ((_a :wat::core::unit) (:wat::test::assert-eq counter 2)))
     (:wat::test::assert-eq n-dts 2)))
@@ -301,7 +301,7 @@
 
 
 ;; collect-metric-events — at scope-close, walk the wu's counters
-;; AND durations into a flat `Vec<Event>` (Metric variants only;
+;; AND durations into a flat `wat::core::Vector<Event>` (Metric variants only;
 ;; Logs ship per-emission, not at scope-close). Empty wu produces
 ;; empty Vec — the simplest contract case. Subsequent tests add
 ;; one counter, one duration-sample, then mixed.
@@ -310,7 +310,7 @@
     (((tags   :wat::telemetry::Tags)         (:wat-telemetry::empty-tags))
      ((wu     :wat::telemetry::WorkUnit)     (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) tags))
      ((ns     :wat::holon::HolonAST)         (:wat::holon::Atom :test::ns))
-     ((events :Vec<wat::telemetry::Event>)
+     ((events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::telemetry::WorkUnit/scope::collect-metric-events
         wu 100 200)))
     (:wat::test::assert-eq (:wat::core::length events) 0)))
@@ -328,7 +328,7 @@
      ((_b    :wat::core::unit)                        (:wat::telemetry::WorkUnit/incr! wu name))
      ((_c    :wat::core::unit)                        (:wat::telemetry::WorkUnit/incr! wu name))
      ((ns    :wat::holon::HolonAST)     (:wat::holon::Atom :test::ns))
-     ((events :Vec<wat::telemetry::Event>)
+     ((events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::telemetry::WorkUnit/scope::collect-metric-events
         wu 100 200)))
     (:wat::test::assert-eq (:wat::core::length events) 1)))
@@ -345,7 +345,7 @@
      ((_a    :wat::core::unit)                        (:wat::telemetry::WorkUnit/append-dt! wu name 0.5))
      ((_b    :wat::core::unit)                        (:wat::telemetry::WorkUnit/append-dt! wu name 1.5))
      ((ns    :wat::holon::HolonAST)     (:wat::holon::Atom :test::ns))
-     ((events :Vec<wat::telemetry::Event>)
+     ((events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::telemetry::WorkUnit/scope::collect-metric-events
         wu 100 200)))
     (:wat::test::assert-eq (:wat::core::length events) 2)))
@@ -437,7 +437,7 @@
          ((stub-rx :wat::kernel::QueueReceiver<wat::telemetry::Event>)
           (:wat::core::second stub-pair))
          ;; Dispatcher closure-over stub-tx; null cadence + empty translator.
-         ((dispatcher :fn(Vec<wat::telemetry::Event>)->wat::core::unit)
+         ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
           (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
          ((cadence :wat::telemetry::Service::MetricsCadence<wat::core::unit>)
           (:wat::telemetry::Service/null-metrics-cadence))
@@ -476,7 +476,7 @@
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-result-some))
      ((result :wat::core::i64) (:wat::core::second thr-result-some))
      ((r1-some? :wat::core::bool) (:wat::core::third thr-result-some))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((_a :wat::core::unit) (:wat::test::assert-eq result 42)))
     (:wat::test::assert-eq r1-some? true)))

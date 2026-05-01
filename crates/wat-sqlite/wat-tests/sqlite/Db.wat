@@ -52,7 +52,7 @@
      ((_insert :wat::core::unit)
       (:wat::sqlite::execute db
         "INSERT INTO rows (run_name, paper_id, residue, ok) VALUES (?1, ?2, ?3, ?4)"
-        (:wat::core::vec :wat::sqlite::Param
+        (:wat::core::Vector :wat::sqlite::Param
           (:wat::sqlite::Param::Str "alpha-run")
           (:wat::sqlite::Param::I64 42)
           (:wat::sqlite::Param::F64 0.125)
@@ -106,17 +106,17 @@
      ((_i1 :wat::core::unit)
       (:wat::sqlite::execute db
         "INSERT INTO counters (n) VALUES (?1)"
-        (:wat::core::vec :wat::sqlite::Param
+        (:wat::core::Vector :wat::sqlite::Param
           (:wat::sqlite::Param::I64 1))))
      ((_i2 :wat::core::unit)
       (:wat::sqlite::execute db
         "INSERT INTO counters (n) VALUES (?1)"
-        (:wat::core::vec :wat::sqlite::Param
+        (:wat::core::Vector :wat::sqlite::Param
           (:wat::sqlite::Param::I64 2))))
      ((_i3 :wat::core::unit)
       (:wat::sqlite::execute db
         "INSERT INTO counters (n) VALUES (?1)"
-        (:wat::core::vec :wat::sqlite::Param
+        (:wat::core::Vector :wat::sqlite::Param
           (:wat::sqlite::Param::I64 3))))
      ((_c :wat::core::unit) (:wat::sqlite::commit db)))
     (:wat::test::assert-eq true true)))

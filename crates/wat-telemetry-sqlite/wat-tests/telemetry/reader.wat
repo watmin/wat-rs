@@ -54,8 +54,8 @@
          (:wat::core::first handle))
         ((ack-rx :wat::telemetry::Service::AckRx)
          (:wat::core::second handle))
-        ((entries :Vec<wat::telemetry::Event>)
-         (:wat::core::vec :wat::telemetry::Event
+        ((entries :wat::core::Vector<wat::telemetry::Event>)
+         (:wat::core::Vector :wat::telemetry::Event
            (:test::reader::make-log 1000 "first")
            (:test::reader::make-log 2000 "second")
            (:test::reader::make-log 3000 "third")))
@@ -97,18 +97,18 @@
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::reader::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
 
      ;; Phase 2 — open as ReadHandle and stream the rows back.
      ;; Empty constraint vec = full-table scan.
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
-     ((no-constraints :Vec<wat::telemetry::TimeConstraint>)
-      (:wat::core::vec :wat::telemetry::TimeConstraint))
+     ((no-constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
+      (:wat::core::Vector :wat::telemetry::TimeConstraint))
      ((stream :wat::std::stream::Stream<wat::telemetry::Event>)
       (:wat::telemetry::sqlite/stream-logs handle no-constraints))
-     ((events :Vec<wat::telemetry::Event>)
+     ((events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::std::stream::collect stream))
      ((count :wat::core::i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 3)))
@@ -123,7 +123,7 @@
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::reader::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
 
      ((handle :wat::sqlite::ReadHandle)
@@ -132,12 +132,12 @@
      ;; with time_ns = 1000, 2000, 3000 — Since 2000 keeps the
      ;; latter two.
      ((cutoff :wat::time::Instant) (:wat::time::at-nanos 2000))
-     ((constraints :Vec<wat::telemetry::TimeConstraint>)
-      (:wat::core::vec :wat::telemetry::TimeConstraint
+     ((constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
+      (:wat::core::Vector :wat::telemetry::TimeConstraint
         (:wat::telemetry::since cutoff)))
      ((stream :wat::std::stream::Stream<wat::telemetry::Event>)
       (:wat::telemetry::sqlite/stream-logs handle constraints))
-     ((events :Vec<wat::telemetry::Event>)
+     ((events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::std::stream::collect stream))
      ((count :wat::core::i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 2)))
@@ -150,19 +150,19 @@
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::reader::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
 
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
      ;; Until(instant @ time_ns=1500) — only the time_ns=1000 row.
      ((cutoff :wat::time::Instant) (:wat::time::at-nanos 1500))
-     ((constraints :Vec<wat::telemetry::TimeConstraint>)
-      (:wat::core::vec :wat::telemetry::TimeConstraint
+     ((constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
+      (:wat::core::Vector :wat::telemetry::TimeConstraint
         (:wat::telemetry::until cutoff)))
      ((stream :wat::std::stream::Stream<wat::telemetry::Event>)
       (:wat::telemetry::sqlite/stream-logs handle constraints))
-     ((events :Vec<wat::telemetry::Event>)
+     ((events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::std::stream::collect stream))
      ((count :wat::core::i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 1)))
@@ -175,7 +175,7 @@
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::reader::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
 
      ((handle :wat::sqlite::ReadHandle)
@@ -183,13 +183,13 @@
      ;; Since(1500) AND Until(2500) — only the time_ns=2000 row.
      ((lo :wat::time::Instant) (:wat::time::at-nanos 1500))
      ((hi :wat::time::Instant) (:wat::time::at-nanos 2500))
-     ((constraints :Vec<wat::telemetry::TimeConstraint>)
-      (:wat::core::vec :wat::telemetry::TimeConstraint
+     ((constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
+      (:wat::core::Vector :wat::telemetry::TimeConstraint
         (:wat::telemetry::since lo)
         (:wat::telemetry::until hi)))
      ((stream :wat::std::stream::Stream<wat::telemetry::Event>)
       (:wat::telemetry::sqlite/stream-logs handle constraints))
-     ((events :Vec<wat::telemetry::Event>)
+     ((events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::std::stream::collect stream))
      ((count :wat::core::i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 1)))
@@ -205,13 +205,13 @@
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::reader::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
-     ((no-constraints :Vec<wat::telemetry::TimeConstraint>)
-      (:wat::core::vec :wat::telemetry::TimeConstraint))
-     ((events :Vec<wat::telemetry::Event>)
+     ((no-constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
+      (:wat::core::Vector :wat::telemetry::TimeConstraint))
+     ((events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::std::stream::collect
         (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
      ;; First event is the {time_ns=1000, "first"} row.
@@ -240,13 +240,13 @@
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::reader::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
-     ((no-constraints :Vec<wat::telemetry::TimeConstraint>)
-      (:wat::core::vec :wat::telemetry::TimeConstraint))
-     ((events :Vec<wat::telemetry::Event>)
+     ((no-constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
+      (:wat::core::Vector :wat::telemetry::TimeConstraint))
+     ((events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::std::stream::collect
         (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
      ((first-evt :wat::telemetry::Event)
