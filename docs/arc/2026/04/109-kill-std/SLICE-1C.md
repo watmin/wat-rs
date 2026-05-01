@@ -1,8 +1,15 @@
 # Arc 109 Slice 1c — Retire bare primitive types in user code
 
-**Compaction-amnesia anchor.** Read this first if you're picking up
-slice 1c mid-flight. The state below is durable; the conversation
-context is not.
+**Status: shipped 2026-05-01.** Walker + four-tier sweep landed
+across commits `f2b5dd4` → `e0abbfa`. ~1000 rename sites across
+~90 files; cargo test --release --workspace: 1476 passed, 0
+failed, 0 BareLegacyPrimitive. Zero MANUAL flags.
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record of how slice 1c shipped —
+the discipline (Pattern 3 + data-driven sweep) carries directly
+into the bigger arc 109 slices ahead (§ B parametric heads, § C
+variant constructors, § D constructor verbs).**
 
 ## What this slice does
 
@@ -71,53 +78,71 @@ directly; no grep-with-context, no sed-with-guesses.
   `String` suffix) — silent. The walker uses Path string identity,
   not substring containment.
 
-## What's left
+## How the four-tier sweep landed (commits `6041981` → `e0abbfa`)
 
-### A. Substrate stdlib sweep (DO FIRST per SUBSTRATE-AS-TEACHER)
+| Tier | Scope | Files | Commit |
+|---|---|---|---|
+| 1 | Substrate stdlib (`wat/`, `crates/*/wat/`) | 17 | `6041981` |
+| 2 | Lib + early integration tests (`src/check.rs::tests`, `src/runtime.rs::tests`, `tests/arc112_*.rs`) | 4 | `994ce65` |
+| 3 | `wat-tests/` + `crates/*/wat-tests/` + remaining `tests/wat_*.rs` | ~67 | `b8fb792` |
+| 4 | `examples/` + `crates/*/examples/` | 2 | `e0abbfa` |
 
-The substrate's bundled wat (loaded at every wat invocation) has
-~57 remaining bare primitives. Until clean, every `wat` invocation
-trips errors at startup before user code runs.
+**~1000 rename sites total.** Sonnet sweep guided by the
+substrate's `BareLegacyPrimitive` diagnostic stream — every
+rename derived from a real-source diagnostic with `(file, line,
+col, primitive, fqdn)` fields. No grep-guesses, no sed-blind.
 
-Files (from `grep -rE ':?(i64|f64|bool|String|u8|usize)\b' wat/
-crates/*/wat/` minus `wat::core::` minus comment lines):
+**Zero MANUAL flags.** Every site swept structurally; no judgment
+calls required.
 
-- `wat/std/hermetic.wat`
-- `wat/std/sandbox.wat`
-- `wat/std/stream.wat`
-- `wat/holon/Circular.wat` (and other holon/*.wat)
-- `wat/services/*.wat`
-- `crates/wat-lru/wat/lru/*.wat`
-- `crates/wat-holon-lru/wat/holon/lru/*.wat`
-- `crates/wat-telemetry/wat/telemetry/*.wat`
-- `crates/wat-telemetry-sqlite/wat/telemetry/*.wat`
+**Final verification:** `cargo test --release --workspace` →
+1476 passed, 0 failed, 0 BareLegacyPrimitive errors.
 
-### B. Lib test embedded wat strings
+## Known site classes the walker correctly handled
 
-`<test>:N:M` source-name in the diagnostic stream means the bare
-primitive lives inside an embedded wat string in:
+- Outer type annotations: `(name :i64)` → `(name :wat::core::i64)`
+- Parametric inner: `:Vec<i64>` → `:Vec<wat::core::i64>`
+- Tuple types: `:(i64,String)` → `:(wat::core::i64,wat::core::String)`
+- Function types: `:fn(i64)->bool` → `:fn(wat::core::i64)->wat::core::bool`
+- Compound nesting: `:Result<(i64,i64),i64>`, `:Option<Option<i64>>`,
+  `:HashMap<String,i64>`, `:fn(Vec<i64>)->()`, etc.
+- User-named parametrics: `Stream<i64>`, `Sender<i64>`,
+  `QueuePair<i64>`, `Service::Spawn<i64>`,
+  `LocalCache<String,i64>` — inner primitives caught structurally.
 
-- `src/check.rs::tests` (the test fns construct synthetic programs)
-- `src/freeze.rs::tests`
-- Other `tests/wat_*.rs` files with embedded program strings
+## False-positive resistance verified
 
-These trip during `cargo test --release --lib -p wat`.
+- `:my::pkg::String` (user path with `String` suffix) — silent.
+  The walker compares `Path` string identity, not substring.
+- `:wat::core::String` (FQDN) — silent. Distinct Path string from
+  the bare `:String`.
 
-### C. User code sweep
+## Implementation summary
 
-35 files identified earlier:
+### `src/check.rs` (commit `f2b5dd4`)
 
-- `wat-tests/**/*.wat` (~10 files)
-- `examples/**/*.wat` (~5 files)
-- `crates/*/wat-tests/**/*.wat` (~15 files)
-- `crates/*/examples/**/*.wat` (~5 files)
+- `CheckError::BareLegacyPrimitive { primitive: String, fqdn:
+  String, span: Span }` variant.
+- `Display` impl: self-describing migration brief naming the rule,
+  the canonical FQDN, the offending site.
+- `diagnostic()` arm producing structured `BareLegacyPrimitive`
+  records consumable via `--check-output edn|json`.
+- `validate_bare_legacy_primitives` walker in `check_program`,
+  invoked alongside `validate_scope_deadlock`.
+- `walk_for_bare_primitives` (recursive AST walk).
+- `walk_type_for_bare` (recursive TypeExpr walk).
+- `BARE_PRIMITIVES` const: the five retired primitives + their
+  FQDN replacements.
 
-Full list in scratch from prior session — re-derive via:
-```bash
-grep -rEln ':?(i64|f64|bool|String|u8|usize)\b' \
-  wat-tests/ examples/ crates/*/wat-tests/ crates/*/examples/ \
-  | xargs grep -lE ':(i64|f64|bool|String|u8|usize)\b|[<,(](i64|f64|bool|String|u8|usize)\b'
-```
+### `src/types.rs` (commit `f2b5dd4`)
+
+- `parse_type_expr_audit(kw) -> Option<TypeExpr>` — public
+  non-canonicalizing parse for the audit walker. Source spelling
+  preserved in the resulting TypeExpr; bare and FQDN distinct.
+- `parse_type_inner` / `parse_tuple_body` / `parse_fn_body` /
+  `parse_type_list` gained a `canonicalize: bool` parameter.
+- `parse_type_expr` (the type-checker entry) calls with
+  `canonicalize=true`; `parse_type_expr_audit` calls with `false`.
 
 ## How to drive the sweep — delegate to sonnet
 

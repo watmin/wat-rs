@@ -41,20 +41,24 @@ checks against `src/check.rs`, `src/runtime.rs`, `src/parser.rs`,
 
 ## A. Built-in primitive type paths
 
-| Today | After arc 109 |
-|---|---|
-| `:i64` | `:wat::core::i64` |
-| `:f64` | `:wat::core::f64` |
-| `:bool` | `:wat::core::bool` |
-| `:String` | `:wat::core::String` |
-| `:u8` | `:wat::core::u8` |
-| `:()` (unit, as a TYPE) | `:wat::core::unit` (replaces — `:()` retires as a type annotation) |
-| `:wat::core::keyword` | already FQDN ✓ |
-| `:wat::core::Bytes` | already FQDN ✓ |
-| `:wat::core::EvalError` | already FQDN ✓ |
+| Today | After arc 109 | Status |
+|---|---|---|
+| `:i64` | `:wat::core::i64` | ✓ shipped slice 1c |
+| `:f64` | `:wat::core::f64` | ✓ shipped slice 1c |
+| `:bool` | `:wat::core::bool` | ✓ shipped slice 1c |
+| `:String` | `:wat::core::String` | ✓ shipped slice 1c |
+| `:u8` | `:wat::core::u8` | ✓ shipped slice 1c |
+| `:()` (unit, as a TYPE) | `:wat::core::unit` (replaces — `:()` retires as a type annotation) | pending slice 1d |
+| `:wat::core::keyword` | already FQDN ✓ | — |
+| `:wat::core::Bytes` | already FQDN ✓ | — |
+| `:wat::core::EvalError` | already FQDN ✓ | — |
 
-The five named primitive types (`i64`/`f64`/`bool`/`String`/`u8`) move
-under `:wat::core::*` and the bare forms retire (slice 1a → 1b → 1c).
+The five named primitive types (`i64`/`f64`/`bool`/`String`/`u8`)
+moved under `:wat::core::*` across slices 1a (parser accepts FQDN),
+1b (substrate stdlib outer-position sweep), and 1c (full sweep
+including parametric inner positions; `BareLegacyPrimitive`
+walker enforces; ~1000 sites across ~90 files; commits `f2b5dd4`
+→ `e0abbfa`). See `SLICE-1C.md`.
 
 The unit TYPE moves under `:wat::core::*` (the same home as
 `i64` / `f64` / `bool` / `String` / `u8`). Pre-arc-109 it's

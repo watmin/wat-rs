@@ -28,6 +28,12 @@ order is preserved.
 
 - 1a: parser accepts FQDN primitive types
 - 1b: sweep wat sources to FQDN primitive types
+- 1c: retire bare primitive types in user code — shipped 2026-05-01.
+  `BareLegacyPrimitive` CheckError variant + data-driven walker via
+  `parse_type_expr_audit`; ~1000 rename sites across ~90 files;
+  cargo test workspace 1476/0. See `SLICE-1C.md` for the full
+  record. Pattern 3 (dedicated variant + walker) proven for the
+  bigger arc-109 slices ahead (§ B/C/D/D').
 - § J 10a: `:wat::kernel::Program<I,O>` typealias minted (alias for `:Process<I,O>`)
 - § J 10b: sonnet sweep — annotations prefer Program (in scope of stdlib boundaries)
 - Arc 114 absorbed § J 10c's "Thread as concrete struct"
@@ -68,23 +74,21 @@ infrastructure:
 
 ### Independent sweeps (do NOT depend on § J)
 
-These are parallel-shippable; sonnet-delegatable with
-substrate-as-teacher hints:
+These are parallel-shippable; sonnet-delegatable with the
+substrate's diagnostic stream as the brief (Pattern 3 from
+SUBSTRATE-AS-TEACHER):
 
-4. **1c** — retire bare primitive types in user code (sweep all
-   `:Vec<i64>` etc. → `:Vec<wat::core::i64>`).
-
-5. **1d** — mint `:wat::core::unit`; retire `:()` as a type
+4. **1d** — mint `:wat::core::unit`; retire `:()` as a type
    keyword. Substrate add + sweep.
 
-6. **9d** — `:wat::std::stream::*` → `:wat::stream::*` (the
+5. **9d** — `:wat::std::stream::*` → `:wat::stream::*` (the
    stream stdlib's namespace claims promotion).
 
-7. **9e** — `:wat::std::service::Console::*` →
+6. **9e** — `:wat::std::service::Console::*` →
    `:wat::console::Console::*` (Console gets its own namespace
    path matching its substrate-claim shape).
 
-8. **9f–9i** — file-path moves for already-honest-symbol files
+7. **9f–9i** — file-path moves for already-honest-symbol files
    (the file location catches up with the symbol path).
 
 ## The opus / sonnet split
@@ -137,6 +141,11 @@ slice plans name.
                   + 058 row
 [done]  arc 117 closure — INSCRIPTION + WAT-CHEATSHEET § 10
                   + USER-GUIDE § 14 gotcha + 058 row
+
+[done]  arc 109 slice 1c — BareLegacyPrimitive variant + walker
+                  + four-tier sweep; ~1000 rename sites across
+                  ~90 files; cargo test workspace 1476/0
+                  (commits f2b5dd4 → e0abbfa; SLICE-1C.md)
 
 [next]  § J 10d — typeclass dispatch + ProgramDiedError supertype
                   (mint ProgramDiedError; mint Program<I,O> as
