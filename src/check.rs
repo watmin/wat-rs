@@ -129,6 +129,31 @@ pub enum CheckError {
         /// nesting).
         span: Span,
     },
+    /// Arc 109 slice 1c — a bare primitive type (`:i64`, `:f64`,
+    /// `:bool`, `:String`, `:u8`) appears in user code. Bare forms
+    /// retire; the canonical FQDN form (`:wat::core::i64`, etc.) is
+    /// the substitute. Detected at every type-token position
+    /// (outer annotation, parametric inner, tuple member, fn arg/
+    /// return).
+    ///
+    /// Same SUBSTRATE-AS-TEACHER pattern 3 as `CommCallOutOfPosition`
+    /// (arc 110), `InnerColonInCompoundArg` (arc 115), `ScopeDeadlock`
+    /// (arc 117) — dedicated variant per migration class; Display IS
+    /// the migration brief; no `collect_hints` involvement.
+    BareLegacyPrimitive {
+        /// User-source spelling — `":i64"` (outer) or `"i64"` (bare
+        /// inside parametric). Reproduces the offending token shape.
+        primitive: String,
+        /// Canonical FQDN form — `":wat::core::i64"` (outer) or
+        /// `"wat::core::i64"` (matching the offending token's
+        /// position).
+        fqdn: String,
+        /// Source location of the keyword carrying the bare token.
+        /// Multiple bare occurrences in one keyword (e.g.
+        /// `:Vec<i64,String>`) all carry the same span — the keyword
+        /// token.
+        span: Span,
+    },
 }
 
 impl fmt::Display for CheckError {
@@ -190,6 +215,11 @@ impl fmt::Display for CheckError {
                 f,
                 "scope-deadlock at {}: Thread/join-result on '{}' would block. Sibling binding '{}' (a {}) holds a Sender clone that outlives the worker; the worker's recv never sees EOF. Fix: nest the {} binding (and any other Sender clones) in an inner let* whose body returns '{}' — outer scope holds only the Thread. SERVICE-PROGRAMS.md § \"The lockstep\".",
                 span, thread_binding, offending_binding, offending_kind, offending_kind, thread_binding
+            ),
+            CheckError::BareLegacyPrimitive { primitive, fqdn, span } => write!(
+                f,
+                "bare primitive type '{}' at {} is retired (arc 109 slice 1c); canonical FQDN form is '{}'. Substrate-provided primitives live under :wat::core::* (see arc 109 § A). Rename '{}' → '{}' at the offending site.",
+                primitive, span, fqdn, primitive, fqdn
             ),
         }
     }
@@ -343,6 +373,12 @@ impl CheckError {
                 .field("offending_binding", offending_binding.as_str())
                 .field("offending_kind", *offending_kind)
                 .field("location", format!("{}", span)),
+            CheckError::BareLegacyPrimitive { primitive, fqdn, span } => {
+                Diagnostic::new("BareLegacyPrimitive")
+                    .field("primitive", primitive.as_str())
+                    .field("fqdn", fqdn.as_str())
+                    .field("location", format!("{}", span))
+            }
         }
     }
 }
@@ -572,6 +608,19 @@ pub fn check_program(
         validate_scope_deadlock(form, types, &mut errors);
     }
 
+    // Arc 109 slice 1c — refuse bare primitive types (`:i64`, `:f64`,
+    // `:bool`, `:String`, `:u8`) anywhere in the program. The
+    // canonical FQDN form (`:wat::core::i64`, etc.) is the
+    // substitute. Walks every keyword token in the AST, scans for
+    // bare-primitive substrings at type-token boundaries, emits one
+    // BareLegacyPrimitive per occurrence.
+    for func in sym.functions.values() {
+        validate_bare_legacy_primitives(&func.body, &mut errors);
+    }
+    for form in forms {
+        validate_bare_legacy_primitives(form, &mut errors);
+    }
+
     // Check each user define's body against its declared return type.
     for (path, func) in &sym.functions {
         if let Some(scheme) = env.get(path) {
@@ -749,6 +798,101 @@ fn validate_comm_positions(
 /// structurally, not by surface-name matching.
 fn validate_scope_deadlock(node: &WatAST, types: &TypeEnv, errors: &mut Vec<CheckError>) {
     walk_for_deadlock(node, types, errors);
+}
+
+/// Arc 109 slice 1c — walk every WatAST node, parse keywords as
+/// type expressions WITHOUT canonicalization, and structurally
+/// detect bare primitive `Path` nodes (`:i64`, `:f64`, `:bool`,
+/// `:String`, `:u8`). Emit one [`CheckError::BareLegacyPrimitive`]
+/// per occurrence so sonnet sweeps can read off `wat --check`'s
+/// diagnostic stream and rename per site.
+///
+/// Wat is a lisp; types parse to TypeExpr trees. The walker
+/// consumes the parsed structure — parametric inners surface as
+/// recursive `Path` children, tuple members as `Tuple` elements,
+/// fn args/return as `Fn` field children. No textual scanning.
+///
+/// Pattern 3 from `docs/SUBSTRATE-AS-TEACHER.md` — dedicated
+/// CheckError variant + walker, no `collect_hints` involvement.
+/// Mirrors arc 110 (`CommCallOutOfPosition`), arc 115
+/// (`InnerColonInCompoundArg`), arc 117 (`ScopeDeadlock`).
+fn validate_bare_legacy_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
+    walk_for_bare_primitives(node, errors);
+}
+
+fn walk_for_bare_primitives(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::Keyword(s, span) => {
+            // Try parsing as a type expression. Most keywords aren't
+            // types (callee paths, value keywords like `:None`); they
+            // parse to a plain Path that doesn't match any bare
+            // primitive — the walk falls through cleanly.
+            //
+            // `parse_type_expr_audit` is parse_type_inner with the
+            // bare→bare canonicalization suppressed: bare `:i64`
+            // produces `Path(":i64")`, FQDN `:wat::core::i64`
+            // produces `Path(":wat::core::i64")`. Source spelling
+            // preserved; the structural walk distinguishes them.
+            if let Some(ty) = crate::types::parse_type_expr_audit(s) {
+                walk_type_for_bare(&ty, span, errors);
+            }
+        }
+        WatAST::List(items, _) => {
+            for item in items {
+                walk_for_bare_primitives(item, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The five primitive names retired by arc 109 slice 1c, paired
+/// with the canonical FQDN form they replace.
+const BARE_PRIMITIVES: &[(&str, &str)] = &[
+    (":i64", ":wat::core::i64"),
+    (":f64", ":wat::core::f64"),
+    (":bool", ":wat::core::bool"),
+    (":String", ":wat::core::String"),
+    (":u8", ":wat::core::u8"),
+];
+
+/// Recursively walk a parsed [`TypeExpr`], emitting
+/// [`CheckError::BareLegacyPrimitive`] for every `Path` node whose
+/// path matches one of the retired bare primitive names. FQDN
+/// forms (`:wat::core::i64`) are distinct `Path` strings and pass
+/// through silently.
+fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) {
+    match ty {
+        TypeExpr::Path(p) => {
+            for (bare, fqdn) in BARE_PRIMITIVES {
+                if p == bare {
+                    errors.push(CheckError::BareLegacyPrimitive {
+                        primitive: (*bare).to_string(),
+                        fqdn: (*fqdn).to_string(),
+                        span: span.clone(),
+                    });
+                    return;
+                }
+            }
+        }
+        TypeExpr::Parametric { args, .. } => {
+            for a in args {
+                walk_type_for_bare(a, span, errors);
+            }
+        }
+        TypeExpr::Fn { args, ret } => {
+            for a in args {
+                walk_type_for_bare(a, span, errors);
+            }
+            walk_type_for_bare(ret, span, errors);
+        }
+        TypeExpr::Tuple(elements) => {
+            for e in elements {
+                walk_type_for_bare(e, span, errors);
+            }
+        }
+        TypeExpr::Var(_) => {}
+    }
 }
 
 /// Recursive walker. At every `:wat::core::let*` form, runs the

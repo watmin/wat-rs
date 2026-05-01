@@ -1293,9 +1293,27 @@ pub fn parse_type_expr(kw: &str) -> Result<TypeExpr, TypeError> {
         raw: kw.into(),
         reason: "type expression keyword must begin with ':'".into(),
     })?;
-    let expr = parse_type_inner(stripped, kw)?;
+    let expr = parse_type_inner(stripped, kw, true)?;
     reject_any(&expr, kw)?;
     Ok(expr)
+}
+
+/// Arc 109 slice 1c — parse a type expression keyword WITHOUT
+/// canonicalizing bare primitives to their internal-form path.
+/// Source spelling is preserved in the resulting [`TypeExpr`]:
+/// bare `:i64` produces `Path(":i64")`; FQDN `:wat::core::i64`
+/// produces `Path(":wat::core::i64")`. The walker that audits for
+/// retired bare primitives consumes this faithful structure.
+///
+/// Returns `None` for non-type keywords (callee paths, value
+/// keywords like `:None`) — the parse error is suppressed because
+/// the caller is doing best-effort scanning, not unification.
+///
+/// Use for AUDIT walks only. Type-checker code path stays on
+/// `parse_type_expr` to keep the canonical-form invariant intact.
+pub fn parse_type_expr_audit(kw: &str) -> Option<TypeExpr> {
+    let stripped = kw.strip_prefix(':')?;
+    parse_type_inner(stripped, kw, false).ok()
 }
 
 /// Walk a parsed [`TypeExpr`] and raise [`TypeError::AnyBanned`] if
@@ -1342,7 +1360,7 @@ fn reject_any(expr: &TypeExpr, raw: &str) -> Result<(), TypeError> {
 /// parsing an arg from inside a compound (`<>`, `()`, fn args, fn
 /// return), where the colon prefix is illegal. Inside compounds,
 /// args are bare Rust symbols.
-fn parse_type_inner(s: &str, original: &str) -> Result<TypeExpr, TypeError> {
+fn parse_type_inner(s: &str, original: &str, canonicalize: bool) -> Result<TypeExpr, TypeError> {
     if s.starts_with(':') {
         return Err(TypeError::InnerColonInCompoundArg {
             raw: original.into(),
@@ -1359,11 +1377,11 @@ fn parse_type_inner(s: &str, original: &str) -> Result<TypeExpr, TypeError> {
             });
         }
         let inside = &rest[..rest.len() - 1];
-        return parse_tuple_body(inside, original);
+        return parse_tuple_body(inside, original, canonicalize);
     }
     // `fn(args)->ret` function type — detect at the start.
     if let Some(body) = s.strip_prefix("fn(") {
-        return parse_fn_body(body, original);
+        return parse_fn_body(body, original, canonicalize);
     }
     // `Head<args>` parametric.
     if let Some(lt_index) = find_top_level_char(s, '<') {
@@ -1376,25 +1394,33 @@ fn parse_type_inner(s: &str, original: &str) -> Result<TypeExpr, TypeError> {
             });
         }
         let inside = &rest[1..rest.len() - 1];
-        let args = parse_type_list(inside, original)?;
+        let args = parse_type_list(inside, original, canonicalize)?;
         return Ok(TypeExpr::Parametric { head, args });
     }
     // Plain path. Arc 109 slice 1a: accept FQDN forms for the
     // built-in primitive types (`:wat::core::i64`, `:wat::core::f64`,
     // `:wat::core::bool`, `:wat::core::String`, `:wat::core::u8`).
-    // Canonicalize to the internal bare form during the additive
-    // phase — same TypeExpr regardless of which spelling the user
-    // wrote. Slice 1c retires the bare form at the parser level.
+    // When `canonicalize` is true (the type-checker path), reduce
+    // both bare and FQDN spellings to one internal form so unify
+    // sees them as identical. When false (the audit-walker path,
+    // arc 109 slice 1c), preserve source spelling so a bare `:i64`
+    // stays distinguishable from FQDN `:wat::core::i64` in the
+    // resulting Path. Slice 1c retires bare at the parser level
+    // once the user-code sweep is complete.
     let raw_path = format!(":{}", s);
-    let canonical = match raw_path.as_str() {
-        ":wat::core::i64" => ":i64".to_string(),
-        ":wat::core::f64" => ":f64".to_string(),
-        ":wat::core::bool" => ":bool".to_string(),
-        ":wat::core::String" => ":String".to_string(),
-        ":wat::core::u8" => ":u8".to_string(),
-        _ => raw_path,
+    let path = if canonicalize {
+        match raw_path.as_str() {
+            ":wat::core::i64" => ":i64".to_string(),
+            ":wat::core::f64" => ":f64".to_string(),
+            ":wat::core::bool" => ":bool".to_string(),
+            ":wat::core::String" => ":String".to_string(),
+            ":wat::core::u8" => ":u8".to_string(),
+            _ => raw_path,
+        }
+    } else {
+        raw_path
     };
-    Ok(TypeExpr::Path(canonical))
+    Ok(TypeExpr::Path(path))
 }
 
 /// Parse the body of a tuple-literal type.
@@ -1405,7 +1431,7 @@ fn parse_type_inner(s: &str, original: &str) -> Result<TypeExpr, TypeError> {
 /// - Trailing comma or multiple elements: `Tuple(vec![...])`.
 ///
 /// Matches Rust's tuple-type syntax exactly.
-fn parse_tuple_body(inside: &str, original: &str) -> Result<TypeExpr, TypeError> {
+fn parse_tuple_body(inside: &str, original: &str, canonicalize: bool) -> Result<TypeExpr, TypeError> {
     let trimmed = inside.trim();
     if trimmed.is_empty() {
         return Ok(TypeExpr::Tuple(Vec::new()));
@@ -1416,7 +1442,7 @@ fn parse_tuple_body(inside: &str, original: &str) -> Result<TypeExpr, TypeError>
     } else {
         trimmed
     };
-    let elements = parse_type_list(effective, original)?;
+    let elements = parse_type_list(effective, original, canonicalize)?;
     if elements.len() == 1 && !has_trailing_comma {
         // `:(T)` is grouping — return the inner type unwrapped.
         return Ok(elements.into_iter().next().unwrap());
@@ -1424,7 +1450,7 @@ fn parse_tuple_body(inside: &str, original: &str) -> Result<TypeExpr, TypeError>
     Ok(TypeExpr::Tuple(elements))
 }
 
-fn parse_fn_body(body: &str, original: &str) -> Result<TypeExpr, TypeError> {
+fn parse_fn_body(body: &str, original: &str, canonicalize: bool) -> Result<TypeExpr, TypeError> {
     // body is `T,U)->R` — find the matching `)` at depth 0.
     let close = find_matching_close(body, '(', ')').ok_or_else(|| {
         TypeError::MalformedTypeExpr {
@@ -1443,9 +1469,9 @@ fn parse_fn_body(body: &str, original: &str) -> Result<TypeExpr, TypeError> {
     let args = if args_part.trim().is_empty() {
         Vec::new()
     } else {
-        parse_type_list(args_part, original)?
+        parse_type_list(args_part, original, canonicalize)?
     };
-    let ret = parse_type_inner(ret_part, original)?;
+    let ret = parse_type_inner(ret_part, original, canonicalize)?;
     Ok(TypeExpr::Fn {
         args,
         ret: Box::new(ret),
@@ -1453,7 +1479,7 @@ fn parse_fn_body(body: &str, original: &str) -> Result<TypeExpr, TypeError> {
 }
 
 /// Parse a comma-separated list of types (respecting nested `<>` and `()`).
-fn parse_type_list(s: &str, original: &str) -> Result<Vec<TypeExpr>, TypeError> {
+fn parse_type_list(s: &str, original: &str, canonicalize: bool) -> Result<Vec<TypeExpr>, TypeError> {
     let mut out = Vec::new();
     let mut depth = 0i32;
     let mut start = 0usize;
@@ -1463,7 +1489,7 @@ fn parse_type_list(s: &str, original: &str) -> Result<Vec<TypeExpr>, TypeError> 
             '>' | ')' => depth -= 1,
             ',' if depth == 0 => {
                 let piece = &s[start..i];
-                out.push(parse_type_inner(piece.trim(), original)?);
+                out.push(parse_type_inner(piece.trim(), original, canonicalize)?);
                 start = i + 1;
             }
             _ => {}
@@ -1471,7 +1497,7 @@ fn parse_type_list(s: &str, original: &str) -> Result<Vec<TypeExpr>, TypeError> 
     }
     let tail = &s[start..];
     if !tail.trim().is_empty() {
-        out.push(parse_type_inner(tail.trim(), original)?);
+        out.push(parse_type_inner(tail.trim(), original, canonicalize)?);
     }
     Ok(out)
 }
