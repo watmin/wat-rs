@@ -2118,7 +2118,12 @@ pub fn eval(
             // can write `:None` in expression position to produce
             // `Value::Option(None)` without requiring a keyword-path
             // call form.
-            if k == ":None" {
+            //
+            // Arc 109 slice 1h — `:wat::core::None` is the canonical
+            // FQDN form; `:None` is a bare-grammar exception that
+            // retires (poisoned at type-check time, runtime keeps
+            // working).
+            if k == ":None" || k == ":wat::core::None" {
                 return Ok(Value::Option(Arc::new(None)));
             }
             // Arc 048 — user-enum unit variants. Pre-built EnumValues
@@ -2166,6 +2171,16 @@ fn eval_list(
     };
     let rest = &items[1..];
 
+    // Arc 109 slice 1h — FQDN keyword forms for Option variant
+    // constructors recognized alongside the bare-Symbol exceptions.
+    // The bare forms continue to work at runtime; type-check time
+    // surfaces the migration hint via Pattern 2 poison.
+    match head {
+        WatAST::Keyword(k, _) if k == ":wat::core::Some" => return eval_some_ctor(rest, env, sym),
+        WatAST::Keyword(k, _) if k == ":wat::core::Ok" => return eval_ok_ctor(rest, env, sym),
+        WatAST::Keyword(k, _) if k == ":wat::core::Err" => return eval_err_ctor(rest, env, sym),
+        _ => {}
+    }
     match head {
         WatAST::Keyword(k, _) => dispatch_keyword_head(k, rest, list_span, env, sym),
         WatAST::Symbol(ident, _) if ident.as_str() == "Some" => eval_some_ctor(rest, env, sym),
@@ -6717,8 +6732,10 @@ fn try_match_pattern(
     outer: &Environment,
 ) -> Result<Option<Environment>, RuntimeError> {
     match pattern {
-        // `:None` — matches Option(None) only.
-        WatAST::Keyword(k, _) if k == ":None" => match value {
+        // `:None` / `:wat::core::None` — matches Option(None) only.
+        // Arc 109 slice 1h: FQDN form is canonical; bare form
+        // continues to work at runtime (poisoned at type-check time).
+        WatAST::Keyword(k, _) if k == ":None" || k == ":wat::core::None" => match value {
             Value::Option(opt) if opt.is_none() => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
@@ -6766,25 +6783,37 @@ fn try_match_pattern(
                 head: ":wat::core::match".into(),
                 reason: "empty list pattern".into(),
             })?;
-            match head {
-                WatAST::Symbol(ident, _) if ident.as_str() == "Some" => {
-                    if items.len() != 2 {
-                        return Err(RuntimeError::MalformedForm {
-                            head: ":wat::core::match".into(),
-                            reason: format!(
-                                "(Some _) takes exactly one field, got {}",
-                                items.len() - 1
-                            ),
-                        });
-                    }
-                    match value {
-                        Value::Option(opt) => match &**opt {
-                            Some(inner) => try_match_pattern(&items[1], inner, outer),
-                            None => Ok(None),
-                        },
-                        _ => Ok(None),
-                    }
+            // Arc 109 slice 1h — recognize FQDN keyword forms for
+            // Option variant patterns. Both bare-Symbol "Some" and
+            // FQDN keyword ":wat::core::Some" land here at runtime;
+            // type-check time poisons the bare form.
+            let head_is_some = matches!(
+                head,
+                WatAST::Symbol(ident, _) if ident.as_str() == "Some"
+            ) || matches!(
+                head,
+                WatAST::Keyword(k, _) if k == ":wat::core::Some"
+            );
+            if head_is_some {
+                if items.len() != 2 {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "(Some _) takes exactly one field, got {}",
+                            items.len() - 1
+                        ),
+                    });
                 }
+                return match value {
+                    Value::Option(opt) => match &**opt {
+                        Some(inner) => try_match_pattern(&items[1], inner, outer),
+                        None => Ok(None),
+                    },
+                    _ => Ok(None),
+                };
+            }
+            match head {
+                WatAST::Symbol(ident, _) if ident.as_str() == "Some" => unreachable!("handled above"),
                 WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => {
                     if items.len() != 2 {
                         return Err(RuntimeError::MalformedForm {

@@ -518,12 +518,53 @@ fn arc_109_tuple_verb_migration_hint(callee: &str, _expected: &str, _got: &str) 
     )
 }
 
+/// Arc 109 slice 1h — fires when the dispatcher has poisoned the
+/// bare-Symbol `Some` head (a retired grammar exception). The
+/// canonical FQDN form is `:wat::core::Some`.
+fn arc_109_some_variant_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
+    if callee != "Some" {
+        return None;
+    }
+    Some(
+        "arc 109 slice 1h — bare `Some` is a retiring grammar \
+         exception (wat's general rule: callable heads must be \
+         FQDN keywords). Canonical form is `:wat::core::Some`. \
+         Rename `(Some x)` → `(:wat::core::Some x)` at \
+         constructor sites; rename `((Some v) ...)` → \
+         `((:wat::core::Some v) ...)` at match-pattern sites. \
+         The substrate produces the same `Option<T>` value; only \
+         the spelling changes."
+            .into(),
+    )
+}
+
+/// Arc 109 slice 1h — fires when the dispatcher has poisoned the
+/// bare keyword `:None` (a retired grammar exception). The
+/// canonical FQDN form is `:wat::core::None`.
+fn arc_109_none_variant_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
+    if callee != ":None" {
+        return None;
+    }
+    Some(
+        "arc 109 slice 1h — bare `:None` is a retiring grammar \
+         exception (substrate-provided keywords live under \
+         `:wat::core::*`). Canonical form is `:wat::core::None`. \
+         Rename `:None` → `:wat::core::None` at value-position \
+         sites; rename `(:None ...)` → `(:wat::core::None ...)` \
+         at match-pattern sites. The substrate produces the same \
+         `Option<T>` (None) value; only the spelling changes."
+            .into(),
+    )
+}
+
 fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
     let hints: Vec<String> = [
         arc_114_migration_hint(callee, expected, got),
         arc_109_vec_verb_migration_hint(callee, expected, got),
         arc_109_list_verb_migration_hint(callee, expected, got),
         arc_109_tuple_verb_migration_hint(callee, expected, got),
+        arc_109_some_variant_migration_hint(callee, expected, got),
+        arc_109_none_variant_migration_hint(callee, expected, got),
     ]
     .into_iter()
     .flatten()
@@ -1387,13 +1428,29 @@ fn infer(
         WatAST::FloatLit(_, _) => Some(TypeExpr::Path(":f64".into())),
         WatAST::BoolLit(_, _) => Some(TypeExpr::Path(":bool".into())),
         WatAST::StringLit(_, _) => Some(TypeExpr::Path(":String".into())),
-        // `:None` — nullary constructor of the built-in :Option<T> enum.
-        // Infers as `:Option<T>` with a fresh T; unification against the
-        // expected type sharpens T at the use site.
-        WatAST::Keyword(k, _) if k == ":None" => Some(TypeExpr::Parametric {
-            head: "Option".into(),
-            args: vec![fresh.fresh()],
-        }),
+        // `:None` / `:wat::core::None` — nullary constructor of the
+        // built-in :Option<T> enum. Infers as `:Option<T>` with a
+        // fresh T; unification against the expected type sharpens T
+        // at the use site.
+        //
+        // Arc 109 slice 1h: bare `:None` is a retiring grammar
+        // exception. Pattern 2 poison fires synthetic TypeMismatch
+        // with redirect to the FQDN form; the type still resolves
+        // so the program type-checks the rest of the way.
+        WatAST::Keyword(k, _) if (k == ":None" || k == ":wat::core::None") => {
+            if k == ":None" {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":None".into(),
+                    param: "(retired bare-keyword exception)".into(),
+                    expected: ":wat::core::None".into(),
+                    got: ":None".into(),
+                });
+            }
+            Some(TypeExpr::Parametric {
+                head: "Option".into(),
+                args: vec![fresh.fresh()],
+            })
+        }
         // Arc 048 — user-enum unit variant. The bare keyword resolves
         // to the enum's type (e.g. `:trading::types::PhaseLabel::Valley`
         // → `:trading::types::PhaseLabel`).
@@ -1814,32 +1871,59 @@ fn infer_list(
         return Some(apply_subst(&ret_type, subst));
     }
 
-    // Bare `Some` as call head — built-in tagged constructor of
-    // `:Option<T>`. `(Some expr)` infers as `:Option<T>` where T is the
-    // argument's type.
-    if let WatAST::Symbol(ident, _) = head {
-        if ident.as_str() == "Some" {
-            let args = &items[1..];
-            if args.len() != 1 {
-                errors.push(CheckError::ArityMismatch {
-                    callee: "Some".into(),
-                    expected: 1,
-                    got: args.len(),
-                });
-                for arg in args {
-                    let _ = infer(arg, env, locals, fresh, subst, errors);
-                }
-                return Some(TypeExpr::Parametric {
-                    head: "Option".into(),
-                    args: vec![fresh.fresh()],
-                });
+    // Arc 109 slice 1h — Option `Some` constructor recognized at
+    // both bare-Symbol (legacy grammar exception, poisoned) and
+    // FQDN-Keyword (canonical) heads. `(Some expr)` and
+    // `(:wat::core::Some expr)` both infer as `:Option<T>` where T
+    // is the argument's type.
+    let head_is_some_bare = matches!(
+        head,
+        WatAST::Symbol(ident, _) if ident.as_str() == "Some"
+    );
+    let head_is_some_fqdn = matches!(
+        head,
+        WatAST::Keyword(k, _) if k == ":wat::core::Some"
+    );
+    if head_is_some_bare || head_is_some_fqdn {
+        if head_is_some_bare {
+            // Pattern 2 poison — bare `Some` is a retiring grammar
+            // exception. Push synthetic TypeMismatch with redirect
+            // to the FQDN form; continue dispatching so the program
+            // type-checks the rest of the way.
+            errors.push(CheckError::TypeMismatch {
+                callee: "Some".into(),
+                param: "(retired bare-symbol exception)".into(),
+                expected: ":wat::core::Some".into(),
+                got: "Some".into(),
+            });
+        }
+        let args = &items[1..];
+        if args.len() != 1 {
+            errors.push(CheckError::ArityMismatch {
+                callee: if head_is_some_bare { "Some".into() } else { ":wat::core::Some".into() },
+                expected: 1,
+                got: args.len(),
+            });
+            for arg in args {
+                let _ = infer(arg, env, locals, fresh, subst, errors);
             }
-            let inner_ty = infer(&args[0], env, locals, fresh, subst, errors)
-                .unwrap_or_else(|| fresh.fresh());
             return Some(TypeExpr::Parametric {
                 head: "Option".into(),
-                args: vec![inner_ty],
+                args: vec![fresh.fresh()],
             });
+        }
+        let inner_ty = infer(&args[0], env, locals, fresh, subst, errors)
+            .unwrap_or_else(|| fresh.fresh());
+        return Some(TypeExpr::Parametric {
+            head: "Option".into(),
+            args: vec![inner_ty],
+        });
+    }
+    // Legacy bare-Symbol-only path for Ok / Err (slice 1i territory).
+    if let WatAST::Symbol(ident, _) = head {
+        // Skip Some — already handled above.
+        if ident.as_str() == "Some" {
+            unreachable!("Some handled in slice-1h section above");
         }
         // `(Ok expr)` — built-in tagged constructor of `:Result<T,E>`.
         // Infers T from the argument; E is a fresh var for later
@@ -2055,11 +2139,14 @@ fn infer_match(
                     if let Some(sub) = pat_items.get(1) {
                         match sub {
                             WatAST::List(sub_items, _)
-                                if sub_items.first().map(|h| matches!(h, WatAST::Symbol(s, _) if s.as_str() == "Some")).unwrap_or(false) =>
+                                if sub_items.first().map(|h| {
+                                    matches!(h, WatAST::Symbol(s, _) if s.as_str() == "Some")
+                                        || matches!(h, WatAST::Keyword(k, _) if k == ":wat::core::Some")
+                                }).unwrap_or(false) =>
                             {
                                 covers_result_ok_inner_some = true;
                             }
-                            WatAST::Keyword(k, _) if k.as_str() == ":None" => {
+                            WatAST::Keyword(k, _) if (k.as_str() == ":None" || k.as_str() == ":wat::core::None") => {
                                 covers_result_ok_inner_none = true;
                             }
                             _ => {}
@@ -2238,7 +2325,7 @@ fn detect_match_shape(arms: &[&WatAST], env: &CheckEnv, fresh: &mut InferCtx) ->
             if items.len() == 2 {
                 let pat = &items[0];
                 match pat {
-                    WatAST::Keyword(k, _) if k == ":None" => {
+                    WatAST::Keyword(k, _) if (k == ":None" || k == ":wat::core::None") => {
                         return MatchShape::Option(fresh.fresh());
                     }
                     WatAST::Keyword(k, _) => {
@@ -2270,6 +2357,14 @@ fn detect_match_shape(arms: &[&WatAST], env: &CheckEnv, fresh: &mut InferCtx) ->
                                 }
                                 _ => {}
                             }
+                        }
+                        // Arc 109 slice 1h — FQDN keyword forms for
+                        // Option variant patterns.
+                        if let Some(WatAST::Keyword(k, _)) = pat_items.first() {
+                            if k == ":wat::core::Some" {
+                                return MatchShape::Option(fresh.fresh());
+                            }
+                            // slice 1i will add :wat::core::Ok / :wat::core::Err here
                         }
                         // Arc 048 — user-enum tagged variant pattern
                         // `(:enum::Variant binders...)`. Split the
@@ -2306,7 +2401,7 @@ fn pattern_coverage(
     errors: &mut Vec<CheckError>,
 ) -> Option<Coverage> {
     match pattern {
-        WatAST::Keyword(k, _) if k == ":None" => match shape {
+        WatAST::Keyword(k, _) if (k == ":None" || k == ":wat::core::None") => match shape {
             MatchShape::Option(_) => Some(Coverage::OptionNone),
             MatchShape::Result(_, _) | MatchShape::Enum(_) => {
                 errors.push(CheckError::MalformedForm {
@@ -2515,8 +2610,16 @@ fn pattern_coverage(
                     full: all_full,
                 });
             }
+            // Arc 109 slice 1h — list-pattern head accepts both
+            // bare-Symbol (legacy grammar exception) and FQDN-keyword
+            // (canonical) forms for variant constructors. Map FQDN
+            // keywords to the bare ident strings so the downstream
+            // dispatch table works unchanged.
             let ident = match head {
                 WatAST::Symbol(i, _) => i.as_str(),
+                WatAST::Keyword(k, _) if k == ":wat::core::Some" => "Some",
+                WatAST::Keyword(k, _) if k == ":wat::core::Ok" => "Ok",
+                WatAST::Keyword(k, _) if k == ":wat::core::Err" => "Err",
                 other => {
                     errors.push(CheckError::MalformedForm {
                         head: ":wat::core::match".into(),
@@ -2722,7 +2825,7 @@ fn check_subpattern(
         // - `:None` — only valid at Option<U> position; partial (only None).
         // - `:enum::Variant` (unit) — valid at enum position.
         // - bare keyword payload (rare in pattern position) — error.
-        WatAST::Keyword(k, _) if k == ":None" => match expected_ty {
+        WatAST::Keyword(k, _) if (k == ":None" || k == ":wat::core::None") => match expected_ty {
             TypeExpr::Parametric { head, .. } if head == "Option" => Some(false),
             other => {
                 errors.push(CheckError::MalformedForm {
