@@ -83,7 +83,7 @@
         :wat-telemetry::log-test::translate-empty))
      ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
       (:wat::core::first spawn))
-     ((driver :wat::kernel::ProgramHandle<()>) (:wat::core::second spawn))
+     ((driver :wat::kernel::Thread<(),()>) (:wat::core::second spawn))
      ;; Inner: pop handle, build wu + logger, emit one /info.
      ((_inner :())
       (:wat::core::let*
@@ -102,7 +102,8 @@
          ((_log :())
           (:wat::telemetry::WorkUnitLog/info logger wu (:wat::core::quote :hello))))
         ()))
-     ((_join :()) (:wat::kernel::join driver))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver))
      ;; Pattern-match — Log variant; extract level via NoTag/0 +
      ;; atom-value to recover the keyword. Match-at-source per arc 110.
      ((level-back :wat::core::keyword)
@@ -145,7 +146,7 @@
         :wat-telemetry::log-test::translate-empty))
      ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
       (:wat::core::first spawn))
-     ((driver :wat::kernel::ProgramHandle<()>) (:wat::core::second spawn))
+     ((driver :wat::kernel::Thread<(),()>) (:wat::core::second spawn))
      ((_inner :())
       (:wat::core::let*
         (((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
@@ -166,7 +167,8 @@
          ((_w :()) (:wat::telemetry::WorkUnitLog/warn  logger wu data))
          ((_e :()) (:wat::telemetry::WorkUnitLog/error logger wu data)))
         ()))
-     ((_join :()) (:wat::kernel::join driver))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver))
      ;; Arc 110: extract-level takes the unwrapped Event; the
      ;; match-at-source on recv at each call site supplies the
      ;; :None default. recv can no longer hide inside a function-arg.

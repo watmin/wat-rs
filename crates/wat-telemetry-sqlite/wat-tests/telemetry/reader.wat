@@ -68,7 +68,7 @@
    (:wat::core::define
      (:test::reader::write-fixture
        (path :wat::core::String)
-       -> :wat::kernel::ProgramHandle<()>)
+       -> :wat::kernel::Thread<(),()>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
@@ -78,7 +78,7 @@
            :wat::telemetry::Sqlite/null-pre-install))
         ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
          (:wat::core::first spawn))
-        ((driver :wat::kernel::ProgramHandle<()>)
+        ((driver :wat::kernel::Thread<(),()>)
          (:wat::core::second spawn))
         ((_inner :())
          (:test::reader::write-three pool)))
@@ -95,9 +95,10 @@
      ;; test runs.
      ((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
-     ((driver :wat::kernel::ProgramHandle<()>)
+     ((driver :wat::kernel::Thread<(),()>)
       (:test::reader::write-fixture path))
-     ((_join :()) (:wat::kernel::join driver))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver))
 
      ;; Phase 2 — open as ReadHandle and stream the rows back.
      ;; Empty constraint vec = full-table scan.
@@ -120,9 +121,10 @@
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
-     ((driver :wat::kernel::ProgramHandle<()>)
+     ((driver :wat::kernel::Thread<(),()>)
       (:test::reader::write-fixture path))
-     ((_join :()) (:wat::kernel::join driver))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver))
 
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
@@ -146,9 +148,10 @@
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
-     ((driver :wat::kernel::ProgramHandle<()>)
+     ((driver :wat::kernel::Thread<(),()>)
       (:test::reader::write-fixture path))
-     ((_join :()) (:wat::kernel::join driver))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver))
 
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
@@ -170,9 +173,10 @@
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
-     ((driver :wat::kernel::ProgramHandle<()>)
+     ((driver :wat::kernel::Thread<(),()>)
       (:test::reader::write-fixture path))
-     ((_join :()) (:wat::kernel::join driver))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver))
 
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
@@ -199,9 +203,10 @@
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
-     ((driver :wat::kernel::ProgramHandle<()>)
+     ((driver :wat::kernel::Thread<(),()>)
       (:test::reader::write-fixture path))
-     ((_join :()) (:wat::kernel::join driver))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver))
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
      ((no-constraints :Vec<wat::telemetry::TimeConstraint>)
@@ -233,9 +238,10 @@
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
-     ((driver :wat::kernel::ProgramHandle<()>)
+     ((driver :wat::kernel::Thread<(),()>)
       (:test::reader::write-fixture path))
-     ((_join :()) (:wat::kernel::join driver))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver))
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
      ((no-constraints :Vec<wat::telemetry::TimeConstraint>)

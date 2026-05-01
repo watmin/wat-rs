@@ -34,13 +34,13 @@
             (:wat::core::let*
               (((con-state :wat::std::service::Console::Spawn)
                 (:wat::std::service::Console/spawn stdout stderr 2))
-               ((con-drv :wat::kernel::ProgramHandle<()>)
+               ((con-drv :wat::kernel::Thread<(),()>)
                 (:wat::core::second con-state))
                ((state :wat::lru::CacheService::Spawn<String,i64>)
                 (:wat::lru::CacheService/spawn 16 1
                   :wat::lru::CacheService/null-reporter
                   (:wat::lru::CacheService/null-metrics-cadence)))
-               ((driver :wat::kernel::ProgramHandle<()>)
+               ((driver :wat::kernel::Thread<(),()>)
                 (:wat::core::second state))
 
                ((_ :())
@@ -75,8 +75,10 @@
                     ((Some _v) (:wat::std::service::Console/out diag "hit\n"))
                     (:None     (:wat::std::service::Console/out diag "miss\n")))))
 
-               ((_ :()) (:wat::kernel::join driver))
-               ((_ :()) (:wat::kernel::join con-drv)))
+               ((_ :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+                (:wat::kernel::Thread/join-result driver))
+               ((_ :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+                (:wat::kernel::Thread/join-result con-drv)))
               ())))
         (:wat::core::vec :wat::core::String)))
      ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))

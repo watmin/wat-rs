@@ -18108,8 +18108,20 @@ mod tests {
     }
 
     // ─── spawn + join ──────────────────────────────────────────────────
+    //
+    // ARC 114 MANUAL — needs type-design review.
+    // Tests below exercise the retired :wat::kernel::spawn /
+    // :wat::kernel::join / :wat::kernel::join-result verbs through
+    // run() (which type-checks). The substrate poisons those verbs at
+    // the type-checker; #[ignore]'d here pending substrate-author
+    // decision: delete (verbs gone, tests gone), port to spawn-thread
+    // + Thread/join-result (different runtime semantics — values
+    // through channels, not via join), or retain via a check-skipping
+    // helper that exercises the runtime functions directly. eval_expr
+    // tests (which skip the checker) continue to pass and remain.
 
     #[test]
+    #[ignore = "arc 114 — retired verb; see MANUAL note above"]
     fn spawn_runs_function_on_new_thread_and_join_returns_its_value() {
         // Register a function, spawn it with args, join the handle,
         // confirm the function's return value surfaces.
@@ -18149,6 +18161,7 @@ mod tests {
     // ─── join-result (arc 060 — death as data) ─────────────────────────
 
     #[test]
+    #[ignore = "arc 114 — retired verb; see MANUAL note above"]
     fn join_result_happy_path_returns_ok() {
         // Spawned function returns 42; join-result returns (Ok 42).
         let src = r#"
@@ -18166,6 +18179,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "arc 114 — retired verb; see MANUAL note above"]
     fn join_result_captures_panic_as_data() {
         // Spawned function calls `assertion-failed!`, which panics
         // with a structured `AssertionPayload`. arc 060's
@@ -18212,6 +18226,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "arc 114 — retired verb; see MANUAL note above"]
     fn join_result_cascade_accumulates_chain_across_two_levels() {
         // Arc 113 slice 2 — when an outer thread `result::expect`s on
         // an Err that carried a Vec<ThreadDiedError> chain, the chain
@@ -18276,6 +18291,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "arc 114 — retired verb; see MANUAL note above"]
     fn join_result_captures_runtime_err_separately() {
         // Spawned function returns Err from a Result-typed eval path
         // (here: divide-by-zero is a graceful `RuntimeError::DivisionByZero`,
@@ -18309,6 +18325,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "arc 114 — retired verb; see MANUAL note above"]
     fn join_result_legacy_join_still_propagates_panic_as_runtime_error() {
         // Legacy `join` verb stays panic-the-caller (surfaces as
         // RuntimeError::ChannelDisconnected carrying the panic message
@@ -20016,6 +20033,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "arc 114 — retired verb; see MANUAL note in spawn+join section"]
     fn spawn_and_join_produce_queue_roundtrip_across_threads() {
         // Producer thread sends, consumer thread (the main) recv + match.
         // Proves the typed pipe survives the spawn.

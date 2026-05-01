@@ -5,8 +5,8 @@
 //! checker infers a `:fn(params)->ret` scheme for the same position.
 //! Callers pass named defines to `:fn(...)`-typed parameters without
 //! a pass-through lambda wrapper — the asymmetry with
-//! `:wat::kernel::spawn`'s long-standing accept-by-name convention
-//! dissolves.
+//! `:wat::kernel::spawn-thread`'s long-standing accept-by-name
+//! convention dissolves.
 
 use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source};

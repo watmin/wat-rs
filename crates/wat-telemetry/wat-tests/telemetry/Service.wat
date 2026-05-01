@@ -43,7 +43,7 @@
       (:wat::telemetry::Service/spawn 1 cadence dispatcher stats-translator))
      ((pool :wat::telemetry::Service::HandlePool<i64>)
       (:wat::core::first spawn))
-     ((driver :wat::kernel::ProgramHandle<()>) (:wat::core::second spawn))
+     ((driver :wat::kernel::Thread<(),()>) (:wat::core::second spawn))
      ;; Inner scope: pop handle, drop without sending.
      ((_inner :())
       (:wat::core::let*
@@ -51,7 +51,8 @@
           (:wat::kernel::HandlePool::pop pool))
          ((_finish :()) (:wat::kernel::HandlePool::finish pool)))
         ()))
-     ((_join :()) (:wat::kernel::join driver)))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))
 
 
@@ -84,7 +85,7 @@
       (:wat::telemetry::Service/spawn 1 cadence dispatcher stats-translator))
      ((pool :wat::telemetry::Service::HandlePool<i64>)
       (:wat::core::first spawn))
-     ((driver :wat::kernel::ProgramHandle<()>) (:wat::core::second spawn))
+     ((driver :wat::kernel::Thread<(),()>) (:wat::core::second spawn))
      ((_inner :())
       (:wat::core::let*
         (((handle :wat::telemetry::Service::Handle<i64>)
@@ -98,7 +99,8 @@
          ((_log :())
           (:wat::telemetry::Service/batch-log req-tx ack-rx entries)))
         ()))
-     ((_join :()) (:wat::kernel::join driver))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver))
      ;; Drain the stub-rx — three Some values. Match-at-source per arc 110.
      ((v1 :wat::core::i64)
       (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((Ok (Some v)) v) ((Ok :None) -1) ((Err _) -1)))
@@ -141,7 +143,7 @@
       (:wat::telemetry::Service/spawn 1 cadence dispatcher stats-translator))
      ((pool :wat::telemetry::Service::HandlePool<i64>)
       (:wat::core::first spawn))
-     ((driver :wat::kernel::ProgramHandle<()>) (:wat::core::second spawn))
+     ((driver :wat::kernel::Thread<(),()>) (:wat::core::second spawn))
      ((_inner :())
       (:wat::core::let*
         (((handle :wat::telemetry::Service::Handle<i64>)
@@ -155,7 +157,8 @@
          ((_log :())
           (:wat::telemetry::Service/batch-log req-tx ack-rx entries)))
         ()))
-     ((_join :()) (:wat::kernel::join driver))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver))
      ((v1 :wat::core::i64) (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((Ok (Some v)) v) ((Ok :None) 0) ((Err _) 0)))
      ((v2 :wat::core::i64) (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((Ok (Some v)) v) ((Ok :None) 0) ((Err _) 0)))
      ((v3 :wat::core::i64) (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((Ok (Some v)) v) ((Ok :None) 0) ((Err _) 0)))

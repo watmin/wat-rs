@@ -49,7 +49,7 @@
    (:wat::core::define
      (:test::Tagged::auto-spawn-one
        (path :wat::core::String)
-       -> :wat::kernel::ProgramHandle<()>)
+       -> :wat::kernel::Thread<(),()>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<test::Tagged::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
@@ -59,7 +59,7 @@
            :wat::telemetry::Sqlite/null-pre-install))
         ((pool :wat::telemetry::Service::HandlePool<test::Tagged::Event>)
          (:wat::core::first spawn))
-        ((driver :wat::kernel::ProgramHandle<()>)
+        ((driver :wat::kernel::Thread<(),()>)
          (:wat::core::second spawn))
         ((_inner :())
          (:test::Tagged::send-one pool)))
@@ -68,8 +68,9 @@
 
 (:deftest :wat-telemetry-sqlite::hashmap-field::test-tags-bind
   (:wat::core::let*
-    (((driver :wat::kernel::ProgramHandle<()>)
+    (((driver :wat::kernel::Thread<(),()>)
       (:test::Tagged::auto-spawn-one
         "/tmp/wat-sqlite-test-hashmap-field-001.db"))
-     ((_join :()) (:wat::kernel::join driver)))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

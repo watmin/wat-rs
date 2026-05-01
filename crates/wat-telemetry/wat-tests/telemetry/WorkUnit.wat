@@ -438,7 +438,7 @@
         :wat-telemetry::scope::translate-empty))
      ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
       (:wat::core::first spawn))
-     ((driver :wat::kernel::ProgramHandle<()>) (:wat::core::second spawn))
+     ((driver :wat::kernel::Thread<(),()>) (:wat::core::second spawn))
      ;; Inner: pop Handle, finish pool, factory + scope-fn-with-counter.
      ((result :wat::core::i64)
       (:wat::core::let*
@@ -455,7 +455,8 @@
             (:wat::core::let*
               (((_ :()) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
               42)))))
-     ((_join :()) (:wat::kernel::join driver))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver))
      ;; Drain — recv ONE Event for the single counter (CloudWatch
      ;; model: one counter = one row, established by
      ;; test-collect-metrics-one-counter). recv'ing past the

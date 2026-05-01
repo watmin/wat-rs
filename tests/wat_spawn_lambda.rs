@@ -45,6 +45,7 @@ fn run(src: &str) -> Value {
 // ─── Named define baseline (no regression) ────────────────────────────
 
 #[test]
+#[ignore = "arc 114 — retired verb (see ARC 114 MANUAL banner above)"]
 fn spawn_named_define_still_works() {
     let src = r#"
 
@@ -63,6 +64,7 @@ fn spawn_named_define_still_works() {
 // ─── Let-bound lambda spawned ─────────────────────────────────────────
 
 #[test]
+#[ignore = "arc 114 — retired verb (see ARC 114 MANUAL banner above)"]
 fn spawn_let_bound_lambda() {
     let src = r#"
 
@@ -81,6 +83,7 @@ fn spawn_let_bound_lambda() {
 // ─── Inline lambda literal spawned ────────────────────────────────────
 
 #[test]
+#[ignore = "arc 114 — retired verb (see ARC 114 MANUAL banner above)"]
 fn spawn_inline_lambda_literal() {
     let src = r#"
 
@@ -99,6 +102,7 @@ fn spawn_inline_lambda_literal() {
 // ─── Lambda-valued param spawned ──────────────────────────────────────
 
 #[test]
+#[ignore = "arc 114 — retired verb (see ARC 114 MANUAL banner above)"]
 fn spawn_lambda_valued_param_from_enclosing_function() {
     let src = r#"
 
@@ -124,6 +128,7 @@ fn spawn_lambda_valued_param_from_enclosing_function() {
 // ─── Closure capture survives spawn ───────────────────────────────────
 
 #[test]
+#[ignore = "arc 114 — retired verb (see ARC 114 MANUAL banner above)"]
 fn spawn_preserves_lambda_closed_env() {
     // The lambda captures `delta` from the enclosing let*. Spawning the
     // lambda on a new thread must carry its closed_env across the

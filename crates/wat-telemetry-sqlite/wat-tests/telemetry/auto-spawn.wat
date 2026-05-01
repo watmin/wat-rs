@@ -52,7 +52,7 @@
    (:wat::core::define
      (:test::auto-spawn-events
        (path :wat::core::String)
-       -> :wat::kernel::ProgramHandle<()>)
+       -> :wat::kernel::Thread<(),()>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<test::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
@@ -62,7 +62,7 @@
            :wat::telemetry::Sqlite/null-pre-install))
         ((pool :wat::telemetry::Service::HandlePool<test::Event>)
          (:wat::core::first spawn))
-        ((driver :wat::kernel::ProgramHandle<()>)
+        ((driver :wat::kernel::Thread<(),()>)
          (:wat::core::second spawn))
         ((_inner :())
          (:test::send-events pool)))
@@ -71,8 +71,9 @@
 
 (:deftest :wat-telemetry-sqlite::auto-spawn::test-event-roundtrip
   (:wat::core::let*
-    (((driver :wat::kernel::ProgramHandle<()>)
+    (((driver :wat::kernel::Thread<(),()>)
       (:test::auto-spawn-events
         "/tmp/wat-sqlite-test-auto-001.db"))
-     ((_join :()) (:wat::kernel::join driver)))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

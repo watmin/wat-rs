@@ -43,11 +43,11 @@
 
 ;; ─── Worker entry — opens Db, installs schemas, runs Service/loop ─
 
-;; Top-level so :wat::kernel::spawn can route to it. Generic over E
-;; (consumer's entry type) and G (substrate cadence gate). All three
-;; hooks (pre-install, schema-install, dispatcher) execute INSIDE
-;; this thread; the curried dispatcher closure captures the
-;; thread-local Db without crossing thread boundaries.
+;; Top-level so the spawn-thread body can call it by keyword.
+;; Generic over E (consumer's entry type) and G (substrate cadence
+;; gate). All three hooks (pre-install, schema-install, dispatcher)
+;; execute INSIDE this thread; the curried dispatcher closure
+;; captures the thread-local Db without crossing thread boundaries.
 ;;
 ;; Hook order, per the archive's `database()` discipline:
 ;;
@@ -216,8 +216,8 @@
 ;; `flush()` discipline at
 ;; `archived/pre-wat-native/src/programs/stdlib/database.rs:224-231`).
 ;; Lifted out of the auto-spawn body as a top-level define because
-;; `:wat::kernel::spawn` routes to top-level functions only — and
-;; spawn's body composes this lambda inline below.
+;; the spawn-thread body composes this function inline below as a
+;; closure over the per-thread Db.
 (:wat::core::define
   (:wat::telemetry::Sqlite::auto-dispatch-batch<E>
     (enum-name :wat::core::keyword)

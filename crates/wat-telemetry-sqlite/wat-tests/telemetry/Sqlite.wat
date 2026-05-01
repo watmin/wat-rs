@@ -99,7 +99,7 @@
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::spawn-and-drop
        (path :wat::core::String)
-       -> :wat::kernel::ProgramHandle<()>)
+       -> :wat::kernel::Thread<(),()>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<i64>)
          (:wat::telemetry::Sqlite/spawn
@@ -111,7 +111,7 @@
            :wat-telemetry-sqlite::Sqlite::translate-empty))
         ((pool :wat::telemetry::Service::HandlePool<i64>)
          (:wat::core::first spawn))
-        ((driver :wat::kernel::ProgramHandle<()>)
+        ((driver :wat::kernel::Thread<(),()>)
          (:wat::core::second spawn))
         ((_inner :())
          (:wat-telemetry-sqlite::Sqlite::drop-one-handle pool)))
@@ -134,7 +134,7 @@
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::spawn-and-batch
        (path :wat::core::String)
-       -> :wat::kernel::ProgramHandle<()>)
+       -> :wat::kernel::Thread<(),()>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<i64>)
          (:wat::telemetry::Sqlite/spawn
@@ -146,7 +146,7 @@
            :wat-telemetry-sqlite::Sqlite::translate-empty))
         ((pool :wat::telemetry::Service::HandlePool<i64>)
          (:wat::core::first spawn))
-        ((driver :wat::kernel::ProgramHandle<()>)
+        ((driver :wat::kernel::Thread<(),()>)
          (:wat::core::second spawn))
         ((_inner :())
          (:wat-telemetry-sqlite::Sqlite::send-three pool)))
@@ -179,10 +179,11 @@
 
 (:deftest :wat-telemetry-sqlite::Sqlite::test-spawn-drop
   (:wat::core::let*
-    (((driver :wat::kernel::ProgramHandle<()>)
+    (((driver :wat::kernel::Thread<(),()>)
       (:wat-telemetry-sqlite::Sqlite::spawn-and-drop
         "/tmp/wat-sqlite-test-spawn-001.db"))
-     ((_join :()) (:wat::kernel::join driver)))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))
 
 
@@ -190,8 +191,9 @@
 
 (:deftest :wat-telemetry-sqlite::Sqlite::test-batch-log
   (:wat::core::let*
-    (((driver :wat::kernel::ProgramHandle<()>)
+    (((driver :wat::kernel::Thread<(),()>)
       (:wat-telemetry-sqlite::Sqlite::spawn-and-batch
         "/tmp/wat-sqlite-test-batch-001.db"))
-     ((_join :()) (:wat::kernel::join driver)))
+     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

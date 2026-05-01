@@ -1,3 +1,14 @@
+;; ARC 114 MANUAL — needs type-design review
+;; The six-step progression below was authored against the pre-arc-114
+;; spawn / join-result contract. Steps 1-3 spawn workers that return
+;; non-unit values (HologramCache, i64) and recover them via
+;; join-result — exactly the R-via-join ferrying arc 114 retires.
+;; Steps 4-6 migrate cleanly (driver returns unit), but fixing them
+;; piecemeal would leave the test progression's narrative
+;; half-broken. Surfacing the whole file for human design: rewrite
+;; the six steps to deliver state through channels OR delete the
+;; pre-114 reference progression and ship a fresh thread-shape one.
+;;
 ;; wat-tests for arc 078 — :wat::holon::lru::HologramCacheService.
 ;;
 ;; Six-step progression building up the queue-addressed cache wrapper:
