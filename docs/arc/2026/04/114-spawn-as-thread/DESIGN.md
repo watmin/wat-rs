@@ -1,8 +1,12 @@
 ## Status
 
-Drafted 2026-04-30 during arc 112 slice 2a. Captures the
-architectural commitment that **threads have no useful return
-value** — they stream results out via channels. The contract.
+Drafted 2026-04-30 during arc 112 slice 2a. **DESIGN revised
+2026-04-30 mid-pipeline** to remove the inherited `stdin/stdout/
+stderr` framing on `Thread<I,O>` — threads don't have OS-process
+stdio; their honest fields are `input` / `output` channels.
+Captures the architectural commitment that **programs have no
+useful return value** — they communicate values via channels in,
+channels out, period. The contract.
 
 User direction (2026-04-30):
 
@@ -15,30 +19,85 @@ User direction (2026-04-30):
 > interface with these programs - the hosting platform is a user
 > choice - the protocol isn't
 
-Arc 114 names the principle the substrate has been growing toward
-since arc 103: **the hosting platform is a user choice; the
-protocol is fixed.**
+User direction (2026-04-30, mid-pipeline correction):
 
-- **Hosting platform** (the user chooses): in-thread (spawn-thread)
-  vs. out-of-process (fork-program). Trade-offs are engineering —
-  memory isolation, fault isolation, OS resource limits, copy-on-
-  write efficiency, IPC cost. Different concerns at different
-  scales.
-- **Protocol** (the substrate fixes): every running Program — Thread
-  or Process — exposes the SAME interface. `stdin: IOWriter`,
-  `stdout: IOReader` (typed `O` via `process-recv` /
-  `process-send`), `stderr: IOReader` (typed errors), and a wait
-  verb (`Program/join-result` → `:Result<:wat::core::unit,
-  *DiedError>`). Code that interacts with a Program does NOT
-  branch on host kind.
+> threads do not have stdin,out,err -- that's a property of
+> processes....
+>
+> a program is hosted somewhere. there's a communication into it...
+> a pipe in and a pipe out.. a thread can have their panic handled
+> explicitly.. for a process there's stdin and stdout and stderr
+> is used to transport panic
+>
+> the thing-who-interfaces-with-a-program doesn't need to know or
+> care what the hosting environment is
 
-Arc 114 generalizes arc 112's "Programs have R = unit" stance to
-ALL thread-side abstractions. After arc 114 closes, no
-substrate-provided thread/process verb yields a typed `R` via the
-join channel — every running computation that wants to convey
-data does so via a Channel/pipe. The shape of "I have a Program;
-let me feed it data and read its output" is one thing the user
-writes once, regardless of which host they picked.
+## The contract
+
+A *Program* is a hosted computation with **three things every
+caller can reach for**:
+
+1. **Input channel** — a way to feed values IN.
+2. **Output channel** — a way to read values OUT.
+3. **Error mechanism** — a way to learn the program panicked and
+   recover the cause.
+
+That's it. Three concerns. Every Program — Thread or Process —
+satisfies the contract; concrete satisfiers realize the three
+concerns differently, but the abstraction is uniform:
+
+| Concern | Thread<I,O> | Process<I,O> |
+|---|---|---|
+| Input | `Sender<I>` (in-memory crossbeam channel) | `stdin: IOWriter` (OS pipe) |
+| Output | `Receiver<O>` (in-memory crossbeam channel) | `stdout: IOReader` (OS pipe) |
+| Error mechanism | panic surfaces in `ThreadDiedError` chain on `Thread/join-result` (arc 060 + arc 113) | panic written to `stderr: IOReader` as EDN-framed chain (arc 113 slice 3) → `ProcessDiedError` on `Process/join-result` |
+
+**The thing that interfaces with a Program does not know or care
+which host backs it.** It uses the polymorphic verbs
+(`process-send`, `process-recv`, `Program/join-result`) — the
+substrate dispatches on the concrete satisfier's type tag.
+Trade-offs of the host (cost, isolation, fault tolerance) are an
+engineering decision the user makes at construction time;
+downstream code is hosting-agnostic.
+
+### Why threads return unit
+
+A process **cannot** return `R` via "return" — the only path OUT
+of a process is its stdout pipe. There's no mechanism to ferry
+arbitrary `R` back through `fork` + `wait`.
+
+For Programs to be uniform across hosts, threads must obey the
+same constraint: **values flow through the output channel
+exclusively**. The thread body's "return value" is `()` (unit)
+— a marker for "completed without panic", not a value carrier.
+`Thread/join-result` returns `:Result<:wat::core::unit,
+:wat::kernel::ThreadDiedError>` — life status, not data.
+
+This is the principle arc 114 names. Today's `:wat::kernel::spawn`
+returning `:ProgramHandle<R>` (with `R` ferried via join) is
+inconsistent with the Program contract and retires.
+
+### Why threads have no stderr stream
+
+Threads share memory with the parent. A thread's panic is caught
+by the spawn driver's `catch_unwind`; the panic info rides through
+the substrate's `SpawnOutcome` channel and surfaces on
+`Thread/join-result`'s `Err` arm as a `ThreadDiedError` (or, per
+arc 113, a `Vec<ThreadDiedError>` chain). The error mechanism
+travels through the join handle, NOT through a side stream.
+
+Processes need stderr because they share zero memory with the
+parent post-fork — the only way out is OS streams. The substrate
+frames panic info as EDN on stderr (arc 113 slice 3); the parent
+parses it back into `Vec<ProcessDiedError>` via
+`extract-panics`. **stderr exists on Process<I,O> because
+processes need it; it does NOT exist on Thread<I,O> because
+threads don't.**
+
+The naming follows the realization: `stdin/stdout/stderr` is OS
+process vocabulary; carrying it onto Thread<I,O> would be
+dishonest. Thread<I,O>'s honest fields are `input` and `output`
+(channels) plus the join handle — no stderr stream.
 
 ## The principle: hosting is a user choice; protocol is fixed
 
@@ -54,16 +113,17 @@ USER CHOICE                       SUBSTRATE INVARIANT
   │ spawn-thread<I,O> │──────────►┐
   │ (in-thread host)  │           │
   └───────────────────┘           ▼
-                          ┌─────────────────────┐
-                          │  Program<I,O>       │
-                          │  ─────────────────  │
-                          │  stdin  : IOWriter  │
-                          │  stdout : IOReader  │
-                          │  stderr : IOReader  │
-                          │  join-result :      │
-                          │    Result<unit,     │
-                          │      *DiedError>    │
-                          └─────────────────────┘
+                          ┌──────────────────────────┐
+                          │   Program<I,O>           │
+                          │   ─────────────────────  │
+                          │   input  channel         │
+                          │   output channel         │
+                          │   error mechanism (panic │
+                          │     surfaces on join)    │
+                          │   join-result :          │
+                          │     Result<unit,         │
+                          │       *DiedError-chain>  │
+                          └──────────────────────────┘
                                   ▲
   ┌───────────────────┐           │
   │ fork-program<I,O> │──────────►┘
@@ -73,10 +133,32 @@ USER CHOICE                       SUBSTRATE INVARIANT
 
 **Reading the picture:** the user picks the box on the left based
 on engineering trade-offs (cost, isolation, fault tolerance). The
-box on the right is what they GET — the same shape regardless of
-the choice. Calling code on top of the right-side shape is
-hosting-agnostic; nobody on the right of the picture knows or
-cares whether the program runs in a thread or a forked process.
+box on the right is what they GET — the same three concerns
+(input / output / error mechanism) regardless of the choice.
+Calling code on top of the right-side shape is hosting-agnostic;
+nobody on the right of the picture knows or cares whether the
+program runs in a thread or a forked process. The CONCRETE field
+shapes differ between Thread<I,O> and Process<I,O> (channels vs
+OS pipes); the polymorphic verbs hide that gap.
+
+### `ProgramHandle` de-parameterizes
+
+A direct consequence of "programs return unit": today's
+`:wat::kernel::ProgramHandle<R>` is always `:ProgramHandle<()>`
+post-arc-114 — every join handle yields unit. The `<R>` type
+parameter has no use; the substrate carries dead weight every
+time a handle is annotated.
+
+Arc 114 collapses `:wat::kernel::ProgramHandle<R>` to plain
+`:wat::kernel::ProgramHandle` (no type parameter). The `Result`
+shape from `Program/join-result` becomes
+`:Result<:wat::core::unit, :wat::kernel::ProgramDiedError-chain>`
+without a phantom-`R` slot leaking the retired bare-spawn path.
+
+This is symmetric with arc 113's
+`Vec<*DiedError>`-not-a-Vec-of-anything-else realization: the
+shape collapses to its honest minimum once the principle that
+forced the parameter retires.
 
 This generalizes prior wat substrate principles:
 
@@ -97,16 +179,18 @@ out-of-process (or vice versa) changes ONE call site (the
 `spawn-thread` ↔ `fork-program`) and nothing else. Hosting
 becomes a tunable, not a rewrite.
 
-## Transport asymmetry: same protocol, two implementations
+## Transport asymmetry: same contract, two implementations
 
-The protocol surface (`process-send` / `process-recv` on
-`Program<I,O>`) is uniform — but the substrate's TRANSPORT
+The contract surface is uniform — every Program has input,
+output, and an error mechanism. The substrate's TRANSPORT
 mechanism under the hood differs by host:
 
-| Host | Stdin | Stdout / Stderr | Wire format |
-|---|---|---|---|
-| **Thread<I,O>** (in-memory) | crossbeam `Sender<Value>` | crossbeam `Receiver<Value>` | `Arc<Value>` zero-copy enqueued in-memory |
-| **Process<I,O>** (forked OS process) | OS pipe `IOWriter` | OS pipe `IOReader` | EDN-serialized `String` per line |
+| Concern | Thread<I,O> (in-memory) | Process<I,O> (forked OS process) |
+|---|---|---|
+| Input | `input: Sender<I>` (crossbeam) | `stdin: IOWriter` (OS pipe) |
+| Output | `output: Receiver<O>` (crossbeam) | `stdout: IOReader` (OS pipe) |
+| Error mechanism | panic caught in spawn driver's catch_unwind; surfaces on `join-result`'s Err arm as `ThreadDiedError` chain (no separate stream) | child writes EDN-framed chain to `stderr: IOReader` before _exit; parent's `extract-panics` recovers it; surfaces on `join-result` as `ProcessDiedError` chain |
+| Wire format | `Arc<Value>` zero-copy enqueued in-memory | EDN-serialized `String` per line |
 
 User direction (2026-04-30):
 
@@ -115,7 +199,7 @@ User direction (2026-04-30):
 > this so its edn strings between them
 
 This is not a contract leak — it's a substrate optimization the
-protocol surface hides. The honest read:
+contract hides. The honest read:
 
 - **Thread<I,O> can pass Value-as-Arc.** Both ends share memory;
   the crossbeam channel ferries `Arc<Value>` zero-copy.
@@ -155,18 +239,20 @@ copy vs. EDN render+parse); the surface doesn't.
 `:wat::kernel::Program<I,O>` is the abstraction. Concrete satisfiers
 have DIFFERENT field shapes internally:
 
-- `Thread<I,O>` fields: `stdin: Sender<Value>`, `stdout:
-  Receiver<Value>`, `stderr: Receiver<Value>`, internal
-  ProgramHandle.
+- `Thread<I,O>` fields: `input: Sender<I>`, `output: Receiver<O>`,
+  `join: ProgramHandle` — three fields. **No stderr** (errors
+  surface on join-result's chain).
 - `Process<I,O>` fields: `stdin: IOWriter`, `stdout: IOReader`,
-  `stderr: IOReader`, internal ProgramHandle.
+  `stderr: IOReader`, `join: ProgramHandle` — four fields. stderr
+  is the panic transport (parent's `extract-panics` reads it
+  post-waitpid).
 
 The supertype satisfaction rule isn't "same field types" — it's
 "same operations supported." The polymorphic verbs
 (`process-send`, `process-recv`, `Program/join-result`) work on
-either; the user-visible accessors (`Thread/stdin`,
-`Process/stdin`) might return different concrete types but the
-typed comm verbs work uniformly.
+either; the per-host accessors (`Thread/input`, `Process/stdin`)
+return different concrete types but the typed comm verbs work
+uniformly.
 
 This makes Program<I,O> a **typeclass / protocol** in the formal
 sense — it's defined by the operations it supports, not by its
@@ -175,16 +261,18 @@ internal field shape. The substrate's first such abstraction.
 ### Direct accessor escape hatch
 
 For programs that want to bypass the protocol (e.g., wat-cli's
-stdio proxy moves bytes; a direct-Sender consumer wants the raw
-crossbeam reference), the typed accessors stay available:
+stdio proxy moves raw bytes through the Process; a direct-Sender
+consumer wants the raw crossbeam reference), the per-host
+accessors stay available:
 
-- `:wat::kernel::Thread/stdout` returns `:Receiver<O>`.
+- `:wat::kernel::Thread/output` returns `:Receiver<O>`.
 - `:wat::kernel::Process/stdout` returns `:wat::io::IOReader`.
 
 Caller chooses: protocol-level (`process-recv` works on either)
-or implementation-level (`Thread/stdout` for the crossbeam
+or implementation-level (`Thread/output` for the crossbeam
 receiver; `Process/stdout` for the pipe). The protocol is the
-ergonomic default; the raw accessors are the escape hatch.
+ergonomic default; the per-host accessors are the escape hatch
+for callers who genuinely need the underlying transport.
 
 ## The pathology
 
@@ -215,26 +303,36 @@ I/O channels, never an R via join.
 
 ```
 :wat::kernel::spawn-thread<I, O>
-  (body :Fn(:wat::io::IOReader,
-            :wat::io::IOWriter,
-            :wat::io::IOWriter) -> :wat::core::unit)
+  (body :Fn(:wat::kernel::Receiver<I>,
+            :wat::kernel::Sender<O>) -> :wat::core::unit)
   -> :wat::kernel::Thread<I, O>
 ```
 
-The spawn body has the same signature shape as `:user::main` of
-a wat program: takes stdin / stdout / stderr; returns unit.
-The Thread<I, O> exposes:
+The spawn body takes the **inside** ends of the input / output
+channels (it READS from input, WRITES to output) and returns
+unit. **Different from `:user::main`'s signature** — programs
+running on a process get OS stdio (because that's all a process
+has); programs running on a thread get typed channel halves
+(because that's the honest in-memory primitive). The body shape
+matches the host.
 
-- `:wat::kernel::Thread/stdin`  — `IOWriter` (parent → thread)
-- `:wat::kernel::Thread/stdout` — `IOReader` (thread → parent, typed `O`)
-- `:wat::kernel::Thread/stderr` — `IOReader` (thread → parent, errors)
+The Thread<I, O> the parent receives from `spawn-thread` exposes:
+
+- `:wat::kernel::Thread/input`  — `Sender<I>` (parent → thread)
+- `:wat::kernel::Thread/output` — `Receiver<O>` (thread → parent, typed `O`)
 - `:wat::kernel::Thread/join-result` →
-  `:Result<:wat::core::unit, :wat::kernel::ThreadDiedError>`
+  `:Result<:wat::core::unit, :Vec<:wat::kernel::ThreadDiedError>>`
+  (post-arc-113 chain shape)
 
-Symmetric with arc 112's `Process<I, O>`. Both satisfy
-`:wat::kernel::Program<I, O>` (arc 109 § J's supertype). The
-polymorphic `:wat::kernel::join-result` from arc 109 § J slice
-10d works on either.
+No `Thread/stderr` accessor — threads have no err stream; panic
+travels through the chain on `join-result`.
+
+Symmetric-by-contract (NOT same-fields) with arc 112's
+`Process<I, O>`. Both satisfy `:wat::kernel::Program<I, O>` (arc
+109 § J's supertype). The polymorphic `:wat::kernel::join-result`
+from arc 109 § J slice 10d works on either; per-host accessors
+stay available for the rare caller who genuinely needs the raw
+channel half or pipe.
 
 ## Migration of existing `:wat::kernel::spawn` consumers
 
@@ -245,8 +343,10 @@ Today's bare-spawn callers fall into three categories:
    cosmetic — they were already streaming out; their ProgramHandle
    was just being used as a "did the worker finish?" signal.
    `(:wat::kernel::spawn (fn () (some-work-and-send! tx)))` →
-   `(:wat::kernel::spawn-thread (fn (stdin stdout stderr)
-   (some-work-and-send! tx)))`.
+   `(:wat::kernel::spawn-thread (fn (input output)
+   (some-work-and-send! tx)))` (the body's `input` / `output`
+   are channel halves; the caller-held `tx` of pre-arc-114 is
+   the same shape as the post-arc-114 `output`).
 
 2. **Compute parallelism** — fork/join: spawn N functions, each
    returns R, parent collects the Rs. This pattern needs a
@@ -279,7 +379,7 @@ Following arc 112's pattern (additive → sweep → retire):
 |---|---|
 | **1** | Mint `:wat::kernel::Thread<I,O>` + accessors + `Thread/join-result` returning `:Result<:wat::core::unit, ThreadDiedError>`. Mint `:wat::kernel::spawn-thread` constructor verb. Additive — `:wat::kernel::spawn` continues to work. |
 | **2** | Sweep substrate stdlib + lab — every `:wat::kernel::spawn` call site migrates. The fork/join compute-parallelism callers gain explicit channel pairs. |
-| **3** | Retire `:wat::kernel::spawn` + `:wat::kernel::ProgramHandle<R>`. Bare-spawn errors at startup with self-describing redirect to `:wat::kernel::spawn-thread`. |
+| **3** | Retire `:wat::kernel::spawn` + the `<R>` parameter on `:wat::kernel::ProgramHandle`. Bare-spawn errors at startup with self-describing redirect to `:wat::kernel::spawn-thread`. `ProgramHandle` collapses to a non-parametric type — every join handle yields unit; the `<R>` slot was dead weight the bare-spawn path forced. Sonnet sweep against the resulting TypeMismatch hints. |
 | **4** | Slice into arc 109 § J: rename arc-112's unified `Process<I,O>` (today returned by both spawn-program and fork-program) → `Program<I,O>` (abstract supertype); split into concrete `Thread<I,O>` (returned by spawn-program) + `Process<I,O>` (returned by fork-program); join-result becomes poly via the typeclass dispatch arc 109 § J slice 10d mints. |
 | **5** | INSCRIPTION + USER-GUIDE + 058 row. |
 
@@ -299,9 +399,13 @@ can ship 1–3 first; the slice 4 work is shared.
 
 ## The four questions
 
-**Obvious?** Yes. Threads and Processes are unified — both run a
-program-shaped body with stdin/stdout/stderr and produce no R via
-join. One mental model.
+**Obvious?** Yes. Threads and Processes are unified by the
+**contract** (input / output / error mechanism), not by field
+shape. Both produce no R via join. The user picks the host; the
+verbs that work on Programs work the same on either. One mental
+model: "I have a Program; I feed it values via input; I read
+values via output; I learn about panic via join-result." That's
+all.
 
 **Simple?** Caller-side: simpler (one mechanism for value flow).
 Substrate-side: removes a verb (spawn) and a type
@@ -309,10 +413,21 @@ Substrate-side: removes a verb (spawn) and a type
 substrate complexity ≈ neutral, but the conceptual surface
 collapses.
 
-**Honest?** Yes — the asymmetry pre-arc-114 was that bare-spawn
-had an R-via-join channel that fork-program could never produce
-(OS processes don't have one). Arc 114 acknowledges that
-constraint at the abstraction level.
+**Honest?** Yes. Three asymmetries dissolve:
+
+1. The R-via-join lie — bare-spawn had a return channel
+   fork-program could never produce. Arc 114 retires R uniformly;
+   programs deliver values through their output channel because
+   that's the only thing every host can do.
+2. The stdin/stdout/stderr-on-Thread lie — pre-arc-114, the
+   substrate allocated three OS pipes for in-thread spawn and
+   wrapped them as IOReader/IOWriter. Threads don't have OS
+   stdio; they have channels. Arc 114 gives Thread<I,O> honest
+   field names (`input` / `output`) backed by crossbeam, and
+   no err stream (panic surfaces on the join chain).
+3. The `<R>` parameter on `ProgramHandle` — once R is uniformly
+   unit, the type parameter has no use. Arc 114 collapses
+   `:ProgramHandle<()>` to plain `:ProgramHandle`.
 
 **Good UX?** Mixed in transition (compute-parallelism callers
 write more code post-migration). Long-term: stronger — one
