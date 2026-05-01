@@ -1,7 +1,23 @@
 # Arc 109 Slice 1f — Vec<T> renames to Vector + vec verb shares the type name
 
-**Compaction-amnesia anchor.** Read this first if you're picking up
-slice 1f mid-flight.
+**Status: shipped 2026-05-01.** Walker (commit `61c008d`) +
+four-tier sweep across commits `131d9a3` → `5ad821a` →
+`733af5d` → `ad4c54a`. 73 files swept; **547 bare-Vec sites**
++ **225 `:wat::core::vec` verb sites** = **772 rename sites**.
+Zero MANUAL flags. cargo test --release --workspace 1476/0.
+
+**One substrate-gap fix during sweep**: `src/lower.rs::lower_bundle`
+only matched the legacy `:wat::core::vec` head; extended to also
+accept `:wat::core::Vector`. Surfaced by `tests/mvp_end_to_end.rs::
+bind_vs_bundle_of_same_atoms_differ`. Plus a runtime error-message
+update in `src/runtime.rs:7856` to reference the canonical
+constructor name.
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record. Pattern 3 walker template
++ Pattern 2 verb-poison ran cleanly in one slice (first time both
+mechanisms shipped together); proves the bundle is reusable for
+future verb+type couplings.**
 
 ## What this slice does
 

@@ -49,6 +49,17 @@ order is preserved.
   across four tiers; ~365 rename sites; zero substrate-gap fixes
   required. cargo test workspace 1476/0. See `SLICE-1E.md`.
   Vec<T> deferred to slice 1f (couples with § D verb rename).
+- 1f: Vec<T> renames to Vector + vec verb shares the type name —
+  shipped 2026-05-01. BARE_CONTAINER_HEADS extended with
+  ("Vec", "wat::core::Vector"); Pattern 2 poison on
+  `:wat::core::vec` callee with `arc_109_vec_verb_migration_hint`;
+  `:wat::core::Vector` dispatch arm added; typealias minted; 73
+  files swept across four tiers; **547 bare-Vec sites + 225 vec-
+  verb sites = 772 rename sites**. One substrate-gap fix in
+  `src/lower.rs::lower_bundle` (Bundle lowering needed both Vec
+  and Vector heads). cargo test workspace 1476/0. See
+  `SLICE-1F.md`. First slice to bundle Pattern 3 (type) +
+  Pattern 2 (verb) cleanly; proves the bundle reusable.
 - § J 10a: `:wat::kernel::Program<I,O>` typealias minted (alias for `:Process<I,O>`)
 - § J 10b: sonnet sweep — annotations prefer Program (in scope of stdlib boundaries)
 - Arc 114 absorbed § J 10c's "Thread as concrete struct"
@@ -254,6 +265,13 @@ slice plans name.
                   four-tier sweep; 65 files; ~365 rename sites;
                   zero substrate-gap fixes; cargo test workspace
                   1476/0 (commits f8a82be → 5a96cb0; SLICE-1E.md)
+
+[done]  arc 109 slice 1f — Vec<T> rename + move + vec verb
+                  retirement (Pattern 3 + Pattern 2 bundled);
+                  73 files; 772 rename sites total (547 type
+                  + 225 verb); 1 substrate-gap fix in lower.rs;
+                  cargo test workspace 1476/0
+                  (commits 61c008d → ad4c54a; SLICE-1F.md)
 
 [next]  § J 10d — typeclass dispatch + ProgramDiedError supertype
                   (mint ProgramDiedError; mint Program<I,O> as

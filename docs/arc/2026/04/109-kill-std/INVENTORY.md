@@ -84,7 +84,7 @@ in Section J):
 
 | Today | After arc 109 | Status |
 |---|---|---|
-| `Vec<T>` | `:wat::core::Vector<T>` | pending slice 1f (renames AND moves; couples with § D verb) |
+| `Vec<T>` | `:wat::core::Vector<T>` | ✓ shipped slice 1f (rename + move; § D `vec` verb companion shipped same slice) |
 | `Option<T>` | `:wat::core::Option<T>` | ✓ shipped slice 1e |
 | `Result<T,E>` | `:wat::core::Result<T,E>` | ✓ shipped slice 1e |
 | `HashMap<K,V>` | `:wat::core::HashMap<K,V>` | ✓ shipped slice 1e |
@@ -123,14 +123,14 @@ match the FQDN forms (`":wat::core::Some"` etc).
 
 ## D. Constructor verbs
 
-| Today | After arc 109 |
-|---|---|
-| `:wat::core::vec` | `:wat::core::Vector` (verb = type) |
-| `:wat::core::list` | **retire** (use `:wat::core::Vector`) |
-| `:wat::core::tuple` | `:wat::core::Tuple` |
-| `:wat::core::HashMap` (constructor) | already aligned ✓ |
-| `:wat::core::HashSet` (constructor) | already aligned ✓ |
-| `:wat::core::range` | **moves to `:wat::list::range`** — see Section H |
+| Today | After arc 109 | Status |
+|---|---|---|
+| `:wat::core::vec` | `:wat::core::Vector` (verb = type) | ✓ shipped slice 1f (Pattern 2 poison; coupled with § B Vec rename) |
+| `:wat::core::list` | **retire** (use `:wat::core::Vector`) | pending slice 1g |
+| `:wat::core::tuple` | `:wat::core::Tuple` | pending slice 1g |
+| `:wat::core::HashMap` (constructor) | already aligned ✓ | — |
+| `:wat::core::HashSet` (constructor) | already aligned ✓ | — |
+| `:wat::core::range` | **moves to `:wat::list::range`** — see Section H | pending § H |
 
 `vec` and `list` both produced `Vec<T>` — the redundancy retires
 in favor of one canonical name (`Vector`). The constructor verb
