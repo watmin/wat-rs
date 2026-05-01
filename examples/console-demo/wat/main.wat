@@ -147,6 +147,6 @@
           (:demo::make-logger handle :market.observer
             :wat::telemetry::Console::Format::Pretty)))
         (:demo::run pretty-logger)))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result con-driver)))
     ()))

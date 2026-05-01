@@ -89,8 +89,8 @@
       (:wat::core::first handle))
      ((ack-rx :wat::telemetry::Service::AckRx)
       (:wat::core::second handle))
-     ((entries :Vec<wat::telemetry::Event>)
-      (:wat::core::vec :wat::telemetry::Event
+     ((entries :wat::core::Vector<wat::telemetry::Event>)
+      (:wat::core::Vector :wat::telemetry::Event
         (:demo::trade-event 1000 "buy"  5  100.0)
         (:demo::trade-event 2000 "sell" 12 102.5)
         (:demo::trade-event 3000 "buy"  15 99.0)   ; ← Q2 hit
@@ -140,7 +140,7 @@
      ;; Phase 1.
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:demo::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((_p1 :wat::core::unit)
       (:wat::io::IOWriter/println stdout
@@ -149,9 +149,9 @@
      ;; Q1 — count every Event::Log row, no narrowing.
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
-     ((no-constraints :Vec<wat::telemetry::TimeConstraint>)
-      (:wat::core::vec :wat::telemetry::TimeConstraint))
-     ((all-events :Vec<wat::telemetry::Event>)
+     ((no-constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
+      (:wat::core::Vector :wat::telemetry::TimeConstraint))
+     ((all-events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::std::stream::collect
         (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
      ((q1-count :wat::core::i64) (:wat::core::length all-events))
@@ -168,9 +168,9 @@
         "── Q2: matches? — buy AND qty > 10 ──"))
      ((handle2 :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
-     ((no-constraints2 :Vec<wat::telemetry::TimeConstraint>)
-      (:wat::core::vec :wat::telemetry::TimeConstraint))
-     ((big-buys :Vec<wat::telemetry::Event>)
+     ((no-constraints2 :wat::core::Vector<wat::telemetry::TimeConstraint>)
+      (:wat::core::Vector :wat::telemetry::TimeConstraint))
+     ((big-buys :wat::core::Vector<wat::telemetry::Event>)
       (:wat::std::stream::collect
         (:wat::std::stream::filter
           (:wat::telemetry::sqlite/stream-logs handle2 no-constraints2)
