@@ -2370,7 +2370,13 @@ fn dispatch_keyword_head(
         ":wat::core::or" => eval_or(args, env, sym),
 
         // List construction
+        // Arc 109 slice 1f — :wat::core::Vector is the canonical
+        // constructor; :wat::core::vec stays during the migration
+        // window (Pattern 2 poison surfaces a hint at type-check
+        // time but runtime keeps working). Both paths produce the
+        // same Value::List(Vec<Value>).
         ":wat::core::vec" => eval_list_ctor(args, env, sym),
+        ":wat::core::Vector" => eval_list_ctor(args, env, sym),
         ":wat::core::list" => eval_list_ctor(args, env, sym),
         ":wat::core::conj" => eval_conj(args, env, sym),
         ":wat::core::tuple" => eval_tuple_ctor(args, env, sym),

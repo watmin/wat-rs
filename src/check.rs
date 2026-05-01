@@ -455,11 +455,34 @@ impl CheckError {
 /// (Display impl + `CheckError::diagnostic`'s hint field) picks it
 /// up automatically. See the retirement note above for the helper
 /// shape.
+/// Arc 109 slice 1f — fires when the dispatcher has poisoned the
+/// retired `:wat::core::vec` head. The hint names the canonical
+/// replacement (`:wat::core::Vector`, verb-equals-type per
+/// INVENTORY § D) and the literal swap.
+fn arc_109_vec_verb_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
+    if callee != ":wat::core::vec" {
+        return None;
+    }
+    Some(
+        "arc 109 slice 1f — `:wat::core::vec` is retired. Canonical \
+         constructor is `:wat::core::Vector` (verb-equals-type per \
+         INVENTORY § D — `(:wat::core::Vector :T x y z)` reads as \
+         `construct a Vector of T from these elements`). Rename \
+         `:wat::core::vec` → `:wat::core::Vector` at the offending \
+         site. The substrate produces the same `Vec<T>` value; only \
+         the spelling changes."
+            .into(),
+    )
+}
+
 fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
-    let hints: Vec<String> = [arc_114_migration_hint(callee, expected, got)]
-        .into_iter()
-        .flatten()
-        .collect();
+    let hints: Vec<String> = [
+        arc_114_migration_hint(callee, expected, got),
+        arc_109_vec_verb_migration_hint(callee, expected, got),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
     if hints.is_empty() {
         None
     } else {
@@ -916,17 +939,19 @@ const BARE_PRIMITIVES: &[(&str, &str)] = &[
     (":u8", ":wat::core::u8"),
 ];
 
-/// The four parametric container heads retired by arc 109 slice
-/// 1e, paired with the canonical FQDN form they replace. Vec<T>
-/// is NOT in this set — slice 1f territory because the rename to
-/// `Vector` couples with § D's verb companion. Heads are stored
-/// here without the leading colon to match `TypeExpr::Parametric`
-/// head-string convention (no `:` prefix on Parametric heads).
+/// Parametric container heads retired by arc 109 (slices 1e + 1f),
+/// paired with the canonical FQDN form they replace. Heads are
+/// stored without the leading colon to match
+/// `TypeExpr::Parametric` head-string convention. Note that
+/// `Vec` → `wat::core::Vector` is BOTH a path move AND a name
+/// rename (the only entry where the FQDN tail differs from the
+/// bare form); the others are pure-FQDN-moves.
 const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
-    ("Option", "wat::core::Option"),
-    ("Result", "wat::core::Result"),
-    ("HashMap", "wat::core::HashMap"),
-    ("HashSet", "wat::core::HashSet"),
+    ("Option", "wat::core::Option"),    // slice 1e
+    ("Result", "wat::core::Result"),    // slice 1e
+    ("HashMap", "wat::core::HashMap"),  // slice 1e
+    ("HashSet", "wat::core::HashSet"),  // slice 1e
+    ("Vec", "wat::core::Vector"),       // slice 1f — rename + move
 ];
 
 /// Recursively walk a parsed [`TypeExpr`], emitting
@@ -1379,7 +1404,23 @@ fn infer_list(
             ":wat::core::result::expect" => {
                 return infer_result_expect(args, env, locals, fresh, subst, errors)
             }
-            ":wat::core::vec" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::core::vec" => {
+                // Arc 109 slice 1f — :wat::core::vec retires; the
+                // canonical constructor is :wat::core::Vector
+                // (verb-equals-type per INVENTORY § D). Pattern 2
+                // poison: push a synthetic TypeMismatch so every
+                // call site fires a hint, but continue to dispatch
+                // so the program still type-checks the rest of the
+                // way (consumers sweep call-by-call, no cliff).
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::vec".into(),
+                    param: "(retired verb)".into(),
+                    expected: ":wat::core::Vector".into(),
+                    got: ":wat::core::vec".into(),
+                });
+                return infer_list_constructor(args, env, locals, fresh, subst, errors);
+            }
+            ":wat::core::Vector" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::tuple" => return infer_tuple_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::string::concat" => return infer_string_concat(args, env, locals, fresh, subst, errors),

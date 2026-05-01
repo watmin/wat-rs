@@ -458,6 +458,37 @@ fn register_builtin_types(env: &mut TypeEnv) {
         },
     }));
 
+    // Arc 109 slice 1f — Vec<T> renames AND moves under
+    // :wat::core::*. The bare type form retires; the FQDN carries
+    // a NEW name (Vector, not Vec) per INVENTORY § B's "Vec is
+    // renamed AND moved" note.
+    //
+    //   typealias :wat::core::Vector<T> = :Vec<T>
+    //
+    // The internal canonical form stays "Vec" (head string) — the
+    // substrate's special-case dispatch reads against bare "Vec"
+    // throughout. The audit walker
+    // (`validate_bare_legacy_primitives`) detects bare-source
+    // `Parametric.head == "Vec"` and emits
+    // `BareLegacyContainerHead`; the FQDN form parses to a
+    // Parametric with head "wat::core::Vector" — distinct string,
+    // walker passes silently. parse_type_inner's canonicalize=true
+    // path rewrites "wat::core::Vector" → "Vec" so the existing
+    // dispatch keeps working.
+    //
+    // The constructor verb :wat::core::vec is poisoned in
+    // src/check.rs (Pattern 2 from SUBSTRATE-AS-TEACHER) with
+    // redirect to :wat::core::Vector; the new verb produces the
+    // same Parametric { head: "Vec", ... } shape internally.
+    env.register_builtin(TypeDef::Alias(AliasDef {
+        name: ":wat::core::Vector".into(),
+        type_params: vec!["T".into()],
+        expr: TypeExpr::Parametric {
+            head: "Vec".into(),
+            args: vec![TypeExpr::Path(":T".into())],
+        },
+    }));
+
     // :wat::eval::StepResult — populated in the Ok slot of the :Result
     // returned by :wat::eval-step! (arc 068). Two variants distinguish
     // "one rewrite happened, here's the next form" from "this is the
@@ -1488,6 +1519,10 @@ fn parse_type_inner(s: &str, original: &str, canonicalize: bool) -> Result<TypeE
                 "wat::core::Result" => "Result".to_string(),
                 "wat::core::HashMap" => "HashMap".to_string(),
                 "wat::core::HashSet" => "HashSet".to_string(),
+                // Arc 109 slice 1f — Vec<T> renames AND moves; FQDN
+                // form is :wat::core::Vector<T>. Internal canonical
+                // stays "Vec" so existing dispatch works.
+                "wat::core::Vector" => "Vec".to_string(),
                 _ => raw_head,
             }
         } else {
