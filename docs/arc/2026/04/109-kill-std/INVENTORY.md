@@ -842,6 +842,112 @@ is a real struct or a grouping noun. Real structs keep their
 - **UX:** call site like `(:wat::console::out handle msg)` reads
   like `(:wat::core::map f xs)` — same substrate-verb shape.
 
+### Mental model — what `Type/method` IS and ISN'T
+
+Captured 2026-05-01 during slice 1j console-rename design conversation.
+Preserves the rationale § K's slice plan rests on so future readers
+don't have to rederive it.
+
+**The form** — `(:ns::Type/method instance args...)` — is UFCS
+(Uniform Function Call Syntax, like Rust's `impl Type { fn method(self) }`),
+NOT OOP. The "instance" is just the first positional arg. There is no
+`self` binding, no `this`, no inheritance, no virtual dispatch, no
+encapsulated mutable state semantics. The `Type/` prefix is a naming
+discipline, not a dispatch mechanism.
+
+Two equivalent readings of the same call:
+
+```
+(:wat::core::Bytes/to-hex bytes)        ; "method-style"
+;; ↕ same machine code ↕
+(<the-fn-named-Bytes/to-hex> bytes)     ; "function-style"
+```
+
+The function's first parameter can be named anything — `b`, `pool`,
+`self` — it's a regular parameter. There's no privileged identifier.
+
+**Honest `Type/method` cases (the only ones § K endorses):**
+
+- **Method:** function takes a value of Type as its first arg
+  - `(:wat::core::Bytes/to-hex b)` — takes a Bytes ✓
+  - `(:wat::kernel::HandlePool/pop pool)` — takes a HandlePool ✓
+- **Constructor:** function returns a value of Type (no instance arg)
+  - `(:wat::core::Bytes/from-hex "deadbeef")` — returns Bytes ✓
+  - `(:wat::telemetry::Stats/zero)` — returns Stats ✓
+
+Anything else (a fn whose first arg is NOT Type-shaped AND that
+doesn't return Type either) is lying about its name. § K's audit is
+for catching these lies.
+
+**Stateful instances — two flavors, same call shape:**
+
+1. **Pure-value state (immutable, persistent).** The struct holds
+   the state; "mutation" produces a new instance you bind. Same
+   pattern as Clojure persistent maps or Haskell State monad.
+
+   ```
+   (:wat::telemetry::Stats/bump stats :a-cache-hit)
+   ;; returns a NEW Stats with one counter incremented;
+   ;; the old `stats` is untouched
+   ```
+
+   Examples: `Stats`, `Bytes`, `MetricsCadence`, `Failure`,
+   `RunResult`.
+
+2. **Handle state (wraps a mutable resource).** The struct is a
+   stable identifier (an `Arc<...>` / a fd / a channel half); the
+   resource it points at IS mutable. The handle stays the same
+   across calls; what it refers to changes.
+
+   ```
+   (:wat::kernel::HandlePool/pop pool)
+   ;; pool's underlying state changed; same `pool` handle still in scope
+   ```
+
+   Examples: `HandlePool`, `Sender<T>`, `Receiver<T>`, `Thread<I,O>`,
+   `Process<I,O>`.
+
+Both flavors fit `(Type/method instance args)`. The difference is
+what "operating on the instance" means: pure-value methods compute
+a new value (you discard the old); handle methods side-effect the
+underlying resource (you keep the same handle).
+
+**Encapsulation is namespace-driven, not language-feature-driven.**
+
+If `:wat::telemetry::*` exposes `Stats/zero`, `Stats/bump`,
+`Stats/snapshot` but NOT direct field accessors (`Stats/cache-hits`,
+`Stats/cache-misses`), then Stats' fields are effectively private —
+the namespace gatekeepers what's reachable. There's no `private`
+keyword; you just don't `define` or vend the accessor.
+
+So wat gets the OO-shaped surface (data + methods organized by
+type, optional encapsulation) without the OOP machinery (no
+inheritance, no dispatch, no `self`-binding, no method-table
+overhead). User-direction summary (2026-05-01):
+
+> i do not want object oriented programming.. but ... we need
+> something close to it... (fn self args) is the form?..
+>
+> [confirmation: yes, that's UFCS]
+>
+> and instance can be stateful?.. some struct of whatever it holds?..
+>
+> [confirmation: yes, both pure-value and handle flavors]
+
+If wat ever needs true polymorphism (one verb name, runtime
+dispatch on operand type), that's § J's typeclass mechanism — a
+**separate** mechanism that doesn't touch `Type/method` naming.
+The two patterns coexist:
+
+| Need | Form |
+|---|---|
+| "this function operates on this Type" | `Type/method` (UFCS naming; statically dispatched) |
+| "this verb means different things on different concrete types satisfying a protocol" | `:wat::kernel::join-result` (poly verb; typeclass dispatch on `Program<I,O>` per § J) |
+
+§ K's cleanup keeps `Type/method` honest by removing every site
+where the LHS isn't a real Type. § J adds typeclass dispatch as a
+parallel mechanism for the genuinely-polymorphic cases.
+
 ### Slice plan (rolled into 109's J-PIPELINE)
 
 Each affected service crate is its own slice; substrate-as-teacher
