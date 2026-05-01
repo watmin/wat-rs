@@ -120,9 +120,9 @@ pub enum CheckError {
         /// Name of the sibling Sender-bearing binding whose live
         /// reference outlives the join site.
         offending_binding: String,
-        /// Kind of the offending value — "Sender", "QueueSender",
-        /// "QueuePair", or "HandlePool". Names which substrate
-        /// abstraction holds the live Sender clone.
+        /// Kind of the offending value — "Sender", "Channel", or
+        /// "HandlePool". Names which substrate abstraction holds
+        /// the live Sender clone.
         offending_kind: &'static str,
         /// Source location of the Thread binding (the let* site
         /// where the structural deadlock can be addressed by
@@ -288,6 +288,29 @@ pub enum CheckError {
         /// prefix.
         span: Span,
     },
+    /// Arc 109 slice K.kernel-channel — a keyword carrying one of
+    /// the retired kernel `Queue*` family names. The kernel's
+    /// channel-primitive vocabulary moves from Queue* (which
+    /// leaked crossbeam's data-structure name) to the canonical
+    /// Channel / Sender / Receiver family.
+    ///
+    /// Retired prefixes:
+    /// - `:wat::kernel::QueueSender` → `:wat::kernel::Sender`
+    /// - `:wat::kernel::QueueReceiver` → `:wat::kernel::Receiver`
+    /// - `:wat::kernel::QueuePair` → `:wat::kernel::Channel`
+    /// - `:wat::kernel::make-bounded-queue` → `:wat::kernel::make-bounded-channel`
+    /// - `:wat::kernel::make-unbounded-queue` → `:wat::kernel::make-unbounded-channel`
+    BareLegacyKernelQueuePath {
+        /// User-source keyword — `":wat::kernel::QueueSender"`,
+        /// `":wat::kernel::make-bounded-queue"`, etc.
+        old: String,
+        /// Canonical replacement — `":wat::kernel::Sender"`,
+        /// `":wat::kernel::make-bounded-channel"`, etc.
+        new: String,
+        /// Source location of the keyword carrying the retired
+        /// name.
+        span: Span,
+    },
 }
 
 impl fmt::Display for CheckError {
@@ -383,6 +406,11 @@ impl fmt::Display for CheckError {
             CheckError::BareLegacyLruCacheServicePath { old, new, span } => write!(
                 f,
                 "legacy lru-cache-service path '{}' at {} is retired (arc 109 slice K.lru); canonical form is '{}'. The :wat::lru::CacheService grouping noun retired per § K's '/ requires a real Type' doctrine. Real types Stats / MetricsCadence / State / Report keep PascalCase + /methods (just one less namespace segment). Plus Pattern B canonicalization: ReqPair renamed to ReqChannel (in-crate ReqPair/ReplyChannel mumble); ReplyRx<V> + ReplyChannel<V> typealiases minted to complete the Pattern B reference. Rename '{}' → '{}' at the offending site.",
+                old, span, new, old, new
+            ),
+            CheckError::BareLegacyKernelQueuePath { old, new, span } => write!(
+                f,
+                "legacy kernel queue path '{}' at {} is retired (arc 109 slice K.kernel-channel); canonical form is '{}'. The :wat::kernel::Queue* family renamed to Channel / Sender / Receiver (Queue leaked crossbeam's data-structure name; the canonical vocabulary is the substrate's honest naming). File moved: wat/kernel/queue.wat → wat/kernel/channel.wat. Rename '{}' → '{}' at the offending site.",
                 old, span, new, old, new
             ),
         }
@@ -575,6 +603,12 @@ impl CheckError {
             }
             CheckError::BareLegacyLruCacheServicePath { old, new, span } => {
                 Diagnostic::new("BareLegacyLruCacheServicePath")
+                    .field("old", old.as_str())
+                    .field("new", new.as_str())
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyKernelQueuePath { old, new, span } => {
+                Diagnostic::new("BareLegacyKernelQueuePath")
                     .field("old", old.as_str())
                     .field("new", new.as_str())
                     .field("location", format!("{}", span))
@@ -1086,6 +1120,18 @@ pub fn check_program(
     }
     for form in forms {
         validate_legacy_lru_cache_service_path(form, &mut errors);
+    }
+
+    // Arc 109 slice K.kernel-channel — refuse the legacy
+    // `:wat::kernel::Queue*` family. Kernel channel-primitive
+    // vocabulary moved from Queue* (which leaked crossbeam's
+    // data-structure name) to the canonical Channel / Sender /
+    // Receiver family.
+    for func in sym.functions.values() {
+        validate_legacy_kernel_queue_path(&func.body, &mut errors);
+    }
+    for form in forms {
+        validate_legacy_kernel_queue_path(form, &mut errors);
     }
 
     // Check each user define's body against its declared return type.
@@ -1613,6 +1659,74 @@ fn walk_for_legacy_lru_cache_service(node: &WatAST, errors: &mut Vec<CheckError>
     }
 }
 
+/// Arc 109 slice K.kernel-channel — walks every WatAST keyword
+/// looking for the five retired kernel `Queue*` family names.
+/// Each retired name has a single canonical replacement; the
+/// substitution table is hard-coded.
+fn validate_legacy_kernel_queue_path(node: &WatAST, errors: &mut Vec<CheckError>) {
+    walk_for_legacy_kernel_queue(node, errors);
+}
+
+/// Retired kernel `Queue*` family — paired with their canonical
+/// replacements. Type names use `<` matching since they appear
+/// as parametric heads (e.g. `:wat::kernel::QueueSender<i64>`);
+/// verb names match the bare keyword.
+const LEGACY_KERNEL_QUEUE_NAMES: &[(&str, &str)] = &[
+    (":wat::kernel::QueueSender", ":wat::kernel::Sender"),
+    (":wat::kernel::QueueReceiver", ":wat::kernel::Receiver"),
+    (":wat::kernel::QueuePair", ":wat::kernel::Channel"),
+    (
+        ":wat::kernel::make-bounded-queue",
+        ":wat::kernel::make-bounded-channel",
+    ),
+    (
+        ":wat::kernel::make-unbounded-queue",
+        ":wat::kernel::make-unbounded-channel",
+    ),
+];
+
+fn walk_for_legacy_kernel_queue(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::Keyword(s, span) => {
+            for (legacy, canonical) in LEGACY_KERNEL_QUEUE_NAMES {
+                // Match the legacy name as a prefix; type aliases
+                // can carry `<...>` parametrics tail so we strip-
+                // and-rebuild rather than equal-match.
+                if let Some(tail) = s.strip_prefix(legacy) {
+                    // Boundary check: the legacy name must be
+                    // followed by `<`, end-of-string, or a non-
+                    // identifier character. This prevents
+                    // `:wat::kernel::QueueSenderXYZ` from matching
+                    // `QueueSender` (theoretical; not present
+                    // today but a sane guard).
+                    let boundary_ok = tail.is_empty()
+                        || tail.starts_with('<')
+                        || !tail
+                            .chars()
+                            .next()
+                            .map(|c| c.is_alphanumeric() || c == '_' || c == '-')
+                            .unwrap_or(false);
+                    if boundary_ok {
+                        let new = format!("{}{}", canonical, tail);
+                        errors.push(CheckError::BareLegacyKernelQueuePath {
+                            old: s.clone(),
+                            new,
+                            span: span.clone(),
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+        WatAST::List(items, _) => {
+            for item in items {
+                walk_for_legacy_kernel_queue(item, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Recursive walker. At every `:wat::core::let*` form, runs the
 /// structural rule: if the let*'s lexical extent has any Thread
 /// `Thread/join-result` call AND any sibling binding whose
@@ -1793,15 +1907,15 @@ fn type_is_thread_kind(ty: &TypeExpr, types: &TypeEnv) -> bool {
 ///     of the spawn-tuple-destructure pattern; future arc.
 fn type_contains_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static str> {
     // Match wat-level Sender-anchor heads at the SURFACE first — `expand_alias`
-    // would unwrap `QueuePair` → `(QueueSender, QueueReceiver)` and then
-    // `QueueSender` → `rust::crossbeam_channel::Sender`, which is too generic
+    // would unwrap `Channel` → `(Sender, Receiver)` and then
+    // `Sender` → `rust::crossbeam_channel::Sender`, which is too generic
     // to flag (Console.wat etc. would false-positive).
     if let TypeExpr::Parametric { head, args } = ty {
         if matches!(
             head.as_str(),
-            "wat::kernel::QueuePair" | "wat::kernel::QueueSender"
+            "wat::kernel::Channel" | "wat::kernel::Sender"
         ) {
-            return Some("QueueSender");
+            return Some("Sender");
         }
         // Not a direct match; try peeling an alias ONCE in case `head` is a
         // user typealias that points at QueuePair/QueueSender.

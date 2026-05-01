@@ -1,4 +1,4 @@
-;; wat/kernel/queue.wat — kernel-namespace channel aliases.
+;; wat/kernel/channel.wat — kernel-namespace channel aliases.
 ;;
 ;; Three names, one shape. The runtime exposes channel endpoints as
 ;; `:rust::crossbeam_channel::Sender<T>` / `Receiver<T>` (the actual
@@ -7,9 +7,15 @@
 ;; reaches for — without forcing each caller to spell out the long
 ;; rust:: paths every time.
 ;;
-;;   QueueSender<T>    — single sender end of a substrate channel
-;;   QueueReceiver<T>  — single receiver end of a substrate channel
-;;   QueuePair<T>      — what `make-bounded/unbounded-queue` returns
+;;   Sender<T>      — single sender end of a substrate channel
+;;   Receiver<T>    — single receiver end of a substrate channel
+;;   Channel<T>     — what `make-bounded-channel` / `make-unbounded-channel` returns
+;;
+;; Renamed from QueueSender / QueueReceiver / QueuePair (and the
+;; matching `make-*-queue` verbs) per arc 109 slice K.kernel-channel
+;; (gaze: "Queue" leaked crossbeam's data-structure name; the
+;; canonical Channel/Sender/Receiver vocabulary is the substrate's
+;; honest naming).
 ;;   Chosen<T>         — what `:wat::kernel::select` returns
 ;;                       (idx, wat::core::Result<wat::core::Option<T>, ThreadDiedError>) per arc 111
 ;;                       — which receiver fired, and what it produced.
@@ -31,14 +37,14 @@
 ;; types::register_stdlib_types), which bypasses the reserved-prefix
 ;; gate that otherwise blocks user code from declaring under :wat::*.
 
-(:wat::core::typealias :wat::kernel::QueueSender<T>
+(:wat::core::typealias :wat::kernel::Sender<T>
   :rust::crossbeam_channel::Sender<T>)
 
-(:wat::core::typealias :wat::kernel::QueueReceiver<T>
+(:wat::core::typealias :wat::kernel::Receiver<T>
   :rust::crossbeam_channel::Receiver<T>)
 
-(:wat::core::typealias :wat::kernel::QueuePair<T>
-  :(wat::kernel::QueueSender<T>,wat::kernel::QueueReceiver<T>))
+(:wat::core::typealias :wat::kernel::Channel<T>
+  :(wat::kernel::Sender<T>,wat::kernel::Receiver<T>))
 
 ;; Arc 113 — Err arm widened to a wat::core::Vector<ThreadDiedError> so cascades
 ;; carry the chain. Head = the immediate peer that died; tail =

@@ -79,8 +79,8 @@ const STDLIB_FILES: &[WatSource] = &[
     // construction-time filter eliminates the wat-stdlib wrapper layer
     // and the coincident-get / present-get conveniences (Q1 = a).
     WatSource {
-        path: "wat/kernel/queue.wat",
-        source: include_str!("../wat/kernel/queue.wat"),
+        path: "wat/kernel/channel.wat",
+        source: include_str!("../wat/kernel/channel.wat"),
     },
     WatSource {
         path: "wat/stream.wat",
