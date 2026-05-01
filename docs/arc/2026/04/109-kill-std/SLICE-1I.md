@@ -1,7 +1,44 @@
 # Arc 109 Slice 1i — Result variants FQDN (`Ok` → `:wat::core::Ok`, `Err` → `:wat::core::Err`)
 
-**Compaction-amnesia anchor.** Read this first if you're picking up
-slice 1i mid-flight.
+**Status: shipped 2026-05-01.** Walker (commit `35e44dc`) +
+four-tier sweep across commits `5eff224` → `d04ecfc` →
+`6ac06c2` → `c7ab499`. 39 files swept; **~337 rename sites
+total** (280 patterns + 57 constructors — lower than the ~500
+estimate because most substrate stdlib paths use match patterns,
+not constructors, and constructor-heavy code lives in tests).
+Zero MANUAL flags. cargo test --release --workspace 1476/0.
+
+**Two substrate-gap fixes during sweep** (mirrored slice 1h's
+gap pattern):
+
+1. **`src/check.rs`** — MatchShape detection at the
+   `pat_items.first()` keyword arm. Slice 1h's `// slice 1i will
+   add` comment marker became literal: `:wat::core::Ok` /
+   `:wat::core::Err` keyword recognition added to the FQDN
+   keyword path. Without this, every `((:wat::core::Ok ...))`
+   pattern defaulted to Option shape and cascaded TypeMismatch
+   errors in `wat/std/stream.wat`.
+
+2. **`src/runtime.rs`** — `try_match_pattern` list-pattern
+   dispatcher. Extended bare-Symbol `Ok`/`Err` arms to also
+   accept `:wat::core::Ok` / `:wat::core::Err` keywords. Without
+   this, FQDN match patterns fell through to the user-enum
+   keyword arm and never matched the Result value, causing
+   `PatternMatchFailed` at runtime.
+
+**Architectural milestone shipped**: § C is now structurally
+complete. Post-1h+1i, the substrate has **zero bare-symbol-at-
+callable-head exceptions**. The "callable heads must be FQDN
+keywords" rule is universal. Mechanical extension worked exactly
+as planned — slice 1h proved both substrate paths (Symbol +
+Keyword); slice 1i was just two more applications of the
+Symbol-headed-with-payload mechanism.
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record. Pattern 2 mechanism (verb
+retirement via synthetic TypeMismatch) is now thoroughly
+proven across both verb retirements (1f/1g) and AST-grammar
+exceptions (1h/1i). Reusable for any future similar work.**
 
 ## What this slice does
 

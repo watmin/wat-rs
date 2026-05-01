@@ -107,8 +107,13 @@ constructor). See `SLICE-1E.md`.
 |---|---|---|
 | `Some` (bare symbol) | `:wat::core::Some` | ✓ shipped slice 1h |
 | `:None` (bare keyword) | `:wat::core::None` | ✓ shipped slice 1h |
-| `Ok` (bare symbol) | `:wat::core::Ok` | pending slice 1i |
-| `Err` (bare symbol) | `:wat::core::Err` | pending slice 1i |
+| `Ok` (bare symbol) | `:wat::core::Ok` | ✓ shipped slice 1i |
+| `Err` (bare symbol) | `:wat::core::Err` | ✓ shipped slice 1i |
+
+**§ C structurally complete (post-1h+1i).** All four variant
+constructors moved to FQDN under `:wat::core::*`. The substrate
+has zero bare-symbol-at-callable-head exceptions; the "callable
+heads must be FQDN keywords" rule is universal.
 
 All four variants of the substrate-built-in `Option<T>` /
 `Result<T,E>` enums become FQDN at every USAGE site

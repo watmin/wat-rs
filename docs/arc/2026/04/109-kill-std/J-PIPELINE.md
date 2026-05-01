@@ -79,6 +79,18 @@ order is preserved.
   hijack of FQDN builtins; (2) is_match_canonical bare-only
   recognition. cargo test workspace 1476/0. See `SLICE-1H.md`.
   Render_value FQDN flip deferred as task #189 follow-up.
+- 1i: Result variants FQDN — `Ok` → `:wat::core::Ok` and `Err` →
+  `:wat::core::Err` — shipped 2026-05-01. Mechanical extension
+  of slice 1h: both Ok and Err are Symbol-headed-with-payload
+  (same shape as Some), so substrate work was just two more
+  Pattern 2 poisons + two hint helpers. 39 files swept across
+  four tiers; **~337 rename sites** (280 patterns + 57
+  constructors). Two substrate-gap fixes mirroring 1h's pattern:
+  MatchShape FQDN keyword recognition + try_match_pattern
+  FQDN keyword arms. cargo test workspace 1476/0. See
+  `SLICE-1I.md`. **§ C structurally complete**: substrate has
+  zero bare-symbol-at-callable-head exceptions; the "callable
+  heads must be FQDN keywords" rule is universal.
 - § J 10a: `:wat::kernel::Program<I,O>` typealias minted (alias for `:Process<I,O>`)
 - § J 10b: sonnet sweep — annotations prefer Program (in scope of stdlib boundaries)
 - Arc 114 absorbed § J 10c's "Thread as concrete struct"
