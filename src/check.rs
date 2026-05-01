@@ -557,6 +557,42 @@ fn arc_109_none_variant_migration_hint(callee: &str, _expected: &str, _got: &str
     )
 }
 
+/// Arc 109 slice 1i — fires when the dispatcher has poisoned the
+/// bare-Symbol `Ok` head. Mirrors slice 1h's Some hint.
+fn arc_109_ok_variant_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
+    if callee != "Ok" {
+        return None;
+    }
+    Some(
+        "arc 109 slice 1i — bare `Ok` is a retiring grammar \
+         exception (wat's general rule: callable heads must be \
+         FQDN keywords). Canonical form is `:wat::core::Ok`. \
+         Rename `(Ok x)` → `(:wat::core::Ok x)` at constructor \
+         sites; rename `((Ok v) ...)` → `((:wat::core::Ok v) ...)` \
+         at match-pattern sites. The substrate produces the same \
+         `Result<T,E>` value; only the spelling changes."
+            .into(),
+    )
+}
+
+/// Arc 109 slice 1i — fires when the dispatcher has poisoned the
+/// bare-Symbol `Err` head. Mirrors slice 1h's Some hint.
+fn arc_109_err_variant_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
+    if callee != "Err" {
+        return None;
+    }
+    Some(
+        "arc 109 slice 1i — bare `Err` is a retiring grammar \
+         exception (wat's general rule: callable heads must be \
+         FQDN keywords). Canonical form is `:wat::core::Err`. \
+         Rename `(Err e)` → `(:wat::core::Err e)` at constructor \
+         sites; rename `((Err _e) ...)` → `((:wat::core::Err _e) ...)` \
+         at match-pattern sites. The substrate produces the same \
+         `Result<T,E>` value; only the spelling changes."
+            .into(),
+    )
+}
+
 fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
     let hints: Vec<String> = [
         arc_114_migration_hint(callee, expected, got),
@@ -565,6 +601,8 @@ fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
         arc_109_tuple_verb_migration_hint(callee, expected, got),
         arc_109_some_variant_migration_hint(callee, expected, got),
         arc_109_none_variant_migration_hint(callee, expected, got),
+        arc_109_ok_variant_migration_hint(callee, expected, got),
+        arc_109_err_variant_migration_hint(callee, expected, got),
     ]
     .into_iter()
     .flatten()
@@ -1919,64 +1957,88 @@ fn infer_list(
             args: vec![inner_ty],
         });
     }
-    // Legacy bare-Symbol-only path for Ok / Err (slice 1i territory).
-    if let WatAST::Symbol(ident, _) = head {
-        // Skip Some — already handled above.
-        if ident.as_str() == "Some" {
-            unreachable!("Some handled in slice-1h section above");
-        }
-        // `(Ok expr)` — built-in tagged constructor of `:Result<T,E>`.
-        // Infers T from the argument; E is a fresh var for later
-        // unification against the match arms or declared type.
-        if ident.as_str() == "Ok" {
-            let args = &items[1..];
-            if args.len() != 1 {
-                errors.push(CheckError::ArityMismatch {
-                    callee: "Ok".into(),
-                    expected: 1,
-                    got: args.len(),
-                });
-                for arg in args {
-                    let _ = infer(arg, env, locals, fresh, subst, errors);
-                }
-                return Some(TypeExpr::Parametric {
-                    head: "Result".into(),
-                    args: vec![fresh.fresh(), fresh.fresh()],
-                });
-            }
-            let t_ty = infer(&args[0], env, locals, fresh, subst, errors)
-                .unwrap_or_else(|| fresh.fresh());
-            let e_var = fresh.fresh();
-            return Some(TypeExpr::Parametric {
-                head: "Result".into(),
-                args: vec![t_ty, e_var],
+    // Arc 109 slice 1i — Result `Ok` / `Err` constructors recognized
+    // at both bare-Symbol (legacy grammar exception, poisoned) and
+    // FQDN-Keyword (canonical) heads. Mirrors slice 1h's Some shape.
+    let head_is_ok_bare = matches!(
+        head,
+        WatAST::Symbol(ident, _) if ident.as_str() == "Ok"
+    );
+    let head_is_ok_fqdn = matches!(
+        head,
+        WatAST::Keyword(k, _) if k == ":wat::core::Ok"
+    );
+    if head_is_ok_bare || head_is_ok_fqdn {
+        if head_is_ok_bare {
+            errors.push(CheckError::TypeMismatch {
+                callee: "Ok".into(),
+                param: "(retired bare-symbol exception)".into(),
+                expected: ":wat::core::Ok".into(),
+                got: "Ok".into(),
             });
         }
-        // `(Err expr)` — dual. Infers E from the argument; T is fresh.
-        if ident.as_str() == "Err" {
-            let args = &items[1..];
-            if args.len() != 1 {
-                errors.push(CheckError::ArityMismatch {
-                    callee: "Err".into(),
-                    expected: 1,
-                    got: args.len(),
-                });
-                for arg in args {
-                    let _ = infer(arg, env, locals, fresh, subst, errors);
-                }
-                return Some(TypeExpr::Parametric {
-                    head: "Result".into(),
-                    args: vec![fresh.fresh(), fresh.fresh()],
-                });
+        let args = &items[1..];
+        if args.len() != 1 {
+            errors.push(CheckError::ArityMismatch {
+                callee: if head_is_ok_bare { "Ok".into() } else { ":wat::core::Ok".into() },
+                expected: 1,
+                got: args.len(),
+            });
+            for arg in args {
+                let _ = infer(arg, env, locals, fresh, subst, errors);
             }
-            let e_ty = infer(&args[0], env, locals, fresh, subst, errors)
-                .unwrap_or_else(|| fresh.fresh());
-            let t_var = fresh.fresh();
             return Some(TypeExpr::Parametric {
                 head: "Result".into(),
-                args: vec![t_var, e_ty],
+                args: vec![fresh.fresh(), fresh.fresh()],
             });
         }
+        let t_ty = infer(&args[0], env, locals, fresh, subst, errors)
+            .unwrap_or_else(|| fresh.fresh());
+        let e_var = fresh.fresh();
+        return Some(TypeExpr::Parametric {
+            head: "Result".into(),
+            args: vec![t_ty, e_var],
+        });
+    }
+    let head_is_err_bare = matches!(
+        head,
+        WatAST::Symbol(ident, _) if ident.as_str() == "Err"
+    );
+    let head_is_err_fqdn = matches!(
+        head,
+        WatAST::Keyword(k, _) if k == ":wat::core::Err"
+    );
+    if head_is_err_bare || head_is_err_fqdn {
+        if head_is_err_bare {
+            errors.push(CheckError::TypeMismatch {
+                callee: "Err".into(),
+                param: "(retired bare-symbol exception)".into(),
+                expected: ":wat::core::Err".into(),
+                got: "Err".into(),
+            });
+        }
+        let args = &items[1..];
+        if args.len() != 1 {
+            errors.push(CheckError::ArityMismatch {
+                callee: if head_is_err_bare { "Err".into() } else { ":wat::core::Err".into() },
+                expected: 1,
+                got: args.len(),
+            });
+            for arg in args {
+                let _ = infer(arg, env, locals, fresh, subst, errors);
+            }
+            return Some(TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![fresh.fresh(), fresh.fresh()],
+            });
+        }
+        let e_ty = infer(&args[0], env, locals, fresh, subst, errors)
+            .unwrap_or_else(|| fresh.fresh());
+        let t_var = fresh.fresh();
+        return Some(TypeExpr::Parametric {
+            head: "Result".into(),
+            args: vec![t_var, e_ty],
+        });
     }
 
     // Non-keyword head (bare symbol or inline expression). Not typed
