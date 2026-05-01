@@ -55,7 +55,7 @@
   ;; Clock injection — a closure taking unit, returning a wall-
   ;; clock Instant. Tests pass a deterministic now-fn; production
   ;; passes (lambda (_) (:wat::time::now)). Same pattern as arc 087.
-  (now-fn :fn(())->wat::time::Instant))
+  (now-fn :fn(wat::core::unit)->wat::time::Instant))
 
 
 ;; ─── /log — universal form (caller passes level explicitly) ─────
@@ -69,13 +69,13 @@
     (wu     :wat::telemetry::WorkUnit)
     (level  :wat::core::keyword)
     (data   :wat::WatAST)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (((handle :wat::telemetry::SinkHandles)
       (:wat::telemetry::WorkUnitLog/handle logger))
      ((caller :wat::core::keyword)
       (:wat::telemetry::WorkUnitLog/caller logger))
-     ((now-fn :fn(())->wat::time::Instant)
+     ((now-fn :fn(wat::core::unit)->wat::time::Instant)
       (:wat::telemetry::WorkUnitLog/now-fn logger))
      ((now :wat::time::Instant) (now-fn ()))
      ((time-ns :wat::core::i64) (:wat::time::epoch-nanos now))
@@ -127,7 +127,7 @@
     (logger :wat::telemetry::WorkUnitLog)
     (wu     :wat::telemetry::WorkUnit)
     (data   :wat::WatAST)
-    -> :())
+    -> :wat::core::unit)
   (:wat::telemetry::WorkUnitLog/log logger wu :debug data))
 
 (:wat::core::define
@@ -135,7 +135,7 @@
     (logger :wat::telemetry::WorkUnitLog)
     (wu     :wat::telemetry::WorkUnit)
     (data   :wat::WatAST)
-    -> :())
+    -> :wat::core::unit)
   (:wat::telemetry::WorkUnitLog/log logger wu :info data))
 
 (:wat::core::define
@@ -143,7 +143,7 @@
     (logger :wat::telemetry::WorkUnitLog)
     (wu     :wat::telemetry::WorkUnit)
     (data   :wat::WatAST)
-    -> :())
+    -> :wat::core::unit)
   (:wat::telemetry::WorkUnitLog/log logger wu :warn data))
 
 (:wat::core::define
@@ -151,5 +151,5 @@
     (logger :wat::telemetry::WorkUnitLog)
     (wu     :wat::telemetry::WorkUnit)
     (data   :wat::WatAST)
-    -> :())
+    -> :wat::core::unit)
   (:wat::telemetry::WorkUnitLog/log logger wu :error data))

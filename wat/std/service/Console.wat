@@ -56,9 +56,9 @@
 ;; Console/err. The driver's internal pairs hold the matching
 ;; (Rx, AckTx) — paired by index inside Console/spawn.
 (:wat::core::typealias :wat::std::service::Console::AckTx
-  :wat::kernel::QueueSender<()>)
+  :wat::kernel::QueueSender<wat::core::unit>)
 (:wat::core::typealias :wat::std::service::Console::AckRx
-  :wat::kernel::QueueReceiver<()>)
+  :wat::kernel::QueueReceiver<wat::core::unit>)
 (:wat::core::typealias :wat::std::service::Console::Handle
   :(wat::std::service::Console::Tx,wat::std::service::Console::AckRx))
 (:wat::core::typealias :wat::std::service::Console::DriverPair
@@ -71,7 +71,7 @@
 ;; handle (arc 114). Caller pops N Handles, finishes the pool,
 ;; scoped-drops at end → driver exits.
 (:wat::core::typealias :wat::std::service::Console::Spawn
-  :(wat::kernel::HandlePool<wat::std::service::Console::Handle>,wat::kernel::Thread<(),()>))
+  :(wat::kernel::HandlePool<wat::std::service::Console::Handle>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
 
 ;; --- Driver loop ---
 ;;
@@ -99,8 +99,8 @@
     (pairs :Vec<wat::std::service::Console::DriverPair>)
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
-    -> :())
-  (:wat::core::if (:wat::core::empty? pairs) -> :()
+    -> :wat::core::unit)
+  (:wat::core::if (:wat::core::empty? pairs) -> :wat::core::unit
     ()
     (:wat::core::let*
       (((rxs :Vec<wat::std::service::Console::Rx>)
@@ -114,7 +114,7 @@
        ((idx :wat::core::i64) (:wat::core::first chosen))
        ((maybe :wat::kernel::CommResult<wat::std::service::Console::Message>)
         (:wat::core::second chosen)))
-      (:wat::core::match maybe -> :()
+      (:wat::core::match maybe -> :wat::core::unit
         ((Ok (Some tagged))
           (:wat::core::let*
             (((tag :wat::core::i64) (:wat::core::first tagged))
@@ -122,7 +122,7 @@
              ((_ :wat::core::i64) (:wat::core::if (:wat::core::= tag 0) -> :wat::core::i64
                         (:wat::io::IOWriter/write-string stdout msg)
                         (:wat::io::IOWriter/write-string stderr msg)))
-             ((_ack :())
+             ((_ack :wat::core::unit)
               (:wat::std::service::Console/ack-at pairs idx)))
             (:wat::std::service::Console/loop pairs stdout stderr)))
         ((Ok :None)
@@ -148,13 +148,13 @@
   (:wat::std::service::Console/ack-at
     (pairs :Vec<wat::std::service::Console::DriverPair>)
     (idx :wat::core::i64)
-    -> :())
-  (:wat::core::match (:wat::core::get pairs idx) -> :()
+    -> :wat::core::unit)
+  (:wat::core::match (:wat::core::get pairs idx) -> :wat::core::unit
     ((Some pair)
       (:wat::core::let*
         (((ack-tx :wat::std::service::Console::AckTx)
           (:wat::core::second pair)))
-        (:wat::core::result::expect -> :()
+        (:wat::core::result::expect -> :wat::core::unit
           (:wat::kernel::send ack-tx ())
           "Console/ack-at: ack-tx disconnected — producer scope died mid-write?")))
     (:None ())))
@@ -180,16 +180,16 @@
   (:wat::std::service::Console/out
     (handle :wat::std::service::Console::Handle)
     (msg :wat::core::String)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (((tx :wat::std::service::Console::Tx) (:wat::core::first handle))
      ((ack-rx :wat::std::service::Console::AckRx) (:wat::core::second handle))
-     ((_send :())
-      (:wat::core::result::expect -> :()
+     ((_send :wat::core::unit)
+      (:wat::core::result::expect -> :wat::core::unit
         (:wat::kernel::send tx (:wat::core::tuple 0 msg))
         "Console/out: tx disconnected — Console driver died?"))
-     ((_ack :Option<()>)
-      (:wat::core::result::expect -> :Option<()>
+     ((_ack :Option<wat::core::unit>)
+      (:wat::core::result::expect -> :Option<wat::core::unit>
         (:wat::kernel::recv ack-rx)
         "Console/out: ack-rx disconnected — Console driver died mid-write?")))
     ()))
@@ -198,16 +198,16 @@
   (:wat::std::service::Console/err
     (handle :wat::std::service::Console::Handle)
     (msg :wat::core::String)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (((tx :wat::std::service::Console::Tx) (:wat::core::first handle))
      ((ack-rx :wat::std::service::Console::AckRx) (:wat::core::second handle))
-     ((_send :())
-      (:wat::core::result::expect -> :()
+     ((_send :wat::core::unit)
+      (:wat::core::result::expect -> :wat::core::unit
         (:wat::kernel::send tx (:wat::core::tuple 1 msg))
         "Console/err: tx disconnected — Console driver died?"))
-     ((_ack :Option<()>)
-      (:wat::core::result::expect -> :Option<()>
+     ((_ack :Option<wat::core::unit>)
+      (:wat::core::result::expect -> :Option<wat::core::unit>
         (:wat::kernel::recv ack-rx)
         "Console/err: ack-rx disconnected — Console driver died mid-write?")))
     ()))
@@ -248,7 +248,7 @@
         (:wat::core::lambda
           ((_i :wat::core::i64)
            -> :(wat::std::service::Console::AckTx,wat::std::service::Console::AckRx))
-          (:wat::kernel::make-bounded-queue :() 1))))
+          (:wat::kernel::make-bounded-queue :wat::core::unit 1))))
      ;; Producer-side: pop a Handle = (req-Tx, ack-Rx).
      ((handles :Vec<wat::std::service::Console::Handle>)
       (:wat::std::list::zip
@@ -279,11 +279,11 @@
             (:wat::core::first p)))))
      ((pool :wat::kernel::HandlePool<wat::std::service::Console::Handle>)
       (:wat::kernel::HandlePool::new "Console" handles))
-     ((driver :wat::kernel::Thread<(),()>)
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<()>)
-           (_out :rust::crossbeam_channel::Sender<()>)
-           -> :())
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
+           -> :wat::core::unit)
           (:wat::std::service::Console/loop driver-pairs stdout stderr)))))
     (:wat::core::tuple pool driver)))

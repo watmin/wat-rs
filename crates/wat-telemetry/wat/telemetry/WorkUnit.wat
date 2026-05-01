@@ -62,7 +62,7 @@
   (:wat::telemetry::WorkUnit/incr!
     (wu :wat::telemetry::WorkUnit)
     (name :wat::holon::HolonAST)
-    -> :())
+    -> :wat::core::unit)
   (:rust::telemetry::WorkUnit::incr wu name))
 
 
@@ -71,7 +71,7 @@
     (wu :wat::telemetry::WorkUnit)
     (name :wat::holon::HolonAST)
     (secs :wat::core::f64)
-    -> :())
+    -> :wat::core::unit)
   ;; The Rust shim's path mirrors its Rust ident verbatim — the
   ;; #[wat_dispatch] macro uses `method.sig.ident` directly, so the
   ;; path is `append_dt` (underscore), not `append-dt` (kebab). The
@@ -175,7 +175,7 @@
        ((req-tx :wat::telemetry::Service::ReqTx<wat::telemetry::Event>)
         (:wat::core::first handle))
        ((ack-rx :wat::telemetry::Service::AckRx) (:wat::core::second handle))
-       ((_ship  :())
+       ((_ship  :wat::core::unit)
         (:wat::telemetry::Service/batch-log req-tx ack-rx events)))
       result)))
 
@@ -202,14 +202,14 @@
     (body :fn()->T)
     -> :T)
   (:wat::core::let*
-    (((_bump      :())  (:wat::telemetry::WorkUnit/incr! wu name))
+    (((_bump      :wat::core::unit)  (:wat::telemetry::WorkUnit/incr! wu name))
      ((start      :wat::core::i64) (:wat::time::epoch-nanos (:wat::time::now)))
      ((result     :T)   (body))
      ((end        :wat::core::i64) (:wat::time::epoch-nanos (:wat::time::now)))
      ((delta-ns   :wat::core::i64) (:wat::core::- end start))
      ((delta-ns-f :wat::core::f64) (:wat::core::i64::to-f64 delta-ns))
      ((secs       :wat::core::f64) (:wat::core::/ delta-ns-f 1000000000.0))
-     ((_dt        :())  (:wat::telemetry::WorkUnit/append-dt! wu name secs)))
+     ((_dt        :wat::core::unit)  (:wat::telemetry::WorkUnit/append-dt! wu name secs)))
     result))
 
 

@@ -23,7 +23,7 @@
 
 (:wat::core::struct :wat::holon::lru::HologramCache
   (hologram :wat::holon::Hologram)
-  (lru :wat::lru::LocalCache<wat::holon::HolonAST,()>))
+  (lru :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::unit>))
 
 ;; ─── Construction ────────────────────────────────────────────────
 ;;
@@ -55,15 +55,15 @@
     (store :wat::holon::lru::HologramCache)
     (key :wat::holon::HolonAST)
     (val :wat::holon::HolonAST)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (((h :wat::holon::Hologram) (:wat::holon::lru::HologramCache/hologram store))
-     ((lru :wat::lru::LocalCache<wat::holon::HolonAST,()>)
+     ((lru :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::unit>)
       (:wat::holon::lru::HologramCache/lru store))
-     ((_ :()) (:wat::holon::Hologram/put h key val))
-     ((evicted :Option<(wat::holon::HolonAST,())>)
+     ((_ :wat::core::unit) (:wat::holon::Hologram/put h key val))
+     ((evicted :Option<(wat::holon::HolonAST,wat::core::unit)>)
       (:wat::lru::LocalCache::put lru key ())))
-    (:wat::core::match evicted -> :()
+    (:wat::core::match evicted -> :wat::core::unit
       ((Some pair)
         (:wat::core::let*
           (((evicted-key :wat::holon::HolonAST) (:wat::core::first pair))
@@ -85,7 +85,7 @@
     -> :Option<wat::holon::HolonAST>)
   (:wat::core::let*
     (((h :wat::holon::Hologram) (:wat::holon::lru::HologramCache/hologram store))
-     ((lru :wat::lru::LocalCache<wat::holon::HolonAST,()>)
+     ((lru :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::unit>)
       (:wat::holon::lru::HologramCache/lru store)))
     (:wat::core::match
       (:wat::holon::Hologram/find h probe)
@@ -94,7 +94,7 @@
         (:wat::core::let*
           (((matched-key :wat::holon::HolonAST) (:wat::core::first pair))
            ((val :wat::holon::HolonAST) (:wat::core::second pair))
-           ((_ :Option<(wat::holon::HolonAST,())>)
+           ((_ :Option<(wat::holon::HolonAST,wat::core::unit)>)
             (:wat::lru::LocalCache::put lru matched-key ())))
           (Some val)))
       (:None :None))))

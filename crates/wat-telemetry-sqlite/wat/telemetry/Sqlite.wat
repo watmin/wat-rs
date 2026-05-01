@@ -74,17 +74,17 @@
     (path :wat::core::String)
     (pairs :Vec<wat::telemetry::Service::DriverPair<E>>)
     (cadence :wat::telemetry::Service::MetricsCadence<G>)
-    (pre-install :fn(wat::sqlite::Db)->())
-    (schema-install :fn(wat::sqlite::Db)->())
-    (dispatcher :fn(wat::sqlite::Db,Vec<E>)->())
+    (pre-install :fn(wat::sqlite::Db)->wat::core::unit)
+    (schema-install :fn(wat::sqlite::Db)->wat::core::unit)
+    (dispatcher :fn(wat::sqlite::Db,Vec<E>)->wat::core::unit)
     (stats-translator :fn(wat::telemetry::Service::Stats)->Vec<E>)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (((db :wat::sqlite::Db) (:wat::sqlite::open path))
-     ((_pre :()) (pre-install db))
-     ((_install :()) (schema-install db))
-     ((curried :fn(Vec<E>)->())
-      (:wat::core::lambda ((entries :Vec<E>) -> :())
+     ((_pre :wat::core::unit) (pre-install db))
+     ((_install :wat::core::unit) (schema-install db))
+     ((curried :fn(Vec<E>)->wat::core::unit)
+      (:wat::core::lambda ((entries :Vec<E>) -> :wat::core::unit)
         (dispatcher db entries))))
     (:wat::telemetry::Service/run
       pairs cadence curried stats-translator)))
@@ -97,7 +97,7 @@
 (:wat::core::define
   (:wat::telemetry::Sqlite/null-pre-install
     (_db :wat::sqlite::Db)
-    -> :())
+    -> :wat::core::unit)
   ())
 
 
@@ -113,9 +113,9 @@
     (path :wat::core::String)
     (count :wat::core::i64)
     (cadence :wat::telemetry::Service::MetricsCadence<G>)
-    (pre-install :fn(wat::sqlite::Db)->())
-    (schema-install :fn(wat::sqlite::Db)->())
-    (dispatcher :fn(wat::sqlite::Db,Vec<E>)->())
+    (pre-install :fn(wat::sqlite::Db)->wat::core::unit)
+    (schema-install :fn(wat::sqlite::Db)->wat::core::unit)
+    (dispatcher :fn(wat::sqlite::Db,Vec<E>)->wat::core::unit)
     (stats-translator :fn(wat::telemetry::Service::Stats)->Vec<E>)
     -> :wat::telemetry::Service::Spawn<E>)
   (:wat::core::let*
@@ -135,7 +135,7 @@
         (:wat::core::range 0 count)
         (:wat::core::lambda
           ((_i :wat::core::i64) -> :wat::telemetry::Service::AckChannel)
-          (:wat::kernel::make-bounded-queue :() 1))))
+          (:wat::kernel::make-bounded-queue :wat::core::unit 1))))
      ;; Client-side Handles — (req-tx, ack-rx) pairs.
      ((handles :Vec<wat::telemetry::Service::Handle<E>>)
       (:wat::core::map
@@ -165,12 +165,12 @@
      ((pool :wat::telemetry::Service::HandlePool<E>)
       (:wat::kernel::HandlePool::new
         "wat::telemetry::Sqlite" handles))
-     ((driver :wat::kernel::Thread<(),()>)
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<()>)
-           (_out :rust::crossbeam_channel::Sender<()>)
-           -> :())
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
+           -> :wat::core::unit)
           (:wat::telemetry::Sqlite/run
             path driver-pairs cadence
             pre-install schema-install dispatcher stats-translator)))))
@@ -223,12 +223,12 @@
     (enum-name :wat::core::keyword)
     (db :wat::sqlite::Db)
     (entries :Vec<E>)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
-    (((_b :()) (:wat::sqlite::begin db))
-     ((_d :())
+    (((_b :wat::core::unit) (:wat::sqlite::begin db))
+     ((_d :wat::core::unit)
       (:wat::core::foldl entries ()
-        (:wat::core::lambda ((_acc :()) (e :E) -> :())
+        (:wat::core::lambda ((_acc :wat::core::unit) (e :E) -> :wat::core::unit)
           (:rust::sqlite::auto-dispatch db enum-name e)))))
     (:wat::sqlite::commit db)))
 
@@ -239,16 +239,16 @@
     (path :wat::core::String)
     (count :wat::core::i64)
     (cadence :wat::telemetry::Service::MetricsCadence<G>)
-    (pre-install :fn(wat::sqlite::Db)->())
+    (pre-install :fn(wat::sqlite::Db)->wat::core::unit)
     -> :wat::telemetry::Service::Spawn<E>)
   (:wat::core::let*
-    (((_prep :()) (:rust::sqlite::auto-prep enum-name)))
+    (((_prep :wat::core::unit) (:rust::sqlite::auto-prep enum-name)))
     (:wat::telemetry::Sqlite/spawn
       path count cadence
       pre-install
-      (:wat::core::lambda ((db :wat::sqlite::Db) -> :())
+      (:wat::core::lambda ((db :wat::sqlite::Db) -> :wat::core::unit)
         (:rust::sqlite::auto-install-schemas db enum-name))
-      (:wat::core::lambda ((db :wat::sqlite::Db) (entries :Vec<E>) -> :())
+      (:wat::core::lambda ((db :wat::sqlite::Db) (entries :Vec<E>) -> :wat::core::unit)
         (:wat::telemetry::Sqlite::auto-dispatch-batch
           enum-name db entries))
       :wat::telemetry::Sqlite::auto-empty-translator)))

@@ -67,7 +67,7 @@
   :wat::kernel::HandlePool<wat::holon::lru::HologramCacheService::ReqTx>)
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::Spawn
-  :(wat::holon::lru::HologramCacheService::ReqTxPool,wat::kernel::Thread<(),()>))
+  :(wat::holon::lru::HologramCacheService::ReqTxPool,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
 
 ;; ─── Reporting contract — non-negotiable ───────────────────────
 ;;
@@ -134,23 +134,23 @@
   (tick :fn(G,wat::holon::lru::HologramCacheService::Stats)->(G,wat::core::bool)))
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::Reporter
-  :fn(wat::holon::lru::HologramCacheService::Report)->())
+  :fn(wat::holon::lru::HologramCacheService::Report)->wat::core::unit)
 
 ;; null-metrics-cadence — fresh `MetricsCadence<()>` whose tick
 ;; never fires. Use when metrics are a deliberate opt-out.
 (:wat::core::define
   (:wat::holon::lru::HologramCacheService/null-metrics-cadence
-    -> :wat::holon::lru::HologramCacheService::MetricsCadence<()>)
+    -> :wat::holon::lru::HologramCacheService::MetricsCadence<wat::core::unit>)
   (:wat::holon::lru::HologramCacheService::MetricsCadence/new
     ()
     (:wat::core::lambda
-      ((gate :()) (_stats :wat::holon::lru::HologramCacheService::Stats) -> :((),wat::core::bool))
+      ((gate :wat::core::unit) (_stats :wat::holon::lru::HologramCacheService::Stats) -> :(wat::core::unit,wat::core::bool))
       (:wat::core::tuple gate false))))
 
 ;; null-reporter — discards every Report variant.
 (:wat::core::define
   (:wat::holon::lru::HologramCacheService/null-reporter
-    (_report :wat::holon::lru::HologramCacheService::Report) -> :())
+    (_report :wat::holon::lru::HologramCacheService::Report) -> :wat::core::unit)
   ())
 
 ;; Fresh zero-counters Stats. Used at startup and after each
@@ -203,8 +203,8 @@
         (:wat::core::let*
           (((result :Option<wat::holon::HolonAST>)
             (:wat::holon::lru::HologramCache/get cache probe))
-           ((_send :())
-            (:wat::core::result::expect -> :()
+           ((_send :wat::core::unit)
+            (:wat::core::result::expect -> :wat::core::unit
               (:wat::kernel::send reply-tx result)
               "HologramCacheService::Request::Get reply-tx disconnected — caller died?"))
            ((hit-delta :wat::core::i64)
@@ -223,7 +223,7 @@
           (:wat::holon::lru::HologramCacheService::State/new cache stats')))
       ((:wat::holon::lru::HologramCacheService::Request::Put key val)
         (:wat::core::let*
-          (((_ :()) (:wat::holon::lru::HologramCache/put cache key val))
+          (((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put cache key val))
            ((stats' :wat::holon::lru::HologramCacheService::Stats)
             (:wat::holon::lru::HologramCacheService::Stats/new
               (:wat::holon::lru::HologramCacheService::Stats/lookups stats)
@@ -275,7 +275,7 @@
             (:wat::holon::lru::HologramCacheService::Stats/misses stats)
             (:wat::holon::lru::HologramCacheService::Stats/puts stats)
             (:wat::holon::lru::HologramCache/len cache)))
-         ((_ :()) (reporter (:wat::holon::lru::HologramCacheService::Report::Metrics final-stats)))
+         ((_ :wat::core::unit) (reporter (:wat::holon::lru::HologramCacheService::Report::Metrics final-stats)))
          ((state' :wat::holon::lru::HologramCacheService::State)
           (:wat::holon::lru::HologramCacheService::State/new
             cache (:wat::holon::lru::HologramCacheService::Stats/zero))))
@@ -339,7 +339,7 @@
     (cap :wat::core::i64)
     (reporter :wat::holon::lru::HologramCacheService::Reporter)
     (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (((cache :wat::holon::lru::HologramCache)
       (:wat::holon::lru::HologramCache/make
@@ -399,12 +399,12 @@
           (:wat::core::second p))))
      ((pool :wat::holon::lru::HologramCacheService::ReqTxPool)
       (:wat::kernel::HandlePool::new "hologram-cache-service" req-txs))
-     ((driver :wat::kernel::Thread<(),()>)
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<()>)
-           (_out :rust::crossbeam_channel::Sender<()>)
-           -> :())
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
+           -> :wat::core::unit)
           (:wat::holon::lru::HologramCacheService/run
             req-rxs cap reporter metrics-cadence)))))
     (:wat::core::tuple pool driver)))

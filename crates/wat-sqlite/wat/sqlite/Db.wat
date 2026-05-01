@@ -29,7 +29,7 @@
   (:wat::sqlite::execute-ddl
     (db :wat::sqlite::Db)
     (ddl :wat::core::String)
-    -> :())
+    -> :wat::core::unit)
   (:rust::sqlite::Db::execute_ddl db ddl))
 
 ;; ─── Param + execute (arc 084) ─────────────────────────────────
@@ -71,7 +71,7 @@
     (db :wat::sqlite::Db)
     (sql :wat::core::String)
     (params :Vec<wat::sqlite::Param>)
-    -> :())
+    -> :wat::core::unit)
   (:rust::sqlite::Db::execute db sql params))
 
 
@@ -88,19 +88,19 @@
     (db :wat::sqlite::Db)
     (name :wat::core::String)
     (value :wat::core::String)
-    -> :())
+    -> :wat::core::unit)
   (:rust::sqlite::Db::pragma db name value))
 
 (:wat::core::define
   (:wat::sqlite::begin
     (db :wat::sqlite::Db)
-    -> :())
+    -> :wat::core::unit)
   (:rust::sqlite::Db::begin db))
 
 (:wat::core::define
   (:wat::sqlite::commit
     (db :wat::sqlite::Db)
-    -> :())
+    -> :wat::core::unit)
   (:rust::sqlite::Db::commit db))
 
 

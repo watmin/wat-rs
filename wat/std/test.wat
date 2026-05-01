@@ -47,8 +47,8 @@
   (:wat::test::assert-eq<T>
     (actual :T)
     (expected :T)
-    -> :())
-  (:wat::core::if (:wat::core::= actual expected) -> :()
+    -> :wat::core::unit)
+  (:wat::core::if (:wat::core::= actual expected) -> :wat::core::unit
     ()
     (:wat::kernel::assertion-failed!
       "assert-eq failed"
@@ -64,8 +64,8 @@
   (:wat::test::assert-contains
     (haystack :wat::core::String)
     (needle :wat::core::String)
-    -> :())
-  (:wat::core::if (:wat::core::string::contains? haystack needle) -> :()
+    -> :wat::core::unit)
+  (:wat::core::if (:wat::core::string::contains? haystack needle) -> :wat::core::unit
     ()
     (:wat::kernel::assertion-failed!
       "assert-contains failed"
@@ -98,13 +98,13 @@
   (:wat::test::assert-coincident
     (a :wat::holon::HolonAST)
     (b :wat::holon::HolonAST)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (((expl :wat::holon::CoincidentExplanation)
       (:wat::holon::coincident-explain a b))
      ((ok :wat::core::bool)
       (:wat::holon::CoincidentExplanation/coincident expl)))
-    (:wat::core::if ok -> :()
+    (:wat::core::if ok -> :wat::core::unit
       ()
       (:wat::kernel::assertion-failed!
         "assert-coincident failed — holons not at the same point"
@@ -147,10 +147,10 @@
   (:wat::test::assert-stdout-is
     (result :wat::kernel::RunResult)
     (expected :Vec<wat::core::String>)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (((actual :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout result)))
-    (:wat::core::if (:wat::core::= actual expected) -> :()
+    (:wat::core::if (:wat::core::= actual expected) -> :wat::core::unit
       ()
       (:wat::kernel::assertion-failed!
         "assert-stdout-is failed"
@@ -175,10 +175,10 @@
   (:wat::test::assert-stderr-matches
     (result :wat::kernel::RunResult)
     (pattern :wat::core::String)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (((stderr-lines :Vec<wat::core::String>) (:wat::kernel::RunResult/stderr result)))
-    (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) -> :()
+    (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) -> :wat::core::unit
       ()
       (:wat::kernel::assertion-failed!
         "assert-stderr-matches failed — no stderr line matched pattern"
@@ -303,10 +303,10 @@
 ;;       :None))
 (:wat::core::defmacro
   (:wat::test::deftest
-    (name :AST<()>)
-    (prelude :AST<()>)
-    (body :AST<()>)
-    -> :AST<()>)
+    (name :AST<wat::core::unit>)
+    (prelude :AST<wat::core::unit>)
+    (body :AST<wat::core::unit>)
+    -> :AST<wat::core::unit>)
   `(:wat::core::define (,name -> :wat::test::TestResult)
      (:wat::kernel::run-sandboxed-ast
        (:wat::core::forms
@@ -316,7 +316,7 @@
              (stdin  :wat::io::IOReader)
              (stdout :wat::io::IOWriter)
              (stderr :wat::io::IOWriter)
-             -> :())
+             -> :wat::core::unit)
            ,body))
        (:wat::core::vec :wat::core::String)
        :None)))
@@ -334,10 +334,10 @@
 ;; (including loaded deps) + committed Config (arc 031) via COW.
 (:wat::core::defmacro
   (:wat::test::deftest-hermetic
-    (name :AST<()>)
-    (prelude :AST<()>)
-    (body :AST<()>)
-    -> :AST<()>)
+    (name :AST<wat::core::unit>)
+    (prelude :AST<wat::core::unit>)
+    (body :AST<wat::core::unit>)
+    -> :AST<wat::core::unit>)
   `(:wat::core::define (,name -> :wat::test::TestResult)
      (:wat::kernel::run-sandboxed-hermetic-ast
        (:wat::core::forms
@@ -347,7 +347,7 @@
              (stdin  :wat::io::IOReader)
              (stdout :wat::io::IOWriter)
              (stderr :wat::io::IOWriter)
-             -> :())
+             -> :wat::core::unit)
            ,body))
        (:wat::core::vec :wat::core::String)
        :None)))
@@ -386,14 +386,14 @@
 ;; parameters and fire when the user calls the configured variant.
 (:wat::core::defmacro
   (:wat::test::make-deftest
-    (name :AST<()>)
-    (default-prelude :AST<()>)
-    -> :AST<()>)
+    (name :AST<wat::core::unit>)
+    (default-prelude :AST<wat::core::unit>)
+    -> :AST<wat::core::unit>)
   `(:wat::core::defmacro
      (,name
-       (test-name :AST<()>)
-       (body :AST<()>)
-       -> :AST<()>)
+       (test-name :AST<wat::core::unit>)
+       (body :AST<wat::core::unit>)
+       -> :AST<wat::core::unit>)
      `(:wat::test::deftest ,test-name ,,default-prelude ,body)))
 
 ;; ─── make-deftest-hermetic — fork-isolated configured variant ─────────
@@ -403,12 +403,12 @@
 ;; spawn driver threads and need subprocess isolation.
 (:wat::core::defmacro
   (:wat::test::make-deftest-hermetic
-    (name :AST<()>)
-    (default-prelude :AST<()>)
-    -> :AST<()>)
+    (name :AST<wat::core::unit>)
+    (default-prelude :AST<wat::core::unit>)
+    -> :AST<wat::core::unit>)
   `(:wat::core::defmacro
      (,name
-       (test-name :AST<()>)
-       (body :AST<()>)
-       -> :AST<()>)
+       (test-name :AST<wat::core::unit>)
+       (body :AST<wat::core::unit>)
+       -> :AST<wat::core::unit>)
      `(:wat::test::deftest-hermetic ,test-name ,,default-prelude ,body)))

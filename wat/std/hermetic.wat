@@ -96,7 +96,7 @@
         ;; (< pipe buffer), the child's writes complete without
         ;; the parent needing to drain. This keeps the drain
         ;; code single-threaded — no spawn + join ceremony.
-        ((joined-result :Result<(),Vec<wat::kernel::ProcessDiedError>>)
+        ((joined-result :Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
          (:wat::kernel::Process/join-result proc))
         ((stdout-r :wat::io::IOReader)
          (:wat::kernel::Process/stdout proc))

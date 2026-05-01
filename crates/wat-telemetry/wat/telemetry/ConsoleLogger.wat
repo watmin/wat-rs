@@ -44,7 +44,7 @@
 (:wat::core::struct :wat::telemetry::ConsoleLogger
   (con-handle :wat::std::service::Console::Handle)
   (caller :wat::core::keyword)
-  (now-fn :fn(())->wat::time::Instant)
+  (now-fn :fn(wat::core::unit)->wat::time::Instant)
   (format :wat::telemetry::Console::Format))
 
 
@@ -89,7 +89,7 @@
     (logger :wat::telemetry::ConsoleLogger)
     (level :wat::core::keyword)
     (line :wat::core::String)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (((handle :wat::std::service::Console::Handle)
       (:wat::telemetry::ConsoleLogger/con-handle logger))
@@ -97,7 +97,7 @@
       (:wat::core::or
         (:wat::core::= level :warn)
         (:wat::core::= level :error))))
-    (:wat::core::if to-stderr -> :()
+    (:wat::core::if to-stderr -> :wat::core::unit
       (:wat::std::service::Console/err handle line)
       (:wat::std::service::Console/out handle line))))
 
@@ -110,9 +110,9 @@
     (logger :wat::telemetry::ConsoleLogger)
     (level :wat::core::keyword)
     (entry :E)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
-    (((now-fn :fn(())->wat::time::Instant)
+    (((now-fn :fn(wat::core::unit)->wat::time::Instant)
       (:wat::telemetry::ConsoleLogger/now-fn logger))
      ((now :wat::time::Instant) (now-fn ()))
      ((line :wat::core::String)
@@ -129,26 +129,26 @@
   (:wat::telemetry::ConsoleLogger/debug<E>
     (logger :wat::telemetry::ConsoleLogger)
     (entry :E)
-    -> :())
+    -> :wat::core::unit)
   (:wat::telemetry::ConsoleLogger/log logger :debug entry))
 
 (:wat::core::define
   (:wat::telemetry::ConsoleLogger/info<E>
     (logger :wat::telemetry::ConsoleLogger)
     (entry :E)
-    -> :())
+    -> :wat::core::unit)
   (:wat::telemetry::ConsoleLogger/log logger :info entry))
 
 (:wat::core::define
   (:wat::telemetry::ConsoleLogger/warn<E>
     (logger :wat::telemetry::ConsoleLogger)
     (entry :E)
-    -> :())
+    -> :wat::core::unit)
   (:wat::telemetry::ConsoleLogger/log logger :warn entry))
 
 (:wat::core::define
   (:wat::telemetry::ConsoleLogger/error<E>
     (logger :wat::telemetry::ConsoleLogger)
     (entry :E)
-    -> :())
+    -> :wat::core::unit)
   (:wat::telemetry::ConsoleLogger/log logger :error entry))

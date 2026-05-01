@@ -1427,7 +1427,16 @@ fn parse_type_inner(s: &str, original: &str, canonicalize: bool) -> Result<TypeE
     // stays distinguishable from FQDN `:wat::core::i64` in the
     // resulting Path. Slice 1c retires bare at the parser level
     // once the user-code sweep is complete.
+    //
+    // Arc 109 slice 1d: `:wat::core::unit` is the FQDN spelling of
+    // the unit type. When canonicalizing, reduce to the internal
+    // empty-tuple form so unify sees it as identical to the legacy
+    // `:()` spelling and to validators (e.g. user::main return-type
+    // check) that compare against `TypeExpr::Tuple(vec![])`.
     let raw_path = format!(":{}", s);
+    if canonicalize && raw_path == ":wat::core::unit" {
+        return Ok(TypeExpr::Tuple(vec![]));
+    }
     let path = if canonicalize {
         match raw_path.as_str() {
             ":wat::core::i64" => ":i64".to_string(),

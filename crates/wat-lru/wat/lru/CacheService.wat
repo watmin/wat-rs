@@ -64,7 +64,7 @@
 ;; Caller pops N senders, finishes the pool, scoped-drops at end →
 ;; driver exits.
 (:wat::core::typealias :wat::lru::CacheService::Spawn<K,V>
-  :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>,wat::kernel::Thread<(),()>))
+  :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
 
 ;; ─── Reporting contract — non-negotiable ───────────────────────
 ;;
@@ -98,23 +98,23 @@
   (tick :fn(G,wat::lru::CacheService::Stats)->(G,wat::core::bool)))
 
 (:wat::core::typealias :wat::lru::CacheService::Reporter
-  :fn(wat::lru::CacheService::Report)->())
+  :fn(wat::lru::CacheService::Report)->wat::core::unit)
 
 ;; null-metrics-cadence — fresh `MetricsCadence<()>` whose tick
 ;; never fires. Use when metrics are a deliberate opt-out.
 (:wat::core::define
   (:wat::lru::CacheService/null-metrics-cadence
-    -> :wat::lru::CacheService::MetricsCadence<()>)
+    -> :wat::lru::CacheService::MetricsCadence<wat::core::unit>)
   (:wat::lru::CacheService::MetricsCadence/new
     ()
     (:wat::core::lambda
-      ((gate :()) (_stats :wat::lru::CacheService::Stats) -> :((),wat::core::bool))
+      ((gate :wat::core::unit) (_stats :wat::lru::CacheService::Stats) -> :(wat::core::unit,wat::core::bool))
       (:wat::core::tuple gate false))))
 
 ;; null-reporter — discards every Report variant.
 (:wat::core::define
   (:wat::lru::CacheService/null-reporter
-    (_report :wat::lru::CacheService::Report) -> :())
+    (_report :wat::lru::CacheService::Report) -> :wat::core::unit)
   ())
 
 ;; Fresh zero-counters Stats. Used at startup and after each
@@ -176,8 +176,8 @@
      ;; protocol violation in this in-memory CSP. Panic so the
      ;; program tree learns the discipline broke instead of
      ;; silently dropping the reply.
-     ((_send :())
-      (:wat::core::result::expect -> :()
+     ((_send :wat::core::unit)
+      (:wat::core::result::expect -> :wat::core::unit
         (:wat::kernel::send reply-to resp)
         "CacheService/handle: reply-to disconnected — client died mid-request?"))
      ((stats' :wat::lru::CacheService::Stats)
@@ -236,7 +236,7 @@
             (:wat::lru::CacheService::Stats/misses stats)
             (:wat::lru::CacheService::Stats/puts stats)
             (:wat::lru::LocalCache::len cache)))
-         ((_ :()) (reporter (:wat::lru::CacheService::Report::Metrics final-stats)))
+         ((_ :wat::core::unit) (reporter (:wat::lru::CacheService::Report::Metrics final-stats)))
          ((state' :wat::lru::CacheService::State<K,V>)
           (:wat::lru::CacheService::State/new
             cache (:wat::lru::CacheService::Stats/zero))))
@@ -253,7 +253,7 @@
     (req-rxs :Vec<wat::lru::CacheService::ReqRx<K,V>>)
     (reporter :wat::lru::CacheService::Reporter)
     (metrics-cadence :wat::lru::CacheService::MetricsCadence<G>)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (((cache :wat::lru::LocalCache<K,V>)
       (:wat::lru::LocalCache::new capacity))
@@ -273,8 +273,8 @@
     (req-rxs :Vec<wat::lru::CacheService::ReqRx<K,V>>)
     (reporter :wat::lru::CacheService::Reporter)
     (metrics-cadence :wat::lru::CacheService::MetricsCadence<G>)
-    -> :())
-  (:wat::core::if (:wat::core::empty? req-rxs) -> :()
+    -> :wat::core::unit)
+  (:wat::core::if (:wat::core::empty? req-rxs) -> :wat::core::unit
     ()
     (:wat::core::let*
       (((chosen :wat::kernel::Chosen<wat::lru::CacheService::Request<K,V>>)
@@ -282,7 +282,7 @@
        ((idx :wat::core::i64) (:wat::core::first chosen))
        ((maybe :wat::kernel::CommResult<wat::lru::CacheService::Request<K,V>>)
         (:wat::core::second chosen)))
-      (:wat::core::match maybe -> :()
+      (:wat::core::match maybe -> :wat::core::unit
         ((Ok (Some req))
           (:wat::core::let*
             (((after-handle :wat::lru::CacheService::State<K,V>)
@@ -325,8 +325,8 @@
      ;; dying means our state-of-the-world claim is invalid. Panic
      ;; with a meaningful message rather than silently returning
      ;; :None and pretending we got a "miss."
-     ((_send :())
-      (:wat::core::result::expect -> :()
+     ((_send :wat::core::unit)
+      (:wat::core::result::expect -> :wat::core::unit
         (:wat::kernel::send req-tx req)
         "CacheService/get: req-tx disconnected — driver died?")))
     (:wat::core::option::expect -> :Option<V>
@@ -342,7 +342,7 @@
     (reply-rx :wat::kernel::QueueReceiver<Option<V>>)
     (key :K)
     (value :V)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (((body :wat::lru::CacheService::Body<K,V>)
       (:wat::core::tuple 1 key (Some value)))
@@ -351,8 +351,8 @@
      ;; Arc 110: same as CacheService/get — driver dying mid-protocol
      ;; is catastrophic; panic with a meaningful message rather than
      ;; silently absorbing the disconnect.
-     ((_send :())
-      (:wat::core::result::expect -> :()
+     ((_send :wat::core::unit)
+      (:wat::core::result::expect -> :wat::core::unit
         (:wat::kernel::send req-tx req)
         "CacheService/put: req-tx disconnected — driver died?"))
      ((_recv :Option<Option<V>>)
@@ -397,12 +397,12 @@
           (:wat::core::second p))))
      ((pool :wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>)
       (:wat::kernel::HandlePool::new "CacheService" req-txs))
-     ((driver :wat::kernel::Thread<(),()>)
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<()>)
-           (_out :rust::crossbeam_channel::Sender<()>)
-           -> :())
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
+           -> :wat::core::unit)
           (:wat::lru::CacheService/loop
             capacity req-rxs reporter metrics-cadence)))))
     (:wat::core::tuple pool driver)))

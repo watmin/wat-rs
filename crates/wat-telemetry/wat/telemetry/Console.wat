@@ -48,7 +48,7 @@
 ;; spares every downstream signature from `:fn(Vec<E>)->()`
 ;; nested inside another generic.
 (:wat::core::typealias :wat::telemetry::Console::Dispatcher<E>
-  :fn(Vec<E>)->())
+  :fn(Vec<E>)->wat::core::unit)
 
 ;; The factory. Returns a closure that captures con-tx + format.
 ;; When the substrate Service calls dispatcher(entries), the closure
@@ -91,8 +91,8 @@
     (handle :wat::std::service::Console::Handle)
     (format :wat::telemetry::Console::Format)
     -> :wat::telemetry::Console::Dispatcher<E>)
-  (:wat::core::lambda ((entries :Vec<E>) -> :())
+  (:wat::core::lambda ((entries :Vec<E>) -> :wat::core::unit)
     (:wat::core::foldl entries ()
-      (:wat::core::lambda ((_acc :()) (entry :E) -> :())
+      (:wat::core::lambda ((_acc :wat::core::unit) (entry :E) -> :wat::core::unit)
         (:wat::std::service::Console/out handle
           (:wat::telemetry::Console::render-line entry format))))))
