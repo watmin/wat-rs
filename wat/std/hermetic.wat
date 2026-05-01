@@ -118,8 +118,8 @@
           (:wat::kernel::extract-panics stderr-lines))
          ((failure :wat::core::Option<wat::kernel::Failure>)
          (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
-           ((Ok _)       :wat::core::None)
-           ((Err chain)
+           ((:wat::core::Ok _)       :wat::core::None)
+           ((:wat::core::Err chain)
             (:wat::core::Some (:wat::kernel::failure-from-process-died
                     (:wat::core::match stderr-chain
                       -> :wat::core::Vector<wat::kernel::ProcessDiedError>

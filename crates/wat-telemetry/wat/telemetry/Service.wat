@@ -215,10 +215,10 @@
       (:wat::telemetry::Service/extend acc first-entries ack)
       (:wat::core::match (:wat::kernel::try-recv rx)
         -> :wat::telemetry::Service::Pending<E>
-        ((Ok (:wat::core::Some req-entries))
+        ((:wat::core::Ok (:wat::core::Some req-entries))
           (:wat::telemetry::Service/extend acc req-entries ack))
-        ((Ok :wat::core::None) acc)
-        ((Err _died) acc)))))
+        ((:wat::core::Ok :wat::core::None) acc)
+        ((:wat::core::Err _died) acc)))))
 
 
 ;; Drain — single foldl over all pairs. The first-idx pair gets
@@ -252,8 +252,8 @@
     (:wat::core::lambda
       ((_acc :wat::core::unit) (tx :wat::telemetry::Service::AckTx) -> :wat::core::unit)
       (:wat::core::match (:wat::kernel::send tx ()) -> :wat::core::unit
-        ((Ok _) ())
-        ((Err _) ())))))
+        ((:wat::core::Ok _) ())
+        ((:wat::core::Err _) ())))))
 
 
 (:wat::core::define
@@ -343,14 +343,14 @@
        ((maybe :wat::kernel::CommResult<wat::telemetry::Service::Request<E>>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::core::unit
-        ((Ok (:wat::core::Some first-entries))
+        ((:wat::core::Ok (:wat::core::Some first-entries))
           (:wat::telemetry::Service/loop-step
             pairs idx first-entries stats cadence dispatcher stats-translator))
-        ((Ok :wat::core::None)
+        ((:wat::core::Ok :wat::core::None)
           (:wat::telemetry::Service/loop
             (:wat::std::list::remove-at pairs idx)
             stats cadence dispatcher stats-translator))
-        ((Err _died) ())))))
+        ((:wat::core::Err _died) ())))))
 
 
 ;; ─── Client helper — single primitive, batch + ack ───────────────

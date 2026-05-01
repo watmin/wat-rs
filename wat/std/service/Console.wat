@@ -115,7 +115,7 @@
        ((maybe :wat::kernel::CommResult<wat::std::service::Console::Message>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::core::unit
-        ((Ok (:wat::core::Some tagged))
+        ((:wat::core::Ok (:wat::core::Some tagged))
           (:wat::core::let*
             (((tag :wat::core::i64) (:wat::core::first tagged))
              ((msg :wat::core::String) (:wat::core::second tagged))
@@ -125,12 +125,12 @@
              ((_ack :wat::core::unit)
               (:wat::std::service::Console/ack-at pairs idx)))
             (:wat::std::service::Console/loop pairs stdout stderr)))
-        ((Ok :wat::core::None)
+        ((:wat::core::Ok :wat::core::None)
           (:wat::std::service::Console/loop
             (:wat::std::list::remove-at pairs idx)
             stdout
             stderr))
-        ((Err _died)
+        ((:wat::core::Err _died)
           (:wat::std::service::Console/loop
             (:wat::std::list::remove-at pairs idx)
             stdout

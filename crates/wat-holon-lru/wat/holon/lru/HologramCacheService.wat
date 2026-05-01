@@ -307,7 +307,7 @@
        ((maybe :wat::kernel::CommResult<wat::holon::lru::HologramCacheService::Request>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::holon::lru::HologramCacheService::State
-        ((Ok (:wat::core::Some req))
+        ((:wat::core::Ok (:wat::core::Some req))
           (:wat::core::let*
             (((after-handle :wat::holon::lru::HologramCacheService::State)
               (:wat::holon::lru::HologramCacheService/handle req state))
@@ -320,11 +320,11 @@
               (:wat::core::second step)))
             (:wat::holon::lru::HologramCacheService/loop
               req-rxs next-state reporter cadence')))
-        ((Ok :wat::core::None)
+        ((:wat::core::Ok :wat::core::None)
           (:wat::holon::lru::HologramCacheService/loop
             (:wat::std::list::remove-at req-rxs idx)
             state reporter metrics-cadence))
-        ((Err _died) state)))))
+        ((:wat::core::Err _died) state)))))
 
 ;; ─── Worker entry — owns the cache for its full lifetime ──────
 ;;

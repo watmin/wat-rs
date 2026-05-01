@@ -2422,11 +2422,15 @@ fn detect_match_shape(arms: &[&WatAST], env: &CheckEnv, fresh: &mut InferCtx) ->
                         }
                         // Arc 109 slice 1h — FQDN keyword forms for
                         // Option variant patterns.
+                        // Arc 109 slice 1i — FQDN keyword forms for
+                        // Result variant patterns (Ok / Err).
                         if let Some(WatAST::Keyword(k, _)) = pat_items.first() {
                             if k == ":wat::core::Some" {
                                 return MatchShape::Option(fresh.fresh());
                             }
-                            // slice 1i will add :wat::core::Ok / :wat::core::Err here
+                            if k == ":wat::core::Ok" || k == ":wat::core::Err" {
+                                return MatchShape::Result(fresh.fresh(), fresh.fresh());
+                            }
                         }
                         // Arc 048 — user-enum tagged variant pattern
                         // `(:enum::Variant binders...)`. Split the

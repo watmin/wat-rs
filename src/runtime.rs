@@ -6812,44 +6812,64 @@ fn try_match_pattern(
                     _ => Ok(None),
                 };
             }
+            // Arc 109 slice 1i — recognize FQDN keyword forms for
+            // Result variant patterns (Ok / Err). Both bare-Symbol
+            // and FQDN-keyword forms land here; type-check time
+            // poisons the bare form.
+            let head_is_ok = matches!(
+                head,
+                WatAST::Symbol(ident, _) if ident.as_str() == "Ok"
+            ) || matches!(
+                head,
+                WatAST::Keyword(k, _) if k == ":wat::core::Ok"
+            );
+            if head_is_ok {
+                if items.len() != 2 {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "(Ok _) takes exactly one field, got {}",
+                            items.len() - 1
+                        ),
+                    });
+                }
+                return match value {
+                    Value::Result(r) => match &**r {
+                        Ok(inner) => try_match_pattern(&items[1], inner, outer),
+                        Err(_) => Ok(None),
+                    },
+                    _ => Ok(None),
+                };
+            }
+            let head_is_err = matches!(
+                head,
+                WatAST::Symbol(ident, _) if ident.as_str() == "Err"
+            ) || matches!(
+                head,
+                WatAST::Keyword(k, _) if k == ":wat::core::Err"
+            );
+            if head_is_err {
+                if items.len() != 2 {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: format!(
+                            "(Err _) takes exactly one field, got {}",
+                            items.len() - 1
+                        ),
+                    });
+                }
+                return match value {
+                    Value::Result(r) => match &**r {
+                        Err(inner) => try_match_pattern(&items[1], inner, outer),
+                        Ok(_) => Ok(None),
+                    },
+                    _ => Ok(None),
+                };
+            }
             match head {
                 WatAST::Symbol(ident, _) if ident.as_str() == "Some" => unreachable!("handled above"),
-                WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => {
-                    if items.len() != 2 {
-                        return Err(RuntimeError::MalformedForm {
-                            head: ":wat::core::match".into(),
-                            reason: format!(
-                                "(Ok _) takes exactly one field, got {}",
-                                items.len() - 1
-                            ),
-                        });
-                    }
-                    match value {
-                        Value::Result(r) => match &**r {
-                            Ok(inner) => try_match_pattern(&items[1], inner, outer),
-                            Err(_) => Ok(None),
-                        },
-                        _ => Ok(None),
-                    }
-                }
-                WatAST::Symbol(ident, _) if ident.as_str() == "Err" => {
-                    if items.len() != 2 {
-                        return Err(RuntimeError::MalformedForm {
-                            head: ":wat::core::match".into(),
-                            reason: format!(
-                                "(Err _) takes exactly one field, got {}",
-                                items.len() - 1
-                            ),
-                        });
-                    }
-                    match value {
-                        Value::Result(r) => match &**r {
-                            Err(inner) => try_match_pattern(&items[1], inner, outer),
-                            Ok(_) => Ok(None),
-                        },
-                        _ => Ok(None),
-                    }
-                }
+                WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => unreachable!("handled above"),
+                WatAST::Symbol(ident, _) if ident.as_str() == "Err" => unreachable!("handled above"),
                 // Arc 048 — user-enum tagged variant. Pattern
                 // `(:enum::Variant pat1 pat2 ...)` matches `Value::Enum`
                 // whose `type_path::variant_name` composes to the same

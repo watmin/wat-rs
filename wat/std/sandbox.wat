@@ -123,8 +123,8 @@
       (:wat::kernel::extract-panics stderr-lines))
      ((failure :wat::core::Option<wat::kernel::Failure>)
       (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
-        ((Ok _)    :wat::core::None)
-        ((Err err)
+        ((:wat::core::Ok _)    :wat::core::None)
+        ((:wat::core::Err err)
          (:wat::core::Some (:wat::kernel::failure-from-process-died
                  (:wat::core::match stderr-chain
                    -> :wat::core::Vector<wat::kernel::ProcessDiedError>
@@ -157,8 +157,8 @@
     -> :wat::kernel::RunResult)
   (:wat::core::match (:wat::kernel::spawn-program src scope)
     -> :wat::kernel::RunResult
-    ((Ok proc)  (:wat::kernel::drive-sandbox proc stdin))
-    ((Err err)  (:wat::kernel::startup-failure-result err))))
+    ((:wat::core::Ok proc)  (:wat::kernel::drive-sandbox proc stdin))
+    ((:wat::core::Err err)  (:wat::kernel::startup-failure-result err))))
 
 
 ;; --- :wat::kernel::run-sandboxed-ast (AST entry) ---
@@ -170,5 +170,5 @@
     -> :wat::kernel::RunResult)
   (:wat::core::match (:wat::kernel::spawn-program-ast forms scope)
     -> :wat::kernel::RunResult
-    ((Ok proc)  (:wat::kernel::drive-sandbox proc stdin))
-    ((Err err)  (:wat::kernel::startup-failure-result err))))
+    ((:wat::core::Ok proc)  (:wat::kernel::drive-sandbox proc stdin))
+    ((:wat::core::Err err)  (:wat::kernel::startup-failure-result err))))

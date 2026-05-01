@@ -283,7 +283,7 @@
        ((maybe :wat::kernel::CommResult<wat::lru::CacheService::Request<K,V>>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::core::unit
-        ((Ok (:wat::core::Some req))
+        ((:wat::core::Ok (:wat::core::Some req))
           (:wat::core::let*
             (((after-handle :wat::lru::CacheService::State<K,V>)
               (:wat::lru::CacheService/handle req state))
@@ -296,12 +296,12 @@
               (:wat::core::second step)))
             (:wat::lru::CacheService/loop-step
               next-state req-rxs reporter cadence')))
-        ((Ok :wat::core::None)
+        ((:wat::core::Ok :wat::core::None)
           (:wat::lru::CacheService/loop-step
             state
             (:wat::std::list::remove-at req-rxs idx)
             reporter metrics-cadence))
-        ((Err _died) ())))))
+        ((:wat::core::Err _died) ())))))
 
 ;; --- Client helpers ---
 ;;
