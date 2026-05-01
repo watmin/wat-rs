@@ -475,10 +475,55 @@ fn arc_109_vec_verb_migration_hint(callee: &str, _expected: &str, _got: &str) ->
     )
 }
 
+/// Arc 109 slice 1g — fires when the dispatcher has poisoned the
+/// retired `:wat::core::list` head. `list` was always a duplicate
+/// of `vec` (both produced `Vec<T>`); post-slice-1f the canonical
+/// constructor is `:wat::core::Vector`. The redundancy retires
+/// in this slice.
+fn arc_109_list_verb_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
+    if callee != ":wat::core::list" {
+        return None;
+    }
+    Some(
+        "arc 109 slice 1g — `:wat::core::list` is retired. It was \
+         always a duplicate of `:wat::core::vec` (now \
+         `:wat::core::Vector` post-slice-1f); both produced \
+         `Vec<T>`. The redundancy goes; rename `:wat::core::list` \
+         → `:wat::core::Vector` at the offending site. The \
+         substrate produces the same `Vec<T>` value; only the \
+         spelling changes."
+            .into(),
+    )
+}
+
+/// Arc 109 slice 1g — fires when the dispatcher has poisoned the
+/// retired `:wat::core::tuple` head. The canonical constructor is
+/// `:wat::core::Tuple` (verb-equals-type per slice 1f's
+/// vec→Vector playbook).
+fn arc_109_tuple_verb_migration_hint(callee: &str, _expected: &str, _got: &str) -> Option<String> {
+    if callee != ":wat::core::tuple" {
+        return None;
+    }
+    Some(
+        "arc 109 slice 1g — `:wat::core::tuple` is retired. \
+         Canonical constructor is `:wat::core::Tuple` \
+         (verb-equals-type per slice 1f's vec→Vector playbook — \
+         `(:wat::core::Tuple x y z)` reads as `construct a Tuple \
+         of these elements`). Rename `:wat::core::tuple` → \
+         `:wat::core::Tuple` at the offending site. The substrate \
+         produces the same tuple value; only the spelling changes. \
+         The TYPE spelling `:(T,U,V)` is parsed separately and is \
+         unaffected."
+            .into(),
+    )
+}
+
 fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
     let hints: Vec<String> = [
         arc_114_migration_hint(callee, expected, got),
         arc_109_vec_verb_migration_hint(callee, expected, got),
+        arc_109_list_verb_migration_hint(callee, expected, got),
+        arc_109_tuple_verb_migration_hint(callee, expected, got),
     ]
     .into_iter()
     .flatten()
@@ -1421,8 +1466,35 @@ fn infer_list(
                 return infer_list_constructor(args, env, locals, fresh, subst, errors);
             }
             ":wat::core::Vector" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
-            ":wat::core::list" => return infer_list_constructor(args, env, locals, fresh, subst, errors),
-            ":wat::core::tuple" => return infer_tuple_constructor(args, env, locals, fresh, subst, errors),
+            ":wat::core::list" => {
+                // Arc 109 slice 1g — :wat::core::list retires.
+                // Was always a duplicate of :wat::core::vec; both
+                // produced :Vec<T>. Post-slice-1f, :wat::core::Vector
+                // is the canonical constructor. Pattern 2 poison:
+                // synthetic TypeMismatch + redirect; continue to
+                // dispatch so the program type-checks.
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::list".into(),
+                    param: "(retired verb)".into(),
+                    expected: ":wat::core::Vector".into(),
+                    got: ":wat::core::list".into(),
+                });
+                return infer_list_constructor(args, env, locals, fresh, subst, errors);
+            }
+            ":wat::core::tuple" => {
+                // Arc 109 slice 1g — :wat::core::tuple retires;
+                // canonical constructor is :wat::core::Tuple
+                // (verb-equals-type per slice 1f's vec→Vector
+                // playbook). Pattern 2 poison.
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::core::tuple".into(),
+                    param: "(retired verb)".into(),
+                    expected: ":wat::core::Tuple".into(),
+                    got: ":wat::core::tuple".into(),
+                });
+                return infer_tuple_constructor(args, env, locals, fresh, subst, errors);
+            }
+            ":wat::core::Tuple" => return infer_tuple_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::string::concat" => return infer_string_concat(args, env, locals, fresh, subst, errors),
             ":wat::core::HashMap" => return infer_hashmap_constructor(args, env, locals, fresh, subst, errors),
             ":wat::core::assoc" => return infer_assoc(args, env, locals, fresh, subst, errors),

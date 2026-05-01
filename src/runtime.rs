@@ -2377,9 +2377,18 @@ fn dispatch_keyword_head(
         // same Value::List(Vec<Value>).
         ":wat::core::vec" => eval_list_ctor(args, env, sym),
         ":wat::core::Vector" => eval_list_ctor(args, env, sym),
+        // Arc 109 slice 1g — :wat::core::list retires (was always
+        // a duplicate of vec); poisoned at type-check time with
+        // redirect to :wat::core::Vector. Runtime keeps working
+        // through the migration window.
         ":wat::core::list" => eval_list_ctor(args, env, sym),
         ":wat::core::conj" => eval_conj(args, env, sym),
+        // Arc 109 slice 1g — :wat::core::Tuple is the canonical
+        // tuple constructor (verb-equals-type per slice 1f's
+        // vec→Vector playbook); :wat::core::tuple stays during
+        // migration window.
         ":wat::core::tuple" => eval_tuple_ctor(args, env, sym),
+        ":wat::core::Tuple" => eval_tuple_ctor(args, env, sym),
         ":wat::core::length" => eval_length(args, env, sym),
         ":wat::core::empty?" => eval_empty_q(args, env, sym),
         ":wat::core::reverse" => eval_vec_reverse(args, env, sym),
