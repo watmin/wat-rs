@@ -375,6 +375,26 @@ fn register_builtin_types(env: &mut TypeEnv) {
         },
     }));
 
+    // :wat::core::unit — arc 109 slice 1d. The unit type is the
+    // type with one inhabitant (the empty-tuple value `()`). Arc
+    // 109 § A: unit gets an honest name under :wat::core::*, the
+    // same home as the other named primitives (:wat::core::i64,
+    // :wat::core::f64, ...).
+    //
+    //   typealias :wat::core::unit = :()
+    //
+    // Both spellings type-check during the deprecation window;
+    // unify resolves them via the alias. The walker
+    // `validate_bare_legacy_primitives` flags `TypeExpr::Tuple(vec![])`
+    // (the bare-source spelling `:()`) and steers consumers toward
+    // the FQDN form. The empty-tuple LITERAL VALUE `()` is a list
+    // literal, not a type expression, and stays untouched.
+    env.register_builtin(TypeDef::Alias(AliasDef {
+        name: ":wat::core::unit".into(),
+        type_params: vec![],
+        expr: TypeExpr::Tuple(vec![]),
+    }));
+
     // :wat::eval::StepResult — populated in the Ok slot of the :Result
     // returned by :wat::eval-step! (arc 068). Two variants distinguish
     // "one rewrite happened, here's the next form" from "this is the

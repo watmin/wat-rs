@@ -154,6 +154,21 @@ pub enum CheckError {
         /// token.
         span: Span,
     },
+    /// Arc 109 slice 1d — the bare unit type annotation (`:()` or
+    /// `()` inside a parametric/tuple/fn) appears in user code.
+    /// `:wat::core::unit` is the canonical FQDN form. The
+    /// empty-tuple LITERAL VALUE `()` is a list literal and is not
+    /// affected; only the type-position spelling retires.
+    ///
+    /// Distinct from `BareLegacyPrimitive` because the unit type
+    /// parses to `TypeExpr::Tuple(vec![])`, not `TypeExpr::Path` —
+    /// the walker arm is a separate Tuple-empty guard. Same
+    /// Pattern 3 mechanism otherwise.
+    BareLegacyUnitType {
+        /// Source location of the keyword carrying the bare unit
+        /// token.
+        span: Span,
+    },
 }
 
 impl fmt::Display for CheckError {
@@ -220,6 +235,11 @@ impl fmt::Display for CheckError {
                 f,
                 "bare primitive type '{}' at {} is retired (arc 109 slice 1c); canonical FQDN form is '{}'. Substrate-provided primitives live under :wat::core::* (see arc 109 § A). Rename '{}' → '{}' at the offending site.",
                 primitive, span, fqdn, primitive, fqdn
+            ),
+            CheckError::BareLegacyUnitType { span } => write!(
+                f,
+                "bare unit type '()' at {} is retired (arc 109 slice 1d); canonical FQDN form is ':wat::core::unit'. Substrate-provided primitives live under :wat::core::* (see arc 109 § A). The empty-tuple LITERAL VALUE `()` is unaffected; only the type-position spelling renames. Rename ':()' → ':wat::core::unit' (or '()' → 'wat::core::unit' inside parametrics) at the offending site.",
+                span
             ),
         }
     }
@@ -377,6 +397,12 @@ impl CheckError {
                 Diagnostic::new("BareLegacyPrimitive")
                     .field("primitive", primitive.as_str())
                     .field("fqdn", fqdn.as_str())
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyUnitType { span } => {
+                Diagnostic::new("BareLegacyUnitType")
+                    .field("primitive", ":()")
+                    .field("fqdn", ":wat::core::unit")
                     .field("location", format!("{}", span))
             }
         }
@@ -887,8 +913,19 @@ fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) 
             walk_type_for_bare(ret, span, errors);
         }
         TypeExpr::Tuple(elements) => {
-            for e in elements {
-                walk_type_for_bare(e, span, errors);
+            // Arc 109 slice 1d — empty Tuple is the bare unit type
+            // annotation `:()`. The FQDN form `:wat::core::unit`
+            // parses to a Path (typealias) and lands in the Path arm
+            // above, not here. Non-empty tuples are bona-fide tuple
+            // types and recurse normally.
+            if elements.is_empty() {
+                errors.push(CheckError::BareLegacyUnitType {
+                    span: span.clone(),
+                });
+            } else {
+                for e in elements {
+                    walk_type_for_bare(e, span, errors);
+                }
             }
         }
         TypeExpr::Var(_) => {}
