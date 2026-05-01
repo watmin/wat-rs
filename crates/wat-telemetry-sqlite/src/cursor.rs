@@ -5,7 +5,7 @@
 //! and yield reified `:wat::telemetry::Event::Log` /
 //! `Event::Metric` values. The wat-side `(stream-logs handle q)`
 //! / `(stream-metrics handle q)` defines (slice 1d) wrap the
-//! cursor in a `:wat::std::stream::spawn-producer` lambda; the
+//! cursor in a `:wat::stream::spawn-producer` lambda; the
 //! lambda calls `step!` per row and forwards through a bounded(1)
 //! channel to whatever `filter` / `for-each` stage the user
 //! composed downstream.

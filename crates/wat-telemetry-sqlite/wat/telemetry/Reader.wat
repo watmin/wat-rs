@@ -2,7 +2,7 @@
 ;;
 ;; The reader pairs with the existing writer (arc 091/096) to give
 ;; consumers an interrogation flow: open a frozen runs/*.db, stream
-;; rows out via the substrate's `:wat::std::stream::*` circuit
+;; rows out via the substrate's `:wat::stream::*` circuit
 ;; pattern, filter / for-each in wat. Three stages, two bounded(1)
 ;; channels, drop-cascade shutdown — exactly the existing
 ;; spawn-producer model.
@@ -166,7 +166,7 @@
 ;;     drop-cascade has begun upstream).
 ;;
 ;; Each loop runs in the producer thread spawned by
-;; :wat::std::stream::spawn-producer. Tail-recursive for unbounded
+;; :wat::stream::spawn-producer. Tail-recursive for unbounded
 ;; row counts.
 
 (:wat::core::define
@@ -213,10 +213,10 @@
   (:wat::telemetry::sqlite/stream-logs
     (handle :wat::sqlite::ReadHandle)
     (constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
-    -> :wat::std::stream::Stream<wat::telemetry::Event>)
+    -> :wat::stream::Stream<wat::telemetry::Event>)
   (:wat::core::let*
     (((path :wat::core::String) (:wat::sqlite::ReadHandle/path handle)))
-    (:wat::std::stream::spawn-producer
+    (:wat::stream::spawn-producer
       (:wat::core::lambda
         ((tx :wat::kernel::QueueSender<wat::telemetry::Event>) -> :wat::core::unit)
         (:wat::core::let*
@@ -230,10 +230,10 @@
   (:wat::telemetry::sqlite/stream-metrics
     (handle :wat::sqlite::ReadHandle)
     (constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
-    -> :wat::std::stream::Stream<wat::telemetry::Event>)
+    -> :wat::stream::Stream<wat::telemetry::Event>)
   (:wat::core::let*
     (((path :wat::core::String) (:wat::sqlite::ReadHandle/path handle)))
-    (:wat::std::stream::spawn-producer
+    (:wat::stream::spawn-producer
       (:wat::core::lambda
         ((tx :wat::kernel::QueueSender<wat::telemetry::Event>) -> :wat::core::unit)
         (:wat::core::let*

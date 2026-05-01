@@ -6562,7 +6562,7 @@ impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
 ///
 /// Use this for **error display** — it preserves the surface name
 /// the user wrote, so `TypeMismatch` reads "expected
-/// `:wat::std::stream::Stream<i64>`", not the tuple expansion.
+/// `:wat::stream::Stream<i64>`", not the tuple expansion.
 ///
 /// For **structural matching** against the canonical form of a type,
 /// call [`reduce`] instead.

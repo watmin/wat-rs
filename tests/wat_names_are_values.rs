@@ -176,7 +176,7 @@ fn unregistered_keyword_still_a_literal() {
 
 #[test]
 fn named_define_as_stream_map_fn() {
-    // The canonical target: pass `:my::double` to `:wat::std::stream::map`
+    // The canonical target: pass `:my::double` to `:wat::stream::map`
     // without wrapping in a pass-through lambda.
     let src = r##"
 
@@ -190,8 +190,8 @@ fn named_define_as_stream_map_fn() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((source :wat::std::stream::Stream<wat::core::i64>)
-              (:wat::std::stream::spawn-producer
+            (((source :wat::stream::Stream<wat::core::i64>)
+              (:wat::stream::spawn-producer
                 (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
                     (((_ :wat::core::unit)
@@ -207,9 +207,9 @@ fn named_define_as_stream_map_fn() {
                         (:wat::kernel::send tx 3)
                         "producer: tx disconnected on send 3")))
                     ()))))
-             ((doubled :wat::std::stream::Stream<wat::core::i64>)
-              (:wat::std::stream::map source :my::double))
-             ((collected :wat::core::Vector<wat::core::i64>) (:wat::std::stream::collect doubled))
+             ((doubled :wat::stream::Stream<wat::core::i64>)
+              (:wat::stream::map source :my::double))
+             ((collected :wat::core::Vector<wat::core::i64>) (:wat::stream::collect doubled))
              ((first :wat::core::i64)
               (:wat::core::match (:wat::core::first collected) -> :wat::core::i64
                 ((:wat::core::Some n) n)

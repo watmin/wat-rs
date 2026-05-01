@@ -152,7 +152,7 @@
      ((no-constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
       (:wat::core::Vector :wat::telemetry::TimeConstraint))
      ((all-events :wat::core::Vector<wat::telemetry::Event>)
-      (:wat::std::stream::collect
+      (:wat::stream::collect
         (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
      ((q1-count :wat::core::i64) (:wat::core::length all-events))
      ((_p2 :wat::core::unit)
@@ -171,8 +171,8 @@
      ((no-constraints2 :wat::core::Vector<wat::telemetry::TimeConstraint>)
       (:wat::core::Vector :wat::telemetry::TimeConstraint))
      ((big-buys :wat::core::Vector<wat::telemetry::Event>)
-      (:wat::std::stream::collect
-        (:wat::std::stream::filter
+      (:wat::stream::collect
+        (:wat::stream::filter
           (:wat::telemetry::sqlite/stream-logs handle2 no-constraints2)
           :demo::big-buy?)))
      ((q2-count :wat::core::i64) (:wat::core::length big-buys))

@@ -106,10 +106,10 @@
       (:wat::sqlite::open-readonly path))
      ((no-constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
       (:wat::core::Vector :wat::telemetry::TimeConstraint))
-     ((stream :wat::std::stream::Stream<wat::telemetry::Event>)
+     ((stream :wat::stream::Stream<wat::telemetry::Event>)
       (:wat::telemetry::sqlite/stream-logs handle no-constraints))
      ((events :wat::core::Vector<wat::telemetry::Event>)
-      (:wat::std::stream::collect stream))
+      (:wat::stream::collect stream))
      ((count :wat::core::i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 3)))
 
@@ -135,10 +135,10 @@
      ((constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
       (:wat::core::Vector :wat::telemetry::TimeConstraint
         (:wat::telemetry::since cutoff)))
-     ((stream :wat::std::stream::Stream<wat::telemetry::Event>)
+     ((stream :wat::stream::Stream<wat::telemetry::Event>)
       (:wat::telemetry::sqlite/stream-logs handle constraints))
      ((events :wat::core::Vector<wat::telemetry::Event>)
-      (:wat::std::stream::collect stream))
+      (:wat::stream::collect stream))
      ((count :wat::core::i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 2)))
 
@@ -160,10 +160,10 @@
      ((constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
       (:wat::core::Vector :wat::telemetry::TimeConstraint
         (:wat::telemetry::until cutoff)))
-     ((stream :wat::std::stream::Stream<wat::telemetry::Event>)
+     ((stream :wat::stream::Stream<wat::telemetry::Event>)
       (:wat::telemetry::sqlite/stream-logs handle constraints))
      ((events :wat::core::Vector<wat::telemetry::Event>)
-      (:wat::std::stream::collect stream))
+      (:wat::stream::collect stream))
      ((count :wat::core::i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 1)))
 
@@ -187,10 +187,10 @@
       (:wat::core::Vector :wat::telemetry::TimeConstraint
         (:wat::telemetry::since lo)
         (:wat::telemetry::until hi)))
-     ((stream :wat::std::stream::Stream<wat::telemetry::Event>)
+     ((stream :wat::stream::Stream<wat::telemetry::Event>)
       (:wat::telemetry::sqlite/stream-logs handle constraints))
      ((events :wat::core::Vector<wat::telemetry::Event>)
-      (:wat::std::stream::collect stream))
+      (:wat::stream::collect stream))
      ((count :wat::core::i64) (:wat::core::length events)))
     (:wat::test::assert-eq count 1)))
 
@@ -212,7 +212,7 @@
      ((no-constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
       (:wat::core::Vector :wat::telemetry::TimeConstraint))
      ((events :wat::core::Vector<wat::telemetry::Event>)
-      (:wat::std::stream::collect
+      (:wat::stream::collect
         (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
      ;; First event is the {time_ns=1000, "first"} row.
      ((first-evt :wat::telemetry::Event)
@@ -247,7 +247,7 @@
      ((no-constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
       (:wat::core::Vector :wat::telemetry::TimeConstraint))
      ((events :wat::core::Vector<wat::telemetry::Event>)
-      (:wat::std::stream::collect
+      (:wat::stream::collect
         (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
      ((first-evt :wat::telemetry::Event)
       (:wat::core::match (:wat::core::first events) -> :wat::telemetry::Event

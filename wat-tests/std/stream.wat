@@ -22,17 +22,17 @@
   ;; Send 6 items with chunk size 3 → expect two wat::core::Vector<wat::core::i64> chunks of 3.
   (:wat::core::let*
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6))
-     ((stream :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::spawn-producer
+     ((stream :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::spawn-producer
         (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) ())))))))
-     ((chunked :wat::std::stream::Stream<wat::core::Vector<wat::core::i64>>)
-      (:wat::std::stream::chunks stream 3))
-     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::std::stream::collect chunked))
+     ((chunked :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
+      (:wat::stream::chunks stream 3))
+     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect chunked))
      ((num-chunks :wat::core::i64) (:wat::core::length collected)))
     (:wat::test::assert-eq num-chunks 2)))
 
@@ -42,17 +42,17 @@
   ;; flushed partial [4 5] at EOS.
   (:wat::core::let*
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3 4 5))
-     ((stream :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::spawn-producer
+     ((stream :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::spawn-producer
         (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) ())))))))
-     ((chunked :wat::std::stream::Stream<wat::core::Vector<wat::core::i64>>)
-      (:wat::std::stream::chunks stream 3))
-     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::std::stream::collect chunked))
+     ((chunked :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
+      (:wat::stream::chunks stream 3))
+     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect chunked))
      ((expected :wat::core::Vector<wat::core::Vector<wat::core::i64>>)
       (:wat::core::Vector :wat::core::Vector<wat::core::i64>
         (:wat::core::Vector :wat::core::i64 1 2 3)
@@ -63,12 +63,12 @@
   ()
   ;; No items sent → flush sees empty buffer → no chunks emitted.
   (:wat::core::let*
-    (((stream :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::spawn-producer
+    (((stream :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::spawn-producer
         (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit) ())))
-     ((chunked :wat::std::stream::Stream<wat::core::Vector<wat::core::i64>>)
-      (:wat::std::stream::chunks stream 3))
-     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::std::stream::collect chunked))
+     ((chunked :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
+      (:wat::stream::chunks stream 3))
+     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect chunked))
      ((num-chunks :wat::core::i64) (:wat::core::length collected)))
     (:wat::test::assert-eq num-chunks 0)))
 
@@ -83,8 +83,8 @@
   ;; Input: 1 1 2 2 2 3 1 1 → expect 1 2 3 1.
   (:wat::core::let*
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 1 2 2 2 3 1 1))
-     ((stream :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::spawn-producer
+     ((stream :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::spawn-producer
         (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
@@ -104,9 +104,9 @@
      ((flush :fn(wat::core::Option<wat::core::i64>)->wat::core::Vector<wat::core::i64>)
       (:wat::core::lambda ((_last :wat::core::Option<wat::core::i64>) -> :wat::core::Vector<wat::core::i64>)
         (:wat::core::Vector :wat::core::i64)))
-     ((deduped :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::with-state stream initial step flush))
-     ((collected :wat::core::Vector<wat::core::i64>) (:wat::std::stream::collect deduped))
+     ((deduped :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::with-state stream initial step flush))
+     ((collected :wat::core::Vector<wat::core::i64>) (:wat::stream::collect deduped))
      ((expected :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3 1)))
     (:wat::test::assert-eq collected expected)))
 
@@ -119,8 +119,8 @@
   ()
   (:wat::core::let*
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 10 20 30))
-     ((stream :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::spawn-producer
+     ((stream :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::spawn-producer
         (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
@@ -132,11 +132,11 @@
         (:wat::core::Tuple (:wat::core::conj buf item) (:wat::core::Vector :wat::core::i64))))
      ((flush :fn(wat::core::Vector<wat::core::i64>)->wat::core::Vector<wat::core::i64>)
       (:wat::core::lambda ((buf :wat::core::Vector<wat::core::i64>) -> :wat::core::Vector<wat::core::i64>) buf))
-     ((buffered :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::with-state stream
+     ((buffered :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::with-state stream
         (:wat::core::Vector :wat::core::i64)
         step flush))
-     ((collected :wat::core::Vector<wat::core::i64>) (:wat::std::stream::collect buffered)))
+     ((collected :wat::core::Vector<wat::core::i64>) (:wat::stream::collect buffered)))
     (:wat::test::assert-eq collected source)))
 
 ;; ─── arc 009 sanity — map over a vec via a named define ──────────────
@@ -163,8 +163,8 @@
   ;; Stream [1 1 2 3 3 3 1] grouped by identity → [[1 1] [2] [3 3 3] [1]].
   (:wat::core::let*
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 1 2 3 3 3 1))
-     ((stream :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::spawn-producer
+     ((stream :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::spawn-producer
         (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
@@ -173,9 +173,9 @@
                 ((:wat::core::Err _) ())))))))
      ((id :fn(wat::core::i64)->wat::core::i64)
       (:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64) x))
-     ((grouped :wat::std::stream::Stream<wat::core::Vector<wat::core::i64>>)
-      (:wat::std::stream::chunks-by stream id))
-     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::std::stream::collect grouped))
+     ((grouped :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
+      (:wat::stream::chunks-by stream id))
+     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect grouped))
      ((expected :wat::core::Vector<wat::core::Vector<wat::core::i64>>)
       (:wat::core::Vector :wat::core::Vector<wat::core::i64>
         (:wat::core::Vector :wat::core::i64 1 1)
@@ -189,8 +189,8 @@
   ;; Stream [1 2 3] grouped by identity → [[1] [2] [3]] (each its own run).
   (:wat::core::let*
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
-     ((stream :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::spawn-producer
+     ((stream :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::spawn-producer
         (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
@@ -199,9 +199,9 @@
                 ((:wat::core::Err _) ())))))))
      ((id :fn(wat::core::i64)->wat::core::i64)
       (:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64) x))
-     ((grouped :wat::std::stream::Stream<wat::core::Vector<wat::core::i64>>)
-      (:wat::std::stream::chunks-by stream id))
-     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::std::stream::collect grouped))
+     ((grouped :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
+      (:wat::stream::chunks-by stream id))
+     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect grouped))
      ((expected :wat::core::Vector<wat::core::Vector<wat::core::i64>>)
       (:wat::core::Vector :wat::core::Vector<wat::core::i64>
         (:wat::core::Vector :wat::core::i64 1)
@@ -213,14 +213,14 @@
   ()
   ;; Empty stream → no groups emitted.
   (:wat::core::let*
-    (((stream :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::spawn-producer
+    (((stream :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::spawn-producer
         (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit) ())))
      ((id :fn(wat::core::i64)->wat::core::i64)
       (:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64) x))
-     ((grouped :wat::std::stream::Stream<wat::core::Vector<wat::core::i64>>)
-      (:wat::std::stream::chunks-by stream id))
-     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::std::stream::collect grouped))
+     ((grouped :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
+      (:wat::stream::chunks-by stream id))
+     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect grouped))
      ((num :wat::core::i64) (:wat::core::length collected)))
     (:wat::test::assert-eq num 0)))
 
@@ -231,17 +231,17 @@
   ;; Stream [1 2 3 4 5], size 3 → [[1 2 3] [2 3 4] [3 4 5]].
   (:wat::core::let*
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3 4 5))
-     ((stream :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::spawn-producer
+     ((stream :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::spawn-producer
         (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) ())))))))
-     ((windowed :wat::std::stream::Stream<wat::core::Vector<wat::core::i64>>)
-      (:wat::std::stream::window stream 3))
-     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::std::stream::collect windowed))
+     ((windowed :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
+      (:wat::stream::window stream 3))
+     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect windowed))
      ((expected :wat::core::Vector<wat::core::Vector<wat::core::i64>>)
       (:wat::core::Vector :wat::core::Vector<wat::core::i64>
         (:wat::core::Vector :wat::core::i64 1 2 3)
@@ -254,17 +254,17 @@
   ;; Stream [1 2], size 3 — never reached size, flush emits [[1 2]].
   (:wat::core::let*
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2))
-     ((stream :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::spawn-producer
+     ((stream :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::spawn-producer
         (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) ())))))))
-     ((windowed :wat::std::stream::Stream<wat::core::Vector<wat::core::i64>>)
-      (:wat::std::stream::window stream 3))
-     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::std::stream::collect windowed))
+     ((windowed :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
+      (:wat::stream::window stream 3))
+     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect windowed))
      ((expected :wat::core::Vector<wat::core::Vector<wat::core::i64>>)
       (:wat::core::Vector :wat::core::Vector<wat::core::i64>
         (:wat::core::Vector :wat::core::i64 1 2))))
@@ -275,17 +275,17 @@
   ;; Stream [1 2 3], size 3 — one full window emitted, flush empty.
   (:wat::core::let*
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
-     ((stream :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::spawn-producer
+     ((stream :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::spawn-producer
         (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) ())))))))
-     ((windowed :wat::std::stream::Stream<wat::core::Vector<wat::core::i64>>)
-      (:wat::std::stream::window stream 3))
-     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::std::stream::collect windowed))
+     ((windowed :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
+      (:wat::stream::window stream 3))
+     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect windowed))
      ((expected :wat::core::Vector<wat::core::Vector<wat::core::i64>>)
       (:wat::core::Vector :wat::core::Vector<wat::core::i64>
         (:wat::core::Vector :wat::core::i64 1 2 3))))
@@ -295,11 +295,11 @@
   ()
   ;; Empty stream → no windows emitted at all.
   (:wat::core::let*
-    (((stream :wat::std::stream::Stream<wat::core::i64>)
-      (:wat::std::stream::spawn-producer
+    (((stream :wat::stream::Stream<wat::core::i64>)
+      (:wat::stream::spawn-producer
         (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit) ())))
-     ((windowed :wat::std::stream::Stream<wat::core::Vector<wat::core::i64>>)
-      (:wat::std::stream::window stream 3))
-     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::std::stream::collect windowed))
+     ((windowed :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
+      (:wat::stream::window stream 3))
+     ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect windowed))
      ((num :wat::core::i64) (:wat::core::length collected)))
     (:wat::test::assert-eq num 0)))
