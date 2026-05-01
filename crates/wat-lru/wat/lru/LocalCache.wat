@@ -36,14 +36,14 @@
     (cache :wat::lru::LocalCache<K,V>)
     (k :K)
     (v :V)
-    -> :Option<(K,V)>)
+    -> :wat::core::Option<(K,V)>)
   (:rust::lru::LruCache::put cache k v))
 
 (:wat::core::define
   (:wat::lru::LocalCache::get<K,V>
     (cache :wat::lru::LocalCache<K,V>)
     (k :K)
-    -> :Option<V>)
+    -> :wat::core::Option<V>)
   (:rust::lru::LruCache::get cache k))
 
 ;; `:wat::lru::LocalCache::len cache` — current entry count. Read-only;

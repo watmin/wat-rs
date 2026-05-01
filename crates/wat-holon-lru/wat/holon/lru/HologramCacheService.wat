@@ -17,7 +17,7 @@
 ;; Surface:
 ;;   - Request: Get(probe, reply-tx) | Put(key, val)
 ;;   - State:   HologramCache + Stats (cache + per-window counters)
-;;   - Reply:   Option<HolonAST> sent on reply-tx
+;;   - Reply:   wat::core::Option<HolonAST> sent on reply-tx
 ;;   - Telemetry: caller-supplied (reporter, metrics-cadence) pair.
 ;;     Both are non-negotiable: caller must pass both. Pass
 ;;     :wat::holon::lru::HologramCacheService/null-reporter and
@@ -37,13 +37,13 @@
 ;; ─── Reply channel typealiases ──────────────────────────────────
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::GetReplyTx
-  :wat::kernel::QueueSender<Option<wat::holon::HolonAST>>)
+  :wat::kernel::QueueSender<wat::core::Option<wat::holon::HolonAST>>)
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::GetReplyRx
-  :wat::kernel::QueueReceiver<Option<wat::holon::HolonAST>>)
+  :wat::kernel::QueueReceiver<wat::core::Option<wat::holon::HolonAST>>)
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::GetReplyPair
-  :wat::kernel::QueuePair<Option<wat::holon::HolonAST>>)
+  :wat::kernel::QueuePair<wat::core::Option<wat::holon::HolonAST>>)
 
 ;; ─── Request enum ───────────────────────────────────────────────
 
@@ -181,7 +181,7 @@
 
 ;; ─── Per-variant request handler ────────────────────────────────
 ;;
-;; Get: filtered-argmax via HologramCache/get; send Option<AST> on
+;; Get: filtered-argmax via HologramCache/get; send wat::core::Option<AST> on
 ;;      reply-tx. Stats: lookups++, then hits++ or misses++.
 ;; Put: insert into HologramCache; no reply. Stats: puts++.
 ;;
@@ -201,7 +201,7 @@
     (:wat::core::match req -> :wat::holon::lru::HologramCacheService::State
       ((:wat::holon::lru::HologramCacheService::Request::Get probe reply-tx)
         (:wat::core::let*
-          (((result :Option<wat::holon::HolonAST>)
+          (((result :wat::core::Option<wat::holon::HolonAST>)
             (:wat::holon::lru::HologramCache/get cache probe))
            ((_send :wat::core::unit)
             (:wat::core::result::expect -> :wat::core::unit

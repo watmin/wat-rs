@@ -188,8 +188,8 @@
       (:wat::core::result::expect -> :wat::core::unit
         (:wat::kernel::send tx (:wat::core::tuple 0 msg))
         "Console/out: tx disconnected — Console driver died?"))
-     ((_ack :Option<wat::core::unit>)
-      (:wat::core::result::expect -> :Option<wat::core::unit>
+     ((_ack :wat::core::Option<wat::core::unit>)
+      (:wat::core::result::expect -> :wat::core::Option<wat::core::unit>
         (:wat::kernel::recv ack-rx)
         "Console/out: ack-rx disconnected — Console driver died mid-write?")))
     ()))
@@ -206,8 +206,8 @@
       (:wat::core::result::expect -> :wat::core::unit
         (:wat::kernel::send tx (:wat::core::tuple 1 msg))
         "Console/err: tx disconnected — Console driver died?"))
-     ((_ack :Option<wat::core::unit>)
-      (:wat::core::result::expect -> :Option<wat::core::unit>
+     ((_ack :wat::core::Option<wat::core::unit>)
+      (:wat::core::result::expect -> :wat::core::Option<wat::core::unit>
         (:wat::kernel::recv ack-rx)
         "Console/err: ack-rx disconnected — Console driver died mid-write?")))
     ()))

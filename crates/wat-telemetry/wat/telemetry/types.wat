@@ -29,10 +29,10 @@
 ;; that ride on every emitted Event row as a queryable EDN map.
 ;; Aliased per arc 077's "nested generics get a typealias"
 ;; convention; resolves structurally to
-;; `:HashMap<wat::holon::HolonAST,wat::holon::HolonAST>` at every
+;; `:wat::core::HashMap<wat::holon::HolonAST,wat::holon::HolonAST>` at every
 ;; declaration site.
 (:wat::core::typealias :wat::telemetry::Tags
-  :HashMap<wat::holon::HolonAST,wat::holon::HolonAST>)
+  :wat::core::HashMap<wat::holon::HolonAST,wat::holon::HolonAST>)
 
 
 ;; The bundled Service<Event,_> handles the consumer's

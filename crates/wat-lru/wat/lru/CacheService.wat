@@ -19,10 +19,10 @@
 ;; the explicit "no reporting" choice.
 ;;
 ;; Protocol:
-;;   Body<K,V>     = (tag :wat::core::i64, key :K, put-val :Option<V>)
-;;   ReplyTx<V>    = :Sender<Option<V>>
+;;   Body<K,V>     = (tag :wat::core::i64, key :K, put-val :wat::core::Option<V>)
+;;   ReplyTx<V>    = :Sender<wat::core::Option<V>>
 ;;   Request<K,V>  = (Body<K,V>, ReplyTx<V>)
-;;   Response<V>   = :Option<V>
+;;   Response<V>   = :wat::core::Option<V>
 ;;     body.tag 0 = GET: put-val is :None
 ;;     body.tag 1 = PUT: put-val is (Some v)
 ;;     Response:   (Some v) on GET hit, :None on GET miss, :None on PUT ack.
@@ -41,9 +41,9 @@
 
 ;; --- Protocol typealiases ---
 (:wat::core::typealias :wat::lru::CacheService::Body<K,V>
-  :(wat::core::i64,K,Option<V>))
+  :(wat::core::i64,K,wat::core::Option<V>))
 (:wat::core::typealias :wat::lru::CacheService::ReplyTx<V>
-  :wat::kernel::QueueSender<Option<V>>)
+  :wat::kernel::QueueSender<wat::core::Option<V>>)
 (:wat::core::typealias :wat::lru::CacheService::Request<K,V>
   :(wat::lru::CacheService::Body<K,V>,wat::lru::CacheService::ReplyTx<V>))
 (:wat::core::typealias :wat::lru::CacheService::ReqTx<K,V>
@@ -141,7 +141,7 @@
 
 ;; ─── Per-variant request handler ────────────────────────────────
 ;;
-;; GET: LocalCache::get; reply with Option<V>; stats: lookups++,
+;; GET: LocalCache::get; reply with wat::core::Option<V>; stats: lookups++,
 ;;      hits++ or misses++.
 ;; PUT: LocalCache::put; reply :None; stats: puts++.
 ;;
@@ -162,14 +162,14 @@
      ((reply-to :wat::lru::CacheService::ReplyTx<V>) (:wat::core::second req))
      ((tag :wat::core::i64) (:wat::core::first body))
      ((key :K) (:wat::core::second body))
-     ((put-val :Option<V>) (:wat::core::third body))
-     ((resp :Option<V>)
-      (:wat::core::if (:wat::core::= tag 0) -> :Option<V>
+     ((put-val :wat::core::Option<V>) (:wat::core::third body))
+     ((resp :wat::core::Option<V>)
+      (:wat::core::if (:wat::core::= tag 0) -> :wat::core::Option<V>
         (:wat::lru::LocalCache::get cache key)
-        (:wat::core::match put-val -> :Option<V>
+        (:wat::core::match put-val -> :wat::core::Option<V>
           ((Some v)
             (:wat::core::let*
-              (((_ :Option<(K,V)>) (:wat::lru::LocalCache::put cache key v)))
+              (((_ :wat::core::Option<(K,V)>) (:wat::lru::LocalCache::put cache key v)))
               :None))
           (:None :None))))
      ;; Per arc 110: client dropping reply-to mid-protocol is a
@@ -313,9 +313,9 @@
   (:wat::lru::CacheService/get<K,V>
     (req-tx :wat::lru::CacheService::ReqTx<K,V>)
     (reply-tx :wat::lru::CacheService::ReplyTx<V>)
-    (reply-rx :wat::kernel::QueueReceiver<Option<V>>)
+    (reply-rx :wat::kernel::QueueReceiver<wat::core::Option<V>>)
     (key :K)
-    -> :Option<V>)
+    -> :wat::core::Option<V>)
   (:wat::core::let*
     (((body :wat::lru::CacheService::Body<K,V>)
       (:wat::core::tuple 0 key :None))
@@ -329,8 +329,8 @@
       (:wat::core::result::expect -> :wat::core::unit
         (:wat::kernel::send req-tx req)
         "CacheService/get: req-tx disconnected — driver died?")))
-    (:wat::core::option::expect -> :Option<V>
-      (:wat::core::result::expect -> :Option<Option<V>>
+    (:wat::core::option::expect -> :wat::core::Option<V>
+      (:wat::core::result::expect -> :wat::core::Option<wat::core::Option<V>>
         (:wat::kernel::recv reply-rx)
         "CacheService/get: reply-rx disconnected — driver died mid-request?")
       "CacheService/get: reply channel closed — driver dropped reply-tx?")))
@@ -339,7 +339,7 @@
   (:wat::lru::CacheService/put<K,V>
     (req-tx :wat::lru::CacheService::ReqTx<K,V>)
     (reply-tx :wat::lru::CacheService::ReplyTx<V>)
-    (reply-rx :wat::kernel::QueueReceiver<Option<V>>)
+    (reply-rx :wat::kernel::QueueReceiver<wat::core::Option<V>>)
     (key :K)
     (value :V)
     -> :wat::core::unit)
@@ -355,8 +355,8 @@
       (:wat::core::result::expect -> :wat::core::unit
         (:wat::kernel::send req-tx req)
         "CacheService/put: req-tx disconnected — driver died?"))
-     ((_recv :Option<Option<V>>)
-      (:wat::core::result::expect -> :Option<Option<V>>
+     ((_recv :wat::core::Option<wat::core::Option<V>>)
+      (:wat::core::result::expect -> :wat::core::Option<wat::core::Option<V>>
         (:wat::kernel::recv reply-rx)
         "CacheService/put: reply-rx disconnected — driver died mid-request?")))
     ()))

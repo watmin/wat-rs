@@ -25,8 +25,8 @@
 ;;     Thin wrappers around the Rust constructors. Slice 1 ignores
 ;;     the query argument (full-table scan, ORDER BY time_ns ASC).
 ;;
-;;   (LogCursor/step! cursor) -> :Option<:wat::telemetry::Event>
-;;   (MetricCursor/step! cursor) -> :Option<:wat::telemetry::Event>
+;;   (LogCursor/step! cursor) -> :wat::core::Option<:wat::telemetry::Event>
+;;   (MetricCursor/step! cursor) -> :wat::core::Option<:wat::telemetry::Event>
 ;;     Pull one event from the cursor. :None on exhaustion.
 ;;
 ;;   (sqlite/stream-logs handle query) -> Stream<Event>
@@ -102,13 +102,13 @@
 (:wat::core::define
   (:wat::telemetry::sqlite::LogCursor/step!
     (cursor :wat::telemetry::sqlite::LogCursor)
-    -> :Option<wat::telemetry::Event>)
+    -> :wat::core::Option<wat::telemetry::Event>)
   (:rust::telemetry::sqlite::LogCursor::step cursor))
 
 (:wat::core::define
   (:wat::telemetry::sqlite::MetricCursor/step!
     (cursor :wat::telemetry::sqlite::MetricCursor)
-    -> :Option<wat::telemetry::Event>)
+    -> :wat::core::Option<wat::telemetry::Event>)
   (:rust::telemetry::sqlite::MetricCursor::step cursor))
 
 ;; ─── Event::Log/data-ast / data-value (slice 3) ─────────────
@@ -121,11 +121,11 @@
 ;;   you want to grep the AST shape directly (e.g., "did this
 ;;   log carry a Bind structure?").
 ;; - `data-value<T>` runs the AST through eval-ast! (arc 102's
-;;   polymorphic Result<:T, :EvalError> shape) to lift it to a
+;;   polymorphic wat::core::Result<:T, :EvalError> shape) to lift it to a
 ;;   live Value of whatever type the log was. Caller annotates
 ;;   T at the binding site:
 ;;
-;;     ((paper :Option<:trading::PaperResolved>)
+;;     ((paper :wat::core::Option<:trading::PaperResolved>)
 ;;      (:wat::telemetry::Event::Log/data-value e))
 ;;
 ;;   The lifted Value::Struct is what arc 098's :wat::form::matches?
@@ -137,8 +137,8 @@
 (:wat::core::define
   (:wat::telemetry::Event::Log/data-ast
     (e :wat::telemetry::Event)
-    -> :Option<wat::holon::HolonAST>)
-  (:wat::core::match e -> :Option<wat::holon::HolonAST>
+    -> :wat::core::Option<wat::holon::HolonAST>)
+  (:wat::core::match e -> :wat::core::Option<wat::holon::HolonAST>
     ((:wat::telemetry::Event::Log _ _ _ _ _ _ data)
       (Some (:wat::edn::Tagged/0 data)))
     (_ :None)))
@@ -146,13 +146,13 @@
 (:wat::core::define
   (:wat::telemetry::Event::Log/data-value<T>
     (e :wat::telemetry::Event)
-    -> :Option<T>)
-  (:wat::core::match e -> :Option<T>
+    -> :wat::core::Option<T>)
+  (:wat::core::match e -> :wat::core::Option<T>
     ((:wat::telemetry::Event::Log _ _ _ _ _ _ data)
       (:wat::core::match
         (:wat::eval-ast!
           (:wat::holon::to-watast (:wat::edn::Tagged/0 data)))
-        -> :Option<T>
+        -> :wat::core::Option<T>
         ((Ok v) (Some v))
         ((Err _) :None)))
     (_ :None)))

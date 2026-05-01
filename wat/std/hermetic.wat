@@ -16,7 +16,7 @@
 ;; Arc 112 — fork-program-ast now returns the unified
 ;; :wat::kernel::Program<I,O> (same struct spawn-program-ast returns).
 ;; The wait mechanism is hidden inside ProgramHandle's Forked variant;
-;; (:wat::kernel::Process/join-result proc) produces Result<(),
+;; (:wat::kernel::Process/join-result proc) produces wat::core::Result<wat::core::unit,
 ;; ProcessDiedError> uniformly. The pre-arc-112 ForkedChild +
 ;; wait-child + per-exit-code prefix logic collapsed: the substrate
 ;; renders exit-code interpretation directly in the ProcessDiedError
@@ -64,7 +64,7 @@
   (:wat::kernel::run-sandboxed-hermetic-ast<I,O>
     (forms :Vec<wat::WatAST>)
     (stdin :Vec<wat::core::String>)
-    (scope :Option<wat::core::String>)
+    (scope :wat::core::Option<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::core::match scope -> :wat::kernel::RunResult
     ((Some _)
@@ -96,7 +96,7 @@
         ;; (< pipe buffer), the child's writes complete without
         ;; the parent needing to drain. This keeps the drain
         ;; code single-threaded — no spawn + join ceremony.
-        ((joined-result :Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
+        ((joined-result :wat::core::Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
          (:wat::kernel::Process/join-result proc))
         ((stdout-r :wat::io::IOReader)
          (:wat::kernel::Process/stdout proc))
@@ -114,10 +114,10 @@
          ;; absent (clean exit, plain panic, runtime error). The
          ;; chain shape at the caller is identical regardless of
          ;; which transport delivered it.
-         ((stderr-chain :Option<Vec<wat::kernel::ProcessDiedError>>)
+         ((stderr-chain :wat::core::Option<Vec<wat::kernel::ProcessDiedError>>)
           (:wat::kernel::extract-panics stderr-lines))
-         ((failure :Option<wat::kernel::Failure>)
-         (:wat::core::match joined-result -> :Option<wat::kernel::Failure>
+         ((failure :wat::core::Option<wat::kernel::Failure>)
+         (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
            ((Ok _)       :None)
            ((Err chain)
             (Some (:wat::kernel::failure-from-process-died

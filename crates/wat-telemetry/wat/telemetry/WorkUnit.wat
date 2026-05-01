@@ -1,8 +1,8 @@
 ;; :wat::telemetry::WorkUnit — measurement-scope state surface.
 ;;
 ;; The Rust shim at :rust::telemetry::WorkUnit holds the four pieces
-;; every scope tracks: counters (HashMap<Value, i64>), durations
-;; (HashMap<Value, Vec<f64>>), `started: Instant`, and `uuid:
+;; every scope tracks: counters (wat::core::HashMap<Value, i64>), durations
+;; (wat::core::HashMap<Value, Vec<f64>>), `started: Instant`, and `uuid:
 ;; String`. Mutation is in place via ThreadOwnedCell — same Tier-2
 ;; zero-mutex pattern wat-lru's LocalCache uses.
 ;;

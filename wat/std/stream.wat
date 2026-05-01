@@ -9,9 +9,9 @@
 ;;   (let* (((rx1 h1) (stream::spawn-producer :my::source))
 ;;          ((rx2 h2) (stream::map rx1 :my::transform))
 ;;          ((result :()) (stream::for-each rx2 :my::handler))
-;;          ((_ :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+;;          ((_ :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
 ;;           (:wat::kernel::Thread/join-result h2))
-;;          ((_ :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+;;          ((_ :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
 ;;           (:wat::kernel::Thread/join-result h1)))
 ;;     result)
 ;;
@@ -61,7 +61,7 @@
 ;; accumulator + an emit list per step. Two recurring shapes:
 ;;
 ;;   ChunkStep<T>           — chunks / window      : (buf,             emits)
-;;   KeyedChunkStep<K,T>    — chunks-by            : ((Option<K>,buf), emits)
+;;   KeyedChunkStep<K,T>    — chunks-by            : ((wat::core::Option<K>,buf), emits)
 ;;
 ;; Each `:wat::core::tuple` step returns one of these. Naming the
 ;; shapes keeps lambda return-type annotations from accumulating
@@ -72,7 +72,7 @@
 
 (:wat::core::typealias
   :wat::std::stream::KeyedChunkStep<K,T>
-  :((Option<K>,Vec<T>),Vec<Vec<T>>))
+  :((wat::core::Option<K>,Vec<T>),Vec<Vec<T>>))
 
 ;; --- spawn-producer ---
 ;;
@@ -192,7 +192,7 @@
     (((rx :wat::kernel::QueueReceiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second stream))
      ((_ :wat::core::unit) (:wat::std::stream::for-each-drain rx handler))
-     ((_ :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_ :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result handle)))
     ()))
 
@@ -223,7 +223,7 @@
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second stream))
      ((items :Vec<T>)
       (:wat::std::stream::collect-drain rx (:wat::core::vec :T)))
-     ((_ :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_ :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result handle)))
     items))
 
@@ -340,7 +340,7 @@
     (((rx :wat::kernel::QueueReceiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second stream))
      ((result :Acc) (:wat::std::stream::fold-drain rx init f))
-     ((_ :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_ :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result handle)))
     result))
 
@@ -377,21 +377,21 @@
   (:wat::std::stream::drain-items<U>
     (out :wat::kernel::QueueSender<U>)
     (items :Vec<U>)
-    -> :Option<wat::core::unit>)
+    -> :wat::core::Option<wat::core::unit>)
   ;; Tail-recursive helper: send every item in `items`, stop early
   ;; (returning :None) if the consumer dropped. Returns (Some ()) on
   ;; full drain; returns :None if any send failed, signaling the
   ;; caller to exit.
-  (:wat::core::if (:wat::core::empty? items) -> :Option<wat::core::unit>
+  (:wat::core::if (:wat::core::empty? items) -> :wat::core::Option<wat::core::unit>
     (Some ())
     ;; Vec is non-empty (just checked); first returns Some<U> via
     ;; arc 047. The :None arm is unreachable but the type checker
     ;; demands totality.
-    (:wat::core::match (:wat::core::first items) -> :Option<wat::core::unit>
+    (:wat::core::match (:wat::core::first items) -> :wat::core::Option<wat::core::unit>
       ((Some item)
         (:wat::core::let*
           (((rest-items :Vec<U>) (:wat::core::rest items)))
-          (:wat::core::match (:wat::kernel::send out item) -> :Option<wat::core::unit>
+          (:wat::core::match (:wat::kernel::send out item) -> :wat::core::Option<wat::core::unit>
             ((Ok _)
               (:wat::std::stream::drain-items out rest-items))
             ((Err _) :None))))
@@ -411,7 +411,7 @@
         (((stepped :(Acc,Vec<U>)) (step acc item))
          ((new-acc :Acc) (:wat::core::first stepped))
          ((to-emit :Vec<U>) (:wat::core::second stepped))
-         ((drain-result :Option<wat::core::unit>)
+         ((drain-result :wat::core::Option<wat::core::unit>)
           (:wat::std::stream::drain-items out to-emit)))
         (:wat::core::match drain-result -> :wat::core::unit
           ((Some _)
@@ -423,7 +423,7 @@
       ;; — same behavior chunks had for its final partial buffer.
       (:wat::core::let*
         (((final-emits :Vec<U>) (flush acc))
-         ((_ :Option<wat::core::unit>)
+         ((_ :wat::core::Option<wat::core::unit>)
           (:wat::std::stream::drain-items out final-emits)))
         ()))
     ((Err _died) ())))
@@ -519,12 +519,12 @@
 
 (:wat::core::define
   (:wat::std::stream::chunks-by-step<T,K>
-    (state :(Option<K>,Vec<T>))
+    (state :(wat::core::Option<K>,Vec<T>))
     (item :T)
     (key-fn :fn(T)->K)
     -> :wat::std::stream::KeyedChunkStep<K,T>)
   (:wat::core::let*
-    (((last-key :Option<K>) (:wat::core::first state))
+    (((last-key :wat::core::Option<K>) (:wat::core::first state))
      ((buffer :Vec<T>) (:wat::core::second state))
      ((k :K) (key-fn item)))
     (:wat::core::match last-key -> :wat::std::stream::KeyedChunkStep<K,T>
@@ -547,7 +547,7 @@
 
 (:wat::core::define
   (:wat::std::stream::chunks-by-flush<T,K>
-    (state :(Option<K>,Vec<T>))
+    (state :(wat::core::Option<K>,Vec<T>))
     -> :Vec<Vec<T>>)
   (:wat::core::let*
     (((buffer :Vec<T>) (:wat::core::second state)))
@@ -564,7 +564,7 @@
   ;; step closes over key-fn; flush is size-agnostic so passes by name.
   (:wat::std::stream::with-state upstream
     (:wat::core::tuple :None (:wat::core::vec :T))
-    (:wat::core::lambda ((state :(Option<K>,Vec<T>)) (item :T)
+    (:wat::core::lambda ((state :(wat::core::Option<K>,Vec<T>)) (item :T)
                          -> :wat::std::stream::KeyedChunkStep<K,T>)
       (:wat::std::stream::chunks-by-step state item key-fn))
     :wat::std::stream::chunks-by-flush))

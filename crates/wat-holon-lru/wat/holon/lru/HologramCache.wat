@@ -16,8 +16,8 @@
 ;;   Hologram/put          store key val -> ()
 ;;   HologramCache/put       store key val -> ()      ;; ALSO updates LRU + drops evicted
 ;;
-;;   Hologram/get          store probe -> Option<HolonAST>
-;;   HologramCache/get       store probe -> Option<HolonAST>  ;; ALSO bumps LRU on hit
+;;   Hologram/get          store probe -> wat::core::Option<HolonAST>
+;;   HologramCache/get       store probe -> wat::core::Option<HolonAST>  ;; ALSO bumps LRU on hit
 ;;
 ;;   {Hologram,HologramCache}/{len, capacity} — same shape
 
@@ -61,20 +61,20 @@
      ((lru :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::unit>)
       (:wat::holon::lru::HologramCache/lru store))
      ((_ :wat::core::unit) (:wat::holon::Hologram/put h key val))
-     ((evicted :Option<(wat::holon::HolonAST,wat::core::unit)>)
+     ((evicted :wat::core::Option<(wat::holon::HolonAST,wat::core::unit)>)
       (:wat::lru::LocalCache::put lru key ())))
     (:wat::core::match evicted -> :wat::core::unit
       ((Some pair)
         (:wat::core::let*
           (((evicted-key :wat::holon::HolonAST) (:wat::core::first pair))
-           ((_ :Option<wat::holon::HolonAST>)
+           ((_ :wat::core::Option<wat::holon::HolonAST>)
             (:wat::holon::Hologram/remove h evicted-key)))
           ()))
       (:None ()))))
 
 ;; ─── get — find + filter + LRU bump on hit ───────────────────────
 ;;
-;; Hologram/find returns Option<(matched-key, val)> on a passing-
+;; Hologram/find returns wat::core::Option<(matched-key, val)> on a passing-
 ;; filter hit. Bump the matched key in the LRU (LocalCache::put
 ;; updates freshness on existing keys) and return Some(val). On
 ;; miss (filter rejected or empty bracket-pair), return :None.
@@ -82,19 +82,19 @@
   (:wat::holon::lru::HologramCache/get
     (store :wat::holon::lru::HologramCache)
     (probe :wat::holon::HolonAST)
-    -> :Option<wat::holon::HolonAST>)
+    -> :wat::core::Option<wat::holon::HolonAST>)
   (:wat::core::let*
     (((h :wat::holon::Hologram) (:wat::holon::lru::HologramCache/hologram store))
      ((lru :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::unit>)
       (:wat::holon::lru::HologramCache/lru store)))
     (:wat::core::match
       (:wat::holon::Hologram/find h probe)
-      -> :Option<wat::holon::HolonAST>
+      -> :wat::core::Option<wat::holon::HolonAST>
       ((Some pair)
         (:wat::core::let*
           (((matched-key :wat::holon::HolonAST) (:wat::core::first pair))
            ((val :wat::holon::HolonAST) (:wat::core::second pair))
-           ((_ :Option<(wat::holon::HolonAST,wat::core::unit)>)
+           ((_ :wat::core::Option<(wat::holon::HolonAST,wat::core::unit)>)
             (:wat::lru::LocalCache::put lru matched-key ())))
           (Some val)))
       (:None :None))))

@@ -17,11 +17,11 @@
 ;; calls — only the mechanism changed.
 ;;
 ;; Failure path:
-;; - spawn-program returns :Result<:Process, :StartupError>.
+;; - spawn-program returns :wat::core::Result<:Process, :StartupError>.
 ;;   On (Err startup-err), drive-sandbox synthesizes a RunResult
 ;;   with empty stdout/stderr + Some(Failure) carrying the error
 ;;   message. Same shape the deleted substrate produced.
-;; - join-result returns :Result<(), :ThreadDiedError> after a
+;; - join-result returns :wat::core::Result<wat::core::unit, :ThreadDiedError> after a
 ;;   successful spawn. On (Err thread-died), drive-sandbox builds
 ;;   a Failure with ThreadDiedError/message extracting the panic
 ;;   or runtime-error message regardless of variant. Captured
@@ -107,7 +107,7 @@
      ((stderr-r :wat::io::IOReader)  (:wat::kernel::Process/stderr proc))
      ((stdout-lines :Vec<wat::core::String>)    (:wat::kernel::drain-lines stdout-r))
      ((stderr-lines :Vec<wat::core::String>)    (:wat::kernel::drain-lines stderr-r))
-     ((joined-result :Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
+     ((joined-result :wat::core::Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
       (:wat::kernel::Process/join-result proc))
      ;; Arc 113 slice 3 — symmetry with the thread cascade. When
      ;; the forked child panicked with an upstream-chain-bearing
@@ -119,10 +119,10 @@
      ;; Threads pass DiedError values directly through crossbeam;
      ;; processes pass them as EDN over kernel pipes; the chain at
      ;; the caller is identical regardless. Only the wire differs.
-     ((stderr-chain :Option<Vec<wat::kernel::ProcessDiedError>>)
+     ((stderr-chain :wat::core::Option<Vec<wat::kernel::ProcessDiedError>>)
       (:wat::kernel::extract-panics stderr-lines))
-     ((failure :Option<wat::kernel::Failure>)
-      (:wat::core::match joined-result -> :Option<wat::kernel::Failure>
+     ((failure :wat::core::Option<wat::kernel::Failure>)
+      (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
         ((Ok _)    :None)
         ((Err err)
          (Some (:wat::kernel::failure-from-process-died
@@ -153,7 +153,7 @@
   (:wat::kernel::run-sandboxed
     (src   :wat::core::String)
     (stdin :Vec<wat::core::String>)
-    (scope :Option<wat::core::String>)
+    (scope :wat::core::Option<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::core::match (:wat::kernel::spawn-program src scope)
     -> :wat::kernel::RunResult
@@ -166,7 +166,7 @@
   (:wat::kernel::run-sandboxed-ast
     (forms :Vec<wat::WatAST>)
     (stdin :Vec<wat::core::String>)
-    (scope :Option<wat::core::String>)
+    (scope :wat::core::Option<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::core::match (:wat::kernel::spawn-program-ast forms scope)
     -> :wat::kernel::RunResult

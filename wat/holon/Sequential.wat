@@ -27,7 +27,7 @@
            (:wat::core::if (:wat::core::= i 0) -> :wat::holon::HolonAST
              item
              (:wat::holon::Permute item i))))))
-     ;; first returns Option<HolonAST> via arc 047. Sequential
+     ;; first returns wat::core::Option<HolonAST> via arc 047. Sequential
      ;; expects non-empty input by contract; the :None arm is
      ;; unreachable but the type checker demands totality.
      (:wat::core::match (:wat::core::first positioned) -> :wat::holon::HolonAST

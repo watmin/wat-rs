@@ -11,11 +11,11 @@
 ;;   QueueReceiver<T>  — single receiver end of a substrate channel
 ;;   QueuePair<T>      — what `make-bounded/unbounded-queue` returns
 ;;   Chosen<T>         — what `:wat::kernel::select` returns
-;;                       (idx, Result<Option<T>, ThreadDiedError>) per arc 111
+;;                       (idx, wat::core::Result<wat::core::Option<T>, ThreadDiedError>) per arc 111
 ;;                       — which receiver fired, and what it produced.
 ;;   CommResult<T>     — what `recv` / `try-recv` return
 ;;                       (and the inner shape of `send`'s :CommResult<()>)
-;;                       Result<Option<T>, ThreadDiedError> per arc 111:
+;;                       wat::core::Result<wat::core::Option<T>, ThreadDiedError> per arc 111:
 ;;                       Ok(Some v) — value flowed; Ok(:None) — clean
 ;;                       shutdown (every sender dropped via scope);
 ;;                       Err(ThreadDied) — sender thread panicked.
@@ -63,7 +63,7 @@
   :Vec<wat::kernel::ThreadDiedError>)
 
 (:wat::core::typealias :wat::kernel::CommResult<T>
-  :Result<Option<T>,wat::kernel::ThreadPanics>)
+  :wat::core::Result<wat::core::Option<T>,wat::kernel::ThreadPanics>)
 
 (:wat::core::typealias :wat::kernel::Chosen<T>
   :(wat::core::i64,wat::kernel::CommResult<T>))
