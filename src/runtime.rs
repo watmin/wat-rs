@@ -18265,7 +18265,7 @@ mod tests {
                     (stdin  :wat::io::IOReader)
                     (stdout :wat::io::IOWriter)
                     (stderr :wat::io::IOWriter)
-                    -> :())
+                    -> :wat::core::unit)
                   (:wat::test::assert-eq 1 2)))
               (:wat::core::vec :wat::core::String))
         "#;
