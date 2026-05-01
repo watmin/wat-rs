@@ -170,25 +170,63 @@ impl std::error::Error for CheckError {}
 // sonnet fixture sweeps.
 //
 // Once each arc's consumer wave had been swept, the helper retired
-// — the hint had served its job. Arcs 111 + 112 + 113 closed within
-// hours of each other; this joint retirement preserves the scaffold
-// (`collect_hints` still calls every helper in its array; the array
-// is currently empty) so the next migration arc reintroduces
-// guidance with one helper + one array entry.
+// — the hint had served its job.
 //
-// To restore the pattern when a new substrate arc lands:
-//
-//     fn arc_NNN_migration_hint(callee: &str, expected: &str, got: &str)
-//         -> Option<String>
-//     {
-//         // detect the smell that says "this code was written
-//         // against the pre-arc-NNN shape"; return the
-//         // self-describing fix path.
-//         ...
-//     }
-//
-// Then add `arc_NNN_migration_hint(callee, expected, got)` to the
-// array inside `collect_hints` below.
+// 2026-04-30 (later): arc 114 reintroduces the pattern for
+// `:wat::kernel::spawn` retirement. See `arc_114_migration_hint`
+// below.
+
+/// Arc 114 — fires on bare-spawn callees and on the
+/// `:ProgramHandle<R>` ↔ `:Thread<I,O>` shape pair. Tells the reader
+/// the migration path to `:wat::kernel::spawn-thread` +
+/// `:wat::kernel::Thread<I,O>` + `:wat::kernel::Thread/join-result`.
+///
+/// The hint frames mini-TCP (`docs/ZERO-MUTEX.md` § "Mini-TCP via
+/// paired channels") as the primary worker shape — most existing
+/// `:wat::kernel::spawn` callers close over caller-allocated
+/// `make-bounded-queue` pairs and don't need substrate-allocated
+/// channels. Workers that don't fit that mold get a manual flag
+/// (`;; ARC 114 MANUAL`) — substrate-author judgment calls don't
+/// auto-sweep.
+fn arc_114_migration_hint(callee: &str, expected: &str, got: &str) -> Option<String> {
+    let bare_spawn_callee = matches!(
+        callee,
+        ":wat::kernel::spawn"
+            | ":wat::kernel::join"
+            | ":wat::kernel::join-result"
+    );
+    // Annotation-leftover smell: a binding declared :ProgramHandle<R>
+    // but the value is :Thread<I,O>, or vice versa. Detects partial
+    // sweeps where sonnet flipped the verb but left the binding type.
+    let proghandle = "wat::kernel::ProgramHandle<";
+    let thread = "wat::kernel::Thread<";
+    let shape_pair_mismatch = (expected.contains(proghandle) && got.contains(thread))
+        || (got.contains(proghandle) && expected.contains(thread));
+    if !bare_spawn_callee && !shape_pair_mismatch {
+        return None;
+    }
+    Some(
+        "arc 114 — :wat::kernel::spawn / :wat::kernel::join / \
+         :wat::kernel::join-result retire. Programs deliver values only \
+         via their output channel; R-via-join is gone. \
+         Migrate: (:wat::kernel::spawn :worker args...) → \
+         (:wat::kernel::spawn-thread (:wat::core::lambda \
+         ((_in :rust::crossbeam_channel::Receiver<()>) \
+         (_out :rust::crossbeam_channel::Sender<()>)) (:worker args...))) \
+         returning :wat::kernel::Thread<(),()>. \
+         Replace (:wat::kernel::join h) and (:wat::kernel::join-result h) \
+         with (:wat::kernel::Thread/join-result thr) returning \
+         :Result<:(),:Vec<wat::kernel::ThreadDiedError>>; match arms \
+         ((Ok _) ...) ((Err chain) ...). \
+         Mini-TCP workers (docs/ZERO-MUTEX.md) close over caller-held \
+         channels; substrate-allocated `_in` / `_out` stay unused. \
+         Workers not fitting :Fn(:Receiver<I>, :Sender<O>) -> :() — \
+         non-channel sig, non-unit return, R-via-join ferrying — get a \
+         `;; ARC 114 MANUAL — needs type-design review` comment and skip; \
+         judgment calls don't auto-sweep."
+            .into(),
+    )
+}
 
 /// Aggregated errors — `check_program` returns all findings together.
 #[derive(Debug)]
@@ -275,19 +313,16 @@ impl CheckError {
 /// (Display impl + `CheckError::diagnostic`'s hint field) picks it
 /// up automatically. See the retirement note above for the helper
 /// shape.
-fn collect_hints(_callee: &str, _expected: &str, _got: &str) -> Option<String> {
-    // Active migration arcs go here. Shape (drop the leading
-    // underscores on the params when at least one arm reads them):
-    //
-    //     let hints: Vec<String> = [
-    //         arc_NNN_migration_hint(callee, expected, got),
-    //         arc_MMM_migration_hint(callee, expected, got),
-    //     ]
-    //     .into_iter()
-    //     .flatten()
-    //     .collect();
-    //     if hints.is_empty() { None } else { Some(hints.join("\n\n")) }
-    None
+fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
+    let hints: Vec<String> = [arc_114_migration_hint(callee, expected, got)]
+        .into_iter()
+        .flatten()
+        .collect();
+    if hints.is_empty() {
+        None
+    } else {
+        Some(hints.join("\n\n"))
+    }
 }
 
 impl CheckErrors {
@@ -931,6 +966,36 @@ fn infer_list(
             }
             ":wat::kernel::spawn" => {
                 return infer_spawn(args, env, locals, fresh, subst, errors);
+            }
+            // Arc 114 — `:wat::kernel::join` and `:wat::kernel::join-result`
+            // retire alongside `:wat::kernel::spawn`. Push synthetic
+            // TypeMismatches at every call site so the arc 114 migration
+            // hint fires; continue inferring the args (so additional
+            // mismatches still surface) but the call itself is now an
+            // error regardless of arg shapes.
+            ":wat::kernel::join" => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::kernel::join".into(),
+                    param: "(retired verb)".into(),
+                    expected: ":wat::kernel::Thread/join-result".into(),
+                    got: ":wat::kernel::join".into(),
+                });
+                for arg in args {
+                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                }
+                return Some(fresh.fresh());
+            }
+            ":wat::kernel::join-result" => {
+                errors.push(CheckError::TypeMismatch {
+                    callee: ":wat::kernel::join-result".into(),
+                    param: "(retired verb)".into(),
+                    expected: ":wat::kernel::Thread/join-result".into(),
+                    got: ":wat::kernel::join-result".into(),
+                });
+                for arg in args {
+                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                }
+                return Some(fresh.fresh());
             }
             ":wat::core::first" => {
                 return infer_positional_accessor(args, env, locals, fresh, subst, errors, ":wat::core::first", 0);
@@ -2879,12 +2944,18 @@ fn infer_spawn(
     subst: &mut Subst,
     errors: &mut Vec<CheckError>,
 ) -> Option<TypeExpr> {
+    // Arc 114 — `:wat::kernel::spawn` retired. Emit a synthetic
+    // TypeMismatch so the arc 114 migration hint fires at every call
+    // site. Continue type-checking the args (so additional unrelated
+    // mismatches still surface) but the spawn-call itself is now an
+    // error regardless of its arity / arg shapes.
+    errors.push(CheckError::TypeMismatch {
+        callee: ":wat::kernel::spawn".into(),
+        param: "(retired verb)".into(),
+        expected: ":wat::kernel::spawn-thread".into(),
+        got: ":wat::kernel::spawn".into(),
+    });
     if args.is_empty() {
-        errors.push(CheckError::ArityMismatch {
-            callee: ":wat::kernel::spawn".into(),
-            expected: 1,
-            got: 0,
-        });
         return Some(TypeExpr::Parametric {
             head: "wat::kernel::ProgramHandle".into(),
             args: vec![fresh.fresh()],
