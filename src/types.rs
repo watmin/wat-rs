@@ -395,6 +395,69 @@ fn register_builtin_types(env: &mut TypeEnv) {
         expr: TypeExpr::Tuple(vec![]),
     }));
 
+    // Arc 109 slice 1e — FQDN four-of-five parametric type heads.
+    // Promote Option / Result / HashMap / HashSet under
+    // :wat::core::*. Vec<T> is NOT in this slice (rides slice 1f
+    // because it couples with the rename to Vector and § D's verb
+    // companion).
+    //
+    //   typealias :wat::core::Option<T>     = :Option<T>
+    //   typealias :wat::core::Result<T,E>   = :Result<T,E>
+    //   typealias :wat::core::HashMap<K,V>  = :HashMap<K,V>
+    //   typealias :wat::core::HashSet<T>    = :HashSet<T>
+    //
+    // Both spellings type-check during the deprecation window via
+    // alias resolution. The audit walker
+    // (`validate_bare_legacy_primitives`) detects the bare-source
+    // `Parametric.head` ("Option", "Result", etc.) and emits
+    // `BareLegacyContainerHead` per occurrence; the FQDN form
+    // parses to a Parametric with head "wat::core::Option" (or
+    // similar) — distinct string, audit walker passes silently.
+    //
+    // `parse_type_inner`'s canonicalize=true path rewrites
+    // wat::core::Option → Option (etc.) at the head position so
+    // the substrate's existing special-case dispatch (which reads
+    // against bare head names) keeps working. canonicalize=false
+    // preserves source spelling for the walker.
+    env.register_builtin(TypeDef::Alias(AliasDef {
+        name: ":wat::core::Option".into(),
+        type_params: vec!["T".into()],
+        expr: TypeExpr::Parametric {
+            head: "Option".into(),
+            args: vec![TypeExpr::Path(":T".into())],
+        },
+    }));
+    env.register_builtin(TypeDef::Alias(AliasDef {
+        name: ":wat::core::Result".into(),
+        type_params: vec!["T".into(), "E".into()],
+        expr: TypeExpr::Parametric {
+            head: "Result".into(),
+            args: vec![
+                TypeExpr::Path(":T".into()),
+                TypeExpr::Path(":E".into()),
+            ],
+        },
+    }));
+    env.register_builtin(TypeDef::Alias(AliasDef {
+        name: ":wat::core::HashMap".into(),
+        type_params: vec!["K".into(), "V".into()],
+        expr: TypeExpr::Parametric {
+            head: "HashMap".into(),
+            args: vec![
+                TypeExpr::Path(":K".into()),
+                TypeExpr::Path(":V".into()),
+            ],
+        },
+    }));
+    env.register_builtin(TypeDef::Alias(AliasDef {
+        name: ":wat::core::HashSet".into(),
+        type_params: vec!["T".into()],
+        expr: TypeExpr::Parametric {
+            head: "HashSet".into(),
+            args: vec![TypeExpr::Path(":T".into())],
+        },
+    }));
+
     // :wat::eval::StepResult — populated in the Ok slot of the :Result
     // returned by :wat::eval-step! (arc 068). Two variants distinguish
     // "one rewrite happened, here's the next form" from "this is the
@@ -1405,7 +1468,7 @@ fn parse_type_inner(s: &str, original: &str, canonicalize: bool) -> Result<TypeE
     }
     // `Head<args>` parametric.
     if let Some(lt_index) = find_top_level_char(s, '<') {
-        let head = s[..lt_index].to_string();
+        let raw_head = s[..lt_index].to_string();
         let rest = &s[lt_index..];
         if !rest.ends_with('>') {
             return Err(TypeError::MalformedTypeExpr {
@@ -1415,6 +1478,21 @@ fn parse_type_inner(s: &str, original: &str, canonicalize: bool) -> Result<TypeE
         }
         let inside = &rest[1..rest.len() - 1];
         let args = parse_type_list(inside, original, canonicalize)?;
+        // Arc 109 slice 1e — FQDN container heads canonicalize to
+        // bare so unify sees a single internal form. Audit walker
+        // (canonicalize=false) preserves source spelling so the
+        // diagnostic distinguishes bare from FQDN.
+        let head = if canonicalize {
+            match raw_head.as_str() {
+                "wat::core::Option" => "Option".to_string(),
+                "wat::core::Result" => "Result".to_string(),
+                "wat::core::HashMap" => "HashMap".to_string(),
+                "wat::core::HashSet" => "HashSet".to_string(),
+                _ => raw_head,
+            }
+        } else {
+            raw_head
+        };
         return Ok(TypeExpr::Parametric { head, args });
     }
     // Plain path. Arc 109 slice 1a: accept FQDN forms for the

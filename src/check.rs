@@ -169,6 +169,29 @@ pub enum CheckError {
         /// token.
         span: Span,
     },
+    /// Arc 109 slice 1e — a bare substrate-named parametric type
+    /// head (`Option`, `Result`, `HashMap`, `HashSet`) appears in
+    /// user code. The four containers move under `:wat::core::*`;
+    /// the bare-source spelling retires.
+    ///
+    /// Detects against `TypeExpr::Parametric.head` — the third
+    /// TypeExpr shape the walker template covers (slice 1c
+    /// detected `Path`, slice 1d detected `Tuple`). The mechanism
+    /// generalizes across all TypeExpr shapes via per-arm guards.
+    ///
+    /// Vec<T> is NOT in this slice — slice 1f territory because
+    /// the rename to Vector couples with § D's verb companion.
+    BareLegacyContainerHead {
+        /// User-source spelling — `"Option"` / `"Result"` /
+        /// `"HashMap"` / `"HashSet"`.
+        head: String,
+        /// Canonical FQDN form — `"wat::core::Option"` etc. (no
+        /// leading colon; matches the head-position spelling at
+        /// the offending site).
+        fqdn: String,
+        /// Source location of the keyword carrying the bare head.
+        span: Span,
+    },
 }
 
 impl fmt::Display for CheckError {
@@ -240,6 +263,11 @@ impl fmt::Display for CheckError {
                 f,
                 "bare unit type '()' at {} is retired (arc 109 slice 1d); canonical FQDN form is ':wat::core::unit'. Substrate-provided primitives live under :wat::core::* (see arc 109 § A). The empty-tuple LITERAL VALUE `()` is unaffected; only the type-position spelling renames. Rename ':()' → ':wat::core::unit' (or '()' → 'wat::core::unit' inside parametrics) at the offending site.",
                 span
+            ),
+            CheckError::BareLegacyContainerHead { head, fqdn, span } => write!(
+                f,
+                "bare container type '{}' at {} is retired (arc 109 slice 1e); canonical FQDN form is '{}'. Substrate-provided container types live under :wat::core::* (see arc 109 § B). Rename '{}' → '{}' at the offending site (works in both outer position like ':{}' → ':{}' and inner position like 'Vec<{}>' → 'Vec<{}>').",
+                head, span, fqdn, head, fqdn, head, fqdn, head, fqdn
             ),
         }
     }
@@ -403,6 +431,12 @@ impl CheckError {
                 Diagnostic::new("BareLegacyUnitType")
                     .field("primitive", ":()")
                     .field("fqdn", ":wat::core::unit")
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyContainerHead { head, fqdn, span } => {
+                Diagnostic::new("BareLegacyContainerHead")
+                    .field("head", head.as_str())
+                    .field("fqdn", fqdn.as_str())
                     .field("location", format!("{}", span))
             }
         }
@@ -882,6 +916,19 @@ const BARE_PRIMITIVES: &[(&str, &str)] = &[
     (":u8", ":wat::core::u8"),
 ];
 
+/// The four parametric container heads retired by arc 109 slice
+/// 1e, paired with the canonical FQDN form they replace. Vec<T>
+/// is NOT in this set — slice 1f territory because the rename to
+/// `Vector` couples with § D's verb companion. Heads are stored
+/// here without the leading colon to match `TypeExpr::Parametric`
+/// head-string convention (no `:` prefix on Parametric heads).
+const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
+    ("Option", "wat::core::Option"),
+    ("Result", "wat::core::Result"),
+    ("HashMap", "wat::core::HashMap"),
+    ("HashSet", "wat::core::HashSet"),
+];
+
 /// Recursively walk a parsed [`TypeExpr`], emitting
 /// [`CheckError::BareLegacyPrimitive`] for every `Path` node whose
 /// path matches one of the retired bare primitive names. FQDN
@@ -901,7 +948,23 @@ fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) 
                 }
             }
         }
-        TypeExpr::Parametric { args, .. } => {
+        TypeExpr::Parametric { head, args } => {
+            // Arc 109 slice 1e — flag bare container heads. The
+            // FQDN form ("wat::core::Option" etc.) parses to a
+            // distinct head string and passes through silently.
+            // Recurse into args regardless so inner-position
+            // primitives (slice 1c) and units (slice 1d) still
+            // surface.
+            for (bare, fqdn) in BARE_CONTAINER_HEADS {
+                if head == bare {
+                    errors.push(CheckError::BareLegacyContainerHead {
+                        head: (*bare).to_string(),
+                        fqdn: (*fqdn).to_string(),
+                        span: span.clone(),
+                    });
+                    break;
+                }
+            }
             for a in args {
                 walk_type_for_bare(a, span, errors);
             }
