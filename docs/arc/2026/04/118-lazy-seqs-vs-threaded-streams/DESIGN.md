@@ -225,6 +225,82 @@ different; merging them lies about what each does). B is convenient
 but loses information. C may be the implementation strategy
 underneath A's surface.
 
+## `:wat::list::*` vs `:wat::seq::*` — justifiably different (settled 2026-05-01)
+
+A natural follow-up question: arc 109 § H proposes `:wat::list::*`
+for HOFs over Vec<T> (map, foldl, filter, sort-by, etc.). Arc 118
+proposes `:wat::seq::*` for lazy HOFs over Seq<T>. **Are these
+duplicates?**
+
+**No — they're justifiably different.** The distinction is
+**eager vs lazy**, which is a real runtime-cost / memory /
+error-timing distinction visible at every call site.
+
+| | `:wat::list::*` | `:wat::seq::*` |
+|---|---|---|
+| Operates on | `Vec<T>` (materialized) | `Seq<T>` (lazy thunks) |
+| `(map f xs)` evaluates `f` | NOW, for every element | WHEN PULLED, lazily |
+| Memory | proportional to N | proportional to consumed prefix |
+| Error timing | up-front (eager) | per-element (deferred) |
+| `(sort-by xs)` | natural — eager sort over a Vec | requires forcing first; "lazy sort" is meaningless |
+| `(iterate f x)` | meaningless — iterate is infinite | natural — produces an infinite Seq |
+
+### Why polymorphism (one `:wat::poly::map`) loses information
+
+A reader sees `(:wat::poly::map f xs)`. To know if it's eager or
+lazy, they have to find `xs`'s type. The eagerness signal is
+hidden. Calling them both "map" and dispatching erases a real
+semantic distinction. Through the four questions:
+
+- **Obvious?** No — forces lookup of xs's type.
+- **Simple?** Apparent simplicity (one name); actual complexity
+  (the runtime cost depends on operand type).
+- **Honest?** No — different operations dressed as one.
+- **Good UX?** Worse — call sites become ambiguous.
+
+### Op overlap and uniqueness
+
+| Op | list | seq | Notes |
+|---|---|---|---|
+| `map` | ✓ | ✓ | both natural |
+| `filter` | ✓ | ✓ | both natural |
+| `take` / `drop` | ✓ | ✓ | both natural |
+| `concat` | ✓ | ✓ (lazy-cat) | seq variant doesn't materialize |
+| `fold` / `foldl` | ✓ | ✓ | seq variant forces while folding |
+| `for-each` | ✓ | ✓ | terminal in both |
+| `sort-by` | ✓ | ✗ | sort needs all elements; can't be lazy |
+| `find-last-index` | ✓ | ✗ | requires materialized index |
+| `last` / `reverse` | ✓ | ✗ | last needs to walk to end; reverse materializes |
+| `iterate` | ✗ | ✓ | infinite generator; only meaningful lazily |
+| `repeat` / `cycle` | ✗ | ✓ | same — infinite |
+| `take-while` / `drop-while` | (?) | ✓ | could be eager too; arguable |
+| `partition` / `interleave` | ✓ | ✓ | both natural |
+
+### Conversion verbs
+
+```
+:wat::seq::from-vec  (Vec<T>) → Seq<T>          ;; lift; no eval
+:wat::seq::collect   (Seq<T>) → Vec<T>          ;; force + materialize
+```
+
+User picks the world; conversion verbs join them at the boundary.
+
+### Clojure precedent
+
+Clojure already made this call: `clojure.core/mapv` (eager,
+returns vec) vs `clojure.core/map` (lazy by default, returns
+seq). Same lesson — eagerness deserves its own name. Wat's
+naming is cleaner because the namespace itself signals the
+eagerness, no `v` suffix needed.
+
+User direction (2026-05-01):
+
+> in the 118.. and 109.. we have :wat::list::* being declared..
+> do we need a :wat::seq::* as well.. the two are justifyably
+> different?.. (i think so.. but we need scrutiny..)
+
+Scrutiny applied. Convergence: keep both.
+
 ## Open questions
 
 1. **What's a seq's runtime representation?** A struct holding a

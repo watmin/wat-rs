@@ -459,6 +459,41 @@ out; `:wat::std::*` retains only `:wat::std::math::*` and
 `:wat::std::stat::*` (subject to question 4 in Section G —
 whether those also flatten).
 
+### `:wat::list::*` vs `:wat::seq::*` — different by eagerness (settled 2026-05-01)
+
+User scrutiny (2026-05-01):
+
+> in the 118.. and 109.. we have :wat::list::* being declared..
+> do we need a :wat::seq::* as well.. the two are justifyably
+> different?.. (i think so.. but we need scrutiny..)
+
+Yes — justifiably different. `:wat::list::*` (this section, arc
+109) is **eager HOFs over materialized `Vec<T>`**.
+`:wat::seq::*` (arc 118, deferred) is **lazy HOFs over `Seq<T>`
+thunks**. The distinction is real:
+
+| | `:wat::list::*` | `:wat::seq::*` |
+|---|---|---|
+| `(map f xs)` evaluates `f` | NOW, for every element | WHEN PULLED |
+| Memory | proportional to N | proportional to consumed prefix |
+| Error timing | up-front (eager) | per-element (deferred) |
+| `(sort-by xs)` | natural | requires forcing first |
+| `(iterate f x)` | meaningless (infinite) | natural |
+
+Some ops live in both (`map`, `filter`, `take`, `concat`,
+`fold`, `for-each`). Some are list-only (`sort-by`,
+`find-last-index`, `last`, `reverse`). Some are seq-only
+(`iterate`, `repeat`, `cycle`). Conversion verbs
+`:wat::seq::from-vec` and `:wat::seq::collect` bridge them at
+boundaries.
+
+Polymorphic alternative (`:wat::poly::map` over either type)
+loses the eagerness signal — at every call site, the reader
+would have to look at xs's type to know runtime cost. Two
+namespaces keeps the runtime story visible. Clojure's
+`mapv`/`map` precedent makes the same call. Full analysis
+in arc 118's DESIGN.md.
+
 ## I. Already FQDN — out of scope
 
 For reference; these are the families already named correctly:
@@ -817,9 +852,9 @@ top-level verb (`:wat::core::map`, `:wat::core::if`,
 | `:wat::std::service::Console/out` | `:wat::console::out` |
 | `:wat::std::service::Console/err` | `:wat::console::err` |
 | `:wat::std::service::Console/ack-at` | `:wat::console::ack-at` |
-| `:wat::telemetry::Service::*` (typealiases on grouping noun) | `:wat::telemetry::*` (siblings at namespace level) |
-| `:wat::telemetry::Service/spawn` (verb on grouping noun) | `:wat::telemetry::spawn` |
-| `:wat::telemetry::Service/loop`, `/tick`, `/extend`, `/maybe`, `/drain`, `/run`, `/bump`, `/batch`, `/null`, `/pair`, `/ack` | flatten to `:wat::telemetry::<verb>` |
+| ✓ `:wat::telemetry::Service::*` → `:wat::telemetry::*` | shipped K.telemetry 2026-05-01 |
+| ✓ `:wat::telemetry::Service/spawn` → `:wat::telemetry::spawn` | shipped K.telemetry |
+| ✓ `:wat::telemetry::Service/loop`, `/tick`, `/extend`, `/maybe`, `/drain`, `/run`, `/bump`, `/batch`, `/null`, `/pair`, `/ack` → bare `:wat::telemetry::<verb>` | shipped K.telemetry |
 | `:wat::lru::CacheService` (grouping noun) + `/handle`, `/get`, `/put` | `:wat::lru::*` siblings + top-level verbs (e.g. `:wat::lru::get`, `:wat::lru::put`) — IF `CacheService` is a grouping noun, not a real struct |
 | `:wat::holon::lru::HologramCacheService` ditto | `:wat::holon::lru::*` flattened, IF grouping |
 | `:wat::std::service::Console::Tx` (typealias under grouping noun) | `:wat::console::Tx` (typealias at namespace level) |
@@ -889,7 +924,7 @@ That distinction is **load-bearing**. Don't lose it to uniform
 
 | Crate | Family | Today | After (rides K.<crate>) |
 |---|---|---|---|
-| Telemetry | A | already canonical | no channel changes (this is the Pattern A reference) |
+| ✓ Telemetry | A | already canonical | shipped K.telemetry 2026-05-01; no channel changes — Pattern A reference |
 | Console | A | `Tx`/`Rx` (Level 2 mumble — implicit Req) | rename to `ReqTx`/`ReqRx`; add `ReqChannel` + `AckChannel` typealiases |
 | LRU CacheService | B | `ReplyTx<V>` exists; no `ReplyRx<V>` (Level 2 mumble — unallocated rx has no domain name) | add `ReplyRx<V>` + `ReplyChannel<V>` typealiases |
 | HolonLRU | B | variant-scoped `GetReplyTx`/`GetReplyRx` already correct | add a one-line comment: "Put is fire-and-forget — no `PutReply*` types by design" |

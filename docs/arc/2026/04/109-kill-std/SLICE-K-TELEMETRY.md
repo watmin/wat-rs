@@ -1,7 +1,35 @@
 # Arc 109 Slice K.telemetry — `Service` grouping noun → namespace flatten
 
-**Compaction-amnesia anchor.** Read this first if you're picking up
-slice K.telemetry mid-flight.
+**Status: shipped 2026-05-01.** Substrate (commit `0760a61`) +
+consumer sweep (`5f7430a`). 17 files swept (1 stdlib + 16
+consumer); 196 insertions / 196 deletions (pure rename, equal
+counts); zero substrate-gap fixes. cargo test --release
+--workspace 1476/0.
+
+First application of § K's "/ requires a real Type" doctrine on
+a real codebase. The `:wat::telemetry::Service` grouping noun
+retired; verbs and typealiases live at the namespace level.
+Real types Stats and MetricsCadence kept their `/methods` (just
+one less namespace segment deep). Substrate-as-teacher mechanism
+worked cleanly — sweep agent followed the diagnostic stream;
+orchestrator verified `git diff --stat` independently.
+
+Telemetry now serves as **the Pattern A reference** per § K's
+channel-naming-patterns subsection — `ReqTx<P>` / `ReqRx<P>` +
+`ReqChannel<P>` for data-forward; `AckTx` / `AckRx` /
+`AckChannel` for unit-back release signals. K.console will mirror
+this shape when it renames Console's `Tx`/`Rx` → `ReqTx`/`ReqRx`
++ adds the missing channel typealiases.
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record.** Slice K.telemetry is the
+fourth Pattern 3 application after slices 1c/1d/1e/9d (the first
+three target parsed-TypeExpr shapes; 9d + K.telemetry target
+keyword prefixes — same mechanism, simpler detection level). The
+walker (`validate_legacy_telemetry_service_path`) catches both
+the typealias prefix (`:wat::telemetry::Service::`) AND the verb
+prefix (`:wat::telemetry::Service/`) with a single function;
+canonical replacement strips the `Service` segment.
 
 ## What this slice does
 

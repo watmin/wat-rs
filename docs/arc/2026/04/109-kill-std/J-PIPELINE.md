@@ -438,6 +438,23 @@ slice plans name.
                   Stream stdlib's path now mirrors its shipped
                   FQDN per § G's filesystem-path rule.
 
+[done]  arc 109 slice K.telemetry — Service grouping noun retired
+                  (first § K application). :wat::telemetry::Service::*
+                  → :wat::telemetry::* (typealiases) +
+                  :wat::telemetry::Service/* → :wat::telemetry::*
+                  (verbs). Real types Stats and MetricsCadence
+                  kept their PascalCase + /methods (just one
+                  less namespace segment deep). 17 files swept
+                  (1 stdlib + 16 consumer); 196/196 pure rename;
+                  zero substrate-gap fixes. Pattern 3 walker
+                  (BareLegacyTelemetryServicePath) — fourth
+                  application after slices 1c/1d/1e/9d. cargo
+                  test workspace 1476/0 (commits 0760a61 +
+                  5f7430a; SLICE-K-TELEMETRY.md). Telemetry now
+                  serves as Pattern A channel-naming reference
+                  for the remaining K slices (K.console will
+                  mirror its ReqTx/ReqRx + Ack* shape).
+
 [done]  arc 109 slice 9f-9g — pure file moves for edn + test
                   (basenames already align with namespace leaves;
                   no symbol changes). git mv ×2 + src/stdlib.rs
