@@ -67,11 +67,11 @@
 ;; --- Spawn return shape ---
 ;;
 ;; What `:wat::std::service::Console/spawn` returns: the HandlePool of
-;; per-producer Handles ((Tx, AckRx) pairs) + the driver's
-;; ProgramHandle. Caller pops N Handles, finishes the pool,
+;; per-producer Handles ((Tx, AckRx) pairs) + the driver's Thread
+;; handle (arc 114). Caller pops N Handles, finishes the pool,
 ;; scoped-drops at end → driver exits.
 (:wat::core::typealias :wat::std::service::Console::Spawn
-  :(wat::kernel::HandlePool<wat::std::service::Console::Handle>,wat::kernel::ProgramHandle<()>))
+  :(wat::kernel::HandlePool<wat::std::service::Console::Handle>,wat::kernel::Thread<(),()>))
 
 ;; --- Driver loop ---
 ;;
@@ -279,7 +279,11 @@
             (:wat::core::first p)))))
      ((pool :wat::kernel::HandlePool<wat::std::service::Console::Handle>)
       (:wat::kernel::HandlePool::new "Console" handles))
-     ((driver :wat::kernel::ProgramHandle<()>)
-      (:wat::kernel::spawn :wat::std::service::Console/loop
-        driver-pairs stdout stderr)))
+     ((driver :wat::kernel::Thread<(),()>)
+      (:wat::kernel::spawn-thread
+        (:wat::core::lambda
+          ((_in :rust::crossbeam_channel::Receiver<()>)
+           (_out :rust::crossbeam_channel::Sender<()>)
+           -> :())
+          (:wat::std::service::Console/loop driver-pairs stdout stderr)))))
     (:wat::core::tuple pool driver)))

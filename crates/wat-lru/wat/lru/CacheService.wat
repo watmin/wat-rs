@@ -60,10 +60,11 @@
 ;; --- Spawn return shape ---
 ;;
 ;; What `:wat::lru::CacheService/spawn` returns: the HandlePool of
-;; client request senders + the driver's ProgramHandle. Caller pops
-;; N senders, finishes the pool, scoped-drops at end → driver exits.
+;; client request senders + the driver's Thread handle (arc 114).
+;; Caller pops N senders, finishes the pool, scoped-drops at end →
+;; driver exits.
 (:wat::core::typealias :wat::lru::CacheService::Spawn<K,V>
-  :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
+  :(wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>,wat::kernel::Thread<(),()>))
 
 ;; ─── Reporting contract — non-negotiable ───────────────────────
 ;;
@@ -396,7 +397,12 @@
           (:wat::core::second p))))
      ((pool :wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<K,V>>)
       (:wat::kernel::HandlePool::new "CacheService" req-txs))
-     ((driver :wat::kernel::ProgramHandle<()>)
-      (:wat::kernel::spawn :wat::lru::CacheService/loop
-        capacity req-rxs reporter metrics-cadence)))
+     ((driver :wat::kernel::Thread<(),()>)
+      (:wat::kernel::spawn-thread
+        (:wat::core::lambda
+          ((_in :rust::crossbeam_channel::Receiver<()>)
+           (_out :rust::crossbeam_channel::Sender<()>)
+           -> :())
+          (:wat::lru::CacheService/loop
+            capacity req-rxs reporter metrics-cadence)))))
     (:wat::core::tuple pool driver)))

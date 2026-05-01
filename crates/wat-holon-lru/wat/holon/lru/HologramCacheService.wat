@@ -67,7 +67,7 @@
   :wat::kernel::HandlePool<wat::holon::lru::HologramCacheService::ReqTx>)
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::Spawn
-  :(wat::holon::lru::HologramCacheService::ReqTxPool,wat::kernel::ProgramHandle<()>))
+  :(wat::holon::lru::HologramCacheService::ReqTxPool,wat::kernel::Thread<(),()>))
 
 ;; ─── Reporting contract — non-negotiable ───────────────────────
 ;;
@@ -399,7 +399,12 @@
           (:wat::core::second p))))
      ((pool :wat::holon::lru::HologramCacheService::ReqTxPool)
       (:wat::kernel::HandlePool::new "hologram-cache-service" req-txs))
-     ((driver :wat::kernel::ProgramHandle<()>)
-      (:wat::kernel::spawn :wat::holon::lru::HologramCacheService/run
-        req-rxs cap reporter metrics-cadence)))
+     ((driver :wat::kernel::Thread<(),()>)
+      (:wat::kernel::spawn-thread
+        (:wat::core::lambda
+          ((_in :rust::crossbeam_channel::Receiver<()>)
+           (_out :rust::crossbeam_channel::Sender<()>)
+           -> :())
+          (:wat::holon::lru::HologramCacheService/run
+            req-rxs cap reporter metrics-cadence)))))
     (:wat::core::tuple pool driver)))

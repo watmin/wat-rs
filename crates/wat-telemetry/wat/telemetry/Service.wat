@@ -115,7 +115,7 @@
   :wat::kernel::HandlePool<wat::telemetry::Service::Handle<E>>)
 
 (:wat::core::typealias :wat::telemetry::Service::Spawn<E>
-  :(wat::telemetry::Service::HandlePool<E>,wat::kernel::ProgramHandle<()>))
+  :(wat::telemetry::Service::HandlePool<E>,wat::kernel::Thread<(),()>))
 
 (:wat::core::typealias :wat::telemetry::Service::Step<G>
   :(wat::telemetry::Service::Stats,wat::telemetry::Service::MetricsCadence<G>))
@@ -445,7 +445,12 @@
             (:wat::core::tuple req-rx ack-tx)))))
      ((pool :wat::telemetry::Service::HandlePool<E>)
       (:wat::kernel::HandlePool::new "telemetry::Service" handles))
-     ((driver :wat::kernel::ProgramHandle<()>)
-      (:wat::kernel::spawn :wat::telemetry::Service/run
-        driver-pairs cadence dispatcher stats-translator)))
+     ((driver :wat::kernel::Thread<(),()>)
+      (:wat::kernel::spawn-thread
+        (:wat::core::lambda
+          ((_in :rust::crossbeam_channel::Receiver<()>)
+           (_out :rust::crossbeam_channel::Sender<()>)
+           -> :())
+          (:wat::telemetry::Service/run
+            driver-pairs cadence dispatcher stats-translator)))))
     (:wat::core::tuple pool driver)))

@@ -165,10 +165,15 @@
      ((pool :wat::telemetry::Service::HandlePool<E>)
       (:wat::kernel::HandlePool::new
         "wat::telemetry::Sqlite" handles))
-     ((driver :wat::kernel::ProgramHandle<()>)
-      (:wat::kernel::spawn :wat::telemetry::Sqlite/run
-        path driver-pairs cadence
-        pre-install schema-install dispatcher stats-translator)))
+     ((driver :wat::kernel::Thread<(),()>)
+      (:wat::kernel::spawn-thread
+        (:wat::core::lambda
+          ((_in :rust::crossbeam_channel::Receiver<()>)
+           (_out :rust::crossbeam_channel::Sender<()>)
+           -> :())
+          (:wat::telemetry::Sqlite/run
+            path driver-pairs cadence
+            pre-install schema-install dispatcher stats-translator)))))
     (:wat::core::tuple pool driver)))
 
 
