@@ -839,6 +839,72 @@ is a real struct or a grouping noun. Real structs keep their
 - **UX:** call site like `(:wat::console::out handle msg)` reads
   like `(:wat::core::map f xs)` — same substrate-verb shape.
 
+### Channel-naming patterns A and B (gaze finding 2026-05-01)
+
+**Provenance:** during K.telemetry slice-anchor work, gaze ward
+was invoked on the inconsistent channel naming across the four
+service crates (Console uses `Tx`/`Rx`; Telemetry uses
+`ReqTx`/`ReqRx`; LRU uses `ReplyTx<V>` with no `ReplyRx`;
+HolonLRU uses variant-scoped `GetReplyTx`/`GetReplyRx`).
+
+The user asked: should canonical be `ReqTx`/`ReqRx` +
+`ResTx`/`ResRx`? Gaze answered: **no — that would lie about
+Pattern A**. Two genuinely different protocol families live
+across the four crates, and the names should reflect what the
+back-edge carries.
+
+#### Pattern A — Request + Ack
+
+```
+ReqTx<Payload>  ReqRx<Payload>  ReqChannel<Payload>     ;; data forward
+AckTx           AckRx           AckChannel              ;; ALWAYS carries unit
+```
+
+Server matches Ack by INDEX, not payload. Used when the response
+is a release signal (the request is processed; you may proceed),
+not data. Console + Telemetry are Pattern A.
+
+#### Pattern B — Request + Reply
+
+```
+ReqTx<...>      ReqRx<...>                              ;; client → server
+ReplyTx<V>      ReplyRx<V>      ReplyChannel<V>         ;; server → client; carries DATA
+Request<...>                                             ;; bundles body + ReplyTx
+```
+
+Reply-tx rides as a field inside the Request struct (or variant).
+Used when the response carries data the client needs. LRU +
+HolonLRU are Pattern B.
+
+#### The distinguishing rule
+
+A reader opens any service file and reads:
+- `Ack*` → back-edge is `unit`, server matches by index
+- `Reply*` → back-edge carries data, sender embedded in request
+
+That distinction is **load-bearing**. Don't lose it to uniform
+`Res*`.
+
+#### Per-crate cleanup riding the K slices
+
+| Crate | Family | Today | After (rides K.<crate>) |
+|---|---|---|---|
+| Telemetry | A | already canonical | no channel changes (this is the Pattern A reference) |
+| Console | A | `Tx`/`Rx` (Level 2 mumble — implicit Req) | rename to `ReqTx`/`ReqRx`; add `ReqChannel` + `AckChannel` typealiases |
+| LRU CacheService | B | `ReplyTx<V>` exists; no `ReplyRx<V>` (Level 2 mumble — unallocated rx has no domain name) | add `ReplyRx<V>` + `ReplyChannel<V>` typealiases |
+| HolonLRU | B | variant-scoped `GetReplyTx`/`GetReplyRx` already correct | add a one-line comment: "Put is fire-and-forget — no `PutReply*` types by design" |
+
+#### Cross-references
+
+- `docs/arc/2026/04/109-kill-std/SLICE-K-TELEMETRY.md` — first
+  K-slice; uses Pattern A reference shape; no channel renames.
+- `docs/arc/2026/04/109-kill-std/SLICE-K-CONSOLE.md` (future) —
+  Console flatten + Pattern A canonicalization.
+- `docs/arc/2026/04/109-kill-std/SLICE-K-LRU.md` (future) — LRU
+  audit + Pattern B fill-in.
+- `docs/arc/2026/04/109-kill-std/SLICE-K-HOLON-LRU.md` (future) —
+  HolonLRU audit + clarifying comment.
+
 ### Mental model — what `Type/method` IS and ISN'T
 
 Captured 2026-05-01 during slice 1j console-rename design conversation.
