@@ -43,7 +43,7 @@ fn sum2_via_macro() {
         (:wat::core::use! :rust::test::TupleUtils)
 
         (:wat::core::define (:user::main -> :i64)
-          (:rust::test::TupleUtils::sum2 (:wat::core::tuple 20 22)))
+          (:rust::test::TupleUtils::sum2 (:wat::core::Tuple 20 22)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
@@ -74,7 +74,7 @@ fn heterogeneous_triple_via_macro() {
 
         (:wat::core::define (:user::main -> :String)
           (:rust::test::TupleUtils::describe
-            (:wat::core::tuple 1 "row" true)))
+            (:wat::core::Tuple 1 "row" true)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");

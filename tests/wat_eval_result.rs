@@ -183,9 +183,9 @@ fn eval_err_exposes_both_kind_and_message() {
               (:wat::eval-ast! bad)))
             (:wat::core::match r -> :(wat::core::String,wat::core::String)
               ((Ok _)
-                (:wat::core::tuple "unreachable" "unreachable"))
+                (:wat::core::Tuple "unreachable" "unreachable"))
               ((Err e)
-                (:wat::core::tuple
+                (:wat::core::Tuple
                   (:wat::core::EvalError/kind e)
                   (:wat::core::EvalError/message e))))))
     "#;

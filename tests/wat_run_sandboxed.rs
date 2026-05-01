@@ -312,7 +312,7 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
                  (((_ :wat::core::unit) (:wat::io::IOWriter/println stdout \"before panic\"))
                   ((_ :wat::holon::BundleResult)
                    (:wat::holon::Bundle
-                     (:wat::core::list :wat::holon::HolonAST
+                     (:wat::core::Vector :wat::holon::HolonAST
                        {atoms}))))
                  ()))"
             (:wat::core::Vector :wat::core::String)

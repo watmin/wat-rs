@@ -100,7 +100,7 @@ fn letstar_result_no_whitespace_tuple_payload() {
             -> :())
           (:wat::core::let*
             (((wrapped :wat::core::Result<(wat::core::i64,wat::core::i64),wat::core::i64>)
-              (Ok (:wat::core::tuple 7 11)))
+              (Ok (:wat::core::Tuple 7 11)))
              ((extracted :wat::core::i64)
               (:wat::core::match wrapped -> :wat::core::i64
                 ((Ok pair) (:wat::core::second pair))

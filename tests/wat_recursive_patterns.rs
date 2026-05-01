@@ -58,7 +58,7 @@ fn option_tuple_single_level_works() {
             -> :())
           (:wat::core::let*
             (((row :wat::core::Option<(wat::core::i64,wat::core::i64,wat::core::i64)>)
-              (Some (:wat::core::tuple 1 2 3)))
+              (Some (:wat::core::Tuple 1 2 3)))
              ((sum :wat::core::i64)
               (:wat::core::match row -> :wat::core::i64
                 ((Some (a b c)) (:wat::core::+ a (:wat::core::+ b c)))
@@ -79,7 +79,7 @@ fn result_tuple_destructure() {
             -> :())
           (:wat::core::let*
             (((resp :wat::core::Result<(wat::core::String,wat::core::i64),wat::core::String>)
-              (Ok (:wat::core::tuple "ok" 7)))
+              (Ok (:wat::core::Tuple "ok" 7)))
              ((line :wat::core::String)
               (:wat::core::match resp -> :wat::core::String
                 ((Ok (k v)) (:wat::core::string::concat k (:wat::core::i64::to-string v)))
@@ -123,7 +123,7 @@ fn wildcard_at_depth() {
             -> :())
           (:wat::core::let*
             (((row :wat::core::Option<(wat::core::i64,wat::core::i64,wat::core::i64)>)
-              (Some (:wat::core::tuple 100 99 98)))
+              (Some (:wat::core::Tuple 100 99 98)))
              ((mid :wat::core::i64)
               (:wat::core::match row -> :wat::core::i64
                 ((Some (_ x _)) x)
@@ -189,7 +189,7 @@ fn linear_shadowing() {
             -> :())
           (:wat::core::let*
             (((row :wat::core::Option<(wat::core::i64,wat::core::i64)>)
-              (Some (:wat::core::tuple 5 7)))
+              (Some (:wat::core::Tuple 5 7)))
              ((v :wat::core::i64)
               (:wat::core::match row -> :wat::core::i64
                 ((Some (x x)) x)
@@ -212,7 +212,7 @@ fn nonexhaustive_partial_pattern_rejected() {
             -> :())
           (:wat::core::let*
             (((row :wat::core::Option<(wat::core::i64,wat::core::i64)>)
-              (Some (:wat::core::tuple 1 2)))
+              (Some (:wat::core::Tuple 1 2)))
              ((v :wat::core::i64)
               (:wat::core::match row -> :wat::core::i64
                 ((Some (1 x)) x)
@@ -238,7 +238,7 @@ fn wildcard_fallback_compiles_and_runs() {
             -> :())
           (:wat::core::let*
             (((row :wat::core::Option<(wat::core::i64,wat::core::i64)>)
-              (Some (:wat::core::tuple 1 99)))
+              (Some (:wat::core::Tuple 1 99)))
              ((v :wat::core::i64)
               (:wat::core::match row -> :wat::core::i64
                 ((Some (1 x)) x)
@@ -261,7 +261,7 @@ fn candlestream_next_shape_destructures_in_one_step() {
             -> :())
           (:wat::core::let*
             (((row :wat::core::Option<(wat::core::i64,wat::core::f64,wat::core::f64,wat::core::f64,wat::core::f64,wat::core::f64)>)
-              (Some (:wat::core::tuple 1700000000 100.0 110.0 95.0 105.0 1234.5)))
+              (Some (:wat::core::Tuple 1700000000 100.0 110.0 95.0 105.0 1234.5)))
              ((line :wat::core::String)
               (:wat::core::match row -> :wat::core::String
                 ((Some (ts open high low close volume))

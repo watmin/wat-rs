@@ -15679,7 +15679,7 @@ mod tests {
                       ((p :bool) (:wat::holon::coincident? aa bb))
                       ((expl :wat::holon::CoincidentExplanation)
                         (:wat::holon::coincident-explain aa bb)))
-                     (:wat::core::tuple p
+                     (:wat::core::Tuple p
                        (:wat::core::struct-field expl 4)))"#
             );
             let result = eval_with_ctx(&probe, 1024).unwrap();
@@ -19171,7 +19171,7 @@ mod tests {
                ((steps :wat::core::i64)
                 (:my::test::step-count
                   (:wat::core::quote (:my::test::sum-to 3 0)) 0)))
-              (:wat::core::tuple sum steps))
+              (:wat::core::Tuple sum steps))
             "#,
             step_to_terminal_prelude()
         );

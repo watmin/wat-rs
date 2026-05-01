@@ -30,10 +30,10 @@ fn run(src: &str) -> Value {
 }
 
 /// Emit `n` distinct `(:wat::holon::Atom "i")` calls inside a
-/// `(:wat::core::list :wat::holon::HolonAST ...)` literal — used to pack
+/// `(:wat::core::Vector :wat::holon::HolonAST ...)` literal — used to pack
 /// Bundle with exactly `n` constituents.
 fn atoms_list(n: usize) -> String {
-    let mut s = String::from("(:wat::core::list :wat::holon::HolonAST");
+    let mut s = String::from("(:wat::core::Vector :wat::holon::HolonAST");
     for i in 0..n {
         s.push_str(&format!(" (:wat::holon::Atom \"atom-{}\")", i));
     }
@@ -201,7 +201,7 @@ fn bundle_return_type_mismatch_rejected_at_check() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::holon::HolonAST)
-          (:wat::holon::Bundle (:wat::core::list :wat::holon::HolonAST
+          (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST
             (:wat::holon::Atom "a")
             (:wat::holon::Atom "b"))))
     "#;

@@ -137,9 +137,9 @@ fn sort_by_tuple_first_field_key() {
           (:wat::core::let*
             (((xs :wat::core::Vector<(wat::core::i64,wat::core::String)>)
               (:wat::core::Vector :(wat::core::i64,wat::core::String)
-                (:wat::core::tuple 30 "alice")
-                (:wat::core::tuple 25 "carol")
-                (:wat::core::tuple 28 "bob")))
+                (:wat::core::Tuple 30 "alice")
+                (:wat::core::Tuple 25 "carol")
+                (:wat::core::Tuple 28 "bob")))
              ((sorted :wat::core::Vector<(wat::core::i64,wat::core::String)>)
               (:wat::core::sort-by xs
                 (:wat::core::lambda ((a :(wat::core::i64,wat::core::String)) (b :(wat::core::i64,wat::core::String)) -> :wat::core::bool)
