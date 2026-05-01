@@ -22,9 +22,9 @@ wat/holon/Reject.wat           ↔ wat-tests/holon/Reject.wat
 wat/holon/Project.wat            (tested alongside Reject)
 wat/holon/Sequential.wat       ↔ wat-tests/holon/Sequential.wat
 wat/holon/Trigram.wat          ↔ wat-tests/holon/Trigram.wat
-wat/std/test.wat             ↔ wat-tests/std/test.wat
+wat/test.wat                 ↔ wat-tests/std/test.wat
 wat/std/service/Console.wat  ↔ wat-tests/std/service/Console.wat
-wat/std/stream.wat           ↔ wat-tests/std/stream.wat
+wat/stream.wat               ↔ wat-tests/std/stream.wat
 ```
 
 The stdlib module under test dictates the path. A future addition to
