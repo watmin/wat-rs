@@ -46,6 +46,7 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{Function, SymbolTable};
+use crate::span::Span;
 use crate::types::{TypeEnv, TypeExpr};
 use std::collections::HashMap;
 use std::fmt;
@@ -103,6 +104,31 @@ pub enum CheckError {
     CommCallOutOfPosition {
         callee: String,
     },
+    /// Arc 117 — a `let*` binding-block contains BOTH a Thread/Process
+    /// binding (a value one calls `Thread/join-result` / `Process/
+    /// join-result` on) AND a sibling binding whose alias-resolved
+    /// type contains a Sender-bearing parametric (`Sender`,
+    /// `QueueSender`, `QueuePair`, `HandlePool`), AND that let*'s
+    /// extent contains a join-result call on the Thread. The
+    /// Sender-bearing sibling holds a clone alive past the join site;
+    /// the worker can't see EOF; the join blocks forever. The fix is
+    /// structural: nest the Sender-bearing bindings in an inner
+    /// `let*` whose body returns the Thread.
+    ScopeDeadlock {
+        /// Name of the Thread (or Process) binding being joined.
+        thread_binding: String,
+        /// Name of the sibling Sender-bearing binding whose live
+        /// reference outlives the join site.
+        offending_binding: String,
+        /// Kind of the offending value — "Sender", "QueueSender",
+        /// "QueuePair", or "HandlePool". Names which substrate
+        /// abstraction holds the live Sender clone.
+        offending_kind: &'static str,
+        /// Source location of the Thread binding (the let* site
+        /// where the structural deadlock can be addressed by
+        /// nesting).
+        span: Span,
+    },
 }
 
 impl fmt::Display for CheckError {
@@ -154,6 +180,16 @@ impl fmt::Display for CheckError {
                 f,
                 "{} may appear only as the scrutinee of `:wat::core::match`, the value-position of `:wat::core::result::expect`, or the value-position of `:wat::core::option::expect`; silent disconnect must be handled at every comm call",
                 callee
+            ),
+            CheckError::ScopeDeadlock {
+                thread_binding,
+                offending_binding,
+                offending_kind,
+                span,
+            } => write!(
+                f,
+                "scope-deadlock at {}: Thread/join-result on '{}' would block. Sibling binding '{}' (a {}) holds a Sender clone that outlives the worker; the worker's recv never sees EOF. Fix: nest the {} binding (and any other Sender clones) in an inner let* whose body returns '{}' — outer scope holds only the Thread. SERVICE-PROGRAMS.md § \"The lockstep\".",
+                span, thread_binding, offending_binding, offending_kind, offending_kind, thread_binding
             ),
         }
     }
@@ -297,6 +333,16 @@ impl CheckError {
             CheckError::CommCallOutOfPosition { callee } => {
                 Diagnostic::new("CommCallOutOfPosition").field("callee", callee.as_str())
             }
+            CheckError::ScopeDeadlock {
+                thread_binding,
+                offending_binding,
+                offending_kind,
+                span,
+            } => Diagnostic::new("ScopeDeadlock")
+                .field("thread_binding", thread_binding.as_str())
+                .field("offending_binding", offending_binding.as_str())
+                .field("offending_kind", *offending_kind)
+                .field("location", format!("{}", span)),
         }
     }
 }
@@ -512,6 +558,20 @@ pub fn check_program(
         validate_comm_positions(form, CommCtx::Forbidden, &mut errors);
     }
 
+    // Arc 117 — refuse to compile a `let*` whose extent contains
+    // BOTH a Thread/join-result call AND a sibling Sender-bearing
+    // binding. The Sender clone outlives the worker; the join
+    // deadlocks. Use the type registry to resolve aliases
+    // structurally — a sibling typed `:MyTx` aliasing
+    // `:wat::kernel::QueueSender<i64>` is caught the same way as the
+    // canonical name.
+    for func in sym.functions.values() {
+        validate_scope_deadlock(&func.body, types, &mut errors);
+    }
+    for form in forms {
+        validate_scope_deadlock(form, types, &mut errors);
+    }
+
     // Check each user define's body against its declared return type.
     for (path, func) in &sym.functions {
         if let Some(scheme) = env.get(path) {
@@ -655,6 +715,264 @@ fn validate_comm_positions(
     for child in items {
         validate_comm_positions(child, CommCtx::Forbidden, errors);
     }
+}
+
+// ─── Arc 117 — scope-deadlock prevention ──────────────────────────────
+//
+// At every `:wat::kernel::spawn-thread` call whose body lambda
+// closure-captures a Receiver from a sibling `:wat::kernel::QueuePair`
+// AND `recv`s on that Receiver inside the body — the pair's Sender
+// clone outlives the worker; any `Thread/join-result` deadlocks. The
+// substrate refuses to compile the structural shape; the diagnostic
+// names the canonical fix (`SERVICE-PROGRAMS.md` § "The lockstep" —
+// inner let* owns the queue + Sender clones; returns the Thread to
+// outer; outer then joins).
+//
+// Walk every let* in the program. Within each binding-block, track
+// sibling bindings (name → RHS-AST). When a binding's RHS is a
+// spawn-thread call with a lambda body, analyze the lambda for the
+// closure-capture-of-sibling-pair shape; if found, emit
+// `ScopeDeadlock`.
+//
+// Limitations (false negatives, never false positives):
+// - Function-keyword bodies are skipped (can't trace closure across
+//   the function-table boundary).
+// - The captured-name's RHS must be `(:wat::core::second pair)` and
+//   pair's RHS must be `(:wat::kernel::make-bounded-queue ...)` /
+//   `make-unbounded-queue` — no transitive helpers.
+// - `select` is not yet pattern-matched (only `recv` / `try-recv`).
+
+/// Walk every form in the program looking for the scope-deadlock
+/// shape. Called from `check_program` alongside `validate_comm_positions`.
+/// Uses the TypeEnv to resolve aliases — a sibling typed `:MyTx`
+/// (an alias for `:wat::kernel::QueueSender<T>`) is detected
+/// structurally, not by surface-name matching.
+fn validate_scope_deadlock(node: &WatAST, types: &TypeEnv, errors: &mut Vec<CheckError>) {
+    walk_for_deadlock(node, types, errors);
+}
+
+/// Recursive walker. At every `:wat::core::let*` form, runs the
+/// structural rule: if the let*'s lexical extent has any Thread
+/// `Thread/join-result` call AND any sibling binding whose
+/// (alias-resolved) type contains a Sender-bearing parametric, flag.
+fn walk_for_deadlock(
+    node: &WatAST,
+    types: &TypeEnv,
+    errors: &mut Vec<CheckError>,
+) {
+    let WatAST::List(items, _) = node else { return; };
+    let head = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => {
+            for child in items {
+                walk_for_deadlock(child, types, errors);
+            }
+            return;
+        }
+    };
+
+    if head == ":wat::core::let*" && items.len() >= 3 {
+        let bindings = match &items[1] {
+            WatAST::List(xs, _) => xs.clone(),
+            _ => return,
+        };
+        let body_forms: Vec<WatAST> = items[2..].to_vec();
+        // Recurse into each binding's RHS first (catches nested let*'s).
+        for binding in &bindings {
+            if let WatAST::List(parts, _) = binding {
+                if parts.len() == 2 {
+                    walk_for_deadlock(&parts[1], types, errors);
+                }
+            }
+        }
+        for body_form in &body_forms {
+            walk_for_deadlock(body_form, types, errors);
+        }
+        // Run the structural rule at THIS let*'s scope.
+        check_let_star_for_scope_deadlock(&bindings, &body_forms, types, errors);
+        return;
+    }
+
+    // For all other forms, descend.
+    for child in items {
+        walk_for_deadlock(child, types, errors);
+    }
+}
+
+/// At a let* binding-block, check the structural rule:
+///
+///   If any binding's resolved type contains a Sender-bearing
+///   parametric (`Sender`, `QueueSender`, `QueuePair`, `HandlePool`)
+///   AND any binding (or the body) calls `Thread/join-result` (or
+///   `Process/join-result`) on a Thread binding inside this same
+///   let*'s extent → flag.
+///
+/// "Resolved" means the type annotation is parsed via
+/// `parse_type_expr` and walked through `expand_alias` —
+/// user-defined typealiases pointing at Sender-bearing types are
+/// caught the same way as the canonical names. The substrate's data
+/// (TypeEnv) is the source of truth; we don't pattern-match surface
+/// syntax.
+///
+/// The canonical fix: nest the Sender-bearing bindings in an INNER
+/// let* whose body returns the Thread (SERVICE-PROGRAMS.md
+/// § "The lockstep").
+fn check_let_star_for_scope_deadlock(
+    bindings: &[WatAST],
+    body_forms: &[WatAST],
+    types: &TypeEnv,
+    errors: &mut Vec<CheckError>,
+) {
+    // Collect Thread bindings AND Sender-bearing bindings in this
+    // let*'s binding-block, using resolved TypeExpr structure.
+    let mut thread_bindings: Vec<(String, Span)> = Vec::new();
+    let mut sender_bearing_bindings: Vec<(String, &'static str)> = Vec::new();
+    for binding in bindings {
+        let (name, type_ann_str, span) = match parse_binding_for_typed_check(binding) {
+            Some(t) => t,
+            None => continue,
+        };
+        let parsed = match crate::types::parse_type_expr(&type_ann_str) {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        if type_is_thread_kind(&parsed, types) {
+            thread_bindings.push((name, span));
+            continue;
+        }
+        if let Some(kind) = type_contains_sender_kind(&parsed, types) {
+            sender_bearing_bindings.push((name, kind));
+        }
+    }
+    if thread_bindings.is_empty() || sender_bearing_bindings.is_empty() {
+        return;
+    }
+    // For each Thread binding, check whether `Thread/join-result thr`
+    // (or `Process/join-result`) appears in body_forms or in any
+    // binding's RHS in this let*'s extent.
+    for (thr_name, thr_span) in &thread_bindings {
+        let join_present = body_forms
+            .iter()
+            .any(|f| contains_join_on_thread(f, thr_name))
+            || bindings
+                .iter()
+                .any(|b| contains_join_on_thread(b, thr_name));
+        if !join_present {
+            continue;
+        }
+        for (sender_name, kind) in &sender_bearing_bindings {
+            errors.push(CheckError::ScopeDeadlock {
+                thread_binding: thr_name.clone(),
+                offending_binding: sender_name.clone(),
+                offending_kind: kind,
+                span: thr_span.clone(),
+            });
+        }
+    }
+}
+
+/// Parse a let* binding `((name :type-annotation) rhs)` → (name,
+/// type_annotation_keyword, span). Returns None on shapes that don't
+/// fit (untyped bindings, tuple-destructure patterns).
+fn parse_binding_for_typed_check(binding: &WatAST) -> Option<(String, String, Span)> {
+    let WatAST::List(items, span) = binding else { return None; };
+    if items.len() != 2 {
+        return None;
+    }
+    let pattern = &items[0];
+    let WatAST::List(parts, _) = pattern else { return None; };
+    if parts.len() < 2 {
+        return None;
+    }
+    let name = match &parts[0] {
+        WatAST::Symbol(id, _) => id.name.clone(),
+        _ => return None,
+    };
+    let type_ann_str = match &parts[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => return None,
+    };
+    Some((name, type_ann_str, span.clone()))
+}
+
+/// Does this type, after alias resolution, denote a Thread/Process/
+/// Program (the values one calls `Thread/join-result` on)?
+fn type_is_thread_kind(ty: &TypeExpr, types: &TypeEnv) -> bool {
+    let canonical = crate::types::expand_alias(ty, types);
+    match canonical {
+        TypeExpr::Parametric { head, .. } => matches!(
+            head.as_str(),
+            "wat::kernel::Thread" | "wat::kernel::Process" | "wat::kernel::Program"
+        ),
+        _ => false,
+    }
+}
+
+/// Does this type, after alias resolution and recursive descent into
+/// arguments and tuple elements, contain a Sender-bearing parametric
+/// ANYWHERE in its structure? Returns the descriptor of the first
+/// match found, used in the diagnostic.
+///
+/// Matched heads (canonical, alias-resolved):
+///   - `rust::crossbeam_channel::Sender`
+///   - `wat::kernel::QueueSender`
+///   - `wat::kernel::QueuePair` (contains both halves; sender-bearing)
+///   - `wat::kernel::HandlePool` (carries N Sender clones)
+fn type_contains_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static str> {
+    let canonical = crate::types::expand_alias(ty, types);
+    match canonical {
+        TypeExpr::Parametric { head, args } => {
+            match head.as_str() {
+                "rust::crossbeam_channel::Sender" => return Some("Sender"),
+                "wat::kernel::QueueSender" => return Some("QueueSender"),
+                "wat::kernel::QueuePair" => return Some("QueuePair"),
+                "wat::kernel::HandlePool" => return Some("HandlePool"),
+                _ => {}
+            }
+            for arg in &args {
+                if let Some(k) = type_contains_sender_kind(arg, types) {
+                    return Some(k);
+                }
+            }
+            None
+        }
+        TypeExpr::Tuple(elements) => {
+            for e in &elements {
+                if let Some(k) = type_contains_sender_kind(e, types) {
+                    return Some(k);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Walk `node` looking for `(:wat::kernel::Thread/join-result thr)` or
+/// `(:wat::kernel::Process/join-result thr)` (or arc 060's bare
+/// `:wat::kernel::join-result` for completeness, even though it
+/// retired in arc 114) where `thr` matches the given binding name.
+/// True iff such a call is found anywhere in the AST subtree.
+fn contains_join_on_thread(node: &WatAST, thread_binding: &str) -> bool {
+    let WatAST::List(items, _) = node else { return false; };
+    if let Some(WatAST::Keyword(k, _)) = items.first() {
+        if matches!(
+            k.as_str(),
+            ":wat::kernel::Thread/join-result"
+                | ":wat::kernel::Process/join-result"
+                | ":wat::kernel::join-result"
+                | ":wat::kernel::join"
+        ) {
+            if let Some(WatAST::Symbol(id, _)) = items.get(1) {
+                if id.name == thread_binding {
+                    return true;
+                }
+            }
+        }
+    }
+    items
+        .iter()
+        .any(|child| contains_join_on_thread(child, thread_binding))
 }
 
 fn check_function_body(
