@@ -1,7 +1,7 @@
 ;; :wat::std::stream — composable stage combinators over
 ;; :wat::kernel::spawn-thread + crossbeam channels. Each combinator
 ;; spawns one worker thread and wires a bounded(1) queue; the
-;; combinator returns a :wat::std::stream::Stream<T> — the pair
+;; combinator returns a :wat::stream::Stream<T> — the pair
 ;; (Receiver, Thread<(),()>) the caller composes or terminates.
 ;;
 ;; Shape:
@@ -46,13 +46,13 @@
 ;; spawn-thread body shape (closes over caller-held channels; the
 ;; substrate's `_in` / `_out` are unit-typed and unused).
 (:wat::core::typealias
-  :wat::std::stream::Stream<T>
+  :wat::stream::Stream<T>
   :(wat::kernel::QueueReceiver<T>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
 
 ;; Producer<T> — the function shape spawn-producer accepts: takes the
 ;; Sender end of a bounded queue, writes values, returns when done.
 (:wat::core::typealias
-  :wat::std::stream::Producer<T>
+  :wat::stream::Producer<T>
   :fn(wat::kernel::QueueSender<T>)->wat::core::unit)
 
 ;; --- with-state step shapes ---
@@ -67,11 +67,11 @@
 ;; shapes keeps lambda return-type annotations from accumulating
 ;; nested `<>`s at every site.
 (:wat::core::typealias
-  :wat::std::stream::ChunkStep<T>
+  :wat::stream::ChunkStep<T>
   :(wat::core::Vector<T>,wat::core::Vector<wat::core::Vector<T>>))
 
 (:wat::core::typealias
-  :wat::std::stream::KeyedChunkStep<K,T>
+  :wat::stream::KeyedChunkStep<K,T>
   :((wat::core::Option<K>,wat::core::Vector<T>),wat::core::Vector<wat::core::Vector<T>>))
 
 ;; --- spawn-producer ---
@@ -82,9 +82,9 @@
 ;; returns the Stream<T> to the caller. Caller consumes via a
 ;; combinator or a direct recv loop.
 (:wat::core::define
-  (:wat::std::stream::spawn-producer<T>
-    (producer :wat::std::stream::Producer<T>)
-    -> :wat::std::stream::Stream<T>)
+  (:wat::stream::spawn-producer<T>
+    (producer :wat::stream::Producer<T>)
+    -> :wat::stream::Stream<T>)
   (:wat::core::let*
     (((pair :wat::kernel::QueuePair<T>)
       (:wat::kernel::make-bounded-queue :T 1))
@@ -113,10 +113,10 @@
 ;; they have a bare Receiver, and some other thread will never be
 ;; joined, which is a broken shutdown story. Don't hide that.
 (:wat::core::define
-  (:wat::std::stream::from-receiver<T>
+  (:wat::stream::from-receiver<T>
     (rx :wat::kernel::QueueReceiver<T>)
     (handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
-    -> :wat::std::stream::Stream<T>)
+    -> :wat::stream::Stream<T>)
   (:wat::core::Tuple rx handle))
 
 ;; --- map ---
@@ -128,7 +128,7 @@
 ;; dropped), it exits; otherwise it recurses.
 
 (:wat::core::define
-  (:wat::std::stream::map-worker<T,U>
+  (:wat::stream::map-worker<T,U>
     (in :wat::kernel::QueueReceiver<T>)
     (out :wat::kernel::QueueSender<U>)
     (f :fn(T)->U)
@@ -138,16 +138,16 @@
       (:wat::core::let*
         (((u :U) (f v)))
         (:wat::core::match (:wat::kernel::send out u) -> :wat::core::unit
-          ((:wat::core::Ok _) (:wat::std::stream::map-worker in out f))
+          ((:wat::core::Ok _) (:wat::stream::map-worker in out f))
           ((:wat::core::Err _) ()))))
     ((:wat::core::Ok :wat::core::None) ())
     ((:wat::core::Err _died) ())))
 
 (:wat::core::define
-  (:wat::std::stream::map<T,U>
-    (upstream :wat::std::stream::Stream<T>)
+  (:wat::stream::map<T,U>
+    (upstream :wat::stream::Stream<T>)
     (f :fn(T)->U)
-    -> :wat::std::stream::Stream<U>)
+    -> :wat::stream::Stream<U>)
   (:wat::core::let*
     (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
      ((pair :wat::kernel::QueuePair<U>)
@@ -160,7 +160,7 @@
           ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
-          (:wat::std::stream::map-worker up-rx tx f)))))
+          (:wat::stream::map-worker up-rx tx f)))))
     (:wat::core::Tuple rx handle)))
 
 ;; --- for-each ---
@@ -171,7 +171,7 @@
 ;; thread — no new worker spawned here.
 
 (:wat::core::define
-  (:wat::std::stream::for-each-drain<T>
+  (:wat::stream::for-each-drain<T>
     (rx :wat::kernel::QueueReceiver<T>)
     (handler :fn(T)->wat::core::unit)
     -> :wat::core::unit)
@@ -179,19 +179,19 @@
     ((:wat::core::Ok (:wat::core::Some v))
       (:wat::core::let*
         (((_ :wat::core::unit) (handler v)))
-        (:wat::std::stream::for-each-drain rx handler)))
+        (:wat::stream::for-each-drain rx handler)))
     ((:wat::core::Ok :wat::core::None) ())
     ((:wat::core::Err _died) ())))
 
 (:wat::core::define
-  (:wat::std::stream::for-each<T>
-    (stream :wat::std::stream::Stream<T>)
+  (:wat::stream::for-each<T>
+    (stream :wat::stream::Stream<T>)
     (handler :fn(T)->wat::core::unit)
     -> :wat::core::unit)
   (:wat::core::let*
     (((rx :wat::kernel::QueueReceiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second stream))
-     ((_ :wat::core::unit) (:wat::std::stream::for-each-drain rx handler))
+     ((_ :wat::core::unit) (:wat::stream::for-each-drain rx handler))
      ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result handle)))
     ()))
@@ -204,25 +204,25 @@
 ;; for-each or a fold-style terminal instead.
 
 (:wat::core::define
-  (:wat::std::stream::collect-drain<T>
+  (:wat::stream::collect-drain<T>
     (rx :wat::kernel::QueueReceiver<T>)
     (acc :wat::core::Vector<T>)
     -> :wat::core::Vector<T>)
   (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::Vector<T>
     ((:wat::core::Ok (:wat::core::Some v))
-      (:wat::std::stream::collect-drain rx (:wat::core::conj acc v)))
+      (:wat::stream::collect-drain rx (:wat::core::conj acc v)))
     ((:wat::core::Ok :wat::core::None) acc)
     ((:wat::core::Err _died) acc)))
 
 (:wat::core::define
-  (:wat::std::stream::collect<T>
-    (stream :wat::std::stream::Stream<T>)
+  (:wat::stream::collect<T>
+    (stream :wat::stream::Stream<T>)
     -> :wat::core::Vector<T>)
   (:wat::core::let*
     (((rx :wat::kernel::QueueReceiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second stream))
      ((items :wat::core::Vector<T>)
-      (:wat::std::stream::collect-drain rx (:wat::core::Vector :T)))
+      (:wat::stream::collect-drain rx (:wat::core::Vector :T)))
      ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result handle)))
     items))
@@ -233,7 +233,7 @@
 ;; calls the predicate; forwards only items for which it returned true.
 ;; Same tail-recursive shape as map. Empty downstream drops.
 (:wat::core::define
-  (:wat::std::stream::filter-worker<T>
+  (:wat::stream::filter-worker<T>
     (in :wat::kernel::QueueReceiver<T>)
     (out :wat::kernel::QueueSender<T>)
     (pred :fn(T)->wat::core::bool)
@@ -242,17 +242,17 @@
     ((:wat::core::Ok (:wat::core::Some v))
       (:wat::core::if (pred v) -> :wat::core::unit
         (:wat::core::match (:wat::kernel::send out v) -> :wat::core::unit
-          ((:wat::core::Ok _) (:wat::std::stream::filter-worker in out pred))
+          ((:wat::core::Ok _) (:wat::stream::filter-worker in out pred))
           ((:wat::core::Err _) ()))
-        (:wat::std::stream::filter-worker in out pred)))
+        (:wat::stream::filter-worker in out pred)))
     ((:wat::core::Ok :wat::core::None) ())
     ((:wat::core::Err _died) ())))
 
 (:wat::core::define
-  (:wat::std::stream::filter<T>
-    (upstream :wat::std::stream::Stream<T>)
+  (:wat::stream::filter<T>
+    (upstream :wat::stream::Stream<T>)
     (pred :fn(T)->wat::core::bool)
-    -> :wat::std::stream::Stream<T>)
+    -> :wat::stream::Stream<T>)
   (:wat::core::let*
     (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
      ((pair :wat::kernel::QueuePair<T>)
@@ -265,7 +265,7 @@
           ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
-          (:wat::std::stream::filter-worker up-rx tx pred)))))
+          (:wat::stream::filter-worker up-rx tx pred)))))
     (:wat::core::Tuple rx handle)))
 
 ;; --- inspect ---
@@ -277,7 +277,7 @@
 ;; ergonomics: drop an inspect into a pipeline to log / count / trace
 ;; without perturbing the values.
 (:wat::core::define
-  (:wat::std::stream::inspect-worker<T>
+  (:wat::stream::inspect-worker<T>
     (in :wat::kernel::QueueReceiver<T>)
     (out :wat::kernel::QueueSender<T>)
     (f :fn(T)->wat::core::unit)
@@ -287,16 +287,16 @@
       (:wat::core::let*
         (((_ :wat::core::unit) (f v)))
         (:wat::core::match (:wat::kernel::send out v) -> :wat::core::unit
-          ((:wat::core::Ok _) (:wat::std::stream::inspect-worker in out f))
+          ((:wat::core::Ok _) (:wat::stream::inspect-worker in out f))
           ((:wat::core::Err _) ()))))
     ((:wat::core::Ok :wat::core::None) ())
     ((:wat::core::Err _died) ())))
 
 (:wat::core::define
-  (:wat::std::stream::inspect<T>
-    (upstream :wat::std::stream::Stream<T>)
+  (:wat::stream::inspect<T>
+    (upstream :wat::stream::Stream<T>)
     (f :fn(T)->wat::core::unit)
-    -> :wat::std::stream::Stream<T>)
+    -> :wat::stream::Stream<T>)
   (:wat::core::let*
     (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
      ((pair :wat::kernel::QueuePair<T>)
@@ -309,7 +309,7 @@
           ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
-          (:wat::std::stream::inspect-worker up-rx tx f)))))
+          (:wat::stream::inspect-worker up-rx tx f)))))
     (:wat::core::Tuple rx handle)))
 
 ;; --- fold ---
@@ -319,27 +319,27 @@
 ;; `fold init=[] f=conj`) and gives sum / count / any / all as
 ;; one-liners. Joins the handle; returns the final accumulator.
 (:wat::core::define
-  (:wat::std::stream::fold-drain<T,Acc>
+  (:wat::stream::fold-drain<T,Acc>
     (rx :wat::kernel::QueueReceiver<T>)
     (acc :Acc)
     (f :fn(Acc,T)->Acc)
     -> :Acc)
   (:wat::core::match (:wat::kernel::recv rx) -> :Acc
     ((:wat::core::Ok (:wat::core::Some v))
-      (:wat::std::stream::fold-drain rx (f acc v) f))
+      (:wat::stream::fold-drain rx (f acc v) f))
     ((:wat::core::Ok :wat::core::None) acc)
     ((:wat::core::Err _died) acc)))
 
 (:wat::core::define
-  (:wat::std::stream::fold<T,Acc>
-    (stream :wat::std::stream::Stream<T>)
+  (:wat::stream::fold<T,Acc>
+    (stream :wat::stream::Stream<T>)
     (init :Acc)
     (f :fn(Acc,T)->Acc)
     -> :Acc)
   (:wat::core::let*
     (((rx :wat::kernel::QueueReceiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second stream))
-     ((result :Acc) (:wat::std::stream::fold-drain rx init f))
+     ((result :Acc) (:wat::stream::fold-drain rx init f))
      ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result handle)))
     result))
@@ -374,7 +374,7 @@
 ;; shape as the substrate every stateful-stage combinator wants.
 
 (:wat::core::define
-  (:wat::std::stream::drain-items<U>
+  (:wat::stream::drain-items<U>
     (out :wat::kernel::QueueSender<U>)
     (items :wat::core::Vector<U>)
     -> :wat::core::Option<wat::core::unit>)
@@ -393,12 +393,12 @@
           (((rest-items :wat::core::Vector<U>) (:wat::core::rest items)))
           (:wat::core::match (:wat::kernel::send out item) -> :wat::core::Option<wat::core::unit>
             ((:wat::core::Ok _)
-              (:wat::std::stream::drain-items out rest-items))
+              (:wat::stream::drain-items out rest-items))
             ((:wat::core::Err _) :wat::core::None))))
       (:wat::core::None :wat::core::None))))
 
 (:wat::core::define
-  (:wat::std::stream::with-state-worker<T,U,Acc>
+  (:wat::stream::with-state-worker<T,U,Acc>
     (in :wat::kernel::QueueReceiver<T>)
     (out :wat::kernel::QueueSender<U>)
     (step :fn(Acc,T)->(Acc,wat::core::Vector<U>))
@@ -412,10 +412,10 @@
          ((new-acc :Acc) (:wat::core::first stepped))
          ((to-emit :wat::core::Vector<U>) (:wat::core::second stepped))
          ((drain-result :wat::core::Option<wat::core::unit>)
-          (:wat::std::stream::drain-items out to-emit)))
+          (:wat::stream::drain-items out to-emit)))
         (:wat::core::match drain-result -> :wat::core::unit
           ((:wat::core::Some _)
-            (:wat::std::stream::with-state-worker in out step flush new-acc))
+            (:wat::stream::with-state-worker in out step flush new-acc))
           (:wat::core::None ()))))
     ((:wat::core::Ok :wat::core::None)
       ;; Upstream disconnected. Flush final state; drain whatever it
@@ -424,17 +424,17 @@
       (:wat::core::let*
         (((final-emits :wat::core::Vector<U>) (flush acc))
          ((_ :wat::core::Option<wat::core::unit>)
-          (:wat::std::stream::drain-items out final-emits)))
+          (:wat::stream::drain-items out final-emits)))
         ()))
     ((:wat::core::Err _died) ())))
 
 (:wat::core::define
-  (:wat::std::stream::with-state<T,U,Acc>
-    (upstream :wat::std::stream::Stream<T>)
+  (:wat::stream::with-state<T,U,Acc>
+    (upstream :wat::stream::Stream<T>)
     (init :Acc)
     (step :fn(Acc,T)->(Acc,wat::core::Vector<U>))
     (flush :fn(Acc)->wat::core::Vector<U>)
-    -> :wat::std::stream::Stream<U>)
+    -> :wat::stream::Stream<U>)
   (:wat::core::let*
     (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
      ((pair :wat::kernel::QueuePair<U>)
@@ -447,7 +447,7 @@
           ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
-          (:wat::std::stream::with-state-worker up-rx tx step flush init)))))
+          (:wat::stream::with-state-worker up-rx tx step flush init)))))
     (:wat::core::Tuple rx handle)))
 
 ;; --- chunks (rewritten on top of with-state) ---
@@ -467,15 +467,15 @@
 ;; instead of in-worker branches.
 
 (:wat::core::define
-  (:wat::std::stream::chunks-step<T>
+  (:wat::stream::chunks-step<T>
     (buffer :wat::core::Vector<T>)
     (item :T)
     (size :wat::core::i64)
-    -> :wat::std::stream::ChunkStep<T>)
+    -> :wat::stream::ChunkStep<T>)
   (:wat::core::let*
     (((new-buffer :wat::core::Vector<T>) (:wat::core::conj buffer item)))
     (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size)
-      -> :wat::std::stream::ChunkStep<T>
+      -> :wat::stream::ChunkStep<T>
       (:wat::core::Tuple
         (:wat::core::Vector :T)
         (:wat::core::Vector :wat::core::Vector<T> new-buffer))
@@ -484,7 +484,7 @@
         (:wat::core::Vector :wat::core::Vector<T>)))))
 
 (:wat::core::define
-  (:wat::std::stream::chunks-flush<T>
+  (:wat::stream::chunks-flush<T>
     (buffer :wat::core::Vector<T>)
     -> :wat::core::Vector<wat::core::Vector<T>>)
   (:wat::core::if (:wat::core::empty? buffer) -> :wat::core::Vector<wat::core::Vector<T>>
@@ -492,20 +492,20 @@
     (:wat::core::Vector :wat::core::Vector<T> buffer)))
 
 (:wat::core::define
-  (:wat::std::stream::chunks<T>
-    (upstream :wat::std::stream::Stream<T>)
+  (:wat::stream::chunks<T>
+    (upstream :wat::stream::Stream<T>)
     (size :wat::core::i64)
-    -> :wat::std::stream::Stream<wat::core::Vector<T>>)
+    -> :wat::stream::Stream<wat::core::Vector<T>>)
   ;; chunks-step takes (buf, item, size) — three args — but with-state
   ;; wants (buf, item). The `size` parameter has to close over the
   ;; chunks caller's argument, so step is genuinely a lambda capturing
   ;; `size`, not a pass-through. chunks-flush takes (buf) exactly, so
   ;; it passes by name directly (arc 009 — names are values).
-  (:wat::std::stream::with-state upstream
+  (:wat::stream::with-state upstream
     (:wat::core::Vector :T)
-    (:wat::core::lambda ((buf :wat::core::Vector<T>) (item :T) -> :wat::std::stream::ChunkStep<T>)
-      (:wat::std::stream::chunks-step buf item size))
-    :wat::std::stream::chunks-flush))
+    (:wat::core::lambda ((buf :wat::core::Vector<T>) (item :T) -> :wat::stream::ChunkStep<T>)
+      (:wat::stream::chunks-step buf item size))
+    :wat::stream::chunks-flush))
 
 ;; --- chunks-by ---
 ;;
@@ -518,16 +518,16 @@
 ;; primitives and composite values).
 
 (:wat::core::define
-  (:wat::std::stream::chunks-by-step<T,K>
+  (:wat::stream::chunks-by-step<T,K>
     (state :(wat::core::Option<K>,wat::core::Vector<T>))
     (item :T)
     (key-fn :fn(T)->K)
-    -> :wat::std::stream::KeyedChunkStep<K,T>)
+    -> :wat::stream::KeyedChunkStep<K,T>)
   (:wat::core::let*
     (((last-key :wat::core::Option<K>) (:wat::core::first state))
      ((buffer :wat::core::Vector<T>) (:wat::core::second state))
      ((k :K) (key-fn item)))
-    (:wat::core::match last-key -> :wat::std::stream::KeyedChunkStep<K,T>
+    (:wat::core::match last-key -> :wat::stream::KeyedChunkStep<K,T>
       (:wat::core::None
         ;; First item — start the run, emit nothing yet.
         (:wat::core::Tuple
@@ -535,7 +535,7 @@
           (:wat::core::Vector :wat::core::Vector<T>)))
       ((:wat::core::Some prev)
         (:wat::core::if (:wat::core::= prev k)
-          -> :wat::std::stream::KeyedChunkStep<K,T>
+          -> :wat::stream::KeyedChunkStep<K,T>
           ;; Same key — append to current run, emit nothing.
           (:wat::core::Tuple
             (:wat::core::Tuple (:wat::core::Some k) (:wat::core::conj buffer item))
@@ -546,7 +546,7 @@
             (:wat::core::Vector :wat::core::Vector<T> buffer)))))))
 
 (:wat::core::define
-  (:wat::std::stream::chunks-by-flush<T,K>
+  (:wat::stream::chunks-by-flush<T,K>
     (state :(wat::core::Option<K>,wat::core::Vector<T>))
     -> :wat::core::Vector<wat::core::Vector<T>>)
   (:wat::core::let*
@@ -556,18 +556,18 @@
       (:wat::core::Vector :wat::core::Vector<T> buffer))))
 
 (:wat::core::define
-  (:wat::std::stream::chunks-by<T,K>
-    (upstream :wat::std::stream::Stream<T>)
+  (:wat::stream::chunks-by<T,K>
+    (upstream :wat::stream::Stream<T>)
     (key-fn :fn(T)->K)
-    -> :wat::std::stream::Stream<wat::core::Vector<T>>)
+    -> :wat::stream::Stream<wat::core::Vector<T>>)
   ;; init = (None, empty) — no key seen yet, no items buffered.
   ;; step closes over key-fn; flush is size-agnostic so passes by name.
-  (:wat::std::stream::with-state upstream
+  (:wat::stream::with-state upstream
     (:wat::core::Tuple :wat::core::None (:wat::core::Vector :T))
     (:wat::core::lambda ((state :(wat::core::Option<K>,wat::core::Vector<T>)) (item :T)
-                         -> :wat::std::stream::KeyedChunkStep<K,T>)
-      (:wat::std::stream::chunks-by-step state item key-fn))
-    :wat::std::stream::chunks-by-flush))
+                         -> :wat::stream::KeyedChunkStep<K,T>)
+      (:wat::stream::chunks-by-step state item key-fn))
+    :wat::stream::chunks-by-flush))
 
 ;; --- window ---
 ;;
@@ -585,15 +585,15 @@
 ;; slots when real callers demand them.
 
 (:wat::core::define
-  (:wat::std::stream::window-step<T>
+  (:wat::stream::window-step<T>
     (buffer :wat::core::Vector<T>)
     (item :T)
     (size :wat::core::i64)
-    -> :wat::std::stream::ChunkStep<T>)
+    -> :wat::stream::ChunkStep<T>)
   (:wat::core::let*
     (((new-buf :wat::core::Vector<T>) (:wat::core::conj buffer item))
      ((new-len :wat::core::i64) (:wat::core::length new-buf)))
-    (:wat::core::cond -> :wat::std::stream::ChunkStep<T>
+    (:wat::core::cond -> :wat::stream::ChunkStep<T>
       ;; Over-size — slide: drop first, emit trimmed window, keep trimmed.
       ((:wat::core::> new-len size)
         (:wat::core::let*
@@ -607,7 +607,7 @@
         (:wat::core::Tuple new-buf (:wat::core::Vector :wat::core::Vector<T>))))))
 
 (:wat::core::define
-  (:wat::std::stream::window-flush<T>
+  (:wat::stream::window-flush<T>
     (buffer :wat::core::Vector<T>)
     (size :wat::core::i64)
     -> :wat::core::Vector<wat::core::Vector<T>>)
@@ -622,17 +622,17 @@
     (:else (:wat::core::Vector :wat::core::Vector<T>))))
 
 (:wat::core::define
-  (:wat::std::stream::window<T>
-    (upstream :wat::std::stream::Stream<T>)
+  (:wat::stream::window<T>
+    (upstream :wat::stream::Stream<T>)
     (size :wat::core::i64)
-    -> :wat::std::stream::Stream<wat::core::Vector<T>>)
+    -> :wat::stream::Stream<wat::core::Vector<T>>)
   ;; Both step and flush close over size — two lambda wrappers.
-  (:wat::std::stream::with-state upstream
+  (:wat::stream::with-state upstream
     (:wat::core::Vector :T)
-    (:wat::core::lambda ((buf :wat::core::Vector<T>) (item :T) -> :wat::std::stream::ChunkStep<T>)
-      (:wat::std::stream::window-step buf item size))
+    (:wat::core::lambda ((buf :wat::core::Vector<T>) (item :T) -> :wat::stream::ChunkStep<T>)
+      (:wat::stream::window-step buf item size))
     (:wat::core::lambda ((buf :wat::core::Vector<T>) -> :wat::core::Vector<wat::core::Vector<T>>)
-      (:wat::std::stream::window-flush buf size))))
+      (:wat::stream::window-flush buf size))))
 
 ;; --- take ---
 ;;
@@ -647,7 +647,7 @@
 ;; ending before `n` is reached is fine — worker sees :None on recv,
 ;; exits, downstream gets :None naturally.
 (:wat::core::define
-  (:wat::std::stream::take-worker<T>
+  (:wat::stream::take-worker<T>
     (in :wat::kernel::QueueReceiver<T>)
     (out :wat::kernel::QueueSender<T>)
     (remaining :wat::core::i64)
@@ -658,17 +658,17 @@
       ((:wat::core::Ok (:wat::core::Some v))
         (:wat::core::match (:wat::kernel::send out v) -> :wat::core::unit
           ((:wat::core::Ok _)
-            (:wat::std::stream::take-worker in out
+            (:wat::stream::take-worker in out
               (:wat::core::i64::- remaining 1)))
           ((:wat::core::Err _) ())))
       ((:wat::core::Ok :wat::core::None) ())
       ((:wat::core::Err _died) ()))))
 
 (:wat::core::define
-  (:wat::std::stream::take<T>
-    (upstream :wat::std::stream::Stream<T>)
+  (:wat::stream::take<T>
+    (upstream :wat::stream::Stream<T>)
     (n :wat::core::i64)
-    -> :wat::std::stream::Stream<T>)
+    -> :wat::stream::Stream<T>)
   (:wat::core::let*
     (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
      ((pair :wat::kernel::QueuePair<T>)
@@ -681,7 +681,7 @@
           ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
-          (:wat::std::stream::take-worker up-rx tx n)))))
+          (:wat::stream::take-worker up-rx tx n)))))
     (:wat::core::Tuple rx handle)))
 
 ;; --- flat-map ---
@@ -697,7 +697,7 @@
 ;; the rest. One function, state threaded through the parameter —
 ;; the same pattern chunks uses for its accumulator.
 (:wat::core::define
-  (:wat::std::stream::flat-map-worker<T,U>
+  (:wat::stream::flat-map-worker<T,U>
     (in :wat::kernel::QueueReceiver<T>)
     (out :wat::kernel::QueueSender<U>)
     (f :fn(T)->wat::core::Vector<U>)
@@ -706,7 +706,7 @@
   (:wat::core::if (:wat::core::empty? pending) -> :wat::core::unit
     (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
       ((:wat::core::Ok (:wat::core::Some v))
-        (:wat::std::stream::flat-map-worker in out f (f v)))
+        (:wat::stream::flat-map-worker in out f (f v)))
       ((:wat::core::Ok :wat::core::None) ())
       ((:wat::core::Err _died) ()))
     ;; pending is non-empty; first returns Some<U> via arc 047.
@@ -717,15 +717,15 @@
           (((rest-items :wat::core::Vector<U>) (:wat::core::rest pending)))
           (:wat::core::match (:wat::kernel::send out item) -> :wat::core::unit
             ((:wat::core::Ok _)
-              (:wat::std::stream::flat-map-worker in out f rest-items))
+              (:wat::stream::flat-map-worker in out f rest-items))
             ((:wat::core::Err _) ()))))
       (:wat::core::None ()))))
 
 (:wat::core::define
-  (:wat::std::stream::flat-map<T,U>
-    (upstream :wat::std::stream::Stream<T>)
+  (:wat::stream::flat-map<T,U>
+    (upstream :wat::stream::Stream<T>)
     (f :fn(T)->wat::core::Vector<U>)
-    -> :wat::std::stream::Stream<U>)
+    -> :wat::stream::Stream<U>)
   (:wat::core::let*
     (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
      ((pair :wat::kernel::QueuePair<U>)
@@ -738,5 +738,5 @@
           ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
-          (:wat::std::stream::flat-map-worker up-rx tx f (:wat::core::Vector :U))))))
+          (:wat::stream::flat-map-worker up-rx tx f (:wat::core::Vector :U))))))
     (:wat::core::Tuple rx handle)))

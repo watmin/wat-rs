@@ -192,6 +192,29 @@ pub enum CheckError {
         /// Source location of the keyword carrying the bare head.
         span: Span,
     },
+    /// Arc 109 slice 9d — a keyword carrying the legacy
+    /// `:wat::std::stream::` prefix appears in user code. The
+    /// stream stdlib graduated to `:wat::stream::*` per § G's
+    /// three-tier substrate organization (every substrate concern
+    /// earns its own top-level tier; `:wat::std::*` empties out).
+    /// File path mirrors: `wat/std/stream.wat` → `wat/stream.wat`.
+    ///
+    /// Walker fires on every keyword starting with the legacy
+    /// prefix, regardless of position (callable head, type
+    /// annotation, value position) — uniform Pattern 3 detection.
+    /// Same shape as slices 1c/1d/1e but at the keyword-prefix
+    /// level rather than the parsed-TypeExpr level.
+    BareLegacyStreamPath {
+        /// User-source keyword — `":wat::std::stream::map"`,
+        /// `":wat::std::stream::Stream"`, etc.
+        old: String,
+        /// Canonical replacement — `":wat::stream::map"`, etc.
+        /// Computed by stripping the `std::` segment.
+        new: String,
+        /// Source location of the keyword carrying the legacy
+        /// prefix.
+        span: Span,
+    },
 }
 
 impl fmt::Display for CheckError {
@@ -268,6 +291,11 @@ impl fmt::Display for CheckError {
                 f,
                 "bare container type '{}' at {} is retired (arc 109 slice 1e); canonical FQDN form is '{}'. Substrate-provided container types live under :wat::core::* (see arc 109 § B). Rename '{}' → '{}' at the offending site (works in both outer position like ':{}' → ':{}' and inner position like 'Vec<{}>' → 'Vec<{}>').",
                 head, span, fqdn, head, fqdn, head, fqdn, head, fqdn
+            ),
+            CheckError::BareLegacyStreamPath { old, new, span } => write!(
+                f,
+                "legacy stream path '{}' at {} is retired (arc 109 slice 9d); canonical form is '{}'. The stream stdlib graduated to :wat::stream::* per § G's three-tier substrate organization (every substrate concern earns its own top-level tier; :wat::std::* empties out). File path mirrors: wat/std/stream.wat → wat/stream.wat. Rename '{}' → '{}' at the offending site.",
+                old, span, new, old, new
             ),
         }
     }
@@ -437,6 +465,12 @@ impl CheckError {
                 Diagnostic::new("BareLegacyContainerHead")
                     .field("head", head.as_str())
                     .field("fqdn", fqdn.as_str())
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyStreamPath { old, new, span } => {
+                Diagnostic::new("BareLegacyStreamPath")
+                    .field("old", old.as_str())
+                    .field("new", new.as_str())
                     .field("location", format!("{}", span))
             }
         }
@@ -896,6 +930,18 @@ pub fn check_program(
         validate_bare_legacy_primitives(form, &mut errors);
     }
 
+    // Arc 109 slice 9d — refuse the legacy `:wat::std::stream::*`
+    // namespace prefix anywhere in the program. The stream stdlib
+    // graduated to `:wat::stream::*` per § G's three-tier substrate
+    // organization. Walks every keyword token in the AST and emits
+    // one BareLegacyStreamPath per occurrence.
+    for func in sym.functions.values() {
+        validate_legacy_stream_path(&func.body, &mut errors);
+    }
+    for form in forms {
+        validate_legacy_stream_path(form, &mut errors);
+    }
+
     // Check each user define's body against its declared return type.
     for (path, func) in &sym.functions {
         if let Some(scheme) = env.get(path) {
@@ -1224,6 +1270,52 @@ fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) 
             }
         }
         TypeExpr::Var(_) => {}
+    }
+}
+
+/// Arc 109 slice 9d — walk every WatAST node, detecting any
+/// keyword whose path starts with the legacy
+/// `:wat::std::stream::` prefix. Stream stdlib graduated to
+/// `:wat::stream::*` per § G's three-tier substrate organization.
+///
+/// Pattern 3 (dedicated CheckError variant + walker; no
+/// `collect_hints` involvement). Same shape as slices 1c/1d/1e but
+/// at the keyword-prefix level rather than the parsed-TypeExpr
+/// level — this is a pure namespace-prefix retirement, no shape
+/// shift involved.
+///
+/// Catches all positions uniformly (callable head, type
+/// annotation, value position) since every legacy use surfaces as
+/// a `WatAST::Keyword` node carrying the prefix.
+fn validate_legacy_stream_path(node: &WatAST, errors: &mut Vec<CheckError>) {
+    walk_for_legacy_stream(node, errors);
+}
+
+const LEGACY_STREAM_PREFIX: &str = ":wat::std::stream::";
+const CANONICAL_STREAM_PREFIX: &str = ":wat::stream::";
+
+fn walk_for_legacy_stream(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::Keyword(s, span) => {
+            if s.starts_with(LEGACY_STREAM_PREFIX) {
+                let new = format!(
+                    "{}{}",
+                    CANONICAL_STREAM_PREFIX,
+                    &s[LEGACY_STREAM_PREFIX.len()..]
+                );
+                errors.push(CheckError::BareLegacyStreamPath {
+                    old: s.clone(),
+                    new,
+                    span: span.clone(),
+                });
+            }
+        }
+        WatAST::List(items, _) => {
+            for item in items {
+                walk_for_legacy_stream(item, errors);
+            }
+        }
+        _ => {}
     }
 }
 

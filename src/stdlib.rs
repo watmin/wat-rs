@@ -5,7 +5,7 @@
 //! path matches the file path. The wat's startup pipeline registers
 //! these forms BEFORE user entry forms reach macro expansion, so any
 //! user program can reference `:wat::holon::Subtract`,
-//! `:wat::holon::Amplify`, `:wat::std::stream::*`, etc. without an
+//! `:wat::holon::Amplify`, `:wat::stream::*`, etc. without an
 //! explicit `load!`.
 //!
 //! Files live in the repo under `wat/holon/` (algebra idioms over
@@ -83,8 +83,8 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/kernel/queue.wat"),
     },
     WatSource {
-        path: "wat/std/stream.wat",
-        source: include_str!("../wat/std/stream.wat"),
+        path: "wat/stream.wat",
+        source: include_str!("../wat/stream.wat"),
     },
     WatSource {
         path: "wat/std/hermetic.wat",
