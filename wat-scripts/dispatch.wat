@@ -72,10 +72,10 @@
      ((_pump   :())                            (:demo::dispatch::pump out-r stdout))
      ((_join   :())
       (:wat::core::match (:wat::kernel::Process/join-result proc) -> :()
-        ((Ok _) ())
-        ((Err _died)
+        ((:wat::core::Ok _) ())
+        ((:wat::core::Err _died)
          (:wat::core::panic! "dispatch: child died unexpectedly")))))
-    (Ok ())))
+    (:wat::core::Ok ())))
 
 
 (:wat::core::define
@@ -93,8 +93,8 @@
        (((job    :demo::Job)                            (:wat::edn::read line))
         ((result :Result<(),wat::kernel::StartupError>) (:demo::dispatch::run job stdout)))
        (:wat::core::match result -> :()
-         ((Ok _) ())
-         ((Err err)
+         ((:wat::core::Ok _) ())
+         ((:wat::core::Err err)
           (:wat::io::IOWriter/println stderr
             (:wat::core::string::concat
               "dispatch: spawn failed: "

@@ -62,10 +62,10 @@
           "ping-pong: send to child failed"))
        ((pong :demo::Pong)
         (:wat::core::match (:wat::kernel::process-recv proc) -> :demo::Pong
-          ((Ok (:wat::core::Some v)) v)
-          ((Ok :wat::core::None)
+          ((:wat::core::Ok (:wat::core::Some v)) v)
+          ((:wat::core::Ok :wat::core::None)
            (:wat::core::panic! "ping-pong: child closed stdout early"))
-          ((Err _died)
+          ((:wat::core::Err _died)
            (:wat::core::panic! "ping-pong: child died"))))
        ((n-back :i64) (:demo::Pong/n pong))
        ((_check :())
@@ -106,8 +106,8 @@
      ((proc :wat::kernel::Process<demo::Ping,demo::Pong>)
       (:wat::core::match (:wat::kernel::spawn-program child-src :wat::core::None)
         -> :wat::kernel::Process<demo::Ping,demo::Pong>
-        ((Ok p) p)
-        ((Err err)
+        ((:wat::core::Ok p) p)
+        ((:wat::core::Err err)
          (:wat::core::panic!
            (:wat::core::string::concat
              "ping-pong: spawn failed: "
@@ -122,8 +122,8 @@
      ;; Wait for child thread via Process/join-result.
      ((_wait :())
       (:wat::core::match (:wat::kernel::Process/join-result proc) -> :()
-        ((Ok _) ())
-        ((Err _died)
+        ((:wat::core::Ok _) ())
+        ((:wat::core::Err _died)
          (:wat::core::panic! "ping-pong: child died unexpectedly")))))
     (:wat::io::IOWriter/println stdout
       (:wat::core::string::concat

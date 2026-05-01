@@ -64,10 +64,10 @@
           "ping-pong-fork: send to child failed"))
        ((pong :demo::Pong)
         (:wat::core::match (:wat::kernel::process-recv proc) -> :demo::Pong
-          ((Ok (:wat::core::Some v)) v)
-          ((Ok :wat::core::None)
+          ((:wat::core::Ok (:wat::core::Some v)) v)
+          ((:wat::core::Ok :wat::core::None)
            (:wat::core::panic! "ping-pong-fork: child closed stdout early"))
-          ((Err _died)
+          ((:wat::core::Err _died)
            (:wat::core::panic! "ping-pong-fork: child died"))))
        ((n-back :i64) (:demo::Pong/n pong))
        ((_check :())
@@ -140,8 +140,8 @@
      ((_close :()) (:wat::io::IOWriter/close (:wat::kernel::Process/stdin proc)))
      ((_wait :())
       (:wat::core::match (:wat::kernel::Process/join-result proc) -> :()
-        ((Ok _) ())
-        ((Err _died)
+        ((:wat::core::Ok _) ())
+        ((:wat::core::Err _died)
          (:wat::core::panic! "ping-pong-fork: child exited non-zero")))))
     (:wat::io::IOWriter/println stdout
       (:wat::core::string::concat
