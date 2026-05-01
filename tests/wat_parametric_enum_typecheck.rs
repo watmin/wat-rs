@@ -128,13 +128,13 @@ fn walk_visitor_signature_matches_at_use_site() {
                   (:wat::holon::Atom "v")))
               0
               :my::test::count-visit) -> :wat::core::unit
-            ((Ok pair)
+            ((:wat::core::Ok pair)
               (:wat::core::let*
                 (((count :wat::core::i64) (:wat::core::second pair)))
                 (:wat::core::if (:wat::core::i64::= count 1) -> :wat::core::unit
                   (:wat::io::IOWriter/println stdout "ok")
                   (:wat::io::IOWriter/println stdout "wrong-count"))))
-            ((Err _e) (:wat::io::IOWriter/println stdout "walk-err"))))
+            ((:wat::core::Err _e) (:wat::io::IOWriter/println stdout "walk-err"))))
     "#;
     assert_eq!(run(src), vec!["ok".to_string()]);
 }

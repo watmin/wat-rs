@@ -180,14 +180,14 @@ fn try_inside_tail_recursive_function_short_circuits() {
 
         (:wat::core::define (:app::check (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::if (:wat::core::< n 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
-            (Err "negative")
-            (Ok n)))
+            (:wat::core::Err "negative")
+            (:wat::core::Ok n)))
 
         (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let*
             (((valid :wat::core::i64) (:wat::core::try (:app::check n))))
             (:wat::core::if (:wat::core::= valid 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
-              (Ok 0)
+              (:wat::core::Ok 0)
               (:app::loop (:wat::core::i64::- valid 1)))))
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
@@ -208,14 +208,14 @@ fn try_inside_tail_recursive_function_propagates_err() {
 
         (:wat::core::define (:app::check (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::if (:wat::core::< n 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
-            (Err "negative")
-            (Ok n)))
+            (:wat::core::Err "negative")
+            (:wat::core::Ok n)))
 
         (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let*
             (((valid :wat::core::i64) (:wat::core::try (:app::check n))))
             (:wat::core::if (:wat::core::<= valid (:wat::core::i64::- 0 1)) -> :wat::core::Result<wat::core::i64,wat::core::String>
-              (Ok 0)
+              (:wat::core::Ok 0)
               (:app::loop (:wat::core::i64::- valid 1)))))
 
         ;; Start at -1 so `check` immediately returns Err and `try`

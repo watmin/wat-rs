@@ -15515,8 +15515,8 @@ mod tests {
             &format!(
                 r#"(:wat::core::match {bundle}
                      -> :bool
-                     ((Ok h) (:wat::holon::presence? (:wat::holon::Atom "a") h))
-                     ((Err _) false))"#,
+                     ((:wat::core::Ok h) (:wat::holon::presence? (:wat::holon::Atom "a") h))
+                     ((:wat::core::Err _) false))"#,
                 bundle = bundle_src
             ),
             1024,
@@ -15530,8 +15530,8 @@ mod tests {
             &format!(
                 r#"(:wat::core::match {bundle}
                      -> :bool
-                     ((Ok h) (:wat::holon::coincident? (:wat::holon::Atom "a") h))
-                     ((Err _) false))"#,
+                     ((:wat::core::Ok h) (:wat::holon::coincident? (:wat::holon::Atom "a") h))
+                     ((:wat::core::Err _) false))"#,
                 bundle = bundle_src
             ),
             1024,
@@ -16633,9 +16633,9 @@ mod tests {
                               (:wat::kernel::send tx 42)
                               "roundtrip: send failed")))
               (:wat::core::match (:wat::kernel::recv rx) -> :i64
-                ((Ok (:wat::core::Some v)) v)
-                ((Ok :wat::core::None) 0)
-                ((Err _died) -1)))
+                ((:wat::core::Ok (:wat::core::Some v)) v)
+                ((:wat::core::Ok :wat::core::None) 0)
+                ((:wat::core::Err _died) -1)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(42) => {}
@@ -17907,9 +17907,9 @@ mod tests {
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1)))
               (:wat::core::match (:wat::kernel::try-recv rx) -> :bool
-                ((Ok (:wat::core::Some _)) false)
-                ((Ok :wat::core::None) true)
-                ((Err _died) false)))
+                ((:wat::core::Ok (:wat::core::Some _)) false)
+                ((:wat::core::Ok :wat::core::None) true)
+                ((:wat::core::Err _died) false)))
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
@@ -17926,9 +17926,9 @@ mod tests {
                           (:wat::kernel::send tx 7)
                           "try_recv_on_ready: send failed")))
               (:wat::core::match (:wat::kernel::try-recv rx) -> :i64
-                ((Ok (:wat::core::Some v)) v)
-                ((Ok :wat::core::None) 0)
-                ((Err _died) -1)))
+                ((:wat::core::Ok (:wat::core::Some v)) v)
+                ((:wat::core::Ok :wat::core::None) 0)
+                ((:wat::core::Err _died) -1)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(7) => {}
@@ -18296,8 +18296,8 @@ mod tests {
     fn show_renders_option_and_result() {
         assert_eq!(show_str("(:wat::core::show (:wat::core::Some 1))"), "(Some 1)");
         assert_eq!(show_str("(:wat::core::show :wat::core::None)"), ":None");
-        assert_eq!(show_str(r#"(:wat::core::show (Ok "hi"))"#), "(Ok \"hi\")");
-        assert_eq!(show_str("(:wat::core::show (Err 42))"), "(Err 42)");
+        assert_eq!(show_str(r#"(:wat::core::show (:wat::core::Ok "hi"))"#), "(Ok \"hi\")");
+        assert_eq!(show_str("(:wat::core::show (:wat::core::Err 42))"), "(Err 42)");
     }
 
     #[test]
@@ -18514,8 +18514,8 @@ mod tests {
                       (:wat::holon::leaf "role")
                       (:wat::holon::leaf "filler")))
                   -> :wat::holon::HolonAST
-                  ((Ok h) h)
-                  ((Err _) (:wat::holon::leaf "unreachable"))))
+                  ((:wat::core::Ok h) h)
+                  ((:wat::core::Err _) (:wat::holon::leaf "unreachable"))))
                ((ast :wat::WatAST) (:wat::holon::to-watast h1))
                ((h2 :wat::holon::HolonAST) (:wat::holon::from-watast ast)))
               (:wat::holon::cosine h1 h2))
@@ -18555,8 +18555,8 @@ mod tests {
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::core::i64::+ 2 2)))
               -> :i64
-              ((Ok n) n)
-              ((Err _) -1))
+              ((:wat::core::Ok n) n)
+              ((:wat::core::Err _) -1))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(4) => {}
@@ -18571,8 +18571,8 @@ mod tests {
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::core::i64::> 5 3)))
               -> :bool
-              ((Ok b) b)
-              ((Err _) false))
+              ((:wat::core::Ok b) b)
+              ((:wat::core::Err _) false))
         "#;
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
@@ -18588,8 +18588,8 @@ mod tests {
                 (:wat::core::quote
                   (:wat::core::string::concat "hello, " "world")))
               -> :String
-              ((Ok s) s)
-              ((Err _) "fail"))
+              ((:wat::core::Ok s) s)
+              ((:wat::core::Err _) "fail"))
         "#;
         match eval_expr(src).unwrap() {
             Value::String(s) => assert_eq!(&*s, "hello, world"),
@@ -18609,8 +18609,8 @@ mod tests {
                 (:wat::core::quote
                   (:wat::holon::leaf 42)))
               -> :i64
-              ((Ok h) (:wat::core::atom-value h))
-              ((Err _) -1))
+              ((:wat::core::Ok h) (:wat::core::atom-value h))
+              ((:wat::core::Err _) -1))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(42) => {}
@@ -18629,8 +18629,8 @@ mod tests {
               (:wat::eval-ast!
                 (:wat::core::quote (:wat::core::vec :i64 1 2 3)))
               -> :i64
-              ((Ok xs) (:wat::core::length xs))
-              ((Err _) -1))
+              ((:wat::core::Ok xs) (:wat::core::length xs))
+              ((:wat::core::Err _) -1))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(3) => {}
@@ -18646,8 +18646,8 @@ mod tests {
     fn step_to_show(quoted_src: &str) -> String {
         let src = format!(
             "(:wat::core::match {} -> :String \
-                ((Ok r) (:wat::core::show r)) \
-                ((Err e) (:wat::core::show e)))",
+                ((:wat::core::Ok r) (:wat::core::show r)) \
+                ((:wat::core::Err e) (:wat::core::show e)))",
             quoted_src
         );
         match eval_expr(&src).unwrap() {
@@ -18733,7 +18733,7 @@ mod tests {
                 0
                 :my::test::count-visit)
               -> :wat::core::i64
-              ((Ok pair)
+              ((:wat::core::Ok pair)
                 (:wat::core::let*
                   (((terminal :wat::holon::HolonAST) (:wat::core::first pair))
                    ((count :wat::core::i64) (:wat::core::second pair))
@@ -18745,7 +18745,7 @@ mod tests {
                       (:wat::core::i64::* value 1000)
                       count)))
                   packed))
-              ((Err _) -1))
+              ((:wat::core::Err _) -1))
             "#,
             walk_count_prelude()
         );
@@ -18779,9 +18779,9 @@ mod tests {
                 0
                 :my::test::count-visit)
               -> :wat::core::i64
-              ((Ok pair)
+              ((:wat::core::Ok pair)
                 (:wat::core::second pair))
-              ((Err _) -1))
+              ((:wat::core::Err _) -1))
             "#,
             walk_count_prelude()
         );
@@ -18815,12 +18815,12 @@ mod tests {
             0
             :my::test::skip-on-first)
           -> :wat::core::i64
-          ((Ok pair)
+          ((:wat::core::Ok pair)
             (:wat::core::let*
               (((terminal :wat::holon::HolonAST) (:wat::core::first pair))
                ((value :wat::core::i64) (:wat::core::atom-value terminal)))
               value))
-          ((Err _) -1))
+          ((:wat::core::Err _) -1))
         "#;
         match run(src).unwrap() {
             Value::i64(value) => {
@@ -18851,8 +18851,8 @@ mod tests {
                 0
                 :my::test::count-visit)
               -> :wat::core::i64
-              ((Ok _) -2)
-              ((Err e)
+              ((:wat::core::Ok _) -2)
+              ((:wat::core::Err e)
                 ;; struct-field 0 is the kind tag.
                 (:wat::core::if
                   (:wat::core::= "no-step-rule"
@@ -18984,13 +18984,13 @@ mod tests {
         (:wat::core::define
           (:my::test::step-to-terminal (form :wat::WatAST) -> :wat::holon::HolonAST)
           (:wat::core::match (:wat::eval-step! form) -> :wat::holon::HolonAST
-            ((Ok r)
+            ((:wat::core::Ok r)
               (:wat::core::match r -> :wat::holon::HolonAST
                 ((:wat::eval::StepResult::StepNext next)
                   (:my::test::step-to-terminal next))
                 ((:wat::eval::StepResult::StepTerminal h) h)
                 ((:wat::eval::StepResult::AlreadyTerminal h) h)))
-            ((Err e) (:wat::holon::leaf (:wat::core::struct-field e 1)))))
+            ((:wat::core::Err e) (:wat::holon::leaf (:wat::core::struct-field e 1)))))
         "#
     }
 
@@ -19189,7 +19189,7 @@ mod tests {
             // scheme; no atom-value extraction needed.
             let eval_src = format!(
                 "(:wat::core::match (:wat::eval-ast! (:wat::core::quote {})) -> :wat::core::i64 \
-                  ((Ok n) n) ((Err _) -1))",
+                  ((:wat::core::Ok n) n) ((:wat::core::Err _) -1))",
                 form
             );
             match eval_expr(&eval_src).unwrap() {
@@ -19222,13 +19222,13 @@ mod tests {
             (:wat::core::define
               (:my::test::step-count (form :wat::WatAST) (n :wat::core::i64) -> :wat::core::i64)
               (:wat::core::match (:wat::eval-step! form) -> :wat::core::i64
-                ((Ok r)
+                ((:wat::core::Ok r)
                   (:wat::core::match r -> :wat::core::i64
                     ((:wat::eval::StepResult::StepNext next)
                       (:my::test::step-count next (:wat::core::i64::+ n 1)))
                     ((:wat::eval::StepResult::StepTerminal h) n)
                     ((:wat::eval::StepResult::AlreadyTerminal h) n)))
-                ((Err e) -1)))
+                ((:wat::core::Err e) -1)))
             {}
             (:wat::core::let*
               (((sum :wat::holon::HolonAST)
@@ -19388,8 +19388,8 @@ mod tests {
                   (:wat::core::quote (:wat::core::i64::+ 40 2))))
                ((ast :wat::WatAST) (:wat::holon::to-watast form)))
               (:wat::core::match (:wat::eval-ast! ast) -> :i64
-                ((Ok n) n)
-                ((Err _) -1)))
+                ((:wat::core::Ok n) n)
+                ((:wat::core::Err _) -1)))
         "#;
         match eval_expr(src).unwrap() {
             Value::i64(42) => {}

@@ -43,8 +43,8 @@ fn result_ok_matched() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::match (:rust::test::Fallible::non_negative 42) -> :wat::core::i64
-            ((Ok v) v)
-            ((Err _) -1)))
+            ((:wat::core::Ok v) v)
+            ((:wat::core::Err _) -1)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
@@ -60,8 +60,8 @@ fn result_err_matched() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::match (:rust::test::Fallible::non_negative -1) -> :wat::core::i64
-            ((Ok _) 0)
-            ((Err _) 99)))
+            ((:wat::core::Ok _) 0)
+            ((:wat::core::Err _) 99)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
@@ -76,9 +76,9 @@ fn user_built_ok_value() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::match (Ok 7) -> :wat::core::i64
-            ((Ok v) v)
-            ((Err _) -1)))
+          (:wat::core::match (:wat::core::Ok 7) -> :wat::core::i64
+            ((:wat::core::Ok v) v)
+            ((:wat::core::Err _) -1)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
@@ -91,9 +91,9 @@ fn user_built_err_value() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          (:wat::core::match (Err "x") -> :wat::core::i64
-            ((Ok _) 0)
-            ((Err _) 11)))
+          (:wat::core::match (:wat::core::Err "x") -> :wat::core::i64
+            ((:wat::core::Ok _) 0)
+            ((:wat::core::Err _) 11)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");

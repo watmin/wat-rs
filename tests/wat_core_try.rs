@@ -44,7 +44,7 @@ fn try_on_ok_extracts_inner_value() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
-          (Ok (:wat::core::try (Ok 42))))
+          (:wat::core::Ok (:wat::core::try (:wat::core::Ok 42))))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {
@@ -60,7 +60,7 @@ fn try_on_err_propagates_through_function() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
-          (Ok (:wat::core::try (Err "boom"))))
+          (:wat::core::Ok (:wat::core::try (:wat::core::Err "boom"))))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {
@@ -78,10 +78,10 @@ fn try_propagates_across_helper_function() {
         (:wat::core::define (:app::unwrap-or-propagate
                              (r :wat::core::Result<wat::core::i64,wat::core::String>)
                              -> :wat::core::Result<wat::core::i64,wat::core::String>)
-          (Ok (:wat::core::try r)))
+          (:wat::core::Ok (:wat::core::try r)))
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
-          (:app::unwrap-or-propagate (Err "from-helper")))
+          (:app::unwrap-or-propagate (:wat::core::Err "from-helper")))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {
@@ -101,9 +101,9 @@ fn try_chains_two_bindings_in_let_star() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let*
-            (((a :wat::core::i64) (:wat::core::try (Ok 10)))
-             ((b :wat::core::i64) (:wat::core::try (Ok 32))))
-            (Ok (:wat::core::i64::+ a b))))
+            (((a :wat::core::i64) (:wat::core::try (:wat::core::Ok 10)))
+             ((b :wat::core::i64) (:wat::core::try (:wat::core::Ok 32))))
+            (:wat::core::Ok (:wat::core::i64::+ a b))))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {
@@ -122,9 +122,9 @@ fn try_short_circuits_let_star_on_first_err() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let*
-            (((a :wat::core::i64) (:wat::core::try (Err "early")))
-             ((b :wat::core::i64) (:wat::core::try (Ok 99))))
-            (Ok (:wat::core::i64::+ a b))))
+            (((a :wat::core::i64) (:wat::core::try (:wat::core::Err "early")))
+             ((b :wat::core::i64) (:wat::core::try (:wat::core::Ok 99))))
+            (:wat::core::Ok (:wat::core::i64::+ a b))))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {
@@ -145,11 +145,11 @@ fn try_inside_match_arm_propagates() {
                              (o :wat::core::Option<wat::core::Result<wat::core::i64,wat::core::String>>)
                              -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::match o -> :wat::core::Result<wat::core::i64,wat::core::String>
-            ((:wat::core::Some r) (Ok (:wat::core::try r)))
-            (:wat::core::None (Err "missing"))))
+            ((:wat::core::Some r) (:wat::core::Ok (:wat::core::try r)))
+            (:wat::core::None (:wat::core::Err "missing"))))
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
-          (:app::describe (:wat::core::Some (Err "inner-boom"))))
+          (:app::describe (:wat::core::Some (:wat::core::Err "inner-boom"))))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {
@@ -167,7 +167,7 @@ fn try_with_zero_args_rejected_at_check() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
-          (Ok (:wat::core::try)))
+          (:wat::core::Ok (:wat::core::try)))
     "#;
     let errs = check_errors(src);
     let saw_arity = errs.iter().any(|e| matches!(
@@ -183,7 +183,7 @@ fn try_with_two_args_rejected_at_check() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
-          (Ok (:wat::core::try (Ok 1) (Ok 2))))
+          (:wat::core::Ok (:wat::core::try (:wat::core::Ok 1) (:wat::core::Ok 2))))
     "#;
     let errs = check_errors(src);
     let saw_arity = errs.iter().any(|e| matches!(
@@ -200,7 +200,7 @@ fn try_on_non_result_arg_rejected_at_check() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
-          (Ok (:wat::core::try 42)))
+          (:wat::core::Ok (:wat::core::try 42)))
     "#;
     let errs = check_errors(src);
     let saw_type_mismatch = errs.iter().any(|e| matches!(
@@ -217,7 +217,7 @@ fn try_inside_non_result_function_rejected_at_check() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :i64)
-          (:wat::core::try (Ok 42)))
+          (:wat::core::try (:wat::core::Ok 42)))
     "#;
     let errs = check_errors(src);
     let saw_malformed = errs.iter().any(|e| matches!(
@@ -234,10 +234,10 @@ fn try_mismatched_err_types_rejected_at_check() {
     let src = r#"
 
         (:wat::core::define (:app::produce-i64-err -> :wat::core::Result<wat::core::i64,wat::core::i64>)
-          (Err 99))
+          (:wat::core::Err 99))
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
-          (Ok (:wat::core::try (:app::produce-i64-err))))
+          (:wat::core::Ok (:wat::core::try (:app::produce-i64-err))))
     "#;
     let errs = check_errors(src);
     let saw_type_mismatch = errs.iter().any(|e| matches!(
@@ -261,8 +261,8 @@ fn try_inside_result_returning_lambda_propagates_to_lambda() {
             (((f :fn(wat::core::Result<wat::core::i64,wat::core::String>)->wat::core::Result<wat::core::i64,wat::core::String>)
               (:wat::core::lambda
                 ((r :wat::core::Result<wat::core::i64,wat::core::String>) -> :wat::core::Result<wat::core::i64,wat::core::String>)
-                (Ok (:wat::core::try r)))))
-            (f (Err "lambda-err"))))
+                (:wat::core::Ok (:wat::core::try r)))))
+            (f (:wat::core::Err "lambda-err"))))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {
@@ -286,7 +286,7 @@ fn try_inside_non_result_lambda_rejected_at_check() {
               (:wat::core::lambda
                 ((r :wat::core::Result<wat::core::i64,wat::core::String>) -> :i64)
                 (:wat::core::try r))))
-            (Ok (f (Ok 1)))))
+            (:wat::core::Ok (f (:wat::core::Ok 1)))))
     "#;
     let errs = check_errors(src);
     let saw_malformed = errs.iter().any(|e| matches!(

@@ -149,7 +149,7 @@ fn try_propagates_eval_err_through_helper() {
 
         (:wat::core::define (:app::run-dynamic (program :wat::WatAST)
                              -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (Ok (:wat::core::try (:wat::eval-ast! program))))
+          (:wat::core::Ok (:wat::core::try (:wat::eval-ast! program))))
 
         (:wat::core::define (:user::main -> :wat::core::String)
           (:wat::core::let*
@@ -157,8 +157,8 @@ fn try_propagates_eval_err_through_helper() {
               (:wat::core::quote
                 (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x))))
             (:wat::core::match (:app::run-dynamic bad) -> :wat::core::String
-              ((Ok _) "should-not-reach")
-              ((Err e) (:wat::core::EvalError/kind e)))))
+              ((:wat::core::Ok _) "should-not-reach")
+              ((:wat::core::Err e) (:wat::core::EvalError/kind e)))))
     "#;
     match run(src) {
         Value::String(s) => {
@@ -182,9 +182,9 @@ fn eval_err_exposes_both_kind_and_message() {
              ((r :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
               (:wat::eval-ast! bad)))
             (:wat::core::match r -> :(wat::core::String,wat::core::String)
-              ((Ok _)
+              ((:wat::core::Ok _)
                 (:wat::core::Tuple "unreachable" "unreachable"))
-              ((Err e)
+              ((:wat::core::Err e)
                 (:wat::core::Tuple
                   (:wat::core::EvalError/kind e)
                   (:wat::core::EvalError/message e))))))

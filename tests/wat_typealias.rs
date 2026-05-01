@@ -194,9 +194,9 @@ fn alias_over_fn_type_works_at_spawn() {
              ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
               (:wat::kernel::Thread/join-result h)))
             (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
-              ((Ok (:wat::core::Some v)) v)
-              ((Ok :wat::core::None) 0)
-              ((Err _died) -1))))
+              ((:wat::core::Ok (:wat::core::Some v)) v)
+              ((:wat::core::Ok :wat::core::None) 0)
+              ((:wat::core::Err _died) -1))))
     "#;
     assert!(matches!(run(src), Value::i64(7)));
 }

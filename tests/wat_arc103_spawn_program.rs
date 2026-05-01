@@ -94,7 +94,7 @@ fn spawn_program_ast_child_writes_stdout_parent_reads_line() {
                   :wat::core::None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc)))
-            (Ok (:wat::io::IOReader/read-line out-r))))
+            (:wat::core::Ok (:wat::io::IOReader/read-line out-r))))
     "#;
     assert_eq!(unwrap_some_string(unwrap_ok(run(src))), "hello-from-thread");
 }
@@ -129,7 +129,7 @@ fn spawn_program_ast_round_trip_via_pipes() {
              ((in-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin proc))
              ((out-r :wat::io::IOReader) (:wat::kernel::Process/stdout proc))
              ((_ :wat::core::unit) (:wat::io::IOWriter/println in-w "ping")))
-            (Ok (:wat::io::IOReader/read-line out-r))))
+            (:wat::core::Ok (:wat::io::IOReader/read-line out-r))))
     "#;
     assert_eq!(unwrap_some_string(unwrap_ok(run(src))), "pingping");
 }
@@ -171,7 +171,7 @@ fn spawn_program_ast_stdout_eof_after_child_returns() {
                 (:wat::core::None (:wat::core::panic! "expected first line")))))
             ;; Second read — child has returned, its writer dropped,
             ;; pipe is empty + closed → :None.
-            (Ok (:wat::io::IOReader/read-line out-r))))
+            (:wat::core::Ok (:wat::io::IOReader/read-line out-r))))
     "#;
     unwrap_none(unwrap_ok(run(src)));
 }
@@ -198,7 +198,7 @@ fn spawn_program_ast_stderr_is_separate_pipe() {
                   :wat::core::None)))
              ((err-r :wat::io::IOReader)
               (:wat::kernel::Process/stderr proc)))
-            (Ok (:wat::io::IOReader/read-line err-r))))
+            (:wat::core::Ok (:wat::io::IOReader/read-line err-r))))
     "#;
     assert_eq!(unwrap_some_string(unwrap_ok(run(src))), "diag-line");
 }
@@ -229,8 +229,8 @@ fn spawn_program_ast_join_returns_unit_on_clean_exit() {
              ((joined :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ProcessDiedError>>)
               (:wat::kernel::Process/join-result proc)))
             (:wat::core::match joined -> :wat::core::Result<wat::core::unit,wat::kernel::StartupError>
-              ((Ok _)   (Ok ()))
-              ((Err _e) (Ok ())))))
+              ((:wat::core::Ok _)   (:wat::core::Ok ()))
+              ((:wat::core::Err _e) (:wat::core::Ok ())))))
     "#;
     unwrap_unit(unwrap_ok(run(src)));
 }
@@ -250,7 +250,7 @@ fn spawn_program_source_string_entry() {
               (:wat::core::try (:wat::kernel::spawn-program inner-src :wat::core::None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc)))
-            (Ok (:wat::io::IOReader/read-line out-r))))
+            (:wat::core::Ok (:wat::io::IOReader/read-line out-r))))
     "#;
     assert_eq!(unwrap_some_string(unwrap_ok(run(src))), "from-source");
 }

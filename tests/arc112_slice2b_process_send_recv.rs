@@ -39,9 +39,9 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
                 "send to forked program failed")))
             ;; process-recv: matched as scrutinee — three-state shape.
             (:wat::core::match (:wat::kernel::process-recv proc) -> :wat::core::unit
-              ((Ok (:wat::core::Some _v))    ())
-              ((Ok :wat::core::None)        ())
-              ((Err _died)       ()))))
+              ((:wat::core::Ok (:wat::core::Some _v))    ())
+              ((:wat::core::Ok :wat::core::None)        ())
+              ((:wat::core::Err _died)       ()))))
     "##;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));
     if let Err(e) = result {

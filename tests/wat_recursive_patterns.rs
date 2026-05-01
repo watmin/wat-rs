@@ -79,11 +79,11 @@ fn result_tuple_destructure() {
             -> :())
           (:wat::core::let*
             (((resp :wat::core::Result<(wat::core::String,wat::core::i64),wat::core::String>)
-              (Ok (:wat::core::Tuple "ok" 7)))
+              (:wat::core::Ok (:wat::core::Tuple "ok" 7)))
              ((line :wat::core::String)
               (:wat::core::match resp -> :wat::core::String
-                ((Ok (k v)) (:wat::core::string::concat k (:wat::core::i64::to-string v)))
-                ((Err msg) msg))))
+                ((:wat::core::Ok (k v)) (:wat::core::string::concat k (:wat::core::i64::to-string v)))
+                ((:wat::core::Err msg) msg))))
             (:wat::io::IOWriter/println stdout line)))
     "##;
     assert_eq!(run(src), vec!["ok7".to_string()]);
@@ -143,13 +143,13 @@ fn literal_at_depth_picks_arm() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((resp :wat::core::Result<wat::core::i64,wat::core::String>) (Ok 200))
+            (((resp :wat::core::Result<wat::core::i64,wat::core::String>) (:wat::core::Ok 200))
              ((label :wat::core::String)
               (:wat::core::match resp -> :wat::core::String
-                ((Ok 200) "ok")
-                ((Ok 404) "not found")
-                ((Ok n) (:wat::core::string::concat "code:" (:wat::core::i64::to-string n)))
-                ((Err msg) msg))))
+                ((:wat::core::Ok 200) "ok")
+                ((:wat::core::Ok 404) "not found")
+                ((:wat::core::Ok n) (:wat::core::string::concat "code:" (:wat::core::i64::to-string n)))
+                ((:wat::core::Err msg) msg))))
             (:wat::io::IOWriter/println stdout label)))
     "##;
     assert_eq!(run(src), vec!["ok".to_string()]);
@@ -165,13 +165,13 @@ fn literal_fallback_to_general_arm() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((resp :wat::core::Result<wat::core::i64,wat::core::String>) (Ok 418))
+            (((resp :wat::core::Result<wat::core::i64,wat::core::String>) (:wat::core::Ok 418))
              ((label :wat::core::String)
               (:wat::core::match resp -> :wat::core::String
-                ((Ok 200) "ok")
-                ((Ok 404) "not found")
-                ((Ok n) (:wat::core::string::concat "code:" (:wat::core::i64::to-string n)))
-                ((Err msg) msg))))
+                ((:wat::core::Ok 200) "ok")
+                ((:wat::core::Ok 404) "not found")
+                ((:wat::core::Ok n) (:wat::core::string::concat "code:" (:wat::core::i64::to-string n)))
+                ((:wat::core::Err msg) msg))))
             (:wat::io::IOWriter/println stdout label)))
     "##;
     assert_eq!(run(src), vec!["code:418".to_string()]);

@@ -128,8 +128,8 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::match (:wat::holon::Bundle {}) -> :wat::core::i64
-            ((Ok _) 0)
-            ((Err e)
+            ((:wat::core::Ok _) 0)
+            ((:wat::core::Err e)
               (:wat::core::i64::-
                 (:wat::holon::CapacityExceeded/cost e)
                 (:wat::holon::CapacityExceeded/budget e)))))
@@ -177,12 +177,12 @@ fn try_propagates_bundle_err_across_function_boundary() {
         (:wat::core::define (:app::build-composite
                             (items :wat::holon::Holons)
                             -> :wat::holon::BundleResult)
-          (Ok (:wat::core::try (:wat::holon::Bundle items))))
+          (:wat::core::Ok (:wat::core::try (:wat::holon::Bundle items))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::match (:app::build-composite {}) -> :wat::core::i64
-            ((Ok _) 0)
-            ((Err e) (:wat::holon::CapacityExceeded/cost e))))
+            ((:wat::core::Ok _) 0)
+            ((:wat::core::Err e) (:wat::holon::CapacityExceeded/cost e))))
         "#,
         atoms_list(400)
     );
