@@ -1,10 +1,3 @@
-;; ARC 114 MANUAL — needs type-design review
-;; This template's driver returns the final State via join (R-via-join
-;; ferrying); arc 114 retires that contract. The state must travel out
-;; via a channel — either Get-on-shutdown or a dedicated final-state
-;; reply pipe. Pattern + the test exercising it are bigger than an
-;; auto-sweep can address; surfacing for human design.
-;;
 ;; wat-tests/std/service-template.wat — the canonical in-memory
 ;; request/reply service program in wat.
 ;;
@@ -22,17 +15,28 @@
 ;;   Ack(reply-tx)  — confirm-receipt; reply is unit
 ;;   Get(reply-tx)  — read-only query; reply is the domain state
 ;;
-;; Driver pattern:
+;; Driver pattern (post-arc-114 mini-TCP):
 ;;   - select over Vec<ReqRx>; one rx per provisioned client handle
 ;;   - on Some(req): per-variant handler returns NEW state
 ;;   - on :None: prune that rx, recurse with state unchanged
-;;   - exit when Vec is empty; return final state through join
+;;   - exit when Vec is empty; SEND final state on the substrate's
+;;     `out` Sender; return unit
 ;;
 ;; Caller pattern:
-;;   - outer scope holds the driver ProgramHandle
+;;   - outer scope holds the Thread<(),State>
 ;;   - inner scope owns popped sender(s) + per-call reply channels
 ;;   - inner exits → all client Senders drop → driver's last rx
-;;     disconnects → loop returns final state → outer join unblocks
+;;     disconnects → loop sends final state on `out` → returns unit
+;;   - outer recvs final state via Thread/output thr
+;;   - outer Thread/join-result thr — confirms clean exit
+;;
+;; Why this is mini-TCP-shaped: arc 114 retired R-via-join. The thread
+;; contract is "input pipe in, output pipe out, error via join chain."
+;; Service drivers have N request channels (per-client) + N per-request
+;; reply channels — those are mini-TCP at the per-REQUEST level. The
+;; substrate-allocated `out` carries the per-THREAD output (final
+;; state on graceful exit); the substrate-allocated `_in` is currently
+;; unused (a future arc may wire it to a shutdown signal).
 ;;
 ;; Namespace `:svc::*` is generic — when you fork this, swap the
 ;; namespace for your domain (`:my::accountant::*`, `:my::registry::*`)
@@ -76,8 +80,17 @@
    (:wat::core::typealias :svc::ReqTx :wat::kernel::QueueSender<svc::Request>)
    (:wat::core::typealias :svc::ReqRx :wat::kernel::QueueReceiver<svc::Request>)
    (:wat::core::typealias :svc::ReqTxPool :wat::kernel::HandlePool<svc::ReqTx>)
+   ;; Arc 114 — the spawn shape's second member is now Thread<(),State>
+   ;; instead of ProgramHandle<State>. Final-state delivery is via the
+   ;; thread's output Sender; the Thread/join-result confirms exit.
    (:wat::core::typealias :svc::Spawn
-     :(svc::ReqTxPool,wat::kernel::ProgramHandle<svc::State>))
+     :(svc::ReqTxPool,wat::kernel::Thread<(),svc::State>))
+
+   ;; The substrate-allocated `_in` Receiver is unused by the service
+   ;; driver (the service's request channels are the real inputs).
+   ;; Aliased for clarity at the spawn-thread call site.
+   (:wat::core::typealias :svc::DriverIn  :rust::crossbeam_channel::Receiver<()>)
+   (:wat::core::typealias :svc::DriverOut :rust::crossbeam_channel::Sender<svc::State>)
 
 
    ;; ─── Per-variant dispatch ─────────────────────────────────────
@@ -129,42 +142,53 @@
    ;; select over Vec<ReqRx>; on Some(req) dispatch via /handle and
    ;; carry the new state forward; on :None for any rx, prune that
    ;; channel and recurse with state unchanged; exit when Vec is empty
-   ;; (all client scopes have exited). Return the final state — it
-   ;; rides through the spawn-thread's return value to join-result.
+   ;; (all client scopes have exited). On exit, send the final state
+   ;; on the thread's output Sender — that's the post-arc-114
+   ;; final-state-delivery channel; the parent recv's it before
+   ;; calling Thread/join-result.
    (:wat::core::define
      (:svc::Service/loop
        (req-rxs :Vec<svc::ReqRx>)
        (state :svc::State)
-       -> :svc::State)
-     (:wat::core::if (:wat::core::empty? req-rxs) -> :svc::State
-       state
+       (out :svc::DriverOut)
+       -> :())
+     (:wat::core::if (:wat::core::empty? req-rxs) -> :()
+       ;; Empty — every client gone. Deliver final state via `out`.
+       ;; `expect` panics if the parent dropped its Receiver — that's
+       ;; a substrate-tree breakage worth surfacing, not silently
+       ;; eating.
+       (:wat::core::result::expect -> :()
+         (:wat::kernel::send out state)
+         "Service/loop: out disconnected — parent dropped Thread/output before recv?")
        (:wat::core::let*
          (((chosen :wat::kernel::Chosen<svc::Request>) (:wat::kernel::select req-rxs))
           ((idx :wat::core::i64) (:wat::core::first chosen))
           ((maybe :wat::kernel::CommResult<svc::Request>) (:wat::core::second chosen)))
-         (:wat::core::match maybe -> :svc::State
+         (:wat::core::match maybe -> :()
            ((Ok (Some req))
              (:wat::core::let*
                (((next :svc::State) (:svc::Service/handle req state)))
-               (:svc::Service/loop req-rxs next)))
+               (:svc::Service/loop req-rxs next out)))
            ((Ok :None)
-             (:svc::Service/loop (:wat::std::list::remove-at req-rxs idx) state))
+             (:svc::Service/loop (:wat::std::list::remove-at req-rxs idx) state out))
            ((Err _died)
-             (:svc::Service/loop (:wat::std::list::remove-at req-rxs idx) state))))))
+             (:svc::Service/loop (:wat::std::list::remove-at req-rxs idx) state out))))))
 
 
    ;; ─── Service constructor ─────────────────────────────────────
    ;;
    ;; Build N request channels, pool the senders (orphan detector at
-   ;; construction), spawn the driver with the receivers Vec and a
-   ;; fresh state, return (pool, driver).
+   ;; construction), spawn the driver lambda — the lambda closes over
+   ;; req-rxs + initial state and forwards the substrate's `out`
+   ;; Sender to Service/loop. Returns (pool, thread).
    ;;
    ;; Caller does:
    ;;   ((spawn :svc::Spawn) (:svc::Service N))
    ;;   ((pool ...) (:wat::core::first spawn))
-   ;;   ((driver ...) (:wat::core::second spawn))
+   ;;   ((thr ...) (:wat::core::second spawn))
    ;;   <inner scope: pop N handles, finish, do work, exit>
-   ;;   (:wat::kernel::join driver)
+   ;;   ((final :svc::State) recv on Thread/output thr)
+   ;;   (:wat::kernel::Thread/join-result thr)  ; confirms clean exit
    (:wat::core::define
      (:svc::Service (count :wat::core::i64) -> :svc::Spawn)
      (:wat::core::let*
@@ -187,114 +211,124 @@
         ((pool :svc::ReqTxPool)
          (:wat::kernel::HandlePool::new "svc-template" req-txs))
 
-        ((driver :wat::kernel::ProgramHandle<svc::State>)
-         (:wat::kernel::spawn :svc::Service/loop req-rxs (:svc::State::fresh))))
-       (:wat::core::tuple pool driver)))))
+        ((thr :wat::kernel::Thread<(),svc::State>)
+         (:wat::kernel::spawn-thread
+           (:wat::core::lambda
+             ((_in :svc::DriverIn)
+              (out :svc::DriverOut)
+              -> :())
+             (:svc::Service/loop req-rxs (:svc::State::fresh) out)))))
+       (:wat::core::tuple pool thr)))))
 
 
 ;; ─── Test — exercise all three reply shapes + state survives ──
 ;;
-;; ARC 114 MANUAL — the deftest below is INTENTIONALLY removed. The
-;; template's driver returns final State via :wat::kernel::join-result
-;; (R-via-join), which arc 114 retires. The body is preserved as
-;; line-prefixed comments below as the canonical reference for the
-;; retired pattern; the test runner discovers tests by signature, so
-;; commenting it out keeps the wat-test harness green while leaving
-;; the design surface visible.
-;;
-;; Originally drove a known sequence (2 Pushes + 1 Ack + 1 Get + 1
-;; Push + 1 Get), verified each Get read LIVE state, then verified
-;; the final state via join-result. Re-enable after the template is
-;; redesigned to deliver final state through a channel.
-;;
-;; (:deftest :svc::test-template-end-to-end
-;;   (:wat::core::let*
-;;     (((spawn :svc::Spawn) (:svc::Service 1))
-;;      ((pool :svc::ReqTxPool) (:wat::core::first spawn))
-;;      ((driver :wat::kernel::ProgramHandle<svc::State>) (:wat::core::second spawn))
-;;      ((_inner :())
-;;       (:wat::core::let*
-;;         (((req-tx :svc::ReqTx) (:wat::kernel::HandlePool::pop pool))
-;;          ((_finish :()) (:wat::kernel::HandlePool::finish pool))
-;;          ((ack-pair :wat::kernel::QueuePair<()>)
-;;           (:wat::kernel::make-bounded-queue :() 1))
-;;          ((ack-tx :svc::AckReplyTx) (:wat::core::first ack-pair))
-;;          ((ack-rx :svc::AckReplyRx) (:wat::core::second ack-pair))
-;;          ((get-pair :wat::kernel::QueuePair<svc::State>)
-;;           (:wat::kernel::make-bounded-queue :svc::State 1))
-;;          ((get-tx :wat::kernel::QueueSender<svc::State>) (:wat::core::first get-pair))
-;;          ((get-rx :wat::kernel::QueueReceiver<svc::State>) (:wat::core::second get-pair))
-;;          ((_p1 :())
-;;           (:wat::core::result::expect -> :()
-;;             (:wat::kernel::send req-tx (:svc::Request::Push 100))
-;;             "test send Push 100: req-tx disconnected — driver died?"))
-;;          ((_p2 :())
-;;           (:wat::core::result::expect -> :()
-;;             (:wat::kernel::send req-tx (:svc::Request::Push 200))
-;;             "test send Push 200: req-tx disconnected — driver died?"))
-;;          ((_a :())
-;;           (:wat::core::result::expect -> :()
-;;             (:wat::kernel::send req-tx (:svc::Request::Ack ack-tx))
-;;             "test send Ack: req-tx disconnected — driver died?"))
-;;          ((_r :())
-;;           (:wat::core::option::expect -> :()
-;;             (:wat::core::result::expect -> :Option<()>
-;;               (:wat::kernel::recv ack-rx)
-;;               "test recv ack: ack-rx peer thread died")
-;;             "test recv ack: ack-rx clean disconnect — driver died mid-Ack?"))
-;;          ((_g1 :())
-;;           (:wat::core::result::expect -> :()
-;;             (:wat::kernel::send req-tx (:svc::Request::Get get-tx))
-;;             "test send Get #1: req-tx disconnected — driver died?"))
-;;          ((snap1 :svc::State)
-;;           (:wat::core::option::expect -> :svc::State
-;;             (:wat::core::result::expect -> :Option<svc::State>
-;;               (:wat::kernel::recv get-rx)
-;;               "test recv get #1: peer thread died")
-;;             "test recv get #1: clean disconnect — driver died mid-Get?"))
-;;          ((_check1a :())
-;;           (:wat::core::if (:wat::core::= (:svc::State/push-count snap1) 2) -> :()
-;;             ()
-;;             (:wat::test::assert-eq "snap1 push != 2" "")))
-;;          ((_check1b :())
-;;           (:wat::core::if (:wat::core::= (:svc::State/ack-count snap1) 1) -> :()
-;;             ()
-;;             (:wat::test::assert-eq "snap1 ack != 1" "")))
-;;          ((_p3 :())
-;;           (:wat::core::result::expect -> :()
-;;             (:wat::kernel::send req-tx (:svc::Request::Push 300))
-;;             "test send Push 300: req-tx disconnected — driver died?"))
-;;          ((_g2 :())
-;;           (:wat::core::result::expect -> :()
-;;             (:wat::kernel::send req-tx (:svc::Request::Get get-tx))
-;;             "test send Get #2: req-tx disconnected — driver died?"))
-;;          ((snap2 :svc::State)
-;;           (:wat::core::option::expect -> :svc::State
-;;             (:wat::core::result::expect -> :Option<svc::State>
-;;               (:wat::kernel::recv get-rx)
-;;               "test recv get #2: peer thread died")
-;;             "test recv get #2: clean disconnect — driver died mid-Get?"))
-;;          ((_check2a :())
-;;           (:wat::core::if (:wat::core::= (:svc::State/push-count snap2) 3) -> :()
-;;             ()
-;;             (:wat::test::assert-eq "snap2 push != 3" "")))
-;;          ((_check2b :())
-;;           (:wat::core::if (:wat::core::= (:svc::State/ack-count snap2) 1) -> :()
-;;             ()
-;;             (:wat::test::assert-eq "snap2 ack != 1" ""))))
-;;         ()))
-;;      ((result :Result<svc::State,Vec<wat::kernel::ThreadDiedError>>)
-;;       (:wat::kernel::join-result driver)))
-;;     (:wat::core::match result -> :()
-;;       ((Ok s)
-;;         (:wat::core::let*
-;;           (((pc :wat::core::i64) (:svc::State/push-count s))
-;;            ((ac :wat::core::i64) (:svc::State/ack-count s))
-;;            ((_ :())
-;;             (:wat::core::if (:wat::core::= pc 3) -> :()
-;;               ()
-;;               (:wat::test::assert-eq "final push != 3" ""))))
-;;           (:wat::core::if (:wat::core::= ac 1) -> :()
-;;             ()
-;;             (:wat::test::assert-eq "final ack != 1" ""))))
-;;       ((Err _) (:wat::test::assert-eq "driver-died" "")))))
+;; Drives a known sequence (2 Pushes + 1 Ack + 1 Get + 1 Push + 1
+;; Get), verifies each Get reads LIVE state, then verifies the
+;; FINAL state via the thread's output channel (post-arc-114
+;; pattern — final state delivered on `out`, not via join's R).
+(:deftest :svc::test-template-end-to-end
+     (:wat::core::let*
+       (((spawn :svc::Spawn) (:svc::Service 1))
+        ((pool :svc::ReqTxPool) (:wat::core::first spawn))
+        ((thr :wat::kernel::Thread<(),svc::State>) (:wat::core::second spawn))
+        ((final-rx :rust::crossbeam_channel::Receiver<svc::State>)
+         (:wat::kernel::Thread/output thr))
+        ((_inner :())
+         (:wat::core::let*
+           (((req-tx :svc::ReqTx) (:wat::kernel::HandlePool::pop pool))
+            ((_finish :()) (:wat::kernel::HandlePool::finish pool))
+            ((ack-pair :wat::kernel::QueuePair<()>)
+             (:wat::kernel::make-bounded-queue :() 1))
+            ((ack-tx :svc::AckReplyTx) (:wat::core::first ack-pair))
+            ((ack-rx :svc::AckReplyRx) (:wat::core::second ack-pair))
+            ((get-pair :wat::kernel::QueuePair<svc::State>)
+             (:wat::kernel::make-bounded-queue :svc::State 1))
+            ((get-tx :wat::kernel::QueueSender<svc::State>) (:wat::core::first get-pair))
+            ((get-rx :wat::kernel::QueueReceiver<svc::State>) (:wat::core::second get-pair))
+            ((_p1 :())
+             (:wat::core::result::expect -> :()
+               (:wat::kernel::send req-tx (:svc::Request::Push 100))
+               "test send Push 100: req-tx disconnected — driver died?"))
+            ((_p2 :())
+             (:wat::core::result::expect -> :()
+               (:wat::kernel::send req-tx (:svc::Request::Push 200))
+               "test send Push 200: req-tx disconnected — driver died?"))
+            ((_a :())
+             (:wat::core::result::expect -> :()
+               (:wat::kernel::send req-tx (:svc::Request::Ack ack-tx))
+               "test send Ack: req-tx disconnected — driver died?"))
+            ((_r :())
+             (:wat::core::option::expect -> :()
+               (:wat::core::result::expect -> :Option<()>
+                 (:wat::kernel::recv ack-rx)
+                 "test recv ack: ack-rx peer thread died")
+               "test recv ack: ack-rx clean disconnect — driver died mid-Ack?"))
+            ((_g1 :())
+             (:wat::core::result::expect -> :()
+               (:wat::kernel::send req-tx (:svc::Request::Get get-tx))
+               "test send Get #1: req-tx disconnected — driver died?"))
+            ((snap1 :svc::State)
+             (:wat::core::option::expect -> :svc::State
+               (:wat::core::result::expect -> :Option<svc::State>
+                 (:wat::kernel::recv get-rx)
+                 "test recv get #1: peer thread died")
+               "test recv get #1: clean disconnect — driver died mid-Get?"))
+            ((_check1a :())
+             (:wat::core::if (:wat::core::= (:svc::State/push-count snap1) 2) -> :()
+               ()
+               (:wat::test::assert-eq "snap1 push != 2" "")))
+            ((_check1b :())
+             (:wat::core::if (:wat::core::= (:svc::State/ack-count snap1) 1) -> :()
+               ()
+               (:wat::test::assert-eq "snap1 ack != 1" "")))
+            ((_p3 :())
+             (:wat::core::result::expect -> :()
+               (:wat::kernel::send req-tx (:svc::Request::Push 300))
+               "test send Push 300: req-tx disconnected — driver died?"))
+            ((_g2 :())
+             (:wat::core::result::expect -> :()
+               (:wat::kernel::send req-tx (:svc::Request::Get get-tx))
+               "test send Get #2: req-tx disconnected — driver died?"))
+            ((snap2 :svc::State)
+             (:wat::core::option::expect -> :svc::State
+               (:wat::core::result::expect -> :Option<svc::State>
+                 (:wat::kernel::recv get-rx)
+                 "test recv get #2: peer thread died")
+               "test recv get #2: clean disconnect — driver died mid-Get?"))
+            ((_check2a :())
+             (:wat::core::if (:wat::core::= (:svc::State/push-count snap2) 3) -> :()
+               ()
+               (:wat::test::assert-eq "snap2 push != 3" "")))
+            ((_check2b :())
+             (:wat::core::if (:wat::core::= (:svc::State/ack-count snap2) 1) -> :()
+               ()
+               (:wat::test::assert-eq "snap2 ack != 1" ""))))
+           ()))
+        ;; inner scope dropped req-tx + reply channels; driver's last
+        ;; rx disconnects; Service/loop's empty-Vec arm sends final
+        ;; state on `out`. Recv it here.
+        ((final-state :svc::State)
+         (:wat::core::option::expect -> :svc::State
+           (:wat::core::result::expect -> :Option<svc::State>
+             (:wat::kernel::recv final-rx)
+             "test recv final-state: thread died before delivering final state")
+           "test recv final-state: thread output closed without delivering final state"))
+        ;; Confirm clean exit. Err here would mean the driver panicked
+        ;; AFTER sending final state, which shouldn't happen but is a
+        ;; substrate-author-visible breakage if it does.
+        ((join-result :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+         (:wat::kernel::Thread/join-result thr)))
+       (:wat::core::match join-result -> :()
+         ((Ok _)
+           (:wat::core::let*
+             (((pc :wat::core::i64) (:svc::State/push-count final-state))
+              ((ac :wat::core::i64) (:svc::State/ack-count final-state))
+              ((_check-pc :())
+               (:wat::core::if (:wat::core::= pc 3) -> :()
+                 ()
+                 (:wat::test::assert-eq "final push != 3" ""))))
+             (:wat::core::if (:wat::core::= ac 1) -> :()
+               ()
+               (:wat::test::assert-eq "final ack != 1" ""))))
+         ((Err _) (:wat::test::assert-eq "driver-died" "")))))

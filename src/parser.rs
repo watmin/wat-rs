@@ -24,13 +24,17 @@ use std::sync::Arc;
 pub enum ParseError {
     /// Lex failure — the input couldn't be tokenized.
     Lex(LexError),
-    /// A `)` was found with no matching `(`.
-    UnexpectedRParen,
-    /// An opening `(` was never closed before end of input.
-    UnclosedParen,
+    /// A `)` was found with no matching `(`. Span is the location of
+    /// the unmatched `)` so the user can jump straight to it instead
+    /// of bisecting the file by hand.
+    UnexpectedRParen(Span),
+    /// An opening `(` was never closed before end of input. Span is
+    /// the location of the orphan `(` (not end-of-file) — points the
+    /// user at the form they forgot to close.
+    UnclosedParen(Span),
     /// `parse_one` expected exactly one form; got trailing content after
-    /// the first complete form.
-    TrailingContent,
+    /// the first complete form. Span points at the first trailing token.
+    TrailingContent(Span),
     /// `parse_one` expected a form but the input was empty (all whitespace).
     Empty,
 }
@@ -39,10 +43,10 @@ impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ParseError::Lex(e) => write!(f, "lex error: {}", e),
-            ParseError::UnexpectedRParen => write!(f, "unexpected ')'"),
-            ParseError::UnclosedParen => write!(f, "unclosed '('"),
-            ParseError::TrailingContent => {
-                write!(f, "trailing content after single top-level form")
+            ParseError::UnexpectedRParen(span) => write!(f, "unexpected ')' at {}", span),
+            ParseError::UnclosedParen(span) => write!(f, "unclosed '(' at {}", span),
+            ParseError::TrailingContent(span) => {
+                write!(f, "trailing content at {} (parse_one expected a single top-level form)", span)
             }
             ParseError::Empty => write!(f, "empty input — expected a form"),
         }
@@ -83,8 +87,8 @@ pub fn parse_one_with_file(src: &str, file: &str) -> Result<WatAST, ParseError> 
         Some(node) => node,
         None => return Err(ParseError::Empty),
     };
-    if cursor.peek().is_some() {
-        return Err(ParseError::TrailingContent);
+    if let Some(tok) = cursor.peek() {
+        return Err(ParseError::TrailingContent(tok.span.clone()));
     }
     Ok(node)
 }
@@ -134,10 +138,10 @@ impl<'a> Cursor<'a> {
         let span = st.span.clone();
         match &st.token {
             Token::LParen => {
-                let list = self.parse_list_body()?;
+                let list = self.parse_list_body(span.clone())?;
                 Ok(Some(WatAST::List(list, span)))
             }
-            Token::RParen => Err(ParseError::UnexpectedRParen),
+            Token::RParen => Err(ParseError::UnexpectedRParen(span)),
             Token::Int(n) => Ok(Some(WatAST::IntLit(*n, span))),
             Token::Float(x) => Ok(Some(WatAST::FloatLit(*x, span))),
             Token::Bool(b) => Ok(Some(WatAST::BoolLit(*b, span))),
@@ -167,8 +171,11 @@ impl<'a> Cursor<'a> {
     }
 
     /// Parse the body of a list — `(` already consumed. Accumulates child
-    /// forms until the matching `)`.
-    fn parse_list_body(&mut self) -> Result<Vec<WatAST>, ParseError> {
+    /// forms until the matching `)`. `open_span` is the location of the
+    /// `(` that was consumed; surfaced in `UnclosedParen` errors so the
+    /// reader can jump to the orphan opener instead of bisecting the
+    /// file by paren-counting.
+    fn parse_list_body(&mut self, open_span: Span) -> Result<Vec<WatAST>, ParseError> {
         let mut children = Vec::new();
         loop {
             match self.peek().map(|st| &st.token) {
@@ -182,7 +189,7 @@ impl<'a> Cursor<'a> {
                         "parse_form returned None but peek() had a token"
                     ),
                 },
-                None => return Err(ParseError::UnclosedParen),
+                None => return Err(ParseError::UnclosedParen(open_span)),
             }
         }
     }
@@ -335,7 +342,7 @@ mod tests {
 
     #[test]
     fn unexpected_rparen_at_start() {
-        assert!(matches!(parse_one(")"), Err(ParseError::UnexpectedRParen)));
+        assert!(matches!(parse_one(")"), Err(ParseError::UnexpectedRParen(_))));
     }
 
     #[test]
@@ -343,7 +350,7 @@ mod tests {
         // `(a))` — `(a)` parses fine; the extra `)` is trailing content.
         assert!(matches!(
             parse_one("(a))"),
-            Err(ParseError::TrailingContent)
+            Err(ParseError::TrailingContent(_))
         ));
     }
 
@@ -353,17 +360,17 @@ mod tests {
         // via parse_all, which treats it as UnexpectedRParen.
         assert!(matches!(
             parse_all("(a)) foo"),
-            Err(ParseError::UnexpectedRParen)
+            Err(ParseError::UnexpectedRParen(_))
         ));
     }
 
     #[test]
     fn unclosed_paren() {
-        assert!(matches!(parse_one("("), Err(ParseError::UnclosedParen)));
-        assert!(matches!(parse_one("(a b"), Err(ParseError::UnclosedParen)));
+        assert!(matches!(parse_one("("), Err(ParseError::UnclosedParen(_))));
+        assert!(matches!(parse_one("(a b"), Err(ParseError::UnclosedParen(_))));
         assert!(matches!(
             parse_one("(a (b)"),
-            Err(ParseError::UnclosedParen)
+            Err(ParseError::UnclosedParen(_))
         ));
     }
 
@@ -384,7 +391,7 @@ mod tests {
     fn trailing_content_rejected_by_parse_one() {
         assert!(matches!(
             parse_one("1 2"),
-            Err(ParseError::TrailingContent)
+            Err(ParseError::TrailingContent(_))
         ));
     }
 
