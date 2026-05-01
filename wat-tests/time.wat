@@ -65,7 +65,7 @@
 (:wat::test::deftest :wat-tests::time::test-iso8601-roundtrip-3-digits
   ()
   (:wat::core::let*
-    (((parsed :Option<wat::time::Instant>)
+    (((parsed :wat::core::Option<wat::time::Instant>)
       (:wat::time::from-iso8601 "2026-04-25T14:30:42.123Z")))
     (:wat::core::match parsed -> :wat::core::unit
       ((Some i)
@@ -82,7 +82,7 @@
 (:wat::test::deftest :wat-tests::time::test-iso8601-roundtrip-9-digits
   ()
   (:wat::core::let*
-    (((parsed :Option<wat::time::Instant>)
+    (((parsed :wat::core::Option<wat::time::Instant>)
       (:wat::time::from-iso8601 "2026-04-25T14:30:42.123456789Z")))
     (:wat::core::match parsed -> :wat::core::unit
       ((Some i)
@@ -100,7 +100,7 @@
 (:wat::test::deftest :wat-tests::time::test-iso8601-parse-failure-is-none
   ()
   (:wat::core::let*
-    (((parsed :Option<wat::time::Instant>)
+    (((parsed :wat::core::Option<wat::time::Instant>)
       (:wat::time::from-iso8601 "not-a-real-iso-string"))
      ((is-none? :wat::core::bool)
       (:wat::core::match parsed -> :wat::core::bool

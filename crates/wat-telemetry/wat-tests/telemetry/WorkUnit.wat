@@ -225,7 +225,7 @@
      ((wu    :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) tags))
      ((got   :wat::telemetry::Tags)
       (:wat::telemetry::WorkUnit/tags wu))
-     ((looked-up :Option<wat::holon::HolonAST>)
+     ((looked-up :wat::core::Option<wat::holon::HolonAST>)
       (:wat::core::get got asset-key)))
     (:wat::test::assert-eq looked-up (Some asset-val))))
 
@@ -476,7 +476,7 @@
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-result-some))
      ((result :wat::core::i64) (:wat::core::second thr-result-some))
      ((r1-some? :wat::core::bool) (:wat::core::third thr-result-some))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((_a :wat::core::unit) (:wat::test::assert-eq result 42)))
     (:wat::test::assert-eq r1-some? true)))

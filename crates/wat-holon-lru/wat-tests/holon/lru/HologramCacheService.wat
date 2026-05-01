@@ -128,7 +128,7 @@
       (:wat::kernel::Thread/output thr))
      ((_len :wat::core::i64)
       (:wat::core::option::expect -> :wat::core::i64
-        (:wat::core::result::expect -> :Option<wat::core::i64>
+        (:wat::core::result::expect -> :wat::core::Option<wat::core::i64>
           (:wat::kernel::recv rx)
           "step1: thread died before sending len")
         "step1: thread output closed without sending len")))
@@ -175,7 +175,7 @@
       (:wat::kernel::Thread/output thr))
      ((count :wat::core::i64)
       (:wat::core::option::expect -> :wat::core::i64
-        (:wat::core::result::expect -> :Option<wat::core::i64>
+        (:wat::core::result::expect -> :wat::core::Option<wat::core::i64>
           (:wat::kernel::recv count-rx)
           "step2: thread died before sending count")
         "step2: thread output closed without sending count")))
@@ -242,7 +242,7 @@
       (:wat::kernel::Thread/output thr))
      ((len :wat::core::i64)
       (:wat::core::option::expect -> :wat::core::i64
-        (:wat::core::result::expect -> :Option<wat::core::i64>
+        (:wat::core::result::expect -> :wat::core::Option<wat::core::i64>
           (:wat::kernel::recv len-rx)
           "step3: thread died before sending len")
         "step3: thread output closed without sending len")))
@@ -291,7 +291,7 @@
                 :wat::holon::lru::HologramCacheService/null-reporter
                 (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))))
          ((reply-pair :wat::holon::lru::HologramCacheService::GetReplyPair)
-          (:wat::kernel::make-bounded-queue :Option<wat::holon::HolonAST> 1))
+          (:wat::kernel::make-bounded-queue :wat::core::Option<wat::holon::HolonAST> 1))
          ((reply-tx :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair))
          ((reply-rx :wat::holon::lru::HologramCacheService::GetReplyRx)
@@ -347,14 +347,14 @@
          ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
 
          ((reply-pair-a :wat::holon::lru::HologramCacheService::GetReplyPair)
-          (:wat::kernel::make-bounded-queue :Option<wat::holon::HolonAST> 1))
+          (:wat::kernel::make-bounded-queue :wat::core::Option<wat::holon::HolonAST> 1))
          ((reply-tx-a :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair-a))
          ((reply-rx-a :wat::holon::lru::HologramCacheService::GetReplyRx)
           (:wat::core::second reply-pair-a))
 
          ((reply-pair-b :wat::holon::lru::HologramCacheService::GetReplyPair)
-          (:wat::kernel::make-bounded-queue :Option<wat::holon::HolonAST> 1))
+          (:wat::kernel::make-bounded-queue :wat::core::Option<wat::holon::HolonAST> 1))
          ((reply-tx-b :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair-b))
          ((reply-rx-b :wat::holon::lru::HologramCacheService::GetReplyRx)
@@ -436,7 +436,7 @@
          ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
 
          ((reply-pair :wat::holon::lru::HologramCacheService::GetReplyPair)
-          (:wat::kernel::make-bounded-queue :Option<wat::holon::HolonAST> 1))
+          (:wat::kernel::make-bounded-queue :wat::core::Option<wat::holon::HolonAST> 1))
          ((reply-tx :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair))
          ((reply-rx :wat::holon::lru::HologramCacheService::GetReplyRx)

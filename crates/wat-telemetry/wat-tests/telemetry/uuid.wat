@@ -7,7 +7,7 @@
 ;;     strings. The minimum-meaningful uniqueness assertion: a
 ;;     constant-returning shim would fail this immediately.
 ;;
-;;   - test-many-distinct — three calls go into a HashSet<String>;
+;;   - test-many-distinct — three calls go into a wat::core::HashSet<String>;
 ;;     the set must have length 3. Belt-and-suspenders against
 ;;     short-period RNG drift.
 ;;
@@ -34,5 +34,5 @@
     (((a :wat::core::String) (:wat::telemetry::uuid::v4))
      ((b :wat::core::String) (:wat::telemetry::uuid::v4))
      ((c :wat::core::String) (:wat::telemetry::uuid::v4))
-     ((s :HashSet<wat::core::String>) (:wat::core::HashSet :wat::core::String a b c)))
+     ((s :wat::core::HashSet<wat::core::String>) (:wat::core::HashSet :wat::core::String a b c)))
     (:wat::test::assert-eq (:wat::core::length s) 3)))

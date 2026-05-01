@@ -74,6 +74,6 @@
     (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::auto-spawn-events
         "/tmp/wat-sqlite-test-auto-001.db"))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

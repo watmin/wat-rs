@@ -75,7 +75,7 @@
 ;; ─── with-state — dedupe-adjacent (classic Mealy) ────────────────────
 ;;
 ;; Emit each item unless it equals the most recent emitted item. State
-;; is :Option<wat::core::i64> (last emitted). First item always emits; any run of
+;; is :wat::core::Option<wat::core::i64> (last emitted). First item always emits; any run of
 ;; duplicates collapses to one.
 
 (:wat::test::deftest :wat-tests::std::stream::test-with-state-dedupe-adjacent
@@ -91,18 +91,18 @@
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
                 ((Ok _) ())
                 ((Err _) ())))))))
-     ((initial :Option<wat::core::i64>) :None)
-     ((step :fn(Option<wat::core::i64>,wat::core::i64)->(Option<wat::core::i64>,Vec<wat::core::i64>))
-      (:wat::core::lambda ((last :Option<wat::core::i64>) (item :wat::core::i64) -> :(Option<wat::core::i64>,Vec<wat::core::i64>))
-        (:wat::core::match last -> :(Option<wat::core::i64>,Vec<wat::core::i64>)
+     ((initial :wat::core::Option<wat::core::i64>) :None)
+     ((step :fn(wat::core::Option<wat::core::i64>,wat::core::i64)->(wat::core::Option<wat::core::i64>,Vec<wat::core::i64>))
+      (:wat::core::lambda ((last :wat::core::Option<wat::core::i64>) (item :wat::core::i64) -> :(wat::core::Option<wat::core::i64>,Vec<wat::core::i64>))
+        (:wat::core::match last -> :(wat::core::Option<wat::core::i64>,Vec<wat::core::i64>)
           (:None
             (:wat::core::tuple (Some item) (:wat::core::vec :wat::core::i64 item)))
           ((Some prev)
-            (:wat::core::if (:wat::core::= prev item) -> :(Option<wat::core::i64>,Vec<wat::core::i64>)
+            (:wat::core::if (:wat::core::= prev item) -> :(wat::core::Option<wat::core::i64>,Vec<wat::core::i64>)
               (:wat::core::tuple last (:wat::core::vec :wat::core::i64))
               (:wat::core::tuple (Some item) (:wat::core::vec :wat::core::i64 item)))))))
-     ((flush :fn(Option<wat::core::i64>)->Vec<wat::core::i64>)
-      (:wat::core::lambda ((_last :Option<wat::core::i64>) -> :Vec<wat::core::i64>)
+     ((flush :fn(wat::core::Option<wat::core::i64>)->Vec<wat::core::i64>)
+      (:wat::core::lambda ((_last :wat::core::Option<wat::core::i64>) -> :Vec<wat::core::i64>)
         (:wat::core::vec :wat::core::i64)))
      ((deduped :wat::std::stream::Stream<wat::core::i64>)
       (:wat::std::stream::with-state stream initial step flush))

@@ -1,7 +1,7 @@
 ;; wat-tests/telemetry/hashmap-field.wat — arc 091 slice 7 smoke
 ;; test for the HashMap-field auto-dispatch arm.
 ;;
-;; Declares an enum with a `:HashMap<HolonAST,HolonAST>` field
+;; Declares an enum with a `:wat::core::HashMap<HolonAST,HolonAST>` field
 ;; (typealiased through `:wat::telemetry::Tags`), runs an entry
 ;; through auto-spawn, joins. Verifies:
 ;;
@@ -71,6 +71,6 @@
     (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::Tagged::auto-spawn-one
         "/tmp/wat-sqlite-test-hashmap-field-001.db"))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

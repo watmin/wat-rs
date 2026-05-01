@@ -51,7 +51,7 @@
               -> :wat::core::unit)
             (:wat::test::assert-eq 42 43)))
         (:wat::core::vec :wat::core::String)))
-     ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
+     ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
       ((Some f) (:wat::test::assert-eq
                   (:wat::kernel::Failure/message f)
@@ -80,12 +80,12 @@
               -> :wat::core::unit)
             (:wat::test::assert-contains "hello" "xyz")))
         (:wat::core::vec :wat::core::String)))
-     ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
+     ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
       ((Some f)
         (:wat::core::let*
-          (((actual :Option<wat::core::String>) (:wat::kernel::Failure/actual f))
-           ((expected :Option<wat::core::String>) (:wat::kernel::Failure/expected f))
+          (((actual :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/actual f))
+           ((expected :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/expected f))
            ((_ :wat::core::unit)
             (:wat::core::match actual -> :wat::core::unit
               ((Some a) (:wat::test::assert-eq a "hello"))
@@ -127,11 +127,11 @@
               (:wat::holon::Atom "alice")
               (:wat::holon::Atom "charlie"))))
         (:wat::core::vec :wat::core::String)))
-     ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
+     ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
       ((Some f)
         (:wat::core::let*
-          (((actual :Option<wat::core::String>) (:wat::kernel::Failure/actual f)))
+          (((actual :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/actual f)))
           (:wat::core::match actual -> :wat::core::unit
             ((Some a)
               (:wat::core::let*
@@ -219,11 +219,11 @@
                   (:wat::core::vec :wat::core::String))))
               (:wat::test::assert-stderr-matches silent "my-pattern"))))
         (:wat::core::vec :wat::core::String)))
-     ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
+     ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
       ((Some f)
         (:wat::core::let*
-          (((expected :Option<wat::core::String>) (:wat::kernel::Failure/expected f)))
+          (((expected :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/expected f)))
           (:wat::core::match expected -> :wat::core::unit
             ((Some e) (:wat::test::assert-eq e "my-pattern"))
             (:None (:wat::kernel::assertion-failed!

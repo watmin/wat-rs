@@ -10,7 +10,7 @@
 ;; Surface:
 ;;   make     :: i64, fn(f64)->bool -> Hologram   ; capacity = floor(sqrt(d))
 ;;   put      :: Hologram, AST, AST -> ()         ; slot inferred from key
-;;   get      :: Hologram, AST -> Option<AST>     ; filter from construction
+;;   get      :: Hologram, AST -> wat::core::Option<AST>     ; filter from construction
 ;;   len      :: Hologram -> i64
 ;;   capacity :: Hologram -> i64                  ; floor(sqrt(d))
 ;;
@@ -90,7 +90,7 @@
      ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :alpha-result))
      ((_ :wat::core::unit) (:wat::holon::Hologram/put store k v))
-     ((got :Option<wat::holon::HolonAST>)
+     ((got :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store k))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST
@@ -112,7 +112,7 @@
      ((k :wat::holon::HolonAST) (:wat::holon::Thermometer 70.0 0.0 100.0))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :rsi-70-answer))
      ((_ :wat::core::unit) (:wat::holon::Hologram/put store k v))
-     ((got :Option<wat::holon::HolonAST>)
+     ((got :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store k))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST
@@ -129,7 +129,7 @@
       (:wat::holon::Hologram/make
         (:wat::holon::filter-accept-any)))
      ((probe :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
-     ((got :Option<wat::holon::HolonAST>)
+     ((got :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store probe))
      ((is-none :wat::core::bool)
       (:wat::core::match got -> :wat::core::bool
@@ -153,7 +153,7 @@
      ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :stored-val))
      ((_ :wat::core::unit) (:wat::holon::Hologram/put store k v))
-     ((got :Option<wat::holon::HolonAST>)
+     ((got :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store k))
      ((is-none :wat::core::bool)
       (:wat::core::match got -> :wat::core::bool
@@ -184,7 +184,7 @@
      ;; The local slot has v2 but its key is structurally different,
      ;; so cosine fails the coincident threshold.
      ((probe :wat::holon::HolonAST) (:wat::holon::Thermometer 5.0 0.0 100.0))
-     ((got :Option<wat::holon::HolonAST>)
+     ((got :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store probe))
      ;; Probe k1 (slot 5); store has the matching key at slot 5;
      ;; cosine 1.0; passes coincidence. Returns v1.
@@ -212,7 +212,7 @@
      ((v2 :wat::holon::HolonAST) (:wat::holon::leaf :beta-val))
      ((_ :wat::core::unit) (:wat::holon::Hologram/put store k1 v1))
      ((_ :wat::core::unit) (:wat::holon::Hologram/put store k2 v2))
-     ((got :Option<wat::holon::HolonAST>)
+     ((got :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store k1))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST
@@ -238,7 +238,7 @@
      ((_ :wat::core::unit) (:wat::holon::Hologram/put store k v))
      ;; Probe value 42.5 — floor=42, ceil=43; slot 42 contains v.
      ((probe :wat::holon::HolonAST) (:wat::holon::Thermometer 42.5 0.0 100.0))
-     ((got :Option<wat::holon::HolonAST>)
+     ((got :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store probe))
      ((is-some :wat::core::bool)
       (:wat::core::match got -> :wat::core::bool
@@ -309,7 +309,7 @@
      ((k :wat::holon::HolonAST) (:wat::holon::therm-form 0.0 100.0 42.42))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :rsi-42-answer))
      ((_ :wat::core::unit) (:wat::holon::Hologram/put store k v))
-     ((got :Option<wat::holon::HolonAST>)
+     ((got :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store k))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST

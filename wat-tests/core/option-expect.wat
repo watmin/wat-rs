@@ -18,7 +18,7 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-i64
   ()
   (:wat::core::let*
-    (((opt :Option<wat::core::i64>) (Some 42))
+    (((opt :wat::core::Option<wat::core::i64>) (Some 42))
      ((v :wat::core::i64)
       (:wat::core::option::expect -> :wat::core::i64
         opt
@@ -31,7 +31,7 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-string
   ()
   (:wat::core::let*
-    (((opt :Option<wat::core::String>) (Some "hello"))
+    (((opt :wat::core::Option<wat::core::String>) (Some "hello"))
      ((v :wat::core::String)
       (:wat::core::option::expect -> :wat::core::String
         opt
@@ -39,14 +39,14 @@
     (:wat::test::assert-eq v "hello")))
 
 
-;; ─── Some happy path — nested :Option<Option<wat::core::i64>> ────────────────────
+;; ─── Some happy path — nested :wat::core::Option<wat::core::Option<wat::core::i64>> ────────────────────
 
 (:wat::test::deftest :wat-tests::core::option-expect::some-nested-option
   ()
   (:wat::core::let*
-    (((opt :Option<Option<wat::core::i64>>) (Some (Some 7)))
-     ((inner :Option<wat::core::i64>)
-      (:wat::core::option::expect -> :Option<wat::core::i64>
+    (((opt :wat::core::Option<wat::core::Option<wat::core::i64>>) (Some (Some 7)))
+     ((inner :wat::core::Option<wat::core::i64>)
+      (:wat::core::option::expect -> :wat::core::Option<wat::core::i64>
         opt
         "outer should be Some"))
      ((v :wat::core::i64)
@@ -71,14 +71,14 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::unit)
             (:wat::core::let*
-              (((opt :Option<wat::core::i64>) :None)
+              (((opt :wat::core::Option<wat::core::i64>) :None)
                ((_v :wat::core::i64)
                 (:wat::core::option::expect -> :wat::core::i64
                   opt
                   "broker disconnected")))
               ())))
         (:wat::core::vec :wat::core::String)))
-     ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
+     ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
       ((Some f)
         (:wat::test::assert-eq

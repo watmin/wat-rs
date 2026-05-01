@@ -12,7 +12,7 @@
 ;;   them through the bounded(1) channel
 ;; - Each row reifies to a Value::Enum :wat::telemetry::Event::Log
 ;;   with all 7 fields decoded (i64 + String + NoTag/HolonAST x3
-;;   + Tagged/HolonAST + HashMap<HolonAST,HolonAST>)
+;;   + Tagged/HolonAST + wat::core::HashMap<HolonAST,HolonAST>)
 ;; - stream::spawn-producer + stream::collect work end-to-end
 ;;   over the cursor
 
@@ -97,7 +97,7 @@
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::reader::write-fixture path))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
 
      ;; Phase 2 — open as ReadHandle and stream the rows back.
@@ -123,7 +123,7 @@
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::reader::write-fixture path))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
 
      ((handle :wat::sqlite::ReadHandle)
@@ -150,7 +150,7 @@
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::reader::write-fixture path))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
 
      ((handle :wat::sqlite::ReadHandle)
@@ -175,7 +175,7 @@
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::reader::write-fixture path))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
 
      ((handle :wat::sqlite::ReadHandle)
@@ -205,7 +205,7 @@
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::reader::write-fixture path))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
@@ -240,7 +240,7 @@
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::reader::write-fixture path))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))

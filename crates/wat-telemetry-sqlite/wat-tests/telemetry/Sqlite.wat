@@ -182,7 +182,7 @@
     (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat-telemetry-sqlite::Sqlite::spawn-and-drop
         "/tmp/wat-sqlite-test-spawn-001.db"))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))
 
@@ -194,6 +194,6 @@
     (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat-telemetry-sqlite::Sqlite::spawn-and-batch
         "/tmp/wat-sqlite-test-batch-001.db"))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

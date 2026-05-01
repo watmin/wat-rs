@@ -58,7 +58,7 @@
              ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
             ())))
         d))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))
 
@@ -115,7 +115,7 @@
         (:wat::core::tuple d stub-rx)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-rx))
      ((stub-rx :wat::kernel::QueueReceiver<wat::core::i64>) (:wat::core::second thr-and-rx))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ;; Drain the stub-rx — three Some values. Match-at-source per arc 110.
      ((v1 :wat::core::i64)
@@ -181,7 +181,7 @@
         (:wat::core::tuple d stub-rx)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-rx))
      ((stub-rx :wat::kernel::QueueReceiver<wat::core::i64>) (:wat::core::second thr-and-rx))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((v1 :wat::core::i64) (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((Ok (Some v)) v) ((Ok :None) 0) ((Err _) 0)))
      ((v2 :wat::core::i64) (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((Ok (Some v)) v) ((Ok :None) 0) ((Err _) 0)))

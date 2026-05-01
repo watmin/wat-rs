@@ -262,7 +262,7 @@
                "test send Ack: req-tx disconnected — driver died?"))
             ((_r :wat::core::unit)
              (:wat::core::option::expect -> :wat::core::unit
-               (:wat::core::result::expect -> :Option<wat::core::unit>
+               (:wat::core::result::expect -> :wat::core::Option<wat::core::unit>
                  (:wat::kernel::recv ack-rx)
                  "test recv ack: ack-rx peer thread died")
                "test recv ack: ack-rx clean disconnect — driver died mid-Ack?"))
@@ -272,7 +272,7 @@
                "test send Get #1: req-tx disconnected — driver died?"))
             ((snap1 :svc::State)
              (:wat::core::option::expect -> :svc::State
-               (:wat::core::result::expect -> :Option<svc::State>
+               (:wat::core::result::expect -> :wat::core::Option<svc::State>
                  (:wat::kernel::recv get-rx)
                  "test recv get #1: peer thread died")
                "test recv get #1: clean disconnect — driver died mid-Get?"))
@@ -294,7 +294,7 @@
                "test send Get #2: req-tx disconnected — driver died?"))
             ((snap2 :svc::State)
              (:wat::core::option::expect -> :svc::State
-               (:wat::core::result::expect -> :Option<svc::State>
+               (:wat::core::result::expect -> :wat::core::Option<svc::State>
                  (:wat::kernel::recv get-rx)
                  "test recv get #2: peer thread died")
                "test recv get #2: clean disconnect — driver died mid-Get?"))
@@ -314,11 +314,11 @@
         ;; state on `out`. Recv it here.
         ((final-state :svc::State)
          (:wat::core::option::expect -> :svc::State
-           (:wat::core::result::expect -> :Option<svc::State>
+           (:wat::core::result::expect -> :wat::core::Option<svc::State>
              (:wat::kernel::recv final-rx)
              "test recv final-state: thread died before delivering final state")
            "test recv final-state: thread output closed without delivering final state"))
-        ((join-result :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+        ((join-result :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
          (:wat::kernel::Thread/join-result thr)))
        (:wat::core::match join-result -> :wat::core::unit
          ((Ok _)

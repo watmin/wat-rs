@@ -127,7 +127,7 @@
         (:wat::core::tuple d level-back)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-level))
      ((level-back :wat::core::keyword) (:wat::core::second thr-and-level))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq level-back :info)))
 
@@ -225,6 +225,6 @@
         (:wat::core::tuple d l4)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-l4))
      ((l4 :wat::core::keyword) (:wat::core::second thr-and-l4))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq l4 :error)))

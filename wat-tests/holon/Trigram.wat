@@ -17,7 +17,7 @@
      ((d :wat::holon::HolonAST) (:wat::holon::Atom "d"))
      ((window-1 :wat::holon::HolonAST)
       (:wat::holon::Sequential (:wat::core::list :wat::holon::HolonAST a b c)))
-     ;; Trigram returns :Result<HolonAST, CapacityExceeded>. 4 atoms at
+     ;; Trigram returns :wat::core::Result<HolonAST, CapacityExceeded>. 4 atoms at
      ;; d=1024 is well under the capacity budget; Err is unreachable
      ;; but the type system still demands we acknowledge it.
      ((full :wat::holon::HolonAST)

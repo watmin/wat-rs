@@ -71,7 +71,7 @@
      ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :beta))
      ((_ :wat::core::unit) (:wat::holon::Hologram/put store k v))
-     ((got :Option<wat::holon::HolonAST>)
+     ((got :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store k))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST

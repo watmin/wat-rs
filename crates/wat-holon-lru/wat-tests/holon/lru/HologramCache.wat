@@ -39,7 +39,7 @@
      ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :beta))
      ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k v))
-     ((got :Option<wat::holon::HolonAST>)
+     ((got :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST
@@ -88,14 +88,14 @@
      ;; Total entries = 2 (k1 evicted by k3's put).
      ((total :wat::core::i64) (:wat::holon::lru::HologramCache/len store))
      ;; k1 specifically gone from Hologram.
-     ((g1 :Option<wat::holon::HolonAST>)
+     ((g1 :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k1))
      ((k1-evicted :wat::core::bool)
       (:wat::core::match g1 -> :wat::core::bool
         ((Some _) false)
         (:None    true)))
      ;; k2 still there.
-     ((g2 :Option<wat::holon::HolonAST>)
+     ((g2 :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k2))
      ((k2-present :wat::core::bool)
       (:wat::core::match g2 -> :wat::core::bool
@@ -126,19 +126,19 @@
      ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k1 v))
      ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k2 v))
      ;; Get k1 — bumps it to MRU.
-     ((_ :Option<wat::holon::HolonAST>)
+     ((_ :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k1))
      ;; Now k2 is LRU; put k3 evicts k2.
      ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k3 v))
      ;; k1 should STILL be present (was MRU after the bump).
-     ((g1 :Option<wat::holon::HolonAST>)
+     ((g1 :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k1))
      ((k1-present :wat::core::bool)
       (:wat::core::match g1 -> :wat::core::bool
         ((Some _) true)
         (:None    false)))
      ;; k2 should be evicted.
-     ((g2 :Option<wat::holon::HolonAST>)
+     ((g2 :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k2))
      ((k2-evicted :wat::core::bool)
       (:wat::core::match g2 -> :wat::core::bool
@@ -165,7 +165,7 @@
       (:wat::holon::therm-form 0.0 100.0 70.0))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :rsi-70-answer))
      ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k v))
-     ((got :Option<wat::holon::HolonAST>)
+     ((got :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST

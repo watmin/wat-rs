@@ -71,6 +71,6 @@
     (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::Edn::auto-spawn-one
         "/tmp/wat-sqlite-test-edn-newtypes-001.db"))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))
