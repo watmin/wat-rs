@@ -114,6 +114,20 @@ order is preserved.
   instances come in pure-value (Stats/Bytes) and handle
   (HandlePool/Sender) flavors; encapsulation is namespace-driven.
   Doctrine-only; no code changes yet (commits bf51fa2 + fef399c).
+- 9d: stream namespace promotion + file move — shipped 2026-05-01.
+  Pattern 3 (third namespace-prefix application).
+  `:wat::std::stream::*` → `:wat::stream::*` (286 rename sites:
+  101 in stream.wat itself + 185 across 10 consumer files). File
+  moved `wat/std/stream.wat` → `wat/stream.wat` per § G's
+  filesystem-path mirror rule; `src/stdlib.rs` `include_str!`
+  path updated. New `CheckError::BareLegacyStreamPath` variant +
+  `validate_legacy_stream_path` walker (pure keyword-prefix
+  detection — no parsed-TypeExpr inspection since this is a
+  pure namespace move). Zero substrate-gap fixes; cargo test
+  workspace 1476/0 (commits `7837262` substrate + `d22bc4f`
+  consumer sweep; SLICE-9D.md). Simplest substrate work in arc
+  109's slice catalog so far — no special-case dispatchers, no
+  canonicalization map extension; pure file move + sed + walker.
 - § J 10a: `:wat::kernel::Program<I,O>` typealias minted (alias for `:Process<I,O>`)
 - § J 10b: sonnet sweep — annotations prefer Program (in scope of stdlib boundaries)
 - Arc 114 absorbed § J 10c's "Thread as concrete struct"
@@ -409,6 +423,21 @@ slice plans name.
                   handle flavors; encapsulation is namespace-
                   driven. Doctrine-only; no code changes yet.
 
+[done]  arc 109 slice 9d — :wat::std::stream::* → :wat::stream::*
+                  + file path move (wat/std/stream.wat →
+                  wat/stream.wat). Pattern 3 (third namespace-
+                  prefix application after 1c/1d/1e). 11 files
+                  swept (1 stdlib + 10 consumer); 286 rename
+                  sites total (101 stream.wat self-refs + 185
+                  consumer); zero substrate-gap fixes. Walker
+                  shape simpler than 1c/1d/1e: pure keyword-
+                  prefix detection (no parsed-TypeExpr inspection
+                  needed since this is a namespace move, not a
+                  type-shape change). cargo test workspace
+                  1476/0 (commits 7837262 + d22bc4f; SLICE-9D.md).
+                  Stream stdlib's path now mirrors its shipped
+                  FQDN per § G's filesystem-path rule.
+
 [next]  § J 10d — typeclass dispatch + ProgramDiedError supertype
                   (mint ProgramDiedError; mint Program<I,O> as
                   abstract protocol; mint poly Program/join-result;
@@ -426,7 +455,6 @@ slice plans name.
                   element-type change in the typealiases)
 
 [parallel-shippable, sonnet-delegatable] independent sweeps:
-        § 9d (:wat::std::stream::* → :wat::stream::*)
         § 9f-9i (file-path moves for already-honest-symbol files)
 
         § K.console (Console grouping noun → :wat::console::*

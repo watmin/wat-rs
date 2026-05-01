@@ -1,7 +1,54 @@
 # Arc 109 Slice 9d — `:wat::std::stream::*` → `:wat::stream::*` (namespace promotion + file path move)
 
-**Compaction-amnesia anchor.** Read this first if you're picking up
-slice 9d mid-flight.
+**Status: shipped 2026-05-01.** Substrate (commit `7837262`) +
+consumer sweep (`d22bc4f`). 11 files swept (1 stdlib + 10
+consumer); **286 rename sites total** (101 stream.wat self-refs
++ 185 consumer); zero substrate-gap fixes. cargo test --release
+--workspace 1476/0.
+
+The slice combined three substrate moves with one walker mint:
+
+| What | Outcome |
+|---|---|
+| `wat/std/stream.wat` → `wat/stream.wat` | git mv (history preserved) |
+| `:wat::std::stream::*` → `:wat::stream::*` (101 sites in stream.wat) | sed -i in-place |
+| `src/stdlib.rs` `include_str!` path + module doc | path mirrors shipped FQDN |
+| `CheckError::BareLegacyStreamPath` variant + `validate_legacy_stream_path` walker | Pattern 3 — third namespace-prefix application |
+
+After the slice, the substrate has zero
+`:wat::std::stream::*` references; consumers using the legacy
+prefix get a self-describing diagnostic naming the canonical
+`:wat::stream::*` replacement at every offending site. § G's
+filesystem-path rule (file path mirrors shipped FQDN) is now
+honored for stream.
+
+**The walker shape:** simple keyword-prefix detection. Walks
+every `WatAST::Keyword(s, span)` node and fires when `s.starts_
+with(":wat::std::stream::")`. Catches all positions uniformly
+(callable head, type annotation, value position) — no parsed-
+TypeExpr inspection needed because this is a pure namespace
+prefix retirement, not a type-shape change.
+
+This is the simplest substrate work in arc 109's slice catalog
+so far — no special-case dispatchers, no canonicalization map
+extension, no AST-grammar exception. Pure filesystem move +
+internal sed + walker. Future § K cleanups (K.console / K.
+telemetry / K.lru / K.holon-lru) will follow this template's
+shape extended with the `Type/method` → namespace-flatten rule.
+
+**Substrate-as-teacher held:** the consumer sweep agent followed
+the diagnostic stream cleanly. The agent abandoned its formal
+report mid-task (background cargo test waiting); orchestrator
+re-checked `git diff --stat` independently and validated the
+work — the verify-after-agent protocol from slice 1j tier 1
+caught it.
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record.** Slice 9d is the third
+Pattern 3 application after slices 1c/1d/1e (the first three
+walker-template applications targeted parsed-TypeExpr shapes;
+9d targets keyword prefixes — same mechanism, different
+detection level).
 
 ## What this slice does
 

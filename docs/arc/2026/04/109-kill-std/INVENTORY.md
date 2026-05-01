@@ -258,11 +258,12 @@ graduates to its own top-level tier:
 - `:wat::std::list::*` → `:wat::list::*`
 - `:wat::std::math::*` → `:wat::math::*`
 - `:wat::std::stat::*` → `:wat::stat::*`
-- `:wat::std::stream::*` → `:wat::stream::*` (the 14 stream HOFs:
-  `spawn-producer`, `from-receiver`, `map`, `filter`, `inspect`,
-  `fold`, `for-each`, `chunks`, `chunks-by`, `take`, `flat-map`,
-  `with-state`, `drain-items`, `collect`, `window`, plus the
-  `Stream<T>` / `Producer<T>` / `ChunkStep<T>` / `KeyedChunkStep<K,T>`
+- ✓ `:wat::std::stream::*` → `:wat::stream::*` (shipped slice 9d
+  2026-05-01; the 14 stream HOFs: `spawn-producer`,
+  `from-receiver`, `map`, `filter`, `inspect`, `fold`, `for-each`,
+  `chunks`, `chunks-by`, `take`, `flat-map`, `with-state`,
+  `drain-items`, `collect`, `window`, plus the `Stream<T>` /
+  `Producer<T>` / `ChunkStep<T>` / `KeyedChunkStep<K,T>`
   typealiases). Stream is to channels what `:wat::list::*` is to
   Vecs — collection-shaped HOFs at the honest tier.
 - `:wat::std::service::Console::*` → `:wat::console::Console::*`
@@ -301,7 +302,7 @@ Dishonest layout (path does NOT match shipped FQDN — six files):
 | `wat/std/test.wat` | `:wat::test::*` | `wat/test.wat` (file move; symbols unchanged) |
 | `wat/std/sandbox.wat` | `:wat::kernel::run-sandboxed*` | `wat/kernel/sandbox.wat` |
 | `wat/std/hermetic.wat` | `:wat::kernel::run-sandboxed-hermetic*` etc. | `wat/kernel/hermetic.wat` |
-| `wat/std/stream.wat` | `:wat::std::stream::*` | `wat/stream.wat` (path AND symbols both rename per slice 9d) |
+| ✓ `wat/std/stream.wat` | `:wat::std::stream::*` | `wat/stream.wat` (path AND symbols both renamed; shipped slice 9d 2026-05-01) |
 | `wat/std/service/Console.wat` | `:wat::std::service::Console::*` | `wat/console/Console.wat` (path AND symbols both rename per slice 9e) |
 
 After arc 109 closes, `wat/std/` is gone. Every file's path
