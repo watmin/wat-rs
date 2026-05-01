@@ -1321,11 +1321,14 @@ that handle downstream-closed.
     ;; clean shutdown — every sender dropped via scope exit.
     ;; Worker recv-loops terminate here.
     state)
-  ((Err _died)
-    ;; sender thread panicked. Slice 1: _died is always
-    ;; ChannelDisconnected. Arc 113: _died carries Panic { message,
-    ;; failure } with the dying thread's message.
-    (re-raise-or-handle _died)))
+  ((Err died-chain)
+    ;; sender thread panicked. died-chain is a
+    ;; :wat::kernel::ThreadPanics — a Vec<ThreadDiedError> that
+    ;; cascades across hand-off boundaries (see §13 cascade
+    ;; chains). `(:wat::core::first died-chain)` recovers the
+    ;; immediate peer's death; walking the Vec answers "what
+    ;; killed it, transitively."
+    (re-raise-or-handle died-chain)))
 ```
 
 ### Strict-recv via `result::expect`
@@ -1340,11 +1343,16 @@ this recv's value:
     "rx: peer thread died — driver panicked?"))
 ```
 
-`result::expect` panics on `Err` (with the supplied message; arc
-113 prepends the dying thread's panic message). Returns
-`:Option<T>` — the inner Option survives so the caller can
-distinguish "value received" from "clean shutdown" if they
-care. To panic on either disconnect kind, nest:
+`result::expect` panics on `Err` (with the supplied message;
+arc 113 carries the dying chain THROUGH the panic on the
+substrate's AssertionPayload — when this thread itself dies and
+the spawn driver synthesizes the join outcome, this thread's
+death gets conj'd onto the FRONT of the inherited chain. Same
+mechanism preserves chain shape across cross-thread cascades
+end-to-end). Returns `:Option<T>` — the inner Option survives so
+the caller can distinguish "value received" from "clean
+shutdown" if they care. To panic on either disconnect kind,
+nest:
 
 ```scheme
 ((v :T)
@@ -2447,6 +2455,97 @@ human users.
 The substrate is data first; renderers are layered. See
 `arc/2026/04/115-no-inner-colon-in-parametric-args/INSCRIPTION.md`
 and `arc/2026/04/116-phenomenal-cargo-debugging/INSCRIPTION.md`.
+
+### Cascade chains — `:wat::kernel::ProcessPanics` / `ThreadPanics` (arc 113)
+
+Every comm/join verb's `Err` arm carries a **chain of deaths**, not
+a single error. The chain is just `Vec<*DiedError>`:
+
+| Typealias | Body |
+|---|---|
+| `:wat::kernel::ThreadPanics` | `Vec<wat::kernel::ThreadDiedError>` |
+| `:wat::kernel::ProcessPanics` | `Vec<wat::kernel::ProcessDiedError>` |
+
+The Vec IS the chain. Head = the immediate peer that died; tail
+= whatever killed it, transitively, across hand-off boundaries.
+
+```scheme
+((Err died-chain)
+  ;; died-chain :wat::kernel::ThreadPanics
+  ;; head: this thread's recv saw its peer thread die
+  ;; tail (if any): what killed THAT peer, transitively
+  (:wat::core::let*
+    (((immediate :Option<wat::kernel::ThreadDiedError>)
+      (:wat::core::first died-chain)))
+    (handle-immediate immediate)))
+```
+
+**Threads vs processes — same shape, different transports.** The
+architectural through-line: threads pass DiedError values through
+crossbeam channels (zero-copy); processes pass them as EDN over
+kernel pipes. The chain SHAPE at the caller surface
+(`Result<R, Vec<*DiedError>>`) is identical regardless of where
+the spawn boundary fell. Only the wire differs.
+
+```
+THREAD CASCADE                    PROCESS CASCADE
+══════════════                    ═══════════════
+
+Worker A panics                   Worker A panics
+   ↓ catch_unwind                    ↓ catch_unwind
+   ↓ AssertionPayload                ↓ AssertionPayload
+   ↓ panic_any                       ↓ panic_any
+   ↓                                 ↓ emit_panics_to_stderr
+   ↓                                 ↓   #wat.kernel/ProcessPanics
+   ↓                                 ↓   {edn ...}
+spawn driver conjs                parent's drive-sandbox
+on join-result                    extract-panics from stderr
+   ↓                                 ↓
+Result<R, ThreadPanics>           Result<R, ProcessPanics>
+```
+
+The conj-on-panic mechanism: `:wat::core::result::expect` on an
+Err arm carries the inherited chain through the panic via the
+substrate's `AssertionPayload.upstream_chain`. When this thread's
+death lands at the spawn driver's catch_unwind, this thread's
+`*DiedError` gets conj'd onto the FRONT of the inherited chain
+before being yielded to the joiner. Causality order preserved:
+`chain[0]` is the thread you joined; `chain[1]` is what killed it;
+`chain[N]` is the originating cause.
+
+**Cross-fork.** `wat/std/sandbox.wat`'s drive-sandbox + hermetic
+drain stderr post-waitpid and call `:wat::kernel::extract-panics`
+to recover the structured chain from the marker line. When
+present, the parsed chain replaces the singleton "exited N"
+shape, and `failure-from-process-died` walks the head's
+ProcessDiedError to extract the original AssertionPayload's
+location / actual / expected / frames — exactly as if the panic
+fired in-process.
+
+**`:wat::kernel::raise!`** — panic with structured data, not a
+string. The data-as-payload sibling of `assertion-failed!`. Takes
+a `:wat::holon::HolonAST`; renders via `:wat::edn::write`;
+panics with the result as `Failure.message`. Receivers recover
+the original HolonAST:
+
+```scheme
+(:wat::kernel::raise! (:wat::holon::leaf 42))   ; never returns
+
+;; on the receiving side:
+((recovered :wat::holon::HolonAST)
+  (:wat::edn::read (:wat::kernel::Failure/message f)))
+```
+
+**Failure's `message` IS the data field.** Rust's `String` is
+the universal serialization; the conceptual content is EDN. No
+new field on Failure or AssertionPayload — `raise!` just renders
+data as data, and once panics ride as Values through fork+thread
+boundaries, the same wire lets ANY wat data ride.
+
+See `arc/2026/04/113-cascading-runtime-errors/INSCRIPTION.md`.
+ProgramPanics supertype (Vec mixing Thread + Process deaths) is
+arc 109 § J slice 10d work — same shape post-§J, just polymorphic
+element type.
 
 ---
 
