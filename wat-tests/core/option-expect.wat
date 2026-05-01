@@ -18,7 +18,7 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-i64
   ()
   (:wat::core::let*
-    (((opt :wat::core::Option<wat::core::i64>) (Some 42))
+    (((opt :wat::core::Option<wat::core::i64>) (:wat::core::Some 42))
      ((v :wat::core::i64)
       (:wat::core::option::expect -> :wat::core::i64
         opt
@@ -31,7 +31,7 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-string
   ()
   (:wat::core::let*
-    (((opt :wat::core::Option<wat::core::String>) (Some "hello"))
+    (((opt :wat::core::Option<wat::core::String>) (:wat::core::Some "hello"))
      ((v :wat::core::String)
       (:wat::core::option::expect -> :wat::core::String
         opt
@@ -44,7 +44,7 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-nested-option
   ()
   (:wat::core::let*
-    (((opt :wat::core::Option<wat::core::Option<wat::core::i64>>) (Some (Some 7)))
+    (((opt :wat::core::Option<wat::core::Option<wat::core::i64>>) (:wat::core::Some (:wat::core::Some 7)))
      ((inner :wat::core::Option<wat::core::i64>)
       (:wat::core::option::expect -> :wat::core::Option<wat::core::i64>
         opt
@@ -71,7 +71,7 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::unit)
             (:wat::core::let*
-              (((opt :wat::core::Option<wat::core::i64>) :None)
+              (((opt :wat::core::Option<wat::core::i64>) :wat::core::None)
                ((_v :wat::core::i64)
                 (:wat::core::option::expect -> :wat::core::i64
                   opt
@@ -80,11 +80,11 @@
         (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
-      ((Some f)
+      ((:wat::core::Some f)
         (:wat::test::assert-eq
           (:wat::kernel::Failure/message f)
           "broker disconnected"))
-      (:None
+      (:wat::core::None
         (:wat::kernel::assertion-failed!
           "expected Failure on :None panic, got :None"
-          :None :None)))))
+          :wat::core::None :wat::core::None)))))

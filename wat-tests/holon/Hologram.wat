@@ -94,8 +94,8 @@
       (:wat::holon::Hologram/get store k))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST
-        ((Some h) h)
-        (:None    (:wat::holon::leaf :unreachable)))))
+        ((:wat::core::Some h) h)
+        (:wat::core::None    (:wat::holon::leaf :unreachable)))))
     (:wat::test::assert-eq found v)))
 
 ;; ─── therm round-trip via slot floor(value) ─────────────────────
@@ -116,8 +116,8 @@
       (:wat::holon::Hologram/get store k))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST
-        ((Some h) h)
-        (:None    (:wat::holon::leaf :unreachable)))))
+        ((:wat::core::Some h) h)
+        (:wat::core::None    (:wat::holon::leaf :unreachable)))))
     (:wat::test::assert-eq found v)))
 
 ;; ─── empty store returns None ───────────────────────────────────
@@ -133,8 +133,8 @@
       (:wat::holon::Hologram/get store probe))
      ((is-none :wat::core::bool)
       (:wat::core::match got -> :wat::core::bool
-        ((Some _) false)
-        (:None    true))))
+        ((:wat::core::Some _) false)
+        (:wat::core::None    true))))
     (:wat::test::assert-eq is-none true)))
 
 ;; ─── filter rejection: filter says no, even single candidate ────
@@ -157,8 +157,8 @@
       (:wat::holon::Hologram/get store k))
      ((is-none :wat::core::bool)
       (:wat::core::match got -> :wat::core::bool
-        ((Some _) false)
-        (:None    true))))
+        ((:wat::core::Some _) false)
+        (:wat::core::None    true))))
     (:wat::test::assert-eq is-none true)))
 
 ;; ─── slot isolation: distant therm slots don't see each other ───
@@ -190,8 +190,8 @@
      ;; cosine 1.0; passes coincidence. Returns v1.
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST
-        ((Some h) h)
-        (:None    (:wat::holon::leaf :unreachable)))))
+        ((:wat::core::Some h) h)
+        (:wat::core::None    (:wat::holon::leaf :unreachable)))))
     (:wat::test::assert-eq found v1)))
 
 ;; ─── cosine discrimination within slot 0 (non-therm pile-up) ────
@@ -216,8 +216,8 @@
       (:wat::holon::Hologram/get store k1))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST
-        ((Some h) h)
-        (:None    (:wat::holon::leaf :unreachable)))))
+        ((:wat::core::Some h) h)
+        (:wat::core::None    (:wat::holon::leaf :unreachable)))))
     (:wat::test::assert-eq found v1)))
 
 ;; ─── bracket-pair lookup spans floor + ceil slots ───────────────
@@ -242,8 +242,8 @@
       (:wat::holon::Hologram/get store probe))
      ((is-some :wat::core::bool)
       (:wat::core::match got -> :wat::core::bool
-        ((Some _) true)
-        (:None    false))))
+        ((:wat::core::Some _) true)
+        (:wat::core::None    false))))
     (:wat::test::assert-eq is-some true)))
 
 ;; ─── therm-form constructor: builds canonical Thermometer ───────
@@ -313,8 +313,8 @@
       (:wat::holon::Hologram/get store k))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST
-        ((Some h) h)
-        (:None    (:wat::holon::leaf :unreachable)))))
+        ((:wat::core::Some h) h)
+        (:wat::core::None    (:wat::holon::leaf :unreachable)))))
     (:wat::test::assert-eq found v)))
 
 ;; ─── presence-floor / coincident-floor accessors stay green ────

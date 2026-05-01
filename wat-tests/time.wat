@@ -68,13 +68,13 @@
     (((parsed :wat::core::Option<wat::time::Instant>)
       (:wat::time::from-iso8601 "2026-04-25T14:30:42.123Z")))
     (:wat::core::match parsed -> :wat::core::unit
-      ((Some i)
+      ((:wat::core::Some i)
         (:wat::core::let*
           (((s :wat::core::String) (:wat::time::to-iso8601 i 3)))
           (:wat::test::assert-eq s "2026-04-25T14:30:42.123Z")))
-      (:None
+      (:wat::core::None
         (:wat::kernel::assertion-failed!
-          "from-iso8601 returned None for valid input" :None :None)))))
+          "from-iso8601 returned None for valid input" :wat::core::None :wat::core::None)))))
 
 
 ;; ─── from-iso8601 / to-iso8601 — round-trip 9 digits ──────────────
@@ -85,14 +85,14 @@
     (((parsed :wat::core::Option<wat::time::Instant>)
       (:wat::time::from-iso8601 "2026-04-25T14:30:42.123456789Z")))
     (:wat::core::match parsed -> :wat::core::unit
-      ((Some i)
+      ((:wat::core::Some i)
         (:wat::core::let*
           (((s :wat::core::String) (:wat::time::to-iso8601 i 9)))
           (:wat::test::assert-eq s "2026-04-25T14:30:42.123456789Z")))
-      (:None
+      (:wat::core::None
         (:wat::kernel::assertion-failed!
           "from-iso8601 returned None for nanosecond-precision input"
-          :None :None)))))
+          :wat::core::None :wat::core::None)))))
 
 
 ;; ─── from-iso8601 — :None on parse failure ────────────────────────
@@ -104,8 +104,8 @@
       (:wat::time::from-iso8601 "not-a-real-iso-string"))
      ((is-none? :wat::core::bool)
       (:wat::core::match parsed -> :wat::core::bool
-        ((Some _) false)
-        (:None true))))
+        ((:wat::core::Some _) false)
+        (:wat::core::None true))))
     (:wat::test::assert-eq is-none? true)))
 
 

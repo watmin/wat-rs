@@ -53,12 +53,12 @@
         (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
-      ((Some f) (:wat::test::assert-eq
+      ((:wat::core::Some f) (:wat::test::assert-eq
                   (:wat::kernel::Failure/message f)
                   "assert-eq failed"))
-      (:None (:wat::kernel::assertion-failed!
+      (:wat::core::None (:wat::kernel::assertion-failed!
                "expected Failure, got :None"
-               :None :None)))))
+               :wat::core::None :wat::core::None)))))
 
 ;; ─── assert-contains — pass + fail ────────────────────────────────────
 
@@ -82,21 +82,21 @@
         (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
-      ((Some f)
+      ((:wat::core::Some f)
         (:wat::core::let*
           (((actual :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/actual f))
            ((expected :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/expected f))
            ((_ :wat::core::unit)
             (:wat::core::match actual -> :wat::core::unit
-              ((Some a) (:wat::test::assert-eq a "hello"))
-              (:None (:wat::kernel::assertion-failed!
-                       "actual slot empty" :None :None)))))
+              ((:wat::core::Some a) (:wat::test::assert-eq a "hello"))
+              (:wat::core::None (:wat::kernel::assertion-failed!
+                       "actual slot empty" :wat::core::None :wat::core::None)))))
           (:wat::core::match expected -> :wat::core::unit
-            ((Some e) (:wat::test::assert-eq e "xyz"))
-            (:None (:wat::kernel::assertion-failed!
-                     "expected slot empty" :None :None)))))
-      (:None (:wat::kernel::assertion-failed!
-               "expected Failure, got :None" :None :None)))))
+            ((:wat::core::Some e) (:wat::test::assert-eq e "xyz"))
+            (:wat::core::None (:wat::kernel::assertion-failed!
+                     "expected slot empty" :wat::core::None :wat::core::None)))))
+      (:wat::core::None (:wat::kernel::assertion-failed!
+               "expected Failure, got :None" :wat::core::None :wat::core::None)))))
 
 ;; ─── assert-coincident — pass + fail-renders-explanation ─────────────
 
@@ -129,11 +129,11 @@
         (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
-      ((Some f)
+      ((:wat::core::Some f)
         (:wat::core::let*
           (((actual :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/actual f)))
           (:wat::core::match actual -> :wat::core::unit
-            ((Some a)
+            ((:wat::core::Some a)
               (:wat::core::let*
                 (((_ :wat::core::unit) (:wat::test::assert-contains a "cosine"))
                  ((_ :wat::core::unit) (:wat::test::assert-contains a "floor"))
@@ -142,11 +142,11 @@
                  ((_ :wat::core::unit) (:wat::test::assert-contains
                             a "min-sigma-to-pass")))
                 ()))
-            (:None (:wat::kernel::assertion-failed!
+            (:wat::core::None (:wat::kernel::assertion-failed!
                      "actual slot empty — explanation should populate it"
-                     :None :None)))))
-      (:None (:wat::kernel::assertion-failed!
-               "expected Failure, got :None" :None :None)))))
+                     :wat::core::None :wat::core::None)))))
+      (:wat::core::None (:wat::kernel::assertion-failed!
+               "expected Failure, got :None" :wat::core::None :wat::core::None)))))
 
 ;; ─── assert-stdout-is — pass case ─────────────────────────────────────
 
@@ -221,15 +221,15 @@
         (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
-      ((Some f)
+      ((:wat::core::Some f)
         (:wat::core::let*
           (((expected :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/expected f)))
           (:wat::core::match expected -> :wat::core::unit
-            ((Some e) (:wat::test::assert-eq e "my-pattern"))
-            (:None (:wat::kernel::assertion-failed!
-                     "expected slot empty" :None :None)))))
-      (:None (:wat::kernel::assertion-failed!
-               "expected Failure, got :None" :None :None)))))
+            ((:wat::core::Some e) (:wat::test::assert-eq e "my-pattern"))
+            (:wat::core::None (:wat::kernel::assertion-failed!
+                     "expected slot empty" :wat::core::None :wat::core::None)))))
+      (:wat::core::None (:wat::kernel::assertion-failed!
+               "expected Failure, got :None" :wat::core::None :wat::core::None)))))
 
 ;; ─── :wat::test::run wrapper (string-entry path, kept for coverage) ───
 ;;

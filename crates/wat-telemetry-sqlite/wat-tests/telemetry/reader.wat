@@ -217,8 +217,8 @@
      ;; First event is the {time_ns=1000, "first"} row.
      ((first-evt :wat::telemetry::Event)
       (:wat::core::match (:wat::core::first events) -> :wat::telemetry::Event
-        ((Some e) e)
-        (:None
+        ((:wat::core::Some e) e)
+        (:wat::core::None
           (:wat::test::assertion-failed
             "expected at least one event"))))
      ;; data-ast returns Some(HolonAST::String "first").
@@ -226,8 +226,8 @@
       (:wat::core::match
         (:wat::telemetry::Event::Log/data-ast first-evt)
         -> :wat::core::String
-        ((Some h) (:wat::core::atom-value h))
-        (:None "fail"))))
+        ((:wat::core::Some h) (:wat::core::atom-value h))
+        (:wat::core::None "fail"))))
     (:wat::test::assert-eq msg "first")))
 
 
@@ -251,8 +251,8 @@
         (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
      ((first-evt :wat::telemetry::Event)
       (:wat::core::match (:wat::core::first events) -> :wat::telemetry::Event
-        ((Some e) e)
-        (:None
+        ((:wat::core::Some e) e)
+        (:wat::core::None
           (:wat::test::assertion-failed
             "expected at least one event"))))
      ;; data-value<:wat::core::String> — lift Tagged HolonAST → String.
@@ -260,6 +260,6 @@
       (:wat::core::match
         (:wat::telemetry::Event::Log/data-value first-evt)
         -> :wat::core::String
-        ((Some s) s)
-        (:None "fail"))))
+        ((:wat::core::Some s) s)
+        (:wat::core::None "fail"))))
     (:wat::test::assert-eq msg "first")))

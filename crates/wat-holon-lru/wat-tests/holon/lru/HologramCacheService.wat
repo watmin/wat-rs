@@ -67,10 +67,10 @@
        (acc :wat::core::i64)
        -> :wat::core::i64)
      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
-       ((Ok (Some _v))
+       ((Ok (:wat::core::Some _v))
          (:wat-tests::holon::lru::HologramCacheService::count-recv
            rx (:wat::core::i64::+ acc 1)))
-       ((Ok :None) acc)
+       ((Ok :wat::core::None) acc)
        ((Err _died) acc)))
 
    (:wat::core::define
@@ -310,11 +310,11 @@
             "step4 send Get: peer disconnected"))
          ((_check :wat::core::unit)
           (:wat::core::match (:wat::kernel::recv reply-rx) -> :wat::core::unit
-            ((Ok (Some inner))
+            ((Ok (:wat::core::Some inner))
               (:wat::core::match inner -> :wat::core::unit
-                ((Some _val) ())
-                (:None (:wat::test::assert-eq "cache-miss" ""))))
-            ((Ok :None) (:wat::test::assert-eq "no-reply" ""))
+                ((:wat::core::Some _val) ())
+                (:wat::core::None (:wat::test::assert-eq "cache-miss" ""))))
+            ((Ok :wat::core::None) (:wat::test::assert-eq "no-reply" ""))
             ((Err _died) (:wat::test::assert-eq "no-reply" "")))))
         h)))
     (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :wat::core::unit
@@ -378,11 +378,11 @@
             "step5 client-a send Get: peer disconnected"))
          ((_check-a :wat::core::unit)
           (:wat::core::match (:wat::kernel::recv reply-rx-a) -> :wat::core::unit
-            ((Ok (Some inner))
+            ((Ok (:wat::core::Some inner))
               (:wat::core::match inner -> :wat::core::unit
-                ((Some _val) ())
-                (:None (:wat::test::assert-eq "client-a-miss" ""))))
-            ((Ok :None) (:wat::test::assert-eq "client-a-no-reply" ""))
+                ((:wat::core::Some _val) ())
+                (:wat::core::None (:wat::test::assert-eq "client-a-miss" ""))))
+            ((Ok :wat::core::None) (:wat::test::assert-eq "client-a-no-reply" ""))
             ((Err _died) (:wat::test::assert-eq "client-a-no-reply" ""))))
 
          ;; Client B: Put + Get on beta
@@ -398,11 +398,11 @@
             "step5 client-b send Get: peer disconnected"))
          ((_check-b :wat::core::unit)
           (:wat::core::match (:wat::kernel::recv reply-rx-b) -> :wat::core::unit
-            ((Ok (Some inner))
+            ((Ok (:wat::core::Some inner))
               (:wat::core::match inner -> :wat::core::unit
-                ((Some _val) ())
-                (:None (:wat::test::assert-eq "client-b-miss" ""))))
-            ((Ok :None) (:wat::test::assert-eq "client-b-no-reply" ""))
+                ((:wat::core::Some _val) ())
+                (:wat::core::None (:wat::test::assert-eq "client-b-miss" ""))))
+            ((Ok :wat::core::None) (:wat::test::assert-eq "client-b-no-reply" ""))
             ((Err _died) (:wat::test::assert-eq "client-b-no-reply" "")))))
         d)))
     (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::unit
@@ -472,11 +472,11 @@
             "step6 send Get k1: peer disconnected"))
          ((_check-1 :wat::core::unit)
           (:wat::core::match (:wat::kernel::recv reply-rx) -> :wat::core::unit
-            ((Ok (Some inner))
+            ((Ok (:wat::core::Some inner))
               (:wat::core::match inner -> :wat::core::unit
-                ((Some _) (:wat::test::assert-eq "k1-not-evicted" ""))
-                (:None ())))
-            ((Ok :None) (:wat::test::assert-eq "no-reply-1" ""))
+                ((:wat::core::Some _) (:wat::test::assert-eq "k1-not-evicted" ""))
+                (:wat::core::None ())))
+            ((Ok :wat::core::None) (:wat::test::assert-eq "no-reply-1" ""))
             ((Err _died) (:wat::test::assert-eq "no-reply-1" ""))))
 
          ;; Get k2 — survived, expect Some.
@@ -487,11 +487,11 @@
             "step6 send Get k2: peer disconnected"))
          ((_check-2 :wat::core::unit)
           (:wat::core::match (:wat::kernel::recv reply-rx) -> :wat::core::unit
-            ((Ok (Some inner))
+            ((Ok (:wat::core::Some inner))
               (:wat::core::match inner -> :wat::core::unit
-                ((Some _) ())
-                (:None (:wat::test::assert-eq "k2-evicted" ""))))
-            ((Ok :None) (:wat::test::assert-eq "no-reply-2" ""))
+                ((:wat::core::Some _) ())
+                (:wat::core::None (:wat::test::assert-eq "k2-evicted" ""))))
+            ((Ok :wat::core::None) (:wat::test::assert-eq "no-reply-2" ""))
             ((Err _died) (:wat::test::assert-eq "no-reply-2" "")))))
         d)))
     (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::unit

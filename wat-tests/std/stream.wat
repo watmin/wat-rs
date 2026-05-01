@@ -91,16 +91,16 @@
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
                 ((Ok _) ())
                 ((Err _) ())))))))
-     ((initial :wat::core::Option<wat::core::i64>) :None)
+     ((initial :wat::core::Option<wat::core::i64>) :wat::core::None)
      ((step :fn(wat::core::Option<wat::core::i64>,wat::core::i64)->(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>))
       (:wat::core::lambda ((last :wat::core::Option<wat::core::i64>) (item :wat::core::i64) -> :(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>))
         (:wat::core::match last -> :(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>)
-          (:None
-            (:wat::core::Tuple (Some item) (:wat::core::Vector :wat::core::i64 item)))
-          ((Some prev)
+          (:wat::core::None
+            (:wat::core::Tuple (:wat::core::Some item) (:wat::core::Vector :wat::core::i64 item)))
+          ((:wat::core::Some prev)
             (:wat::core::if (:wat::core::= prev item) -> :(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>)
               (:wat::core::Tuple last (:wat::core::Vector :wat::core::i64))
-              (:wat::core::Tuple (Some item) (:wat::core::Vector :wat::core::i64 item)))))))
+              (:wat::core::Tuple (:wat::core::Some item) (:wat::core::Vector :wat::core::i64 item)))))))
      ((flush :fn(wat::core::Option<wat::core::i64>)->wat::core::Vector<wat::core::i64>)
       (:wat::core::lambda ((_last :wat::core::Option<wat::core::i64>) -> :wat::core::Vector<wat::core::i64>)
         (:wat::core::Vector :wat::core::i64)))

@@ -227,7 +227,7 @@
       (:wat::telemetry::WorkUnit/tags wu))
      ((looked-up :wat::core::Option<wat::holon::HolonAST>)
       (:wat::core::get got asset-key)))
-    (:wat::test::assert-eq looked-up (Some asset-val))))
+    (:wat::test::assert-eq looked-up (:wat::core::Some asset-val))))
 
 
 ;; ─── WorkUnit/scope<T> — bare HOF (open + run + return) ──────────
@@ -471,7 +471,7 @@
          ;; past one would block (stub-tx is still alive in this scope),
          ;; so we recv only what we KNOW was sent.
          ((r1-some? :wat::core::bool)
-          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool ((Ok (Some _)) true) ((Ok :None) false) ((Err _) false))))
+          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool ((Ok (:wat::core::Some _)) true) ((Ok :wat::core::None) false) ((Err _) false))))
         (:wat::core::Tuple d result r1-some?)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-result-some))
      ((result :wat::core::i64) (:wat::core::second thr-result-some))

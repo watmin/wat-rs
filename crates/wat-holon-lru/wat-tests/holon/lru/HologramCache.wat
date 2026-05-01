@@ -43,8 +43,8 @@
       (:wat::holon::lru::HologramCache/get store k))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST
-        ((Some h) h)
-        (:None    (:wat::holon::leaf :unreachable)))))
+        ((:wat::core::Some h) h)
+        (:wat::core::None    (:wat::holon::leaf :unreachable)))))
     (:wat::test::assert-eq found v)))
 
 ;; ─── len tracks puts ─────────────────────────────────────────────
@@ -92,15 +92,15 @@
       (:wat::holon::lru::HologramCache/get store k1))
      ((k1-evicted :wat::core::bool)
       (:wat::core::match g1 -> :wat::core::bool
-        ((Some _) false)
-        (:None    true)))
+        ((:wat::core::Some _) false)
+        (:wat::core::None    true)))
      ;; k2 still there.
      ((g2 :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k2))
      ((k2-present :wat::core::bool)
       (:wat::core::match g2 -> :wat::core::bool
-        ((Some _) true)
-        (:None    false))))
+        ((:wat::core::Some _) true)
+        (:wat::core::None    false))))
     (:wat::test::assert-eq
       (:wat::core::if (:wat::core::= total 2) -> :wat::core::bool
         (:wat::core::if k1-evicted -> :wat::core::bool k2-present false)
@@ -135,15 +135,15 @@
       (:wat::holon::lru::HologramCache/get store k1))
      ((k1-present :wat::core::bool)
       (:wat::core::match g1 -> :wat::core::bool
-        ((Some _) true)
-        (:None    false)))
+        ((:wat::core::Some _) true)
+        (:wat::core::None    false)))
      ;; k2 should be evicted.
      ((g2 :wat::core::Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k2))
      ((k2-evicted :wat::core::bool)
       (:wat::core::match g2 -> :wat::core::bool
-        ((Some _) false)
-        (:None    true))))
+        ((:wat::core::Some _) false)
+        (:wat::core::None    true))))
     (:wat::test::assert-eq
       (:wat::core::if k1-present -> :wat::core::bool k2-evicted false)
       true)))
@@ -169,6 +169,6 @@
       (:wat::holon::lru::HologramCache/get store k))
      ((found :wat::holon::HolonAST)
       (:wat::core::match got -> :wat::holon::HolonAST
-        ((Some h) h)
-        (:None    (:wat::holon::leaf :unreachable)))))
+        ((:wat::core::Some h) h)
+        (:wat::core::None    (:wat::holon::leaf :unreachable)))))
     (:wat::test::assert-eq found v)))

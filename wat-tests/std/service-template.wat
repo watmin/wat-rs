@@ -165,11 +165,11 @@
           ((idx :wat::core::i64) (:wat::core::first chosen))
           ((maybe :wat::kernel::CommResult<svc::Request>) (:wat::core::second chosen)))
          (:wat::core::match maybe -> :wat::core::unit
-           ((Ok (Some req))
+           ((Ok (:wat::core::Some req))
              (:wat::core::let*
                (((next :svc::State) (:svc::Service/handle req state)))
                (:svc::Service/loop req-rxs next out)))
-           ((Ok :None)
+           ((Ok :wat::core::None)
              (:svc::Service/loop (:wat::std::list::remove-at req-rxs idx) state out))
            ((Err _died)
              (:svc::Service/loop (:wat::std::list::remove-at req-rxs idx) state out))))))

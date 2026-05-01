@@ -33,8 +33,8 @@
      ((got :wat::core::Option<wat::core::i64>) (:wat::lru::LocalCache::get cache k))
      ((result :wat::core::i64)
       (:wat::core::match got -> :wat::core::i64
-        ((Some v) v)
-        (:None -1))))
+        ((:wat::core::Some v) v)
+        (:wat::core::None -1))))
     (:wat::test::assert-eq result 42)))
 
 
@@ -53,8 +53,8 @@
      ((got :wat::core::Option<wat::core::i64>) (:wat::lru::LocalCache::get cache k2))
      ((is-none :wat::core::bool)
       (:wat::core::match got -> :wat::core::bool
-        ((Some _v) false)
-        (:None true))))
+        ((:wat::core::Some _v) false)
+        (:wat::core::None true))))
     (:wat::test::assert-eq is-none true)))
 
 
@@ -82,6 +82,6 @@
      ((got :wat::core::Option<wat::core::i64>) (:wat::lru::LocalCache::get cache k2))
      ((result :wat::core::i64)
       (:wat::core::match got -> :wat::core::i64
-        ((Some v) v)
-        (:None -1))))
+        ((:wat::core::Some v) v)
+        (:wat::core::None -1))))
     (:wat::test::assert-eq result 99)))

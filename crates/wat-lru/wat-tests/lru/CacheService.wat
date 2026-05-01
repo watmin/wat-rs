@@ -72,8 +72,8 @@
                     (:wat::lru::CacheService/get req-tx reply-tx reply-rx "answer"))
                    ((_ :wat::core::unit) (:wat::std::service::Console/err diag "T3: get-returned\n")))
                   (:wat::core::match got -> :wat::core::unit
-                    ((Some _v) (:wat::std::service::Console/out diag "hit\n"))
-                    (:None     (:wat::std::service::Console/out diag "miss\n")))))
+                    ((:wat::core::Some _v) (:wat::std::service::Console/out diag "hit\n"))
+                    (:wat::core::None     (:wat::std::service::Console/out diag "miss\n")))))
 
                ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result driver))
@@ -88,8 +88,8 @@
      ;;   - stderr contains each of the T1/T2/T3 checkpoints
      ((hit-line :wat::core::String)
       (:wat::core::match (:wat::core::first stdout) -> :wat::core::String
-        ((Some s) s)
-        (:None "<missing>")))
+        ((:wat::core::Some s) s)
+        (:wat::core::None "<missing>")))
      ((_ :wat::core::unit) (:wat::test::assert-eq hit-line "hit"))
      ((stderr-blob :wat::core::String) (:wat::core::string::join "\n" stderr))
      ((_ :wat::core::unit) (:wat::test::assert-contains stderr-blob "T1: about-to-put"))

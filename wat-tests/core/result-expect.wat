@@ -57,11 +57,11 @@
         (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
     (:wat::core::match fail -> :wat::core::unit
-      ((Some f)
+      ((:wat::core::Some f)
         (:wat::test::assert-eq
           (:wat::kernel::Failure/message f)
           "expected Ok value"))
-      (:None
+      (:wat::core::None
         (:wat::kernel::assertion-failed!
           "expected Failure on Err panic, got :None"
-          :None :None)))))
+          :wat::core::None :wat::core::None)))))
