@@ -731,6 +731,36 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::Program<I,O> — arc 109 § J slice 10a.
+    //
+    // Typealias for today's :wat::kernel::Process<I,O>. The "supertype
+    // kind" the slice plan calls for is just an alias under existing
+    // substrate machinery — `unify` already collapses aliases (queue.wat
+    // CommResult<T> / Chosen<T> precedent), so :Program<I,O> and
+    // :Process<I,O> are interchangeable at every annotation site
+    // post-slice-10a.
+    //
+    // Slice 10b (sonnet rename sweep) flips this around: the underlying
+    // struct gets renamed to Program<I,O>; Process<I,O> becomes the
+    // alias-for-back-compat. Slice 10c adds Thread<I,O> as another
+    // alias (until arc 114's transport asymmetry forces the structural
+    // split — Sender<Value> vs IOWriter). Slice 10d wires the typeclass
+    // dispatch for the polymorphic verbs once concrete types diverge.
+    //
+    // No new TypeDef variant. No unify changes. The substrate's existing
+    // typealias machinery carries the abstraction.
+    env.register_builtin(TypeDef::Alias(AliasDef {
+        name: ":wat::kernel::Program".into(),
+        type_params: vec!["I".into(), "O".into()],
+        expr: TypeExpr::Parametric {
+            head: "wat::kernel::Process".into(),
+            args: vec![
+                TypeExpr::Path(":I".into()),
+                TypeExpr::Path(":O".into()),
+            ],
+        },
+    }));
+
     // :wat::holon::CoincidentExplanation — arc 069 diagnostic record
     // returned by `:wat::holon::coincident-explain`. Bundles the raw
     // cosine, the current coincident floor, the dim where comparison
