@@ -1,32 +1,25 @@
-// ARC 114 MANUAL — needs type-design review
-// Every test in this file exercises R-via-join: spawn a body returning
-// :i64, join to recover the value. Arc 114 retires that contract;
-// programs deliver values through their output channel only. The
-// equivalent property for spawn-thread (lambda-or-keyword body, closure
-// capture across thread boundary) needs new tests that route values
-// through Sender<I>/Receiver<O>; the rewrite is design work, not an
-// auto-sweep. File preserved as the ledger of the retired verb's
-// behavior; do not edit, do not delete.
-
-//! End-to-end tests for `:wat::kernel::spawn` accepting lambda values.
+//! End-to-end tests for `:wat::kernel::spawn-thread` accepting a body
+//! whose signature is the mini-TCP contract:
+//!   `:Fn(:Receiver<I>, :Sender<O>) -> :()`
 //!
-//! Per the 2026-04-20 relaxation, spawn's first argument may be either
-//! a keyword-path literal (the classic named-define path) or any
-//! expression that evaluates to a `:wat::core::lambda` value. Both
-//! produce the same `Arc<Function>` under the hood; the trampoline
-//! inside `apply_function` handles both (closed_env for lambdas,
-//! fresh root for defines). This closes the asymmetry between
-//! `:wat::kernel::spawn` and the existing `apply_value` / lambda-call
-//! paths — same concept, same surface.
+//! Arc 114 retired the bare-spawn R-via-join contract; the replacement
+//! is `spawn-thread`, which allocates a typed input pipe + output
+//! pipe per thread and hands the inside ends to the body. The body
+//! reads from `in`, computes, writes to `out`, and returns unit. The
+//! parent sends via `Thread/input thr` and recvs via
+//! `Thread/output thr`.
 //!
-//! Coverage:
+//! These tests verify spawn-thread accepts the various function-shape
+//! forms that bare-spawn used to accept (named keyword, let-bound
+//! lambda, inline lambda literal, lambda-valued param, closure-
+//! captured lambda) — but the contract under test is the mini-TCP
+//! shape: input flows in via the pipe, output flows out via the pipe,
+//! never via "return value." `Thread/join-result` confirms the body
+//! finished without panic.
 //!
-//! - Named define still spawns (no regression).
-//! - Let-bound lambda spawns; `join` returns the lambda's result.
-//! - Lambda-valued param spawned from inside a function body.
-//! - Inline `(:wat::core::lambda ...)` spawned directly.
-//! - Lambda's closed env survives the spawn (closure capture works).
-//! - Non-callable first arg still errors cleanly.
+//! See `docs/arc/2026/04/114-spawn-as-thread/DESIGN.md` for the
+//! contract; `docs/ZERO-MUTEX.md` § "Mini-TCP via paired channels"
+//! for the principle.
 
 use std::sync::Arc;
 use wat::freeze::{invoke_user_main, startup_from_source, StartupError};
@@ -42,142 +35,206 @@ fn run(src: &str) -> Value {
     invoke_user_main(&world, Vec::new()).expect("main should run")
 }
 
-// ─── Named define baseline (no regression) ────────────────────────────
+// ─── Named-define body — the keyword path ─────────────────────────────
 
 #[test]
-#[ignore = "arc 114 — retired verb (see ARC 114 MANUAL banner above)"]
-fn spawn_named_define_still_works() {
+fn spawn_thread_named_define_body() {
+    // The body is a named define matching the channel-shaped contract.
+    // Parent sends 41; worker recvs, increments, writes; parent recvs.
     let src = r#"
 
-        (:wat::core::define (:app::produce (n :i64) -> :i64)
-          (:wat::core::i64::+ n 1))
-
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define
+          (:app::increment
+            (in  :rust::crossbeam_channel::Receiver<wat::core::i64>)
+            (out :rust::crossbeam_channel::Sender<wat::core::i64>)
+            -> :())
           (:wat::core::let*
-            (((h :wat::kernel::ProgramHandle<i64>)
-              (:wat::kernel::spawn :app::produce 41)))
-            (:wat::kernel::join h)))
+            (((value :wat::core::i64)
+              (:wat::core::match (:wat::kernel::recv in)
+                -> :wat::core::i64
+                ((Ok (Some n)) n)
+                ((Ok :None)
+                 (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
+                ((Err _)
+                 (:wat::kernel::raise! (:wat::holon::leaf "parent died")))))
+             ((sum :wat::core::i64) (:wat::core::i64::+ value 1)))
+            (:wat::core::match (:wat::kernel::send out sum)
+              -> :()
+              ((Ok _) ())
+              ((Err _)
+               (:wat::kernel::raise! (:wat::holon::leaf "output closed"))))))
+
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::let*
+            (((thr :wat::kernel::Thread<wat::core::i64,wat::core::i64>)
+              (:wat::kernel::spawn-thread :app::increment))
+             ((tx :rust::crossbeam_channel::Sender<wat::core::i64>)
+              (:wat::kernel::Thread/input thr))
+             ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>)
+              (:wat::kernel::Thread/output thr))
+             ((_ack :())
+              (:wat::core::match (:wat::kernel::send tx 41)
+                -> :()
+                ((Ok _) ())
+                ((Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died")))))
+             ((result :wat::core::i64)
+              (:wat::core::match (:wat::kernel::recv rx)
+                -> :wat::core::i64
+                ((Ok (Some n)) n)
+                ((Ok :None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
+                ((Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died")))))
+             ((_join :())
+              (:wat::core::match (:wat::kernel::Thread/join-result thr)
+                -> :()
+                ((Ok _) ())
+                ((Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))))
+            result))
     "#;
     assert!(matches!(run(src), Value::i64(42)));
 }
 
-// ─── Let-bound lambda spawned ─────────────────────────────────────────
+// ─── Inline lambda literal body — the anonymous path ─────────────────
 
 #[test]
-#[ignore = "arc 114 — retired verb (see ARC 114 MANUAL banner above)"]
-fn spawn_let_bound_lambda() {
+fn spawn_thread_inline_lambda_body() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
-            (((f :fn(i64)->i64)
-              (:wat::core::lambda ((n :i64) -> :i64)
-                (:wat::core::i64::+ n 1)))
-             ((h :wat::kernel::ProgramHandle<i64>)
-              (:wat::kernel::spawn f 41)))
-            (:wat::kernel::join h)))
+            (((thr :wat::kernel::Thread<wat::core::i64,wat::core::i64>)
+              (:wat::kernel::spawn-thread
+                (:wat::core::lambda
+                  ((in  :rust::crossbeam_channel::Receiver<wat::core::i64>)
+                   (out :rust::crossbeam_channel::Sender<wat::core::i64>)
+                   -> :())
+                  (:wat::core::let*
+                    (((value :wat::core::i64)
+                      (:wat::core::match (:wat::kernel::recv in)
+                        -> :wat::core::i64
+                        ((Ok (Some n)) n)
+                        ((Ok :None)
+                         (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
+                        ((Err _)
+                         (:wat::kernel::raise! (:wat::holon::leaf "parent died")))))
+                     ((doubled :wat::core::i64) (:wat::core::i64::* value 2)))
+                    (:wat::core::match (:wat::kernel::send out doubled)
+                      -> :()
+                      ((Ok _) ())
+                      ((Err _)
+                       (:wat::kernel::raise! (:wat::holon::leaf "output closed"))))))))
+             ((tx :rust::crossbeam_channel::Sender<wat::core::i64>)
+              (:wat::kernel::Thread/input thr))
+             ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>)
+              (:wat::kernel::Thread/output thr))
+             ((_ack :())
+              (:wat::core::match (:wat::kernel::send tx 21)
+                -> :()
+                ((Ok _) ())
+                ((Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died")))))
+             ((result :wat::core::i64)
+              (:wat::core::match (:wat::kernel::recv rx)
+                -> :wat::core::i64
+                ((Ok (Some n)) n)
+                ((Ok :None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
+                ((Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died")))))
+             ((_join :())
+              (:wat::core::match (:wat::kernel::Thread/join-result thr)
+                -> :()
+                ((Ok _) ())
+                ((Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))))
+            result))
     "#;
     assert!(matches!(run(src), Value::i64(42)));
 }
 
-// ─── Inline lambda literal spawned ────────────────────────────────────
+// ─── Closure capture survives spawn-thread ────────────────────────────
 
 #[test]
-#[ignore = "arc 114 — retired verb (see ARC 114 MANUAL banner above)"]
-fn spawn_inline_lambda_literal() {
+fn spawn_thread_closure_capture() {
+    // The body's lambda captures `delta` from the enclosing let*. The
+    // body still does mini-TCP — recv from `in`, send to `out` — but
+    // the value sent uses the captured constant. Tests that closed_env
+    // crosses the spawn boundary AND that the body uses its substrate
+    // input/output pipes (not the captured `delta` as a substitute for
+    // input).
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
-            (((h :wat::kernel::ProgramHandle<i64>)
-              (:wat::kernel::spawn
-                (:wat::core::lambda ((n :i64) -> :i64)
-                  (:wat::core::i64::* n 2))
-                21)))
-            (:wat::kernel::join h)))
-    "#;
-    assert!(matches!(run(src), Value::i64(42)));
-}
-
-// ─── Lambda-valued param spawned ──────────────────────────────────────
-
-#[test]
-#[ignore = "arc 114 — retired verb (see ARC 114 MANUAL banner above)"]
-fn spawn_lambda_valued_param_from_enclosing_function() {
-    let src = r#"
-
-        (:wat::core::define (:app::run-on-thread
-                              (f :fn(i64)->i64)
-                              (n :i64)
-                              -> :i64)
-          (:wat::core::let*
-            (((h :wat::kernel::ProgramHandle<i64>)
-              (:wat::kernel::spawn f n)))
-            (:wat::kernel::join h)))
-
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::let*
-            (((sq :fn(i64)->i64)
-              (:wat::core::lambda ((n :i64) -> :i64)
-                (:wat::core::i64::* n n))))
-            (:app::run-on-thread sq 6)))
-    "#;
-    assert!(matches!(run(src), Value::i64(36)));
-}
-
-// ─── Closure capture survives spawn ───────────────────────────────────
-
-#[test]
-#[ignore = "arc 114 — retired verb (see ARC 114 MANUAL banner above)"]
-fn spawn_preserves_lambda_closed_env() {
-    // The lambda captures `delta` from the enclosing let*. Spawning the
-    // lambda on a new thread must carry its closed_env across the
-    // boundary — otherwise `delta` is unbound on the worker thread.
-    let src = r#"
-
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::let*
-            (((delta :i64) 100)
-             ((add-delta :fn(i64)->i64)
-              (:wat::core::lambda ((n :i64) -> :i64)
-                (:wat::core::i64::+ n delta)))
-             ((h :wat::kernel::ProgramHandle<i64>)
-              (:wat::kernel::spawn add-delta 23)))
-            (:wat::kernel::join h)))
+            (((delta :wat::core::i64) 100)
+             ((body :fn(rust::crossbeam_channel::Receiver<wat::core::i64>,rust::crossbeam_channel::Sender<wat::core::i64>)->())
+              (:wat::core::lambda
+                ((in  :rust::crossbeam_channel::Receiver<wat::core::i64>)
+                 (out :rust::crossbeam_channel::Sender<wat::core::i64>)
+                 -> :())
+                (:wat::core::let*
+                  (((n :wat::core::i64)
+                    (:wat::core::match (:wat::kernel::recv in)
+                      -> :wat::core::i64
+                      ((Ok (Some v)) v)
+                      ((Ok :None)
+                       (:wat::kernel::raise! (:wat::holon::leaf "input closed")))
+                      ((Err _)
+                       (:wat::kernel::raise! (:wat::holon::leaf "parent died")))))
+                   ((sum :wat::core::i64) (:wat::core::i64::+ n delta)))
+                  (:wat::core::match (:wat::kernel::send out sum)
+                    -> :()
+                    ((Ok _) ())
+                    ((Err _)
+                     (:wat::kernel::raise! (:wat::holon::leaf "output closed")))))))
+             ((thr :wat::kernel::Thread<wat::core::i64,wat::core::i64>)
+              (:wat::kernel::spawn-thread body))
+             ((tx :rust::crossbeam_channel::Sender<wat::core::i64>)
+              (:wat::kernel::Thread/input thr))
+             ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>)
+              (:wat::kernel::Thread/output thr))
+             ((_ack :())
+              (:wat::core::match (:wat::kernel::send tx 23)
+                -> :()
+                ((Ok _) ())
+                ((Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died")))))
+             ((result :wat::core::i64)
+              (:wat::core::match (:wat::kernel::recv rx)
+                -> :wat::core::i64
+                ((Ok (Some n)) n)
+                ((Ok :None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
+                ((Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died")))))
+             ((_join :())
+              (:wat::core::match (:wat::kernel::Thread/join-result thr)
+                -> :()
+                ((Ok _) ())
+                ((Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))))
+            result))
     "#;
     assert!(matches!(run(src), Value::i64(123)));
 }
 
-// ─── Non-callable first arg errors cleanly ────────────────────────────
+// ─── Non-callable body errors at type-check ───────────────────────────
 
 #[test]
-fn spawn_rejects_non_callable_value() {
-    // 42 is neither a keyword path nor a lambda value. The spawn's
-    // runtime dispatch catches it via TypeMismatch. The checker path
-    // would also catch it (int's inferred type doesn't unify with
-    // :fn(...)->_) — this test hits the runtime path through dynamic
-    // evaluation.
+fn spawn_thread_rejects_non_callable_body() {
+    // 42 is neither a keyword path nor a lambda value. The checker's
+    // TypeMismatch arm fires because spawn-thread's body parameter
+    // expects :Fn(Receiver<I>,Sender<O>) -> :() and i64 doesn't unify.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :())
           (:wat::core::let*
-            (((not-fn :i64) 42)
-             ((h :wat::kernel::ProgramHandle<i64>)
-              (:wat::kernel::spawn not-fn)))
-            (:wat::kernel::join h)))
+            (((not-fn :wat::core::i64) 42)
+             ((thr :wat::kernel::Thread<wat::core::i64,wat::core::i64>)
+              (:wat::kernel::spawn-thread not-fn)))
+            ()))
     "#;
-    // This is a check-time error: let* declares `(h :ProgramHandle<i64>)`
-    // but spawn can't derive a handle from an i64. The checker's
-    // TypeMismatch arm fires.
     match startup(src) {
         Err(StartupError::Check(errs)) => {
             let hit = errs.0.iter().any(|e| {
                 matches!(
                     e,
-                    wat::check::CheckError::TypeMismatch { callee, .. } if callee.starts_with(":wat::kernel::spawn")
+                    wat::check::CheckError::TypeMismatch { callee, .. }
+                        if callee.contains(":wat::kernel::spawn-thread")
                 )
             });
-            assert!(hit, "expected spawn TypeMismatch; got {:?}", errs.0);
+            assert!(hit, "expected spawn-thread TypeMismatch; got {:?}", errs.0);
         }
         Err(other) => panic!("expected Check error; got {:?}", other),
         Ok(_) => panic!("expected check-time failure"),

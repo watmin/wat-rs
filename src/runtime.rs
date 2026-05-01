@@ -2578,9 +2578,11 @@ fn dispatch_keyword_head(
         ":wat::kernel::recv" => eval_kernel_recv(args, env, sym),
         ":wat::kernel::try-recv" => eval_kernel_try_recv(args, env, sym),
         ":wat::kernel::drop" => eval_kernel_drop(args, env, sym),
-        ":wat::kernel::spawn" => eval_kernel_spawn(args, env, sym),
-        ":wat::kernel::join" => eval_kernel_join(args, env, sym),
-        ":wat::kernel::join-result" => eval_kernel_join_result(args, env, sym),
+        // :wat::kernel::spawn / :wat::kernel::join / :wat::kernel::join-result
+        // retired in arc 114. spawn-thread + Thread/join-result are the
+        // canonical replacements; the type-checker poisons every call site
+        // with a self-describing migration hint. Runtime impls deleted
+        // alongside the dispatch — no callers reach this layer post-poison.
         ":wat::kernel::ThreadDiedError/message" => {
             eval_thread_died_error_message(args, env, sym)
         }
@@ -11196,83 +11198,13 @@ fn eval_kernel_select(
     Ok(Value::Tuple(Arc::new(vec![Value::i64(idx as i64), inner])))
 }
 
-/// `(:wat::kernel::spawn :fn::path arg1 arg2 ...)` — spawn a function
-/// on its own OS thread. First argument is a keyword-path naming a
-/// registered `:wat::core::define`d function; remaining args are
-/// evaluated in the caller's env and passed to the spawned thread.
-///
-/// Returns a `:ProgramHandle<R>` — structurally an Arc'd crossbeam
-/// receiver over a one-shot channel. The spawned thread runs the
-/// function and sends its `Result<Value, RuntimeError>` on that
-/// channel; `join` blocks for the result. No Mutex; the channel is
-/// the synchronization point.
-///
-/// The spawned thread gets its own clone of the `SymbolTable` — a
-/// shallow HashMap clone whose values are `Arc<Function>` (cheap
-/// refcount bumps) plus an `Arc<EncodingCtx>` clone. Thread-local
-/// access to the frozen symbol table; no shared mutation.
-fn eval_kernel_spawn(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    if args.is_empty() {
-        return Err(RuntimeError::ArityMismatch {
-            op: ":wat::kernel::spawn".into(),
-            expected: 1, // minimum — function keyword path or lambda value
-            got: 0,
-        });
-    }
-    // First argument: keyword path (look up in sym.functions) or any
-    // expression evaluating to a lambda value. Both produce an
-    // Arc<Function>; the trampoline inside apply_function handles
-    // closed_env for lambdas and fresh root for defines.
-    let func = match &args[0] {
-        WatAST::Keyword(k, _) => match sym.get(k) {
-            Some(f) => f.clone(),
-            None => return Err(RuntimeError::UnknownFunction(k.clone())),
-        },
-        _ => match eval(&args[0], env, sym)? {
-            Value::wat__core__lambda(f) => f,
-            other => {
-                return Err(RuntimeError::TypeMismatch {
-                    op: ":wat::kernel::spawn".into(),
-                    expected: "function keyword path or lambda value",
-                    got: other.type_name(),
-                });
-            }
-        },
-    };
-    let mut arg_values = Vec::with_capacity(args.len() - 1);
-    for a in &args[1..] {
-        arg_values.push(eval(a, env, sym)?);
-    }
-    let thread_sym = sym.clone();
-    let (tx, rx) = crossbeam_channel::bounded::<SpawnOutcome>(1);
-    let span = crate::rust_caller_span!();
-    std::thread::spawn(move || {
-        // Arc 060 — wrap the eval in catch_unwind so a panic in the
-        // spawned function's body is captured as data on the channel
-        // rather than unwinding the thread silently. The
-        // AssertUnwindSafe is honest here: thread_sym + arg_values
-        // are owned by this closure; we don't share them with the
-        // caller after a panic.
-        let outcome = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            apply_function(func, arg_values, &thread_sym, span)
-        })) {
-            Ok(Ok(v)) => SpawnOutcome::Ok(v),
-            Ok(Err(e)) => SpawnOutcome::RuntimeErr(e),
-            Err(payload) => {
-                let (message, assertion) = extract_panic_payload(payload);
-                SpawnOutcome::Panic { message, assertion }
-            }
-        };
-        let _ = tx.send(outcome);
-    });
-    Ok(Value::wat__kernel__ProgramHandle(Arc::new(
-        ProgramHandleInner::InThread(rx),
-    )))
-}
+// :wat::kernel::spawn retired in arc 114. The arc-060 SpawnOutcome
+// channel pattern lives on inside `eval_kernel_spawn_thread` (the
+// new mini-TCP-shaped verb) and `spawn_with_world_into_result` (the
+// Process<I,O> in-thread driver from arc 103a). The retired bare-
+// spawn impl is gone; the type-checker poisons every call site
+// pre-runtime so this layer is unreachable. See arc 114
+// INSCRIPTION for the contract retirement.
 
 /// Coerce a `catch_unwind` panic payload to a printable String —
 /// same shape Rust's default panic hook does, plus an
@@ -11328,159 +11260,13 @@ pub(crate) fn extract_panic_payload(
     }
 }
 
-/// `(:wat::kernel::join handle)` — block until the spawned program
-/// exits and yield its final value. Typed
-/// `∀R. ProgramHandle<R> -> R`.
-///
-/// "I trust this thread; give me its value, panic if it failed."
-/// Sibling verb `:wat::kernel::join-result` (arc 060) is the
-/// "death-as-data" form for callers that want to inspect failure
-/// in-band.
-///
-/// - Spawned function returned a Value → pass it through.
-/// - Spawned function returned `Err(RuntimeError)` → propagate as
-///   if raised locally.
-/// - Spawned function panicked → propagate as `ChannelDisconnected`
-///   carrying the captured panic message (arc 060 captures the
-///   payload via `catch_unwind`; the message rides in the op
-///   string).
-/// - Channel itself disconnected (substrate bug) → distinct
-///   `ChannelDisconnected` with a "no payload" marker.
-fn eval_kernel_join(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
-            op: ":wat::kernel::join".into(),
-            expected: 1,
-            got: args.len(),
-        });
-    }
-    let handle = match eval(&args[0], env, sym)? {
-        Value::wat__kernel__ProgramHandle(h) => h,
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: ":wat::kernel::join".into(),
-                expected: "wat::kernel::ProgramHandle",
-                got: other.type_name(),
-            });
-        }
-    };
-    match handle.as_ref() {
-        ProgramHandleInner::InThread(rx) => match rx.recv() {
-            Ok(SpawnOutcome::Ok(v)) => Ok(v),
-            Ok(SpawnOutcome::RuntimeErr(e)) => Err(e),
-            Ok(SpawnOutcome::Panic { message, .. }) => Err(RuntimeError::ChannelDisconnected {
-                op: format!(":wat::kernel::join (spawned thread panicked: {})", message),
-            }),
-            Err(_) => Err(RuntimeError::ChannelDisconnected {
-                op: ":wat::kernel::join (channel disconnected; substrate bug — \
-                     no panic payload captured)"
-                    .into(),
-            }),
-        },
-        ProgramHandleInner::Forked(child) => {
-            // Arc 112 — bare `join` on a forked-program handle blocks
-            // on waitpid (matching the "trust this program" stance);
-            // exit 0 yields :() (the Process<I,O> R is always () today),
-            // any non-zero exit panics the caller with the exit code
-            // baked into the message. Equivalent abstraction layer to
-            // arc 060's bare join: the caller has chosen to NOT match
-            // on death-as-data and accepts that catastrophic exit is
-            // a panic. Death-as-data callers reach for
-            // `:wat::kernel::Process/join-result` instead.
-            let code = child.wait_or_cached();
-            if code == 0 {
-                Ok(Value::Unit)
-            } else {
-                Err(RuntimeError::ChannelDisconnected {
-                    op: format!(":wat::kernel::join (forked program exited {})", code),
-                })
-            }
-        }
-    }
-}
-
-/// `(:wat::kernel::join-result handle)` — block until the spawned
-/// program exits and yield its outcome AS DATA. Typed
-/// `∀R. ProgramHandle<R> -> Result<R, ThreadDiedError>` (arc 060).
-///
-/// "Death as data." Where `:wat::kernel::join` panics the calling
-/// thread on failure (the "I trust this thread" form),
-/// `:wat::kernel::join-result` returns a Result the caller matches
-/// on. Three failure variants discriminate cause for supervisors,
-/// restart policies, and debugging traces:
-///
-/// - `(Err (Panic msg))` — spawned function panicked; `catch_unwind`
-///   captured the payload as a String.
-/// - `(Err (RuntimeError msg))` — spawned function returned an
-///   `Err` from a Result-typed eval path (deliberate failure).
-/// - `(Err :ChannelDisconnected)` — substrate bug; the channel
-///   dropped without sending (in practice should never fire under
-///   the arc-060 catch_unwind wrap).
-fn eval_kernel_join_result(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    if args.len() != 1 {
-        return Err(RuntimeError::ArityMismatch {
-            op: ":wat::kernel::join-result".into(),
-            expected: 1,
-            got: args.len(),
-        });
-    }
-    let handle = match eval(&args[0], env, sym)? {
-        Value::wat__kernel__ProgramHandle(h) => h,
-        other => {
-            return Err(RuntimeError::TypeMismatch {
-                op: ":wat::kernel::join-result".into(),
-                expected: "wat::kernel::ProgramHandle",
-                got: other.type_name(),
-            });
-        }
-    };
-    let value = match handle.as_ref() {
-        ProgramHandleInner::InThread(rx) => match rx.recv() {
-            Ok(SpawnOutcome::Ok(v)) => Value::Result(Arc::new(Ok(v))),
-            Ok(SpawnOutcome::RuntimeErr(e)) => Value::Result(Arc::new(Err(single_died_chain(
-                thread_died_error_runtime(e.to_string()),
-            )))),
-            Ok(SpawnOutcome::Panic { message, assertion }) => {
-                // Arc 113 slice 2 — preserve the upstream chain when
-                // the panic was a `result::expect` on an Err that
-                // carried one. conj_died_chain pushes THIS thread's
-                // death onto the front of the inherited tail.
-                let upstream = assertion.as_ref().and_then(|a| a.upstream_chain.clone());
-                let fresh = thread_died_error_panic(message, assertion.clone());
-                Value::Result(Arc::new(Err(conj_died_chain(fresh, upstream))))
-            }
-            Err(_) => Value::Result(Arc::new(Err(single_died_chain(
-                thread_died_error_channel_disconnected(),
-            )))),
-        },
-        ProgramHandleInner::Forked(child) => {
-            // Arc 112 — bare `join-result` on a forked handle waits via
-            // waitpid and renders the outcome as ThreadDiedError (the
-            // bare-Thread-side error type) preserving this verb's
-            // arc-060 surface. Death-as-data with the Process subject
-            // honored (ProcessDiedError) lives on
-            // `:wat::kernel::Process/join-result`.
-            let code = child.wait_or_cached();
-            if code == 0 {
-                Value::Result(Arc::new(Ok(Value::Unit)))
-            } else {
-                Value::Result(Arc::new(Err(single_died_chain(thread_died_error_panic(
-                    format!("forked program exited {}", code),
-                    None,
-                )))))
-            }
-        }
-    };
-    Ok(value)
-}
+// :wat::kernel::join and :wat::kernel::join-result retired in arc
+// 114. Thread/join-result is the canonical replacement;
+// Process/join-result handles the forked-program case. The bare
+// verbs assumed an :R return through the spawn channel — arc 114
+// retires that contract; programs deliver values only through
+// their output pipe. Type-checker poison ensures no caller reaches
+// this layer.
 
 /// `(:wat::kernel::Process/join-result proc) ->
 /// :Result<:(), :wat::kernel::ProcessDiedError>` — arc 112's
@@ -18107,263 +17893,14 @@ mod tests {
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 
-    // ─── spawn + join ──────────────────────────────────────────────────
+    // ─── spawn + join + join-result deleted in arc 114 ─────────────────
     //
-    // ARC 114 MANUAL — needs type-design review.
-    // Tests below exercise the retired :wat::kernel::spawn /
-    // :wat::kernel::join / :wat::kernel::join-result verbs through
-    // run() (which type-checks). The substrate poisons those verbs at
-    // the type-checker; #[ignore]'d here pending substrate-author
-    // decision: delete (verbs gone, tests gone), port to spawn-thread
-    // + Thread/join-result (different runtime semantics — values
-    // through channels, not via join), or retain via a check-skipping
-    // helper that exercises the runtime functions directly. eval_expr
-    // tests (which skip the checker) continue to pass and remain.
-
-    #[test]
-    #[ignore = "arc 114 — retired verb; see MANUAL note above"]
-    fn spawn_runs_function_on_new_thread_and_join_returns_its_value() {
-        // Register a function, spawn it with args, join the handle,
-        // confirm the function's return value surfaces.
-        let src = r#"
-            (:wat::core::define (:my::sum (a :i64) (b :i64) -> :i64)
-              (:wat::core::i64::+ a b))
-            (:wat::kernel::join (:wat::kernel::spawn :my::sum 3 4))
-        "#;
-        match run(src).unwrap() {
-            Value::i64(7) => {}
-            v => panic!("expected 7, got {:?}", v),
-        }
-    }
-
-    #[test]
-    fn spawn_refuses_unknown_function() {
-        let err = eval_expr("(:wat::kernel::spawn :no::such::function)").unwrap_err();
-        assert!(matches!(err, RuntimeError::UnknownFunction(_)));
-    }
-
-    #[test]
-    fn spawn_refuses_non_callable_head() {
-        // Per the 2026-04-20 relaxation, spawn accepts a keyword path
-        // OR any expression that evaluates to a lambda value. An int
-        // literal is neither — `eval` produces Value::i64, the lambda
-        // extraction fails, TypeMismatch fires.
-        let err = eval_expr("(:wat::kernel::spawn 42)").unwrap_err();
-        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
-    }
-
-    #[test]
-    fn join_refuses_non_program_handle() {
-        let err = eval_expr("(:wat::kernel::join 42)").unwrap_err();
-        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
-    }
-
-    // ─── join-result (arc 060 — death as data) ─────────────────────────
-
-    #[test]
-    #[ignore = "arc 114 — retired verb; see MANUAL note above"]
-    fn join_result_happy_path_returns_ok() {
-        // Spawned function returns 42; join-result returns (Ok 42).
-        let src = r#"
-            (:wat::core::define (:my::answer -> :i64) 42)
-            (:wat::core::match
-              (:wat::kernel::join-result (:wat::kernel::spawn :my::answer))
-              -> :i64
-              ((Ok n) n)
-              ((Err _) -1))
-        "#;
-        match run(src).unwrap() {
-            Value::i64(42) => {}
-            v => panic!("expected 42, got {:?}", v),
-        }
-    }
-
-    #[test]
-    #[ignore = "arc 114 — retired verb; see MANUAL note above"]
-    fn join_result_captures_panic_as_data() {
-        // Spawned function calls `assertion-failed!`, which panics
-        // with a structured `AssertionPayload`. arc 060's
-        // `extract_panic_payload` (arc 105c rewrite) extracts both
-        // message AND structured assertion data; join-result returns
-        // `(Err (Panic msg failure-opt))` instead of unwinding the
-        // caller. The 2-field shape preserves arc 064's actual /
-        // expected propagation; this test extracts just the message
-        // to confirm the variant fired.
-        // Arc 113 — Err arm carries Vec<ThreadDiedError> chain. The
-        // wat program returns the Result Value as-is; this test
-        // inspects it at the Rust level (Value::Result → Err →
-        // Value::Vec → head TDE → message field).
-        let src = r#"
-            (:wat::core::define (:my::boom -> :())
-              (:wat::kernel::assertion-failed! "intentional panic" :None :None))
-            (:wat::kernel::join-result (:wat::kernel::spawn :my::boom))
-        "#;
-        let result = run(src).unwrap();
-        let err_chain = match result {
-            Value::Result(r) => match &*r {
-                Err(v) => v.clone(),
-                Ok(_) => panic!("expected Err"),
-            },
-            v => panic!("expected Result, got {:?}", v),
-        };
-        let chain = match err_chain {
-            Value::Vec(xs) => xs,
-            v => panic!("expected Vec<ThreadDiedError>, got {:?}", v),
-        };
-        assert!(!chain.is_empty(), "expected at least one chain entry");
-        let head = &chain[0];
-        let msg = match head {
-            Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
-                assert_eq!(ev.variant_name, "Panic");
-                match &ev.fields[0] {
-                    Value::String(s) => s.clone(),
-                    v => panic!("expected String message, got {:?}", v),
-                }
-            }
-            v => panic!("expected ThreadDiedError enum, got {:?}", v),
-        };
-        assert_eq!(&*msg, "intentional panic");
-    }
-
-    #[test]
-    #[ignore = "arc 114 — retired verb; see MANUAL note above"]
-    fn join_result_cascade_accumulates_chain_across_two_levels() {
-        // Arc 113 slice 2 — when an outer thread `result::expect`s on
-        // an Err that carried a Vec<ThreadDiedError> chain, the chain
-        // rides through the panic and the spawn driver conjs the
-        // outer's death onto the FRONT. Joining the outer yields a
-        // 2-element chain in causality order:
-        //   chain[0] = outer's panic ("outer: inner died")
-        //   chain[1] = inner's panic ("inner died")
-        let src = r#"
-            (:wat::core::define (:my::inner -> :())
-              (:wat::kernel::assertion-failed! "inner died" :None :None))
-            (:wat::core::define (:my::outer -> :())
-              (:wat::core::let*
-                (((handle :wat::kernel::ProgramHandle<()>)
-                  (:wat::kernel::spawn :my::inner))
-                 ((_ :())
-                  (:wat::core::result::expect -> :()
-                    (:wat::kernel::join-result handle)
-                    "outer: inner died")))
-                ()))
-            (:wat::kernel::join-result (:wat::kernel::spawn :my::outer))
-        "#;
-        let result = run(src).unwrap();
-        let chain = match result {
-            Value::Result(r) => match &*r {
-                Err(Value::Vec(xs)) => xs.clone(),
-                Err(v) => panic!("expected Err Vec, got {:?}", v),
-                Ok(_) => panic!("expected Err"),
-            },
-            v => panic!("expected Result, got {:?}", v),
-        };
-        assert_eq!(
-            chain.len(),
-            2,
-            "expected 2-element cascade chain, got {} entries",
-            chain.len()
-        );
-        // Head — outer's death (the joined thread).
-        let head_msg = match &chain[0] {
-            Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
-                assert_eq!(ev.variant_name, "Panic");
-                match &ev.fields[0] {
-                    Value::String(s) => s.clone(),
-                    v => panic!("expected String, got {:?}", v),
-                }
-            }
-            v => panic!("expected ThreadDiedError, got {:?}", v),
-        };
-        assert_eq!(&*head_msg, "outer: inner died");
-        // Tail — inner's death (the cause).
-        let tail_msg = match &chain[1] {
-            Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
-                assert_eq!(ev.variant_name, "Panic");
-                match &ev.fields[0] {
-                    Value::String(s) => s.clone(),
-                    v => panic!("expected String, got {:?}", v),
-                }
-            }
-            v => panic!("expected ThreadDiedError, got {:?}", v),
-        };
-        assert_eq!(&*tail_msg, "inner died");
-    }
-
-    #[test]
-    #[ignore = "arc 114 — retired verb; see MANUAL note above"]
-    fn join_result_captures_runtime_err_separately() {
-        // Spawned function returns Err from a Result-typed eval path
-        // (here: divide-by-zero is a graceful `RuntimeError::DivisionByZero`,
-        // not a panic). join-result discriminates: this is the
-        // `RuntimeError` variant, not `Panic`.
-        let src = r#"
-            (:wat::core::define (:my::div-zero -> :i64)
-              (:wat::core::i64::/ 1 0))
-            (:wat::kernel::join-result (:wat::kernel::spawn :my::div-zero))
-        "#;
-        let result = run(src).unwrap();
-        let chain = match result {
-            Value::Result(r) => match &*r {
-                Err(Value::Vec(xs)) => xs.clone(),
-                Err(v) => panic!("expected Err Vec, got {:?}", v),
-                Ok(_) => panic!("expected Err"),
-            },
-            v => panic!("expected Result, got {:?}", v),
-        };
-        assert!(!chain.is_empty());
-        match &chain[0] {
-            Value::Enum(ev) if ev.type_path == ":wat::kernel::ThreadDiedError" => {
-                assert_eq!(
-                    ev.variant_name, "RuntimeError",
-                    "expected RuntimeError variant; got {:?}",
-                    ev.variant_name
-                );
-            }
-            v => panic!("expected ThreadDiedError enum, got {:?}", v),
-        }
-    }
-
-    #[test]
-    #[ignore = "arc 114 — retired verb; see MANUAL note above"]
-    fn join_result_legacy_join_still_propagates_panic_as_runtime_error() {
-        // Legacy `join` verb stays panic-the-caller (surfaces as
-        // RuntimeError::ChannelDisconnected carrying the panic message
-        // in the op string per arc 060's plumbing).
-        let src = r#"
-            (:wat::core::define (:my::boom -> :())
-              (:wat::kernel::assertion-failed! "intentional panic" :None :None))
-            (:wat::kernel::join (:wat::kernel::spawn :my::boom))
-        "#;
-        let err = run(src).unwrap_err();
-        match err {
-            RuntimeError::ChannelDisconnected { op } => {
-                assert!(
-                    op.contains(":wat::kernel::join"),
-                    "expected join in error op string, got: {}",
-                    op
-                );
-                assert!(
-                    op.contains("intentional panic"),
-                    "expected captured panic message in op string, got: {}",
-                    op
-                );
-            }
-            other => panic!("expected ChannelDisconnected, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn join_result_refuses_non_program_handle() {
-        let err = eval_expr("(:wat::kernel::join-result 42)").unwrap_err();
-        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
-    }
-
-    #[test]
-    fn join_result_arity_mismatch() {
-        let err = eval_expr("(:wat::kernel::join-result)").unwrap_err();
-        assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
-    }
+    // Bare-spawn lib tests retired alongside the verbs they tested.
+    // Mini-TCP is the contract: programs deliver values via output
+    // pipes, not via join. spawn-thread + Thread/join-result coverage
+    // lives in tests/wat_spawn_lambda.rs (mini-TCP roundtrip on a
+    // typed input/output channel pair). Process/join-result coverage
+    // lives in tests/wat_arc103_spawn_program.rs.
 
     // ─── Vector portability (arc 061) ──────────────────────────────────
 
@@ -20032,31 +19569,6 @@ mod tests {
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
-    #[test]
-    #[ignore = "arc 114 — retired verb; see MANUAL note in spawn+join section"]
-    fn spawn_and_join_produce_queue_roundtrip_across_threads() {
-        // Producer thread sends, consumer thread (the main) recv + match.
-        // Proves the typed pipe survives the spawn.
-        let src = r#"
-            (:wat::core::define (:my::producer
-                                 (tx :rust::crossbeam_channel::Sender<i64>)
-                                 -> :())
-              (:wat::core::match (:wat::kernel::send tx 99) -> :()
-                ((Ok _) ())
-                ((Err _) ())))
-            (:wat::core::let*
-              (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
-               ((handle :wat::kernel::ProgramHandle<()>)
-                (:wat::kernel::spawn :my::producer tx))
-               ((_ :()) (:wat::kernel::join handle)))
-              (:wat::core::match (:wat::kernel::recv rx) -> :i64
-                ((Ok (Some v)) v)
-                ((Ok :None) 0)
-                ((Err _died) -1)))
-        "#;
-        match run(src).unwrap() {
-            Value::i64(99) => {}
-            v => panic!("expected 99, got {:?}", v),
-        }
-    }
+    // queue roundtrip across threads — covered by tests/wat_spawn_lambda.rs
+    // (mini-TCP shape on spawn-thread + Thread/join-result).
 }
