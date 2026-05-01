@@ -161,131 +161,34 @@ impl fmt::Display for CheckError {
 
 impl std::error::Error for CheckError {}
 
-/// Arc 111 migration: detect type-mismatches that smell like the
-/// kernel-comm shape change and append a self-describing hint so a
-/// reader (human or agent) knows the fix path without consulting
-/// the arc doc. Pre-arc-111 send returned `:Option<()>` and
-/// recv/try-recv returned `:Option<T>`; arc 111 lifts these to
-/// `:Result<:(), :ThreadDiedError>` and
-/// `:Result<:Option<T>, :ThreadDiedError>` respectively.
-///
-/// The hint fires when ONE of the involved types contains
-/// `Result<...,wat::kernel::ThreadDiedError>` and the other doesn't.
-/// That covers all four directions (sender expected/received vs
-/// recvd; old wat code finding new substrate types or vice versa).
-fn arc_112_migration_hint(_callee: &str, expected: &str, got: &str) -> Option<String> {
-    // Detect ForkedChild ↔ Process collision (slice 2a's primary
-    // breakage class). When fixture code annotates a binding as
-    // :ForkedChild<I,O> but the substrate now returns :Process<I,O>,
-    // the message reads "expects :ForkedChild<...>; got :Process<...>"
-    // — the migration is a one-token swap.
-    let expected_forked = expected.contains("wat::kernel::ForkedChild");
-    let got_forked = got.contains("wat::kernel::ForkedChild");
-    let expected_process = expected.contains("wat::kernel::Process<");
-    let got_process = got.contains("wat::kernel::Process<");
-    if (expected_forked && got_process) || (got_forked && expected_process) {
-        return Some(
-            "arc 112 — `:wat::kernel::ForkedChild<I,O>` retired; both `fork-program` AND `spawn-program` now return the unified `:wat::kernel::Process<I,O>`. \
-             Migrate annotations: `:wat::kernel::ForkedChild<I,O>` → `:wat::kernel::Process<I,O>`. \
-             Migrate accessors: `(:wat::kernel::ForkedChild/stdin x)` → `(:wat::kernel::Process/stdin x)` (same for /stdout, /stderr). \
-             Migrate the wait verb: `(:wat::kernel::ForkedChild/handle x)` + `(:wat::kernel::wait-child h)` returning `:i64` → `(:wat::kernel::Process/join-result x)` returning `:Result<:(), :wat::kernel::ProcessDiedError>`. The match arm becomes `((Ok _) ...) ((Err died) ...)` instead of an exit-code branch.".into()
-        );
-    }
-    // Detect ChildHandle ↔ Process/join collision: pre-arc-112 callers
-    // pulled (ForkedChild/handle child) → :ChildHandle and called
-    // wait-child on it. Both ForkedChild/handle and wait-child are gone.
-    if expected.contains("wat::kernel::ChildHandle") || got.contains("wat::kernel::ChildHandle") {
-        return Some(
-            "arc 112 — `:wat::kernel::ChildHandle` is no longer wat-visible; the wait mechanism lives inside `Process<I,O>`'s `join` field (a `ProgramHandle<()>` whose internal variant discriminates Forked vs InThread). \
-             Replace `(ForkedChild/handle child) + (wait-child handle) :i64` with the single call `(:wat::kernel::Process/join-result proc) :Result<:(), :wat::kernel::ProcessDiedError>`.".into()
-        );
-    }
-    None
-}
-
-fn arc_111_migration_hint(callee: &str, expected: &str, got: &str) -> Option<String> {
-    let arc_marker = "wat::kernel::ThreadDiedError";
-    let expected_has = expected.contains(arc_marker);
-    let got_has = got.contains(arc_marker);
-    if expected_has == got_has {
-        return None;
-    }
-
-    // Worker recv-loops + producer-stage match-on-send: grow arms.
-    let mut hint = String::new();
-    hint.push_str(
-        "arc 111 — `:wat::kernel::send` returns `:Result<:(),:wat::kernel::ThreadDiedError>` and `:wat::kernel::recv` / `try-recv` return `:Result<:Option<T>,:wat::kernel::ThreadDiedError>`. ",
-    );
-
-    if callee == ":wat::core::match" {
-        hint.push_str(
-            "Migrate match arms: `((Some v) ...)` → `((Ok (Some v)) ...)`; `(:None ...)` → `((Ok :None) ...)` (recv) OR `((Err _) ...)` (send); add a third arm `((Err _died) ...)` for recv to handle peer-thread panic. Slice 1 ships `Err` always carrying `ChannelDisconnected`; slice 2 wires the rich `Panic msg failure` payload.",
-        );
-    } else if callee == ":wat::core::option::expect" {
-        hint.push_str(
-            "Migrate the call site: `(:wat::core::option::expect -> :T (recv rx) \"msg\")` → `(:wat::core::result::expect -> :Option<T> (recv rx) \"msg\")` returns the inner Option<T>. For panic-on-clean-disconnect-too, nest: `(option::expect -> :T (result::expect -> :Option<T> (recv rx) \"thread-died msg\") \"clean-disconnect msg\")`.",
-        );
-    } else if callee == ":wat::core::let*" || callee.starts_with(':') {
-        hint.push_str(
-            "If the binding's RHS is a `:wat::kernel::send` / `recv` call, change the binding's declared type to the new Result-shape OR move the comm call into a `:wat::core::match` / `:wat::core::result::expect` parent.",
-        );
-    } else {
-        hint.push_str(
-            "Find the `:wat::kernel::send` / `recv` site upstream and route it through `:wat::core::match` (3 arms) or `:wat::core::result::expect` (returns the inner Option<T> / `()`).",
-        );
-    }
-    Some(hint)
-}
-
-/// Arc 113 migration: detect type-mismatches that smell like the
-/// died-error chain shape change and append a self-describing hint.
-/// Pre-arc-113 the `Err` arm of every comm/join Result carried a
-/// single `ThreadDiedError` / `ProcessDiedError`. Arc 113 widens it to
-/// `Vec<wat::kernel::ThreadDiedError>` / `Vec<wat::kernel::ProcessDiedError>`
-/// — the chain (head = immediate peer that died; tail = whatever
-/// killed it, transitively).
-///
-/// The hint fires when ONE side wraps the died-error in `Vec<...>`
-/// and the other doesn't (covers old fixture annotations finding new
-/// substrate types and vice versa). Both `ThreadDiedError` and
-/// `ProcessDiedError` are checked — the migration is identical for
-/// both transports.
-fn arc_113_migration_hint(_callee: &str, expected: &str, got: &str) -> Option<String> {
-    let smells = |s: &str, ty: &str| -> (bool, bool) {
-        let vec_form = format!("Vec<wat::kernel::{}>", ty);
-        let bare_form = format!("wat::kernel::{}", ty);
-        let has_vec = s.contains(&vec_form);
-        // Bare match counts only if the Vec form isn't there at the
-        // same offset — the Vec form contains the bare token as a
-        // substring. We check by stripping the Vec form first.
-        let stripped = s.replace(&vec_form, "");
-        let has_bare = stripped.contains(&bare_form);
-        (has_vec, has_bare)
-    };
-    let mismatch = |ty: &str| -> bool {
-        let (e_vec, e_bare) = smells(expected, ty);
-        let (g_vec, g_bare) = smells(got, ty);
-        // Mismatch when one side has the bare form and the other has
-        // the Vec form. Same-shape on both sides → not an arc-113
-        // smell (some other axis differs).
-        (e_bare && g_vec) || (g_bare && e_vec)
-    };
-    if !mismatch("ThreadDiedError") && !mismatch("ProcessDiedError") {
-        return None;
-    }
-    Some(
-        "arc 113 — every `Err` arm carrying a died-error now carries a CHAIN: \
-         `:Result<T, :wat::kernel::ThreadDiedError>` → `:Result<T, :Vec<:wat::kernel::ThreadDiedError>>` \
-         (and the same for `ProcessDiedError`). The Vec is the cascade — head = the immediate peer that died; \
-         tail = whatever killed that peer, transitively. \
-         Migrate annotations: wrap the died-error in `Vec<...>` everywhere it appears as a Result Err arg \
-         (let* bindings, function return types, typealias bodies, match scrutinee annotations). \
-         Match arms unchanged in pattern shape: `((Err died) ...)` still binds; `died` is now `:Vec<*DiedError>`. \
-         To recover the immediate-peer death (the typical case): `(:wat::core::first died)` → `:Option<*DiedError>`. \
-         Verbs affected: `send`, `recv`, `try-recv`, `select`, `join-result`, `Process/join-result`, \
-         `process-send`, `process-recv`, and the `:wat::kernel::CommResult<T>` / `Chosen<T>` typealiases.".into()
-    )
-}
+// Arc 111 / 112 / 113 migration-hint helpers retired 2026-04-30.
+// Each shipped with an `arc_N_migration_hint(callee, expected, got)
+// -> Option<String>` function that `collect_hints` invoked on every
+// `TypeMismatch` + `ReturnTypeMismatch`. Each hint self-identified
+// via its leading `"arc N — "` prefix and described the one-token
+// annotation fix the substrate-as-teacher pattern relied on for
+// sonnet fixture sweeps.
+//
+// Once each arc's consumer wave had been swept, the helper retired
+// — the hint had served its job. Arcs 111 + 112 + 113 closed within
+// hours of each other; this joint retirement preserves the scaffold
+// (`collect_hints` still calls every helper in its array; the array
+// is currently empty) so the next migration arc reintroduces
+// guidance with one helper + one array entry.
+//
+// To restore the pattern when a new substrate arc lands:
+//
+//     fn arc_NNN_migration_hint(callee: &str, expected: &str, got: &str)
+//         -> Option<String>
+//     {
+//         // detect the smell that says "this code was written
+//         // against the pre-arc-NNN shape"; return the
+//         // self-describing fix path.
+//         ...
+//     }
+//
+// Then add `arc_NNN_migration_hint(callee, expected, got)` to the
+// array inside `collect_hints` below.
 
 /// Aggregated errors — `check_program` returns all findings together.
 #[derive(Debug)]
@@ -364,25 +267,27 @@ impl CheckError {
 /// got) triple into a single string. Each hint already self-identifies
 /// via its leading `"arc N — "` prefix; we just concatenate.
 ///
-/// Returns `None` when no hint applies. As migration arcs land their
-/// retirement closures (arc 111 task #168, arc 112 follow-up, etc.),
-/// the corresponding `arc_N_migration_hint` helpers get deleted from
-/// this file and silently drop out of the output stream — same
-/// substrate-as-teacher lifecycle the helpers were minted under.
-fn collect_hints(callee: &str, expected: &str, got: &str) -> Option<String> {
-    let hints: Vec<String> = [
-        arc_111_migration_hint(callee, expected, got),
-        arc_112_migration_hint(callee, expected, got),
-        arc_113_migration_hint(callee, expected, got),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-    if hints.is_empty() {
-        None
-    } else {
-        Some(hints.join("\n\n"))
-    }
+/// Returns `None` when no hint applies — currently the steady state
+/// (arcs 111 / 112 / 113 retired their helpers 2026-04-30 once the
+/// respective consumer waves swept clean). The function stays as
+/// scaffold for future arcs: add `arc_NNN_migration_hint(callee,
+/// expected, got)` to the array below; the rest of the substrate
+/// (Display impl + `CheckError::diagnostic`'s hint field) picks it
+/// up automatically. See the retirement note above for the helper
+/// shape.
+fn collect_hints(_callee: &str, _expected: &str, _got: &str) -> Option<String> {
+    // Active migration arcs go here. Shape (drop the leading
+    // underscores on the params when at least one arm reads them):
+    //
+    //     let hints: Vec<String> = [
+    //         arc_NNN_migration_hint(callee, expected, got),
+    //         arc_MMM_migration_hint(callee, expected, got),
+    //     ]
+    //     .into_iter()
+    //     .flatten()
+    //     .collect();
+    //     if hints.is_empty() { None } else { Some(hints.join("\n\n")) }
+    None
 }
 
 impl CheckErrors {
