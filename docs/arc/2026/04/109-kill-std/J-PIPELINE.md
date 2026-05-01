@@ -69,6 +69,16 @@ order is preserved.
   cargo test workspace 1476/0. See `SLICE-1G.md`. Pattern 2
   mechanism now well-rehearsed (slices 1f + 1g); reusable for
   any future verb retirement.
+- 1h: Option variants FQDN — `Some` → `:wat::core::Some` and
+  `:None` → `:wat::core::None` — shipped 2026-05-01. First slice
+  to apply Pattern 2 to AST-grammar exceptions (bare Symbol +
+  bare Keyword at callable head) rather than substrate-registered
+  verbs. 69 files swept across four tiers; **~542 rename sites**
+  (249 Some + 293 :None). Two substrate-gap fixes during sweep:
+  (1) pattern_coverage / check_subpattern user-enum keyword
+  hijack of FQDN builtins; (2) is_match_canonical bare-only
+  recognition. cargo test workspace 1476/0. See `SLICE-1H.md`.
+  Render_value FQDN flip deferred as task #189 follow-up.
 - § J 10a: `:wat::kernel::Program<I,O>` typealias minted (alias for `:Process<I,O>`)
 - § J 10b: sonnet sweep — annotations prefer Program (in scope of stdlib boundaries)
 - Arc 114 absorbed § J 10c's "Thread as concrete struct"

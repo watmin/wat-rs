@@ -103,12 +103,12 @@ constructor). See `SLICE-1E.md`.
 
 ## C. Variant constructors
 
-| Today | After arc 109 |
-|---|---|
-| `Some` (bare symbol) | `:wat::core::Some` |
-| `:None` (bare keyword) | `:wat::core::None` |
-| `Ok` (bare symbol) | `:wat::core::Ok` |
-| `Err` (bare symbol) | `:wat::core::Err` |
+| Today | After arc 109 | Status |
+|---|---|---|
+| `Some` (bare symbol) | `:wat::core::Some` | ✓ shipped slice 1h |
+| `:None` (bare keyword) | `:wat::core::None` | ✓ shipped slice 1h |
+| `Ok` (bare symbol) | `:wat::core::Ok` | pending slice 1i |
+| `Err` (bare symbol) | `:wat::core::Err` | pending slice 1i |
 
 All four variants of the substrate-built-in `Option<T>` /
 `Result<T,E>` enums become FQDN at every USAGE site

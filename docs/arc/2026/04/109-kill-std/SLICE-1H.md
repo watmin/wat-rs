@@ -1,7 +1,44 @@
 # Arc 109 Slice 1h — Option variants FQDN (`Some` → `:wat::core::Some`, `:None` → `:wat::core::None`)
 
-**Compaction-amnesia anchor.** Read this first if you're picking up
-slice 1h mid-flight.
+**Status: shipped 2026-05-01.** Walker (commit `016b3a3`) +
+four-tier sweep across commits `f83900f` → `261f0ef` →
+`541ab00` → `f2d34d7`. 69 files swept; **~542 rename sites
+total** (249 `Some` constructor + pattern + 293 `:None` value +
+pattern). Zero MANUAL flags. cargo test --release --workspace
+1476/0.
+
+**Two substrate-gap fixes surfaced during sweep:**
+
+1. **`src/check.rs::pattern_coverage` + `check_subpattern`** —
+   user-enum keyword-variant branch hijacked FQDN built-ins
+   before the slice-1h dispatch could see them. Fixed by adding
+   `is_builtin_fqdn` early-bail-out for `:wat::core::Some` /
+   `:wat::core::Ok` / `:wat::core::Err`. Without this, nested
+   patterns like `((Ok (:wat::core::Some v)) ...)` (heavily used
+   in `wat/std/stream.wat`) errored as "keyword variant pattern
+   :wat::core::Some on a :Option<T> scrutinee".
+
+2. **`src/runtime.rs::is_match_canonical`** — small-step
+   interpreter's match canonicity check only recognized bare
+   `Some/Ok/Err` Symbol heads. With FQDN keyword constructors,
+   the form failed canonicity, the step driver never advanced
+   past the match-arm dispatch, and tests like
+   `step_match_canonical` produced None instead of the bound
+   value. Fixed by extending the List-head match to also accept
+   FQDN keyword constructors.
+
+**Deferred follow-up (logged as task #189):**
+`render_value` (and assert-eq's actual/expected output) still
+emits bare forms even though substrate canonical is now FQDN.
+Flipping breaks ~1000+ lines of test assertion text. Separate
+cleanup slice; doesn't gate any other arc 109 work.
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record. First slice to apply
+Pattern 2 to AST-grammar exceptions (bare Symbol/Keyword at
+callable head) rather than substrate-registered verbs. The
+playbook is settled — slice 1i (Ok/Err) becomes mechanical
+extension to two more Symbol-headed-with-payload cases.**
 
 ## What this slice does
 
