@@ -1,6 +1,12 @@
 # Arc 118 — Lazy seqs vs threaded streams
 
-**Status:** scoping (2026-05-01) — captured during arc 109 K.telemetry mid-slice.
+**Status:** DESIGN settled 2026-05-01 — implementation deferred.
+
+This arc closes as DESIGN-only before arc 109 is marked resolved.
+The decision is locked: **lazy seqs implemented as
+closures + recursion + thunks (Option C below)**, with an
+optional generator macro layer for imperative-flavored ergonomics.
+Implementation work happens in a future session.
 
 **Relationship to arc 004:** Arc 004 (Lazy Sequences and Pipelines)
 already established Ruby's `Enumerator.new` + `Enumerator::Lazy` as
@@ -94,6 +100,98 @@ Threads have semantic justification.
 
 **Cost model:** one thread per stage, channels between stages, real
 parallelism, server-style back-pressure (channel bound).
+
+## Implementation strategy — closures, NOT fibers (settled 2026-05-01)
+
+A common reflex on hearing "lazy seqs in the Ruby Enumerator
+shape" is to reach for fibers (stackful coroutines). The user
+asked: "do we need to impl fibers proper to enable this?"
+
+**No — fibers aren't needed.** Lazy seqs in Clojure/Haskell are
+**closure-based, not fiber-based**. Three implementation
+strategies were on the table; the gaze converges on the third.
+
+| Strategy | How producers express themselves | Runtime cost | Substrate addition |
+|---|---|---|---|
+| **A — Threads** (today's `:wat::stream::*`) | imperative loop in `spawn-producer` body | OS thread + channel per stage; thread spawn ~15-50µs | already shipped; not honest for pure stages |
+| **B — Fibers** | imperative `loop do … yielder << x end` (Ruby flavor) | stackful coroutine + stack-switching primitive | NEW — would require either external Rust lib or hand-rolled context-switch |
+| **C — Closures + recursion** (Clojure/Haskell flavor) | recursive function returning `Cons(head, lazy-tail)` where lazy-tail is a closure | minimal — wat-rs already has closures, structs, TCO | minimal — `Seq<T>` enum (Cons \| Nil) + thunk + `force` operation |
+
+### Why C wins the four questions
+
+- **Obvious?** Recursion + closure is the Lisp-canonical shape.
+  No new control-flow primitive; readers see "function returns
+  data."
+- **Simple?** Smallest substrate addition. `Seq<T>` enum is a
+  struct definition + a `force` operation. No stack-switching, no
+  async runtime, no fiber scheduler.
+- **Honest?** Reach for the smallest mechanism that works.
+  Closures + recursion is what the substrate already has;
+  fibers would be a new runtime entity introduced just for
+  Ruby ergonomics.
+- **Good UX?** Pure functional pipelines compose naturally.
+  For users who want Ruby-imperative ergonomics, a generator
+  macro can rewrite `(generator ... (yield x) ...)` into the
+  recursive form at macro-expand time. **Same surface, no new
+  runtime.**
+
+### Clojure's pattern, in case the recursive shape isn't familiar
+
+```clojure
+(defn naturals
+  ([] (naturals 0))
+  ([n] (lazy-seq (cons n (naturals (inc n))))))
+```
+
+- `lazy-seq` wraps the body in a thunk.
+- `cons` returns a Cons cell with `head = n` and `tail = thunk`.
+- When the consumer forces the tail, the thunk runs and returns
+  another `lazy-seq` of `(cons (inc n) ...)`.
+- No fiber, no yield, no suspension primitive. Just a function
+  that returns data, which happens to contain a closure that,
+  when forced, returns more data.
+
+**Wat translation sketch (post-118):**
+
+```scheme
+(:wat::core::define
+  (:wat::seq::naturals (n :wat::core::i64) -> :wat::seq::Seq<wat::core::i64>)
+  (:wat::seq::cons-lazy
+    n
+    (:wat::core::lambda () -> :wat::seq::Seq<wat::core::i64>
+      (:wat::seq::naturals (:wat::core::i64::+ n 1)))))
+```
+
+The `cons-lazy` constructor takes a strict head and a thunk for
+the tail. Force the tail when consuming.
+
+### Why Ruby reaches for fibers (and why wat doesn't need to)
+
+Ruby's `loop do … yielder << x end` is **imperative control
+flow** — the `loop` keyword IS a construct that has to suspend
+mid-iteration. Fibers exist to make the imperative shape work.
+
+Wat is a Lisp. Recursion IS the loop. Each "next iteration" is
+literally the next call. Suspension is just "this thunk hasn't
+been forced yet." The imperative-vs-recursive choice is a
+language-shape decision, and Lisp's shape doesn't need fibers.
+
+### The macro layer (optional, future)
+
+Users who prefer Ruby ergonomics can have them via a
+`(:wat::seq::generator ...)` macro that rewrites `yield`
+calls into the recursive `cons-lazy` form at expand time:
+
+```scheme
+(:wat::seq::generator
+  (:wat::core::let* ((batch (fetch-page)))
+    (:wat::core::for-each batch
+      (:wat::core::lambda (item) (:wat::seq::yield item)))))
+;; macro-expands to recursive lazy-seq returning each item
+```
+
+The macro is a SURFACE convenience over the recursive runtime —
+no fiber, no stack-switching, just AST rewriting.
 
 ## The design tension
 
