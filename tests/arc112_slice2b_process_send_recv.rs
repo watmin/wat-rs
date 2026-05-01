@@ -31,10 +31,10 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
               (:wat::kernel::fork-program-ast
                 (:wat::core::Vector :wat::WatAST)))
              ;; process-send: must be matched (slice 3 grammar rule).
-             ;; Use result::expect to panic on disconnect; same shape
+             ;; Use Result/expect to panic on disconnect; same shape
              ;; sandbox.wat / hermetic.wat use for write paths.
              ((_sent :wat::core::unit)
-              (:wat::core::result::expect -> :wat::core::unit
+              (:wat::core::Result/expect -> :wat::core::unit
                 (:wat::kernel::process-send proc 42)
                 "send to forked program failed")))
             ;; process-recv: matched as scrutinee — three-state shape.

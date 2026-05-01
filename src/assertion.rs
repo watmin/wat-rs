@@ -57,7 +57,7 @@ pub struct AssertionPayload {
     /// path + where in the caller the invocation was written.
     pub frames: Vec<FrameInfo>,
     /// Arc 113 — chain of upstream deaths the panic inherits.
-    /// Set by `:wat::core::result::expect` when the Err arm carries
+    /// Set by `:wat::core::Result/expect` when the Err arm carries
     /// a `Vec<*DiedError>` (the post-arc-113 wire shape): the chain
     /// is extracted and stashed here so the spawn driver's
     /// catch_unwind can conj this thread's death onto the FRONT

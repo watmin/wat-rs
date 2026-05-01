@@ -177,7 +177,7 @@ fn try_propagates_bundle_err_across_function_boundary() {
         (:wat::core::define (:app::build-composite
                             (items :wat::holon::Holons)
                             -> :wat::holon::BundleResult)
-          (:wat::core::Ok (:wat::core::try (:wat::holon::Bundle items))))
+          (:wat::core::Ok (:wat::core::Result/try (:wat::holon::Bundle items))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::match (:app::build-composite {}) -> :wat::core::i64

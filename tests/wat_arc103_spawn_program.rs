@@ -60,7 +60,7 @@ fn unwrap_unit(v: Value) {
 /// Strip one `:wat::core::Result<T, _>` layer. Used to unwrap the test's
 /// `:user::main` return after arc 105a — main returns
 /// `:wat::core::Result<X, :wat::kernel::StartupError>` so that
-/// `:wat::core::try` can propagate spawn failures cleanly. On Err,
+/// `:wat::core::Result/try` can propagate spawn failures cleanly. On Err,
 /// the test fails with the captured StartupError message.
 fn unwrap_ok(v: Value) -> Value {
     match v {
@@ -82,7 +82,7 @@ fn spawn_program_ast_child_writes_stdout_parent_reads_line() {
                              -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
-              (:wat::core::try
+              (:wat::core::Result/try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
                     (:wat::core::define (:user::main
@@ -112,7 +112,7 @@ fn spawn_program_ast_round_trip_via_pipes() {
                              -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
-              (:wat::core::try
+              (:wat::core::Result/try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
                     (:wat::core::define (:user::main
@@ -149,7 +149,7 @@ fn spawn_program_ast_stdout_eof_after_child_returns() {
                              -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
-              (:wat::core::try
+              (:wat::core::Result/try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
                     (:wat::core::define (:user::main
@@ -186,7 +186,7 @@ fn spawn_program_ast_stderr_is_separate_pipe() {
                              -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
-              (:wat::core::try
+              (:wat::core::Result/try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
                     (:wat::core::define (:user::main
@@ -216,7 +216,7 @@ fn spawn_program_ast_join_returns_unit_on_clean_exit() {
                              -> :wat::core::Result<wat::core::unit,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
-              (:wat::core::try
+              (:wat::core::Result/try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
                     (:wat::core::define (:user::main
@@ -247,7 +247,7 @@ fn spawn_program_source_string_entry() {
             (((inner-src :wat::core::String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) (:wat::io::IOWriter/println stdout \"from-source\"))")
              ((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
-              (:wat::core::try (:wat::kernel::spawn-program inner-src :wat::core::None)))
+              (:wat::core::Result/try (:wat::kernel::spawn-program inner-src :wat::core::None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc)))
             (:wat::core::Ok (:wat::io::IOReader/read-line out-r))))

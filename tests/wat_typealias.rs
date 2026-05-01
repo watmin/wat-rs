@@ -178,7 +178,7 @@ fn alias_over_fn_type_works_at_spawn() {
             (((job :my::Job)
               (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                 (:wat::core::let*
-                  (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 7) "test producer: tx disconnected")))
+                  (((_ :wat::core::unit) (:wat::core::Result/expect -> :wat::core::unit (:wat::kernel::send tx 7) "test producer: tx disconnected")))
                   ())))
              ((pair :(rust::crossbeam_channel::Sender<wat::core::i64>,rust::crossbeam_channel::Receiver<wat::core::i64>))
               (:wat::kernel::make-bounded-queue :wat::core::i64 1))

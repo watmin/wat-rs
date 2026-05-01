@@ -185,7 +185,7 @@ fn try_inside_tail_recursive_function_short_circuits() {
 
         (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let*
-            (((valid :wat::core::i64) (:wat::core::try (:app::check n))))
+            (((valid :wat::core::i64) (:wat::core::Result/try (:app::check n))))
             (:wat::core::if (:wat::core::= valid 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
               (:wat::core::Ok 0)
               (:app::loop (:wat::core::i64::- valid 1)))))
@@ -213,7 +213,7 @@ fn try_inside_tail_recursive_function_propagates_err() {
 
         (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let*
-            (((valid :wat::core::i64) (:wat::core::try (:app::check n))))
+            (((valid :wat::core::i64) (:wat::core::Result/try (:app::check n))))
             (:wat::core::if (:wat::core::<= valid (:wat::core::i64::- 0 1)) -> :wat::core::Result<wat::core::i64,wat::core::String>
               (:wat::core::Ok 0)
               (:app::loop (:wat::core::i64::- valid 1)))))

@@ -6,7 +6,7 @@
 //! evaluation failures — verification mismatch, parse error,
 //! mutation-form refusal, unknown function at the call site, type
 //! mismatch inside the eval'd code — surface as Err values with
-//! `kind` and `message` fields. The `:wat::core::try` form
+//! `kind` and `message` fields. The `:wat::core::Result/try` form
 //! propagates the Err through a Result-returning helper; `match`
 //! at the caller handles both arms.
 //!
@@ -149,7 +149,7 @@ fn try_propagates_eval_err_through_helper() {
 
         (:wat::core::define (:app::run-dynamic (program :wat::WatAST)
                              -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::core::Ok (:wat::core::try (:wat::eval-ast! program))))
+          (:wat::core::Ok (:wat::core::Result/try (:wat::eval-ast! program))))
 
         (:wat::core::define (:user::main -> :wat::core::String)
           (:wat::core::let*

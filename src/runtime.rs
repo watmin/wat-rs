@@ -16730,7 +16730,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
-               ((_sent :()) (:wat::core::result::expect -> :()
+               ((_sent :()) (:wat::core::Result/expect -> :()
                               (:wat::kernel::send tx 42)
                               "roundtrip: send failed")))
               (:wat::core::match (:wat::kernel::recv rx) -> :i64
@@ -18023,7 +18023,7 @@ mod tests {
         let src = r#"
             (:wat::core::let*
               (((tx rx) (:wat::kernel::make-bounded-queue :i64 1))
-               ((_ :()) (:wat::core::result::expect -> :()
+               ((_ :()) (:wat::core::Result/expect -> :()
                           (:wat::kernel::send tx 7)
                           "try_recv_on_ready: send failed")))
               (:wat::core::match (:wat::kernel::try-recv rx) -> :i64

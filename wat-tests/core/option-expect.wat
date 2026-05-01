@@ -1,7 +1,7 @@
 ;; wat-tests/core/option-expect.wat — arc 108 unit tests for
-;; `:wat::core::option::expect`.
+;; `:wat::core::Option/expect`.
 ;;
-;; Form: (:wat::core::option::expect -> :T <opt> <msg>) — type
+;; Form: (:wat::core::Option/expect -> :T <opt> <msg>) — type
 ;; declared at HEAD position before any value producer (parallels
 ;; `match`'s `-> :T` placement, but the VALUE-producing role of the
 ;; opt-expr puts the type ahead of it). On `(Some v)` returns `v`;
@@ -20,7 +20,7 @@
   (:wat::core::let*
     (((opt :wat::core::Option<wat::core::i64>) (:wat::core::Some 42))
      ((v :wat::core::i64)
-      (:wat::core::option::expect -> :wat::core::i64
+      (:wat::core::Option/expect -> :wat::core::i64
         opt
         "should be Some")))
     (:wat::test::assert-eq v 42)))
@@ -33,7 +33,7 @@
   (:wat::core::let*
     (((opt :wat::core::Option<wat::core::String>) (:wat::core::Some "hello"))
      ((v :wat::core::String)
-      (:wat::core::option::expect -> :wat::core::String
+      (:wat::core::Option/expect -> :wat::core::String
         opt
         "should be Some")))
     (:wat::test::assert-eq v "hello")))
@@ -46,11 +46,11 @@
   (:wat::core::let*
     (((opt :wat::core::Option<wat::core::Option<wat::core::i64>>) (:wat::core::Some (:wat::core::Some 7)))
      ((inner :wat::core::Option<wat::core::i64>)
-      (:wat::core::option::expect -> :wat::core::Option<wat::core::i64>
+      (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
         opt
         "outer should be Some"))
      ((v :wat::core::i64)
-      (:wat::core::option::expect -> :wat::core::i64
+      (:wat::core::Option/expect -> :wat::core::i64
         inner
         "inner should be Some")))
     (:wat::test::assert-eq v 7)))
@@ -73,7 +73,7 @@
             (:wat::core::let*
               (((opt :wat::core::Option<wat::core::i64>) :wat::core::None)
                ((_v :wat::core::i64)
-                (:wat::core::option::expect -> :wat::core::i64
+                (:wat::core::Option/expect -> :wat::core::i64
                   opt
                   "broker disconnected")))
               ())))

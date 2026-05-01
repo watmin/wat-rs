@@ -1,7 +1,7 @@
 ;; wat-tests/core/result-expect.wat — arc 108 unit tests for
-;; `:wat::core::result::expect`.
+;; `:wat::core::Result/expect`.
 ;;
-;; Form: (:wat::core::result::expect -> :T <res> <msg>). On
+;; Form: (:wat::core::Result/expect -> :T <res> <msg>). On
 ;; `(Ok v)` returns `v`; on `(Err _)` panics with the msg (the
 ;; carried Err value is discarded — the message names the
 ;; contract).
@@ -14,7 +14,7 @@
   (:wat::core::let*
     (((res :wat::core::Result<wat::core::i64,wat::core::String>) (:wat::core::Ok 99))
      ((v :wat::core::i64)
-      (:wat::core::result::expect -> :wat::core::i64
+      (:wat::core::Result/expect -> :wat::core::i64
         res
         "should be Ok")))
     (:wat::test::assert-eq v 99)))
@@ -27,7 +27,7 @@
   (:wat::core::let*
     (((res :wat::core::Result<wat::core::String,wat::core::i64>) (:wat::core::Ok "yes"))
      ((v :wat::core::String)
-      (:wat::core::result::expect -> :wat::core::String
+      (:wat::core::Result/expect -> :wat::core::String
         res
         "should be Ok")))
     (:wat::test::assert-eq v "yes")))
@@ -50,7 +50,7 @@
             (:wat::core::let*
               (((res :wat::core::Result<wat::core::i64,wat::core::String>) (:wat::core::Err "rundb crashed"))
                ((_v :wat::core::i64)
-                (:wat::core::result::expect -> :wat::core::i64
+                (:wat::core::Result/expect -> :wat::core::i64
                   res
                   "expected Ok value")))
               ())))

@@ -41,7 +41,7 @@
            (:wat::holon::filter-coincident)
            16))
         ((len :wat::core::i64) (:wat::holon::lru::HologramCache/len cache)))
-       (:wat::core::result::expect -> :wat::core::unit
+       (:wat::core::Result/expect -> :wat::core::unit
          (:wat::kernel::send out len)
          "trivial-worker: out disconnected — parent dropped Thread/output?")))
 
@@ -81,7 +81,7 @@
      (:wat::core::let*
        (((count :wat::core::i64)
          (:wat-tests::holon::lru::HologramCacheService::count-recv rx 0)))
-       (:wat::core::result::expect -> :wat::core::unit
+       (:wat::core::Result/expect -> :wat::core::unit
          (:wat::kernel::send out count)
          "counter-worker: out disconnected — parent dropped Thread/output?")))
 
@@ -113,7 +113,7 @@
         ((len :wat::core::i64)
          (:wat::holon::lru::HologramCache/len
            (:wat::holon::lru::HologramCacheService::State/cache final))))
-       (:wat::core::result::expect -> :wat::core::unit
+       (:wat::core::Result/expect -> :wat::core::unit
          (:wat::kernel::send out len)
          "loop-then-len-worker: out disconnected — parent dropped Thread/output?")))))
 
@@ -127,8 +127,8 @@
      ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>)
       (:wat::kernel::Thread/output thr))
      ((_len :wat::core::i64)
-      (:wat::core::option::expect -> :wat::core::i64
-        (:wat::core::result::expect -> :wat::core::Option<wat::core::i64>
+      (:wat::core::Option/expect -> :wat::core::i64
+        (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
           (:wat::kernel::recv rx)
           "step1: thread died before sending len")
         "step1: thread output closed without sending len")))
@@ -159,23 +159,23 @@
                -> :wat::core::unit)
               (:wat-tests::holon::lru::HologramCacheService::counter-worker rx out))))
          ((_s1 :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx 10)
             "step2 send 10: peer disconnected"))
          ((_s2 :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx 20)
             "step2 send 20: peer disconnected"))
          ((_s3 :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx 30)
             "step2 send 30: peer disconnected")))
         h))
      ((count-rx :rust::crossbeam_channel::Receiver<wat::core::i64>)
       (:wat::kernel::Thread/output thr))
      ((count :wat::core::i64)
-      (:wat::core::option::expect -> :wat::core::i64
-        (:wat::core::result::expect -> :wat::core::Option<wat::core::i64>
+      (:wat::core::Option/expect -> :wat::core::i64
+        (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
           (:wat::kernel::recv count-rx)
           "step2: thread died before sending count")
         "step2: thread output closed without sending count")))
@@ -223,17 +223,17 @@
          ((k3 :wat::holon::HolonAST) (:wat::holon::leaf :gamma))
          ((v3 :wat::holon::HolonAST) (:wat::holon::leaf :gv))
          ((_p1 :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Put k1 v1))
             "step3 send Put k1: peer disconnected"))
          ((_p2 :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Put k2 v2))
             "step3 send Put k2: peer disconnected"))
          ((_p3 :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Put k3 v3))
             "step3 send Put k3: peer disconnected")))
@@ -241,8 +241,8 @@
      ((len-rx :rust::crossbeam_channel::Receiver<wat::core::i64>)
       (:wat::kernel::Thread/output thr))
      ((len :wat::core::i64)
-      (:wat::core::option::expect -> :wat::core::i64
-        (:wat::core::result::expect -> :wat::core::Option<wat::core::i64>
+      (:wat::core::Option/expect -> :wat::core::i64
+        (:wat::core::Result/expect -> :wat::core::Option<wat::core::i64>
           (:wat::kernel::recv len-rx)
           "step3: thread died before sending len")
         "step3: thread output closed without sending len")))
@@ -299,12 +299,12 @@
          ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
          ((v :wat::holon::HolonAST) (:wat::holon::leaf :av))
          ((_p :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send req-tx
               (:wat::holon::lru::HologramCacheService::Request::Put k v))
             "step4 send Put: peer disconnected"))
          ((_g :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send req-tx
               (:wat::holon::lru::HologramCacheService::Request::Get k reply-tx))
             "step4 send Get: peer disconnected"))
@@ -367,12 +367,12 @@
 
          ;; Client A: Put + Get on alpha
          ((_pa :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx-a
               (:wat::holon::lru::HologramCacheService::Request::Put k-a v-a))
             "step5 client-a send Put: peer disconnected"))
          ((_ga :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx-a
               (:wat::holon::lru::HologramCacheService::Request::Get k-a reply-tx-a))
             "step5 client-a send Get: peer disconnected"))
@@ -387,12 +387,12 @@
 
          ;; Client B: Put + Get on beta
          ((_pb :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx-b
               (:wat::holon::lru::HologramCacheService::Request::Put k-b v-b))
             "step5 client-b send Put: peer disconnected"))
          ((_gb :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx-b
               (:wat::holon::lru::HologramCacheService::Request::Get k-b reply-tx-b))
             "step5 client-b send Get: peer disconnected"))
@@ -449,24 +449,24 @@
 
          ;; Three puts at cap=2; k1 gets evicted by k3.
          ((_p1 :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Put k1 v))
             "step6 send Put k1: peer disconnected"))
          ((_p2 :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Put k2 v))
             "step6 send Put k2: peer disconnected"))
          ((_p3 :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Put k3 v))
             "step6 send Put k3: peer disconnected"))
 
          ;; Get k1 — evicted, expect None.
          ((_g1 :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Get k1 reply-tx))
             "step6 send Get k1: peer disconnected"))
@@ -481,7 +481,7 @@
 
          ;; Get k2 — survived, expect Some.
          ((_g2 :wat::core::unit)
-          (:wat::core::result::expect -> :wat::core::unit
+          (:wat::core::Result/expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Get k2 reply-tx))
             "step6 send Get k2: peer disconnected"))
