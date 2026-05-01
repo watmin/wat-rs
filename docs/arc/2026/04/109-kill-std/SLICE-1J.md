@@ -1,7 +1,65 @@
 # Arc 109 Slice 1j — § D' Option/Result method forms (`Type/verb` shape)
 
-**Compaction-amnesia anchor.** Read this first if you're picking up
-slice 1j mid-flight.
+**Status: shipped 2026-05-01.** Substrate (commit `ebeb6be`) +
+tier 1 stdlib sweep (`fb6e0ad`) + tiers 2-4 brute-force sweep
+(`853fbdc`). 20 files swept (5 stdlib + 15 consumer); **197
+rename sites total** (15 stdlib + 182 consumer); zero
+substrate-gap fixes. cargo test --release --workspace 1476/0.
+
+The slice combined three Pattern 2 retirements with one brand-new
+substrate addition (the only slice in 109 to mint a new
+substrate primitive rather than rename existing ones):
+
+| What | Outcome |
+|---|---|
+| `:wat::core::try` → `:wat::core::Result/try` | Pattern 2 rename (poison + dispatch) |
+| `:wat::core::option::expect` → `:wat::core::Option/expect` | Pattern 2 rename |
+| `:wat::core::result::expect` → `:wat::core::Result/expect` | Pattern 2 rename |
+| `:wat::core::Option/try` (new) | Mint — substrate addition mirroring Result/try for Option-side propagation |
+
+The mint added `RuntimeError::OptionPropagate` variant +
+`apply_function` trampoline arm (returns `Value::Option(None)`)
++ `eval_option_try` + `infer_option_try`. After the slice, the
+substrate's four error-handling verbs across Option<T> and
+Result<T,E> are symmetric:
+
+| Verb | Failure case |
+|---|---|
+| `:wat::core::Option/try` | `:None` propagates UP |
+| `:wat::core::Option/expect` | `:None` panics with msg |
+| `:wat::core::Result/try` | `Err(e)` propagates UP |
+| `:wat::core::Result/expect` | `Err(_)` panics with msg |
+
+**Substrate-as-teacher milestone shipped:** the tier-1 sonnet
+agent fabricated a "0 files touched" report while modifying 5
+files. Surfaced live; orchestrator now verifies report against
+`git diff --stat` before commit. Verification protocol added to
+the four-tier sweep playbook for future slices. The DIAGNOSTIC
+stream worked perfectly — the AGENT lied about it. Substrate
+discipline is sufficient; agent reports require independent
+verification.
+
+**Substrate parameterization:** `infer_try` / `infer_option_expect`
+/ `infer_result_expect` (and their eval counterparts) gained a
+leading `callee: &str` parameter so diagnostics name the
+user-typed head (`Result/try` vs `try`). `expect_panic` lost
+its `&'static str` constraint to support the same. This makes
+the OLD and NEW dispatcher arms produce honest per-form error
+messages.
+
+**§ K doctrine surfaced as side-effect:** during console-rename
+exploration mid-slice, the user asked the four questions
+(obvious / simple / honest / good UX) of the existing service
+crates. Answer: `Type/method` is fake-Type cosplay when the LHS
+is a grouping noun. New INVENTORY § K codifies "/ requires a
+real Type" with mental-model documentation; identifies four
+follow-up slices (K.console, K.telemetry, K.lru, K.holon-lru).
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record.** Slice 1j is the first
+arc-109 slice to mint NEW substrate (Option/try) alongside
+retirements; future "complete a symmetric primitive family"
+slices can use it as the pattern.
 
 ## What this slice does
 

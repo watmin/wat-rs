@@ -91,6 +91,29 @@ order is preserved.
   `SLICE-1I.md`. **§ C structurally complete**: substrate has
   zero bare-symbol-at-callable-head exceptions; the "callable
   heads must be FQDN keywords" rule is universal.
+- 1j: § D' Option/Result method forms — Type/verb shape — shipped
+  2026-05-01. Three Pattern 2 retirements (`:wat::core::try` →
+  `:wat::core::Result/try`; `option::expect` → `Option/expect`;
+  `result::expect` → `Result/expect`) PLUS one brand-new
+  substrate addition: `:wat::core::Option/try` (mirrors
+  Result/try; propagates `:None` via new
+  `RuntimeError::OptionPropagate` variant + apply_function
+  trampoline arm). 20 files swept (5 stdlib + 15 consumer);
+  **197 rename sites total** (15 stdlib + 182 consumer); zero
+  substrate-gap fixes; cargo test workspace 1476/0
+  (commits ebeb6be → 853fbdc; SLICE-1J.md). **§ D' structurally
+  complete**: Option<T> and Result<T,E> have symmetric four-verb
+  branching (Option/try, Option/expect, Result/try,
+  Result/expect).
+- § K (DOCTRINE captured): "/ requires a real Type" — substrate-
+  wide rule that the `/` separator earns its place only when the
+  LHS is a real Type (struct / parametric kind / substrate
+  primitive). Identifies four grouping-noun cleanups (K.console,
+  K.telemetry, K.lru, K.holon-lru) for future slices. Includes
+  full mental model: Type/method is UFCS, not OOP; stateful
+  instances come in pure-value (Stats/Bytes) and handle
+  (HandlePool/Sender) flavors; encapsulation is namespace-driven.
+  Doctrine-only; no code changes yet (commits bf51fa2 + fef399c).
 - § J 10a: `:wat::kernel::Program<I,O>` typealias minted (alias for `:Process<I,O>`)
 - § J 10b: sonnet sweep — annotations prefer Program (in scope of stdlib boundaries)
 - Arc 114 absorbed § J 10c's "Thread as concrete struct"
@@ -129,7 +152,35 @@ infrastructure:
    typealias bodies + chain emit + chain parse. Depends on § J's
    `ProgramDiedError` supertype.
 
-### Independent sweeps (do NOT depend on § J)
+### § K cleanups (driven by the "/ requires a real Type" doctrine)
+
+Doctrine captured 2026-05-01 as INVENTORY § K. Four cleanups,
+each its own slice; each is sonnet-delegatable via Pattern 2 verb
+retirement (the OLD `Type/verb` heads emit synthetic TypeMismatch
+poisoning to the NEW namespace-level forms).
+
+4. **Slice K.console** — `:wat::std::service::Console::*` →
+   `:wat::console::*` (typealiases at namespace level; verbs lose
+   `Console/` prefix and become bare `:wat::console::spawn`,
+   `:wat::console::loop`, `:wat::console::out`, etc.). Subsumes
+   the original § 9e plan (file-path move
+   `wat/std/service/Console.wat` → `wat/console.wat`).
+
+5. **Slice K.telemetry** — `:wat::telemetry::Service::*` (the
+   grouping noun's pseudo-children) flattens to
+   `:wat::telemetry::*`. `Service/spawn`, `/loop`, `/tick`,
+   `/extend`, `/maybe`, `/drain`, `/run`, `/bump`, `/batch`,
+   `/null`, `/pair`, `/ack` become bare `:wat::telemetry::<verb>`.
+   Real types (Stats, MetricsCadence) keep their /methods because
+   they ARE structs.
+
+6. **Slice K.lru** — audit `:wat::lru::CacheService`. Real struct
+   → keeps /methods. Grouping noun → flatten verbs.
+
+7. **Slice K.holon-lru** — same audit + treatment for
+   `:wat::holon::lru::HologramCacheService`.
+
+### Independent sweeps (do NOT depend on § J or § K)
 
 These are parallel-shippable; sonnet-delegatable with the
 substrate's diagnostic stream as the brief (Pattern 3 from
@@ -311,6 +362,53 @@ slice plans name.
                   zero substrate-gap fixes; cargo test workspace
                   1476/0 (commits 1dea484 → e59a077; SLICE-1G.md)
 
+[done]  arc 109 slice 1h — Option variants FQDN
+                  (Some → :wat::core::Some; :None → :wat::core::None);
+                  first slice to apply Pattern 2 to AST-grammar
+                  exceptions (bare Symbol + bare Keyword at callable
+                  head). 69 files swept across four tiers; ~542
+                  rename sites (249 Some + 293 :None); 2 substrate-
+                  gap fixes (pattern_coverage user-enum hijack +
+                  is_match_canonical bare-only); cargo test
+                  workspace 1476/0 (SLICE-1H.md)
+
+[done]  arc 109 slice 1i — Result variants FQDN
+                  (Ok → :wat::core::Ok; Err → :wat::core::Err);
+                  mechanical extension of 1h (Ok/Err same shape as
+                  Some — Symbol-headed-with-payload). 39 files
+                  swept; ~337 rename sites (280 patterns + 57
+                  constructors); 2 substrate-gap fixes mirroring
+                  1h (MatchShape FQDN + try_match_pattern FQDN);
+                  cargo test workspace 1476/0
+                  (commits 35e44dc → c7ab499; SLICE-1I.md).
+                  § C structurally complete — bare-symbol-at-
+                  callable-head exception universally closed.
+
+[done]  arc 109 slice 1j — § D' Option/Result method forms
+                  (Type/verb shape; Pattern 2 retirement of three
+                  verbs + brand-new Option/try mint). 20 files
+                  swept (5 stdlib + 15 consumer); 197 rename sites
+                  total (15 stdlib + 182 consumer); 0 substrate-
+                  gap fixes; cargo test workspace 1476/0
+                  (commits ebeb6be → 853fbdc; SLICE-1J.md). § D'
+                  structurally complete — Option<T> and
+                  Result<T,E> have symmetric four-verb branching
+                  (Option/try, Option/expect, Result/try,
+                  Result/expect). Brand-new
+                  RuntimeError::OptionPropagate variant + apply_
+                  function trampoline arm + eval_option_try +
+                  infer_option_try.
+
+[done]  arc 109 § K — DOCTRINE captured (commits bf51fa2 +
+                  fef399c). New INVENTORY section codifying the
+                  rule "/ requires a real Type"; identifies four
+                  grouping-noun cleanups (K.console, K.telemetry,
+                  K.lru, K.holon-lru) for future slices. Includes
+                  full mental model: Type/method is UFCS, not OOP;
+                  stateful instances come in pure-value and
+                  handle flavors; encapsulation is namespace-
+                  driven. Doctrine-only; no code changes yet.
+
 [next]  § J 10d — typeclass dispatch + ProgramDiedError supertype
                   (mint ProgramDiedError; mint Program<I,O> as
                   abstract protocol; mint poly Program/join-result;
@@ -328,11 +426,19 @@ slice plans name.
                   element-type change in the typealiases)
 
 [parallel-shippable, sonnet-delegatable] independent sweeps:
-        § J 1c (retire bare primitive types in user code)         ← resuming next
-        § J 1d (mint :wat::core::unit; retire :() as type)
-        § J 9d (:wat::std::stream::* → :wat::stream::*)
-        § J 9e (:wat::std::service::Console::* → :wat::console::Console::*)
-        § J 9f-9i (file-path moves for already-honest-symbol files)
+        § 9d (:wat::std::stream::* → :wat::stream::*)
+        § 9f-9i (file-path moves for already-honest-symbol files)
+
+        § K.console (Console grouping noun → :wat::console::*
+                     flatten; SUBSUMES the original § 9e plan
+                     under the / requires a real Type doctrine —
+                     see INVENTORY § K)
+        § K.telemetry (Service grouping noun → :wat::telemetry::*
+                       flatten; real types Stats / MetricsCadence
+                       keep their /methods)
+        § K.lru (audit CacheService; flatten if grouping)
+        § K.holon-lru (audit HologramCacheService; flatten if
+                       grouping)
 
         arc 109 INSCRIPTION — closes the entire arc + 058 row
 ```

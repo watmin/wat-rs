@@ -144,23 +144,20 @@ reads as "construct a Vector of T from these elements."
 
 ## D'. `Option` / `Result` method forms — `Type/verb` shape
 
-Companions to Section B's type renames. The two arc-108 special
-forms (`:wat::core::option::expect` / `:wat::core::result::expect`)
-get reshaped to PascalCase-Type + slash-verb (matching the
-`Stats/new`, `MetricsCadence/new`, `HandlePool/pop` family),
-and `:wat::core::try` — currently Result-only — splits into
-`Result/try` plus a new `Option/try` for the matching propagation
-on `:None`.
+**§ D' structurally complete (post-1j).** All four branching
+verbs across `Option<T>` and `Result<T,E>` ship in the symmetric
+`Type/verb` shape; `Option/try` is brand new (slice 1j's only
+substrate addition).
 
-| Today | After arc 109 |
-|---|---|
-| `:wat::core::try` (Result-only propagate) | `:wat::core::Result/try` |
-| (does not exist) | `:wat::core::Option/try` (new) |
-| `:wat::core::option::expect` | `:wat::core::Option/expect` |
-| `:wat::core::result::expect` | `:wat::core::Result/expect` |
+| Today | After arc 109 | Status |
+|---|---|---|
+| `:wat::core::try` (Result-only propagate) | `:wat::core::Result/try` | ✓ shipped slice 1j (Pattern 2 rename) |
+| (did not exist) | `:wat::core::Option/try` | ✓ shipped slice 1j (substrate addition) |
+| `:wat::core::option::expect` | `:wat::core::Option/expect` | ✓ shipped slice 1j (Pattern 2 rename) |
+| `:wat::core::result::expect` | `:wat::core::Result/expect` | ✓ shipped slice 1j (Pattern 2 rename) |
 
-After arc 109, the four branching verbs across `Option<T>` and
-`Result<T,E>` are symmetric:
+The four branching verbs across Option<T> and Result<T,E> are now
+symmetric:
 
 | Verb | Failure case | Where |
 |---|---|---|
@@ -169,20 +166,19 @@ After arc 109, the four branching verbs across `Option<T>` and
 | `:wat::core::Result/try` | `Err(e)` propagates UP | inside a fn returning `:wat::core::Result<_, E>` |
 | `:wat::core::Result/expect` | `Err(_)` panics with msg | anywhere |
 
-The `Type/verb` form mirrors the existing struct-method
-convention. Substrate dispatch in `src/check.rs` and
-`src/runtime.rs` adds `infer_option_try` (sibling of `infer_try`,
-checks the enclosing fn returns `:wat::core::Option<_>`) and
-`eval_option_try` (returns inner on Some; raises
-`RuntimeError::TryPropagate` carrying `None` on `:None`). The
-existing `eval_try` / `infer_try` get renamed to
-`eval_result_try` / `infer_result_try` along the way; semantics
-unchanged.
+Substrate work shipped: new `RuntimeError::OptionPropagate`
+variant + `apply_function` trampoline arm (caught at the
+innermost function/lambda boundary, converts to
+`Value::Option(Arc::new(None))`); new `eval_option_try` +
+`infer_option_try` (mirror of the Result-side path; checks
+enclosing fn returns `:Option<_>`). The dispatcher
+parameterized `infer_try` / `infer_option_expect` /
+`infer_result_expect` (and their eval counterparts) with a
+leading `callee: &str` so diagnostics name the user-typed head.
 
-**Slicing note:** this section's renames + new form ride along
-with Section B (which renames `Option<T>` and `Result<T,E>` as
-types). The verb dispatch arms move at the same time as their
-type heads; consumers update both in one sweep per call site.
+20 files swept (5 stdlib + 15 consumer); 197 rename sites total
+(15 stdlib + 182 consumer); zero substrate-gap fixes. cargo test
+workspace 1476/0 (commits `ebeb6be` → `853fbdc`; SLICE-1J.md).
 
 ## E. Special markers
 
