@@ -91,6 +91,26 @@ SUBSTRATE-AS-TEACHER):
 7. **9f–9i** — file-path moves for already-honest-symbol files
    (the file location catches up with the symbol path).
 
+### Discovered-during-sweep follow-ups (lower priority)
+
+Arc 109 is append-only as we find things. Items below were
+surfaced during slice work, are real, but rank below the planned
+slices.
+
+- **1d post-rename: `:wat::core::unit` → `:wat::core::Unit`.**
+  Surfaced during slice 1d via /gaze. Lowercase `unit` mumbles in
+  the company of `Vec`/`Option`/`Result`/`HashMap`/`HashSet`
+  (substrate-named PascalCase types) and borderline-lies by
+  pattern-matching to the lowercase verb-path family
+  (`:wat::core::map`, `:wat::core::filter`, etc.). The Rust-
+  primitive-lowercase argument doesn't apply: Rust has no `unit`
+  keyword, so the wat name is invented and falls under wat's
+  nominal-type taxonomy, where typed-things are PascalCase. Cheap
+  to flip post-1d-sweep: `s/::unit/::Unit/g` plus walker emit
+  string + alias name; substrate-as-teacher mechanism re-runs to
+  verify. Do AFTER slice 1d's sweep finishes — small judgment
+  call, big-blast-radius rename, but the mechanism is rehearsed.
+
 ## The opus / sonnet split
 
 **Opus territory (rich context, architectural decisions):**
