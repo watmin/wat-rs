@@ -64,8 +64,8 @@
           "ping-pong-fork: send to child failed"))
        ((pong :demo::Pong)
         (:wat::core::match (:wat::kernel::process-recv proc) -> :demo::Pong
-          ((Ok (Some v)) v)
-          ((Ok :None)
+          ((Ok (:wat::core::Some v)) v)
+          ((Ok :wat::core::None)
            (:wat::core::panic! "ping-pong-fork: child closed stdout early"))
           ((Err _died)
            (:wat::core::panic! "ping-pong-fork: child died"))))
@@ -110,8 +110,8 @@
             (stdout :wat::io::IOWriter)
             -> :())
           (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
-            (:None ())
-            ((Some line)
+            (:wat::core::None ())
+            ((:wat::core::Some line)
              (:wat::core::let*
                (((ping :demo::Ping) (:wat::edn::read line))
                 ((n    :i64)         (:demo::Ping/n ping))

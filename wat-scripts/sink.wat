@@ -18,8 +18,8 @@
     (last   :i64)
     -> :i64)
   (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :i64
-    (:None last)
-    ((Some line)
+    (:wat::core::None last)
+    ((:wat::core::Some line)
      (:wat::core::let*
        (((partial :demo::Partial) (:wat::edn::read line))
         ((sum     :i64)           (:demo::Partial/sum partial)))

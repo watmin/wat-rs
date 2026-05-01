@@ -22,8 +22,8 @@
     (stdout :wat::io::IOWriter)
     -> :())
   (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
-    (:None ())
-    ((Some line)
+    (:wat::core::None ())
+    ((:wat::core::Some line)
      (:wat::core::let*
        (((ping :demo::Ping) (:wat::edn::read line))
         ((n    :i64)         (:demo::Ping/n ping))

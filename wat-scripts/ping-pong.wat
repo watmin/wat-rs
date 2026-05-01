@@ -62,8 +62,8 @@
           "ping-pong: send to child failed"))
        ((pong :demo::Pong)
         (:wat::core::match (:wat::kernel::process-recv proc) -> :demo::Pong
-          ((Ok (Some v)) v)
-          ((Ok :None)
+          ((Ok (:wat::core::Some v)) v)
+          ((Ok :wat::core::None)
            (:wat::core::panic! "ping-pong: child closed stdout early"))
           ((Err _died)
            (:wat::core::panic! "ping-pong: child died"))))
@@ -104,7 +104,7 @@
      ;; means the embedded child source has a startup error —
      ;; demo author's bug, panic is the right surface.
      ((proc :wat::kernel::Process<demo::Ping,demo::Pong>)
-      (:wat::core::match (:wat::kernel::spawn-program child-src :None)
+      (:wat::core::match (:wat::kernel::spawn-program child-src :wat::core::None)
         -> :wat::kernel::Process<demo::Ping,demo::Pong>
         ((Ok p) p)
         ((Err err)

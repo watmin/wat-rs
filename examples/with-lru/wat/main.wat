@@ -35,5 +35,5 @@
      ((got :wat::core::Option<wat::core::i64>)
       (:wat::lru::LocalCache::get cache "answer")))
     (:wat::core::match got -> :wat::core::unit
-      ((Some v) (:wat::io::IOWriter/println stdout "hit"))
-      (:None    (:wat::io::IOWriter/println stdout "miss")))))
+      ((:wat::core::Some v) (:wat::io::IOWriter/println stdout "hit"))
+      (:wat::core::None    (:wat::io::IOWriter/println stdout "miss")))))

@@ -40,8 +40,8 @@
     (out :wat::io::IOWriter)
     -> :())
   (:wat::core::match (:wat::io::IOReader/read-line in) -> :()
-    (:None ())
-    ((Some line)
+    (:wat::core::None ())
+    ((:wat::core::Some line)
      (:wat::core::let*
        (((_ :()) (:wat::io::IOWriter/println out line)))
        (:demo::dispatch::pump in out)))))
@@ -64,7 +64,7 @@
      ((qp      :String) (:demo::Job/query-program job))
      ((src     :String) (:wat::io::read-file qp))
      ((proc    :wat::kernel::Process<(),()>)
-      (:wat::core::try (:wat::kernel::spawn-program src :None)))
+      (:wat::core::try (:wat::kernel::spawn-program src :wat::core::None)))
      ((in-w    :wat::io::IOWriter)             (:wat::kernel::Process/stdin proc))
      ((_w      :i64)                           (:wat::io::IOWriter/write-string in-w db-path))
      ((_close  :())                            (:wat::io::IOWriter/close in-w))
@@ -85,10 +85,10 @@
     (stderr :wat::io::IOWriter)
     -> :())
   (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
-    (:None
+    (:wat::core::None
       (:wat::io::IOWriter/println stderr
         "dispatch: expected a #demo/Job EDN line on stdin"))
-    ((Some line)
+    ((:wat::core::Some line)
      (:wat::core::let*
        (((job    :demo::Job)                            (:wat::edn::read line))
         ((result :Result<(),wat::kernel::StartupError>) (:demo::dispatch::run job stdout)))

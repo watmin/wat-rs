@@ -114,14 +114,14 @@
   (:wat::core::match
     (:wat::telemetry::Event::Log/data-value event)
     -> :wat::core::bool
-    ((Some trade)
+    ((:wat::core::Some trade)
       (:wat::form::matches? trade
         (:demo::Trade
           (= ?side :side)
           (= ?qty :qty)
           (= ?side "buy")
           (> ?qty 10))))
-    (:None false)))
+    (:wat::core::None false)))
 
 
 ;; ─── Entry ──────────────────────────────────────────────────────

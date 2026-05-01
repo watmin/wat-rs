@@ -76,10 +76,10 @@
     (stderr :wat::io::IOWriter)
     -> :())
   (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
-    (:None
+    (:wat::core::None
       (:wat::io::IOWriter/println stderr
         "seed-fixture: expected an output .db path on stdin"))
-    ((Some path)
+    ((:wat::core::Some path)
       (:wat::core::let*
         (((driver :wat::kernel::ProgramHandle<()>)
           (:demo::seed::write path))

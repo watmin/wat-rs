@@ -23,8 +23,8 @@
     (stdout :wat::io::IOWriter)
     -> :())
   (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
-    (:None ())
-    ((Some line)
+    (:wat::core::None ())
+    ((:wat::core::Some line)
      (:wat::core::let*
        (((event :demo::Event) (:wat::edn::read line))
         ((n     :i64)         (:demo::Event/n event))

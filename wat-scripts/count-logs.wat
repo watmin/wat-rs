@@ -16,10 +16,10 @@
     (stderr :wat::io::IOWriter)
     -> :())
   (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
-    (:None
+    (:wat::core::None
       (:wat::io::IOWriter/println stderr
         "count-logs: expected a .db path on stdin"))
-    ((Some path)
+    ((:wat::core::Some path)
       (:wat::core::let*
         (((handle :wat::sqlite::ReadHandle)
           (:wat::sqlite::open-readonly path))
