@@ -152,46 +152,137 @@ When ANY fail, the discipline doesn't apply:
   same type signature) need a different mechanism — usually a
   specifically-named test harness or a runtime assertion.
 
-## Poison patterns
+## Three migration patterns — pick by what's actually changing
 
-For arcs that retire a verb outright (e.g., arc 114's
-`:wat::kernel::spawn`), the substrate poisons the verb at the
-type-checker so every call site fails. Two patterns:
+The substrate-as-teacher discipline applies in three shapes,
+distinguished by where the diagnostic naturally surfaces. Picking
+the right one keeps the diagnostic stream coherent — every error
+*kind* names a real rule, no synthetic dressing.
 
-### Synthetic TypeMismatch in a special-case dispatcher
+### Pattern 1 — Type-shape change (arcs 111 / 112 / 113)
 
-When the verb has its own special-case (variadic, polymorphic),
-push a synthetic `CheckError::TypeMismatch` at the start of the
-dispatcher with carefully-chosen `expected` / `got` strings the
-hint detects:
+**When:** the change is to a TYPE SIGNATURE that ripples through
+unification (`:Option<T>` → `:Result<:Option<T>,E>`,
+`:E` → `:Vec<:E>`). Old call sites mismatch *naturally* against
+the new signature.
+
+**Mechanism:** keep `CheckError::TypeMismatch` (already firing
+from unification); add `arc_NNN_migration_hint(callee, expected,
+got) -> Option<String>` that detects the shape pair and appends
+the brief.
 
 ```rust
-fn infer_spawn(...) -> Option<TypeExpr> {
-    errors.push(CheckError::TypeMismatch {
-        callee: ":wat::kernel::spawn".into(),
-        param: "(retired verb)".into(),
-        expected: ":wat::kernel::spawn-thread".into(),
-        got: ":wat::kernel::spawn".into(),
-    });
-    // ... continue inferring args so additional mismatches surface ...
+fn arc_111_migration_hint(_callee: &str, expected: &str, got: &str) -> Option<String> {
+    let arc_marker = "wat::kernel::ThreadDiedError";
+    let expected_has = expected.contains(arc_marker);
+    let got_has = got.contains(arc_marker);
+    if expected_has == got_has { return None; }
+    Some("arc 111 — send/recv lifted to Result<Option<T>,ThreadDiedError>; ...".into())
 }
 ```
 
-### New dispatcher arms in `infer_list`
+The hint rides through `collect_hints` → existing
+`TypeMismatch::diagnostic()` → user-facing diagnostic. Nothing
+synthetic. The diagnostic kind ("TypeMismatch") is honest — types
+genuinely mismatched.
 
-When the verb goes through normal scheme dispatch, intercept it
-in `infer_list` BEFORE scheme lookup:
+### Pattern 2 — Verb retirement (arc 114)
+
+**When:** a NAMED verb retires; the new verb has a different shape
+or a different name. Old call sites still parse, but the verb's
+dispatcher is the natural choke point.
+
+**Mechanism:** push synthetic `CheckError::TypeMismatch` from the
+verb's dispatcher (or a new arm in `infer_list` before scheme
+lookup) with carefully-chosen `expected` / `got` strings the hint
+detects:
 
 ```rust
 ":wat::kernel::join" => {
-    errors.push(CheckError::TypeMismatch { ... });
+    errors.push(CheckError::TypeMismatch {
+        callee: ":wat::kernel::join".into(),
+        param: "(retired verb)".into(),
+        expected: ":wat::kernel::Thread/join-result".into(),
+        got: ":wat::kernel::join".into(),
+    });
     for arg in args { let _ = infer(arg, ...); }
     return Some(fresh.fresh());
 }
 ```
 
-Both shapes leave the `callee` field set to the retired verb
-name so `arc_NNN_migration_hint` can detect it.
+Pair with `arc_NNN_migration_hint` that detects the retired verb
+in the `callee` field. The diagnostic kind ("TypeMismatch") is a
+small honesty stretch — no actual type mismatched, the verb is
+gone — but the dispatcher convention is well-established and the
+hint clarifies.
+
+### Pattern 3 — Symbol migration (arc 109's class)
+
+**When:** a SYMBOL (type name, namespace path) retires; the new
+symbol has the same shape but a different keyword path. No type-
+shape break; no verb dispatcher to hook into. Examples:
+`:i64` → `:wat::core::i64` (slice 1c), `:()` →
+`:wat::core::unit` (1d), `:wat::std::stream::*` →
+`:wat::stream::*` (9d).
+
+**Mechanism:** mint a dedicated `CheckError` variant per
+migration class; add a walker that visits the program after type
+inference and emits the variant per offending site. The variant's
+`Display` IS the migration brief — no `arc_NNN_migration_hint`
+helper, no `collect_hints` involvement.
+
+```rust
+pub enum CheckError {
+    BareLegacyPrimitive {
+        primitive: String,    // ":i64"
+        fqdn: String,         // ":wat::core::i64"
+        span: Span,
+    },
+    // ...
+}
+
+impl fmt::Display for CheckError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CheckError::BareLegacyPrimitive { primitive, fqdn, span } => {
+                write!(f, "{}: bare primitive type '{}' is retired; \
+                          canonical form is '{}'. Arc 109 § A.",
+                       span, primitive, fqdn)
+            }
+            // ...
+        }
+    }
+}
+
+fn validate_bare_legacy_primitives(program: &Program, errors: &mut Vec<CheckError>) {
+    // walk every TypeExpr in the program; emit one error per bare site
+}
+```
+
+Same recipe as arcs 110 (`CommCallOutOfPosition`), 115
+(`InnerColonInCompoundArg`), 117 (`ScopeDeadlock`). Each variant
+names its own rule. The diagnostic kind tells the truth about
+what was violated — no synthesis.
+
+**Tone for arc 109's remaining slices.** Every symbol-migration
+slice (1c, 1d, 9d, 9e, 9f-9i) gets its own dedicated variant.
+Walkers live next to their variants. Sonnet sweeps consume the
+diagnostic stream the same way — cargo test → grep
+`BareLegacyPrimitive`/etc. → fix per site. Three audiences, one
+stream, still clean.
+
+### Picking the pattern — flow chart
+
+```
+Does the change naturally produce TypeMismatch from unification?
+├─ YES → Pattern 1 (type-shape change). Add migration hint helper.
+└─ NO → Does the change retire a verb with a dispatcher hook?
+        ├─ YES → Pattern 2 (verb retirement). Synthetic TypeMismatch.
+        └─ NO  → Pattern 3 (symbol migration). New CheckError variant + walker.
+```
+
+When in doubt, prefer Pattern 3 — the diagnostic is most honest
+and the variant name self-documents at the call site.
 
 ## Cross-references
 
@@ -204,9 +295,17 @@ name so `arc_NNN_migration_hint` can detect it.
 - `arc/2026/04/113-cascading-runtime-errors/INSCRIPTION.md` —
   third application; verified the integ-test ("can a fresh
   sonnet sweep from the hint?") via direct delegation.
-- `src/check.rs::collect_hints` — the wiring point; current
-  active hints live in its array. Retired helpers leave a
-  retirement note in the section header.
+- `arc/2026/04/110-kernel-comm-expect/INSCRIPTION.md` —
+  pattern 3 precedent: `CommCallOutOfPosition` variant + walker.
+- `arc/2026/04/115-no-inner-colon-in-parametric-args/INSCRIPTION.md`
+  — pattern 3: `InnerColonInCompoundArg` variant detected at
+  parse-to-TypeExpr time.
+- `arc/2026/04/117-scope-deadlock-prevention/INSCRIPTION.md` —
+  pattern 3: `ScopeDeadlock` variant + `validate_scope_deadlock`
+  walker. Closest precedent for arc 109's symbol-migration class.
+- `src/check.rs::collect_hints` — the wiring point for Pattern 1
+  / Pattern 2 hints. Pattern 3 doesn't use it — variants display
+  themselves.
 - `WAT-CHEATSHEET.md` — the snapshot of currently-active rules
   the language enforces. Substrate-as-teacher tightens the
   language; the cheatsheet records what the language is.
