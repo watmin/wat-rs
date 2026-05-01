@@ -111,7 +111,7 @@ fn typed_match_on_none_returns_none_arm() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
-            (((o :Option<wat::core::i64>) :None))
+            (((o :wat::core::Option<wat::core::i64>) :None))
             (:wat::core::match o -> :wat::core::i64
               ((Some v) v)
               (:None -1))))
@@ -316,7 +316,7 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
                    (_out :rust::crossbeam_channel::Sender<()>)
                    -> :())
                   ())))
-             ((result :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+             ((result :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
               (:wat::kernel::Thread/join-result handle))
              ((chain :Vec<wat::kernel::ThreadDiedError>)
               (:wat::core::match result -> :Vec<wat::kernel::ThreadDiedError>

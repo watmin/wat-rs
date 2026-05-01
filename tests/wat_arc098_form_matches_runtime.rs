@@ -282,7 +282,7 @@ fn option_none_subject_returns_false() {
     let src = program(
         r#"
         (:wat::core::let*
-          (((maybe :Option<test::PaperResolved>) :None))
+          (((maybe :wat::core::Option<test::PaperResolved>) :None))
           (:wat::form::matches? maybe
             (:test::PaperResolved
               (= ?gr :grace-residue)
@@ -299,7 +299,7 @@ fn option_some_subject_unwraps_one_level() {
         (:wat::core::let*
           (((p :test::PaperResolved)
             (:test::PaperResolved/new "Grace" 7.5))
-           ((maybe :Option<test::PaperResolved>) (Some p)))
+           ((maybe :wat::core::Option<test::PaperResolved>) (Some p)))
           (:wat::form::matches? maybe
             (:test::PaperResolved
               (= ?gr :grace-residue)

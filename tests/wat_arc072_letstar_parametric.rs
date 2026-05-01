@@ -70,7 +70,7 @@ fn letstar_result_no_whitespace_simple_payload() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((wrapped :Result<wat::core::i64,wat::core::String>)
+            (((wrapped :wat::core::Result<wat::core::i64,wat::core::String>)
               (Ok 42))
              ((extracted :wat::core::i64)
               (:wat::core::match wrapped -> :wat::core::i64
@@ -99,7 +99,7 @@ fn letstar_result_no_whitespace_tuple_payload() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((wrapped :Result<(wat::core::i64,wat::core::i64),wat::core::i64>)
+            (((wrapped :wat::core::Result<(wat::core::i64,wat::core::i64),wat::core::i64>)
               (Ok (:wat::core::tuple 7 11)))
              ((extracted :wat::core::i64)
               (:wat::core::match wrapped -> :wat::core::i64

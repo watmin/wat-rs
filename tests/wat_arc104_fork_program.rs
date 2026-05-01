@@ -61,7 +61,7 @@ fn unwrap_err_result(v: Value) -> bool {
 fn fork_program_child_writes_stdout_parent_reads_line() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<wat::core::String>)
+        (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
           (:wat::core::let*
             (((inner-src :wat::core::String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) (:wat::io::IOWriter/println stdout \"hello-from-fork\"))")
@@ -84,7 +84,7 @@ fn fork_program_round_trip_via_pipes() {
     // std::thread.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<wat::core::String>)
+        (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
           (:wat::core::let*
             (((inner-src :wat::core::String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::unit (:None ()) ((Some line) (:wat::io::IOWriter/println stdout (:wat::core::string::concat line line)))))")
@@ -106,7 +106,7 @@ fn fork_program_clean_exit_code_via_wait_child() {
     // then Process/join-result reaps the exit. Should be Ok(()) (clean exit).
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
+        (:wat::core::define (:user::main -> :wat::core::Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
             (((inner-src :wat::core::String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::unit (:None ()) ((Some _) ())))")
@@ -128,7 +128,7 @@ fn fork_program_parse_error_surfaces_as_exit_3() {
     // child dies → parent's Process/join-result returns Err.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
+        (:wat::core::define (:user::main -> :wat::core::Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
             (((bad-src :wat::core::String)
               "(:wat::core::define (:demo::not-main (x :i64) -> :i64) x)")

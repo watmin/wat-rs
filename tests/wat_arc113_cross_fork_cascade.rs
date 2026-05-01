@@ -64,7 +64,7 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
                 forms
                 (:wat::core::vec :wat::core::String)
                 :None))
-             ((fail :Option<wat::kernel::Failure>)
+             ((fail :wat::core::Option<wat::kernel::Failure>)
               (:wat::kernel::RunResult/failure r))
              ((rendered :Vec<wat::core::String>)
               (:wat::core::match fail -> :Vec<wat::core::String>

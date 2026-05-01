@@ -68,7 +68,7 @@ fn hermetic_output_evaluated_in_outer_scope() {
     // wat, wat runs wat, wat evaluates wat's output."
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::define (:user::main -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let*
             (((hermetic-result :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-hermetic-ast

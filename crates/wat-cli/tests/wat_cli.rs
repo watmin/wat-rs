@@ -643,7 +643,7 @@ fn sigterm_cascades_two_levels_via_process_group() {
                           (:demo::poll-loop))))))
                  ((rx :wat::io::IOReader)
                   (:wat::kernel::Process/stdout child))
-                 ((_ :Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
+                 ((_ :wat::core::Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
                   (:wat::core::let*
                     (((_ :wat::core::unit) (:demo::forward-loop rx stdout)))
                     (:wat::kernel::Process/join-result child))))

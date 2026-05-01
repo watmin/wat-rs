@@ -57,9 +57,9 @@ fn unwrap_unit(v: Value) {
     }
 }
 
-/// Strip one `:Result<T, _>` layer. Used to unwrap the test's
+/// Strip one `:wat::core::Result<T, _>` layer. Used to unwrap the test's
 /// `:user::main` return after arc 105a — main returns
-/// `:Result<X, :wat::kernel::StartupError>` so that
+/// `:wat::core::Result<X, :wat::kernel::StartupError>` so that
 /// `:wat::core::try` can propagate spawn failures cleanly. On Err,
 /// the test fails with the captured StartupError message.
 fn unwrap_ok(v: Value) -> Value {
@@ -79,7 +79,7 @@ fn spawn_program_ast_child_writes_stdout_parent_reads_line() {
     let src = r#"
 
         (:wat::core::define (:user::main
-                             -> :Result<Option<wat::core::String>,wat::kernel::StartupError>)
+                             -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
               (:wat::core::try
@@ -109,7 +109,7 @@ fn spawn_program_ast_round_trip_via_pipes() {
     let src = r#"
 
         (:wat::core::define (:user::main
-                             -> :Result<Option<wat::core::String>,wat::kernel::StartupError>)
+                             -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
               (:wat::core::try
@@ -146,7 +146,7 @@ fn spawn_program_ast_stdout_eof_after_child_returns() {
     let src = r#"
 
         (:wat::core::define (:user::main
-                             -> :Result<Option<wat::core::String>,wat::kernel::StartupError>)
+                             -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
               (:wat::core::try
@@ -161,7 +161,7 @@ fn spawn_program_ast_stdout_eof_after_child_returns() {
                   :None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc))
-             ((first :Option<wat::core::String>)
+             ((first :wat::core::Option<wat::core::String>)
               (:wat::io::IOReader/read-line out-r))
              ((_check :wat::core::unit)
               (:wat::core::match first -> :wat::core::unit
@@ -183,7 +183,7 @@ fn spawn_program_ast_stderr_is_separate_pipe() {
     let src = r#"
 
         (:wat::core::define (:user::main
-                             -> :Result<Option<wat::core::String>,wat::kernel::StartupError>)
+                             -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
               (:wat::core::try
@@ -209,11 +209,11 @@ fn spawn_program_ast_stderr_is_separate_pipe() {
 fn spawn_program_ast_join_returns_unit_on_clean_exit() {
     // Inner main returns :() cleanly; Process/join-result yields
     // Ok(:()) on the success arm. Arc 114: ProgramHandle<R> retired;
-    // every clean Process/Thread join returns :Result<:(), :Vec<...>>.
+    // every clean Process/Thread join returns :wat::core::Result<:wat::core::unit, :Vec<...>>.
     let src = r#"
 
         (:wat::core::define (:user::main
-                             -> :Result<wat::core::unit,wat::kernel::StartupError>)
+                             -> :wat::core::Result<wat::core::unit,wat::kernel::StartupError>)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
               (:wat::core::try
@@ -226,9 +226,9 @@ fn spawn_program_ast_join_returns_unit_on_clean_exit() {
                                          -> :wat::core::unit)
                       ()))
                   :None)))
-             ((joined :Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
+             ((joined :wat::core::Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
               (:wat::kernel::Process/join-result proc)))
-            (:wat::core::match joined -> :Result<wat::core::unit,wat::kernel::StartupError>
+            (:wat::core::match joined -> :wat::core::Result<wat::core::unit,wat::kernel::StartupError>
               ((Ok _)   (Ok ()))
               ((Err _e) (Ok ())))))
     "#;
@@ -242,7 +242,7 @@ fn spawn_program_source_string_entry() {
     let src = r#"
 
         (:wat::core::define (:user::main
-                             -> :Result<Option<wat::core::String>,wat::kernel::StartupError>)
+                             -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((inner-src :wat::core::String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) (:wat::io::IOWriter/println stdout \"from-source\"))")

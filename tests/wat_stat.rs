@@ -3,7 +3,7 @@
 //! Surfaced by holon-lab-trading arc 026 slice 9 + slice 10 (Hurst
 //! R/S, DFA, variance ratio all want windowed stats). Universal
 //! enough to live in core stdlib. Population convention (numpy
-//! default `ddof=0`); :Option<wat::core::f64> for all three with None on empty
+//! default `ddof=0`); :wat::core::Option<wat::core::f64> for all three with None on empty
 //! input (matches f64::min-of / max-of's reduction-empty pattern).
 
 use std::sync::Arc;
@@ -49,7 +49,7 @@ fn mean_known_input() {
             -> :())
           (:wat::core::let*
             (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
-             ((m :Option<wat::core::f64>) (:wat::std::stat::mean xs))
+             ((m :wat::core::Option<wat::core::f64>) (:wat::std::stat::mean xs))
              ((v :wat::core::f64)
               (:wat::core::match m -> :wat::core::f64
                 ((Some x) x) (:None -1.0))))
@@ -69,7 +69,7 @@ fn mean_empty_is_none() {
             -> :())
           (:wat::core::let*
             (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64))
-             ((m :Option<wat::core::f64>) (:wat::std::stat::mean xs))
+             ((m :wat::core::Option<wat::core::f64>) (:wat::std::stat::mean xs))
              ((label :wat::core::String)
               (:wat::core::match m -> :wat::core::String
                 ((Some _) "some") (:None "none"))))

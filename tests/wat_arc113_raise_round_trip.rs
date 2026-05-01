@@ -35,7 +35,7 @@ fn raise_data_round_trips_through_failure_message() {
     // is `:wat::edn::read`.
     let src = r##"
         (:wat::core::define
-          (:user::main -> :Option<wat::holon::HolonAST>)
+          (:user::main -> :wat::core::Option<wat::holon::HolonAST>)
           (:wat::core::let*
             (((forms :Vec<wat::WatAST>)
               (:wat::test::program
@@ -49,10 +49,10 @@ fn raise_data_round_trips_through_failure_message() {
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-ast
                 forms (:wat::core::vec :wat::core::String) :None))
-             ((fail :Option<wat::kernel::Failure>)
+             ((fail :wat::core::Option<wat::kernel::Failure>)
               (:wat::kernel::RunResult/failure r))
-             ((recovered :Option<wat::holon::HolonAST>)
-              (:wat::core::match fail -> :Option<wat::holon::HolonAST>
+             ((recovered :wat::core::Option<wat::holon::HolonAST>)
+              (:wat::core::match fail -> :wat::core::Option<wat::holon::HolonAST>
                 ((Some f)
                  (Some (:wat::edn::read (:wat::kernel::Failure/message f))))
                 (:None :None))))

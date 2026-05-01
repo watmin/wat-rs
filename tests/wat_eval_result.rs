@@ -2,7 +2,7 @@
 //! (INSCRIPTION 2026-04-20).
 //!
 //! Every eval-* form now returns
-//! `:Result<wat::holon::HolonAST, :wat::core::EvalError>`. Dynamic
+//! `:wat::core::Result<wat::holon::HolonAST, :wat::core::EvalError>`. Dynamic
 //! evaluation failures — verification mismatch, parse error,
 //! mutation-form refusal, unknown function at the call site, type
 //! mismatch inside the eval'd code — surface as Err values with
@@ -53,7 +53,7 @@ fn eval_ast_bang_happy_path_returns_ok_holon() {
     // is Ok(Value::holon__HolonAST(_)).
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::define (:user::main -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let*
             (((program :wat::WatAST) (:wat::core::quote (:wat::holon::Atom "hello"))))
             (:wat::eval-ast! program)))
@@ -76,7 +76,7 @@ fn eval_ast_bang_mutation_form_surfaces_as_err() {
     // Err(EvalError{kind="mutation-form-refused"}).
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::define (:user::main -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let*
             (((program :wat::WatAST)
               (:wat::core::quote
@@ -95,7 +95,7 @@ fn eval_edn_bang_parse_failure_surfaces_as_err() {
     // distinction earns it).
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::define (:user::main -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::eval-edn! "(:wat::core::i64::+ 1"))
     "#;
     let result = run(src);
@@ -109,7 +109,7 @@ fn eval_digest_string_bang_hash_mismatch_surfaces_as_err() {
     // variant is `eval-digest-string!` (mirrors `load-string!`).
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::define (:user::main -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::eval-digest-string!
  "(:wat::holon::Atom \"x\")"
             :wat::verify::digest-sha256
@@ -126,7 +126,7 @@ fn eval_edn_bang_wrong_arity_surfaces_as_err() {
     // the new structural-error surface to guard.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
+        (:wat::core::define (:user::main -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::eval-edn! "foo" "bar-extra"))
     "#;
     // Structural arity mismatch fires before the EvalError wrap; this
@@ -148,7 +148,7 @@ fn try_propagates_eval_err_through_helper() {
     let src = r#"
 
         (:wat::core::define (:app::run-dynamic (program :wat::WatAST)
-                             -> :Result<wat::holon::HolonAST,wat::core::EvalError>)
+                             -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (Ok (:wat::core::try (:wat::eval-ast! program))))
 
         (:wat::core::define (:user::main -> :wat::core::String)
@@ -179,7 +179,7 @@ fn eval_err_exposes_both_kind_and_message() {
             (((bad :wat::WatAST)
               (:wat::core::quote
                 (:wat::core::define (:injected (x :wat::core::i64) -> :wat::core::i64) x)))
-             ((r :Result<wat::holon::HolonAST,wat::core::EvalError>)
+             ((r :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
               (:wat::eval-ast! bad)))
             (:wat::core::match r -> :(wat::core::String,wat::core::String)
               ((Ok _)

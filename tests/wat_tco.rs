@@ -77,7 +77,7 @@ fn self_recursion_via_match_at_high_depth() {
 
         (:wat::core::define (:app::drain (remaining :wat::core::i64) (acc :wat::core::i64) -> :wat::core::i64)
           (:wat::core::match
-            (:wat::core::if (:wat::core::> remaining 0) -> :Option<wat::core::i64>
+            (:wat::core::if (:wat::core::> remaining 0) -> :wat::core::Option<wat::core::i64>
               (Some remaining)
               :None)
             -> :wat::core::i64
@@ -178,19 +178,19 @@ fn try_inside_tail_recursive_function_short_circuits() {
     // the `check` helper returns Err and `try` propagates.
     let src = r#"
 
-        (:wat::core::define (:app::check (n :wat::core::i64) -> :Result<wat::core::i64,wat::core::String>)
-          (:wat::core::if (:wat::core::< n 0) -> :Result<wat::core::i64,wat::core::String>
+        (:wat::core::define (:app::check (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
+          (:wat::core::if (:wat::core::< n 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
             (Err "negative")
             (Ok n)))
 
-        (:wat::core::define (:app::loop (n :wat::core::i64) -> :Result<wat::core::i64,wat::core::String>)
+        (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let*
             (((valid :wat::core::i64) (:wat::core::try (:app::check n))))
-            (:wat::core::if (:wat::core::= valid 0) -> :Result<wat::core::i64,wat::core::String>
+            (:wat::core::if (:wat::core::= valid 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
               (Ok 0)
               (:app::loop (:wat::core::i64::- valid 1)))))
 
-        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
+        (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:app::loop 50000))
     "#;
     match run(src) {
@@ -206,21 +206,21 @@ fn try_inside_tail_recursive_function_short_circuits() {
 fn try_inside_tail_recursive_function_propagates_err() {
     let src = r#"
 
-        (:wat::core::define (:app::check (n :wat::core::i64) -> :Result<wat::core::i64,wat::core::String>)
-          (:wat::core::if (:wat::core::< n 0) -> :Result<wat::core::i64,wat::core::String>
+        (:wat::core::define (:app::check (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
+          (:wat::core::if (:wat::core::< n 0) -> :wat::core::Result<wat::core::i64,wat::core::String>
             (Err "negative")
             (Ok n)))
 
-        (:wat::core::define (:app::loop (n :wat::core::i64) -> :Result<wat::core::i64,wat::core::String>)
+        (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let*
             (((valid :wat::core::i64) (:wat::core::try (:app::check n))))
-            (:wat::core::if (:wat::core::<= valid (:wat::core::i64::- 0 1)) -> :Result<wat::core::i64,wat::core::String>
+            (:wat::core::if (:wat::core::<= valid (:wat::core::i64::- 0 1)) -> :wat::core::Result<wat::core::i64,wat::core::String>
               (Ok 0)
               (:app::loop (:wat::core::i64::- valid 1)))))
 
         ;; Start at -1 so `check` immediately returns Err and `try`
         ;; propagates.
-        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
+        (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:app::loop -1))
     "#;
     match run(src) {

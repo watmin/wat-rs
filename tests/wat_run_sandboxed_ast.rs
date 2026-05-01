@@ -102,7 +102,7 @@ fn ast_entry_captures_assertion_failure() {
                     (:wat::test::assert-eq 1 2)))))
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-ast forms (:wat::core::vec :wat::core::String) :None))
-             ((fail :Option<wat::kernel::Failure>)
+             ((fail :wat::core::Option<wat::kernel::Failure>)
               (:wat::kernel::RunResult/failure r)))
             (:wat::core::match fail -> :wat::core::unit
               ((Some f) (:wat::io::IOWriter/println stdout

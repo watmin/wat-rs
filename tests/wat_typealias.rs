@@ -131,9 +131,9 @@ fn tuple_alias_works_at_hashmap_constructor_arg() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
-            (((row :HashMap<wat::core::String,wat::core::i64>)
+            (((row :wat::core::HashMap<wat::core::String,wat::core::i64>)
               (:wat::core::HashMap :my::KV "a" 1 "b" 2))
-             ((got :Option<wat::core::i64>) (:wat::core::get row "b")))
+             ((got :wat::core::Option<wat::core::i64>) (:wat::core::get row "b")))
             (:wat::core::match got -> :wat::core::i64
               ((Some v) v)
               (:None -1))))
@@ -149,12 +149,12 @@ fn alias_over_hashmap_passes_through_std_get() {
     // its HashMap root and the call type-checks.
     let src = r#"
 
-        (:wat::core::typealias :my::Row :HashMap<wat::core::String,wat::core::i64>)
+        (:wat::core::typealias :my::Row :wat::core::HashMap<wat::core::String,wat::core::i64>)
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((row :my::Row) (:wat::core::HashMap :(wat::core::String,wat::core::i64) "a" 10 "b" 20))
-             ((got :Option<wat::core::i64>) (:wat::core::get row "a")))
+             ((got :wat::core::Option<wat::core::i64>) (:wat::core::get row "a")))
             (:wat::core::match got -> :wat::core::i64
               ((Some v) v)
               (:None -1))))
@@ -191,7 +191,7 @@ fn alias_over_fn_type_works_at_spawn() {
                    (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
                    -> :wat::core::unit)
                   (job tx))))
-             ((_ :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+             ((_ :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
               (:wat::kernel::Thread/join-result h)))
             (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
               ((Ok (Some v)) v)

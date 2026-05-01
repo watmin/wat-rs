@@ -72,7 +72,7 @@ fn pipe_returns_writer_reader_tuple() {
 fn pipe_writeln_then_read_line_round_trips() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<wat::core::String>)
+        (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
           (:wat::core::let*
             (((pair :(wat::io::IOWriter,wat::io::IOReader))
               (:wat::kernel::pipe))
@@ -96,8 +96,8 @@ fn pipe_multiple_writelns_read_line_by_line() {
              ((r :wat::io::IOReader) (:wat::core::second pair))
              ((_ :wat::core::i64) (:wat::io::IOWriter/writeln w "first"))
              ((_ :wat::core::i64) (:wat::io::IOWriter/writeln w "second"))
-             ((a :Option<wat::core::String>) (:wat::io::IOReader/read-line r))
-             ((b :Option<wat::core::String>) (:wat::io::IOReader/read-line r)))
+             ((a :wat::core::Option<wat::core::String>) (:wat::io::IOReader/read-line r))
+             ((b :wat::core::Option<wat::core::String>) (:wat::io::IOReader/read-line r)))
             (:wat::core::match a -> :wat::core::String
               ((Some sa)
                (:wat::core::match b -> :wat::core::String
@@ -121,7 +121,7 @@ fn pipe_write_string_then_read_exact_bytes() {
              ((w :wat::io::IOWriter) (:wat::core::first pair))
              ((r :wat::io::IOReader) (:wat::core::second pair))
              ((n :wat::core::i64) (:wat::io::IOWriter/write-string w "hello"))
-             ((got :Option<Vec<wat::core::u8>>) (:wat::io::IOReader/read r 5)))
+             ((got :wat::core::Option<Vec<wat::core::u8>>) (:wat::io::IOReader/read r 5)))
             (:wat::core::match got -> :wat::core::i64
               ((Some bytes) n)
               (:None        -1))))
@@ -135,7 +135,7 @@ fn pipe_write_string_then_read_exact_bytes() {
 fn pipe_preserves_utf8_lines() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<wat::core::String>)
+        (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
           (:wat::core::let*
             (((pair :(wat::io::IOWriter,wat::io::IOReader))
               (:wat::kernel::pipe))

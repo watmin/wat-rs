@@ -1,7 +1,7 @@
 //! Arc 112 slice 1 — phantom type params on Process<I,O> survive
 //! instantiation and unify against a user-annotated binding.
 //!
-//! The probe ANNOTATES `sr` as `Result<Process<i64,i64>, StartupError>`
+//! The probe ANNOTATES `sr` as `wat::core::Result<Process<i64,i64>, StartupError>`
 //! and binds it to `(spawn-program "()" :None)`. If the substrate's
 //! `instantiate` / `unify` chain handles `Process<I,O>` correctly, the
 //! source freezes; if Process degrades to `Path(":Process")` anywhere
@@ -20,9 +20,9 @@ fn arc112_probe_spawn_program_parametric_return() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
-            (((sr :Result<wat::kernel::Process<wat::core::i64,wat::core::i64>,wat::kernel::StartupError>)
+            (((sr :wat::core::Result<wat::kernel::Process<wat::core::i64,wat::core::i64>,wat::kernel::StartupError>)
               (:wat::kernel::spawn-program "()" :None)))
             ()))
     "##;

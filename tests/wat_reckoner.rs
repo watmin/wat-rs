@@ -79,7 +79,7 @@ fn reckoner_observe_then_predict() {
              ((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((u1 :wat::core::unit) (:wat::holon::Reckoner/observe r v 0 1.0))
              ((u2 :wat::core::unit) (:wat::holon::Reckoner/observe r v 1 1.0))
-             ((pred :(Vec<(wat::core::i64,wat::core::f64)>,Option<wat::core::i64>,wat::core::f64,wat::core::f64))
+             ((pred :(Vec<(wat::core::i64,wat::core::f64)>,wat::core::Option<wat::core::i64>,wat::core::f64,wat::core::f64))
               (:wat::holon::Reckoner/predict r v))
              ((conviction :wat::core::f64) (:wat::core::third pred)))
             ;; Predict returns a tuple — we just verify the call ran
