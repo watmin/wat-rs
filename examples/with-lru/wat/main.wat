@@ -26,7 +26,7 @@
                      (stdin  :wat::io::IOReader)
                      (stdout :wat::io::IOWriter)
                      (stderr :wat::io::IOWriter)
-                     -> :())
+                     -> :wat::core::unit)
   (:wat::core::let*
     (((cache :wat::lru::LocalCache<wat::core::String,wat::core::i64>)
       (:wat::lru::LocalCache::new 16))
@@ -34,6 +34,6 @@
       (:wat::lru::LocalCache::put cache "answer" 42))
      ((got :Option<wat::core::i64>)
       (:wat::lru::LocalCache::get cache "answer")))
-    (:wat::core::match got -> :()
+    (:wat::core::match got -> :wat::core::unit
       ((Some v) (:wat::io::IOWriter/println stdout "hit"))
       (:None    (:wat::io::IOWriter/println stdout "miss")))))

@@ -20,5 +20,5 @@
                      (stdin  :wat::io::IOReader)
                      (stdout :wat::io::IOWriter)
                      (stderr :wat::io::IOWriter)
-                     -> :())
+                     -> :wat::core::unit)
   (:wat::io::IOWriter/println stdout (:user::with_loader::helper::greeting)))

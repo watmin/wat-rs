@@ -69,7 +69,7 @@
 (:wat::core::define
   (:demo::write-fixture
     (path :String)
-    -> :wat::kernel::Thread<(),()>)
+    -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
   (:wat::core::let*
     (((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
       (:wat::telemetry::Sqlite/auto-spawn
@@ -79,12 +79,12 @@
         :wat::telemetry::Sqlite/null-pre-install))
      ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
       (:wat::core::first spawn))
-     ((driver :wat::kernel::Thread<(),()>)
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::core::second spawn))
      ;; Six sample trades — 4 buys + 2 sells, varied qtys.
      ((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
       (:wat::kernel::HandlePool::pop pool))
-     ((_finish :()) (:wat::kernel::HandlePool::finish pool))
+     ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
      ((req-tx :wat::telemetry::Service::ReqTx<wat::telemetry::Event>)
       (:wat::core::first handle))
      ((ack-rx :wat::telemetry::Service::AckRx)
@@ -97,7 +97,7 @@
         (:demo::trade-event 4000 "buy"  3  101.0)
         (:demo::trade-event 5000 "buy"  20 98.5)   ; ← Q2 hit
         (:demo::trade-event 6000 "sell" 8  103.0)))
-     ((_log :())
+     ((_log :wat::core::unit)
       (:wat::telemetry::Service/batch-log req-tx ack-rx entries)))
     driver))
 
@@ -131,18 +131,18 @@
     (_stdin  :wat::io::IOReader)
     (stdout  :wat::io::IOWriter)
     (_stderr :wat::io::IOWriter)
-    -> :())
+    -> :wat::core::unit)
   (:wat::core::let*
     (;; Auto-deleting fixture path.
      ((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
 
      ;; Phase 1.
-     ((driver :wat::kernel::Thread<(),()>)
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:demo::write-fixture path))
-     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
-     ((_p1 :())
+     ((_p1 :wat::core::unit)
       (:wat::io::IOWriter/println stdout
         "── Q1: warmup — count all logged trades ──"))
 
@@ -155,15 +155,15 @@
       (:wat::std::stream::collect
         (:wat::telemetry::sqlite/stream-logs handle no-constraints)))
      ((q1-count :wat::core::i64) (:wat::core::length all-events))
-     ((_p2 :())
+     ((_p2 :wat::core::unit)
       (:wat::io::IOWriter/println stdout
         (:wat::core::string::concat
           "  total logs: " (:wat::core::i64::to-string q1-count))))
 
      ;; Q2 — Clara filter for buys with qty > 10.
-     ((_p3 :())
+     ((_p3 :wat::core::unit)
       (:wat::io::IOWriter/println stdout ""))
-     ((_p4 :())
+     ((_p4 :wat::core::unit)
       (:wat::io::IOWriter/println stdout
         "── Q2: matches? — buy AND qty > 10 ──"))
      ((handle2 :wat::sqlite::ReadHandle)
@@ -176,7 +176,7 @@
           (:wat::telemetry::sqlite/stream-logs handle2 no-constraints2)
           :demo::big-buy?)))
      ((q2-count :wat::core::i64) (:wat::core::length big-buys))
-     ((_p5 :())
+     ((_p5 :wat::core::unit)
       (:wat::io::IOWriter/println stdout
         (:wat::core::string::concat
           "  hits: " (:wat::core::i64::to-string q2-count)))))
