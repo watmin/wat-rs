@@ -14672,8 +14672,8 @@ mod tests {
     fn define_recursive_factorial() {
         let result = run(
             r#"
-            (:wat::core::define (:my::app::fact (n :i64) -> :i64)
-              (:wat::core::if (:wat::core::= n 0) -> :i64
+            (:wat::core::define (:my::app::fact (n :wat::core::i64) -> :wat::core::i64)
+              (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
                   1
                   (:wat::core::i64::* n (:my::app::fact (:wat::core::i64::- n 1)))))
             (:my::app::fact 5)
@@ -18267,7 +18267,7 @@ mod tests {
                     (stderr :wat::io::IOWriter)
                     -> :())
                   (:wat::test::assert-eq 1 2)))
-              (:wat::core::vec :String))
+              (:wat::core::vec :wat::core::String))
         "#;
         let result = run(src).unwrap();
         // Walk RunResult.failure (field 2) → Failure { actual (3),
@@ -18629,10 +18629,10 @@ mod tests {
         r#"
         (:wat::core::define
           (:my::test::count-visit
-            (acc :i64)
+            (acc :wat::core::i64)
             (form :wat::WatAST)
             (step :wat::eval::StepResult)
-            -> :wat::eval::WalkStep<i64>)
+            -> :wat::eval::WalkStep<wat::core::i64>)
           (:wat::eval::WalkStep::Continue (:wat::core::i64::+ acc 1)))
         "#
     }
@@ -18651,15 +18651,15 @@ mod tests {
                 (:wat::core::quote (:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3))
                 0
                 :my::test::count-visit)
-              -> :i64
+              -> :wat::core::i64
               ((Ok pair)
                 (:wat::core::let*
                   (((terminal :wat::holon::HolonAST) (:wat::core::first pair))
-                   ((count :i64) (:wat::core::second pair))
-                   ((value :i64) (:wat::core::atom-value terminal))
+                   ((count :wat::core::i64) (:wat::core::second pair))
+                   ((value :wat::core::i64) (:wat::core::atom-value terminal))
                    ;; encode (value, count) as one i64: value * 1000 + count.
                    ;; sufficient for a chain of length < 1000.
-                   ((packed :i64)
+                   ((packed :wat::core::i64)
                     (:wat::core::i64::+
                       (:wat::core::i64::* value 1000)
                       count)))
@@ -18697,7 +18697,7 @@ mod tests {
                     (:wat::holon::Atom "v")))
                 0
                 :my::test::count-visit)
-              -> :i64
+              -> :wat::core::i64
               ((Ok pair)
                 (:wat::core::second pair))
               ((Err _) -1))
@@ -18721,10 +18721,10 @@ mod tests {
         let src = r#"
         (:wat::core::define
           (:my::test::skip-on-first
-            (acc :i64)
+            (acc :wat::core::i64)
             (form :wat::WatAST)
             (step :wat::eval::StepResult)
-            -> :wat::eval::WalkStep<i64>)
+            -> :wat::eval::WalkStep<wat::core::i64>)
           (:wat::eval::WalkStep::Skip
             (:wat::holon::leaf 999)
             (:wat::core::i64::+ acc 1)))
@@ -18733,11 +18733,11 @@ mod tests {
             (:wat::core::quote (:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3))
             0
             :my::test::skip-on-first)
-          -> :i64
+          -> :wat::core::i64
           ((Ok pair)
             (:wat::core::let*
               (((terminal :wat::holon::HolonAST) (:wat::core::first pair))
-               ((value :i64) (:wat::core::atom-value terminal)))
+               ((value :wat::core::i64) (:wat::core::atom-value terminal)))
               value))
           ((Err _) -1))
         "#;
@@ -18769,14 +18769,14 @@ mod tests {
                     (:wat::core::quote 42)))
                 0
                 :my::test::count-visit)
-              -> :i64
+              -> :wat::core::i64
               ((Ok _) -2)
               ((Err e)
                 ;; struct-field 0 is the kind tag.
                 (:wat::core::if
                   (:wat::core::= "no-step-rule"
                                  (:wat::core::struct-field e 0))
-                                 -> :i64
+                                 -> :wat::core::i64
                   1
                   -3)))
             "#,
@@ -18982,65 +18982,65 @@ mod tests {
 
     #[test]
     fn step_let_star_substitute() {
-        // `(let* (((x :i64) 5)) (* x x))` — RHS canonical, peel,
+        // `(let* (((x :wat::core::i64) 5)) (* x x))` — RHS canonical, peel,
         // substitute, then arithmetic fire.
         let h = step_drive_to_terminal(
-            "(:wat::core::let* (((x :i64) 5)) (:wat::core::i64::* x x))",
+            "(:wat::core::let* (((x :wat::core::i64) 5)) (:wat::core::i64::* x x))",
         );
         assert_eq!(h.as_i64(), Some(25));
     }
 
     #[test]
     fn step_let_star_peel_first() {
-        // Multi-binding: `(let* (((a :i64) (+ 1 1)) ((b :i64) a)) b)`.
+        // Multi-binding: `(let* (((a :wat::core::i64) (+ 1 1)) ((b :wat::core::i64) a)) b)`.
         // a's RHS is non-canonical → descend; then peel a; then peel
         // b; body alone reduces to terminal.
         let h = step_drive_to_terminal(
-            "(:wat::core::let* (((a :i64) (:wat::core::i64::+ 1 1)) ((b :i64) a)) b)",
+            "(:wat::core::let* (((a :wat::core::i64) (:wat::core::i64::+ 1 1)) ((b :wat::core::i64) a)) b)",
         );
         assert_eq!(h.as_i64(), Some(2));
     }
 
     #[test]
     fn step_if_branch_true() {
-        // `(if true -> :i64 1 0)` — cond canonical → project to then-branch.
-        let h = step_drive_to_terminal("(:wat::core::if true -> :i64 1 0)");
+        // `(if true -> :wat::core::i64 1 0)` — cond canonical → project to then-branch.
+        let h = step_drive_to_terminal("(:wat::core::if true -> :wat::core::i64 1 0)");
         assert_eq!(h.as_i64(), Some(1));
     }
 
     #[test]
     fn step_if_branch_false() {
-        let h = step_drive_to_terminal("(:wat::core::if false -> :i64 1 0)");
+        let h = step_drive_to_terminal("(:wat::core::if false -> :wat::core::i64 1 0)");
         assert_eq!(h.as_i64(), Some(0));
     }
 
     #[test]
     fn step_if_cond_reduces() {
-        // `(if (= 1 1) -> :i64 1 0)` — cond non-canonical, descend until
+        // `(if (= 1 1) -> :wat::core::i64 1 0)` — cond non-canonical, descend until
         // BoolLit, then project.
         let h = step_drive_to_terminal(
-            "(:wat::core::if (:wat::core::i64::= 1 1) -> :i64 1 0)",
+            "(:wat::core::if (:wat::core::i64::= 1 1) -> :wat::core::i64 1 0)",
         );
         assert_eq!(h.as_i64(), Some(1));
     }
 
     #[test]
     fn step_match_canonical() {
-        // `(match (Some 5) -> :i64 ((Some n) n) (:None 0))` —
+        // `(match (Some 5) -> :wat::core::i64 ((Some n) n) (:None 0))` —
         // scrutinee match-canonical (Some + canonical inner); arm
         // selection binds n→5; substituted body reduces to terminal.
         let h = step_drive_to_terminal(
-            "(:wat::core::match (Some 5) -> :i64 ((Some n) n) (:None 0))",
+            "(:wat::core::match (Some 5) -> :wat::core::i64 ((Some n) n) (:None 0))",
         );
         assert_eq!(h.as_i64(), Some(5));
     }
 
     #[test]
     fn step_match_scrutinee_reduces() {
-        // `(match (+ 1 1) -> :i64 (n n))` — scrutinee is arithmetic,
+        // `(match (+ 1 1) -> :wat::core::i64 (n n))` — scrutinee is arithmetic,
         // descend until canonical, then arm selection.
         let h = step_drive_to_terminal(
-            "(:wat::core::match (:wat::core::i64::+ 1 1) -> :i64 (n n))",
+            "(:wat::core::match (:wat::core::i64::+ 1 1) -> :wat::core::i64 (n n))",
         );
         assert_eq!(h.as_i64(), Some(2));
     }
@@ -19089,9 +19089,9 @@ mod tests {
         let forms = [
             ("(:wat::core::i64::+ 2 2)", 4),
             ("(:wat::core::i64::* 3 7)", 21),
-            ("(:wat::core::if true -> :i64 10 20)", 10),
-            ("(:wat::core::let* (((x :i64) 5)) (:wat::core::i64::+ x 1))", 6),
-            ("(:wat::core::match (Some 7) -> :i64 ((Some n) n) (:None 0))", 7),
+            ("(:wat::core::if true -> :wat::core::i64 10 20)", 10),
+            ("(:wat::core::let* (((x :wat::core::i64) 5)) (:wat::core::i64::+ x 1))", 6),
+            ("(:wat::core::match (Some 7) -> :wat::core::i64 ((Some n) n) (:None 0))", 7),
         ];
         for (form, expected) in forms {
             let h = step_drive_to_terminal(form);
@@ -19107,7 +19107,7 @@ mod tests {
             // directly via the polymorphic Result<:T, :EvalError>
             // scheme; no atom-value extraction needed.
             let eval_src = format!(
-                "(:wat::core::match (:wat::eval-ast! (:wat::core::quote {})) -> :i64 \
+                "(:wat::core::match (:wat::eval-ast! (:wat::core::quote {})) -> :wat::core::i64 \
                   ((Ok n) n) ((Err _) -1))",
                 form
             );
@@ -19133,16 +19133,16 @@ mod tests {
         let src = format!(
             r#"
             (:wat::core::define
-              (:my::test::sum-to (n :i64) (acc :i64) -> :i64)
-              (:wat::core::if (:wat::core::i64::= n 0) -> :i64
+              (:my::test::sum-to (n :wat::core::i64) (acc :wat::core::i64) -> :wat::core::i64)
+              (:wat::core::if (:wat::core::i64::= n 0) -> :wat::core::i64
                 acc
                 (:my::test::sum-to (:wat::core::i64::- n 1)
                                    (:wat::core::i64::+ acc n))))
             (:wat::core::define
-              (:my::test::step-count (form :wat::WatAST) (n :i64) -> :i64)
-              (:wat::core::match (:wat::eval-step! form) -> :i64
+              (:my::test::step-count (form :wat::WatAST) (n :wat::core::i64) -> :wat::core::i64)
+              (:wat::core::match (:wat::eval-step! form) -> :wat::core::i64
                 ((Ok r)
-                  (:wat::core::match r -> :i64
+                  (:wat::core::match r -> :wat::core::i64
                     ((:wat::eval::StepResult::StepNext next)
                       (:my::test::step-count next (:wat::core::i64::+ n 1)))
                     ((:wat::eval::StepResult::StepTerminal h) n)
@@ -19153,7 +19153,7 @@ mod tests {
               (((sum :wat::holon::HolonAST)
                 (:my::test::step-to-terminal
                   (:wat::core::quote (:my::test::sum-to 3 0))))
-               ((steps :i64)
+               ((steps :wat::core::i64)
                 (:my::test::step-count
                   (:wat::core::quote (:my::test::sum-to 3 0)) 0)))
               (:wat::core::tuple sum steps))

@@ -8801,8 +8801,8 @@ mod tests {
 
     #[test]
     fn list_same_type_passes() {
-        assert!(check("(:wat::core::vec :i64 1 2 3)").is_ok());
-        assert!(check(r#"(:wat::core::vec :String "a" "b")"#).is_ok());
+        assert!(check("(:wat::core::vec :wat::core::i64 1 2 3)").is_ok());
+        assert!(check(r#"(:wat::core::vec :wat::core::String "a" "b")"#).is_ok());
     }
 
     #[test]
@@ -8856,7 +8856,7 @@ mod tests {
     #[test]
     fn user_define_body_matches_signature() {
         assert!(check(
-            r#"(:wat::core::define (:my::app::add (x :i64) (y :i64) -> :i64)
+            r#"(:wat::core::define (:my::app::add (x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
                  (:wat::core::i64::+ x y))"#
         )
         .is_ok());
@@ -8898,7 +8898,7 @@ mod tests {
     #[test]
     fn typed_let_binding_matches_rhs() {
         assert!(check(
-            r#"(:wat::core::let (((x :i64) 42)) (:wat::core::i64::+ x 1))"#
+            r#"(:wat::core::let (((x :wat::core::i64) 42)) (:wat::core::i64::+ x 1))"#
         )
         .is_ok());
     }
@@ -8917,9 +8917,9 @@ mod tests {
     fn typed_let_binding_multiple() {
         assert!(check(
             r#"(:wat::core::let
-                 (((x :i64) 1)
-                  ((y :i64) 2)
-                  ((z :i64) 3))
+                 (((x :wat::core::i64) 1)
+                  ((y :wat::core::i64) 2)
+                  ((z :wat::core::i64) 3))
                  (:wat::core::i64::+ (:wat::core::i64::+ x y) z))"#
         )
         .is_ok());
@@ -8927,12 +8927,13 @@ mod tests {
 
     #[test]
     fn typed_let_binding_with_lambda_value() {
-        // A lambda bound to a let with :fn(i64)->i64 declaration.
-        // Declared type matches lambda's own signature, so it passes.
+        // A lambda bound to a let with :fn(wat::core::i64)->wat::core::i64
+        // declaration. Declared type matches lambda's own signature, so it
+        // passes.
         assert!(check(
             r#"(:wat::core::let
-                 (((doubler :fn(i64)->i64)
-                   (:wat::core::lambda ((x :i64) -> :i64)
+                 (((doubler :fn(wat::core::i64)->wat::core::i64)
+                   (:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64)
                      (:wat::core::i64::+ x x))))
                  true)"#
         )

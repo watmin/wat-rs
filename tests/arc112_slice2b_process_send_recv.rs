@@ -27,7 +27,7 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((proc :wat::kernel::Program<i64,i64>)
+            (((proc :wat::kernel::Program<wat::core::i64,wat::core::i64>)
               (:wat::kernel::fork-program-ast
                 (:wat::core::vec :wat::WatAST)))
              ;; process-send: must be matched (slice 3 grammar rule).
