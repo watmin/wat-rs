@@ -1,7 +1,22 @@
 # Arc 109 Slice 1d — Mint `:wat::core::unit`; retire `:()` as a type annotation
 
-**Compaction-amnesia anchor.** Read this first if you're picking up
-slice 1d mid-flight.
+**Status: shipped 2026-05-01.** Walker (commit `edd6687`) + four-tier
+sweep across commits `25ac4a2` → `0078a9f` → `e2177ee` →
+`279277f`. 72 files swept; cargo test --release --workspace 1476
+passed, 0 failed, 0 BareLegacyUnitType. Zero MANUAL flags.
+
+Substrate gap surfaced + fixed during sweep: `parse_type_inner`
+extended to canonicalize `:wat::core::unit` → `TypeExpr::Tuple(vec![])`
+when `canonicalize=true`. Without it, `validate_user_main_signature`
+(which does raw `==` against `TypeExpr::Tuple(vec![])`) rejected
+the FQDN form. Audit walker (`canonicalize=false`) preserves source
+spelling so the diagnostic continues to distinguish bare from FQDN.
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record of how slice 1d shipped —
+the Tuple-arm extension to slice 1c's walker template proves
+Pattern 3 is general across TypeExpr shapes (Path nodes, Tuple
+nodes; future slices will pattern-match Parametric heads, etc.).**
 
 ## What this slice does
 

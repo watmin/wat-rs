@@ -48,7 +48,7 @@ checks against `src/check.rs`, `src/runtime.rs`, `src/parser.rs`,
 | `:bool` | `:wat::core::bool` | ✓ shipped slice 1c |
 | `:String` | `:wat::core::String` | ✓ shipped slice 1c |
 | `:u8` | `:wat::core::u8` | ✓ shipped slice 1c |
-| `:()` (unit, as a TYPE) | `:wat::core::unit` (replaces — `:()` retires as a type annotation) | pending slice 1d |
+| `:()` (unit, as a TYPE) | `:wat::core::unit` (replaces — `:()` retires as a type annotation) | ✓ shipped slice 1d (rename to `Unit` queued as follow-up; see J-PIPELINE.md) |
 | `:wat::core::keyword` | already FQDN ✓ | — |
 | `:wat::core::Bytes` | already FQDN ✓ | — |
 | `:wat::core::EvalError` | already FQDN ✓ | — |

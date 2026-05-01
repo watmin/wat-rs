@@ -34,6 +34,13 @@ order is preserved.
   cargo test workspace 1476/0. See `SLICE-1C.md` for the full
   record. Pattern 3 (dedicated variant + walker) proven for the
   bigger arc-109 slices ahead (§ B/C/D/D').
+- 1d: mint `:wat::core::unit`; retire `:()` as a type annotation —
+  shipped 2026-05-01. `BareLegacyUnitType` variant + Tuple-arm
+  extension to slice 1c's walker; 72 files swept across four
+  tiers; substrate gap fix in `parse_type_inner` (canonicalize
+  `:wat::core::unit` → `Tuple(vec![])` when canonicalize=true so
+  raw `==` validators accept the FQDN form); cargo test workspace
+  1476/0. See `SLICE-1D.md`. Rename to `Unit` queued as follow-up.
 - § J 10a: `:wat::kernel::Program<I,O>` typealias minted (alias for `:Process<I,O>`)
 - § J 10b: sonnet sweep — annotations prefer Program (in scope of stdlib boundaries)
 - Arc 114 absorbed § J 10c's "Thread as concrete struct"
@@ -78,17 +85,14 @@ These are parallel-shippable; sonnet-delegatable with the
 substrate's diagnostic stream as the brief (Pattern 3 from
 SUBSTRATE-AS-TEACHER):
 
-4. **1d** — mint `:wat::core::unit`; retire `:()` as a type
-   keyword. Substrate add + sweep.
-
-5. **9d** — `:wat::std::stream::*` → `:wat::stream::*` (the
+4. **9d** — `:wat::std::stream::*` → `:wat::stream::*` (the
    stream stdlib's namespace claims promotion).
 
-6. **9e** — `:wat::std::service::Console::*` →
+5. **9e** — `:wat::std::service::Console::*` →
    `:wat::console::Console::*` (Console gets its own namespace
    path matching its substrate-claim shape).
 
-7. **9f–9i** — file-path moves for already-honest-symbol files
+6. **9f–9i** — file-path moves for already-honest-symbol files
    (the file location catches up with the symbol path).
 
 ### Discovered-during-sweep follow-ups (lower priority)
@@ -204,6 +208,12 @@ slice plans name.
                   + four-tier sweep; ~1000 rename sites across
                   ~90 files; cargo test workspace 1476/0
                   (commits f2b5dd4 → e0abbfa; SLICE-1C.md)
+
+[done]  arc 109 slice 1d — BareLegacyUnitType variant + Tuple-arm
+                  walker extension + four-tier sweep; 72 files;
+                  substrate gap fix in parse_type_inner;
+                  cargo test workspace 1476/0
+                  (commits edd6687 → 279277f; SLICE-1D.md)
 
 [next]  § J 10d — typeclass dispatch + ProgramDiedError supertype
                   (mint ProgramDiedError; mint Program<I,O> as
