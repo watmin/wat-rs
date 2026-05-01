@@ -145,7 +145,7 @@
     ()
     (:wat::core::lambda
       ((gate :wat::core::unit) (_stats :wat::holon::lru::HologramCacheService::Stats) -> :(wat::core::unit,wat::core::bool))
-      (:wat::core::tuple gate false))))
+      (:wat::core::Tuple gate false))))
 
 ;; null-reporter — discards every Report variant.
 (:wat::core::define
@@ -279,8 +279,8 @@
          ((state' :wat::holon::lru::HologramCacheService::State)
           (:wat::holon::lru::HologramCacheService::State/new
             cache (:wat::holon::lru::HologramCacheService::Stats/zero))))
-        (:wat::core::tuple state' cadence'))
-      (:wat::core::tuple state cadence'))))
+        (:wat::core::Tuple state' cadence'))
+      (:wat::core::Tuple state cadence'))))
 
 ;; ─── Driver loop — select + dispatch + gate-check ──────────────
 ;;
@@ -407,4 +407,4 @@
            -> :wat::core::unit)
           (:wat::holon::lru::HologramCacheService/run
             req-rxs cap reporter metrics-cadence)))))
-    (:wat::core::tuple pool driver)))
+    (:wat::core::Tuple pool driver)))

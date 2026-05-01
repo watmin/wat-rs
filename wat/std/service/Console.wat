@@ -186,7 +186,7 @@
      ((ack-rx :wat::std::service::Console::AckRx) (:wat::core::second handle))
      ((_send :wat::core::unit)
       (:wat::core::result::expect -> :wat::core::unit
-        (:wat::kernel::send tx (:wat::core::tuple 0 msg))
+        (:wat::kernel::send tx (:wat::core::Tuple 0 msg))
         "Console/out: tx disconnected — Console driver died?"))
      ((_ack :wat::core::Option<wat::core::unit>)
       (:wat::core::result::expect -> :wat::core::Option<wat::core::unit>
@@ -204,7 +204,7 @@
      ((ack-rx :wat::std::service::Console::AckRx) (:wat::core::second handle))
      ((_send :wat::core::unit)
       (:wat::core::result::expect -> :wat::core::unit
-        (:wat::kernel::send tx (:wat::core::tuple 1 msg))
+        (:wat::kernel::send tx (:wat::core::Tuple 1 msg))
         "Console/err: tx disconnected — Console driver died?"))
      ((_ack :wat::core::Option<wat::core::unit>)
       (:wat::core::result::expect -> :wat::core::Option<wat::core::unit>
@@ -286,4 +286,4 @@
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
           (:wat::std::service::Console/loop driver-pairs stdout stderr)))))
-    (:wat::core::tuple pool driver)))
+    (:wat::core::Tuple pool driver)))

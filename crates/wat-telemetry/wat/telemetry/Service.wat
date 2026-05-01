@@ -55,7 +55,7 @@
     ()
     (:wat::core::lambda
       ((gate :wat::core::unit) (_stats :wat::telemetry::Service::Stats) -> :(wat::core::unit,wat::core::bool))
-      (:wat::core::tuple gate false))))
+      (:wat::core::Tuple gate false))))
 
 (:wat::core::define
   (:wat::telemetry::Service::Stats/zero
@@ -145,9 +145,9 @@
       (:wat::core::let*
         (((entries :wat::core::Vector<E>) (stats-translator stats))
          ((_dispatch :wat::core::unit) (dispatcher entries)))
-        (:wat::core::tuple
+        (:wat::core::Tuple
           (:wat::telemetry::Service::Stats/zero) cadence'))
-      (:wat::core::tuple stats cadence'))))
+      (:wat::core::Tuple stats cadence'))))
 
 
 ;; ─── Driver loop (arc 089 drain-all + arc 095 paired channels) ──
@@ -189,7 +189,7 @@
      ((acks' :wat::core::Vector<wat::telemetry::Service::AckTx>)
       (:wat::core::concat acks
         (:wat::core::Vector :wat::telemetry::Service::AckTx ack))))
-    (:wat::core::tuple entries' acks')))
+    (:wat::core::Tuple entries' acks')))
 
 
 ;; Merge one indexed pair into the accumulator. On the first-idx
@@ -301,7 +301,7 @@
     -> :wat::core::unit)
   (:wat::core::let*
     (((init :wat::telemetry::Service::Pending<E>)
-      (:wat::core::tuple
+      (:wat::core::Tuple
         (:wat::core::Vector :E)
         (:wat::core::Vector :wat::telemetry::Service::AckTx)))
      ((pending :wat::telemetry::Service::Pending<E>)
@@ -430,7 +430,7 @@
              ((ap :wat::telemetry::Service::AckChannel) (:wat::core::second rp+ap))
              ((req-tx :wat::telemetry::Service::ReqTx<E>) (:wat::core::first rp))
              ((ack-rx :wat::telemetry::Service::AckRx) (:wat::core::second ap)))
-            (:wat::core::tuple req-tx ack-rx)))))
+            (:wat::core::Tuple req-tx ack-rx)))))
      ((driver-pairs :wat::core::Vector<wat::telemetry::Service::DriverPair<E>>)
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)
@@ -442,7 +442,7 @@
              ((ap :wat::telemetry::Service::AckChannel) (:wat::core::second rp+ap))
              ((req-rx :wat::telemetry::Service::ReqRx<E>) (:wat::core::second rp))
              ((ack-tx :wat::telemetry::Service::AckTx) (:wat::core::first ap)))
-            (:wat::core::tuple req-rx ack-tx)))))
+            (:wat::core::Tuple req-rx ack-tx)))))
      ((pool :wat::telemetry::Service::HandlePool<E>)
       (:wat::kernel::HandlePool::new "telemetry::Service" handles))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
@@ -453,4 +453,4 @@
            -> :wat::core::unit)
           (:wat::telemetry::Service/run
             driver-pairs cadence dispatcher stats-translator)))))
-    (:wat::core::tuple pool driver)))
+    (:wat::core::Tuple pool driver)))

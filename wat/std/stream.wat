@@ -63,7 +63,7 @@
 ;;   ChunkStep<T>           — chunks / window      : (buf,             emits)
 ;;   KeyedChunkStep<K,T>    — chunks-by            : ((wat::core::Option<K>,buf), emits)
 ;;
-;; Each `:wat::core::tuple` step returns one of these. Naming the
+;; Each `:wat::core::Tuple` step returns one of these. Naming the
 ;; shapes keeps lambda return-type annotations from accumulating
 ;; nested `<>`s at every site.
 (:wat::core::typealias
@@ -97,7 +97,7 @@
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
           (producer tx)))))
-    (:wat::core::tuple rx handle)))
+    (:wat::core::Tuple rx handle)))
 
 ;; --- from-receiver ---
 ;;
@@ -117,7 +117,7 @@
     (rx :wat::kernel::QueueReceiver<T>)
     (handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
     -> :wat::std::stream::Stream<T>)
-  (:wat::core::tuple rx handle))
+  (:wat::core::Tuple rx handle))
 
 ;; --- map ---
 ;;
@@ -161,7 +161,7 @@
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
           (:wat::std::stream::map-worker up-rx tx f)))))
-    (:wat::core::tuple rx handle)))
+    (:wat::core::Tuple rx handle)))
 
 ;; --- for-each ---
 ;;
@@ -266,7 +266,7 @@
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
           (:wat::std::stream::filter-worker up-rx tx pred)))))
-    (:wat::core::tuple rx handle)))
+    (:wat::core::Tuple rx handle)))
 
 ;; --- inspect ---
 ;;
@@ -310,7 +310,7 @@
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
           (:wat::std::stream::inspect-worker up-rx tx f)))))
-    (:wat::core::tuple rx handle)))
+    (:wat::core::Tuple rx handle)))
 
 ;; --- fold ---
 ;;
@@ -448,7 +448,7 @@
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
           (:wat::std::stream::with-state-worker up-rx tx step flush init)))))
-    (:wat::core::tuple rx handle)))
+    (:wat::core::Tuple rx handle)))
 
 ;; --- chunks (rewritten on top of with-state) ---
 ;;
@@ -476,10 +476,10 @@
     (((new-buffer :wat::core::Vector<T>) (:wat::core::conj buffer item)))
     (:wat::core::if (:wat::core::>= (:wat::core::length new-buffer) size)
       -> :wat::std::stream::ChunkStep<T>
-      (:wat::core::tuple
+      (:wat::core::Tuple
         (:wat::core::Vector :T)
         (:wat::core::Vector :wat::core::Vector<T> new-buffer))
-      (:wat::core::tuple
+      (:wat::core::Tuple
         new-buffer
         (:wat::core::Vector :wat::core::Vector<T>)))))
 
@@ -530,19 +530,19 @@
     (:wat::core::match last-key -> :wat::std::stream::KeyedChunkStep<K,T>
       (:None
         ;; First item — start the run, emit nothing yet.
-        (:wat::core::tuple
-          (:wat::core::tuple (Some k) (:wat::core::Vector :T item))
+        (:wat::core::Tuple
+          (:wat::core::Tuple (Some k) (:wat::core::Vector :T item))
           (:wat::core::Vector :wat::core::Vector<T>)))
       ((Some prev)
         (:wat::core::if (:wat::core::= prev k)
           -> :wat::std::stream::KeyedChunkStep<K,T>
           ;; Same key — append to current run, emit nothing.
-          (:wat::core::tuple
-            (:wat::core::tuple (Some k) (:wat::core::conj buffer item))
+          (:wat::core::Tuple
+            (:wat::core::Tuple (Some k) (:wat::core::conj buffer item))
             (:wat::core::Vector :wat::core::Vector<T>))
           ;; Key change — emit completed run, start new run.
-          (:wat::core::tuple
-            (:wat::core::tuple (Some k) (:wat::core::Vector :T item))
+          (:wat::core::Tuple
+            (:wat::core::Tuple (Some k) (:wat::core::Vector :T item))
             (:wat::core::Vector :wat::core::Vector<T> buffer)))))))
 
 (:wat::core::define
@@ -563,7 +563,7 @@
   ;; init = (None, empty) — no key seen yet, no items buffered.
   ;; step closes over key-fn; flush is size-agnostic so passes by name.
   (:wat::std::stream::with-state upstream
-    (:wat::core::tuple :None (:wat::core::Vector :T))
+    (:wat::core::Tuple :None (:wat::core::Vector :T))
     (:wat::core::lambda ((state :(wat::core::Option<K>,wat::core::Vector<T>)) (item :T)
                          -> :wat::std::stream::KeyedChunkStep<K,T>)
       (:wat::std::stream::chunks-by-step state item key-fn))
@@ -598,13 +598,13 @@
       ((:wat::core::> new-len size)
         (:wat::core::let*
           (((trimmed :wat::core::Vector<T>) (:wat::core::rest new-buf)))
-          (:wat::core::tuple trimmed (:wat::core::Vector :wat::core::Vector<T> trimmed))))
+          (:wat::core::Tuple trimmed (:wat::core::Vector :wat::core::Vector<T> trimmed))))
       ;; Exactly size — first full window. Emit and keep.
       ((:wat::core::= new-len size)
-        (:wat::core::tuple new-buf (:wat::core::Vector :wat::core::Vector<T> new-buf)))
+        (:wat::core::Tuple new-buf (:wat::core::Vector :wat::core::Vector<T> new-buf)))
       ;; Under-size — still warming up. No emit.
       (:else
-        (:wat::core::tuple new-buf (:wat::core::Vector :wat::core::Vector<T>))))))
+        (:wat::core::Tuple new-buf (:wat::core::Vector :wat::core::Vector<T>))))))
 
 (:wat::core::define
   (:wat::std::stream::window-flush<T>
@@ -682,7 +682,7 @@
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
           (:wat::std::stream::take-worker up-rx tx n)))))
-    (:wat::core::tuple rx handle)))
+    (:wat::core::Tuple rx handle)))
 
 ;; --- flat-map ---
 ;;
@@ -739,4 +739,4 @@
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
           (:wat::std::stream::flat-map-worker up-rx tx f (:wat::core::Vector :U))))))
-    (:wat::core::tuple rx handle)))
+    (:wat::core::Tuple rx handle)))

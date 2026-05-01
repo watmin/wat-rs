@@ -109,7 +109,7 @@
     ()
     (:wat::core::lambda
       ((gate :wat::core::unit) (_stats :wat::lru::CacheService::Stats) -> :(wat::core::unit,wat::core::bool))
-      (:wat::core::tuple gate false))))
+      (:wat::core::Tuple gate false))))
 
 ;; null-reporter — discards every Report variant.
 (:wat::core::define
@@ -240,8 +240,8 @@
          ((state' :wat::lru::CacheService::State<K,V>)
           (:wat::lru::CacheService::State/new
             cache (:wat::lru::CacheService::Stats/zero))))
-        (:wat::core::tuple state' cadence'))
-      (:wat::core::tuple state cadence'))))
+        (:wat::core::Tuple state' cadence'))
+      (:wat::core::Tuple state cadence'))))
 
 ;; Driver entry — allocates the LocalCache INSIDE the driver thread
 ;; (LocalCache is thread-owned; creating it in the caller and passing
@@ -318,9 +318,9 @@
     -> :wat::core::Option<V>)
   (:wat::core::let*
     (((body :wat::lru::CacheService::Body<K,V>)
-      (:wat::core::tuple 0 key :None))
+      (:wat::core::Tuple 0 key :None))
      ((req :wat::lru::CacheService::Request<K,V>)
-      (:wat::core::tuple body reply-tx))
+      (:wat::core::Tuple body reply-tx))
      ;; Arc 110: in-memory peer-death is catastrophic; cache driver
      ;; dying means our state-of-the-world claim is invalid. Panic
      ;; with a meaningful message rather than silently returning
@@ -345,9 +345,9 @@
     -> :wat::core::unit)
   (:wat::core::let*
     (((body :wat::lru::CacheService::Body<K,V>)
-      (:wat::core::tuple 1 key (Some value)))
+      (:wat::core::Tuple 1 key (Some value)))
      ((req :wat::lru::CacheService::Request<K,V>)
-      (:wat::core::tuple body reply-tx))
+      (:wat::core::Tuple body reply-tx))
      ;; Arc 110: same as CacheService/get — driver dying mid-protocol
      ;; is catastrophic; panic with a meaningful message rather than
      ;; silently absorbing the disconnect.
@@ -405,4 +405,4 @@
            -> :wat::core::unit)
           (:wat::lru::CacheService/loop
             capacity req-rxs reporter metrics-cadence)))))
-    (:wat::core::tuple pool driver)))
+    (:wat::core::Tuple pool driver)))

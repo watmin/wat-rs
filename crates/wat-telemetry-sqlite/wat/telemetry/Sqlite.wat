@@ -148,7 +148,7 @@
              ((ap :wat::telemetry::Service::AckChannel) (:wat::core::second rp+ap))
              ((req-tx :wat::telemetry::Service::ReqTx<E>) (:wat::core::first rp))
              ((ack-rx :wat::telemetry::Service::AckRx) (:wat::core::second ap)))
-            (:wat::core::tuple req-tx ack-rx)))))
+            (:wat::core::Tuple req-tx ack-rx)))))
      ;; Server-side DriverPairs — (req-rx, ack-tx) pairs.
      ((driver-pairs :wat::core::Vector<wat::telemetry::Service::DriverPair<E>>)
       (:wat::core::map
@@ -161,7 +161,7 @@
              ((ap :wat::telemetry::Service::AckChannel) (:wat::core::second rp+ap))
              ((req-rx :wat::telemetry::Service::ReqRx<E>) (:wat::core::second rp))
              ((ack-tx :wat::telemetry::Service::AckTx) (:wat::core::first ap)))
-            (:wat::core::tuple req-rx ack-tx)))))
+            (:wat::core::Tuple req-rx ack-tx)))))
      ((pool :wat::telemetry::Service::HandlePool<E>)
       (:wat::kernel::HandlePool::new
         "wat::telemetry::Sqlite" handles))
@@ -174,7 +174,7 @@
           (:wat::telemetry::Sqlite/run
             path driver-pairs cadence
             pre-install schema-install dispatcher stats-translator)))))
-    (:wat::core::tuple pool driver)))
+    (:wat::core::Tuple pool driver)))
 
 
 ;; ─── Auto-spawn (arc 085) ───────────────────────────────────────
