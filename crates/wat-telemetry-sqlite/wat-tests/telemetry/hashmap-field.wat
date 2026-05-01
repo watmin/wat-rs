@@ -21,15 +21,15 @@
 
    (:wat::core::define
      (:test::Tagged::send-one
-       (pool :wat::telemetry::Service::HandlePool<test::Tagged::Event>)
+       (pool :wat::telemetry::HandlePool<test::Tagged::Event>)
        -> :wat::core::unit)
      (:wat::core::let*
-       (((handle :wat::telemetry::Service::Handle<test::Tagged::Event>)
+       (((handle :wat::telemetry::Handle<test::Tagged::Event>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-        ((req-tx :wat::telemetry::Service::ReqTx<test::Tagged::Event>)
+        ((req-tx :wat::telemetry::ReqTx<test::Tagged::Event>)
          (:wat::core::first handle))
-        ((ack-rx :wat::telemetry::Service::AckRx)
+        ((ack-rx :wat::telemetry::AckRx)
          (:wat::core::second handle))
         ((tags :wat::telemetry::Tags)
          (:wat::core::assoc
@@ -41,7 +41,7 @@
          (:wat::core::Vector :test::Tagged::Event
            (:test::Tagged::Event::Log tags)))
         ((_log :wat::core::unit)
-         (:wat::telemetry::Service/batch-log
+         (:wat::telemetry::batch-log
            req-tx ack-rx entries)))
        ()))
 
@@ -51,13 +51,13 @@
        (path :wat::core::String)
        -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
      (:wat::core::let*
-       (((spawn :wat::telemetry::Service::Spawn<test::Tagged::Event>)
+       (((spawn :wat::telemetry::Spawn<test::Tagged::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
            :test::Tagged::Event
            path 1
-           (:wat::telemetry::Service/null-metrics-cadence)
+           (:wat::telemetry::null-metrics-cadence)
            :wat::telemetry::Sqlite/null-pre-install))
-        ((pool :wat::telemetry::Service::HandlePool<test::Tagged::Event>)
+        ((pool :wat::telemetry::HandlePool<test::Tagged::Event>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
          (:wat::core::second spawn))

@@ -40,22 +40,22 @@
     (path :String)
     -> :wat::kernel::ProgramHandle<()>)
   (:wat::core::let*
-    (((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
+    (((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
       (:wat::telemetry::Sqlite/auto-spawn
         :wat::telemetry::Event
         path 1
-        (:wat::telemetry::Service/null-metrics-cadence)
+        (:wat::telemetry::null-metrics-cadence)
         :wat::telemetry::Sqlite/null-pre-install))
-     ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
+     ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
       (:wat::core::first spawn))
      ((driver :wat::kernel::ProgramHandle<()>)
       (:wat::core::second spawn))
-     ((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
+     ((handle :wat::telemetry::Handle<wat::telemetry::Event>)
       (:wat::kernel::HandlePool::pop pool))
      ((_finish :()) (:wat::kernel::HandlePool::finish pool))
-     ((req-tx :wat::telemetry::Service::ReqTx<wat::telemetry::Event>)
+     ((req-tx :wat::telemetry::ReqTx<wat::telemetry::Event>)
       (:wat::core::first handle))
-     ((ack-rx :wat::telemetry::Service::AckRx)
+     ((ack-rx :wat::telemetry::AckRx)
       (:wat::core::second handle))
      ((entries :Vec<wat::telemetry::Event>)
       (:wat::core::vec :wat::telemetry::Event
@@ -65,7 +65,7 @@
         (:demo::seed::log-event 4000 "delta")
         (:demo::seed::log-event 5000 "epsilon")))
      ((_log :())
-      (:wat::telemetry::Service/batch-log req-tx ack-rx entries)))
+      (:wat::telemetry::batch-log req-tx ack-rx entries)))
     driver))
 
 

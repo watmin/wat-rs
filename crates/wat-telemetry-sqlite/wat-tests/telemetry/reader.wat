@@ -44,15 +44,15 @@
 
    (:wat::core::define
      (:test::reader::write-three
-       (pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
+       (pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
        -> :wat::core::unit)
      (:wat::core::let*
-       (((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
+       (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-        ((req-tx :wat::telemetry::Service::ReqTx<wat::telemetry::Event>)
+        ((req-tx :wat::telemetry::ReqTx<wat::telemetry::Event>)
          (:wat::core::first handle))
-        ((ack-rx :wat::telemetry::Service::AckRx)
+        ((ack-rx :wat::telemetry::AckRx)
          (:wat::core::second handle))
         ((entries :wat::core::Vector<wat::telemetry::Event>)
          (:wat::core::Vector :wat::telemetry::Event
@@ -60,7 +60,7 @@
            (:test::reader::make-log 2000 "second")
            (:test::reader::make-log 3000 "third")))
         ((_log :wat::core::unit)
-         (:wat::telemetry::Service/batch-log
+         (:wat::telemetry::batch-log
            req-tx ack-rx entries)))
        ()))
 
@@ -70,13 +70,13 @@
        (path :wat::core::String)
        -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
      (:wat::core::let*
-       (((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
+       (((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
            :wat::telemetry::Event
            path 1
-           (:wat::telemetry::Service/null-metrics-cadence)
+           (:wat::telemetry::null-metrics-cadence)
            :wat::telemetry::Sqlite/null-pre-install))
-        ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
+        ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
          (:wat::core::second spawn))

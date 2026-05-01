@@ -48,7 +48,7 @@
 ;; sink's batch-log handles" — better than the more abstract
 ;; Service::Handle.
 (:wat::core::typealias :wat::telemetry::SinkHandles
-  :wat::telemetry::Service::Handle<wat::telemetry::Event>)
+  :wat::telemetry::Handle<wat::telemetry::Event>)
 
 
 ;; Body lambda's shape for the make-scope HOF — takes the wu the

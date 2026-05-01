@@ -72,7 +72,7 @@
    ;; Empty stats translator — null cadence never fires anyway.
    (:wat::core::define
      (:wat-telemetry::scope::translate-empty
-       (_s :wat::telemetry::Service::Stats)
+       (_s :wat::telemetry::Stats)
        -> :wat::core::Vector<wat::telemetry::Event>)
      (:wat::core::Vector :wat::telemetry::Event))))
 
@@ -439,19 +439,19 @@
          ;; Dispatcher closure-over stub-tx; null cadence + empty translator.
          ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
           (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
-         ((cadence :wat::telemetry::Service::MetricsCadence<wat::core::unit>)
-          (:wat::telemetry::Service/null-metrics-cadence))
+         ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
+          (:wat::telemetry::null-metrics-cadence))
          ;; Spawn Service<Event,_> with one client slot.
-         ((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
-          (:wat::telemetry::Service/spawn 1 cadence dispatcher
+         ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
+          (:wat::telemetry::spawn 1 cadence dispatcher
             :wat-telemetry::scope::translate-empty))
-         ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
+         ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
           (:wat::core::first spawn))
          ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
          ;; Inner-inner: pop Handle, finish pool, factory + scope-fn-with-counter.
          ((result :wat::core::i64)
           (:wat::core::let*
-            (((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
+            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
               (:wat::kernel::HandlePool::pop pool))
              ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
              ((ns :wat::holon::HolonAST) (:wat-telemetry::default-ns))

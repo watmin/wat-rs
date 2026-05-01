@@ -107,11 +107,11 @@
         time-ns ns-notag caller-notag level-notag uuid tags data-tagged))
      ((entries :wat::core::Vector<wat::telemetry::Event>)
       (:wat::core::Vector :wat::telemetry::Event event))
-     ((req-tx :wat::telemetry::Service::ReqTx<wat::telemetry::Event>)
+     ((req-tx :wat::telemetry::ReqTx<wat::telemetry::Event>)
       (:wat::core::first handle))
-     ((ack-rx :wat::telemetry::Service::AckRx)
+     ((ack-rx :wat::telemetry::AckRx)
       (:wat::core::second handle)))
-    (:wat::telemetry::Service/batch-log req-tx ack-rx entries)))
+    (:wat::telemetry::batch-log req-tx ack-rx entries)))
 
 
 ;; ─── Convenience methods — level baked, /log re-routed ──────────

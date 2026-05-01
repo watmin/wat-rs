@@ -71,23 +71,23 @@
     (path :String)
     -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
   (:wat::core::let*
-    (((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
+    (((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
       (:wat::telemetry::Sqlite/auto-spawn
         :wat::telemetry::Event
         path 1
-        (:wat::telemetry::Service/null-metrics-cadence)
+        (:wat::telemetry::null-metrics-cadence)
         :wat::telemetry::Sqlite/null-pre-install))
-     ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
+     ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
       (:wat::core::first spawn))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::core::second spawn))
      ;; Six sample trades — 4 buys + 2 sells, varied qtys.
-     ((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
+     ((handle :wat::telemetry::Handle<wat::telemetry::Event>)
       (:wat::kernel::HandlePool::pop pool))
      ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-     ((req-tx :wat::telemetry::Service::ReqTx<wat::telemetry::Event>)
+     ((req-tx :wat::telemetry::ReqTx<wat::telemetry::Event>)
       (:wat::core::first handle))
-     ((ack-rx :wat::telemetry::Service::AckRx)
+     ((ack-rx :wat::telemetry::AckRx)
       (:wat::core::second handle))
      ((entries :wat::core::Vector<wat::telemetry::Event>)
       (:wat::core::Vector :wat::telemetry::Event
@@ -98,7 +98,7 @@
         (:demo::trade-event 5000 "buy"  20 98.5)   ; ← Q2 hit
         (:demo::trade-event 6000 "sell" 8  103.0)))
      ((_log :wat::core::unit)
-      (:wat::telemetry::Service/batch-log req-tx ack-rx entries)))
+      (:wat::telemetry::batch-log req-tx ack-rx entries)))
     driver))
 
 

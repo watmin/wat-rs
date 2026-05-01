@@ -2024,7 +2024,7 @@ seam:
 ((sqlite-spawn :Service::Spawn<my::log::Entry>)
  (:wat::telemetry::Sqlite/auto-spawn
    :my::log::Entry "runs/today.db" 1
-   (:wat::telemetry::Service/null-metrics-cadence)
+   (:wat::telemetry::null-metrics-cadence)
    :my::pre-install))
 ```
 
@@ -2061,9 +2061,9 @@ A producer that wants both surfaces takes both handles wired in:
 (:wat::core::define
   (:my::worker/run
     (logger :wat::telemetry::ConsoleLogger)
-    (sqlite-tx :wat::telemetry::Service::ReqTx<my::log::Entry>)
-    (ack-tx :wat::telemetry::Service::AckTx)
-    (ack-rx :wat::telemetry::Service::AckRx)
+    (sqlite-tx :wat::telemetry::ReqTx<my::log::Entry>)
+    (ack-tx :wat::telemetry::AckTx)
+    (ack-rx :wat::telemetry::AckRx)
     -> :())
   (:wat::core::let*
     (((_say :())
@@ -2074,7 +2074,7 @@ A producer that wants both surfaces takes both handles wired in:
         (:my::log::Entry::Resolved ...)
         (:my::log::Entry::Resolved ...)))
      ((_log :())
-      (:wat::telemetry::Service/batch-log         ;; high-fidelity archive
+      (:wat::telemetry::batch-log         ;; high-fidelity archive
         sqlite-tx ack-tx ack-rx entries)))
     ()))
 ```

@@ -29,22 +29,22 @@
    ;; entries + drops. Function-decomposed per Step 9.
    (:wat::core::define
      (:test::send-events
-       (pool :wat::telemetry::Service::HandlePool<test::Event>)
+       (pool :wat::telemetry::HandlePool<test::Event>)
        -> :wat::core::unit)
      (:wat::core::let*
-       (((handle :wat::telemetry::Service::Handle<test::Event>)
+       (((handle :wat::telemetry::Handle<test::Event>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-        ((req-tx :wat::telemetry::Service::ReqTx<test::Event>)
+        ((req-tx :wat::telemetry::ReqTx<test::Event>)
          (:wat::core::first handle))
-        ((ack-rx :wat::telemetry::Service::AckRx)
+        ((ack-rx :wat::telemetry::AckRx)
          (:wat::core::second handle))
         ((entries :wat::core::Vector<test::Event>)
          (:wat::core::Vector :test::Event
            (:test::Event::Buy 100.5 7)
            (:test::Event::Sell 102.25 3 "stop-loss" true)))
         ((_log :wat::core::unit)
-         (:wat::telemetry::Service/batch-log
+         (:wat::telemetry::batch-log
            req-tx ack-rx entries)))
        ()))
 
@@ -54,13 +54,13 @@
        (path :wat::core::String)
        -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
      (:wat::core::let*
-       (((spawn :wat::telemetry::Service::Spawn<test::Event>)
+       (((spawn :wat::telemetry::Spawn<test::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
            :test::Event
            path 1
-           (:wat::telemetry::Service/null-metrics-cadence)
+           (:wat::telemetry::null-metrics-cadence)
            :wat::telemetry::Sqlite/null-pre-install))
-        ((pool :wat::telemetry::Service::HandlePool<test::Event>)
+        ((pool :wat::telemetry::HandlePool<test::Event>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
          (:wat::core::second spawn))

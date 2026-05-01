@@ -56,7 +56,7 @@
 
    (:wat::core::define
      (:wat-telemetry::log-test::translate-empty
-       (_s :wat::telemetry::Service::Stats)
+       (_s :wat::telemetry::Stats)
        -> :wat::core::Vector<wat::telemetry::Event>)
      (:wat::core::Vector :wat::telemetry::Event))))
 
@@ -82,18 +82,18 @@
           (:wat::core::second stub-pair))
          ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
           (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))
-         ((cadence :wat::telemetry::Service::MetricsCadence<wat::core::unit>)
-          (:wat::telemetry::Service/null-metrics-cadence))
-         ((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
-          (:wat::telemetry::Service/spawn 1 cadence dispatcher
+         ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
+          (:wat::telemetry::null-metrics-cadence))
+         ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
+          (:wat::telemetry::spawn 1 cadence dispatcher
             :wat-telemetry::log-test::translate-empty))
-         ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
+         ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
           (:wat::core::first spawn))
          ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
          ;; Inner-inner: pop handle, build wu + logger, emit one /info.
          ((_inner :wat::core::unit)
           (:wat::core::let*
-            (((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
+            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
               (:wat::kernel::HandlePool::pop pool))
              ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
              ((wu :wat::telemetry::WorkUnit)
@@ -157,17 +157,17 @@
           (:wat::core::second stub-pair))
          ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
           (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))
-         ((cadence :wat::telemetry::Service::MetricsCadence<wat::core::unit>)
-          (:wat::telemetry::Service/null-metrics-cadence))
-         ((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
-          (:wat::telemetry::Service/spawn 1 cadence dispatcher
+         ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
+          (:wat::telemetry::null-metrics-cadence))
+         ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
+          (:wat::telemetry::spawn 1 cadence dispatcher
             :wat-telemetry::log-test::translate-empty))
-         ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
+         ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
           (:wat::core::first spawn))
          ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
          ((_inner :wat::core::unit)
           (:wat::core::let*
-            (((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
+            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
               (:wat::kernel::HandlePool::pop pool))
              ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
              ((wu :wat::telemetry::WorkUnit)

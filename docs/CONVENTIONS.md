@@ -621,20 +621,20 @@ Two layers of alias compose: substrate-generic + consumer-concrete.
 
 ```scheme
 ;; Substrate ships the generic — reusable across consumers.
-(:wat::core::typealias :wat::telemetry::Service::Spawn<E>
-  :(wat::telemetry::Service::ReqTxPool<E>,wat::kernel::ProgramHandle<()>))
+(:wat::core::typealias :wat::telemetry::Spawn<E>
+  :(wat::telemetry::ReqTxPool<E>,wat::kernel::ProgramHandle<()>))
 
 ;; Consumer aliases the concrete instantiation at their namespace —
 ;; readable everywhere downstream.
 (:wat::core::typealias :trading::telemetry::Spawn
-  :wat::telemetry::Service::Spawn<trading::log::LogEntry>)
+  :wat::telemetry::Spawn<trading::log::LogEntry>)
 
 ;; Every lab signature reads `:trading::telemetry::Spawn` instead
-;; of `:wat::telemetry::Service::Spawn<trading::log::LogEntry>`.
+;; of `:wat::telemetry::Spawn<trading::log::LogEntry>`.
 (:wat::core::define
   (:trading::telemetry::Sqlite/spawn<G>
     (path :String) (count :i64)
-    (cadence :wat::telemetry::Service::MetricsCadence<G>)
+    (cadence :wat::telemetry::MetricsCadence<G>)
     -> :trading::telemetry::Spawn)
   ...)
 ```

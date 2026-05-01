@@ -24,15 +24,15 @@
    ;; send through batch-log, drop.
    (:wat::core::define
      (:test::Edn::send-one
-       (pool :wat::telemetry::Service::HandlePool<test::Edn::Event>)
+       (pool :wat::telemetry::HandlePool<test::Edn::Event>)
        -> :wat::core::unit)
      (:wat::core::let*
-       (((handle :wat::telemetry::Service::Handle<test::Edn::Event>)
+       (((handle :wat::telemetry::Handle<test::Edn::Event>)
          (:wat::kernel::HandlePool::pop pool))
         ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-        ((req-tx :wat::telemetry::Service::ReqTx<test::Edn::Event>)
+        ((req-tx :wat::telemetry::ReqTx<test::Edn::Event>)
          (:wat::core::first handle))
-        ((ack-rx :wat::telemetry::Service::AckRx)
+        ((ack-rx :wat::telemetry::AckRx)
          (:wat::core::second handle))
         ((ast :wat::holon::HolonAST) (:wat::holon::Atom "hello"))
         ((tagged :wat::edn::Tagged)  (:wat::edn::Tagged/new ast))
@@ -41,7 +41,7 @@
          (:wat::core::Vector :test::Edn::Event
            (:test::Edn::Event::Log tagged notag)))
         ((_log :wat::core::unit)
-         (:wat::telemetry::Service/batch-log
+         (:wat::telemetry::batch-log
            req-tx ack-rx entries)))
        ()))
 
@@ -51,13 +51,13 @@
        (path :wat::core::String)
        -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
      (:wat::core::let*
-       (((spawn :wat::telemetry::Service::Spawn<test::Edn::Event>)
+       (((spawn :wat::telemetry::Spawn<test::Edn::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
            :test::Edn::Event
            path 1
-           (:wat::telemetry::Service/null-metrics-cadence)
+           (:wat::telemetry::null-metrics-cadence)
            :wat::telemetry::Sqlite/null-pre-install))
-        ((pool :wat::telemetry::Service::HandlePool<test::Edn::Event>)
+        ((pool :wat::telemetry::HandlePool<test::Edn::Event>)
          (:wat::core::first spawn))
         ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
          (:wat::core::second spawn))

@@ -172,11 +172,11 @@
        ((end    :wat::core::i64) (:wat::time::epoch-nanos (:wat::time::now)))
        ((events :wat::core::Vector<wat::telemetry::Event>)
         (:wat::telemetry::WorkUnit/scope::collect-metric-events wu start end))
-       ((req-tx :wat::telemetry::Service::ReqTx<wat::telemetry::Event>)
+       ((req-tx :wat::telemetry::ReqTx<wat::telemetry::Event>)
         (:wat::core::first handle))
-       ((ack-rx :wat::telemetry::Service::AckRx) (:wat::core::second handle))
+       ((ack-rx :wat::telemetry::AckRx) (:wat::core::second handle))
        ((_ship  :wat::core::unit)
-        (:wat::telemetry::Service/batch-log req-tx ack-rx events)))
+        (:wat::telemetry::batch-log req-tx ack-rx events)))
       result)))
 
 
