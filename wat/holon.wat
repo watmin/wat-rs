@@ -1,10 +1,28 @@
-;; :wat::holon::Filter — substrate-default filter funcs for Hologram/get
+;; wat/holon.wat — loose verbs in the :wat::holon::* namespace.
 ;;
-;; The arc-074 Hologram get takes a user-supplied filter
-;; `:fn(:wat::core::f64) -> :wat::core::bool` that decides whether the highest-cosine
-;; candidate is "close enough" to return. The substrate ships three
-;; opinionated factories so consumers don't have to hand-roll the
-;; canonical thresholds.
+;; The wat/holon/ subdirectory ships one named PascalCase holon per
+;; file (wat/holon/Subtract.wat → :wat::holon::Subtract, etc.). This
+;; top-level file is the home for :wat::holon::* verbs that DON'T
+;; constitute their own named holon — closures, factories, and
+;; convenience functions that operate on existing holon primitives.
+;;
+;; Parallels wat/stream.wat (loose :wat::stream::* HOFs) and other
+;; namespace-level top-level files per § G's filesystem-path-mirrors-
+;; FQDN doctrine. Future additions: any :wat::holon::* verb whose
+;; name doesn't match a substrate-defined holon type lands here.
+;;
+;; Currently shipped: three Hologram/get filter factories (originally
+;; wat/holon/Filter.wat — moved 2026-05-01 because the file shipped
+;; verbs, not a Filter type; per gaze ward's reading, the file's
+;; basename was lying about what it housed).
+;;
+;; ─── Hologram/get filter factories ──────────────────────────────────
+;;
+;; The arc-074 Hologram/get takes a user-supplied filter
+;; `:fn(:wat::core::f64) -> :wat::core::bool` that decides whether the
+;; highest-cosine candidate is "close enough" to return. The substrate
+;; ships three opinionated factories so consumers don't have to
+;; hand-roll the canonical thresholds.
 ;;
 ;; Each factory takes the encoder dim `d` and returns a closure with
 ;; the floor baked in. Pass the closure to Hologram/get's filter

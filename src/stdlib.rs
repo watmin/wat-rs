@@ -71,8 +71,8 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/holon/Trigram.wat"),
     },
     WatSource {
-        path: "wat/holon/Filter.wat",
-        source: include_str!("../wat/holon/Filter.wat"),
+        path: "wat/holon.wat",
+        source: include_str!("../wat/holon.wat"),
     },
     // Arc 076: wat/holon/Hologram.wat removed. Hologram/get / put /
     // make / len / capacity are all substrate primitives now; the
