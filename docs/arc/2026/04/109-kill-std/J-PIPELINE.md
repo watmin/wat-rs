@@ -60,6 +60,15 @@ order is preserved.
   and Vector heads). cargo test workspace 1476/0. See
   `SLICE-1F.md`. First slice to bundle Pattern 3 (type) +
   Pattern 2 (verb) cleanly; proves the bundle reusable.
+- 1g: list retires (was duplicate of vec; redirects to Vector) +
+  tuple → Tuple — shipped 2026-05-01. Pattern 2 only (two more
+  poison arms + two more hint helpers + new `Tuple` dispatch
+  arm); zero new walker logic. 22 files swept across three
+  tiers (tier 4 examples had zero hits); **74 tuple sites + 12
+  list sites = 86 rename sites**. Zero substrate-gap fixes.
+  cargo test workspace 1476/0. See `SLICE-1G.md`. Pattern 2
+  mechanism now well-rehearsed (slices 1f + 1g); reusable for
+  any future verb retirement.
 - § J 10a: `:wat::kernel::Program<I,O>` typealias minted (alias for `:Process<I,O>`)
 - § J 10b: sonnet sweep — annotations prefer Program (in scope of stdlib boundaries)
 - Arc 114 absorbed § J 10c's "Thread as concrete struct"
@@ -272,6 +281,13 @@ slice plans name.
                   + 225 verb); 1 substrate-gap fix in lower.rs;
                   cargo test workspace 1476/0
                   (commits 61c008d → ad4c54a; SLICE-1F.md)
+
+[done]  arc 109 slice 1g — list retire + tuple → Tuple
+                  (Pattern 2 only; two more poison arms +
+                  hint helpers + Tuple dispatch arm); 22 files
+                  swept; 86 rename sites (74 tuple + 12 list);
+                  zero substrate-gap fixes; cargo test workspace
+                  1476/0 (commits 1dea484 → e59a077; SLICE-1G.md)
 
 [next]  § J 10d — typeclass dispatch + ProgramDiedError supertype
                   (mint ProgramDiedError; mint Program<I,O> as

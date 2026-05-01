@@ -1,7 +1,23 @@
 # Arc 109 Slice 1g — list retires; tuple → Tuple (verb-equals-type)
 
-**Compaction-amnesia anchor.** Read this first if you're picking up
-slice 1g mid-flight.
+**Status: shipped 2026-05-01.** Walker (commit `1dea484`) +
+three-tier sweep across commits `83abf44` → `bad3c5e` →
+`e59a077`. (Tier 4 was a no-op — `examples/` had zero hits.)
+22 files swept; **74 tuple sites + 12 list sites = 86 rename
+sites**. Zero MANUAL flags, **zero substrate-gap fixes**. cargo
+test --release --workspace 1476/0.
+
+Higher than the brief's ~65 estimate — `wat/std/stream.wat`
+alone had 21 tuple sites (tier 1 totalled 47 just there +
+others).
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record. Smallest substrate-gap
+work so far in arc 109's slices because the Pattern 2 mechanism
+was already shipped + rehearsed in slice 1f. Adding two more
+poison arms + two more hint helpers + two new dispatch arms is
+purely additive — no new walker logic, no new CheckError variant,
+no canonicalization extension.**
 
 ## What this slice does
 

@@ -126,8 +126,8 @@ match the FQDN forms (`":wat::core::Some"` etc).
 | Today | After arc 109 | Status |
 |---|---|---|
 | `:wat::core::vec` | `:wat::core::Vector` (verb = type) | ✓ shipped slice 1f (Pattern 2 poison; coupled with § B Vec rename) |
-| `:wat::core::list` | **retire** (use `:wat::core::Vector`) | pending slice 1g |
-| `:wat::core::tuple` | `:wat::core::Tuple` | pending slice 1g |
+| `:wat::core::list` | **retire** (use `:wat::core::Vector`) | ✓ shipped slice 1g (Pattern 2 poison; redirect to `Vector`) |
+| `:wat::core::tuple` | `:wat::core::Tuple` | ✓ shipped slice 1g (Pattern 2 poison; verb-equals-type per slice 1f playbook) |
 | `:wat::core::HashMap` (constructor) | already aligned ✓ | — |
 | `:wat::core::HashSet` (constructor) | already aligned ✓ | — |
 | `:wat::core::range` | **moves to `:wat::list::range`** — see Section H | pending § H |
