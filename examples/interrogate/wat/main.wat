@@ -140,7 +140,7 @@
      ;; Phase 1.
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:demo::write-fixture path))
-     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((_p1 :wat::core::unit)
       (:wat::io::IOWriter/println stdout
