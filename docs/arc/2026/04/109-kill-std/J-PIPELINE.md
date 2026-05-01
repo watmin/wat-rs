@@ -41,6 +41,14 @@ order is preserved.
   `:wat::core::unit` → `Tuple(vec![])` when canonicalize=true so
   raw `==` validators accept the FQDN form); cargo test workspace
   1476/0. See `SLICE-1D.md`. Rename to `Unit` queued as follow-up.
+- 1e: FQDN four-of-five parametric type heads (Option/Result/
+  HashMap/HashSet) — shipped 2026-05-01.
+  `BareLegacyContainerHead` variant + Parametric-head walker arm
+  (third TypeExpr shape covered: Path → 1c, Tuple → 1d,
+  Parametric.head → 1e); four typealiases minted; 65 files swept
+  across four tiers; ~365 rename sites; zero substrate-gap fixes
+  required. cargo test workspace 1476/0. See `SLICE-1E.md`.
+  Vec<T> deferred to slice 1f (couples with § D verb rename).
 - § J 10a: `:wat::kernel::Program<I,O>` typealias minted (alias for `:Process<I,O>`)
 - § J 10b: sonnet sweep — annotations prefer Program (in scope of stdlib boundaries)
 - Arc 114 absorbed § J 10c's "Thread as concrete struct"
@@ -153,6 +161,32 @@ slices.
   arc; the substrate-as-teacher rehearsal makes either path
   cheap.
 
+- **`:wat::core::let*` → `:wat::core::let`.** Surfaced during
+  slice 1e (post-/gaze conversation). The asterisk is Scheme/Lisp
+  tradition for "sequential bindings" *as opposed to a parallel
+  `let`*. Wat has only the sequential form, no parallel sibling
+  is planned ("i don't think i'll add any more things to core at
+  this point"). With no companion to differ from, the `*` is
+  vestigial — distinction work without anything to distinguish.
+
+  Through the four questions: `let` is what every non-Scheme
+  reader expects (obvious); one name, one form (simple); the `*`
+  implies an alternative that doesn't exist (honest); aligns with
+  mainstream language vocabulary (good UX).
+
+  Mechanism: not Pattern 3 (it's a callee rename, not a
+  TypeExpr-shape detection). Closer to arc 114's poison pattern
+  — synthetic `CheckError::TypeMismatch` in the `:wat::core::let*`
+  dispatcher with `expected: ":wat::core::let"`, `got:
+  ":wat::core::let*"`; an `arc_109_let_migration_hint` in
+  `collect_hints` detects the shape pair and prints the rename
+  brief.
+
+  Cost: ~10-20 Rust dispatch sites in `src/check.rs` +
+  `src/runtime.rs` (recognizer + freeze pass) + several hundred
+  wat-source uses. Sweep is mechanical; same four-tier shape via
+  sonnet brief.
+
 ## The opus / sonnet split
 
 **Opus territory (rich context, architectural decisions):**
@@ -214,6 +248,12 @@ slice plans name.
                   substrate gap fix in parse_type_inner;
                   cargo test workspace 1476/0
                   (commits edd6687 → 279277f; SLICE-1D.md)
+
+[done]  arc 109 slice 1e — BareLegacyContainerHead variant +
+                  Parametric-head walker arm + 4 typealiases +
+                  four-tier sweep; 65 files; ~365 rename sites;
+                  zero substrate-gap fixes; cargo test workspace
+                  1476/0 (commits f8a82be → 5a96cb0; SLICE-1E.md)
 
 [next]  § J 10d — typeclass dispatch + ProgramDiedError supertype
                   (mint ProgramDiedError; mint Program<I,O> as

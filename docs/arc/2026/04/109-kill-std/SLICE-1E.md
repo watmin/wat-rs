@@ -1,7 +1,22 @@
 # Arc 109 Slice 1e — FQDN four-of-five parametric type heads
 
-**Compaction-amnesia anchor.** Read this first if you're picking up
-slice 1e mid-flight.
+**Status: shipped 2026-05-01.** Walker (commit `f8a82be`) +
+four-tier sweep across commits `5658a03` → `98c0ec6` → `af1888f`
+→ `5a96cb0`. 65 files swept; cargo test --release --workspace
+1476 passed, 0 failed, 0 BareLegacyContainerHead. Zero MANUAL
+flags. **Zero substrate-gap fixes required** — the walker + four
+typealiases minted in `register_builtin_types` handled every
+rename mechanically.
+
+Approximate token counts: ~218 Option, ~137 Result, ~8 HashMap, ~2
+HashSet (single edited lines may carry multiple heads, so structural
+site count differs).
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record. The Pattern 3 walker
+template now covers three TypeExpr shapes (Path → 1c, Tuple →
+1d, Parametric.head → 1e). The mechanism is durable for any
+future TypeExpr-shape retirement.**
 
 ## What this slice does
 

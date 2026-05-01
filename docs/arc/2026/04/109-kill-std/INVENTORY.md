@@ -82,20 +82,24 @@ in Section J):
 
 ## B. Parametric type heads
 
-| Today | After arc 109 |
-|---|---|
-| `Vec<T>` | `:wat::core::Vector<T>` |
-| `Option<T>` | `:wat::core::Option<T>` |
-| `Result<T,E>` | `:wat::core::Result<T,E>` |
-| `HashMap<K,V>` | `:wat::core::HashMap<K,V>` |
-| `HashSet<T>` | `:wat::core::HashSet<T>` |
-| `rust::crossbeam_channel::Sender<T>` | already FQDN under `:rust::*` ✓ |
-| `rust::crossbeam_channel::Receiver<T>` | already FQDN under `:rust::*` ✓ |
-| `wat::kernel::HandlePool<T>` | already FQDN ✓ |
-| `wat::kernel::ProgramHandle<T>` | already FQDN ✓ |
+| Today | After arc 109 | Status |
+|---|---|---|
+| `Vec<T>` | `:wat::core::Vector<T>` | pending slice 1f (renames AND moves; couples with § D verb) |
+| `Option<T>` | `:wat::core::Option<T>` | ✓ shipped slice 1e |
+| `Result<T,E>` | `:wat::core::Result<T,E>` | ✓ shipped slice 1e |
+| `HashMap<K,V>` | `:wat::core::HashMap<K,V>` | ✓ shipped slice 1e |
+| `HashSet<T>` | `:wat::core::HashSet<T>` | ✓ shipped slice 1e |
+| `rust::crossbeam_channel::Sender<T>` | already FQDN under `:rust::*` ✓ | — |
+| `rust::crossbeam_channel::Receiver<T>` | already FQDN under `:rust::*` ✓ | — |
+| `wat::kernel::HandlePool<T>` | already FQDN ✓ | — |
+| `wat::kernel::ProgramHandle<T>` | already FQDN ✓ | — |
 
-`Vec<T>` is renamed AND moved — the type's name becomes
-`Vector` (matching the constructor verb post-arc-109; see § D).
+Four of the five named heads moved under `:wat::core::*` in slice
+1e (`BareLegacyContainerHead` walker + four typealiases; commits
+`f8a82be` → `5a96cb0`; ~365 rename sites across 65 files).
+`Vec<T>` stays pending — slice 1f territory because the rename
+to `Vector` couples with § D's verb companion (`vec` → `Vector`
+constructor). See `SLICE-1E.md`.
 
 ## C. Variant constructors
 
