@@ -101,42 +101,61 @@ arcs 111/112/113's hints (retired 2026-04-30 in commit
 
 ## The order
 
+**Dependency correction noted 2026-04-30 mid-pipeline.** § J slice
+10c ("split Program back into Thread + Process") requires
+`Thread<I,O>` to EXIST as a concrete struct with arc-114's transport
+asymmetry (Sender/Receiver fields, not IOWriter/IOReader). Arc 114
+slice 1 is what mints Thread. So arc 114 slices 1–3 land BEFORE
+§ J 10c, not after. § J 10c ≡ arc 114 slice 4 — the interlock both
+slice plans name.
+
 ```
-                    [opus context → § J substrate]
-                              │
-                              ▼
-              ┌───────────────────────────────────┐
-              │  § J slice 10a — Program<I,O>     │
-              │  § J slice 10b — Thread/Process   │
-              │  § J slice 10c — rename today's   │
-              │      unified Process → Program    │
-              │  § J slice 10d — typeclass        │
-              │      dispatch + ProgramDiedError  │
-              └───────────────────────────────────┘
-                              │
-                ┌─────────────┼─────────────┐
-                ▼             ▼             ▼
-         [sonnet sweep] [opus arc 114] [opus arc 113w]
-              §J 10e        kill R       Panics widen
-              §J 10f        threads      element-type
-              §J 10g        stream                       
-                via channels
-                              │
-                              ▼
-                    [sonnet — independent sweeps]
-                       1c   1d   9d   9e   9f-9i
-                              │
-                              ▼
-                       arc 109 INSCRIPTION
-                       (the closure that
-                        retires the entire
-                        arc + 058 row)
+[done]  § J 10a — :Program<I,O> typealias for :Process<I,O>
+[done]  § J 10b — sonnet sweep: annotations prefer Program
+
+[next]  arc 114 slice 1 — mint Thread<I,O> + spawn-thread
+                          (additive; bare spawn still works;
+                           Thread carries Sender/Receiver fields —
+                           the transport asymmetry of arc 114)
+        arc 114 slice 2 — sonnet sweep: spawn → spawn-thread
+        arc 114 slice 3 — retire bare spawn + ProgramHandle<R>
+
+        § J 10c ≡ arc 114 slice 4 — interlock; split Program back
+                  into concrete Thread<I,O> + Process<I,O>; Program
+                  stays as the abstract supertype alias for the
+                  family
+
+        § J 10d — typeclass dispatch + ProgramDiedError supertype
+                  (poly join-result; Vec<ProgramDiedError> chain
+                  for arc 113's deferred widening)
+
+        § J 10e — sonnet sweep: call sites use polymorphic forms
+        § J 10f — typed Thread/send, Thread/recv, Process/send,
+                  Process/recv (renames arc-112's process-* under
+                  § J's naming convention)
+        § J 10g — polymorphic :wat::kernel::send / recv over
+                  Program<I,O> via the typeclass mechanism
+
+        arc 113 widen — Panics → ProgramPanics (one-token
+                  element-type change in the typealiases)
+
+        arc 114 closure — INSCRIPTION + USER-GUIDE + 058 row
+
+[parallel-shippable, sonnet-delegatable] independent sweeps:
+        § J 1c (retire bare primitive types in user code)
+        § J 1d (mint :wat::core::unit; retire :() as type)
+        § J 9d (:wat::std::stream::* → :wat::stream::*)
+        § J 9e (:wat::std::service::Console::* → :wat::console::Console::*)
+        § J 9f-9i (file-path moves for already-honest-symbol files)
+
+        arc 109 INSCRIPTION — closes the entire arc + 058 row
 ```
 
 ## Why this order
 
-**§ J first** — it's the substrate gate. Splitting Process<I,O>
-back into Thread<I,O> + Process<I,O> with ProgramDiedError
+**Arc 114 slice 1 unblocks § J 10c** — that's the substrate gate.
+Splitting Process<I,O> back into Thread<I,O> + Process<I,O> with
+ProgramDiedError
 satisfied-by-both is structural; every downstream slice either
 exploits the new abstractions or is independent of them. Landing
 § J before 114 means the rename happens once instead of twice
