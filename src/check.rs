@@ -6860,6 +6860,84 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         },
     );
+    // (:wat::kernel::spawn-thread body) →
+    //   :wat::kernel::Thread<I,O>.
+    //
+    // Arc 114 slice 1. The in-thread sibling of `:wat::kernel::fork-program`,
+    // satisfying the same Program contract — input channel, output
+    // channel, error mechanism via join. Body is a function whose
+    // signature MUST be
+    //   :Fn(:Receiver<I>, :Sender<O>) -> :wat::core::unit
+    // (the body reads from the input half, writes to the output half;
+    // values flow only through channels — never via a return).
+    //
+    // Returns Thread<I,O>. The parent gets the OUTSIDE ends:
+    //   `Thread/input`   :Sender<I>     (parent writes; thread reads)
+    //   `Thread/output`  :Receiver<O>   (thread writes; parent reads)
+    //   `Thread/join`    :ProgramHandle (panic surfaces on Thread/join-result)
+    //
+    // Arc 114 names the meta-principle this verb expresses: hosting
+    // is a user choice (thread vs forked process); the protocol is
+    // fixed (typed channels in / out, panic via join). Code that
+    // talks to a Program does not know or care which host backs it.
+    let thread_ty = || TypeExpr::Parametric {
+        head: "wat::kernel::Thread".into(),
+        args: vec![
+            TypeExpr::Path(":I".into()),
+            TypeExpr::Path(":O".into()),
+        ],
+    };
+    let thread_body_fn_ty = || TypeExpr::Fn {
+        args: vec![
+            TypeExpr::Parametric {
+                head: "rust::crossbeam_channel::Receiver".into(),
+                args: vec![TypeExpr::Path(":I".into())],
+            },
+            TypeExpr::Parametric {
+                head: "rust::crossbeam_channel::Sender".into(),
+                args: vec![TypeExpr::Path(":O".into())],
+            },
+        ],
+        ret: Box::new(TypeExpr::Tuple(vec![])),
+    };
+    env.register(
+        ":wat::kernel::spawn-thread".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![thread_body_fn_ty()],
+            ret: thread_ty(),
+        },
+    );
+    // (:wat::kernel::Thread/join-result thr) →
+    //   :Result<:(), :Vec<:wat::kernel::ThreadDiedError>>.
+    //
+    // Arc 114 slice 1. Symmetric with `Process/join-result` (arc 112)
+    // but for the in-thread satisfier. Threads share memory with the
+    // parent; panic info travels through the spawn driver's
+    // `catch_unwind` channel and surfaces on this verb's Err arm —
+    // there is no separate stderr stream (that's how processes
+    // recover panic; threads don't need to). Arc 113's
+    // `Vec<ThreadDiedError>` chain shape applies — head is the
+    // immediate thread that died; tail captures whatever upstream
+    // chain its panic carried.
+    let thread_died_chain_ty = || TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
+    };
+    env.register(
+        ":wat::kernel::Thread/join-result".into(),
+        TypeScheme {
+            type_params: vec!["I".into(), "O".into()],
+            params: vec![thread_ty()],
+            ret: TypeExpr::Parametric {
+                head: "Result".into(),
+                args: vec![
+                    TypeExpr::Tuple(vec![]),
+                    thread_died_chain_ty(),
+                ],
+            },
+        },
+    );
     // (:wat::kernel::process-send proc :I) →
     //   :Result<:(), :wat::kernel::ProcessDiedError>
     // Arc 112 slice 2b — typed value send to a Process's stdin.

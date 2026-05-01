@@ -2599,6 +2599,12 @@ fn dispatch_keyword_head(
         ":wat::kernel::Process/join-result" => {
             eval_kernel_process_join_result(args, env, sym)
         }
+        ":wat::kernel::spawn-thread" => {
+            eval_kernel_spawn_thread(args, env, sym)
+        }
+        ":wat::kernel::Thread/join-result" => {
+            eval_kernel_thread_join_result(args, env, sym)
+        }
         ":wat::kernel::process-send" => {
             eval_kernel_process_send(args, env, sym)
         }
@@ -11553,6 +11559,178 @@ fn eval_kernel_process_join_result(
                     None,
                 )))))
             }
+        }
+    };
+    Ok(value)
+}
+
+/// `(:wat::kernel::spawn-thread body) -> :wat::kernel::Thread<I,O>` —
+/// arc 114 slice 1. Body is a function whose signature is
+///   `:Fn(:Receiver<I>, :Sender<O>) -> :wat::core::unit`
+/// (read input, write output, return unit). The body's "return value"
+/// is a marker for "completed without panic," not a value carrier.
+/// Values flow only through channels — this is the Program contract.
+///
+/// Allocates two unbounded channels (input + output) plus the
+/// existing one-shot SpawnOutcome channel ProgramHandle::InThread
+/// already uses. Spawns a std::thread, runs the body inside
+/// `catch_unwind`, packages the outcome onto the SpawnOutcome
+/// channel — same shape `eval_kernel_spawn`/`spawn_with_world_into_result`
+/// use, so `Thread/join-result` reuses the join semantics unchanged.
+///
+/// Returns Thread<I,O> as the parent-facing struct: input is the
+/// `Sender<I>` outside end (parent writes), output is the
+/// `Receiver<O>` outside end (parent reads), join carries the
+/// SpawnOutcome receiver.
+///
+/// The first argument may be a function-keyword path (looked up in
+/// `sym`) or any expression evaluating to a lambda value. Mirrors
+/// `eval_kernel_spawn`'s long-standing accept-by-keyword-or-value
+/// pattern — keeps both shapes available without forcing the user
+/// to wrap everything in a fn-ref.
+fn eval_kernel_spawn_thread(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::spawn-thread";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let body_fn = match &args[0] {
+        WatAST::Keyword(k, _) => match sym.get(k) {
+            Some(f) => f.clone(),
+            None => return Err(RuntimeError::UnknownFunction(k.clone())),
+        },
+        _ => match eval(&args[0], env, sym)? {
+            Value::wat__core__lambda(f) => f,
+            other => {
+                return Err(RuntimeError::TypeMismatch {
+                    op: OP.into(),
+                    expected: "function keyword path or lambda value",
+                    got: other.type_name(),
+                });
+            }
+        },
+    };
+    // Two unbounded channels: parent writes to input, thread reads;
+    // thread writes to output, parent reads. Inside ends go to the
+    // body; outside ends become Thread<I,O>'s input/output fields.
+    let (in_tx, in_rx) = crossbeam_channel::unbounded::<Value>();
+    let (out_tx, out_rx) = crossbeam_channel::unbounded::<Value>();
+    // SpawnOutcome channel — same one-shot shape ProgramHandle expects.
+    let (outcome_tx, outcome_rx) = crossbeam_channel::bounded::<SpawnOutcome>(1);
+    let thread_sym = sym.clone();
+    let span = crate::rust_caller_span!();
+    let body_args = vec![
+        Value::crossbeam_channel__Receiver(Arc::new(in_rx)),
+        Value::crossbeam_channel__Sender(Arc::new(out_tx)),
+    ];
+    std::thread::spawn(move || {
+        // Mirror eval_kernel_spawn's catch_unwind: panics in the
+        // body surface as data on the outcome channel rather than
+        // unwinding the thread silently. AssertUnwindSafe is honest;
+        // body_args + thread_sym are owned by this closure, not
+        // shared with the caller post-panic.
+        let outcome = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            apply_function(body_fn, body_args, &thread_sym, span)
+        })) {
+            Ok(Ok(v)) => SpawnOutcome::Ok(v),
+            Ok(Err(e)) => SpawnOutcome::RuntimeErr(e),
+            Err(payload) => {
+                let (message, assertion) = extract_panic_payload(payload);
+                SpawnOutcome::Panic { message, assertion }
+            }
+        };
+        let _ = outcome_tx.send(outcome);
+    });
+    Ok(Value::Struct(Arc::new(StructValue {
+        type_name: ":wat::kernel::Thread".into(),
+        fields: vec![
+            Value::crossbeam_channel__Sender(Arc::new(in_tx)),
+            Value::crossbeam_channel__Receiver(Arc::new(out_rx)),
+            Value::wat__kernel__ProgramHandle(Arc::new(
+                ProgramHandleInner::InThread(outcome_rx),
+            )),
+        ],
+    })))
+}
+
+/// `(:wat::kernel::Thread/join-result thr) ->
+/// :Result<:(), :Vec<:wat::kernel::ThreadDiedError>>` — arc 114 slice 1.
+/// The in-thread sibling of arc 112's `Process/join-result`.
+///
+/// Pulls the Thread's join-field ProgramHandle and recv's the
+/// SpawnOutcome. A Thread<I,O> always carries an InThread variant by
+/// construction (Forked is the Process-side variant); the Forked arm
+/// would indicate a substrate-level corruption and is treated as a
+/// hard type-mismatch error rather than synthesized data.
+///
+/// Arc 113's chain shape applies: `Vec<ThreadDiedError>`, head =
+/// the immediate thread that died, tail = the upstream chain its
+/// panic carried (recovered from `AssertionPayload.upstream_chain`).
+fn eval_kernel_thread_join_result(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::kernel::Thread/join-result";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+        });
+    }
+    let thread_value = eval(&args[0], env, sym)?;
+    let thread_struct = match thread_value {
+        Value::Struct(s) if s.type_name == ":wat::kernel::Thread" => s,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::kernel::Thread",
+                got: other.type_name(),
+            });
+        }
+    };
+    // Thread struct field order: input, output, join.
+    let handle = match thread_struct.fields.get(2) {
+        Some(Value::wat__kernel__ProgramHandle(h)) => h.clone(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Thread.join (ProgramHandle)",
+                got: "missing or wrong-type field",
+            });
+        }
+    };
+    let value = match handle.as_ref() {
+        ProgramHandleInner::InThread(rx) => match rx.recv() {
+            Ok(SpawnOutcome::Ok(_)) => Value::Result(Arc::new(Ok(Value::Unit))),
+            Ok(SpawnOutcome::RuntimeErr(e)) => Value::Result(Arc::new(Err(single_died_chain(
+                thread_died_error_runtime(e.to_string()),
+            )))),
+            Ok(SpawnOutcome::Panic { message, assertion }) => {
+                // Arc 113 chain conj — head is THIS thread's death,
+                // tail is whatever panic-payload upstream chain rode in.
+                let upstream = assertion.as_ref().and_then(|a| a.upstream_chain.clone());
+                let fresh = thread_died_error_panic(message, assertion.clone());
+                Value::Result(Arc::new(Err(conj_died_chain(fresh, upstream))))
+            }
+            Err(_) => Value::Result(Arc::new(Err(single_died_chain(
+                thread_died_error_channel_disconnected(),
+            )))),
+        },
+        ProgramHandleInner::Forked(_) => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Thread.join (InThread variant)",
+                got: "Forked variant on a Thread<I,O> — substrate bug",
+            });
         }
     };
     Ok(value)

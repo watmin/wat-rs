@@ -731,6 +731,55 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // :wat::kernel::Thread<I,O> — arc 114 slice 1.
+    //
+    // Concrete satisfier of Program<I,O> for the in-thread host
+    // (the other satisfier is Process<I,O> for forked OS processes).
+    // Threads share memory with the parent; communication is via
+    // crossbeam channels (zero-copy Arc<Value>) — NOT OS pipes.
+    // Threads have NO stderr stream because panic info travels
+    // through the join handle's chain, not through a side stream
+    // (that's how processes handle it; threads don't need to).
+    //
+    // Three fields, mapping to the Program contract's three concerns:
+    //
+    //   input  — Sender<I>:    parent writes IN; thread reads
+    //   output — Receiver<O>:  thread writes; parent reads OUT
+    //   join   — ProgramHandle<()>: panic surfaces here on
+    //                              `Thread/join-result` as
+    //                              Result<unit, ThreadDiedError>
+    //
+    // Auto-generated `Thread/new` + per-field accessors (`Thread/input`,
+    // `Thread/output`, `Thread/join`) land in the symbol table at
+    // freeze time via register_struct_methods.
+    env.register_builtin(TypeDef::Struct(StructDef {
+        name: ":wat::kernel::Thread".into(),
+        type_params: vec!["I".into(), "O".into()],
+        fields: vec![
+            (
+                "input".into(),
+                TypeExpr::Parametric {
+                    head: "rust::crossbeam_channel::Sender".into(),
+                    args: vec![TypeExpr::Path(":I".into())],
+                },
+            ),
+            (
+                "output".into(),
+                TypeExpr::Parametric {
+                    head: "rust::crossbeam_channel::Receiver".into(),
+                    args: vec![TypeExpr::Path(":O".into())],
+                },
+            ),
+            (
+                "join".into(),
+                TypeExpr::Parametric {
+                    head: "wat::kernel::ProgramHandle".into(),
+                    args: vec![TypeExpr::Tuple(vec![])],
+                },
+            ),
+        ],
+    }));
+
     // :wat::kernel::Program<I,O> — arc 109 § J slice 10a.
     //
     // Typealias for today's :wat::kernel::Process<I,O>. The "supertype
