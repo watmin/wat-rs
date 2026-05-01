@@ -153,7 +153,39 @@ Tests use `:wat::test::*`, NOT `:user::*`:
 
 See USER-GUIDE.md § 13 "Testing".
 
-## 10. Discovery loop
+## 10. Scope-deadlock rule
+
+Outer scope holds the Thread; inner scope owns every Sender
+clone. The compiler refuses programs where a `QueuePair` /
+`QueueSender` lives at sibling scope to a Thread whose
+`Thread/join-result` runs in the same `let*`.
+
+```wat
+;; Illegal — pair sibling to thr; pair's Sender outlives thr;
+;; the worker's recv never sees EOF.
+(:wat::core::let*
+  (((pair :wat::kernel::QueuePair<i64>) (:wat::kernel::make-bounded-queue :wat::core::i64 1))
+   ((thr  :wat::kernel::Thread<(),i64>) (:wat::kernel::spawn-thread ...))
+   ...)
+  (:wat::kernel::Thread/join-result thr))
+
+;; Canonical — outer holds thr; inner owns pair + Sender;
+;; inner returns thr; pair drops at inner-scope exit.
+(:wat::core::let*
+  (((thr :wat::kernel::Thread<(),i64>)
+    (:wat::core::let*
+      (((pair :wat::kernel::QueuePair<i64>) (:wat::kernel::make-bounded-queue :wat::core::i64 1))
+       ((h    :wat::kernel::Thread<(),i64>) (:wat::kernel::spawn-thread ...))
+       ...)
+      h)))
+  (:wat::kernel::Thread/join-result thr))
+```
+
+Same rule applies to `Process/join-result`. Arc 117 enforces it
+at type-check time. See `SERVICE-PROGRAMS.md § "The lockstep"`
+for the why.
+
+## 11. Discovery loop
 
 When you trip a rule:
 

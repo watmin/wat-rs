@@ -555,7 +555,7 @@ Every wat program lives in a coordinate with two axes.
 
 1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
 2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
-3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `join`, `HandlePool`, `stopped?`, `pipe`, `spawn-program{,-ast}`, `fork-program{,-ast}` (both return `Process<I,O>` — arc 112 unification), `Process/join-result`, `process-send`, `process-recv`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes (or typed values) between Programs.
+3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn-thread` (arc 114; returns `Thread<I,O>`), `Thread/input`, `Thread/output`, `Thread/join-result`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `HandlePool`, `stopped?`, `pipe`, `spawn-program{,-ast}`, `fork-program{,-ast}` (both return `Process<I,O>` — arc 112 unification), `Process/join-result`, `process-send`, `process-recv`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes (or typed values) between Programs. Arc 114 names the contract: hosting is a user choice (Thread vs Process); the protocol (input / output / error mechanism through join) is fixed.
 4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), services (`:wat::std::service::Console`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel.
 
 ### Axis 2 — two namespaces
@@ -1390,51 +1390,55 @@ binding, so the binding still holds a clone until its enclosing scope
 exits. Use `:wat::kernel::drop` only as a readability hint; real
 shutdown happens at scope-end.
 
-**Anti-pattern (deadlocks)** — `tx` is bound in the same `let*` whose
-body calls `join`; `join` blocks before `tx` falls out of scope, so the
-worker's `recv` never returns `:None`:
+**Anti-pattern (deadlocks)** — `pair` is bound in the same `let*` whose
+body calls `Thread/join-result`; the join blocks before `pair` falls out
+of scope, so the worker's `recv` never returns `:None`. **Arc 117 makes
+this a compile error**: the substrate detects a Sender-bearing sibling
+to a Thread at the same scope and refuses with a self-describing
+canonical-fix block.
 
 ```scheme
 (:wat::core::let*
   (((pair :wat::kernel::QueuePair<i64>)
-    (:wat::kernel::make-bounded-queue :i64 1))
-   ((tx :wat::kernel::QueueSender<i64>) (:wat::core::first pair))
+    (:wat::kernel::make-bounded-queue :wat::core::i64 1))
    ((rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second pair))
-   ((handle :wat::kernel::ProgramHandle<()>)
-    (:wat::kernel::spawn :my::worker rx))
-   ((_send :())
-    (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "tx disconnected"))
-   ((_drop :()) (:wat::kernel::drop tx)))   ;; ← no-op; tx still bound
-  (:wat::kernel::join handle))               ;; ← worker recv-loops forever
+   ((thr :wat::kernel::Thread<(),i64>)
+    (:wat::kernel::spawn-thread ...))
+   ...)
+  (:wat::kernel::Thread/join-result thr))   ;; ← arc 117: ScopeDeadlock
 ```
 
-**Proven pattern (nested `let*`)** — outer scope holds the
-`ProgramHandle`; inner scope owns every `Sender`. The inner `let*` body
-yields `h` so the outer can join it. When inner exits, every `Sender`
-Arc bound there decrements; the worker's next `recv` returns `:None`;
-the worker exits; the outer `join` unblocks:
+**Canonical pattern (nested `let*`)** — outer scope holds the
+`Thread`; inner scope owns the `QueuePair` and every `Sender`. The
+inner `let*` body yields `h` so the outer can join it. When inner
+exits, every `Sender` Arc bound there decrements; the worker's next
+`recv` returns `:None`; the worker exits; the outer
+`Thread/join-result` unblocks:
 
 ```scheme
 (:wat::core::let*
-  (((handle :wat::kernel::ProgramHandle<()>)
+  (((thr :wat::kernel::Thread<(),i64>)
     (:wat::core::let*
       (((pair :wat::kernel::QueuePair<i64>)
-        (:wat::kernel::make-bounded-queue :i64 1))
+        (:wat::kernel::make-bounded-queue :wat::core::i64 1))
        ((tx :wat::kernel::QueueSender<i64>) (:wat::core::first pair))
        ((rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second pair))
-       ((h :wat::kernel::ProgramHandle<()>) (:wat::kernel::spawn :my::worker rx))
-       ((_send :())
-        (:wat::core::option::expect -> :()
+       ((h :wat::kernel::Thread<(),i64>)
+        (:wat::kernel::spawn-thread ...))
+       ((_send :Result<(),:Vec<wat::kernel::ThreadDiedError>>)
+        (:wat::core::result::expect -> :()
           (:wat::kernel::send tx 1)
-          "send 1: tx disconnected — :my::worker died?")))
+          "send 1: tx disconnected — worker died?")))
       h)))                                    ;; ← pair, tx, rx all drop here
-  (:wat::kernel::join handle))                ;; ← worker has exited cleanly
+  (:wat::kernel::Thread/join-result thr))     ;; ← worker has exited cleanly
 ```
 
 The Console and CacheService stdlib programs follow this shape: the
-caller holds the driver `ProgramHandle` in an outer scope, an inner
-`let*` distributes Sender handles, does the work, and exits; the drop
-cascade then triggers the driver's clean shutdown.
+caller holds the driver `Thread` in an outer scope, an inner `let*`
+distributes Sender handles, does the work, and exits; the drop cascade
+then triggers the driver's clean shutdown. Arc 117 enforces the shape
+structurally; see `WAT-CHEATSHEET.md § 10` for the rule and
+`SERVICE-PROGRAMS.md § "The lockstep"` for the why.
 
 ### Fan-in via `select`
 
@@ -1455,53 +1459,60 @@ driver is the canonical example.
 universally named `chosen` (Console.wat does it; the docs do it; you
 will too). The alias makes the type echo the variable.
 
-### Spawning programs
+### Spawning threads — `spawn-thread` (arc 114)
 
 ```scheme
-(:wat::kernel::spawn my::app::worker-fn arg1 arg2 ...)
-;; → :ProgramHandle<ReturnType>
-;; spawn my::app::worker-fn on a new thread with the given args
-
-(:wat::kernel::join handle)
-;; → :ReturnType  — blocks until the program exits, returns its state
-;; "I trust this thread; panic the caller if it died." Use when a
-;; spawn-thread death IS a bug worth halting on.
-
-(:wat::kernel::join-result handle)
-;; → :Result<:ReturnType, :wat::kernel::ThreadDiedError>  (arc 060)
-;; "Death as data." Match on (Ok value) | (Err Panic|RuntimeError|
-;; ChannelDisconnected) — surfaces the spawn-thread's outcome
-;; in-band so supervisors / debuggers / tests can discriminate
-;; cause without losing context.
+(:wat::kernel::spawn-thread
+  (:wat::core::lambda
+    ((in  :rust::crossbeam_channel::Receiver<I>)
+     (out :rust::crossbeam_channel::Sender<O>)
+     -> :())
+    body))
+;; → :wat::kernel::Thread<I, O>
+;; The body reads typed values from `in`, writes typed values to
+;; `out`, returns unit. The substrate allocates the channel pair;
+;; the parent reaches the other halves through Thread/input and
+;; Thread/output.
 ```
 
-Each spawned program is an OS thread running the named function. The
-program owns its state (moved in via spawn args); when it returns,
-its state is dropped or returned via join.
-
-The choice between `join` and `join-result` parallels `assert-eq` vs
-`assert-coincident` (arc 057): both verbs are honest; the call site
-picks per its tolerance for panic-on-death. `join-result` is what
-test harnesses, supervisors, and any code that wants to diagnose a
-spawned crash should reach for; `join` stays appropriate when the
-spawn-thread genuinely shouldn't fail.
+Arc 114 unified threads under the Program contract: every Program
+(Thread or Process) has an input channel, an output channel, and
+an error mechanism through join. R is uniformly unit; values flow
+through `out` exclusively. Pre-arc-114 `:wat::kernel::spawn` (R via
+join) retired; the type checker self-describes the migration to
+`spawn-thread` at every old call site.
 
 ```scheme
-;; Story-2 / death-as-data shape:
-(:wat::core::match (:wat::kernel::join-result handle) -> :()
-  ((Ok _value)
-    ;; thread succeeded; do whatever with value
+(:wat::kernel::Thread/input  thr)   ;; → :Sender<I>   parent → thread
+(:wat::kernel::Thread/output thr)   ;; → :Receiver<O> thread → parent
+
+(:wat::kernel::Thread/join-result thr)
+;; → :Result<:(), :Vec<:wat::kernel::ThreadDiedError>>  (arcs 060/113)
+;; "Death as data." Match on (Ok ()) | (Err chain). The Err arm is
+;; the post-arc-113 chain — Vec<ThreadDiedError> with one element
+;; per host transition the panic crossed.
+```
+
+Each Thread is an OS thread running the body lambda; the body owns
+its state (moved in via the lambda's closure or read from `in`).
+When the body returns or panics, the substrate surfaces the outcome
+on `Thread/join-result`.
+
+```scheme
+;; Death-as-data shape:
+(:wat::core::match (:wat::kernel::Thread/join-result thr) -> :()
+  ((Ok :())
+    ;; thread completed; values already flowed through out
     ())
-  ((Err (:wat::kernel::ThreadDiedError::Panic msg))
-    (:wat::io::IOWriter/print stderr
-      (:wat::core::string::concat "thread panicked: " msg "\n")))
-  ((Err (:wat::kernel::ThreadDiedError::RuntimeError msg))
-    (:wat::io::IOWriter/print stderr
-      (:wat::core::string::concat "thread Err'd: " msg "\n")))
-  ((Err :wat::kernel::ThreadDiedError::ChannelDisconnected)
-    ;; substrate bug; rare
-    ()))
+  ((Err chain)
+    ;; chain : :Vec<:wat::kernel::ThreadDiedError> — arc 113
+    ;; first element is THIS thread's death; tail is upstream causes
+    (:my::report-chain stderr chain)))
 ```
+
+Symmetric-by-contract with `spawn-program` (arc 112) — both produce
+a Program; only the host (in-thread vs forked process) differs. The
+substrate fixes the protocol; the user picks the host.
 
 ### Spawning a whole wat program — `spawn-program` (arc 103a)
 
@@ -2600,6 +2611,16 @@ the stage crashes silently (look at stderr for panics); the stage
 has a logic bug that skips sending. Fix: every `Some` branch of
 every stage must send to output before recursing.
 
+**Scope-deadlock at `Thread/join-result`.** A `QueuePair` /
+`QueueSender` bound at the same `let*` scope as a Thread keeps a
+Sender clone alive past the join; the worker's `recv` never sees
+EOF; the join blocks forever. Arc 117 turns this into a compile
+error with a self-describing canonical-fix block. Fix: nest the
+queue allocation + Sender bindings in an inner `let*` whose body
+returns the Thread; outer scope holds only the Thread. The
+substrate's diagnostic shows the pre/post shapes inline. See
+`WAT-CHEATSHEET.md § 10` and `SERVICE-PROGRAMS.md § "The lockstep"`.
+
 **Recursion without TCO.** Before arc 003 ships, a tail-recursive
 driver loop burns Rust stack frames linearly. A Console running
 for 10k messages + default 8MB stack ~= fine; indefinite driver
@@ -2736,9 +2757,10 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::i64::>` / `=` / `<` / `>=` / `<=` / `f64::*` | `a b` | typed strict comparison/equality (arc 050) — rejects cross-type at the checker; opt-in for type-guard discipline |
 | `:wat::io::IOReader/read-line` | `stdin` | `:Option<String>` |
 | `:wat::io::IOWriter/print` | `handle string` | `:()` |
-| `:wat::kernel::spawn` | `<fn-path> args...` | `:ProgramHandle<R>` |
-| `:wat::kernel::join` | `handle` | `R` — panics caller on spawn-thread death |
-| `:wat::kernel::join-result` | `handle` | `:Result<R, wat::kernel::ThreadDiedError>` — death-as-data; 3 variants discriminate Panic / RuntimeError / ChannelDisconnected (arc 060) |
+| `:wat::kernel::spawn-thread` | `body` | `:wat::kernel::Thread<I,O>` — body is a lambda `((in :Receiver<I>) (out :Sender<O>) -> :())` (arc 114) |
+| `:wat::kernel::Thread/input` | `thr` | `:rust::crossbeam_channel::Sender<I>` — parent → thread |
+| `:wat::kernel::Thread/output` | `thr` | `:rust::crossbeam_channel::Receiver<O>` — thread → parent |
+| `:wat::kernel::Thread/join-result` | `thr` | `:Result<:(), :Vec<wat::kernel::ThreadDiedError>>` — death-as-data; chain shape (arcs 060/113/114) |
 | `:wat::kernel::make-bounded-queue` | `:T n` | `:(Sender<T>, Receiver<T>)` |
 | `:wat::kernel::make-unbounded-queue` | `:T` | `:(Sender<T>, Receiver<T>)` |
 | `:wat::kernel::send` | `sender value` | `:wat::kernel::Sent` ≡ `:Option<()>` — `(Some ())` on sent, `:None` on disconnect |
