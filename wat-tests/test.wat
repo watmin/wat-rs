@@ -1,4 +1,4 @@
-;; wat-tests/std/test.wat — self-tests for wat/test.wat.
+;; wat-tests/test.wat — self-tests for wat/test.wat.
 ;;
 ;; The test harness tests itself. Every assertion primitive gets both
 ;; a pass-case deftest (the assertion succeeds → deftest returns a

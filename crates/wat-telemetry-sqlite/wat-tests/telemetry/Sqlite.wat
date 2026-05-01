@@ -1,4 +1,4 @@
-;; wat-tests/std/telemetry/Sqlite.wat — arc 083 slice 2 smoke tests.
+;; crates/wat-telemetry-sqlite/wat-tests/telemetry/Sqlite.wat — arc 083 slice 2 smoke tests.
 ;;
 ;; Two deftests cover the substrate Sqlite spawn / loop / join
 ;; lifecycle:
@@ -13,7 +13,7 @@
 ;;
 ;; Helper defines live in the make-deftest prelude — top-level
 ;; defines in a wat-tests file aren't visible to deftest sandbox
-;; bodies (precedent: wat-rs/wat-tests/std/service-template.wat).
+;; bodies (precedent: wat-rs/wat-tests/service-template.wat).
 
 (:wat::test::make-deftest :deftest
   (;; ─── Hooks (no-ops; lifecycle test) ─────────────────────────

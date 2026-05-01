@@ -315,7 +315,7 @@ Two routing strategies, both substrate-supported:
   Necessary when reply types differ per verb (`Ack` returns
   unit; `Get` returns the domain state) — the embedded address
   lets the driver pick the right typed channel per request.
-  Reference: `wat-rs/wat-tests/std/service-template.wat`.
+  Reference: `wat-rs/wat-tests/service-template.wat`.
 
 Both shapes give the same in-memory-TCP discipline. Pick
 pair-by-index when the service is single-verb-unit-reply (no

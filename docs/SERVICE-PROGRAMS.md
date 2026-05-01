@@ -598,7 +598,7 @@ holds them side by side, the shutdown story is identical for all.
 
 ### The runnable reference
 
-`wat-rs/wat-tests/std/service-template.wat` is the canonical complete
+`wat-rs/wat-tests/service-template.wat` is the canonical complete
 template. **Lift it directly when starting your own service** — the
 only things that should change are:
 

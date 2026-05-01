@@ -654,7 +654,7 @@ References:
   `:trading::telemetry::Spawn = Service::Spawn<trading::log::LogEntry>`
   is the canonical example; the lab's only telemetry consumer
   aliases its concrete shape once.
-- `wat-rs/wat-tests/std/service-template.wat:72-73` — the canonical
+- `wat-rs/wat-tests/service-template.wat:72-73` — the canonical
   service template's `:svc::Spawn` aliases the (pool, driver) tuple
   AT the consumer's namespace; SERVICE-PROGRAMS.md § "The complete
   pattern" explicitly says to "rename the `:svc::*` namespace to

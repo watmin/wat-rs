@@ -1,7 +1,16 @@
 # Arc 109 Slice — `wat-tests/std/` flatten
 
-**Compaction-amnesia anchor.** Read this first if you're picking
-up the wat-tests/std/ flatten mid-flight.
+**Status: shipped 2026-05-01.** 4 `git mv` operations + 1
+`rmdir` (empty form/) + header self-refs in 4 moved files +
+README.md + 4 live docs (SERVICE-PROGRAMS, CONVENTIONS,
+ZERO-MUTEX, plus crates/wat-telemetry-sqlite's Sqlite.wat
+header). cargo test --release --workspace 1476/0.
+
+This slice surfaced the **two-axis drift principle** that 9f-9g
+clarified: filesystem renames cause runtime drift (symbol
+lookup) AND documentation drift (path mentions in comments,
+READMEs, design docs). The former requires no sweep when symbols
+don't change; the latter ALWAYS does, however small.
 
 ## What this slice does
 

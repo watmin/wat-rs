@@ -1,4 +1,4 @@
-;; wat-tests/std/service-template.wat — the canonical in-memory
+;; wat-tests/service-template.wat — the canonical in-memory
 ;; request/reply service program in wat.
 ;;
 ;; This file is a runnable reference. It exercises every pattern that

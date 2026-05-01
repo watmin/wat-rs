@@ -1,4 +1,4 @@
-;; wat-tests/std/struct-to-form.wat — arc 091 slice 8 smoke test
+;; wat-tests/core/struct-to-form.wat — arc 091 slice 8 smoke test
 ;; for `:wat::core::struct->form` and runtime quasiquote.
 ;;
 ;; struct->form lifts a struct VALUE to its constructor-call FORM

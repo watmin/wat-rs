@@ -1,4 +1,4 @@
-;; wat-tests/std/stream.wat — tests for wat/std/stream.wat.
+;; wat-tests/stream.wat — tests for wat/stream.wat.
 ;;
 ;; Focus: `with-state` (arc 006's Mealy-machine stream stage) and the
 ;; `chunks` rewrite on top of it. With arc 009 (names-are-values) shipped,
