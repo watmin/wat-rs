@@ -1,8 +1,14 @@
-;; :wat::telemetry::Service<E,G> — generic queue-fronted
-;; destination service for structured records.
+;; :wat::telemetry::* — generic queue-fronted destination service
+;; for structured records.
 ;;
 ;; Arc 080 (initial design) + arc 089 slice 2-3 (drain-all +
-;; per-batch dispatch) + arc 095 (paired channels, this protocol).
+;; per-batch dispatch) + arc 095 (paired channels, this protocol)
+;; + arc 109 slice K.telemetry (Service grouping noun retired;
+;; verbs and typealiases live at the namespace level per § K's
+;; "/ requires a real Type" doctrine).
+;;
+;; Channel-naming family: Pattern A (Request + Ack — data forward,
+;; release back, server matches by index). See INVENTORY § K.
 ;;
 ;; Generic over:
 ;;
@@ -22,13 +28,13 @@
 ;; closed it.
 ;;
 ;; Lifecycle:
-;;   1. Caller `(Service/spawn count dispatcher translator cadence)`
+;;   1. Caller `(:wat::telemetry::spawn count dispatcher translator cadence)`
 ;;      → `(HandlePool<E>, ProgramHandle<()>)`.
 ;;   2. Driver loop opens nothing — substrate has no resources to
 ;;      manage; the dispatcher closes over whatever the consumer
 ;;      supplies (db handle, console-handle, etc).
 ;;   3. Caller pops Handles, distributes, finishes the pool.
-;;   4. Each client `(Service/batch-log req-tx ack-rx entries)`
+;;   4. Each client `(:wat::telemetry::batch-log req-tx ack-rx entries)`
 ;;      sends + acks per arc 029's Q10 ("confirmed batch + ack").
 ;;      Two channel ends. No reply-tx-in-request.
 ;;   5. Driver `select`s over rx side of pairs; on fire, pulls the
@@ -39,114 +45,114 @@
 
 ;; ─── Self-heartbeat contract — Stats + MetricsCadence ────────────
 
-(:wat::core::struct :wat::telemetry::Service::Stats
+(:wat::core::struct :wat::telemetry::Stats
   (batches :wat::core::i64)
   (entries :wat::core::i64)
   (max-batch-size :wat::core::i64))
 
-(:wat::core::struct :wat::telemetry::Service::MetricsCadence<G>
+(:wat::core::struct :wat::telemetry::MetricsCadence<G>
   (gate :G)
   (tick :fn(G,wat::telemetry::Service::Stats)->(G,wat::core::bool)))
 
 (:wat::core::define
-  (:wat::telemetry::Service/null-metrics-cadence
-    -> :wat::telemetry::Service::MetricsCadence<wat::core::unit>)
-  (:wat::telemetry::Service::MetricsCadence/new
+  (:wat::telemetry::null-metrics-cadence
+    -> :wat::telemetry::MetricsCadence<wat::core::unit>)
+  (:wat::telemetry::MetricsCadence/new
     ()
     (:wat::core::lambda
-      ((gate :wat::core::unit) (_stats :wat::telemetry::Service::Stats) -> :(wat::core::unit,wat::core::bool))
+      ((gate :wat::core::unit) (_stats :wat::telemetry::Stats) -> :(wat::core::unit,wat::core::bool))
       (:wat::core::Tuple gate false))))
 
 (:wat::core::define
-  (:wat::telemetry::Service::Stats/zero
-    -> :wat::telemetry::Service::Stats)
-  (:wat::telemetry::Service::Stats/new 0 0 0))
+  (:wat::telemetry::Stats/zero
+    -> :wat::telemetry::Stats)
+  (:wat::telemetry::Stats/new 0 0 0))
 
 
 ;; ─── Protocol typealiases (arc 095) ──────────────────────────────
 
 ;; Ack channel — unit signal. Same shape both sides; the (tx, rx)
 ;; pair is split between server and client, NOT bundled on either.
-(:wat::core::typealias :wat::telemetry::Service::AckTx
+(:wat::core::typealias :wat::telemetry::AckTx
   :wat::kernel::QueueSender<wat::core::unit>)
-(:wat::core::typealias :wat::telemetry::Service::AckRx
+(:wat::core::typealias :wat::telemetry::AckRx
   :wat::kernel::QueueReceiver<wat::core::unit>)
-(:wat::core::typealias :wat::telemetry::Service::AckChannel
+(:wat::core::typealias :wat::telemetry::AckChannel
   :(wat::telemetry::Service::AckTx,wat::telemetry::Service::AckRx))
 
 ;; Request — just the batch of entries. The client's reply address
 ;; is no longer in the wire payload (retired arc 095); the server
 ;; holds the matching ack-tx in its paired DriverPair vector.
-(:wat::core::typealias :wat::telemetry::Service::Request<E>
+(:wat::core::typealias :wat::telemetry::Request<E>
   :wat::core::Vector<E>)
 
-(:wat::core::typealias :wat::telemetry::Service::ReqTx<E>
+(:wat::core::typealias :wat::telemetry::ReqTx<E>
   :wat::kernel::QueueSender<wat::telemetry::Service::Request<E>>)
-(:wat::core::typealias :wat::telemetry::Service::ReqRx<E>
+(:wat::core::typealias :wat::telemetry::ReqRx<E>
   :wat::kernel::QueueReceiver<wat::telemetry::Service::Request<E>>)
 
-(:wat::core::typealias :wat::telemetry::Service::ReqChannel<E>
+(:wat::core::typealias :wat::telemetry::ReqChannel<E>
   :(wat::telemetry::Service::ReqTx<E>,wat::telemetry::Service::ReqRx<E>))
 
 ;; A complete client/server connection — one ReqChannel and one
 ;; AckChannel that the spawn step distributes between Handle (client
 ;; side) and DriverPair (server side). Aliased so spawn's zip-and-map
 ;; doesn't smear the verbose tuple form across every lambda body.
-(:wat::core::typealias :wat::telemetry::Service::Connection<E>
+(:wat::core::typealias :wat::telemetry::Connection<E>
   :(wat::telemetry::Service::ReqChannel<E>,wat::telemetry::Service::AckChannel))
 
 ;; Client-side Handle — what the consumer pops from the pool.
 ;; Two opposite ends: req-tx to write, ack-rx to read.
-(:wat::core::typealias :wat::telemetry::Service::Handle<E>
+(:wat::core::typealias :wat::telemetry::Handle<E>
   :(wat::telemetry::Service::ReqTx<E>,wat::telemetry::Service::AckRx))
 
 ;; Server-side pair — what the worker holds in parallel by index.
 ;; Two opposite ends: req-rx to read, ack-tx to write.
-(:wat::core::typealias :wat::telemetry::Service::DriverPair<E>
+(:wat::core::typealias :wat::telemetry::DriverPair<E>
   :(wat::telemetry::Service::ReqRx<E>,wat::telemetry::Service::AckTx))
 
 ;; A DriverPair tagged with its index in the server's pairs vector.
 ;; Used by drain-rest's foldl to skip the rx select already
 ;; consumed (first-idx) and look up the matching ack-tx by position.
-(:wat::core::typealias :wat::telemetry::Service::IndexedDriverPair<E>
+(:wat::core::typealias :wat::telemetry::IndexedDriverPair<E>
   :(wat::telemetry::Service::DriverPair<E>,wat::core::i64))
 
-(:wat::core::typealias :wat::telemetry::Service::HandlePool<E>
+(:wat::core::typealias :wat::telemetry::HandlePool<E>
   :wat::kernel::HandlePool<wat::telemetry::Service::Handle<E>>)
 
-(:wat::core::typealias :wat::telemetry::Service::Spawn<E>
+(:wat::core::typealias :wat::telemetry::Spawn<E>
   :(wat::telemetry::Service::HandlePool<E>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
 
-(:wat::core::typealias :wat::telemetry::Service::Step<G>
+(:wat::core::typealias :wat::telemetry::Step<G>
   :(wat::telemetry::Service::Stats,wat::telemetry::Service::MetricsCadence<G>))
 
 
 ;; ─── Tick the heartbeat window ───────────────────────────────────
 
 (:wat::core::define
-  (:wat::telemetry::Service/tick-window<E,G>
-    (stats :wat::telemetry::Service::Stats)
-    (cadence :wat::telemetry::Service::MetricsCadence<G>)
+  (:wat::telemetry::tick-window<E,G>
+    (stats :wat::telemetry::Stats)
+    (cadence :wat::telemetry::MetricsCadence<G>)
     (dispatcher :fn(wat::core::Vector<E>)->wat::core::unit)
     (stats-translator :fn(wat::telemetry::Service::Stats)->wat::core::Vector<E>)
-    -> :wat::telemetry::Service::Step<G>)
+    -> :wat::telemetry::Step<G>)
   (:wat::core::let*
     (((gate :G)
-      (:wat::telemetry::Service::MetricsCadence/gate cadence))
+      (:wat::telemetry::MetricsCadence/gate cadence))
      ((tick-fn :fn(G,wat::telemetry::Service::Stats)->(G,wat::core::bool))
-      (:wat::telemetry::Service::MetricsCadence/tick cadence))
+      (:wat::telemetry::MetricsCadence/tick cadence))
      ((tick :(G,wat::core::bool)) (tick-fn gate stats))
      ((gate' :G) (:wat::core::first tick))
      ((fired :wat::core::bool) (:wat::core::second tick))
-     ((cadence' :wat::telemetry::Service::MetricsCadence<G>)
-      (:wat::telemetry::Service::MetricsCadence/new gate' tick-fn)))
+     ((cadence' :wat::telemetry::MetricsCadence<G>)
+      (:wat::telemetry::MetricsCadence/new gate' tick-fn)))
     (:wat::core::if fired
-      -> :wat::telemetry::Service::Step<G>
+      -> :wat::telemetry::Step<G>
       (:wat::core::let*
         (((entries :wat::core::Vector<E>) (stats-translator stats))
          ((_dispatch :wat::core::unit) (dispatcher entries)))
         (:wat::core::Tuple
-          (:wat::telemetry::Service::Stats/zero) cadence'))
+          (:wat::telemetry::Stats/zero) cadence'))
       (:wat::core::Tuple stats cadence'))))
 
 
@@ -169,7 +175,7 @@
 ;; Pending — accumulator threaded through drain-rest. (entries,
 ;; ack-txs). The ack-txs come from the server's paired vector
 ;; lookup, not from any request payload.
-(:wat::core::typealias :wat::telemetry::Service::Pending<E>
+(:wat::core::typealias :wat::telemetry::Pending<E>
   :(wat::core::Vector<E>,wat::core::Vector<wat::telemetry::Service::AckTx>))
 
 
@@ -177,18 +183,18 @@
 ;; Entries come from the Request payload; ack-tx comes from the
 ;; server's paired DriverPair.
 (:wat::core::define
-  (:wat::telemetry::Service/extend<E>
-    (acc :wat::telemetry::Service::Pending<E>)
+  (:wat::telemetry::extend<E>
+    (acc :wat::telemetry::Pending<E>)
     (req-entries :wat::core::Vector<E>)
-    (ack :wat::telemetry::Service::AckTx)
-    -> :wat::telemetry::Service::Pending<E>)
+    (ack :wat::telemetry::AckTx)
+    -> :wat::telemetry::Pending<E>)
   (:wat::core::let*
     (((entries :wat::core::Vector<E>) (:wat::core::first acc))
      ((acks :wat::core::Vector<wat::telemetry::Service::AckTx>) (:wat::core::second acc))
      ((entries' :wat::core::Vector<E>) (:wat::core::concat entries req-entries))
      ((acks' :wat::core::Vector<wat::telemetry::Service::AckTx>)
       (:wat::core::concat acks
-        (:wat::core::Vector :wat::telemetry::Service::AckTx ack))))
+        (:wat::core::Vector :wat::telemetry::AckTx ack))))
     (:wat::core::Tuple entries' acks')))
 
 
@@ -199,24 +205,24 @@
 ;; eliminates the prior split between "first" and "rest" and the
 ;; need for an out-of-band lookup.
 (:wat::core::define
-  (:wat::telemetry::Service/maybe-merge<E>
-    (acc :wat::telemetry::Service::Pending<E>)
+  (:wat::telemetry::maybe-merge<E>
+    (acc :wat::telemetry::Pending<E>)
     (first-idx :wat::core::i64)
     (first-entries :wat::core::Vector<E>)
-    (indexed :wat::telemetry::Service::IndexedDriverPair<E>)
-    -> :wat::telemetry::Service::Pending<E>)
+    (indexed :wat::telemetry::IndexedDriverPair<E>)
+    -> :wat::telemetry::Pending<E>)
   (:wat::core::let*
-    (((pair :wat::telemetry::Service::DriverPair<E>) (:wat::core::first indexed))
+    (((pair :wat::telemetry::DriverPair<E>) (:wat::core::first indexed))
      ((idx :wat::core::i64) (:wat::core::second indexed))
-     ((rx :wat::telemetry::Service::ReqRx<E>) (:wat::core::first pair))
-     ((ack :wat::telemetry::Service::AckTx) (:wat::core::second pair)))
+     ((rx :wat::telemetry::ReqRx<E>) (:wat::core::first pair))
+     ((ack :wat::telemetry::AckTx) (:wat::core::second pair)))
     (:wat::core::if (:wat::core::= idx first-idx)
-      -> :wat::telemetry::Service::Pending<E>
-      (:wat::telemetry::Service/extend acc first-entries ack)
+      -> :wat::telemetry::Pending<E>
+      (:wat::telemetry::extend acc first-entries ack)
       (:wat::core::match (:wat::kernel::try-recv rx)
-        -> :wat::telemetry::Service::Pending<E>
+        -> :wat::telemetry::Pending<E>
         ((:wat::core::Ok (:wat::core::Some req-entries))
-          (:wat::telemetry::Service/extend acc req-entries ack))
+          (:wat::telemetry::extend acc req-entries ack))
         ((:wat::core::Ok :wat::core::None) acc)
         ((:wat::core::Err _died) acc)))))
 
@@ -224,12 +230,12 @@
 ;; Drain — single foldl over all pairs. The first-idx pair gets
 ;; first-entries from select; every other pair tries try-recv.
 (:wat::core::define
-  (:wat::telemetry::Service/drain-pairs<E>
+  (:wat::telemetry::drain-pairs<E>
     (pairs :wat::core::Vector<wat::telemetry::Service::DriverPair<E>>)
     (first-idx :wat::core::i64)
     (first-entries :wat::core::Vector<E>)
-    (init :wat::telemetry::Service::Pending<E>)
-    -> :wat::telemetry::Service::Pending<E>)
+    (init :wat::telemetry::Pending<E>)
+    -> :wat::telemetry::Pending<E>)
   (:wat::core::let*
     (((indices :wat::core::Vector<wat::core::i64>)
       (:wat::core::range 0 (:wat::core::length pairs)))
@@ -237,52 +243,52 @@
       (:wat::std::list::zip pairs indices)))
     (:wat::core::foldl indexed init
       (:wat::core::lambda
-        ((acc :wat::telemetry::Service::Pending<E>)
-         (pair :wat::telemetry::Service::IndexedDriverPair<E>)
-         -> :wat::telemetry::Service::Pending<E>)
-        (:wat::telemetry::Service/maybe-merge acc first-idx first-entries pair)))))
+        ((acc :wat::telemetry::Pending<E>)
+         (pair :wat::telemetry::IndexedDriverPair<E>)
+         -> :wat::telemetry::Pending<E>)
+        (:wat::telemetry::maybe-merge acc first-idx first-entries pair)))))
 
 
 ;; Send () on every contributing client's ack-tx.
 (:wat::core::define
-  (:wat::telemetry::Service/ack-all
+  (:wat::telemetry::ack-all
     (ack-txs :wat::core::Vector<wat::telemetry::Service::AckTx>)
     -> :wat::core::unit)
   (:wat::core::foldl ack-txs ()
     (:wat::core::lambda
-      ((_acc :wat::core::unit) (tx :wat::telemetry::Service::AckTx) -> :wat::core::unit)
+      ((_acc :wat::core::unit) (tx :wat::telemetry::AckTx) -> :wat::core::unit)
       (:wat::core::match (:wat::kernel::send tx ()) -> :wat::core::unit
         ((:wat::core::Ok _) ())
         ((:wat::core::Err _) ())))))
 
 
 (:wat::core::define
-  (:wat::telemetry::Service/bump-stats
-    (stats :wat::telemetry::Service::Stats)
+  (:wat::telemetry::bump-stats
+    (stats :wat::telemetry::Stats)
     (batch-size :wat::core::i64)
-    -> :wat::telemetry::Service::Stats)
+    -> :wat::telemetry::Stats)
   (:wat::core::let*
     (((max-prev :wat::core::i64)
-      (:wat::telemetry::Service::Stats/max-batch-size stats))
+      (:wat::telemetry::Stats/max-batch-size stats))
      ((max' :wat::core::i64)
       (:wat::core::if (:wat::core::> batch-size max-prev) -> :wat::core::i64
         batch-size
         max-prev)))
-    (:wat::telemetry::Service::Stats/new
-      (:wat::core::+ (:wat::telemetry::Service::Stats/batches stats) 1)
-      (:wat::core::+ (:wat::telemetry::Service::Stats/entries stats) batch-size)
+    (:wat::telemetry::Stats/new
+      (:wat::core::+ (:wat::telemetry::Stats/batches stats) 1)
+      (:wat::core::+ (:wat::telemetry::Stats/entries stats) batch-size)
       max')))
 
 
 ;; Extract the wat::core::Vector<ReqRx> half of pairs for the kernel select.
 (:wat::core::define
-  (:wat::telemetry::Service/pair-rxs<E>
+  (:wat::telemetry::pair-rxs<E>
     (pairs :wat::core::Vector<wat::telemetry::Service::DriverPair<E>>)
     -> :wat::core::Vector<wat::telemetry::Service::ReqRx<E>>)
   (:wat::core::map pairs
     (:wat::core::lambda
-      ((p :wat::telemetry::Service::DriverPair<E>)
-       -> :wat::telemetry::Service::ReqRx<E>)
+      ((p :wat::telemetry::DriverPair<E>)
+       -> :wat::telemetry::ReqRx<E>)
       (:wat::core::first p))))
 
 
@@ -290,45 +296,45 @@
 ;; (which gets first-entries from select) and the rest (which try-recv).
 ;; No separate first-pair lookup needed.
 (:wat::core::define
-  (:wat::telemetry::Service/loop-step<E,G>
+  (:wat::telemetry::loop-step<E,G>
     (pairs :wat::core::Vector<wat::telemetry::Service::DriverPair<E>>)
     (first-idx :wat::core::i64)
     (first-entries :wat::core::Vector<E>)
-    (stats :wat::telemetry::Service::Stats)
-    (cadence :wat::telemetry::Service::MetricsCadence<G>)
+    (stats :wat::telemetry::Stats)
+    (cadence :wat::telemetry::MetricsCadence<G>)
     (dispatcher :fn(wat::core::Vector<E>)->wat::core::unit)
     (stats-translator :fn(wat::telemetry::Service::Stats)->wat::core::Vector<E>)
     -> :wat::core::unit)
   (:wat::core::let*
-    (((init :wat::telemetry::Service::Pending<E>)
+    (((init :wat::telemetry::Pending<E>)
       (:wat::core::Tuple
         (:wat::core::Vector :E)
-        (:wat::core::Vector :wat::telemetry::Service::AckTx)))
-     ((pending :wat::telemetry::Service::Pending<E>)
-      (:wat::telemetry::Service/drain-pairs pairs first-idx first-entries init))
+        (:wat::core::Vector :wat::telemetry::AckTx)))
+     ((pending :wat::telemetry::Pending<E>)
+      (:wat::telemetry::drain-pairs pairs first-idx first-entries init))
      ((entries :wat::core::Vector<E>) (:wat::core::first pending))
      ((ack-txs :wat::core::Vector<wat::telemetry::Service::AckTx>)
       (:wat::core::second pending))
      ((_apply :wat::core::unit) (dispatcher entries))
-     ((_ack :wat::core::unit) (:wat::telemetry::Service/ack-all ack-txs))
+     ((_ack :wat::core::unit) (:wat::telemetry::ack-all ack-txs))
      ((batch-size :wat::core::i64) (:wat::core::length entries))
-     ((stats' :wat::telemetry::Service::Stats)
-      (:wat::telemetry::Service/bump-stats stats batch-size))
-     ((step :wat::telemetry::Service::Step<G>)
-      (:wat::telemetry::Service/tick-window
+     ((stats' :wat::telemetry::Stats)
+      (:wat::telemetry::bump-stats stats batch-size))
+     ((step :wat::telemetry::Step<G>)
+      (:wat::telemetry::tick-window
         stats' cadence dispatcher stats-translator))
-     ((stats'' :wat::telemetry::Service::Stats) (:wat::core::first step))
-     ((cadence' :wat::telemetry::Service::MetricsCadence<G>)
+     ((stats'' :wat::telemetry::Stats) (:wat::core::first step))
+     ((cadence' :wat::telemetry::MetricsCadence<G>)
       (:wat::core::second step)))
-    (:wat::telemetry::Service/loop
+    (:wat::telemetry::loop
       pairs stats'' cadence' dispatcher stats-translator)))
 
 
 (:wat::core::define
-  (:wat::telemetry::Service/loop<E,G>
+  (:wat::telemetry::loop<E,G>
     (pairs :wat::core::Vector<wat::telemetry::Service::DriverPair<E>>)
-    (stats :wat::telemetry::Service::Stats)
-    (cadence :wat::telemetry::Service::MetricsCadence<G>)
+    (stats :wat::telemetry::Stats)
+    (cadence :wat::telemetry::MetricsCadence<G>)
     (dispatcher :fn(wat::core::Vector<E>)->wat::core::unit)
     (stats-translator :fn(wat::telemetry::Service::Stats)->wat::core::Vector<E>)
     -> :wat::core::unit)
@@ -336,7 +342,7 @@
     ()
     (:wat::core::let*
       (((rxs :wat::core::Vector<wat::telemetry::Service::ReqRx<E>>)
-        (:wat::telemetry::Service/pair-rxs pairs))
+        (:wat::telemetry::pair-rxs pairs))
        ((chosen :wat::kernel::Chosen<wat::telemetry::Service::Request<E>>)
         (:wat::kernel::select rxs))
        ((idx :wat::core::i64) (:wat::core::first chosen))
@@ -344,10 +350,10 @@
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::core::unit
         ((:wat::core::Ok (:wat::core::Some first-entries))
-          (:wat::telemetry::Service/loop-step
+          (:wat::telemetry::loop-step
             pairs idx first-entries stats cadence dispatcher stats-translator))
         ((:wat::core::Ok :wat::core::None)
-          (:wat::telemetry::Service/loop
+          (:wat::telemetry::loop
             (:wat::std::list::remove-at pairs idx)
             stats cadence dispatcher stats-translator))
         ((:wat::core::Err _died) ())))))
@@ -359,9 +365,9 @@
 ;; Single-entry callers wrap in a one-element vec.
 
 (:wat::core::define
-  (:wat::telemetry::Service/batch-log<E>
-    (req-tx :wat::telemetry::Service::ReqTx<E>)
-    (ack-rx :wat::telemetry::Service::AckRx)
+  (:wat::telemetry::batch-log<E>
+    (req-tx :wat::telemetry::ReqTx<E>)
+    (ack-rx :wat::telemetry::AckRx)
     (entries :wat::core::Vector<E>)
     -> :wat::core::unit)
   (:wat::core::let*
@@ -379,15 +385,15 @@
 ;; ─── Worker entry — initial Stats + enter loop ──────────────────
 
 (:wat::core::define
-  (:wat::telemetry::Service/run<E,G>
+  (:wat::telemetry::run<E,G>
     (pairs :wat::core::Vector<wat::telemetry::Service::DriverPair<E>>)
-    (cadence :wat::telemetry::Service::MetricsCadence<G>)
+    (cadence :wat::telemetry::MetricsCadence<G>)
     (dispatcher :fn(wat::core::Vector<E>)->wat::core::unit)
     (stats-translator :fn(wat::telemetry::Service::Stats)->wat::core::Vector<E>)
     -> :wat::core::unit)
-  (:wat::telemetry::Service/loop
+  (:wat::telemetry::loop
     pairs
-    (:wat::telemetry::Service::Stats/zero)
+    (:wat::telemetry::Stats/zero)
     cadence dispatcher stats-translator))
 
 
@@ -399,51 +405,51 @@
 ;; out Handles; worker thread carries the Vec of DriverPairs.
 
 (:wat::core::define
-  (:wat::telemetry::Service/spawn<E,G>
+  (:wat::telemetry::spawn<E,G>
     (count :wat::core::i64)
-    (cadence :wat::telemetry::Service::MetricsCadence<G>)
+    (cadence :wat::telemetry::MetricsCadence<G>)
     (dispatcher :fn(wat::core::Vector<E>)->wat::core::unit)
     (stats-translator :fn(wat::telemetry::Service::Stats)->wat::core::Vector<E>)
-    -> :wat::telemetry::Service::Spawn<E>)
+    -> :wat::telemetry::Spawn<E>)
   (:wat::core::let*
     (((req-pairs :wat::core::Vector<wat::telemetry::Service::ReqChannel<E>>)
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
-          ((_i :wat::core::i64) -> :wat::telemetry::Service::ReqChannel<E>)
+          ((_i :wat::core::i64) -> :wat::telemetry::ReqChannel<E>)
           (:wat::kernel::make-bounded-queue
-            :wat::telemetry::Service::Request<E> 1))))
+            :wat::telemetry::Request<E> 1))))
      ((ack-pairs :wat::core::Vector<wat::telemetry::Service::AckChannel>)
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
-          ((_i :wat::core::i64) -> :wat::telemetry::Service::AckChannel)
+          ((_i :wat::core::i64) -> :wat::telemetry::AckChannel)
           (:wat::kernel::make-bounded-queue :wat::core::unit 1))))
      ((handles :wat::core::Vector<wat::telemetry::Service::Handle<E>>)
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)
         (:wat::core::lambda
-          ((rp+ap :wat::telemetry::Service::Connection<E>)
-           -> :wat::telemetry::Service::Handle<E>)
+          ((rp+ap :wat::telemetry::Connection<E>)
+           -> :wat::telemetry::Handle<E>)
           (:wat::core::let*
-            (((rp :wat::telemetry::Service::ReqChannel<E>) (:wat::core::first rp+ap))
-             ((ap :wat::telemetry::Service::AckChannel) (:wat::core::second rp+ap))
-             ((req-tx :wat::telemetry::Service::ReqTx<E>) (:wat::core::first rp))
-             ((ack-rx :wat::telemetry::Service::AckRx) (:wat::core::second ap)))
+            (((rp :wat::telemetry::ReqChannel<E>) (:wat::core::first rp+ap))
+             ((ap :wat::telemetry::AckChannel) (:wat::core::second rp+ap))
+             ((req-tx :wat::telemetry::ReqTx<E>) (:wat::core::first rp))
+             ((ack-rx :wat::telemetry::AckRx) (:wat::core::second ap)))
             (:wat::core::Tuple req-tx ack-rx)))))
      ((driver-pairs :wat::core::Vector<wat::telemetry::Service::DriverPair<E>>)
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)
         (:wat::core::lambda
-          ((rp+ap :wat::telemetry::Service::Connection<E>)
-           -> :wat::telemetry::Service::DriverPair<E>)
+          ((rp+ap :wat::telemetry::Connection<E>)
+           -> :wat::telemetry::DriverPair<E>)
           (:wat::core::let*
-            (((rp :wat::telemetry::Service::ReqChannel<E>) (:wat::core::first rp+ap))
-             ((ap :wat::telemetry::Service::AckChannel) (:wat::core::second rp+ap))
-             ((req-rx :wat::telemetry::Service::ReqRx<E>) (:wat::core::second rp))
-             ((ack-tx :wat::telemetry::Service::AckTx) (:wat::core::first ap)))
+            (((rp :wat::telemetry::ReqChannel<E>) (:wat::core::first rp+ap))
+             ((ap :wat::telemetry::AckChannel) (:wat::core::second rp+ap))
+             ((req-rx :wat::telemetry::ReqRx<E>) (:wat::core::second rp))
+             ((ack-tx :wat::telemetry::AckTx) (:wat::core::first ap)))
             (:wat::core::Tuple req-rx ack-tx)))))
-     ((pool :wat::telemetry::Service::HandlePool<E>)
+     ((pool :wat::telemetry::HandlePool<E>)
       (:wat::kernel::HandlePool::new "telemetry::Service" handles))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
@@ -451,6 +457,6 @@
           ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
-          (:wat::telemetry::Service/run
+          (:wat::telemetry::run
             driver-pairs cadence dispatcher stats-translator)))))
     (:wat::core::Tuple pool driver)))

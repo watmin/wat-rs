@@ -215,6 +215,30 @@ pub enum CheckError {
         /// prefix.
         span: Span,
     },
+    /// Arc 109 slice K.telemetry — a keyword carrying the legacy
+    /// `:wat::telemetry::Service::` (typealias path) or
+    /// `:wat::telemetry::Service/` (verb path) prefix appears in
+    /// user code. The Service grouping noun retires per § K's
+    /// "/ requires a real Type" doctrine — Service has no struct,
+    /// no value, no kind; verbs and typealiases live at the
+    /// namespace level. Real types Stats and MetricsCadence keep
+    /// their PascalCase + /methods because they ARE structs (just
+    /// one less namespace segment deep).
+    ///
+    /// Walker fires on every keyword whose path starts with one
+    /// of the two retired prefixes; canonical replacement strips
+    /// the `Service::` or `Service/` segment.
+    BareLegacyTelemetryServicePath {
+        /// User-source keyword — `":wat::telemetry::Service/spawn"`,
+        /// `":wat::telemetry::Service::Stats"`, etc.
+        old: String,
+        /// Canonical replacement — `":wat::telemetry::spawn"`,
+        /// `":wat::telemetry::Stats"`, etc.
+        new: String,
+        /// Source location of the keyword carrying the legacy
+        /// prefix.
+        span: Span,
+    },
 }
 
 impl fmt::Display for CheckError {
@@ -295,6 +319,11 @@ impl fmt::Display for CheckError {
             CheckError::BareLegacyStreamPath { old, new, span } => write!(
                 f,
                 "legacy stream path '{}' at {} is retired (arc 109 slice 9d); canonical form is '{}'. The stream stdlib graduated to :wat::stream::* per § G's three-tier substrate organization (every substrate concern earns its own top-level tier; :wat::std::* empties out). File path mirrors: wat/std/stream.wat → wat/stream.wat. Rename '{}' → '{}' at the offending site.",
+                old, span, new, old, new
+            ),
+            CheckError::BareLegacyTelemetryServicePath { old, new, span } => write!(
+                f,
+                "legacy telemetry-service path '{}' at {} is retired (arc 109 slice K.telemetry); canonical form is '{}'. The :wat::telemetry::Service grouping noun retired per § K's '/ requires a real Type' doctrine — Service has no struct, no value, no kind. Verbs and typealiases live at the namespace level. Real types Stats and MetricsCadence keep their PascalCase + /methods because they ARE structs (just one less namespace segment deep). Rename '{}' → '{}' at the offending site.",
                 old, span, new, old, new
             ),
         }
@@ -469,6 +498,12 @@ impl CheckError {
             }
             CheckError::BareLegacyStreamPath { old, new, span } => {
                 Diagnostic::new("BareLegacyStreamPath")
+                    .field("old", old.as_str())
+                    .field("new", new.as_str())
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyTelemetryServicePath { old, new, span } => {
+                Diagnostic::new("BareLegacyTelemetryServicePath")
                     .field("old", old.as_str())
                     .field("new", new.as_str())
                     .field("location", format!("{}", span))
@@ -942,6 +977,19 @@ pub fn check_program(
         validate_legacy_stream_path(form, &mut errors);
     }
 
+    // Arc 109 slice K.telemetry — refuse the legacy
+    // `:wat::telemetry::Service::*` (typealias) and
+    // `:wat::telemetry::Service/*` (verb) prefixes. The Service
+    // grouping noun retires per § K's "/ requires a real Type"
+    // doctrine; verbs and typealiases live at the namespace level.
+    // Real types Stats and MetricsCadence keep their /methods.
+    for func in sym.functions.values() {
+        validate_legacy_telemetry_service_path(&func.body, &mut errors);
+    }
+    for form in forms {
+        validate_legacy_telemetry_service_path(form, &mut errors);
+    }
+
     // Check each user define's body against its declared return type.
     for (path, func) in &sym.functions {
         if let Some(scheme) = env.get(path) {
@@ -1313,6 +1361,44 @@ fn walk_for_legacy_stream(node: &WatAST, errors: &mut Vec<CheckError>) {
         WatAST::List(items, _) => {
             for item in items {
                 walk_for_legacy_stream(item, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Arc 109 slice K.telemetry — same shape as `validate_legacy_stream_path`
+/// but for the two Service grouping-noun prefixes. Catches both
+/// `:wat::telemetry::Service::X` (typealias path) and
+/// `:wat::telemetry::Service/X` (verb path); canonical replacement
+/// strips the `Service::` or `Service/` segment so the path becomes
+/// `:wat::telemetry::X`.
+fn validate_legacy_telemetry_service_path(node: &WatAST, errors: &mut Vec<CheckError>) {
+    walk_for_legacy_telemetry_service(node, errors);
+}
+
+const LEGACY_TELEMETRY_SERVICE_TYPEALIAS_PREFIX: &str = ":wat::telemetry::Service::";
+const LEGACY_TELEMETRY_SERVICE_VERB_PREFIX: &str = ":wat::telemetry::Service/";
+const CANONICAL_TELEMETRY_PREFIX: &str = ":wat::telemetry::";
+
+fn walk_for_legacy_telemetry_service(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::Keyword(s, span) => {
+            let stripped = s
+                .strip_prefix(LEGACY_TELEMETRY_SERVICE_TYPEALIAS_PREFIX)
+                .or_else(|| s.strip_prefix(LEGACY_TELEMETRY_SERVICE_VERB_PREFIX));
+            if let Some(tail) = stripped {
+                let new = format!("{}{}", CANONICAL_TELEMETRY_PREFIX, tail);
+                errors.push(CheckError::BareLegacyTelemetryServicePath {
+                    old: s.clone(),
+                    new,
+                    span: span.clone(),
+                });
+            }
+        }
+        WatAST::List(items, _) => {
+            for item in items {
+                walk_for_legacy_telemetry_service(item, errors);
             }
         }
         _ => {}
