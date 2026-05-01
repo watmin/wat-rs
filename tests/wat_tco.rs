@@ -78,12 +78,12 @@ fn self_recursion_via_match_at_high_depth() {
         (:wat::core::define (:app::drain (remaining :wat::core::i64) (acc :wat::core::i64) -> :wat::core::i64)
           (:wat::core::match
             (:wat::core::if (:wat::core::> remaining 0) -> :wat::core::Option<wat::core::i64>
-              (Some remaining)
-              :None)
+              (:wat::core::Some remaining)
+              :wat::core::None)
             -> :wat::core::i64
-            ((Some v)
+            ((:wat::core::Some v)
               (:app::drain (:wat::core::i64::- v 1) (:wat::core::i64::+ acc 1)))
-            (:None acc)))
+            (:wat::core::None acc)))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:app::drain 100000 0))

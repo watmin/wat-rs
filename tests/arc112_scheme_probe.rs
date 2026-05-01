@@ -23,7 +23,7 @@ fn arc112_probe_spawn_program_parametric_return() {
             -> :wat::core::unit)
           (:wat::core::let*
             (((sr :wat::core::Result<wat::kernel::Process<wat::core::i64,wat::core::i64>,wat::kernel::StartupError>)
-              (:wat::kernel::spawn-program "()" :None)))
+              (:wat::kernel::spawn-program "()" :wat::core::None)))
             ()))
     "##;
     let result = startup_from_source(src, None, Arc::new(InMemoryLoader::new()));

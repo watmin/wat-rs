@@ -58,11 +58,11 @@ fn option_tuple_single_level_works() {
             -> :())
           (:wat::core::let*
             (((row :wat::core::Option<(wat::core::i64,wat::core::i64,wat::core::i64)>)
-              (Some (:wat::core::Tuple 1 2 3)))
+              (:wat::core::Some (:wat::core::Tuple 1 2 3)))
              ((sum :wat::core::i64)
               (:wat::core::match row -> :wat::core::i64
-                ((Some (a b c)) (:wat::core::+ a (:wat::core::+ b c)))
-                (:None 0))))
+                ((:wat::core::Some (a b c)) (:wat::core::+ a (:wat::core::+ b c)))
+                (:wat::core::None 0))))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string sum))))
     "##;
     assert_eq!(run(src), vec!["6".to_string()]);
@@ -100,12 +100,12 @@ fn nested_options_three_levels() {
             -> :())
           (:wat::core::let*
             (((mm :wat::core::Option<wat::core::Option<wat::core::i64>>)
-              (Some (Some 42)))
+              (:wat::core::Some (:wat::core::Some 42)))
              ((v :wat::core::i64)
               (:wat::core::match mm -> :wat::core::i64
-                ((Some (Some x)) x)
-                ((Some :None) -1)
-                (:None -2)
+                ((:wat::core::Some (:wat::core::Some x)) x)
+                ((:wat::core::Some :wat::core::None) -1)
+                (:wat::core::None -2)
                 (_ -3))))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string v))))
     "##;
@@ -123,11 +123,11 @@ fn wildcard_at_depth() {
             -> :())
           (:wat::core::let*
             (((row :wat::core::Option<(wat::core::i64,wat::core::i64,wat::core::i64)>)
-              (Some (:wat::core::Tuple 100 99 98)))
+              (:wat::core::Some (:wat::core::Tuple 100 99 98)))
              ((mid :wat::core::i64)
               (:wat::core::match row -> :wat::core::i64
-                ((Some (_ x _)) x)
-                (:None 0))))
+                ((:wat::core::Some (_ x _)) x)
+                (:wat::core::None 0))))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string mid))))
     "##;
     assert_eq!(run(src), vec!["99".to_string()]);
@@ -189,11 +189,11 @@ fn linear_shadowing() {
             -> :())
           (:wat::core::let*
             (((row :wat::core::Option<(wat::core::i64,wat::core::i64)>)
-              (Some (:wat::core::Tuple 5 7)))
+              (:wat::core::Some (:wat::core::Tuple 5 7)))
              ((v :wat::core::i64)
               (:wat::core::match row -> :wat::core::i64
-                ((Some (x x)) x)
-                (:None 0))))
+                ((:wat::core::Some (x x)) x)
+                (:wat::core::None 0))))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string v))))
     "##;
     assert_eq!(run(src), vec!["7".to_string()]);
@@ -212,11 +212,11 @@ fn nonexhaustive_partial_pattern_rejected() {
             -> :())
           (:wat::core::let*
             (((row :wat::core::Option<(wat::core::i64,wat::core::i64)>)
-              (Some (:wat::core::Tuple 1 2)))
+              (:wat::core::Some (:wat::core::Tuple 1 2)))
              ((v :wat::core::i64)
               (:wat::core::match row -> :wat::core::i64
-                ((Some (1 x)) x)
-                (:None 0))))
+                ((:wat::core::Some (1 x)) x)
+                (:wat::core::None 0))))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string v))))
     "##;
     let err = freeze_err(src);
@@ -238,10 +238,10 @@ fn wildcard_fallback_compiles_and_runs() {
             -> :())
           (:wat::core::let*
             (((row :wat::core::Option<(wat::core::i64,wat::core::i64)>)
-              (Some (:wat::core::Tuple 1 99)))
+              (:wat::core::Some (:wat::core::Tuple 1 99)))
              ((v :wat::core::i64)
               (:wat::core::match row -> :wat::core::i64
-                ((Some (1 x)) x)
+                ((:wat::core::Some (1 x)) x)
                 (_ 0))))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string v))))
     "##;
@@ -261,15 +261,15 @@ fn candlestream_next_shape_destructures_in_one_step() {
             -> :())
           (:wat::core::let*
             (((row :wat::core::Option<(wat::core::i64,wat::core::f64,wat::core::f64,wat::core::f64,wat::core::f64,wat::core::f64)>)
-              (Some (:wat::core::Tuple 1700000000 100.0 110.0 95.0 105.0 1234.5)))
+              (:wat::core::Some (:wat::core::Tuple 1700000000 100.0 110.0 95.0 105.0 1234.5)))
              ((line :wat::core::String)
               (:wat::core::match row -> :wat::core::String
-                ((Some (ts open high low close volume))
+                ((:wat::core::Some (ts open high low close volume))
                   (:wat::core::string::concat
                     (:wat::core::i64::to-string ts)
                     (:wat::core::string::concat ":"
                       (:wat::core::f64::to-string close))))
-                (:None "end"))))
+                (:wat::core::None "end"))))
             (:wat::io::IOWriter/println stdout line)))
     "##;
     assert_eq!(run(src), vec!["1700000000:105".to_string()]);

@@ -49,8 +49,8 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::match (:wat::core::first (:my::vec-of 10 20 30)) -> :wat::core::i64
-            ((Some n) n)
-            (:None -1)))
+            ((:wat::core::Some n) n)
+            (:wat::core::None -1)))
     "#;
     assert!(matches!(run(src), Value::i64(10)));
 }

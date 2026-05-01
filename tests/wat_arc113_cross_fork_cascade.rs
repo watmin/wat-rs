@@ -63,21 +63,21 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
               (:wat::kernel::run-sandboxed-hermetic-ast
                 forms
                 (:wat::core::Vector :wat::core::String)
-                :None))
+                :wat::core::None))
              ((fail :wat::core::Option<wat::kernel::Failure>)
               (:wat::kernel::RunResult/failure r))
              ((rendered :wat::core::Vector<wat::core::String>)
               (:wat::core::match fail -> :wat::core::Vector<wat::core::String>
-                ((Some f)
+                ((:wat::core::Some f)
                  (:wat::core::Vector :wat::core::String
                    (:wat::kernel::Failure/message f)
                    (:wat::core::match (:wat::kernel::Failure/actual f) -> :wat::core::String
-                     ((Some a) a)
-                     (:None ":None"))
+                     ((:wat::core::Some a) a)
+                     (:wat::core::None ":None"))
                    (:wat::core::match (:wat::kernel::Failure/expected f) -> :wat::core::String
-                     ((Some e) e)
-                     (:None ":None"))))
-                (:None
+                     ((:wat::core::Some e) e)
+                     (:wat::core::None ":None"))))
+                (:wat::core::None
                  (:wat::core::Vector :wat::core::String "NO-FAILURE")))))
             rendered))
     "##;

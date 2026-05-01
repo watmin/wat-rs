@@ -91,7 +91,7 @@ fn spawn_program_ast_child_writes_stdout_parent_reads_line() {
                                          (stderr :wat::io::IOWriter)
                                          -> :wat::core::unit)
                       (:wat::io::IOWriter/println stdout "hello-from-thread")))
-                  :None)))
+                  :wat::core::None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc)))
             (Ok (:wat::io::IOReader/read-line out-r))))
@@ -121,11 +121,11 @@ fn spawn_program_ast_round_trip_via_pipes() {
                                          (stderr :wat::io::IOWriter)
                                          -> :wat::core::unit)
                       (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::unit
-                        (:None ())
-                        ((Some line)
+                        (:wat::core::None ())
+                        ((:wat::core::Some line)
                          (:wat::io::IOWriter/println stdout
                            (:wat::core::string::concat line line))))))
-                  :None)))
+                  :wat::core::None)))
              ((in-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin proc))
              ((out-r :wat::io::IOReader) (:wat::kernel::Process/stdout proc))
              ((_ :wat::core::unit) (:wat::io::IOWriter/println in-w "ping")))
@@ -158,17 +158,17 @@ fn spawn_program_ast_stdout_eof_after_child_returns() {
                                          (stderr :wat::io::IOWriter)
                                          -> :wat::core::unit)
                       (:wat::io::IOWriter/println stdout "only-line")))
-                  :None)))
+                  :wat::core::None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc))
              ((first :wat::core::Option<wat::core::String>)
               (:wat::io::IOReader/read-line out-r))
              ((_check :wat::core::unit)
               (:wat::core::match first -> :wat::core::unit
-                ((Some s) (:wat::core::if (:wat::core::= s "only-line") -> :wat::core::unit
+                ((:wat::core::Some s) (:wat::core::if (:wat::core::= s "only-line") -> :wat::core::unit
                             ()
                             (:wat::core::panic! "wrong line")))
-                (:None (:wat::core::panic! "expected first line")))))
+                (:wat::core::None (:wat::core::panic! "expected first line")))))
             ;; Second read — child has returned, its writer dropped,
             ;; pipe is empty + closed → :None.
             (Ok (:wat::io::IOReader/read-line out-r))))
@@ -195,7 +195,7 @@ fn spawn_program_ast_stderr_is_separate_pipe() {
                                          (stderr :wat::io::IOWriter)
                                          -> :wat::core::unit)
                       (:wat::io::IOWriter/println stderr "diag-line")))
-                  :None)))
+                  :wat::core::None)))
              ((err-r :wat::io::IOReader)
               (:wat::kernel::Process/stderr proc)))
             (Ok (:wat::io::IOReader/read-line err-r))))
@@ -225,7 +225,7 @@ fn spawn_program_ast_join_returns_unit_on_clean_exit() {
                                          (stderr :wat::io::IOWriter)
                                          -> :wat::core::unit)
                       ()))
-                  :None)))
+                  :wat::core::None)))
              ((joined :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ProcessDiedError>>)
               (:wat::kernel::Process/join-result proc)))
             (:wat::core::match joined -> :wat::core::Result<wat::core::unit,wat::kernel::StartupError>
@@ -247,7 +247,7 @@ fn spawn_program_source_string_entry() {
             (((inner-src :wat::core::String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) (:wat::io::IOWriter/println stdout \"from-source\"))")
              ((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
-              (:wat::core::try (:wat::kernel::spawn-program inner-src :None)))
+              (:wat::core::try (:wat::kernel::spawn-program inner-src :wat::core::None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc)))
             (Ok (:wat::io::IOReader/read-line out-r))))

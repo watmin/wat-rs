@@ -293,8 +293,8 @@ fn fork_child_reads_stdin_from_parent() {
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::unit)
                     (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::unit
-                      ((Some line) (:wat::io::IOWriter/println stdout line))
-                      (:None ()))))))
+                      ((:wat::core::Some line) (:wat::io::IOWriter/println stdout line))
+                      (:wat::core::None ()))))))
              ((in-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin child))
              ((out-r :wat::io::IOReader) (:wat::kernel::Process/stdout child))
              ((_ :wat::core::i64) (:wat::io::IOWriter/writeln in-w "ping")))

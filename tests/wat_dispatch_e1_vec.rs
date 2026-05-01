@@ -64,8 +64,8 @@ fn reverse_vec_via_macro() {
             (:wat::core::first
               (:rust::test::VecUtils::reverse (:wat::core::Vector :wat::core::i64 1 2 3)))
             -> :wat::core::i64
-            ((Some n) n)
-            (:None -1)))
+            ((:wat::core::Some n) n)
+            (:wat::core::None -1)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
@@ -84,8 +84,8 @@ fn sort_vec_via_macro() {
             (:wat::core::first
               (:rust::test::VecUtils::sort (:wat::core::Vector :wat::core::i64 5 2 8 1)))
             -> :wat::core::i64
-            ((Some n) n)
-            (:None -1)))
+            ((:wat::core::Some n) n)
+            (:wat::core::None -1)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");

@@ -305,8 +305,8 @@ fn reader_lines_copied_to_writer() {
             (w :wat::io::IOWriter)
             -> :wat::core::i64)
           (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::i64
-            ((Some line) (:wat::io::IOWriter/writeln w line))
-            (:None -1)))
+            ((:wat::core::Some line) (:wat::io::IOWriter/writeln w line))
+            (:wat::core::None -1)))
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
           (:wat::core::let*

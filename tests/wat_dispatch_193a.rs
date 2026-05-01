@@ -88,8 +88,8 @@ fn option_some_via_macro_generated_shim() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::match (:rust::test::MathUtils::maybe_double 21) -> :wat::core::i64
-            ((Some v) v)
-            (:None -1)))
+            ((:wat::core::Some v) v)
+            (:wat::core::None -1)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
@@ -106,8 +106,8 @@ fn option_none_via_macro_generated_shim() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::match (:rust::test::MathUtils::maybe_double 0) -> :wat::core::i64
-            ((Some v) v)
-            (:None -1)))
+            ((:wat::core::Some v) v)
+            (:wat::core::None -1)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");

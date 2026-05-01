@@ -47,11 +47,11 @@ fn harness_injects_stdin_lines() {
         r##"{}
         (:wat::core::define (:echo-loop (r :wat::io::IOReader) (w :wat::io::IOWriter) -> :wat::core::unit)
           (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::unit
-            ((Some line)
+            ((:wat::core::Some line)
               (:wat::core::let*
                 (((_ :wat::core::unit) (:wat::io::IOWriter/println w line)))
                 (:echo-loop r w)))
-            (:None ())))
+            (:wat::core::None ())))
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)

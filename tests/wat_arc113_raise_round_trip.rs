@@ -48,14 +48,14 @@ fn raise_data_round_trips_through_failure_message() {
                     (:wat::holon::leaf 42)))))
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-ast
-                forms (:wat::core::Vector :wat::core::String) :None))
+                forms (:wat::core::Vector :wat::core::String) :wat::core::None))
              ((fail :wat::core::Option<wat::kernel::Failure>)
               (:wat::kernel::RunResult/failure r))
              ((recovered :wat::core::Option<wat::holon::HolonAST>)
               (:wat::core::match fail -> :wat::core::Option<wat::holon::HolonAST>
-                ((Some f)
-                 (Some (:wat::edn::read (:wat::kernel::Failure/message f))))
-                (:None :None))))
+                ((:wat::core::Some f)
+                 (:wat::core::Some (:wat::edn::read (:wat::kernel::Failure/message f))))
+                (:wat::core::None :wat::core::None))))
             recovered))
     "##;
     let v = run(src);

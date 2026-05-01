@@ -212,8 +212,8 @@ fn named_define_as_stream_map_fn() {
              ((collected :wat::core::Vector<wat::core::i64>) (:wat::std::stream::collect doubled))
              ((first :wat::core::i64)
               (:wat::core::match (:wat::core::first collected) -> :wat::core::i64
-                ((Some n) n)
-                (:None -1)))
+                ((:wat::core::Some n) n)
+                (:wat::core::None -1)))
              ((len :wat::core::i64) (:wat::core::length collected)))
             (:wat::core::if (:wat::core::and (:wat::core::= first 2) (:wat::core::= len 3))
               -> :wat::core::unit

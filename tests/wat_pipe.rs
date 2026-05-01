@@ -99,11 +99,11 @@ fn pipe_multiple_writelns_read_line_by_line() {
              ((a :wat::core::Option<wat::core::String>) (:wat::io::IOReader/read-line r))
              ((b :wat::core::Option<wat::core::String>) (:wat::io::IOReader/read-line r)))
             (:wat::core::match a -> :wat::core::String
-              ((Some sa)
+              ((:wat::core::Some sa)
                (:wat::core::match b -> :wat::core::String
-                 ((Some sb) (:wat::core::string::join "," (:wat::core::Vector :wat::core::String sa sb)))
-                 (:None     "second-missing")))
-              (:None "first-missing"))))
+                 ((:wat::core::Some sb) (:wat::core::string::join "," (:wat::core::Vector :wat::core::String sa sb)))
+                 (:wat::core::None     "second-missing")))
+              (:wat::core::None "first-missing"))))
     "#;
     assert_eq!(unwrap_string(run(src)), "first,second");
 }
@@ -123,8 +123,8 @@ fn pipe_write_string_then_read_exact_bytes() {
              ((n :wat::core::i64) (:wat::io::IOWriter/write-string w "hello"))
              ((got :wat::core::Option<wat::core::Vector<wat::core::u8>>) (:wat::io::IOReader/read r 5)))
             (:wat::core::match got -> :wat::core::i64
-              ((Some bytes) n)
-              (:None        -1))))
+              ((:wat::core::Some bytes) n)
+              (:wat::core::None        -1))))
     "#;
     assert_eq!(unwrap_i64(run(src)), 5);
 }

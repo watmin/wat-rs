@@ -91,7 +91,7 @@ mod tests {
         let inherited = resolve_sandbox_loader(None, &sym, ":test")
             .expect("inherited loader");
 
-        // Pointer identity: :None with outer attached clones the same
+        // Pointer identity: :wat::core::None with outer attached clones the same
         // Arc — no new allocation. This is the load-bearing claim of
         // arc 027 slice 2.
         assert!(

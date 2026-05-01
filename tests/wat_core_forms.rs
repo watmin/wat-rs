@@ -132,12 +132,12 @@ fn forms_composes_with_run_sandboxed_ast() {
                   (:wat::io::IOWriter/println stdout "hello-from-inside"))))
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-ast program
-                (:wat::core::Vector :wat::core::String) :None))
+                (:wat::core::Vector :wat::core::String) :wat::core::None))
              ((captured :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
              ((line :wat::core::String)
               (:wat::core::match (:wat::core::first captured) -> :wat::core::String
-                ((Some s) s)
-                (:None ""))))
+                ((:wat::core::Some s) s)
+                (:wat::core::None ""))))
             (:wat::io::IOWriter/println stdout line)))
     "##;
     assert_eq!(run(src), vec!["hello-from-inside".to_string()]);
@@ -198,8 +198,8 @@ fn test_run_ast_via_test_program_roundtrips_hello() {
              ((captured :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
              ((line :wat::core::String)
               (:wat::core::match (:wat::core::first captured) -> :wat::core::String
-                ((Some s) s)
-                (:None ""))))
+                ((:wat::core::Some s) s)
+                (:wat::core::None ""))))
             (:wat::io::IOWriter/println stdout line)))
     "##;
     assert_eq!(run(src), vec!["hi".to_string()]);

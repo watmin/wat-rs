@@ -145,11 +145,11 @@ fn try_inside_match_arm_propagates() {
                              (o :wat::core::Option<wat::core::Result<wat::core::i64,wat::core::String>>)
                              -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::match o -> :wat::core::Result<wat::core::i64,wat::core::String>
-            ((Some r) (Ok (:wat::core::try r)))
-            (:None (Err "missing"))))
+            ((:wat::core::Some r) (Ok (:wat::core::try r)))
+            (:wat::core::None (Err "missing"))))
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
-          (:app::describe (Some (Err "inner-boom"))))
+          (:app::describe (:wat::core::Some (Err "inner-boom"))))
     "#;
     match run(src) {
         Value::Result(r) => match &*r {

@@ -73,7 +73,7 @@ fn noop_main_yields_empty_stdout_and_stderr() {
                                   -> :wat::core::unit)
                ())"
             (:wat::core::Vector :wat::core::String)
-            :None))
+            :wat::core::None))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
     assert!(stdout.is_empty(), "expected empty stdout; got {:?}", stdout);
@@ -97,7 +97,7 @@ fn main_writes_single_line_to_stdout() {
                                   -> :wat::core::unit)
                (:wat::io::IOWriter/println stdout \"hello\"))"
             (:wat::core::Vector :wat::core::String)
-            :None))
+            :wat::core::None))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
     assert_eq!(stdout, vec!["hello".to_string()]);
@@ -125,7 +125,7 @@ fn main_writes_to_both_stdout_and_stderr() {
                   ((_ :wat::core::unit) (:wat::io::IOWriter/println stderr \"oops\")))
                  ()))"
             (:wat::core::Vector :wat::core::String)
-            :None))
+            :wat::core::None))
     "#;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
     assert_eq!(stdout, vec!["one".to_string(), "two".to_string()]);
@@ -153,7 +153,7 @@ fn main_echoes_stdin_to_stdout() {
                  ((Some line) (:wat::io::IOWriter/println stdout line))
                  (:None ())))"
             (:wat::core::Vector :wat::core::String "watmin")
-            :None))
+            :wat::core::None))
     "##;
     let (stdout, stderr, failure) = unwrap_run_result(run(src));
     assert_eq!(stdout, vec!["watmin".to_string()]);
@@ -183,7 +183,7 @@ fn print_without_newline_does_not_split_into_lines() {
                   ((_ :wat::core::unit) (:wat::io::IOWriter/print stdout \"c\")))
                  ()))"
             (:wat::core::Vector :wat::core::String)
-            :None))
+            :wat::core::None))
     "#;
     let (stdout, _, _) = unwrap_run_result(run(src));
     assert_eq!(stdout, vec!["abc".to_string()]);
@@ -229,7 +229,7 @@ fn parse_error_in_source_surfaces_as_failure() {
           (:wat::kernel::run-sandboxed
             "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) \"unclosed"
             (:wat::core::Vector :wat::core::String)
-            :None))
+            :wat::core::None))
     "##;
     let (stdout, stderr, failure) = unwrap_run_result_with_failure(run(src));
     assert!(stdout.is_empty());
@@ -253,7 +253,7 @@ fn main_signature_mismatch_surfaces_as_failure() {
             "(:wat::config::set-capacity-mode! :error)
              (:wat::core::define (:user::main -> :wat::core::unit) ())"
             (:wat::core::Vector :wat::core::String)
-            :None))
+            :wat::core::None))
     "##;
     let (_, _, failure) = unwrap_run_result_with_failure(run(src));
     let msg = failure.expect("expected signature-mismatch failure");
@@ -272,7 +272,7 @@ fn missing_user_main_surfaces_as_failure() {
           (:wat::kernel::run-sandboxed
             "(:wat::config::set-capacity-mode! :error)"
             (:wat::core::Vector :wat::core::String)
-            :None))
+            :wat::core::None))
     "##;
     let (_, _, failure) = unwrap_run_result_with_failure(run(src));
     let msg = failure.expect("expected missing-main failure");
@@ -316,7 +316,7 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
                        {atoms}))))
                  ()))"
             (:wat::core::Vector :wat::core::String)
-            :None))
+            :wat::core::None))
     "##);
     let src = src.as_str();
     let (stdout, _, failure) = unwrap_run_result_with_failure(run(src));
@@ -400,7 +400,7 @@ fn scoped_file_eval_inside_scope_succeeds() {
           (:wat::kernel::run-sandboxed
             {inner_src:?}
             (:wat::core::Vector :wat::core::String)
-            (Some {scope:?})))
+            (:wat::core::Some {scope:?})))
         "##,
         inner_src = inner_src,
         scope = scope_path.display().to_string(),
@@ -457,7 +457,7 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
           (:wat::kernel::run-sandboxed
             {inner_src:?}
             (:wat::core::Vector :wat::core::String)
-            (Some {scope:?})))
+            (:wat::core::Some {scope:?})))
         "##,
         inner_src = inner_src,
         scope = scope_path.display().to_string(),
@@ -505,7 +505,7 @@ fn main_reads_multiple_stdin_lines() {
                                   -> :wat::core::unit)
                (:my::echo-all stdin stdout))"
             (:wat::core::Vector :wat::core::String "alpha" "beta" "gamma")
-            :None))
+            :wat::core::None))
     "##;
     let (stdout, _, _) = unwrap_run_result(run(src));
     assert_eq!(

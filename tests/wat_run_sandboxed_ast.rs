@@ -62,12 +62,12 @@ fn ast_entry_prints_hello() {
                                        -> :wat::core::unit)
                     (:wat::io::IOWriter/println stdout "hello")))))
              ((r :wat::kernel::RunResult)
-              (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :None))
+              (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :wat::core::None))
              ((lines :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
              ((line :wat::core::String)
               (:wat::core::match (:wat::core::first lines) -> :wat::core::String
-                ((Some s) s)
-                (:None ""))))
+                ((:wat::core::Some s) s)
+                (:wat::core::None ""))))
             (:wat::io::IOWriter/println stdout line)))
     "##;
     assert_eq!(run(src), vec!["hello"]);
@@ -101,13 +101,13 @@ fn ast_entry_captures_assertion_failure() {
                                        -> :wat::core::unit)
                     (:wat::test::assert-eq 1 2)))))
              ((r :wat::kernel::RunResult)
-              (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :None))
+              (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :wat::core::None))
              ((fail :wat::core::Option<wat::kernel::Failure>)
               (:wat::kernel::RunResult/failure r)))
             (:wat::core::match fail -> :wat::core::unit
-              ((Some f) (:wat::io::IOWriter/println stdout
+              ((:wat::core::Some f) (:wat::io::IOWriter/println stdout
                           (:wat::kernel::Failure/message f)))
-              (:None    (:wat::io::IOWriter/println stdout "NO-FAILURE")))))
+              (:wat::core::None    (:wat::io::IOWriter/println stdout "NO-FAILURE")))))
     "##;
     assert_eq!(run(src), vec!["assert-eq failed"]);
 }

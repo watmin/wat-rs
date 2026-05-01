@@ -135,8 +135,8 @@ fn tuple_alias_works_at_hashmap_constructor_arg() {
               (:wat::core::HashMap :my::KV "a" 1 "b" 2))
              ((got :wat::core::Option<wat::core::i64>) (:wat::core::get row "b")))
             (:wat::core::match got -> :wat::core::i64
-              ((Some v) v)
-              (:None -1))))
+              ((:wat::core::Some v) v)
+              (:wat::core::None -1))))
     "#;
     assert!(matches!(run(src), Value::i64(2)));
 }
@@ -156,8 +156,8 @@ fn alias_over_hashmap_passes_through_std_get() {
             (((row :my::Row) (:wat::core::HashMap :(wat::core::String,wat::core::i64) "a" 10 "b" 20))
              ((got :wat::core::Option<wat::core::i64>) (:wat::core::get row "a")))
             (:wat::core::match got -> :wat::core::i64
-              ((Some v) v)
-              (:None -1))))
+              ((:wat::core::Some v) v)
+              (:wat::core::None -1))))
     "#;
     assert!(matches!(run(src), Value::i64(10)));
 }
@@ -194,8 +194,8 @@ fn alias_over_fn_type_works_at_spawn() {
              ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
               (:wat::kernel::Thread/join-result h)))
             (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
-              ((Ok (Some v)) v)
-              ((Ok :None) 0)
+              ((Ok (:wat::core::Some v)) v)
+              ((Ok :wat::core::None) 0)
               ((Err _died) -1))))
     "#;
     assert!(matches!(run(src), Value::i64(7)));
