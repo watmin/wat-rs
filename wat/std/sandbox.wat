@@ -95,7 +95,7 @@
 ;; first read-line.
 (:wat::core::define
   (:wat::kernel::drive-sandbox<I,O>
-    (proc  :wat::kernel::Process<I,O>)
+    (proc  :wat::kernel::Program<I,O>)
     (stdin :Vec<String>)
     -> :wat::kernel::RunResult)
   (:wat::core::let*

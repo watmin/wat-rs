@@ -81,7 +81,7 @@ fn spawn_program_ast_child_writes_stdout_parent_reads_line() {
         (:wat::core::define (:user::main
                              -> :Result<Option<String>,wat::kernel::StartupError>)
           (:wat::core::let*
-            (((proc :wat::kernel::Process<(),()>)
+            (((proc :wat::kernel::Program<(),()>)
               (:wat::core::try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
@@ -111,7 +111,7 @@ fn spawn_program_ast_round_trip_via_pipes() {
         (:wat::core::define (:user::main
                              -> :Result<Option<String>,wat::kernel::StartupError>)
           (:wat::core::let*
-            (((proc :wat::kernel::Process<(),()>)
+            (((proc :wat::kernel::Program<(),()>)
               (:wat::core::try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
@@ -148,7 +148,7 @@ fn spawn_program_ast_stdout_eof_after_child_returns() {
         (:wat::core::define (:user::main
                              -> :Result<Option<String>,wat::kernel::StartupError>)
           (:wat::core::let*
-            (((proc :wat::kernel::Process<(),()>)
+            (((proc :wat::kernel::Program<(),()>)
               (:wat::core::try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
@@ -185,7 +185,7 @@ fn spawn_program_ast_stderr_is_separate_pipe() {
         (:wat::core::define (:user::main
                              -> :Result<Option<String>,wat::kernel::StartupError>)
           (:wat::core::let*
-            (((proc :wat::kernel::Process<(),()>)
+            (((proc :wat::kernel::Program<(),()>)
               (:wat::core::try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
@@ -213,7 +213,7 @@ fn spawn_program_ast_join_returns_unit_on_clean_exit() {
         (:wat::core::define (:user::main
                              -> :Result<(),wat::kernel::StartupError>)
           (:wat::core::let*
-            (((proc :wat::kernel::Process<(),()>)
+            (((proc :wat::kernel::Program<(),()>)
               (:wat::core::try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
@@ -244,7 +244,7 @@ fn spawn_program_source_string_entry() {
           (:wat::core::let*
             (((inner-src :String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::io::IOWriter/println stdout \"from-source\"))")
-             ((proc :wat::kernel::Process<(),()>)
+             ((proc :wat::kernel::Program<(),()>)
               (:wat::core::try (:wat::kernel::spawn-program inner-src :None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc)))

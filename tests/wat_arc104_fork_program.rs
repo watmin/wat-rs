@@ -65,7 +65,7 @@ fn fork_program_child_writes_stdout_parent_reads_line() {
           (:wat::core::let*
             (((inner-src :String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::io::IOWriter/println stdout \"hello-from-fork\"))")
-             ((child :wat::kernel::Process<(),()>)
+             ((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program inner-src :None))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout child)))
@@ -88,7 +88,7 @@ fn fork_program_round_trip_via_pipes() {
           (:wat::core::let*
             (((inner-src :String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :() (:None ()) ((Some line) (:wat::io::IOWriter/println stdout (:wat::core::string::concat line line)))))")
-             ((child :wat::kernel::Process<(),()>)
+             ((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program inner-src :None))
              ((in-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin child))
              ((out-r :wat::io::IOReader) (:wat::kernel::Process/stdout child))
@@ -110,7 +110,7 @@ fn fork_program_clean_exit_code_via_wait_child() {
           (:wat::core::let*
             (((inner-src :String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :() (:None ()) ((Some _) ())))")
-             ((child :wat::kernel::Process<(),()>)
+             ((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program inner-src :None))
              ((in-w :wat::io::IOWriter) (:wat::kernel::Process/stdin child))
              ((_close :()) (:wat::io::IOWriter/close in-w)))
@@ -132,7 +132,7 @@ fn fork_program_parse_error_surfaces_as_exit_3() {
           (:wat::core::let*
             (((bad-src :String)
               "(:wat::core::define (:demo::not-main (x :i64) -> :i64) x)")
-             ((child :wat::kernel::Process<(),()>)
+             ((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program bad-src :None)))
             (:wat::kernel::Process/join-result child)))
     "#;

@@ -14,7 +14,7 @@
 ;; binary reload, no tempfile, no re-parse.
 ;;
 ;; Arc 112 — fork-program-ast now returns the unified
-;; :wat::kernel::Process<I,O> (same struct spawn-program-ast returns).
+;; :wat::kernel::Program<I,O> (same struct spawn-program-ast returns).
 ;; The wait mechanism is hidden inside ProgramHandle's Forked variant;
 ;; (:wat::kernel::Process/join-result proc) produces Result<(),
 ;; ProcessDiedError> uniformly. The pre-arc-112 ForkedChild +
@@ -81,7 +81,7 @@
                :None))))
     (:None
      (:wat::core::let*
-       (((proc :wat::kernel::Process<I,O>)
+       (((proc :wat::kernel::Program<I,O>)
          (:wat::kernel::fork-program-ast forms))
         ;; Write stdin (if any). An empty vec joins to "", which
         ;; write-all handles as a zero-byte write.

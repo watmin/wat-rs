@@ -45,7 +45,7 @@ fn fork_child_writes_stdout_parent_reads_line() {
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
-            (((child :wat::kernel::Process<(),()>)
+            (((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -71,7 +71,7 @@ fn fork_child_writes_stderr_parent_reads_line() {
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
-            (((child :wat::kernel::Process<(),()>)
+            (((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -95,7 +95,7 @@ fn wait_child_returns_zero_on_success() {
 
         (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
-            (((child :wat::kernel::Process<(),()>)
+            (((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -131,7 +131,7 @@ fn wait_child_is_idempotent() {
 
         (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
-            (((child :wat::kernel::Process<(),()>)
+            (((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -158,7 +158,7 @@ fn wait_child_surfaces_startup_error_exit_code() {
 
         (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
-            (((child :wat::kernel::Process<(),()>)
+            (((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -183,7 +183,7 @@ fn wait_child_surfaces_panic_exit_code() {
 
         (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
-            (((child :wat::kernel::Process<(),()>)
+            (((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -207,7 +207,7 @@ fn wait_child_surfaces_runtime_error_exit_code() {
 
         (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
-            (((child :wat::kernel::Process<(),()>)
+            (((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -232,7 +232,7 @@ fn multiple_sequential_forks_no_leak() {
 
         (:wat::core::define (:my::one-fork<I,O> -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
-            (((child :wat::kernel::Process<I,O>)
+            (((child :wat::kernel::Program<I,O>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -266,7 +266,7 @@ fn wait_child_surfaces_nonzero_exit_code() {
 
         (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
-            (((child :wat::kernel::Process<(),()>)
+            (((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main -> :i64) 42)))))
@@ -284,7 +284,7 @@ fn fork_child_reads_stdin_from_parent() {
 
         (:wat::core::define (:user::main -> :Option<String>)
           (:wat::core::let*
-            (((child :wat::kernel::Process<(),()>)
+            (((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main

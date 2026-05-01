@@ -626,7 +626,7 @@ fn sigterm_cascades_two_levels_via_process_group() {
                  ;; polls stopped?. Pgid inherited from parent (no
                  ;; setpgid in child_branch); cascade reaches it via
                  ;; the cli's killpg.
-                 ((child :wat::kernel::Process<(),()>)
+                 ((child :wat::kernel::Program<(),()>)
                   (:wat::kernel::fork-program-ast
                     (:wat::test::program
                       (:wat::core::define (:demo::poll-loop -> :())
