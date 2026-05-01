@@ -764,6 +764,114 @@ through-line — threads pass DiedError values through crossbeam,
 processes pass them as EDN over kernel pipes; same Result<R,
 ProgramPanics> at every call site).
 
+## K. `/` requires a real Type — service-grouping noun cleanup
+
+**User direction (2026-05-01, captured during slice 1j console-rename
+exploration):**
+
+> "is this obvious?... is this simple?... is this honest?... is this
+> a good ux?...
+>
+> these questions - always - guide us
+>
+> we have a lot of cruft from moving fast and making things work.. 109
+> is the clean up process to get us on an incredble foundation of
+> idealized patterns for others to follow. i do not know if telemetry
+> is an idealized pattern, it is /a/ pattern"
+
+### The doctrine
+
+Across wat's existing substrate the `/` separator earns its place
+when there's a **real Type** — a struct, a parametric kind, a
+substrate primitive that carries a value. In several service crates
+the `/` was applied to a **grouping noun** (`Service`, `Console`,
+`CacheService`) that has no struct, no value, no kind — it's just a
+namespace label dressed up as a Type to hang verbs on. That's
+fake-Type cosplay; it fails the honesty test.
+
+**Rule:** `/` is the Type-attached method separator. If the LHS is
+not a real Type (struct / parametric kind / substrate primitive),
+the verb belongs at the namespace level with `::`, like every other
+top-level verb (`:wat::core::map`, `:wat::core::if`,
+`:wat::list::map`).
+
+### Real Types that earn `/` (stay)
+
+| Type | Example methods |
+|---|---|
+| `:wat::kernel::HandlePool<T>` | `/pop`, `/clone-add` |
+| `:wat::kernel::Process<I,O>` | `/input`, `/output`, `/join-result` |
+| `:wat::kernel::Thread<I,O>` | `/input`, `/output`, `/join-result` |
+| `:wat::core::Bytes` | `/to-hex`, `/from-hex` |
+| `:wat::core::Result` | `/try`, `/expect` (slice 1j) |
+| `:wat::core::Option` | `/try`, `/expect` (slice 1j) |
+| `:wat::kernel::RunResult` | `/failure` |
+| `:wat::kernel::Failure` | `/message` |
+| `:wat::telemetry::Stats` | `/zero`, `/bump`, ... |
+| `:wat::telemetry::MetricsCadence<G>` | `/new`, `/gate`, `/tick` |
+
+### Grouping nouns that DON'T earn `/` (clean up)
+
+| Today's name (cruft) | After arc 109 |
+|---|---|
+| `:wat::std::service::Console::*` (typealiases) | `:wat::console::*` (typealiases at namespace level) |
+| `:wat::std::service::Console/spawn` (verb) | `:wat::console::spawn` (top-level verb in namespace) |
+| `:wat::std::service::Console/loop` | `:wat::console::loop` |
+| `:wat::std::service::Console/out` | `:wat::console::out` |
+| `:wat::std::service::Console/err` | `:wat::console::err` |
+| `:wat::std::service::Console/ack-at` | `:wat::console::ack-at` |
+| `:wat::telemetry::Service::*` (typealiases on grouping noun) | `:wat::telemetry::*` (siblings at namespace level) |
+| `:wat::telemetry::Service/spawn` (verb on grouping noun) | `:wat::telemetry::spawn` |
+| `:wat::telemetry::Service/loop`, `/tick`, `/extend`, `/maybe`, `/drain`, `/run`, `/bump`, `/batch`, `/null`, `/pair`, `/ack` | flatten to `:wat::telemetry::<verb>` |
+| `:wat::lru::CacheService` (grouping noun) + `/handle`, `/get`, `/put` | `:wat::lru::*` siblings + top-level verbs (e.g. `:wat::lru::get`, `:wat::lru::put`) — IF `CacheService` is a grouping noun, not a real struct |
+| `:wat::holon::lru::HologramCacheService` ditto | `:wat::holon::lru::*` flattened, IF grouping |
+| `:wat::std::service::Console::Tx` (typealias under grouping noun) | `:wat::console::Tx` (typealias at namespace level) |
+
+(Each crate needs an audit pass: identify whether the central name
+is a real struct or a grouping noun. Real structs keep their
+`/methods`; grouping nouns flatten.)
+
+### Through the four questions
+
+- **Obvious:** every name in `:wat::<concept>::*` attaches the same
+  way (`::`). One rule. PascalCase + position signals type-vs-verb.
+- **Simple:** `::` always for path; `/` reserved exclusively for
+  real Type-attached methods. The grammar tightens.
+- **Honest:** `/` tells the truth about what's a real Type;
+  grouping nouns admit they're just namespace labels.
+- **UX:** call site like `(:wat::console::out handle msg)` reads
+  like `(:wat::core::map f xs)` — same substrate-verb shape.
+
+### Slice plan (rolled into 109's J-PIPELINE)
+
+Each affected service crate is its own slice; substrate-as-teacher
+discipline (Pattern 2 verb retirement on the OLD `Type/verb` heads,
+hint helpers redirecting to the new namespace-level form):
+
+- **Slice K.console** — `:wat::std::service::Console::*` flattens to
+  `:wat::console::*`; verbs lose `Console/` prefix. Subsumes § 9e
+  (file-path move from `wat/std/service/Console.wat` to
+  `wat/console.wat`).
+- **Slice K.telemetry** — `:wat::telemetry::Service::*` flattens to
+  `:wat::telemetry::*`; `Service/spawn` etc. become bare
+  `:wat::telemetry::spawn`. Real types under telemetry (`Stats`,
+  `MetricsCadence`) keep their `/methods`.
+- **Slice K.lru** — audit `:wat::lru::CacheService`. If grouping
+  noun, flatten. If real struct (with field accessors / a value),
+  keep `/methods`.
+- **Slice K.holon-lru** — same audit + treatment for
+  `:wat::holon::lru::HologramCacheService`.
+
+### Cross-references
+
+- `docs/SUBSTRATE-AS-TEACHER.md` — Pattern 2 verb retirement is
+  the migration mechanism for each grouping-noun → namespace-level
+  flatten.
+- `docs/arc/2026/04/109-kill-std/SLICE-1J.md` — the precedent for
+  Type/verb shape on real Types (`Result/try`, `Option/expect`).
+  Slice K is the inverse: when there's NO real Type, the
+  `/`-suggesting form retires.
+
 ## Cross-references
 
 - Arc 005 — stdlib naming audit (the inventory this arc updates).
