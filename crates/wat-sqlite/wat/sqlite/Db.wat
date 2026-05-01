@@ -62,7 +62,7 @@
 ;;
 ;;   (:wat::sqlite::execute db
 ;;     "INSERT INTO events (id, ts) VALUES (?1, ?2)"
-;;     (:wat::core::vec :wat::sqlite::Param
+;;     (:wat::core::Vector :wat::sqlite::Param
 ;;       (:wat::sqlite::Param::I64 7)
 ;;       (:wat::sqlite::Param::I64 1730000000000)))
 ;;     -> :()
@@ -70,7 +70,7 @@
   (:wat::sqlite::execute
     (db :wat::sqlite::Db)
     (sql :wat::core::String)
-    (params :Vec<wat::sqlite::Param>)
+    (params :wat::core::Vector<wat::sqlite::Param>)
     -> :wat::core::unit)
   (:rust::sqlite::Db::execute db sql params))
 

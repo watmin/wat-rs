@@ -7,11 +7,11 @@
 ;;
 ;; What this file replaces (arc 105c): the Rust primitives of the
 ;; same names in src/sandbox.rs, which collected stdin / stdout /
-;; stderr as Vec<String> buffers — buffer-in / buffer-out, no
+;; stderr as wat::core::Vector<String> buffers — buffer-in / buffer-out, no
 ;; interleaving, no back-pressure. The arc 103a spawn-program
 ;; substrate gives real kernel pipes; this file moves the test-
-;; convenience "collect output to Vec<String>" shape to the wat
-;; layer where it belongs. Vec<String> is the ASSERTION TARGET
+;; convenience "collect output to wat::core::Vector<String>" shape to the wat
+;; layer where it belongs. wat::core::Vector<String> is the ASSERTION TARGET
 ;; for tests, not a substrate concern. Same surface (run-sandboxed
 ;; src stdin scope → RunResult); same return shape; same wat-test
 ;; calls — only the mechanism changed.
@@ -48,12 +48,12 @@
     (:wat::core::string::concat
       "startup: " (:wat::kernel::StartupError/message err))
     :None
-    (:wat::core::vec :wat::kernel::Frame)
+    (:wat::core::Vector :wat::kernel::Frame)
     :None
     :None))
 
 ;; Build a Failure payload from a ProcessDiedError chain (arc 112 +
-;; 113). Arc 113 widened the Err arm to Vec<PDE> so cascading
+;; 113). Arc 113 widened the Err arm to wat::core::Vector<PDE> so cascading
 ;; failures carry the full chain; this helper takes the chain and
 ;; renders the HEAD's structured Failure (the immediate peer that
 ;; died). Future-arc consumers can walk the tail via
@@ -65,7 +65,7 @@
 ;; the unit ChannelDisconnected variant.
 (:wat::core::define
   (:wat::kernel::failure-from-process-died
-    (chain :Vec<wat::kernel::ProcessDiedError>)
+    (chain :wat::core::Vector<wat::kernel::ProcessDiedError>)
     -> :wat::kernel::Failure)
   (:wat::core::match (:wat::core::first chain)
     -> :wat::kernel::Failure
@@ -76,7 +76,7 @@
      (:wat::core::struct-new :wat::kernel::Failure
        "empty died-chain (substrate bug)"
        :None
-       (:wat::core::vec :wat::kernel::Frame)
+       (:wat::core::Vector :wat::kernel::Frame)
        :None
        :None))))
 
@@ -90,13 +90,13 @@
 ;;
 ;; The seeded stdin is joined with '\n' between elements (no
 ;; trailing newline) — same convention the deleted Rust primitive
-;; used. Empty Vec<String> joins to the empty string; write-string
+;; used. Empty wat::core::Vector<String> joins to the empty string; write-string
 ;; is a no-op on zero bytes; close still fires; child sees EOF on
 ;; first read-line.
 (:wat::core::define
   (:wat::kernel::drive-sandbox<I,O>
     (proc  :wat::kernel::Program<I,O>)
-    (stdin :Vec<wat::core::String>)
+    (stdin :wat::core::Vector<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::core::let*
     (((stdin-w :wat::io::IOWriter)   (:wat::kernel::Process/stdin proc))
@@ -105,21 +105,21 @@
      ((_close  :wat::core::unit)                  (:wat::io::IOWriter/close stdin-w))
      ((stdout-r :wat::io::IOReader)  (:wat::kernel::Process/stdout proc))
      ((stderr-r :wat::io::IOReader)  (:wat::kernel::Process/stderr proc))
-     ((stdout-lines :Vec<wat::core::String>)    (:wat::kernel::drain-lines stdout-r))
-     ((stderr-lines :Vec<wat::core::String>)    (:wat::kernel::drain-lines stderr-r))
-     ((joined-result :wat::core::Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
+     ((stdout-lines :wat::core::Vector<wat::core::String>)    (:wat::kernel::drain-lines stdout-r))
+     ((stderr-lines :wat::core::Vector<wat::core::String>)    (:wat::kernel::drain-lines stderr-r))
+     ((joined-result :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ProcessDiedError>>)
       (:wat::kernel::Process/join-result proc))
      ;; Arc 113 slice 3 — symmetry with the thread cascade. When
      ;; the forked child panicked with an upstream-chain-bearing
      ;; AssertionPayload, fork.rs's emit_panics_to_stderr
      ;; rendered the chain as a tagged EDN line on stderr. The
      ;; substrate verb extract-panics walks stderr lines and
-     ;; recovers the typed Vec<ProcessDiedError>; we prefer it over
+     ;; recovers the typed wat::core::Vector<ProcessDiedError>; we prefer it over
      ;; Process/join-result's singleton "exited N" shape.
      ;; Threads pass DiedError values directly through crossbeam;
      ;; processes pass them as EDN over kernel pipes; the chain at
      ;; the caller is identical regardless. Only the wire differs.
-     ((stderr-chain :wat::core::Option<Vec<wat::kernel::ProcessDiedError>>)
+     ((stderr-chain :wat::core::Option<wat::core::Vector<wat::kernel::ProcessDiedError>>)
       (:wat::kernel::extract-panics stderr-lines))
      ((failure :wat::core::Option<wat::kernel::Failure>)
       (:wat::core::match joined-result -> :wat::core::Option<wat::kernel::Failure>
@@ -127,7 +127,7 @@
         ((Err err)
          (Some (:wat::kernel::failure-from-process-died
                  (:wat::core::match stderr-chain
-                   -> :Vec<wat::kernel::ProcessDiedError>
+                   -> :wat::core::Vector<wat::kernel::ProcessDiedError>
                    ((Some chain) chain)
                    (:None         err))))))))
     (:wat::core::struct-new :wat::kernel::RunResult
@@ -143,8 +143,8 @@
     (err :wat::kernel::StartupError)
     -> :wat::kernel::RunResult)
   (:wat::core::struct-new :wat::kernel::RunResult
-    (:wat::core::vec :wat::core::String)
-    (:wat::core::vec :wat::core::String)
+    (:wat::core::Vector :wat::core::String)
+    (:wat::core::Vector :wat::core::String)
     (Some (:wat::kernel::failure-from-startup err))))
 
 
@@ -152,7 +152,7 @@
 (:wat::core::define
   (:wat::kernel::run-sandboxed
     (src   :wat::core::String)
-    (stdin :Vec<wat::core::String>)
+    (stdin :wat::core::Vector<wat::core::String>)
     (scope :wat::core::Option<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::core::match (:wat::kernel::spawn-program src scope)
@@ -164,8 +164,8 @@
 ;; --- :wat::kernel::run-sandboxed-ast (AST entry) ---
 (:wat::core::define
   (:wat::kernel::run-sandboxed-ast
-    (forms :Vec<wat::WatAST>)
-    (stdin :Vec<wat::core::String>)
+    (forms :wat::core::Vector<wat::WatAST>)
+    (stdin :wat::core::Vector<wat::core::String>)
     (scope :wat::core::Option<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::core::match (:wat::kernel::spawn-program-ast forms scope)

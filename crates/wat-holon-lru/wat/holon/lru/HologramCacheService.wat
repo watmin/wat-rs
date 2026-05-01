@@ -292,7 +292,7 @@
 
 (:wat::core::define
   (:wat::holon::lru::HologramCacheService/loop<G>
-    (req-rxs :Vec<wat::holon::lru::HologramCacheService::ReqRx>)
+    (req-rxs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReqRx>)
     (state :wat::holon::lru::HologramCacheService::State)
     (reporter :wat::holon::lru::HologramCacheService::Reporter)
     (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
@@ -335,7 +335,7 @@
 
 (:wat::core::define
   (:wat::holon::lru::HologramCacheService/run<G>
-    (req-rxs :Vec<wat::holon::lru::HologramCacheService::ReqRx>)
+    (req-rxs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReqRx>)
     (cap :wat::core::i64)
     (reporter :wat::holon::lru::HologramCacheService::Reporter)
     (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
@@ -377,7 +377,7 @@
     (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
     -> :wat::holon::lru::HologramCacheService::Spawn)
   (:wat::core::let*
-    (((pairs :Vec<wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>>)
+    (((pairs :wat::core::Vector<wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>>)
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
@@ -385,13 +385,13 @@
            -> :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)
           (:wat::kernel::make-bounded-queue
             :wat::holon::lru::HologramCacheService::Request 1))))
-     ((req-txs :Vec<wat::holon::lru::HologramCacheService::ReqTx>)
+     ((req-txs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReqTx>)
       (:wat::core::map pairs
         (:wat::core::lambda
           ((p :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)
            -> :wat::holon::lru::HologramCacheService::ReqTx)
           (:wat::core::first p))))
-     ((req-rxs :Vec<wat::holon::lru::HologramCacheService::ReqRx>)
+     ((req-rxs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReqRx>)
       (:wat::core::map pairs
         (:wat::core::lambda
           ((p :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)

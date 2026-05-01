@@ -45,10 +45,10 @@
 
 ;; The shape `Console/dispatcher` returns and Service<E,G>'s
 ;; per-batch dispatch contract takes (arc 089 slice 3). Aliasing
-;; spares every downstream signature from `:fn(Vec<E>)->()`
+;; spares every downstream signature from `:fn(wat::core::Vector<E>)->()`
 ;; nested inside another generic.
 (:wat::core::typealias :wat::telemetry::Console::Dispatcher<E>
-  :fn(Vec<E>)->wat::core::unit)
+  :fn(wat::core::Vector<E>)->wat::core::unit)
 
 ;; The factory. Returns a closure that captures con-tx + format.
 ;; When the substrate Service calls dispatcher(entries), the closure
@@ -91,7 +91,7 @@
     (handle :wat::std::service::Console::Handle)
     (format :wat::telemetry::Console::Format)
     -> :wat::telemetry::Console::Dispatcher<E>)
-  (:wat::core::lambda ((entries :Vec<E>) -> :wat::core::unit)
+  (:wat::core::lambda ((entries :wat::core::Vector<E>) -> :wat::core::unit)
     (:wat::core::foldl entries ()
       (:wat::core::lambda ((_acc :wat::core::unit) (entry :E) -> :wat::core::unit)
         (:wat::std::service::Console/out handle

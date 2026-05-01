@@ -96,14 +96,14 @@
 ;; pairs remain.
 (:wat::core::define
   (:wat::std::service::Console/loop
-    (pairs :Vec<wat::std::service::Console::DriverPair>)
+    (pairs :wat::core::Vector<wat::std::service::Console::DriverPair>)
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
     -> :wat::core::unit)
   (:wat::core::if (:wat::core::empty? pairs) -> :wat::core::unit
     ()
     (:wat::core::let*
-      (((rxs :Vec<wat::std::service::Console::Rx>)
+      (((rxs :wat::core::Vector<wat::std::service::Console::Rx>)
         (:wat::core::map pairs
           (:wat::core::lambda
             ((p :wat::std::service::Console::DriverPair)
@@ -146,7 +146,7 @@
 ;; the same vec we mapped) collapses to a no-op.
 (:wat::core::define
   (:wat::std::service::Console/ack-at
-    (pairs :Vec<wat::std::service::Console::DriverPair>)
+    (pairs :wat::core::Vector<wat::std::service::Console::DriverPair>)
     (idx :wat::core::i64)
     -> :wat::core::unit)
   (:wat::core::match (:wat::core::get pairs idx) -> :wat::core::unit
@@ -234,7 +234,7 @@
     ;; index of the request pair matches the index of the ack
     ;; pair — this is what makes pair-by-index ack routing
     ;; possible inside Console/loop.
-    (((req-pairs :Vec<(wat::std::service::Console::Tx,wat::std::service::Console::Rx)>)
+    (((req-pairs :wat::core::Vector<(wat::std::service::Console::Tx,wat::std::service::Console::Rx)>)
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
@@ -242,7 +242,7 @@
            -> :(wat::std::service::Console::Tx,wat::std::service::Console::Rx))
           (:wat::kernel::make-bounded-queue
             :wat::std::service::Console::Message 1))))
-     ((ack-pairs :Vec<(wat::std::service::Console::AckTx,wat::std::service::Console::AckRx)>)
+     ((ack-pairs :wat::core::Vector<(wat::std::service::Console::AckTx,wat::std::service::Console::AckRx)>)
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
@@ -250,7 +250,7 @@
            -> :(wat::std::service::Console::AckTx,wat::std::service::Console::AckRx))
           (:wat::kernel::make-bounded-queue :wat::core::unit 1))))
      ;; Producer-side: pop a Handle = (req-Tx, ack-Rx).
-     ((handles :Vec<wat::std::service::Console::Handle>)
+     ((handles :wat::core::Vector<wat::std::service::Console::Handle>)
       (:wat::std::list::zip
         (:wat::core::map req-pairs
           (:wat::core::lambda
@@ -265,7 +265,7 @@
      ;; Driver-side: Vec<DriverPair> = (req-Rx, ack-Tx) at the
      ;; matching index. select fires for idx i; pairs[i].second
      ;; is the ack-Tx the driver writes back on.
-     ((driver-pairs :Vec<wat::std::service::Console::DriverPair>)
+     ((driver-pairs :wat::core::Vector<wat::std::service::Console::DriverPair>)
       (:wat::std::list::zip
         (:wat::core::map req-pairs
           (:wat::core::lambda

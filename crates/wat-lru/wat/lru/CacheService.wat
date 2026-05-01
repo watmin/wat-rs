@@ -250,7 +250,7 @@
 (:wat::core::define
   (:wat::lru::CacheService/loop<K,V,G>
     (capacity :wat::core::i64)
-    (req-rxs :Vec<wat::lru::CacheService::ReqRx<K,V>>)
+    (req-rxs :wat::core::Vector<wat::lru::CacheService::ReqRx<K,V>>)
     (reporter :wat::lru::CacheService::Reporter)
     (metrics-cadence :wat::lru::CacheService::MetricsCadence<G>)
     -> :wat::core::unit)
@@ -270,7 +270,7 @@
 (:wat::core::define
   (:wat::lru::CacheService/loop-step<K,V,G>
     (state :wat::lru::CacheService::State<K,V>)
-    (req-rxs :Vec<wat::lru::CacheService::ReqRx<K,V>>)
+    (req-rxs :wat::core::Vector<wat::lru::CacheService::ReqRx<K,V>>)
     (reporter :wat::lru::CacheService::Reporter)
     (metrics-cadence :wat::lru::CacheService::MetricsCadence<G>)
     -> :wat::core::unit)
@@ -380,17 +380,17 @@
     (metrics-cadence :wat::lru::CacheService::MetricsCadence<G>)
     -> :wat::lru::CacheService::Spawn<K,V>)
   (:wat::core::let*
-    (((pairs :Vec<wat::lru::CacheService::ReqPair<K,V>>)
+    (((pairs :wat::core::Vector<wat::lru::CacheService::ReqPair<K,V>>)
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda ((_i :wat::core::i64) -> :wat::lru::CacheService::ReqPair<K,V>)
           (:wat::kernel::make-bounded-queue :wat::lru::CacheService::Request<K,V> 1))))
-     ((req-txs :Vec<wat::lru::CacheService::ReqTx<K,V>>)
+     ((req-txs :wat::core::Vector<wat::lru::CacheService::ReqTx<K,V>>)
       (:wat::core::map pairs
         (:wat::core::lambda ((p :wat::lru::CacheService::ReqPair<K,V>)
                             -> :wat::lru::CacheService::ReqTx<K,V>)
           (:wat::core::first p))))
-     ((req-rxs :Vec<wat::lru::CacheService::ReqRx<K,V>>)
+     ((req-rxs :wat::core::Vector<wat::lru::CacheService::ReqRx<K,V>>)
       (:wat::core::map pairs
         (:wat::core::lambda ((p :wat::lru::CacheService::ReqPair<K,V>)
                             -> :wat::lru::CacheService::ReqRx<K,V>)

@@ -55,7 +55,7 @@
 ;; line in the sand.
 ;;
 ;; Both stream-logs and stream-metrics consume the SAME
-;; `Vec<TimeConstraint>`. They differ only in which time column
+;; `wat::core::Vector<TimeConstraint>`. They differ only in which time column
 ;; the cursor's prepared statement binds against (`time_ns` vs
 ;; `start_time_ns`) — the constraint enum doesn't need to know.
 ;;
@@ -88,14 +88,14 @@
 (:wat::core::define
   (:wat::telemetry::sqlite/log-cursor
     (handle :wat::sqlite::ReadHandle)
-    (constraints :Vec<wat::telemetry::TimeConstraint>)
+    (constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
     -> :wat::telemetry::sqlite::LogCursor)
   (:rust::telemetry::sqlite::LogCursor::new handle constraints))
 
 (:wat::core::define
   (:wat::telemetry::sqlite/metric-cursor
     (handle :wat::sqlite::ReadHandle)
-    (constraints :Vec<wat::telemetry::TimeConstraint>)
+    (constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
     -> :wat::telemetry::sqlite::MetricCursor)
   (:rust::telemetry::sqlite::MetricCursor::new handle constraints))
 
@@ -212,7 +212,7 @@
 (:wat::core::define
   (:wat::telemetry::sqlite/stream-logs
     (handle :wat::sqlite::ReadHandle)
-    (constraints :Vec<wat::telemetry::TimeConstraint>)
+    (constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
     -> :wat::std::stream::Stream<wat::telemetry::Event>)
   (:wat::core::let*
     (((path :wat::core::String) (:wat::sqlite::ReadHandle/path handle)))
@@ -229,7 +229,7 @@
 (:wat::core::define
   (:wat::telemetry::sqlite/stream-metrics
     (handle :wat::sqlite::ReadHandle)
-    (constraints :Vec<wat::telemetry::TimeConstraint>)
+    (constraints :wat::core::Vector<wat::telemetry::TimeConstraint>)
     -> :wat::std::stream::Stream<wat::telemetry::Event>)
   (:wat::core::let*
     (((path :wat::core::String) (:wat::sqlite::ReadHandle/path handle)))

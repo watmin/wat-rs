@@ -16,9 +16,9 @@
 ;;                        -> :())
 ;;     (:wat::core::let*
 ;;       (((r :wat::kernel::RunResult)
-;;         (:wat::test::run "(:user::main ...)" (:wat::core::vec :wat::core::String))))
+;;         (:wat::test::run "(:user::main ...)" (:wat::core::Vector :wat::core::String))))
 ;;       (:wat::test::assert-stdout-is r
-;;         (:wat::core::conj (:wat::core::vec :wat::core::String) "expected-line"))))
+;;         (:wat::core::conj (:wat::core::Vector :wat::core::String) "expected-line"))))
 ;;
 ;; An assertion that fails panics internally; the outer run-sandboxed
 ;; catches the panic and surfaces the failure in its own RunResult.
@@ -139,17 +139,17 @@
 
 ;; ─── assert-stdout-is ─────────────────────────────────────────────────
 ;;
-;; Compare a RunResult's stdout to an expected Vec<String>. Equality via
-;; :wat::core::=, which is defined over T — for Vec<String> it compares
+;; Compare a RunResult's stdout to an expected wat::core::Vector<String>. Equality via
+;; :wat::core::=, which is defined over T — for wat::core::Vector<String> it compares
 ;; elementwise. Joins both sides with "\n" into the Failure payload so
 ;; the user sees the diff in a RunResult.
 (:wat::core::define
   (:wat::test::assert-stdout-is
     (result :wat::kernel::RunResult)
-    (expected :Vec<wat::core::String>)
+    (expected :wat::core::Vector<wat::core::String>)
     -> :wat::core::unit)
   (:wat::core::let*
-    (((actual :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout result)))
+    (((actual :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout result)))
     (:wat::core::if (:wat::core::= actual expected) -> :wat::core::unit
       ()
       (:wat::kernel::assertion-failed!
@@ -160,12 +160,12 @@
 ;; ─── assert-stderr-matches ────────────────────────────────────────────
 ;;
 ;; Regex match (unanchored) against each line of a RunResult's stderr.
-;; Any line matching passes. Uses foldl over Vec<String> to OR the
+;; Any line matching passes. Uses foldl over wat::core::Vector<String> to OR the
 ;; matches — a straightforward "any" without a new primitive.
 (:wat::core::define
   (:wat::test::any-line-matches
     (pattern :wat::core::String)
-    (lines :Vec<wat::core::String>)
+    (lines :wat::core::Vector<wat::core::String>)
     -> :wat::core::bool)
   (:wat::core::foldl lines false
     (:wat::core::lambda ((acc :wat::core::bool) (line :wat::core::String) -> :wat::core::bool)
@@ -177,7 +177,7 @@
     (pattern :wat::core::String)
     -> :wat::core::unit)
   (:wat::core::let*
-    (((stderr-lines :Vec<wat::core::String>) (:wat::kernel::RunResult/stderr result)))
+    (((stderr-lines :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stderr result)))
     (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) -> :wat::core::unit
       ()
       (:wat::kernel::assertion-failed!
@@ -194,14 +194,14 @@
 (:wat::core::define
   (:wat::test::run
     (src :wat::core::String)
-    (stdin :Vec<wat::core::String>)
+    (stdin :wat::core::Vector<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed src stdin :None))
 
 (:wat::core::define
   (:wat::test::run-in-scope
     (src :wat::core::String)
-    (stdin :Vec<wat::core::String>)
+    (stdin :wat::core::Vector<wat::core::String>)
     (scope :wat::core::String)
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed src stdin (Some scope)))
@@ -218,22 +218,22 @@
 ;;   (:wat::test::run-ast
 ;;     (:wat::test::program
 ;;       (:wat::core::define (:user::main ...) <body>))
-;;     (:wat::core::vec :wat::core::String))
+;;     (:wat::core::Vector :wat::core::String))
 ;;
 ;; `:wat::test::program` expands to `:wat::core::forms` — the
 ;; variadic-quote substrate. Each top-level form captured as
-;; `:wat::WatAST`; the result is `:Vec<wat::WatAST>` ready to hand
+;; `:wat::WatAST`; the result is `:wat::core::Vector<wat::WatAST>` ready to hand
 ;; to `:wat::kernel::run-sandboxed-ast`.
 
 (:wat::core::defmacro
-  (:wat::test::program & (forms :AST<Vec<wat::WatAST>>)
-    -> :AST<Vec<wat::WatAST>>)
+  (:wat::test::program & (forms :AST<wat::core::Vector<wat::WatAST>>)
+    -> :AST<wat::core::Vector<wat::WatAST>>)
   `(:wat::core::forms ,@forms))
 
 (:wat::core::define
   (:wat::test::run-ast
-    (forms :Vec<wat::WatAST>)
-    (stdin :Vec<wat::core::String>)
+    (forms :wat::core::Vector<wat::WatAST>)
+    (stdin :wat::core::Vector<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed-ast forms stdin :None))
 
@@ -252,8 +252,8 @@
 ;; serialization, no binary-path coupling.
 (:wat::core::define
   (:wat::test::run-hermetic-ast
-    (forms :Vec<wat::WatAST>)
-    (stdin :Vec<wat::core::String>)
+    (forms :wat::core::Vector<wat::WatAST>)
+    (stdin :wat::core::Vector<wat::core::String>)
     -> :wat::kernel::RunResult)
   (:wat::kernel::run-sandboxed-hermetic-ast forms stdin :None))
 
@@ -299,7 +299,7 @@
 ;;                              (stderr :wat::io::IOWriter)
 ;;                              -> :())
 ;;           <body>))
-;;       (:wat::core::vec :wat::core::String)
+;;       (:wat::core::Vector :wat::core::String)
 ;;       :None))
 (:wat::core::defmacro
   (:wat::test::deftest
@@ -318,7 +318,7 @@
              (stderr :wat::io::IOWriter)
              -> :wat::core::unit)
            ,body))
-       (:wat::core::vec :wat::core::String)
+       (:wat::core::Vector :wat::core::String)
        :None)))
 
 ;; ─── deftest-hermetic — same shape, forked child for isolation ────────
@@ -349,7 +349,7 @@
              (stderr :wat::io::IOWriter)
              -> :wat::core::unit)
            ,body))
-       (:wat::core::vec :wat::core::String)
+       (:wat::core::Vector :wat::core::String)
        :None)))
 
 ;; ─── make-deftest — configured-deftest factory (arc 029; arc 031) ─────

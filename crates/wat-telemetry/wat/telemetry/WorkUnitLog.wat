@@ -105,8 +105,8 @@
      ((event :wat::telemetry::Event)
       (:wat::telemetry::Event::Log
         time-ns ns-notag caller-notag level-notag uuid tags data-tagged))
-     ((entries :Vec<wat::telemetry::Event>)
-      (:wat::core::vec :wat::telemetry::Event event))
+     ((entries :wat::core::Vector<wat::telemetry::Event>)
+      (:wat::core::Vector :wat::telemetry::Event event))
      ((req-tx :wat::telemetry::Service::ReqTx<wat::telemetry::Event>)
       (:wat::core::first handle))
      ((ack-rx :wat::telemetry::Service::AckRx)

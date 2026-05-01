@@ -2,7 +2,7 @@
 ;;
 ;; The Rust shim at :rust::telemetry::WorkUnit holds the four pieces
 ;; every scope tracks: counters (wat::core::HashMap<Value, i64>), durations
-;; (wat::core::HashMap<Value, Vec<f64>>), `started: Instant`, and `uuid:
+;; (wat::core::HashMap<Value, wat::core::Vector<f64>>), `started: Instant`, and `uuid:
 ;; String`. Mutation is in place via ThreadOwnedCell — same Tier-2
 ;; zero-mutex pattern wat-lru's LocalCache uses.
 ;;
@@ -12,7 +12,7 @@
 ;;   - WorkUnit/incr!      wu (name :HolonAST)           -> ()
 ;;   - WorkUnit/append-dt! wu (name :HolonAST) (s :wat::core::f64)  -> ()
 ;;   - WorkUnit/counter    wu (name :HolonAST)           -> i64
-;;   - WorkUnit/durations  wu (name :HolonAST)           -> Vec<f64>
+;;   - WorkUnit/durations  wu (name :HolonAST)           -> wat::core::Vector<f64>
 ;;
 ;; Slice 4 will add WorkUnit/scope<T> (the HOF that opens a fresh
 ;; wu, runs body, computes elapsed, walks counters+durations to
@@ -92,7 +92,7 @@
   (:wat::telemetry::WorkUnit/durations
     (wu :wat::telemetry::WorkUnit)
     (name :wat::holon::HolonAST)
-    -> :Vec<wat::core::f64>)
+    -> :wat::core::Vector<wat::core::f64>)
   (:rust::telemetry::WorkUnit::durations wu name))
 
 
@@ -128,7 +128,7 @@
 ;;
 ;; Slice 4 ships this bare shape. The companion slice (4-ship)
 ;; adds the auto-ship at scope-close that walks counters +
-;; durations into Vec<Event::Metric> rows and batch-logs them
+;; durations into wat::core::Vector<Event::Metric> rows and batch-logs them
 ;; through SinkHandles. Splitting the slice keeps each stepping
 ;; stone testable independently.
 
@@ -170,7 +170,7 @@
        ((result :T)                        (body wu))
        ((start  :wat::core::i64) (:wat::telemetry::WorkUnit/started-epoch-nanos wu))
        ((end    :wat::core::i64) (:wat::time::epoch-nanos (:wat::time::now)))
-       ((events :Vec<wat::telemetry::Event>)
+       ((events :wat::core::Vector<wat::telemetry::Event>)
         (:wat::telemetry::WorkUnit/scope::collect-metric-events wu start end))
        ((req-tx :wat::telemetry::Service::ReqTx<wat::telemetry::Event>)
         (:wat::core::first handle))
@@ -286,22 +286,22 @@
     (uuid          :wat::core::String)
     (tags          :wat::telemetry::Tags)
     (name          :wat::holon::HolonAST)
-    (samples       :Vec<wat::core::f64>)
-    -> :Vec<wat::telemetry::Event>)
+    (samples       :wat::core::Vector<wat::core::f64>)
+    -> :wat::core::Vector<wat::telemetry::Event>)
   (:wat::core::foldl samples
-    (:wat::core::vec :wat::telemetry::Event)
+    (:wat::core::Vector :wat::telemetry::Event)
     (:wat::core::lambda
-      ((acc    :Vec<wat::telemetry::Event>)
+      ((acc    :wat::core::Vector<wat::telemetry::Event>)
        (sample :wat::core::f64)
-       -> :Vec<wat::telemetry::Event>)
+       -> :wat::core::Vector<wat::telemetry::Event>)
       (:wat::core::concat acc
-        (:wat::core::vec :wat::telemetry::Event
+        (:wat::core::Vector :wat::telemetry::Event
           (:wat::telemetry::WorkUnit/scope::build-duration-metric
             start-time-ns end-time-ns namespace uuid tags name sample))))))
 
 
 ;; collect-metric-events — at scope-close, walks the wu's counters
-;; and durations into a flat Vec<Event>. Slice 4-ship's central
+;; and durations into a flat wat::core::Vector<Event>. Slice 4-ship's central
 ;; piece. Counters: ONE row per name (final count). Durations:
 ;; ONE row per sample (CloudWatch fanout). Namespace pulled
 ;; from wu (per the user's "namespace adjacent to tags" rule).
@@ -310,38 +310,38 @@
     (wu            :wat::telemetry::WorkUnit)
     (start-time-ns :wat::core::i64)
     (end-time-ns   :wat::core::i64)
-    -> :Vec<wat::telemetry::Event>)
+    -> :wat::core::Vector<wat::telemetry::Event>)
   (:wat::core::let*
     (((namespace      :wat::holon::HolonAST)        (:wat::telemetry::WorkUnit/namespace wu))
      ((uuid           :wat::core::String)                     (:wat::telemetry::WorkUnit/uuid wu))
      ((tags           :wat::telemetry::Tags)        (:wat::telemetry::WorkUnit/tags wu))
      ((counter-keys   :wat::holon::Holons)   (:wat::telemetry::WorkUnit/counters-keys wu))
      ((duration-keys  :wat::holon::Holons)   (:wat::telemetry::WorkUnit/durations-keys wu))
-     ((counter-events :Vec<wat::telemetry::Event>)
+     ((counter-events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::core::foldl counter-keys
-        (:wat::core::vec :wat::telemetry::Event)
+        (:wat::core::Vector :wat::telemetry::Event)
         (:wat::core::lambda
-          ((acc :Vec<wat::telemetry::Event>)
+          ((acc :wat::core::Vector<wat::telemetry::Event>)
            (key :wat::holon::HolonAST)
-           -> :Vec<wat::telemetry::Event>)
+           -> :wat::core::Vector<wat::telemetry::Event>)
           (:wat::core::let*
             (((count :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu key))
              ((event :wat::telemetry::Event)
               (:wat::telemetry::WorkUnit/scope::build-counter-metric
                 start-time-ns end-time-ns namespace uuid tags key count)))
             (:wat::core::concat acc
-              (:wat::core::vec :wat::telemetry::Event event))))))
-     ((duration-events :Vec<wat::telemetry::Event>)
+              (:wat::core::Vector :wat::telemetry::Event event))))))
+     ((duration-events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::core::foldl duration-keys
-        (:wat::core::vec :wat::telemetry::Event)
+        (:wat::core::Vector :wat::telemetry::Event)
         (:wat::core::lambda
-          ((acc :Vec<wat::telemetry::Event>)
+          ((acc :wat::core::Vector<wat::telemetry::Event>)
            (key :wat::holon::HolonAST)
-           -> :Vec<wat::telemetry::Event>)
+           -> :wat::core::Vector<wat::telemetry::Event>)
           (:wat::core::let*
-            (((samples :Vec<wat::core::f64>)
+            (((samples :wat::core::Vector<wat::core::f64>)
               (:wat::telemetry::WorkUnit/durations wu key))
-             ((per-name :Vec<wat::telemetry::Event>)
+             ((per-name :wat::core::Vector<wat::telemetry::Event>)
               (:wat::telemetry::WorkUnit/scope::collect-duration-events-for-name
                 start-time-ns end-time-ns namespace uuid tags key samples)))
             (:wat::core::concat acc per-name))))))

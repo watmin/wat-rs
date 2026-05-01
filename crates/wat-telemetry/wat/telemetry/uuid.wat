@@ -11,7 +11,7 @@
 ;;
 ;; The `::` separator places `v4` as a free function under the
 ;; `:wat::telemetry::uuid::*` sub-namespace — same convention as
-;; `:wat::edn::write` or `:wat::core::vec`. The `/` separator is
+;; `:wat::edn::write` or `:wat::core::Vector`. The `/` separator is
 ;; reserved for type-method calls (e.g. `Type/method`).
 ;;
 ;; Arc 091 slice 2.
