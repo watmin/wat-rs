@@ -111,6 +111,44 @@ slices.
   verify. Do AFTER slice 1d's sweep finishes — small judgment
   call, big-blast-radius rename, but the mechanism is rehearsed.
 
+- **`Queue*` → `Channel` rename across the kernel-channel
+  family.** Surfaced during slice 1d via /gaze. The current
+  `:wat::kernel::QueueSender<T>` / `QueueReceiver<T>` /
+  `QueuePair<T>` aliases mumble in two ways: (1) "Queue" leaks
+  the implementation (crossbeam's data-structure name); (2) the
+  prose has already drifted — Console.wat comments say "pipe",
+  service-template.wat comments say "channel" — three different
+  words for one concept and the type spelling matches none.
+  /gaze flagged Level 2 mumble + Level 1 lie at the prose/type
+  boundary.
+
+  Recommended canonical form (drops the Queue prefix entirely;
+  matches Go / Rust crossbeam / Clojure core.async / CSP / Erlang
+  vocabulary):
+  ```
+  :wat::kernel::Channel<T>      ;; the pair (Sender<T>, Receiver<T>)
+  :wat::kernel::Sender<T>       ;; input end
+  :wat::kernel::Receiver<T>     ;; output end
+  ```
+  Verb companions: `make-bounded-queue` → `make-bounded-channel`
+  (and the unbounded sibling). File rename: `wat/kernel/queue.wat`
+  → `wat/kernel/channel.wat`.
+
+  Side benefit: the shorter half-names solve the "half the
+  codebase spells `:rust::crossbeam_channel::*` because
+  `QueueSender` is too long" leak the user noticed. Today's split
+  is 72 raw rust + 50 raw rust + 66 + 66 wat-prefixed; the rename
+  collapses both to one canonical name short enough to actually
+  use.
+
+  Cost: 243 identifier hits + ~20-30 verb-rename sites + file
+  rename + doc pass (USER-GUIDE / CONVENTIONS / WAT-CHEATSHEET /
+  SERVICE-PROGRAMS / arc-117 docs). Bigger than the unit→Unit
+  rename; same Pattern 3 mechanism (`BareLegacyQueueName` variant
+  + walker + four-tier sweep). Could ride as slice 1e or its own
+  arc; the substrate-as-teacher rehearsal makes either path
+  cheap.
+
 ## The opus / sonnet split
 
 **Opus territory (rich context, architectural decisions):**
