@@ -41,8 +41,8 @@ fn bool_src(expr: &str) -> String {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
-          (:wat::core::if {expr} -> :()
+            -> :wat::core::unit)
+          (:wat::core::if {expr} -> :wat::core::unit
             (:wat::io::IOWriter/println stdout "true")
             (:wat::io::IOWriter/println stdout "false")))
         "#,
@@ -57,7 +57,7 @@ fn string_src(expr: &str) -> String {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::io::IOWriter/println stdout {expr}))
         "#,
     )
@@ -115,10 +115,10 @@ fn length_counts_chars_not_bytes() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((n :wat::core::i64) (:wat::core::string::length "héllo")))
-            (:wat::core::if (:wat::core::= n 5) -> :()
+            (:wat::core::if (:wat::core::= n 5) -> :wat::core::unit
               (:wat::io::IOWriter/println stdout "chars")
               (:wat::io::IOWriter/println stdout "bytes"))))
     "#;
@@ -145,7 +145,7 @@ fn split_produces_vec() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((pieces :Vec<wat::core::String>)
               (:wat::core::string::split "a,b,c" ",")))
@@ -163,7 +163,7 @@ fn split_empty_separator_rejected() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((_ :Vec<wat::core::String>)
               (:wat::core::string::split "abc" "")))
@@ -218,7 +218,7 @@ fn regex_invalid_pattern_errors() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((_ :wat::core::bool) (:wat::core::regex::matches? "[unclosed" "x")))
             ()))

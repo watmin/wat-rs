@@ -28,7 +28,7 @@
           (:wat::core::define
             (:my::dispatch-three-edn
               (handle :wat::std::service::Console::Handle)
-              -> :())
+              -> :wat::core::unit)
             (:wat::core::let*
               (((d :my::Dispatcher)
                 (:wat::telemetry::Console/dispatcher
@@ -42,17 +42,17 @@
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :())
+              -> :wat::core::unit)
             (:wat::core::let*
               (((pool console-driver)
                 (:wat::std::service::Console/spawn stdout stderr 1))
-               ((_ :())
+               ((_ :wat::core::unit)
                 (:wat::core::let*
                   (((handle :wat::std::service::Console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
-                   ((_0 :()) (:wat::kernel::HandlePool::finish pool)))
+                   ((_0 :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
                   (:my::dispatch-three-edn handle)))
-               ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+               ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result console-driver)))
               ())))
         (:wat::core::vec :wat::core::String)))
@@ -75,8 +75,8 @@
                          (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
                            (:wat::core::= s "30"))))
                      1))
-     ((u1 :()) (:wat::test::assert-eq seen-10 true))
-     ((u2 :()) (:wat::test::assert-eq seen-20 true)))
+     ((u1 :wat::core::unit) (:wat::test::assert-eq seen-10 true))
+     ((u2 :wat::core::unit) (:wat::test::assert-eq seen-20 true)))
     (:wat::test::assert-eq seen-30 true)))
 
 
@@ -103,7 +103,7 @@
           (:wat::core::define
             (:my::dispatch-row-json
               (handle :wat::std::service::Console::Handle)
-              -> :())
+              -> :wat::core::unit)
             (:wat::core::let*
               (((d :my::Dispatcher)
                 (:wat::telemetry::Console/dispatcher
@@ -117,17 +117,17 @@
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :())
+              -> :wat::core::unit)
             (:wat::core::let*
               (((pool console-driver)
                 (:wat::std::service::Console/spawn stdout stderr 1))
-               ((_ :())
+               ((_ :wat::core::unit)
                 (:wat::core::let*
                   (((handle :wat::std::service::Console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
-                   ((_0 :()) (:wat::kernel::HandlePool::finish pool)))
+                   ((_0 :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
                   (:my::dispatch-row-json handle)))
-               ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+               ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result console-driver)))
               ())))
         (:wat::core::vec :wat::core::String)))

@@ -49,7 +49,7 @@ fn ast_entry_prints_hello() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((forms :Vec<wat::WatAST>)
               (:wat::core::vec :wat::WatAST
@@ -59,7 +59,7 @@ fn ast_entry_prints_hello() {
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
-                                       -> :())
+                                       -> :wat::core::unit)
                     (:wat::io::IOWriter/println stdout "hello")))))
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-ast forms (:wat::core::vec :wat::core::String) :None))
@@ -88,7 +88,7 @@ fn ast_entry_captures_assertion_failure() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((forms :Vec<wat::WatAST>)
               (:wat::core::vec :wat::WatAST
@@ -98,13 +98,13 @@ fn ast_entry_captures_assertion_failure() {
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
-                                       -> :())
+                                       -> :wat::core::unit)
                     (:wat::test::assert-eq 1 2)))))
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-ast forms (:wat::core::vec :wat::core::String) :None))
              ((fail :Option<wat::kernel::Failure>)
               (:wat::kernel::RunResult/failure r)))
-            (:wat::core::match fail -> :()
+            (:wat::core::match fail -> :wat::core::unit
               ((Some f) (:wat::io::IOWriter/println stdout
                           (:wat::kernel::Failure/message f)))
               (:None    (:wat::io::IOWriter/println stdout "NO-FAILURE")))))

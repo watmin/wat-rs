@@ -43,7 +43,7 @@ fn raise_data_round_trips_through_failure_message() {
                                      (stdin  :wat::io::IOReader)
                                      (stdout :wat::io::IOWriter)
                                      (stderr :wat::io::IOWriter)
-                                     -> :())
+                                     -> :wat::core::unit)
                   (:wat::kernel::raise!
                     (:wat::holon::leaf 42)))))
              ((r :wat::kernel::RunResult)

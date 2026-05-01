@@ -67,7 +67,7 @@
   (:wat::core::let*
     (((parsed :Option<wat::time::Instant>)
       (:wat::time::from-iso8601 "2026-04-25T14:30:42.123Z")))
-    (:wat::core::match parsed -> :()
+    (:wat::core::match parsed -> :wat::core::unit
       ((Some i)
         (:wat::core::let*
           (((s :wat::core::String) (:wat::time::to-iso8601 i 3)))
@@ -84,7 +84,7 @@
   (:wat::core::let*
     (((parsed :Option<wat::time::Instant>)
       (:wat::time::from-iso8601 "2026-04-25T14:30:42.123456789Z")))
-    (:wat::core::match parsed -> :()
+    (:wat::core::match parsed -> :wat::core::unit
       ((Some i)
         (:wat::core::let*
           (((s :wat::core::String) (:wat::time::to-iso8601 i 9)))

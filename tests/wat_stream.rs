@@ -60,16 +60,16 @@ fn from_receiver_wraps_raw_queue_into_stream() {
               (:wat::kernel::make-bounded-queue :wat::core::i64 1))
              ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) (:wat::core::first pair))
              ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>) (:wat::core::second pair))
-             ((handle :wat::kernel::Thread<(),()>)
+             ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
               (:wat::kernel::spawn-thread
                 (:wat::core::lambda
-                  ((_in :rust::crossbeam_channel::Receiver<()>)
-                   (_out :rust::crossbeam_channel::Sender<()>)
-                   -> :())
+                  ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
+                   (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
+                   -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 10) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 20) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 30) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 10) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 20) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 30) "test producer: tx disconnected")))
                     ())))))
             (:wat::std::stream::from-receiver rx handle)))
 
@@ -91,16 +91,16 @@ fn from_receiver_composes_with_map() {
               (:wat::kernel::make-bounded-queue :wat::core::i64 1))
              ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) (:wat::core::first pair))
              ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>) (:wat::core::second pair))
-             ((handle :wat::kernel::Thread<(),()>)
+             ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
               (:wat::kernel::spawn-thread
                 (:wat::core::lambda
-                  ((_in :rust::crossbeam_channel::Receiver<()>)
-                   (_out :rust::crossbeam_channel::Sender<()>)
-                   -> :())
+                  ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
+                   (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
+                   -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 3) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 3) "test producer: tx disconnected")))
                     ())))))
             (:wat::std::stream::from-receiver rx handle)))
 
@@ -125,11 +125,11 @@ fn spawn_producer_plus_collect_round_trips_three_values() {
         (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
           (:wat::std::stream::collect
             (:wat::std::stream::spawn-producer
-              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                 (:wat::core::let*
-                  (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                   ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected"))
-                   ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 3) "test producer: tx disconnected")))
+                  (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                   ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected"))
+                   ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 3) "test producer: tx disconnected")))
                   ())))))
     "#;
     assert_eq!(collected_i64(src), vec![1, 2, 3]);
@@ -145,12 +145,12 @@ fn spawn_producer_map_collect_doubles_each_value() {
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 3) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 4) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 3) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 4) "test producer: tx disconnected")))
                     ()))))
              ((doubled :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::map source
@@ -174,11 +174,11 @@ fn three_stage_pipeline_map_map_collect() {
           (:wat::core::let*
             (((s0 :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 0) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 0) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected")))
                     ()))))
              ((s1 :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::map s0
@@ -203,7 +203,7 @@ fn empty_producer_yields_empty_collected_vec() {
         (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
           (:wat::std::stream::collect
             (:wat::std::stream::spawn-producer
-              (:wat::core::lambda ((_tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+              (:wat::core::lambda ((_tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                 ()))))
     "#;
     assert_eq!(collected_i64(src), Vec::<i64>::new());
@@ -215,15 +215,15 @@ fn empty_producer_yields_empty_collected_vec() {
 fn for_each_returns_unit_on_finite_producer() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :())
+        (:wat::core::define (:user::main -> :wat::core::unit)
           (:wat::std::stream::for-each
             (:wat::std::stream::spawn-producer
-              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                 (:wat::core::let*
-                  (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                   ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected")))
+                  (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                   ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected")))
                   ())))
-            (:wat::core::lambda ((_n :wat::core::i64) -> :()) ())))
+            (:wat::core::lambda ((_n :wat::core::i64) -> :wat::core::unit) ())))
     "#;
     assert!(matches!(run(src), Value::Unit));
 }
@@ -239,14 +239,14 @@ fn filter_keeps_only_passing_values() {
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 3) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 4) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 5) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 6) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 3) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 4) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 5) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 6) "test producer: tx disconnected")))
                     ()))))
              ((evens :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::filter source
@@ -273,11 +273,11 @@ fn fold_sums_the_stream() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::std::stream::fold
             (:wat::std::stream::spawn-producer
-              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                 (:wat::core::let*
-                  (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 10) "test producer: tx disconnected"))
-                   ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 20) "test producer: tx disconnected"))
-                   ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 30) "test producer: tx disconnected")))
+                  (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 10) "test producer: tx disconnected"))
+                   ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 20) "test producer: tx disconnected"))
+                   ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 30) "test producer: tx disconnected")))
                   ())))
             0
             (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
@@ -293,7 +293,7 @@ fn fold_with_empty_stream_returns_init() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::std::stream::fold
             (:wat::std::stream::spawn-producer
-              (:wat::core::lambda ((_tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+              (:wat::core::lambda ((_tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                 ()))
             42
             (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
@@ -315,15 +315,15 @@ fn chunks_groups_by_size_flushes_remainder() {
           (:wat::std::stream::collect
             (:wat::std::stream::chunks
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 3) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 4) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 5) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 6) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 7) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 3) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 4) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 5) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 6) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 7) "test producer: tx disconnected")))
                     ())))
               3)))
     "#;
@@ -361,14 +361,14 @@ fn chunks_with_exact_multiple_emits_no_partial_flush() {
           (:wat::std::stream::collect
             (:wat::std::stream::chunks
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 3) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 4) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 5) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 6) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 3) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 4) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 5) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 6) "test producer: tx disconnected")))
                     ())))
               3)))
     "#;
@@ -404,13 +404,13 @@ fn chunks_into_map_composes() {
             (:wat::std::stream::map
               (:wat::std::stream::chunks
                 (:wat::std::stream::spawn-producer
-                  (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                  (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                     (:wat::core::let*
-                      (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                       ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected"))
-                       ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 3) "test producer: tx disconnected"))
-                       ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 4) "test producer: tx disconnected"))
-                       ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 5) "test producer: tx disconnected")))
+                      (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                       ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected"))
+                       ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 3) "test producer: tx disconnected"))
+                       ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 4) "test producer: tx disconnected"))
+                       ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 5) "test producer: tx disconnected")))
                       ())))
                 2)
               (:wat::core::lambda ((batch :Vec<wat::core::i64>) -> :wat::core::i64)
@@ -435,18 +435,18 @@ fn take_cuts_off_at_n_with_producer_that_would_send_more() {
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 3) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 4) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 5) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 6) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 7) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 8) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 9) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 10) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 3) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 4) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 5) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 6) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 7) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 8) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 9) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 10) "test producer: tx disconnected")))
                     ()))))
              ((taken :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::take source 3)))
@@ -465,10 +465,10 @@ fn take_returns_all_when_n_exceeds_available() {
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 100) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 200) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 100) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 200) "test producer: tx disconnected")))
                     ()))))
              ((taken :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::take source 5)))
@@ -487,10 +487,10 @@ fn take_zero_emits_nothing() {
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected")))
                     ()))))
              ((taken :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::take source 0)))
@@ -510,13 +510,13 @@ fn take_composes_with_map() {
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 3) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 4) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 5) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 3) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 4) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 5) "test producer: tx disconnected")))
                     ()))))
              ((mapped :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::map source
@@ -542,15 +542,15 @@ fn inspect_passes_values_through_unchanged() {
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 10) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 20) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 30) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 10) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 20) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 30) "test producer: tx disconnected")))
                     ()))))
              ((inspected :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::inspect source
-                (:wat::core::lambda ((_n :wat::core::i64) -> :()) ()))))
+                (:wat::core::lambda ((_n :wat::core::i64) -> :wat::core::unit) ()))))
             (:wat::std::stream::collect inspected)))
     "#;
     assert_eq!(collected_i64(src), vec![10, 20, 30]);
@@ -567,11 +567,11 @@ fn inspect_composes_between_map_and_collect() {
           (:wat::core::let*
             (((s0 :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 3) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 3) "test producer: tx disconnected")))
                     ()))))
              ((s1 :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::map s0
@@ -579,7 +579,7 @@ fn inspect_composes_between_map_and_collect() {
                   (:wat::core::i64::+ n 1))))
              ((s2 :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::inspect s1
-                (:wat::core::lambda ((_n :wat::core::i64) -> :()) ())))
+                (:wat::core::lambda ((_n :wat::core::i64) -> :wat::core::unit) ())))
              ((s3 :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::map s2
                 (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
@@ -600,11 +600,11 @@ fn flat_map_expands_each_input_to_two_outputs() {
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 3) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 3) "test producer: tx disconnected")))
                     ()))))
              ((expanded :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::flat-map source
@@ -625,10 +625,10 @@ fn flat_map_empty_expansion_emits_nothing() {
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected")))
                     ()))))
              ((expanded :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::flat-map source
@@ -649,11 +649,11 @@ fn flat_map_mixed_expansion_sizes() {
           (:wat::core::let*
             (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                   (:wat::core::let*
-                    (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 1) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 2) "test producer: tx disconnected"))
-                     ((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 3) "test producer: tx disconnected")))
+                    (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 1) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 2) "test producer: tx disconnected"))
+                     ((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 3) "test producer: tx disconnected")))
                     ()))))
              ((expanded :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::flat-map source

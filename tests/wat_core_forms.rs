@@ -50,12 +50,12 @@ fn forms_captures_each_arg_as_wat_ast() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((captured :Vec<wat::WatAST>)
               (:wat::core::forms (foo 1) (bar 2) (baz 3)))
              ((n :wat::core::i64) (:wat::core::length captured)))
-            (:wat::core::if (:wat::core::= n 3) -> :()
+            (:wat::core::if (:wat::core::= n 3) -> :wat::core::unit
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -72,11 +72,11 @@ fn forms_empty_produces_empty_vec() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((captured :Vec<wat::WatAST>) (:wat::core::forms))
              ((n :wat::core::i64) (:wat::core::length captured)))
-            (:wat::core::if (:wat::core::= n 0) -> :()
+            (:wat::core::if (:wat::core::= n 0) -> :wat::core::unit
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -94,12 +94,12 @@ fn forms_args_are_not_evaluated() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((captured :Vec<wat::WatAST>)
               (:wat::core::forms (:this::is::not::a::real::function 1 2 3)))
              ((n :wat::core::i64) (:wat::core::length captured)))
-            (:wat::core::if (:wat::core::= n 1) -> :()
+            (:wat::core::if (:wat::core::= n 1) -> :wat::core::unit
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -119,7 +119,7 @@ fn forms_composes_with_run_sandboxed_ast() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((program :Vec<wat::WatAST>)
               (:wat::core::forms
@@ -128,7 +128,7 @@ fn forms_composes_with_run_sandboxed_ast() {
                     (stdin  :wat::io::IOReader)
                     (stdout :wat::io::IOWriter)
                     (stderr :wat::io::IOWriter)
-                    -> :())
+                    -> :wat::core::unit)
                   (:wat::io::IOWriter/println stdout "hello-from-inside"))))
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-ast program
@@ -156,12 +156,12 @@ fn test_program_macro_expands_correctly() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((captured :Vec<wat::WatAST>)
               (:wat::test::program (a 1) (b 2) (c 3)))
              ((n :wat::core::i64) (:wat::core::length captured)))
-            (:wat::core::if (:wat::core::= n 3) -> :()
+            (:wat::core::if (:wat::core::= n 3) -> :wat::core::unit
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -182,7 +182,7 @@ fn test_run_ast_via_test_program_roundtrips_hello() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((r :wat::kernel::RunResult)
               (:wat::test::run-ast
@@ -192,7 +192,7 @@ fn test_run_ast_via_test_program_roundtrips_hello() {
                       (stdin  :wat::io::IOReader)
                       (stdout :wat::io::IOWriter)
                       (stderr :wat::io::IOWriter)
-                      -> :())
+                      -> :wat::core::unit)
                     (:wat::io::IOWriter/println stdout "hi")))
                 (:wat::core::vec :wat::core::String)))
              ((captured :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))

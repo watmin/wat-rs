@@ -171,27 +171,27 @@ fn alias_over_fn_type_works_at_spawn() {
 
         (:wat::core::typealias
           :my::Job
-          :fn(rust::crossbeam_channel::Sender<wat::core::i64>)->())
+          :fn(rust::crossbeam_channel::Sender<wat::core::i64>)->wat::core::unit)
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((job :my::Job)
-              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
+              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
                 (:wat::core::let*
-                  (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 7) "test producer: tx disconnected")))
+                  (((_ :wat::core::unit) (:wat::core::result::expect -> :wat::core::unit (:wat::kernel::send tx 7) "test producer: tx disconnected")))
                   ())))
              ((pair :(rust::crossbeam_channel::Sender<wat::core::i64>,rust::crossbeam_channel::Receiver<wat::core::i64>))
               (:wat::kernel::make-bounded-queue :wat::core::i64 1))
              ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) (:wat::core::first pair))
              ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>) (:wat::core::second pair))
-             ((h :wat::kernel::Thread<(),()>)
+             ((h :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
               (:wat::kernel::spawn-thread
                 (:wat::core::lambda
-                  ((_in :rust::crossbeam_channel::Receiver<()>)
-                   (_out :rust::crossbeam_channel::Sender<()>)
-                   -> :())
+                  ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
+                   (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
+                   -> :wat::core::unit)
                   (job tx))))
-             ((_ :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+             ((_ :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
               (:wat::kernel::Thread/join-result h)))
             (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
               ((Ok (Some v)) v)

@@ -167,7 +167,7 @@ fn io_reader_rewind_restarts_from_beginning() {
         (:wat::core::define (:my::read-twice (r :wat::io::IOReader) -> :Vec<wat::core::u8>)
           (:wat::core::let*
             (((_ :Vec<wat::core::u8>) (:wat::io::IOReader/read-all r))
-             ((_ :()) (:wat::io::IOReader/rewind r)))
+             ((_ :wat::core::unit) (:wat::io::IOReader/rewind r)))
             (:wat::io::IOReader/read-all r)))
 
         (:wat::core::define (:user::main -> :Vec<wat::core::u8>)
@@ -239,7 +239,7 @@ fn io_writer_write_all_then_to_bytes_round_trips() {
                 (:wat::core::u8 65)
                 (:wat::core::u8 66)
                 (:wat::core::u8 67)))
-             ((_ :()) (:wat::io::IOWriter/write-all w bytes)))
+             ((_ :wat::core::unit) (:wat::io::IOWriter/write-all w bytes)))
             (:wat::io::IOWriter/to-bytes w)))
     "#;
     let bytes = bytes_from_vec_u8(run(src));
@@ -283,7 +283,7 @@ fn io_writer_write_string_returns_byte_count() {
 fn io_writer_flush_is_ok_for_string_writer() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :())
+        (:wat::core::define (:user::main -> :wat::core::unit)
           (:wat::core::let*
             (((w :wat::io::IOWriter) (:wat::io::IOWriter/new)))
             (:wat::io::IOWriter/flush w)))

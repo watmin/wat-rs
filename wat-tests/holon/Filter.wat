@@ -70,7 +70,7 @@
         (:wat::holon::filter-coincident)))
      ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :beta))
-     ((_ :()) (:wat::holon::Hologram/put store k v))
+     ((_ :wat::core::unit) (:wat::holon::Hologram/put store k v))
      ((got :Option<wat::holon::HolonAST>)
       (:wat::holon::Hologram/get store k))
      ((found :wat::holon::HolonAST)

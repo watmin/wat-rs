@@ -26,7 +26,7 @@
   (:wat::core::let*
     (((db :wat::sqlite::Db)
       (:wat::sqlite::open "/tmp/wat-sqlite-test-002.db"))
-     ((_ :())
+     ((_ :wat::core::unit)
       (:wat::sqlite::execute-ddl db
         "CREATE TABLE IF NOT EXISTS events (id INTEGER, ts INTEGER)")))
     (:wat::test::assert-eq true true)))
@@ -39,7 +39,7 @@
   (:wat::core::let*
     (((db :wat::sqlite::Db)
       (:wat::sqlite::open "/tmp/wat-sqlite-test-003.db"))
-     ((_create :())
+     ((_create :wat::core::unit)
       (:wat::sqlite::execute-ddl db
         "CREATE TABLE IF NOT EXISTS rows (
            run_name  TEXT NOT NULL,
@@ -47,9 +47,9 @@
            residue   REAL NOT NULL,
            ok        INTEGER NOT NULL
          );"))
-     ((_clear :())
+     ((_clear :wat::core::unit)
       (:wat::sqlite::execute-ddl db "DELETE FROM rows;"))
-     ((_insert :())
+     ((_insert :wat::core::unit)
       (:wat::sqlite::execute db
         "INSERT INTO rows (run_name, paper_id, residue, ok) VALUES (?1, ?2, ?3, ?4)"
         (:wat::core::vec :wat::sqlite::Param
@@ -74,11 +74,11 @@
   (:wat::core::let*
     (((db :wat::sqlite::Db)
       (:wat::sqlite::open "/tmp/wat-sqlite-test-004.db"))
-     ((_p :())
+     ((_p :wat::core::unit)
       (:wat::sqlite::pragma db "journal_mode" "WAL"))
-     ((_p2 :())
+     ((_p2 :wat::core::unit)
       (:wat::sqlite::pragma db "synchronous" "NORMAL"))
-     ((_create :())
+     ((_create :wat::core::unit)
       (:wat::sqlite::execute-ddl db
         "CREATE TABLE IF NOT EXISTS smoke (n INTEGER NOT NULL);")))
     (:wat::test::assert-eq true true)))
@@ -95,28 +95,28 @@
   (:wat::core::let*
     (((db :wat::sqlite::Db)
       (:wat::sqlite::open "/tmp/wat-sqlite-test-005.db"))
-     ((_p :())
+     ((_p :wat::core::unit)
       (:wat::sqlite::pragma db "journal_mode" "WAL"))
-     ((_create :())
+     ((_create :wat::core::unit)
       (:wat::sqlite::execute-ddl db
         "CREATE TABLE IF NOT EXISTS counters (n INTEGER NOT NULL);"))
-     ((_clear :())
+     ((_clear :wat::core::unit)
       (:wat::sqlite::execute-ddl db "DELETE FROM counters;"))
-     ((_b :()) (:wat::sqlite::begin db))
-     ((_i1 :())
+     ((_b :wat::core::unit) (:wat::sqlite::begin db))
+     ((_i1 :wat::core::unit)
       (:wat::sqlite::execute db
         "INSERT INTO counters (n) VALUES (?1)"
         (:wat::core::vec :wat::sqlite::Param
           (:wat::sqlite::Param::I64 1))))
-     ((_i2 :())
+     ((_i2 :wat::core::unit)
       (:wat::sqlite::execute db
         "INSERT INTO counters (n) VALUES (?1)"
         (:wat::core::vec :wat::sqlite::Param
           (:wat::sqlite::Param::I64 2))))
-     ((_i3 :())
+     ((_i3 :wat::core::unit)
       (:wat::sqlite::execute db
         "INSERT INTO counters (n) VALUES (?1)"
         (:wat::core::vec :wat::sqlite::Param
           (:wat::sqlite::Param::I64 3))))
-     ((_c :()) (:wat::sqlite::commit db)))
+     ((_c :wat::core::unit) (:wat::sqlite::commit db)))
     (:wat::test::assert-eq true true)))

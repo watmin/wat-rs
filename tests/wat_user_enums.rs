@@ -61,8 +61,8 @@ fn unit_variant_evaluates_via_bare_keyword() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
-          (:wat::core::match (:my::pick) -> :()
+            -> :wat::core::unit)
+          (:wat::core::match (:my::pick) -> :wat::core::unit
             (:my::Color::Red   (:wat::io::IOWriter/println stdout "red"))
             (:my::Color::Green (:wat::io::IOWriter/println stdout "green"))
             (:my::Color::Blue  (:wat::io::IOWriter/println stdout "blue"))))
@@ -94,7 +94,7 @@ fn tagged_variant_constructs_and_match_binds_fields() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::io::IOWriter/println stdout (:my::summary (:my::a-candle))))
     "##;
     assert_eq!(run(src), vec!["105".to_string()]);
@@ -112,8 +112,8 @@ fn wildcard_arm_satisfies_exhaustiveness() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
-          (:wat::core::match :my::Color::Blue -> :()
+            -> :wat::core::unit)
+          (:wat::core::match :my::Color::Blue -> :wat::core::unit
             (:my::Color::Red (:wat::io::IOWriter/println stdout "red"))
             (_               (:wat::io::IOWriter/println stdout "other"))))
     "##;
@@ -139,12 +139,12 @@ fn match_mixes_unit_and_tagged_arms() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((line1 :wat::core::String) (:my::act (:my::Event::Open 7.5)))
              ((line2 :wat::core::String) (:my::act :my::Event::Hold)))
             (:wat::core::let*
-              (((_ :()) (:wat::io::IOWriter/println stdout line1)))
+              (((_ :wat::core::unit) (:wat::io::IOWriter/println stdout line1)))
               (:wat::io::IOWriter/println stdout line2))))
     "##;
     assert_eq!(run(src), vec!["7.5".to_string(), "hold".to_string()]);

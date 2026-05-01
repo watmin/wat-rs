@@ -27,23 +27,23 @@
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :())
+              -> :wat::core::unit)
             ;; Outer scope holds driver handles. The inner scope owns
             ;; the senders — when it exits, senders drop, drivers see
             ;; disconnect, outer joins flush-and-exit cleanly.
             (:wat::core::let*
               (((con-state :wat::std::service::Console::Spawn)
                 (:wat::std::service::Console/spawn stdout stderr 2))
-               ((con-drv :wat::kernel::Thread<(),()>)
+               ((con-drv :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
                 (:wat::core::second con-state))
                ((state :wat::lru::CacheService::Spawn<wat::core::String,wat::core::i64>)
                 (:wat::lru::CacheService/spawn 16 1
                   :wat::lru::CacheService/null-reporter
                   (:wat::lru::CacheService/null-metrics-cadence)))
-               ((driver :wat::kernel::Thread<(),()>)
+               ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
                 (:wat::core::second state))
 
-               ((_ :())
+               ((_ :wat::core::unit)
                 (:wat::core::let*
                   (((con-pool :wat::kernel::HandlePool<wat::std::service::Console::Handle>)
                     (:wat::core::first con-state))
@@ -51,13 +51,13 @@
                     (:wat::kernel::HandlePool::pop con-pool))
                    ((_spare :wat::std::service::Console::Handle)
                     (:wat::kernel::HandlePool::pop con-pool))
-                   ((_ :()) (:wat::kernel::HandlePool::finish con-pool))
+                   ((_ :wat::core::unit) (:wat::kernel::HandlePool::finish con-pool))
 
                    ((pool :wat::kernel::HandlePool<wat::lru::CacheService::ReqTx<wat::core::String,wat::core::i64>>)
                     (:wat::core::first state))
                    ((req-tx :wat::lru::CacheService::ReqTx<wat::core::String,wat::core::i64>)
                     (:wat::kernel::HandlePool::pop pool))
-                   ((_ :()) (:wat::kernel::HandlePool::finish pool))
+                   ((_ :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
                    ((reply-pair :wat::kernel::QueuePair<Option<wat::core::i64>>)
                     (:wat::kernel::make-bounded-queue :Option<wat::core::i64> 1))
                    ((reply-tx :wat::kernel::QueueSender<Option<wat::core::i64>>)
@@ -65,19 +65,19 @@
                    ((reply-rx :wat::kernel::QueueReceiver<Option<wat::core::i64>>)
                     (:wat::core::second reply-pair))
 
-                   ((_ :()) (:wat::std::service::Console/err diag "T1: about-to-put\n"))
-                   ((_ :()) (:wat::lru::CacheService/put req-tx reply-tx reply-rx "answer" 42))
-                   ((_ :()) (:wat::std::service::Console/err diag "T2: put-acked\n"))
+                   ((_ :wat::core::unit) (:wat::std::service::Console/err diag "T1: about-to-put\n"))
+                   ((_ :wat::core::unit) (:wat::lru::CacheService/put req-tx reply-tx reply-rx "answer" 42))
+                   ((_ :wat::core::unit) (:wat::std::service::Console/err diag "T2: put-acked\n"))
                    ((got :Option<wat::core::i64>)
                     (:wat::lru::CacheService/get req-tx reply-tx reply-rx "answer"))
-                   ((_ :()) (:wat::std::service::Console/err diag "T3: get-returned\n")))
-                  (:wat::core::match got -> :()
+                   ((_ :wat::core::unit) (:wat::std::service::Console/err diag "T3: get-returned\n")))
+                  (:wat::core::match got -> :wat::core::unit
                     ((Some _v) (:wat::std::service::Console/out diag "hit\n"))
                     (:None     (:wat::std::service::Console/out diag "miss\n")))))
 
-               ((_ :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+               ((_ :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result driver))
-               ((_ :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+               ((_ :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result con-drv)))
               ())))
         (:wat::core::vec :wat::core::String)))
@@ -90,8 +90,8 @@
       (:wat::core::match (:wat::core::first stdout) -> :wat::core::String
         ((Some s) s)
         (:None "<missing>")))
-     ((_ :()) (:wat::test::assert-eq hit-line "hit"))
+     ((_ :wat::core::unit) (:wat::test::assert-eq hit-line "hit"))
      ((stderr-blob :wat::core::String) (:wat::core::string::join "\n" stderr))
-     ((_ :()) (:wat::test::assert-contains stderr-blob "T1: about-to-put"))
-     ((_ :()) (:wat::test::assert-contains stderr-blob "T2: put-acked")))
+     ((_ :wat::core::unit) (:wat::test::assert-contains stderr-blob "T1: about-to-put"))
+     ((_ :wat::core::unit) (:wat::test::assert-contains stderr-blob "T2: put-acked")))
     (:wat::test::assert-contains stderr-blob "T3: get-returned")))

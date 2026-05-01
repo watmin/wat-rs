@@ -40,7 +40,7 @@ fn library_construct_empty() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((lib :wat::holon::EngramLibrary) (:wat::holon::EngramLibrary/new 10000))
              ((n :wat::core::i64) (:wat::holon::EngramLibrary/len lib)))
@@ -58,14 +58,14 @@ fn library_add_subspace_then_count() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((lib :wat::holon::EngramLibrary) (:wat::holon::EngramLibrary/new 10000))
              ((sub :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 4))
              ((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ;; Train at least once so the subspace is non-trivial.
              ((r :wat::core::f64) (:wat::holon::OnlineSubspace/update sub v))
-             ((u :()) (:wat::holon::EngramLibrary/add lib "pattern-a" sub))
+             ((u :wat::core::unit) (:wat::holon::EngramLibrary/add lib "pattern-a" sub))
              ((n :wat::core::i64) (:wat::holon::EngramLibrary/len lib))
              ((found :wat::core::bool) (:wat::holon::EngramLibrary/contains lib "pattern-a"))
              ((missing :wat::core::bool) (:wat::holon::EngramLibrary/contains lib "absent")))
@@ -86,13 +86,13 @@ fn library_match_returns_named_pairs() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((lib :wat::holon::EngramLibrary) (:wat::holon::EngramLibrary/new 10000))
              ((sub :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 4))
              ((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((r :wat::core::f64) (:wat::holon::OnlineSubspace/update sub v))
-             ((u :()) (:wat::holon::EngramLibrary/add lib "alpha" sub))
+             ((u :wat::core::unit) (:wat::holon::EngramLibrary/add lib "alpha" sub))
              ;; Match against the same vector — should return 1 pair (name, residual).
              ((matches :Vec<(wat::core::String,wat::core::f64)>)
               (:wat::holon::EngramLibrary/match-vec lib v 5 5))

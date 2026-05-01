@@ -22,11 +22,11 @@
    (:wat::core::define
      (:test::Tagged::send-one
        (pool :wat::telemetry::Service::HandlePool<test::Tagged::Event>)
-       -> :())
+       -> :wat::core::unit)
      (:wat::core::let*
        (((handle :wat::telemetry::Service::Handle<test::Tagged::Event>)
          (:wat::kernel::HandlePool::pop pool))
-        ((_finish :()) (:wat::kernel::HandlePool::finish pool))
+        ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
         ((req-tx :wat::telemetry::Service::ReqTx<test::Tagged::Event>)
          (:wat::core::first handle))
         ((ack-rx :wat::telemetry::Service::AckRx)
@@ -40,7 +40,7 @@
         ((entries :Vec<test::Tagged::Event>)
          (:wat::core::vec :test::Tagged::Event
            (:test::Tagged::Event::Log tags)))
-        ((_log :())
+        ((_log :wat::core::unit)
          (:wat::telemetry::Service/batch-log
            req-tx ack-rx entries)))
        ()))
@@ -49,7 +49,7 @@
    (:wat::core::define
      (:test::Tagged::auto-spawn-one
        (path :wat::core::String)
-       -> :wat::kernel::Thread<(),()>)
+       -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<test::Tagged::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
@@ -59,18 +59,18 @@
            :wat::telemetry::Sqlite/null-pre-install))
         ((pool :wat::telemetry::Service::HandlePool<test::Tagged::Event>)
          (:wat::core::first spawn))
-        ((driver :wat::kernel::Thread<(),()>)
+        ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
          (:wat::core::second spawn))
-        ((_inner :())
+        ((_inner :wat::core::unit)
          (:test::Tagged::send-one pool)))
        driver))))
 
 
 (:deftest :wat-telemetry-sqlite::hashmap-field::test-tags-bind
   (:wat::core::let*
-    (((driver :wat::kernel::Thread<(),()>)
+    (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::Tagged::auto-spawn-one
         "/tmp/wat-sqlite-test-hashmap-field-001.db"))
-     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

@@ -46,7 +46,7 @@
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :())
+              -> :wat::core::unit)
             (:wat::core::let*
               (((res :Result<wat::core::i64,wat::core::String>) (Err "rundb crashed"))
                ((_v :wat::core::i64)
@@ -56,7 +56,7 @@
               ())))
         (:wat::core::vec :wat::core::String)))
      ((fail :Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
-    (:wat::core::match fail -> :()
+    (:wat::core::match fail -> :wat::core::unit
       ((Some f)
         (:wat::test::assert-eq
           (:wat::kernel::Failure/message f)

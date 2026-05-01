@@ -32,16 +32,16 @@
    ;; only verifies receipt.
    (:wat::core::define
      (:wat-tests::holon::lru::HologramCacheService::trivial-worker
-       (_in :rust::crossbeam_channel::Receiver<()>)
+       (_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
        (out :rust::crossbeam_channel::Sender<wat::core::i64>)
-       -> :())
+       -> :wat::core::unit)
      (:wat::core::let*
        (((cache :wat::holon::lru::HologramCache)
          (:wat::holon::lru::HologramCache/make
            (:wat::holon::filter-coincident)
            16))
         ((len :wat::core::i64) (:wat::holon::lru::HologramCache/len cache)))
-       (:wat::core::result::expect -> :()
+       (:wat::core::result::expect -> :wat::core::unit
          (:wat::kernel::send out len)
          "trivial-worker: out disconnected — parent dropped Thread/output?")))
 
@@ -77,11 +77,11 @@
      (:wat-tests::holon::lru::HologramCacheService::counter-worker
        (rx :wat::kernel::QueueReceiver<wat::core::i64>)
        (out :rust::crossbeam_channel::Sender<wat::core::i64>)
-       -> :())
+       -> :wat::core::unit)
      (:wat::core::let*
        (((count :wat::core::i64)
          (:wat-tests::holon::lru::HologramCacheService::count-recv rx 0)))
-       (:wat::core::result::expect -> :()
+       (:wat::core::result::expect -> :wat::core::unit
          (:wat::kernel::send out count)
          "counter-worker: out disconnected — parent dropped Thread/output?")))
 
@@ -96,7 +96,7 @@
        (req-rxs :Vec<wat::holon::lru::HologramCacheService::ReqRx>)
        (cap :wat::core::i64)
        (out :rust::crossbeam_channel::Sender<wat::core::i64>)
-       -> :())
+       -> :wat::core::unit)
      (:wat::core::let*
        (((cache :wat::holon::lru::HologramCache)
          (:wat::holon::lru::HologramCache/make
@@ -113,7 +113,7 @@
         ((len :wat::core::i64)
          (:wat::holon::lru::HologramCache/len
            (:wat::holon::lru::HologramCacheService::State/cache final))))
-       (:wat::core::result::expect -> :()
+       (:wat::core::result::expect -> :wat::core::unit
          (:wat::kernel::send out len)
          "loop-then-len-worker: out disconnected — parent dropped Thread/output?")))))
 
@@ -121,7 +121,7 @@
 
 (:deftest-hermetic :wat-tests::holon::lru::HologramCacheService::test-step1-spawn-join
   (:wat::core::let*
-    (((thr :wat::kernel::Thread<(),wat::core::i64>)
+    (((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
       (:wat::kernel::spawn-thread
         :wat-tests::holon::lru::HologramCacheService::trivial-worker))
      ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>)
@@ -132,7 +132,7 @@
           (:wat::kernel::recv rx)
           "step1: thread died before sending len")
         "step1: thread output closed without sending len")))
-    (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :()
+    (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :wat::core::unit
       ((Ok _) ())
       ((Err _) (:wat::test::assert-eq "spawn-died" "")))))
 
@@ -145,29 +145,29 @@
     ;; inner exit. SERVICE-PROGRAMS.md § "The lockstep". Arc 117
     ;; would refuse to compile a sibling-pair-with-spawn-thread shape
     ;; alongside Thread/join-result in the same let*.
-    (((thr :wat::kernel::Thread<(),wat::core::i64>)
+    (((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
       (:wat::core::let*
         (((pair :wat::kernel::QueuePair<wat::core::i64>)
           (:wat::kernel::make-bounded-queue :wat::core::i64 1))
          ((tx :wat::kernel::QueueSender<wat::core::i64>) (:wat::core::first pair))
          ((rx :wat::kernel::QueueReceiver<wat::core::i64>) (:wat::core::second pair))
-         ((h :wat::kernel::Thread<(),wat::core::i64>)
+         ((h :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
           (:wat::kernel::spawn-thread
             (:wat::core::lambda
-              ((_in :rust::crossbeam_channel::Receiver<()>)
+              ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
                (out :rust::crossbeam_channel::Sender<wat::core::i64>)
-               -> :())
+               -> :wat::core::unit)
               (:wat-tests::holon::lru::HologramCacheService::counter-worker rx out))))
-         ((_s1 :())
-          (:wat::core::result::expect -> :()
+         ((_s1 :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx 10)
             "step2 send 10: peer disconnected"))
-         ((_s2 :())
-          (:wat::core::result::expect -> :()
+         ((_s2 :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx 20)
             "step2 send 20: peer disconnected"))
-         ((_s3 :())
-          (:wat::core::result::expect -> :()
+         ((_s3 :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx 30)
             "step2 send 30: peer disconnected")))
         h))
@@ -179,9 +179,9 @@
           (:wat::kernel::recv count-rx)
           "step2: thread died before sending count")
         "step2: thread output closed without sending count")))
-    (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :()
+    (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :wat::core::unit
       ((Ok _)
-        (:wat::core::if (:wat::core::= count 3) -> :()
+        (:wat::core::if (:wat::core::= count 3) -> :wat::core::unit
           ()
           (:wat::test::assert-eq "wrong-count" "")))
       ((Err _) (:wat::test::assert-eq "worker-died" "")))))
@@ -195,7 +195,7 @@
     ;; Note: arc 117's checker doesn't currently trace `rxs` (Vec<rx>)
     ;; back to its pair anchor — false negative. Discipline still
     ;; matters: nest the bindings even when the checker can't enforce.
-    (((thr :wat::kernel::Thread<(),wat::core::i64>)
+    (((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
       (:wat::core::let*
         (((pair :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)
           (:wat::kernel::make-bounded-queue
@@ -208,12 +208,12 @@
           (:wat::core::conj
             (:wat::core::vec :wat::holon::lru::HologramCacheService::ReqRx)
             rx))
-         ((h :wat::kernel::Thread<(),wat::core::i64>)
+         ((h :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
           (:wat::kernel::spawn-thread
             (:wat::core::lambda
-              ((_in :rust::crossbeam_channel::Receiver<()>)
+              ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
                (out :rust::crossbeam_channel::Sender<wat::core::i64>)
-               -> :())
+               -> :wat::core::unit)
               (:wat-tests::holon::lru::HologramCacheService::loop-then-len-worker
                 rxs 16 out))))
          ((k1 :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
@@ -222,18 +222,18 @@
          ((v2 :wat::holon::HolonAST) (:wat::holon::leaf :bv))
          ((k3 :wat::holon::HolonAST) (:wat::holon::leaf :gamma))
          ((v3 :wat::holon::HolonAST) (:wat::holon::leaf :gv))
-         ((_p1 :())
-          (:wat::core::result::expect -> :()
+         ((_p1 :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Put k1 v1))
             "step3 send Put k1: peer disconnected"))
-         ((_p2 :())
-          (:wat::core::result::expect -> :()
+         ((_p2 :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Put k2 v2))
             "step3 send Put k2: peer disconnected"))
-         ((_p3 :())
-          (:wat::core::result::expect -> :()
+         ((_p3 :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Put k3 v3))
             "step3 send Put k3: peer disconnected")))
@@ -246,9 +246,9 @@
           (:wat::kernel::recv len-rx)
           "step3: thread died before sending len")
         "step3: thread output closed without sending len")))
-    (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :()
+    (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :wat::core::unit
       ((Ok _)
-        (:wat::core::if (:wat::core::= len 3) -> :()
+        (:wat::core::if (:wat::core::= len 3) -> :wat::core::unit
           ()
           (:wat::test::assert-eq "wrong-len" "")))
       ((Err _) (:wat::test::assert-eq "service-died" "")))))
@@ -268,7 +268,7 @@
     ;; inner exit. SERVICE-PROGRAMS.md § "The lockstep". Arc 117's
     ;; check ensures the structural shape — sibling Sender bindings
     ;; alongside Thread/join-result is a compile error.
-    (((thr :wat::kernel::Thread<(),()>)
+    (((thr :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::core::let*
         (((req-pair :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)
           (:wat::kernel::make-bounded-queue
@@ -281,12 +281,12 @@
           (:wat::core::conj
             (:wat::core::vec :wat::holon::lru::HologramCacheService::ReqRx)
             req-rx))
-         ((h :wat::kernel::Thread<(),()>)
+         ((h :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
           (:wat::kernel::spawn-thread
             (:wat::core::lambda
-              ((_in :rust::crossbeam_channel::Receiver<()>)
-               (_out :rust::crossbeam_channel::Sender<()>)
-               -> :())
+              ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
+               (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
+               -> :wat::core::unit)
               (:wat::holon::lru::HologramCacheService/run rxs 16
                 :wat::holon::lru::HologramCacheService/null-reporter
                 (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))))
@@ -298,26 +298,26 @@
           (:wat::core::second reply-pair))
          ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
          ((v :wat::holon::HolonAST) (:wat::holon::leaf :av))
-         ((_p :())
-          (:wat::core::result::expect -> :()
+         ((_p :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send req-tx
               (:wat::holon::lru::HologramCacheService::Request::Put k v))
             "step4 send Put: peer disconnected"))
-         ((_g :())
-          (:wat::core::result::expect -> :()
+         ((_g :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send req-tx
               (:wat::holon::lru::HologramCacheService::Request::Get k reply-tx))
             "step4 send Get: peer disconnected"))
-         ((_check :())
-          (:wat::core::match (:wat::kernel::recv reply-rx) -> :()
+         ((_check :wat::core::unit)
+          (:wat::core::match (:wat::kernel::recv reply-rx) -> :wat::core::unit
             ((Ok (Some inner))
-              (:wat::core::match inner -> :()
+              (:wat::core::match inner -> :wat::core::unit
                 ((Some _val) ())
                 (:None (:wat::test::assert-eq "cache-miss" ""))))
             ((Ok :None) (:wat::test::assert-eq "no-reply" ""))
             ((Err _died) (:wat::test::assert-eq "no-reply" "")))))
         h)))
-    (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :()
+    (:wat::core::match (:wat::kernel::Thread/join-result thr) -> :wat::core::unit
       ((Ok _) ())
       ((Err _) (:wat::test::assert-eq "service-died" "")))))
 
@@ -330,7 +330,7 @@
     ;; everything but the driver Thread which inner returns. Pool
     ;; holds N Sender clones; arc 117 catches sibling-pool-with-driver
     ;; alongside Thread/join-result.
-    (((driver :wat::kernel::Thread<(),()>)
+    (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::core::let*
         (((spawn :wat::holon::lru::HologramCacheService::Spawn)
           (:wat::holon::lru::HologramCacheService/spawn 2 16
@@ -338,13 +338,13 @@
             (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
          ((pool :wat::holon::lru::HologramCacheService::ReqTxPool)
           (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<(),()>)
+         ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
           (:wat::core::second spawn))
          ((tx-a :wat::holon::lru::HologramCacheService::ReqTx)
           (:wat::kernel::HandlePool::pop pool))
          ((tx-b :wat::holon::lru::HologramCacheService::ReqTx)
           (:wat::kernel::HandlePool::pop pool))
-         ((_finish :()) (:wat::kernel::HandlePool::finish pool))
+         ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
 
          ((reply-pair-a :wat::holon::lru::HologramCacheService::GetReplyPair)
           (:wat::kernel::make-bounded-queue :Option<wat::holon::HolonAST> 1))
@@ -366,46 +366,46 @@
          ((v-b :wat::holon::HolonAST) (:wat::holon::leaf :bv))
 
          ;; Client A: Put + Get on alpha
-         ((_pa :())
-          (:wat::core::result::expect -> :()
+         ((_pa :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx-a
               (:wat::holon::lru::HologramCacheService::Request::Put k-a v-a))
             "step5 client-a send Put: peer disconnected"))
-         ((_ga :())
-          (:wat::core::result::expect -> :()
+         ((_ga :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx-a
               (:wat::holon::lru::HologramCacheService::Request::Get k-a reply-tx-a))
             "step5 client-a send Get: peer disconnected"))
-         ((_check-a :())
-          (:wat::core::match (:wat::kernel::recv reply-rx-a) -> :()
+         ((_check-a :wat::core::unit)
+          (:wat::core::match (:wat::kernel::recv reply-rx-a) -> :wat::core::unit
             ((Ok (Some inner))
-              (:wat::core::match inner -> :()
+              (:wat::core::match inner -> :wat::core::unit
                 ((Some _val) ())
                 (:None (:wat::test::assert-eq "client-a-miss" ""))))
             ((Ok :None) (:wat::test::assert-eq "client-a-no-reply" ""))
             ((Err _died) (:wat::test::assert-eq "client-a-no-reply" ""))))
 
          ;; Client B: Put + Get on beta
-         ((_pb :())
-          (:wat::core::result::expect -> :()
+         ((_pb :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx-b
               (:wat::holon::lru::HologramCacheService::Request::Put k-b v-b))
             "step5 client-b send Put: peer disconnected"))
-         ((_gb :())
-          (:wat::core::result::expect -> :()
+         ((_gb :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx-b
               (:wat::holon::lru::HologramCacheService::Request::Get k-b reply-tx-b))
             "step5 client-b send Get: peer disconnected"))
-         ((_check-b :())
-          (:wat::core::match (:wat::kernel::recv reply-rx-b) -> :()
+         ((_check-b :wat::core::unit)
+          (:wat::core::match (:wat::kernel::recv reply-rx-b) -> :wat::core::unit
             ((Ok (Some inner))
-              (:wat::core::match inner -> :()
+              (:wat::core::match inner -> :wat::core::unit
                 ((Some _val) ())
                 (:None (:wat::test::assert-eq "client-b-miss" ""))))
             ((Ok :None) (:wat::test::assert-eq "client-b-no-reply" ""))
             ((Err _died) (:wat::test::assert-eq "client-b-no-reply" "")))))
         d)))
-    (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :()
+    (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::unit
       ((Ok _) ())
       ((Err _) (:wat::test::assert-eq "service-died" "")))))
 
@@ -421,7 +421,7 @@
   (:wat::core::let*
     ;; Outer holds only the driver Thread. Inner owns spawn-tuple,
     ;; pops Sender, drives the protocol, drops everything but driver.
-    (((driver :wat::kernel::Thread<(),()>)
+    (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::core::let*
         (((spawn :wat::holon::lru::HologramCacheService::Spawn)
           (:wat::holon::lru::HologramCacheService/spawn 1 2
@@ -429,11 +429,11 @@
             (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
          ((pool :wat::holon::lru::HologramCacheService::ReqTxPool)
           (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<(),()>)
+         ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
           (:wat::core::second spawn))
          ((tx :wat::holon::lru::HologramCacheService::ReqTx)
           (:wat::kernel::HandlePool::pop pool))
-         ((_finish :()) (:wat::kernel::HandlePool::finish pool))
+         ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
 
          ((reply-pair :wat::holon::lru::HologramCacheService::GetReplyPair)
           (:wat::kernel::make-bounded-queue :Option<wat::holon::HolonAST> 1))
@@ -448,52 +448,52 @@
          ((v :wat::holon::HolonAST) (:wat::holon::leaf :payload))
 
          ;; Three puts at cap=2; k1 gets evicted by k3.
-         ((_p1 :())
-          (:wat::core::result::expect -> :()
+         ((_p1 :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Put k1 v))
             "step6 send Put k1: peer disconnected"))
-         ((_p2 :())
-          (:wat::core::result::expect -> :()
+         ((_p2 :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Put k2 v))
             "step6 send Put k2: peer disconnected"))
-         ((_p3 :())
-          (:wat::core::result::expect -> :()
+         ((_p3 :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Put k3 v))
             "step6 send Put k3: peer disconnected"))
 
          ;; Get k1 — evicted, expect None.
-         ((_g1 :())
-          (:wat::core::result::expect -> :()
+         ((_g1 :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Get k1 reply-tx))
             "step6 send Get k1: peer disconnected"))
-         ((_check-1 :())
-          (:wat::core::match (:wat::kernel::recv reply-rx) -> :()
+         ((_check-1 :wat::core::unit)
+          (:wat::core::match (:wat::kernel::recv reply-rx) -> :wat::core::unit
             ((Ok (Some inner))
-              (:wat::core::match inner -> :()
+              (:wat::core::match inner -> :wat::core::unit
                 ((Some _) (:wat::test::assert-eq "k1-not-evicted" ""))
                 (:None ())))
             ((Ok :None) (:wat::test::assert-eq "no-reply-1" ""))
             ((Err _died) (:wat::test::assert-eq "no-reply-1" ""))))
 
          ;; Get k2 — survived, expect Some.
-         ((_g2 :())
-          (:wat::core::result::expect -> :()
+         ((_g2 :wat::core::unit)
+          (:wat::core::result::expect -> :wat::core::unit
             (:wat::kernel::send tx
               (:wat::holon::lru::HologramCacheService::Request::Get k2 reply-tx))
             "step6 send Get k2: peer disconnected"))
-         ((_check-2 :())
-          (:wat::core::match (:wat::kernel::recv reply-rx) -> :()
+         ((_check-2 :wat::core::unit)
+          (:wat::core::match (:wat::kernel::recv reply-rx) -> :wat::core::unit
             ((Ok (Some inner))
-              (:wat::core::match inner -> :()
+              (:wat::core::match inner -> :wat::core::unit
                 ((Some _) ())
                 (:None (:wat::test::assert-eq "k2-evicted" ""))))
             ((Ok :None) (:wat::test::assert-eq "no-reply-2" ""))
             ((Err _died) (:wat::test::assert-eq "no-reply-2" "")))))
         d)))
-    (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :()
+    (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::unit
       ((Ok _) ())
       ((Err _) (:wat::test::assert-eq "service-died" "")))))

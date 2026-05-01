@@ -39,8 +39,8 @@ const ECHO_PROGRAM: &str = r#"
                      (stdin  :wat::io::IOReader)
                      (stdout :wat::io::IOWriter)
                      (stderr :wat::io::IOWriter)
-                     -> :())
-  (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
+                     -> :wat::core::unit)
+  (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::unit
     ((Some line) (:wat::io::IOWriter/print stdout line))
     (:None ())))
 "#;
@@ -107,11 +107,11 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
                      (stdin  :wat::io::IOReader)
                      (stdout :wat::io::IOWriter)
                      (stderr :wat::io::IOWriter)
-                     -> :())
+                     -> :wat::core::unit)
   (:wat::core::let*
     (((program :wat::WatAST)
        (:wat::core::quote
-         (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
+         (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::unit
            ((Some line) (:wat::io::IOWriter/print stdout line))
            (:None ()))))
      ((program-atom :wat::holon::HolonAST)
@@ -125,7 +125,7 @@ const PROGRAMS_ARE_ATOMS_PROGRAM: &str = r#"
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here
     ;; (the quoted program is well-formed and non-mutating).
-    (:wat::core::match (:wat::eval-ast! reveal) -> :()
+    (:wat::core::match (:wat::eval-ast! reveal) -> :wat::core::unit
       ((Ok _) ())
       ((Err _) ()))))
 "#;
@@ -200,11 +200,11 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
                      (stdin  :wat::io::IOReader)
                      (stdout :wat::io::IOWriter)
                      (stderr :wat::io::IOWriter)
-                     -> :())
+                     -> :wat::core::unit)
   (:wat::core::let*
     (((program :wat::WatAST)
        (:wat::core::quote
-         (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
+         (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::unit
            ((Some line) (:wat::io::IOWriter/print stdout line))
            (:None ()))))
      ((program-atom :wat::holon::HolonAST)
@@ -221,7 +221,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
      ;; comparison internally — the router picks d per operand,
      ;; presence-floor is computed as presence-sigma / sqrt(d) at the
      ;; picked d. Users no longer hand-roll `cosine vs noise-floor`.
-     ((_ :())
+     ((_ :wat::core::unit)
        (:wat::io::IOWriter/print stdout
          (:wat::core::if
            (:wat::holon::presence? program-atom bound)
@@ -234,7 +234,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
        (:wat::holon::Bind bound key-atom))
 
      ;; Substrate proof #2: program-atom's signal is BACK in recovered.
-     ((_ :())
+     ((_ :wat::core::unit)
        (:wat::io::IOWriter/print stdout
          (:wat::core::if
            (:wat::holon::presence? program-atom recovered)
@@ -252,7 +252,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here —
     ;; the quoted echo program is well-formed and non-mutating.
-    (:wat::core::match (:wat::eval-ast! reveal) -> :()
+    (:wat::core::match (:wat::eval-ast! reveal) -> :wat::core::unit
       ((Ok _) ())
       ((Err _) ()))))
 "#;
@@ -356,7 +356,7 @@ fn wrong_arg_type_user_main_rejected() {
                              (stdin  :i64)
                              (stdout :wat::io::IOWriter)
                              (stderr :wat::io::IOWriter)
-                             -> :())
+                             -> :wat::core::unit)
           ())
     "#;
     let path = write_temp(program);
@@ -438,8 +438,8 @@ fn program_writes_multiple_times_to_stdout() {
                              (stdin  :wat::io::IOReader)
                              (stdout :wat::io::IOWriter)
                              (stderr :wat::io::IOWriter)
-                             -> :())
-          (:wat::core::let (((first :()) (:wat::io::IOWriter/print stdout "hello ")))
+                             -> :wat::core::unit)
+          (:wat::core::let (((first :wat::core::unit) (:wat::io::IOWriter/print stdout "hello ")))
             (:wat::io::IOWriter/print stdout "world")))
     "#;
     let path = write_temp(program);
@@ -494,8 +494,8 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
         let program = r#"
             (:wat::core::define (:demo::loop
                                  (stdout :wat::io::IOWriter)
-                                 -> :())
-              (:wat::core::if (:wat::kernel::stopped?) -> :()
+                                 -> :wat::core::unit)
+              (:wat::core::if (:wat::kernel::stopped?) -> :wat::core::unit
                 ()                                       ; observed stop → return clean
                 (:demo::loop stdout)))                   ; tight poll loop
 
@@ -503,9 +503,9 @@ fn sigterm_to_cli_cascades_via_polling_contract() {
                                  (stdin  :wat::io::IOReader)
                                  (stdout :wat::io::IOWriter)
                                  (stderr :wat::io::IOWriter)
-                                 -> :())
+                                 -> :wat::core::unit)
               (:wat::core::let*
-                (((_ :()) (:wat::io::IOWriter/println stdout "READY")))
+                (((_ :wat::core::unit) (:wat::io::IOWriter/println stdout "READY")))
                 (:demo::loop stdout)))
         "#;
         let path = write_temp(program);
@@ -607,45 +607,45 @@ fn sigterm_cascades_two_levels_via_process_group() {
               (:demo::forward-loop
                 (rx :wat::io::IOReader)
                 (out :wat::io::IOWriter)
-                -> :())
-              (:wat::core::match (:wat::io::IOReader/read-line rx) -> :()
+                -> :wat::core::unit)
+              (:wat::core::match (:wat::io::IOReader/read-line rx) -> :wat::core::unit
                 (:None ())
                 ((Some line)
                   (:wat::core::let*
-                    (((_ :()) (:wat::io::IOWriter/println out line)))
+                    (((_ :wat::core::unit) (:wat::io::IOWriter/println out line)))
                     (:demo::forward-loop rx out)))))
 
             (:wat::core::define (:user::main
                                  (stdin  :wat::io::IOReader)
                                  (stdout :wat::io::IOWriter)
                                  (stderr :wat::io::IOWriter)
-                                 -> :())
+                                 -> :wat::core::unit)
               (:wat::core::let*
-                (((_ :()) (:wat::io::IOWriter/println stdout "PARENT READY"))
+                (((_ :wat::core::unit) (:wat::io::IOWriter/println stdout "PARENT READY"))
                  ;; Grandchild source: prints GRANDCHILD READY then
                  ;; polls stopped?. Pgid inherited from parent (no
                  ;; setpgid in child_branch); cascade reaches it via
                  ;; the cli's killpg.
-                 ((child :wat::kernel::Program<(),()>)
+                 ((child :wat::kernel::Program<wat::core::unit,wat::core::unit>)
                   (:wat::kernel::fork-program-ast
                     (:wat::test::program
-                      (:wat::core::define (:demo::poll-loop -> :())
-                        (:wat::core::if (:wat::kernel::stopped?) -> :()
+                      (:wat::core::define (:demo::poll-loop -> :wat::core::unit)
+                        (:wat::core::if (:wat::kernel::stopped?) -> :wat::core::unit
                           ()
                           (:demo::poll-loop)))
                       (:wat::core::define (:user::main
                                            (gstdin  :wat::io::IOReader)
                                            (gstdout :wat::io::IOWriter)
                                            (gstderr :wat::io::IOWriter)
-                                           -> :())
+                                           -> :wat::core::unit)
                         (:wat::core::let*
-                          (((_ :()) (:wat::io::IOWriter/println gstdout "GRANDCHILD READY")))
+                          (((_ :wat::core::unit) (:wat::io::IOWriter/println gstdout "GRANDCHILD READY")))
                           (:demo::poll-loop))))))
                  ((rx :wat::io::IOReader)
                   (:wat::kernel::Process/stdout child))
-                 ((_ :Result<(),Vec<wat::kernel::ProcessDiedError>>)
+                 ((_ :Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
                   (:wat::core::let*
-                    (((_ :()) (:demo::forward-loop rx stdout)))
+                    (((_ :wat::core::unit) (:demo::forward-loop rx stdout)))
                     (:wat::kernel::Process/join-result child))))
                 ()))
         "#;

@@ -25,11 +25,11 @@
    (:wat::core::define
      (:test::Edn::send-one
        (pool :wat::telemetry::Service::HandlePool<test::Edn::Event>)
-       -> :())
+       -> :wat::core::unit)
      (:wat::core::let*
        (((handle :wat::telemetry::Service::Handle<test::Edn::Event>)
          (:wat::kernel::HandlePool::pop pool))
-        ((_finish :()) (:wat::kernel::HandlePool::finish pool))
+        ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
         ((req-tx :wat::telemetry::Service::ReqTx<test::Edn::Event>)
          (:wat::core::first handle))
         ((ack-rx :wat::telemetry::Service::AckRx)
@@ -40,7 +40,7 @@
         ((entries :Vec<test::Edn::Event>)
          (:wat::core::vec :test::Edn::Event
            (:test::Edn::Event::Log tagged notag)))
-        ((_log :())
+        ((_log :wat::core::unit)
          (:wat::telemetry::Service/batch-log
            req-tx ack-rx entries)))
        ()))
@@ -49,7 +49,7 @@
    (:wat::core::define
      (:test::Edn::auto-spawn-one
        (path :wat::core::String)
-       -> :wat::kernel::Thread<(),()>)
+       -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<test::Edn::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
@@ -59,18 +59,18 @@
            :wat::telemetry::Sqlite/null-pre-install))
         ((pool :wat::telemetry::Service::HandlePool<test::Edn::Event>)
          (:wat::core::first spawn))
-        ((driver :wat::kernel::Thread<(),()>)
+        ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
          (:wat::core::second spawn))
-        ((_inner :())
+        ((_inner :wat::core::unit)
          (:test::Edn::send-one pool)))
        driver))))
 
 
 (:deftest :wat-telemetry-sqlite::edn-newtypes::test-tagged-and-notag-bind
   (:wat::core::let*
-    (((driver :wat::kernel::Thread<(),()>)
+    (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::Edn::auto-spawn-one
         "/tmp/wat-sqlite-test-edn-newtypes-001.db"))
-     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

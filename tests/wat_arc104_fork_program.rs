@@ -64,8 +64,8 @@ fn fork_program_child_writes_stdout_parent_reads_line() {
         (:wat::core::define (:user::main -> :Option<wat::core::String>)
           (:wat::core::let*
             (((inner-src :wat::core::String)
-              "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::io::IOWriter/println stdout \"hello-from-fork\"))")
-             ((child :wat::kernel::Program<(),()>)
+              "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) (:wat::io::IOWriter/println stdout \"hello-from-fork\"))")
+             ((child :wat::kernel::Program<wat::core::unit,wat::core::unit>)
               (:wat::kernel::fork-program inner-src :None))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout child)))
@@ -87,12 +87,12 @@ fn fork_program_round_trip_via_pipes() {
         (:wat::core::define (:user::main -> :Option<wat::core::String>)
           (:wat::core::let*
             (((inner-src :wat::core::String)
-              "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :() (:None ()) ((Some line) (:wat::io::IOWriter/println stdout (:wat::core::string::concat line line)))))")
-             ((child :wat::kernel::Program<(),()>)
+              "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::unit (:None ()) ((Some line) (:wat::io::IOWriter/println stdout (:wat::core::string::concat line line)))))")
+             ((child :wat::kernel::Program<wat::core::unit,wat::core::unit>)
               (:wat::kernel::fork-program inner-src :None))
              ((in-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin child))
              ((out-r :wat::io::IOReader) (:wat::kernel::Process/stdout child))
-             ((_ :()) (:wat::io::IOWriter/println in-w "ping")))
+             ((_ :wat::core::unit) (:wat::io::IOWriter/println in-w "ping")))
             (:wat::io::IOReader/read-line out-r)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "pingping");
@@ -106,14 +106,14 @@ fn fork_program_clean_exit_code_via_wait_child() {
     // then Process/join-result reaps the exit. Should be Ok(()) (clean exit).
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
+        (:wat::core::define (:user::main -> :Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
             (((inner-src :wat::core::String)
-              "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :() (:None ()) ((Some _) ())))")
-             ((child :wat::kernel::Program<(),()>)
+              "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::unit (:None ()) ((Some _) ())))")
+             ((child :wat::kernel::Program<wat::core::unit,wat::core::unit>)
               (:wat::kernel::fork-program inner-src :None))
              ((in-w :wat::io::IOWriter) (:wat::kernel::Process/stdin child))
-             ((_close :()) (:wat::io::IOWriter/close in-w)))
+             ((_close :wat::core::unit) (:wat::io::IOWriter/close in-w)))
             (:wat::kernel::Process/join-result child)))
     "#;
     assert!(unwrap_ok_result(run(src)), "expected Ok(()) for clean exit");
@@ -128,11 +128,11 @@ fn fork_program_parse_error_surfaces_as_exit_3() {
     // child dies → parent's Process/join-result returns Err.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
+        (:wat::core::define (:user::main -> :Result<wat::core::unit,Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
             (((bad-src :wat::core::String)
               "(:wat::core::define (:demo::not-main (x :i64) -> :i64) x)")
-             ((child :wat::kernel::Program<(),()>)
+             ((child :wat::kernel::Program<wat::core::unit,wat::core::unit>)
               (:wat::kernel::fork-program bad-src :None)))
             (:wat::kernel::Process/join-result child)))
     "#;

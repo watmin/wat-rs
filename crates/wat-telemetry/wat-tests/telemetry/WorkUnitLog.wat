@@ -38,19 +38,19 @@
    ;; mirrors arc 087's ConsoleLogger).
    (:wat::core::define
      (:wat-telemetry::log-test::fixed-now-fn
-       -> :fn(())->wat::time::Instant)
-     (:wat::core::lambda ((_u :()) -> :wat::time::Instant)
+       -> :fn(wat::core::unit)->wat::time::Instant)
+     (:wat::core::lambda ((_u :wat::core::unit) -> :wat::time::Instant)
        (:wat::time::now)))
 
    ;; Stub dispatcher — same shape as the make-scope tests'.
    (:wat::core::define
      (:wat-telemetry::log-test::make-stub-dispatcher
        (stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
-       -> :fn(Vec<wat::telemetry::Event>)->())
-     (:wat::core::lambda ((entries :Vec<wat::telemetry::Event>) -> :())
+       -> :fn(Vec<wat::telemetry::Event>)->wat::core::unit)
+     (:wat::core::lambda ((entries :Vec<wat::telemetry::Event>) -> :wat::core::unit)
        (:wat::core::foldl entries ()
-         (:wat::core::lambda ((_acc :()) (e :wat::telemetry::Event) -> :())
-           (:wat::core::match (:wat::kernel::send stub-tx e) -> :()
+         (:wat::core::lambda ((_acc :wat::core::unit) (e :wat::telemetry::Event) -> :wat::core::unit)
+           (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::unit
              ((Ok _) ())
              ((Err _) ()))))))
 
@@ -72,7 +72,7 @@
     ;; emits + drains the one /info event before returning. Returns
     ;; (driver, level-back) so outer can join the driver and assert on
     ;; the level keyword. SERVICE-PROGRAMS.md § "The lockstep" + arc 117.
-    (((thr-and-level :(wat::kernel::Thread<(),()>,wat::core::keyword))
+    (((thr-and-level :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::keyword))
       (:wat::core::let*
         (((stub-pair :wat::kernel::QueuePair<wat::telemetry::Event>)
           (:wat::kernel::make-bounded-queue :wat::telemetry::Event 16))
@@ -80,22 +80,22 @@
           (:wat::core::first stub-pair))
          ((stub-rx :wat::kernel::QueueReceiver<wat::telemetry::Event>)
           (:wat::core::second stub-pair))
-         ((dispatcher :fn(Vec<wat::telemetry::Event>)->())
+         ((dispatcher :fn(Vec<wat::telemetry::Event>)->wat::core::unit)
           (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))
-         ((cadence :wat::telemetry::Service::MetricsCadence<()>)
+         ((cadence :wat::telemetry::Service::MetricsCadence<wat::core::unit>)
           (:wat::telemetry::Service/null-metrics-cadence))
          ((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
           (:wat::telemetry::Service/spawn 1 cadence dispatcher
             :wat-telemetry::log-test::translate-empty))
          ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
           (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<(),()>) (:wat::core::second spawn))
+         ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
          ;; Inner-inner: pop handle, build wu + logger, emit one /info.
-         ((_inner :())
+         ((_inner :wat::core::unit)
           (:wat::core::let*
             (((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
               (:wat::kernel::HandlePool::pop pool))
-             ((_finish :()) (:wat::kernel::HandlePool::finish pool))
+             ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
              ((wu :wat::telemetry::WorkUnit)
               (:wat::telemetry::WorkUnit::new
                 (:wat-telemetry::log-test::default-ns)
@@ -105,7 +105,7 @@
                 handle
                 (:wat-telemetry::log-test::default-caller)
                 (:wat-telemetry::log-test::fixed-now-fn)))
-             ((_log :())
+             ((_log :wat::core::unit)
               (:wat::telemetry::WorkUnitLog/info logger wu (:wat::core::quote :hello))))
             ()))
          ;; Drain the one event in the same scope (stub-tx still alive,
@@ -125,9 +125,9 @@
             ((Ok :None) :no-event)
             ((Err _died) :no-event))))
         (:wat::core::tuple d level-back)))
-     ((driver :wat::kernel::Thread<(),()>) (:wat::core::first thr-and-level))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-level))
      ((level-back :wat::core::keyword) (:wat::core::second thr-and-level))
-     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq level-back :info)))
 
@@ -147,7 +147,7 @@
     ;; enqueued by the time recv runs). Returns (driver, l4) so outer
     ;; joins the driver and asserts the last level keyword.
     ;; SERVICE-PROGRAMS.md § "The lockstep" + arc 117.
-    (((thr-and-l4 :(wat::kernel::Thread<(),()>,wat::core::keyword))
+    (((thr-and-l4 :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::keyword))
       (:wat::core::let*
         (((stub-pair :wat::kernel::QueuePair<wat::telemetry::Event>)
           (:wat::kernel::make-bounded-queue :wat::telemetry::Event 16))
@@ -155,21 +155,21 @@
           (:wat::core::first stub-pair))
          ((stub-rx :wat::kernel::QueueReceiver<wat::telemetry::Event>)
           (:wat::core::second stub-pair))
-         ((dispatcher :fn(Vec<wat::telemetry::Event>)->())
+         ((dispatcher :fn(Vec<wat::telemetry::Event>)->wat::core::unit)
           (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))
-         ((cadence :wat::telemetry::Service::MetricsCadence<()>)
+         ((cadence :wat::telemetry::Service::MetricsCadence<wat::core::unit>)
           (:wat::telemetry::Service/null-metrics-cadence))
          ((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
           (:wat::telemetry::Service/spawn 1 cadence dispatcher
             :wat-telemetry::log-test::translate-empty))
          ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
           (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<(),()>) (:wat::core::second spawn))
-         ((_inner :())
+         ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
+         ((_inner :wat::core::unit)
           (:wat::core::let*
             (((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
               (:wat::kernel::HandlePool::pop pool))
-             ((_finish :()) (:wat::kernel::HandlePool::finish pool))
+             ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
              ((wu :wat::telemetry::WorkUnit)
               (:wat::telemetry::WorkUnit::new
                 (:wat-telemetry::log-test::default-ns)
@@ -180,10 +180,10 @@
                 (:wat-telemetry::log-test::default-caller)
                 (:wat-telemetry::log-test::fixed-now-fn)))
              ((data :wat::WatAST) (:wat::core::quote :payload))
-             ((_d :()) (:wat::telemetry::WorkUnitLog/debug logger wu data))
-             ((_i :()) (:wat::telemetry::WorkUnitLog/info  logger wu data))
-             ((_w :()) (:wat::telemetry::WorkUnitLog/warn  logger wu data))
-             ((_e :()) (:wat::telemetry::WorkUnitLog/error logger wu data)))
+             ((_d :wat::core::unit) (:wat::telemetry::WorkUnitLog/debug logger wu data))
+             ((_i :wat::core::unit) (:wat::telemetry::WorkUnitLog/info  logger wu data))
+             ((_w :wat::core::unit) (:wat::telemetry::WorkUnitLog/warn  logger wu data))
+             ((_e :wat::core::unit) (:wat::telemetry::WorkUnitLog/error logger wu data)))
             ()))
          ;; Arc 110: extract-level takes the unwrapped Event; the
          ;; match-at-source on recv at each call site supplies the
@@ -219,12 +219,12 @@
             ((Ok (Some event)) (extract-level event))
             ((Ok :None) :no-event)
             ((Err _died) :no-event)))
-         ((_a :()) (:wat::test::assert-eq l1 :debug))
-         ((_b :()) (:wat::test::assert-eq l2 :info))
-         ((_c :()) (:wat::test::assert-eq l3 :warn)))
+         ((_a :wat::core::unit) (:wat::test::assert-eq l1 :debug))
+         ((_b :wat::core::unit) (:wat::test::assert-eq l2 :info))
+         ((_c :wat::core::unit) (:wat::test::assert-eq l3 :warn)))
         (:wat::core::tuple d l4)))
-     ((driver :wat::kernel::Thread<(),()>) (:wat::core::first thr-and-l4))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-l4))
      ((l4 :wat::core::keyword) (:wat::core::second thr-and-l4))
-     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq l4 :error)))

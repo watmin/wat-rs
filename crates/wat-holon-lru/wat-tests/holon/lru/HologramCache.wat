@@ -38,7 +38,7 @@
         16))
      ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :beta))
-     ((_ :()) (:wat::holon::lru::HologramCache/put store k v))
+     ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k v))
      ((got :Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k))
      ((found :wat::holon::HolonAST)
@@ -60,8 +60,8 @@
      ((v1 :wat::holon::HolonAST) (:wat::holon::leaf :av))
      ((k2 :wat::holon::HolonAST) (:wat::holon::leaf :gamma))
      ((v2 :wat::holon::HolonAST) (:wat::holon::leaf :gv))
-     ((_ :()) (:wat::holon::lru::HologramCache/put store k1 v1))
-     ((_ :()) (:wat::holon::lru::HologramCache/put store k2 v2))
+     ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k1 v1))
+     ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k2 v2))
      ((n :wat::core::i64) (:wat::holon::lru::HologramCache/len store)))
     (:wat::test::assert-eq n 2)))
 
@@ -82,9 +82,9 @@
      ((k2 :wat::holon::HolonAST) (:wat::holon::leaf :second))
      ((k3 :wat::holon::HolonAST) (:wat::holon::leaf :third))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :payload))
-     ((_ :()) (:wat::holon::lru::HologramCache/put store k1 v))
-     ((_ :()) (:wat::holon::lru::HologramCache/put store k2 v))
-     ((_ :()) (:wat::holon::lru::HologramCache/put store k3 v))
+     ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k1 v))
+     ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k2 v))
+     ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k3 v))
      ;; Total entries = 2 (k1 evicted by k3's put).
      ((total :wat::core::i64) (:wat::holon::lru::HologramCache/len store))
      ;; k1 specifically gone from Hologram.
@@ -123,13 +123,13 @@
      ((k2 :wat::holon::HolonAST) (:wat::holon::leaf :second))
      ((k3 :wat::holon::HolonAST) (:wat::holon::leaf :third))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :payload))
-     ((_ :()) (:wat::holon::lru::HologramCache/put store k1 v))
-     ((_ :()) (:wat::holon::lru::HologramCache/put store k2 v))
+     ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k1 v))
+     ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k2 v))
      ;; Get k1 — bumps it to MRU.
      ((_ :Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k1))
      ;; Now k2 is LRU; put k3 evicts k2.
-     ((_ :()) (:wat::holon::lru::HologramCache/put store k3 v))
+     ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k3 v))
      ;; k1 should STILL be present (was MRU after the bump).
      ((g1 :Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k1))
@@ -164,7 +164,7 @@
      ((k :wat::holon::HolonAST)
       (:wat::holon::therm-form 0.0 100.0 70.0))
      ((v :wat::holon::HolonAST) (:wat::holon::leaf :rsi-70-answer))
-     ((_ :()) (:wat::holon::lru::HologramCache/put store k v))
+     ((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put store k v))
      ((got :Option<wat::holon::HolonAST>)
       (:wat::holon::lru::HologramCache/get store k))
      ((found :wat::holon::HolonAST)

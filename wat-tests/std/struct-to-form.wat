@@ -24,14 +24,14 @@
               (_stdin :wat::io::IOReader)
               (_stdout :wat::io::IOWriter)
               (_stderr :wat::io::IOWriter)
-              -> :())
+              -> :wat::core::unit)
             (:wat::core::let*
               (((p :my::Pair) (:my::Pair/new 7 9))
                ((form :wat::WatAST) (:wat::core::struct->form p))
                ((roundtrip :wat::holon::HolonAST) (:wat::eval-ast! form))
                ;; Just check the eval succeeded — the struct re-built
                ;; from its lifted form.
-               (_ :() (:wat::test::assert-eq true true)))
+               (_ :wat::core::unit (:wat::test::assert-eq true true)))
               ())))
         (:wat::core::vec :wat::core::String))))
     (:wat::test::assert-eq true true)))

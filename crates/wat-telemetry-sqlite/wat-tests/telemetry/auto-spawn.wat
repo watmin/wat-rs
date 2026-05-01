@@ -30,11 +30,11 @@
    (:wat::core::define
      (:test::send-events
        (pool :wat::telemetry::Service::HandlePool<test::Event>)
-       -> :())
+       -> :wat::core::unit)
      (:wat::core::let*
        (((handle :wat::telemetry::Service::Handle<test::Event>)
          (:wat::kernel::HandlePool::pop pool))
-        ((_finish :()) (:wat::kernel::HandlePool::finish pool))
+        ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
         ((req-tx :wat::telemetry::Service::ReqTx<test::Event>)
          (:wat::core::first handle))
         ((ack-rx :wat::telemetry::Service::AckRx)
@@ -43,7 +43,7 @@
          (:wat::core::vec :test::Event
            (:test::Event::Buy 100.5 7)
            (:test::Event::Sell 102.25 3 "stop-loss" true)))
-        ((_log :())
+        ((_log :wat::core::unit)
          (:wat::telemetry::Service/batch-log
            req-tx ack-rx entries)))
        ()))
@@ -52,7 +52,7 @@
    (:wat::core::define
      (:test::auto-spawn-events
        (path :wat::core::String)
-       -> :wat::kernel::Thread<(),()>)
+       -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Service::Spawn<test::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
@@ -62,18 +62,18 @@
            :wat::telemetry::Sqlite/null-pre-install))
         ((pool :wat::telemetry::Service::HandlePool<test::Event>)
          (:wat::core::first spawn))
-        ((driver :wat::kernel::Thread<(),()>)
+        ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
          (:wat::core::second spawn))
-        ((_inner :())
+        ((_inner :wat::core::unit)
          (:test::send-events pool)))
        driver))))
 
 
 (:deftest :wat-telemetry-sqlite::auto-spawn::test-event-roundtrip
   (:wat::core::let*
-    (((driver :wat::kernel::Thread<(),()>)
+    (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:test::auto-spawn-events
         "/tmp/wat-sqlite-test-auto-001.db"))
-     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

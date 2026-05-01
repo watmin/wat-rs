@@ -40,7 +40,7 @@ fn reckoner_discrete_construct_dims_labels() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((labels :Vec<wat::holon::HolonAST>)
               (:wat::core::vec :wat::holon::HolonAST
@@ -67,7 +67,7 @@ fn reckoner_observe_then_predict() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((labels :Vec<wat::holon::HolonAST>)
               (:wat::core::vec :wat::holon::HolonAST
@@ -77,8 +77,8 @@ fn reckoner_observe_then_predict() {
               ;; Tiny recalib_interval=1 so discriminants update after every observe.
               (:wat::holon::Reckoner/new-discrete "rec" 10000 1 labels))
              ((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
-             ((u1 :()) (:wat::holon::Reckoner/observe r v 0 1.0))
-             ((u2 :()) (:wat::holon::Reckoner/observe r v 1 1.0))
+             ((u1 :wat::core::unit) (:wat::holon::Reckoner/observe r v 0 1.0))
+             ((u2 :wat::core::unit) (:wat::holon::Reckoner/observe r v 1 1.0))
              ((pred :(Vec<(wat::core::i64,wat::core::f64)>,Option<wat::core::i64>,wat::core::f64,wat::core::f64))
               (:wat::holon::Reckoner/predict r v))
              ((conviction :wat::core::f64) (:wat::core::third pred)))
@@ -100,7 +100,7 @@ fn reckoner_continuous_construct() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((r :wat::holon::Reckoner)
               (:wat::holon::Reckoner/new-continuous "cont" 10000 100 0.0 16))

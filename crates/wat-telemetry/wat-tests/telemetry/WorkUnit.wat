@@ -61,11 +61,11 @@
    (:wat::core::define
      (:wat-telemetry::scope::make-stub-dispatcher
        (stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
-       -> :fn(Vec<wat::telemetry::Event>)->())
-     (:wat::core::lambda ((entries :Vec<wat::telemetry::Event>) -> :())
+       -> :fn(Vec<wat::telemetry::Event>)->wat::core::unit)
+     (:wat::core::lambda ((entries :Vec<wat::telemetry::Event>) -> :wat::core::unit)
        (:wat::core::foldl entries ()
-         (:wat::core::lambda ((_acc :()) (e :wat::telemetry::Event) -> :())
-           (:wat::core::match (:wat::kernel::send stub-tx e) -> :()
+         (:wat::core::lambda ((_acc :wat::core::unit) (e :wat::telemetry::Event) -> :wat::core::unit)
+           (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::unit
              ((Ok _) ())
              ((Err _) ()))))))
 
@@ -119,7 +119,7 @@
   (:wat::core::let*
     (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :requests))
-     ((_ :()) (:wat::telemetry::WorkUnit/incr! wu name))
+     ((_ :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu name))
      ((n :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name)))
     (:wat::test::assert-eq n 1)))
 
@@ -130,9 +130,9 @@
   (:wat::core::let*
     (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :requests))
-     ((_a :()) (:wat::telemetry::WorkUnit/incr! wu name))
-     ((_b :()) (:wat::telemetry::WorkUnit/incr! wu name))
-     ((_c :()) (:wat::telemetry::WorkUnit/incr! wu name))
+     ((_a :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu name))
+     ((_b :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu name))
+     ((_c :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu name))
      ((n :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name)))
     (:wat::test::assert-eq n 3)))
 
@@ -143,8 +143,8 @@
   (:wat::core::let*
     (((wu :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) (:wat-telemetry::empty-tags)))
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :sql-page))
-     ((_a :()) (:wat::telemetry::WorkUnit/append-dt! wu name 0.5))
-     ((_b :()) (:wat::telemetry::WorkUnit/append-dt! wu name 1.5))
+     ((_a :wat::core::unit) (:wat::telemetry::WorkUnit/append-dt! wu name 0.5))
+     ((_b :wat::core::unit) (:wat::telemetry::WorkUnit/append-dt! wu name 1.5))
      ((dts :Vec<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name)))
     (:wat::test::assert-eq dts (:wat::core::vec :wat::core::f64 0.5 1.5))))
 
@@ -173,8 +173,8 @@
      ((counter :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name))
      ((dts :Vec<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name))
      ((n-dts :wat::core::i64) (:wat::core::length dts))
-     ((_a :()) (:wat::test::assert-eq result 99))
-     ((_b :()) (:wat::test::assert-eq counter 1)))
+     ((_a :wat::core::unit) (:wat::test::assert-eq result 99))
+     ((_b :wat::core::unit) (:wat::test::assert-eq counter 1)))
     (:wat::test::assert-eq n-dts 1)))
 
 
@@ -194,7 +194,7 @@
      ((counter :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name))
      ((dts :Vec<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name))
      ((n-dts :wat::core::i64) (:wat::core::length dts))
-     ((_a :()) (:wat::test::assert-eq counter 2)))
+     ((_a :wat::core::unit) (:wat::test::assert-eq counter 2)))
     (:wat::test::assert-eq n-dts 2)))
 
 
@@ -244,7 +244,7 @@
       (:wat::telemetry::WorkUnit/scope ns tags
         (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
           (:wat::core::let*
-            (((_ :()) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
+            (((_ :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
             42)))))
     (:wat::test::assert-eq result 42)))
 
@@ -266,11 +266,11 @@
      ((event :wat::telemetry::Event)
       (:wat::telemetry::WorkUnit/scope::build-counter-metric
         100 200 ns "test-uuid" tags name 7)))
-    (:wat::core::match event -> :()
+    (:wat::core::match event -> :wat::core::unit
       ((:wat::telemetry::Event::Metric s e _ uuid _ _ _ _)
         (:wat::core::let*
-          (((_a :()) (:wat::test::assert-eq s 100))
-           ((_b :()) (:wat::test::assert-eq e 200)))
+          (((_a :wat::core::unit) (:wat::test::assert-eq s 100))
+           ((_b :wat::core::unit) (:wat::test::assert-eq e 200)))
           (:wat::test::assert-eq uuid "test-uuid")))
       ((:wat::telemetry::Event::Log _ _ _ _ _ _ _)
         (:wat::test::assert-eq "expected-Metric-variant" "got-Log-instead")))))
@@ -290,11 +290,11 @@
      ((event :wat::telemetry::Event)
       (:wat::telemetry::WorkUnit/scope::build-duration-metric
         300 400 ns "dur-uuid" tags name 0.5)))
-    (:wat::core::match event -> :()
+    (:wat::core::match event -> :wat::core::unit
       ((:wat::telemetry::Event::Metric s e _ uuid _ _ _ _)
         (:wat::core::let*
-          (((_a :()) (:wat::test::assert-eq s 300))
-           ((_b :()) (:wat::test::assert-eq e 400)))
+          (((_a :wat::core::unit) (:wat::test::assert-eq s 300))
+           ((_b :wat::core::unit) (:wat::test::assert-eq e 400)))
           (:wat::test::assert-eq uuid "dur-uuid")))
       ((:wat::telemetry::Event::Log _ _ _ _ _ _ _)
         (:wat::test::assert-eq "expected-Metric-variant" "got-Log-instead")))))
@@ -324,9 +324,9 @@
     (((tags  :wat::telemetry::Tags)     (:wat-telemetry::empty-tags))
      ((wu    :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) tags))
      ((name  :wat::holon::HolonAST)     (:wat::holon::Atom :requests))
-     ((_a    :())                        (:wat::telemetry::WorkUnit/incr! wu name))
-     ((_b    :())                        (:wat::telemetry::WorkUnit/incr! wu name))
-     ((_c    :())                        (:wat::telemetry::WorkUnit/incr! wu name))
+     ((_a    :wat::core::unit)                        (:wat::telemetry::WorkUnit/incr! wu name))
+     ((_b    :wat::core::unit)                        (:wat::telemetry::WorkUnit/incr! wu name))
+     ((_c    :wat::core::unit)                        (:wat::telemetry::WorkUnit/incr! wu name))
      ((ns    :wat::holon::HolonAST)     (:wat::holon::Atom :test::ns))
      ((events :Vec<wat::telemetry::Event>)
       (:wat::telemetry::WorkUnit/scope::collect-metric-events
@@ -342,8 +342,8 @@
     (((tags  :wat::telemetry::Tags)     (:wat-telemetry::empty-tags))
      ((wu    :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new (:wat-telemetry::default-ns) tags))
      ((name  :wat::holon::HolonAST)     (:wat::holon::Atom :sql-page))
-     ((_a    :())                        (:wat::telemetry::WorkUnit/append-dt! wu name 0.5))
-     ((_b    :())                        (:wat::telemetry::WorkUnit/append-dt! wu name 1.5))
+     ((_a    :wat::core::unit)                        (:wat::telemetry::WorkUnit/append-dt! wu name 0.5))
+     ((_b    :wat::core::unit)                        (:wat::telemetry::WorkUnit/append-dt! wu name 1.5))
      ((ns    :wat::holon::HolonAST)     (:wat::holon::Atom :test::ns))
      ((events :Vec<wat::telemetry::Event>)
       (:wat::telemetry::WorkUnit/scope::collect-metric-events
@@ -427,7 +427,7 @@
     ;; (driver, result, r1-some?) to outer; outer joins the driver and
     ;; asserts on the body's result + the recv'd-Some bool.
     ;; SERVICE-PROGRAMS.md § "The lockstep" + arc 117.
-    (((thr-result-some :(wat::kernel::Thread<(),()>,wat::core::i64,wat::core::bool))
+    (((thr-result-some :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::i64,wat::core::bool))
       (:wat::core::let*
         ;; Stub queue — collects the Events the dispatcher sees.
         (((stub-pair :wat::kernel::QueuePair<wat::telemetry::Event>)
@@ -437,9 +437,9 @@
          ((stub-rx :wat::kernel::QueueReceiver<wat::telemetry::Event>)
           (:wat::core::second stub-pair))
          ;; Dispatcher closure-over stub-tx; null cadence + empty translator.
-         ((dispatcher :fn(Vec<wat::telemetry::Event>)->())
+         ((dispatcher :fn(Vec<wat::telemetry::Event>)->wat::core::unit)
           (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
-         ((cadence :wat::telemetry::Service::MetricsCadence<()>)
+         ((cadence :wat::telemetry::Service::MetricsCadence<wat::core::unit>)
           (:wat::telemetry::Service/null-metrics-cadence))
          ;; Spawn Service<Event,_> with one client slot.
          ((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
@@ -447,13 +447,13 @@
             :wat-telemetry::scope::translate-empty))
          ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
           (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<(),()>) (:wat::core::second spawn))
+         ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
          ;; Inner-inner: pop Handle, finish pool, factory + scope-fn-with-counter.
          ((result :wat::core::i64)
           (:wat::core::let*
             (((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
               (:wat::kernel::HandlePool::pop pool))
-             ((_finish :()) (:wat::kernel::HandlePool::finish pool))
+             ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
              ((ns :wat::holon::HolonAST) (:wat-telemetry::default-ns))
              ((scope :wat::telemetry::WorkUnit::Scope<wat::core::i64>)
               (:wat::telemetry::WorkUnit/make-scope handle ns))
@@ -462,7 +462,7 @@
               (:wat::core::lambda
                 ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
                 (:wat::core::let*
-                  (((_ :()) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
+                  (((_ :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
                   42)))))
          ;; Drain ONE Event — the single counter (CloudWatch model:
          ;; one counter = one row, established by
@@ -473,10 +473,10 @@
          ((r1-some? :wat::core::bool)
           (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool ((Ok (Some _)) true) ((Ok :None) false) ((Err _) false))))
         (:wat::core::tuple d result r1-some?)))
-     ((driver :wat::kernel::Thread<(),()>) (:wat::core::first thr-result-some))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-result-some))
      ((result :wat::core::i64) (:wat::core::second thr-result-some))
      ((r1-some? :wat::core::bool) (:wat::core::third thr-result-some))
-     ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
+     ((_join :Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
-     ((_a :()) (:wat::test::assert-eq result 42)))
+     ((_a :wat::core::unit) (:wat::test::assert-eq result 42)))
     (:wat::test::assert-eq r1-some? true)))

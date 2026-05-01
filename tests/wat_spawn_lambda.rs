@@ -47,7 +47,7 @@ fn spawn_thread_named_define_body() {
           (:app::increment
             (in  :rust::crossbeam_channel::Receiver<wat::core::i64>)
             (out :rust::crossbeam_channel::Sender<wat::core::i64>)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((value :wat::core::i64)
               (:wat::core::match (:wat::kernel::recv in)
@@ -59,7 +59,7 @@ fn spawn_thread_named_define_body() {
                  (:wat::kernel::raise! (:wat::holon::leaf "parent died")))))
              ((sum :wat::core::i64) (:wat::core::i64::+ value 1)))
             (:wat::core::match (:wat::kernel::send out sum)
-              -> :()
+              -> :wat::core::unit
               ((Ok _) ())
               ((Err _)
                (:wat::kernel::raise! (:wat::holon::leaf "output closed"))))))
@@ -72,9 +72,9 @@ fn spawn_thread_named_define_body() {
               (:wat::kernel::Thread/input thr))
              ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>)
               (:wat::kernel::Thread/output thr))
-             ((_ack :())
+             ((_ack :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx 41)
-                -> :()
+                -> :wat::core::unit
                 ((Ok _) ())
                 ((Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died")))))
              ((result :wat::core::i64)
@@ -83,9 +83,9 @@ fn spawn_thread_named_define_body() {
                 ((Ok (Some n)) n)
                 ((Ok :None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
                 ((Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died")))))
-             ((_join :())
+             ((_join :wat::core::unit)
               (:wat::core::match (:wat::kernel::Thread/join-result thr)
-                -> :()
+                -> :wat::core::unit
                 ((Ok _) ())
                 ((Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))))
             result))
@@ -106,7 +106,7 @@ fn spawn_thread_inline_lambda_body() {
                 (:wat::core::lambda
                   ((in  :rust::crossbeam_channel::Receiver<wat::core::i64>)
                    (out :rust::crossbeam_channel::Sender<wat::core::i64>)
-                   -> :())
+                   -> :wat::core::unit)
                   (:wat::core::let*
                     (((value :wat::core::i64)
                       (:wat::core::match (:wat::kernel::recv in)
@@ -118,7 +118,7 @@ fn spawn_thread_inline_lambda_body() {
                          (:wat::kernel::raise! (:wat::holon::leaf "parent died")))))
                      ((doubled :wat::core::i64) (:wat::core::i64::* value 2)))
                     (:wat::core::match (:wat::kernel::send out doubled)
-                      -> :()
+                      -> :wat::core::unit
                       ((Ok _) ())
                       ((Err _)
                        (:wat::kernel::raise! (:wat::holon::leaf "output closed"))))))))
@@ -126,9 +126,9 @@ fn spawn_thread_inline_lambda_body() {
               (:wat::kernel::Thread/input thr))
              ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>)
               (:wat::kernel::Thread/output thr))
-             ((_ack :())
+             ((_ack :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx 21)
-                -> :()
+                -> :wat::core::unit
                 ((Ok _) ())
                 ((Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died")))))
              ((result :wat::core::i64)
@@ -137,9 +137,9 @@ fn spawn_thread_inline_lambda_body() {
                 ((Ok (Some n)) n)
                 ((Ok :None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
                 ((Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died")))))
-             ((_join :())
+             ((_join :wat::core::unit)
               (:wat::core::match (:wat::kernel::Thread/join-result thr)
-                -> :()
+                -> :wat::core::unit
                 ((Ok _) ())
                 ((Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))))
             result))
@@ -162,11 +162,11 @@ fn spawn_thread_closure_capture() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((delta :wat::core::i64) 100)
-             ((body :fn(rust::crossbeam_channel::Receiver<wat::core::i64>,rust::crossbeam_channel::Sender<wat::core::i64>)->())
+             ((body :fn(rust::crossbeam_channel::Receiver<wat::core::i64>,rust::crossbeam_channel::Sender<wat::core::i64>)->wat::core::unit)
               (:wat::core::lambda
                 ((in  :rust::crossbeam_channel::Receiver<wat::core::i64>)
                  (out :rust::crossbeam_channel::Sender<wat::core::i64>)
-                 -> :())
+                 -> :wat::core::unit)
                 (:wat::core::let*
                   (((n :wat::core::i64)
                     (:wat::core::match (:wat::kernel::recv in)
@@ -178,7 +178,7 @@ fn spawn_thread_closure_capture() {
                        (:wat::kernel::raise! (:wat::holon::leaf "parent died")))))
                    ((sum :wat::core::i64) (:wat::core::i64::+ n delta)))
                   (:wat::core::match (:wat::kernel::send out sum)
-                    -> :()
+                    -> :wat::core::unit
                     ((Ok _) ())
                     ((Err _)
                      (:wat::kernel::raise! (:wat::holon::leaf "output closed")))))))
@@ -188,9 +188,9 @@ fn spawn_thread_closure_capture() {
               (:wat::kernel::Thread/input thr))
              ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>)
               (:wat::kernel::Thread/output thr))
-             ((_ack :())
+             ((_ack :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx 23)
-                -> :()
+                -> :wat::core::unit
                 ((Ok _) ())
                 ((Err _) (:wat::kernel::raise! (:wat::holon::leaf "send died")))))
              ((result :wat::core::i64)
@@ -199,9 +199,9 @@ fn spawn_thread_closure_capture() {
                 ((Ok (Some n)) n)
                 ((Ok :None)    (:wat::kernel::raise! (:wat::holon::leaf "early close")))
                 ((Err _)       (:wat::kernel::raise! (:wat::holon::leaf "thread died")))))
-             ((_join :())
+             ((_join :wat::core::unit)
               (:wat::core::match (:wat::kernel::Thread/join-result thr)
-                -> :()
+                -> :wat::core::unit
                 ((Ok _) ())
                 ((Err _) (:wat::kernel::raise! (:wat::holon::leaf "join failed"))))))
             result))
@@ -218,7 +218,7 @@ fn spawn_thread_rejects_non_callable_body() {
     // expects :Fn(Receiver<I>,Sender<O>) -> :() and i64 doesn't unify.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :())
+        (:wat::core::define (:user::main -> :wat::core::unit)
           (:wat::core::let*
             (((not-fn :wat::core::i64) 42)
              ((thr :wat::kernel::Thread<wat::core::i64,wat::core::i64>)

@@ -57,7 +57,7 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
                                      (stdin  :wat::io::IOReader)
                                      (stdout :wat::io::IOWriter)
                                      (stderr :wat::io::IOWriter)
-                                     -> :())
+                                     -> :wat::core::unit)
                   (:wat::test::assert-eq 1 2))))
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-hermetic-ast

@@ -66,7 +66,7 @@ fn walkstep_continue_parametric_inference_at_use_site() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((wrapped :wat::eval::WalkStep<wat::core::i64>) (:my::test::wrap 7)))
             (:wat::io::IOWriter/println stdout "ok")))
@@ -91,7 +91,7 @@ fn walkstep_skip_parametric_inference_at_use_site() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::let*
             (((halted :wat::eval::WalkStep<wat::core::i64>) (:my::test::halt 3)))
             (:wat::io::IOWriter/println stdout "ok")))
@@ -119,7 +119,7 @@ fn walk_visitor_signature_matches_at_use_site() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:wat::core::match
             (:wat::eval::walk
               (:wat::core::quote
@@ -127,11 +127,11 @@ fn walk_visitor_signature_matches_at_use_site() {
                   (:wat::holon::Atom "k")
                   (:wat::holon::Atom "v")))
               0
-              :my::test::count-visit) -> :()
+              :my::test::count-visit) -> :wat::core::unit
             ((Ok pair)
               (:wat::core::let*
                 (((count :wat::core::i64) (:wat::core::second pair)))
-                (:wat::core::if (:wat::core::i64::= count 1) -> :()
+                (:wat::core::if (:wat::core::i64::= count 1) -> :wat::core::unit
                   (:wat::io::IOWriter/println stdout "ok")
                   (:wat::io::IOWriter/println stdout "wrong-count"))))
             ((Err _e) (:wat::io::IOWriter/println stdout "walk-err"))))

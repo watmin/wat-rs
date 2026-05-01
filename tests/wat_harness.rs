@@ -18,7 +18,7 @@ fn main_body(body: &str) -> String {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           {})
         "##,
         DIMS_AND_MODE, body
@@ -45,11 +45,11 @@ fn harness_injects_stdin_lines() {
     // top-level form, not an expression.
     let src = format!(
         r##"{}
-        (:wat::core::define (:echo-loop (r :wat::io::IOReader) (w :wat::io::IOWriter) -> :())
-          (:wat::core::match (:wat::io::IOReader/read-line r) -> :()
+        (:wat::core::define (:echo-loop (r :wat::io::IOReader) (w :wat::io::IOWriter) -> :wat::core::unit)
+          (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::unit
             ((Some line)
               (:wat::core::let*
-                (((_ :()) (:wat::io::IOWriter/println w line)))
+                (((_ :wat::core::unit) (:wat::io::IOWriter/println w line)))
                 (:echo-loop r w)))
             (:None ())))
         (:wat::core::define
@@ -57,7 +57,7 @@ fn harness_injects_stdin_lines() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :())
+            -> :wat::core::unit)
           (:echo-loop stdin stdout))
         "##,
         DIMS_AND_MODE
@@ -112,8 +112,8 @@ fn harness_main_signature_mismatch() {
 fn harness_captures_stderr() {
     let src = main_body(
         r##"(:wat::core::let*
-              (((_ :()) (:wat::io::IOWriter/println stdout "out-line"))
-               ((_ :()) (:wat::io::IOWriter/println stderr "err-line")))
+              (((_ :wat::core::unit) (:wat::io::IOWriter/println stdout "out-line"))
+               ((_ :wat::core::unit) (:wat::io::IOWriter/println stderr "err-line")))
               ())"##,
     );
     let h = Harness::from_source(&src).expect("freeze");

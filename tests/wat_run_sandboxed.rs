@@ -70,7 +70,7 @@ fn noop_main_yields_empty_stdout_and_stderr() {
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
                                   (stderr :wat::io::IOWriter)
-                                  -> :())
+                                  -> :wat::core::unit)
                ())"
             (:wat::core::vec :wat::core::String)
             :None))
@@ -94,7 +94,7 @@ fn main_writes_single_line_to_stdout() {
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
                                   (stderr :wat::io::IOWriter)
-                                  -> :())
+                                  -> :wat::core::unit)
                (:wat::io::IOWriter/println stdout \"hello\"))"
             (:wat::core::vec :wat::core::String)
             :None))
@@ -118,11 +118,11 @@ fn main_writes_to_both_stdout_and_stderr() {
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
                                   (stderr :wat::io::IOWriter)
-                                  -> :())
+                                  -> :wat::core::unit)
                (:wat::core::let*
-                 (((_ :()) (:wat::io::IOWriter/println stdout \"one\"))
-                  ((_ :()) (:wat::io::IOWriter/println stdout \"two\"))
-                  ((_ :()) (:wat::io::IOWriter/println stderr \"oops\")))
+                 (((_ :wat::core::unit) (:wat::io::IOWriter/println stdout \"one\"))
+                  ((_ :wat::core::unit) (:wat::io::IOWriter/println stdout \"two\"))
+                  ((_ :wat::core::unit) (:wat::io::IOWriter/println stderr \"oops\")))
                  ()))"
             (:wat::core::vec :wat::core::String)
             :None))
@@ -148,8 +148,8 @@ fn main_echoes_stdin_to_stdout() {
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
                                   (stderr :wat::io::IOWriter)
-                                  -> :())
-               (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :()
+                                  -> :wat::core::unit)
+               (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::unit
                  ((Some line) (:wat::io::IOWriter/println stdout line))
                  (:None ())))"
             (:wat::core::vec :wat::core::String "watmin")
@@ -176,11 +176,11 @@ fn print_without_newline_does_not_split_into_lines() {
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
                                   (stderr :wat::io::IOWriter)
-                                  -> :())
+                                  -> :wat::core::unit)
                (:wat::core::let*
-                 (((_ :()) (:wat::io::IOWriter/print stdout \"a\"))
-                  ((_ :()) (:wat::io::IOWriter/print stdout \"b\"))
-                  ((_ :()) (:wat::io::IOWriter/print stdout \"c\")))
+                 (((_ :wat::core::unit) (:wat::io::IOWriter/print stdout \"a\"))
+                  ((_ :wat::core::unit) (:wat::io::IOWriter/print stdout \"b\"))
+                  ((_ :wat::core::unit) (:wat::io::IOWriter/print stdout \"c\")))
                  ()))"
             (:wat::core::vec :wat::core::String)
             :None))
@@ -227,7 +227,7 @@ fn parse_error_in_source_surfaces_as_failure() {
 
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
-            "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) \"unclosed"
+            "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) \"unclosed"
             (:wat::core::vec :wat::core::String)
             :None))
     "##;
@@ -251,7 +251,7 @@ fn main_signature_mismatch_surfaces_as_failure() {
         (:wat::core::define (:user::main -> :wat::kernel::RunResult)
           (:wat::kernel::run-sandboxed
             "(:wat::config::set-capacity-mode! :error)
-             (:wat::core::define (:user::main -> :()) ())"
+             (:wat::core::define (:user::main -> :wat::core::unit) ())"
             (:wat::core::vec :wat::core::String)
             :None))
     "##;
@@ -307,9 +307,9 @@ fn sandboxed_panic_caught_into_failure_and_partial_output_preserved() {
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
                                   (stderr :wat::io::IOWriter)
-                                  -> :())
+                                  -> :wat::core::unit)
                (:wat::core::let*
-                 (((_ :()) (:wat::io::IOWriter/println stdout \"before panic\"))
+                 (((_ :wat::core::unit) (:wat::io::IOWriter/println stdout \"before panic\"))
                   ((_ :wat::holon::BundleResult)
                    (:wat::holon::Bundle
                      (:wat::core::list :wat::holon::HolonAST
@@ -383,10 +383,10 @@ fn scoped_file_eval_inside_scope_succeeds() {
                               (stdin  :wat::io::IOReader)
                               (stdout :wat::io::IOWriter)
                               (stderr :wat::io::IOWriter)
-                              -> :())
+                              -> :wat::core::unit)
            (:wat::core::match
              (:wat::eval-file! "{path}")
-             -> :()
+             -> :wat::core::unit
              ((Ok h) (:wat::io::IOWriter/println stdout "ok"))
              ((Err _) (:wat::io::IOWriter/println stderr "err"))))"#,
         path = inner_source_path.display()
@@ -440,10 +440,10 @@ fn scoped_file_eval_outside_scope_surfaces_as_err() {
                               (stdin  :wat::io::IOReader)
                               (stdout :wat::io::IOWriter)
                               (stderr :wat::io::IOWriter)
-                              -> :())
+                              -> :wat::core::unit)
            (:wat::core::match
              (:wat::eval-file! "{path}")
-             -> :()
+             -> :wat::core::unit
              ((Ok _) (:wat::io::IOWriter/println stdout "leaked"))
              ((Err _) (:wat::io::IOWriter/println stderr "blocked"))))"#,
         path = outside_file.display()
@@ -491,18 +491,18 @@ fn main_reads_multiple_stdin_lines() {
              (:wat::core::define (:my::echo-all
                                   (r :wat::io::IOReader)
                                   (w :wat::io::IOWriter)
-                                  -> :())
-               (:wat::core::match (:wat::io::IOReader/read-line r) -> :()
+                                  -> :wat::core::unit)
+               (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::unit
                  ((Some line)
                    (:wat::core::let*
-                     (((_ :()) (:wat::io::IOWriter/println w line)))
+                     (((_ :wat::core::unit) (:wat::io::IOWriter/println w line)))
                      (:my::echo-all r w)))
                  (:None ())))
              (:wat::core::define (:user::main
                                   (stdin  :wat::io::IOReader)
                                   (stdout :wat::io::IOWriter)
                                   (stderr :wat::io::IOWriter)
-                                  -> :())
+                                  -> :wat::core::unit)
                (:my::echo-all stdin stdout))"
             (:wat::core::vec :wat::core::String "alpha" "beta" "gamma")
             :None))
