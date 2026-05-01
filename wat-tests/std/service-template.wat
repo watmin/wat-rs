@@ -218,7 +218,7 @@
               (out :svc::DriverOut)
               -> :wat::core::unit)
              (:svc::Service/loop req-rxs (:svc::State::fresh) out)))))
-       (:wat::core::tuple pool thr)))))
+       (:wat::core::Tuple pool thr)))))
 
 
 ;; ─── Test — exercise all three reply shapes + state survives ──

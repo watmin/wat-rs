@@ -472,7 +472,7 @@
          ;; so we recv only what we KNOW was sent.
          ((r1-some? :wat::core::bool)
           (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool ((Ok (Some _)) true) ((Ok :None) false) ((Err _) false))))
-        (:wat::core::tuple d result r1-some?)))
+        (:wat::core::Tuple d result r1-some?)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-result-some))
      ((result :wat::core::i64) (:wat::core::second thr-result-some))
      ((r1-some? :wat::core::bool) (:wat::core::third thr-result-some))

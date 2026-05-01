@@ -52,7 +52,7 @@
 (:wat::test::deftest :wat-tests::edn::test-write-tuple
   ()
   (:wat::core::let*
-    (((t :(wat::core::i64,wat::core::String)) (:wat::core::tuple 7 "x"))
+    (((t :(wat::core::i64,wat::core::String)) (:wat::core::Tuple 7 "x"))
      ((s :wat::core::String) (:wat::edn::write t)))
     (:wat::test::assert-eq s "[7 \"x\"]")))
 

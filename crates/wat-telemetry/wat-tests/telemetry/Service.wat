@@ -112,7 +112,7 @@
              ((_log :wat::core::unit)
               (:wat::telemetry::Service/batch-log req-tx ack-rx entries)))
             ())))
-        (:wat::core::tuple d stub-rx)))
+        (:wat::core::Tuple d stub-rx)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-rx))
      ((stub-rx :wat::kernel::QueueReceiver<wat::core::i64>) (:wat::core::second thr-and-rx))
      ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
@@ -159,7 +159,7 @@
             0
             (:wat::core::lambda
               ((g :wat::core::i64) (_s :wat::telemetry::Service::Stats) -> :(wat::core::i64,wat::core::bool))
-              (:wat::core::tuple 0 true))))
+              (:wat::core::Tuple 0 true))))
          ((spawn :wat::telemetry::Service::Spawn<wat::core::i64>)
           (:wat::telemetry::Service/spawn 1 cadence dispatcher stats-translator))
          ((pool :wat::telemetry::Service::HandlePool<wat::core::i64>)
@@ -178,7 +178,7 @@
              ((_log :wat::core::unit)
               (:wat::telemetry::Service/batch-log req-tx ack-rx entries)))
             ())))
-        (:wat::core::tuple d stub-rx)))
+        (:wat::core::Tuple d stub-rx)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-rx))
      ((stub-rx :wat::kernel::QueueReceiver<wat::core::i64>) (:wat::core::second thr-and-rx))
      ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
