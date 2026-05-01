@@ -262,6 +262,32 @@ pub enum CheckError {
         /// prefix.
         span: Span,
     },
+    /// Arc 109 slice K.lru — a keyword carrying the legacy
+    /// `:wat::lru::CacheService::` (typealias path) or
+    /// `:wat::lru::CacheService/` (verb path) prefix appears in
+    /// user code. The CacheService grouping noun retires per § K;
+    /// verbs and typealiases live at `:wat::lru::*`. Real types
+    /// Stats / MetricsCadence / State / Report keep their
+    /// PascalCase + /methods (just one less namespace segment).
+    ///
+    /// Pattern B canonicalization rides this slice: `ReqPair`
+    /// renames to `ReqChannel` (gaze 2026-05-01 — in-crate
+    /// ReqPair/ReplyChannel mumble; both are (Tx, Rx) tuples but
+    /// the suffix divergence forces lookup); plus NEW
+    /// `ReplyRx<V>` + `ReplyChannel<V>` typealiases minted to
+    /// complete the Pattern B reference.
+    BareLegacyLruCacheServicePath {
+        /// User-source keyword — `":wat::lru::CacheService/get"`,
+        /// `":wat::lru::CacheService::ReqPair"`, etc.
+        old: String,
+        /// Canonical replacement — `":wat::lru::get"`,
+        /// `":wat::lru::ReqChannel"` (ReqPair → ReqChannel),
+        /// `":wat::lru::Stats"`, etc.
+        new: String,
+        /// Source location of the keyword carrying the legacy
+        /// prefix.
+        span: Span,
+    },
 }
 
 impl fmt::Display for CheckError {
@@ -352,6 +378,11 @@ impl fmt::Display for CheckError {
             CheckError::BareLegacyConsolePath { old, new, span } => write!(
                 f,
                 "legacy console path '{}' at {} is retired (arc 109 slice K.console); canonical form is '{}'. The :wat::std::service::Console grouping noun retired per § K's '/ requires a real Type' doctrine. Plus Pattern A canonicalization: Tx/Rx renamed to ReqTx/ReqRx (mirrors Telemetry's Pattern A reference shape). File moved: wat/std/service/Console.wat → wat/console.wat. Rename '{}' → '{}' at the offending site.",
+                old, span, new, old, new
+            ),
+            CheckError::BareLegacyLruCacheServicePath { old, new, span } => write!(
+                f,
+                "legacy lru-cache-service path '{}' at {} is retired (arc 109 slice K.lru); canonical form is '{}'. The :wat::lru::CacheService grouping noun retired per § K's '/ requires a real Type' doctrine. Real types Stats / MetricsCadence / State / Report keep PascalCase + /methods (just one less namespace segment). Plus Pattern B canonicalization: ReqPair renamed to ReqChannel (in-crate ReqPair/ReplyChannel mumble); ReplyRx<V> + ReplyChannel<V> typealiases minted to complete the Pattern B reference. Rename '{}' → '{}' at the offending site.",
                 old, span, new, old, new
             ),
         }
@@ -538,6 +569,12 @@ impl CheckError {
             }
             CheckError::BareLegacyConsolePath { old, new, span } => {
                 Diagnostic::new("BareLegacyConsolePath")
+                    .field("old", old.as_str())
+                    .field("new", new.as_str())
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyLruCacheServicePath { old, new, span } => {
+                Diagnostic::new("BareLegacyLruCacheServicePath")
                     .field("old", old.as_str())
                     .field("new", new.as_str())
                     .field("location", format!("{}", span))
@@ -1037,6 +1074,20 @@ pub fn check_program(
         validate_legacy_console_path(form, &mut errors);
     }
 
+    // Arc 109 slice K.lru — refuse the legacy
+    // `:wat::lru::CacheService::*` (typealias) and
+    // `:wat::lru::CacheService/*` (verb) prefixes. CacheService
+    // grouping noun retires per § K; verbs + typealiases live at
+    // `:wat::lru::*`. Plus Pattern B canonicalization: ReqPair →
+    // ReqChannel (gaze 2026-05-01); ReplyRx + ReplyChannel
+    // typealiases minted to complete Pattern B.
+    for func in sym.functions.values() {
+        validate_legacy_lru_cache_service_path(&func.body, &mut errors);
+    }
+    for form in forms {
+        validate_legacy_lru_cache_service_path(form, &mut errors);
+    }
+
     // Check each user define's body against its declared return type.
     for (path, func) in &sym.functions {
         if let Some(scheme) = env.get(path) {
@@ -1502,6 +1553,60 @@ fn walk_for_legacy_console(node: &WatAST, errors: &mut Vec<CheckError>) {
         WatAST::List(items, _) => {
             for item in items {
                 walk_for_legacy_console(item, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Arc 109 slice K.lru — same shape as
+/// `validate_legacy_console_path` plus the Pattern B
+/// canonicalization for ReqPair → ReqChannel. Catches both
+/// `:wat::lru::CacheService::X` (typealias) and
+/// `:wat::lru::CacheService/X` (verb); canonical replacement
+/// strips the segment and substitutes the canonical leaf for
+/// `ReqPair`.
+fn validate_legacy_lru_cache_service_path(node: &WatAST, errors: &mut Vec<CheckError>) {
+    walk_for_legacy_lru_cache_service(node, errors);
+}
+
+const LEGACY_LRU_CACHE_SERVICE_TYPEALIAS_PREFIX: &str = ":wat::lru::CacheService::";
+const LEGACY_LRU_CACHE_SERVICE_VERB_PREFIX: &str = ":wat::lru::CacheService/";
+const CANONICAL_LRU_PREFIX: &str = ":wat::lru::";
+
+fn canonical_lru_leaf(tail: &str) -> &str {
+    match tail {
+        "ReqPair" => "ReqChannel",
+        other => other,
+    }
+}
+
+fn walk_for_legacy_lru_cache_service(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::Keyword(s, span) => {
+            if let Some(tail) = s.strip_prefix(LEGACY_LRU_CACHE_SERVICE_TYPEALIAS_PREFIX) {
+                let new = format!(
+                    "{}{}",
+                    CANONICAL_LRU_PREFIX,
+                    canonical_lru_leaf(tail)
+                );
+                errors.push(CheckError::BareLegacyLruCacheServicePath {
+                    old: s.clone(),
+                    new,
+                    span: span.clone(),
+                });
+            } else if let Some(tail) = s.strip_prefix(LEGACY_LRU_CACHE_SERVICE_VERB_PREFIX) {
+                let new = format!("{}{}", CANONICAL_LRU_PREFIX, tail);
+                errors.push(CheckError::BareLegacyLruCacheServicePath {
+                    old: s.clone(),
+                    new,
+                    span: span.clone(),
+                });
+            }
+        }
+        WatAST::List(items, _) => {
+            for item in items {
+                walk_for_legacy_lru_cache_service(item, errors);
             }
         }
         _ => {}

@@ -47,7 +47,7 @@ named typealias.
 :wat::lru::CacheService::ReplyTx         → :wat::lru::ReplyTx
 :wat::lru::CacheService::Report          → :wat::lru::Report
 :wat::lru::CacheService::Reporter        → :wat::lru::Reporter
-:wat::lru::CacheService::ReqPair         → :wat::lru::ReqPair         ;; KEEP "Pair" naming (gaze-strict)
+:wat::lru::CacheService::ReqPair         → :wat::lru::ReqChannel      ;; gaze-renamed (in-crate ReqPair/ReplyChannel mumble)
 :wat::lru::CacheService::ReqRx           → :wat::lru::ReqRx
 :wat::lru::CacheService::ReqTx           → :wat::lru::ReqTx
 :wat::lru::CacheService::Request         → :wat::lru::Request
@@ -97,18 +97,30 @@ These are NEW typealiases — not flattened from existing names.
 Today's `get`/`put` body code constructs the rx ad-hoc; post-
 K.lru, those construction sites can use the named alias.
 
-### Why not rename `ReqPair` → `ReqChannel`?
+### Renaming `ReqPair` → `ReqChannel` (gaze-resolved 2026-05-01)
 
-Telemetry uses `ReqChannel<E>`; LRU uses `ReqPair<K,V>`. Both
-mean "the (Tx, Rx) tuple." Strict reading of the gaze finding
-(INVENTORY § K) flagged ONLY the missing `ReplyRx<V>` —
-`ReqPair` was named (just differently from Pattern A's
-"Channel" suffix). Substrate-wide consistency could rename
-`ReqPair` → `ReqChannel`, but that's a stylistic preference,
-not a Level-2 mumble. **Keeping ReqPair in K.lru** to avoid
-expanding gaze's scope mid-slice; if a future scrutiny pass
-prefers Pattern B's `ReqChannel` for consistency, that lands
-as a separate small slice.
+Initial draft kept `ReqPair`. User flagged the question; gaze
+ward returned a Level 2 mumble finding:
+
+> Within the SAME crate, post-K.lru, the reader sees two
+> typealiases of identical shape — `ReqPair<K,V>` and
+> `ReplyChannel<V>`. Same structural pattern `(X-tx, X-rx)`,
+> different suffix word. The reader who arrives cold MUST stop
+> and ask: "is a `Pair` a different kind of thing from a
+> `Channel`?" That's the lookup-forcing pause gaze flags as a
+> mumble. The answer is "no, they're the same kind of thing"
+> — which means the suffix divergence carries no information,
+> only friction.
+
+**Verdict: rename `ReqPair<K,V>` → `ReqChannel<K,V>`.** Anchor:
+the rename eliminates the in-crate suffix divergence between
+`ReqChannel` and `ReplyChannel`. Substrate-wide consistency
+(telemetry / console / lru all using `ReqChannel`) is a free
+bonus, not the primary justification.
+
+Plus update the doc-comment at the typealias to match
+("the (ReqTx, ReqRx) channel as a single name") so prose
+doesn't stay-stale post-rename.
 
 ## Pattern 3 walker
 
