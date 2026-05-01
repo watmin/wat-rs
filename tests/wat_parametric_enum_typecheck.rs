@@ -6,7 +6,7 @@
 //! the enum had type parameters. The lab harness's `wat::test! {}`
 //! path goes through `startup_from_source` (this test does too), and
 //! `check_program` is invoked there — pre-fix, the checker saw the
-//! body produce `:WalkStep` and rejected against a `:WalkStep<i64>`
+//! body produce `:WalkStep` and rejected against a `:WalkStep<wat::core::i64>`
 //! signature.
 //!
 //! The substrate's runtime-only `run` test helper (in `runtime.rs::
@@ -52,14 +52,14 @@ fn run(src: &str) -> Vec<String> {
 
 /// `:wat::eval::WalkStep<A>` (the first parametric built-in enum).
 /// A function whose body returns `(:wat::eval::WalkStep::Continue
-/// <i64>)` must satisfy a `-> :wat::eval::WalkStep<i64>` signature.
+/// <i64>)` must satisfy a `-> :wat::eval::WalkStep<wat::core::i64>` signature.
 /// Pre-arc-071 this failed type-check because the synthesized
 /// constructor's return type was bare `:wat::eval::WalkStep`.
 #[test]
 fn walkstep_continue_parametric_inference_at_use_site() {
     let src = r#"
         (:wat::core::define
-          (:my::test::wrap (n :i64) -> :wat::eval::WalkStep<i64>)
+          (:my::test::wrap (n :wat::core::i64) -> :wat::eval::WalkStep<wat::core::i64>)
           (:wat::eval::WalkStep::Continue n))
         (:wat::core::define
           (:user::main
@@ -68,7 +68,7 @@ fn walkstep_continue_parametric_inference_at_use_site() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((wrapped :wat::eval::WalkStep<i64>) (:my::test::wrap 7)))
+            (((wrapped :wat::eval::WalkStep<wat::core::i64>) (:my::test::wrap 7)))
             (:wat::io::IOWriter/println stdout "ok")))
     "#;
     assert_eq!(run(src), vec!["ok".to_string()]);
@@ -81,8 +81,8 @@ fn walkstep_skip_parametric_inference_at_use_site() {
     let src = r#"
         (:wat::core::define
           (:my::test::halt
-            (n :i64)
-            -> :wat::eval::WalkStep<i64>)
+            (n :wat::core::i64)
+            -> :wat::eval::WalkStep<wat::core::i64>)
           (:wat::eval::WalkStep::Skip
             (:wat::holon::leaf 999)
             n))
@@ -93,7 +93,7 @@ fn walkstep_skip_parametric_inference_at_use_site() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((halted :wat::eval::WalkStep<i64>) (:my::test::halt 3)))
+            (((halted :wat::eval::WalkStep<wat::core::i64>) (:my::test::halt 3)))
             (:wat::io::IOWriter/println stdout "ok")))
     "#;
     assert_eq!(run(src), vec!["ok".to_string()]);
@@ -109,10 +109,10 @@ fn walk_visitor_signature_matches_at_use_site() {
     let src = r#"
         (:wat::core::define
           (:my::test::count-visit
-            (acc :i64)
+            (acc :wat::core::i64)
             (form :wat::WatAST)
             (step :wat::eval::StepResult)
-            -> :wat::eval::WalkStep<i64>)
+            -> :wat::eval::WalkStep<wat::core::i64>)
           (:wat::eval::WalkStep::Continue (:wat::core::i64::+ acc 1)))
         (:wat::core::define
           (:user::main
@@ -130,7 +130,7 @@ fn walk_visitor_signature_matches_at_use_site() {
               :my::test::count-visit) -> :()
             ((Ok pair)
               (:wat::core::let*
-                (((count :i64) (:wat::core::second pair)))
+                (((count :wat::core::i64) (:wat::core::second pair)))
                 (:wat::core::if (:wat::core::i64::= count 1) -> :()
                   (:wat::io::IOWriter/println stdout "ok")
                   (:wat::io::IOWriter/println stdout "wrong-count"))))

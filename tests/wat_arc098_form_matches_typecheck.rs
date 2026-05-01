@@ -60,8 +60,8 @@ fn expect_check_error(src: &str, expected_substring: &str) {
 /// path is dead at runtime; type-check still walks both branches.
 const PROLOGUE_VALID: &str = r#"
 (:wat::core::struct :test::PaperResolved
-  (outcome :String)
-  (grace-residue :f64))
+  (outcome :wat::core::String)
+  (grace-residue :wat::core::f64))
 (:wat::core::define
   (:user::main
     (stdin  :wat::io::IOReader)
@@ -71,8 +71,8 @@ const PROLOGUE_VALID: &str = r#"
   (:wat::core::let*
     (((p :test::PaperResolved)
       (:test::PaperResolved/new "Grace" 7.5))
-     ((b :bool)
-      (:wat::core::if true -> :bool true SUBSTITUTE_HERE)))
+     ((b :wat::core::bool)
+      (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)))
     (:wat::io::IOWriter/println stdout (:wat::core::bool::to-string b))))
 "#;
 
@@ -82,8 +82,8 @@ fn valid_src(matches_call: &str) -> String {
 
 const PROLOGUE_INVALID: &str = r#"
 (:wat::core::struct :test::PaperResolved
-  (outcome :String)
-  (grace-residue :f64))
+  (outcome :wat::core::String)
+  (grace-residue :wat::core::f64))
 (:wat::core::define
   (:user::main
     (stdin  :wat::io::IOReader)
@@ -93,8 +93,8 @@ const PROLOGUE_INVALID: &str = r#"
   (:wat::core::let*
     (((p :test::PaperResolved)
       (:test::PaperResolved/new "Grace" 7.5))
-     ((b :bool)
-      (:wat::core::if true -> :bool true SUBSTITUTE_HERE)))
+     ((b :wat::core::bool)
+      (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)))
     (:wat::io::IOWriter/println stdout (:wat::core::bool::to-string b))))
 "#;
 

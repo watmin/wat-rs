@@ -47,14 +47,14 @@ fn user_struct_constructor_and_accessor_round_trip() {
     let src = r#"
 
         (:wat::core::struct :my::market::Bar
-          (open  :f64)
-          (close :f64))
+          (open  :wat::core::f64)
+          (close :wat::core::f64))
 
-        (:wat::core::define (:user::main -> :f64)
+        (:wat::core::define (:user::main -> :wat::core::f64)
           (:wat::core::let*
             (((b :my::market::Bar) (:my::market::Bar/new 1.0 2.0))
-             ((o :f64)             (:my::market::Bar/open b))
-             ((c :f64)             (:my::market::Bar/close b)))
+             ((o :wat::core::f64)             (:my::market::Bar/open b))
+             ((c :wat::core::f64)             (:my::market::Bar/close b)))
             (:wat::core::f64::- c o)))
     "#;
     match run(src) {
@@ -71,13 +71,13 @@ fn user_method_can_use_auto_accessors_in_body() {
     let src = r#"
 
         (:wat::core::struct :my::market::Bar
-          (high :f64)
-          (low  :f64))
+          (high :wat::core::f64)
+          (low  :wat::core::f64))
 
-        (:wat::core::define (:my::market::spread-of (b :my::market::Bar) -> :f64)
+        (:wat::core::define (:my::market::spread-of (b :my::market::Bar) -> :wat::core::f64)
           (:wat::core::f64::- (:my::market::Bar/high b) (:my::market::Bar/low b)))
 
-        (:wat::core::define (:user::main -> :f64)
+        (:wat::core::define (:user::main -> :wat::core::f64)
           (:wat::core::let*
             (((b :my::market::Bar) (:my::market::Bar/new 10.0 3.0)))
             (:my::market::spread-of b)))
@@ -93,15 +93,15 @@ fn struct_can_hold_heterogeneous_fields() {
     let src = r#"
 
         (:wat::core::struct :my::market::Tick
-          (symbol :String)
-          (price  :f64)
-          (volume :i64))
+          (symbol :wat::core::String)
+          (price  :wat::core::f64)
+          (volume :wat::core::i64))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((t :my::market::Tick)
               (:my::market::Tick/new "BTC" 50000.0 1000))
-             ((v :i64) (:my::market::Tick/volume t)))
+             ((v :wat::core::i64) (:my::market::Tick/volume t)))
             v))
     "#;
     match run(src) {
@@ -117,13 +117,13 @@ fn structs_are_values_that_survive_rebinding() {
     let src = r#"
 
         (:wat::core::struct :my::Point
-          (x :i64)
-          (y :i64))
+          (x :wat::core::i64)
+          (y :wat::core::i64))
 
-        (:wat::core::define (:my::y-of (p :my::Point) -> :i64)
+        (:wat::core::define (:my::y-of (p :my::Point) -> :wat::core::i64)
           (:my::Point/y p))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((p :my::Point) (:my::Point/new 3 7))
              ((q :my::Point) p))
@@ -143,8 +143,8 @@ fn constructor_arity_mismatch_rejected_at_check() {
     let src = r#"
 
         (:wat::core::struct :my::market::Bar
-          (open  :f64)
-          (close :f64))
+          (open  :wat::core::f64)
+          (close :wat::core::f64))
 
         (:wat::core::define (:user::main -> :my::market::Bar)
           (:my::market::Bar/new 1.0))
@@ -164,8 +164,8 @@ fn constructor_field_type_mismatch_rejected_at_check() {
     let src = r#"
 
         (:wat::core::struct :my::market::Bar
-          (open  :f64)
-          (close :f64))
+          (open  :wat::core::f64)
+          (close :wat::core::f64))
 
         (:wat::core::define (:user::main -> :my::market::Bar)
           (:my::market::Bar/new "not-a-float" 2.0))
@@ -187,10 +187,10 @@ fn accessor_returns_correct_field_type() {
     let src = r#"
 
         (:wat::core::struct :my::market::Bar
-          (open  :f64)
+          (open  :wat::core::f64)
           (volume :i64))
 
-        (:wat::core::define (:user::main -> :f64)
+        (:wat::core::define (:user::main -> :wat::core::f64)
           (:wat::core::let*
             (((b :my::market::Bar) (:my::market::Bar/new 1.0 100)))
             (:my::market::Bar/volume b)))
@@ -212,12 +212,12 @@ fn builtin_capacity_exceeded_struct_is_usable() {
     // available at startup without any user declaration.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((e :wat::holon::CapacityExceeded)
               (:wat::holon::CapacityExceeded/new 200 100))
-             ((cost   :i64) (:wat::holon::CapacityExceeded/cost   e))
-             ((budget :i64) (:wat::holon::CapacityExceeded/budget e)))
+             ((cost   :wat::core::i64) (:wat::holon::CapacityExceeded/cost   e))
+             ((budget :wat::core::i64) (:wat::holon::CapacityExceeded/budget e)))
             (:wat::core::i64::- cost budget)))
     "#;
     match run(src) {

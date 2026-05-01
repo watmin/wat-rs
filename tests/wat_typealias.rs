@@ -38,7 +38,7 @@ fn simple_alias_unifies_with_its_expansion() {
         (:wat::core::define (:app::double (x :my::Amount) -> :my::Amount)
           (:wat::core::f64::* x 2.0))
 
-        (:wat::core::define (:user::main -> :f64)
+        (:wat::core::define (:user::main -> :wat::core::f64)
           (:app::double 21.0))
     "#;
     match run(src) {
@@ -59,7 +59,7 @@ fn alias_of_alias_chain_expands_to_root() {
         (:wat::core::define (:app::inc (x :my::A) -> :my::A)
           (:wat::core::f64::+ x 1.0))
 
-        (:wat::core::define (:user::main -> :f64)
+        (:wat::core::define (:user::main -> :wat::core::f64)
           (:app::inc 41.0))
     "#;
     match run(src) {
@@ -120,21 +120,21 @@ fn alias_preserves_type_mismatches() {
 
 #[test]
 fn tuple_alias_works_at_hashmap_constructor_arg() {
-    // `:my::KV` aliases the K,V tuple `:(String,i64)`. The HashMap
+    // `:my::KV` aliases the K,V tuple `:(wat::core::String,wat::core::i64)`. The HashMap
     // constructor's first-arg check expands aliases before its
     // Tuple-shape match, so `(:wat::core::HashMap :my::KV ...)` is
-    // accepted exactly as if the literal `:(String,i64)` were
+    // accepted exactly as if the literal `:(wat::core::String,wat::core::i64)` were
     // written. Mirrors `:wat::core::Bytes ≡ :Vec<u8>` resolving
     // structurally at call sites.
     let src = r#"
-        (:wat::core::typealias :my::KV :(String,i64))
+        (:wat::core::typealias :my::KV :(wat::core::String,wat::core::i64))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
-            (((row :HashMap<String,i64>)
+            (((row :HashMap<wat::core::String,wat::core::i64>)
               (:wat::core::HashMap :my::KV "a" 1 "b" 2))
-             ((got :Option<i64>) (:wat::core::get row "b")))
-            (:wat::core::match got -> :i64
+             ((got :Option<wat::core::i64>) (:wat::core::get row "b")))
+            (:wat::core::match got -> :wat::core::i64
               ((Some v) v)
               (:None -1))))
     "#;
@@ -149,13 +149,13 @@ fn alias_over_hashmap_passes_through_std_get() {
     // its HashMap root and the call type-checks.
     let src = r#"
 
-        (:wat::core::typealias :my::Row :HashMap<String,i64>)
+        (:wat::core::typealias :my::Row :HashMap<wat::core::String,wat::core::i64>)
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
-            (((row :my::Row) (:wat::core::HashMap :(String,i64) "a" 10 "b" 20))
-             ((got :Option<i64>) (:wat::core::get row "a")))
-            (:wat::core::match got -> :i64
+            (((row :my::Row) (:wat::core::HashMap :(wat::core::String,wat::core::i64) "a" 10 "b" 20))
+             ((got :Option<wat::core::i64>) (:wat::core::get row "a")))
+            (:wat::core::match got -> :wat::core::i64
               ((Some v) v)
               (:None -1))))
     "#;
@@ -164,26 +164,26 @@ fn alias_over_hashmap_passes_through_std_get() {
 
 #[test]
 fn alias_over_fn_type_works_at_spawn() {
-    // `:my::Job` aliases :fn(Sender<i64>)->:(). The spawn-extract-Fn
+    // `:my::Job` aliases :fn(Sender<wat::core::i64>)->:(). The spawn-extract-Fn
     // site at infer_spawn must see through the alias to find the Fn
     // shape.
     let src = r#"
 
         (:wat::core::typealias
           :my::Job
-          :fn(rust::crossbeam_channel::Sender<i64>)->())
+          :fn(rust::crossbeam_channel::Sender<wat::core::i64>)->())
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((job :my::Job)
-              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
                 (:wat::core::let*
                   (((_ :()) (:wat::core::result::expect -> :() (:wat::kernel::send tx 7) "test producer: tx disconnected")))
                   ())))
-             ((pair :(rust::crossbeam_channel::Sender<i64>,rust::crossbeam_channel::Receiver<i64>))
-              (:wat::kernel::make-bounded-queue :i64 1))
-             ((tx :rust::crossbeam_channel::Sender<i64>) (:wat::core::first pair))
-             ((rx :rust::crossbeam_channel::Receiver<i64>) (:wat::core::second pair))
+             ((pair :(rust::crossbeam_channel::Sender<wat::core::i64>,rust::crossbeam_channel::Receiver<wat::core::i64>))
+              (:wat::kernel::make-bounded-queue :wat::core::i64 1))
+             ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) (:wat::core::first pair))
+             ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>) (:wat::core::second pair))
              ((h :wat::kernel::Thread<(),()>)
               (:wat::kernel::spawn-thread
                 (:wat::core::lambda
@@ -193,7 +193,7 @@ fn alias_over_fn_type_works_at_spawn() {
                   (job tx))))
              ((_ :Result<(),Vec<wat::kernel::ThreadDiedError>>)
               (:wat::kernel::Thread/join-result h)))
-            (:wat::core::match (:wat::kernel::recv rx) -> :i64
+            (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
               ((Ok (Some v)) v)
               ((Ok :None) 0)
               ((Err _died) -1))))
@@ -212,7 +212,7 @@ fn alias_return_type_accepts_expanded_literal() {
         (:wat::core::define (:app::zero -> :my::Amount)
           0.0)
 
-        (:wat::core::define (:user::main -> :f64)
+        (:wat::core::define (:user::main -> :wat::core::f64)
           (:app::zero))
     "#;
     match run(src) {

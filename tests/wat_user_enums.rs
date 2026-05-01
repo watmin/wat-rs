@@ -76,15 +76,15 @@ fn unit_variant_evaluates_via_bare_keyword() {
 fn tagged_variant_constructs_and_match_binds_fields() {
     let src = r##"
         (:wat::core::enum :my::Event
-          (Candle  (open :f64) (close :f64))
-          (Deposit (amount :f64))
+          (Candle  (open :wat::core::f64) (close :wat::core::f64))
+          (Deposit (amount :wat::core::f64))
           :Nothing)
 
         (:wat::core::define (:my::a-candle -> :my::Event)
           (:my::Event::Candle 100.0 105.0))
 
-        (:wat::core::define (:my::summary (e :my::Event) -> :String)
-          (:wat::core::match e -> :String
+        (:wat::core::define (:my::summary (e :my::Event) -> :wat::core::String)
+          (:wat::core::match e -> :wat::core::String
             ((:my::Event::Candle  o c) (:wat::core::f64::to-string c))
             ((:my::Event::Deposit amt) (:wat::core::f64::to-string amt))
             (:my::Event::Nothing       "nothing")))
@@ -126,11 +126,11 @@ fn wildcard_arm_satisfies_exhaustiveness() {
 fn match_mixes_unit_and_tagged_arms() {
     let src = r##"
         (:wat::core::enum :my::Event
-          (Open  (size :f64))
+          (Open  (size :wat::core::f64))
           :Hold)
 
-        (:wat::core::define (:my::act (e :my::Event) -> :String)
-          (:wat::core::match e -> :String
+        (:wat::core::define (:my::act (e :my::Event) -> :wat::core::String)
+          (:wat::core::match e -> :wat::core::String
             ((:my::Event::Open size) (:wat::core::f64::to-string size))
             (:my::Event::Hold        "hold")))
 
@@ -141,8 +141,8 @@ fn match_mixes_unit_and_tagged_arms() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((line1 :String) (:my::act (:my::Event::Open 7.5)))
-             ((line2 :String) (:my::act :my::Event::Hold)))
+            (((line1 :wat::core::String) (:my::act (:my::Event::Open 7.5)))
+             ((line2 :wat::core::String) (:my::act :my::Event::Hold)))
             (:wat::core::let*
               (((_ :()) (:wat::io::IOWriter/println stdout line1)))
               (:wat::io::IOWriter/println stdout line2))))

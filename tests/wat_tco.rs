@@ -52,12 +52,12 @@ fn self_recursion_via_if_at_million_depth() {
     // TCO the loop in apply_function reuses one frame the entire way.
     let src = r#"
 
-        (:wat::core::define (:app::countdown (n :i64) (acc :i64) -> :i64)
-          (:wat::core::if (:wat::core::= n 0) -> :i64
+        (:wat::core::define (:app::countdown (n :wat::core::i64) (acc :wat::core::i64) -> :wat::core::i64)
+          (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
             acc
             (:app::countdown (:wat::core::i64::- n 1) (:wat::core::i64::+ acc 1))))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:app::countdown 1000000 0))
     "#;
     assert!(matches!(run(src), Value::i64(1_000_000)));
@@ -75,17 +75,17 @@ fn self_recursion_via_match_at_high_depth() {
     // 100k iterations — well past any default stack without TCO.
     let src = r#"
 
-        (:wat::core::define (:app::drain (remaining :i64) (acc :i64) -> :i64)
+        (:wat::core::define (:app::drain (remaining :wat::core::i64) (acc :wat::core::i64) -> :wat::core::i64)
           (:wat::core::match
-            (:wat::core::if (:wat::core::> remaining 0) -> :Option<i64>
+            (:wat::core::if (:wat::core::> remaining 0) -> :Option<wat::core::i64>
               (Some remaining)
               :None)
-            -> :i64
+            -> :wat::core::i64
             ((Some v)
               (:app::drain (:wat::core::i64::- v 1) (:wat::core::i64::+ acc 1)))
             (:None acc)))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:app::drain 100000 0))
     "#;
     assert!(matches!(run(src), Value::i64(100_000)));
@@ -100,17 +100,17 @@ fn mutual_recursion_between_two_defines() {
     // constant. 100k each way = 200k tail calls total.
     let src = r#"
 
-        (:wat::core::define (:app::is-even (n :i64) -> :bool)
-          (:wat::core::if (:wat::core::= n 0) -> :bool
+        (:wat::core::define (:app::is-even (n :wat::core::i64) -> :wat::core::bool)
+          (:wat::core::if (:wat::core::= n 0) -> :wat::core::bool
             true
             (:app::is-odd (:wat::core::i64::- n 1))))
 
-        (:wat::core::define (:app::is-odd (n :i64) -> :bool)
-          (:wat::core::if (:wat::core::= n 0) -> :bool
+        (:wat::core::define (:app::is-odd (n :wat::core::i64) -> :wat::core::bool)
+          (:wat::core::if (:wat::core::= n 0) -> :wat::core::bool
             false
             (:app::is-even (:wat::core::i64::- n 1))))
 
-        (:wat::core::define (:user::main -> :bool)
+        (:wat::core::define (:user::main -> :wat::core::bool)
           (:app::is-even 100000))
     "#;
     assert!(matches!(run(src), Value::bool(true)));
@@ -126,14 +126,14 @@ fn tail_call_inside_let_star_body_propagates() {
     // through plain eval).
     let src = r#"
 
-        (:wat::core::define (:app::loop (n :i64) -> :i64)
+        (:wat::core::define (:app::loop (n :wat::core::i64) -> :wat::core::i64)
           (:wat::core::let*
-            (((next :i64) (:wat::core::i64::- n 1)))
-            (:wat::core::if (:wat::core::<= n 0) -> :i64
+            (((next :wat::core::i64) (:wat::core::i64::- n 1)))
+            (:wat::core::if (:wat::core::<= n 0) -> :wat::core::i64
               0
               (:app::loop next))))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:app::loop 100000))
     "#;
     assert!(matches!(run(src), Value::i64(0)));
@@ -153,12 +153,12 @@ fn non_tail_recursion_modest_depth_correct() {
     // i64 range.
     let src = r#"
 
-        (:wat::core::define (:app::pow2 (n :i64) -> :i64)
-          (:wat::core::if (:wat::core::= n 0) -> :i64
+        (:wat::core::define (:app::pow2 (n :wat::core::i64) -> :wat::core::i64)
+          (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
             1
             (:wat::core::i64::* 2 (:app::pow2 (:wat::core::i64::- n 1)))))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:app::pow2 20))
     "#;
     assert!(matches!(run(src), Value::i64(1_048_576)));
@@ -178,19 +178,19 @@ fn try_inside_tail_recursive_function_short_circuits() {
     // the `check` helper returns Err and `try` propagates.
     let src = r#"
 
-        (:wat::core::define (:app::check (n :i64) -> :Result<i64,String>)
-          (:wat::core::if (:wat::core::< n 0) -> :Result<i64,String>
+        (:wat::core::define (:app::check (n :wat::core::i64) -> :Result<wat::core::i64,wat::core::String>)
+          (:wat::core::if (:wat::core::< n 0) -> :Result<wat::core::i64,wat::core::String>
             (Err "negative")
             (Ok n)))
 
-        (:wat::core::define (:app::loop (n :i64) -> :Result<i64,String>)
+        (:wat::core::define (:app::loop (n :wat::core::i64) -> :Result<wat::core::i64,wat::core::String>)
           (:wat::core::let*
-            (((valid :i64) (:wat::core::try (:app::check n))))
-            (:wat::core::if (:wat::core::= valid 0) -> :Result<i64,String>
+            (((valid :wat::core::i64) (:wat::core::try (:app::check n))))
+            (:wat::core::if (:wat::core::= valid 0) -> :Result<wat::core::i64,wat::core::String>
               (Ok 0)
               (:app::loop (:wat::core::i64::- valid 1)))))
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (:app::loop 50000))
     "#;
     match run(src) {
@@ -206,21 +206,21 @@ fn try_inside_tail_recursive_function_short_circuits() {
 fn try_inside_tail_recursive_function_propagates_err() {
     let src = r#"
 
-        (:wat::core::define (:app::check (n :i64) -> :Result<i64,String>)
-          (:wat::core::if (:wat::core::< n 0) -> :Result<i64,String>
+        (:wat::core::define (:app::check (n :wat::core::i64) -> :Result<wat::core::i64,wat::core::String>)
+          (:wat::core::if (:wat::core::< n 0) -> :Result<wat::core::i64,wat::core::String>
             (Err "negative")
             (Ok n)))
 
-        (:wat::core::define (:app::loop (n :i64) -> :Result<i64,String>)
+        (:wat::core::define (:app::loop (n :wat::core::i64) -> :Result<wat::core::i64,wat::core::String>)
           (:wat::core::let*
-            (((valid :i64) (:wat::core::try (:app::check n))))
-            (:wat::core::if (:wat::core::<= valid (:wat::core::i64::- 0 1)) -> :Result<i64,String>
+            (((valid :wat::core::i64) (:wat::core::try (:app::check n))))
+            (:wat::core::if (:wat::core::<= valid (:wat::core::i64::- 0 1)) -> :Result<wat::core::i64,wat::core::String>
               (Ok 0)
               (:app::loop (:wat::core::i64::- valid 1)))))
 
         ;; Start at -1 so `check` immediately returns Err and `try`
         ;; propagates.
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (:app::loop -1))
     "#;
     match run(src) {
@@ -245,11 +245,11 @@ fn lambda_tail_call_via_let_bound_symbol() {
     // million-depth case comes via mutual alternation below.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
-            (((f :fn(i64)->i64)
-              (:wat::core::lambda ((n :i64) -> :i64)
-                (:wat::core::if (:wat::core::= n 0) -> :i64 0 n))))
+            (((f :fn(wat::core::i64)->wat::core::i64)
+              (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
+                (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64 0 n))))
             (f 42)))
     "#;
     assert!(matches!(run(src), Value::i64(42)));
@@ -262,8 +262,8 @@ fn inline_lambda_literal_tail_call() {
     // triggers a TailCall emission from the List head arm.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
-          ((:wat::core::lambda ((n :i64) -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          ((:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
              (:wat::core::i64::* n 2))
            21))
     "#;
@@ -279,15 +279,15 @@ fn named_define_tail_calls_lambda_param() {
     let src = r#"
 
         (:wat::core::define (:app::invoke
-                             (f :fn(i64)->i64)
-                             (n :i64)
-                             -> :i64)
+                             (f :fn(wat::core::i64)->wat::core::i64)
+                             (n :wat::core::i64)
+                             -> :wat::core::i64)
           (f n))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
-            (((double :fn(i64)->i64)
-              (:wat::core::lambda ((x :i64) -> :i64)
+            (((double :fn(wat::core::i64)->wat::core::i64)
+              (:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64)
                 (:wat::core::i64::* x 2))))
             (:app::invoke double 21)))
     "#;
@@ -313,14 +313,14 @@ fn inline_lambda_named_alternation_at_high_depth() {
     // rate; it cares that stack stays flat.)
     let src = r#"
 
-        (:wat::core::define (:app::go (state :i64) (n :i64) -> :i64)
-          (:wat::core::if (:wat::core::= n 0) -> :i64
+        (:wat::core::define (:app::go (state :wat::core::i64) (n :wat::core::i64) -> :wat::core::i64)
+          (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
             state
-            ((:wat::core::lambda ((s :i64) (k :i64) -> :i64)
+            ((:wat::core::lambda ((s :wat::core::i64) (k :wat::core::i64) -> :wat::core::i64)
                (:app::go (:wat::core::i64::+ s 1) (:wat::core::i64::- k 1)))
              state n)))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:app::go 0 100000))
     "#;
     assert!(matches!(run(src), Value::i64(100_000)));

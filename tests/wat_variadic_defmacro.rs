@@ -37,7 +37,7 @@ fn run(src: &str) -> Value {
 #[test]
 fn variadic_macro_splices_rest_into_vec_ctor() {
     // `(my::vec-of :i64 1 2 3)` expands to
-    // `(:wat::core::vec :i64 1 2 3)`. The `& (items ...)` rest-binder
+    // `(:wat::core::vec :wat::core::i64 1 2 3)`. The `& (items ...)` rest-binder
     // collects the trailing 1 2 3 into a list; `,@items` splices them.
     let src = r#"
 
@@ -45,10 +45,10 @@ fn variadic_macro_splices_rest_into_vec_ctor() {
           (:my::vec-of
             & (items :AST<wat::holon::Holons>)
             -> :AST<wat::holon::HolonAST>)
-          `(:wat::core::vec :i64 ,@items))
+          `(:wat::core::vec :wat::core::i64 ,@items))
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:wat::core::first (:my::vec-of 10 20 30)) -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match (:wat::core::first (:my::vec-of 10 20 30)) -> :wat::core::i64
             ((Some n) n)
             (:None -1)))
     "#;
@@ -65,9 +65,9 @@ fn variadic_macro_with_zero_rest_args_produces_empty_splice() {
           (:my::empty-vec
             & (items :AST<wat::holon::Holons>)
             -> :AST<wat::holon::HolonAST>)
-          `(:wat::core::vec :i64 ,@items))
+          `(:wat::core::vec :wat::core::i64 ,@items))
 
-        (:wat::core::define (:user::main -> :Vec<i64>)
+        (:wat::core::define (:user::main -> :Vec<wat::core::i64>)
           (:my::empty-vec))
     "#;
     match run(src) {
@@ -90,16 +90,16 @@ fn variadic_macro_mixes_fixed_params_and_rest() {
 
         (:wat::core::defmacro
           (:my::sum-of
-            (init :AST<i64>)
+            (init :AST<wat::core::i64>)
             & (items :AST<wat::holon::Holons>)
             -> :AST<wat::holon::HolonAST>)
           `(:wat::core::foldl
-              (:wat::core::vec :i64 ,@items)
+              (:wat::core::vec :wat::core::i64 ,@items)
               ,init
-              (:wat::core::lambda ((acc :i64) (x :i64) -> :i64)
+              (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
                 (:wat::core::i64::+ acc x))))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:my::sum-of 100 1 2 3))
     "#;
     assert!(matches!(run(src), Value::i64(106)));
@@ -116,16 +116,16 @@ fn variadic_macro_requires_at_least_fixed_arity() {
 
         (:wat::core::defmacro
           (:my::sum-of
-            (init :AST<i64>)
+            (init :AST<wat::core::i64>)
             & (items :AST<wat::holon::Holons>)
             -> :AST<wat::holon::HolonAST>)
           `(:wat::core::foldl
-              (:wat::core::vec :i64 ,@items)
+              (:wat::core::vec :wat::core::i64 ,@items)
               ,init
-              (:wat::core::lambda ((acc :i64) (x :i64) -> :i64)
+              (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
                 (:wat::core::i64::+ acc x))))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:my::sum-of))
     "#;
     match startup(src) {
@@ -147,9 +147,9 @@ fn double_rest_marker_refused_at_registration() {
             &
             (items :AST<wat::holon::Holons>)
             -> :AST<wat::holon::HolonAST>)
-          `(:wat::core::vec :i64 ,@items))
+          `(:wat::core::vec :wat::core::i64 ,@items))
 
-        (:wat::core::define (:user::main -> :i64) 0)
+        (:wat::core::define (:user::main -> :wat::core::i64) 0)
     "#;
     match startup(src) {
         Err(StartupError::Macro(_)) => {}
@@ -164,12 +164,12 @@ fn rest_marker_without_binder_refused_at_registration() {
 
         (:wat::core::defmacro
           (:my::bogus
-            (x :AST<i64>)
+            (x :AST<wat::core::i64>)
             &
             -> :AST<wat::holon::HolonAST>)
           `(:wat::core::i64::+ ,x 0))
 
-        (:wat::core::define (:user::main -> :i64) 0)
+        (:wat::core::define (:user::main -> :wat::core::i64) 0)
     "#;
     match startup(src) {
         Err(StartupError::Macro(_)) => {}

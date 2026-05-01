@@ -28,7 +28,7 @@ const DEP_A: &[WatSource] = &[WatSource {
     path: "test-harness-deps/a.wat",
     source: r#"
         (:wat::core::define
-          (:user::test::dep-a::label -> :String)
+          (:user::test::dep-a::label -> :wat::core::String)
           "A")
     "#,
 }];
@@ -36,7 +36,7 @@ const DEP_B: &[WatSource] = &[WatSource {
     path: "test-harness-deps/b.wat",
     source: r#"
         (:wat::core::define
-          (:user::test::dep-b::label -> :String)
+          (:user::test::dep-b::label -> :wat::core::String)
           "B")
     "#,
 }];
@@ -59,8 +59,8 @@ fn harness_composes_multiple_deps_into_user_source() {
                                  (stderr :wat::io::IOWriter)
                                  -> :())
               (:wat::core::let*
-                (((_ :i64) (:wat::io::IOWriter/writeln stdout (:user::test::dep-a::label)))
-                 ((_ :i64) (:wat::io::IOWriter/writeln stdout (:user::test::dep-b::label))))
+                (((_ :wat::core::i64) (:wat::io::IOWriter/writeln stdout (:user::test::dep-a::label)))
+                 ((_ :wat::core::i64) (:wat::io::IOWriter/writeln stdout (:user::test::dep-b::label))))
                 ()))
         "#;
         let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");

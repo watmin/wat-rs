@@ -43,7 +43,7 @@ fn check_errors(src: &str) -> Vec<CheckError> {
 fn try_on_ok_extracts_inner_value() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (Ok (:wat::core::try (Ok 42))))
     "#;
     match run(src) {
@@ -59,7 +59,7 @@ fn try_on_ok_extracts_inner_value() {
 fn try_on_err_propagates_through_function() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (Ok (:wat::core::try (Err "boom"))))
     "#;
     match run(src) {
@@ -76,11 +76,11 @@ fn try_propagates_across_helper_function() {
     let src = r#"
 
         (:wat::core::define (:app::unwrap-or-propagate
-                             (r :Result<i64,String>)
-                             -> :Result<i64,String>)
+                             (r :Result<wat::core::i64,wat::core::String>)
+                             -> :Result<wat::core::i64,wat::core::String>)
           (Ok (:wat::core::try r)))
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (:app::unwrap-or-propagate (Err "from-helper")))
     "#;
     match run(src) {
@@ -99,10 +99,10 @@ fn try_chains_two_bindings_in_let_star() {
     // sum to satisfy the function's declared return type.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (:wat::core::let*
-            (((a :i64) (:wat::core::try (Ok 10)))
-             ((b :i64) (:wat::core::try (Ok 32))))
+            (((a :wat::core::i64) (:wat::core::try (Ok 10)))
+             ((b :wat::core::i64) (:wat::core::try (Ok 32))))
             (Ok (:wat::core::i64::+ a b))))
     "#;
     match run(src) {
@@ -120,10 +120,10 @@ fn try_short_circuits_let_star_on_first_err() {
     // evaluate. The body never runs either.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (:wat::core::let*
-            (((a :i64) (:wat::core::try (Err "early")))
-             ((b :i64) (:wat::core::try (Ok 99))))
+            (((a :wat::core::i64) (:wat::core::try (Err "early")))
+             ((b :wat::core::i64) (:wat::core::try (Ok 99))))
             (Ok (:wat::core::i64::+ a b))))
     "#;
     match run(src) {
@@ -142,13 +142,13 @@ fn try_inside_match_arm_propagates() {
     let src = r#"
 
         (:wat::core::define (:app::describe
-                             (o :Option<Result<i64,String>>)
-                             -> :Result<i64,String>)
-          (:wat::core::match o -> :Result<i64,String>
+                             (o :Option<Result<wat::core::i64,wat::core::String>>)
+                             -> :Result<wat::core::i64,wat::core::String>)
+          (:wat::core::match o -> :Result<wat::core::i64,wat::core::String>
             ((Some r) (Ok (:wat::core::try r)))
             (:None (Err "missing"))))
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (:app::describe (Some (Err "inner-boom"))))
     "#;
     match run(src) {
@@ -166,7 +166,7 @@ fn try_inside_match_arm_propagates() {
 fn try_with_zero_args_rejected_at_check() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (Ok (:wat::core::try)))
     "#;
     let errs = check_errors(src);
@@ -182,7 +182,7 @@ fn try_with_zero_args_rejected_at_check() {
 fn try_with_two_args_rejected_at_check() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (Ok (:wat::core::try (Ok 1) (Ok 2))))
     "#;
     let errs = check_errors(src);
@@ -199,7 +199,7 @@ fn try_on_non_result_arg_rejected_at_check() {
     // Passing a bare i64 — not a Result.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (Ok (:wat::core::try 42)))
     "#;
     let errs = check_errors(src);
@@ -236,7 +236,7 @@ fn try_mismatched_err_types_rejected_at_check() {
         (:wat::core::define (:app::produce-i64-err -> :Result<i64,i64>)
           (Err 99))
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (Ok (:wat::core::try (:app::produce-i64-err))))
     "#;
     let errs = check_errors(src);
@@ -256,11 +256,11 @@ fn try_inside_result_returning_lambda_propagates_to_lambda() {
     // lambda's Err as a Value::Result and wraps it back as-is.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            (((f :fn(Result<i64,String>)->Result<i64,String>)
+            (((f :fn(Result<wat::core::i64,wat::core::String>)->Result<wat::core::i64,wat::core::String>)
               (:wat::core::lambda
-                ((r :Result<i64,String>) -> :Result<i64,String>)
+                ((r :Result<wat::core::i64,wat::core::String>) -> :Result<wat::core::i64,wat::core::String>)
                 (Ok (:wat::core::try r)))))
             (f (Err "lambda-err"))))
     "#;
@@ -280,11 +280,11 @@ fn try_inside_non_result_lambda_rejected_at_check() {
     // MalformedForm fires.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Result<i64,String>)
+        (:wat::core::define (:user::main -> :Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
             (((f :fn(Result<i64,String>)->i64)
               (:wat::core::lambda
-                ((r :Result<i64,String>) -> :i64)
+                ((r :Result<wat::core::i64,wat::core::String>) -> :i64)
                 (:wat::core::try r))))
             (Ok (f (Ok 1)))))
     "#;

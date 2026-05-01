@@ -167,7 +167,7 @@ fn wait_child_surfaces_startup_error_exit_code() {
                                        (stderr :wat::io::IOWriter)
                                        -> :())
                     (:wat::core::let*
-                      (((_ :i64) (:wat::core::i64::+ 1 "two")))
+                      (((_ :wat::core::i64) (:wat::core::i64::+ 1 "two")))
                       ()))))))
             (:wat::kernel::Process/join-result child)))
     "#;
@@ -216,7 +216,7 @@ fn wait_child_surfaces_runtime_error_exit_code() {
                                        (stderr :wat::io::IOWriter)
                                        -> :())
                     (:wat::core::let*
-                      (((_ :u8) (:wat::core::u8 300)))
+                      (((_ :wat::core::u8) (:wat::core::u8 300)))
                       ()))))))
             (:wat::kernel::Process/join-result child)))
     "#;
@@ -269,7 +269,7 @@ fn wait_child_surfaces_nonzero_exit_code() {
             (((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
-                  (:wat::core::define (:user::main -> :i64) 42)))))
+                  (:wat::core::define (:user::main -> :wat::core::i64) 42)))))
             (:wat::kernel::Process/join-result child)))
     "#;
     assert!(unwrap_err_result(run(src)), "expected Err(ProcessDiedError) for EXIT_MAIN_SIGNATURE=4");
@@ -297,7 +297,7 @@ fn fork_child_reads_stdin_from_parent() {
                       (:None ()))))))
              ((in-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin child))
              ((out-r :wat::io::IOReader) (:wat::kernel::Process/stdout child))
-             ((_ :i64) (:wat::io::IOWriter/writeln in-w "ping")))
+             ((_ :wat::core::i64) (:wat::io::IOWriter/writeln in-w "ping")))
             (:wat::io::IOReader/read-line out-r)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "ping");

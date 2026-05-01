@@ -51,7 +51,7 @@ fn vector_bind_roundtrip() {
              ((c1 :wat::holon::Vector) (:wat::holon::vector-bind va vb))
              ((c2 :wat::holon::Vector) (:wat::holon::vector-bind va vb)))
             (:wat::io::IOWriter/println stdout
-              (:wat::core::if (:wat::core::= c1 c2) -> :String "yes" "no"))))
+              (:wat::core::if (:wat::core::= c1 c2) -> :wat::core::String "yes" "no"))))
     "##;
     assert_eq!(run(src), vec!["yes".to_string()]);
 }
@@ -71,9 +71,9 @@ fn vector_bundle_singleton_returns_input() {
              ((bundled :wat::holon::Vector)
               (:wat::holon::vector-bundle (:wat::core::vec :wat::holon::Vector va)))
              ;; Cosine should be ~1.0 (same sign pattern).
-             ((c :f64) (:wat::holon::cosine va bundled)))
+             ((c :wat::core::f64) (:wat::holon::cosine va bundled)))
             (:wat::io::IOWriter/println stdout
-              (:wat::core::if (:wat::core::> c 0.99) -> :String "near-1" "far"))))
+              (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
     "##;
     assert_eq!(run(src), vec!["near-1".to_string()]);
 }
@@ -92,10 +92,10 @@ fn vector_blend_weighted() {
             (((va :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((vb :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "y")))
              ((blended :wat::holon::Vector) (:wat::holon::vector-blend va vb 1.0 0.0))
-             ((c :f64) (:wat::holon::cosine va blended)))
+             ((c :wat::core::f64) (:wat::holon::cosine va blended)))
             ;; Pure a-weight should give very high cosine to a.
             (:wat::io::IOWriter/println stdout
-              (:wat::core::if (:wat::core::> c 0.95) -> :String "near-1" "far"))))
+              (:wat::core::if (:wat::core::> c 0.95) -> :wat::core::String "near-1" "far"))))
     "##;
     assert_eq!(run(src), vec!["near-1".to_string()]);
 }
@@ -114,7 +114,7 @@ fn vector_permute_changes_vector() {
             (((va :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ((shifted :wat::holon::Vector) (:wat::holon::vector-permute va 5)))
             (:wat::io::IOWriter/println stdout
-              (:wat::core::if (:wat::core::= va shifted) -> :String "same" "differs"))))
+              (:wat::core::if (:wat::core::= va shifted) -> :wat::core::String "same" "differs"))))
     "##;
     assert_eq!(run(src), vec!["differs".to_string()]);
 }

@@ -31,7 +31,7 @@ fn child_assertion_writes_died_chain_to_stderr() {
              ((joined :Result<(),Vec<wat::kernel::ProcessDiedError>>)
               (:wat::kernel::Process/join-result proc))
              ((stderr-r :wat::io::IOReader) (:wat::kernel::Process/stderr proc))
-             ((lines :Vec<String>) (:wat::kernel::drain-lines stderr-r)))
+             ((lines :Vec<wat::core::String>) (:wat::kernel::drain-lines stderr-r)))
             lines))
     "##;
     let v = run(src);
@@ -73,7 +73,7 @@ fn child_plain_exit_writes_panic_marker_to_stderr() {
              ((joined :Result<(),Vec<wat::kernel::ProcessDiedError>>)
               (:wat::kernel::Process/join-result proc))
              ((stderr-r :wat::io::IOReader) (:wat::kernel::Process/stderr proc))
-             ((lines :Vec<String>) (:wat::kernel::drain-lines stderr-r)))
+             ((lines :Vec<wat::core::String>) (:wat::kernel::drain-lines stderr-r)))
             lines))
     "##;
     let v = run(src);

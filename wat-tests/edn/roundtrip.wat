@@ -49,9 +49,9 @@
 
 (:deftest :wat-tests::edn::roundtrip-vec
   (:wat::core::let*
-    (((v :Vec<i64>) (:wat::core::vec :wat::core::i64 1 2 3))
+    (((v :Vec<wat::core::i64>) (:wat::core::vec :wat::core::i64 1 2 3))
      ((s :wat::core::String) (:wat::edn::write v))
-     ((back :Vec<i64>) (:wat::edn::read s)))
+     ((back :Vec<wat::core::i64>) (:wat::edn::read s)))
     (:wat::test::assert-eq back v)))
 
 
@@ -69,9 +69,9 @@
 
 (:deftest :wat-tests::edn::roundtrip-struct
   (:wat::core::let*
-    (((w :test::Wrapper<i64>) (:test::Wrapper/new "score" 42))
+    (((w :test::Wrapper<wat::core::i64>) (:test::Wrapper/new "score" 42))
      ((s :wat::core::String) (:wat::edn::write w))
-     ((back :test::Wrapper<i64>) (:wat::edn::read s)))
+     ((back :test::Wrapper<wat::core::i64>) (:wat::edn::read s)))
     (:wat::test::assert-eq back w)))
 
 

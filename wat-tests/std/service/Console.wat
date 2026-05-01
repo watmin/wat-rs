@@ -57,7 +57,7 @@
                 (:wat::kernel::Thread/join-result console-driver)))
               ())))
         (:wat::core::vec :wat::core::String)))
-     ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))
+     ((stdout :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
      ;; first returns Option<String> via arc 047. Test asserts the
      ;; expected first line; pattern-match unwraps.
      ((first-line :wat::core::String)
@@ -154,7 +154,7 @@
                 (:wat::kernel::Thread/join-result console-driver)))
               ())))
         (:wat::core::vec :wat::core::String)))
-     ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))
+     ((stdout :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
      ((seen-alpha :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout

@@ -70,7 +70,7 @@ fn add_two_i64s_via_macro_generated_shim() {
     let src = r#"
         (:wat::core::use! :rust::test::MathUtils)
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:rust::test::MathUtils::add 40 2))
     "#;
     let loader = InMemoryLoader::new();
@@ -86,8 +86,8 @@ fn option_some_via_macro_generated_shim() {
     let src = r#"
         (:wat::core::use! :rust::test::MathUtils)
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:rust::test::MathUtils::maybe_double 21) -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match (:rust::test::MathUtils::maybe_double 21) -> :wat::core::i64
             ((Some v) v)
             (:None -1)))
     "#;
@@ -104,8 +104,8 @@ fn option_none_via_macro_generated_shim() {
     let src = r#"
         (:wat::core::use! :rust::test::MathUtils)
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:rust::test::MathUtils::maybe_double 0) -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match (:rust::test::MathUtils::maybe_double 0) -> :wat::core::i64
             ((Some v) v)
             (:None -1)))
     "#;
@@ -122,7 +122,7 @@ fn type_check_rejects_wrong_arg_types() {
     let src = r#"
         (:wat::core::use! :rust::test::MathUtils)
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:rust::test::MathUtils::add "not-an-int" 2))
     "#;
     let loader = InMemoryLoader::new();

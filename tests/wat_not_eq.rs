@@ -47,7 +47,7 @@ fn not_eq_i64_true_when_different() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::io::IOWriter/println stdout
-            (:wat::core::if (:wat::core::not= 3 5) -> :String
+            (:wat::core::if (:wat::core::not= 3 5) -> :wat::core::String
               "yes" "no")))
     "##;
     assert_eq!(run(src), vec!["yes".to_string()]);
@@ -63,7 +63,7 @@ fn not_eq_i64_false_when_same() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::io::IOWriter/println stdout
-            (:wat::core::if (:wat::core::not= 7 7) -> :String
+            (:wat::core::if (:wat::core::not= 7 7) -> :wat::core::String
               "yes" "no")))
     "##;
     assert_eq!(run(src), vec!["no".to_string()]);
@@ -79,7 +79,7 @@ fn not_eq_f64_cross_numeric_coerce() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::io::IOWriter/println stdout
-            (:wat::core::if (:wat::core::not= 3 3.0) -> :String
+            (:wat::core::if (:wat::core::not= 3 3.0) -> :wat::core::String
               "yes" "no")))
     "##;
     assert_eq!(run(src), vec!["no".to_string()]);
@@ -103,7 +103,7 @@ fn eq_on_enum_unit_variants() {
               (:wat::core::if (:wat::core::and
                                 (:wat::core::= a b)
                                 (:wat::core::not= a c))
-                              -> :String
+                              -> :wat::core::String
                 "yes" "no"))))
     "##;
     assert_eq!(run(src), vec!["yes".to_string()]);

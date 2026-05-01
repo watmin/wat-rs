@@ -42,7 +42,7 @@
    ;; nested-fn-return capability that WorkUnit/make-scope needs.
    (:wat::core::define
      (:wat-telemetry::probe::make-adder
-       (x :wat::core::i64) -> :fn(i64)->i64)
+       (x :wat::core::i64) -> :fn(wat::core::i64)->wat::core::i64)
      (:wat::core::lambda ((y :wat::core::i64) -> :wat::core::i64)
        (:wat::core::+ x y)))
 
@@ -145,7 +145,7 @@
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :sql-page))
      ((_a :()) (:wat::telemetry::WorkUnit/append-dt! wu name 0.5))
      ((_b :()) (:wat::telemetry::WorkUnit/append-dt! wu name 1.5))
-     ((dts :Vec<f64>) (:wat::telemetry::WorkUnit/durations wu name)))
+     ((dts :Vec<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name)))
     (:wat::test::assert-eq dts (:wat::core::vec :wat::core::f64 0.5 1.5))))
 
 
@@ -171,7 +171,7 @@
       (:wat::telemetry::WorkUnit/timed wu name
         (:wat::core::lambda (-> :wat::core::i64) 99)))
      ((counter :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name))
-     ((dts :Vec<f64>) (:wat::telemetry::WorkUnit/durations wu name))
+     ((dts :Vec<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name))
      ((n-dts :wat::core::i64) (:wat::core::length dts))
      ((_a :()) (:wat::test::assert-eq result 99))
      ((_b :()) (:wat::test::assert-eq counter 1)))
@@ -192,7 +192,7 @@
       (:wat::telemetry::WorkUnit/timed wu name
         (:wat::core::lambda (-> :wat::core::i64) 2)))
      ((counter :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name))
-     ((dts :Vec<f64>) (:wat::telemetry::WorkUnit/durations wu name))
+     ((dts :Vec<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name))
      ((n-dts :wat::core::i64) (:wat::core::length dts))
      ((_a :()) (:wat::test::assert-eq counter 2)))
     (:wat::test::assert-eq n-dts 2)))
@@ -360,7 +360,7 @@
 ;; lambda value.
 (:deftest :wat-telemetry::WorkUnit::probe-fn-returning-fn
   (:wat::core::let*
-    (((adder :fn(i64)->i64)
+    (((adder :fn(wat::core::i64)->wat::core::i64)
       (:wat-telemetry::probe::make-adder 10))
      ((sum :wat::core::i64) (adder 5)))
     (:wat::test::assert-eq sum 15)))
@@ -390,7 +390,7 @@
 ;; for WorkUnit/scope handles works directly.
 (:deftest :wat-telemetry::WorkUnit::probe-rank-2-i64
   (:wat::core::let*
-    (((runner :fn(fn()->i64)->i64)
+    (((runner :fn(fn()->wat::core::i64)->wat::core::i64)
       (:wat-telemetry::probe::make-runner "i64-runner"))
      ((result :wat::core::i64) (runner (:wat::core::lambda (-> :wat::core::i64) 42))))
     (:wat::test::assert-eq result 42)))
@@ -455,7 +455,7 @@
               (:wat::kernel::HandlePool::pop pool))
              ((_finish :()) (:wat::kernel::HandlePool::finish pool))
              ((ns :wat::holon::HolonAST) (:wat-telemetry::default-ns))
-             ((scope :wat::telemetry::WorkUnit::Scope<i64>)
+             ((scope :wat::telemetry::WorkUnit::Scope<wat::core::i64>)
               (:wat::telemetry::WorkUnit/make-scope handle ns))
              ((tags :wat::telemetry::Tags) (:wat-telemetry::empty-tags)))
             (scope tags

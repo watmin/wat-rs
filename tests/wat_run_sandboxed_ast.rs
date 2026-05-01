@@ -62,10 +62,10 @@ fn ast_entry_prints_hello() {
                                        -> :())
                     (:wat::io::IOWriter/println stdout "hello")))))
              ((r :wat::kernel::RunResult)
-              (:wat::kernel::run-sandboxed-ast forms (:wat::core::vec :String) :None))
-             ((lines :Vec<String>) (:wat::kernel::RunResult/stdout r))
-             ((line :String)
-              (:wat::core::match (:wat::core::first lines) -> :String
+              (:wat::kernel::run-sandboxed-ast forms (:wat::core::vec :wat::core::String) :None))
+             ((lines :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
+             ((line :wat::core::String)
+              (:wat::core::match (:wat::core::first lines) -> :wat::core::String
                 ((Some s) s)
                 (:None ""))))
             (:wat::io::IOWriter/println stdout line)))
@@ -101,7 +101,7 @@ fn ast_entry_captures_assertion_failure() {
                                        -> :())
                     (:wat::test::assert-eq 1 2)))))
              ((r :wat::kernel::RunResult)
-              (:wat::kernel::run-sandboxed-ast forms (:wat::core::vec :String) :None))
+              (:wat::kernel::run-sandboxed-ast forms (:wat::core::vec :wat::core::String) :None))
              ((fail :Option<wat::kernel::Failure>)
               (:wat::kernel::RunResult/failure r)))
             (:wat::core::match fail -> :()

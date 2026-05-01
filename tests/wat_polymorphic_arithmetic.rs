@@ -74,7 +74,7 @@ fn poly_add_i64_i64_returns_i64() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let* (((sum :i64) (:wat::core::+ 2 3)))
+          (:wat::core::let* (((sum :wat::core::i64) (:wat::core::+ 2 3)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string sum))))
     "##;
     assert_eq!(run(src), vec!["5".to_string()]);
@@ -89,7 +89,7 @@ fn poly_add_f64_f64_returns_f64() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let* (((sum :f64) (:wat::core::+ 2.0 3.5)))
+          (:wat::core::let* (((sum :wat::core::f64) (:wat::core::+ 2.0 3.5)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string sum))))
     "##;
     assert_eq!(run(src), vec!["5.5".to_string()]);
@@ -106,7 +106,7 @@ fn poly_add_i64_f64_promotes_to_f64() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let* (((sum :f64) (:wat::core::+ 1 2.5)))
+          (:wat::core::let* (((sum :wat::core::f64) (:wat::core::+ 1 2.5)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string sum))))
     "##;
     assert_eq!(run(src), vec!["3.5".to_string()]);
@@ -121,7 +121,7 @@ fn poly_add_f64_i64_promotes_to_f64() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let* (((sum :f64) (:wat::core::+ 2.5 1)))
+          (:wat::core::let* (((sum :wat::core::f64) (:wat::core::+ 2.5 1)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string sum))))
     "##;
     assert_eq!(run(src), vec!["3.5".to_string()]);
@@ -136,7 +136,7 @@ fn poly_sub_mixed_promotes() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let* (((d :f64) (:wat::core::- 5 1.5)))
+          (:wat::core::let* (((d :wat::core::f64) (:wat::core::- 5 1.5)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string d))))
     "##;
     assert_eq!(run(src), vec!["3.5".to_string()]);
@@ -151,7 +151,7 @@ fn poly_mul_mixed_promotes() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let* (((p :f64) (:wat::core::* 3 1.5)))
+          (:wat::core::let* (((p :wat::core::f64) (:wat::core::* 3 1.5)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string p))))
     "##;
     assert_eq!(run(src), vec!["4.5".to_string()]);
@@ -166,7 +166,7 @@ fn poly_div_i64_i64_returns_i64() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let* (((q :i64) (:wat::core::/ 7 2)))
+          (:wat::core::let* (((q :wat::core::i64) (:wat::core::/ 7 2)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string q))))
     "##;
     assert_eq!(run(src), vec!["3".to_string()]);
@@ -181,7 +181,7 @@ fn poly_div_mixed_returns_f64() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let* (((q :f64) (:wat::core::/ 7 2.0)))
+          (:wat::core::let* (((q :wat::core::f64) (:wat::core::/ 7 2.0)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string q))))
     "##;
     assert_eq!(run(src), vec!["3.5".to_string()]);
@@ -198,7 +198,7 @@ fn poly_div_i64_zero_errors() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let* (((q :i64) (:wat::core::/ 5 0)))
+          (:wat::core::let* (((q :wat::core::i64) (:wat::core::/ 5 0)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string q))))
     "##;
     let err = run_expecting_runtime_error(src);
@@ -215,7 +215,7 @@ fn poly_div_f64_zero_errors() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let* (((q :f64) (:wat::core::/ 5.0 0.0)))
+          (:wat::core::let* (((q :wat::core::f64) (:wat::core::/ 5.0 0.0)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string q))))
     "##;
     let err = run_expecting_runtime_error(src);
@@ -232,7 +232,7 @@ fn poly_div_mixed_zero_errors() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :())
-          (:wat::core::let* (((q :f64) (:wat::core::/ 5 0.0)))
+          (:wat::core::let* (((q :wat::core::f64) (:wat::core::/ 5 0.0)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string q))))
     "##;
     let err = run_expecting_runtime_error(src);
@@ -394,9 +394,9 @@ fn typed_strict_arithmetic_coexists() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((a :i64) (:wat::core::i64::+ 1 2))
-             ((b :f64) (:wat::core::f64::+ 1.0 2.0))
-             ((c :f64) (:wat::core::+ 1 2.5)))
+            (((a :wat::core::i64) (:wat::core::i64::+ 1 2))
+             ((b :wat::core::f64) (:wat::core::f64::+ 1.0 2.0))
+             ((c :wat::core::f64) (:wat::core::+ 1 2.5)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string a))))
     "##;
     assert_eq!(run(src), vec!["3".to_string()]);

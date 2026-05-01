@@ -43,13 +43,13 @@ fn subspace_construct_dim_k_n_zero() {
             -> :())
           (:wat::core::let*
             (((s :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 16))
-             ((d :i64) (:wat::holon::OnlineSubspace/dim s))
-             ((k :i64) (:wat::holon::OnlineSubspace/k s))
-             ((n :i64) (:wat::holon::OnlineSubspace/n s)))
+             ((d :wat::core::i64) (:wat::holon::OnlineSubspace/dim s))
+             ((k :wat::core::i64) (:wat::holon::OnlineSubspace/k s))
+             ((n :wat::core::i64) (:wat::holon::OnlineSubspace/n s)))
             (:wat::io::IOWriter/println stdout
               (:wat::core::if
                 (:wat::core::and (:wat::core::= d 10000)
-                  (:wat::core::and (:wat::core::= k 16) (:wat::core::= n 0))) -> :String
+                  (:wat::core::and (:wat::core::= k 16) (:wat::core::= n 0))) -> :wat::core::String
                 "ok" "wrong"))))
     "##;
     assert_eq!(run(src), vec!["ok".to_string()]);
@@ -67,10 +67,10 @@ fn subspace_update_increments_n_and_returns_residual() {
           (:wat::core::let*
             (((s :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 4))
              ((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
-             ((residual :f64) (:wat::holon::OnlineSubspace/update s v))
-             ((n :i64) (:wat::holon::OnlineSubspace/n s)))
+             ((residual :wat::core::f64) (:wat::holon::OnlineSubspace/update s v))
+             ((n :wat::core::i64) (:wat::holon::OnlineSubspace/n s)))
             (:wat::io::IOWriter/println stdout
-              (:wat::core::if (:wat::core::= n 1) -> :String "incremented" "stuck"))))
+              (:wat::core::if (:wat::core::= n 1) -> :wat::core::String "incremented" "stuck"))))
     "##;
     assert_eq!(run(src), vec!["incremented".to_string()]);
 }
@@ -86,10 +86,10 @@ fn subspace_eigenvalues_returns_k_floats() {
             -> :())
           (:wat::core::let*
             (((s :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 8))
-             ((eigs :Vec<f64>) (:wat::holon::OnlineSubspace/eigenvalues s))
-             ((len :i64) (:wat::core::length eigs)))
+             ((eigs :Vec<wat::core::f64>) (:wat::holon::OnlineSubspace/eigenvalues s))
+             ((len :wat::core::i64) (:wat::core::length eigs)))
             (:wat::io::IOWriter/println stdout
-              (:wat::core::if (:wat::core::= len 8) -> :String "k-eigs" "wrong-len"))))
+              (:wat::core::if (:wat::core::= len 8) -> :wat::core::String "k-eigs" "wrong-len"))))
     "##;
     assert_eq!(run(src), vec!["k-eigs".to_string()]);
 }

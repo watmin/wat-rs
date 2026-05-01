@@ -49,7 +49,7 @@ fn named_define_is_a_function_value() {
     // be called by the user via a symbol binding.
     let src = r##"
 
-        (:wat::core::define (:my::double (x :i64) -> :i64)
+        (:wat::core::define (:my::double (x :wat::core::i64) -> :wat::core::i64)
           (:wat::core::i64::* x 2))
 
         (:wat::core::define
@@ -59,17 +59,17 @@ fn named_define_is_a_function_value() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((f :fn(i64)->i64) :my::double)
-             ((result :i64) (f 21)))
+            (((f :fn(wat::core::i64)->wat::core::i64) :my::double)
+             ((result :wat::core::i64) (f 21)))
             (:wat::io::IOWriter/println stdout
               (:wat::core::string::join ""
-                (:wat::core::conj (:wat::core::vec :String) "result-is-")))))
+                (:wat::core::conj (:wat::core::vec :wat::core::String) "result-is-")))))
     "##;
     // We can't stringify i64 without a fmt primitive. Check the call
     // worked by threading through a known branch.
     let src_check_result = r##"
 
-        (:wat::core::define (:my::double (x :i64) -> :i64)
+        (:wat::core::define (:my::double (x :wat::core::i64) -> :wat::core::i64)
           (:wat::core::i64::* x 2))
 
         (:wat::core::define
@@ -79,8 +79,8 @@ fn named_define_is_a_function_value() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((f :fn(i64)->i64) :my::double)
-             ((result :i64) (f 21)))
+            (((f :fn(wat::core::i64)->wat::core::i64) :my::double)
+             ((result :wat::core::i64) (f 21)))
             (:wat::core::if (:wat::core::= result 42) -> :()
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
@@ -94,14 +94,14 @@ fn named_define_is_a_function_value() {
 #[test]
 fn named_define_passes_to_higher_order_fn() {
     // A user-defined higher-order function `:my::apply-twice` takes
-    // `:fn(i64)->i64` and an `:i64`; calling it with `:my::inc` and
+    // `:fn(wat::core::i64)->wat::core::i64` and an `:i64`; calling it with `:my::inc` and
     // `5` via the bare keyword path — no lambda wrapper — yields 7.
     let src = r##"
 
-        (:wat::core::define (:my::inc (n :i64) -> :i64)
+        (:wat::core::define (:my::inc (n :wat::core::i64) -> :wat::core::i64)
           (:wat::core::i64::+ n 1))
 
-        (:wat::core::define (:my::apply-twice (f :fn(i64)->i64) (x :i64) -> :i64)
+        (:wat::core::define (:my::apply-twice (f :fn(wat::core::i64)->wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
           (f (f x)))
 
         (:wat::core::define
@@ -111,7 +111,7 @@ fn named_define_passes_to_higher_order_fn() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((result :i64) (:my::apply-twice :my::inc 5)))
+            (((result :wat::core::i64) (:my::apply-twice :my::inc 5)))
             (:wat::core::if (:wat::core::= result 7) -> :()
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
@@ -124,12 +124,12 @@ fn named_define_passes_to_higher_order_fn() {
 #[test]
 fn polymorphic_named_define_instantiates_at_use_site() {
     // Polymorphic `:my::identity<T>`. Passed to a monomorphic
-    // `:fn(i64)->i64` slot; the scheme's `T` instantiates to `i64`.
+    // `:fn(wat::core::i64)->wat::core::i64` slot; the scheme's `T` instantiates to `i64`.
     let src = r##"
 
         (:wat::core::define (:my::identity<T> (x :T) -> :T) x)
 
-        (:wat::core::define (:my::apply (f :fn(i64)->i64) (x :i64) -> :i64)
+        (:wat::core::define (:my::apply (f :fn(wat::core::i64)->wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
           (f x))
 
         (:wat::core::define
@@ -139,7 +139,7 @@ fn polymorphic_named_define_instantiates_at_use_site() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((result :i64) (:my::apply :my::identity 99)))
+            (((result :wat::core::i64) (:my::apply :my::identity 99)))
             (:wat::core::if (:wat::core::= result 99) -> :()
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
@@ -164,7 +164,7 @@ fn unregistered_keyword_still_a_literal() {
             -> :())
           (:wat::core::let*
             (((tag :wat::core::keyword) :my-app::tag::user-event)
-             ((same? :bool) (:wat::core::= tag :my-app::tag::user-event)))
+             ((same? :wat::core::bool) (:wat::core::= tag :my-app::tag::user-event)))
             (:wat::core::if same? -> :()
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
@@ -190,9 +190,9 @@ fn named_define_as_stream_map_fn() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((source :wat::std::stream::Stream<i64>)
+            (((source :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<i64>) -> :())
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :())
                   (:wat::core::let*
                     (((_ :())
                       (:wat::core::result::expect -> :()
@@ -207,14 +207,14 @@ fn named_define_as_stream_map_fn() {
                         (:wat::kernel::send tx 3)
                         "producer: tx disconnected on send 3")))
                     ()))))
-             ((doubled :wat::std::stream::Stream<i64>)
+             ((doubled :wat::std::stream::Stream<wat::core::i64>)
               (:wat::std::stream::map source :my::double))
-             ((collected :Vec<i64>) (:wat::std::stream::collect doubled))
-             ((first :i64)
-              (:wat::core::match (:wat::core::first collected) -> :i64
+             ((collected :Vec<wat::core::i64>) (:wat::std::stream::collect doubled))
+             ((first :wat::core::i64)
+              (:wat::core::match (:wat::core::first collected) -> :wat::core::i64
                 ((Some n) n)
                 (:None -1)))
-             ((len :i64) (:wat::core::length collected)))
+             ((len :wat::core::i64) (:wat::core::length collected)))
             (:wat::core::if (:wat::core::and (:wat::core::= first 2) (:wat::core::= len 3))
               -> :()
               (:wat::io::IOWriter/println stdout "pass")

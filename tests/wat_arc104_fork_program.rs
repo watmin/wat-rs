@@ -61,9 +61,9 @@ fn unwrap_err_result(v: Value) -> bool {
 fn fork_program_child_writes_stdout_parent_reads_line() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main -> :Option<wat::core::String>)
           (:wat::core::let*
-            (((inner-src :String)
+            (((inner-src :wat::core::String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::io::IOWriter/println stdout \"hello-from-fork\"))")
              ((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program inner-src :None))
@@ -84,9 +84,9 @@ fn fork_program_round_trip_via_pipes() {
     // std::thread.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main -> :Option<wat::core::String>)
           (:wat::core::let*
-            (((inner-src :String)
+            (((inner-src :wat::core::String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :() (:None ()) ((Some line) (:wat::io::IOWriter/println stdout (:wat::core::string::concat line line)))))")
              ((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program inner-src :None))
@@ -108,7 +108,7 @@ fn fork_program_clean_exit_code_via_wait_child() {
 
         (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
-            (((inner-src :String)
+            (((inner-src :wat::core::String)
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :()) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :() (:None ()) ((Some _) ())))")
              ((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program inner-src :None))
@@ -130,7 +130,7 @@ fn fork_program_parse_error_surfaces_as_exit_3() {
 
         (:wat::core::define (:user::main -> :Result<(),Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let*
-            (((bad-src :String)
+            (((bad-src :wat::core::String)
               "(:wat::core::define (:demo::not-main (x :i64) -> :i64) x)")
              ((child :wat::kernel::Program<(),()>)
               (:wat::kernel::fork-program bad-src :None)))

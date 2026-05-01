@@ -110,8 +110,8 @@ fn vec_u8_construction_round_trips() {
     // (:wat::core::vec :u8 0 65 127 255) — cast each from i64 literal.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<u8>)
-          (:wat::core::vec :u8
+        (:wat::core::define (:user::main -> :Vec<wat::core::u8>)
+          (:wat::core::vec :wat::core::u8
             (:wat::core::u8 0)
             (:wat::core::u8 65)
             (:wat::core::u8 127)

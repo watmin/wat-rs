@@ -48,7 +48,7 @@ fn raise_data_round_trips_through_failure_message() {
                     (:wat::holon::leaf 42)))))
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-ast
-                forms (:wat::core::vec :String) :None))
+                forms (:wat::core::vec :wat::core::String) :None))
              ((fail :Option<wat::kernel::Failure>)
               (:wat::kernel::RunResult/failure r))
              ((recovered :Option<wat::holon::HolonAST>)

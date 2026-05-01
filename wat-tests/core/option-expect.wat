@@ -18,7 +18,7 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-i64
   ()
   (:wat::core::let*
-    (((opt :Option<i64>) (Some 42))
+    (((opt :Option<wat::core::i64>) (Some 42))
      ((v :wat::core::i64)
       (:wat::core::option::expect -> :wat::core::i64
         opt
@@ -31,7 +31,7 @@
 (:wat::test::deftest :wat-tests::core::option-expect::some-string
   ()
   (:wat::core::let*
-    (((opt :Option<String>) (Some "hello"))
+    (((opt :Option<wat::core::String>) (Some "hello"))
      ((v :wat::core::String)
       (:wat::core::option::expect -> :wat::core::String
         opt
@@ -39,14 +39,14 @@
     (:wat::test::assert-eq v "hello")))
 
 
-;; ─── Some happy path — nested :Option<Option<i64>> ────────────────────
+;; ─── Some happy path — nested :Option<Option<wat::core::i64>> ────────────────────
 
 (:wat::test::deftest :wat-tests::core::option-expect::some-nested-option
   ()
   (:wat::core::let*
-    (((opt :Option<Option<i64>>) (Some (Some 7)))
-     ((inner :Option<i64>)
-      (:wat::core::option::expect -> :Option<i64>
+    (((opt :Option<Option<wat::core::i64>>) (Some (Some 7)))
+     ((inner :Option<wat::core::i64>)
+      (:wat::core::option::expect -> :Option<wat::core::i64>
         opt
         "outer should be Some"))
      ((v :wat::core::i64)
@@ -71,7 +71,7 @@
               (stderr :wat::io::IOWriter)
               -> :())
             (:wat::core::let*
-              (((opt :Option<i64>) :None)
+              (((opt :Option<wat::core::i64>) :None)
                ((_v :wat::core::i64)
                 (:wat::core::option::expect -> :wat::core::i64
                   opt

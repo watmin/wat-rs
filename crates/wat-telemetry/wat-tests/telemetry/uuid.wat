@@ -34,5 +34,5 @@
     (((a :wat::core::String) (:wat::telemetry::uuid::v4))
      ((b :wat::core::String) (:wat::telemetry::uuid::v4))
      ((c :wat::core::String) (:wat::telemetry::uuid::v4))
-     ((s :HashSet<String>) (:wat::core::HashSet :wat::core::String a b c)))
+     ((s :HashSet<wat::core::String>) (:wat::core::HashSet :wat::core::String a b c)))
     (:wat::test::assert-eq (:wat::core::length s) 3)))

@@ -31,8 +31,8 @@
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-on-vec
   ()
   (:wat::core::let*
-    (((a :Vec<String>) (:wat::core::vec :wat::core::String "x" "y"))
-     ((b :Vec<String>) (:wat::core::vec :wat::core::String "x" "y")))
+    (((a :Vec<wat::core::String>) (:wat::core::vec :wat::core::String "x" "y"))
+     ((b :Vec<wat::core::String>) (:wat::core::vec :wat::core::String "x" "y")))
     (:wat::test::assert-eq a b)))
 
 ;; ─── assert-eq — fail case surfaces message ───────────────────────────
@@ -84,8 +84,8 @@
     (:wat::core::match fail -> :()
       ((Some f)
         (:wat::core::let*
-          (((actual :Option<String>) (:wat::kernel::Failure/actual f))
-           ((expected :Option<String>) (:wat::kernel::Failure/expected f))
+          (((actual :Option<wat::core::String>) (:wat::kernel::Failure/actual f))
+           ((expected :Option<wat::core::String>) (:wat::kernel::Failure/expected f))
            ((_ :())
             (:wat::core::match actual -> :()
               ((Some a) (:wat::test::assert-eq a "hello"))
@@ -131,7 +131,7 @@
     (:wat::core::match fail -> :()
       ((Some f)
         (:wat::core::let*
-          (((actual :Option<String>) (:wat::kernel::Failure/actual f)))
+          (((actual :Option<wat::core::String>) (:wat::kernel::Failure/actual f)))
           (:wat::core::match actual -> :()
             ((Some a)
               (:wat::core::let*
@@ -167,7 +167,7 @@
                ((_ :()) (:wat::io::IOWriter/println stdout "beta")))
               ())))
         (:wat::core::vec :wat::core::String)))
-     ((expected :Vec<String>) (:wat::core::vec :wat::core::String "alpha" "beta")))
+     ((expected :Vec<wat::core::String>) (:wat::core::vec :wat::core::String "alpha" "beta")))
     (:wat::test::assert-stdout-is inner expected)))
 
 ;; ─── assert-stderr-matches — pass + fail-reports-pattern ──────────────
@@ -223,7 +223,7 @@
     (:wat::core::match fail -> :()
       ((Some f)
         (:wat::core::let*
-          (((expected :Option<String>) (:wat::kernel::Failure/expected f)))
+          (((expected :Option<wat::core::String>) (:wat::kernel::Failure/expected f)))
           (:wat::core::match expected -> :()
             ((Some e) (:wat::test::assert-eq e "my-pattern"))
             (:None (:wat::kernel::assertion-failed!
@@ -250,7 +250,7 @@
                               -> :())
            (:wat::io::IOWriter/println stdout \"from-string\"))"
         (:wat::core::vec :wat::core::String)))
-     ((expected :Vec<String>) (:wat::core::vec :wat::core::String "from-string")))
+     ((expected :Vec<wat::core::String>) (:wat::core::vec :wat::core::String "from-string")))
     (:wat::test::assert-stdout-is r expected)))
 
 ;; ─── :wat::test::run-ast — AST-entry path via :wat::test::program ────
@@ -269,7 +269,7 @@
               -> :())
             (:wat::io::IOWriter/println stdout "from-ast")))
         (:wat::core::vec :wat::core::String)))
-     ((expected :Vec<String>) (:wat::core::vec :wat::core::String "from-ast")))
+     ((expected :Vec<wat::core::String>) (:wat::core::vec :wat::core::String "from-ast")))
     (:wat::test::assert-stdout-is r expected)))
 
 ;; deftest's self-test is redundant here — every other passing deftest

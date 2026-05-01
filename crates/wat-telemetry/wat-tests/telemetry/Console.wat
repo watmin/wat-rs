@@ -18,7 +18,7 @@
           ;; `Service::Spawn<trading::log::LogEntry>` — substrate
           ;; ships generic shapes, apps alias them concrete.
           (:wat::core::typealias :my::Dispatcher
-            :wat::telemetry::Console::Dispatcher<i64>)
+            :wat::telemetry::Console::Dispatcher<wat::core::i64>)
 
           ;; Helper — takes a Console::Handle, builds an EDN
           ;; dispatcher, dispatches three i64 entries as ONE batch.
@@ -33,7 +33,7 @@
               (((d :my::Dispatcher)
                 (:wat::telemetry::Console/dispatcher
                   handle :wat::telemetry::Console::Format::Edn))
-               ((batch :Vec<i64>) (:wat::core::vec :wat::core::i64 10 20 30)))
+               ((batch :Vec<wat::core::i64>) (:wat::core::vec :wat::core::i64 10 20 30)))
               (d batch)))
           ;; Main — outer holds Console driver; inner pops handle +
           ;; calls helper; outer joins after inner exits.
@@ -56,7 +56,7 @@
                 (:wat::kernel::Thread/join-result console-driver)))
               ())))
         (:wat::core::vec :wat::core::String)))
-     ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))
+     ((stdout :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
      ((seen-10 :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout
@@ -93,7 +93,7 @@
           ;; type. Every signature site reads `:my::Dispatcher`
           ;; instead of `:fn(Vec<Vec<i64>>)->()` or
           ;; `:wat::telemetry::Console::Dispatcher<Vec<i64>>`.
-          (:wat::core::typealias :my::Row :Vec<i64>)
+          (:wat::core::typealias :my::Row :Vec<wat::core::i64>)
           (:wat::core::typealias :my::Dispatcher
             :wat::telemetry::Console::Dispatcher<my::Row>)
 
@@ -131,7 +131,7 @@
                 (:wat::kernel::Thread/join-result console-driver)))
               ())))
         (:wat::core::vec :wat::core::String)))
-     ((stdout :Vec<String>) (:wat::kernel::RunResult/stdout r))
+     ((stdout :Vec<wat::core::String>) (:wat::kernel::RunResult/stdout r))
      ((seen-row :wat::core::bool)
       (:wat::core::= (:wat::core::length
                        (:wat::core::filter stdout

@@ -41,8 +41,8 @@ fn result_ok_matched() {
     let src = r#"
         (:wat::core::use! :rust::test::Fallible)
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:rust::test::Fallible::non_negative 42) -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match (:rust::test::Fallible::non_negative 42) -> :wat::core::i64
             ((Ok v) v)
             ((Err _) -1)))
     "#;
@@ -58,8 +58,8 @@ fn result_err_matched() {
     let src = r#"
         (:wat::core::use! :rust::test::Fallible)
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:rust::test::Fallible::non_negative -1) -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match (:rust::test::Fallible::non_negative -1) -> :wat::core::i64
             ((Ok _) 0)
             ((Err _) 99)))
     "#;
@@ -75,8 +75,8 @@ fn user_built_ok_value() {
     // of any Rust shim.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (Ok 7) -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match (Ok 7) -> :wat::core::i64
             ((Ok v) v)
             ((Err _) -1)))
     "#;
@@ -90,8 +90,8 @@ fn user_built_ok_value() {
 fn user_built_err_value() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (Err "x") -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match (Err "x") -> :wat::core::i64
             ((Ok _) 0)
             ((Err _) 11)))
     "#;

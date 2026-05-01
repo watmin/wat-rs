@@ -44,8 +44,8 @@ fn sum_vec_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::VecUtils)
 
-        (:wat::core::define (:user::main -> :i64)
-          (:rust::test::VecUtils::sum (:wat::core::vec :i64 10 20 30)))
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:rust::test::VecUtils::sum (:wat::core::vec :wat::core::i64 10 20 30)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
@@ -59,11 +59,11 @@ fn reverse_vec_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::VecUtils)
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::match
             (:wat::core::first
-              (:rust::test::VecUtils::reverse (:wat::core::vec :i64 1 2 3)))
-            -> :i64
+              (:rust::test::VecUtils::reverse (:wat::core::vec :wat::core::i64 1 2 3)))
+            -> :wat::core::i64
             ((Some n) n)
             (:None -1)))
     "#;
@@ -79,11 +79,11 @@ fn sort_vec_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::VecUtils)
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::match
             (:wat::core::first
-              (:rust::test::VecUtils::sort (:wat::core::vec :i64 5 2 8 1)))
-            -> :i64
+              (:rust::test::VecUtils::sort (:wat::core::vec :wat::core::i64 5 2 8 1)))
+            -> :wat::core::i64
             ((Some n) n)
             (:None -1)))
     "#;
@@ -99,8 +99,8 @@ fn empty_vec_via_macro() {
     let src = r#"
         (:wat::core::use! :rust::test::VecUtils)
 
-        (:wat::core::define (:user::main -> :i64)
-          (:rust::test::VecUtils::sum (:wat::core::vec :i64)))
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:rust::test::VecUtils::sum (:wat::core::vec :wat::core::i64)))
     "#;
     let loader = InMemoryLoader::new();
     let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");

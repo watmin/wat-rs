@@ -58,7 +58,7 @@ fn bytes_from_vec_u8(v: Value) -> Vec<u8> {
 fn io_reader_from_string_read_line_round_trips() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main -> :Option<wat::core::String>)
           (:wat::core::let*
             (((r :wat::io::IOReader)
               (:wat::io::IOReader/from-string "hello\nworld\n")))
@@ -71,7 +71,7 @@ fn io_reader_from_string_read_line_round_trips() {
 fn io_reader_read_line_handles_crlf() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main -> :Option<wat::core::String>)
           (:wat::core::let*
             (((r :wat::io::IOReader)
               (:wat::io::IOReader/from-string "hello\r\n")))
@@ -84,12 +84,12 @@ fn io_reader_read_line_handles_crlf() {
 fn io_reader_read_line_at_eof_is_none() {
     let src = r#"
 
-        (:wat::core::define (:my::drain (r :wat::io::IOReader) -> :Option<String>)
+        (:wat::core::define (:my::drain (r :wat::io::IOReader) -> :Option<wat::core::String>)
           (:wat::core::let*
-            (((_ :Option<String>) (:wat::io::IOReader/read-line r)))
+            (((_ :Option<wat::core::String>) (:wat::io::IOReader/read-line r)))
             (:wat::io::IOReader/read-line r)))
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main -> :Option<wat::core::String>)
           (:wat::core::let*
             (((r :wat::io::IOReader)
               (:wat::io::IOReader/from-string "only-line\n")))
@@ -105,7 +105,7 @@ fn io_reader_read_returns_up_to_n_bytes() {
     // "hello" is 5 bytes. Read 3, expect [h, e, l].
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<Vec<u8>>)
+        (:wat::core::define (:user::main -> :Option<Vec<wat::core::u8>>)
           (:wat::core::let*
             (((r :wat::io::IOReader)
               (:wat::io::IOReader/from-string "hello")))
@@ -127,12 +127,12 @@ fn io_reader_read_returns_up_to_n_bytes() {
 fn io_reader_read_at_eof_is_none() {
     let src = r#"
 
-        (:wat::core::define (:my::drain (r :wat::io::IOReader) -> :Option<Vec<u8>>)
+        (:wat::core::define (:my::drain (r :wat::io::IOReader) -> :Option<Vec<wat::core::u8>>)
           (:wat::core::let*
-            (((_ :Option<Vec<u8>>) (:wat::io::IOReader/read r 100)))
+            (((_ :Option<Vec<wat::core::u8>>) (:wat::io::IOReader/read r 100)))
             (:wat::io::IOReader/read r 100)))
 
-        (:wat::core::define (:user::main -> :Option<Vec<u8>>)
+        (:wat::core::define (:user::main -> :Option<Vec<wat::core::u8>>)
           (:wat::core::let*
             (((r :wat::io::IOReader)
               (:wat::io::IOReader/from-string "hi")))
@@ -147,7 +147,7 @@ fn io_reader_read_at_eof_is_none() {
 fn io_reader_read_all_returns_everything() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<u8>)
+        (:wat::core::define (:user::main -> :Vec<wat::core::u8>)
           (:wat::core::let*
             (((r :wat::io::IOReader)
               (:wat::io::IOReader/from-string "hello")))
@@ -164,13 +164,13 @@ fn io_reader_rewind_restarts_from_beginning() {
     // Read everything, rewind, read again. Second read must succeed.
     let src = r#"
 
-        (:wat::core::define (:my::read-twice (r :wat::io::IOReader) -> :Vec<u8>)
+        (:wat::core::define (:my::read-twice (r :wat::io::IOReader) -> :Vec<wat::core::u8>)
           (:wat::core::let*
-            (((_ :Vec<u8>) (:wat::io::IOReader/read-all r))
+            (((_ :Vec<wat::core::u8>) (:wat::io::IOReader/read-all r))
              ((_ :()) (:wat::io::IOReader/rewind r)))
             (:wat::io::IOReader/read-all r)))
 
-        (:wat::core::define (:user::main -> :Vec<u8>)
+        (:wat::core::define (:user::main -> :Vec<wat::core::u8>)
           (:wat::core::let*
             (((r :wat::io::IOReader)
               (:wat::io::IOReader/from-string "again")))
@@ -186,11 +186,11 @@ fn io_reader_rewind_restarts_from_beginning() {
 fn io_writer_writeln_then_to_string_round_trips() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main -> :Option<wat::core::String>)
           (:wat::core::let*
             (((w :wat::io::IOWriter) (:wat::io::IOWriter/new))
-             ((_ :i64) (:wat::io::IOWriter/writeln w "first"))
-             ((_ :i64) (:wat::io::IOWriter/writeln w "second")))
+             ((_ :wat::core::i64) (:wat::io::IOWriter/writeln w "first"))
+             ((_ :wat::core::i64) (:wat::io::IOWriter/writeln w "second")))
             (:wat::io::IOWriter/to-string w)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "first\nsecond\n");
@@ -201,7 +201,7 @@ fn io_writer_writeln_returns_bytes_written() {
     // "hello" (5 bytes) + "\n" = 6 bytes written.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((w :wat::io::IOWriter) (:wat::io::IOWriter/new)))
             (:wat::io::IOWriter/writeln w "hello")))
@@ -214,11 +214,11 @@ fn io_writer_write_returns_byte_count() {
     // Vec<u8> of 3 bytes written; write returns count.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((w :wat::io::IOWriter) (:wat::io::IOWriter/new))
-             ((bytes :Vec<u8>)
-              (:wat::core::vec :u8
+             ((bytes :Vec<wat::core::u8>)
+              (:wat::core::vec :wat::core::u8
                 (:wat::core::u8 72)
                 (:wat::core::u8 105)
                 (:wat::core::u8 33))))
@@ -231,11 +231,11 @@ fn io_writer_write_returns_byte_count() {
 fn io_writer_write_all_then_to_bytes_round_trips() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Vec<u8>)
+        (:wat::core::define (:user::main -> :Vec<wat::core::u8>)
           (:wat::core::let*
             (((w :wat::io::IOWriter) (:wat::io::IOWriter/new))
-             ((bytes :Vec<u8>)
-              (:wat::core::vec :u8
+             ((bytes :Vec<wat::core::u8>)
+              (:wat::core::vec :wat::core::u8
                 (:wat::core::u8 65)
                 (:wat::core::u8 66)
                 (:wat::core::u8 67)))
@@ -253,11 +253,11 @@ fn io_writer_write_string_does_not_add_newline() {
     // Stdout/Stderr — caller controls newlines.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main -> :Option<wat::core::String>)
           (:wat::core::let*
             (((w :wat::io::IOWriter) (:wat::io::IOWriter/new))
-             ((_ :i64) (:wat::io::IOWriter/write-string w "hello "))
-             ((_ :i64) (:wat::io::IOWriter/write-string w "world")))
+             ((_ :wat::core::i64) (:wat::io::IOWriter/write-string w "hello "))
+             ((_ :wat::core::i64) (:wat::io::IOWriter/write-string w "world")))
             (:wat::io::IOWriter/to-string w)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "hello world");
@@ -271,7 +271,7 @@ fn io_writer_write_string_returns_byte_count() {
     // re-encoded each byte as a Latin-1 char.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((w :wat::io::IOWriter) (:wat::io::IOWriter/new)))
             (:wat::io::IOWriter/write-string w "héllo")))
@@ -303,18 +303,18 @@ fn reader_lines_copied_to_writer() {
           (:my::copy-one
             (r :wat::io::IOReader)
             (w :wat::io::IOWriter)
-            -> :i64)
-          (:wat::core::match (:wat::io::IOReader/read-line r) -> :i64
+            -> :wat::core::i64)
+          (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::i64
             ((Some line) (:wat::io::IOWriter/writeln w line))
             (:None -1)))
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main -> :Option<wat::core::String>)
           (:wat::core::let*
             (((r :wat::io::IOReader)
               (:wat::io::IOReader/from-string "alpha\nbeta\n"))
              ((w :wat::io::IOWriter) (:wat::io::IOWriter/new))
-             ((_ :i64) (:my::copy-one r w))
-             ((_ :i64) (:my::copy-one r w)))
+             ((_ :wat::core::i64) (:my::copy-one r w))
+             ((_ :wat::core::i64) (:my::copy-one r w)))
             (:wat::io::IOWriter/to-string w)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "alpha\nbeta\n");
@@ -326,7 +326,7 @@ fn reader_lines_copied_to_writer() {
 fn fresh_writer_to_string_is_empty() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main -> :Option<wat::core::String>)
           (:wat::core::let*
             (((w :wat::io::IOWriter) (:wat::io::IOWriter/new)))
             (:wat::io::IOWriter/to-string w)))
@@ -338,7 +338,7 @@ fn fresh_writer_to_string_is_empty() {
 fn empty_reader_read_line_is_none() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :Option<String>)
+        (:wat::core::define (:user::main -> :Option<wat::core::String>)
           (:wat::core::let*
             (((r :wat::io::IOReader) (:wat::io::IOReader/from-string "")))
             (:wat::io::IOReader/read-line r)))

@@ -12,7 +12,7 @@
 (:wat::test::deftest :wat-tests::core::result-expect::ok-i64
   ()
   (:wat::core::let*
-    (((res :Result<i64,String>) (Ok 99))
+    (((res :Result<wat::core::i64,wat::core::String>) (Ok 99))
      ((v :wat::core::i64)
       (:wat::core::result::expect -> :wat::core::i64
         res
@@ -25,7 +25,7 @@
 (:wat::test::deftest :wat-tests::core::result-expect::ok-string
   ()
   (:wat::core::let*
-    (((res :Result<String,i64>) (Ok "yes"))
+    (((res :Result<wat::core::String,wat::core::i64>) (Ok "yes"))
      ((v :wat::core::String)
       (:wat::core::result::expect -> :wat::core::String
         res
@@ -48,7 +48,7 @@
               (stderr :wat::io::IOWriter)
               -> :())
             (:wat::core::let*
-              (((res :Result<i64,String>) (Err "rundb crashed"))
+              (((res :Result<wat::core::i64,wat::core::String>) (Err "rundb crashed"))
                ((_v :wat::core::i64)
                 (:wat::core::result::expect -> :wat::core::i64
                   res

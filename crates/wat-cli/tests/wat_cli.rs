@@ -225,7 +225,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
        (:wat::io::IOWriter/print stdout
          (:wat::core::if
            (:wat::holon::presence? program-atom bound)
-           -> :String
+           -> :wat::core::String
            "Some\n"
            "None\n")))
 
@@ -238,7 +238,7 @@ const PRESENCE_PROOF_PROGRAM: &str = r#"
        (:wat::io::IOWriter/print stdout
          (:wat::core::if
            (:wat::holon::presence? program-atom recovered)
-           -> :String
+           -> :wat::core::String
            "Some\n"
            "None\n")))
 

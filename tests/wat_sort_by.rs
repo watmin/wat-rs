@@ -46,15 +46,15 @@ fn sort_by_ascending_i64() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<i64>) (:wat::core::vec :i64 3 1 4 1 5 9 2 6))
-             ((sorted :Vec<i64>)
+            (((xs :Vec<wat::core::i64>) (:wat::core::vec :wat::core::i64 3 1 4 1 5 9 2 6))
+             ((sorted :Vec<wat::core::i64>)
               (:wat::core::sort-by xs
-                (:wat::core::lambda ((a :i64) (b :i64) -> :bool)
+                (:wat::core::lambda ((a :wat::core::i64) (b :wat::core::i64) -> :wat::core::bool)
                   (:wat::core::< a b)))))
             (:wat::io::IOWriter/println stdout
               (:wat::core::string::join ","
                 (:wat::core::map sorted
-                  (:wat::core::lambda ((n :i64) -> :String)
+                  (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::String)
                     (:wat::core::i64::to-string n)))))))
     "##;
     assert_eq!(run(src), vec!["1,1,2,3,4,5,6,9".to_string()]);
@@ -70,15 +70,15 @@ fn sort_by_descending_f64() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<f64>) (:wat::core::vec :f64 1.5 0.5 2.5 1.0))
-             ((sorted :Vec<f64>)
+            (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64 1.5 0.5 2.5 1.0))
+             ((sorted :Vec<wat::core::f64>)
               (:wat::core::sort-by xs
-                (:wat::core::lambda ((a :f64) (b :f64) -> :bool)
+                (:wat::core::lambda ((a :wat::core::f64) (b :wat::core::f64) -> :wat::core::bool)
                   (:wat::core::> a b)))))
             (:wat::io::IOWriter/println stdout
               (:wat::core::string::join ","
                 (:wat::core::map sorted
-                  (:wat::core::lambda ((x :f64) -> :String)
+                  (:wat::core::lambda ((x :wat::core::f64) -> :wat::core::String)
                     (:wat::core::f64::to-string x)))))))
     "##;
     assert_eq!(run(src), vec!["2.5,1.5,1,0.5".to_string()]);
@@ -94,10 +94,10 @@ fn sort_by_string() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<String>) (:wat::core::vec :String "banana" "apple" "cherry"))
-             ((sorted :Vec<String>)
+            (((xs :Vec<wat::core::String>) (:wat::core::vec :wat::core::String "banana" "apple" "cherry"))
+             ((sorted :Vec<wat::core::String>)
               (:wat::core::sort-by xs
-                (:wat::core::lambda ((a :String) (b :String) -> :bool)
+                (:wat::core::lambda ((a :wat::core::String) (b :wat::core::String) -> :wat::core::bool)
                   (:wat::core::< a b)))))
             (:wat::io::IOWriter/println stdout (:wat::core::string::join "," sorted))))
     "##;
@@ -114,12 +114,12 @@ fn sort_by_empty_vec() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<i64>) (:wat::core::vec :i64))
-             ((sorted :Vec<i64>)
+            (((xs :Vec<wat::core::i64>) (:wat::core::vec :wat::core::i64))
+             ((sorted :Vec<wat::core::i64>)
               (:wat::core::sort-by xs
-                (:wat::core::lambda ((a :i64) (b :i64) -> :bool)
+                (:wat::core::lambda ((a :wat::core::i64) (b :wat::core::i64) -> :wat::core::bool)
                   (:wat::core::< a b))))
-             ((n :i64) (:wat::core::length sorted)))
+             ((n :wat::core::i64) (:wat::core::length sorted)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string n))))
     "##;
     assert_eq!(run(src), vec!["0".to_string()]);
@@ -135,19 +135,19 @@ fn sort_by_tuple_first_field_key() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<(i64,String)>)
-              (:wat::core::vec :(i64,String)
+            (((xs :Vec<(wat::core::i64,wat::core::String)>)
+              (:wat::core::vec :(wat::core::i64,wat::core::String)
                 (:wat::core::tuple 30 "alice")
                 (:wat::core::tuple 25 "carol")
                 (:wat::core::tuple 28 "bob")))
-             ((sorted :Vec<(i64,String)>)
+             ((sorted :Vec<(wat::core::i64,wat::core::String)>)
               (:wat::core::sort-by xs
-                (:wat::core::lambda ((a :(i64,String)) (b :(i64,String)) -> :bool)
+                (:wat::core::lambda ((a :(wat::core::i64,wat::core::String)) (b :(wat::core::i64,wat::core::String)) -> :wat::core::bool)
                   (:wat::core::< (:wat::core::first a) (:wat::core::first b))))))
             (:wat::io::IOWriter/println stdout
               (:wat::core::string::join ","
                 (:wat::core::map sorted
-                  (:wat::core::lambda ((p :(i64,String)) -> :String)
+                  (:wat::core::lambda ((p :(wat::core::i64,wat::core::String)) -> :wat::core::String)
                     (:wat::core::second p)))))))
     "##;
     assert_eq!(run(src), vec!["carol,bob,alice".to_string()]);

@@ -18,10 +18,10 @@
 (:wat::test::deftest :wat-lru::test-local-cache-put-then-get
   ()
   (:wat::core::let*
-    (((cache :wat::lru::LocalCache<String,i64>)
+    (((cache :wat::lru::LocalCache<wat::core::String,wat::core::i64>)
       (:wat::lru::LocalCache::new 16))
-     ((_ :Option<(String,i64)>) (:wat::lru::LocalCache::put cache "answer" 42))
-     ((got :Option<i64>)
+     ((_ :Option<(wat::core::String,wat::core::i64)>) (:wat::lru::LocalCache::put cache "answer" 42))
+     ((got :Option<wat::core::i64>)
       (:wat::lru::LocalCache::get cache "answer"))
      ((result :wat::core::i64)
       (:wat::core::match got -> :wat::core::i64
@@ -34,9 +34,9 @@
 (:wat::test::deftest :wat-lru::test-local-cache-miss-returns-none
   ()
   (:wat::core::let*
-    (((cache :wat::lru::LocalCache<String,i64>)
+    (((cache :wat::lru::LocalCache<wat::core::String,wat::core::i64>)
       (:wat::lru::LocalCache::new 16))
-     ((got :Option<i64>)
+     ((got :Option<wat::core::i64>)
       (:wat::lru::LocalCache::get cache "missing"))
      ((is-none :wat::core::bool)
       (:wat::core::match got -> :wat::core::bool
@@ -49,11 +49,11 @@
 (:wat::test::deftest :wat-lru::test-local-cache-put-overwrites
   ()
   (:wat::core::let*
-    (((cache :wat::lru::LocalCache<String,i64>)
+    (((cache :wat::lru::LocalCache<wat::core::String,wat::core::i64>)
       (:wat::lru::LocalCache::new 16))
-     ((_ :Option<(String,i64)>) (:wat::lru::LocalCache::put cache "k" 1))
-     ((_ :Option<(String,i64)>) (:wat::lru::LocalCache::put cache "k" 99))
-     ((got :Option<i64>)
+     ((_ :Option<(wat::core::String,wat::core::i64)>) (:wat::lru::LocalCache::put cache "k" 1))
+     ((_ :Option<(wat::core::String,wat::core::i64)>) (:wat::lru::LocalCache::put cache "k" 99))
+     ((got :Option<wat::core::i64>)
       (:wat::lru::LocalCache::get cache "k"))
      ((result :wat::core::i64)
       (:wat::core::match got -> :wat::core::i64
@@ -67,12 +67,12 @@
 (:wat::test::deftest :wat-lru::test-local-cache-evict-at-capacity
   ()
   (:wat::core::let*
-    (((cache :wat::lru::LocalCache<i64,i64>)
+    (((cache :wat::lru::LocalCache<wat::core::i64,wat::core::i64>)
       (:wat::lru::LocalCache::new 2))
-     ((_ :Option<(i64,i64)>) (:wat::lru::LocalCache::put cache 1 10))
-     ((_ :Option<(i64,i64)>) (:wat::lru::LocalCache::put cache 2 20))
-     ((_ :Option<(i64,i64)>) (:wat::lru::LocalCache::put cache 3 30))
-     ((got :Option<i64>)
+     ((_ :Option<(wat::core::i64,wat::core::i64)>) (:wat::lru::LocalCache::put cache 1 10))
+     ((_ :Option<(wat::core::i64,wat::core::i64)>) (:wat::lru::LocalCache::put cache 2 20))
+     ((_ :Option<(wat::core::i64,wat::core::i64)>) (:wat::lru::LocalCache::put cache 3 30))
+     ((got :Option<wat::core::i64>)
       (:wat::lru::LocalCache::get cache 1))
      ((is-none :wat::core::bool)
       (:wat::core::match got -> :wat::core::bool

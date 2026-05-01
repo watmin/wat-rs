@@ -3,7 +3,7 @@
 //! Surfaced by holon-lab-trading arc 026 slice 9 + slice 10 (Hurst
 //! R/S, DFA, variance ratio all want windowed stats). Universal
 //! enough to live in core stdlib. Population convention (numpy
-//! default `ddof=0`); :Option<f64> for all three with None on empty
+//! default `ddof=0`); :Option<wat::core::f64> for all three with None on empty
 //! input (matches f64::min-of / max-of's reduction-empty pattern).
 
 use std::sync::Arc;
@@ -48,10 +48,10 @@ fn mean_known_input() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<f64>) (:wat::core::vec :f64 1.0 2.0 3.0 4.0 5.0))
-             ((m :Option<f64>) (:wat::std::stat::mean xs))
-             ((v :f64)
-              (:wat::core::match m -> :f64
+            (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
+             ((m :Option<wat::core::f64>) (:wat::std::stat::mean xs))
+             ((v :wat::core::f64)
+              (:wat::core::match m -> :wat::core::f64
                 ((Some x) x) (:None -1.0))))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string v))))
     "##;
@@ -68,10 +68,10 @@ fn mean_empty_is_none() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<f64>) (:wat::core::vec :f64))
-             ((m :Option<f64>) (:wat::std::stat::mean xs))
-             ((label :String)
-              (:wat::core::match m -> :String
+            (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64))
+             ((m :Option<wat::core::f64>) (:wat::std::stat::mean xs))
+             ((label :wat::core::String)
+              (:wat::core::match m -> :wat::core::String
                 ((Some _) "some") (:None "none"))))
             (:wat::io::IOWriter/println stdout label)))
     "##;
@@ -90,9 +90,9 @@ fn variance_population_known_input() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<f64>) (:wat::core::vec :f64 1.0 2.0 3.0 4.0 5.0))
-             ((v :f64)
-              (:wat::core::match (:wat::std::stat::variance xs) -> :f64
+            (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
+             ((v :wat::core::f64)
+              (:wat::core::match (:wat::std::stat::variance xs) -> :wat::core::f64
                 ((Some x) x) (:None -1.0))))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string v))))
     "##;
@@ -109,9 +109,9 @@ fn variance_single_point_zero() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<f64>) (:wat::core::vec :f64 7.0))
-             ((v :f64)
-              (:wat::core::match (:wat::std::stat::variance xs) -> :f64
+            (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64 7.0))
+             ((v :wat::core::f64)
+              (:wat::core::match (:wat::std::stat::variance xs) -> :wat::core::f64
                 ((Some x) x) (:None -1.0))))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string v))))
     "##;
@@ -129,12 +129,12 @@ fn stddev_known_input() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((xs :Vec<f64>) (:wat::core::vec :f64 1.0 2.0 3.0 4.0 5.0))
-             ((sd :f64)
-              (:wat::core::match (:wat::std::stat::stddev xs) -> :f64
+            (((xs :Vec<wat::core::f64>) (:wat::core::vec :wat::core::f64 1.0 2.0 3.0 4.0 5.0))
+             ((sd :wat::core::f64)
+              (:wat::core::match (:wat::std::stat::stddev xs) -> :wat::core::f64
                 ((Some x) x) (:None -1.0))))
             (:wat::io::IOWriter/println stdout
-              (:wat::core::if (:wat::core::> sd 1.41) -> :String
+              (:wat::core::if (:wat::core::> sd 1.41) -> :wat::core::String
                 "ok" "bad"))))
     "##;
     assert_eq!(run(src), vec!["ok".to_string()]);

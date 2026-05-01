@@ -8,7 +8,7 @@
 ;;
 ;;   template :HolonAST -> :HolonAST            ;; replace Thermometer values
 ;;                                              ;; with SlotMarker (min, max)
-;;   slots    :HolonAST -> :Vec<f64>            ;; pre-order Thermometer values
+;;   slots    :HolonAST -> :Vec<wat::core::f64>            ;; pre-order Thermometer values
 ;;   ranges   :HolonAST -> :Vec<(f64,f64)>      ;; pre-order Thermometer ranges
 ;;
 ;; Templates compare exactly (HashMap-keyable). Slots and ranges are
@@ -97,7 +97,7 @@
       (:wat::core::match bundled -> :wat::holon::HolonAST
         ((Ok h)  h)
         ((Err _) (:wat::holon::Atom "unreachable"))))
-     ((slots :Vec<f64>) (:wat::holon::term::slots form))
+     ((slots :Vec<wat::core::f64>) (:wat::holon::term::slots form))
      ((n :wat::core::i64) (:wat::core::length slots)))
     (:wat::test::assert-eq n 2)))
 
@@ -130,7 +130,7 @@
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
         (:wat::holon::leaf 42)))
-     ((slots :Vec<f64>) (:wat::holon::term::slots form))
+     ((slots :Vec<wat::core::f64>) (:wat::holon::term::slots form))
      ((n :wat::core::i64) (:wat::core::length slots)))
     (:wat::test::assert-eq n 0)))
 
@@ -148,7 +148,7 @@
         (:wat::holon::leaf :rsi-thought)
         (:wat::holon::Thermometer 70.0 0.0 100.0)))
      ((tpl :wat::holon::HolonAST) (:wat::holon::term::template form))
-     ((slots :Vec<f64>) (:wat::holon::term::slots tpl))
+     ((slots :Vec<wat::core::f64>) (:wat::holon::term::slots tpl))
      ((n :wat::core::i64) (:wat::core::length slots)))
     (:wat::test::assert-eq n 0)))
 

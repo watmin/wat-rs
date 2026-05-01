@@ -41,7 +41,7 @@ fn hermetic_inner_program_stdout_captured() {
                                    (stderr :wat::io::IOWriter)
                                    -> :())
                 (:wat::io::IOWriter/println stdout "tada!")))
-            (:wat::core::vec :String)
+            (:wat::core::vec :wat::core::String)
             :None))
     "#;
     let result = run(src);
@@ -79,12 +79,12 @@ fn hermetic_output_evaluated_in_outer_scope() {
                                        (stderr :wat::io::IOWriter)
                                        -> :())
                     (:wat::io::IOWriter/println stdout "(:wat::core::i64::+ 40 2)")))
-                (:wat::core::vec :String)
+                (:wat::core::vec :wat::core::String)
                 :None))
-             ((lines :Vec<String>)
+             ((lines :Vec<wat::core::String>)
               (:wat::kernel::RunResult/stdout hermetic-result))
-             ((captured-src :String)
-              (:wat::core::match (:wat::core::first lines) -> :String
+             ((captured-src :wat::core::String)
+              (:wat::core::match (:wat::core::first lines) -> :wat::core::String
                 ((Some s) s)
                 (:None ""))))
             (:wat::eval-edn! captured-src)))

@@ -126,8 +126,8 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
     let src = format!(
         r#"
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:wat::holon::Bundle {}) -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match (:wat::holon::Bundle {}) -> :wat::core::i64
             ((Ok _) 0)
             ((Err e)
               (:wat::core::i64::-
@@ -179,8 +179,8 @@ fn try_propagates_bundle_err_across_function_boundary() {
                             -> :wat::holon::BundleResult)
           (Ok (:wat::core::try (:wat::holon::Bundle items))))
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::match (:app::build-composite {}) -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::match (:app::build-composite {}) -> :wat::core::i64
             ((Ok _) 0)
             ((Err e) (:wat::holon::CapacityExceeded/cost e))))
         "#,

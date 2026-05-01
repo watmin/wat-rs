@@ -58,7 +58,7 @@ fn newtype_construct_and_accessor_roundtrip() {
             -> :())
           (:wat::core::let*
             (((p :my::trading::Price) (:my::trading::Price/new 100.0))
-             ((inner :f64) (:my::trading::Price/0 p)))
+             ((inner :wat::core::f64) (:my::trading::Price/0 p)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string inner))))
     "##;
     assert_eq!(run(src), vec!["100".to_string()]);
@@ -127,9 +127,9 @@ fn newtype_as_struct_field_roundtrip() {
         (:wat::core::newtype :my::trading::Price :f64)
 
         (:wat::core::struct :my::Order
-          (label :String)
+          (label :wat::core::String)
           (price :my::trading::Price)
-          (qty   :i64))
+          (qty   :wat::core::i64))
 
         (:wat::core::define
           (:user::main
@@ -141,7 +141,7 @@ fn newtype_as_struct_field_roundtrip() {
             (((p :my::trading::Price) (:my::trading::Price/new 99.5))
              ((o :my::Order)          (:my::Order/new "BTC" p 7))
              ((retrieved :my::trading::Price) (:my::Order/price o))
-             ((inner :f64) (:my::trading::Price/0 retrieved)))
+             ((inner :wat::core::f64) (:my::trading::Price/0 retrieved)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string inner))))
     "##;
     assert_eq!(run(src), vec!["99.5".to_string()]);

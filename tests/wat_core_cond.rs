@@ -44,8 +44,8 @@ fn unwrap_i64(v: Value) -> i64 {
 fn cond_first_arm_matches() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :String)
-          (:wat::core::cond -> :String
+        (:wat::core::define (:user::main -> :wat::core::String)
+          (:wat::core::cond -> :wat::core::String
             ((:wat::core::= 1 1) "first")
             ((:wat::core::= 2 2) "second")
             (:else "none")))
@@ -57,8 +57,8 @@ fn cond_first_arm_matches() {
 fn cond_middle_arm_matches() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :String)
-          (:wat::core::cond -> :String
+        (:wat::core::define (:user::main -> :wat::core::String)
+          (:wat::core::cond -> :wat::core::String
             ((:wat::core::= 1 2) "first")
             ((:wat::core::= 3 3) "middle")
             ((:wat::core::= 4 5) "third")
@@ -71,8 +71,8 @@ fn cond_middle_arm_matches() {
 fn cond_falls_through_to_else() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :String)
-          (:wat::core::cond -> :String
+        (:wat::core::define (:user::main -> :wat::core::String)
+          (:wat::core::cond -> :wat::core::String
             ((:wat::core::= 1 2) "first")
             ((:wat::core::= 3 4) "second")
             (:else "defaulted")))
@@ -85,8 +85,8 @@ fn cond_with_single_else_only() {
     // Minimal cond — just the else arm.
     let src = r#"
 
-        (:wat::core::define (:user::main -> :i64)
-          (:wat::core::cond -> :i64
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          (:wat::core::cond -> :wat::core::i64
             (:else 42)))
     "#;
     assert_eq!(unwrap_i64(run(src)), 42);
@@ -97,8 +97,8 @@ fn cond_dispatches_on_bound_value() {
     // The exit-code-prefix shape — cond on an :i64 binding.
     let src = r#"
 
-        (:wat::core::define (:my::label (code :i64) -> :String)
-          (:wat::core::cond -> :String
+        (:wat::core::define (:my::label (code :wat::core::i64) -> :wat::core::String)
+          (:wat::core::cond -> :wat::core::String
             ((:wat::core::= code 1) "[runtime error]")
             ((:wat::core::= code 2) "[panic]")
             ((:wat::core::= code 3) "[startup error]")
@@ -116,8 +116,8 @@ fn cond_dispatches_on_bound_value() {
 fn cond_refuses_missing_else() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :String)
-          (:wat::core::cond -> :String
+        (:wat::core::define (:user::main -> :wat::core::String)
+          (:wat::core::cond -> :wat::core::String
             ((:wat::core::= 1 1) "first")
             ((:wat::core::= 2 2) "second")))
     "#;
@@ -133,8 +133,8 @@ fn cond_refuses_missing_else() {
 fn cond_refuses_non_bool_test() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :String)
-          (:wat::core::cond -> :String
+        (:wat::core::define (:user::main -> :wat::core::String)
+          (:wat::core::cond -> :wat::core::String
             (42 "first")
             (:else "none")))
     "#;
@@ -150,8 +150,8 @@ fn cond_refuses_non_bool_test() {
 fn cond_refuses_mismatched_body_type() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :String)
-          (:wat::core::cond -> :String
+        (:wat::core::define (:user::main -> :wat::core::String)
+          (:wat::core::cond -> :wat::core::String
             ((:wat::core::= 1 1) 42)
             (:else "default")))
     "#;
@@ -172,13 +172,13 @@ fn cond_preserves_tail_call() {
     // Without TCO through cond, this would overflow the stack.
     let src = r#"
 
-        (:wat::core::define (:my::countdown (n :i64) -> :i64)
-          (:wat::core::cond -> :i64
+        (:wat::core::define (:my::countdown (n :wat::core::i64) -> :wat::core::i64)
+          (:wat::core::cond -> :wat::core::i64
             ((:wat::core::= n 0) 0)
             ((:wat::core::< n 0) -1)
             (:else (:my::countdown (:wat::core::i64::- n 1)))))
 
-        (:wat::core::define (:user::main -> :i64)
+        (:wat::core::define (:user::main -> :wat::core::i64)
           (:my::countdown 100000))
     "#;
     assert_eq!(unwrap_i64(run(src)), 0);
@@ -190,11 +190,11 @@ fn cond_preserves_tail_call() {
 fn cond_composes_with_other_cond() {
     let src = r#"
 
-        (:wat::core::define (:user::main -> :String)
-          (:wat::core::cond -> :String
+        (:wat::core::define (:user::main -> :wat::core::String)
+          (:wat::core::cond -> :wat::core::String
             ((:wat::core::= 1 2) "outer-first")
             ((:wat::core::= 1 1)
-              (:wat::core::cond -> :String
+              (:wat::core::cond -> :wat::core::String
                 ((:wat::core::= 7 8) "inner-first")
                 (:else "inner-else")))
             (:else "outer-else")))

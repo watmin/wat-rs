@@ -57,10 +57,10 @@ fn option_tuple_single_level_works() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((row :Option<(i64,i64,i64)>)
+            (((row :Option<(wat::core::i64,wat::core::i64,wat::core::i64)>)
               (Some (:wat::core::tuple 1 2 3)))
-             ((sum :i64)
-              (:wat::core::match row -> :i64
+             ((sum :wat::core::i64)
+              (:wat::core::match row -> :wat::core::i64
                 ((Some (a b c)) (:wat::core::+ a (:wat::core::+ b c)))
                 (:None 0))))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string sum))))
@@ -78,10 +78,10 @@ fn result_tuple_destructure() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((resp :Result<(String,i64),String>)
+            (((resp :Result<(wat::core::String,wat::core::i64),wat::core::String>)
               (Ok (:wat::core::tuple "ok" 7)))
-             ((line :String)
-              (:wat::core::match resp -> :String
+             ((line :wat::core::String)
+              (:wat::core::match resp -> :wat::core::String
                 ((Ok (k v)) (:wat::core::string::concat k (:wat::core::i64::to-string v)))
                 ((Err msg) msg))))
             (:wat::io::IOWriter/println stdout line)))
@@ -99,10 +99,10 @@ fn nested_options_three_levels() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((mm :Option<Option<i64>>)
+            (((mm :Option<Option<wat::core::i64>>)
               (Some (Some 42)))
-             ((v :i64)
-              (:wat::core::match mm -> :i64
+             ((v :wat::core::i64)
+              (:wat::core::match mm -> :wat::core::i64
                 ((Some (Some x)) x)
                 ((Some :None) -1)
                 (:None -2)
@@ -122,10 +122,10 @@ fn wildcard_at_depth() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((row :Option<(i64,i64,i64)>)
+            (((row :Option<(wat::core::i64,wat::core::i64,wat::core::i64)>)
               (Some (:wat::core::tuple 100 99 98)))
-             ((mid :i64)
-              (:wat::core::match row -> :i64
+             ((mid :wat::core::i64)
+              (:wat::core::match row -> :wat::core::i64
                 ((Some (_ x _)) x)
                 (:None 0))))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string mid))))
@@ -143,9 +143,9 @@ fn literal_at_depth_picks_arm() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((resp :Result<i64,String>) (Ok 200))
-             ((label :String)
-              (:wat::core::match resp -> :String
+            (((resp :Result<wat::core::i64,wat::core::String>) (Ok 200))
+             ((label :wat::core::String)
+              (:wat::core::match resp -> :wat::core::String
                 ((Ok 200) "ok")
                 ((Ok 404) "not found")
                 ((Ok n) (:wat::core::string::concat "code:" (:wat::core::i64::to-string n)))
@@ -165,9 +165,9 @@ fn literal_fallback_to_general_arm() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((resp :Result<i64,String>) (Ok 418))
-             ((label :String)
-              (:wat::core::match resp -> :String
+            (((resp :Result<wat::core::i64,wat::core::String>) (Ok 418))
+             ((label :wat::core::String)
+              (:wat::core::match resp -> :wat::core::String
                 ((Ok 200) "ok")
                 ((Ok 404) "not found")
                 ((Ok n) (:wat::core::string::concat "code:" (:wat::core::i64::to-string n)))
@@ -188,10 +188,10 @@ fn linear_shadowing() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((row :Option<(i64,i64)>)
+            (((row :Option<(wat::core::i64,wat::core::i64)>)
               (Some (:wat::core::tuple 5 7)))
-             ((v :i64)
-              (:wat::core::match row -> :i64
+             ((v :wat::core::i64)
+              (:wat::core::match row -> :wat::core::i64
                 ((Some (x x)) x)
                 (:None 0))))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string v))))
@@ -211,10 +211,10 @@ fn nonexhaustive_partial_pattern_rejected() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((row :Option<(i64,i64)>)
+            (((row :Option<(wat::core::i64,wat::core::i64)>)
               (Some (:wat::core::tuple 1 2)))
-             ((v :i64)
-              (:wat::core::match row -> :i64
+             ((v :wat::core::i64)
+              (:wat::core::match row -> :wat::core::i64
                 ((Some (1 x)) x)
                 (:None 0))))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string v))))
@@ -237,10 +237,10 @@ fn wildcard_fallback_compiles_and_runs() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((row :Option<(i64,i64)>)
+            (((row :Option<(wat::core::i64,wat::core::i64)>)
               (Some (:wat::core::tuple 1 99)))
-             ((v :i64)
-              (:wat::core::match row -> :i64
+             ((v :wat::core::i64)
+              (:wat::core::match row -> :wat::core::i64
                 ((Some (1 x)) x)
                 (_ 0))))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string v))))
@@ -260,10 +260,10 @@ fn candlestream_next_shape_destructures_in_one_step() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let*
-            (((row :Option<(i64,f64,f64,f64,f64,f64)>)
+            (((row :Option<(wat::core::i64,wat::core::f64,wat::core::f64,wat::core::f64,wat::core::f64,wat::core::f64)>)
               (Some (:wat::core::tuple 1700000000 100.0 110.0 95.0 105.0 1234.5)))
-             ((line :String)
-              (:wat::core::match row -> :String
+             ((line :wat::core::String)
+              (:wat::core::match row -> :wat::core::String
                 ((Some (ts open high low close volume))
                   (:wat::core::string::concat
                     (:wat::core::i64::to-string ts)

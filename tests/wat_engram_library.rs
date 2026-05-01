@@ -43,9 +43,9 @@ fn library_construct_empty() {
             -> :())
           (:wat::core::let*
             (((lib :wat::holon::EngramLibrary) (:wat::holon::EngramLibrary/new 10000))
-             ((n :i64) (:wat::holon::EngramLibrary/len lib)))
+             ((n :wat::core::i64) (:wat::holon::EngramLibrary/len lib)))
             (:wat::io::IOWriter/println stdout
-              (:wat::core::if (:wat::core::= n 0) -> :String "empty" "non-empty"))))
+              (:wat::core::if (:wat::core::= n 0) -> :wat::core::String "empty" "non-empty"))))
     "##;
     assert_eq!(run(src), vec!["empty".to_string()]);
 }
@@ -64,15 +64,15 @@ fn library_add_subspace_then_count() {
              ((sub :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 4))
              ((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
              ;; Train at least once so the subspace is non-trivial.
-             ((r :f64) (:wat::holon::OnlineSubspace/update sub v))
+             ((r :wat::core::f64) (:wat::holon::OnlineSubspace/update sub v))
              ((u :()) (:wat::holon::EngramLibrary/add lib "pattern-a" sub))
-             ((n :i64) (:wat::holon::EngramLibrary/len lib))
-             ((found :bool) (:wat::holon::EngramLibrary/contains lib "pattern-a"))
-             ((missing :bool) (:wat::holon::EngramLibrary/contains lib "absent")))
+             ((n :wat::core::i64) (:wat::holon::EngramLibrary/len lib))
+             ((found :wat::core::bool) (:wat::holon::EngramLibrary/contains lib "pattern-a"))
+             ((missing :wat::core::bool) (:wat::holon::EngramLibrary/contains lib "absent")))
             (:wat::io::IOWriter/println stdout
               (:wat::core::if
                 (:wat::core::and (:wat::core::= n 1)
-                  (:wat::core::and found (:wat::core::not missing))) -> :String
+                  (:wat::core::and found (:wat::core::not missing))) -> :wat::core::String
                 "ok" "wrong"))))
     "##;
     assert_eq!(run(src), vec!["ok".to_string()]);
@@ -91,14 +91,14 @@ fn library_match_returns_named_pairs() {
             (((lib :wat::holon::EngramLibrary) (:wat::holon::EngramLibrary/new 10000))
              ((sub :wat::holon::OnlineSubspace) (:wat::holon::OnlineSubspace/new 10000 4))
              ((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
-             ((r :f64) (:wat::holon::OnlineSubspace/update sub v))
+             ((r :wat::core::f64) (:wat::holon::OnlineSubspace/update sub v))
              ((u :()) (:wat::holon::EngramLibrary/add lib "alpha" sub))
              ;; Match against the same vector — should return 1 pair (name, residual).
-             ((matches :Vec<(String,f64)>)
+             ((matches :Vec<(wat::core::String,wat::core::f64)>)
               (:wat::holon::EngramLibrary/match-vec lib v 5 5))
-             ((nmatches :i64) (:wat::core::length matches)))
+             ((nmatches :wat::core::i64) (:wat::core::length matches)))
             (:wat::io::IOWriter/println stdout
-              (:wat::core::if (:wat::core::= nmatches 1) -> :String "one-match" "wrong"))))
+              (:wat::core::if (:wat::core::= nmatches 1) -> :wat::core::String "one-match" "wrong"))))
     "##;
     assert_eq!(run(src), vec!["one-match".to_string()]);
 }
