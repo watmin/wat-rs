@@ -420,52 +420,63 @@
 ;;   7. assert result == 42 (body's T flowed through)
 (:deftest :wat-telemetry::WorkUnit::test-make-scope-ships-counter
   (:wat::core::let*
-    ;; Stub queue — collects the Events the dispatcher sees.
-    (((stub-pair :wat::kernel::QueuePair<wat::telemetry::Event>)
-      (:wat::kernel::make-bounded-queue :wat::telemetry::Event 16))
-     ((stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
-      (:wat::core::first stub-pair))
-     ((stub-rx :wat::kernel::QueueReceiver<wat::telemetry::Event>)
-      (:wat::core::second stub-pair))
-     ;; Dispatcher closure-over stub-tx; null cadence + empty translator.
-     ((dispatcher :fn(Vec<wat::telemetry::Event>)->())
-      (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
-     ((cadence :wat::telemetry::Service::MetricsCadence<()>)
-      (:wat::telemetry::Service/null-metrics-cadence))
-     ;; Spawn Service<Event,_> with one client slot.
-     ((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
-      (:wat::telemetry::Service/spawn 1 cadence dispatcher
-        :wat-telemetry::scope::translate-empty))
-     ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
-      (:wat::core::first spawn))
-     ((driver :wat::kernel::Thread<(),()>) (:wat::core::second spawn))
-     ;; Inner: pop Handle, finish pool, factory + scope-fn-with-counter.
-     ((result :wat::core::i64)
+    ;; Inner owns every QueueSender clone (stub-pair, stub-tx) AND does
+    ;; the scope work + drains the one expected Event from stub-rx
+    ;; inside the same scope (the dispatcher fires at scope-close, so
+    ;; the row is in the queue before recv runs). Returns
+    ;; (driver, result, r1-some?) to outer; outer joins the driver and
+    ;; asserts on the body's result + the recv'd-Some bool.
+    ;; SERVICE-PROGRAMS.md § "The lockstep" + arc 117.
+    (((thr-result-some :(wat::kernel::Thread<(),()>,wat::core::i64,wat::core::bool))
       (:wat::core::let*
-        (((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
-          (:wat::kernel::HandlePool::pop pool))
-         ((_finish :()) (:wat::kernel::HandlePool::finish pool))
-         ((ns :wat::holon::HolonAST) (:wat-telemetry::default-ns))
-         ((scope :wat::telemetry::WorkUnit::Scope<i64>)
-          (:wat::telemetry::WorkUnit/make-scope handle ns))
-         ((tags :wat::telemetry::Tags) (:wat-telemetry::empty-tags)))
-        (scope tags
-          (:wat::core::lambda
-            ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
-            (:wat::core::let*
-              (((_ :()) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
-              42)))))
+        ;; Stub queue — collects the Events the dispatcher sees.
+        (((stub-pair :wat::kernel::QueuePair<wat::telemetry::Event>)
+          (:wat::kernel::make-bounded-queue :wat::telemetry::Event 16))
+         ((stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
+          (:wat::core::first stub-pair))
+         ((stub-rx :wat::kernel::QueueReceiver<wat::telemetry::Event>)
+          (:wat::core::second stub-pair))
+         ;; Dispatcher closure-over stub-tx; null cadence + empty translator.
+         ((dispatcher :fn(Vec<wat::telemetry::Event>)->())
+          (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
+         ((cadence :wat::telemetry::Service::MetricsCadence<()>)
+          (:wat::telemetry::Service/null-metrics-cadence))
+         ;; Spawn Service<Event,_> with one client slot.
+         ((spawn :wat::telemetry::Service::Spawn<wat::telemetry::Event>)
+          (:wat::telemetry::Service/spawn 1 cadence dispatcher
+            :wat-telemetry::scope::translate-empty))
+         ((pool :wat::telemetry::Service::HandlePool<wat::telemetry::Event>)
+          (:wat::core::first spawn))
+         ((d :wat::kernel::Thread<(),()>) (:wat::core::second spawn))
+         ;; Inner-inner: pop Handle, finish pool, factory + scope-fn-with-counter.
+         ((result :wat::core::i64)
+          (:wat::core::let*
+            (((handle :wat::telemetry::Service::Handle<wat::telemetry::Event>)
+              (:wat::kernel::HandlePool::pop pool))
+             ((_finish :()) (:wat::kernel::HandlePool::finish pool))
+             ((ns :wat::holon::HolonAST) (:wat-telemetry::default-ns))
+             ((scope :wat::telemetry::WorkUnit::Scope<i64>)
+              (:wat::telemetry::WorkUnit/make-scope handle ns))
+             ((tags :wat::telemetry::Tags) (:wat-telemetry::empty-tags)))
+            (scope tags
+              (:wat::core::lambda
+                ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
+                (:wat::core::let*
+                  (((_ :()) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
+                  42)))))
+         ;; Drain ONE Event — the single counter (CloudWatch model:
+         ;; one counter = one row, established by
+         ;; test-collect-metrics-one-counter). The dispatcher fires at
+         ;; scope-close above, so the row is already enqueued. recv'ing
+         ;; past one would block (stub-tx is still alive in this scope),
+         ;; so we recv only what we KNOW was sent.
+         ((r1-some? :wat::core::bool)
+          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool ((Ok (Some _)) true) ((Ok :None) false) ((Err _) false))))
+        (:wat::core::tuple d result r1-some?)))
+     ((driver :wat::kernel::Thread<(),()>) (:wat::core::first thr-result-some))
+     ((result :wat::core::i64) (:wat::core::second thr-result-some))
+     ((r1-some? :wat::core::bool) (:wat::core::third thr-result-some))
      ((_join :Result<(),Vec<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
-     ;; Drain — recv ONE Event for the single counter (CloudWatch
-     ;; model: one counter = one row, established by
-     ;; test-collect-metrics-one-counter). recv'ing past the
-     ;; expected count would block on stub-tx — still alive in
-     ;; this scope until the let* body terminates — so we recv
-     ;; only what we KNOW was sent. Per the test's intent:
-     ;; "scope ships the Events" is proven by recv returning
-     ;; Some at all; the row's CONTENT is proven elsewhere.
-     ((r1-some? :wat::core::bool)
-      (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool ((Ok (Some _)) true) ((Ok :None) false) ((Err _) false)))
      ((_a :()) (:wat::test::assert-eq result 42)))
     (:wat::test::assert-eq r1-some? true)))
