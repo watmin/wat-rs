@@ -22,16 +22,16 @@
 (:wat::test::deftest :wat-telemetry::test-spawn-drop-join
   ()
   (:wat::core::let*
-    ;; Outer holds only the Thread; inner owns every QueueSender clone
+    ;; Outer holds only the Thread; inner owns every Sender clone
     ;; (stub-pair, stub-tx). When inner returns the Thread, those clones
     ;; drop, the worker sees EOF, join unblocks. SERVICE-PROGRAMS.md §
     ;; "The lockstep" + arc 117.
     (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::core::let*
-        (((stub-pair :wat::kernel::QueuePair<wat::core::i64>)
-          (:wat::kernel::make-bounded-queue :wat::core::i64 16))
-         ((stub-tx :wat::kernel::QueueSender<wat::core::i64>) (:wat::core::first stub-pair))
-         ((stub-rx :wat::kernel::QueueReceiver<wat::core::i64>) (:wat::core::second stub-pair))
+        (((stub-pair :wat::kernel::Channel<wat::core::i64>)
+          (:wat::kernel::make-bounded-channel :wat::core::i64 16))
+         ((stub-tx :wat::kernel::Sender<wat::core::i64>) (:wat::core::first stub-pair))
+         ((stub-rx :wat::kernel::Receiver<wat::core::i64>) (:wat::core::second stub-pair))
          ((dispatcher :fn(wat::core::Vector<wat::core::i64>)->wat::core::unit)
           (:wat::core::lambda ((entries :wat::core::Vector<wat::core::i64>) -> :wat::core::unit)
             (:wat::core::foldl entries ()
@@ -71,16 +71,16 @@
 (:wat::test::deftest :wat-telemetry::test-batch-roundtrip
   ()
   (:wat::core::let*
-    ;; Inner owns every QueueSender clone (stub-pair, stub-tx) AND does
+    ;; Inner owns every Sender clone (stub-pair, stub-tx) AND does
     ;; the batch-log work; returns (driver, stub-rx) so outer can join
     ;; AND drain the receiver after the worker exits. SERVICE-PROGRAMS.md
     ;; § "The lockstep" + arc 117.
-    (((thr-and-rx :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::kernel::QueueReceiver<wat::core::i64>))
+    (((thr-and-rx :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::kernel::Receiver<wat::core::i64>))
       (:wat::core::let*
-        (((stub-pair :wat::kernel::QueuePair<wat::core::i64>)
-          (:wat::kernel::make-bounded-queue :wat::core::i64 16))
-         ((stub-tx :wat::kernel::QueueSender<wat::core::i64>) (:wat::core::first stub-pair))
-         ((stub-rx :wat::kernel::QueueReceiver<wat::core::i64>) (:wat::core::second stub-pair))
+        (((stub-pair :wat::kernel::Channel<wat::core::i64>)
+          (:wat::kernel::make-bounded-channel :wat::core::i64 16))
+         ((stub-tx :wat::kernel::Sender<wat::core::i64>) (:wat::core::first stub-pair))
+         ((stub-rx :wat::kernel::Receiver<wat::core::i64>) (:wat::core::second stub-pair))
          ((dispatcher :fn(wat::core::Vector<wat::core::i64>)->wat::core::unit)
           (:wat::core::lambda ((entries :wat::core::Vector<wat::core::i64>) -> :wat::core::unit)
             (:wat::core::foldl entries ()
@@ -114,7 +114,7 @@
             ())))
         (:wat::core::Tuple d stub-rx)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-rx))
-     ((stub-rx :wat::kernel::QueueReceiver<wat::core::i64>) (:wat::core::second thr-and-rx))
+     ((stub-rx :wat::kernel::Receiver<wat::core::i64>) (:wat::core::second thr-and-rx))
      ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ;; Drain the stub-rx — three Some values. Match-at-source per arc 110.
@@ -134,15 +134,15 @@
 (:wat::test::deftest :wat-telemetry::test-cadence-fires
   ()
   (:wat::core::let*
-    ;; Inner owns every QueueSender clone (stub-pair, stub-tx) AND does
+    ;; Inner owns every Sender clone (stub-pair, stub-tx) AND does
     ;; the batch-log work; returns (driver, stub-rx) so outer can join
     ;; AND drain. SERVICE-PROGRAMS.md § "The lockstep" + arc 117.
-    (((thr-and-rx :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::kernel::QueueReceiver<wat::core::i64>))
+    (((thr-and-rx :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::kernel::Receiver<wat::core::i64>))
       (:wat::core::let*
-        (((stub-pair :wat::kernel::QueuePair<wat::core::i64>)
-          (:wat::kernel::make-bounded-queue :wat::core::i64 16))
-         ((stub-tx :wat::kernel::QueueSender<wat::core::i64>) (:wat::core::first stub-pair))
-         ((stub-rx :wat::kernel::QueueReceiver<wat::core::i64>) (:wat::core::second stub-pair))
+        (((stub-pair :wat::kernel::Channel<wat::core::i64>)
+          (:wat::kernel::make-bounded-channel :wat::core::i64 16))
+         ((stub-tx :wat::kernel::Sender<wat::core::i64>) (:wat::core::first stub-pair))
+         ((stub-rx :wat::kernel::Receiver<wat::core::i64>) (:wat::core::second stub-pair))
          ((dispatcher :fn(wat::core::Vector<wat::core::i64>)->wat::core::unit)
           (:wat::core::lambda ((entries :wat::core::Vector<wat::core::i64>) -> :wat::core::unit)
             (:wat::core::foldl entries ()
@@ -180,7 +180,7 @@
             ())))
         (:wat::core::Tuple d stub-rx)))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-rx))
-     ((stub-rx :wat::kernel::QueueReceiver<wat::core::i64>) (:wat::core::second thr-and-rx))
+     ((stub-rx :wat::kernel::Receiver<wat::core::i64>) (:wat::core::second thr-and-rx))
      ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((v1 :wat::core::i64) (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64 ((:wat::core::Ok (:wat::core::Some v)) v) ((:wat::core::Ok :wat::core::None) 0) ((:wat::core::Err _) 0)))

@@ -45,7 +45,7 @@
    ;; Stub dispatcher — same shape as the make-scope tests'.
    (:wat::core::define
      (:wat-telemetry::log-test::make-stub-dispatcher
-       (stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
+       (stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
        -> :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
      (:wat::core::lambda ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::unit)
        (:wat::core::foldl entries ()
@@ -68,17 +68,17 @@
 ;; the lift (keyword → Atom → NoTag) + render round-trip.
 (:deftest :wat-telemetry::WorkUnitLog::test-info-emits-log-event
   (:wat::core::let*
-    ;; Inner owns every QueueSender clone (stub-pair, stub-tx) AND
+    ;; Inner owns every Sender clone (stub-pair, stub-tx) AND
     ;; emits + drains the one /info event before returning. Returns
     ;; (driver, level-back) so outer can join the driver and assert on
     ;; the level keyword. SERVICE-PROGRAMS.md § "The lockstep" + arc 117.
     (((thr-and-level :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::keyword))
       (:wat::core::let*
-        (((stub-pair :wat::kernel::QueuePair<wat::telemetry::Event>)
-          (:wat::kernel::make-bounded-queue :wat::telemetry::Event 16))
-         ((stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
+        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
+          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
+         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
           (:wat::core::first stub-pair))
-         ((stub-rx :wat::kernel::QueueReceiver<wat::telemetry::Event>)
+         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
           (:wat::core::second stub-pair))
          ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
           (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))
@@ -141,7 +141,7 @@
 
 (:deftest :wat-telemetry::WorkUnitLog::test-each-level-emits-log
   (:wat::core::let*
-    ;; Inner owns every QueueSender clone (stub-pair, stub-tx) AND
+    ;; Inner owns every Sender clone (stub-pair, stub-tx) AND
     ;; emits the four /level calls and drains all four events in the
     ;; same scope (the synchronous round-trip means each row is
     ;; enqueued by the time recv runs). Returns (driver, l4) so outer
@@ -149,11 +149,11 @@
     ;; SERVICE-PROGRAMS.md § "The lockstep" + arc 117.
     (((thr-and-l4 :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::keyword))
       (:wat::core::let*
-        (((stub-pair :wat::kernel::QueuePair<wat::telemetry::Event>)
-          (:wat::kernel::make-bounded-queue :wat::telemetry::Event 16))
-         ((stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
+        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
+          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
+         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
           (:wat::core::first stub-pair))
-         ((stub-rx :wat::kernel::QueueReceiver<wat::telemetry::Event>)
+         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
           (:wat::core::second stub-pair))
          ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
           (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))

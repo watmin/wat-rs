@@ -216,7 +216,7 @@ proven concurrency pattern that is not a lock.
 
 - `:wat::kernel::spawn` — starts a wat function on a new OS
   thread, returns a `ProgramHandle<R>` the caller can `join`.
-- `:wat::kernel::make-bounded-queue :T n` — a typed, bounded
+- `:wat::kernel::make-bounded-channel :T n` — a typed, bounded
   crossbeam channel. `n=1` rendezvous is the FOUNDATION default.
 - `:wat::kernel::select` — select across N receivers; returns
   `(index, Option<T>)` where `:None` means the receiver at that
@@ -522,7 +522,7 @@ through channels.
 on a `ProgramHandle` is this idiom for program-level completion.
 
 **"I have a queue multiple producers push to."**
-→ `make-bounded-queue`. Multiple `Sender<T>` clones (wait — wat
+→ `make-bounded-channel`. Multiple `Sender<T>` clones (wait — wat
 doesn't clone Senders; each Sender belongs to one owner per
 FOUNDATION's queue discipline). Multiple producer *programs* each
 hold their own Sender; each sends independently; the receiver

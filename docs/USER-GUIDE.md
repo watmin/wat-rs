@@ -555,7 +555,7 @@ Every wat program lives in a coordinate with two axes.
 
 1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
 2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `lambda`, `let*`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
-3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn-thread` (arc 114; returns `Thread<I,O>`), `Thread/input`, `Thread/output`, `Thread/join-result`, `make-bounded-queue`, `send`, `recv`, `select`, `drop`, `HandlePool`, `stopped?`, `pipe`, `spawn-program{,-ast}`, `fork-program{,-ast}` (both return `Process<I,O>` — arc 112 unification), `Process/join-result`, `process-send`, `process-recv`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes (or typed values) between Programs. Arc 114 names the contract: hosting is a user choice (Thread vs Process); the protocol (input / output / error mechanism through join) is fixed.
+3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn-thread` (arc 114; returns `Thread<I,O>`), `Thread/input`, `Thread/output`, `Thread/join-result`, `make-bounded-channel`, `send`, `recv`, `select`, `drop`, `HandlePool`, `stopped?`, `pipe`, `spawn-program{,-ast}`, `fork-program{,-ast}` (both return `Process<I,O>` — arc 112 unification), `Process/join-result`, `process-send`, `process-recv`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes (or typed values) between Programs. Arc 114 names the contract: hosting is a user choice (Thread vs Process); the protocol (input / output / error mechanism through join) is fixed.
 4. **Stdlib plumbing** (`:wat::std::*`) — non-algebra conveniences written in wat: stream combinators (`:wat::std::stream::*`), services (`:wat::console`), the hermetic-test wrapper. Each expressible in wat on top of core + kernel.
 
 ### Axis 2 — two namespaces
@@ -1231,16 +1231,16 @@ The kernel primitives are small. Four concepts cover everything.
 ### Queues
 
 ```scheme
-(:wat::kernel::make-bounded-queue :Candle 1)
-;; → :wat::kernel::QueuePair<Candle>
+(:wat::kernel::make-bounded-channel :Candle 1)
+;; → :wat::kernel::Channel<Candle>
 ;;   ≡ :(Sender<Candle>, Receiver<Candle>)
 ;; bounded(1) — rendezvous; sender blocks until receiver ready
 
-(:wat::kernel::make-bounded-queue :Candle 64)
+(:wat::kernel::make-bounded-channel :Candle 64)
 ;; bounded(64) — buffer of 64 before sender blocks
 
-(:wat::kernel::make-unbounded-queue :LearnSignal)
-;; → :wat::kernel::QueuePair<LearnSignal>
+(:wat::kernel::make-unbounded-channel :LearnSignal)
+;; → :wat::kernel::Channel<LearnSignal>
 ;; fire-and-forget — buffer grows until consumer drains
 ```
 
@@ -1253,9 +1253,9 @@ spell the channel surface in short form:
 
 | Alias | Expands to |
 |---|---|
-| `:wat::kernel::QueueSender<T>` | `:rust::crossbeam_channel::Sender<T>` |
-| `:wat::kernel::QueueReceiver<T>` | `:rust::crossbeam_channel::Receiver<T>` |
-| `:wat::kernel::QueuePair<T>` | `:(QueueSender<T>, QueueReceiver<T>)` — what `make-bounded/unbounded-queue` returns |
+| `:wat::kernel::Sender<T>` | `:rust::crossbeam_channel::Sender<T>` |
+| `:wat::kernel::Receiver<T>` | `:rust::crossbeam_channel::Receiver<T>` |
+| `:wat::kernel::Channel<T>` | `:(Sender<T>, Receiver<T>)` — what `make-bounded/unbounded-channel` returns |
 | `:wat::kernel::CommResult<T>` | `:Result<:Option<T>, :wat::kernel::ThreadDiedError>` — what `recv` / `try-recv` return (arc 111). Three states: `Ok(Some v)` value flowed; `Ok(:None)` clean shutdown (every sender dropped via scope); `Err(...)` sender thread died |
 | `:wat::kernel::Chosen<T>` | `:(i64, :wat::kernel::CommResult<T>)` — what `select` returns (which receiver fired, and the recv outcome) |
 
@@ -1399,9 +1399,9 @@ canonical-fix block.
 
 ```scheme
 (:wat::core::let*
-  (((pair :wat::kernel::QueuePair<i64>)
-    (:wat::kernel::make-bounded-queue :wat::core::i64 1))
-   ((rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second pair))
+  (((pair :wat::kernel::Channel<i64>)
+    (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+   ((rx :wat::kernel::Receiver<i64>) (:wat::core::second pair))
    ((thr :wat::kernel::Thread<(),i64>)
     (:wat::kernel::spawn-thread ...))
    ...)
@@ -1409,7 +1409,7 @@ canonical-fix block.
 ```
 
 **Canonical pattern (nested `let*`)** — outer scope holds the
-`Thread`; inner scope owns the `QueuePair` and every `Sender`. The
+`Thread`; inner scope owns the `Channel` and every `Sender`. The
 inner `let*` body yields `h` so the outer can join it. When inner
 exits, every `Sender` Arc bound there decrements; the worker's next
 `recv` returns `:None`; the worker exits; the outer
@@ -1419,10 +1419,10 @@ exits, every `Sender` Arc bound there decrements; the worker's next
 (:wat::core::let*
   (((thr :wat::kernel::Thread<(),i64>)
     (:wat::core::let*
-      (((pair :wat::kernel::QueuePair<i64>)
-        (:wat::kernel::make-bounded-queue :wat::core::i64 1))
-       ((tx :wat::kernel::QueueSender<i64>) (:wat::core::first pair))
-       ((rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second pair))
+      (((pair :wat::kernel::Channel<i64>)
+        (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+       ((tx :wat::kernel::Sender<i64>) (:wat::core::first pair))
+       ((rx :wat::kernel::Receiver<i64>) (:wat::core::second pair))
        ((h :wat::kernel::Thread<(),i64>)
         (:wat::kernel::spawn-thread ...))
        ((_send :Result<(),:Vec<wat::kernel::ThreadDiedError>>)
@@ -1444,7 +1444,7 @@ structurally; see `WAT-CHEATSHEET.md § 10` for the rule and
 
 ```scheme
 (:wat::kernel::select receivers)
-;; receivers : :Vec<wat::kernel::QueueReceiver<T>>
+;; receivers : :Vec<wat::kernel::Receiver<T>>
 ;; → :wat::kernel::Chosen<T>   ≡ :(i64, Option<T>)
 ;; — blocks until any receiver has a value or disconnects
 ;; — returns the index and :None if disconnected, (Some v) if produced
@@ -2611,12 +2611,12 @@ the stage crashes silently (look at stderr for panics); the stage
 has a logic bug that skips sending. Fix: every `Some` branch of
 every stage must send to output before recursing.
 
-**Scope-deadlock at `Thread/join-result`.** A `QueuePair` /
-`QueueSender` bound at the same `let*` scope as a Thread keeps a
+**Scope-deadlock at `Thread/join-result`.** A `Channel` /
+`Sender` bound at the same `let*` scope as a Thread keeps a
 Sender clone alive past the join; the worker's `recv` never sees
 EOF; the join blocks forever. Arc 117 turns this into a compile
 error with a self-describing canonical-fix block. Fix: nest the
-queue allocation + Sender bindings in an inner `let*` whose body
+channel allocation + Sender bindings in an inner `let*` whose body
 returns the Thread; outer scope holds only the Thread. The
 substrate's diagnostic shows the pre/post shapes inline. See
 `WAT-CHEATSHEET.md § 10` and `SERVICE-PROGRAMS.md § "The lockstep"`.
@@ -2761,8 +2761,8 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::kernel::Thread/input` | `thr` | `:rust::crossbeam_channel::Sender<I>` — parent → thread |
 | `:wat::kernel::Thread/output` | `thr` | `:rust::crossbeam_channel::Receiver<O>` — thread → parent |
 | `:wat::kernel::Thread/join-result` | `thr` | `:Result<:(), :Vec<wat::kernel::ThreadDiedError>>` — death-as-data; chain shape (arcs 060/113/114) |
-| `:wat::kernel::make-bounded-queue` | `:T n` | `:(Sender<T>, Receiver<T>)` |
-| `:wat::kernel::make-unbounded-queue` | `:T` | `:(Sender<T>, Receiver<T>)` |
+| `:wat::kernel::make-bounded-channel` | `:T n` | `:(Sender<T>, Receiver<T>)` |
+| `:wat::kernel::make-unbounded-channel` | `:T` | `:(Sender<T>, Receiver<T>)` |
 | `:wat::kernel::send` | `sender value` | `:wat::kernel::Sent` ≡ `:Option<()>` — `(Some ())` on sent, `:None` on disconnect |
 | `:wat::kernel::recv` / `try-recv` | `receiver` | `:Option<T>` |
 | `:wat::kernel::select` | `receivers` | `:(i64, Option<T>)` |

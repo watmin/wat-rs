@@ -57,7 +57,7 @@ fn from_receiver_wraps_raw_queue_into_stream() {
         (:wat::core::define (:test::build-stream -> :wat::stream::Stream<wat::core::i64>)
           (:wat::core::let*
             (((pair :(rust::crossbeam_channel::Sender<wat::core::i64>,rust::crossbeam_channel::Receiver<wat::core::i64>))
-              (:wat::kernel::make-bounded-queue :wat::core::i64 1))
+              (:wat::kernel::make-bounded-channel :wat::core::i64 1))
              ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) (:wat::core::first pair))
              ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>) (:wat::core::second pair))
              ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
@@ -88,7 +88,7 @@ fn from_receiver_composes_with_map() {
         (:wat::core::define (:test::build-stream -> :wat::stream::Stream<wat::core::i64>)
           (:wat::core::let*
             (((pair :(rust::crossbeam_channel::Sender<wat::core::i64>,rust::crossbeam_channel::Receiver<wat::core::i64>))
-              (:wat::kernel::make-bounded-queue :wat::core::i64 1))
+              (:wat::kernel::make-bounded-channel :wat::core::i64 1))
              ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) (:wat::core::first pair))
              ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>) (:wat::core::second pair))
              ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)

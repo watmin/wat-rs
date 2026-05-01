@@ -38,9 +38,9 @@
 (:wat::core::typealias :wat::console::Message
   :(wat::core::i64,wat::core::String))
 (:wat::core::typealias :wat::console::ReqTx
-  :wat::kernel::QueueSender<wat::console::Message>)
+  :wat::kernel::Sender<wat::console::Message>)
 (:wat::core::typealias :wat::console::ReqRx
-  :wat::kernel::QueueReceiver<wat::console::Message>)
+  :wat::kernel::Receiver<wat::console::Message>)
 (:wat::core::typealias :wat::console::ReqChannel
   :(wat::console::ReqTx,wat::console::ReqRx))
 
@@ -63,9 +63,9 @@
 ;; internal pairs hold the matching (ReqRx, AckTx) — paired by
 ;; index inside spawn.
 (:wat::core::typealias :wat::console::AckTx
-  :wat::kernel::QueueSender<wat::core::unit>)
+  :wat::kernel::Sender<wat::core::unit>)
 (:wat::core::typealias :wat::console::AckRx
-  :wat::kernel::QueueReceiver<wat::core::unit>)
+  :wat::kernel::Receiver<wat::core::unit>)
 (:wat::core::typealias :wat::console::AckChannel
   :(wat::console::AckTx,wat::console::AckRx))
 (:wat::core::typealias :wat::console::Handle
@@ -249,7 +249,7 @@
         (:wat::core::lambda
           ((_i :wat::core::i64)
            -> :(wat::console::ReqTx,wat::console::ReqRx))
-          (:wat::kernel::make-bounded-queue
+          (:wat::kernel::make-bounded-channel
             :wat::console::Message 1))))
      ((ack-pairs :wat::core::Vector<(wat::console::AckTx,wat::console::AckRx)>)
       (:wat::core::map
@@ -257,7 +257,7 @@
         (:wat::core::lambda
           ((_i :wat::core::i64)
            -> :(wat::console::AckTx,wat::console::AckRx))
-          (:wat::kernel::make-bounded-queue :wat::core::unit 1))))
+          (:wat::kernel::make-bounded-channel :wat::core::unit 1))))
      ;; Producer-side: pop a Handle = (req-Tx, ack-Rx).
      ((handles :wat::core::Vector<wat::console::Handle>)
       (:wat::std::list::zip

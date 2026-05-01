@@ -156,15 +156,15 @@ See USER-GUIDE.md § 13 "Testing".
 ## 10. Scope-deadlock rule
 
 Outer scope holds the Thread; inner scope owns every Sender
-clone. The compiler refuses programs where a `QueuePair` /
-`QueueSender` lives at sibling scope to a Thread whose
+clone. The compiler refuses programs where a `Channel` /
+`Sender` lives at sibling scope to a Thread whose
 `Thread/join-result` runs in the same `let*`.
 
 ```wat
 ;; Illegal — pair sibling to thr; pair's Sender outlives thr;
 ;; the worker's recv never sees EOF.
 (:wat::core::let*
-  (((pair :wat::kernel::QueuePair<i64>) (:wat::kernel::make-bounded-queue :wat::core::i64 1))
+  (((pair :wat::kernel::Channel<i64>) (:wat::kernel::make-bounded-channel :wat::core::i64 1))
    ((thr  :wat::kernel::Thread<(),i64>) (:wat::kernel::spawn-thread ...))
    ...)
   (:wat::kernel::Thread/join-result thr))
@@ -174,7 +174,7 @@ clone. The compiler refuses programs where a `QueuePair` /
 (:wat::core::let*
   (((thr :wat::kernel::Thread<(),i64>)
     (:wat::core::let*
-      (((pair :wat::kernel::QueuePair<i64>) (:wat::kernel::make-bounded-queue :wat::core::i64 1))
+      (((pair :wat::kernel::Channel<i64>) (:wat::kernel::make-bounded-channel :wat::core::i64 1))
        ((h    :wat::kernel::Thread<(),i64>) (:wat::kernel::spawn-thread ...))
        ...)
       h)))

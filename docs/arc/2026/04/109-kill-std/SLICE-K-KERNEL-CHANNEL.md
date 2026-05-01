@@ -1,7 +1,37 @@
 # Arc 109 Slice K.kernel-channel — `:wat::kernel::Queue*` → `Channel`/`Sender`/`Receiver` family rename
 
-**Compaction-amnesia anchor.** Read this first if you're picking
-up slice K.kernel-channel mid-flight.
+**Status: shipped 2026-05-01.** Substrate (commit `98ce165`) +
+consumer sweep. 23 files swept (1 substrate file move + 22
+consumer); 286/286 pure rename in consumer scope; cargo test
+--release --workspace 1476/0.
+
+The kernel's channel-primitive vocabulary moved cleanly. Five
+typealiases / verbs renamed; one file moved
+(`wat/kernel/queue.wat` → `wat/kernel/channel.wat`); arc 117's
+scope-deadlock walker recognition strings updated in lockstep;
+Pattern 3 walker minted. After this slice the substrate's
+service-crate vocabulary is uniform — every Channel-family
+typealias body says `:wat::kernel::Sender<T>` /
+`:wat::kernel::Receiver<T>` / `:wat::kernel::Channel<T>`; no
+`:rust::crossbeam_channel::*` leak survives.
+
+**Side benefit shipped:** the short substrate names
+(`Sender<T>`, `Receiver<T>`, `Channel<T>`) eliminated the
+"`QueueSender` is too long, fall back to `:rust::crossbeam_channel::*`"
+ergonomics gap. Codebase now uses the substrate name uniformly.
+
+**Originally drafted as a compaction-amnesia anchor mid-slice;
+preserved here as the durable record.** Slice K.kernel-channel
+is the seventh Pattern 3 application after slices 1c/1d/1e/9d/
+K.telemetry/K.console/K.lru. First slice to rename a substrate
+PRIMITIVE family (vs. service-crate naming). Unblocks K.holon-lru's
+GetReplyPair → GetReplyChannel rename.
+
+**Substrate-as-teacher held under broad scope:** consumer sweep
+agent followed the diagnostic stream (65 failing tests pre-sweep
+→ 1476/0 post-sweep); orchestrator independently verified 22
+files match `git diff --stat`. Per-file insertions equal
+deletions (pure rename, no semantic drift).
 
 ## Provenance
 

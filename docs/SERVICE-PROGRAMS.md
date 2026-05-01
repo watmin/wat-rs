@@ -108,7 +108,7 @@ returns its count.
 ;; Worker — tail-recursive recv loop.
 (:wat::core::define
   (:my::app::count-recv
-    (rx :wat::kernel::QueueReceiver<i64>)
+    (rx :wat::kernel::Receiver<i64>)
     (acc :i64)
     -> :i64)
   (:wat::core::match (:wat::kernel::recv rx) -> :i64
@@ -117,17 +117,17 @@ returns its count.
 
 (:wat::core::define
   (:my::app::run-counter
-    (rx :wat::kernel::QueueReceiver<i64>) -> :i64)
+    (rx :wat::kernel::Receiver<i64>) -> :i64)
   (:my::app::count-recv rx 0))
 
 ;; Client — nested let*. Outer holds the handle; inner owns tx.
 (:wat::core::let*
   (((handle :wat::kernel::ProgramHandle<i64>)
     (:wat::core::let*
-      (((pair :wat::kernel::QueuePair<i64>)
-        (:wat::kernel::make-bounded-queue :i64 1))
-       ((tx :wat::kernel::QueueSender<i64>) (:wat::core::first pair))
-       ((rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second pair))
+      (((pair :wat::kernel::Channel<i64>)
+        (:wat::kernel::make-bounded-channel :i64 1))
+       ((tx :wat::kernel::Sender<i64>) (:wat::core::first pair))
+       ((rx :wat::kernel::Receiver<i64>) (:wat::core::second pair))
        ((h :wat::kernel::ProgramHandle<i64>)
         (:wat::kernel::spawn :my::app::run-counter rx))
        ((_s1 :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx 10) "_s1: peer disconnected"))
@@ -156,7 +156,7 @@ scope drops*. With every local Sender clone gone, the worker's next
 
 ```scheme
 (:wat::core::let*                    ;; ← ONE flat let*
-  (((pair ...) (:wat::kernel::make-bounded-queue :i64 1))
+  (((pair ...) (:wat::kernel::make-bounded-channel :i64 1))
    ((tx ...) (:wat::core::first pair))
    ((rx ...) (:wat::core::second pair))
    ((handle ...) (:wat::kernel::spawn :my::app::run-counter rx))
@@ -184,8 +184,8 @@ Client sends a request, recvs the response, exits.
 ```scheme
 (:wat::core::define
   (:my::app::doubler-loop
-    (req-rx  :wat::kernel::QueueReceiver<i64>)
-    (resp-tx :wat::kernel::QueueSender<i64>)
+    (req-rx  :wat::kernel::Receiver<i64>)
+    (resp-tx :wat::kernel::Sender<i64>)
     -> :())
   (:wat::core::match (:wat::kernel::recv req-rx) -> :()
     ((Some n)
@@ -198,14 +198,14 @@ Client sends a request, recvs the response, exits.
 (:wat::core::let*
   (((handle :wat::kernel::ProgramHandle<()>)
     (:wat::core::let*
-      (((req-pair  :wat::kernel::QueuePair<i64>)
-        (:wat::kernel::make-bounded-queue :i64 1))
-       ((req-tx  :wat::kernel::QueueSender<i64>)   (:wat::core::first req-pair))
-       ((req-rx  :wat::kernel::QueueReceiver<i64>) (:wat::core::second req-pair))
-       ((resp-pair :wat::kernel::QueuePair<i64>)
-        (:wat::kernel::make-bounded-queue :i64 1))
-       ((resp-tx :wat::kernel::QueueSender<i64>)   (:wat::core::first resp-pair))
-       ((resp-rx :wat::kernel::QueueReceiver<i64>) (:wat::core::second resp-pair))
+      (((req-pair  :wat::kernel::Channel<i64>)
+        (:wat::kernel::make-bounded-channel :i64 1))
+       ((req-tx  :wat::kernel::Sender<i64>)   (:wat::core::first req-pair))
+       ((req-rx  :wat::kernel::Receiver<i64>) (:wat::core::second req-pair))
+       ((resp-pair :wat::kernel::Channel<i64>)
+        (:wat::kernel::make-bounded-channel :i64 1))
+       ((resp-tx :wat::kernel::Sender<i64>)   (:wat::core::first resp-pair))
+       ((resp-rx :wat::kernel::Receiver<i64>) (:wat::core::second resp-pair))
        ((h :wat::kernel::ProgramHandle<()>)
         (:wat::kernel::spawn :my::app::doubler-loop req-rx resp-tx))
        ((_s :()) (:wat::core::option::expect -> :() (:wat::kernel::send req-tx 21) "_s: peer disconnected"))
@@ -229,14 +229,14 @@ the client consumes the previous response.
 
 ## Step 5 — multi-channel select
 
-`select` watches a `Vec<QueueReceiver<T>>` and returns
+`select` watches a `Vec<Receiver<T>>` and returns
 `Chosen<T> ≡ (idx, Option<T>)` — *which receiver fired* and *what it
 gave* (`Some v` or `:None` on disconnect).
 
 ```scheme
 (:wat::core::define
   (:my::app::select-loop-step
-    (rxs :Vec<wat::kernel::QueueReceiver<i64>>)
+    (rxs :Vec<wat::kernel::Receiver<i64>>)
     (acc :i64)
     -> :i64)
   (:wat::core::if (:wat::core::empty? rxs) -> :i64
@@ -260,21 +260,21 @@ the loop exits.
 **Build the receivers Vec from pairs** with `map first` / `map second`:
 
 ```scheme
-((pairs :Vec<wat::kernel::QueuePair<i64>>)
+((pairs :Vec<wat::kernel::Channel<i64>>)
  (:wat::core::map (:wat::core::range 0 N)
-   (:wat::core::lambda ((_i :i64) -> :wat::kernel::QueuePair<i64>)
-     (:wat::kernel::make-bounded-queue :i64 1))))
+   (:wat::core::lambda ((_i :i64) -> :wat::kernel::Channel<i64>)
+     (:wat::kernel::make-bounded-channel :i64 1))))
 
-((txs :Vec<wat::kernel::QueueSender<i64>>)
+((txs :Vec<wat::kernel::Sender<i64>>)
  (:wat::core::map pairs
-   (:wat::core::lambda ((p :wat::kernel::QueuePair<i64>)
-                        -> :wat::kernel::QueueSender<i64>)
+   (:wat::core::lambda ((p :wat::kernel::Channel<i64>)
+                        -> :wat::kernel::Sender<i64>)
      (:wat::core::first p))))
 
-((rxs :Vec<wat::kernel::QueueReceiver<i64>>)
+((rxs :Vec<wat::kernel::Receiver<i64>>)
  (:wat::core::map pairs
-   (:wat::core::lambda ((p :wat::kernel::QueuePair<i64>)
-                        -> :wat::kernel::QueueReceiver<i64>)
+   (:wat::core::lambda ((p :wat::kernel::Channel<i64>)
+                        -> :wat::kernel::Receiver<i64>)
      (:wat::core::second p))))
 ```
 
@@ -292,9 +292,9 @@ handler.
 ```scheme
 (:wat::core::define
   (:my::app::telemetry-loop
-    (req-rx   :wat::kernel::QueueReceiver<i64>)
-    (resp-tx  :wat::kernel::QueueSender<i64>)
-    (telem-tx :wat::kernel::QueueSender<i64>)
+    (req-rx   :wat::kernel::Receiver<i64>)
+    (resp-tx  :wat::kernel::Sender<i64>)
+    (telem-tx :wat::kernel::Sender<i64>)
     -> :())
   (:wat::core::match (:wat::kernel::recv req-rx) -> :()
     ((Some n)
@@ -332,19 +332,19 @@ construction than deadlock at shutdown.
 (:wat::core::let*
   (((handle :wat::kernel::ProgramHandle<i64>)
     (:wat::core::let*
-      (((pairs :Vec<wat::kernel::QueuePair<i64>>) ...)
-       ((txs :Vec<wat::kernel::QueueSender<i64>>) ...)
-       ((rxs :Vec<wat::kernel::QueueReceiver<i64>>) ...)
+      (((pairs :Vec<wat::kernel::Channel<i64>>) ...)
+       ((txs :Vec<wat::kernel::Sender<i64>>) ...)
+       ((rxs :Vec<wat::kernel::Receiver<i64>>) ...)
 
-       ((pool :wat::kernel::HandlePool<wat::kernel::QueueSender<i64>>)
+       ((pool :wat::kernel::HandlePool<wat::kernel::Sender<i64>>)
         (:wat::kernel::HandlePool::new "my-summer" txs))
 
        ((h :wat::kernel::ProgramHandle<i64>)
         (:wat::kernel::spawn :my::app::run-summer rxs))
 
-       ((tx-a :wat::kernel::QueueSender<i64>) (:wat::kernel::HandlePool::pop pool))
-       ((tx-b :wat::kernel::QueueSender<i64>) (:wat::kernel::HandlePool::pop pool))
-       ((tx-c :wat::kernel::QueueSender<i64>) (:wat::kernel::HandlePool::pop pool))
+       ((tx-a :wat::kernel::Sender<i64>) (:wat::kernel::HandlePool::pop pool))
+       ((tx-b :wat::kernel::Sender<i64>) (:wat::kernel::HandlePool::pop pool))
+       ((tx-c :wat::kernel::Sender<i64>) (:wat::kernel::HandlePool::pop pool))
        ((_finish :()) (:wat::kernel::HandlePool::finish pool))
 
        ((_a :()) (:wat::core::option::expect -> :() (:wat::kernel::send tx-a 100) "_a: peer disconnected"))
@@ -382,7 +382,7 @@ disconnect.
 
 (:wat::core::define
   (:my::app::tally-loop
-    (rx    :wat::kernel::QueueReceiver<i64>)
+    (rx    :wat::kernel::Receiver<i64>)
     (tally :my::app::Tally)
     -> :my::app::Tally)
   (:wat::core::match (:wat::kernel::recv rx) -> :my::app::Tally
@@ -397,7 +397,7 @@ disconnect.
 
 (:wat::core::define
   (:my::app::run-tally
-    (rx :wat::kernel::QueueReceiver<i64>) -> :my::app::Tally)
+    (rx :wat::kernel::Receiver<i64>) -> :my::app::Tally)
   (:my::app::tally-loop rx (:my::app::Tally/new 0 0)))
 ```
 
@@ -639,9 +639,9 @@ The substrate aliases that make all of this readable
 
 | Alias | Expands to |
 |---|---|
-| `:wat::kernel::QueueSender<T>` | `:rust::crossbeam_channel::Sender<T>` |
-| `:wat::kernel::QueueReceiver<T>` | `:rust::crossbeam_channel::Receiver<T>` |
-| `:wat::kernel::QueuePair<T>` | `:(QueueSender<T>, QueueReceiver<T>)` |
+| `:wat::kernel::Sender<T>` | `:rust::crossbeam_channel::Sender<T>` |
+| `:wat::kernel::Receiver<T>` | `:rust::crossbeam_channel::Receiver<T>` |
+| `:wat::kernel::Channel<T>` | `:(Sender<T>, Receiver<T>)` |
 | `:wat::kernel::Chosen<T>` | `:(i64, Option<T>)` — `select` return |
 | `:wat::kernel::Sent` | `:Option<()>` — `send` return |
 

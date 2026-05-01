@@ -24,7 +24,7 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
+        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
@@ -44,7 +44,7 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3 4 5))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
+        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
@@ -65,7 +65,7 @@
   (:wat::core::let*
     (((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit) ())))
+        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::unit) ())))
      ((chunked :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
       (:wat::stream::chunks stream 3))
      ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect chunked))
@@ -85,7 +85,7 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 1 2 2 2 3 1 1))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
+        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
@@ -121,7 +121,7 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 10 20 30))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
+        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
@@ -165,7 +165,7 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 1 2 3 3 3 1))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
+        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
@@ -191,7 +191,7 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
+        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
@@ -215,7 +215,7 @@
   (:wat::core::let*
     (((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit) ())))
+        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::unit) ())))
      ((id :fn(wat::core::i64)->wat::core::i64)
       (:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64) x))
      ((grouped :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
@@ -233,7 +233,7 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3 4 5))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
+        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
@@ -256,7 +256,7 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
+        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
@@ -277,7 +277,7 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit)
+        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::unit)
           (:wat::core::foldl source ()
             (:wat::core::lambda ((_ :wat::core::unit) (item :wat::core::i64) -> :wat::core::unit)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::unit
@@ -297,7 +297,7 @@
   (:wat::core::let*
     (((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::QueueSender<wat::core::i64>) -> :wat::core::unit) ())))
+        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::unit) ())))
      ((windowed :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
       (:wat::stream::window stream 3))
      ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect windowed))

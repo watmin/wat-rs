@@ -23,7 +23,7 @@ Every other prefix is user territory.
 | `:wat::core::*` | Evaluator primitives — forms (`define`, `lambda`, `let*`, `if`, `match`), primitive types (`i64`, `bool`, `String`, ...), macros, eval-family, primitive-type operations (`i64::+`, `bool::and`), core collections (`vec`, `list`, `cons`, `conj`, `HashMap`, `HashSet`, `get`, `contains?`, `assoc`). Cannot be written in wat. |
 | `:wat::config::*` | Runtime-committed configuration: `capacity-mode` (`:error` / `:panic` — arc 045 renamed `:abort` → `:panic`), `dim-router` function (multi-tier dim selection per AST surface — arc 037), `presence-sigma` / `coincident-sigma` functions of `d` (arc 024), `global-seed`. Compat shim accessors `dims` / `noise-floor` return `DEFAULT_TIERS[0]` defaults. Read-only after config pass. |
 | `:wat::holon::*` | Holon algebra — the `HolonAST` type, the six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), the four measurements (`cosine`, `dot`, `presence?`, `coincident?`), the `eval-coincident?` family (arc 026), the `CapacityExceeded` error type, and typealiases `Holons` / `BundleResult` (arcs 032, 033). One namespace for the whole holon surface. |
-| `:wat::kernel::*` | CSP primitives — `spawn`, `send`, `recv`, `select`, `drop`, `join`, `make-bounded-queue`, `HandlePool`, signal handlers. |
+| `:wat::kernel::*` | CSP primitives — `spawn`, `send`, `recv`, `select`, `drop`, `join`, `make-bounded-channel`, `HandlePool`, signal handlers. |
 | `:wat::io::*` | Stdio primitives — `stdin`, `stdout`, `stderr`, `println`. |
 | `:wat::std::*` | Stdlib built on primitives. Each entry should be expressible (in principle) in wat itself, even if shipped as Rust for performance. `stream::*`, `service::Console`, `hermetic`, `test::*`. (LocalCache + CacheService moved to `:wat::lru::*` via arcs 013 + 036.) |
 | `:wat::lru::*` | LRU cache surface (external workspace member `crates/wat-lru/`, namespace promoted to `:wat::*` via arc 036). `LocalCache<K,V>`, `CacheService<K,V>`. |
@@ -386,7 +386,7 @@ be ceremony without information.
 
 ## Name formats
 
-- `snake-case` for functions: `make-bounded-queue`, `for-each`,
+- `snake-case` for functions: `make-bounded-channel`, `for-each`,
   `spawn-producer`.
 - `PascalCase` for types: `Bundle`, `HashMap`, `Console`, `Stream`.
 - `PascalCase` for enum variants (arc 048): `:Buy`, `:Sell`,
@@ -588,9 +588,9 @@ If a function's return type contains **three or more** `<` characters, name it. 
 
 | Alias | Expands to | Where |
 |---|---|---|
-| `:wat::kernel::QueuePair<T>` | `:(QueueSender<T>,QueueReceiver<T>)` | `wat/kernel/queue.wat` |
-| `:wat::kernel::Sent` | `:Option<()>` | `wat/kernel/queue.wat` |
-| `:wat::kernel::Chosen<T>` | `:(i64,Option<T>)` | `wat/kernel/queue.wat` |
+| `:wat::kernel::Channel<T>` | `:(Sender<T>,Receiver<T>)` | `wat/kernel/channel.wat` |
+| `:wat::kernel::Sent` | `:Option<()>` | `wat/kernel/channel.wat` |
+| `:wat::kernel::Chosen<T>` | `:(i64,Option<T>)` | `wat/kernel/channel.wat` |
 | `:wat::std::stream::Stream<T>` | `:(Receiver<T>,ProgramHandle<()>)` | `wat/std/stream.wat` |
 | `:wat::std::stream::ChunkStep<T>` | `:(Vec<T>,Vec<Vec<T>>)` | `wat/std/stream.wat` |
 | `:wat::std::stream::KeyedChunkStep<K,T>` | `:((Option<K>,Vec<T>),Vec<Vec<T>>)` | `wat/std/stream.wat` |

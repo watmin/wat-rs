@@ -55,12 +55,12 @@
        (body)))
 
    ;; Stub dispatcher for the make-scope ship test — closes over
-   ;; a QueueSender<Event>; forwards each Event from the dispatched
-   ;; batch into the test's stub queue so the body can drain
+   ;; a Sender<Event>; forwards each Event from the dispatched
+   ;; batch into the test's stub channel so the body can drain
    ;; them after scope returns.
    (:wat::core::define
      (:wat-telemetry::scope::make-stub-dispatcher
-       (stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
+       (stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
        -> :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
      (:wat::core::lambda ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::unit)
        (:wat::core::foldl entries ()
@@ -420,21 +420,21 @@
 ;;   7. assert result == 42 (body's T flowed through)
 (:deftest :wat-telemetry::WorkUnit::test-make-scope-ships-counter
   (:wat::core::let*
-    ;; Inner owns every QueueSender clone (stub-pair, stub-tx) AND does
+    ;; Inner owns every Sender clone (stub-pair, stub-tx) AND does
     ;; the scope work + drains the one expected Event from stub-rx
     ;; inside the same scope (the dispatcher fires at scope-close, so
-    ;; the row is in the queue before recv runs). Returns
+    ;; the row is in the channel before recv runs). Returns
     ;; (driver, result, r1-some?) to outer; outer joins the driver and
     ;; asserts on the body's result + the recv'd-Some bool.
     ;; SERVICE-PROGRAMS.md § "The lockstep" + arc 117.
     (((thr-result-some :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::i64,wat::core::bool))
       (:wat::core::let*
         ;; Stub queue — collects the Events the dispatcher sees.
-        (((stub-pair :wat::kernel::QueuePair<wat::telemetry::Event>)
-          (:wat::kernel::make-bounded-queue :wat::telemetry::Event 16))
-         ((stub-tx :wat::kernel::QueueSender<wat::telemetry::Event>)
+        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
+          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
+         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
           (:wat::core::first stub-pair))
-         ((stub-rx :wat::kernel::QueueReceiver<wat::telemetry::Event>)
+         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
           (:wat::core::second stub-pair))
          ;; Dispatcher closure-over stub-tx; null cadence + empty translator.
          ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)

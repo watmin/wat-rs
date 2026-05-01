@@ -172,7 +172,7 @@
 (:wat::core::define
   (:wat::telemetry::sqlite/log-loop
     (cursor :wat::telemetry::sqlite::LogCursor)
-    (tx :wat::kernel::QueueSender<wat::telemetry::Event>)
+    (tx :wat::kernel::Sender<wat::telemetry::Event>)
     -> :wat::core::unit)
   (:wat::core::match
     (:wat::telemetry::sqlite::LogCursor/step! cursor)
@@ -189,7 +189,7 @@
 (:wat::core::define
   (:wat::telemetry::sqlite/metric-loop
     (cursor :wat::telemetry::sqlite::MetricCursor)
-    (tx :wat::kernel::QueueSender<wat::telemetry::Event>)
+    (tx :wat::kernel::Sender<wat::telemetry::Event>)
     -> :wat::core::unit)
   (:wat::core::match
     (:wat::telemetry::sqlite::MetricCursor/step! cursor)
@@ -218,7 +218,7 @@
     (((path :wat::core::String) (:wat::sqlite::ReadHandle/path handle)))
     (:wat::stream::spawn-producer
       (:wat::core::lambda
-        ((tx :wat::kernel::QueueSender<wat::telemetry::Event>) -> :wat::core::unit)
+        ((tx :wat::kernel::Sender<wat::telemetry::Event>) -> :wat::core::unit)
         (:wat::core::let*
           (((local-handle :wat::sqlite::ReadHandle)
             (:wat::sqlite::open-readonly path))
@@ -235,7 +235,7 @@
     (((path :wat::core::String) (:wat::sqlite::ReadHandle/path handle)))
     (:wat::stream::spawn-producer
       (:wat::core::lambda
-        ((tx :wat::kernel::QueueSender<wat::telemetry::Event>) -> :wat::core::unit)
+        ((tx :wat::kernel::Sender<wat::telemetry::Event>) -> :wat::core::unit)
         (:wat::core::let*
           (((local-handle :wat::sqlite::ReadHandle)
             (:wat::sqlite::open-readonly path))

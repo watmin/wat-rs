@@ -59,8 +59,8 @@
    ;; Reply channel for the Ack verb — unit reply. Aliased because it
    ;; recurs at every Ack call site (request body + caller's reply
    ;; channel both reference it).
-   (:wat::core::typealias :svc::AckReplyTx :wat::kernel::QueueSender<wat::core::unit>)
-   (:wat::core::typealias :svc::AckReplyRx :wat::kernel::QueueReceiver<wat::core::unit>)
+   (:wat::core::typealias :svc::AckReplyTx :wat::kernel::Sender<wat::core::unit>)
+   (:wat::core::typealias :svc::AckReplyRx :wat::kernel::Receiver<wat::core::unit>)
 
    ;; Get's reply channel carries the full State struct. Inlined in
    ;; the variant declaration below — domain-payload reply types are
@@ -72,13 +72,13 @@
    (:wat::core::enum :svc::Request
      (Push (value :wat::core::i64))
      (Ack  (reply-tx :svc::AckReplyTx))
-     (Get  (reply-tx :wat::kernel::QueueSender<svc::State>)))
+     (Get  (reply-tx :wat::kernel::Sender<svc::State>)))
 
    ;; Per-broker request channel typealiases. Idiomatic: every service
    ;; has these four (Tx / Rx / TxPool / Spawn) — they describe the
    ;; service's wire shape independent of state or verbs.
-   (:wat::core::typealias :svc::ReqTx :wat::kernel::QueueSender<svc::Request>)
-   (:wat::core::typealias :svc::ReqRx :wat::kernel::QueueReceiver<svc::Request>)
+   (:wat::core::typealias :svc::ReqTx :wat::kernel::Sender<svc::Request>)
+   (:wat::core::typealias :svc::ReqRx :wat::kernel::Receiver<svc::Request>)
    (:wat::core::typealias :svc::ReqTxPool :wat::kernel::HandlePool<svc::ReqTx>)
    ;; Arc 114 — the spawn shape's second member is now Thread<(),State>
    ;; instead of ProgramHandle<State>. Final-state delivery is via the
@@ -192,20 +192,20 @@
    (:wat::core::define
      (:svc::Service (count :wat::core::i64) -> :svc::Spawn)
      (:wat::core::let*
-       (((pairs :wat::core::Vector<wat::kernel::QueuePair<svc::Request>>)
+       (((pairs :wat::core::Vector<wat::kernel::Channel<svc::Request>>)
          (:wat::core::map
            (:wat::core::range 0 count)
-           (:wat::core::lambda ((_i :wat::core::i64) -> :wat::kernel::QueuePair<svc::Request>)
-             (:wat::kernel::make-bounded-queue :svc::Request 1))))
+           (:wat::core::lambda ((_i :wat::core::i64) -> :wat::kernel::Channel<svc::Request>)
+             (:wat::kernel::make-bounded-channel :svc::Request 1))))
 
         ((req-txs :wat::core::Vector<svc::ReqTx>)
          (:wat::core::map pairs
-           (:wat::core::lambda ((p :wat::kernel::QueuePair<svc::Request>) -> :svc::ReqTx)
+           (:wat::core::lambda ((p :wat::kernel::Channel<svc::Request>) -> :svc::ReqTx)
              (:wat::core::first p))))
 
         ((req-rxs :wat::core::Vector<svc::ReqRx>)
          (:wat::core::map pairs
-           (:wat::core::lambda ((p :wat::kernel::QueuePair<svc::Request>) -> :svc::ReqRx)
+           (:wat::core::lambda ((p :wat::kernel::Channel<svc::Request>) -> :svc::ReqRx)
              (:wat::core::second p))))
 
         ((pool :svc::ReqTxPool)
@@ -240,14 +240,14 @@
             ((d :wat::kernel::Thread<wat::core::unit,svc::State>) (:wat::core::second spawn))
             ((req-tx :svc::ReqTx) (:wat::kernel::HandlePool::pop pool))
             ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-            ((ack-pair :wat::kernel::QueuePair<wat::core::unit>)
-             (:wat::kernel::make-bounded-queue :wat::core::unit 1))
+            ((ack-pair :wat::kernel::Channel<wat::core::unit>)
+             (:wat::kernel::make-bounded-channel :wat::core::unit 1))
             ((ack-tx :svc::AckReplyTx) (:wat::core::first ack-pair))
             ((ack-rx :svc::AckReplyRx) (:wat::core::second ack-pair))
-            ((get-pair :wat::kernel::QueuePair<svc::State>)
-             (:wat::kernel::make-bounded-queue :svc::State 1))
-            ((get-tx :wat::kernel::QueueSender<svc::State>) (:wat::core::first get-pair))
-            ((get-rx :wat::kernel::QueueReceiver<svc::State>) (:wat::core::second get-pair))
+            ((get-pair :wat::kernel::Channel<svc::State>)
+             (:wat::kernel::make-bounded-channel :svc::State 1))
+            ((get-tx :wat::kernel::Sender<svc::State>) (:wat::core::first get-pair))
+            ((get-rx :wat::kernel::Receiver<svc::State>) (:wat::core::second get-pair))
             ((_p1 :wat::core::unit)
              (:wat::core::Result/expect -> :wat::core::unit
                (:wat::kernel::send req-tx (:svc::Request::Push 100))

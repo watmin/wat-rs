@@ -37,13 +37,13 @@
 ;; ─── Reply channel typealiases ──────────────────────────────────
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::GetReplyTx
-  :wat::kernel::QueueSender<wat::core::Option<wat::holon::HolonAST>>)
+  :wat::kernel::Sender<wat::core::Option<wat::holon::HolonAST>>)
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::GetReplyRx
-  :wat::kernel::QueueReceiver<wat::core::Option<wat::holon::HolonAST>>)
+  :wat::kernel::Receiver<wat::core::Option<wat::holon::HolonAST>>)
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::GetReplyPair
-  :wat::kernel::QueuePair<wat::core::Option<wat::holon::HolonAST>>)
+  :wat::kernel::Channel<wat::core::Option<wat::holon::HolonAST>>)
 
 ;; ─── Request enum ───────────────────────────────────────────────
 
@@ -58,10 +58,10 @@
 ;; ─── Per-client channel typealiases ─────────────────────────────
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::ReqTx
-  :wat::kernel::QueueSender<wat::holon::lru::HologramCacheService::Request>)
+  :wat::kernel::Sender<wat::holon::lru::HologramCacheService::Request>)
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::ReqRx
-  :wat::kernel::QueueReceiver<wat::holon::lru::HologramCacheService::Request>)
+  :wat::kernel::Receiver<wat::holon::lru::HologramCacheService::Request>)
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::ReqTxPool
   :wat::kernel::HandlePool<wat::holon::lru::HologramCacheService::ReqTx>)
@@ -377,24 +377,24 @@
     (metrics-cadence :wat::holon::lru::HologramCacheService::MetricsCadence<G>)
     -> :wat::holon::lru::HologramCacheService::Spawn)
   (:wat::core::let*
-    (((pairs :wat::core::Vector<wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>>)
+    (((pairs :wat::core::Vector<wat::kernel::Channel<wat::holon::lru::HologramCacheService::Request>>)
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
           ((_i :wat::core::i64)
-           -> :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)
-          (:wat::kernel::make-bounded-queue
+           -> :wat::kernel::Channel<wat::holon::lru::HologramCacheService::Request>)
+          (:wat::kernel::make-bounded-channel
             :wat::holon::lru::HologramCacheService::Request 1))))
      ((req-txs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReqTx>)
       (:wat::core::map pairs
         (:wat::core::lambda
-          ((p :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)
+          ((p :wat::kernel::Channel<wat::holon::lru::HologramCacheService::Request>)
            -> :wat::holon::lru::HologramCacheService::ReqTx)
           (:wat::core::first p))))
      ((req-rxs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReqRx>)
       (:wat::core::map pairs
         (:wat::core::lambda
-          ((p :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)
+          ((p :wat::kernel::Channel<wat::holon::lru::HologramCacheService::Request>)
            -> :wat::holon::lru::HologramCacheService::ReqRx)
           (:wat::core::second p))))
      ((pool :wat::holon::lru::HologramCacheService::ReqTxPool)

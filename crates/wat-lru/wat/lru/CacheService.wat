@@ -44,7 +44,7 @@
 
 ;; crossbeam_channel is wat substrate, not a wat-lru dep — the
 ;; runtime provides Sender<T>/Receiver<T> via :wat::kernel::
-;; primitives (make-bounded-queue, etc.). `use!` declares intent
+;; primitives (make-bounded-channel, etc.). `use!` declares intent
 ;; to consume an *external* Rust crate (a #[wat_dispatch]'d
 ;; library); substrate types don't need it. Only :rust::lru::LruCache
 ;; — the real external dep — gets a `use!` (see lru.wat).
@@ -53,17 +53,17 @@
 (:wat::core::typealias :wat::lru::Body<K,V>
   :(wat::core::i64,K,wat::core::Option<V>))
 (:wat::core::typealias :wat::lru::ReplyTx<V>
-  :wat::kernel::QueueSender<wat::core::Option<V>>)
+  :wat::kernel::Sender<wat::core::Option<V>>)
 (:wat::core::typealias :wat::lru::ReplyRx<V>
-  :wat::kernel::QueueReceiver<wat::core::Option<V>>)
+  :wat::kernel::Receiver<wat::core::Option<V>>)
 (:wat::core::typealias :wat::lru::ReplyChannel<V>
   :(wat::lru::ReplyTx<V>,wat::lru::ReplyRx<V>))
 (:wat::core::typealias :wat::lru::Request<K,V>
   :(wat::lru::Body<K,V>,wat::lru::ReplyTx<V>))
 (:wat::core::typealias :wat::lru::ReqTx<K,V>
-  :wat::kernel::QueueSender<wat::lru::Request<K,V>>)
+  :wat::kernel::Sender<wat::lru::Request<K,V>>)
 (:wat::core::typealias :wat::lru::ReqRx<K,V>
-  :wat::kernel::QueueReceiver<wat::lru::Request<K,V>>)
+  :wat::kernel::Receiver<wat::lru::Request<K,V>>)
 
 ;; The (ReqTx, ReqRx) pair as a single name. Used by the spawn body
 ;; to keep nested `<>` depth tractable when iterating bounded-queue
@@ -327,7 +327,7 @@
   (:wat::lru::get<K,V>
     (req-tx :wat::lru::ReqTx<K,V>)
     (reply-tx :wat::lru::ReplyTx<V>)
-    (reply-rx :wat::kernel::QueueReceiver<wat::core::Option<V>>)
+    (reply-rx :wat::kernel::Receiver<wat::core::Option<V>>)
     (key :K)
     -> :wat::core::Option<V>)
   (:wat::core::let*
@@ -353,7 +353,7 @@
   (:wat::lru::put<K,V>
     (req-tx :wat::lru::ReqTx<K,V>)
     (reply-tx :wat::lru::ReplyTx<V>)
-    (reply-rx :wat::kernel::QueueReceiver<wat::core::Option<V>>)
+    (reply-rx :wat::kernel::Receiver<wat::core::Option<V>>)
     (key :K)
     (value :V)
     -> :wat::core::unit)
@@ -398,7 +398,7 @@
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda ((_i :wat::core::i64) -> :wat::lru::ReqChannel<K,V>)
-          (:wat::kernel::make-bounded-queue :wat::lru::Request<K,V> 1))))
+          (:wat::kernel::make-bounded-channel :wat::lru::Request<K,V> 1))))
      ((req-txs :wat::core::Vector<wat::lru::ReqTx<K,V>>)
       (:wat::core::map pairs
         (:wat::core::lambda ((p :wat::lru::ReqChannel<K,V>)

@@ -47,7 +47,7 @@
 
    ;; ─── Step 2 helpers — counted recv loop ─────────────────────
    ;; Worker recv-loops over a CALLER-ALLOCATED channel (rx from
-   ;; make-bounded-queue), counting each Some. When the caller's
+   ;; make-bounded-channel), counting each Some. When the caller's
    ;; inner scope drops, all Sender clones go with it; the worker
    ;; recvs Ok(:None) and sends the total count on the substrate's
    ;; output pipe.
@@ -63,7 +63,7 @@
    ;; SERVICE-PROGRAMS.md § "The lockstep".
    (:wat::core::define
      (:wat-tests::holon::lru::HologramCacheService::count-recv
-       (rx :wat::kernel::QueueReceiver<wat::core::i64>)
+       (rx :wat::kernel::Receiver<wat::core::i64>)
        (acc :wat::core::i64)
        -> :wat::core::i64)
      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
@@ -75,7 +75,7 @@
 
    (:wat::core::define
      (:wat-tests::holon::lru::HologramCacheService::counter-worker
-       (rx :wat::kernel::QueueReceiver<wat::core::i64>)
+       (rx :wat::kernel::Receiver<wat::core::i64>)
        (out :rust::crossbeam_channel::Sender<wat::core::i64>)
        -> :wat::core::unit)
      (:wat::core::let*
@@ -147,10 +147,10 @@
     ;; alongside Thread/join-result in the same let*.
     (((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
       (:wat::core::let*
-        (((pair :wat::kernel::QueuePair<wat::core::i64>)
-          (:wat::kernel::make-bounded-queue :wat::core::i64 1))
-         ((tx :wat::kernel::QueueSender<wat::core::i64>) (:wat::core::first pair))
-         ((rx :wat::kernel::QueueReceiver<wat::core::i64>) (:wat::core::second pair))
+        (((pair :wat::kernel::Channel<wat::core::i64>)
+          (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+         ((tx :wat::kernel::Sender<wat::core::i64>) (:wat::core::first pair))
+         ((rx :wat::kernel::Receiver<wat::core::i64>) (:wat::core::second pair))
          ((h :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
           (:wat::kernel::spawn-thread
             (:wat::core::lambda
@@ -197,8 +197,8 @@
     ;; matters: nest the bindings even when the checker can't enforce.
     (((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
       (:wat::core::let*
-        (((pair :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)
-          (:wat::kernel::make-bounded-queue
+        (((pair :wat::kernel::Channel<wat::holon::lru::HologramCacheService::Request>)
+          (:wat::kernel::make-bounded-channel
             :wat::holon::lru::HologramCacheService::Request 1))
          ((tx :wat::holon::lru::HologramCacheService::ReqTx)
           (:wat::core::first pair))
@@ -270,8 +270,8 @@
     ;; alongside Thread/join-result is a compile error.
     (((thr :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::core::let*
-        (((req-pair :wat::kernel::QueuePair<wat::holon::lru::HologramCacheService::Request>)
-          (:wat::kernel::make-bounded-queue
+        (((req-pair :wat::kernel::Channel<wat::holon::lru::HologramCacheService::Request>)
+          (:wat::kernel::make-bounded-channel
             :wat::holon::lru::HologramCacheService::Request 1))
          ((req-tx :wat::holon::lru::HologramCacheService::ReqTx)
           (:wat::core::first req-pair))
@@ -291,7 +291,7 @@
                 :wat::holon::lru::HologramCacheService/null-reporter
                 (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))))
          ((reply-pair :wat::holon::lru::HologramCacheService::GetReplyPair)
-          (:wat::kernel::make-bounded-queue :wat::core::Option<wat::holon::HolonAST> 1))
+          (:wat::kernel::make-bounded-channel :wat::core::Option<wat::holon::HolonAST> 1))
          ((reply-tx :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair))
          ((reply-rx :wat::holon::lru::HologramCacheService::GetReplyRx)
@@ -347,14 +347,14 @@
          ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
 
          ((reply-pair-a :wat::holon::lru::HologramCacheService::GetReplyPair)
-          (:wat::kernel::make-bounded-queue :wat::core::Option<wat::holon::HolonAST> 1))
+          (:wat::kernel::make-bounded-channel :wat::core::Option<wat::holon::HolonAST> 1))
          ((reply-tx-a :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair-a))
          ((reply-rx-a :wat::holon::lru::HologramCacheService::GetReplyRx)
           (:wat::core::second reply-pair-a))
 
          ((reply-pair-b :wat::holon::lru::HologramCacheService::GetReplyPair)
-          (:wat::kernel::make-bounded-queue :wat::core::Option<wat::holon::HolonAST> 1))
+          (:wat::kernel::make-bounded-channel :wat::core::Option<wat::holon::HolonAST> 1))
          ((reply-tx-b :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair-b))
          ((reply-rx-b :wat::holon::lru::HologramCacheService::GetReplyRx)
@@ -436,7 +436,7 @@
          ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
 
          ((reply-pair :wat::holon::lru::HologramCacheService::GetReplyPair)
-          (:wat::kernel::make-bounded-queue :wat::core::Option<wat::holon::HolonAST> 1))
+          (:wat::kernel::make-bounded-channel :wat::core::Option<wat::holon::HolonAST> 1))
          ((reply-tx :wat::holon::lru::HologramCacheService::GetReplyTx)
           (:wat::core::first reply-pair))
          ((reply-rx :wat::holon::lru::HologramCacheService::GetReplyRx)

@@ -438,6 +438,28 @@ slice plans name.
                   Stream stdlib's path now mirrors its shipped
                   FQDN per § G's filesystem-path rule.
 
+[done]  arc 109 slice K.kernel-channel — kernel Queue* family →
+                  Channel/Sender/Receiver rename. Substrate-primitive
+                  family rename (first of its kind in arc 109).
+                  :wat::kernel::QueueSender → Sender,
+                  QueueReceiver → Receiver, QueuePair → Channel,
+                  make-bounded-queue → make-bounded-channel,
+                  make-unbounded-queue → make-unbounded-channel.
+                  File moved wat/kernel/queue.wat → channel.wat.
+                  Arc 117's scope-deadlock walker recognition
+                  strings updated in lockstep ("QueueSender"/
+                  "QueuePair" → "Sender"/"Channel"). Pattern 3
+                  walker (BareLegacyKernelQueuePath) — seventh
+                  Pattern 3 application; LEGACY_KERNEL_QUEUE_NAMES
+                  table covers the 5 retired names. 23 files
+                  swept (1 substrate move + 22 consumer); 286/286
+                  pure rename; cargo test workspace 1476/0
+                  (commits 98ce165 + sweep; SLICE-K-KERNEL-CHANNEL.md).
+                  Side benefit: short Sender/Receiver/Channel
+                  names solve the :rust::crossbeam_channel::*
+                  leak across the substrate. Unblocks K.holon-lru's
+                  GetReplyPair → GetReplyChannel rename.
+
 [done]  arc 109 slice K.lru — CacheService grouping noun retired
                   + Pattern B canonicalization + ReqPair → ReqChannel
                   rename (third § K application; first to validate the

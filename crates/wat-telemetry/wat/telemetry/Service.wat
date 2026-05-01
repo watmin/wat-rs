@@ -74,9 +74,9 @@
 ;; Ack channel — unit signal. Same shape both sides; the (tx, rx)
 ;; pair is split between server and client, NOT bundled on either.
 (:wat::core::typealias :wat::telemetry::AckTx
-  :wat::kernel::QueueSender<wat::core::unit>)
+  :wat::kernel::Sender<wat::core::unit>)
 (:wat::core::typealias :wat::telemetry::AckRx
-  :wat::kernel::QueueReceiver<wat::core::unit>)
+  :wat::kernel::Receiver<wat::core::unit>)
 (:wat::core::typealias :wat::telemetry::AckChannel
   :(wat::telemetry::AckTx,wat::telemetry::AckRx))
 
@@ -87,9 +87,9 @@
   :wat::core::Vector<E>)
 
 (:wat::core::typealias :wat::telemetry::ReqTx<E>
-  :wat::kernel::QueueSender<wat::telemetry::Request<E>>)
+  :wat::kernel::Sender<wat::telemetry::Request<E>>)
 (:wat::core::typealias :wat::telemetry::ReqRx<E>
-  :wat::kernel::QueueReceiver<wat::telemetry::Request<E>>)
+  :wat::kernel::Receiver<wat::telemetry::Request<E>>)
 
 (:wat::core::typealias :wat::telemetry::ReqChannel<E>
   :(wat::telemetry::ReqTx<E>,wat::telemetry::ReqRx<E>))
@@ -417,14 +417,14 @@
         (:wat::core::range 0 count)
         (:wat::core::lambda
           ((_i :wat::core::i64) -> :wat::telemetry::ReqChannel<E>)
-          (:wat::kernel::make-bounded-queue
+          (:wat::kernel::make-bounded-channel
             :wat::telemetry::Request<E> 1))))
      ((ack-pairs :wat::core::Vector<wat::telemetry::AckChannel>)
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda
           ((_i :wat::core::i64) -> :wat::telemetry::AckChannel)
-          (:wat::kernel::make-bounded-queue :wat::core::unit 1))))
+          (:wat::kernel::make-bounded-channel :wat::core::unit 1))))
      ((handles :wat::core::Vector<wat::telemetry::Handle<E>>)
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)

@@ -47,13 +47,13 @@
 ;; substrate's `_in` / `_out` are unit-typed and unused).
 (:wat::core::typealias
   :wat::stream::Stream<T>
-  :(wat::kernel::QueueReceiver<T>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
+  :(wat::kernel::Receiver<T>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
 
 ;; Producer<T> — the function shape spawn-producer accepts: takes the
 ;; Sender end of a bounded queue, writes values, returns when done.
 (:wat::core::typealias
   :wat::stream::Producer<T>
-  :fn(wat::kernel::QueueSender<T>)->wat::core::unit)
+  :fn(wat::kernel::Sender<T>)->wat::core::unit)
 
 ;; --- with-state step shapes ---
 ;;
@@ -86,10 +86,10 @@
     (producer :wat::stream::Producer<T>)
     -> :wat::stream::Stream<T>)
   (:wat::core::let*
-    (((pair :wat::kernel::QueuePair<T>)
-      (:wat::kernel::make-bounded-queue :T 1))
-     ((tx :wat::kernel::QueueSender<T>) (:wat::core::first pair))
-     ((rx :wat::kernel::QueueReceiver<T>) (:wat::core::second pair))
+    (((pair :wat::kernel::Channel<T>)
+      (:wat::kernel::make-bounded-channel :T 1))
+     ((tx :wat::kernel::Sender<T>) (:wat::core::first pair))
+     ((rx :wat::kernel::Receiver<T>) (:wat::core::second pair))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
@@ -114,7 +114,7 @@
 ;; joined, which is a broken shutdown story. Don't hide that.
 (:wat::core::define
   (:wat::stream::from-receiver<T>
-    (rx :wat::kernel::QueueReceiver<T>)
+    (rx :wat::kernel::Receiver<T>)
     (handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
     -> :wat::stream::Stream<T>)
   (:wat::core::Tuple rx handle))
@@ -129,8 +129,8 @@
 
 (:wat::core::define
   (:wat::stream::map-worker<T,U>
-    (in :wat::kernel::QueueReceiver<T>)
-    (out :wat::kernel::QueueSender<U>)
+    (in :wat::kernel::Receiver<T>)
+    (out :wat::kernel::Sender<U>)
     (f :fn(T)->U)
     -> :wat::core::unit)
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
@@ -149,11 +149,11 @@
     (f :fn(T)->U)
     -> :wat::stream::Stream<U>)
   (:wat::core::let*
-    (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
-     ((pair :wat::kernel::QueuePair<U>)
-      (:wat::kernel::make-bounded-queue :U 1))
-     ((tx :wat::kernel::QueueSender<U>) (:wat::core::first pair))
-     ((rx :wat::kernel::QueueReceiver<U>) (:wat::core::second pair))
+    (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
+     ((pair :wat::kernel::Channel<U>)
+      (:wat::kernel::make-bounded-channel :U 1))
+     ((tx :wat::kernel::Sender<U>) (:wat::core::first pair))
+     ((rx :wat::kernel::Receiver<U>) (:wat::core::second pair))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
@@ -172,7 +172,7 @@
 
 (:wat::core::define
   (:wat::stream::for-each-drain<T>
-    (rx :wat::kernel::QueueReceiver<T>)
+    (rx :wat::kernel::Receiver<T>)
     (handler :fn(T)->wat::core::unit)
     -> :wat::core::unit)
   (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::unit
@@ -189,7 +189,7 @@
     (handler :fn(T)->wat::core::unit)
     -> :wat::core::unit)
   (:wat::core::let*
-    (((rx :wat::kernel::QueueReceiver<T>) (:wat::core::first stream))
+    (((rx :wat::kernel::Receiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second stream))
      ((_ :wat::core::unit) (:wat::stream::for-each-drain rx handler))
      ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
@@ -205,7 +205,7 @@
 
 (:wat::core::define
   (:wat::stream::collect-drain<T>
-    (rx :wat::kernel::QueueReceiver<T>)
+    (rx :wat::kernel::Receiver<T>)
     (acc :wat::core::Vector<T>)
     -> :wat::core::Vector<T>)
   (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::Vector<T>
@@ -219,7 +219,7 @@
     (stream :wat::stream::Stream<T>)
     -> :wat::core::Vector<T>)
   (:wat::core::let*
-    (((rx :wat::kernel::QueueReceiver<T>) (:wat::core::first stream))
+    (((rx :wat::kernel::Receiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second stream))
      ((items :wat::core::Vector<T>)
       (:wat::stream::collect-drain rx (:wat::core::Vector :T)))
@@ -234,8 +234,8 @@
 ;; Same tail-recursive shape as map. Empty downstream drops.
 (:wat::core::define
   (:wat::stream::filter-worker<T>
-    (in :wat::kernel::QueueReceiver<T>)
-    (out :wat::kernel::QueueSender<T>)
+    (in :wat::kernel::Receiver<T>)
+    (out :wat::kernel::Sender<T>)
     (pred :fn(T)->wat::core::bool)
     -> :wat::core::unit)
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
@@ -254,11 +254,11 @@
     (pred :fn(T)->wat::core::bool)
     -> :wat::stream::Stream<T>)
   (:wat::core::let*
-    (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
-     ((pair :wat::kernel::QueuePair<T>)
-      (:wat::kernel::make-bounded-queue :T 1))
-     ((tx :wat::kernel::QueueSender<T>) (:wat::core::first pair))
-     ((rx :wat::kernel::QueueReceiver<T>) (:wat::core::second pair))
+    (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
+     ((pair :wat::kernel::Channel<T>)
+      (:wat::kernel::make-bounded-channel :T 1))
+     ((tx :wat::kernel::Sender<T>) (:wat::core::first pair))
+     ((rx :wat::kernel::Receiver<T>) (:wat::core::second pair))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
@@ -278,8 +278,8 @@
 ;; without perturbing the values.
 (:wat::core::define
   (:wat::stream::inspect-worker<T>
-    (in :wat::kernel::QueueReceiver<T>)
-    (out :wat::kernel::QueueSender<T>)
+    (in :wat::kernel::Receiver<T>)
+    (out :wat::kernel::Sender<T>)
     (f :fn(T)->wat::core::unit)
     -> :wat::core::unit)
   (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
@@ -298,11 +298,11 @@
     (f :fn(T)->wat::core::unit)
     -> :wat::stream::Stream<T>)
   (:wat::core::let*
-    (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
-     ((pair :wat::kernel::QueuePair<T>)
-      (:wat::kernel::make-bounded-queue :T 1))
-     ((tx :wat::kernel::QueueSender<T>) (:wat::core::first pair))
-     ((rx :wat::kernel::QueueReceiver<T>) (:wat::core::second pair))
+    (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
+     ((pair :wat::kernel::Channel<T>)
+      (:wat::kernel::make-bounded-channel :T 1))
+     ((tx :wat::kernel::Sender<T>) (:wat::core::first pair))
+     ((rx :wat::kernel::Receiver<T>) (:wat::core::second pair))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
@@ -320,7 +320,7 @@
 ;; one-liners. Joins the handle; returns the final accumulator.
 (:wat::core::define
   (:wat::stream::fold-drain<T,Acc>
-    (rx :wat::kernel::QueueReceiver<T>)
+    (rx :wat::kernel::Receiver<T>)
     (acc :Acc)
     (f :fn(Acc,T)->Acc)
     -> :Acc)
@@ -337,7 +337,7 @@
     (f :fn(Acc,T)->Acc)
     -> :Acc)
   (:wat::core::let*
-    (((rx :wat::kernel::QueueReceiver<T>) (:wat::core::first stream))
+    (((rx :wat::kernel::Receiver<T>) (:wat::core::first stream))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second stream))
      ((result :Acc) (:wat::stream::fold-drain rx init f))
      ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
@@ -375,7 +375,7 @@
 
 (:wat::core::define
   (:wat::stream::drain-items<U>
-    (out :wat::kernel::QueueSender<U>)
+    (out :wat::kernel::Sender<U>)
     (items :wat::core::Vector<U>)
     -> :wat::core::Option<wat::core::unit>)
   ;; Tail-recursive helper: send every item in `items`, stop early
@@ -399,8 +399,8 @@
 
 (:wat::core::define
   (:wat::stream::with-state-worker<T,U,Acc>
-    (in :wat::kernel::QueueReceiver<T>)
-    (out :wat::kernel::QueueSender<U>)
+    (in :wat::kernel::Receiver<T>)
+    (out :wat::kernel::Sender<U>)
     (step :fn(Acc,T)->(Acc,wat::core::Vector<U>))
     (flush :fn(Acc)->wat::core::Vector<U>)
     (acc :Acc)
@@ -436,11 +436,11 @@
     (flush :fn(Acc)->wat::core::Vector<U>)
     -> :wat::stream::Stream<U>)
   (:wat::core::let*
-    (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
-     ((pair :wat::kernel::QueuePair<U>)
-      (:wat::kernel::make-bounded-queue :U 1))
-     ((tx :wat::kernel::QueueSender<U>) (:wat::core::first pair))
-     ((rx :wat::kernel::QueueReceiver<U>) (:wat::core::second pair))
+    (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
+     ((pair :wat::kernel::Channel<U>)
+      (:wat::kernel::make-bounded-channel :U 1))
+     ((tx :wat::kernel::Sender<U>) (:wat::core::first pair))
+     ((rx :wat::kernel::Receiver<U>) (:wat::core::second pair))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
@@ -648,8 +648,8 @@
 ;; exits, downstream gets :None naturally.
 (:wat::core::define
   (:wat::stream::take-worker<T>
-    (in :wat::kernel::QueueReceiver<T>)
-    (out :wat::kernel::QueueSender<T>)
+    (in :wat::kernel::Receiver<T>)
+    (out :wat::kernel::Sender<T>)
     (remaining :wat::core::i64)
     -> :wat::core::unit)
   (:wat::core::if (:wat::core::<= remaining 0) -> :wat::core::unit
@@ -670,11 +670,11 @@
     (n :wat::core::i64)
     -> :wat::stream::Stream<T>)
   (:wat::core::let*
-    (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
-     ((pair :wat::kernel::QueuePair<T>)
-      (:wat::kernel::make-bounded-queue :T 1))
-     ((tx :wat::kernel::QueueSender<T>) (:wat::core::first pair))
-     ((rx :wat::kernel::QueueReceiver<T>) (:wat::core::second pair))
+    (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
+     ((pair :wat::kernel::Channel<T>)
+      (:wat::kernel::make-bounded-channel :T 1))
+     ((tx :wat::kernel::Sender<T>) (:wat::core::first pair))
+     ((rx :wat::kernel::Receiver<T>) (:wat::core::second pair))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
@@ -698,8 +698,8 @@
 ;; the same pattern chunks uses for its accumulator.
 (:wat::core::define
   (:wat::stream::flat-map-worker<T,U>
-    (in :wat::kernel::QueueReceiver<T>)
-    (out :wat::kernel::QueueSender<U>)
+    (in :wat::kernel::Receiver<T>)
+    (out :wat::kernel::Sender<U>)
     (f :fn(T)->wat::core::Vector<U>)
     (pending :wat::core::Vector<U>)
     -> :wat::core::unit)
@@ -727,11 +727,11 @@
     (f :fn(T)->wat::core::Vector<U>)
     -> :wat::stream::Stream<U>)
   (:wat::core::let*
-    (((up-rx :wat::kernel::QueueReceiver<T>) (:wat::core::first upstream))
-     ((pair :wat::kernel::QueuePair<U>)
-      (:wat::kernel::make-bounded-queue :U 1))
-     ((tx :wat::kernel::QueueSender<U>) (:wat::core::first pair))
-     ((rx :wat::kernel::QueueReceiver<U>) (:wat::core::second pair))
+    (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
+     ((pair :wat::kernel::Channel<U>)
+      (:wat::kernel::make-bounded-channel :U 1))
+     ((tx :wat::kernel::Sender<U>) (:wat::core::first pair))
+     ((rx :wat::kernel::Receiver<U>) (:wat::core::second pair))
      ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
