@@ -581,20 +581,34 @@ The eight steps above compose into one canonical template that covers
 > that returns the new state, exiting cleanly when all client scopes
 > drop their Senders.
 
-Every service you'll write is some permutation of **three reply
-shapes** mixed in one Request enum:
+### Reply shapes
 
-| Variant shape | Reply | Use |
+The substrate ships **two** reply shapes; user services may use a
+third (see below).
+
+| Variant shape | Reply | Substrate use |
 |---|---|---|
-| `Push(value)` | none | fire-and-forget; caller doesn't wait |
-| `Ack(reply-tx)` | unit | confirm-receipt; caller waits but gets nothing back |
-| `Get(reply-tx)` | domain payload | read-only query; caller wants data back |
+| `Ack(... entries, ack-tx)` | `unit` | every batch-write request — caller blocks until durable |
+| `Reply(... probes, reply-tx)` | `Vec<Option<V>>` | every batch-read request — caller blocks until results return |
 
-Pick the verbs your service needs. You don't need all three — Console
-is just `Push`-shaped (each tagged-message write is fire-and-forget);
-CacheService is `Get`-shaped (every request returns `Option<V>`); a
-treasury is all three. The shapes are independent, the dispatch table
-holds them side by side, the shutdown story is identical for all.
+Both shapes carry their reply channel as a field on the variant
+(Pattern B routing — see `ZERO-MUTEX.md` § "Routing acks"). Both
+shapes are **lock-step** — caller's recv blocks on the substrate
+until the driver's send arrives, per Mini-TCP discipline.
+
+Substrate services are bound by `CONVENTIONS.md` §
+"Batch convention" — every shipped service exposes only batch-
+oriented `get` / `put`. Console is the single exception (it IS
+the sink; tag+msg writes don't batch). User services pick
+whatever shape fits.
+
+The third shape — `Push(value)`, fire-and-forget, no reply — is
+**outside the substrate's surface**. It exists in the kernel
+primitives (a `send` without a paired `recv`), and a user
+service can use it freely; it does not appear in any wat-rs-
+shipped service except as Console's per-message tag+msg
+(which is shape-equivalent in the wire but framed by Console's
+sink-is-the-report exemption).
 
 ### The runnable reference
 
@@ -607,27 +621,40 @@ only things that should change are:
 - The `:svc::*` namespace (rename to `:your::domain::*`)
 
 The wiring (`Service`, `Service/loop`, `Service/handle`, type aliases,
-HandlePool, scope discipline) stays. The test deftest exercises all
-three reply shapes end-to-end, including a Get that reads LIVE state
-between two Push calls — so you can see the pattern survive
-real-world operation orders.
+HandlePool, scope discipline) stays. The test deftest exercises both
+substrate-shipped reply shapes end-to-end, including a batch-read
+that reads LIVE state between two batch-writes — so you can see the
+pattern survive real-world operation orders.
 
 ### Worked examples in the substrate
 
-Two stdlib services already follow this template:
+Three stdlib services illustrate the canonical batch convention; one
+illustrates the Console exemption:
 
-- `wat-rs/wat/std/service/Console.wat` — N tagged-message senders fan
-  into one driver that decodes the tag and writes to stdout / stderr.
-  All variants are `Push`-shaped (fire-and-forget). Tested by
-  `wat-rs/wat-tests/std/service/Console.wat`.
+- **Batch reference (Pattern A unit-ack)** —
+  `wat-rs/crates/wat-telemetry/wat/telemetry/Service.wat`. N
+  producers each send `Request<E> = Vec<E>` worth of events;
+  the driver drains and dispatches per batch; ack-tx releases
+  the producer when the dispatcher returns.
 
-- `wat-rs/crates/wat-lru/wat/lru/CacheService.wat` — N request senders
-  carry their own reply-to addresses; the driver routes responses
-  without a sender-index map (per-caller channels). All variants are
-  `Get`-shaped (`Option<V>` reply). Tested by
-  `wat-rs/crates/wat-lru/wat-tests/lru/CacheService.wat`.
+- **Batch reference (Pattern B data-back)** —
+  `wat-rs/crates/wat-lru/wat/lru/CacheService.wat`. Both verbs
+  batch: `(get probes :Vec<K>) -> Vec<Option<V>>` and
+  `(put entries :Vec<Entry<K,V>>) -> unit`. The Pattern B
+  canonical reference per arc 109 § K + arc 119.
 
-Read either after the eight steps. They're short and the comments are
+- **Same shape with HolonAST as both K and V** —
+  `wat-rs/crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat`.
+  Mirrors LRU's surface exactly; HolonAST-typed.
+
+- **Console exemption** —
+  `wat-rs/wat/console.wat`. N tagged-message senders fan into one
+  driver that decodes the tag and writes to stdout / stderr.
+  Single tag+msg per request — Console IS the sink, so no
+  batching. Read this AFTER one of the batch references to see
+  how the exemption argument lands.
+
+Read these after the eight steps. They're short and the comments are
 dense.
 
 ---

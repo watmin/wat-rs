@@ -4,6 +4,25 @@
 service crates revise to a symmetric batch protocol. Substrate
 work proceeding.
 
+**Promoted to substrate-wide convention 2026-05-01.** What arc
+119 fixes is not a one-arc bug; the pattern is now codified in
+`docs/CONVENTIONS.md` § "Batch convention":
+
+> Every wat-rs-shipped service exposes only batch-oriented
+> `get` / `put` interfaces. Console is the single exception.
+
+Five substrate services exist; three (Telemetry, Telemetry-
+Sqlite, Console) already obey or are exempt; arc 119 brings
+the remaining two (LRU + HolonLRU) in line. After arc 119
+ships, the convention is **substrate-uniform** — every
+non-Console service takes batches.
+
+See `docs/ZERO-MUTEX.md` § "Batch granularity = lock
+granularity" for why the convention falls out of mini-TCP's
+geometry, and `docs/SERVICE-PROGRAMS.md` § "Reply shapes"
+for the two-reply-shape table that supersedes the
+fire-and-forget `Push` row.
+
 ## Provenance
 
 Surfaced 2026-05-01 mid-arc-109 K.holon-lru anchor work as a

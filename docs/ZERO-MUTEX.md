@@ -349,21 +349,56 @@ because each producer's queue is exactly one slot wide.**
   alone gives backpressure on accept; the ack gives backpressure
   on completion. Use both when "done" matters.
 
+### Batch granularity = lock granularity (arc 119)
+
+**Every wat-rs-shipped service except Console takes batches.**
+A `Vec<K>` of probes for `get`; a `Vec<Entry<K,V>>` of writes
+for `put`; a singleton becomes a batch-of-one. The convention
+is named in `CONVENTIONS.md` § "Batch convention"; here's why
+it falls out of mini-TCP's geometry.
+
+The io::select loop holds the "lock" for one Request worth of
+work. If Request is a single-item write, the lock is held for
+one write; if Request is a batch of N writes, the lock is held
+for N. **The user controls lock granularity through the batch
+size they send** — the substrate doesn't pick.
+
+Lifting batch granularity into the protocol shape (rather than
+having callers loop over single-item calls) gives:
+
+- One round-trip per N-item operation; the per-item ack overhead
+  amortizes correctly.
+- Honest naming: the request IS the unit of work; the reply IS
+  what came of it.
+- Uniform substrate surface: every service pairs `(get probes)
+  -> Vec<Option<V>>` with `(put entries) -> unit`. No "pipeline
+  this for me" wrapper layer.
+
+Console is exempt because Console IS the sink; bundling writes
+would force partial-flush semantics the file descriptor can't
+carry.
+
 ### When something else fits better
 
 - **Tier 1 immutable snapshot** when the data doesn't mutate
   after startup. A pipeline that hands out `Arc<Frozen>` references
   doesn't need the round-trip; readers compute against the
   snapshot directly.
-- **Pure-dataflow streams** (`wat/std/stream.wat` map / filter /
+- **Pure-dataflow streams** (`wat/stream.wat` map / filter /
   reduce) where the channel itself IS the protocol — no separate
   ack needed because each downstream stage's `recv` IS the ack
   for the upstream stage's `send`. Bounded(1) along the pipeline
   gives the same backpressure for free.
-- **Fire-and-forget cases** where the producer genuinely doesn't
-  care about completion and bounded(1) accept-pressure is enough.
-  Rare; default to mini-TCP and downgrade only when measurement
-  shows the ack is wasted.
+- **User services** where the protocol genuinely needs a different
+  shape. The substrate's batch convention binds wat-rs-shipped
+  services only; users implementing their own are free to pick.
+  (Past: this slot also hosted "fire-and-forget cases — default
+  to mini-TCP and downgrade only when measurement shows the ack
+  is wasted." Arc 119 audited the substrate-shipped surface and
+  found the only place that actually used that downgrade was
+  HolonLRU's Put — and that was a discipline gap, not an
+  optimization. The downgrade carve-out retires for the
+  substrate; users keep the freedom.)
 
 ### Mini-TCP across kernel pipes (arc 103a)
 

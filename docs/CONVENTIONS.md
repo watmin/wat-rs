@@ -537,6 +537,53 @@ tx, stdout writer).
   Any future "logging service" pattern resolves the same way:
   whatever IS the sink doesn't need a sink-injection point.
 
+### Batch convention — substrate-shipped services (arc 119)
+
+**Every wat-rs-shipped service exposes only batch-oriented
+`get` / `put` interfaces. Console is the single exception.**
+
+A client transmits one unit of context as a batch-of-one. The
+substrate's surface is the bound discipline — users implementing
+their own services pick whatever shape fits.
+
+Shape:
+- **Get** — `(get probes :Vec<K>) -> Vec<Option<V>>`. Data-bearing
+  reply (Pattern B back-edge). Each probe maps to its slot in
+  the result vec; missing keys come back as `:None`.
+- **Put** — `(put entries :Vec<Entry<K,V>>) -> unit`. Unit-ack
+  release (Pattern A back-edge). Caller blocks until the batch
+  is durable in the service's state.
+
+Both verbs are lock-step. Caller cannot continue until the
+service confirms (Mini-TCP discipline per `ZERO-MUTEX.md`).
+The cache service IS a mutex implementation: shared mutable
+state lives in one program; the io::select loop serializes
+batches sequentially; lock granularity = batch granularity.
+
+Why batch-only:
+- A batch-of-one is `(get [probe])` — costs one extra `Vec<>`
+  allocation against the protocol surface, gains one uniform
+  shape across every substrate service.
+- Single-item interfaces lie about the lock model — they imply
+  per-item acquisition when the loop already serializes.
+- Users who actually have N items stay efficient by default;
+  no "pipeline these calls yourself" wrapper layer needed.
+- The protocol body matches what wire-level RPC services have
+  always done: the request IS the unit of work.
+
+Why Console is exempt: Console IS the sink. The driver writes
+each tag+msg directly to stdout/stderr; there's no batchable
+work layer to amortize. Bundling writes would force partial-
+flush semantics the underlying file descriptor doesn't carry.
+
+Substrate services obeying this convention:
+- `:wat::telemetry::*` — `Request<E>` is `Vec<E>` (already
+  batch since arc 029)
+- `:wat::telemetry::sqlite::*` — rides `:wat::telemetry::Request<E>`
+- `:wat::lru::*` — adopts batch via arc 119
+- `:wat::holon::lru::*` — adopts batch via arc 119
+- `:wat::console::*` — exempt; single tag+msg per request
+
 ### Composing services (the Reporter-closes-over-handles case)
 
 When one service's Reporter closes over ANOTHER service's handles
