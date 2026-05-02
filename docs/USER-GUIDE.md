@@ -2201,6 +2201,7 @@ manifest, no registration step.
 ```scheme
 ;; wat-tests/example.wat
 (:wat::test::deftest :my::app::test-two-plus-two
+  ()                                                ;; ← prelude (empty here)
   (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
 ```
 
@@ -2208,6 +2209,9 @@ manifest, no registration step.
 - **name** — the test's keyword path. Any descriptive name works;
   `test-` prefix is conventional but the runner discovers by the
   function's `() -> :wat::kernel::RunResult` signature alone.
+- **prelude** — a list of forms registered into the deftest's
+  sandbox BEFORE the body runs. `()` for empty. See the sandbox
+  isolation subsection below.
 - **body** — one expression; the test's actual logic
 
 The deftest sandbox **inherits the outer file's Config** (arc 031),
@@ -2236,6 +2240,55 @@ factory's emitted name once per test:
 Every test sandbox the factory emits gets the load + the helper
 define for free; bare-name `(:deftest :name body)` is the per-test
 call shape.
+
+### Sandbox isolation — what's visible inside a deftest
+
+Each `deftest` body runs in a sandboxed sub-program (a fresh
+`run-sandboxed-ast` invocation per test). The sub-program's symbol
+table contains:
+
+- **Stdlib** (`:wat::*`, `:rust::*`) — always visible.
+- **The deftest's prelude forms** — the second argument; defines /
+  loads / typealiases declared there register into the sandbox.
+- **The auto-generated `:user::main`** — the macro's wrapper around
+  the body.
+
+Outer-file user defines are **NOT** captured. This is intentional
+(sandbox isolation; tests are independent of the file's other
+top-level forms). If your deftest needs a helper, put the helper
+in the prelude:
+
+```scheme
+(:wat::test::deftest :my::test-uses-helper
+  ((:wat::core::define
+     (:my::helper (x :wat::core::i64) -> :wat::core::i64)
+     (:wat::core::i64::* x 2)))
+  (:wat::test::assert-eq (:my::helper 21) 42))
+```
+
+…or `(:wat::core::load!)` it from a shared file. For helpers used
+by multiple deftests in the same file, prefer `make-deftest` (the
+factory above) so the prelude is declared once.
+
+**If you forget the prelude** — defining `:my::helper` at the top
+of the test file and invoking it from the deftest body — the
+substrate fires `CheckError::SandboxScopeLeak` at outer freeze
+(or `RuntimeError::SandboxScopeLeak` as a runtime backstop). The
+diagnostic carries TWO source locations:
+
+```
+<test>:N:M: sandbox-scope leak: ':my::helper' invoked here is
+defined at <test>:N:M but deftest sandboxes do NOT capture
+outer-scope. Move (:wat::core::define :my::helper ...) into this
+deftest's prelude (the second argument of `(:wat::test::deftest
+<name> <prelude> <body>)`), or load it into the prelude via
+`(:wat::core::load! "path/to/file.wat")`. Sandbox isolation is
+intentional — see wat/test.wat's deftest macro.
+```
+
+The first coordinate points at the offending invocation; the
+second points at the outer-scope define. No grepping required —
+both ends of the leak are clickable. Arc 140.
 
 ### Assertion primitives
 
