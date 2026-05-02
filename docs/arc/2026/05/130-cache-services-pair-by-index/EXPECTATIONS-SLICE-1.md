@@ -1,24 +1,36 @@
 # Arc 130 Slice 1 — Pre-handoff expectations
 
-**Written:** 2026-05-01, AFTER spawning the sonnet agent and
-BEFORE its first deliverable. Durable scorecard.
+**Refreshed 2026-05-02** after the deadlock-class chain (arcs
+131 / 132 / 133 / 134) shipped. Original was written
+2026-05-01 mid-pause; this version restarts the handoff with
+the post-chain context. Durable scorecard.
 
 **Brief:** `BRIEF-SLICE-1.md`
 **Output:** `crates/wat-lru/wat/lru/CacheService.wat` +
 `crates/wat-lru/wat-tests/lru/CacheService.wat` modifications +
-~200-word written report.
+~250-word written report.
 
 ## Setup — workspace state pre-spawn
 
 - LRU substrate uses pre-arc-130 shape (HandlePool<ReqTx>,
   per-verb reply types, embedded reply-tx in Request).
-- LRU's single test carries `:should-panic("channel-pair-deadlock")`
-  + `:time-limit "200ms"` (slice 2 of arc 126).
+- LRU's single deadlock-class test carries
+  `:should-panic("channel-pair-deadlock")` from arc 126 slice
+  2. The 200ms default time-limit (arc 132) means an explicit
+  `:time-limit` annotation is needed only for tests that
+  actually exceed 200ms; the cache test should not.
 - HolonLRU's tests: same `:should-panic` shape on 5 tests + 1
-  in proofs/. Slice 2 of arc 130 (separate session) reshapes
-  HolonLRU.
+  in `proofs/arc-119/step-B-single-put.wat`. Slice 2 of arc
+  130 (separate session) reshapes HolonLRU.
+- Arc 131's check fires on `HandlePool<Handle<K,V>>` siblings
+  to `Thread/join-result` — the rewritten test MUST use the
+  canonical inner-let* nesting pattern from SERVICE-
+  PROGRAMS.md § "The lockstep" (arc 131 slice 2 swept other
+  consumer tests to this shape).
 - Workspace test green: `cargo test --release --workspace`
-  exit=0; 6 should-panic tests pass via the panic; 1 ignored.
+  exit=0; 100 `test result: ok` blocks; 1765 total individual
+  tests passed; 6 should-panic tests pass via the panic; 1
+  ignored (arc-122 mechanism).
 
 ## Hard scorecard (10 rows)
 

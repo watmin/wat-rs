@@ -1,5 +1,12 @@
 # Arc 130 Slice 1 — Sonnet Brief
 
+**Refreshed 2026-05-02** — the arc was paused 2026-05-01 when
+the original sweep killed mid-run; the deadlock-class chain
+(arcs 131 / 132 / 133 / 134) shipped in the interim. This
+brief is the post-chain restart and supersedes the original
+2026-05-01 framing. Arc 130 itself is unchanged in goal; only
+the surrounding substrate context shifted.
+
 **Goal:** reshape `:wat::lru::*` (the LRU CacheService) substrate
 + tests to use pair-by-index via HandlePool with a unified
 `Reply<V>` enum. After this slice, the LRU's single deadlock-class
@@ -11,6 +18,11 @@ new shape (no `:should-panic`; arc 126's check doesn't fire).
 **Scope:** `:wat::lru::*` only. Slice 2 mirrors this work for
 `:wat::holon::lru::*` in a separate session. Slice 3 is closure
 docs.
+
+**Console reference:** `wat/console.wat` (~298 LOC, in the
+top-level wat tree, NOT inside `crates/`). This file IS the
+working pair-by-index pattern. Read it cover-to-cover before
+touching the LRU substrate.
 
 ## Read-in-order anchor docs
 
@@ -133,9 +145,23 @@ matching `Reply::PutAck`.
 **REMOVE** the `:wat::test::should-panic
 "channel-pair-deadlock"` annotation.
 **REMOVE** the `:wat::test::time-limit "200ms"` annotation
-(no longer needed; the test passes cleanly now).
+(arc 132 made 200ms the default — explicit annotation is now
+an override only needed when a test legitimately exceeds
+200ms; the cache test should not). If the test takes longer
+in practice, leave the annotation tuned to a realistic
+budget; otherwise drop it.
 
-**REWRITE** the test body to use the new helper-verb shape:
+**REWRITE** the test body to use the new helper-verb shape
+**AND** the canonical inner-let* nesting pattern. Arc 131
+makes `HandlePool<Handle<K,V>>` Sender-bearing structurally
+(`Handle = (ReqTx, ReplyRx)` contains a Sender), so a let*
+with `pool + driver + Thread/join-result driver` siblings will
+fire `ScopeDeadlock` unless inner-let* nesting drops the pool
+before the join. SERVICE-PROGRAMS.md § "The lockstep" is the
+reference; arc 131 slice 2 swept other consumer tests to this
+shape.
+
+The canonical inner-let*:
 
 ```scheme
 (:wat::test::deftest :wat-lru::test-cache-service-put-then-get-round-trip
@@ -146,49 +172,57 @@ matching `Reply::PutAck`.
         (:wat::test::program
           (:wat::core::define
             (:user::main ...)
+            ;; OUTER scope holds ONLY the Thread.
             (:wat::core::let*
-              (...
-               ;; Spawn the cache service:
-               ((state :wat::lru::Spawn<wat::core::String,wat::core::i64>)
-                (:wat::lru::spawn 16 1
-                  :wat::lru::null-reporter
-                  (:wat::lru::null-metrics-cadence)))
-               ((pool :wat::kernel::HandlePool<wat::lru::Handle<wat::core::String,wat::core::i64>>)
-                (:wat::core::first state))
-               ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
-                (:wat::core::second state))
+              (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                ;; INNER scope owns pool + handle + all the work.
+                (:wat::core::let*
+                  (((state :wat::lru::Spawn<wat::core::String,wat::core::i64>)
+                    (:wat::lru::spawn 16 1 ...))
+                   ((pool :wat::kernel::HandlePool<wat::lru::Handle<wat::core::String,wat::core::i64>>)
+                    (:wat::core::first state))
+                   ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                    (:wat::core::second state))
+                   ((handle :wat::lru::Handle<wat::core::String,wat::core::i64>)
+                    (:wat::kernel::HandlePool::pop pool))
+                   ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
 
-               ;; Pop ONE handle (single client) — replaces the old
-               ;; (req-tx, reply-pair, ack-pair) triple-allocation:
-               ((handle :wat::lru::Handle<wat::core::String,wat::core::i64>)
-                (:wat::kernel::HandlePool::pop pool))
-               ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
+                   ;; Put one entry — handle replaces the old
+                   ;; (req-tx, ack-tx, ack-rx) triple:
+                   ((_ :wat::core::unit)
+                    (:wat::lru::put handle
+                      (:wat::core::conj
+                        (:wat::core::Vector :wat::lru::Entry<wat::core::String,wat::core::i64>)
+                        (:wat::core::Tuple "answer" 42))))
 
-               ;; Put one entry — handle takes the place of the
-               ;; old (req-tx, ack-tx, ack-rx) triple:
-               ((_ :wat::core::unit)
-                (:wat::lru::put handle
-                  (:wat::core::conj
-                    (:wat::core::Vector :wat::lru::Entry<wat::core::String,wat::core::i64>)
-                    (:wat::core::Tuple "answer" 42))))
-
-               ;; Get the entry — handle takes the place of the
-               ;; old (req-tx, reply-tx, reply-rx) triple:
-               ((results :wat::core::Vector<wat::core::Option<wat::core::i64>>)
-                (:wat::lru::get handle
-                  (:wat::core::conj
-                    (:wat::core::Vector :wat::core::String)
-                    "answer")))
-
-               ;; ... existing assertion logic ...
-               )
-              ...))
+                   ;; Get the entry:
+                   ((results :wat::core::Vector<wat::core::Option<wat::core::i64>>)
+                    (:wat::lru::get handle
+                      (:wat::core::conj
+                        (:wat::core::Vector :wat::core::String)
+                        "answer")))
+                   ;; ... existing assertion logic on `results` ...
+                   )
+                  ;; Inner returns the Thread; pool + handle drop here.
+                  d)))
+              ;; Outer's only operation: join the now-disconnected driver.
+              (:wat::kernel::Thread/join-result driver)))
           ...)))))
 ```
 
-The body collapses considerably: no `make-bounded-channel`
-calls in the test, no per-call channel pair allocations, no
-binding both halves. The handle does everything.
+Two big changes vs the pre-arc-130 test:
+1. No `make-bounded-channel` calls anywhere in the test body.
+   The cache service owns the channels internally.
+2. Pool + handle + work nest inside an INNER let*; the OUTER
+   let* holds only the driver Thread; the OUTER body's only
+   operation is `Thread/join-result driver`. Inner returns the
+   Thread; on inner-scope exit, pool + handle drop, driver's
+   recv-loop sees the channel disconnect and the thread exits;
+   outer's join-result returns Ok.
+
+This is the SERVICE-PROGRAMS.md § "The lockstep" canonical
+shape. Arc 131 slice 2 already applied it across other
+service-test files. Mirror that shape here.
 
 ## Constraints
 
@@ -237,20 +271,40 @@ binding both halves. The handle does everything.
 5. No `make-bounded-channel` calls remain in the LRU test
    file's test body.
 
-## Honest unknown — Console's pattern shape
+## Console reference
 
-The DESIGN says "mirror Console's pair-by-index pattern"
-without naming Console's exact substrate location. Find it
-yourself: `grep -rn "Console::Handle\|Console::DriverPair"
-crates/ wat/` will locate it. Read Console's spawn body and
-driver loop verbatim before reshaping the cache service.
+Console's substrate at `wat/console.wat` (~298 LOC) IS the
+working pair-by-index reference. Read it cover-to-cover before
+reshaping. Key landmarks (line numbers approximate):
 
-If Console's pattern doesn't fit cleanly (e.g., Console is
-single-verb and doesn't have a Reply enum), the DESIGN's
-proposed Reply<V> enum is the new substrate concept; you may
-need to invent the exact shape using Console's structure +
-the Reply enum variant dispatch. Surface this in the report
-if it happens.
+- `Console::Message` typealias — Console's payload (single
+  variant; no Reply enum needed because Console is one-verb).
+- `Console::ReqTx` / `ReqRx` / `ReqChannel` typealiases.
+- `Console::AckTx` / `AckRx` / `AckChannel` typealiases.
+- `Console::Handle = (Tx, AckRx)` — the client's view.
+- `Console::DriverPair = (Rx, AckTx)` — the driver's view.
+- `Console::Spawn = (HandlePool<Handle>, Thread<unit, unit>)`.
+- `Console`'s spawn factory body (allocates N message channels
+  + N ack channels, builds N handles + N driver-pairs,
+  populates pool, hands driver-pairs to the driver thread).
+- `Console`'s driver loop (selects on the ReqRx vector;
+  index → DriverPair → recv → process → send Ack on the
+  matching AckTx).
+
+Console is single-verb: ack carries `unit`. Cache is multi-
+verb: Get returns `Vec<Option<V>>`, Put returns `unit`. The
+Reply<V> enum unifies these so both verbs share one reply
+channel per slot. Mirror Console's structure but substitute:
+
+- `Console::Message` → `lru::Request<K,V>` enum (Get / Put).
+- `Console::AckChannel` → `lru::ReplyChannel<V>` carrying
+  `Reply<V>` enum (GetResult / PutAck).
+- Driver's `recv → process → send Ack` becomes
+  `recv → match Request → produce Reply variant → send Reply`.
+
+If Console's pattern doesn't transcribe cleanly somewhere,
+flag it in the report — but the parallel should hold:
+Console:Cache :: single-verb-ack:multi-verb-reply.
 
 ## Reporting back
 
@@ -297,21 +351,45 @@ substrate reshape):
 
 Per `REALIZATIONS.md`'s artifacts-as-teaching discipline, this
 brief tests whether the artifacts (DESIGN + ZERO-MUTEX +
-Console's existing substrate) compose into a teaching that
-gets a sonnet sweep to ship a SUBSTRATE-RESHAPE arc. Previous
-arcs in this chain proved structural-rule arcs (arc 126),
-substrate-fix arcs (arc 128 + arc 129), AND wat-test
-annotation arcs (arc 126 slice 2) propagate via the
-artifacts. Slice 1 of arc 130 is the first SERVICE-REDESIGN
-arc. If it ships clean, the discipline scales to substrate
-reshapes too.
+SERVICE-PROGRAMS.md + Console's existing substrate) compose
+into a teaching that gets a sonnet sweep to ship a SUBSTRATE-
+RESHAPE arc. Previous arcs in this chain proved structural-
+rule arcs (arc 126), substrate-fix arcs (arc 128 / 129 /
+133 / 134), AND wat-test annotation arcs (arc 126 slice 2)
+propagate via the artifacts. Slice 1 of arc 130 is the first
+SERVICE-REDESIGN arc. If it ships clean, the discipline scales
+to substrate reshapes too.
 
 The reshape is bounded but real (~300-500 LOC). Take time to
-read Console's pattern carefully before editing. The clarity
-of the existing reference is what makes this brief feasible
-in one sweep.
+read Console's pattern at `wat/console.wat` carefully before
+editing. The clarity of the existing reference is what makes
+this brief feasible in one sweep.
 
-Begin by reading the read-in-order anchors. Then locate
-Console's substrate and study its pattern. Then reshape the
-LRU substrate + tests. Then verify with the workspace test.
-Then report.
+## Sequencing — what to do, in order
+
+1. Read DESIGN.md cover to cover.
+2. Read `wat/console.wat` — the working reference.
+3. Read `crates/wat-lru/wat/lru/CacheService.wat` (~456 LOC)
+   to understand the current shape.
+4. Read `crates/wat-lru/wat-tests/lru/CacheService.wat` (~143
+   LOC) to understand the current test.
+5. Read arc 131's INSCRIPTION + SERVICE-PROGRAMS.md § "The
+   lockstep" to understand the inner-let* nesting that the
+   rewritten test MUST use.
+6. Run `cargo test --release -p wat-lru --test test 2>&1 |
+   tail -20` to see the baseline (1 should-panic test, others
+   passing).
+7. Reshape the substrate file in place.
+8. Reshape the test file in place using the canonical inner-
+   let* pattern.
+9. Run `cargo test --release -p wat-lru --test test 2>&1 |
+   tail -20` — verify all 8 tests pass cleanly.
+10. Run `cargo test --release --workspace 2>&1 | tail -3` —
+    verify workspace stays green.
+11. Run `cargo build --release 2>&1 | tail -10` — verify no
+    `ChannelPairDeadlock` or `ScopeDeadlock` errors leak from
+    the substrate or test files.
+12. Report.
+
+Then DO NOT commit. Working tree stays modified for the
+orchestrator to score.
