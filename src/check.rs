@@ -74,20 +74,32 @@ pub enum CheckError {
         callee: String,
         expected: usize,
         got: usize,
+        /// Arc 138 slice 1 — source coordinates of the offending
+        /// call form so users (and agents) can navigate to the
+        /// site without grepping. Use [`Span::unknown`] for
+        /// synthetic check rules that have no originating node;
+        /// Display skips the prefix when the span is unknown.
+        span: Span,
     },
     TypeMismatch {
         callee: String,
         param: String,
         expected: String,
         got: String,
+        /// Arc 138 slice 1 — see `ArityMismatch::span`.
+        span: Span,
     },
     ReturnTypeMismatch {
         function: String,
         expected: String,
         got: String,
+        /// Arc 138 slice 1 — see `ArityMismatch::span`.
+        span: Span,
     },
     UnknownCallee {
         callee: String,
+        /// Arc 138 slice 1 — see `ArityMismatch::span`.
+        span: Span,
     },
     /// A built-in form (e.g., `:wat::core::match`) is structurally
     /// malformed in a way the syntax-level grammar doesn't catch —
@@ -96,6 +108,8 @@ pub enum CheckError {
     MalformedForm {
         head: String,
         reason: String,
+        /// Arc 138 slice 1 — see `ArityMismatch::span`.
+        span: Span,
     },
     /// Arc 110 — `:wat::kernel::send` / `:wat::kernel::recv` appeared
     /// somewhere other than the discriminant of `:wat::core::match`
@@ -104,6 +118,8 @@ pub enum CheckError {
     /// makes structurally impossible.
     CommCallOutOfPosition {
         callee: String,
+        /// Arc 138 slice 1 — see `ArityMismatch::span`.
+        span: Span,
     },
     /// Arc 117 — a `let*` binding-block contains BOTH a Thread/Process
     /// binding (a value one calls `Thread/join-result` / `Process/
@@ -339,24 +355,37 @@ pub enum CheckError {
     },
 }
 
+/// Arc 138 slice 1 — render the file:line:col prefix for an error,
+/// or empty when the span is unknown (synthetic check rule with no
+/// originating node). The prefix shape mirrors `ScopeDeadlock` /
+/// `ChannelPairDeadlock` / `BareLegacyPrimitive` — `<file>:<line>:<col>: `.
+fn span_prefix(span: &Span) -> String {
+    if span.is_unknown() {
+        String::new()
+    } else {
+        format!("{}: ", span)
+    }
+}
+
 impl fmt::Display for CheckError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CheckError::ArityMismatch { callee, expected, got } => write!(
+            CheckError::ArityMismatch { callee, expected, got, span } => write!(
                 f,
-                "{}: expected {} argument(s); got {}",
-                callee, expected, got
+                "{}{}: expected {} argument(s); got {}",
+                span_prefix(span), callee, expected, got
             ),
             CheckError::TypeMismatch {
                 callee,
                 param,
                 expected,
                 got,
+                span,
             } => {
                 write!(
                     f,
-                    "{}: parameter {} expects {}; got {}",
-                    callee, param, expected, got
+                    "{}{}: parameter {} expects {}; got {}",
+                    span_prefix(span), callee, param, expected, got
                 )?;
                 if let Some(hint) = collect_hints(callee, expected, got) {
                     write!(f, "\n  hint: {}", hint)?;
@@ -367,27 +396,28 @@ impl fmt::Display for CheckError {
                 function,
                 expected,
                 got,
+                span,
             } => {
                 write!(
                     f,
-                    "{}: body produces {}; signature declares {}",
-                    function, got, expected
+                    "{}{}: body produces {}; signature declares {}",
+                    span_prefix(span), function, got, expected
                 )?;
                 if let Some(hint) = collect_hints(function, expected, got) {
                     write!(f, "\n  hint: {}", hint)?;
                 }
                 Ok(())
             }
-            CheckError::UnknownCallee { callee } => {
-                write!(f, "unknown callee: {}", callee)
+            CheckError::UnknownCallee { callee, span } => {
+                write!(f, "{}unknown callee: {}", span_prefix(span), callee)
             }
-            CheckError::MalformedForm { head, reason } => {
-                write!(f, "malformed {} form: {}", head, reason)
+            CheckError::MalformedForm { head, reason, span } => {
+                write!(f, "{}malformed {} form: {}", span_prefix(span), head, reason)
             }
-            CheckError::CommCallOutOfPosition { callee } => write!(
+            CheckError::CommCallOutOfPosition { callee, span } => write!(
                 f,
-                "{} may appear only as the scrutinee of `:wat::core::match`, the value-position of `:wat::core::Result/expect`, or the value-position of `:wat::core::Option/expect`; silent disconnect must be handled at every comm call",
-                callee
+                "{}{} may appear only as the scrutinee of `:wat::core::match`, the value-position of `:wat::core::Result/expect`, or the value-position of `:wat::core::Option/expect`; silent disconnect must be handled at every comm call",
+                span_prefix(span), callee
             ),
             CheckError::ScopeDeadlock {
                 thread_binding,
@@ -554,43 +584,66 @@ impl CheckError {
     pub fn diagnostic(&self) -> crate::diagnostic::Diagnostic {
         use crate::diagnostic::Diagnostic;
         match self {
-            CheckError::ArityMismatch { callee, expected, got } => {
-                Diagnostic::new("ArityMismatch")
+            CheckError::ArityMismatch { callee, expected, got, span } => {
+                let mut diag = Diagnostic::new("ArityMismatch")
                     .field("callee", callee.as_str())
                     .field("expected", *expected)
-                    .field("got", *got)
+                    .field("got", *got);
+                if !span.is_unknown() {
+                    diag = diag.field("span", span.to_string());
+                }
+                diag
             }
-            CheckError::TypeMismatch { callee, param, expected, got } => {
+            CheckError::TypeMismatch { callee, param, expected, got, span } => {
                 let mut diag = Diagnostic::new("TypeMismatch")
                     .field("callee", callee.as_str())
                     .field("param", param.as_str())
                     .field("expected", expected.as_str())
                     .field("got", got.as_str());
+                if !span.is_unknown() {
+                    diag = diag.field("span", span.to_string());
+                }
                 if let Some(hint) = collect_hints(callee, expected, got) {
                     diag = diag.field("hint", hint);
                 }
                 diag
             }
-            CheckError::ReturnTypeMismatch { function, expected, got } => {
+            CheckError::ReturnTypeMismatch { function, expected, got, span } => {
                 let mut diag = Diagnostic::new("ReturnTypeMismatch")
                     .field("function", function.as_str())
                     .field("expected", expected.as_str())
                     .field("got", got.as_str());
+                if !span.is_unknown() {
+                    diag = diag.field("span", span.to_string());
+                }
                 if let Some(hint) = collect_hints(function, expected, got) {
                     diag = diag.field("hint", hint);
                 }
                 diag
             }
-            CheckError::UnknownCallee { callee } => {
-                Diagnostic::new("UnknownCallee").field("callee", callee.as_str())
+            CheckError::UnknownCallee { callee, span } => {
+                let mut diag = Diagnostic::new("UnknownCallee").field("callee", callee.as_str());
+                if !span.is_unknown() {
+                    diag = diag.field("span", span.to_string());
+                }
+                diag
             }
-            CheckError::MalformedForm { head, reason } => {
-                Diagnostic::new("MalformedForm")
+            CheckError::MalformedForm { head, reason, span } => {
+                let mut diag = Diagnostic::new("MalformedForm")
                     .field("head", head.as_str())
-                    .field("reason", reason.as_str())
+                    .field("reason", reason.as_str());
+                if !span.is_unknown() {
+                    diag = diag.field("span", span.to_string());
+                }
+                diag
             }
-            CheckError::CommCallOutOfPosition { callee } => {
-                Diagnostic::new("CommCallOutOfPosition").field("callee", callee.as_str())
+            CheckError::CommCallOutOfPosition { callee, span } => {
+                let mut diag = Diagnostic::new("CommCallOutOfPosition")
+                    .field("callee", callee.as_str());
+                if !span.is_unknown() {
+                    diag = diag.field("span", span.to_string());
+                }
+                diag
             }
             CheckError::ScopeDeadlock {
                 thread_binding,
@@ -10862,6 +10915,22 @@ mod tests {
     fn string_to_add_rejected() {
         let err = check(r#"(:wat::core::i64::+ "hello" 3)"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
+    }
+
+    /// Arc 138 slice 1 — every CheckError surfaced on user source carries
+    /// a span. The rendered Display output names file:line:col so a
+    /// human or agent reading the error can navigate to the offending
+    /// form without grepping. Canary for the project-wide "errors
+    /// carry coordinates" doctrine.
+    #[test]
+    fn type_mismatch_message_carries_span() {
+        let err = check(r#"(:wat::core::i64::+ "hello" 3)"#).unwrap_err();
+        let rendered = format!("{}", err);
+        assert!(
+            rendered.contains("<test>:"),
+            "TypeMismatch Display must include source coordinates; rendered:\n{}",
+            rendered
+        );
     }
 
     #[test]
