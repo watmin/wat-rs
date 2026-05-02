@@ -7,14 +7,25 @@
 ;; at the namespace level. Real types Stats / MetricsCadence /
 ;; State / Report keep their PascalCase + /methods.
 ;;
-;; Channel-naming family: Pattern B (Request + Reply — data forward,
-;; data back, sender embedded in request). See INVENTORY § K. ReqPair
-;; renamed to ReqChannel (gaze 2026-05-01: in-crate ReqPair/
-;; ReplyChannel mumble); ReplyRx<V> + ReplyChannel<V> typealiases
-;; minted to complete the Pattern B reference shape.
+;; Channel-naming family: Pattern B (Get — data-back, Reply*)
+;; + Pattern A (Put — unit-ack, PutAck*). See INVENTORY § K.
+;;
+;; Arc 119: symmetric batch protocol. Request is now an enum
+;; (Get | Put) rather than a tagged-tuple Body<K,V>. Body<K,V>
+;; retires. Entry<K,V> = (K,V) is the batch-element name.
+;;
+;;   Get carries Vec<K> probes,   returns Vec<Option<V>>  (Pattern B back-edge)
+;;   Put carries Vec<Entry<K,V>>, returns unit-ack        (Pattern A back-edge)
+;;
+;; Variant-scoped channel families:
+;;   Reply*   (ReplyTx, ReplyRx, ReplyChannel)   — GET data-bearing back-edge
+;;   PutAck*  (PutAckTx, PutAckRx, PutAckChannel) — PUT unit-ack release
+;;
+;; See docs/CONVENTIONS.md § "Batch convention" and
+;; docs/arc/2026/04/119-holon-lru-put-ack/DESIGN.md.
 ;;
 ;; A program that owns its own LocalCache<K,V> behind a select loop;
-;; clients send requests with their own reply address attached so
+;; clients send requests with their own reply/ack address attached so
 ;; the driver routes responses without a sender-index map.
 ;;
 ;; Generic over K,V — type params propagate through every define via
@@ -24,23 +35,9 @@
 ;;
 ;; Arc 078: ships the canonical service contract — Reporter +
 ;; MetricsCadence<G> + null-helpers + typed Report enum — alongside
-;; the pre-existing tuple Request protocol. spawn now demands both
-;; injection points; pass null-reporter / null-metrics-cadence for
-;; the explicit "no reporting" choice.
-;;
-;; Protocol:
-;;   Body<K,V>     = (tag :wat::core::i64, key :K, put-val :wat::core::Option<V>)
-;;   ReplyTx<V>    = :Sender<wat::core::Option<V>>
-;;   Request<K,V>  = (Body<K,V>, ReplyTx<V>)
-;;   Response<V>   = :wat::core::Option<V>
-;;     body.tag 0 = GET: put-val is :None
-;;     body.tag 1 = PUT: put-val is (Some v)
-;;     Response:   (Some v) on GET hit, :None on GET miss, :None on PUT ack.
-;;
-;; The four parts above are typealiases declared below. Under the
-;; user-composed stdlib tier (:user::wat::std::*), register_defines
-;; applies the reserved-prefix gate — but :user::* is not reserved,
-;; so these land cleanly through the normal user-pipeline path.
+;; the batch Request enum protocol. spawn now demands both injection
+;; points; pass null-reporter / null-metrics-cadence for the
+;; explicit "no reporting" choice.
 
 ;; crossbeam_channel is wat substrate, not a wat-lru dep — the
 ;; runtime provides Sender<T>/Receiver<T> via :wat::kernel::
@@ -50,16 +47,38 @@
 ;; — the real external dep — gets a `use!` (see lru.wat).
 
 ;; --- Protocol typealiases ---
-(:wat::core::typealias :wat::lru::Body<K,V>
-  :(wat::core::i64,K,wat::core::Option<V>))
+
+;; Entry<K,V> = (K, V) — the batch-element name (arc 119, gaze pass 3).
+;; Standard cache-domain word; unambiguous across the two cache services.
+(:wat::core::typealias :wat::lru::Entry<K,V>
+  :(K,V))
+
+;; PutAck* — Pattern A (unit-ack release) back-edge family for Put.
+(:wat::core::typealias :wat::lru::PutAckTx
+  :wat::kernel::Sender<wat::core::unit>)
+(:wat::core::typealias :wat::lru::PutAckRx
+  :wat::kernel::Receiver<wat::core::unit>)
+(:wat::core::typealias :wat::lru::PutAckChannel
+  :(wat::lru::PutAckTx,wat::lru::PutAckRx))
+
+;; Reply* — Pattern B (data-bearing back-edge) family for Get.
+;; Body widens from Sender<Option<V>> to Sender<Vec<Option<V>>> (arc 119 batch).
 (:wat::core::typealias :wat::lru::ReplyTx<V>
-  :wat::kernel::Sender<wat::core::Option<V>>)
+  :wat::kernel::Sender<wat::core::Vector<wat::core::Option<V>>>)
 (:wat::core::typealias :wat::lru::ReplyRx<V>
-  :wat::kernel::Receiver<wat::core::Option<V>>)
+  :wat::kernel::Receiver<wat::core::Vector<wat::core::Option<V>>>)
 (:wat::core::typealias :wat::lru::ReplyChannel<V>
   :(wat::lru::ReplyTx<V>,wat::lru::ReplyRx<V>))
-(:wat::core::typealias :wat::lru::Request<K,V>
-  :(wat::lru::Body<K,V>,wat::lru::ReplyTx<V>))
+
+;; Request<K,V> — enum-based (arc 119). Body<K,V> tagged-tuple retires.
+;;   Get carries a Vec<K> probe batch + a reply-tx for the batch result.
+;;   Put carries a Vec<Entry<K,V>> entries batch + an ack-tx for the unit release.
+(:wat::core::enum :wat::lru::Request<K,V>
+  (Get  (probes   :wat::core::Vector<K>)
+        (reply-tx :wat::lru::ReplyTx<V>))
+  (Put  (entries  :wat::core::Vector<wat::lru::Entry<K,V>>)
+        (ack-tx   :wat::lru::PutAckTx)))
+
 (:wat::core::typealias :wat::lru::ReqTx<K,V>
   :wat::kernel::Sender<wat::lru::Request<K,V>>)
 (:wat::core::typealias :wat::lru::ReqRx<K,V>
@@ -90,10 +109,10 @@
 ;; the explicit "no reporting" choice.
 
 (:wat::core::struct :wat::lru::Stats
-  (lookups :wat::core::i64)        ;; total Gets in this window
-  (hits :wat::core::i64)           ;; Gets returning Some
-  (misses :wat::core::i64)         ;; Gets returning :None
-  (puts :wat::core::i64)           ;; total Puts in this window
+  (lookups :wat::core::i64)        ;; total Gets (in probe count) in this window
+  (hits :wat::core::i64)           ;; probe slots returning Some
+  (misses :wat::core::i64)         ;; probe slots returning :None
+  (puts :wat::core::i64)           ;; total Put entries in this window
   (cache-size :wat::core::i64))    ;; LocalCache::len at gate-fire time
 
 ;; Slice 4 ships ONE variant (Metrics, gated by metrics-cadence).
@@ -155,9 +174,11 @@
 
 ;; ─── Per-variant request handler ────────────────────────────────
 ;;
-;; GET: LocalCache::get; reply with wat::core::Option<V>; stats: lookups++,
-;;      hits++ or misses++.
-;; PUT: LocalCache::put; reply :None; stats: puts++.
+;; GET: batch-lookup probes via LocalCache::get; reply with
+;;      Vec<Option<V>> on reply-tx; stats: lookups += len(probes),
+;;      hits/misses counted from result vec.
+;; PUT: batch-insert entries via LocalCache::put; ack unit on
+;;      ack-tx after whole batch persisted; stats: puts += len(entries).
 ;;
 ;; Returns the new State (cache pointer unchanged — mutates in
 ;; place; stats rebuilt).
@@ -171,53 +192,62 @@
     (((cache :wat::lru::LocalCache<K,V>)
       (:wat::lru::State/cache state))
      ((stats :wat::lru::Stats)
-      (:wat::lru::State/stats state))
-     ((body :wat::lru::Body<K,V>) (:wat::core::first req))
-     ((reply-to :wat::lru::ReplyTx<V>) (:wat::core::second req))
-     ((tag :wat::core::i64) (:wat::core::first body))
-     ((key :K) (:wat::core::second body))
-     ((put-val :wat::core::Option<V>) (:wat::core::third body))
-     ((resp :wat::core::Option<V>)
-      (:wat::core::if (:wat::core::= tag 0) -> :wat::core::Option<V>
-        (:wat::lru::LocalCache::get cache key)
-        (:wat::core::match put-val -> :wat::core::Option<V>
-          ((:wat::core::Some v)
-            (:wat::core::let*
-              (((_ :wat::core::Option<(K,V)>) (:wat::lru::LocalCache::put cache key v)))
-              :wat::core::None))
-          (:wat::core::None :wat::core::None))))
-     ;; Per arc 110: client dropping reply-to mid-protocol is a
-     ;; protocol violation in this in-memory CSP. Panic so the
-     ;; program tree learns the discipline broke instead of
-     ;; silently dropping the reply.
-     ((_send :wat::core::unit)
-      (:wat::core::Result/expect -> :wat::core::unit
-        (:wat::kernel::send reply-to resp)
-        "CacheService/handle: reply-to disconnected — client died mid-request?"))
-     ((stats' :wat::lru::Stats)
-      (:wat::core::if (:wat::core::= tag 0) -> :wat::lru::Stats
-        ;; GET — bump lookups + hits/misses
+      (:wat::lru::State/stats state)))
+    (:wat::core::match req -> :wat::lru::State<K,V>
+      ((:wat::lru::Request::Get probes reply-tx)
         (:wat::core::let*
-          (((hit-delta :wat::core::i64)
-            (:wat::core::match resp -> :wat::core::i64
-              ((:wat::core::Some _) 1)
-              (:wat::core::None 0)))
-           ((miss-delta :wat::core::i64)
-            (:wat::core::i64::- 1 hit-delta)))
-          (:wat::lru::Stats/new
-            (:wat::core::i64::+ (:wat::lru::Stats/lookups stats) 1)
-            (:wat::core::i64::+ (:wat::lru::Stats/hits stats) hit-delta)
-            (:wat::core::i64::+ (:wat::lru::Stats/misses stats) miss-delta)
-            (:wat::lru::Stats/puts stats)
-            (:wat::lru::Stats/cache-size stats)))
-        ;; PUT — bump puts
-        (:wat::lru::Stats/new
-          (:wat::lru::Stats/lookups stats)
-          (:wat::lru::Stats/hits stats)
-          (:wat::lru::Stats/misses stats)
-          (:wat::core::i64::+ (:wat::lru::Stats/puts stats) 1)
-          (:wat::lru::Stats/cache-size stats)))))
-    (:wat::lru::State/new cache stats')))
+          (((results :wat::core::Vector<wat::core::Option<V>>)
+            (:wat::core::map probes
+              (:wat::core::lambda ((k :K) -> :wat::core::Option<V>)
+                (:wat::lru::LocalCache::get cache k))))
+           ((hit-count :wat::core::i64)
+            (:wat::core::reduce results 0
+              (:wat::core::lambda
+                ((acc :wat::core::i64) (slot :wat::core::Option<V>) -> :wat::core::i64)
+                (:wat::core::match slot -> :wat::core::i64
+                  ((:wat::core::Some _) (:wat::core::i64::+ acc 1))
+                  (:wat::core::None acc)))))
+           ((n :wat::core::i64) (:wat::core::Vector/len probes))
+           ((miss-count :wat::core::i64) (:wat::core::i64::- n hit-count))
+           ;; Arc 110: in-memory peer-death is catastrophic; panic with a
+           ;; meaningful message rather than silently dropping the reply.
+           ((_send :wat::core::unit)
+            (:wat::core::Result/expect -> :wat::core::unit
+              (:wat::kernel::send reply-tx results)
+              "CacheService/handle: reply-tx disconnected — client died mid-request?"))
+           ((stats' :wat::lru::Stats)
+            (:wat::lru::Stats/new
+              (:wat::core::i64::+ (:wat::lru::Stats/lookups stats) n)
+              (:wat::core::i64::+ (:wat::lru::Stats/hits stats) hit-count)
+              (:wat::core::i64::+ (:wat::lru::Stats/misses stats) miss-count)
+              (:wat::lru::Stats/puts stats)
+              (:wat::lru::Stats/cache-size stats))))
+          (:wat::lru::State/new cache stats')))
+      ((:wat::lru::Request::Put entries ack-tx)
+        (:wat::core::let*
+          (((_ :wat::core::Vector<wat::core::Option<(K,V)>>)
+            (:wat::core::map entries
+              (:wat::core::lambda
+                ((entry :wat::lru::Entry<K,V>) -> :wat::core::Option<(K,V)>)
+                (:wat::core::let*
+                  (((k :K) (:wat::core::first entry))
+                   ((v :V) (:wat::core::second entry)))
+                  (:wat::lru::LocalCache::put cache k v)))))
+           ((n :wat::core::i64) (:wat::core::Vector/len entries))
+           ;; Arc 110: same discipline — driver dying mid-protocol is
+           ;; catastrophic; panic with a meaningful message.
+           ((_send :wat::core::unit)
+            (:wat::core::Result/expect -> :wat::core::unit
+              (:wat::kernel::send ack-tx ())
+              "CacheService/handle: ack-tx disconnected — client died mid-request?"))
+           ((stats' :wat::lru::Stats)
+            (:wat::lru::Stats/new
+              (:wat::lru::Stats/lookups stats)
+              (:wat::lru::Stats/hits stats)
+              (:wat::lru::Stats/misses stats)
+              (:wat::core::i64::+ (:wat::lru::Stats/puts stats) n)
+              (:wat::lru::Stats/cache-size stats))))
+          (:wat::lru::State/new cache stats'))))))
 
 ;; ─── Tick the metrics window — advance gate, emit+reset on fire ──
 
@@ -260,7 +290,7 @@
 ;; Driver entry — allocates the LocalCache INSIDE the driver thread
 ;; (LocalCache is thread-owned; creating it in the caller and passing
 ;; across threads would trip the thread-id guard and wedge the
-;; driver). Then delegates to `CacheService/loop-step` for the recursion.
+;; driver). Then delegates to `loop-step` for the recursion.
 (:wat::core::define
   (:wat::lru::loop<K,V,G>
     (capacity :wat::core::i64)
@@ -319,22 +349,27 @@
 
 ;; --- Client helpers ---
 ;;
-;; A client creates its response channel once at setup and reuses it
-;; for every request. CacheService/get and CacheService/put package
-;; the request, send it, and block on the response.
+;; A client creates its reply/ack channel once at setup and reuses it
+;; for every request. :wat::lru::get and :wat::lru::put package the
+;; batch request, send it, and block on the response.
+;;
+;; Arc 119: get takes Vec<K> probes, returns Vec<Option<V>>.
+;;          put takes Vec<Entry<K,V>>, returns unit after ack.
+;;
+;; Recv pattern (two nested levels per arc 111+113):
+;;   Result/expect unwraps the outer Result (ThreadDiedError on peer death).
+;;   Option/expect unwraps the inner Option (None = clean channel close).
 
 (:wat::core::define
   (:wat::lru::get<K,V>
     (req-tx :wat::lru::ReqTx<K,V>)
     (reply-tx :wat::lru::ReplyTx<V>)
-    (reply-rx :wat::kernel::Receiver<wat::core::Option<V>>)
-    (key :K)
-    -> :wat::core::Option<V>)
+    (reply-rx :wat::lru::ReplyRx<V>)
+    (probes :wat::core::Vector<K>)
+    -> :wat::core::Vector<wat::core::Option<V>>)
   (:wat::core::let*
-    (((body :wat::lru::Body<K,V>)
-      (:wat::core::Tuple 0 key :wat::core::None))
-     ((req :wat::lru::Request<K,V>)
-      (:wat::core::Tuple body reply-tx))
+    (((req :wat::lru::Request<K,V>)
+      (:wat::lru::Request::Get probes reply-tx))
      ;; Arc 110: in-memory peer-death is catastrophic; cache driver
      ;; dying means our state-of-the-world claim is invalid. Panic
      ;; with a meaningful message rather than silently returning
@@ -342,37 +377,36 @@
      ((_send :wat::core::unit)
       (:wat::core::Result/expect -> :wat::core::unit
         (:wat::kernel::send req-tx req)
-        "CacheService/get: req-tx disconnected — driver died?")))
-    (:wat::core::Option/expect -> :wat::core::Option<V>
-      (:wat::core::Result/expect -> :wat::core::Option<wat::core::Option<V>>
+        "lru::get: req-tx disconnected — driver died?")))
+    (:wat::core::Option/expect -> :wat::core::Vector<wat::core::Option<V>>
+      (:wat::core::Result/expect -> :wat::core::Option<wat::core::Vector<wat::core::Option<V>>>
         (:wat::kernel::recv reply-rx)
-        "CacheService/get: reply-rx disconnected — driver died mid-request?")
-      "CacheService/get: reply channel closed — driver dropped reply-tx?")))
+        "lru::get: reply-rx disconnected — driver died mid-request?")
+      "lru::get: reply channel closed — driver dropped reply-tx?")))
 
 (:wat::core::define
   (:wat::lru::put<K,V>
     (req-tx :wat::lru::ReqTx<K,V>)
-    (reply-tx :wat::lru::ReplyTx<V>)
-    (reply-rx :wat::kernel::Receiver<wat::core::Option<V>>)
-    (key :K)
-    (value :V)
+    (ack-tx :wat::lru::PutAckTx)
+    (ack-rx :wat::lru::PutAckRx)
+    (entries :wat::core::Vector<wat::lru::Entry<K,V>>)
     -> :wat::core::unit)
   (:wat::core::let*
-    (((body :wat::lru::Body<K,V>)
-      (:wat::core::Tuple 1 key (:wat::core::Some value)))
-     ((req :wat::lru::Request<K,V>)
-      (:wat::core::Tuple body reply-tx))
-     ;; Arc 110: same as CacheService/get — driver dying mid-protocol
+    (((req :wat::lru::Request<K,V>)
+      (:wat::lru::Request::Put entries ack-tx))
+     ;; Arc 110: same as lru::get — driver dying mid-protocol
      ;; is catastrophic; panic with a meaningful message rather than
      ;; silently absorbing the disconnect.
      ((_send :wat::core::unit)
       (:wat::core::Result/expect -> :wat::core::unit
         (:wat::kernel::send req-tx req)
-        "CacheService/put: req-tx disconnected — driver died?"))
-     ((_recv :wat::core::Option<wat::core::Option<V>>)
-      (:wat::core::Result/expect -> :wat::core::Option<wat::core::Option<V>>
-        (:wat::kernel::recv reply-rx)
-        "CacheService/put: reply-rx disconnected — driver died mid-request?")))
+        "lru::put: req-tx disconnected — driver died?"))
+     ((_ :wat::core::unit)
+      (:wat::core::Option/expect -> :wat::core::unit
+        (:wat::core::Result/expect -> :wat::core::Option<wat::core::unit>
+          (:wat::kernel::recv ack-rx)
+          "lru::put: ack-rx disconnected — driver died mid-request?")
+        "lru::put: ack channel closed — driver dropped ack-tx?")))
     ()))
 
 ;; --- CacheService setup ---

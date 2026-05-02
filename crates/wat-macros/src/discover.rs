@@ -1,22 +1,52 @@
-//! Deftest discovery — paren-balanced scanner that finds
-//! `(:wat::test::deftest <name> ...)` forms in `.wat` source.
+//! Deftest discovery — paren-balanced scanner that finds the four
+//! deftest-producing shapes in `.wat` source:
+//!
+//! 1. `(:wat::test::deftest <name> ...)` — direct, in-process (arc 121)
+//! 2. `(:wat::test::deftest-hermetic <name> ...)` — direct, forked
+//!    subprocess (arc 124)
+//! 3. `(:alias <name> <body>)` — alias call where `:alias` was
+//!    declared via `(:wat::test::make-deftest :alias <prelude>)`
+//!    (arc 124)
+//! 4. `(:alias <name> <body>)` — alias call where `:alias` was
+//!    declared via `(:wat::test::make-deftest-hermetic :alias
+//!    <prelude>)` (arc 124)
 //!
 //! Used by the `wat::test!` proc macro at expansion time to enumerate
 //! every deftest under the configured path. The proc macro then emits
 //! one `#[test] fn` per discovered site so cargo's libtest sees each
-//! deftest as a first-class test (arc 121).
+//! deftest as a first-class test.
+//!
+//! At the runner layer, the four shapes are indistinguishable —
+//! `deftest` and `deftest-hermetic` both expand at wat-side macro
+//! expansion to a `:wat::core::define` of a function returning
+//! `:wat::test::TestResult`; the runner just looks up the function
+//! by keyword name and calls it. Hermetic vs in-process is
+//! encoded INSIDE the wat-side body (the choice between
+//! `run-sandboxed-ast` and `run-sandboxed-hermetic-ast`). Same for
+//! alias forms — `make-deftest` builds a defmacro that ultimately
+//! expands to `deftest`, `make-deftest-hermetic` to
+//! `deftest-hermetic`. The proc-macro scanner doesn't care about
+//! the inner choice; it just emits the `#[test] fn`.
 //!
 //! This is a tiny lexer — NOT a full wat parser. Recognizing
-//! `(:wat::test::deftest <name>` is unambiguous textually:
+//! `(:wat::test::deftest <name>` (or any of the other shapes) is
+//! unambiguous textually:
 //!
 //! - paren balance (skipping comments and string literals)
-//! - at depth 1, the head keyword equals `:wat::test::deftest`
+//! - at depth 1, the head keyword names the discovery shape
 //! - the next non-whitespace, non-comment token is the deftest's
 //!   name (a keyword starting with `:`)
+//!
+//! Aliases are tracked per-file. The scanner walks top-to-bottom; a
+//! `make-deftest` / `make-deftest-hermetic` registration must
+//! precede the alias's first use (matches wat's runtime defmacro
+//! ordering). Late-declared aliases silently drop — the wat-level
+//! type checker surfaces the real error.
 //!
 //! Comments: `;` to end-of-line. Standard wat comment syntax.
 //! Strings: `"..."` with `\\` and `\"` escapes.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -179,16 +209,27 @@ fn collect_wat_files(root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Discover
     Ok(())
 }
 
-/// Scan one `.wat` source string for `(:wat::test::deftest <name>
-/// ...)` forms — and the per-test annotations that may precede each
-/// (`(:wat::test::ignore "<reason>")`,
-/// `(:wat::test::should-panic "<expected>")`) per arc 122.
+/// Scan one `.wat` source string for the four deftest-producing
+/// shapes (per arc 121 + arc 124) and the per-test annotations that
+/// may precede each (`(:wat::test::ignore "<reason>")`,
+/// `(:wat::test::should-panic "<expected>")`,
+/// `(:wat::test::time-limit "<dur>")`) per arcs 122 + 123.
+///
+/// The four shapes:
+/// - `(:wat::test::deftest <name> ...)` — direct, in-process
+/// - `(:wat::test::deftest-hermetic <name> ...)` — direct, forked
+/// - `(:alias <name> ...)` where `(:wat::test::make-deftest :alias
+///   <prelude>)` declared the alias upstream
+/// - `(:alias <name> ...)` where `(:wat::test::make-deftest-hermetic
+///   :alias <prelude>)` declared the alias upstream
 ///
 /// Annotations are SIBLING forms preceding a deftest — pending state
-/// attaches to the next deftest discovered. Encountering any
-/// non-annotation form between an annotation and a deftest CLEARS
-/// the pending annotations (an annotation only applies to the
-/// immediately next deftest).
+/// attaches to the next deftest discovered (regardless of which of
+/// the four shapes it takes). Encountering any non-annotation form
+/// between an annotation and a deftest CLEARS the pending
+/// annotations (including `make-deftest` / `make-deftest-hermetic`
+/// declarations themselves — annotations only attach to the
+/// immediately next deftest CALL, not to alias declarations).
 ///
 /// Comments are skipped (`;` to end of line). String literals are
 /// skipped (`"..."` with `\\` and `\"` escapes). The scanner is a
@@ -201,6 +242,15 @@ pub fn scan_file(src: &str) -> Vec<ParsedSite> {
     let mut pending_ignore: Option<String> = None;
     let mut pending_should_panic: Option<String> = None;
     let mut pending_time_limit_ms: Option<u64> = None;
+
+    // Arc 124 — per-file alias table. Aliases registered by
+    // `(:wat::test::make-deftest :alias ...)` or
+    // `(:wat::test::make-deftest-hermetic :alias ...)` are added
+    // here; subsequent top-level forms whose head keyword is in
+    // the table are treated as deftest calls. Hermetic vs
+    // in-process distinction is invisible at the runner layer
+    // (the wat-side macro expansion handles dispatch).
+    let mut aliases: HashMap<String, ()> = HashMap::new();
 
     while i < bytes.len() {
         let b = bytes[i];
@@ -264,7 +314,52 @@ pub fn scan_file(src: &str) -> Vec<ParsedSite> {
                     }
                     i = skip_form(bytes, i);
                 }
-                ":wat::test::deftest" => {
+                ":wat::test::deftest" | ":wat::test::deftest-hermetic" => {
+                    // Arc 121 + arc 124 — direct deftest forms.
+                    // The wat-side `deftest-hermetic` macro expands
+                    // to a `define` that calls
+                    // `run-sandboxed-hermetic-ast`; the runner
+                    // doesn't distinguish.
+                    let name_start =
+                        skip_ws_and_comments(bytes, head_start + head_str.len());
+                    if let Some(name_bytes) = read_keyword(bytes, name_start) {
+                        let name =
+                            std::str::from_utf8(name_bytes).unwrap_or("").to_string();
+                        sites.push(ParsedSite {
+                            name,
+                            ignore: pending_ignore.take(),
+                            should_panic: pending_should_panic.take(),
+                            time_limit_ms: pending_time_limit_ms.take(),
+                        });
+                    }
+                    i = skip_form(bytes, i);
+                }
+                ":wat::test::make-deftest" | ":wat::test::make-deftest-hermetic" => {
+                    // Arc 124 — register an alias keyword as a
+                    // deftest-producing form for the rest of this
+                    // file. The first argument after the head is
+                    // the alias keyword (e.g. `:deftest-hermetic`).
+                    // Annotations preceding a make-deftest call are
+                    // dropped — they don't attach to the alias's
+                    // declaration; an annotation must precede the
+                    // alias's CALL site to attach.
+                    let alias_start =
+                        skip_ws_and_comments(bytes, head_start + head_str.len());
+                    if let Some(alias_bytes) = read_keyword(bytes, alias_start) {
+                        let alias =
+                            std::str::from_utf8(alias_bytes).unwrap_or("").to_string();
+                        if !alias.is_empty() {
+                            aliases.insert(alias, ());
+                        }
+                    }
+                    pending_ignore = None;
+                    pending_should_panic = None;
+                    pending_time_limit_ms = None;
+                    i = skip_form(bytes, i);
+                }
+                other if !other.is_empty() && aliases.contains_key(other) => {
+                    // Arc 124 — alias call. Treat as a deftest with
+                    // the same shape: next keyword is the test name.
                     let name_start =
                         skip_ws_and_comments(bytes, head_start + head_str.len());
                     if let Some(name_bytes) = read_keyword(bytes, name_start) {
@@ -531,15 +626,19 @@ mod tests {
     }
 
     #[test]
-    fn scan_finds_nested_deftest() {
-        // A deftest that's inside a make-deftest body should still
-        // be discovered (the scanner doesn't gate on depth).
+    fn scan_finds_aliases_and_outer() {
+        // Arc 124 — make-deftest-registered aliases and direct
+        // deftest forms BOTH produce sites. Discovery order
+        // follows source order.
         let src = r#"
             (:wat::test::make-deftest :deftest-x ())
             (:deftest-x :my::nested ())
             (:wat::test::deftest :outer ())
         "#;
-        assert_eq!(names_only(src), vec![":outer".to_string()]);
+        assert_eq!(
+            names_only(src),
+            vec![":my::nested".to_string(), ":outer".to_string()]
+        );
     }
 
     #[test]
@@ -798,5 +897,148 @@ mod tests {
         let sites = scan_file(src);
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].time_limit_ms, None);
+    }
+
+    // ─── Arc 124 — hermetic + alias deftest discovery ────────────
+
+    #[test]
+    fn scan_finds_deftest_hermetic() {
+        let src = r#"
+            (:wat::test::deftest-hermetic :my::forked
+              ((:wat::core::let* () ())))
+        "#;
+        assert_eq!(names_only(src), vec![":my::forked".to_string()]);
+    }
+
+    #[test]
+    fn scan_alias_via_make_deftest() {
+        let src = r#"
+            (:wat::test::make-deftest :deftest ())
+            (:deftest :my::aliased ())
+        "#;
+        assert_eq!(names_only(src), vec![":my::aliased".to_string()]);
+    }
+
+    #[test]
+    fn scan_alias_via_make_deftest_hermetic() {
+        let src = r#"
+            (:wat::test::make-deftest-hermetic :deftest-hermetic ())
+            (:deftest-hermetic :my::hermetic-alias ())
+        "#;
+        assert_eq!(
+            names_only(src),
+            vec![":my::hermetic-alias".to_string()]
+        );
+    }
+
+    #[test]
+    fn scan_alias_with_pending_annotations() {
+        // An :ignore preceding an alias call attaches to that
+        // call (alias calls behave identically to direct deftest
+        // calls for annotation purposes).
+        let src = r#"
+            (:wat::test::make-deftest-hermetic :deftest-hermetic ())
+            (:wat::test::ignore "hangs in arc 119")
+            (:deftest-hermetic :my::flaky ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].name, ":my::flaky");
+        assert_eq!(sites[0].ignore.as_deref(), Some("hangs in arc 119"));
+    }
+
+    #[test]
+    fn scan_alias_does_not_attach_annotations_to_make_deftest_call() {
+        // An :ignore preceding a make-deftest call is dropped —
+        // make-deftest is a declaration, not a test.
+        let src = r#"
+            (:wat::test::ignore "stale")
+            (:wat::test::make-deftest :deftest ())
+            (:deftest :my::clean ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].name, ":my::clean");
+        assert_eq!(sites[0].ignore, None);
+    }
+
+    #[test]
+    fn scan_unknown_alias_silently_dropped() {
+        // A keyword that isn't registered as an alias is just an
+        // unknown form — silently skipped.
+        let src = r#"
+            (:not-an-alias :would-be-name ())
+            (:wat::test::deftest :real ())
+        "#;
+        assert_eq!(names_only(src), vec![":real".to_string()]);
+    }
+
+    #[test]
+    fn scan_alias_must_be_declared_before_use() {
+        // An alias call BEFORE its make-deftest declaration is
+        // silently dropped — the scanner walks top-to-bottom, so
+        // the alias isn't yet in the alias table when the call
+        // is encountered. (Matches wat's runtime behavior;
+        // forward-referenced defmacros surface as type-check
+        // errors at freeze time.)
+        let src = r#"
+            (:deftest-hermetic :my::too-early ())
+            (:wat::test::make-deftest-hermetic :deftest-hermetic ())
+            (:deftest-hermetic :my::on-time ())
+        "#;
+        assert_eq!(names_only(src), vec![":my::on-time".to_string()]);
+    }
+
+    #[test]
+    fn scan_multiple_aliases_in_one_file() {
+        let src = r#"
+            (:wat::test::make-deftest :deftest ())
+            (:wat::test::make-deftest-hermetic :deftest-hermetic ())
+            (:deftest :my::in-process ())
+            (:deftest-hermetic :my::forked ())
+        "#;
+        assert_eq!(
+            names_only(src),
+            vec![":my::in-process".to_string(), ":my::forked".to_string()]
+        );
+    }
+
+    #[test]
+    fn scan_finds_mixed_shapes() {
+        // All four shapes coexist: direct deftest, direct
+        // deftest-hermetic, alias-via-make-deftest,
+        // alias-via-make-deftest-hermetic.
+        let src = r#"
+            (:wat::test::deftest :a::direct ())
+            (:wat::test::deftest-hermetic :b::direct-hermetic ())
+            (:wat::test::make-deftest :alias-x ())
+            (:alias-x :c::aliased ())
+            (:wat::test::make-deftest-hermetic :alias-y ())
+            (:alias-y :d::aliased-hermetic ())
+        "#;
+        assert_eq!(
+            names_only(src),
+            vec![
+                ":a::direct".to_string(),
+                ":b::direct-hermetic".to_string(),
+                ":c::aliased".to_string(),
+                ":d::aliased-hermetic".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn scan_alias_carries_time_limit() {
+        // :time-limit must compose across the alias path the same
+        // way it composes for direct deftest.
+        let src = r#"
+            (:wat::test::make-deftest-hermetic :deftest-hermetic ())
+            (:wat::test::time-limit "200ms")
+            (:deftest-hermetic :my::bounded ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].name, ":my::bounded");
+        assert_eq!(sites[0].time_limit_ms, Some(200));
     }
 }

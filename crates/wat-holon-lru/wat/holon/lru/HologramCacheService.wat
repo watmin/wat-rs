@@ -1,7 +1,9 @@
 ;; :wat::holon::lru::HologramCacheService — queue-addressed wrapper for
 ;; HologramCache. A long-running spawned program that owns a cache
 ;; instance and serves requests via a request queue. Each client gets
-;; a per-client reply channel for Get; Put is fire-and-forget.
+;; a per-client reply channel for Get (batch probes → Vec<Option<HolonAST>>,
+;; Pattern B back-edge); Put is acked with a unit release (Pattern A
+;; back-edge).
 ;;
 ;; Arc 078: ported from the lab's :trading::cache::Service. Nothing
 ;; in the cache service shape is trader-specific — the Request enum,
@@ -9,15 +11,28 @@
 ;; generic substrate machinery built atop HologramCache. The trader
 ;; (and any other consumer) merely USES it.
 ;;
+;; Arc 119: symmetric batch protocol. Request is now an enum
+;; (Get | Put) rather than a tagged-tuple.
+;;
+;;   Get carries Vec<HolonAST> probes,   returns Vec<Option<HolonAST>>  (Pattern B back-edge)
+;;   Put carries Vec<Entry>,             returns unit-ack               (Pattern A back-edge)
+;;
+;; K = V = :wat::holon::HolonAST throughout (concrete, not parametric).
+;;
+;; Variant-scoped channel families:
+;;   GetReply*  (GetReplyTx, GetReplyRx, GetReplyPair)  — GET data-bearing back-edge
+;;   PutAck*    (PutAckTx, PutAckRx, PutAckChannel)     — PUT unit-ack release
+;;
 ;; The Reporter + MetricsCadence + null-* + typed Report enum pattern
 ;; documented here is the canonical service-contract idiom for
 ;; queue-addressed substrate services. Future stdlib services follow
 ;; this shape; see CONVENTIONS.md "Service contract" section.
 ;;
 ;; Surface:
-;;   - Request: Get(probe, reply-tx) | Put(key, val)
+;;   - Request: Get(probes, reply-tx) | Put(entries, ack-tx)
 ;;   - State:   HologramCache + Stats (cache + per-window counters)
-;;   - Reply:   wat::core::Option<HolonAST> sent on reply-tx
+;;   - Reply:   Vec<Option<HolonAST>> sent on reply-tx (Get)
+;;   - Ack:     unit sent on ack-tx (Put)
 ;;   - Telemetry: caller-supplied (reporter, metrics-cadence) pair.
 ;;     Both are non-negotiable: caller must pass both. Pass
 ;;     :wat::holon::lru::HologramCacheService/null-reporter and
@@ -33,27 +48,51 @@
 ;; Arc 076 + 077: slot routing inferred from the form's structure
 ;; (the substrate does it inside HologramCache); no caller-supplied
 ;; pos. Filter is bound at HologramCache/make time.
+;;
+;; See docs/CONVENTIONS.md § "Batch convention" and
+;; docs/arc/2026/04/119-holon-lru-put-ack/DESIGN.md.
 
-;; ─── Reply channel typealiases ──────────────────────────────────
+;; ─── Entry typealias ────────────────────────────────────────────
+;;
+;; Entry = (HolonAST, HolonAST) — the batch-element name (arc 119).
+;; Concrete K=V=HolonAST; no type parameters.
+(:wat::core::typealias :wat::holon::lru::HologramCacheService::Entry
+  :(wat::holon::HolonAST,wat::holon::HolonAST))
 
+;; ─── PutAck* — Pattern A (unit-ack release) back-edge family ────
+(:wat::core::typealias :wat::holon::lru::HologramCacheService::PutAckTx
+  :wat::kernel::Sender<wat::core::unit>)
+(:wat::core::typealias :wat::holon::lru::HologramCacheService::PutAckRx
+  :wat::kernel::Receiver<wat::core::unit>)
+(:wat::core::typealias :wat::holon::lru::HologramCacheService::PutAckChannel
+  :(wat::holon::lru::HologramCacheService::PutAckTx,wat::holon::lru::HologramCacheService::PutAckRx))
+
+;; ─── GetReply* — Pattern B (data-bearing back-edge) family ──────
+;;
+;; Body widens from Sender<Option<HolonAST>> to
+;; Sender<Vec<Option<HolonAST>>> (arc 119 batch).
+;; GetReplyPair keeps its name (K.holon-lru renames to GetReplyChannel later).
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::GetReplyTx
-  :wat::kernel::Sender<wat::core::Option<wat::holon::HolonAST>>)
+  :wat::kernel::Sender<wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>>)
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::GetReplyRx
-  :wat::kernel::Receiver<wat::core::Option<wat::holon::HolonAST>>)
+  :wat::kernel::Receiver<wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>>)
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::GetReplyPair
-  :wat::kernel::Channel<wat::core::Option<wat::holon::HolonAST>>)
+  :(wat::holon::lru::HologramCacheService::GetReplyTx,wat::holon::lru::HologramCacheService::GetReplyRx))
 
 ;; ─── Request enum ───────────────────────────────────────────────
-
+;;
+;; Arc 119: enum-based (Get | Put). Single-probe/key/val tagged-tuple retires.
+;;   Get carries Vec<HolonAST> probes + reply-tx for the batch result.
+;;   Put carries Vec<Entry> entries + ack-tx for the unit release.
 (:wat::core::enum :wat::holon::lru::HologramCacheService::Request
   (Get
-    (probe :wat::holon::HolonAST)
+    (probes   :wat::core::Vector<wat::holon::HolonAST>)
     (reply-tx :wat::holon::lru::HologramCacheService::GetReplyTx))
   (Put
-    (key :wat::holon::HolonAST)
-    (val :wat::holon::HolonAST)))
+    (entries  :wat::core::Vector<wat::holon::lru::HologramCacheService::Entry>)
+    (ack-tx   :wat::holon::lru::HologramCacheService::PutAckTx)))
 
 ;; ─── Per-client channel typealiases ─────────────────────────────
 
@@ -181,9 +220,12 @@
 
 ;; ─── Per-variant request handler ────────────────────────────────
 ;;
-;; Get: filtered-argmax via HologramCache/get; send wat::core::Option<AST> on
-;;      reply-tx. Stats: lookups++, then hits++ or misses++.
-;; Put: insert into HologramCache; no reply. Stats: puts++.
+;; Get: batch-lookup probes via HologramCache/get; reply with
+;;      Vec<Option<HolonAST>> on reply-tx; stats: lookups += len(probes),
+;;      hits/misses counted from result vec.
+;; Put: batch-insert entries via HologramCache/put; ack unit on
+;;      ack-tx after whole batch persisted; stats: puts += len(entries).
+;;      Note: HologramCache/put returns :unit (not Option eviction).
 ;;
 ;; Returns the new State (cache pointer unchanged — mutates in
 ;; place; stats rebuilt).
@@ -199,37 +241,60 @@
      ((stats :wat::holon::lru::HologramCacheService::Stats)
       (:wat::holon::lru::HologramCacheService::State/stats state)))
     (:wat::core::match req -> :wat::holon::lru::HologramCacheService::State
-      ((:wat::holon::lru::HologramCacheService::Request::Get probe reply-tx)
+      ((:wat::holon::lru::HologramCacheService::Request::Get probes reply-tx)
         (:wat::core::let*
-          (((result :wat::core::Option<wat::holon::HolonAST>)
-            (:wat::holon::lru::HologramCache/get cache probe))
+          (((results :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>)
+            (:wat::core::map probes
+              (:wat::core::lambda ((probe :wat::holon::HolonAST) -> :wat::core::Option<wat::holon::HolonAST>)
+                (:wat::holon::lru::HologramCache/get cache probe))))
+           ((hit-count :wat::core::i64)
+            (:wat::core::reduce results 0
+              (:wat::core::lambda
+                ((acc :wat::core::i64) (slot :wat::core::Option<wat::holon::HolonAST>) -> :wat::core::i64)
+                (:wat::core::match slot -> :wat::core::i64
+                  ((:wat::core::Some _) (:wat::core::i64::+ acc 1))
+                  (:wat::core::None acc)))))
+           ((n :wat::core::i64) (:wat::core::Vector/len probes))
+           ((miss-count :wat::core::i64) (:wat::core::i64::- n hit-count))
+           ;; Arc 110: in-memory peer-death is catastrophic; panic with a
+           ;; meaningful message rather than silently dropping the reply.
            ((_send :wat::core::unit)
             (:wat::core::Result/expect -> :wat::core::unit
-              (:wat::kernel::send reply-tx result)
-              "HologramCacheService::Request::Get reply-tx disconnected — caller died?"))
-           ((hit-delta :wat::core::i64)
-            (:wat::core::match result -> :wat::core::i64
-              ((:wat::core::Some _) 1)
-              (:wat::core::None 0)))
-           ((miss-delta :wat::core::i64)
-            (:wat::core::i64::- 1 hit-delta))
+              (:wat::kernel::send reply-tx results)
+              "HologramCacheService/handle: reply-tx disconnected — client died mid-request?"))
            ((stats' :wat::holon::lru::HologramCacheService::Stats)
             (:wat::holon::lru::HologramCacheService::Stats/new
-              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/lookups stats) 1)
-              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/hits stats) hit-delta)
-              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/misses stats) miss-delta)
+              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/lookups stats) n)
+              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/hits stats) hit-count)
+              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/misses stats) miss-count)
               (:wat::holon::lru::HologramCacheService::Stats/puts stats)
               (:wat::holon::lru::HologramCacheService::Stats/cache-size stats))))
           (:wat::holon::lru::HologramCacheService::State/new cache stats')))
-      ((:wat::holon::lru::HologramCacheService::Request::Put key val)
+      ((:wat::holon::lru::HologramCacheService::Request::Put entries ack-tx)
         (:wat::core::let*
-          (((_ :wat::core::unit) (:wat::holon::lru::HologramCache/put cache key val))
+          (;; HologramCache/put returns :unit (not Option eviction).
+           ;; Map entries, discard results (all units).
+           ((_ :wat::core::Vector<wat::core::unit>)
+            (:wat::core::map entries
+              (:wat::core::lambda
+                ((entry :wat::holon::lru::HologramCacheService::Entry) -> :wat::core::unit)
+                (:wat::core::let*
+                  (((k :wat::holon::HolonAST) (:wat::core::first entry))
+                   ((v :wat::holon::HolonAST) (:wat::core::second entry)))
+                  (:wat::holon::lru::HologramCache/put cache k v)))))
+           ((n :wat::core::i64) (:wat::core::Vector/len entries))
+           ;; Arc 110: same discipline — driver dying mid-protocol is
+           ;; catastrophic; panic with a meaningful message.
+           ((_send :wat::core::unit)
+            (:wat::core::Result/expect -> :wat::core::unit
+              (:wat::kernel::send ack-tx ())
+              "HologramCacheService/handle: ack-tx disconnected — client died mid-request?"))
            ((stats' :wat::holon::lru::HologramCacheService::Stats)
             (:wat::holon::lru::HologramCacheService::Stats/new
               (:wat::holon::lru::HologramCacheService::Stats/lookups stats)
               (:wat::holon::lru::HologramCacheService::Stats/hits stats)
               (:wat::holon::lru::HologramCacheService::Stats/misses stats)
-              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/puts stats) 1)
+              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/puts stats) n)
               (:wat::holon::lru::HologramCacheService::Stats/cache-size stats))))
           (:wat::holon::lru::HologramCacheService::State/new cache stats'))))))
 
@@ -408,3 +473,66 @@
           (:wat::holon::lru::HologramCacheService/run
             req-rxs cap reporter metrics-cadence)))))
     (:wat::core::Tuple pool driver)))
+
+;; ─── Client helpers ──────────────────────────────────────────
+;;
+;; A client creates its reply/ack channel once at setup and reuses it
+;; for every request. HologramCacheService/get and
+;; HologramCacheService/put package the batch request, send it, and
+;; block on the response.
+;;
+;; Arc 119: get takes Vec<HolonAST> probes, returns Vec<Option<HolonAST>>.
+;;          put takes Vec<Entry>, returns unit after ack.
+;;
+;; Recv pattern (two nested levels per arc 111+113):
+;;   Result/expect unwraps the outer Result (ThreadDiedError on peer death).
+;;   Option/expect unwraps the inner Option (None = clean channel close).
+
+(:wat::core::define
+  (:wat::holon::lru::HologramCacheService/get
+    (req-tx :wat::holon::lru::HologramCacheService::ReqTx)
+    (reply-tx :wat::holon::lru::HologramCacheService::GetReplyTx)
+    (reply-rx :wat::holon::lru::HologramCacheService::GetReplyRx)
+    (probes :wat::core::Vector<wat::holon::HolonAST>)
+    -> :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>)
+  (:wat::core::let*
+    (((req :wat::holon::lru::HologramCacheService::Request)
+      (:wat::holon::lru::HologramCacheService::Request::Get probes reply-tx))
+     ;; Arc 110: in-memory peer-death is catastrophic; cache driver
+     ;; dying means our state-of-the-world claim is invalid. Panic
+     ;; with a meaningful message rather than silently returning
+     ;; :None and pretending we got a "miss."
+     ((_send :wat::core::unit)
+      (:wat::core::Result/expect -> :wat::core::unit
+        (:wat::kernel::send req-tx req)
+        "HologramCacheService/get: req-tx disconnected — driver died?")))
+    (:wat::core::Option/expect -> :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>
+      (:wat::core::Result/expect -> :wat::core::Option<wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>>
+        (:wat::kernel::recv reply-rx)
+        "HologramCacheService/get: reply-rx disconnected — driver died mid-request?")
+      "HologramCacheService/get: reply channel closed — driver dropped reply-tx?")))
+
+(:wat::core::define
+  (:wat::holon::lru::HologramCacheService/put
+    (req-tx :wat::holon::lru::HologramCacheService::ReqTx)
+    (ack-tx :wat::holon::lru::HologramCacheService::PutAckTx)
+    (ack-rx :wat::holon::lru::HologramCacheService::PutAckRx)
+    (entries :wat::core::Vector<wat::holon::lru::HologramCacheService::Entry>)
+    -> :wat::core::unit)
+  (:wat::core::let*
+    (((req :wat::holon::lru::HologramCacheService::Request)
+      (:wat::holon::lru::HologramCacheService::Request::Put entries ack-tx))
+     ;; Arc 110: same as HologramCacheService/get — driver dying mid-protocol
+     ;; is catastrophic; panic with a meaningful message rather than
+     ;; silently absorbing the disconnect.
+     ((_send :wat::core::unit)
+      (:wat::core::Result/expect -> :wat::core::unit
+        (:wat::kernel::send req-tx req)
+        "HologramCacheService/put: req-tx disconnected — driver died?"))
+     ((_ :wat::core::unit)
+      (:wat::core::Option/expect -> :wat::core::unit
+        (:wat::core::Result/expect -> :wat::core::Option<wat::core::unit>
+          (:wat::kernel::recv ack-rx)
+          "HologramCacheService/put: ack-rx disconnected — driver died mid-request?")
+        "HologramCacheService/put: ack channel closed — driver dropped ack-tx?")))
+    ()))
