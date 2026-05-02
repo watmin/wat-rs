@@ -5267,7 +5267,60 @@ fn check_let_star_for_scope_deadlock_inferred(
         if !join_present {
             continue;
         }
+        // Arc 134 — body-form narrowing. The deadlock shape arc 117/131
+        // catches requires the spawned function's body to have a recv
+        // call (a recv-loop on a Receiver paired with some sibling
+        // Sender). If the spawn-thread argument is an inline lambda
+        // and its body contains NO `(:wat::kernel::recv ...)` calls
+        // anywhere, no recv-loop can exist; no Sender's lifetime can
+        // deadlock the thread. Exempt every Sender for this Thread.
+        //
+        // This is the second arc 134 narrowing alongside the
+        // origin-trace exemption below. Together they cover the two
+        // canonical non-deadlocking patterns the OLD pre-arc-133
+        // walker accidentally allowed via its `:rust::crossbeam_channel`
+        // source-annotation bypass:
+        //   1. Thread/input <thr> sibling pattern (origin-trace)
+        //   2. parent-allocated channel + thread closure that doesn't
+        //      recv (this body-form check)
+        //
+        // Limitations: we only inspect inline `(:wat::core::lambda
+        // ...)` bodies. A spawn-thread call whose first arg is a
+        // keyword-path (named function) requires substrate function-
+        // body lookup we don't have at this hook; the body-form check
+        // skips those cases conservatively (the rule still fires; the
+        // origin-trace exemption may still apply). Transitive recv
+        // through called functions inside the lambda body is also not
+        // analyzed — a body that calls `(my-helper rx)` where
+        // my-helper recvs in a loop slips through this check (but is
+        // legitimately deadlock-prone — a real false negative we
+        // accept for simplicity).
+        if spawn_thread_lambda_body_has_no_recv(thr_name, bindings) {
+            continue;
+        }
         for (sender_name, kind) in &sender_bearing_bindings {
+            // Arc 134 — origin-trace narrowing. A Sender whose binding
+            // RHS is `(:wat::kernel::Thread/input <X>)` (or its Process
+            // sibling) extracts the parent-side end of an internal
+            // pipe owned by the Thread/Process struct itself. The
+            // pair-Receiver is the spawned function's `in` parameter
+            // — lifetime-coupled to the Thread, not parent scope. The
+            // Sender's coexistence with any Thread in this let* does
+            // not constitute the deadlock shape arc 117/131 catches
+            // (parent-allocated channel whose Receiver was passed to a
+            // thread's recv-loop). Exempt the pair.
+            //
+            // Heuristic note: if the spawned function's body has an
+            // UNCONDITIONAL recv-loop on its input pipe, parent's
+            // Sender alive does keep the channel open and the recv-
+            // loop blocks. The exemption trusts the canonical
+            // Thread<I,O> / Process<I,O> convention (recv-once or
+            // paired-coordination body). Bodies that violate the
+            // convention deadlock at runtime; the rule won't catch
+            // them.
+            if sender_originates_from_thread_pipe(sender_name, bindings) {
+                continue;
+            }
             errors.push(CheckError::ScopeDeadlock {
                 thread_binding: thr_name.clone(),
                 offending_binding: sender_name.clone(),
@@ -5276,6 +5329,139 @@ fn check_let_star_for_scope_deadlock_inferred(
             });
         }
     }
+}
+
+/// Arc 134 — does the binding for `sender_name` originate from a
+/// Thread/Process input-pipe extractor? Returns true if the binding's
+/// RHS is `(:wat::kernel::Thread/input <_>)` or
+/// `(:wat::kernel::Process/input <_>)`. Such Senders are the parent-
+/// side end of an internal pipe; their pair-Receiver is owned by the
+/// Thread/Process struct (the spawned function's `in` parameter), not
+/// by parent code.
+///
+/// Used by `check_let_star_for_scope_deadlock_inferred` to exempt
+/// canonical Thread<I,O> / Process<I,O> usage from firing
+/// ScopeDeadlock. See the call site for the heuristic note.
+fn sender_originates_from_thread_pipe(
+    sender_name: &str,
+    bindings: &[WatAST],
+) -> bool {
+    for binding in bindings {
+        let WatAST::List(items, _) = binding else { continue; };
+        if items.len() != 2 { continue; }
+        let WatAST::List(parts, _) = &items[0] else { continue; };
+        let has_name = parts.iter().any(|p| {
+            matches!(p, WatAST::Symbol(id, _) if id.name == sender_name)
+        });
+        if !has_name { continue; }
+        return rhs_is_thread_input_extractor(&items[1]);
+    }
+    false
+}
+
+/// True iff `rhs` is a call of the form
+/// `(:wat::kernel::Thread/input <symbol>)` or
+/// `(:wat::kernel::Process/input <symbol>)`. Helper for arc 134's
+/// origin-trace narrowing.
+fn rhs_is_thread_input_extractor(rhs: &WatAST) -> bool {
+    let WatAST::List(call, _) = rhs else { return false; };
+    let head_str = match call.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => return false,
+    };
+    matches!(
+        head_str,
+        ":wat::kernel::Thread/input" | ":wat::kernel::Process/input"
+    )
+}
+
+/// Arc 134 — body-form narrowing. Find `thr_name`'s binding RHS; if
+/// it's a `(:wat::kernel::spawn-thread <fn> ...)` or
+/// `(:wat::kernel::spawn-program ...)` / `(:wat::kernel::fork-program ...)`
+/// call whose `<fn>` argument is an inline `(:wat::core::lambda ...)`,
+/// walk the lambda body looking for any `(:wat::kernel::recv ...)`
+/// (or `try-recv` / `select`) call. Returns true ONLY when we
+/// affirmatively walk a lambda body and find zero recv calls — the
+/// thread cannot have a recv-loop, so no Sender lifetime can deadlock
+/// it.
+///
+/// Returns false when:
+///   - `thr_name`'s binding can't be located,
+///   - the RHS isn't a recognised spawn primitive,
+///   - the spawn argument is a keyword-path (named function — we don't
+///     do substrate function-body lookup at this hook),
+///   - the lambda body contains at least one recv call.
+///
+/// The conservative default (false → fire) ensures the rule still
+/// catches genuine deadlock-prone shapes when we lack body visibility.
+fn spawn_thread_lambda_body_has_no_recv(
+    thr_name: &str,
+    bindings: &[WatAST],
+) -> bool {
+    // Find thr_name's binding.
+    for binding in bindings {
+        let WatAST::List(items, _) = binding else { continue; };
+        if items.len() != 2 { continue; }
+        let WatAST::List(parts, _) = &items[0] else { continue; };
+        let has_name = parts.iter().any(|p| {
+            matches!(p, WatAST::Symbol(id, _) if id.name == thr_name)
+        });
+        if !has_name { continue; }
+        return rhs_spawn_lambda_has_no_recv(&items[1]);
+    }
+    false
+}
+
+/// True iff `rhs` is a spawn-thread / spawn-program / fork-program
+/// call whose function argument is an inline lambda whose body does
+/// not contain any kernel recv call. See
+/// `spawn_thread_lambda_body_has_no_recv` for the framing.
+fn rhs_spawn_lambda_has_no_recv(rhs: &WatAST) -> bool {
+    let WatAST::List(call, _) = rhs else { return false; };
+    if call.len() < 2 { return false; }
+    let head_str = match &call[0] {
+        WatAST::Keyword(k, _) => k.as_str(),
+        _ => return false,
+    };
+    let is_spawn = matches!(
+        head_str,
+        ":wat::kernel::spawn-thread"
+            | ":wat::kernel::spawn-program"
+            | ":wat::kernel::fork-program"
+    );
+    if !is_spawn { return false; }
+    let fn_arg = &call[1];
+    // Must be an inline lambda — keyword-path arguments require
+    // function-body lookup we don't perform here.
+    let WatAST::List(lambda_call, _) = fn_arg else { return false; };
+    if lambda_call.len() < 3 { return false; }
+    let lambda_head = match &lambda_call[0] {
+        WatAST::Keyword(k, _) => k.as_str(),
+        _ => return false,
+    };
+    if lambda_head != ":wat::core::lambda" { return false; }
+    // Lambda shape: (:wat::core::lambda <param-list> body+)
+    // params are at index 1; body forms at index 2..
+    let body_forms = &lambda_call[2..];
+    !body_forms.iter().any(node_contains_recv)
+}
+
+/// Walk `node` looking for any `(:wat::kernel::recv ...)`,
+/// `(:wat::kernel::try-recv ...)`, or `(:wat::kernel::select ...)`
+/// call. Helper for arc 134's body-form narrowing.
+fn node_contains_recv(node: &WatAST) -> bool {
+    let WatAST::List(items, _) = node else { return false; };
+    if let Some(WatAST::Keyword(k, _)) = items.first() {
+        if matches!(
+            k.as_str(),
+            ":wat::kernel::recv"
+                | ":wat::kernel::try-recv"
+                | ":wat::kernel::select"
+        ) {
+            return true;
+        }
+    }
+    items.iter().any(node_contains_recv)
 }
 
 /// Sequential let — same binding shapes as parallel `let`, but each
@@ -11461,6 +11647,12 @@ mod tests {
         // structurally; returns Some("HandlePool"). Models the
         // canonical service-test mistake without the syntactic noise
         // of a parametric typealias declaration.
+        //
+        // The lambda body has a `(recv _in)` so arc 134's body-form
+        // narrowing (no-recv → exempt) does NOT apply — the canonical
+        // deadlock-prone shape requires the thread to actually have a
+        // recv on its input. Without recv there is no recv-loop to
+        // hang, no deadlock, and the rule should not fire.
         let src = r#"
             (:wat::core::define
               (:my::deadlock-via-handlepool -> :wat::core::unit)
@@ -11475,7 +11667,10 @@ mod tests {
                       ((_in :wat::kernel::Receiver<wat::core::unit>)
                        (_out :wat::kernel::Sender<wat::core::i64>)
                        -> :wat::core::unit)
-                      ()))))
+                      (:wat::core::match (:wat::kernel::recv _in)
+                        -> :wat::core::unit
+                        ((:wat::core::Ok _) ())
+                        ((:wat::core::Err _) ()))))))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
                   -> :wat::core::unit
@@ -11564,6 +11759,10 @@ mod tests {
     /// Expected: `ScopeDeadlock` fires; `offending_kind = "HandlePool"`.
     #[test]
     fn arc_133_typed_name_binding_still_fires() {
+        // Body has `(recv _in)` — the canonical deadlock-prone shape
+        // requires the thread to actually call recv. Arc 134's body-
+        // form narrowing only exempts no-recv lambda bodies; this
+        // test's body is recv-bearing so the rule still fires.
         let src = r#"
             (:wat::core::define
               (:my::typed-name-still-fires -> :wat::core::unit)
@@ -11578,7 +11777,10 @@ mod tests {
                       ((_in :wat::kernel::Receiver<wat::core::unit>)
                        (_out :wat::kernel::Sender<wat::core::i64>)
                        -> :wat::core::unit)
-                      ()))))
+                      (:wat::core::match (:wat::kernel::recv _in)
+                        -> :wat::core::unit
+                        ((:wat::core::Ok _) ())
+                        ((:wat::core::Err _) ()))))))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
                   -> :wat::core::unit
@@ -11772,5 +11974,175 @@ mod tests {
             "arc 133: expected ChannelPairDeadlock from tuple-destructure of make-bounded-channel; got: {:?}",
             err.0
         );
+    }
+
+    /// Arc 134 — origin-trace narrowing. The canonical Thread<I,O>
+    /// usage pattern binds a Sender via `(:wat::kernel::Thread/input
+    /// thr)` sibling to the Thread itself, then calls
+    /// `Thread/join-result thr` in the body. The Sender's
+    /// pair-Receiver is the spawned function's `in` parameter, owned
+    /// by the Thread struct itself — its lifetime is coupled to the
+    /// Thread, not to parent scope. The rule MUST NOT fire on this
+    /// shape.
+    ///
+    /// This test mirrors the canonical Thread/input/output pattern
+    /// from `tests/wat_spawn_lambda.rs` (the integration tests that
+    /// surfaced the pre-arc-134 false positive) and locks it in as a
+    /// regression guard.
+    #[test]
+    fn arc_134_thread_input_output_does_not_fire() {
+        let src = r#"
+            (:wat::core::define
+              (:my::worker
+                (in :wat::kernel::Receiver<wat::core::i64>)
+                (out :wat::kernel::Sender<wat::core::i64>)
+                -> :wat::core::unit)
+              ())
+
+            (:wat::core::define (:my::caller -> :wat::core::unit)
+              (:wat::core::let*
+                (((thr :wat::kernel::Thread<wat::core::i64,wat::core::i64>)
+                  (:wat::kernel::spawn-thread :my::worker))
+                 ((tx :wat::kernel::Sender<wat::core::i64>)
+                  (:wat::kernel::Thread/input thr))
+                 ((rx :wat::kernel::Receiver<wat::core::i64>)
+                  (:wat::kernel::Thread/output thr)))
+                (:wat::core::match
+                  (:wat::kernel::Thread/join-result thr)
+                  -> :wat::core::unit
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))
+        "#;
+        let result = check(src);
+        match result {
+            Ok(_) => {}
+            Err(errors) => {
+                let scope_deadlocks: Vec<_> = errors
+                    .0
+                    .iter()
+                    .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+                    .collect();
+                assert!(
+                    scope_deadlocks.is_empty(),
+                    "arc 134: Sender from Thread/input <thr> sibling to thr with Thread/join-result thr in body must NOT fire ScopeDeadlock; got: {:?}",
+                    scope_deadlocks
+                );
+            }
+        }
+    }
+
+    /// Arc 134 — guard rail. The exemption is targeted at Senders
+    /// originating from `(:wat::kernel::Thread/input <_>)`. A Sender
+    /// from a parent-allocated `(:wat::kernel::make-bounded-channel
+    /// ...)` (the canonical deadlock anchor) sibling to a Thread with
+    /// `Thread/join-result` in body MUST still fire — that's the
+    /// exact shape arc 117 was designed to catch.
+    ///
+    /// This locks in that arc 134's narrowing does NOT silently weaken
+    /// the rule's coverage of the canonical deadlock pattern.
+    #[test]
+    fn arc_134_parent_allocated_channel_still_fires() {
+        let src = r#"
+            (:wat::core::define
+              (:my::worker
+                (in :wat::kernel::Receiver<wat::core::i64>)
+                -> :wat::core::unit)
+              ())
+
+            (:wat::core::define (:my::caller -> :wat::core::unit)
+              (:wat::core::let*
+                (((pair :wat::kernel::Channel<wat::core::i64>)
+                  (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                 ((tx :wat::kernel::Sender<wat::core::i64>)
+                  (:wat::core::first pair))
+                 ((rx :wat::kernel::Receiver<wat::core::i64>)
+                  (:wat::core::second pair))
+                 ((thr :wat::kernel::Thread<wat::core::i64,wat::core::unit>)
+                  (:wat::kernel::spawn-thread :my::worker)))
+                (:wat::core::match
+                  (:wat::kernel::Thread/join-result thr)
+                  -> :wat::core::unit
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))
+        "#;
+        let err = check(src).expect_err(
+            "arc 134: parent-allocated Sender (from make-bounded-channel) sibling to Thread with join-result MUST still fire ScopeDeadlock — arc 117's canonical anchor",
+        );
+        let scope_deadlocks: Vec<_> = err
+            .0
+            .iter()
+            .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+            .collect();
+        assert!(
+            !scope_deadlocks.is_empty(),
+            "arc 134: expected ScopeDeadlock from parent-allocated channel sibling to Thread; got: {:?}",
+            err.0
+        );
+    }
+
+    /// Arc 134 — body-form narrowing. The pattern from
+    /// `tests/wat_typealias.rs::alias_over_fn_type_works_at_spawn`:
+    /// parent allocates a channel via `(make-bounded-channel)` and
+    /// captures `tx` (Sender) in the spawn-thread closure. The
+    /// closure's body calls a helper that sends, never recvs. The
+    /// thread cannot have a recv-loop, so no Sender lifetime can
+    /// deadlock it.
+    ///
+    /// Pre-arc-134 (post-arc-133) this fired ScopeDeadlock on `pair`
+    /// + `tx` because the rule only checked type-coexistence with
+    /// the Thread, ignoring whether the spawn body actually had a
+    /// recv. Arc 134's body-form narrowing walks the inline lambda
+    /// body looking for `(:wat::kernel::recv ...)`; absent → exempt.
+    ///
+    /// Regression guard for the wat_typealias false positive.
+    #[test]
+    fn arc_134_no_recv_in_lambda_body_does_not_fire() {
+        let src = r#"
+            (:wat::core::define
+              (:my::sender-helper
+                (tx :wat::kernel::Sender<wat::core::i64>)
+                -> :wat::core::unit)
+              (:wat::core::match (:wat::kernel::send tx 7)
+                -> :wat::core::unit
+                ((:wat::core::Ok _) ())
+                ((:wat::core::Err _) ())))
+
+            (:wat::core::define (:my::caller -> :wat::core::unit)
+              (:wat::core::let*
+                (((pair :wat::kernel::Channel<wat::core::i64>)
+                  (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                 ((tx :wat::kernel::Sender<wat::core::i64>)
+                  (:wat::core::first pair))
+                 ((rx :wat::kernel::Receiver<wat::core::i64>)
+                  (:wat::core::second pair))
+                 ((thr :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                  (:wat::kernel::spawn-thread
+                    (:wat::core::lambda
+                      ((_in :wat::kernel::Receiver<wat::core::unit>)
+                       (_out :wat::kernel::Sender<wat::core::unit>)
+                       -> :wat::core::unit)
+                      (:my::sender-helper tx)))))
+                (:wat::core::match
+                  (:wat::kernel::Thread/join-result thr)
+                  -> :wat::core::unit
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))
+        "#;
+        let result = check(src);
+        match result {
+            Ok(_) => {}
+            Err(errors) => {
+                let scope_deadlocks: Vec<_> = errors
+                    .0
+                    .iter()
+                    .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+                    .collect();
+                assert!(
+                    scope_deadlocks.is_empty(),
+                    "arc 134: spawn-thread inline lambda with no recv in body must NOT fire ScopeDeadlock (no recv-loop possible); got: {:?}",
+                    scope_deadlocks
+                );
+            }
+        }
     }
 }
