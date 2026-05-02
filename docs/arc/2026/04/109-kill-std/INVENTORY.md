@@ -926,19 +926,64 @@ That distinction is **load-bearing**. Don't lose it to uniform
 |---|---|---|---|
 | ✓ Telemetry | A | already canonical | shipped K.telemetry 2026-05-01; no channel changes — Pattern A reference |
 | ✓ Console | A | `Tx`/`Rx` (Level 2 mumble — implicit Req) | shipped K.console 2026-05-01: renamed to `ReqTx`/`ReqRx`; added `ReqChannel` + `AckChannel` typealiases — mirrors Telemetry's Pattern A reference |
-| ✓ LRU CacheService | B | `ReplyTx<V>` exists; no `ReplyRx<V>` (Level 2 mumble — unallocated rx has no domain name) | shipped K.lru 2026-05-01: added `ReplyRx<V>` + `ReplyChannel<V>` typealiases; renamed `ReqPair<K,V>` → `ReqChannel<K,V>` (in-crate suffix mumble per gaze 2026-05-01); LRU is now the Pattern B canonical reference |
-| HolonLRU | B | variant-scoped `GetReplyTx`/`GetReplyRx` already correct | add a one-line comment: "Put is fire-and-forget — no `PutReply*` types by design" |
+| ✓ LRU CacheService | B | `ReplyTx<V>` exists; no `ReplyRx<V>` (Level 2 mumble — unallocated rx has no domain name) | shipped K.lru 2026-05-01: added `ReplyRx<V>` + `ReplyChannel<V>` typealiases; renamed `ReqPair<K,V>` → `ReqChannel<K,V>` (in-crate suffix mumble per gaze 2026-05-01); LRU is now the Pattern B canonical reference. **Arc 119 reshapes protocol body** — Body<K,V> retires; Request<K,V> becomes enum-based with batch fields; ReplyTx<V> body widens from `Sender<Option<V>>` to `Sender<Vec<Option<V>>>`; new `PutAckTx/Rx/Channel` + `Entry<K,V>` typealiases mint. K.lru-shipped names stay. |
+| HolonLRU | B+A (variant-scoped) | divergent from LRU: enum-Request with NO Put reply path (fire-and-forget — violates ZERO-MUTEX § Mini-TCP) | **arc 119** reshapes protocol to symmetric batch (Get→Vec<Option<HolonAST>>, Put→unit-ack) covering both services; mints `PutAckTx/Rx/Channel` + `Entry`; preserves variant-scoped naming (`Get*Reply*` Pattern B + `Put*Ack*` Pattern A); **K.holon-lru** then flattens HologramCacheService grouping noun + renames `GetReplyPair` → `GetReplyChannel` |
+
+#### Post-arc-119 reshape (2026-05-01)
+
+What this subsection captured 2026-05-01 ("variant-scoped
+GetReplyTx/Rx already correct; add a one-line comment about
+fire-and-forget Put") was **wrong by the substrate's own
+doctrine** — and arc 109's K-slice work surfaced it. ZERO-MUTEX
+§ Mini-TCP requires both directions to be lock-step at any
+durability boundary; a cache Put IS a durability boundary.
+HolonLRU's fire-and-forget Put violated the rule the rest of
+the substrate follows.
+
+Arc 119 was carved out to fix the protocol — and through three
+gaze passes + user direction the scope grew into a substrate-
+wide reshape covering both Pattern B services:
+
+- **Get**: `Vec<K>` probes → `Vec<Option<V>>` reply (data back)
+- **Put**: `Vec<Entry<K,V>>` → `unit` ack (release back)
+- Both LRU and HolonLRU adopt the same shape. LRU's tagged-
+  tuple `Body<K,V>` retires; HolonLRU's missing Put-reply
+  fills in. Cache services framed as **mutex-via-RPC servers**:
+  the io::select loop serializes batches; lock granularity =
+  batch granularity.
+- Variant-scoped naming load-bearing: `Get*Reply*` family
+  (Pattern B back-edge carries data); `Put*Ack*` family
+  (Pattern A back-edge carries `unit`). The "what the back-
+  edge carries" rule names per-variant inside Pattern B
+  services, not just per-crate.
+
+The K-slice naming convention (Req/Reply/Ack families) is
+unchanged. Arc 119 reshapes bodies and adds new typealiases;
+the K-slice flatten then carries them through namespace-level.
+
+What 109 surfaced (paraphrasing user direction 2026-05-01):
+> this the kind of thing 109 is meant to surface - get them
+> fixed
+
+109's nominal mission was naming + filesystem cleanup. In
+practice the act of asking the four questions of every service
+crate exposed a substrate-discipline gap, a substrate-symmetry
+gap, and a substrate-protocol-completeness gap — all
+naming-adjacent.
 
 #### Cross-references
 
+- `docs/arc/2026/04/119-holon-lru-put-ack/DESIGN.md` — protocol
+  reshape; covers both LRU and HolonLRU.
 - `docs/arc/2026/04/109-kill-std/SLICE-K-TELEMETRY.md` — first
   K-slice; uses Pattern A reference shape; no channel renames.
-- `docs/arc/2026/04/109-kill-std/SLICE-K-CONSOLE.md` (future) —
-  Console flatten + Pattern A canonicalization.
-- `docs/arc/2026/04/109-kill-std/SLICE-K-LRU.md` (future) — LRU
-  audit + Pattern B fill-in.
-- `docs/arc/2026/04/109-kill-std/SLICE-K-HOLON-LRU.md` (future) —
-  HolonLRU audit + clarifying comment.
+- `docs/arc/2026/04/109-kill-std/SLICE-K-CONSOLE.md` — Console
+  flatten + Pattern A canonicalization (shipped).
+- `docs/arc/2026/04/109-kill-std/SLICE-K-LRU.md` — LRU audit +
+  Pattern B fill-in (shipped). Arc 119 reshapes its protocol
+  body post-K.lru.
+- `docs/arc/2026/04/109-kill-std/SLICE-K-HOLON-LRU.md` —
+  HolonLRU audit; rides AFTER arc 119.
 
 ### Mental model — what `Type/method` IS and ISN'T
 

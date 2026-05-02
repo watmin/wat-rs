@@ -1,4 +1,4 @@
-# Arc 109 Slice K.holon-lru — `HologramCacheService` grouping noun → namespace flatten + GetReplyPair → GetReplyChannel rename
+# Arc 109 Slice K.holon-lru — `HologramCacheService` grouping noun → namespace flatten (rides AFTER arc 119)
 
 **Compaction-amnesia anchor.** Read this first if you're picking
 up slice K.holon-lru mid-flight.
@@ -14,11 +14,28 @@ the boundary).
 K.kernel-channel shipped 2026-05-01 (commit `155163f`). The
 kernel now uses `:wat::kernel::Channel<T>`; HolonLRU's
 `GetReplyPair` body is now `:wat::kernel::Channel<Option<HolonAST>>`.
-The rename is unblocked. K.holon-lru rides the full plan.
+That blocker cleared.
+
+**Then arc 119 surfaced** (2026-05-01, same day) — what looked
+like a small "Put needs an ack-tx" finding grew through three
+gaze passes + user direction into a substrate-wide protocol
+reshape covering BOTH Pattern B services (LRU and HolonLRU).
+Arc 119 lands BEFORE K.holon-lru. Both services adopt
+symmetric batch protocol; HolonLRU mints new typealiases
+(`PutAckTx/Rx/Channel`, `Entry`); the Request enum reshapes
+from "Get has reply / Put is fire-and-forget" to "Get carries
+`Vec<HolonAST>` probes returning `Vec<Option<HolonAST>>`; Put
+carries `Vec<Entry>` returning `unit` ack". See
+`docs/arc/2026/04/119-holon-lru-put-ack/DESIGN.md` for the full
+locked plan.
+
+K.holon-lru rides AFTER arc 119: this slice flattens the
+post-119 namespace shape (more typealiases; no fire-and-forget
+commentary needed because the asymmetry retires).
 
 ## What this slice does
 
-Three coupled transformations:
+Two coupled transformations (post-arc-119):
 
 1. **§ K grouping-noun retirement.** `HologramCacheService` is a
    grouping noun (no struct of that name; nested real types
@@ -31,16 +48,15 @@ Three coupled transformations:
    `GetReplyPair` → `GetReplyChannel`. The wrapper's name now
    matches the body (kernel `Channel<T>`); same Pattern B
    convention as `:wat::lru::ReqChannel` / `ReplyChannel`
-   (shipped K.lru). HolonLRU's variant-scoped naming
-   (`Get*` because only the Get variant has a reply per the
-   Request enum's `Put` fire-and-forget design) is preserved —
-   only the `Pair` suffix retires.
+   (shipped K.lru). Variant-scoped naming (`Get*Reply*` /
+   `Put*Ack*`) is preserved — Pattern B for Get (data back)
+   + Pattern A for Put (unit-ack release), variant-scoped per
+   arc 119's gaze verdict.
 
-3. **Clarifying comment near the Request enum.** Per the
-   original gaze finding: "Put is fire-and-forget — no
-   `PutReply*` types by design." The asymmetry (variant-
-   scoped reply types only on Get) reads correctly once the
-   reader sees the comment.
+The "fire-and-forget Put" clarifying comment from this slice's
+earlier draft is **retired**: arc 119 makes Put lock-step with
+the rest of the substrate, so the asymmetry it was explaining
+no longer exists.
 
 ## Audit confirmed: HologramCacheService IS a grouping noun
 
@@ -60,26 +76,54 @@ Each keeps PascalCase + `/methods` (just one less namespace
 segment deep). HologramCacheService itself has no struct
 definition — confirms the grouping-noun status.
 
-## Substrate work scope
+## Substrate work scope (post-arc-119 shape)
 
-### HologramCacheService grouping retirement (14 typealiases + 7 verbs flatten)
+### HologramCacheService grouping retirement (typealiases + verbs flatten)
 
+Arc 119 mints new typealiases under the existing
+`HologramCacheService::` prefix (per the "lands before K.holon-lru
+flatten" sequence); K.holon-lru flattens all of them in one pass.
+
+Get-side typealiases (Pattern B; data-bearing reply):
 ```
 :wat::holon::lru::HologramCacheService::GetReplyTx    → :wat::holon::lru::GetReplyTx
 :wat::holon::lru::HologramCacheService::GetReplyRx    → :wat::holon::lru::GetReplyRx
 :wat::holon::lru::HologramCacheService::GetReplyPair  → :wat::holon::lru::GetReplyChannel  ;; PATTERN B — rename
+```
+
+Put-side typealiases (Pattern A; unit-ack release; **arc-119-minted**):
+```
+:wat::holon::lru::HologramCacheService::PutAckTx       → :wat::holon::lru::PutAckTx
+:wat::holon::lru::HologramCacheService::PutAckRx       → :wat::holon::lru::PutAckRx
+:wat::holon::lru::HologramCacheService::PutAckChannel  → :wat::holon::lru::PutAckChannel
+```
+
+Batch element typealias (**arc-119-minted**):
+```
+:wat::holon::lru::HologramCacheService::Entry         → :wat::holon::lru::Entry
+```
+
+Forward-edge channel halves:
+```
 :wat::holon::lru::HologramCacheService::ReqTx         → :wat::holon::lru::ReqTx
 :wat::holon::lru::HologramCacheService::ReqRx         → :wat::holon::lru::ReqRx
 :wat::holon::lru::HologramCacheService::ReqTxPool     → :wat::holon::lru::ReqTxPool
-:wat::holon::lru::HologramCacheService::Request       → :wat::holon::lru::Request           ;; real enum; keeps /methods
+```
+
+Real types (keep PascalCase + `/methods`, just one less segment):
+```
+:wat::holon::lru::HologramCacheService::Request       → :wat::holon::lru::Request           ;; real enum
+:wat::holon::lru::HologramCacheService::Report        → :wat::holon::lru::Report             ;; real enum
+:wat::holon::lru::HologramCacheService::Stats         → :wat::holon::lru::Stats              ;; real struct
+:wat::holon::lru::HologramCacheService::MetricsCadence → :wat::holon::lru::MetricsCadence    ;; real struct
+:wat::holon::lru::HologramCacheService::State         → :wat::holon::lru::State              ;; real struct
 :wat::holon::lru::HologramCacheService::Spawn         → :wat::holon::lru::Spawn
 :wat::holon::lru::HologramCacheService::Reporter      → :wat::holon::lru::Reporter
-:wat::holon::lru::HologramCacheService::Report        → :wat::holon::lru::Report             ;; real enum; keeps /methods
-:wat::holon::lru::HologramCacheService::Stats         → :wat::holon::lru::Stats              ;; real struct; keeps /methods
-:wat::holon::lru::HologramCacheService::MetricsCadence → :wat::holon::lru::MetricsCadence    ;; real struct; keeps /methods
-:wat::holon::lru::HologramCacheService::State         → :wat::holon::lru::State              ;; real struct; keeps /methods
 :wat::holon::lru::HologramCacheService::Step          → :wat::holon::lru::Step
+```
 
+Verbs flatten to namespace level:
+```
 :wat::holon::lru::HologramCacheService/handle               → :wat::holon::lru::handle
 :wat::holon::lru::HologramCacheService/loop                 → :wat::holon::lru::loop
 :wat::holon::lru::HologramCacheService/null-metrics-cadence → :wat::holon::lru::null-metrics-cadence
@@ -89,22 +133,18 @@ definition — confirms the grouping-noun status.
 :wat::holon::lru::HologramCacheService/tick-window          → :wat::holon::lru::tick-window
 ```
 
+Plus arc-119-minted bare batch verbs (already at namespace level
+post-119):
+```
+:wat::holon::lru::get   ;; (get probes :Vec<HolonAST>) → Vec<Option<HolonAST>>
+:wat::holon::lru::put   ;; (put entries :Vec<Entry>) → unit
+```
+
 ### Real-Type /methods preserve
 
 Stats / MetricsCadence / State / Report / Request methods (e.g.,
 `Stats/new`, `State/empty`, `MetricsCadence/tick`, `Request::Get`
 constructor) flatten on prefix only.
-
-### `Get` prefix asymmetry — clarifying comment
-
-Per the original gaze finding (preserved in INVENTORY § K's
-channel-naming subsection), HolonLRU's `Get*Reply*` variant-
-scoped naming is correct: only the Get variant produces a
-reply (returns `Option<HolonAST>`); Put is fire-and-forget. The
-absence of `PutReply*` typealiases is intentional and honest.
-Add a one-line comment near the `Request` enum stating this
-explicitly so future readers don't mistake the asymmetry for
-an oversight.
 
 ## Pattern 3 walker
 
@@ -119,17 +159,23 @@ starting with `:wat::holon::lru::HologramCacheService::` or
 
 ### Substrate (Rust + wat-stdlib)
 
+Note: arc 119 has already landed by this point. The internal
+renames operate on the post-119 file shape (with `PutAckTx/Rx/
+Channel`, `Entry`, batch fields in the Request enum, and
+batch-Vec verb signatures already in place under the
+`HologramCacheService::` prefix).
+
 1. **Internal renames in HologramCacheService.wat** — sed:
    - `:wat::holon::lru::HologramCacheService::GetReplyPair` → `:wat::holon::lru::GetReplyChannel`
-   - `:wat::holon::lru::HologramCacheService::` → `:wat::holon::lru::` (catches remaining typealiases)
+   - `:wat::holon::lru::HologramCacheService::` → `:wat::holon::lru::` (catches all typealiases including arc-119-minted PutAckTx/Rx/Channel + Entry)
    - `:wat::holon::lru::HologramCacheService/` → `:wat::holon::lru::` (verbs)
    - Inner-no-colon forms (`wat::holon::lru::HologramCacheService::*`)
-2. **Add the clarifying comment** near the Request enum:
-   `;; Put is fire-and-forget — no PutReply* types by design.`
-3. **Header doc rewrite** to identify the post-K.holon-lru
-   namespace shape; cite Pattern B reference family; note the
-   GetReplyPair → GetReplyChannel rename rationale.
-4. **Mint `CheckError::BareLegacyHolonLruPath`** in
+2. **Header doc rewrite** to identify the post-K.holon-lru
+   namespace shape; cite Pattern B + Pattern A variant-scoped
+   pairing (Get-data-back / Put-unit-ack); note the
+   GetReplyPair → GetReplyChannel rename rationale; cross-ref
+   arc 119 for the protocol body.
+3. **Mint `CheckError::BareLegacyHolonLruPath`** in
    `src/check.rs`: variant + Display + Diagnostic + walker
    `validate_legacy_holon_lru_path` + `canonical_holon_lru_leaf`
    helper. Walker wired into `check_program` alongside slice
@@ -172,11 +218,18 @@ Same four-tier discipline.
 
 ## Estimated scope
 
-- HologramCacheService.wat self-refs: 131 sites
-- Consumer scope: ~5 files (wat-tests + 1 cross-ref in CacheService.wat
-  + live docs + the deferred-doc INSCRIPTIONs)
-- Production-side rename count: ~50-60 sites
-- Combined: ~200 rename sites + 1 new clarifying comment
+Post-arc-119 self-ref count grows somewhat (new
+PutAckTx/Rx/Channel + Entry typealiases + their use sites),
+but the rename mechanic is identical — same Pattern 3 walker,
+same sed-driven flatten.
+
+- HologramCacheService.wat self-refs: ~140-160 sites
+  (post-119 includes new typealiases)
+- Consumer scope: ~5 files (wat-tests + cross-ref in CacheService.wat
+  + live docs + INSCRIPTIONs)
+- Production-side rename count: ~60-80 sites (post-119 has more
+  call-site bindings to rename)
+- Combined: ~220-240 rename sites
 
 Comparable to K.lru / K.console size. Sonnet-tractable.
 
@@ -188,9 +241,11 @@ Comparable to K.lru / K.console size. Sonnet-tractable.
 - **`ReqTxPool`** — unique structure (pool of just-tx halves,
   not full channels); kept as-is. Functionally honest; not a
   Level 2 mumble.
-- **`Get*` prefix asymmetry** — variant-scoped naming is
-  correct (only the Get variant has a reply). Add comment;
-  don't restructure.
+- **Variant-scoped channel naming** — `Get*Reply*` (Pattern B,
+  data back) + `Put*Ack*` (Pattern A, unit-ack release)
+  preserved post-arc-119. Each variant declares its own
+  back-edge family because Get and Put genuinely differ in
+  what they return.
 - **File path** — substrate file stays at
   `crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat`.
   Renaming the file would couple with a stylistic decision
@@ -204,9 +259,10 @@ When sweep is structurally complete:
 1. Update `INVENTORY.md` § K — strike HologramCacheService row
    in the grouping-noun cleanup table; mark ✓ shipped K.holon-lru.
    Channel-naming-patterns table's HolonLRU row marked ✓
-   (variant-scoped Pattern B naming preserved + clarifying
-   comment shipped + GetReplyPair → GetReplyChannel rename
-   shipped).
+   (variant-scoped Pattern B + Pattern A naming per arc 119;
+   GetReplyPair → GetReplyChannel rename shipped; PutAckTx/Rx/
+   Channel + Entry typealiases minted by arc 119 and flattened
+   in this slice).
 2. Update `J-PIPELINE.md` — slice K.holon-lru done.
 3. Update `SLICE-K-HOLON-LRU.md` — flip from anchor to durable
    shipped-record.
@@ -220,13 +276,20 @@ When sweep is structurally complete:
 
 ## Cross-references
 
+- `docs/arc/2026/04/119-holon-lru-put-ack/DESIGN.md` — protocol
+  reshape that lands BEFORE this slice (mints PutAckTx/Rx/Channel
+  + Entry; reshapes Request to enum-based batch; covers both LRU
+  and HolonLRU symmetrically).
 - `docs/arc/2026/04/109-kill-std/INVENTORY.md` § K — doctrine +
   channel-naming-patterns subsection.
 - `docs/arc/2026/04/109-kill-std/SLICE-K-LRU.md` — Pattern B
   precedent (Pair → Channel rename + ReplyRx/ReplyChannel
-  fill-in).
+  fill-in). Note: arc 119 also reshapes LRU's protocol body
+  (Body retires; ReplyTx widens to Vec<Option<V>>) but the
+  K.lru-shipped names stay.
 - `docs/arc/2026/04/109-kill-std/SLICE-K-KERNEL-CHANNEL.md` —
-  the prerequisite slice that unblocked this rename.
+  the prerequisite slice that unblocked the GetReplyChannel
+  rename.
 - `docs/SUBSTRATE-AS-TEACHER.md` — Pattern 3 mechanism.
 - `crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat` —
   the substrate file flattening internally.

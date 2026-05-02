@@ -1,232 +1,295 @@
-# Arc 119 — HologramCacheService Put ack-tx (mini-TCP discipline correction)
+# Arc 119 — Pattern B cache services: batch-oriented protocol fix
 
-**Status:** locked 2026-05-01 (post-gaze). Option A + `PutAck*`
-family per gaze verdict. Substrate work proceeding.
+**Status:** locked 2026-05-01 (post-three-gaze-passes). Both
+service crates revise to a symmetric batch protocol. Substrate
+work proceeding.
 
 ## Provenance
 
-Surfaced 2026-05-01 mid-arc-109 K.holon-lru anchor work. The
-original gaze finding had said "Put is fire-and-forget — no
-PutReply* types by design"; I drafted a clarifying comment
-codifying that as intentional. User caught the lie and pointed
-at `docs/ZERO-MUTEX.md`:
+Surfaced 2026-05-01 mid-arc-109 K.holon-lru anchor work as a
+small "Put needs an ack-tx" finding. Through three rounds of
+gaze + user direction the scope grew into something arc 109
+was meant to surface — a substrate-wide protocol asymmetry
+between two cache services that should be identical.
 
-> the client connect[cannot] continue until the server confirms...
-> both [directions] are lock step
+The path:
 
-ZERO-MUTEX § "When this is the right shape" is unambiguous:
+1. Original gaze (during K.holon-lru first-pass) called
+   HologramCacheService's "fire-and-forget" Put acceptable.
+2. I drafted a comment codifying that as intentional.
+3. User caught the lie pointing at `docs/ZERO-MUTEX.md`:
 
-> Any case where the producer needs to know when the work is
-> *done*, not just *queued* — durability boundaries (commit
-> acked; bytes written to fd; transaction sealed). Bounded send
-> alone gives backpressure on accept; the ack gives backpressure
-> on completion. Use both when "done" matters.
+   > the client cannot continue until the server confirms...
+   > both directions are lock step
 
-A cache `Put` IS a durability boundary. The client wants to know
-"the value is in the cache and accessible to subsequent Gets,"
-not "my message was queued for processing." The current Put
-violates the substrate's own zero-mutex mini-TCP discipline.
+4. ZERO-MUTEX § "When this is the right shape" makes the
+   discipline universal: durability boundaries (commit acked;
+   bytes written to fd; transaction sealed) need both
+   directions. A cache Put IS a durability boundary.
+5. Second-pass gaze locked variant-scoped `PutAckTx` family
+   (Pattern A unit-ack) over a unified Reply enum.
+6. User then noticed: **LRU CacheService and HologramCacheService
+   should be basically identical in surface** — they're both
+   "Pattern B services" doing the same job with different
+   backends. Today they have divergent shapes (LRU has a tagged-
+   tuple Body with unified Reply; HolonLRU has an enum Request
+   with no Put ack at all).
+7. User clarified the desired protocol:
 
-## The problem
+   > if i want to get something from the cache i submit a
+   > get-batch (could be a vec of 1 thing) and i block until
+   > the server returns the batch lookup (each item could be
+   > missing, all None)
+   >
+   > if i want to put something into the cache i submit a
+   > put-match (could be a vec of 1 thing) and i block until
+   > the server returns that the put was successful - empty
+   > response..
+   >
+   > so get N items -> Vec<Option<Item>>
+   > and put N items -> Unit
 
-Today's `:wat::holon::lru::HologramCacheService::Request`:
+8. User framed the substrate intent:
 
+   > the cache services are implementing a mutex by protecting
+   > their shared mutable state through an io select loop who
+   > acts like an rpc server
+
+9. Third-pass gaze locked the names against the batch protocol
+   covering both services.
+
+## What's wrong today
+
+**Two services that should be identical aren't.**
+
+`:wat::holon::lru::HologramCacheService` (today, single-item):
 ```scheme
-(:wat::core::enum :wat::holon::lru::HologramCacheService::Request
-  (Get
-    (probe :wat::holon::HolonAST)
-    (reply-tx :wat::holon::lru::HologramCacheService::GetReplyTx))
-  (Put
-    (key :wat::holon::HolonAST)
-    (val :wat::holon::HolonAST)))      ;; NO reply-tx — fire-and-forget
+(enum Request
+  (Get  (probe :HolonAST) (reply-tx :GetReplyTx))
+  (Put  (key :HolonAST) (val :HolonAST)))   ;; NO reply path
 ```
 
-- **Get** carries a `reply-tx`; client allocates `(GetReplyTx,
-  GetReplyRx)`, embeds the tx, blocks on the rx for the result.
-  Honest mini-TCP.
-- **Put** carries no reply path. Client sends and continues
-  before the cache has actually stored the value. Subsequent
-  Gets racing the Put may miss. **Discipline violation.**
-
-## Comparison: how the substrate's other services do it right
-
-- **Console** (`:wat::console::*`): every print waits on
-  `AckRx` for `()` after the driver writes durably. Pattern A.
-- **Telemetry** (`:wat::telemetry::*`): every `batch-log` waits
-  on `AckRx` after the dispatcher returns. Pattern A.
-- **LRU CacheService** (`:wat::lru::*`): every Get AND every Put
-  routes through the same `Body` envelope with an embedded
-  `ReplyTx<Option<V>>`. Even Put gets a reply (`:None`) so the
-  client unblocks AFTER the cache mutation completes. Pattern B
-  with a unified return type.
-
-HolonLRU is the only service in the substrate that does
-fire-and-forget. **Outlier — and wrong by the doctrine.**
-
-## The fix
-
-Put gains an ack-tx field. Two shape options:
-
-### Option A — variant-scoped Pattern A flavor for Put
-
+`:wat::lru::*` (today, post-K.lru, single-item):
 ```scheme
-(:wat::core::typealias :wat::holon::lru::HologramCacheService::PutAckTx
-  :wat::kernel::Sender<wat::core::unit>)
-(:wat::core::typealias :wat::holon::lru::HologramCacheService::PutAckRx
-  :wat::kernel::Receiver<wat::core::unit>)
-(:wat::core::typealias :wat::holon::lru::HologramCacheService::PutAckChannel
-  :wat::kernel::Channel<wat::core::unit>)
-
-(:wat::core::enum :wat::holon::lru::HologramCacheService::Request
-  (Get  (probe :HolonAST)
-        (reply-tx :GetReplyTx))      ;; Pattern B — data-bearing reply
-  (Put  (key :HolonAST) (val :HolonAST)
-        (ack-tx :PutAckTx)))         ;; Pattern A — unit-ack release
+(typealias Body<K,V> :(i64, K, Option<V>))      ;; tagged tuple
+(typealias ReplyTx<V> :Sender<Option<V>>)       ;; UNIFIED return
+(typealias Request<K,V> :(Body<K,V>, ReplyTx<V>))
+;; tag 0 = GET, tag 1 = PUT (put-val carries Some); reply is Option<V>
 ```
 
-**Reads honestly:** Get returns data → "Reply"; Put returns
-nothing → "Ack". Variant-scoped naming (`Get*`/`Put*`) makes
-the per-verb shape difference visible. Mirrors the substrate's
-existing channel-naming patterns A/B taxonomy at the variant
-level.
+Two distinct violations:
 
-### Option B — unified Reply enum
+1. **HolonLRU's Put violates ZERO-MUTEX § Mini-TCP** — fire-and-
+   forget; client returns before durability boundary. Cache
+   subsequently racing the Put may miss.
+2. **The two services diverge in surface shape** — different
+   request typealias families, different reply mechanics. Same
+   protocol concept (Pattern B cache), two different surfaces.
+   A user who's read one cache crate has to relearn the other.
+
+## The fix — symmetric batch protocol
+
+Both services adopt the same shape. Singletons become
+batches-of-one. Get is data-bearing; Put is unit-ack release.
+
+### Locked typealiases
 
 ```scheme
-(:wat::core::enum :wat::holon::lru::HologramCacheService::Reply
-  (GetResult (value :wat::core::Option<wat::holon::HolonAST>))
-  (PutAck))
+;; Variant-scoped Pattern B (Get) + Pattern A (Put)
+:wat::lru::GetReplyTx<V>          = Sender<Vec<Option<V>>>
+:wat::lru::GetReplyRx<V>
+:wat::lru::GetReplyChannel<V>
 
-(:wat::core::typealias :wat::holon::lru::HologramCacheService::ReplyTx
-  :wat::kernel::Sender<wat::holon::lru::HologramCacheService::Reply>)
+:wat::lru::PutAckTx               = Sender<unit>
+:wat::lru::PutAckRx
+:wat::lru::PutAckChannel
 
-(:wat::core::enum :wat::holon::lru::HologramCacheService::Request
-  (Get (probe :HolonAST) (reply-tx :ReplyTx))
-  (Put (key :HolonAST) (val :HolonAST) (reply-tx :ReplyTx)))
+;; Entry — the batch-element name (gaze-picked)
+:wat::lru::Entry<K,V>             = (K, V)
+
+;; Request — enum-based; Body<K,V> retires
+(enum Request<K,V>
+  (Get  (probes  :Vec<K>)
+        (reply-tx :GetReplyTx<V>))
+  (Put  (entries :Vec<Entry<K,V>>)
+        (ack-tx   :PutAckTx)))
+
+;; Per-client client/server channel halves (already in place)
+:wat::lru::ReqTx<K,V>
+:wat::lru::ReqRx<K,V>
+:wat::lru::ReqChannel<K,V>
 ```
 
-**One reply type both variants share.** Client allocates one
-`(ReplyTx, ReplyRx)` per request; matches on the Reply variant
-to extract Get's value or Put's ack. Single typealias family
-(`ReplyTx` / `ReplyRx` / `ReplyChannel`); no Get/Put-prefixed
-asymmetry in the channel typealiases.
+HolonLRU mirrors with concrete HolonAST types (`K = V = HolonAST`):
 
-### Recommendation
+```scheme
+:wat::holon::lru::GetReplyTx        = Sender<Vec<Option<HolonAST>>>
+:wat::holon::lru::PutAckTx          = Sender<unit>
+:wat::holon::lru::Entry             = (HolonAST, HolonAST)
+;; enum Request {Get(Vec<HolonAST>, GetReplyTx) | Put(Vec<Entry>, PutAckTx)}
+```
 
-**Option A** unless gaze says otherwise. Reasoning:
+### Verbs
 
-- Per-verb reply shapes are honestly different (data vs
-  release). Squashing them into a Reply enum forces the client
-  to match-and-discard "the wrong arm" on every reply,
-  obscuring per-verb intent.
-- The variant-scoped `Get*Reply*` naming has been in place; A
-  extends the pattern to `Put*Ack*` rather than rewriting both.
-- Smaller blast radius: Get's surface is unchanged; only Put
-  and its ack family is added.
+```
+get N items -> Vec<Option<Item>>          ;; (get probes)
+put N items -> unit                        ;; (put entries)
+```
 
-But this naming question wants gaze before locking in.
+Bare `get` / `put` (gaze-locked Q1). Argument type carries the
+plurality; matches the substrate's unmarked-verb convention
+(`:wat::core::map`, `:wat::core::if`). A singleton lookup is
+`(get [probe])` — a batch-of-one.
 
-## Consumer impact
+### Why this matches the substrate's mutex-via-RPC framing
 
-- **Driver loop** in HologramCacheService.wat: per Put dispatch,
-  send `()` on the embedded ack-tx after `HologramCache/put`
-  returns.
-- **Client call sites**: every `(Put k v)` becomes
-  `(Put k v ack-tx)` where the caller pre-allocated
-  `(PutAckTx, PutAckRx)` and blocks on the rx after sending.
-- **wat-tests + lab consumers**: same shape; agent-sweepable
-  once the driver and typealiases land.
+Per ZERO-MUTEX § Mini-TCP the cache service IS a mutex
+implementation:
+- Shared mutable state (the cache map) lives in one program.
+- Clients send batches; the io::select loop serializes every
+  batch sequentially.
+- Lock-step: client send blocks until driver recv; driver
+  reply/ack blocks until client recv. Bounded(1) on both ends.
+- The "lock" is the loop body; the "release" is the reply
+  (Get) or ack (Put) send.
 
-Substrate sweep: probably ~20-50 sites across the crate's wat
-+ wat-tests. Bigger than a pure rename because it's a real
-protocol change — call sites need new bindings.
+Batch granularity == lock granularity. A single batch holds
+the cache's "lock" for one Vec<Op> worth of work. This is
+exactly the durability-boundary pattern ZERO-MUTEX § "When
+this is the right shape" describes.
 
-## Why this is a NEW arc, not arc 109
+## Gaze verdicts (consolidated from three passes)
 
-Arc 109 is naming + filesystem cleanup. Mechanical, doctrine-
-driven, sonnet-sweepable.
+### Pass 1 — variant-scoped vs unified Reply
 
-Arc 119 is **substrate-discipline correction** — the protocol
-itself is wrong (violates mini-TCP). Fixing requires changes
-to the Request enum's shape, the driver loop's behavior, and
-every client call site's allocation pattern. Different kind of
-work; deserves its own arc identity.
+Variant-scoped wins. INVENTORY § K's `Ack*` (unit) vs `Reply*`
+(data) distinction is load-bearing; unified Reply enum forces
+half its variants to be payload-less and lie about the family
+they belong to.
 
-User direction (2026-05-01):
+### Pass 2 — `PutAck*` vs `PutReply*`
 
-> new arc - fix the comms - then fix the names
+`PutAck*` wins. Substrate's load-bearing rule names families
+by what the back-edge CARRIES (unit vs data), not which verb
+owns it. Put's back-edge is `Sender<unit>` → joins the Ack
+family alongside Telemetry / Console.
 
-Arc 119 fixes the comms. K.holon-lru (queued in 109) then
-fixes the names — landing against a corrected protocol.
+### Pass 3 — verb names + request shape + element name
+
+- **Q1 — verb names**: bare `get` / `put`. Substrate has no
+  `-batch` / `-many` suffix convention; introducing one here
+  would Level 2 mumble against the rest of the surface.
+- **Q2 — request shape**: enum-based. LRU's tagged-tuple
+  `Body<K,V>` was honest pre-batch (one envelope, one tag bit
+  to distinguish); under batch-asymmetric returns
+  (`Vec<Option<V>>` for Get, `unit` for Put) the tag-tuple
+  forces the cold reader to ask "why does PUT carry an
+  Option<V> field that's always Some?" — Level 2 mumble.
+  Body retires; enum becomes the canonical Pattern B
+  Request shape.
+- **Q3 — batch element name**: `Entry<K,V>`. Standard cache-
+  domain word (Java `Map.Entry`, Rust HashMap entry API);
+  unambiguous. `Item` is generic-mumble, `Pair` collides with
+  channel-pair vocabulary, `Slot` collides with cache-internal
+  storage.
+- **Q4 — service spawn**: confirm `:wat::lru::spawn` /
+  `:wat::holon::lru::spawn`. Already settled by K.lru /
+  K.holon-lru flatten.
+
+### What gaze surfaced as Level 1 lie
+
+Earlier draft DESIGN said "LRU is Pattern B with a unified
+return type" as a comparison row. **True today; false post-119.**
+This rewrite removes that paragraph. The substrate's LRU stops
+being unified-return when arc 119 lands.
+
+## Substrate work scope
+
+### Both service crates revise
+
+#### `:wat::lru::*` (LRU CacheService)
+
+- **Retire**: `:wat::lru::Body<K,V>` typealias.
+- **Mint**: `:wat::lru::Entry<K,V>`, `:wat::lru::PutAckTx`,
+  `:wat::lru::PutAckRx`, `:wat::lru::PutAckChannel`.
+- **Reshape**: `:wat::lru::Request<K,V>` from
+  `(Body<K,V>, ReplyTx<V>)` to enum-based with batch fields.
+- **Reshape**: `:wat::lru::ReplyTx<V>` body — `Sender<Option<V>>`
+  → `Sender<Vec<Option<V>>>` (batch return). Rename in flight:
+  arc 119 keeps the K.lru-shipped name `ReplyTx` but its body
+  type widens; this matches Pattern B (data-bearing back-edge)
+  unchanged.
+- **Driver**: `:wat::lru::handle` switches from per-request
+  per-item dispatch to per-request batch dispatch. Loop reads a
+  Request; if Get, processes the probe vec, sends
+  `Vec<Option<V>>` reply; if Put, processes the entry vec,
+  sends `()` ack.
+- **Verb signatures**: `:wat::lru::get` and `:wat::lru::put`
+  take/return Vec types. Single-item callers wrap in
+  batches-of-one.
+- **Wat-tests + lab consumers**: every existing call updates to
+  the batch shape.
+
+#### `:wat::holon::lru::*` (HologramCacheService — pre-K.holon-lru-flatten)
+
+- **Mint**: `PutAckTx`, `PutAckRx`, `PutAckChannel`, `Entry`.
+- **Reshape**: `Request` enum — Get carries `(probes :Vec<HolonAST>)`
+  and `reply-tx :GetReplyTx`; Put carries
+  `(entries :Vec<Entry>)` and `ack-tx :PutAckTx`.
+- **Reshape**: `GetReplyTx` body — `Sender<Option<HolonAST>>` →
+  `Sender<Vec<Option<HolonAST>>>` (batch return).
+- **Driver**: Per Get dispatch, iterate probes, look up each
+  via `HologramCache/get`, collect into `Vec<Option<HolonAST>>`,
+  send on reply-tx. Per Put dispatch, iterate entries, call
+  `HologramCache/put` for each, send `()` on ack-tx after
+  whole batch persisted.
+- **Verb signatures**: `(get probes)` and `(put entries)` —
+  bare verbs over Vec arguments.
+- **Wat-tests + lab consumers**: same batch-shape sweep as LRU.
+
+### Shared
+
+- The naming families (`GetReplyTx`/`Rx`/`Channel`,
+  `PutAckTx`/`Rx`/`Channel`, `Entry`) carry through K.holon-lru
+  unchanged when that slice flattens (HologramCacheService::* →
+  :wat::holon::lru::*).
+- arc 117's scope-deadlock walker recognizes `Sender` /
+  `Channel` shapes; it doesn't care about the inner payload
+  type, so it continues to work without modification when
+  ReplyTx's body widens to `Vec<Option<...>>`.
+
+## Estimated scope
+
+- LRU substrate file rewrite: ~50-100 lines diff
+  (typealias retire, enum mint, driver loop reshape, verb
+  signatures).
+- HolonLRU substrate file rewrite: ~similar.
+- Wat-tests sweep across both crates: ~30-50 sites total;
+  each call site changes shape (singleton `(get k)` →
+  `(get [k])`, etc.).
+- Lab consumers: probably ~10-20 sites in the trading lab
+  using LRU's cache; trading lab may not use HolonLRU
+  (substrate-only).
+
+Substantial. Mechanical-but-judgment-driven (the singleton-to-
+batch-of-1 shift requires call-site editing, not pure sed). Plan:
+substrate first (both files), probe-verify, then sonnet sweep
+under substrate-as-teacher with diagnostic stream as the brief.
 
 ## Sequencing
 
-1. **Arc 119** — protocol fix (this arc).
-2. **K.holon-lru** (109) — naming flatten + GetReplyPair →
-   GetReplyChannel + the new PutAck* family flattens too.
+1. **Arc 119** — protocol fix in BOTH services (this arc).
+2. **K.holon-lru** (109 slice) — naming flatten only;
+   HologramCacheService:: prefix retires; the locked names
+   from arc 119 (Entry, GetReplyTx, PutAckTx etc.) flatten
+   along with everything else.
+3. **K.thread-process** (109 slice) — last K-slice.
+4. **arc 109 INSCRIPTION** — closes the arc.
 
-After both: HologramCacheService is disciplinarily correct AND
-canonically named. Then K.thread-process is the last K-slice;
-then 109's INSCRIPTION can close the arc.
-
-## Gaze verdict (2026-05-01)
-
-**Question 1 — Option A wins.** The substrate already declared
-`Ack*` vs `Reply*` load-bearing at the crate level (INVENTORY
-§ K); arc 119 propagates that distinction to the variant level
-inside one crate. Option B's unified `Reply` family with a
-payload-less `(PutAck)` variant would force the cold reader to
-trust a name that contradicts half its instances — Level 2
-mumble. The cold reader sees `(Put k v ack-tx)` under A and the
-field name matches the type body; under B they'd see
-`(Put k v reply-tx)` and find the "reply" carries nothing.
-
-**Question 2 — `PutAck*` family.** Honest body wins over surface
-symmetry. The substrate's load-bearing rule names families by
-what the back-edge *carries*, not by which verb owns it. Put's
-back-edge carries `unit`; it joins the Ack* family alongside
-Telemetry's and Console's. `PutReply*` would force a
-`Sender<unit>` into the Reply* family — same Level 2 mumble.
-
-The locked typealiases (post-K.holon-lru flatten):
-
-```
-:wat::holon::lru::PutAckTx       = Sender<unit>
-:wat::holon::lru::PutAckRx       = Receiver<unit>
-:wat::holon::lru::PutAckChannel  = Channel<unit>
-```
-
-Plus the existing data-bearing Get pair (post-K.holon-lru):
-
-```
-:wat::holon::lru::GetReplyTx     = Sender<Option<HolonAST>>
-:wat::holon::lru::GetReplyRx     = Receiver<Option<HolonAST>>
-:wat::holon::lru::GetReplyChannel = Channel<Option<HolonAST>>  ;; renamed from GetReplyPair
-```
-
-Final Request enum shape:
-
-```scheme
-(:wat::core::enum :wat::holon::lru::Request
-  (Get  (probe :HolonAST) (reply-tx :GetReplyTx))     ;; data-bearing reply
-  (Put  (key :HolonAST) (val :HolonAST)
-        (ack-tx :PutAckTx)))                          ;; unit-ack release
-```
-
-Honest at every layer: variant declares which pattern; field
-name declares Reply vs Ack; type body confirms data vs unit.
-
-## Open questions for gaze
-
-1. **Option A (PutAckTx) vs Option B (unified Reply enum)?**
-2. **`PutAck*` vs `PutReply*`?** Reply implies data; Ack implies
-   release. Pattern A's `AckTx` precedent suggests "Ack" is the
-   right word when the back-edge is unit. Naming aligns to
-   Pattern A flavor at the variant level.
-3. **Does this audit catch any OTHER fire-and-forget operations
-   in the substrate?** Worth a sweep — if HolonLRU has the
-   discipline gap, are there others? (Probably not — Console,
-   Telemetry, LRU all checked clean. But worth scanning.)
+After 119 + 109: both cache services are disciplinarily correct,
+canonically named, and substrate-symmetric. The mutex-via-RPC
+framing is honest at every layer (wire shape, naming, doctrine
+docs).
 
 ## Cross-references
 
@@ -237,5 +300,29 @@ name declares Reply vs Ack; type body confirms data vs unit.
   (Reply) vocabulary.
 - `docs/arc/2026/04/109-kill-std/SLICE-K-HOLON-LRU.md` — queued
   naming flatten that lands AFTER this arc.
+- `docs/arc/2026/04/109-kill-std/SLICE-K-LRU.md` — already-
+  shipped slice; arc 119 does NOT undo K.lru's naming changes,
+  it reshapes LRU's protocol body.
+- `crates/wat-lru/wat/lru/CacheService.wat` — substrate file.
 - `crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat`
-  — the substrate file to fix.
+  — substrate file.
+
+## What 109 surfaced
+
+User direction (2026-05-01) on why arc 119 exists:
+
+> this the kind of thing 109 is meant to surface - get them
+> fixed
+
+109's nominal mission was naming + filesystem cleanup. In
+practice it surfaced a substrate-discipline gap (HolonLRU's
+fire-and-forget Put), a substrate-symmetry gap (LRU and
+HolonLRU diverging surfaces despite doing the same job), and a
+substrate-protocol-completeness gap (single-item granularity
+when batches are the natural unit). All three are
+naming-adjacent — incorrect surfaces become incorrect names —
+and 109 found them by asking the four questions of the
+existing service crates and following the gaze findings.
+
+Arc 119 is the protocol fix that follows from the naming
+clarity 109 forced.
