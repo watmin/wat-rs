@@ -2633,7 +2633,7 @@ fn check_function_body(
                 function: path.to_string(),
                 expected: format_type(&apply_subst(&scheme.ret, &subst)),
                 got: format_type(&apply_subst(&body_ty, &subst)),
-                span: Span::unknown(),
+                span: func.body.span().clone(),
             });
         }
     }
@@ -7883,7 +7883,7 @@ fn infer_lambda(
                 function: "<lambda>".into(),
                 expected: format_type(&apply_subst(&ret_type, subst)),
                 got: format_type(&apply_subst(&body_ty, subst)),
-                span: Span::unknown(),
+                span: body.span().clone(),
             });
         }
     }
