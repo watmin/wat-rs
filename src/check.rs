@@ -45,6 +45,7 @@
 //!   mixing numeric types in arithmetic is rejected.
 
 use crate::ast::WatAST;
+use crate::identifier::Identifier;
 use crate::runtime::{Function, SymbolTable};
 use crate::span::Span;
 use crate::types::{TypeEnv, TypeExpr};
@@ -1091,19 +1092,20 @@ pub fn check_program(
         validate_comm_positions(form, CommCtx::Forbidden, &mut errors);
     }
 
-    // Arc 117 — refuse to compile a `let*` whose extent contains
-    // BOTH a Thread/join-result call AND a sibling Sender-bearing
-    // binding. The Sender clone outlives the worker; the join
-    // deadlocks. Use the type registry to resolve aliases
-    // structurally — a sibling typed `:MyTx` aliasing
-    // `:wat::kernel::QueueSender<i64>` is caught the same way as the
-    // canonical name.
-    for func in sym.functions.values() {
-        validate_scope_deadlock(&func.body, types, &mut errors);
-    }
-    for form in forms {
-        validate_scope_deadlock(form, types, &mut errors);
-    }
+    // Arc 117 / Arc 133 — scope-deadlock prevention. The structural
+    // pre-inference walker (`validate_scope_deadlock`) was retired by
+    // arc 133: the rule is now enforced in-place inside
+    // `infer_let_star` after all bindings are processed. That path
+    // uses inferred TypeExprs from the `extended` scope map, covering
+    // BOTH typed-name bindings (the original arc 117 shape) AND
+    // untyped tuple-destructure bindings (the arc 133 gap).
+    // Duplicate-firing is impossible: inference drives both coverage
+    // and classification; the structural walker was redundant once
+    // the inference path fired for the same shapes.
+    //
+    // If you see this comment and are wondering why ScopeDeadlock
+    // fires at type-check time: look for `check_let_star_for_scope_deadlock_inferred`
+    // in `infer_let_star` (arc 133 slice 1).
 
     // Arc 126 — refuse to compile a function-call site that passes
     // BOTH halves of one `make-bounded-channel` / `make-unbounded-channel`
@@ -1385,11 +1387,13 @@ fn validate_comm_positions(
 //   `make-unbounded-queue` — no transitive helpers.
 // - `select` is not yet pattern-matched (only `recv` / `try-recv`).
 
-/// Walk every form in the program looking for the scope-deadlock
-/// shape. Called from `check_program` alongside `validate_comm_positions`.
-/// Uses the TypeEnv to resolve aliases — a sibling typed `:MyTx`
-/// (an alias for `:wat::kernel::QueueSender<T>`) is detected
-/// structurally, not by surface-name matching.
+/// Arc 117's pre-inference structural scope-deadlock walker. Retired by
+/// arc 133 slice 1: the rule is now enforced inside `infer_let_star`
+/// after binding inference, covering both typed-name and tuple-destructure
+/// shapes. Kept as a reference for the arc 117 approach; callers in
+/// `check_program` were removed. Dead code intentional — documents the
+/// retired path.
+#[allow(dead_code)]
 fn validate_scope_deadlock(node: &WatAST, types: &TypeEnv, errors: &mut Vec<CheckError>) {
     walk_for_deadlock(node, types, errors);
 }
@@ -1793,10 +1797,9 @@ fn walk_for_legacy_kernel_queue(node: &WatAST, errors: &mut Vec<CheckError>) {
     }
 }
 
-/// Recursive walker. At every `:wat::core::let*` form, runs the
-/// structural rule: if the let*'s lexical extent has any Thread
-/// `Thread/join-result` call AND any sibling binding whose
-/// (alias-resolved) type contains a Sender-bearing parametric, flag.
+/// Arc 117's pre-inference recursive walker. Retired by arc 133 slice 1.
+/// Kept as a reference. Dead code intentional.
+#[allow(dead_code)]
 fn walk_for_deadlock(
     node: &WatAST,
     types: &TypeEnv,
@@ -1862,24 +1865,11 @@ fn walk_for_deadlock(
     }
 }
 
-/// At a let* binding-block, check the structural rule:
-///
-///   If any binding's resolved type contains a Sender-bearing
-///   parametric (`Sender`, `QueueSender`, `QueuePair`, `HandlePool`)
-///   AND any binding (or the body) calls `Thread/join-result` (or
-///   `Process/join-result`) on a Thread binding inside this same
-///   let*'s extent → flag.
-///
-/// "Resolved" means the type annotation is parsed via
-/// `parse_type_expr` and walked through `expand_alias` —
-/// user-defined typealiases pointing at Sender-bearing types are
-/// caught the same way as the canonical names. The substrate's data
-/// (TypeEnv) is the source of truth; we don't pattern-match surface
-/// syntax.
-///
-/// The canonical fix: nest the Sender-bearing bindings in an INNER
-/// let* whose body returns the Thread (SERVICE-PROGRAMS.md
-/// § "The lockstep").
+/// Arc 117's pre-inference per-let* structural scope-deadlock rule.
+/// Retired by arc 133 slice 1 — replaced by
+/// `check_let_star_for_scope_deadlock_inferred`. Kept as reference.
+/// Dead code intentional.
+#[allow(dead_code)]
 fn check_let_star_for_scope_deadlock(
     bindings: &[WatAST],
     body_forms: &[WatAST],
@@ -1937,6 +1927,9 @@ fn check_let_star_for_scope_deadlock(
 /// Parse a let* binding `((name :type-annotation) rhs)` → (name,
 /// type_annotation_keyword, span). Returns None on shapes that don't
 /// fit (untyped bindings, tuple-destructure patterns).
+/// Arc 133 — called only by the retired `check_let_star_for_scope_deadlock`.
+/// Kept as reference; dead code intentional.
+#[allow(dead_code)]
 fn parse_binding_for_typed_check(binding: &WatAST) -> Option<(String, String, Span)> {
     let WatAST::List(items, span) = binding else { return None; };
     if items.len() != 2 {
@@ -2004,7 +1997,15 @@ fn type_contains_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static 
     if let TypeExpr::Parametric { head, args } = ty {
         if matches!(
             head.as_str(),
-            "wat::kernel::Channel" | "wat::kernel::Sender"
+            "wat::kernel::Channel"
+                | "wat::kernel::Sender"
+                // Arc 133 — inference-time path reduces alias `wat::kernel::Sender`
+                // to its underlying `rust::crossbeam_channel::Sender` via
+                // `reduce` during unification. The inferred types in `extended`
+                // already carry the expanded form; the surface check must
+                // recognise both spellings to avoid false-negatives in
+                // `check_let_star_for_scope_deadlock_inferred`.
+                | "rust::crossbeam_channel::Sender"
         ) {
             return Some("Sender");
         }
@@ -2206,11 +2207,25 @@ fn walk_for_pair_deadlock(
             WatAST::List(xs, _) => xs.clone(),
             _ => return,
         };
-        // Extend scope with this let*'s typed bindings.
+        // Extend scope with this let*'s typed bindings (typed-name shape)
+        // AND with synthetic pair-scope entries for tuple-destructure
+        // bindings from make-bounded-channel / make-unbounded-channel
+        // (arc 133). Both shapes end up in the same scope vec; the
+        // trace logic is identical — it doesn't care whether the entry
+        // came from a typed-name or a synthetic expansion.
         let mut extended: Vec<PairScopeEntry> = binding_scope.to_vec();
+        let mut synthetic_counter = 0usize;
         for binding in &bindings {
             if let Some((name, type_ann, rhs)) = parse_binding_for_pair_check(binding) {
                 extended.push((name, type_ann, rhs));
+            } else {
+                // Arc 133 — attempt to expand tuple-destructure bindings
+                // from make-bounded-channel into synthetic pair-scope entries.
+                extend_pair_scope_with_tuple_destructure(
+                    binding,
+                    &mut synthetic_counter,
+                    &mut extended,
+                );
             }
         }
         // Recurse into each binding's RHS with the *prefix* scope
@@ -2218,6 +2233,7 @@ fn walk_for_pair_deadlock(
         // bindings see earlier ones, but a binding's own RHS is
         // evaluated before that name enters scope).
         let mut prefix: Vec<PairScopeEntry> = binding_scope.to_vec();
+        let mut synthetic_counter_prefix = 0usize;
         for binding in &bindings {
             if let WatAST::List(parts, _) = binding {
                 if parts.len() == 2 {
@@ -2226,6 +2242,13 @@ fn walk_for_pair_deadlock(
                         parse_binding_for_pair_check(binding)
                     {
                         prefix.push((name, type_ann, rhs));
+                    } else {
+                        // Arc 133 — same expansion for the prefix scope.
+                        extend_pair_scope_with_tuple_destructure(
+                            binding,
+                            &mut synthetic_counter_prefix,
+                            &mut prefix,
+                        );
                     }
                 }
             }
@@ -2368,6 +2391,98 @@ fn trace_to_pair_anchor(
             trace_to_pair_anchor(&id.name, binding_scope)
         }
         _ => None,
+    }
+}
+
+/// Arc 133 — extend the pair-deadlock scope with synthetic entries
+/// for a tuple-destructure binding whose RHS is a
+/// `make-bounded-channel` or `make-unbounded-channel` call.
+///
+/// Shape: `((name1 name2 ...) (:wat::kernel::make-bounded-channel ...))`.
+///
+/// Creates:
+///   - A synthetic anchor entry `("__arc133_pair_N", ":wat::kernel::Channel<wat::core::unit>", rhs)`
+///     so `trace_to_pair_anchor` finds the allocation at the anchor name.
+///   - One entry per name pointing to `(first anchor)` or `(second anchor)`
+///     projection ASTs, with fabricated `Sender<unit>` / `Receiver<unit>`
+///     type annotations (index 0 → Sender, index 1 → Receiver, beyond → no entry).
+///     The type-annotation head is all that matters for classification;
+///     the `<unit>` element type is a safe placeholder (the classifier
+///     checks head only, not inner T).
+///
+/// This is conservative: only the first two names get classified
+/// (the Sender and Receiver halves of a channel pair). Names beyond
+/// index 1 are not added — extra destructured fields from a wider
+/// tuple are out-of-scope for the pair-deadlock pattern.
+///
+/// The synthetic anchor name uses a counter prefix so that multiple
+/// tuple-destructure bindings in the same let* get distinct anchors.
+fn extend_pair_scope_with_tuple_destructure(
+    binding: &WatAST,
+    synthetic_counter: &mut usize,
+    scope: &mut Vec<PairScopeEntry>,
+) {
+    let WatAST::List(items, _) = binding else { return; };
+    if items.len() != 2 {
+        return;
+    }
+    let WatAST::List(parts, _) = &items[0] else { return; };
+    // All parts must be bare symbols (tuple-destructure shape).
+    let names: Vec<String> = parts
+        .iter()
+        .filter_map(|p| match p {
+            WatAST::Symbol(id, _) => Some(id.name.clone()),
+            _ => None,
+        })
+        .collect();
+    if names.len() != parts.len() || names.is_empty() {
+        return;
+    }
+    // RHS must be make-bounded-channel or make-unbounded-channel.
+    let rhs = &items[1];
+    let WatAST::List(rhs_items, _) = rhs else { return; };
+    let rhs_head = match rhs_items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => return,
+    };
+    if !matches!(
+        rhs_head,
+        ":wat::kernel::make-bounded-channel" | ":wat::kernel::make-unbounded-channel"
+    ) {
+        return;
+    }
+
+    // Synthetic anchor: a virtual binding whose RHS IS the make-channel
+    // call. `trace_to_pair_anchor` recognises make-*-channel as the
+    // anchor terminus and returns this binding's name. Both name0 and
+    // name1 will trace through their (first/second anchor) projections
+    // and land here — same anchor name → pair-deadlock fires.
+    let anchor_name = format!("__arc133_tuple_anchor_{}", *synthetic_counter);
+    *synthetic_counter += 1;
+    scope.push((
+        anchor_name.clone(),
+        ":wat::kernel::Channel<wat::core::unit>".into(),
+        rhs.clone(),
+    ));
+
+    // Add sender (index 0) and receiver (index 1) projection entries.
+    // Only the first two names participate in the Sender/Receiver
+    // classification; further names in wider tuples don't represent
+    // channel halves and are ignored.
+    let projections = [
+        (":wat::core::first", ":wat::kernel::Sender<wat::core::unit>"),
+        (":wat::core::second", ":wat::kernel::Receiver<wat::core::unit>"),
+    ];
+    for (idx, name) in names.into_iter().enumerate() {
+        if idx >= projections.len() {
+            break;
+        }
+        let (proj_kw, type_ann) = projections[idx];
+        let proj_rhs = WatAST::list(vec![
+            WatAST::keyword(proj_kw),
+            WatAST::symbol(Identifier::bare(&anchor_name)),
+        ]);
+        scope.push((name, type_ann.into(), proj_rhs));
     }
 }
 
@@ -5042,6 +5157,127 @@ fn infer_result_expect(
     Some(apply_subst(&declared_ty, subst))
 }
 
+/// Arc 133 — find the source span of the binding that introduces
+/// `name` in a let* binding list. Returns the span of the full
+/// `((name ...) rhs)` form on match, or `Span::unknown()` when the
+/// name isn't found (shouldn't happen in practice — the name comes
+/// from the same binding list).
+///
+/// Used by `check_let_star_for_scope_deadlock_inferred` to attach the
+/// thread-binding's source location to the `ScopeDeadlock` diagnostic.
+fn find_binding_span(name: &str, bindings: &[WatAST]) -> Span {
+    for binding in bindings {
+        let WatAST::List(items, span) = binding else { continue; };
+        if items.len() != 2 {
+            continue;
+        }
+        let WatAST::List(parts, _) = &items[0] else { continue; };
+        // Check whether any symbol in the pattern matches `name`.
+        let found = parts.iter().any(|p| match p {
+            WatAST::Symbol(id, _) => id.name == name,
+            _ => false,
+        });
+        if found {
+            return span.clone();
+        }
+    }
+    Span::unknown()
+}
+
+/// Arc 133 — post-inference scope-deadlock check. Replaces the
+/// pre-inference structural walker (`validate_scope_deadlock` /
+/// `check_let_star_for_scope_deadlock`) for ALL binding shapes.
+///
+/// After `process_let_binding` runs for every binding in a `let*`,
+/// the `extended` map holds the inferred `TypeExpr` for every bound
+/// name — whether it was introduced via a typed-name annotation or
+/// via a tuple-destructure pattern. This function reads from that map
+/// directly, so the same classification logic that powered the
+/// pre-inference walker now fires for BOTH binding shapes uniformly.
+///
+/// Classification is identical to the structural walker:
+///   - `type_is_thread_kind` → Thread binding (join-result target)
+///   - `type_contains_sender_kind` → Sender-bearing binding (deadlock anchor)
+///
+/// Scope: the `extended` map contains names from outer scopes (passed
+/// into `infer_let_star` as `locals`) as well as this let*'s own
+/// bindings. To detect SIBLING bindings (same let* block), we
+/// identify which names came from THIS let*'s binding list: only
+/// those names participate in the sibling-deadlock check.
+///
+/// Body is `args[1]` from `infer_let_star`; we check whether
+/// `Thread/join-result thr` appears there.
+fn check_let_star_for_scope_deadlock_inferred(
+    bindings: &[WatAST],
+    body: &WatAST,
+    extended: &HashMap<String, TypeExpr>,
+    types: &TypeEnv,
+    errors: &mut Vec<CheckError>,
+) {
+    // Collect Thread bindings AND Sender-bearing bindings among
+    // names that were bound in THIS let*'s binding list.
+    let mut thread_bindings: Vec<(String, Span)> = Vec::new();
+    let mut sender_bearing_bindings: Vec<(String, &'static str)> = Vec::new();
+
+    // Enumerate names introduced by this let*'s own bindings
+    // (to avoid flagging names from outer scopes that happen to be
+    // Sender-bearing — they're already in `extended` but are sibling
+    // only in their OWN let*, which will be checked when that let*
+    // is processed by `infer_let_star`).
+    let binding_names: Vec<String> = bindings
+        .iter()
+        .flat_map(|b| {
+            let WatAST::List(items, _) = b else { return vec![]; };
+            if items.len() != 2 { return vec![]; }
+            let WatAST::List(parts, _) = &items[0] else { return vec![]; };
+            parts.iter().filter_map(|p| match p {
+                WatAST::Symbol(id, _) => Some(id.name.clone()),
+                _ => None,
+            }).collect()
+        })
+        .collect();
+
+    for name in &binding_names {
+        let ty = match extended.get(name) {
+            Some(t) => t,
+            None => continue,
+        };
+        if type_is_thread_kind(ty, types) {
+            let span = find_binding_span(name, bindings);
+            thread_bindings.push((name.clone(), span));
+            continue;
+        }
+        if let Some(kind) = type_contains_sender_kind(ty, types) {
+            sender_bearing_bindings.push((name.clone(), kind));
+        }
+    }
+
+    if thread_bindings.is_empty() || sender_bearing_bindings.is_empty() {
+        return;
+    }
+
+    // For each Thread binding, check whether `Thread/join-result thr`
+    // appears in the body (or in any sibling binding's RHS, mirroring
+    // the structural walker's check on `bindings`).
+    for (thr_name, thr_span) in &thread_bindings {
+        let join_present = contains_join_on_thread(body, thr_name)
+            || bindings
+                .iter()
+                .any(|b| contains_join_on_thread(b, thr_name));
+        if !join_present {
+            continue;
+        }
+        for (sender_name, kind) in &sender_bearing_bindings {
+            errors.push(CheckError::ScopeDeadlock {
+                thread_binding: thr_name.clone(),
+                offending_binding: sender_name.clone(),
+                offending_kind: kind,
+                span: thr_span.clone(),
+            });
+        }
+    }
+}
+
 /// Sequential let — same binding shapes as parallel `let`, but each
 /// RHS is checked with the cumulatively extended locals so later
 /// bindings may reference earlier ones.
@@ -5069,6 +5305,22 @@ fn infer_let_star(
         let cumulative = extended.clone();
         process_let_binding(pair, env, &cumulative, &mut extended, fresh, subst, errors, ":wat::core::let*");
     }
+
+    // Arc 133 — post-inference scope-deadlock check. Fires for BOTH
+    // typed-name bindings (arc 117 shape) and tuple-destructure
+    // bindings (arc 133 gap). Runs after all bindings are processed
+    // so `extended` holds the fully-inferred type for every bound name.
+    // The pre-inference structural walker (`validate_scope_deadlock`)
+    // was retired when this path was added — inference is now the
+    // single enforcement path, eliminating duplicate-firing.
+    check_let_star_for_scope_deadlock_inferred(
+        bindings,
+        &args[1],
+        &extended,
+        env.types(),
+        errors,
+    );
+
     infer(&args[1], env, &extended, fresh, subst, errors)
 }
 
@@ -11296,5 +11548,229 @@ mod tests {
                 );
             }
         }
+    }
+
+    // ─── Arc 133 — tuple-destructure bindings honor scope-deadlock checks ───
+
+    /// Arc 133 — regression guard: the existing typed-name binding shape
+    /// (arc 117 / arc 131 canonical form) MUST continue to fire
+    /// `ScopeDeadlock` after the structural walker is retired and the
+    /// inference-time check takes over. The inference-time path uses
+    /// `extended` which is populated by `process_let_binding` — for
+    /// typed-name bindings, the declared type annotation is used.
+    ///
+    /// Shape: `((pool :HandlePool<Sender<i64>>) ...)` sibling to
+    /// `((thr :Thread<...>) ...)` + `Thread/join-result thr` in body.
+    /// Expected: `ScopeDeadlock` fires; `offending_kind = "HandlePool"`.
+    #[test]
+    fn arc_133_typed_name_binding_still_fires() {
+        let src = r#"
+            (:wat::core::define
+              (:my::typed-name-still-fires -> :wat::core::unit)
+              (:wat::core::let*
+                (((pool :wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>)
+                  (:wat::kernel::HandlePool::new
+                    "pool"
+                    (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
+                 ((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
+                  (:wat::kernel::spawn-thread
+                    (:wat::core::lambda
+                      ((_in :wat::kernel::Receiver<wat::core::unit>)
+                       (_out :wat::kernel::Sender<wat::core::i64>)
+                       -> :wat::core::unit)
+                      ()))))
+                (:wat::core::match
+                  (:wat::kernel::Thread/join-result thr)
+                  -> :wat::core::unit
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))
+        "#;
+        let err = check(src).expect_err(
+            "arc 133: typed-name HandlePool sibling to Thread/join-result must still fire ScopeDeadlock after structural walker retirement",
+        );
+        let scope_deadlocks: Vec<_> = err
+            .0
+            .iter()
+            .filter_map(|e| match e {
+                CheckError::ScopeDeadlock { offending_kind, .. } => Some(*offending_kind),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            scope_deadlocks.iter().any(|k| *k == "HandlePool"),
+            "arc 133 regression: expected ScopeDeadlock offending_kind=\"HandlePool\" from typed-name binding; got kinds: {:?}; full errors: {:?}",
+            scope_deadlocks,
+            err.0
+        );
+    }
+
+    /// Arc 133 — the new path: tuple-destructure binding
+    /// `((pool driver) (some-spawn-fn))` where the spawn returns
+    /// `(HandlePool<Sender<i64>>, Thread<unit,i64>)` and
+    /// `Thread/join-result driver` appears in the body.
+    ///
+    /// The inference-time check reads from `extended`, which contains
+    /// both `pool → HandlePool<Sender<i64>>` and
+    /// `driver → Thread<unit,i64>` after `process_let_binding`
+    /// destructures the tuple. Both names are visible to the
+    /// classifier; the Sender-bearing HandlePool fires the deadlock.
+    ///
+    /// The typealias `SpawnResult` is declared to give the RHS a
+    /// named return type of tuple shape; `infer_let_star` resolves it
+    /// via `process_let_binding`'s destructure path (fresh vars +
+    /// unify against tuple).
+    ///
+    /// Expected: `ScopeDeadlock` fires;
+    ///   offending_binding = "pool", offending_kind = "HandlePool".
+    #[test]
+    fn arc_133_tuple_destructure_with_handlepool_fires() {
+        // Define a helper that returns the (HandlePool, Thread) tuple
+        // so the destructure binding shape `((pool driver) (spawn-svc))` is
+        // exercised. The helper's return type is declared as a tuple
+        // so that `process_let_binding`'s destructure arm fires.
+        let src = r#"
+            (:wat::core::define
+              (:my::spawn-svc -> :(wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>,wat::kernel::Thread<wat::core::unit,wat::core::i64>))
+              (:wat::core::let*
+                (((pool :wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>)
+                  (:wat::kernel::HandlePool::new
+                    "pool"
+                    (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
+                 ((driver :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
+                  (:wat::kernel::spawn-thread
+                    (:wat::core::lambda
+                      ((_in :wat::kernel::Receiver<wat::core::unit>)
+                       (_out :wat::kernel::Sender<wat::core::i64>)
+                       -> :wat::core::unit)
+                      ()))))
+                (:wat::core::Tuple pool driver)))
+
+            (:wat::core::define
+              (:my::caller-via-destructure -> :wat::core::unit)
+              (:wat::core::let*
+                (((pool driver)
+                  (:my::spawn-svc)))
+                (:wat::core::match
+                  (:wat::kernel::Thread/join-result driver)
+                  -> :wat::core::unit
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))
+        "#;
+        let err = check(src).expect_err(
+            "arc 133: tuple-destructure of (HandlePool, Thread) with Thread/join-result in body must fire ScopeDeadlock",
+        );
+        let scope_deadlocks: Vec<_> = err
+            .0
+            .iter()
+            .filter_map(|e| match e {
+                CheckError::ScopeDeadlock { offending_binding, offending_kind, .. } => {
+                    Some((offending_binding.clone(), *offending_kind))
+                }
+                _ => None,
+            })
+            .collect();
+        assert!(
+            scope_deadlocks
+                .iter()
+                .any(|(name, kind)| name == "pool" && *kind == "HandlePool"),
+            "arc 133: expected ScopeDeadlock offending_binding=\"pool\" offending_kind=\"HandlePool\"; got: {:?}; full errors: {:?}",
+            scope_deadlocks,
+            err.0
+        );
+    }
+
+    /// Arc 133 — negative path: tuple-destructure where the RHS
+    /// returns `(wat::core::i64, wat::kernel::Thread<unit,unit>)` —
+    /// no Sender-bearing element. The inference-time check must pass
+    /// through silently.
+    ///
+    /// Confirms that `check_let_star_for_scope_deadlock_inferred`
+    /// classifies on INFERRED TYPE STRUCTURE, not on the presence of
+    /// a tuple-destructure pattern per se.
+    #[test]
+    fn arc_133_tuple_destructure_silent_when_clean() {
+        let src = r#"
+            (:wat::core::define
+              (:my::spawn-clean -> :(wat::core::i64,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
+              (:wat::core::let*
+                (((counter :wat::core::i64) 42)
+                 ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                  (:wat::kernel::spawn-thread
+                    (:wat::core::lambda
+                      ((_in :wat::kernel::Receiver<wat::core::unit>)
+                       (_out :wat::kernel::Sender<wat::core::unit>)
+                       -> :wat::core::unit)
+                      ()))))
+                (:wat::core::tuple counter driver)))
+
+            (:wat::core::define
+              (:my::clean-caller -> :wat::core::unit)
+              (:wat::core::let*
+                (((counter driver)
+                  (:my::spawn-clean)))
+                (:wat::core::match
+                  (:wat::kernel::Thread/join-result driver)
+                  -> :wat::core::unit
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))
+        "#;
+        let result = check(src);
+        match result {
+            Ok(_) => {}
+            Err(errors) => {
+                let scope_deadlocks: Vec<_> = errors
+                    .0
+                    .iter()
+                    .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+                    .collect();
+                assert!(
+                    scope_deadlocks.is_empty(),
+                    "arc 133: tuple-destructure of (i64, Thread) must not fire ScopeDeadlock (no Sender-bearing element); got: {:?}",
+                    scope_deadlocks
+                );
+            }
+        }
+    }
+
+    /// Arc 133 — sibling check: the `ChannelPairDeadlock` rule also
+    /// fires when both halves of a channel pair are bound via
+    /// tuple-destructure `((tx rx) (:wat::kernel::make-bounded-channel :i64 1))`
+    /// and then both are passed to one helper function.
+    ///
+    /// The extension to `walk_for_pair_deadlock` adds synthetic
+    /// pair-scope entries for the tuple-destructure binding, with
+    /// a shared anchor name. When the helper call receives both `tx`
+    /// and `rx`, the trace resolves them to the same anchor →
+    /// `ChannelPairDeadlock` fires.
+    #[test]
+    fn arc_133_tuple_destructure_pair_check_fires() {
+        let src = r#"
+            (:wat::core::define
+              (:my::helper-pair
+                (tx :wat::kernel::Sender<wat::core::i64>)
+                (rx :wat::kernel::Receiver<wat::core::i64>)
+                -> :wat::core::unit)
+              ())
+
+            (:wat::core::define
+              (:my::caller-destructure (_d :wat::core::unit) -> :wat::core::unit)
+              (:wat::core::let*
+                (((tx rx)
+                  (:wat::kernel::make-bounded-channel :wat::core::i64 1)))
+                (:my::helper-pair tx rx)))
+        "#;
+        let err = check(src).expect_err(
+            "arc 133: tuple-destructure of make-bounded-channel with both halves passed to one helper must fire ChannelPairDeadlock",
+        );
+        let pair_deadlocks: Vec<_> = err
+            .0
+            .iter()
+            .filter(|e| matches!(e, CheckError::ChannelPairDeadlock { .. }))
+            .collect();
+        assert!(
+            !pair_deadlocks.is_empty(),
+            "arc 133: expected ChannelPairDeadlock from tuple-destructure of make-bounded-channel; got: {:?}",
+            err.0
+        );
     }
 }
