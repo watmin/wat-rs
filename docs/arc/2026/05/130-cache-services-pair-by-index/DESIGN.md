@@ -1,6 +1,59 @@
 # Arc 130 — Cache services adopt pair-by-index via HandlePool
 
-**Status:** drafted 2026-05-01.
+**Status:** drafted 2026-05-01. **PAUSED 2026-05-01** — sweep
+killed mid-run when the agent's diagnostic work surfaced the
+HandlePool-not-Sender-bearing gap (arc 131). The substrate
+redesign described below was deferred; the consumer test sweep
+(inner-let* nesting per SERVICE-PROGRAMS.md § "The lockstep")
+shipped via arc 131 slice 2.
+
+## What's currently in working condition
+
+- The 6 deadlock-class tests (`HologramCacheService` step3-6,
+  `step-B-single-put`, `CacheService` round-trip) pass under
+  `:should-panic("channel-pair-deadlock")` annotations from
+  arc 126 slice 2. The arc 126 check fires structurally; the
+  panic substring matches; cargo test reports them green.
+- Arc 131 slice 2 swept all consumer tests to inner-let*
+  shape so arc 117/131's structural check stops firing on
+  legitimate scopes. The substrate cache services themselves
+  are unchanged — `crates/wat-lru/wat/lru/CacheService.wat` +
+  `crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat`
+  still emit the old shape (Request enum carrying embedded
+  reply-tx; HandlePool of bare ReqTx).
+
+## What's still owed (this arc)
+
+- Substrate redesign of both cache services to mirror Console's
+  pair-by-index discipline (HandlePool of `(ReqTx, ReplyRx)`
+  pairs at startup).
+- `Reply<V>` enum unifying Get's `Vec<Option<V>>` and Put's
+  `unit` so both verbs share one reply channel per slot.
+- Helper-verb signature simplification: callers `pop` one
+  Handle holding ONE end of EACH of two distinct channels;
+  no per-call channel allocation.
+- Retire the 6 `:should-panic("channel-pair-deadlock")`
+  annotations once the substrate stops requiring the
+  anti-pattern at every call site.
+
+## Why paused
+
+The structural-enforcement chain (arcs 117 / 126 / 131 / 132)
+landed first because:
+
+1. The compile-time guarantees + 200ms runtime default catch
+   the deadlock class universally (any service, not just
+   cache).
+2. Arc 130 is a substrate redesign — bigger blast radius, more
+   bespoke per-service work. Not blocking anything else; the
+   `:should-panic` test scaffolding is honest record of "this
+   shape DOES deadlock and the substrate currently requires
+   the shape."
+3. Arc 119's closure (the parent) can't fully close until arc
+   130 ships, but every other dependency closed cleanly.
+
+When this arc resumes, it picks up from this point with the
+DESIGN body below as the reference shape.
 
 ## TL;DR
 
