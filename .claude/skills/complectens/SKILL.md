@@ -14,6 +14,17 @@ The third spell of the wat-rs grimoire alongside *perspicere* (see through deepl
 
 A test that one-shots a hard problem cannot answer YES to the four questions. A test that composes from named, individually-proven layers can. The compiler tells you the test runs. The complectēns tells you what the test PROVES — and whether, when it fails, you'll know which thread broke.
 
+## The four questions
+
+Every artifact in wat-rs — every type signature, every function shape, every test file — passes through these four gates before it ships. The complectēns applies them to test-file structure specifically. Run them on the deftest at the bottom of the file:
+
+- **Obvious?** When this test fails, will I immediately know which named layer broke? If the failure narrows to a specific function name in the trace → YES. If "expected X, actual Y" with no further structure → NO (Level 1 lie).
+- **Simple?** Is the deftest body 3-7 lines, composing only the topmost named helpers? If yes → YES. If 10+ sequential bindings → NO (Level 1 lie). The inherent complexity of the scenario is preserved in the helpers; the deftest body itself stays small.
+- **Honest?** Do the named helpers do EXACTLY what their names promise? If `:test::put-one` actually does spawn-then-put-then-tear-down, the name is lying about its scope (Level 1). The function name's contract IS the discipline; verify it matches the body.
+- **Good UX?** Can a fresh reader trace top-down with no jumping forward? Does each layer add ONE new thing over the layer above? If a helper at line 50 references a helper defined at line 200 → NO (Level 1: late dependency).
+
+The four questions MUST run in order. Obvious + Simple + Honest must all hold before Good UX matters. A test that hides its diagnostic surface is broken regardless of how readable it might be.
+
 ## What the complectēns sees
 
 ### Monolithic deftests — the load-bearing violation
@@ -99,15 +110,6 @@ The fix: extract the composed sequence into a NAMED helper, with a NAMED deftest
 **Level 3 — Taste.** Could the helper's body shrink one more let* binding? Should `:test::lru-spawn-then-put` be `:test::lru-put-once`? Stylistic preferences where reasonable people would choose differently. NOT findings. Note them if useful but do not count.
 
 The complectēns converges when Level 1 and Level 2 are zero. Level 3 will always exist; the complectēns does not chase taste.
-
-## The four questions
-
-Run them on the deftest at the bottom of the file:
-
-- **Obvious?** When this fails, will I know which named layer broke? If no → Level 1.
-- **Simple?** Is the body 3-7 lines? If yes → likely good. If 10+ → Level 1.
-- **Honest?** Do the named helpers do EXACTLY what their names promise? If a helper is named `put-one` but actually does spawn + put + tear-down, the name is lying.
-- **Good UX?** Can a fresh reader trace top-down with no jumping? Does each layer add ONE new thing? If no → Level 2.
 
 ## When scanning wat files
 
