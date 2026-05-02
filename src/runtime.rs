@@ -1807,6 +1807,38 @@ fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, RuntimeError> 
     })
 }
 
+/// Arc 139 — strip a turbofish-style `<T,U,...>` suffix from a
+/// callable's keyword path, returning the canonical registration
+/// name. Mirrors the symmetric strip that `parse_define_form` does
+/// at registration time via [`split_name_and_type_params`]. A
+/// keyword without a balanced `<...>` suffix returns the input
+/// unchanged.
+///
+/// Used by every site that looks up a user-defined function by
+/// keyword head: runtime dispatch (`eval_call`), resolve pass
+/// (`is_resolvable_call_head`), type checker (`infer_list`'s scheme
+/// lookup). Without symmetric strip-at-lookup, generic call sites
+/// like `(:my::helper<wat::core::i64> arg)` fail registration-name
+/// lookup even though the canonical `:my::helper` IS registered —
+/// asymmetric registration vs lookup; arc 139.
+///
+/// **Balanced-suffix rule**: only strip when the keyword ends in
+/// `>` AND contains a `<`. Comparison operators like
+/// `:wat::core::f64::<` end with `<` (no closing `>`); they are NOT
+/// turbofish suffixes and must NOT be stripped. Substrate
+/// convention is `<T1,T2,...>` only as a balanced suffix after the
+/// identifier; the lexer admits both forms (depth tracking permits
+/// trailing unmatched `<`).
+pub fn canonical_callable_name(kw: &str) -> &str {
+    if !kw.ends_with('>') {
+        return kw;
+    }
+    match kw.find('<') {
+        Some(i) => &kw[..i],
+        None => kw,
+    }
+}
+
 /// Split a keyword like `:ns/foo<T,U>` into (`":ns/foo"`, `vec!["T","U"]`).
 /// A keyword with no `<` returns `(kw.to_string(), vec![])`.
 fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), RuntimeError> {
@@ -2910,7 +2942,13 @@ fn dispatch_keyword_head(
 
         // Anything else: user-defined function lookup.
         other => {
-            let func = match sym.get(other) {
+            // Arc 139 — strip `<T,...>` from the head before lookup.
+            // The substrate registers user defines under the canonical
+            // name (sans turbofish); call sites that use turbofish
+            // resolve to the same function. Symmetric registration
+            // vs lookup.
+            let canonical = canonical_callable_name(other);
+            let func = match sym.get(canonical) {
                 Some(f) => f.clone(),
                 None => {
                     // Arc 140 slice 1 — sandbox-scope leak detection.
@@ -2923,10 +2961,6 @@ fn dispatch_keyword_head(
                     // (offending invocation + outer-scope define).
                     // Otherwise fall through to the generic
                     // UnknownFunction.
-                    let canonical = match other.find('<') {
-                        Some(i) => &other[..i],
-                        None => other,
-                    };
                     if let Some(outer) = sym.outer_symbols.as_ref() {
                         if let Some(outer_func) = outer.get(canonical) {
                             return Err(RuntimeError::SandboxScopeLeak {

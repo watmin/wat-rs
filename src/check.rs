@@ -3348,7 +3348,14 @@ fn infer_list(
         }
 
         // Normal call: look up scheme, instantiate, unify args.
-        let scheme = match env.get(k) {
+        // Arc 139 — strip turbofish `<T,...>` from the head before
+        // env.get. The substrate registers user defines under the
+        // canonical name (sans turbofish); call sites that use
+        // turbofish resolve to the same scheme. Symmetric registration
+        // vs lookup. See `runtime::canonical_callable_name` for the
+        // full rationale.
+        let canonical_k = crate::runtime::canonical_callable_name(k);
+        let scheme = match env.get(canonical_k) {
             Some(s) => s,
             None => {
                 // Resolve pass validated the name; we just don't have

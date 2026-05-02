@@ -209,8 +209,14 @@ fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &MacroRegistry
     if is_reserved_prefix(head) {
         return true;
     }
+    // Arc 139 — strip turbofish `<T,...>` before sym.get. The
+    // substrate registers user defines under the canonical name
+    // (sans turbofish); call sites that use turbofish resolve to
+    // the same function. See `canonical_callable_name` in runtime.rs
+    // for the full rationale (symmetric registration vs lookup).
+    let canonical = crate::runtime::canonical_callable_name(head);
     // A user-registered function.
-    if sym.get(head).is_some() {
+    if sym.get(canonical).is_some() {
         return true;
     }
     // A macro call — shouldn't survive expansion, but accept for
