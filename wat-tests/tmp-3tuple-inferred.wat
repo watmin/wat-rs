@@ -1,16 +1,13 @@
-;; Minimal reproduction — does generic-T 3-tuple return work?
-;;
-;; The define MUST go in the deftest's prelude (second arg) since
-;; the test body runs in a sandboxed sub-program that only sees
-;; the prelude forms + the auto-generated :user::main.
+;; Generic-T 3-tuple — call site WITHOUT explicit <T> turbofish.
+;; Tests whether check infers T at the call site.
 
-(:wat::test::deftest :wat-tests::tmp::generic-3tuple-roundtrip
+(:wat::test::deftest :wat-tests::tmp::generic-3tuple-inferred
   ((:wat::core::define
      (:test::make-3tuple<T> (mid :T) -> :(wat::core::i64,T,wat::core::String))
      (:wat::core::Tuple 42 mid "hello")))
   (:wat::core::let*
     (((triple :(wat::core::i64,wat::core::bool,wat::core::String))
-      (:test::make-3tuple<wat::core::bool> true))
+      (:test::make-3tuple true))
      ((a :wat::core::i64) (:wat::core::first triple))
      ((b :wat::core::bool) (:wat::core::second triple))
      ((c :wat::core::String) (:wat::core::third triple))
