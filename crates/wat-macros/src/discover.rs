@@ -38,6 +38,13 @@ pub struct DeftestSite {
     /// `#[should_panic(expected = "<expected>")]` on the
     /// generated `#[test] fn`.
     pub should_panic: Option<String>,
+    /// Arc 123 — `(:wat::test::time-limit "<dur>")` annotation
+    /// preceding this deftest, if any. Stores the parsed duration
+    /// in milliseconds. Causes the proc macro to wrap the
+    /// generated `#[test] fn`'s body in a thread-spawn +
+    /// `recv_timeout`; if the budget is exceeded, the wrapper
+    /// panics with a timeout message.
+    pub time_limit_ms: Option<u64>,
 }
 
 /// Walk `root` (file or directory) and return every deftest site found
@@ -58,6 +65,7 @@ pub fn discover_deftests(root: &Path) -> Result<Vec<DeftestSite>, DiscoverError>
                 name: parsed.name,
                 ignore: parsed.ignore,
                 should_panic: parsed.should_panic,
+                time_limit_ms: parsed.time_limit_ms,
             });
         }
     }
@@ -71,6 +79,57 @@ pub struct ParsedSite {
     pub name: String,
     pub ignore: Option<String>,
     pub should_panic: Option<String>,
+    pub time_limit_ms: Option<u64>,
+}
+
+/// Arc 123 — parse a `:wat::test::time-limit` duration string.
+///
+/// Syntax: `<digits><suffix>` where `suffix` is one of `ms`, `s`,
+/// `m`. Returns the duration in **milliseconds** (the foundational
+/// resolution; finer granularity is not test-scale).
+///
+/// Examples: `"500ms"` → `500`. `"30s"` → `30_000`. `"5m"` →
+/// `300_000`.
+///
+/// The doctrine is ms-first (per arc 123 DESIGN.md). `s` and `m`
+/// suffixes are supported but not advertised — they exist for the
+/// rare exception (sandboxed integration tests, intentional sleep)
+/// and don't lead the docs.
+///
+/// Errors: missing suffix, non-numeric prefix, unknown suffix
+/// (e.g. `"500us"`, `"5min"`).
+pub fn parse_duration_ms(s: &str) -> Result<u64, String> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Err("empty duration string".into());
+    }
+    // Order matters — check 2-char suffixes before 1-char
+    // (so "ms" is recognized before "m" or "s").
+    if let Some(num_str) = s.strip_suffix("ms") {
+        return num_str
+            .parse::<u64>()
+            .map_err(|e| format!("invalid milliseconds in {:?}: {}", s, e));
+    }
+    if let Some(num_str) = s.strip_suffix('s') {
+        let n: u64 = num_str
+            .parse()
+            .map_err(|e| format!("invalid seconds in {:?}: {}", s, e))?;
+        return n
+            .checked_mul(1000)
+            .ok_or_else(|| format!("seconds overflow in {:?}", s));
+    }
+    if let Some(num_str) = s.strip_suffix('m') {
+        let n: u64 = num_str
+            .parse()
+            .map_err(|e| format!("invalid minutes in {:?}: {}", s, e))?;
+        return n
+            .checked_mul(60_000)
+            .ok_or_else(|| format!("minutes overflow in {:?}", s));
+    }
+    Err(format!(
+        "duration {:?} missing unit suffix; use 'ms' (preferred), 's', or 'm'",
+        s
+    ))
 }
 
 #[derive(Debug)]
@@ -141,6 +200,7 @@ pub fn scan_file(src: &str) -> Vec<ParsedSite> {
 
     let mut pending_ignore: Option<String> = None;
     let mut pending_should_panic: Option<String> = None;
+    let mut pending_time_limit_ms: Option<u64> = None;
 
     while i < bytes.len() {
         let b = bytes[i];
@@ -191,6 +251,19 @@ pub fn scan_file(src: &str) -> Vec<ParsedSite> {
                     }
                     i = skip_form(bytes, i);
                 }
+                ":wat::test::time-limit" => {
+                    let arg_start =
+                        skip_ws_and_comments(bytes, head_start + head_str.len());
+                    if let Some(dur_str) = read_string_literal(bytes, arg_start) {
+                        if let Ok(ms) = parse_duration_ms(&dur_str) {
+                            pending_time_limit_ms = Some(ms);
+                        }
+                        // Parse error silently dropped here — the proc
+                        // macro re-parses + emits compile_error! with
+                        // the message at the macro-expansion site.
+                    }
+                    i = skip_form(bytes, i);
+                }
                 ":wat::test::deftest" => {
                     let name_start =
                         skip_ws_and_comments(bytes, head_start + head_str.len());
@@ -201,6 +274,7 @@ pub fn scan_file(src: &str) -> Vec<ParsedSite> {
                             name,
                             ignore: pending_ignore.take(),
                             should_panic: pending_should_panic.take(),
+                            time_limit_ms: pending_time_limit_ms.take(),
                         });
                     }
                     i = skip_form(bytes, i);
@@ -211,6 +285,7 @@ pub fn scan_file(src: &str) -> Vec<ParsedSite> {
                     // immediately next deftest.
                     pending_ignore = None;
                     pending_should_panic = None;
+                    pending_time_limit_ms = None;
                     i = skip_form(bytes, i);
                 }
             }
@@ -617,5 +692,111 @@ mod tests {
     #[test]
     fn sanitize_handles_digit_start() {
         assert_eq!(sanitize_name(":1foo"), "_1foo");
+    }
+
+    // ─── Arc 123 — time-limit annotation + duration parser ──────
+
+    #[test]
+    fn parse_duration_milliseconds() {
+        assert_eq!(parse_duration_ms("500ms").unwrap(), 500);
+        assert_eq!(parse_duration_ms("1ms").unwrap(), 1);
+        assert_eq!(parse_duration_ms("0ms").unwrap(), 0);
+    }
+
+    #[test]
+    fn parse_duration_seconds() {
+        assert_eq!(parse_duration_ms("30s").unwrap(), 30_000);
+        assert_eq!(parse_duration_ms("1s").unwrap(), 1_000);
+    }
+
+    #[test]
+    fn parse_duration_minutes() {
+        assert_eq!(parse_duration_ms("5m").unwrap(), 300_000);
+        assert_eq!(parse_duration_ms("1m").unwrap(), 60_000);
+    }
+
+    #[test]
+    fn parse_duration_rejects_missing_suffix() {
+        assert!(parse_duration_ms("500").is_err());
+        assert!(parse_duration_ms("0").is_err());
+    }
+
+    #[test]
+    fn parse_duration_rejects_finer_than_ms() {
+        assert!(parse_duration_ms("500us").is_err());
+        assert!(parse_duration_ms("500ns").is_err());
+    }
+
+    #[test]
+    fn parse_duration_rejects_long_suffixes() {
+        assert!(parse_duration_ms("30sec").is_err());
+        assert!(parse_duration_ms("5min").is_err());
+        assert!(parse_duration_ms("1hour").is_err());
+    }
+
+    #[test]
+    fn parse_duration_rejects_non_numeric() {
+        assert!(parse_duration_ms("ms").is_err());
+        assert!(parse_duration_ms("abcms").is_err());
+        assert!(parse_duration_ms("").is_err());
+    }
+
+    #[test]
+    fn scan_attaches_time_limit_to_next_deftest() {
+        let src = r#"
+            (:wat::test::time-limit "500ms")
+            (:wat::test::deftest :my::bounded ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].name, ":my::bounded");
+        assert_eq!(sites[0].time_limit_ms, Some(500));
+    }
+
+    #[test]
+    fn scan_time_limit_with_seconds_suffix() {
+        let src = r#"
+            (:wat::test::time-limit "30s")
+            (:wat::test::deftest :my::slower ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites[0].time_limit_ms, Some(30_000));
+    }
+
+    #[test]
+    fn scan_time_limit_with_minutes_suffix() {
+        let src = r#"
+            (:wat::test::time-limit "5m")
+            (:wat::test::deftest :my::integration ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites[0].time_limit_ms, Some(300_000));
+    }
+
+    #[test]
+    fn scan_time_limit_stacks_with_other_annotations() {
+        let src = r#"
+            (:wat::test::ignore "intermittent")
+            (:wat::test::time-limit "100ms")
+            (:wat::test::should-panic "expected")
+            (:wat::test::deftest :my::all-three ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].ignore.as_deref(), Some("intermittent"));
+        assert_eq!(sites[0].should_panic.as_deref(), Some("expected"));
+        assert_eq!(sites[0].time_limit_ms, Some(100));
+    }
+
+    #[test]
+    fn scan_time_limit_cleared_by_unrelated_form() {
+        let src = r#"
+            (:wat::test::time-limit "500ms")
+            (:user::compute 1 2 3)
+            (:wat::test::deftest :my::no-attach ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].time_limit_ms, None);
     }
 }

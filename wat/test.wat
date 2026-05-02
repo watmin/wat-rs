@@ -440,3 +440,24 @@
 (:wat::core::define
   (:wat::test::should-panic (_expected :wat::core::String) -> :wat::core::unit)
   ())
+
+;; Arc 123 — :time-limit annotation. Sibling-form preceding a
+;; deftest: when present, the proc macro wraps the generated
+;; `#[test] fn`'s body in std::thread::spawn + recv_timeout. If
+;; the budget is exceeded, the wrapper panics and cargo reports
+;; the test as failed (timeout). The runaway worker thread leaks
+;; until process exit — Rust threads cannot be killed safely;
+;; honest in the panic message.
+;;
+;; Duration syntax: `<digits>{ms,s,m}`. Milliseconds is the
+;; foundational resolution; finer granularity is not test-scale.
+;; Lead with ms in examples; s and m supported but not
+;; advertised. Examples:
+;;
+;;   (:wat::test::time-limit "100ms")     ;; preferred
+;;   (:wat::test::time-limit "30s")        ;; supported
+;;   (:wat::test::time-limit "5m")         ;; supported
+;;   (:wat::test::deftest :my::test () body)
+(:wat::core::define
+  (:wat::test::time-limit (_dur :wat::core::String) -> :wat::core::unit)
+  ())

@@ -640,12 +640,48 @@ pub fn test(input: TokenStream) -> TokenStream {
                     quote! { #[should_panic(expected = #expected)] }
                 });
 
-            quote! {
-                #[test]
-                #ignore_attr
-                #should_panic_attr
-                fn #fn_ident() {
-                    let __wat_loader_root: &'static str = #loader_root;
+            let stdlib_calls = stdlib_calls.clone();
+            let register_paths = register_paths.clone();
+            let loader_root_local = loader_root.clone();
+
+            // Arc 123 — when :time-limit is set, wrap the body in a
+            // thread::spawn + recv_timeout. recv_timeout::Err panics
+            // with the timeout message; cargo sees the test failed.
+            // The runaway worker thread leaks (Rust threads cannot be
+            // killed safely from outside) — process exit reaps it.
+            // Honest in the panic message.
+            let body = if let Some(ms) = site.time_limit_ms {
+                let timeout_msg = format!(
+                    "{}: exceeded time-limit of {}ms (test thread leaked — process exit will reap)",
+                    fn_name, ms,
+                );
+                quote! {
+                    let (__wat_tx, __wat_rx) = ::std::sync::mpsc::channel::<()>();
+                    let _ = ::std::thread::spawn(move || {
+                        let __wat_loader_root: &'static str = #loader_root_local;
+                        let __wat_loader: ::std::sync::Arc<
+                            dyn ::wat::load::SourceLoader,
+                        > = ::std::sync::Arc::new(
+                            ::wat::load::ScopedLoader::new(__wat_loader_root)
+                                .expect("wat::test! loader path must exist"),
+                        );
+                        ::wat::test_runner::run_single_deftest(
+                            ::std::path::Path::new(#file_path_str),
+                            #deftest_name,
+                            &[ #(#stdlib_calls),* ],
+                            &[ #(#register_paths),* ],
+                            __wat_loader,
+                        );
+                        let _ = __wat_tx.send(());
+                    });
+                    match __wat_rx.recv_timeout(::std::time::Duration::from_millis(#ms)) {
+                        Ok(_) => {}
+                        Err(_) => panic!(#timeout_msg),
+                    }
+                }
+            } else {
+                quote! {
+                    let __wat_loader_root: &'static str = #loader_root_local;
                     let __wat_loader: ::std::sync::Arc<
                         dyn ::wat::load::SourceLoader,
                     > = ::std::sync::Arc::new(
@@ -659,6 +695,15 @@ pub fn test(input: TokenStream) -> TokenStream {
                         &[ #(#register_paths),* ],
                         __wat_loader,
                     );
+                }
+            };
+
+            quote! {
+                #[test]
+                #ignore_attr
+                #should_panic_attr
+                fn #fn_ident() {
+                    #body
                 }
             }
         })
