@@ -310,6 +310,41 @@ canonically named, and substrate-symmetric. The mutex-via-RPC
 framing is honest at every layer (wire shape, naming, doctrine
 docs).
 
+## Execution checklist (compaction-amnesia-resistant)
+
+Read this section first if picking up arc 119 mid-flight. The
+runtime task list (#202–#209) holds the same items but does not
+survive a fresh session; this checklist does. **Steps run
+sequentially** — each depends on the prior.
+
+| # | Step | Status |
+|---|---|---|
+| 1 | Revert HolonLRU substrate WIP — `git checkout HEAD -- crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat`. Discards stale partial single-item Put+ack-tx work that doesn't match this DESIGN. Returns substrate to canonical pre-119 state. | pending |
+| 2 | Reshape `:wat::lru::*` substrate file. Retire `Body<K,V>`; mint `Entry<K,V> = (K,V)`; mint `PutAckTx/Rx/Channel` (`Sender<unit>`); reshape `Request<K,V>` from `(Body, ReplyTx)` tagged-tuple to enum `{Get(probes:Vec<K>, reply-tx:GetReplyTx<V>) \| Put(entries:Vec<Entry<K,V>>, ack-tx:PutAckTx)}`; widen `ReplyTx<V>` body from `Sender<Option<V>>` to `Sender<Vec<Option<V>>>`. Variant-scoped names: `GetReplyTx` for data-back, `PutAckTx` for unit-ack. | pending |
+| 3 | Reshape `:wat::lru::*` driver loop + verbs. Driver: Get iterates probes, builds `Vec<Option<V>>`, sends on reply-tx; Put iterates entries, mutates state, sends `()` on ack-tx after batch persisted. Verbs `:wat::lru::get` / `:wat::lru::put` take `Vec` types; single-item callers wrap in batches-of-one. | pending |
+| 4 | Reshape `:wat::holon::lru::HologramCacheService` surface. Mint `PutAckTx/Rx/Channel` + `Entry` typealiases under the `HologramCacheService::` prefix (K.holon-lru flattens them later); widen `GetReplyTx` body to `Sender<Vec<Option<HolonAST>>>`; reshape Request enum to batch-Get + batch-Put variants matching LRU's surface (with K=V=HolonAST). | pending |
+| 5 | Reshape HolonLRU driver loop + verbs. Per Get dispatch: iterate probes, look up via `HologramCache/get`, collect into `Vec<Option<HolonAST>>`, send on reply-tx. Per Put dispatch: iterate entries, call `HologramCache/put` for each, send `()` on ack-tx after batch persisted. Verbs `(get probes)` / `(put entries)` take Vec args. | pending |
+| 6 | `cargo test --release --workspace` baseline + diagnostic capture. Expect baseline pre-sweep failures localized to call-site shape mismatches in wat-tests + lab consumers. Confirm no Rust-level regressions (parser/walker/dispatch). Capture substrate-as-teacher diagnostic stream as the brief for step 7. | pending |
+| 7 | Consumer sweep across both crates' wat-tests + lab consumers. Sonnet-delegated under substrate-as-teacher protocol: every `(get k)` becomes `(get [k])`; every Put without ack becomes `(Put [(k,v)] ack-tx)` with caller pre-allocating `PutAckTx/PutAckRx` and blocking on rx after sending. ~30-50 sites total across `crates/wat-lru/wat-tests`, `crates/wat-holon-lru/wat-tests`, `holon-lab-trading` consumers. **Orchestrator verifies via `git diff --stat`** against agent reports per the trust-but-verify protocol. | pending |
+| 8 | Closure: arc 119 INSCRIPTION + 058 changelog row + arc 109 INVENTORY § K mark. Note: substrate-uniform batch convention now holds (every non-Console service obeys `CONVENTIONS.md` § "Batch convention"). K.holon-lru becomes unblocked for the naming flatten. | pending |
+
+**Discipline anchors** (apply to every step):
+
+- **No broken commits.** Each step lands on a green workspace
+  (`cargo test --release --workspace` passes). Step 6's failures
+  are pre-sweep expected; step 7 closes them.
+- **Push on commit.** Every commit pushes to origin/main.
+- **Trust but verify agent reports.** Orchestrator runs
+  `git diff --stat` after every sonnet sweep and matches against
+  the agent's claimed file list before commit.
+- **Substrate-as-teacher diagnostic stream is the brief.** Step
+  7's sweep agent receives `cargo test` diagnostic output, not a
+  hand-written rename map; the substrate teaches what to fix.
+- **Compaction-amnesia mitigation.** This DESIGN.md is the
+  durable record. If context dies mid-arc, the next session
+  reads this checklist and the locked plan above; nothing else
+  is required to resume.
+
 ## Cross-references
 
 - `docs/ZERO-MUTEX.md` § "Mini-TCP via paired channels" — the
