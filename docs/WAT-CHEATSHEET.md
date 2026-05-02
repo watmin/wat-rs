@@ -185,8 +185,35 @@ Same rule applies to `Process/join-result`. Arc 117 enforces it
 at type-check time. Arc 131 extended it to `HandlePool<T>` —
 when T (after alias resolution) contains a Sender, a HandlePool
 sibling to a Thread with `Thread/join-result` fires the same
-diagnostic with `(a HandlePool)` as the offending kind. See
-`SERVICE-PROGRAMS.md § "The lockstep"` for the why.
+diagnostic with `(a HandlePool)` as the offending kind. Arc 133
+extended visibility to tuple-destructure bindings
+`((pool driver) ...)` so the check sees them uniformly with
+typed-name shapes. See `SERVICE-PROGRAMS.md § "The lockstep"`
+for the why.
+
+Arc 134 added two structural narrowings to reduce false positives
+on canonical Thread<I,O> usage:
+
+- **Origin-trace exemption.** A Sender whose binding RHS is
+  `(:wat::kernel::Thread/input <_>)` or `Process/input` extracts
+  the parent-side end of an internal pipe owned by the Thread
+  struct. The pair-Receiver is the spawned function's `in`
+  parameter — lifetime-coupled to the Thread. The rule does NOT
+  fire on this shape, even when sibling to `Thread/join-result`.
+
+- **Body-form exemption.** When the Thread's binding RHS is a
+  spawn call whose function argument is an inline lambda whose
+  body contains no `(:wat::kernel::recv ...)` / `try-recv` /
+  `select` call, no recv-loop can exist; no Sender lifetime can
+  deadlock the thread. The rule does NOT fire for any sibling
+  Sender in that case.
+
+Both narrowings are heuristic — a body that calls a helper
+function which recvs, or a lambda body with an unbounded recv-
+loop on its input pipe, can still deadlock at runtime; arc
+134's narrowings prefer precision over conservative-fire and
+accept the runtime hang as the cost. See arc 134's INSCRIPTION
+for the full failure-engineering record.
 
 ## 11. Channel-pair-deadlock rule
 
