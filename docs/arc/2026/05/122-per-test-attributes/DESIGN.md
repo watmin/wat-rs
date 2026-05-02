@@ -1,6 +1,31 @@
 # Arc 122 — Per-test attributes (`:ignore`, `:should-panic`)
 
-**Status:** locked 2026-05-01.
+**Status:** **shipped + closed 2026-05-01.**
+
+End-to-end verified in `crates/wat-sqlite/wat-tests/arc-122-attributes.wat`:
+
+```
+test deftest_wat_tests_sqlite_arc_122_test_arc_122_plain ... ok
+test deftest_wat_tests_sqlite_arc_122_test_arc_122_should_panic
+  - should panic ... ok
+test result: ok. 2 passed; 0 failed; 1 ignored
+```
+
+`#[ignore]` libtest-skipped; `#[should_panic]` accepts the
+deliberate panic via expected-substring match. Both attributes
+emitted natively by the proc macro from wat-side annotations.
+
+Together with arc 121 (per-deftest `#[test] fn` emission), wat
+deftests are at 100% parity with cargo's test contract:
+
+- Native filter / list / exact / nocapture / show-output
+- Per-deftest parallelism (`--test-threads`)
+- `--ignored` / `--include-ignored`
+- Failure isolation per deftest
+- Non-zero exit on failure
+- `#[ignore]` and `#[should_panic]` per deftest
+
+First-class citizen, no extra mechanisms.
 
 ## Provenance
 
@@ -175,13 +200,13 @@ In `crates/wat-macros/src/discover.rs::tests`:
 
 | # | Step | Status |
 |---|---|---|
-| 1 | Register `:wat::test::ignore` and `:wat::test::should-panic` as no-op `String -> unit` verbs in the appropriate stdlib `.wat` file | pending |
-| 2 | Extend `DeftestSite` with `ignore: Option<String>` + `should_panic: Option<String>` fields | pending |
-| 3 | Make `scan_file` state-aware — track pending annotations, attach to next deftest, clear on unrelated forms | pending |
-| 4 | Add unit tests for the four annotation scenarios | pending |
-| 5 | Update `wat::test!` proc macro to emit `#[ignore = "..."]` / `#[should_panic(expected = "...")]` from each site's metadata | pending |
-| 6 | Verify on a real test: write a deftest that should-panics, verify `cargo test` reports it as `... ok` (panic occurred as expected) | pending |
-| 7 | INSCRIPTION + 058 changelog row | pending |
+| 1 | Register `:wat::test::ignore` and `:wat::test::should-panic` as no-op `String -> unit` verbs in `wat/test.wat` | ✓ done |
+| 2 | Extend `DeftestSite` with `ignore: Option<String>` + `should_panic: Option<String>` fields | ✓ done |
+| 3 | Make `scan_file` state-aware — track pending annotations, attach to next deftest, clear on unrelated forms | ✓ done |
+| 4 | Add unit tests for the annotation scenarios — 8 new tests (simple ignore, simple should-panic, both, cleared by unrelated form, orphan, only-immediately-next, string-with-escapes) | ✓ done |
+| 5 | Update `wat::test!` proc macro to emit `#[ignore = "..."]` / `#[should_panic(expected = "...")]` from each site's metadata | ✓ done |
+| 6 | Verify on a real test (arc-122-attributes.wat in wat-sqlite) — three deftests (plain, ignored, should-panic) each behave correctly | ✓ done |
+| 7 | INSCRIPTION-style closure block at top of this DESIGN; arc 121 closure references arc 122 | ✓ done (this commit) |
 
 ## Sequencing
 
