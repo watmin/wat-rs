@@ -410,6 +410,103 @@ pub fn run_and_assert_with_loader(
     }
 }
 
+/// Arc 121 — run ONE deftest by name. What the post-arc-121
+/// `wat::test!` proc macro expands each `(:wat::test::deftest ...)`
+/// form into. Loads + parses + freezes the file, locates the
+/// deftest function, runs only it, panics with the structured
+/// failure summary on error so cargo's libtest sees the failure
+/// in its native shape.
+///
+/// `deftest_name` is the full keyword name discovered by the macro
+/// (e.g. `:wat-tests::holon::lru::test-foo`). The function lookup
+/// is by symbol-table name; the deftest macro binds its body
+/// under exactly that name.
+pub fn run_single_deftest(
+    file: &Path,
+    deftest_name: &str,
+    dep_sources: &[&'static [WatSource]],
+    dep_registrars: &[DepRegistrar],
+    loader: Arc<dyn SourceLoader>,
+) {
+    crate::panic_hook::install();
+
+    let mut builder = RustDepsBuilder::with_wat_rs_defaults();
+    for registrar in dep_registrars {
+        registrar(&mut builder);
+    }
+    let _ = rust_deps::install(builder.build());
+    let _ = source::install_dep_sources(dep_sources.to_vec());
+
+    let src = match std::fs::read_to_string(file) {
+        Ok(s) => s,
+        Err(e) => panic!("test-runner: read {}: {}", file.display(), e),
+    };
+
+    let canonical = std::fs::canonicalize(file)
+        .ok()
+        .map(|p| p.display().to_string());
+    let frozen = match startup_from_source(
+        &src,
+        canonical.as_deref(),
+        loader,
+    ) {
+        Ok(f) => f,
+        Err(e) => {
+            let label = format!("test-runner: {}", file.display());
+            for diag in e.diagnostics() {
+                emit_structured_diagnostic(&label, &diag);
+            }
+            panic!("test-runner: {}: startup: {}", file.display(), e);
+        }
+    };
+
+    let func = match frozen.symbols().get(deftest_name) {
+        Some(f) => f.clone(),
+        None => panic!(
+            "test-runner: {}: deftest {} not found in frozen symbols (arc 121: scanner found this name at compile time but the runtime symbol table doesn't have it)",
+            file.display(), deftest_name,
+        ),
+    };
+
+    let short_name = file
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown.wat");
+    let label = format!("test {} :: {}", short_name, strip_leading_colon(deftest_name));
+
+    let invoke = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        apply_function(func, Vec::new(), frozen.symbols(), crate::rust_caller_span!())
+    }));
+
+    match invoke {
+        Ok(Ok(value)) => match failure_to_diagnostic(&value) {
+            None => {} // pass
+            Some(diag) => {
+                emit_structured_diagnostic(&label, &diag);
+                let fail = render_failure_text(&diag);
+                panic!("{}\n{}", label, fail);
+            }
+        },
+        Ok(Err(err)) => {
+            let diag = crate::diagnostic::Diagnostic::new("RuntimeError")
+                .field("message", format!("{}", err));
+            emit_structured_diagnostic(&label, &diag);
+            panic!("{}\n  runtime: {}", label, err);
+        }
+        Err(_) => {
+            let diag = crate::diagnostic::Diagnostic::new("TestPanicEscaped").field(
+                "reason",
+                "panic escaped test body (assertion panics should be caught inside)",
+            );
+            emit_structured_diagnostic(&label, &diag);
+            panic!(
+                "{}\n  panic escaped test body (assertion panics should be caught inside)",
+                label,
+            );
+        }
+    }
+}
+
 // ─── Discovery helpers (lifted from src/bin/wat.rs) ─────────────────
 
 /// Resolve a path into a list of `.wat` files.

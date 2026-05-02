@@ -26,6 +26,7 @@ use proc_macro::TokenStream;
 use syn::{parse_macro_input, Error, ItemImpl, LitStr};
 
 mod codegen;
+mod discover;
 
 /// The scope modes a shim can declare for its returned `Self` type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -424,8 +425,10 @@ pub fn main(input: TokenStream) -> TokenStream {
 
 struct TestInput {
     /// Arc 018 — optional. When absent, expansion defaults to
-    /// `"wat-tests"`.
-    path: Option<syn::Expr>,
+    /// `"wat-tests"`. Arc 121: must be a string literal — the proc
+    /// macro reads the path at expansion time to discover deftests
+    /// and emit one `#[test] fn` per deftest.
+    path: Option<LitStr>,
     deps: Vec<Path>,
     /// Arc 017 — optional `loader: "..."` string-literal.
     /// Arc 018 default rule:
@@ -444,7 +447,7 @@ impl Parse for TestInput {
         // All three keys are optional (arc 018). Accept them in any
         // order; each at most once. Empty braces `wat::test! {}` is
         // the maximally-opinionated form.
-        let mut path: Option<syn::Expr> = None;
+        let mut path: Option<LitStr> = None;
         let mut deps: Vec<Path> = Vec::new();
         let mut deps_seen = false;
         let mut loader: Option<LitStr> = None;
@@ -458,7 +461,13 @@ impl Parse for TestInput {
                     if path.is_some() {
                         return Err(Error::new(key.span(), "duplicate `path:` arg"));
                     }
-                    path = Some(input.parse()?);
+                    let lit: LitStr = input.parse().map_err(|e| {
+                        Error::new(
+                            e.span(),
+                            "`path:` expects a string literal — the proc macro reads the path at expansion time to discover deftests (arc 121)",
+                        )
+                    })?;
+                    path = Some(lit);
                 }
                 "deps" => {
                     if deps_seen {
@@ -508,8 +517,12 @@ impl Parse for TestInput {
     }
 }
 
-/// Declarative test-suite entry — expands to `#[test] fn wat_suite()`.
-/// See module docs.
+/// Declarative test-suite entry — expands to one `#[test] fn` per
+/// `(:wat::test::deftest <name> ...)` form discovered at the
+/// configured path. Each deftest becomes a first-class cargo test
+/// (arc 121); `cargo test <name>` filters via libtest's native
+/// argument parsing, `cargo test --list` shows every deftest by
+/// name, parallelism happens per-deftest. See module docs.
 #[proc_macro]
 pub fn test(input: TokenStream) -> TokenStream {
     let TestInput {
@@ -528,16 +541,16 @@ pub fn test(input: TokenStream) -> TokenStream {
         .collect();
 
     // Arc 018 — opinionated defaults for `path:`.
-    let path_expr: TokenStream2 = match path {
-        Some(expr) => quote! { #expr },
-        None => quote! { "wat-tests" },
-    };
+    let path_lit: LitStr = path.unwrap_or_else(|| LitStr::new(
+        "wat-tests",
+        proc_macro2::Span::call_site(),
+    ));
+    let path_str = path_lit.value();
 
     // Arc 027 slice 3 — default loader scope widens to
     // CARGO_MANIFEST_DIR (the crate root) so test bodies can reach
     // sibling trees via relative-path (:wat::load-file!) calls.
-    // Explicit `loader: "<subpath>"` still wins — same pre-027 shape,
-    // just with the default moved up one directory level.
+    // Explicit `loader: "<subpath>"` still wins.
     let loader_root: TokenStream2 = match loader {
         Some(loader_lit) => {
             quote! { concat!(env!("CARGO_MANIFEST_DIR"), "/", #loader_lit) }
@@ -545,23 +558,119 @@ pub fn test(input: TokenStream) -> TokenStream {
         None => quote! { env!("CARGO_MANIFEST_DIR") },
     };
 
-    let expanded = quote! {
-        #[test]
-        fn wat_suite() {
-            let __wat_loader_root: &'static str = #loader_root;
-            let __wat_loader: ::std::sync::Arc<
-                dyn ::wat::load::SourceLoader,
-            > = ::std::sync::Arc::new(
-                ::wat::load::ScopedLoader::new(__wat_loader_root)
-                    .expect("wat::test! loader path must exist"),
-            );
-            ::wat::test_runner::run_and_assert_with_loader(
-                ::std::path::Path::new(#path_expr),
-                &[ #(#stdlib_calls),* ],
-                &[ #(#register_paths),* ],
-                __wat_loader,
-            );
+    // Arc 121 — discover deftests at expansion time. CARGO_MANIFEST_DIR
+    // is set when the proc macro runs, so we can resolve the path to
+    // an absolute location and walk it.
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+        .expect("CARGO_MANIFEST_DIR must be set when proc macro runs");
+    let discovery_root = std::path::Path::new(&manifest_dir).join(&path_str);
+
+    let sites = match discover::discover_deftests(&discovery_root) {
+        Ok(s) => s,
+        Err(e) => {
+            return Error::new(
+                path_lit.span(),
+                format!("wat::test! discover_deftests({}): {}",
+                    discovery_root.display(), e),
+            )
+            .to_compile_error()
+            .into();
         }
+    };
+
+    if sites.is_empty() {
+        // No deftests under the path. Emit a single failing test so
+        // cargo surfaces the empty-suite as a clear panic. Mirrors the
+        // pre-arc-121 `no_tests_discovered` panic.
+        let path_for_msg = discovery_root.display().to_string();
+        let panic_msg = format!(
+            "wat::test! found no `(:wat::test::deftest ...)` forms under {}",
+            path_for_msg,
+        );
+        let expanded = quote! {
+            #[test]
+            fn wat_no_deftests_found() {
+                panic!(#panic_msg);
+            }
+        };
+        return expanded.into();
+    }
+
+    // Per-deftest #[test] fn emission. Sanitize each deftest name to a
+    // valid Rust identifier; check for sanitized-name collisions and
+    // emit a clear compile error if any deftest names collide after
+    // sanitization.
+    let mut seen_names: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    for site in &sites {
+        let sanitized = discover::sanitize_name(&site.name);
+        if let Some(prior) = seen_names.insert(sanitized.clone(), site.name.clone()) {
+            return Error::new(
+                path_lit.span(),
+                format!(
+                    "wat::test! sanitized-name collision: {} and {} both → deftest_{} (arc 121)",
+                    prior, site.name, sanitized,
+                ),
+            )
+            .to_compile_error()
+            .into();
+        }
+    }
+
+    let test_fns: Vec<TokenStream2> = sites
+        .iter()
+        .map(|site| {
+            let fn_name = format!("deftest_{}", discover::sanitize_name(&site.name));
+            let fn_ident = syn::Ident::new(&fn_name, proc_macro2::Span::call_site());
+            let file_path_str = site.file_path.to_string_lossy().to_string();
+            let deftest_name = &site.name;
+            quote! {
+                #[test]
+                fn #fn_ident() {
+                    let __wat_loader_root: &'static str = #loader_root;
+                    let __wat_loader: ::std::sync::Arc<
+                        dyn ::wat::load::SourceLoader,
+                    > = ::std::sync::Arc::new(
+                        ::wat::load::ScopedLoader::new(__wat_loader_root)
+                            .expect("wat::test! loader path must exist"),
+                    );
+                    ::wat::test_runner::run_single_deftest(
+                        ::std::path::Path::new(#file_path_str),
+                        #deftest_name,
+                        &[ #(#stdlib_calls),* ],
+                        &[ #(#register_paths),* ],
+                        __wat_loader,
+                    );
+                }
+            }
+        })
+        .collect();
+
+    // Cache invalidation — register every discovered .wat file as a
+    // build dependency via include_bytes!. If any file's contents
+    // change (including adding/removing deftests), Cargo recompiles
+    // the test binary which re-runs this proc macro.
+    let file_paths_for_cache: Vec<String> = {
+        let mut s: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for site in &sites {
+            s.insert(site.file_path.to_string_lossy().to_string());
+        }
+        s.into_iter().collect()
+    };
+    let cache_includes: Vec<TokenStream2> = file_paths_for_cache
+        .iter()
+        .map(|p| quote! { include_bytes!(#p) })
+        .collect();
+
+    let expanded = quote! {
+        // Cache-invalidation registry. Cargo's incremental compilation
+        // rebuilds proc-macro consumers when their source changes; the
+        // include_bytes! references here mark the .wat files as build
+        // dependencies so the test binary recompiles (and the macro
+        // re-discovers deftests) whenever a wat file changes.
+        const _WAT_TEST_FILE_DEPS: &[&[u8]] = &[ #(#cache_includes),* ];
+
+        #(#test_fns)*
     };
 
     expanded.into()
