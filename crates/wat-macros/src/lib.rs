@@ -657,7 +657,11 @@ pub fn test(input: TokenStream) -> TokenStream {
                 );
                 quote! {
                     let (__wat_tx, __wat_rx) = ::std::sync::mpsc::channel::<()>();
-                    let _ = ::std::thread::spawn(move || {
+                    // Arc 129 — keep the JoinHandle so we can recover the
+                    // panic payload if the inner thread terminates by
+                    // unwinding (and thereby drops the sender, signalling
+                    // Disconnected to recv_timeout below).
+                    let __wat_handle = ::std::thread::spawn(move || {
                         let __wat_loader_root: &'static str = #loader_root_local;
                         let __wat_loader: ::std::sync::Arc<
                             dyn ::wat::load::SourceLoader,
@@ -676,7 +680,38 @@ pub fn test(input: TokenStream) -> TokenStream {
                     });
                     match __wat_rx.recv_timeout(::std::time::Duration::from_millis(#ms)) {
                         Ok(_) => {}
-                        Err(_) => panic!(#timeout_msg),
+                        Err(::std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                            // Real timeout: inner thread is still running.
+                            // We can't safely kill a Rust thread from
+                            // outside; the runaway worker leaks until
+                            // process exit. Synthesized message preserves
+                            // arc-123's existing UX.
+                            panic!(#timeout_msg);
+                        }
+                        Err(::std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                            // Inner thread terminated before sending.
+                            // Either it completed normally and the send
+                            // failed silently (rare; defensive case
+                            // below), or it panicked and the sender was
+                            // dropped during unwind. Join the handle to
+                            // capture the panic payload, then re-raise so
+                            // the parent's panic message IS the inner
+                            // panic's message verbatim — preserving any
+                            // substring (assertion text, arc-126's
+                            // `channel-pair-deadlock`, etc.) that
+                            // `#[should_panic(expected = "...")]` matches
+                            // against.
+                            match __wat_handle.join() {
+                                Ok(()) => {
+                                    // Thread completed cleanly but didn't
+                                    // send. Defensive: treat as timeout.
+                                    panic!(#timeout_msg);
+                                }
+                                Err(payload) => {
+                                    ::std::panic::resume_unwind(payload);
+                                }
+                            }
+                        }
                     }
                 }
             } else {
