@@ -28,6 +28,16 @@ pub struct DeftestSite {
     /// Fully-qualified deftest keyword name, including the leading
     /// colon — e.g. `:wat-tests::holon::lru::test-foo`.
     pub name: String,
+    /// Arc 122 — `(:wat::test::ignore "<reason>")` annotation
+    /// preceding this deftest, if any. Causes the proc macro to
+    /// emit `#[ignore = "<reason>"]` on the generated `#[test] fn`.
+    pub ignore: Option<String>,
+    /// Arc 122 — `(:wat::test::should-panic "<expected>")`
+    /// annotation preceding this deftest, if any. Causes the proc
+    /// macro to emit
+    /// `#[should_panic(expected = "<expected>")]` on the
+    /// generated `#[test] fn`.
+    pub should_panic: Option<String>,
 }
 
 /// Walk `root` (file or directory) and return every deftest site found
@@ -42,14 +52,25 @@ pub fn discover_deftests(root: &Path) -> Result<Vec<DeftestSite>, DiscoverError>
     for file in &files {
         let src = fs::read_to_string(file)
             .map_err(|e| DiscoverError::Read(file.clone(), e.to_string()))?;
-        for name in scan_file(&src) {
+        for parsed in scan_file(&src) {
             sites.push(DeftestSite {
                 file_path: file.clone(),
-                name,
+                name: parsed.name,
+                ignore: parsed.ignore,
+                should_panic: parsed.should_panic,
             });
         }
     }
     Ok(sites)
+}
+
+/// One deftest as parsed from a single file. `discover_deftests`
+/// adds the `file_path` to produce a full `DeftestSite`.
+#[derive(Debug, Clone)]
+pub struct ParsedSite {
+    pub name: String,
+    pub ignore: Option<String>,
+    pub should_panic: Option<String>,
 }
 
 #[derive(Debug)]
@@ -99,17 +120,35 @@ fn collect_wat_files(root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Discover
     Ok(())
 }
 
-/// Scan one `.wat` source string for `(:wat::test::deftest <name> ...)`
-/// forms. Returns the discovered deftest names (full keyword form,
-/// leading colon included) in source order.
-pub fn scan_file(src: &str) -> Vec<String> {
+/// Scan one `.wat` source string for `(:wat::test::deftest <name>
+/// ...)` forms — and the per-test annotations that may precede each
+/// (`(:wat::test::ignore "<reason>")`,
+/// `(:wat::test::should-panic "<expected>")`) per arc 122.
+///
+/// Annotations are SIBLING forms preceding a deftest — pending state
+/// attaches to the next deftest discovered. Encountering any
+/// non-annotation form between an annotation and a deftest CLEARS
+/// the pending annotations (an annotation only applies to the
+/// immediately next deftest).
+///
+/// Comments are skipped (`;` to end of line). String literals are
+/// skipped (`"..."` with `\\` and `\"` escapes). The scanner is a
+/// hand-rolled paren-balanced reader, NOT a full wat parser.
+pub fn scan_file(src: &str) -> Vec<ParsedSite> {
     let bytes = src.as_bytes();
     let mut i = 0usize;
-    let mut depth: i32 = 0;
-    let mut names: Vec<String> = Vec::new();
+    let mut sites: Vec<ParsedSite> = Vec::new();
+
+    let mut pending_ignore: Option<String> = None;
+    let mut pending_should_panic: Option<String> = None;
 
     while i < bytes.len() {
         let b = bytes[i];
+
+        if b.is_ascii_whitespace() {
+            i += 1;
+            continue;
+        }
 
         // Line comment — ; to end of line.
         if b == b';' {
@@ -119,53 +158,70 @@ pub fn scan_file(src: &str) -> Vec<String> {
             continue;
         }
 
-        // String literal — "..." with \\ and \" escapes.
+        // String literal at the top level — skip (preserves
+        // pending annotations; no top-level form was opened).
         if b == b'"' {
-            i += 1;
-            while i < bytes.len() {
-                if bytes[i] == b'\\' && i + 1 < bytes.len() {
-                    i += 2;
-                    continue;
-                }
-                if bytes[i] == b'"' {
-                    i += 1;
-                    break;
-                }
-                i += 1;
-            }
+            i = skip_string(bytes, i);
             continue;
         }
 
         if b == b'(' {
-            depth += 1;
-            // Look for `:wat::test::deftest <name>` at the start of
-            // any list (any depth — deftests can be nested under
-            // sandbox forms, etc).
+            // Open a top-level form. Identify by head keyword.
             let after_paren = i + 1;
             let head_start = skip_ws_and_comments(bytes, after_paren);
-            if let Some(head) = read_keyword(bytes, head_start) {
-                if &src[head_start..head_start + head.len()] == ":wat::test::deftest" {
-                    let name_start = skip_ws_and_comments(bytes, head_start + head.len());
-                    if let Some(name) = read_keyword(bytes, name_start) {
-                        names.push(src[name_start..name_start + name.len()].to_string());
+            let head = read_keyword(bytes, head_start);
+            let head_str = head
+                .map(|h| std::str::from_utf8(h).unwrap_or(""))
+                .unwrap_or("");
+
+            match head_str {
+                ":wat::test::ignore" => {
+                    let arg_start =
+                        skip_ws_and_comments(bytes, head_start + head_str.len());
+                    if let Some(reason) = read_string_literal(bytes, arg_start) {
+                        pending_ignore = Some(reason);
                     }
+                    i = skip_form(bytes, i);
+                }
+                ":wat::test::should-panic" => {
+                    let arg_start =
+                        skip_ws_and_comments(bytes, head_start + head_str.len());
+                    if let Some(expected) = read_string_literal(bytes, arg_start) {
+                        pending_should_panic = Some(expected);
+                    }
+                    i = skip_form(bytes, i);
+                }
+                ":wat::test::deftest" => {
+                    let name_start =
+                        skip_ws_and_comments(bytes, head_start + head_str.len());
+                    if let Some(name_bytes) = read_keyword(bytes, name_start) {
+                        let name =
+                            std::str::from_utf8(name_bytes).unwrap_or("").to_string();
+                        sites.push(ParsedSite {
+                            name,
+                            ignore: pending_ignore.take(),
+                            should_panic: pending_should_panic.take(),
+                        });
+                    }
+                    i = skip_form(bytes, i);
+                }
+                _ => {
+                    // Any other top-level form clears pending
+                    // annotations. An annotation only attaches to the
+                    // immediately next deftest.
+                    pending_ignore = None;
+                    pending_should_panic = None;
+                    i = skip_form(bytes, i);
                 }
             }
-            i = after_paren;
             continue;
         }
 
-        if b == b')' {
-            depth -= 1;
-            i += 1;
-            continue;
-        }
-
+        // Stray byte at top level — advance.
         i += 1;
     }
 
-    let _ = depth; // depth tracked for future invariants; unused here
-    names
+    sites
 }
 
 /// Read a `:keyword` starting at `pos`. Returns the keyword's byte
@@ -210,6 +266,102 @@ fn skip_ws_and_comments(bytes: &[u8], mut pos: usize) -> usize {
     pos
 }
 
+/// Skip a string literal starting at `pos` (where `bytes[pos] ==
+/// b'"'`). Returns the position one past the closing quote.
+/// Honors `\\` and `\"` escapes.
+fn skip_string(bytes: &[u8], mut pos: usize) -> usize {
+    debug_assert_eq!(bytes[pos], b'"');
+    pos += 1;
+    while pos < bytes.len() {
+        if bytes[pos] == b'\\' && pos + 1 < bytes.len() {
+            pos += 2;
+            continue;
+        }
+        if bytes[pos] == b'"' {
+            return pos + 1;
+        }
+        pos += 1;
+    }
+    pos
+}
+
+/// Read a string literal starting at `pos` (which should point at
+/// `"`). Returns the unescaped string contents, or None if `pos`
+/// is not the start of a string. Handles `\\`, `\"`, `\n`, `\t`,
+/// `\r` escapes.
+fn read_string_literal(bytes: &[u8], pos: usize) -> Option<String> {
+    if pos >= bytes.len() || bytes[pos] != b'"' {
+        return None;
+    }
+    let mut out = String::new();
+    let mut p = pos + 1;
+    while p < bytes.len() {
+        let b = bytes[p];
+        if b == b'\\' && p + 1 < bytes.len() {
+            let escape = bytes[p + 1];
+            let ch = match escape {
+                b'\\' => '\\',
+                b'"' => '"',
+                b'n' => '\n',
+                b't' => '\t',
+                b'r' => '\r',
+                _ => {
+                    // Unknown escape — preserve verbatim.
+                    out.push('\\');
+                    out.push(escape as char);
+                    p += 2;
+                    continue;
+                }
+            };
+            out.push(ch);
+            p += 2;
+            continue;
+        }
+        if b == b'"' {
+            return Some(out);
+        }
+        out.push(b as char);
+        p += 1;
+    }
+    Some(out)
+}
+
+/// Skip a paren-form starting at `pos` (where `bytes[pos] == b'('`).
+/// Returns the position one past the matching close paren.
+/// Respects nested parens, comments, and string literals.
+fn skip_form(bytes: &[u8], mut pos: usize) -> usize {
+    debug_assert_eq!(bytes[pos], b'(');
+    let mut depth: i32 = 0;
+    while pos < bytes.len() {
+        let b = bytes[pos];
+        if b == b';' {
+            while pos < bytes.len() && bytes[pos] != b'\n' {
+                pos += 1;
+            }
+            continue;
+        }
+        if b == b'"' {
+            pos = skip_string(bytes, pos);
+            continue;
+        }
+        if b == b'(' {
+            depth += 1;
+            pos += 1;
+            continue;
+        }
+        if b == b')' {
+            depth -= 1;
+            pos += 1;
+            if depth == 0 {
+                return pos;
+            }
+            continue;
+        }
+        pos += 1;
+    }
+    pos
+}
+
 /// Sanitize a deftest's keyword name into a valid Rust identifier
 /// suitable for `#[test] fn` emission. Replaces every non-ident
 /// character with `_`.
@@ -249,14 +401,17 @@ pub fn sanitize_name(name: &str) -> String {
 mod tests {
     use super::*;
 
+    fn names_only(src: &str) -> Vec<String> {
+        scan_file(src).into_iter().map(|s| s.name).collect()
+    }
+
     #[test]
     fn scan_finds_simple_deftest() {
         let src = r#"
             (:wat::test::deftest :my::test-foo
               (:wat::core::let* () ()))
         "#;
-        let names = scan_file(src);
-        assert_eq!(names, vec![":my::test-foo".to_string()]);
+        assert_eq!(names_only(src), vec![":my::test-foo".to_string()]);
     }
 
     #[test]
@@ -266,9 +421,8 @@ mod tests {
             (:wat::test::deftest :second ())
             (:wat::test::deftest :third ())
         "#;
-        let names = scan_file(src);
         assert_eq!(
-            names,
+            names_only(src),
             vec![":first".to_string(), ":second".to_string(), ":third".to_string()]
         );
     }
@@ -280,8 +434,7 @@ mod tests {
             ; another comment
             (:wat::test::deftest :real ())
         "#;
-        let names = scan_file(src);
-        assert_eq!(names, vec![":real".to_string()]);
+        assert_eq!(names_only(src), vec![":real".to_string()]);
     }
 
     #[test]
@@ -290,8 +443,7 @@ mod tests {
             (:user::say "(:wat::test::deftest :inside-string ())")
             (:wat::test::deftest :real ())
         "#;
-        let names = scan_file(src);
-        assert_eq!(names, vec![":real".to_string()]);
+        assert_eq!(names_only(src), vec![":real".to_string()]);
     }
 
     #[test]
@@ -300,8 +452,7 @@ mod tests {
             (:user::say "an escaped \"quote\" then (:wat::test::deftest :nope ())")
             (:wat::test::deftest :real ())
         "#;
-        let names = scan_file(src);
-        assert_eq!(names, vec![":real".to_string()]);
+        assert_eq!(names_only(src), vec![":real".to_string()]);
     }
 
     #[test]
@@ -313,8 +464,7 @@ mod tests {
             (:deftest-x :my::nested ())
             (:wat::test::deftest :outer ())
         "#;
-        let names = scan_file(src);
-        assert_eq!(names, vec![":outer".to_string()]);
+        assert_eq!(names_only(src), vec![":outer".to_string()]);
     }
 
     #[test]
@@ -323,9 +473,8 @@ mod tests {
             (:wat::test::deftest :wat-tests::holon::lru::HologramCacheService::test-step1-spawn-join
               ())
         "#;
-        let names = scan_file(src);
         assert_eq!(
-            names,
+            names_only(src),
             vec![":wat-tests::holon::lru::HologramCacheService::test-step1-spawn-join".to_string()]
         );
     }
@@ -343,8 +492,106 @@ mod tests {
             (:user::say "( ) ; not a comment")
             (:wat::test::deftest :real ())
         "#;
-        let names = scan_file(src);
-        assert_eq!(names, vec![":real".to_string()]);
+        assert_eq!(names_only(src), vec![":real".to_string()]);
+    }
+
+    // ─── Arc 122 — per-test attributes ───────────────────────────
+
+    #[test]
+    fn scan_attaches_ignore_to_next_deftest() {
+        let src = r#"
+            (:wat::test::ignore "broken on Windows")
+            (:wat::test::deftest :my::flaky ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].name, ":my::flaky");
+        assert_eq!(sites[0].ignore.as_deref(), Some("broken on Windows"));
+        assert_eq!(sites[0].should_panic, None);
+    }
+
+    #[test]
+    fn scan_attaches_should_panic_to_next_deftest() {
+        let src = r#"
+            (:wat::test::should-panic "divide by zero")
+            (:wat::test::deftest :my::div-zero ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].name, ":my::div-zero");
+        assert_eq!(sites[0].ignore, None);
+        assert_eq!(sites[0].should_panic.as_deref(), Some("divide by zero"));
+    }
+
+    #[test]
+    fn scan_attaches_both_annotations() {
+        let src = r#"
+            (:wat::test::ignore "intermittent")
+            (:wat::test::should-panic "expected substring")
+            (:wat::test::deftest :my::combined ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].ignore.as_deref(), Some("intermittent"));
+        assert_eq!(sites[0].should_panic.as_deref(), Some("expected substring"));
+    }
+
+    #[test]
+    fn scan_clears_pending_on_unrelated_form() {
+        // An annotation followed by a non-deftest form should NOT
+        // attach to the later deftest.
+        let src = r#"
+            (:wat::test::ignore "stale")
+            (:user::compute 1 2 3)
+            (:wat::test::deftest :my::clean ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].name, ":my::clean");
+        assert_eq!(sites[0].ignore, None);
+    }
+
+    #[test]
+    fn scan_orphan_annotation_silently_ignored() {
+        // Annotation at the end of a file with no following deftest.
+        let src = r#"
+            (:wat::test::deftest :my::test ())
+            (:wat::test::ignore "trailing — never attaches")
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].ignore, None);
+    }
+
+    #[test]
+    fn scan_attaches_only_to_immediately_next_deftest() {
+        // First annotation attaches to first deftest only; the
+        // second deftest gets no annotation.
+        let src = r#"
+            (:wat::test::ignore "for first only")
+            (:wat::test::deftest :my::first ())
+            (:wat::test::deftest :my::second ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 2);
+        assert_eq!(sites[0].name, ":my::first");
+        assert_eq!(sites[0].ignore.as_deref(), Some("for first only"));
+        assert_eq!(sites[1].name, ":my::second");
+        assert_eq!(sites[1].ignore, None);
+    }
+
+    #[test]
+    fn scan_handles_string_escape_in_reason() {
+        let src = r#"
+            (:wat::test::ignore "with \"quote\" and \\backslash")
+            (:wat::test::deftest :my::escaped ())
+        "#;
+        let sites = scan_file(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(
+            sites[0].ignore.as_deref(),
+            Some("with \"quote\" and \\backslash")
+        );
     }
 
     #[test]

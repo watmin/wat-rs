@@ -412,3 +412,31 @@
        (body :AST<wat::core::unit>)
        -> :AST<wat::core::unit>)
      `(:wat::test::deftest-hermetic ,test-name ,,default-prelude ,body)))
+
+;; ─── Per-test attributes (arc 122) — :ignore + :should-panic ──────────
+;;
+;; Sibling-form annotations preceding a deftest. The wat::test! proc
+;; macro (arc 121's discovery scanner, arc 122's attribute extension)
+;; recognizes these forms and emits the matching Rust attribute on the
+;; generated `#[test] fn`:
+;;
+;;   (:wat::test::ignore "reason")
+;;   (:wat::test::deftest :my::test ...)
+;;     -> #[test] #[ignore = "reason"] fn deftest_my_test() { ... }
+;;
+;;   (:wat::test::should-panic "expected substring")
+;;   (:wat::test::deftest :my::test ...)
+;;     -> #[test] #[should_panic(expected = "...")] fn deftest_my_test() { ... }
+;;
+;; The annotations are valid wat forms — registered here as no-op
+;; `String -> unit` defines so the file type-checks. Their RUNTIME
+;; presence is irrelevant; their meaning is purely proc-macro-side.
+;; An annotation attaches to the IMMEDIATELY NEXT deftest; intervening
+;; non-annotation forms clear the pending annotation.
+(:wat::core::define
+  (:wat::test::ignore (_reason :wat::core::String) -> :wat::core::unit)
+  ())
+
+(:wat::core::define
+  (:wat::test::should-panic (_expected :wat::core::String) -> :wat::core::unit)
+  ())

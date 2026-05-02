@@ -624,8 +624,26 @@ pub fn test(input: TokenStream) -> TokenStream {
             let fn_ident = syn::Ident::new(&fn_name, proc_macro2::Span::call_site());
             let file_path_str = site.file_path.to_string_lossy().to_string();
             let deftest_name = &site.name;
+
+            // Arc 122 — emit per-test attributes from site metadata.
+            // `#[ignore = "..."]` if the deftest was preceded by
+            // `(:wat::test::ignore "...")`; libtest skips it by
+            // default and runs only with --ignored / --include-ignored.
+            // `#[should_panic(expected = "...")]` if preceded by
+            // `(:wat::test::should-panic "...")`; libtest treats a
+            // matching panic as test success.
+            let ignore_attr: Option<TokenStream2> = site.ignore.as_ref().map(|reason| {
+                quote! { #[ignore = #reason] }
+            });
+            let should_panic_attr: Option<TokenStream2> =
+                site.should_panic.as_ref().map(|expected| {
+                    quote! { #[should_panic(expected = #expected)] }
+                });
+
             quote! {
                 #[test]
+                #ignore_attr
+                #should_panic_attr
                 fn #fn_ident() {
                     let __wat_loader_root: &'static str = #loader_root;
                     let __wat_loader: ::std::sync::Arc<
