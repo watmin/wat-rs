@@ -152,7 +152,7 @@ fn constructor_arity_mismatch_rejected_at_check() {
     let errs = check_errors(src);
     let saw_arity = errs.iter().any(|e| matches!(
         e,
-        CheckError::ArityMismatch { callee, expected: 2, got: 1 }
+        CheckError::ArityMismatch { callee, expected: 2, got: 1, .. }
             if callee == ":my::market::Bar/new"
     ));
     assert!(saw_arity, "expected ArityMismatch on Bar/new; got {:?}", errs);

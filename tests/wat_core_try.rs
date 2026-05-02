@@ -172,7 +172,7 @@ fn try_with_zero_args_rejected_at_check() {
     let errs = check_errors(src);
     let saw_arity = errs.iter().any(|e| matches!(
         e,
-        CheckError::ArityMismatch { callee, expected: 1, got: 0 }
+        CheckError::ArityMismatch { callee, expected: 1, got: 0, .. }
             if callee == ":wat::core::Result/try"
     ));
     assert!(saw_arity, "expected ArityMismatch on :wat::core::Result/try; got {:?}", errs);
@@ -188,7 +188,7 @@ fn try_with_two_args_rejected_at_check() {
     let errs = check_errors(src);
     let saw_arity = errs.iter().any(|e| matches!(
         e,
-        CheckError::ArityMismatch { callee, expected: 1, got: 2 }
+        CheckError::ArityMismatch { callee, expected: 1, got: 2, .. }
             if callee == ":wat::core::Result/try"
     ));
     assert!(saw_arity, "expected ArityMismatch on :wat::core::Result/try; got {:?}", errs);

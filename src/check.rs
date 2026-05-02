@@ -1342,6 +1342,7 @@ fn validate_comm_positions(
         if !permitted {
             errors.push(CheckError::CommCallOutOfPosition {
                 callee: head_str.into(),
+                span: Span::unknown(),
             });
         }
         // Comm-call arguments are ordinary expressions; nested comm
@@ -2632,6 +2633,7 @@ fn check_function_body(
                 function: path.to_string(),
                 expected: format_type(&apply_subst(&scheme.ret, &subst)),
                 got: format_type(&apply_subst(&body_ty, &subst)),
+                span: Span::unknown(),
             });
         }
     }
@@ -2684,6 +2686,7 @@ fn infer(
                     param: "(retired bare-keyword exception)".into(),
                     expected: ":wat::core::None".into(),
                     got: ":None".into(),
+                    span: Span::unknown(),
                 });
             }
             Some(TypeExpr::Parametric {
@@ -2749,6 +2752,7 @@ fn infer_list(
                     param: "(retired verb)".into(),
                     expected: ":wat::core::Result/try".into(),
                     got: ":wat::core::try".into(),
+                    span: Span::unknown(),
                 });
                 return infer_try(":wat::core::try", args, env, locals, fresh, subst, errors);
             }
@@ -2758,6 +2762,7 @@ fn infer_list(
                     param: "(retired verb)".into(),
                     expected: ":wat::core::Option/expect".into(),
                     got: ":wat::core::option::expect".into(),
+                    span: Span::unknown(),
                 });
                 return infer_option_expect(
                     ":wat::core::option::expect",
@@ -2770,6 +2775,7 @@ fn infer_list(
                     param: "(retired verb)".into(),
                     expected: ":wat::core::Result/expect".into(),
                     got: ":wat::core::result::expect".into(),
+                    span: Span::unknown(),
                 });
                 return infer_result_expect(
                     ":wat::core::result::expect",
@@ -2810,6 +2816,7 @@ fn infer_list(
                     param: "(retired verb)".into(),
                     expected: ":wat::core::Vector".into(),
                     got: ":wat::core::vec".into(),
+                    span: Span::unknown(),
                 });
                 return infer_list_constructor(args, env, locals, fresh, subst, errors);
             }
@@ -2826,6 +2833,7 @@ fn infer_list(
                     param: "(retired verb)".into(),
                     expected: ":wat::core::Vector".into(),
                     got: ":wat::core::list".into(),
+                    span: Span::unknown(),
                 });
                 return infer_list_constructor(args, env, locals, fresh, subst, errors);
             }
@@ -2839,6 +2847,7 @@ fn infer_list(
                     param: "(retired verb)".into(),
                     expected: ":wat::core::Tuple".into(),
                     got: ":wat::core::tuple".into(),
+                    span: Span::unknown(),
                 });
                 return infer_tuple_constructor(args, env, locals, fresh, subst, errors);
             }
@@ -2865,6 +2874,7 @@ fn infer_list(
                         callee: ":wat::core::quote".into(),
                         expected: 1,
                         got: args.len(),
+                        span: Span::unknown(),
                     });
                 }
                 return Some(TypeExpr::Path(":wat::WatAST".into()));
@@ -2891,6 +2901,7 @@ fn infer_list(
                         callee: ":wat::core::struct->form".into(),
                         expected: 1,
                         got: args.len(),
+                        span: Span::unknown(),
                     });
                 } else {
                     let _ = infer(&args[0], env, locals, fresh, subst, errors);
@@ -2905,6 +2916,7 @@ fn infer_list(
                         callee: k.clone(),
                         expected: 1,
                         got: args.len(),
+                        span: Span::unknown(),
                     });
                     return Some(TypeExpr::Path(":wat::WatAST".into()));
                 }
@@ -2916,6 +2928,7 @@ fn infer_list(
                             param: "#1".into(),
                             expected: format_type(&apply_subst(&expected, subst)),
                             got: format_type(&apply_subst(&arg_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -3036,6 +3049,7 @@ fn infer_list(
                     param: "(retired verb)".into(),
                     expected: ":wat::kernel::Thread/join-result".into(),
                     got: ":wat::kernel::join".into(),
+                    span: Span::unknown(),
                 });
                 for arg in args {
                     let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -3048,6 +3062,7 @@ fn infer_list(
                     param: "(retired verb)".into(),
                     expected: ":wat::kernel::Thread/join-result".into(),
                     got: ":wat::kernel::join-result".into(),
+                    span: Span::unknown(),
                 });
                 for arg in args {
                     let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -3139,6 +3154,7 @@ fn infer_list(
                 callee: k.clone(),
                 expected: param_types.len(),
                 got: args.len(),
+                span: Span::unknown(),
             });
             for arg in args {
                 let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -3155,6 +3171,7 @@ fn infer_list(
                         param: format!("#{}", i + 1),
                         expected: format_type(&apply_subst(expected, subst)),
                         got: format_type(&apply_subst(&arg_ty, subst)),
+                        span: Span::unknown(),
                     });
                 }
             }
@@ -3186,6 +3203,7 @@ fn infer_list(
                 param: "(retired bare-symbol exception)".into(),
                 expected: ":wat::core::Some".into(),
                 got: "Some".into(),
+                span: Span::unknown(),
             });
         }
         let args = &items[1..];
@@ -3194,6 +3212,7 @@ fn infer_list(
                 callee: if head_is_some_bare { "Some".into() } else { ":wat::core::Some".into() },
                 expected: 1,
                 got: args.len(),
+                span: Span::unknown(),
             });
             for arg in args {
                 let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -3228,6 +3247,7 @@ fn infer_list(
                 param: "(retired bare-symbol exception)".into(),
                 expected: ":wat::core::Ok".into(),
                 got: "Ok".into(),
+                span: Span::unknown(),
             });
         }
         let args = &items[1..];
@@ -3236,6 +3256,7 @@ fn infer_list(
                 callee: if head_is_ok_bare { "Ok".into() } else { ":wat::core::Ok".into() },
                 expected: 1,
                 got: args.len(),
+                span: Span::unknown(),
             });
             for arg in args {
                 let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -3268,6 +3289,7 @@ fn infer_list(
                 param: "(retired bare-symbol exception)".into(),
                 expected: ":wat::core::Err".into(),
                 got: "Err".into(),
+                span: Span::unknown(),
             });
         }
         let args = &items[1..];
@@ -3276,6 +3298,7 @@ fn infer_list(
                 callee: if head_is_err_bare { "Err".into() } else { ":wat::core::Err".into() },
                 expected: 1,
                 got: args.len(),
+                span: Span::unknown(),
             });
             for arg in args {
                 let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -3336,6 +3359,7 @@ fn infer_match(
         errors.push(CheckError::MalformedForm {
             head: ":wat::core::match".into(),
             reason: "`:wat::core::match` now requires `-> :T` between scrutinee and arms; write (:wat::core::match scrut -> :T (pat body) ...)".into(),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -3349,6 +3373,7 @@ fn infer_match(
                 "expected (:wat::core::match scrut -> :T arm1 arm2 ...) — at least 4 args; got {}",
                 args.len()
             ),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -3363,6 +3388,7 @@ fn infer_match(
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
+                    span: Span::unknown(),
                 });
                 return None;
             }
@@ -3371,6 +3397,7 @@ fn infer_match(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::match".into(),
                 reason: "expected type keyword after `->`".into(),
+                span: Span::unknown(),
             });
             return None;
         }
@@ -3390,6 +3417,7 @@ fn infer_match(
                 param: "scrutinee".into(),
                 expected: format_type(&expected_scrutinee),
                 got: format_type(&apply_subst(sty, subst)),
+                span: Span::unknown(),
             });
         }
     }
@@ -3431,6 +3459,7 @@ fn infer_match(
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!("arm #{} must be `(pattern body)`", idx + 1),
+                    span: Span::unknown(),
                 });
                 continue;
             }
@@ -3510,6 +3539,7 @@ fn infer_match(
                     param: format!("arm #{}", idx + 1),
                     expected: format_type(&apply_subst(&declared_ty, subst)),
                     got: format_type(&apply_subst(&t, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -3563,6 +3593,7 @@ fn infer_match(
                     }
                 }
             },
+            span: Span::unknown(),
         });
     }
 
@@ -3768,6 +3799,7 @@ fn pattern_coverage(
                         ":None pattern on a {} scrutinee",
                         format_type(&shape.as_type())
                     ),
+                    span: Span::unknown(),
                 });
                 None
             }
@@ -3787,6 +3819,7 @@ fn pattern_coverage(
                                 "keyword pattern {} must be `<enum>::<Variant>`",
                                 k
                             ),
+                            span: Span::unknown(),
                         });
                         return None;
                     }
@@ -3798,6 +3831,7 @@ fn pattern_coverage(
                             "variant pattern {} doesn't belong to scrutinee enum {}",
                             k, enum_path
                         ),
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -3816,6 +3850,7 @@ fn pattern_coverage(
                                 "{} is a tagged variant; pattern must be (`{}` binders...)",
                                 k, k
                             ),
+                            span: Span::unknown(),
                         });
                         return None;
                     }
@@ -3826,6 +3861,7 @@ fn pattern_coverage(
                                 "variant {} is not declared on enum {}",
                                 variant_name, enum_path
                             ),
+                            span: Span::unknown(),
                         });
                         return None;
                     }
@@ -3838,6 +3874,7 @@ fn pattern_coverage(
                     errors.push(CheckError::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: format!("enum {} not declared", enum_path),
+                        span: Span::unknown(),
                     });
                     None
                 }
@@ -3850,6 +3887,7 @@ fn pattern_coverage(
                         k,
                         format_type(&shape.as_type())
                     ),
+                    span: Span::unknown(),
                 });
                 None
             }
@@ -3867,6 +3905,7 @@ fn pattern_coverage(
                     errors.push(CheckError::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: "empty list pattern".into(),
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -3894,6 +3933,7 @@ fn pattern_coverage(
                                 variant_path,
                                 format_type(&shape.as_type())
                             ),
+                            span: Span::unknown(),
                         });
                         return None;
                     }
@@ -3907,6 +3947,7 @@ fn pattern_coverage(
                                 "variant constructor pattern {} must be `<enum>::<Variant>`",
                                 variant_path
                             ),
+                            span: Span::unknown(),
                         });
                         return None;
                     }
@@ -3918,6 +3959,7 @@ fn pattern_coverage(
                             "variant constructor {} doesn't belong to scrutinee enum {}",
                             variant_path, enum_path
                         ),
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -3927,6 +3969,7 @@ fn pattern_coverage(
                         errors.push(CheckError::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!("enum {} not declared", enum_path),
+                            span: Span::unknown(),
                         });
                         return None;
                     }
@@ -3948,6 +3991,7 @@ fn pattern_coverage(
                                 "{} is not a tagged variant of {}",
                                 variant_path, enum_path
                             ),
+                            span: Span::unknown(),
                         });
                         return None;
                     }
@@ -3961,6 +4005,7 @@ fn pattern_coverage(
                             fields.len(),
                             rest.len()
                         ),
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -3995,6 +4040,7 @@ fn pattern_coverage(
                             "list pattern head must be a variant constructor; got {}",
                             ast_variant_name_check(other)
                         ),
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -4068,6 +4114,7 @@ fn pattern_coverage(
                     errors.push(CheckError::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason,
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -4080,6 +4127,7 @@ fn pattern_coverage(
                         ctor_name,
                         rest.len()
                     ),
+                    span: Span::unknown(),
                 });
                 return None;
             }
@@ -4093,6 +4141,7 @@ fn pattern_coverage(
                     "pattern must be keyword, symbol, or list; got {}",
                     ast_variant_name_check(other)
                 ),
+                span: Span::unknown(),
             });
             None
         }
@@ -4146,6 +4195,7 @@ fn check_subpattern(
                         "int literal pattern in {} position",
                         format_type(other)
                     ),
+                    span: Span::unknown(),
                 });
                 None
             }
@@ -4159,6 +4209,7 @@ fn check_subpattern(
                         "float literal pattern in {} position",
                         format_type(other)
                     ),
+                    span: Span::unknown(),
                 });
                 None
             }
@@ -4172,6 +4223,7 @@ fn check_subpattern(
                         "bool literal pattern in {} position",
                         format_type(other)
                     ),
+                    span: Span::unknown(),
                 });
                 None
             }
@@ -4185,6 +4237,7 @@ fn check_subpattern(
                         "string literal pattern in {} position",
                         format_type(other)
                     ),
+                    span: Span::unknown(),
                 });
                 None
             }
@@ -4202,6 +4255,7 @@ fn check_subpattern(
                         ":None pattern in {} position",
                         format_type(other)
                     ),
+                    span: Span::unknown(),
                 });
                 None
             }
@@ -4218,6 +4272,7 @@ fn check_subpattern(
                             "keyword sub-pattern {} must be `<enum>::<Variant>` or `:None`",
                             k
                         ),
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -4232,6 +4287,7 @@ fn check_subpattern(
                             k,
                             format_type(other)
                         ),
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -4243,6 +4299,7 @@ fn check_subpattern(
                         "variant pattern {} doesn't belong to expected enum {}",
                         k, enum_path
                     ),
+                    span: Span::unknown(),
                 });
                 return None;
             }
@@ -4257,6 +4314,7 @@ fn check_subpattern(
                             "{} is not a unit variant of {} (use `({} ...)` for tagged variants)",
                             k, enum_path, k
                         ),
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -4265,6 +4323,7 @@ fn check_subpattern(
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!("enum {} not declared", enum_path),
+                    span: Span::unknown(),
                 });
                 None
             }
@@ -4276,6 +4335,7 @@ fn check_subpattern(
                     errors.push(CheckError::MalformedForm {
                         head: ":wat::core::match".into(),
                         reason: "empty list sub-pattern".into(),
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -4303,6 +4363,7 @@ fn check_subpattern(
                                     "(Some _) takes exactly one field, got {}",
                                     items.len() - 1
                                 ),
+                                span: Span::unknown(),
                             });
                             return None;
                         }
@@ -4320,6 +4381,7 @@ fn check_subpattern(
                                     "(Ok _) takes exactly one field, got {}",
                                     items.len() - 1
                                 ),
+                                span: Span::unknown(),
                             });
                             return None;
                         }
@@ -4337,6 +4399,7 @@ fn check_subpattern(
                                     "(Err _) takes exactly one field, got {}",
                                     items.len() - 1
                                 ),
+                                span: Span::unknown(),
                             });
                             return None;
                         }
@@ -4372,6 +4435,7 @@ fn check_subpattern(
                             variant_path,
                             format_type(expected_ty)
                         ),
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -4385,6 +4449,7 @@ fn check_subpattern(
                                 variant_path,
                                 format_type(other)
                             ),
+                            span: Span::unknown(),
                         });
                         return None;
                     }
@@ -4398,6 +4463,7 @@ fn check_subpattern(
                                 "variant constructor pattern {} must be `<enum>::<Variant>`",
                                 variant_path
                             ),
+                            span: Span::unknown(),
                         });
                         return None;
                     }
@@ -4409,6 +4475,7 @@ fn check_subpattern(
                             "variant constructor {} doesn't belong to expected enum {}",
                             variant_path, enum_path
                         ),
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -4418,6 +4485,7 @@ fn check_subpattern(
                         errors.push(CheckError::MalformedForm {
                             head: ":wat::core::match".into(),
                             reason: format!("enum {} not declared", enum_path),
+                            span: Span::unknown(),
                         });
                         return None;
                     }
@@ -4439,6 +4507,7 @@ fn check_subpattern(
                                 "{} is not a tagged variant of {}",
                                 variant_path, enum_path
                             ),
+                            span: Span::unknown(),
                         });
                         return None;
                     }
@@ -4453,6 +4522,7 @@ fn check_subpattern(
                             fields.len(),
                             rest.len()
                         ),
+                        span: Span::unknown(),
                     });
                     return None;
                 }
@@ -4472,6 +4542,7 @@ fn check_subpattern(
                                 items.len(),
                                 elem_tys.len()
                             ),
+                            span: Span::unknown(),
                         });
                         return None;
                     }
@@ -4491,6 +4562,7 @@ fn check_subpattern(
                             "list sub-pattern in {} position (expected tuple, Option, Result, or enum)",
                             format_type(other)
                         ),
+                        span: Span::unknown(),
                     });
                     None
                 }
@@ -4535,6 +4607,7 @@ fn infer_if(
         errors.push(CheckError::MalformedForm {
             head: ":wat::core::if".into(),
             reason: "`:wat::core::if` now requires `-> :T` between cond and then-branch; write (:wat::core::if cond -> :T then else)".into(),
+            span: Span::unknown(),
         });
         // Still recurse into the body so inner errors surface too.
         let _ = infer(&args[0], env, locals, fresh, subst, errors);
@@ -4549,6 +4622,7 @@ fn infer_if(
                 "expected (:wat::core::if cond -> :T then else) — 5 args; got {}",
                 args.len()
             ),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -4562,6 +4636,7 @@ fn infer_if(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::if".into(),
                 reason: "expected `->` between cond and type".into(),
+                span: Span::unknown(),
             });
             return None;
         }
@@ -4573,6 +4648,7 @@ fn infer_if(
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::if".into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
+                    span: Span::unknown(),
                 });
                 return None;
             }
@@ -4581,6 +4657,7 @@ fn infer_if(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::if".into(),
                 reason: "expected type keyword after `->`".into(),
+                span: Span::unknown(),
             });
             return None;
         }
@@ -4594,6 +4671,7 @@ fn infer_if(
                 param: "cond".into(),
                 expected: ":bool".into(),
                 got: format_type(&apply_subst(&c, subst)),
+                span: Span::unknown(),
             });
         }
     }
@@ -4607,6 +4685,7 @@ fn infer_if(
                 param: "then-branch".into(),
                 expected: format_type(&apply_subst(&declared_ty, subst)),
                 got: format_type(&apply_subst(&t, subst)),
+                span: Span::unknown(),
             });
         }
     }
@@ -4618,6 +4697,7 @@ fn infer_if(
                 param: "else-branch".into(),
                 expected: format_type(&apply_subst(&declared_ty, subst)),
                 got: format_type(&apply_subst(&e, subst)),
+                span: Span::unknown(),
             });
         }
     }
@@ -4650,6 +4730,7 @@ fn infer_cond(
                 "expected (:wat::core::cond -> :T (:else body)) — at least 3 args; got {}",
                 args.len()
             ),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -4662,6 +4743,7 @@ fn infer_cond(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::cond".into(),
                 reason: "expected `->` at position 1".into(),
+                span: Span::unknown(),
             });
             return None;
         }
@@ -4673,6 +4755,7 @@ fn infer_cond(
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::cond".into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
+                    span: Span::unknown(),
                 });
                 return None;
             }
@@ -4681,6 +4764,7 @@ fn infer_cond(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::cond".into(),
                 reason: "expected type keyword at position 2 (after `->`)".into(),
+                span: Span::unknown(),
             });
             return None;
         }
@@ -4699,6 +4783,7 @@ fn infer_cond(
                     "last arm must be (:else body); got {}-element list",
                     xs.len()
                 ),
+                span: Span::unknown(),
             });
             return None;
         }
@@ -4706,6 +4791,7 @@ fn infer_cond(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::cond".into(),
                 reason: "last arm must be a list (:else body)".into(),
+                span: Span::unknown(),
             });
             return None;
         }
@@ -4715,6 +4801,7 @@ fn infer_cond(
         errors.push(CheckError::MalformedForm {
             head: ":wat::core::cond".into(),
             reason: "last arm must be (:else body) — cond requires an explicit default".into(),
+            span: Span::unknown(),
         });
     }
 
@@ -4729,6 +4816,7 @@ fn infer_cond(
                         i + 1,
                         xs.len()
                     ),
+                    span: Span::unknown(),
                 });
                 continue;
             }
@@ -4740,6 +4828,7 @@ fn infer_cond(
                         i + 1,
                         other
                     ),
+                    span: Span::unknown(),
                 });
                 continue;
             }
@@ -4758,6 +4847,7 @@ fn infer_cond(
                         param: format!("arm #{} test", i + 1),
                         expected: ":bool".into(),
                         got: format_type(&apply_subst(&t, subst)),
+                        span: Span::unknown(),
                     });
                 }
             }
@@ -4776,6 +4866,7 @@ fn infer_cond(
                     param,
                     expected: format_type(&apply_subst(&declared_ty, subst)),
                     got: format_type(&apply_subst(&b, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -4842,6 +4933,7 @@ fn infer_try(
             callee: callee.into(),
             expected: 1,
             got: args.len(),
+            span: Span::unknown(),
         });
         // Still infer the arg(s) so any internal errors surface.
         for arg in args {
@@ -4861,6 +4953,7 @@ fn infer_try(
                     "used outside any function or lambda body; `{}` requires an enclosing Result-returning scope to propagate into",
                     callee
                 ),
+                span: Span::unknown(),
             });
             let _ = infer(&args[0], env, locals, fresh, subst, errors);
             return None;
@@ -4884,6 +4977,7 @@ fn infer_try(
                     format_type(&enclosing),
                     callee
                 ),
+                span: Span::unknown(),
             });
             let _ = infer(&args[0], env, locals, fresh, subst, errors);
             return None;
@@ -4906,6 +5000,7 @@ fn infer_try(
             param: "arg".into(),
             expected: format_type(&apply_subst(&expected, subst)),
             got: format_type(&apply_subst(&arg_ty, subst)),
+            span: Span::unknown(),
         });
         return None;
     }
@@ -4947,6 +5042,7 @@ fn infer_option_try(
             callee: callee.into(),
             expected: 1,
             got: args.len(),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -4963,6 +5059,7 @@ fn infer_option_try(
                     "used outside any function or lambda body; `{}` requires an enclosing Option-returning scope to propagate into",
                     callee
                 ),
+                span: Span::unknown(),
             });
             let _ = infer(&args[0], env, locals, fresh, subst, errors);
             return None;
@@ -4980,6 +5077,7 @@ fn infer_option_try(
                     format_type(&enclosing),
                     callee
                 ),
+                span: Span::unknown(),
             });
             let _ = infer(&args[0], env, locals, fresh, subst, errors);
             return None;
@@ -5001,6 +5099,7 @@ fn infer_option_try(
             param: "arg".into(),
             expected: format_type(&apply_subst(&expected, subst)),
             got: format_type(&apply_subst(&arg_ty, subst)),
+            span: Span::unknown(),
         });
         return None;
     }
@@ -5049,6 +5148,7 @@ fn infer_option_expect(
                 callee,
                 args.len()
             ),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -5065,6 +5165,7 @@ fn infer_option_expect(
                     "expected `->` as the first argument; ({} -> :T <opt> <msg>)",
                     callee
                 ),
+                span: Span::unknown(),
             });
             return None;
         }
@@ -5077,6 +5178,7 @@ fn infer_option_expect(
                 errors.push(CheckError::MalformedForm {
                     head: callee.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
+                    span: Span::unknown(),
                 });
                 return None;
             }
@@ -5085,6 +5187,7 @@ fn infer_option_expect(
             errors.push(CheckError::MalformedForm {
                 head: callee.into(),
                 reason: "expected type keyword after `->`".into(),
+                span: Span::unknown(),
             });
             return None;
         }
@@ -5102,6 +5205,7 @@ fn infer_option_expect(
             param: "opt".into(),
             expected: format_type(&apply_subst(&expected_opt, subst)),
             got: format_type(&apply_subst(&opt_ty, subst)),
+            span: Span::unknown(),
         });
         return None;
     }
@@ -5114,6 +5218,7 @@ fn infer_option_expect(
                 param: "msg".into(),
                 expected: ":String".into(),
                 got: format_type(&apply_subst(&m, subst)),
+                span: Span::unknown(),
             });
         }
     }
@@ -5143,6 +5248,7 @@ fn infer_result_expect(
                 callee,
                 args.len()
             ),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -5158,6 +5264,7 @@ fn infer_result_expect(
                     "expected `->` as the first argument; ({} -> :T <res> <msg>)",
                     callee
                 ),
+                span: Span::unknown(),
             });
             return None;
         }
@@ -5169,6 +5276,7 @@ fn infer_result_expect(
                 errors.push(CheckError::MalformedForm {
                     head: callee.into(),
                     reason: format!("declared type {:?} failed to parse: {}", k, e),
+                    span: Span::unknown(),
                 });
                 return None;
             }
@@ -5177,6 +5285,7 @@ fn infer_result_expect(
             errors.push(CheckError::MalformedForm {
                 head: callee.into(),
                 reason: "expected type keyword after `->`".into(),
+                span: Span::unknown(),
             });
             return None;
         }
@@ -5193,6 +5302,7 @@ fn infer_result_expect(
             param: "res".into(),
             expected: format_type(&apply_subst(&expected_res, subst)),
             got: format_type(&apply_subst(&res_ty, subst)),
+            span: Span::unknown(),
         });
         return None;
     }
@@ -5204,6 +5314,7 @@ fn infer_result_expect(
                 param: "msg".into(),
                 expected: ":String".into(),
                 got: format_type(&apply_subst(&m, subst)),
+                span: Span::unknown(),
             });
         }
     }
@@ -5596,6 +5707,7 @@ fn infer_spawn(
         param: "(retired verb)".into(),
         expected: ":wat::kernel::spawn-thread".into(),
         got: ":wat::kernel::spawn".into(),
+        span: Span::unknown(),
     });
     if args.is_empty() {
         return Some(TypeExpr::Parametric {
@@ -5646,6 +5758,7 @@ fn infer_spawn(
                         param: "#1".into(),
                         expected: "function keyword path or fn(...) value".into(),
                         got: format_type(&surface_ty),
+                        span: Span::unknown(),
                     });
                     for arg in &args[1..] {
                         let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -5664,6 +5777,7 @@ fn infer_spawn(
             callee: callee_label.clone(),
             expected: param_types.len(),
             got: spawn_args.len(),
+            span: Span::unknown(),
         });
     }
     for (i, (arg, expected)) in spawn_args.iter().zip(&param_types).enumerate() {
@@ -5674,6 +5788,7 @@ fn infer_spawn(
                     param: format!("#{}", i + 1),
                     expected: format_type(&apply_subst(expected, subst)),
                     got: format_type(&apply_subst(&arg_ty, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -5705,6 +5820,7 @@ fn infer_positional_accessor(
             callee: op.into(),
             expected: 1,
             got: args.len(),
+            span: Span::unknown(),
         });
         return Some(fresh.fresh());
     }
@@ -5724,6 +5840,7 @@ fn infer_positional_accessor(
                         param: "#1".into(),
                         expected: format!("tuple with ≥ {} element(s)", index + 1),
                         got: format_type(&apply_subst(&ty, subst)),
+                        span: Span::unknown(),
                     });
                     return Some(fresh.fresh());
                 }
@@ -5746,6 +5863,7 @@ fn infer_positional_accessor(
                     param: "#1".into(),
                     expected: "tuple or Vec<T>".into(),
                     got: format_type(&apply_subst(&ty, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -5769,6 +5887,7 @@ fn infer_drop(
             callee: ":wat::kernel::drop".into(),
             expected: 1,
             got: args.len(),
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Tuple(vec![]));
     }
@@ -5789,6 +5908,7 @@ fn infer_drop(
                 param: "#1".into(),
                 expected: "rust::crossbeam_channel::Sender<T> | rust::crossbeam_channel::Receiver<T>".into(),
                 got: format_type(&apply_subst(&ty, subst)),
+                span: Span::unknown(),
             });
         }
     }
@@ -5821,6 +5941,7 @@ fn infer_make_queue(
             callee: form.into(),
             expected: expected_arity,
             got: args.len(),
+            span: Span::unknown(),
         });
         // Still recurse into any extra args for nested checks.
         for arg in args.iter().skip(1) {
@@ -5848,6 +5969,7 @@ fn infer_make_queue(
                 errors.push(CheckError::MalformedForm {
                     head: form.into(),
                     reason: format!("first argument {} is not a valid type keyword", k),
+                    span: Span::unknown(),
                 });
                 fresh.fresh()
             }
@@ -5867,6 +5989,7 @@ fn infer_make_queue(
                         WatAST::Keyword(_, _) => unreachable!(),
                     }
                 ),
+                span: Span::unknown(),
             });
             fresh.fresh()
         }
@@ -5882,6 +6005,7 @@ fn infer_make_queue(
                     param: "capacity".into(),
                     expected: "i64".into(),
                     got: format_type(&apply_subst(&cap_ty, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -5947,6 +6071,7 @@ fn process_let_binding(
                     errors.push(CheckError::MalformedForm {
                         head: form.into(),
                         reason: format!("binding '{}': {}", name, e),
+                        span: Span::unknown(),
                     });
                     return;
                 }
@@ -5961,6 +6086,7 @@ fn process_let_binding(
                     param: format!("binding '{}'", name),
                     expected: format_type(&apply_subst(&declared, subst)),
                     got: format_type(&apply_subst(&rhs_ty, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -5991,6 +6117,7 @@ fn process_let_binding(
                 param: format!("destructure ({})", names.join(" ")),
                 expected: format_type(&apply_subst(&tuple_ty, subst)),
                 got: format_type(&apply_subst(&rhs_ty, subst)),
+                span: Span::unknown(),
             });
         }
     }
@@ -6016,6 +6143,7 @@ fn infer_hashset_constructor(
             callee: ":wat::core::HashSet".into(),
             expected: 1,
             got: 0,
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Parametric {
             head: "HashSet".into(),
@@ -6029,6 +6157,7 @@ fn infer_hashset_constructor(
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::HashSet".into(),
                     reason: format!("first argument {} is not a valid type keyword", k),
+                    span: Span::unknown(),
                 });
                 fresh.fresh()
             }
@@ -6037,6 +6166,7 @@ fn infer_hashset_constructor(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::HashSet".into(),
                 reason: "first argument must be a type keyword (e.g., :i64)".into(),
+                span: Span::unknown(),
             });
             fresh.fresh()
         }
@@ -6049,6 +6179,7 @@ fn infer_hashset_constructor(
                     param: format!("element #{}", i + 1),
                     expected: format_type(&apply_subst(&t_ty, subst)),
                     got: format_type(&apply_subst(&ty, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -6083,6 +6214,7 @@ fn infer_polymorphic_compare(
             callee: op.into(),
             expected: 2,
             got: args.len(),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -6106,6 +6238,7 @@ fn infer_polymorphic_compare(
                 param: "#2".into(),
                 expected: format_type(&apply_subst(&a_resolved, subst)),
                 got: format_type(&apply_subst(&b_resolved, subst)),
+                span: Span::unknown(),
             });
         }
     }
@@ -6133,6 +6266,7 @@ fn infer_polymorphic_arith(
             callee: op.into(),
             expected: 2,
             got: args.len(),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -6152,6 +6286,7 @@ fn infer_polymorphic_arith(
                 param: "#1".into(),
                 expected: ":i64 or :f64".into(),
                 got: format_type(t),
+                span: Span::unknown(),
             });
         }
     }
@@ -6162,6 +6297,7 @@ fn infer_polymorphic_arith(
                 param: "#2".into(),
                 expected: ":i64 or :f64".into(),
                 got: format_type(t),
+                span: Span::unknown(),
             });
         }
     }
@@ -6209,6 +6345,7 @@ fn infer_polymorphic_time_arith(
             callee: op.into(),
             expected: 2,
             got: args.len(),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -6235,6 +6372,7 @@ fn infer_polymorphic_time_arith(
                 param: "#1".into(),
                 expected: ":wat::time::Instant".into(),
                 got: format_type(t),
+                span: Span::unknown(),
             });
         }
     }
@@ -6270,6 +6408,7 @@ fn infer_polymorphic_time_arith(
                     param: "#2".into(),
                     expected: expected.into(),
                     got: format_type(t),
+                    span: Span::unknown(),
                 });
             }
             Some(instant_ty)
@@ -6308,6 +6447,7 @@ fn infer_form_matches(
             callee: ":wat::form::matches?".into(),
             expected: 2,
             got: args.len(),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -6325,6 +6465,7 @@ fn infer_form_matches(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::form::matches?".into(),
                 reason: "pattern must be a list `(:TYPE-NAME clause ...)`".into(),
+                span: Span::unknown(),
             });
             return Some(bool_ty);
         }
@@ -6335,6 +6476,7 @@ fn infer_form_matches(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::form::matches?".into(),
                 reason: "pattern head must be a struct type keyword".into(),
+                span: Span::unknown(),
             });
             return Some(bool_ty);
         }
@@ -6350,6 +6492,7 @@ fn infer_form_matches(
                     "pattern head {} names a non-struct type; matches? walks struct fields",
                     type_name
                 ),
+                span: Span::unknown(),
             });
             return Some(bool_ty);
         }
@@ -6357,6 +6500,7 @@ fn infer_form_matches(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::form::matches?".into(),
                 reason: format!("unknown struct type {}", type_name),
+                span: Span::unknown(),
             });
             return Some(bool_ty);
         }
@@ -6426,6 +6570,7 @@ fn check_clause(
                                     "binding RHS for {} must be a field keyword like :field-name",
                                     var
                                 ),
+                                span: Span::unknown(),
                             });
                             return;
                         }
@@ -6441,6 +6586,7 @@ fn check_clause(
                                     "struct {} has no field {}",
                                     type_name, field_name
                                 ),
+                                span: Span::unknown(),
                             });
                             return;
                         }
@@ -6479,6 +6625,7 @@ fn check_clause(
                         param: "where-body".into(),
                         expected: format_type(&bool_ty),
                         got: format_type(&apply_subst(&t, subst)),
+                        span: Span::unknown(),
                     });
                 }
             }
@@ -6507,6 +6654,7 @@ fn check_comparison(
                 param: "comparison".into(),
                 expected: format_type(&apply_subst(&l, subst)),
                 got: format_type(&apply_subst(&r, subst)),
+                span: Span::unknown(),
             });
         }
     }
@@ -6529,6 +6677,7 @@ fn grammar_error_to_check_error(e: crate::form_match::ClauseGrammarError) -> Che
     CheckError::MalformedForm {
         head: ":wat::form::matches?".into(),
         reason,
+        span: Span::unknown(),
     }
 }
 
@@ -6569,6 +6718,7 @@ fn infer_polymorphic_holon_pair_to_f64(
             callee: op.into(),
             expected: 2,
             got: args.len(),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -6585,6 +6735,7 @@ fn infer_polymorphic_holon_pair_to_f64(
                 param: "#1".into(),
                 expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
                 got: format_type(&resolved),
+                span: Span::unknown(),
             });
         }
     }
@@ -6596,6 +6747,7 @@ fn infer_polymorphic_holon_pair_to_f64(
                 param: "#2".into(),
                 expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
                 got: format_type(&resolved),
+                span: Span::unknown(),
             });
         }
     }
@@ -6622,6 +6774,7 @@ fn infer_polymorphic_holon_pair_to_bool(
             callee: op.into(),
             expected: 2,
             got: args.len(),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -6638,6 +6791,7 @@ fn infer_polymorphic_holon_pair_to_bool(
                 param: "#1".into(),
                 expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
                 got: format_type(&resolved),
+                span: Span::unknown(),
             });
         }
     }
@@ -6649,6 +6803,7 @@ fn infer_polymorphic_holon_pair_to_bool(
                 param: "#2".into(),
                 expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
                 got: format_type(&resolved),
+                span: Span::unknown(),
             });
         }
     }
@@ -6677,6 +6832,7 @@ fn infer_polymorphic_holon_pair_to_path(
             callee: op.into(),
             expected: 2,
             got: args.len(),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -6693,6 +6849,7 @@ fn infer_polymorphic_holon_pair_to_path(
                 param: "#1".into(),
                 expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
                 got: format_type(&resolved),
+                span: Span::unknown(),
             });
         }
     }
@@ -6704,6 +6861,7 @@ fn infer_polymorphic_holon_pair_to_path(
                 param: "#2".into(),
                 expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
                 got: format_type(&resolved),
+                span: Span::unknown(),
             });
         }
     }
@@ -6727,6 +6885,7 @@ fn infer_polymorphic_holon_to_i64(
             callee: op.into(),
             expected: 1,
             got: args.len(),
+            span: Span::unknown(),
         });
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst, errors);
@@ -6742,6 +6901,7 @@ fn infer_polymorphic_holon_to_i64(
                 param: "#1".into(),
                 expected: ":wat::holon::HolonAST or :wat::holon::Vector".into(),
                 got: format_type(&resolved),
+                span: Span::unknown(),
             });
         }
     }
@@ -6767,6 +6927,7 @@ fn infer_get(
             callee: ":wat::core::get".into(),
             expected: 2,
             got: args.len(),
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Parametric {
             head: "Option".into(),
@@ -6791,6 +6952,7 @@ fn infer_get(
                             param: "key".into(),
                             expected: format_type(&apply_subst(&k, subst)),
                             got: format_type(&apply_subst(&key_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -6812,6 +6974,7 @@ fn infer_get(
                             param: "key".into(),
                             expected: "i64".into(),
                             got: format_type(&apply_subst(&key_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -6829,6 +6992,7 @@ fn infer_get(
                             param: "element".into(),
                             expected: format_type(&apply_subst(&t, subst)),
                             got: format_type(&apply_subst(&key_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -6843,6 +7007,7 @@ fn infer_get(
                     param: "container".into(),
                     expected: "HashMap<K,V> | HashSet<T> | Vec<T>".into(),
                     got: format_type(&apply_subst(&ct, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -6872,6 +7037,7 @@ fn infer_assoc(
             callee: ":wat::core::assoc".into(),
             expected: 3,
             got: args.len(),
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Parametric {
             head: "HashMap".into(),
@@ -6894,6 +7060,7 @@ fn infer_assoc(
                             param: "key".into(),
                             expected: format_type(&apply_subst(&k, subst)),
                             got: format_type(&apply_subst(&key_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -6904,6 +7071,7 @@ fn infer_assoc(
                             param: "value".into(),
                             expected: format_type(&apply_subst(&v, subst)),
                             got: format_type(&apply_subst(&value_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -6923,6 +7091,7 @@ fn infer_assoc(
                             param: "key".into(),
                             expected: "i64".into(),
                             got: format_type(&apply_subst(&key_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -6933,6 +7102,7 @@ fn infer_assoc(
                             param: "value".into(),
                             expected: format_type(&apply_subst(&t, subst)),
                             got: format_type(&apply_subst(&value_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -6944,6 +7114,7 @@ fn infer_assoc(
                     param: "container".into(),
                     expected: "HashMap<K,V> | Vec<T>".into(),
                     got: format_type(&apply_subst(&ct, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -6971,6 +7142,7 @@ fn infer_dissoc(
             callee: ":wat::core::dissoc".into(),
             expected: 2,
             got: args.len(),
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Parametric {
             head: "HashMap".into(),
@@ -6991,6 +7163,7 @@ fn infer_dissoc(
                             param: "key".into(),
                             expected: format_type(&apply_subst(&k, subst)),
                             got: format_type(&apply_subst(&key_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -7002,6 +7175,7 @@ fn infer_dissoc(
                     param: "container".into(),
                     expected: "HashMap<K,V>".into(),
                     got: format_type(&apply_subst(&ct, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7030,6 +7204,7 @@ fn infer_keys(
             callee: ":wat::core::keys".into(),
             expected: 1,
             got: args.len(),
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Parametric {
             head: "Vec".into(),
@@ -7053,6 +7228,7 @@ fn infer_keys(
                     param: "container".into(),
                     expected: "HashMap<K,V>".into(),
                     got: format_type(&apply_subst(&ct, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7079,6 +7255,7 @@ fn infer_values(
             callee: ":wat::core::values".into(),
             expected: 1,
             got: args.len(),
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Parametric {
             head: "Vec".into(),
@@ -7102,6 +7279,7 @@ fn infer_values(
                     param: "container".into(),
                     expected: "HashMap<K,V>".into(),
                     got: format_type(&apply_subst(&ct, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7130,6 +7308,7 @@ fn infer_empty_q(
             callee: ":wat::core::empty?".into(),
             expected: 1,
             got: args.len(),
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Path(":bool".into()));
     }
@@ -7155,6 +7334,7 @@ fn infer_empty_q(
                     param: "container".into(),
                     expected: "Vec<T> | HashMap<K,V> | HashSet<T>".into(),
                     got: format_type(&apply_subst(&ct, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7180,6 +7360,7 @@ fn infer_conj(
             callee: ":wat::core::conj".into(),
             expected: 2,
             got: args.len(),
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Parametric {
             head: "Vec".into(),
@@ -7200,6 +7381,7 @@ fn infer_conj(
                             param: "value".into(),
                             expected: format_type(&apply_subst(&t, subst)),
                             got: format_type(&apply_subst(&value_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -7214,6 +7396,7 @@ fn infer_conj(
                             param: "value".into(),
                             expected: format_type(&apply_subst(&t, subst)),
                             got: format_type(&apply_subst(&value_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -7225,6 +7408,7 @@ fn infer_conj(
                     param: "container".into(),
                     expected: "Vec<T> | HashSet<T>".into(),
                     got: format_type(&apply_subst(&ct, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7254,6 +7438,7 @@ fn infer_length(
             callee: ":wat::core::length".into(),
             expected: 1,
             got: args.len(),
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Path(":i64".into()));
     }
@@ -7279,6 +7464,7 @@ fn infer_length(
                     param: "container".into(),
                     expected: "Vec<T> | HashMap<K,V> | HashSet<T>".into(),
                     got: format_type(&apply_subst(&ct, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7305,6 +7491,7 @@ fn infer_contains_q(
             callee: ":wat::core::contains?".into(),
             expected: 2,
             got: args.len(),
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Path(":bool".into()));
     }
@@ -7322,6 +7509,7 @@ fn infer_contains_q(
                             param: "key".into(),
                             expected: format_type(&apply_subst(&k, subst)),
                             got: format_type(&apply_subst(&key_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -7336,6 +7524,7 @@ fn infer_contains_q(
                             param: "key".into(),
                             expected: format_type(&apply_subst(&t, subst)),
                             got: format_type(&apply_subst(&key_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -7350,6 +7539,7 @@ fn infer_contains_q(
                             param: "key".into(),
                             expected: "i64".into(),
                             got: format_type(&apply_subst(&key_ty, subst)),
+                            span: Span::unknown(),
                         });
                     }
                 }
@@ -7363,6 +7553,7 @@ fn infer_contains_q(
                     param: "container".into(),
                     expected: "HashMap<K,V> | HashSet<T> | Vec<T>".into(),
                     got: format_type(&apply_subst(&ct, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7388,6 +7579,7 @@ fn infer_hashmap_constructor(
             callee: ":wat::core::HashMap".into(),
             expected: 1,
             got: 0,
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Parametric {
             head: "HashMap".into(),
@@ -7414,6 +7606,7 @@ fn infer_hashmap_constructor(
                             "first argument must be a tuple type :(K,V); got {}",
                             format_type(&other)
                         ),
+                        span: Span::unknown(),
                     });
                     (fresh.fresh(), fresh.fresh())
                 }
@@ -7422,6 +7615,7 @@ fn infer_hashmap_constructor(
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::HashMap".into(),
                     reason: format!("first argument {} is not a valid type keyword", k),
+                    span: Span::unknown(),
                 });
                 (fresh.fresh(), fresh.fresh())
             }
@@ -7430,6 +7624,7 @@ fn infer_hashmap_constructor(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::HashMap".into(),
                 reason: "first argument must be a tuple type keyword :(K,V)".into(),
+                span: Span::unknown(),
             });
             (fresh.fresh(), fresh.fresh())
         }
@@ -7439,6 +7634,7 @@ fn infer_hashmap_constructor(
         errors.push(CheckError::MalformedForm {
             head: ":wat::core::HashMap".into(),
             reason: "arity after :(K,V) must be even (alternating key/value)".into(),
+            span: Span::unknown(),
         });
     }
     for (i, chunk) in pairs.chunks(2).enumerate() {
@@ -7449,6 +7645,7 @@ fn infer_hashmap_constructor(
                     param: format!("key #{}", i + 1),
                     expected: format_type(&apply_subst(&k_ty, subst)),
                     got: format_type(&apply_subst(&k_arg_ty, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7462,6 +7659,7 @@ fn infer_hashmap_constructor(
                     param: format!("value #{}", i + 1),
                     expected: format_type(&apply_subst(&v_ty, subst)),
                     got: format_type(&apply_subst(&v_arg_ty, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7488,6 +7686,7 @@ fn infer_tuple_constructor(
         errors.push(CheckError::MalformedForm {
             head: ":wat::core::tuple".into(),
             reason: "tuple must have at least one element".into(),
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Tuple(vec![fresh.fresh()]));
     }
@@ -7528,6 +7727,7 @@ fn infer_concat(
             callee: ":wat::core::concat".into(),
             expected: 1,
             got: 0,
+            span: Span::unknown(),
         });
         return Some(TypeExpr::Parametric {
             head: "Vec".into(),
@@ -7547,6 +7747,7 @@ fn infer_concat(
                     param: "arg".into(),
                     expected: format_type(&apply_subst(&vec_ty, subst)),
                     got: format_type(&apply_subst(&ty, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7571,6 +7772,7 @@ fn infer_string_concat(
                     param: "arg".into(),
                     expected: ":String".into(),
                     got: format_type(&apply_subst(&ty, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7595,6 +7797,7 @@ fn infer_list_constructor(
             callee: ":wat::core::vec".into(),
             expected: 1,
             got: 0,
+            span: Span::unknown(),
         });
         let t = fresh.fresh();
         return Some(TypeExpr::Parametric {
@@ -7609,6 +7812,7 @@ fn infer_list_constructor(
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::vec".into(),
                     reason: format!("first argument {} is not a valid type keyword", k),
+                    span: Span::unknown(),
                 });
                 fresh.fresh()
             }
@@ -7617,6 +7821,7 @@ fn infer_list_constructor(
             errors.push(CheckError::MalformedForm {
                 head: ":wat::core::vec".into(),
                 reason: "first argument must be a type keyword (e.g., :i64)".into(),
+                span: Span::unknown(),
             });
             fresh.fresh()
         }
@@ -7630,6 +7835,7 @@ fn infer_list_constructor(
                     param: format!("#{}", i + 2),
                     expected: format_type(&apply_subst(&elem_ty, subst)),
                     got: format_type(&apply_subst(&arg_ty, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7677,6 +7883,7 @@ fn infer_lambda(
                 function: "<lambda>".into(),
                 expected: format_type(&apply_subst(&ret_type, subst)),
                 got: format_type(&apply_subst(&body_ty, subst)),
+                span: Span::unknown(),
             });
         }
     }
@@ -7756,6 +7963,7 @@ fn infer_boolean_shortcircuit(
                     param: format!("#{}", i + 1),
                     expected: ":bool".into(),
                     got: format_type(&apply_subst(&arg_ty, subst)),
+                    span: Span::unknown(),
                 });
             }
         }
@@ -7873,6 +8081,7 @@ fn dispatch_rust_scheme(
         None => {
             errors.push(CheckError::UnknownCallee {
                 callee: keyword.to_string(),
+                span: Span::unknown(),
             });
             return None;
         }
@@ -7922,6 +8131,7 @@ impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
             param: param.into(),
             expected,
             got,
+            span: Span::unknown(),
         });
     }
 
@@ -7930,6 +8140,7 @@ impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
             callee: callee.into(),
             expected,
             got,
+            span: Span::unknown(),
         });
     }
 
@@ -7937,6 +8148,7 @@ impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
         self.errors.push(CheckError::MalformedForm {
             head: head.into(),
             reason,
+            span: Span::unknown(),
         });
     }
 

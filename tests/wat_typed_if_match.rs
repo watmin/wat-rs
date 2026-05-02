@@ -47,7 +47,7 @@ fn check_errors(src: &str) -> Vec<CheckError> {
 
 fn assert_malformed_mentioning(errs: &[CheckError], head: &str, needle: &str) {
     let hit = errs.iter().any(|e| match e {
-        CheckError::MalformedForm { head: h, reason } => h == head && reason.contains(needle),
+        CheckError::MalformedForm { head: h, reason, .. } => h == head && reason.contains(needle),
         _ => false,
     });
     assert!(
