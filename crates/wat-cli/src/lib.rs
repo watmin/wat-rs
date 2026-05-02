@@ -5,7 +5,7 @@
 //! Arc 099 extracted the bare CLI from the substrate crate into
 //! `crates/wat-cli/`. Arc 100 vends its guts as a public API:
 //!
-//! ```rust,ignore
+//! ```text
 //! // your_crate/src/main.rs
 //! fn main() -> std::process::ExitCode {
 //!     wat_cli::run(&[
@@ -236,7 +236,7 @@ pub type Battery = (
 ///
 /// # Example — custom CLI with selected batteries
 ///
-/// ```rust,ignore
+/// ```text
 /// fn main() -> std::process::ExitCode {
 ///     wat_cli::run(&[
 ///         (wat_telemetry::register, wat_telemetry::wat_sources),

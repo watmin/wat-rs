@@ -2784,7 +2784,10 @@ fn infer_match(
         MatchShape::Result(t, e) => {
             MatchShape::Result(apply_subst(t, subst), apply_subst(e, subst))
         }
-        MatchShape::Enum(p) => MatchShape::Enum(p.clone()),
+        MatchShape::Enum(p, args) => MatchShape::Enum(
+            p.clone(),
+            args.iter().map(|a| apply_subst(a, subst)).collect(),
+        ),
     };
 
     let mut covers_option_none = false;
@@ -2896,7 +2899,7 @@ fn infer_match(
     let exhaustive = match &shape {
         MatchShape::Option(_) => covers_option_none && covers_option_some,
         MatchShape::Result(_, _) => covers_result_ok && covers_result_err,
-        MatchShape::Enum(enum_path) => {
+        MatchShape::Enum(enum_path, _) => {
             if wildcard_seen {
                 true
             } else if let Some(crate::types::TypeDef::Enum(e)) = env.types().get(enum_path) {
@@ -2918,7 +2921,7 @@ fn infer_match(
             reason: match &shape {
                 MatchShape::Option(_) => "non-exhaustive: :Option<T> needs arms for both :None and (Some _), or a wildcard. (Arc 055 — narrowing patterns like `(Some (1 _))` are partial; add a fallback `_` arm.)".into(),
                 MatchShape::Result(_, _) => "non-exhaustive: :Result<T,E> needs arms for both (Ok _) and (Err _), or a wildcard. (Arc 055 — narrowing patterns like `(Ok 200)` are partial; add a fallback `_` arm.)".into(),
-                MatchShape::Enum(enum_path) => {
+                MatchShape::Enum(enum_path, _) => {
                     if let Some(crate::types::TypeDef::Enum(e)) = env.types().get(enum_path) {
                         let missing: Vec<String> = e.variants.iter().filter_map(|v| {
                             let name = match v {
@@ -2982,10 +2985,14 @@ enum MatchShape {
     /// :Result<T,E> — t_ty is T (Ok-inner), e_ty is E (Err-inner).
     Result(TypeExpr, TypeExpr),
     /// Arc 048 — user-defined enum. Carries the enum's full type path
-    /// (e.g. `:trading::types::PhaseLabel`); the checker looks up the
-    /// declared variant set in `CheckEnv.types` for exhaustiveness +
-    /// per-variant arity.
-    Enum(String),
+    /// (e.g. `:trading::types::PhaseLabel`) and its type arguments
+    /// (fresh tyvars at construction; resolved via subst as inference
+    /// proceeds). Empty arg vec ↔ non-parametric enum (`PhaseLabel`);
+    /// non-empty ↔ parametric enum (`Request<K,V>`). Arc 119 surfaced
+    /// the parametric case — Option/Result already carried their args
+    /// via dedicated variants; user-defined enums needed the same so
+    /// the scrutinee type unifies against `Enum<…>` not bare `Enum`.
+    Enum(String, Vec<TypeExpr>),
 }
 
 impl MatchShape {
@@ -2999,9 +3006,39 @@ impl MatchShape {
                 head: "Result".into(),
                 args: vec![t.clone(), e.clone()],
             },
-            MatchShape::Enum(path) => TypeExpr::Path(path.clone()),
+            MatchShape::Enum(path, args) => {
+                if args.is_empty() {
+                    TypeExpr::Path(path.clone())
+                } else {
+                    TypeExpr::Parametric {
+                        head: path.trim_start_matches(':').to_string(),
+                        args: args.clone(),
+                    }
+                }
+            }
         }
     }
+}
+
+/// Construct a MatchShape::Enum carrying the right arity of fresh
+/// type variables for the named enum's parametric signature. For a
+/// non-parametric enum the args vec is empty and `as_type()` produces
+/// `TypeExpr::Path`. For a parametric enum (`Request<K,V>`) the args
+/// vec has one fresh tyvar per type param and `as_type()` produces
+/// `TypeExpr::Parametric { head, args }` so the scrutinee unification
+/// preserves the parametric envelope. Arc 119 surfaced this — see
+/// `parametric_user_enum_*_match` tests.
+fn enum_match_shape(
+    enum_path: String,
+    env: &CheckEnv,
+    fresh: &mut InferCtx,
+) -> MatchShape {
+    let arity = match env.types().get(&enum_path) {
+        Some(crate::types::TypeDef::Enum(e)) => e.type_params.len(),
+        _ => 0,
+    };
+    let args = (0..arity).map(|_| fresh.fresh()).collect();
+    MatchShape::Enum(enum_path, args)
 }
 
 /// Scan the match arms to decide which shape the scrutinee matches.
@@ -3011,7 +3048,9 @@ impl MatchShape {
 /// - `:enum::Variant` (unit) or `(:enum::Variant ...)` (tagged) → Enum
 ///   (arc 048). The keyword is split on the last `::` to separate
 ///   enum path from variant name; the prefix is looked up in the type
-///   env to confirm it's a registered enum.
+///   env to confirm it's a registered enum. Arc 119: parametric enums
+///   carry fresh type vars in the MatchShape so unification against
+///   the scrutinee's declared parametric type succeeds.
 ///
 /// If no arm is definitive (all wildcards), defaults to Option with
 /// a fresh T.
@@ -3033,14 +3072,14 @@ fn detect_match_shape(arms: &[&WatAST], env: &CheckEnv, fresh: &mut InferCtx) ->
                         // as Enum and produces the right error in
                         // pattern_coverage.
                         if let Some(TypeExpr::Path(enum_path)) = env.unit_variant_type(k) {
-                            return MatchShape::Enum(enum_path.clone());
+                            return enum_match_shape(enum_path.clone(), env, fresh);
                         }
                         if let Some((enum_path, _)) = k.rsplit_once("::") {
                             if matches!(
                                 env.types().get(enum_path),
                                 Some(crate::types::TypeDef::Enum(_))
                             ) {
-                                return MatchShape::Enum(enum_path.to_string());
+                                return enum_match_shape(enum_path.to_string(), env, fresh);
                             }
                         }
                     }
@@ -3078,7 +3117,7 @@ fn detect_match_shape(arms: &[&WatAST], env: &CheckEnv, fresh: &mut InferCtx) ->
                                     env.types().get(&enum_path_owned),
                                     Some(crate::types::TypeDef::Enum(_))
                                 ) {
-                                    return MatchShape::Enum(enum_path_owned);
+                                    return enum_match_shape(enum_path_owned, env, fresh);
                                 }
                             }
                         }
@@ -3103,7 +3142,7 @@ fn pattern_coverage(
     match pattern {
         WatAST::Keyword(k, _) if (k == ":None" || k == ":wat::core::None") => match shape {
             MatchShape::Option(_) => Some(Coverage::OptionNone),
-            MatchShape::Result(_, _) | MatchShape::Enum(_) => {
+            MatchShape::Result(_, _) | MatchShape::Enum(_, _) => {
                 errors.push(CheckError::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: format!(
@@ -3119,7 +3158,7 @@ fn pattern_coverage(
         // matches the scrutinee shape's Enum path AND `<Variant>`
         // is a unit variant of that enum.
         WatAST::Keyword(k, _) => match shape {
-            MatchShape::Enum(enum_path) => {
+            MatchShape::Enum(enum_path, _) => {
                 let (prefix, variant_name) = match k.rsplit_once("::") {
                     Some(p) => p,
                     None => {
@@ -3227,7 +3266,7 @@ fn pattern_coverage(
                     || variant_path == ":wat::core::Err";
                 if !is_builtin_fqdn {
                 let enum_path = match shape {
-                    MatchShape::Enum(p) => p,
+                    MatchShape::Enum(p, _) => p,
                     _ => {
                         errors.push(CheckError::MalformedForm {
                             head: ":wat::core::match".into(),
@@ -3375,7 +3414,7 @@ fn pattern_coverage(
                     // require the namespaced keyword path. The pre-
                     // hint message correctly identifies the failure
                     // but doesn't tell the user how to fix it.
-                    let reason = if let MatchShape::Enum(enum_path) = shape {
+                    let reason = if let MatchShape::Enum(enum_path, _) = shape {
                         let is_variant = matches!(
                             env.types().get(enum_path.as_str()),
                             Some(crate::types::TypeDef::Enum(e))
@@ -9854,7 +9893,7 @@ mod tests {
     use crate::runtime::{
         register_defines, register_stdlib_defines, register_struct_methods, SymbolTable,
     };
-    use crate::types::{parse_type_expr, register_stdlib_types, TypeEnv};
+    use crate::types::{parse_type_expr, register_stdlib_types, register_types, TypeEnv};
     use std::sync::OnceLock;
 
     /// The stdlib is always part of the language. Test harnesses
@@ -9884,14 +9923,21 @@ mod tests {
     }
 
     fn check(src: &str) -> Result<(), CheckErrors> {
-        let (stdlib_sym, stdlib_macros, types) = stdlib_loaded();
+        let (stdlib_sym, stdlib_macros, stdlib_types) = stdlib_loaded();
         let forms = parse_all(src).expect("parse ok");
         let mut macros = stdlib_macros.clone();
         let rest = register_defmacros(forms, &mut macros).expect("register macros");
         let expanded = expand_all(rest, &mut macros).expect("expand");
+        // Register user-defined type decls (struct / enum / newtype /
+        // typealias) into a fresh clone of the stdlib type env. Mirrors
+        // production startup: register_stdlib_types for stdlib, then
+        // register_types for user source.
+        let mut types = stdlib_types.clone();
+        let rest_post_types =
+            register_types(expanded, &mut types).expect("register user types");
         let mut sym = stdlib_sym.clone();
-        let rest = register_defines(expanded, &mut sym).expect("register defines");
-        check_program(&rest, &sym, types)
+        let rest = register_defines(rest_post_types, &mut sym).expect("register defines");
+        check_program(&rest, &sym, &types)
     }
 
     // ─── Arity checking ─────────────────────────────────────────────────
@@ -10258,5 +10304,92 @@ mod tests {
         let a = parse_type_expr(":wat::holon::HolonAST").unwrap();
         let b = parse_type_expr(":wat::holon::HolonAST").unwrap();
         assert!(unify(&a, &b, &mut s, &TypeEnv::with_builtins()).is_ok());
+    }
+
+    // ─── Parametric user-defined enum match patterns ────────────────────
+    //
+    // First parametric user-defined enum surfaced by arc 119
+    // (`:wat::lru::Request<K,V>`). Coverage gap before arc 119: zero
+    // parametric user enums existed in the codebase, so the
+    // match-pattern resolver's path that drops type params
+    // (`MatchShape::Enum(name)` → `TypeExpr::Path(name)`) was never
+    // exercised. `:wat::core::Option<T>` and `:wat::core::Result<T,E>`
+    // bypass the gap via dedicated MatchShape variants
+    // (`Option(t)`, `Result(t,e)`) that carry their type args directly.
+    //
+    // These tests cover the gap: a parametric user enum with tagged
+    // and unit variants must type-check when matched against a
+    // scrutinee whose declared type carries the type arguments.
+
+    #[test]
+    fn parametric_user_enum_tagged_variant_match() {
+        // Single type param, tagged variants. Mirrors the minimal
+        // bug repro: enum decl carries `<T>`, function param carries
+        // `:my::Box<T>`, match patterns reference variants under the
+        // bare `:my::Box::*` prefix.
+        let src = r#"
+            (:wat::core::enum :my::Box<T>
+              (Empty)
+              (Filled (value :T)))
+
+            (:wat::core::define
+              (:my::is-empty<T> (b :my::Box<T>) -> :wat::core::bool)
+              (:wat::core::match b -> :wat::core::bool
+                ((:my::Box::Empty) true)
+                ((:my::Box::Filled _v) false)))
+        "#;
+        let result = check(src);
+        assert!(
+            result.is_ok(),
+            "parametric enum tagged-variant match should type-check, got: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn parametric_user_enum_two_type_args_match() {
+        // Two type params, tagged variants. Mirrors arc 119's
+        // `:wat::lru::Request<K,V>` shape directly.
+        let src = r#"
+            (:wat::core::enum :my::Either<L,R>
+              (Left (value :L))
+              (Right (value :R)))
+
+            (:wat::core::define
+              (:my::is-left<L,R> (e :my::Either<L,R>) -> :wat::core::bool)
+              (:wat::core::match e -> :wat::core::bool
+                ((:my::Either::Left _v) true)
+                ((:my::Either::Right _v) false)))
+        "#;
+        let result = check(src);
+        assert!(
+            result.is_ok(),
+            "parametric enum two-type-args match should type-check, got: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn parametric_user_enum_extracts_typed_field() {
+        // Tagged variant binder must inherit the parametric type's
+        // instantiation. If the scrutinee is :my::Box<i64>, then
+        // (Filled v) must bind v as :i64.
+        let src = r#"
+            (:wat::core::enum :my::Box<T>
+              (Empty)
+              (Filled (value :T)))
+
+            (:wat::core::define
+              (:my::default-or<T> (b :my::Box<T>) (d :T) -> :T)
+              (:wat::core::match b -> :T
+                ((:my::Box::Empty) d)
+                ((:my::Box::Filled v) v)))
+        "#;
+        let result = check(src);
+        assert!(
+            result.is_ok(),
+            "parametric enum extracts-typed-field should type-check, got: {:?}",
+            result.err()
+        );
     }
 }
