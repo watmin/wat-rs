@@ -706,6 +706,22 @@ pub struct SymbolTable {
     /// to walk the consumer's entry-enum decl and synthesize schemas
     /// + INSERT statements without consumer code.
     pub types: Option<Arc<crate::types::TypeEnv>>,
+    /// Arc 140 slice 1 — when this SymbolTable belongs to a sub-
+    /// program (one started via `:wat::kernel::spawn-program-ast` /
+    /// run-sandboxed-ast / fork-program-ast), this field carries an
+    /// Arc to the OUTER scope's frozen SymbolTable. Used by the
+    /// runtime's UnknownFunction site to detect sandbox-scope leaks:
+    /// when a call head doesn't resolve in the inner scope but DOES
+    /// resolve in `outer_symbols`, fire `RuntimeError::SandboxScopeLeak`
+    /// with a teaching diagnostic. Sandbox isolation is preserved —
+    /// `outer_symbols` is read-only and only consulted on the failure
+    /// path; nothing in the success path consults it.
+    ///
+    /// `None` for the entry program (no outer scope) and for test
+    /// harnesses that build a SymbolTable directly. Set by the spawn
+    /// driver (`spawn::eval_kernel_spawn_program_ast` and siblings)
+    /// after the sub-program's freeze completes.
+    pub outer_symbols: Option<Arc<SymbolTable>>,
 }
 
 impl std::fmt::Debug for SymbolTable {
@@ -991,6 +1007,26 @@ pub enum RuntimeError {
         actual: Option<String>,
         expected: Option<String>,
     },
+    /// Arc 140 slice 1 — runtime panic enrichment. Fires when a
+    /// sub-program (`run-sandboxed-ast` / `run-sandboxed-hermetic-ast`
+    /// / `fork-program-ast` / `spawn-program-ast`) hits an
+    /// `UnknownFunction` AND the offending name (canonical form,
+    /// stripping `<T,...>`) IS registered in the OUTER scope's
+    /// `SymbolTable`. The substrate teaches: *"sandbox-scope leak —
+    /// you defined this at outer scope but deftest sandboxes don't
+    /// capture; move it into the prelude."* Both spans land so users
+    /// click the call site AND the outer-scope define.
+    ///
+    /// Sibling rule to `CheckError::SandboxScopeLeak`: arc 140
+    /// slice 2 catches the static case at outer freeze; this slice 1
+    /// variant is the runtime backstop for dynamic / `eval-ast!` /
+    /// otherwise check-walker-bypassing call paths. Same DESIGN.md
+    /// covers both.
+    SandboxScopeLeak {
+        offending_name: String,
+        call_span: crate::span::Span,
+        outer_define_span: crate::span::Span,
+    },
 }
 
 impl fmt::Display for RuntimeError {
@@ -1103,6 +1139,23 @@ impl fmt::Display for RuntimeError {
                     write!(f, "\n  expected: {}", e)?;
                 }
                 Ok(())
+            }
+            RuntimeError::SandboxScopeLeak { offending_name, call_span, outer_define_span } => {
+                let call_loc = if call_span.is_unknown() {
+                    String::new()
+                } else {
+                    format!("{}: ", call_span)
+                };
+                let define_loc = if outer_define_span.is_unknown() {
+                    "the outer scope".to_string()
+                } else {
+                    format!("{}", outer_define_span)
+                };
+                write!(
+                    f,
+                    "{}sandbox-scope leak: '{}' invoked here is defined at {} but deftest sandboxes do NOT capture outer-scope. Move (:wat::core::define {} ...) into this deftest's prelude (the second argument of `(:wat::test::deftest <name> <prelude> <body>)`), or load it into the prelude via `(:wat::core::load! \"path/to/file.wat\")`. Sandbox isolation is intentional — see wat/test.wat's deftest macro.",
+                    call_loc, offending_name, define_loc, offending_name
+                )
             }
         }
     }
@@ -2857,10 +2910,35 @@ fn dispatch_keyword_head(
 
         // Anything else: user-defined function lookup.
         other => {
-            let func = sym
-                .get(other)
-                .ok_or_else(|| RuntimeError::UnknownFunction(other.to_string()))?
-                .clone();
+            let func = match sym.get(other) {
+                Some(f) => f.clone(),
+                None => {
+                    // Arc 140 slice 1 — sandbox-scope leak detection.
+                    // Inner-scope lookup missed; if this SymbolTable
+                    // belongs to a sub-program (outer_symbols is
+                    // attached at spawn time), check whether the
+                    // canonical name (sans `<T,...>`) resolves in the
+                    // outer scope. If yes — fire the teaching
+                    // SandboxScopeLeak diagnostic with both spans
+                    // (offending invocation + outer-scope define).
+                    // Otherwise fall through to the generic
+                    // UnknownFunction.
+                    let canonical = match other.find('<') {
+                        Some(i) => &other[..i],
+                        None => other,
+                    };
+                    if let Some(outer) = sym.outer_symbols.as_ref() {
+                        if let Some(outer_func) = outer.get(canonical) {
+                            return Err(RuntimeError::SandboxScopeLeak {
+                                offending_name: other.to_string(),
+                                call_span: list_span.clone(),
+                                outer_define_span: outer_func.body.span().clone(),
+                            });
+                        }
+                    }
+                    return Err(RuntimeError::UnknownFunction(other.to_string()));
+                }
+            };
             let vals = args
                 .iter()
                 .map(|a| eval(a, env, sym))
@@ -19753,4 +19831,104 @@ mod tests {
 
     // queue roundtrip across threads — covered by tests/wat_spawn_lambda.rs
     // (mini-TCP shape on spawn-thread + Thread/join-result).
+
+    /// Arc 140 slice 1 — runtime sandbox-scope leak fires when an
+    /// inner sub-program's call head misses the inner scope but
+    /// resolves in the outer. The teaching diagnostic carries both
+    /// spans (offending invocation + outer-scope define) so users
+    /// (and agents) navigate without grepping. Constructs the
+    /// scenario directly: outer SymbolTable holds `:my::helper`,
+    /// inner SymbolTable does NOT, with outer_symbols attached.
+    #[test]
+    fn runtime_sandbox_scope_leak_fires_with_outer_attached() {
+        // Build the OUTER scope: stdlib + a user-defined helper.
+        let (stdlib_sym, _, _) = stdlib_loaded();
+        let mut outer_sym = stdlib_sym.clone();
+        let helper_body = parse_one("42").expect("parse body");
+        outer_sym.functions.insert(
+            ":my::helper".to_string(),
+            Arc::new(Function {
+                name: Some(":my::helper".to_string()),
+                params: vec![],
+                type_params: vec![],
+                param_types: vec![],
+                ret_type: crate::types::TypeExpr::Path(":wat::core::i64".to_string()),
+                body: Arc::new(helper_body),
+                closed_env: None,
+            }),
+        );
+
+        // Build the INNER scope: stdlib only, no `:my::helper`.
+        // Attach outer_symbols so the runtime check can fire.
+        let mut inner_sym = stdlib_sym.clone();
+        inner_sym.outer_symbols = Some(Arc::new(outer_sym));
+
+        // Construct the call: `(:my::helper)`.
+        let call = parse_one("(:my::helper)").expect("parse call");
+
+        let env = Environment::new();
+        let result = eval(&call, &env, &inner_sym);
+
+        match result {
+            Err(RuntimeError::SandboxScopeLeak { offending_name, .. }) => {
+                assert_eq!(offending_name, ":my::helper");
+            }
+            Err(other) => panic!(
+                "expected SandboxScopeLeak; got {:?}", other
+            ),
+            Ok(v) => panic!(
+                "expected SandboxScopeLeak err; got Ok({:?})", v
+            ),
+        }
+    }
+
+    /// Arc 140 slice 1 — when the offending name is NOT in the outer
+    /// scope either, the runtime falls through to the existing
+    /// `UnknownFunction` error. Confirms slice 1 doesn't misfire on
+    /// genuine typos.
+    #[test]
+    fn runtime_unknown_function_when_outer_also_missing() {
+        let (stdlib_sym, _, _) = stdlib_loaded();
+        let outer_sym = stdlib_sym.clone();
+
+        let mut inner_sym = stdlib_sym.clone();
+        inner_sym.outer_symbols = Some(Arc::new(outer_sym));
+
+        let call = parse_one("(:totally::made::up::name)").expect("parse call");
+
+        let env = Environment::new();
+        let result = eval(&call, &env, &inner_sym);
+
+        match result {
+            Err(RuntimeError::UnknownFunction(name)) => {
+                assert_eq!(name, ":totally::made::up::name");
+            }
+            Err(RuntimeError::SandboxScopeLeak { .. }) => panic!(
+                "SandboxScopeLeak misfired on a genuinely-unknown name"
+            ),
+            other => panic!("expected UnknownFunction; got {:?}", other),
+        }
+    }
+
+    /// Arc 140 slice 1 — when the SymbolTable has no outer_symbols
+    /// attached (the entry program / non-sandboxed runtime), the
+    /// runtime falls through to UnknownFunction even if some other
+    /// table elsewhere has the name. The leak detection only runs
+    /// for sandboxed sub-programs.
+    #[test]
+    fn runtime_no_leak_when_outer_not_attached() {
+        let (stdlib_sym, _, _) = stdlib_loaded();
+        let inner_sym = stdlib_sym.clone(); // outer_symbols stays None
+
+        let call = parse_one("(:my::helper)").expect("parse call");
+        let env = Environment::new();
+        let result = eval(&call, &env, &inner_sym);
+
+        match result {
+            Err(RuntimeError::UnknownFunction(name)) => {
+                assert_eq!(name, ":my::helper");
+            }
+            other => panic!("expected UnknownFunction; got {:?}", other),
+        }
+    }
 }

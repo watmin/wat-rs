@@ -102,10 +102,18 @@ pub fn eval_kernel_spawn_program_ast(
         Some(cfg) => startup_from_forms_with_inherit(forms, None, loader, &cfg),
         None => startup_from_forms(forms, None, loader),
     };
-    let world = match startup_outcome {
+    let mut world = match startup_outcome {
         Ok(w) => w,
         Err(e) => return Ok(startup_error_result(format!("{}", e))),
     };
+
+    // Arc 140 slice 1 — attach a snapshot of the OUTER SymbolTable
+    // to the inner sub-program's SymbolTable so the runtime's
+    // UnknownFunction site can detect sandbox-scope leaks. The outer
+    // snapshot is read-only (cheap clone — `Arc<Function>` entries,
+    // not the underlying ASTs); used only on the failure path. Sandbox
+    // isolation stays intact for every other code path.
+    world.symbols.outer_symbols = Some(Arc::new(sym.clone()));
 
     spawn_with_world_into_result(OP, world)
 }
