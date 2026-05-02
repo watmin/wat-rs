@@ -36,36 +36,47 @@
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
               -> :wat::core::unit)
-            ;; Outer scope holds driver handles. The inner scope owns
-            ;; the senders — when it exits, senders drop, drivers see
-            ;; disconnect, outer joins flush-and-exit cleanly.
+            ;; Outer holds only the two driver Threads (con-drv, driver)
+            ;; via a tuple. Inner owns the spawn-tuples, every pool, every
+            ;; popped Sender, and every per-call channel; inner returns
+            ;; the (con-drv, driver) tuple so the outer joins both
+            ;; AFTER inner has dropped the Senders. SERVICE-PROGRAMS.md
+            ;; § "The lockstep" + arc 117 + arc 131.
+            ;;
+            ;; Arc 126 still fires inside the inner let* on the
+            ;; `:wat::lru::put req-tx ack-tx ack-rx ...` call (the
+            ;; helper-verb signature passes both halves of the ack
+            ;; pair). The :should-panic substring "channel-pair-deadlock"
+            ;; matches arc 126's diagnostic regardless of any other
+            ;; check; the outer-scope rewrite ensures arc 131 does NOT
+            ;; ALSO fire (which would prepend "scope-deadlock at" to
+            ;; the panic text).
             (:wat::core::let*
-              (((con-state :wat::console::Spawn)
-                (:wat::console::spawn stdout stderr 2))
-               ((con-drv :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
-                (:wat::core::second con-state))
-               ((state :wat::lru::Spawn<wat::core::String,wat::core::i64>)
-                (:wat::lru::spawn 16 1
-                  :wat::lru::null-reporter
-                  (:wat::lru::null-metrics-cadence)))
-               ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
-                (:wat::core::second state))
-
-               ((_ :wat::core::unit)
+              (((drvs :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
                 (:wat::core::let*
-                  (((con-pool :wat::kernel::HandlePool<wat::console::Handle>)
+                  (((con-state :wat::console::Spawn)
+                    (:wat::console::spawn stdout stderr 2))
+                   ((con-drv :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                    (:wat::core::second con-state))
+                   ((state :wat::lru::Spawn<wat::core::String,wat::core::i64>)
+                    (:wat::lru::spawn 16 1
+                      :wat::lru::null-reporter
+                      (:wat::lru::null-metrics-cadence)))
+                   ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                    (:wat::core::second state))
+                   ((con-pool :wat::kernel::HandlePool<wat::console::Handle>)
                     (:wat::core::first con-state))
                    ((diag :wat::console::Handle)
                     (:wat::kernel::HandlePool::pop con-pool))
                    ((_spare :wat::console::Handle)
                     (:wat::kernel::HandlePool::pop con-pool))
-                   ((_ :wat::core::unit) (:wat::kernel::HandlePool::finish con-pool))
+                   ((_con-finish :wat::core::unit) (:wat::kernel::HandlePool::finish con-pool))
 
                    ((pool :wat::kernel::HandlePool<wat::lru::ReqTx<wat::core::String,wat::core::i64>>)
                     (:wat::core::first state))
                    ((req-tx :wat::lru::ReqTx<wat::core::String,wat::core::i64>)
                     (:wat::kernel::HandlePool::pop pool))
-                   ((_ :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
+                   ((_pool-finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
 
                    ;; Arc 119: separate ack channel (Put, Pattern A unit-ack)
                    ;; and reply channel (Get, Pattern B data-back Vec<Option<V>>).
@@ -83,14 +94,14 @@
                    ((ack-rx :wat::lru::PutAckRx)
                     (:wat::core::second ack-pair))
 
-                   ((_ :wat::core::unit) (:wat::console::err diag "T1: about-to-put\n"))
+                   ((_t1 :wat::core::unit) (:wat::console::err diag "T1: about-to-put\n"))
                    ;; Arc 119: put takes Vec<Entry<K,V>>; batch-of-one.
-                   ((_ :wat::core::unit)
+                   ((_put :wat::core::unit)
                     (:wat::lru::put req-tx ack-tx ack-rx
                       (:wat::core::conj
                         (:wat::core::Vector :wat::lru::Entry<wat::core::String,wat::core::i64>)
                         (:wat::core::Tuple "answer" 42))))
-                   ((_ :wat::core::unit) (:wat::console::err diag "T2: put-acked\n"))
+                   ((_t2 :wat::core::unit) (:wat::console::err diag "T2: put-acked\n"))
                    ;; Arc 119: get takes Vec<K>; returns Vec<Option<V>>.
                    ;; first on Vector<Option<T>> returns Option<Option<T>> — double-unwrap.
                    ((results :wat::core::Vector<wat::core::Option<wat::core::i64>>)
@@ -98,18 +109,21 @@
                       (:wat::core::conj
                         (:wat::core::Vector :wat::core::String)
                         "answer")))
-                   ((_ :wat::core::unit) (:wat::console::err diag "T3: get-returned\n")))
-                  ;; Two-level match: outer on first's Option wrapper; inner on the cache hit/miss.
-                  (:wat::core::match (:wat::core::first results) -> :wat::core::unit
-                    ((:wat::core::Some inner)
-                      (:wat::core::match inner -> :wat::core::unit
-                        ((:wat::core::Some _v) (:wat::console::out diag "hit\n"))
-                        (:wat::core::None       (:wat::console::out diag "miss\n"))))
-                    (:wat::core::None (:wat::console::out diag "miss\n")))))
-
-               ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+                   ((_t3 :wat::core::unit) (:wat::console::err diag "T3: get-returned\n"))
+                   ;; Two-level match: outer on first's Option wrapper; inner on the cache hit/miss.
+                   ((_report :wat::core::unit)
+                    (:wat::core::match (:wat::core::first results) -> :wat::core::unit
+                      ((:wat::core::Some inner)
+                        (:wat::core::match inner -> :wat::core::unit
+                          ((:wat::core::Some _v) (:wat::console::out diag "hit\n"))
+                          (:wat::core::None       (:wat::console::out diag "miss\n"))))
+                      (:wat::core::None (:wat::console::out diag "miss\n")))))
+                  (:wat::core::Tuple con-drv driver)))
+               ((con-drv :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first drvs))
+               ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second drvs))
+               ((_join-driver :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result driver))
-               ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+               ((_join-con :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                 (:wat::kernel::Thread/join-result con-drv)))
               ())))
         (:wat::core::Vector :wat::core::String)))

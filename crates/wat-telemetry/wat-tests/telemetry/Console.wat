@@ -35,8 +35,10 @@
                   handle :wat::telemetry::Console::Format::Edn))
                ((batch :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 10 20 30)))
               (d batch)))
-          ;; Main — outer holds Console driver; inner pops handle +
-          ;; calls helper; outer joins after inner exits.
+          ;; Main — outer holds Console driver Thread; inner owns the
+          ;; spawn-tuple, pool, handle, and dispatch work; inner returns
+          ;; the Thread; pool drops at inner exit; outer joins.
+          ;; SERVICE-PROGRAMS.md § "The lockstep" + arc 117 + arc 131.
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)
@@ -44,17 +46,22 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::unit)
             (:wat::core::let*
-              (((pool console-driver)
-                (:wat::console::spawn stdout stderr 1))
-               ((_ :wat::core::unit)
+              (((console-driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
                 (:wat::core::let*
-                  (((handle :wat::console::Handle)
+                  (((spawn :wat::console::Spawn)
+                    (:wat::console::spawn stdout stderr 1))
+                   ((pool :wat::kernel::HandlePool<wat::console::Handle>)
+                    (:wat::core::first spawn))
+                   ((cd :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                    (:wat::core::second spawn))
+                   ((handle :wat::console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
-                   ((_0 :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
-                  (:my::dispatch-three-edn handle)))
-               ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
-                (:wat::kernel::Thread/join-result console-driver)))
-              ())))
+                   ((_0 :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
+                   ((_work :wat::core::unit) (:my::dispatch-three-edn handle)))
+                  cd)))
+              (:wat::core::match (:wat::kernel::Thread/join-result console-driver) -> :wat::core::unit
+                ((:wat::core::Ok _) ())
+                ((:wat::core::Err _) (:wat::test::assert-eq "console-driver-died" ""))))))
         (:wat::core::Vector :wat::core::String)))
      ((stdout :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
      ((seen-10 :wat::core::bool)
@@ -119,17 +126,25 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::unit)
             (:wat::core::let*
-              (((pool console-driver)
-                (:wat::console::spawn stdout stderr 1))
-               ((_ :wat::core::unit)
+              ;; Outer holds Console driver Thread; inner owns the
+              ;; spawn-tuple, pool, handle, and dispatch work; inner
+              ;; returns the Thread. SERVICE-PROGRAMS.md § "The lockstep".
+              (((console-driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
                 (:wat::core::let*
-                  (((handle :wat::console::Handle)
+                  (((spawn :wat::console::Spawn)
+                    (:wat::console::spawn stdout stderr 1))
+                   ((pool :wat::kernel::HandlePool<wat::console::Handle>)
+                    (:wat::core::first spawn))
+                   ((cd :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                    (:wat::core::second spawn))
+                   ((handle :wat::console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
-                   ((_0 :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
-                  (:my::dispatch-row-json handle)))
-               ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
-                (:wat::kernel::Thread/join-result console-driver)))
-              ())))
+                   ((_0 :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
+                   ((_work :wat::core::unit) (:my::dispatch-row-json handle)))
+                  cd)))
+              (:wat::core::match (:wat::kernel::Thread/join-result console-driver) -> :wat::core::unit
+                ((:wat::core::Ok _) ())
+                ((:wat::core::Err _) (:wat::test::assert-eq "console-driver-died" ""))))))
         (:wat::core::Vector :wat::core::String)))
      ((stdout :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
      ((seen-row :wat::core::bool)

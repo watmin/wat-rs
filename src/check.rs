@@ -1987,11 +1987,15 @@ fn type_is_thread_kind(ty: &TypeExpr, types: &TypeEnv) -> bool {
 ///     for unrelated state). Caller-allocated wat-level pairs always
 ///     surface as `QueueSender<T>` after alias resolution, which IS
 ///     the deadlock anchor.
-///   - `:wat::kernel::HandlePool<T>` carries N Senders too but feeds
-///     a separate service driver; a sibling pool alongside a worker
-///     Thread isn't necessarily a deadlock (Console.wat case). Pool
-///     ↔ service-driver siblings ARE a deadlock but require detection
-///     of the spawn-tuple-destructure pattern; future arc.
+///   - `:wat::kernel::HandlePool<T>` IS flagged when T contains
+///     a Sender — arc 131 lifted the exclusion. The previous
+///     narrowing avoided false-positives on Console's tests, but
+///     the structural pattern (pool sibling to Thread with
+///     join-result on the destructured Thread) IS deadlock-prone
+///     by construction. Console's tests rely on runtime
+///     handle-drop ordering; arc 131 makes the discipline
+///     structural rather than voluntary. Returns "HandlePool"
+///     on hit so the diagnostic names the offending kind.
 fn type_contains_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static str> {
     // Match wat-level Sender-anchor heads at the SURFACE first — `expand_alias`
     // would unwrap `Channel` → `(Sender, Receiver)` and then
@@ -2003,6 +2007,24 @@ fn type_contains_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> Option<&'static 
             "wat::kernel::Channel" | "wat::kernel::Sender"
         ) {
             return Some("Sender");
+        }
+        // Arc 131 — HandlePool is Sender-bearing IFF its parametric T
+        // (after alias resolution) contains a Sender structurally.
+        // The HandlePool entries are clones of Sender-carrying handles;
+        // clients pop one, drop or use it, but the pool's internal
+        // storage keeps Sender clones alive until each handle is popped
+        // AND dropped. A sibling pool alongside Thread/join-result on
+        // the service driver is the canonical service-test mistake
+        // (the spawn-tuple-destructure pattern). Hypothetical
+        // HandlePool<i64> / HandlePool<unit> shapes — no embedded
+        // Sender — pass through silently.
+        if head.as_str() == "wat::kernel::HandlePool" {
+            for arg in args {
+                if type_contains_sender_kind(arg, types).is_some() {
+                    return Some("HandlePool");
+                }
+            }
+            return None;
         }
         // Not a direct match; try peeling an alias ONCE in case `head` is a
         // user typealias that points at QueuePair/QueueSender.
@@ -11165,6 +11187,112 @@ mod tests {
                     pair_deadlocks.is_empty(),
                     "arc 126 reland: walker must skip sandboxed forms block; ChannelPairDeadlock fired at outer freeze: {:?}",
                     pair_deadlocks
+                );
+            }
+        }
+    }
+
+    // ─── Arc 131 — HandlePool counts as Sender-bearing ──────────────
+
+    /// Arc 131 — a `let*` binding-block containing a HandlePool
+    /// whose T (after alias resolution) carries a Sender, sibling
+    /// to a Thread that gets `Thread/join-result`'d in body
+    /// position, MUST fire `ScopeDeadlock` with offending_kind
+    /// "HandlePool". The canonical service-test mistake: the
+    /// pool's internal entries hold Sender clones that outlive
+    /// the worker's recv loop. Closes the "future arc" caveat
+    /// arc 117's source comment named.
+    #[test]
+    fn arc_131_handlepool_with_sender_fires() {
+        // Direct shape: `HandlePool<Sender<i64>>` — no user typealias
+        // needed. The new arm recurses into args; finds a Sender
+        // structurally; returns Some("HandlePool"). Models the
+        // canonical service-test mistake without the syntactic noise
+        // of a parametric typealias declaration.
+        let src = r#"
+            (:wat::core::define
+              (:my::deadlock-via-handlepool -> :wat::core::unit)
+              (:wat::core::let*
+                (((pool :wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>)
+                  (:wat::kernel::HandlePool::new
+                    "pool"
+                    (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
+                 ((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
+                  (:wat::kernel::spawn-thread
+                    (:wat::core::lambda
+                      ((_in :wat::kernel::Receiver<wat::core::unit>)
+                       (_out :wat::kernel::Sender<wat::core::i64>)
+                       -> :wat::core::unit)
+                      ()))))
+                (:wat::core::match
+                  (:wat::kernel::Thread/join-result thr)
+                  -> :wat::core::unit
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))
+        "#;
+        let err = check(src).expect_err(
+            "HandlePool<HandleAlias-with-Sender> sibling to Thread/join-result must fire ScopeDeadlock",
+        );
+        let scope_deadlocks: Vec<_> = err
+            .0
+            .iter()
+            .filter_map(|e| match e {
+                CheckError::ScopeDeadlock { offending_kind, .. } => Some(*offending_kind),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            scope_deadlocks.iter().any(|k| *k == "HandlePool"),
+            "expected ScopeDeadlock with offending_kind=\"HandlePool\", got kinds: {:?}; full errors: {:?}",
+            scope_deadlocks,
+            err.0
+        );
+    }
+
+    /// Arc 131 — `HandlePool<T>` where T does NOT contain a Sender
+    /// (e.g. `HandlePool<i64>`) is not deadlock-prone; the new
+    /// surface arm passes through silently. Confirms the rule
+    /// fires structurally on Sender-presence, not on HandlePool
+    /// per se.
+    #[test]
+    fn arc_131_handlepool_without_sender_silent() {
+        let src = r#"
+            (:wat::core::define
+              (:my::no-deadlock-on-bare-handlepool -> :wat::core::unit)
+              (:wat::core::let*
+                (((pool :wat::kernel::HandlePool<wat::core::i64>)
+                  (:wat::kernel::HandlePool::new
+                    "pool"
+                    (:wat::core::Vector :wat::core::i64)))
+                 ((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
+                  (:wat::kernel::spawn-thread
+                    (:wat::core::lambda
+                      ((_in :wat::kernel::Receiver<wat::core::unit>)
+                       (_out :wat::kernel::Sender<wat::core::i64>)
+                       -> :wat::core::unit)
+                      ()))))
+                (:wat::core::match
+                  (:wat::kernel::Thread/join-result thr)
+                  -> :wat::core::unit
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))
+        "#;
+        let result = check(src);
+        // HandlePool<i64> has no embedded Sender — the rule must
+        // pass through. ScopeDeadlock firing here would mean the
+        // new arm flagged HandlePool unconditionally.
+        match result {
+            Ok(_) => {}
+            Err(errors) => {
+                let scope_deadlocks: Vec<_> = errors
+                    .0
+                    .iter()
+                    .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+                    .collect();
+                assert!(
+                    scope_deadlocks.is_empty(),
+                    "arc 131: HandlePool<i64> must not fire ScopeDeadlock (T contains no Sender); got: {:?}",
+                    scope_deadlocks
                 );
             }
         }
