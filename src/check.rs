@@ -353,6 +353,33 @@ pub enum CheckError {
         /// name.
         span: Span,
     },
+    /// Arc 140 — a deftest body (or any sandboxed sub-program's
+    /// forms-block) invokes a name that exists in the OUTER scope
+    /// but NOT in the sub-program's own forms (prelude + auto-
+    /// generated `:user::main`). Sandboxes do NOT capture outer
+    /// scope by design (per `wat/test.wat`'s deftest macro and
+    /// `wat/std/sandbox.wat`'s `run-sandboxed-ast`); the user
+    /// either typed a name they thought would be visible or
+    /// forgot to put the helper into the deftest's prelude.
+    ///
+    /// Same teaching shape as arc 117 `ScopeDeadlock` / arc 126
+    /// `ChannelPairDeadlock`: substrate-as-teacher pattern 3 —
+    /// dedicated variant per failure class; Display IS the brief.
+    /// Two spans land in the diagnostic so users (and agents)
+    /// navigate to BOTH the offending invocation AND the helper
+    /// they meant to reference.
+    SandboxScopeLeak {
+        /// The keyword name invoked at the call site.
+        offending_name: String,
+        /// Source location of the offending invocation inside the
+        /// sandboxed body.
+        call_span: Span,
+        /// Source location of the outer-scope define. Best-effort:
+        /// uses the function's body span when the substrate doesn't
+        /// track the outer define-form span directly. May be
+        /// `Span::unknown()` if the outer scope is a built-in.
+        outer_define_span: Span,
+    },
 }
 
 /// Arc 138 slice 1 — render the file:line:col prefix for an error,
@@ -480,6 +507,18 @@ impl fmt::Display for CheckError {
                 "legacy kernel queue path '{}' at {} is retired (arc 109 slice K.kernel-channel); canonical form is '{}'. The :wat::kernel::Queue* family renamed to Channel / Sender / Receiver (Queue leaked crossbeam's data-structure name; the canonical vocabulary is the substrate's honest naming). File moved: wat/kernel/queue.wat → wat/kernel/channel.wat. Rename '{}' → '{}' at the offending site.",
                 old, span, new, old, new
             ),
+            CheckError::SandboxScopeLeak { offending_name, call_span, outer_define_span } => {
+                let define_loc = if outer_define_span.is_unknown() {
+                    "an outer scope".to_string()
+                } else {
+                    format!("{}", outer_define_span)
+                };
+                write!(
+                    f,
+                    "{}sandbox-scope leak: '{}' invoked here is defined at {} but deftest sandboxes do NOT capture outer-scope. Move (:wat::core::define {} ...) into this deftest's prelude (the second argument of `(:wat::test::deftest <name> <prelude> <body>)`), or load it into the prelude via `(:wat::core::load! \"path/to/file.wat\")`. The sandbox isolation is intentional — see wat/test.wat's deftest macro.",
+                    span_prefix(call_span), offending_name, define_loc, offending_name
+                )
+            }
         }
     }
 }
@@ -714,6 +753,15 @@ impl CheckError {
                     .field("old", old.as_str())
                     .field("new", new.as_str())
                     .field("location", format!("{}", span))
+            }
+            CheckError::SandboxScopeLeak { offending_name, call_span, outer_define_span } => {
+                let mut diag = Diagnostic::new("SandboxScopeLeak")
+                    .field("offending_name", offending_name.as_str())
+                    .field("call_span", format!("{}", call_span));
+                if !outer_define_span.is_unknown() {
+                    diag = diag.field("outer_define_span", format!("{}", outer_define_span));
+                }
+                diag
             }
         }
     }
@@ -1178,6 +1226,20 @@ pub fn check_program(
         validate_channel_pair_deadlock(form, types, &mut errors);
     }
 
+    // Arc 140 — sandbox-scope leak prevention. Walk every form for
+    // sandbox-primitive call sites. For each, build the inner-scope
+    // name set from the forms-block; walk inner-form bodies; fire
+    // `SandboxScopeLeak` when a call head resolves in the OUTER
+    // SymbolTable but NOT in the inner scope. The diagnostic carries
+    // both spans (offending invocation + outer-scope define) so users
+    // and agents navigate without grepping. See arc 140 DESIGN.md.
+    for func in sym.functions.values() {
+        validate_sandbox_scope_leak(&func.body, sym, &mut errors);
+    }
+    for form in forms {
+        validate_sandbox_scope_leak(form, sym, &mut errors);
+    }
+
     // Arc 109 slice 1c — refuse bare primitive types (`:i64`, `:f64`,
     // `:bool`, `:String`, `:u8`) anywhere in the program. The
     // canonical FQDN form (`:wat::core::i64`, etc.) is the
@@ -1413,6 +1475,159 @@ fn validate_comm_positions(
     // (5) Default — every child descends as Forbidden.
     for child in items {
         validate_comm_positions(child, CommCtx::Forbidden, errors);
+    }
+}
+
+// ─── Arc 140 — sandbox-scope leak prevention ──────────────────────────
+//
+// Deftest bodies (and any other `(:wat::kernel::run-sandboxed-ast ...)`
+// callers) run in a sub-program whose scope contains ONLY the
+// forms-block argument (prelude + auto-generated `:user::main`) plus
+// stdlib. Outer-file user defines are NOT captured — sandbox isolation
+// is intentional (per `wat/test.wat`'s deftest macro and
+// `wat/std/sandbox.wat`'s `run-sandboxed-ast` shape).
+//
+// The failure mode that has burned the project repeatedly: user puts a
+// helper at the top level of a test file, references it from a deftest
+// body. Outer freeze type-checks the body with the outer scope visible;
+// it passes silently. Sub-program freeze runs with the restricted
+// scope; resolve / runtime fires `unknown function: :foo` — generic,
+// no scoping explanation.
+//
+// Arc 140 catches this at outer freeze. For each sandbox-primitive
+// call site, build the inner-scope name set (defines in the forms-
+// block). Walk inner-form bodies. For each call head that's NOT
+// reserved-prefix AND NOT in the inner scope BUT IS in the outer
+// `SymbolTable` — fire `CheckError::SandboxScopeLeak` with both spans
+// (the offending invocation + the outer-scope define).
+fn validate_sandbox_scope_leak(
+    node: &WatAST,
+    sym: &SymbolTable,
+    errors: &mut Vec<CheckError>,
+) {
+    let WatAST::List(items, _) = node else { return; };
+
+    // Recurse first into all children — handles nested sandbox calls
+    // (e.g., a top-level form holding a deftest holding another
+    // sandbox primitive).
+    for child in items {
+        validate_sandbox_scope_leak(child, sym, errors);
+    }
+
+    // Check if THIS node is a sandbox-primitive call.
+    let head_str = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => return,
+    };
+    let is_sandbox_call = matches!(
+        head_str,
+        ":wat::kernel::run-sandboxed-ast"
+            | ":wat::kernel::run-sandboxed-hermetic-ast"
+            | ":wat::kernel::fork-program-ast"
+            | ":wat::kernel::spawn-program-ast"
+    );
+    if !is_sandbox_call || items.len() < 2 {
+        return;
+    }
+
+    // arg[0] should be a `(:wat::core::forms <inner-form>...)` block.
+    let WatAST::List(forms_items, _) = &items[1] else { return; };
+    let forms_head_ok = matches!(
+        forms_items.first(),
+        Some(WatAST::Keyword(k, _)) if k == ":wat::core::forms"
+    );
+    if !forms_head_ok {
+        return;
+    }
+    let inner_forms = &forms_items[1..];
+
+    // Collect names defined at the top level of the inner forms.
+    // Define forms are top-level only — no nested-define recursion
+    // needed. Strip `<T,...>` from each name so generic and concrete
+    // call sites both resolve against the canonical name.
+    let mut inner_names: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
+    for form in inner_forms {
+        if let WatAST::List(items_d, _) = form {
+            if let Some(WatAST::Keyword(define_head, _)) = items_d.first() {
+                if define_head == ":wat::core::define" && items_d.len() == 3 {
+                    if let WatAST::List(sig, _) = &items_d[1] {
+                        if let Some(WatAST::Keyword(name, _)) = sig.first() {
+                            let canonical = match name.find('<') {
+                                Some(i) => name[..i].to_string(),
+                                None => name.clone(),
+                            };
+                            inner_names.insert(canonical);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Walk each inner form, checking call heads.
+    for form in inner_forms {
+        check_calls_for_sandbox_leak(form, &inner_names, sym, errors);
+    }
+}
+
+/// Recursive companion to `validate_sandbox_scope_leak`. Walks an
+/// inner-form AST looking for call-position keyword heads that
+/// satisfy:
+///
+/// - NOT a reserved-prefix path (`:wat::*` / `:rust::*`)
+/// - NOT in the inner-scope name set (passed-in by the caller)
+/// - IS registered in the outer `SymbolTable`
+///
+/// When all three hold, fire `CheckError::SandboxScopeLeak`. Stops
+/// descending into nested sandbox primitives — those have their own
+/// inner-scope analyzed by the outer caller's recursion in
+/// `validate_sandbox_scope_leak`.
+fn check_calls_for_sandbox_leak(
+    node: &WatAST,
+    inner_names: &std::collections::HashSet<String>,
+    sym: &SymbolTable,
+    errors: &mut Vec<CheckError>,
+) {
+    let WatAST::List(items, _) = node else { return; };
+
+    if let Some(WatAST::Keyword(head, head_span)) = items.first() {
+        let head_str = head.as_str();
+        // Strip `<T,...>` for lookup (the symbol table key is the
+        // canonical name without type-parameter annotation; arc 139
+        // territory).
+        let canonical = match head_str.find('<') {
+            Some(i) => &head_str[..i],
+            None => head_str,
+        };
+        let reserved = canonical.starts_with(":wat::") || canonical.starts_with(":rust::");
+        if !reserved && !inner_names.contains(canonical) {
+            if let Some(outer_func) = sym.get(canonical) {
+                errors.push(CheckError::SandboxScopeLeak {
+                    offending_name: head_str.to_string(),
+                    call_span: head_span.clone(),
+                    outer_define_span: outer_func.body.span().clone(),
+                });
+            }
+        }
+
+        // Stop at nested sandbox boundaries — the outer caller's
+        // recursion handles those.
+        let is_nested_sandbox = matches!(
+            head_str,
+            ":wat::kernel::run-sandboxed-ast"
+                | ":wat::kernel::run-sandboxed-hermetic-ast"
+                | ":wat::kernel::fork-program-ast"
+                | ":wat::kernel::spawn-program-ast"
+        );
+        if is_nested_sandbox {
+            return;
+        }
+    }
+
+    // Recurse into all children for nested calls.
+    for child in items {
+        check_calls_for_sandbox_leak(child, inner_names, sym, errors);
     }
 }
 
@@ -11143,6 +11358,80 @@ mod tests {
             "TypeMismatch Display must include source coordinates; rendered:\n{}",
             rendered
         );
+    }
+
+    /// Arc 140 slice 2 — sandbox-scope leak fires when a deftest body
+    /// invokes a name registered at the OUTER test-file scope but NOT
+    /// in the deftest's prelude. The diagnostic carries two spans —
+    /// the offending invocation AND the outer-scope define — so users
+    /// navigate to both sites without grepping. Substrate-as-teacher
+    /// pattern; the failure is the user's nudge.
+    #[test]
+    fn sandbox_scope_leak_fires_with_diagnostic() {
+        // Top-level define :my::helper. Deftest body invokes it
+        // without including it in the prelude (the empty `()` second
+        // argument). The sub-program's scope at runtime would NOT
+        // contain :my::helper — sandbox isolation. Arc 140's check
+        // catches this at outer freeze.
+        let src = r#"
+            (:wat::core::define
+              (:my::helper (x :wat::core::i64) -> :wat::core::i64)
+              (:wat::core::i64::* x 2))
+
+            (:wat::test::deftest :test::leaky
+              ()
+              (:wat::test::assert-eq (:my::helper 21) 42))
+        "#;
+        let err = check(src).unwrap_err();
+        let rendered = format!("{}", err);
+        // Hard guarantees the diagnostic must satisfy:
+        assert!(
+            err.0.iter().any(|e| matches!(e, CheckError::SandboxScopeLeak { .. })),
+            "expected SandboxScopeLeak; rendered:\n{}", rendered
+        );
+        assert!(
+            rendered.contains("sandbox-scope leak"),
+            "rendered must contain 'sandbox-scope leak'; got:\n{}", rendered
+        );
+        assert!(
+            rendered.contains(":my::helper"),
+            "rendered must name the offending function; got:\n{}", rendered
+        );
+        assert!(
+            rendered.contains("<test>:"),
+            "rendered must include file:line:col coordinates (arc 138); got:\n{}", rendered
+        );
+        assert!(
+            rendered.contains("prelude"),
+            "rendered must teach the user to move the define into the prelude; got:\n{}", rendered
+        );
+    }
+
+    /// Arc 140 slice 2 — confirm the leak rule does NOT misfire when
+    /// the helper IS properly placed in the deftest's prelude. Same
+    /// shape as the leak test; helper moved into prelude position; no
+    /// SandboxScopeLeak fires.
+    #[test]
+    fn sandbox_scope_no_leak_when_in_prelude() {
+        let src = r#"
+            (:wat::test::deftest :test::clean
+              ((:wat::core::define
+                 (:my::helper (x :wat::core::i64) -> :wat::core::i64)
+                 (:wat::core::i64::* x 2)))
+              (:wat::test::assert-eq (:my::helper 21) 42))
+        "#;
+        // No outer-scope :my::helper define exists; the only define
+        // for it lives inside the deftest's prelude. The walker must
+        // NOT fire SandboxScopeLeak.
+        let result = check(src);
+        if let Err(errs) = &result {
+            assert!(
+                !errs.0.iter().any(|e| matches!(e, CheckError::SandboxScopeLeak { .. })),
+                "SandboxScopeLeak misfired; rendered:\n{}", errs
+            );
+        }
+        // (Non-leak errors may still appear from other check rules
+        // here — the test only asserts SandboxScopeLeak doesn't fire.)
     }
 
     #[test]

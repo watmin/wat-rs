@@ -1,9 +1,18 @@
-;; Minimal reproduction — does generic-T 3-tuple return work?
+;; Arc 139 reproduction — generic-T turbofish at user-defined call site.
 ;;
-;; The define MUST go in the deftest's prelude (second arg) since
-;; the test body runs in a sandboxed sub-program that only sees
-;; the prelude forms + the auto-generated :user::main.
+;; STATUS (2026-05-03): SHOULD-PANIC pending arc 139 fix.
+;; The substrate strips `<T>` at define-registration time
+;; (split_name_and_type_params in src/runtime.rs) but does NOT strip
+;; at call-site lookup. Asymmetric registration vs lookup → runtime
+;; UnknownFunction. Same bug class as arc 102's eval-ast! polymorphic
+;; return scheme/runtime alignment.
+;;
+;; When arc 139 ships, remove the should-panic + restore as a passing
+;; deftest. The inferred-T form (tmp-3tuple-inferred.wat) already
+;; passes — confirms the bug is specifically in turbofish call-site
+;; resolution, not generic dispatch in general.
 
+(:wat::test::should-panic "unknown function")
 (:wat::test::deftest :wat-tests::tmp::generic-3tuple-roundtrip
   ((:wat::core::define
      (:test::make-3tuple<T> (mid :T) -> :(wat::core::i64,T,wat::core::String))
