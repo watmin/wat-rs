@@ -1,143 +1,265 @@
-;; crates/wat-lru/wat-tests/CacheService.wat — restored from
-;; pre-slice-4b wat-tests/std/service/Cache.wat (arc 015 slice 3).
+;; wat-lru :: CacheService — compositional rewrite (arc 130
+;; REALIZATIONS).
 ;;
-;; CacheService composes with Console: both run driver threads, both
-;; need thread-safe stdio. In-process `:wat::test::run-ast` uses
-;; StringIoWriter under `ThreadOwnedCell` (single-thread) and would
-;; panic on cross-thread writes, so this test runs through
-;; `:wat::test::run-hermetic-ast` — real subprocess (forked via arc
-;; 012's fork-program-ast, COW-inherits the parent test binary's
-;; installed dep_sources OnceLock so wat-lru's surface is reachable
-;; in the child). Real stdio, AST-entry so the inner program reads
-;; as s-expressions not an escaped string.
+;; Top-down dependency graph in ONE file. Earlier defines compose
+;; into later defines. Each layer carries its own deftest. The final
+;; deftest body is short BECAUSE the layers exist.
 ;;
-;; The T1/T2/T3 stderr checkpoints stay as regression sentinels —
-;; a future hang halts at the last checkpoint, surfacing the
-;; thread-ownership bug that drove the original test.
+;; Reference: docs/arc/2026/05/130-cache-services-pair-by-index/REALIZATIONS.md
+;;
+;; ─── Layers ──────────────────────────────────────────────────────────
+;;
+;;   Layer 0  :test::lru-spawn-and-shutdown      ; spawn → finish pool → join
+;;
+;;   Layer 1  :test::lru-spawn-then-put          ; Layer 0 + one Put
+;;            :test::lru-spawn-then-get          ; Layer 0 + one Get
+;;
+;;   Layer 2  :test::lru-spawn-put-then-get      ; Layer 1 composed
+;;
+;;   Final    :wat-lru::test-cache-service-put-then-get-round-trip
+;;
+;; Layer 0 is the lifecycle proof — pure; no helper-verb calls; no
+;; arc-126 deadlock pattern. Layer 1+ each call `:wat::lru::put` /
+;; `:wat::lru::get` whose pre-arc-130 helper-verb signatures take
+;; both halves of an ack/reply pair from `make-bounded-channel`. Arc
+;; 126's `channel-pair-deadlock` rule fires at freeze time — every
+;; deftest using a prelude that contains those calls panics with
+;; that substring. The panic is INTENTIONAL until arc 130's substrate
+;; reshape lands; `:wat::test::should-panic` catches it as expected
+;; behaviour.
+;;
+;; Post-arc-130 plan: helper verbs take a single `Handle<K,V>` and
+;; allocate channels internally. The Layer 1+ helper bodies update
+;; (one signature change each); the deftests at every layer drop
+;; their `:should-panic` annotations; failures localize to the
+;; specific layer that broke. Layer 0's lifecycle proof is unchanged
+;; — it doesn't depend on helper-verb shape.
+;;
+;; The substrate uses inner-let* nesting per arc 131 + SERVICE-
+;; PROGRAMS.md § "The lockstep": outer scope holds only the driver
+;; Thread; inner owns pool + handle + per-call channels; inner
+;; returns the Thread; pool drops at inner-scope exit; driver's
+;; recv-loop sees disconnect; outer's `Thread/join-result` unblocks.
+
+(:wat::test::make-deftest :deftest
+  (
+   ;; ─── Layer 0 — lifecycle. No helper-verb calls. ────────────────
+   ;;
+   ;; Spawn the cache, immediately drop the pool, join the driver.
+   ;; The narrowest possible proof: substrate spawn + shutdown
+   ;; cycle works under inner-let* nesting.
+   (:wat::core::define
+     (:test::lru-spawn-and-shutdown -> :wat::core::unit)
+     (:wat::core::let*
+       (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+         (:wat::core::let*
+           (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
+             (:wat::lru::spawn 16 1
+               :wat::lru::null-reporter
+               (:wat::lru::null-metrics-cadence)))
+            ((pool :wat::kernel::HandlePool<wat::lru::ReqTx<wat::core::String,wat::core::i64>>)
+             (:wat::core::first spawn))
+            ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+             (:wat::core::second spawn))
+            ((_finish :wat::core::unit)
+             (:wat::kernel::HandlePool::finish pool)))
+           d))
+        ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+         (:wat::kernel::Thread/join-result driver)))
+       ()))
+
+   ;; ─── Layer 1 — single helper-verb actions. ─────────────────────
+   ;;
+   ;; Each spawns the cache, pops a handle, allocates the per-call
+   ;; channel pair, calls the helper verb, tears down. The
+   ;; `(:wat::lru::put req-tx ack-tx ack-rx ...)` and
+   ;; `(:wat::lru::get req-tx reply-tx reply-rx ...)` call sites
+   ;; pass both halves of one channel pair → arc 126 fires at freeze.
+   ;;
+   ;; Post-arc-130: helper verb takes a single `Handle<K,V>`; ack /
+   ;; reply channels owned internally; arc 126 stops firing.
+
+   (:wat::core::define
+     (:test::lru-spawn-then-put
+       (k :wat::core::String)
+       (v :wat::core::i64)
+       -> :wat::core::unit)
+     (:wat::core::let*
+       (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+         (:wat::core::let*
+           (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
+             (:wat::lru::spawn 16 1
+               :wat::lru::null-reporter
+               (:wat::lru::null-metrics-cadence)))
+            ((pool :wat::kernel::HandlePool<wat::lru::ReqTx<wat::core::String,wat::core::i64>>)
+             (:wat::core::first spawn))
+            ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+             (:wat::core::second spawn))
+            ((req-tx :wat::lru::ReqTx<wat::core::String,wat::core::i64>)
+             (:wat::kernel::HandlePool::pop pool))
+            ((_finish :wat::core::unit)
+             (:wat::kernel::HandlePool::finish pool))
+            ((ack-pair :wat::lru::PutAckChannel)
+             (:wat::kernel::make-bounded-channel :wat::core::unit 1))
+            ((ack-tx :wat::lru::PutAckTx) (:wat::core::first ack-pair))
+            ((ack-rx :wat::lru::PutAckRx) (:wat::core::second ack-pair))
+            ((_put :wat::core::unit)
+             (:wat::lru::put req-tx ack-tx ack-rx
+               (:wat::core::conj
+                 (:wat::core::Vector :wat::lru::Entry<wat::core::String,wat::core::i64>)
+                 (:wat::core::Tuple k v)))))
+           d))
+        ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+         (:wat::kernel::Thread/join-result driver)))
+       ()))
+
+   (:wat::core::define
+     (:test::lru-spawn-then-get
+       (k :wat::core::String)
+       -> :wat::core::Vector<wat::core::Option<wat::core::i64>>)
+     (:wat::core::let*
+       (((pair :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::Vector<wat::core::Option<wat::core::i64>>))
+         (:wat::core::let*
+           (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
+             (:wat::lru::spawn 16 1
+               :wat::lru::null-reporter
+               (:wat::lru::null-metrics-cadence)))
+            ((pool :wat::kernel::HandlePool<wat::lru::ReqTx<wat::core::String,wat::core::i64>>)
+             (:wat::core::first spawn))
+            ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+             (:wat::core::second spawn))
+            ((req-tx :wat::lru::ReqTx<wat::core::String,wat::core::i64>)
+             (:wat::kernel::HandlePool::pop pool))
+            ((_finish :wat::core::unit)
+             (:wat::kernel::HandlePool::finish pool))
+            ((reply-pair :wat::lru::ReplyChannel<wat::core::i64>)
+             (:wat::kernel::make-bounded-channel
+               :wat::core::Vector<wat::core::Option<wat::core::i64>> 1))
+            ((reply-tx :wat::lru::ReplyTx<wat::core::i64>)
+             (:wat::core::first reply-pair))
+            ((reply-rx :wat::lru::ReplyRx<wat::core::i64>)
+             (:wat::core::second reply-pair))
+            ((results :wat::core::Vector<wat::core::Option<wat::core::i64>>)
+             (:wat::lru::get req-tx reply-tx reply-rx
+               (:wat::core::conj
+                 (:wat::core::Vector :wat::core::String)
+                 k))))
+           (:wat::core::Tuple d results)))
+        ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first pair))
+        ((results :wat::core::Vector<wat::core::Option<wat::core::i64>>) (:wat::core::second pair))
+        ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+         (:wat::kernel::Thread/join-result driver)))
+       results))
+
+   ;; ─── Layer 2 — Put-then-Get composition. ───────────────────────
+   ;;
+   ;; Spawn ONCE. Put one entry. Get the same key. Tear down. Returns
+   ;; the get's results so the deftest body can assert on them. Same
+   ;; inner-let* shape — outer holds only the driver; inner does the
+   ;; full sequence; inner returns (driver, results) tuple.
+   (:wat::core::define
+     (:test::lru-spawn-put-then-get
+       (k :wat::core::String)
+       (v :wat::core::i64)
+       -> :wat::core::Vector<wat::core::Option<wat::core::i64>>)
+     (:wat::core::let*
+       (((pair :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::Vector<wat::core::Option<wat::core::i64>>))
+         (:wat::core::let*
+           (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
+             (:wat::lru::spawn 16 1
+               :wat::lru::null-reporter
+               (:wat::lru::null-metrics-cadence)))
+            ((pool :wat::kernel::HandlePool<wat::lru::ReqTx<wat::core::String,wat::core::i64>>)
+             (:wat::core::first spawn))
+            ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+             (:wat::core::second spawn))
+            ((req-tx :wat::lru::ReqTx<wat::core::String,wat::core::i64>)
+             (:wat::kernel::HandlePool::pop pool))
+            ((_finish :wat::core::unit)
+             (:wat::kernel::HandlePool::finish pool))
+
+            ;; Put — Pattern A unit-ack channel.
+            ((ack-pair :wat::lru::PutAckChannel)
+             (:wat::kernel::make-bounded-channel :wat::core::unit 1))
+            ((ack-tx :wat::lru::PutAckTx) (:wat::core::first ack-pair))
+            ((ack-rx :wat::lru::PutAckRx) (:wat::core::second ack-pair))
+            ((_put :wat::core::unit)
+             (:wat::lru::put req-tx ack-tx ack-rx
+               (:wat::core::conj
+                 (:wat::core::Vector :wat::lru::Entry<wat::core::String,wat::core::i64>)
+                 (:wat::core::Tuple k v))))
+
+            ;; Get — Pattern B data-back channel.
+            ((reply-pair :wat::lru::ReplyChannel<wat::core::i64>)
+             (:wat::kernel::make-bounded-channel
+               :wat::core::Vector<wat::core::Option<wat::core::i64>> 1))
+            ((reply-tx :wat::lru::ReplyTx<wat::core::i64>)
+             (:wat::core::first reply-pair))
+            ((reply-rx :wat::lru::ReplyRx<wat::core::i64>)
+             (:wat::core::second reply-pair))
+            ((results :wat::core::Vector<wat::core::Option<wat::core::i64>>)
+             (:wat::lru::get req-tx reply-tx reply-rx
+               (:wat::core::conj
+                 (:wat::core::Vector :wat::core::String)
+                 k))))
+           (:wat::core::Tuple d results)))
+        ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first pair))
+        ((results :wat::core::Vector<wat::core::Option<wat::core::i64>>) (:wat::core::second pair))
+        ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+         (:wat::kernel::Thread/join-result driver)))
+       results))))
+
+;; ─── Per-layer deftests ──────────────────────────────────────────────
+;;
+;; Each layer carries its own proof. `cargo test --list` shows the
+;; tree. When a layer breaks, the failing deftest's name names the
+;; broken unit. Bottom-up proofs THEN top-down composition.
+;;
+;; All deftests `:should-panic("channel-pair-deadlock")` because the
+;; shared prelude includes Layer 1+ helpers whose bodies fire arc 126
+;; at freeze. The panic is intentional under the current substrate;
+;; arc 130 lands the substrate reshape that retires it. Post-arc-130,
+;; the `:should-panic` annotations come off and per-layer failures
+;; localize cleanly.
 
 
-;; Arc 126 — same Pattern B Put-ack helper-verb cycle deadlock as
-;; HologramCacheService's step3-6. The arc 126 check fires at inner
-;; freeze and panics with the substring `channel-pair-deadlock`, so
-;; this test is EXPECTED to panic with that substring (no longer
-;; ignored). `:time-limit "200ms"` stays as a defense-in-depth
-;; safety net in case the panic does not fire.
+;; Layer 0 — lifecycle proof.
 (:wat::test::should-panic "channel-pair-deadlock")
-(:wat::test::time-limit "200ms")
-(:wat::test::deftest :wat-lru::test-cache-service-put-then-get-round-trip
-  ()
+(:deftest :wat-lru::test-lru-spawn-and-shutdown
+  (:test::lru-spawn-and-shutdown))
+
+
+;; Layer 1a — Put proof.
+(:wat::test::should-panic "channel-pair-deadlock")
+(:deftest :wat-lru::test-lru-spawn-then-put
+  (:test::lru-spawn-then-put "answer" 42))
+
+
+;; Layer 1b — Get proof.
+(:wat::test::should-panic "channel-pair-deadlock")
+(:deftest :wat-lru::test-lru-spawn-then-get
   (:wat::core::let*
-    (((r :wat::kernel::RunResult)
-      (:wat::test::run-hermetic-ast
-        (:wat::test::program
-          (:wat::core::define
-            (:user::main
-              (stdin  :wat::io::IOReader)
-              (stdout :wat::io::IOWriter)
-              (stderr :wat::io::IOWriter)
-              -> :wat::core::unit)
-            ;; Outer holds only the two driver Threads (con-drv, driver)
-            ;; via a tuple. Inner owns the spawn-tuples, every pool, every
-            ;; popped Sender, and every per-call channel; inner returns
-            ;; the (con-drv, driver) tuple so the outer joins both
-            ;; AFTER inner has dropped the Senders. SERVICE-PROGRAMS.md
-            ;; § "The lockstep" + arc 117 + arc 131.
-            ;;
-            ;; Arc 126 still fires inside the inner let* on the
-            ;; `:wat::lru::put req-tx ack-tx ack-rx ...` call (the
-            ;; helper-verb signature passes both halves of the ack
-            ;; pair). The :should-panic substring "channel-pair-deadlock"
-            ;; matches arc 126's diagnostic regardless of any other
-            ;; check; the outer-scope rewrite ensures arc 131 does NOT
-            ;; ALSO fire (which would prepend "scope-deadlock at" to
-            ;; the panic text).
-            (:wat::core::let*
-              (((drvs :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
-                (:wat::core::let*
-                  (((con-state :wat::console::Spawn)
-                    (:wat::console::spawn stdout stderr 2))
-                   ((con-drv :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
-                    (:wat::core::second con-state))
-                   ((state :wat::lru::Spawn<wat::core::String,wat::core::i64>)
-                    (:wat::lru::spawn 16 1
-                      :wat::lru::null-reporter
-                      (:wat::lru::null-metrics-cadence)))
-                   ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
-                    (:wat::core::second state))
-                   ((con-pool :wat::kernel::HandlePool<wat::console::Handle>)
-                    (:wat::core::first con-state))
-                   ((diag :wat::console::Handle)
-                    (:wat::kernel::HandlePool::pop con-pool))
-                   ((_spare :wat::console::Handle)
-                    (:wat::kernel::HandlePool::pop con-pool))
-                   ((_con-finish :wat::core::unit) (:wat::kernel::HandlePool::finish con-pool))
+    (((_results :wat::core::Vector<wat::core::Option<wat::core::i64>>)
+      (:test::lru-spawn-then-get "answer")))
+    ()))
 
-                   ((pool :wat::kernel::HandlePool<wat::lru::ReqTx<wat::core::String,wat::core::i64>>)
-                    (:wat::core::first state))
-                   ((req-tx :wat::lru::ReqTx<wat::core::String,wat::core::i64>)
-                    (:wat::kernel::HandlePool::pop pool))
-                   ((_pool-finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
 
-                   ;; Arc 119: separate ack channel (Put, Pattern A unit-ack)
-                   ;; and reply channel (Get, Pattern B data-back Vec<Option<V>>).
-                   ((reply-pair :wat::lru::ReplyChannel<wat::core::i64>)
-                    (:wat::kernel::make-bounded-channel
-                      :wat::core::Vector<wat::core::Option<wat::core::i64>> 1))
-                   ((reply-tx :wat::lru::ReplyTx<wat::core::i64>)
-                    (:wat::core::first reply-pair))
-                   ((reply-rx :wat::lru::ReplyRx<wat::core::i64>)
-                    (:wat::core::second reply-pair))
-                   ((ack-pair :wat::lru::PutAckChannel)
-                    (:wat::kernel::make-bounded-channel :wat::core::unit 1))
-                   ((ack-tx :wat::lru::PutAckTx)
-                    (:wat::core::first ack-pair))
-                   ((ack-rx :wat::lru::PutAckRx)
-                    (:wat::core::second ack-pair))
+;; Layer 2 — Put-then-Get composition proof.
+(:wat::test::should-panic "channel-pair-deadlock")
+(:deftest :wat-lru::test-lru-spawn-put-then-get
+  (:wat::core::let*
+    (((_results :wat::core::Vector<wat::core::Option<wat::core::i64>>)
+      (:test::lru-spawn-put-then-get "answer" 42)))
+    ()))
 
-                   ((_t1 :wat::core::unit) (:wat::console::err diag "T1: about-to-put\n"))
-                   ;; Arc 119: put takes Vec<Entry<K,V>>; batch-of-one.
-                   ((_put :wat::core::unit)
-                    (:wat::lru::put req-tx ack-tx ack-rx
-                      (:wat::core::conj
-                        (:wat::core::Vector :wat::lru::Entry<wat::core::String,wat::core::i64>)
-                        (:wat::core::Tuple "answer" 42))))
-                   ((_t2 :wat::core::unit) (:wat::console::err diag "T2: put-acked\n"))
-                   ;; Arc 119: get takes Vec<K>; returns Vec<Option<V>>.
-                   ;; first on Vector<Option<T>> returns Option<Option<T>> — double-unwrap.
-                   ((results :wat::core::Vector<wat::core::Option<wat::core::i64>>)
-                    (:wat::lru::get req-tx reply-tx reply-rx
-                      (:wat::core::conj
-                        (:wat::core::Vector :wat::core::String)
-                        "answer")))
-                   ((_t3 :wat::core::unit) (:wat::console::err diag "T3: get-returned\n"))
-                   ;; Two-level match: outer on first's Option wrapper; inner on the cache hit/miss.
-                   ((_report :wat::core::unit)
-                    (:wat::core::match (:wat::core::first results) -> :wat::core::unit
-                      ((:wat::core::Some inner)
-                        (:wat::core::match inner -> :wat::core::unit
-                          ((:wat::core::Some _v) (:wat::console::out diag "hit\n"))
-                          (:wat::core::None       (:wat::console::out diag "miss\n"))))
-                      (:wat::core::None (:wat::console::out diag "miss\n")))))
-                  (:wat::core::Tuple con-drv driver)))
-               ((con-drv :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first drvs))
-               ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second drvs))
-               ((_join-driver :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
-                (:wat::kernel::Thread/join-result driver))
-               ((_join-con :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
-                (:wat::kernel::Thread/join-result con-drv)))
-              ())))
-        (:wat::core::Vector :wat::core::String)))
-     ((stdout :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
-     ((stderr :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stderr r))
-     ;; Assertions:
-     ;;   - stdout first line is "hit" (put→get round-trip succeeded)
-     ;;   - stderr contains each of the T1/T2/T3 checkpoints
-     ((hit-line :wat::core::String)
-      (:wat::core::match (:wat::core::first stdout) -> :wat::core::String
-        ((:wat::core::Some s) s)
-        (:wat::core::None "<missing>")))
-     ((_ :wat::core::unit) (:wat::test::assert-eq hit-line "hit"))
-     ((stderr-blob :wat::core::String) (:wat::core::string::join "\n" stderr))
-     ((_ :wat::core::unit) (:wat::test::assert-contains stderr-blob "T1: about-to-put"))
-     ((_ :wat::core::unit) (:wat::test::assert-contains stderr-blob "T2: put-acked")))
-    (:wat::test::assert-contains stderr-blob "T3: get-returned")))
+
+;; Final — the named scenario. Body is short BECAUSE the layers exist.
+;; Post-arc-130, the assertion runs and the test passes cleanly.
+(:wat::test::should-panic "channel-pair-deadlock")
+(:deftest :wat-lru::test-cache-service-put-then-get-round-trip
+  (:wat::core::let*
+    (((results :wat::core::Vector<wat::core::Option<wat::core::i64>>)
+      (:test::lru-spawn-put-then-get "answer" 42)))
+    (:wat::test::assert-eq
+      (:wat::core::first results)
+      (:wat::core::Some (:wat::core::Some 42)))))
