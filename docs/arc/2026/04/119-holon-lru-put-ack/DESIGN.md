@@ -325,8 +325,47 @@ sequentially** — each depends on the prior.
 | 4 | Reshape `:wat::holon::lru::HologramCacheService` surface. Mint `PutAckTx/Rx/Channel` + `Entry` typealiases under the `HologramCacheService::` prefix (K.holon-lru flattens them later); widen `GetReplyTx` body to `Sender<Vec<Option<HolonAST>>>`; reshape Request enum to batch-Get + batch-Put variants matching LRU's surface (with K=V=HolonAST). | pending |
 | 5 | Reshape HolonLRU driver loop + verbs. Per Get dispatch: iterate probes, look up via `HologramCache/get`, collect into `Vec<Option<HolonAST>>`, send on reply-tx. Per Put dispatch: iterate entries, call `HologramCache/put` for each, send `()` on ack-tx after batch persisted. Verbs `(get probes)` / `(put entries)` take Vec args. | pending |
 | 6 | `cargo test --release --workspace` baseline + diagnostic capture. Expect baseline pre-sweep failures localized to call-site shape mismatches in wat-tests + lab consumers. Confirm no Rust-level regressions (parser/walker/dispatch). Capture substrate-as-teacher diagnostic stream as the brief for step 7. | pending |
-| 7 | Consumer sweep across **wat-rs's own wat-tests** (lab is a separate downstream arc — workspace boundary). Sonnet-delegated under substrate-as-teacher protocol: every `(get k)` becomes `(get [k])`; every Put without ack becomes `(Put [(k,v)] ack-tx)` with caller pre-allocating `PutAckTx/PutAckRx` and blocking on rx after sending. 5 failing wat-tests at step-6 baseline: 1 in `crates/wat-lru/wat-tests/lru/CacheService.wat` + 4 in `crates/wat-holon-lru/wat-tests/holon/lru/HologramCacheService.wat`. **Lab call sites (`holon-lab-trading/wat/cache/L2-spawn.wat`) are NOT in scope** — separate workspace, separate session, separate arc. **Orchestrator verifies via `git diff --stat`** against agent reports per the trust-but-verify protocol. | pending |
+| 7 | **Discipline correction** (NOT just a mechanical rewrite — see "Realization" below). HolonLRU's wat-tests test the wrong layer; rewrite them to call the consumer surface (the helper verbs minted in step 4). LRU's single test channel-splits + batch-of-ones the existing helper-verb call. Scope is wat-rs only — lab consumers (`holon-lab-trading/`) are downstream, separate workspace, separate arc. 5 failing wat-tests at step-6 baseline: 1 in `crates/wat-lru/wat-tests/lru/CacheService.wat` + 4 in `crates/wat-holon-lru/wat-tests/holon/lru/HologramCacheService.wat`. The HolonLRU 4 are raw-protocol tests that hand-build `Request::Put`/`Get` constructors and call `:wat::kernel::send`/`recv` directly — they speak for the implementer, not the consumer. Convergence: both crates' tests look the same shape post-step-7 — spawn, pop req-tx, allocate per-test channels, call helper verb in batch-of-one form. **Orchestrator verifies via `git diff --stat`** against agent reports per the trust-but-verify protocol. | pending |
 | 8 | Closure: arc 119 INSCRIPTION + 058 changelog row + arc 109 INVENTORY § K mark. Note: substrate-uniform batch convention now holds (every non-Console service obeys `CONVENTIONS.md` § "Batch convention"). K.holon-lru becomes unblocked for the naming flatten. | pending |
+
+## Realization (surfaced 2026-05-01)
+
+Step 7 was originally framed as "wrap singletons in batch-of-one
++ thread the new ack-tx." Mechanically true. Conceptually wrong.
+
+When the substrate-as-teacher diagnostic stream reported the
+HolonLRU wat-tests failing, those tests turned out to be calling
+raw `(:wat::kernel::send tx (Request::Put k v))` directly —
+hand-building the Request enum constructor and walking the
+`Result<Option<T>, ThreadDiedError>` chain manually. They were
+"raw protocol tests."
+
+Compare LRU's single wat-test, which calls `(:wat::lru::put
+req-tx reply-tx reply-rx key val)` — the helper verb. A consumer
+of the cache calls the helper verb. Nobody but a substrate
+implementer hand-builds the Request enum.
+
+The HolonLRU tests had been written before HolonLRU shipped any
+helper verbs — there was nothing higher-level to call. That
+historical accident left them at the wrong vantage: they verified
+the wire protocol from the implementer's perspective, but they
+lived in a consumer crate's `wat-tests/` directory where their
+audience is the consumer.
+
+User direction (2026-05-01):
+
+> all of our code should be measurable from the caller's
+> perspective.. that's the interface to confirm via
+
+Codified as `CONVENTIONS.md` § "Caller-perspective verification"
+and policed by the `/vocare` ward. Step 7 stops being "wrap
+singletons" and becomes "rewrite the wat-tests at the right
+vantage" — preserving test scenarios (multi-client, eviction,
+counted-recv) while moving the call shape to helper verbs.
+
+Wire-protocol pedagogy retains its home in
+`wat-rs/wat-tests/service-template.wat` — that file's caller IS
+the service implementer.
 
 **Discipline anchors** (apply to every step):
 

@@ -138,6 +138,28 @@ Net: +3, -2 ignored. Clean green.
   Coverage gaps + behavior gaps compound; surfacing one revealed
   the other.
 
+## Tests follow caller-perspective
+
+The three tests added in this arc verify the recommended user
+surface — declaring a parametric enum and writing a `match` form
+against it. That's what a user actually does. The substrate's
+internal `MatchShape::Enum` data structure, the
+`detect_match_shape` function, the `apply_subst` cases — none of
+those are exercised directly. They're tested transitively
+through the user-facing `check()` helper, which is the
+production check pipeline.
+
+This aligns with `docs/CONVENTIONS.md` § "Caller-perspective
+verification". The tests' caller is "Rust code that wants to
+check a wat program for type errors" — that's the production
+caller of `check_program`. The test's vantage matches the
+caller's vantage.
+
+Implementation-internal Rust tests (poking at MatchShape variants
+directly, asserting specific apply_subst behaviors, etc.) belong
+in private impl blocks if they're needed at all — they would test
+implementation, not interface.
+
 ## Files changed
 
 ```

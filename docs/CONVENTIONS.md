@@ -786,3 +786,60 @@ break embedders. The matrix above governs new primitives.
 - **As-shipped contracts**: `arc/*/INSCRIPTION.md` — each arc's
   shipped surface. If INSCRIPTION and DESIGN disagree, INSCRIPTION
   wins.
+
+## Caller-perspective verification
+
+> **All code is measurable from the caller's perspective. That's
+> the interface to confirm.**
+
+Every line of substrate has a caller. Service consumers, service
+implementers, framework users, library users — each occupies a
+vantage. The caller's vantage IS the interface. Anything else is
+mechanism.
+
+Tests verify FROM a caller's vantage. The recommended way to use a
+thing is the way the test calls it — the test pattern lifted by
+the next reader becomes the next consumer's code. A test at the
+wrong vantage teaches the wrong shape.
+
+### What this means for tests
+
+- **Tests in a crate's `wat-tests/` directory verify the crate's
+  recommended consumer API.** They look like a consumer's call
+  site. If a helper verb / public API exists for the use case,
+  the test calls it; if not, the test exposes a gap in the
+  surface.
+- **Wire-protocol mechanics live in dedicated reference files,
+  not in consumer-crate test directories.** The canonical
+  reference is `wat-rs/wat-tests/service-template.wat` (per
+  `SERVICE-PROGRAMS.md` § "Audience boundary"). A consumer-crate
+  wat-test that hand-builds Request enum constructors and calls
+  raw `:wat::kernel::send`/`recv` is testing the wrong layer.
+- **Rust unit tests in `src/*.rs` follow the same rule** — their
+  callers are other Rust modules, and the tests should verify
+  what those callers can observe.
+
+### How to check
+
+Reach for `/vocare` (`.claude/skills/vocare/SKILL.md`) — the spell
+that scans tests for vantage. For each test it asks: from whose
+vantage does this verify? If the answer is "the implementer's, not
+the caller's," the test is at the wrong layer.
+
+### Why this matters
+
+Tests are the substrate's voice to a fresh reader. Someone reading
+the cache crate's `wat-tests/` is asking "how do I use this?" If
+the test answers with implementation mechanics, the answer is
+dishonest at the docs boundary — the reader takes home the wrong
+pattern.
+
+Conversely, a test that mirrors the worked examples in USER-GUIDE /
+README confirms the recommendation. The discipline being modeled
+in the test IS the discipline a consumer should adopt.
+
+This principle surfaced during arc 119 when a substrate protocol
+change exposed a divergence between two cache crates' tests — one
+tested the consumer surface (helper verbs), the other tested the
+wire protocol underneath. Convergence to caller-perspective lands
+both at the right vantage.

@@ -610,11 +610,33 @@ shipped service except as Console's per-message tag+msg
 (which is shape-equivalent in the wire but framed by Console's
 sink-is-the-report exemption).
 
+### Audience boundary
+
+This document teaches the wire mechanics of building a service.
+Two audiences read it for two different reasons:
+
+| Audience | What they read | What they look for |
+|---|---|---|
+| Service implementer | This doc + `wat-rs/wat-tests/service-template.wat` + the eight-step exploration | How to build a service from substrate primitives |
+| Service consumer | The consumer-crate's `wat-tests/` (e.g., `crates/wat-lru/wat-tests/`) | How to call an existing service |
+
+These layers don't mix. A service's wat-tests verify the
+**consumer's vantage** — they call helper verbs and observe what
+a real consumer would observe. The wire-protocol mechanics
+(raw `kernel::send`, `Request::Foo` constructors, manual
+`Result<Option<T>, _>` chains) live in `service-template.wat`.
+
+A consumer-crate test that hand-builds the wire is at the wrong
+vantage — it speaks for the implementer, not the consumer (per
+`CONVENTIONS.md` § "Caller-perspective verification"). The
+`/vocare` ward (`.claude/skills/vocare/SKILL.md`) catches this.
+
 ### The runnable reference
 
 `wat-rs/wat-tests/service-template.wat` is the canonical complete
-template. **Lift it directly when starting your own service** — the
-only things that should change are:
+template for **service implementers**. **Lift it directly when
+starting your own service** — the only things that should change
+are:
 
 - The State struct (your domain — LRU map, treasury record, registry table)
 - The Request enum's verbs (your operations)
@@ -625,6 +647,12 @@ HandlePool, scope discipline) stays. The test deftest exercises both
 substrate-shipped reply shapes end-to-end, including a batch-read
 that reads LIVE state between two batch-writes — so you can see the
 pattern survive real-world operation orders.
+
+This file's caller IS the service implementer. Its tests
+exercise substrate primitives directly because that's what the
+implementer reaches for. Consumer-crate tests should NOT mirror
+this style — they have a different caller (the service consumer)
+and should call the consumer surface.
 
 ### Worked examples in the substrate
 
