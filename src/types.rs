@@ -36,6 +36,7 @@
 //!   Track 2 of the 058 backlog — not slated for wat-rs).
 
 use crate::ast::WatAST;
+use crate::span::Span;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -959,7 +960,20 @@ pub enum TypeError {
     MalformedDecl { head: String, reason: String },
     MalformedName { raw: String, reason: String },
     MalformedField { reason: String },
-    MalformedVariant { reason: String },
+    /// Arc 130 follow-up — surface enum / variant / span / hint at
+    /// type-registration time. The shape was previously a bare
+    /// `reason: String`, which gave consumers no location data and no
+    /// migration hint when sonnet (or a human) wrote a unit variant as
+    /// a bare symbol (`PutAck`) instead of the canonical keyword
+    /// (`:PutAck`). The hint is self-describing per the substrate-as-
+    /// teacher discipline.
+    MalformedVariant {
+        enum_name: String,
+        span: Span,
+        offending: String,
+        reason: String,
+        hint: Option<String>,
+    },
     MalformedTypeExpr { raw: String, reason: String },
     /// User source wrote `:Any` (as a bare path or parametric head).
     /// 058-030 forbids the escape hatch; every apparent use has a
@@ -1021,8 +1035,22 @@ impl fmt::Display for TypeError {
             TypeError::MalformedField { reason } => {
                 write!(f, "malformed field: {}", reason)
             }
-            TypeError::MalformedVariant { reason } => {
-                write!(f, "malformed enum variant: {}", reason)
+            TypeError::MalformedVariant {
+                enum_name,
+                span,
+                offending,
+                reason,
+                hint,
+            } => {
+                write!(
+                    f,
+                    "{}: malformed enum variant in '{}': '{}' — {}",
+                    span, enum_name, offending, reason
+                )?;
+                if let Some(h) = hint {
+                    write!(f, "\n  hint: {}", h)?;
+                }
+                Ok(())
             }
             TypeError::MalformedTypeExpr { raw, reason } => {
                 write!(f, "malformed type expression {:?}: {}", raw, reason)
@@ -1163,7 +1191,7 @@ fn parse_enum(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
     let (name, type_params) = parse_declared_name("enum", &name_kw)?;
     let mut variants = Vec::new();
     for item in iter {
-        variants.push(parse_enum_variant(item)?);
+        variants.push(parse_enum_variant(item, &name)?);
     }
     if variants.is_empty() {
         return Err(TypeError::MalformedDecl {
@@ -1290,13 +1318,23 @@ fn parse_field(form: WatAST) -> Result<(String, TypeExpr), TypeError> {
 
 /// A variant is either a bare keyword (`:unit-variant`) or a list
 /// `(tagged-variant (field :Type) ...)`.
-fn parse_enum_variant(form: WatAST) -> Result<EnumVariant, TypeError> {
+///
+/// `enum_name` is threaded through for diagnostic context — every
+/// MalformedVariant error names which enum the offending variant
+/// belongs to and where in source the form was parsed from.
+fn parse_enum_variant(form: WatAST, enum_name: &str) -> Result<EnumVariant, TypeError> {
+    let span = form.span().clone();
     match form {
         WatAST::Keyword(k, _) => {
             let name = k
                 .strip_prefix(':')
                 .ok_or_else(|| TypeError::MalformedVariant {
-                    reason: format!("unit variant must be a keyword; got {:?}", k),
+                    enum_name: enum_name.to_string(),
+                    span: span.clone(),
+                    offending: format!("{:?}", k),
+                    reason: "unit variant must be a keyword starting with ':'"
+                        .to_string(),
+                    hint: None,
                 })?
                 .to_string();
             Ok(EnumVariant::Unit(name))
@@ -1304,7 +1342,15 @@ fn parse_enum_variant(form: WatAST) -> Result<EnumVariant, TypeError> {
         WatAST::List(items, _) => {
             let mut iter = items.into_iter();
             let name_sym = iter.next().ok_or_else(|| TypeError::MalformedVariant {
-                reason: "tagged variant must have a name".into(),
+                enum_name: enum_name.to_string(),
+                span: span.clone(),
+                offending: "()".to_string(),
+                reason: "tagged variant must have a name".to_string(),
+                hint: Some(
+                    "tagged variants are written `(VariantName (field :Type) ...)`; \
+                     unit variants are keywords `:VariantName`"
+                        .to_string(),
+                ),
             })?;
             let name = match name_sym {
                 WatAST::Symbol(ident, _) => ident.name,
@@ -1314,10 +1360,12 @@ fn parse_enum_variant(form: WatAST) -> Result<EnumVariant, TypeError> {
                     .unwrap_or(k),
                 other => {
                     return Err(TypeError::MalformedVariant {
-                        reason: format!(
-                            "variant name must be a symbol or keyword; got {}",
-                            ast_variant_name(&other)
-                        ),
+                        enum_name: enum_name.to_string(),
+                        span: span.clone(),
+                        offending: ast_variant_name(&other).to_string(),
+                        reason: "variant name must be a symbol or keyword"
+                            .to_string(),
+                        hint: None,
                     })
                 }
             };
@@ -1327,11 +1375,30 @@ fn parse_enum_variant(form: WatAST) -> Result<EnumVariant, TypeError> {
             }
             Ok(EnumVariant::Tagged { name, fields })
         }
+        WatAST::Symbol(ident, _) => {
+            // Arc 130 follow-up — `PutAck` (bare symbol) when `:PutAck`
+            // (keyword) was meant. Self-describing migration hint per
+            // substrate-as-teacher.
+            Err(TypeError::MalformedVariant {
+                enum_name: enum_name.to_string(),
+                span,
+                offending: ident.name.clone(),
+                reason:
+                    "variant must be a keyword (unit) or list (tagged); got bare symbol"
+                        .to_string(),
+                hint: Some(format!(
+                    "if '{0}' is a UNIT variant, write it as the keyword ':{0}'; \
+                     if it carries fields, write it as a list `({0} (field :Type) ...)`",
+                    ident.name
+                )),
+            })
+        }
         other => Err(TypeError::MalformedVariant {
-            reason: format!(
-                "variant must be a keyword (unit) or list (tagged); got {}",
-                ast_variant_name(&other)
-            ),
+            enum_name: enum_name.to_string(),
+            span,
+            offending: ast_variant_name(&other).to_string(),
+            reason: "variant must be a keyword (unit) or list (tagged)".to_string(),
+            hint: None,
         }),
     }
 }
