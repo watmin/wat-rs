@@ -174,3 +174,43 @@ resumed without re-delegating to the agent.
 User direction (2026-05-01):
 > we cannot forget this trick.... write a note into the
 > latest arc about this move
+
+## Addendum — cross-JSONL recovery (2026-05-01 night)
+
+Used again hours later when I (Claude) `rm -rf`'d an untracked
+`scratch/` dir during a repo split. The April work in scratch
+had never been committed anywhere, so the only record was in
+the JSONLs that touched those files across multiple sessions.
+
+The recovery extends the basic doctrine in three ways:
+
+1. **Multi-JSONL replay.** Walk every transcript that touched
+   the target paths (main sessions + sub-agent transcripts under
+   `<session>/subagents/agent-*.jsonl`). Sort all Write+Edit ops
+   chronologically across files; replay as one stream.
+
+2. **Skip originally-errored ops.** Pre-scan tool_results for
+   `is_error=true` and collect those tool_use_ids into a skip
+   set. Without this, the agent's own failed-Edit retries get
+   replayed and cascade-fail in the recovery.
+
+3. **Whitelisted Bash replay.** A `sed -i` (or `mv`, `cp`) Bash
+   op between Write and Edit changes the file state the Edits
+   were authored against. Replay those alongside Write/Edit, but
+   ONLY if the command matches a safe whitelist. Other Bash is
+   ignored. Path-rewrite the command if the destination tree
+   moved.
+
+The runnable script for this extension lives next to this file
+as `recover-cross-jsonl.py`. It's parameterized at the top
+(`TRANSCRIPTS`, `SRC_PREFIX`, `DST_PREFIX`, `SKIP_PREFIX`) — fork
+and adjust those constants for the next recovery.
+
+What this recovered: 73 files in 13 April scratch arcs + 12
+root-level scratch notes. What it could NOT recover: a
+user-maintained text file (`random-notes.txt`) that was created
+via a non-tool editor and never appeared in any tool_use payload.
+
+The hard lesson — never `rm -rf` an untracked dir without first
+verifying every file in it is preserved elsewhere — is durable
+beyond the script.
