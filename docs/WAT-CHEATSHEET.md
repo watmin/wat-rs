@@ -182,8 +182,11 @@ clone. The compiler refuses programs where a `Channel` /
 ```
 
 Same rule applies to `Process/join-result`. Arc 117 enforces it
-at type-check time. See `SERVICE-PROGRAMS.md § "The lockstep"`
-for the why.
+at type-check time. Arc 131 extended it to `HandlePool<T>` —
+when T (after alias resolution) contains a Sender, a HandlePool
+sibling to a Thread with `Thread/join-result` fires the same
+diagnostic with `(a HandlePool)` as the offending kind. See
+`SERVICE-PROGRAMS.md § "The lockstep"` for the why.
 
 ## 11. Channel-pair-deadlock rule
 

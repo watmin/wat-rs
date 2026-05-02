@@ -276,17 +276,41 @@ them.
   (:wat::test::assert-eq (:wat::core::i64::+ 1 1) 2))
 ```
 
-`cargo test` discovers + runs the suite. On success you see
-`test wat_suite ... ok` (Cargo convention — silent on success).
-For per-wat-test detail:
+Each `deftest` becomes its own `#[test] fn` (arc 121). Cargo
+sees them as first-class:
 
 ```bash
-cargo test -- --nocapture       # stream output live
-cargo test -- --show-output     # print captured output after each test
+cargo test                         # run every deftest in parallel
+cargo test test-one-plus-one       # filter by substring (libtest native)
+cargo test -- --list               # enumerate every deftest by name
+cargo test -- --nocapture          # stream output live
+cargo test -- --show-output        # print captured output after each test
 ```
 
-On failure the panic payload carries every failing test's summary,
-so `cargo test` without flags gives you what you need to debug.
+Per-test annotations attach to the next deftest as sibling
+forms (arcs 122 + 123):
+
+```scheme
+(:wat::test::ignore "broken on Windows; see #123")
+(:wat::test::deftest :my-app::flaky-windows-only ...)
+
+(:wat::test::should-panic "divide by zero")
+(:wat::test::deftest :my-app::div-by-zero ...)
+
+(:wat::test::time-limit "2s")    ;; override the 200ms default
+(:wat::test::deftest :my-app::sqlite-roundtrip ...)
+```
+
+Every deftest carries a 200ms default time-limit (arc 132).
+Tests should run in milliseconds; if yours genuinely needs
+more (sqlite I/O, sandboxed integration), pass an explicit
+`:time-limit "<N>ms" | "<N>s" | "<N>m"`. A hung deftest panics
+with a clear timeout message and other tests continue.
+
+Hermetic + alias variants discover identically (arc 124):
+`:wat::test::deftest-hermetic`, plus any alias the file
+registers via `(:wat::test::make-deftest :alias <prelude>)` or
+its hermetic sibling.
 
 ### When you need your own Rust types
 
