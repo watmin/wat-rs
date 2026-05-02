@@ -149,6 +149,92 @@ The mechanical pass is reproducible: any agent re-running it finds the same cand
 
 Future work: when `wat-lint` matures, phase 1 becomes a single command that emits structured EDN/JSON findings. Phase 2 then iterates over those findings, fetching context and rendering verdicts. The spell sits atop both.
 
+## Edge cases
+
+Surfaced by the HologramCacheService calibration sweep (2026-05-03) — file at `docs/arc/2026/05/130-cache-services-pair-by-index/CALIBRATION-HOLOGRAM-SCORE.md`.
+
+### Mixed-outcome files — the two-prelude pattern
+
+A test file can mix deftests that PASS cleanly with deftests that `:should-panic`. The naïve approach — ONE `make-deftest` factory whose prelude includes ALL helpers — makes EVERY deftest in the file fire whatever check the prelude triggers. Step1 + step2 (intended to pass cleanly) regress to `:should-panic` outcomes; step3-6 (intended to `:should-panic`) keep firing.
+
+The fix: TWO `make-deftest` factories in the same file. One per outcome class.
+
+```scheme
+;; Factory 1 — Layer 0 helpers; pure lifecycle; no channel-pair patterns; clean pass.
+(:wat::test::make-deftest :deftest-hermetic
+  (
+   (:wat::core::define :test::layer-0a ...)   ;; spawn + drop + join
+   (:wat::core::define :test::layer-0b ...)   ;; receive a value end-to-end
+  ))
+
+;; Factory 2 — Layer 1+ helpers; service-aware; includes channel-pair patterns
+;; that trigger arc 126 at freeze; all deftests using this prelude :should-panic.
+(:wat::test::make-deftest :deftest-service
+  (
+   (:wat::core::define :test::layer-1-put ...)        ;; helper-verb call site
+   (:wat::core::define :test::layer-1-get ...)
+   (:wat::core::define :test::layer-2-put-then-get ...)
+  ))
+
+;; Clean-pass deftests use factory 1.
+(:deftest-hermetic :test::test-layer-0a (:test::layer-0a))
+
+;; Should-panic deftests use factory 2.
+(:wat::test::should-panic "channel-pair-deadlock")
+(:deftest-service :test::test-layer-1-put (:test::layer-1-put))
+```
+
+The two-prelude split is a one-file solution to the mixed-outcome constraint. Same discipline; just two namespaces of helpers within the same file.
+
+### Cross-function tracing — DO NOT factor `make-bounded-channel` into a helper
+
+Arc 126's `channel-pair-deadlock` walker traces Sender / Receiver arguments back through `(:wat::core::first|second pair)` chains to a `make-bounded-channel` anchor. **The trace stops at function-call boundaries.** Factoring `(make-bounded-channel ...)` + `(first pair)` + `(second pair)` into a helper that returns the (Sender, Receiver) tuple SILENCES the check — the same code shape that fires arc 126 inline does NOT fire when wrapped.
+
+```scheme
+;; ❌ Tempting: clean abstraction. But arc 126 stops tracing here;
+;; if a deadlock pattern existed inline, it's hidden now.
+(:wat::core::define
+  (:test::make-ack-channel -> :(wat::lru::PutAckTx,wat::lru::PutAckRx))
+  (:wat::core::let*
+    (((pair :wat::lru::PutAckChannel) (:wat::kernel::make-bounded-channel :wat::core::unit 1)))
+    (:wat::core::Tuple (:wat::core::first pair) (:wat::core::second pair))))
+
+;; ✓ Correct: keep the make-bounded-channel + first/second sequence INLINE in the
+;; helper that uses both halves. Arc 126's trace can follow the chain.
+(:wat::core::define
+  (:test::send-put-with-ack (req-tx :ReqTx) (k :K) (v :V) -> :wat::core::unit)
+  (:wat::core::let*
+    (((ack-pair :wat::lru::PutAckChannel) (:wat::kernel::make-bounded-channel :wat::core::unit 1))
+     ((ack-tx :wat::lru::PutAckTx) (:wat::core::first ack-pair))
+     ((ack-rx :wat::lru::PutAckRx) (:wat::core::second ack-pair))
+     ((_put :wat::core::unit) (:wat::lru::put req-tx ack-tx ack-rx ...)))
+    ()))
+```
+
+When extracting helpers, leave `make-bounded-channel` allocations IN the helper that calls the helper-verb. Don't abstract the channel-allocation into its own function — abstract the WHOLE workload (allocate + call + drop) instead.
+
+### `HandlePool::finish` requires pop-before-finish
+
+A `make-deftest` lifecycle helper that demonstrates spawn-and-shutdown without doing any actual work must STILL pop a handle from the pool before calling `HandlePool::finish`. The substrate's runtime check raises "orphaned handles" if the pool is finished with un-popped slots. The lifecycle helper:
+
+```scheme
+(:wat::core::define
+  (:test::lifecycle-spawn-and-shutdown -> :wat::core::unit)
+  (:wat::core::let*
+    (((driver ...)
+      (:wat::core::let*
+        (((spawn ...) (:wat::lru::spawn 1 ...))
+         ((pool ...) (:wat::core::first spawn))
+         ((d ...) (:wat::core::second spawn))
+         ((req-tx ...) (:wat::kernel::HandlePool::pop pool))   ;; ← required
+         ((_finish :unit) (:wat::kernel::HandlePool::finish pool)))
+        d))
+     ((_join ...) (:wat::kernel::Thread/join-result driver)))
+    ()))
+```
+
+The pop-then-drop pattern is the standard form even when no work happens — the substrate's pool-accounting requires every slot to be visited.
+
 ## Reference
 
 - `docs/arc/2026/05/130-cache-services-pair-by-index/REALIZATIONS.md` — the canonical doc that named the discipline.
