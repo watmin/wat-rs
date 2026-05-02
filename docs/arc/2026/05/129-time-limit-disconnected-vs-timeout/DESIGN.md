@@ -1,6 +1,8 @@
 # Arc 129 — `:time-limit` distinguishes Timeout from Disconnected
 
-**Status:** drafted 2026-05-01.
+**Status:** **shipped + closed 2026-05-01.** See INSCRIPTION.md
+for the close-out (4 questions + verification + failure-engineering
+record). DESIGN below is the as-drafted record kept verbatim.
 
 ## TL;DR
 

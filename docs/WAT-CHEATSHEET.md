@@ -185,7 +185,46 @@ Same rule applies to `Process/join-result`. Arc 117 enforces it
 at type-check time. See `SERVICE-PROGRAMS.md § "The lockstep"`
 for the why.
 
-## 11. Discovery loop
+## 11. Channel-pair-deadlock rule
+
+A function call MUST NOT receive both halves of one
+`make-bounded-channel` pair as arguments. Holding both ends
+in one role deadlocks any recv — the caller's writer keeps
+the channel alive even when the receiving thread dies.
+
+```wat
+;; Illegal — caller binds both `tx` and `rx` from one pair;
+;; the helper-verb call passes both. Recv inside the helper
+;; never sees EOF if the worker dies; caller's tx clone
+;; keeps the channel open.
+(:wat::core::let*
+  (((pair :wat::kernel::Channel<wat::core::unit>)
+    (:wat::kernel::make-bounded-channel :wat::core::unit 1))
+   ((tx :wat::kernel::Sender<wat::core::unit>)   (:wat::core::first  pair))
+   ((rx :wat::kernel::Receiver<wat::core::unit>) (:wat::core::second pair))
+   ...
+   ((_ :wat::core::unit) (:my::helper-verb tx rx ...)))
+  ...)
+
+;; Canonical — pair-by-index via HandlePool. Each producer
+;; pops one Handle holding ONE end of EACH of two distinct
+;; channels. The driver gets the corresponding (Rx, AckTx).
+;; Distinct pair-anchors → distinct channels → no deadlock.
+(:wat::core::let*
+  (((handle :svc::Handle)                (:wat::kernel::HandlePool::pop pool))
+   ((req-tx :svc::ReqTx<...>)            (:wat::core::first  handle))
+   ((ack-rx :svc::AckRx<wat::core::unit>) (:wat::core::second handle))
+   ...
+   ((_ :wat::core::unit) (:my::helper-verb req-tx ack-rx ...)))
+  ...)
+```
+
+Arc 126 enforces this at type-check time. The diagnostic names
+the pair-anchor binding and points at `ZERO-MUTEX.md § "Routing
+acks"` for the canonical fix patterns. Same trace machinery as
+arc 117; different rule arm.
+
+## 12. Discovery loop
 
 When you trip a rule:
 

@@ -323,6 +323,19 @@ pair-by-index when the service is single-verb-unit-reply (no
 dispatch needed); pick embedded reply-tx when the service has
 multiple verbs with heterogeneous reply types.
 
+**Compile-time enforcement (arc 126):** the substrate refuses
+to compile a function-call site that passes both halves of one
+`make-bounded-channel` pair as arguments. Caller-bound
+`(tx, rx)` from a single pair, threaded through a single
+helper-verb call, is the channel-pair-deadlock anti-pattern —
+the helper's recv has two writers (caller's tx + the request's
+embedded clone) and never sees EOF when the receiving thread
+dies. Arc 126's check walks the AST chain `name → (first|second
+pair) → make-bounded-channel ...` and fires
+`CheckError::ChannelPairDeadlock` with a diagnostic naming the
+pair-anchor binding and pointing at the two canonical fixes
+above. See `docs/arc/2026/05/126-channel-pair-deadlock-prevention/INSCRIPTION.md`.
+
 ### Why "the system breathes this way"
 
 A Mutex is held until released; producer goroutines/threads

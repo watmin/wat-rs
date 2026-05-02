@@ -1,6 +1,14 @@
 # Arc 123 — Per-test `:time-limit` annotation
 
 **Status:** **shipped + closed 2026-05-01.**
+**Post-fix amendment 2026-05-01 via arc 129:** the
+`recv_timeout` `Err(_)` arm conflated `Timeout` with
+`Disconnected`, eating panic substrings from the spawned
+thread when `:should-panic` was also annotated. Arc 129 split
+the match arms and added `JoinHandle::join()` +
+`std::panic::resume_unwind` on Disconnected to preserve the
+inner panic message verbatim. See
+`docs/arc/2026/05/129-time-limit-disconnected-vs-timeout/INSCRIPTION.md`.
 
 End-to-end verified in
 `crates/wat-sqlite/wat-tests/arc-123-time-limit.wat`:

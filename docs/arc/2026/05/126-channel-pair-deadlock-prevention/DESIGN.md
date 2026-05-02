@@ -1,6 +1,13 @@
 # Arc 126 — Channel-pair deadlock prevention
 
-**Status:** drafted 2026-05-01.
+**Status:** **shipped + closed 2026-05-01.** Three slices over
+the same day (slice 1: substrate check; slice 2: 6-test
+`:ignore` → `:should-panic` conversion; slice 3: this
+INSCRIPTION + cross-references). Surfaced two substrate gaps
+along the way (arc 128 — sandbox boundary; arc 129 — Timeout
+vs Disconnected). See `INSCRIPTION.md` for the close-out
+summary + four questions + failure-engineering record. DESIGN
+below is the as-drafted record kept verbatim.
 
 ## Provenance
 
