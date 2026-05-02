@@ -1747,6 +1747,27 @@ fn walk_for_deadlock(
         }
     };
 
+    // Arc 128 — sandbox-boundary guard. The first argument to a
+    // sandbox-program primitive is a `(:wat::core::forms ...)` block
+    // representing an INNER program; the inner program has its own
+    // freeze cycle when the primitive fires at runtime. Outer freeze
+    // must not redundantly walk the inner forms — doing so conflates
+    // outer/inner scope and emits errors that belong to the inner
+    // program. Skip arg 0 (the forms block); recurse into trailing
+    // args (type-list, config arg).
+    if matches!(
+        head,
+        ":wat::kernel::run-sandboxed-ast"
+            | ":wat::kernel::run-sandboxed-hermetic-ast"
+            | ":wat::kernel::fork-program-ast"
+            | ":wat::kernel::spawn-program-ast"
+    ) {
+        for child in items.iter().skip(2) {
+            walk_for_deadlock(child, types, errors);
+        }
+        return;
+    }
+
     if head == ":wat::core::let*" && items.len() >= 3 {
         let bindings = match &items[1] {
             WatAST::List(xs, _) => xs.clone(),
@@ -10391,5 +10412,109 @@ mod tests {
             "parametric enum extracts-typed-field should type-check, got: {:?}",
             result.err()
         );
+    }
+
+    // ─── Arc 128 — check walker respects sandbox boundary ────────────
+
+    /// Arc 128 — the scope-deadlock anti-pattern at the OUTER scope
+    /// (no surrounding sandbox call) MUST still fire `ScopeDeadlock`.
+    /// Verifies arc 117's check survives arc 128's boundary addition.
+    #[test]
+    fn arc_128_outer_scope_deadlock_still_fires() {
+        let src = r#"
+            (:wat::core::define
+              (:my::deadlock-at-outer -> :wat::core::unit)
+              (:wat::core::let*
+                (((pair :wat::kernel::Channel<wat::core::i64>)
+                  (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                 ((rx :wat::kernel::Receiver<wat::core::i64>)
+                  (:wat::core::second pair))
+                 ((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
+                  (:wat::kernel::spawn-thread
+                    (:wat::core::lambda
+                      ((_in :wat::kernel::Receiver<wat::core::unit>)
+                       (_out :wat::kernel::Sender<wat::core::i64>)
+                       -> :wat::core::unit)
+                      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::unit
+                        ((:wat::core::Ok _) ())
+                        ((:wat::core::Err _) ()))))))
+                (:wat::core::match
+                  (:wat::kernel::Thread/join-result thr)
+                  -> :wat::core::unit
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))
+        "#;
+        let err = check(src).expect_err(
+            "outer-scope deadlock pattern must still fire ScopeDeadlock post-arc-128",
+        );
+        assert!(
+            err.0
+                .iter()
+                .any(|e| matches!(e, CheckError::ScopeDeadlock { .. })),
+            "expected ScopeDeadlock at outer scope (arc 117 still active), got: {:?}",
+            err.0
+        );
+    }
+
+    /// Arc 128 — the SAME scope-deadlock anti-pattern, when nested
+    /// inside the forms-block of a `run-sandboxed-hermetic-ast` call,
+    /// MUST NOT fire `ScopeDeadlock` at outer freeze. The inner program
+    /// has its own freeze cycle at runtime; outer walker stops at the
+    /// sandbox boundary.
+    #[test]
+    fn arc_128_inner_scope_deadlock_skipped_in_sandboxed_forms() {
+        let src = r#"
+            (:wat::core::define
+              (:my::deftest-style -> :wat::kernel::RunResult)
+              (:wat::kernel::run-sandboxed-hermetic-ast
+                (:wat::core::forms
+                  (:wat::core::define
+                    (:user::main
+                      (_stdin  :wat::io::IOReader)
+                      (_stdout :wat::io::IOWriter)
+                      (_stderr :wat::io::IOWriter)
+                      -> :wat::core::unit)
+                    (:wat::core::let*
+                      (((pair :wat::kernel::Channel<wat::core::i64>)
+                        (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                       ((rx :wat::kernel::Receiver<wat::core::i64>)
+                        (:wat::core::second pair))
+                       ((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
+                        (:wat::kernel::spawn-thread
+                          (:wat::core::lambda
+                            ((_in :wat::kernel::Receiver<wat::core::unit>)
+                             (_out :wat::kernel::Sender<wat::core::i64>)
+                             -> :wat::core::unit)
+                            (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::unit
+                              ((:wat::core::Ok _) ())
+                              ((:wat::core::Err _) ()))))))
+                      (:wat::core::match
+                        (:wat::kernel::Thread/join-result thr)
+                        -> :wat::core::unit
+                        ((:wat::core::Ok _) ())
+                        ((:wat::core::Err _) ())))))
+                (:wat::core::Vector :wat::core::String)
+                :wat::core::None))
+        "#;
+        let result = check(src);
+        // The outer freeze must NOT see the inner anti-pattern.
+        // ScopeDeadlock errors firing here would mean the walker is
+        // still descending into the forms block — arc 128 not in
+        // effect.
+        match result {
+            Ok(_) => {}
+            Err(errors) => {
+                let scope_deadlocks: Vec<_> = errors
+                    .0
+                    .iter()
+                    .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+                    .collect();
+                assert!(
+                    scope_deadlocks.is_empty(),
+                    "arc 128: walker must skip sandboxed forms block; ScopeDeadlock fired at outer freeze: {:?}",
+                    scope_deadlocks
+                );
+            }
+        }
     }
 }
