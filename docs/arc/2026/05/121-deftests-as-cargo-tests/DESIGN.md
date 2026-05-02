@@ -1,6 +1,58 @@
 # Arc 121 — Deftests as first-class cargo tests
 
-**Status:** locked 2026-05-01.
+**Status:** **shipped + closed 2026-05-01** (100% complete after
+arc 122 closed the per-test-attribute gap).
+
+## What's shipped
+
+Each `(:wat::test::deftest <name> ...)` form is now its own
+`#[test] fn`. Cargo sees deftests as first-class tests:
+
+- `cargo test <substring>` filters via libtest's native argument
+  parsing.
+- `cargo test --list` shows every deftest by name.
+- `cargo test --nocapture` / `--show-output` stream per-deftest.
+- `cargo test --test-threads N` controls per-deftest parallelism.
+- `cargo test --exact` matches the sanitized name.
+- A hanging deftest hangs alone, not a whole suite.
+- Non-zero cargo exit on any deftest failure.
+- `#[ignore = "reason"]` and `#[should_panic(expected = "...")]`
+  per deftest (closed by arc 122 — see § "Closure" below).
+
+Pre-arc-121 callers are unaffected: existing `wat::test!`
+invocations with default path or string-literal path continue
+working with no edits.
+
+## Closure (2026-05-01)
+
+The audit immediately following arc 121's substrate landing
+asked: "did we satisfy cargo test contract completely?" Honest
+answer was 95% — major behaviors complete (filter, list,
+parallel, isolation, exit codes), minor extension points open
+(`#[ignore]`, `#[should_panic]`).
+
+Arc 122 closed the gap. After arc 122 ships:
+
+- `(:wat::test::ignore "<reason>")` preceding a deftest →
+  `#[ignore = "<reason>"]` on the generated `#[test] fn`.
+- `(:wat::test::should-panic "<expected substring>")` preceding
+  a deftest → `#[should_panic(expected = "<...>")]`.
+
+End-to-end verified in
+`crates/wat-sqlite/wat-tests/arc-122-attributes.wat`:
+
+```
+test deftest_wat_tests_sqlite_arc_122_test_arc_122_plain ... ok
+test deftest_wat_tests_sqlite_arc_122_test_arc_122_should_panic
+  - should panic ... ok
+test result: ok. 2 passed; 0 failed; 1 ignored
+```
+
+100% cargo test contract parity. First-class citizen.
+
+User direction (2026-05-01):
+> if its a new arc, then its a new arc - go make it, then we
+> close this out as dependent on the new one — 100% close out
 
 ## Provenance
 
