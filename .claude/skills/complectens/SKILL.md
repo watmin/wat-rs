@@ -111,16 +111,43 @@ The fix: extract the composed sequence into a NAMED helper, with a NAMED deftest
 
 The complectēns converges when Level 1 and Level 2 are zero. Level 3 will always exist; the complectēns does not chase taste.
 
-## When scanning wat files
+## How to cast
 
-Every `.wat` test file under `wat-tests/` or `crates/*/wat-tests/` is a candidate. Look for:
+The spell runs in two phases:
 
-1. **deftest body line count** — `wc` the let* body of each `:wat::test::deftest` (or `:deftest` alias). > 10 bindings → Level 1.
-2. **per-helper deftests** — for each `:wat::core::define` defined as a helper at file scope OR in a `make-deftest` prelude, search for a sibling `:wat::test::deftest` that exercises just that helper. Missing → Level 2.
-3. **dependency direction** — does each helper reference only helpers defined ABOVE it? Use `grep -n` for forward references.
-4. **file count** — does the test scenario span multiple files? If so, was it the user's intent (separate concerns) or accident (proof_004 stepping stones)? Multi-file stepping stones → Level 2.
+### Phase 1 — mechanical survey
+
+Find candidates programmatically. The eventual home for this is a sibling file in this directory: `complectens.wat`, runnable as `cat <target> | ./target/release/wat .claude/skills/complectens/complectens.wat`. The wat substrate has the primitives needed (`:wat::io::IOReader/read-line` for stdin, `:wat::core::string::contains?` / `starts-with?` / `length` / `split` / `concat`, recursive defines for line-counting + paren-balance) — what's missing is the implementation. Queued as a future arc; until it lands, **any scan tool is acceptable** — shell, awk, python — as long as the survey is reproducible and reports concrete `(file, line, deftest-name, body-line-count)` tuples.
+
+The mechanical pass DOES NOT judge; it only finds candidates.
+
+What to count:
+
+1. **deftest body line count** — paren-balanced extraction from each `(:wat::test::deftest ...)` / `(:wat::test::deftest-hermetic ...)` / `(:<alias> ...)` from a `make-deftest` factory. The line count of the body is the proxy for binding count. Empirical thresholds: > 30 lines = suspect; > 50 lines = likely Level 1; > 100 lines = definite Level 1. Sort findings by body line-count descending.
+2. **let\* binding-count per body** — sharper than line count. Count the entries in each top-level `(:wat::core::let* ((...) ...) body)` form within a deftest body. > 10 entries → Level 1.
+3. **forward references** — for each `:wat::core::define` of a helper, grep for references to helpers / aliases NOT yet defined above it in the same file. Any forward reference → Level 1.
+4. **file count for stepping-stone families** — `find` for groups of `step-*.wat` / `proof_*.wat` files in the same directory. Multi-file stepping stones → Level 2 candidate (the discipline says ONE file).
+5. **helpers without deftests** — for each `:wat::core::define` in a `make-deftest` prelude or at file top-level, search for a sibling `(:deftest ...)` referencing it. Missing → Level 2 candidate.
+
+Output of phase 1 is a structured findings list: `(file, line, deftest-name OR helper-name, body-line-count, severity-candidate)`.
 
 For Rust integration test files (`tests/wat_*.rs`) that embed wat source as strings, the same rules apply to the embedded scenarios: short string + named helpers in surrounding wat-test files, NOT a 200-line embedded let*.
+
+### Phase 2 — judgment
+
+Read each candidate. Apply the four questions. Distinguish:
+
+- A 30-line deftest body might be inherently complex (e.g., a long `match` expression on a complex enum) and NOT a Level 1 lie. The line count is a candidate flag, not a verdict.
+- A helper without a sibling deftest might be a single-use detail that doesn't need its own proof (e.g., a thin wrapper used in exactly one place). Level 3 taste.
+- A forward reference might be a macro auto-recursion (e.g., `make-deftest` referencing the alias it just registered). Not a real violation.
+
+Phase 2 is where the LLM (or a careful human) reads the candidate and decides Level 1 / Level 2 / Level 3. Phase 1's mechanical scan over-flags by design — it's the funnel, not the verdict.
+
+### Why two phases
+
+The mechanical pass is reproducible: any agent re-running it finds the same candidates. The judgment pass is the load-bearing intelligence: applying the four questions to actual code requires reading the bindings' semantics, not just counting them.
+
+Future work: when `wat-lint` matures, phase 1 becomes a single command that emits structured EDN/JSON findings. Phase 2 then iterates over those findings, fetching context and rendering verdicts. The spell sits atop both.
 
 ## Reference
 
