@@ -182,6 +182,35 @@ arguments instead of spawn-thread closure bodies.
 The four caveats document themselves in the rule's prose. False
 negatives are acceptable; false positives are not.
 
+## Diagnostic substring lock
+
+Slice 2 converts the 6 `:ignore`d test sites to `:should-panic
+(expected = "<substring>")` annotations. Cargo's libtest matches
+the panic message by substring. The Display impl MUST emit a
+panic message containing the literal substring:
+
+```
+channel-pair-deadlock
+```
+
+(lowercase, hyphenated, single identifier — same convention as
+arc 117's "scope-deadlock" and arc 110's "kernel-comm-out-of-position").
+
+This substring is the LOAD-BEARING contract between slice 1 and
+slice 2. Slice 1's Display MUST emit it; slice 2's
+`:should-panic` annotations match against it. Divergent phrasing
+breaks the verification chain.
+
+The recommended Display header:
+
+```
+channel-pair-deadlock at <span>: function call '<callee>' receives
+two halves of the same channel pair. ...
+```
+
+Mirrors arc 117's `scope-deadlock at <span>: Thread/join-result on
+'<thread_binding>' would block forever. ...` shape.
+
 ## CheckError variant
 
 ```rust
