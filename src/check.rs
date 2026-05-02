@@ -129,6 +129,31 @@ pub enum CheckError {
         /// nesting).
         span: Span,
     },
+    /// Arc 126 — a function call passes two arguments that trace
+    /// back to the same `:wat::kernel::make-bounded-channel` /
+    /// `make-unbounded-channel` pair-anchor. One argument is a
+    /// `Sender<T>`; the other is a `Receiver<T>`; both are halves
+    /// of one channel. Holding both ends in one role deadlocks any
+    /// recv on the Receiver — the caller's Sender clone keeps the
+    /// channel alive even if the receiving thread dies.
+    ///
+    /// Sibling rule to `ScopeDeadlock`: same trace machinery applied
+    /// at call sites instead of spawn-thread closure bodies. Catches
+    /// the arc 119 "Pattern B Put-ack helper-verb cycle" deadlock
+    /// before runtime.
+    ChannelPairDeadlock {
+        /// Name of the function being called (callee head).
+        callee: String,
+        /// Name of the `Sender<T>`-typed argument.
+        sender_arg: String,
+        /// Name of the `Receiver<T>`-typed argument.
+        receiver_arg: String,
+        /// Name of the let* binding that held the pair-anchor
+        /// (the `(:wat::kernel::make-bounded-channel ...)` RHS).
+        pair_anchor: String,
+        /// Source location of the function-call site.
+        span: Span,
+    },
     /// Arc 109 slice 1c — a bare primitive type (`:i64`, `:f64`,
     /// `:bool`, `:String`, `:u8`) appears in user code. Bare forms
     /// retire; the canonical FQDN form (`:wat::core::i64`, etc.) is
@@ -373,6 +398,17 @@ impl fmt::Display for CheckError {
                 "scope-deadlock at {}: Thread/join-result on '{}' would block. Sibling binding '{}' (a {}) holds a Sender clone that outlives the worker; the worker's recv never sees EOF. Fix: nest the {} binding (and any other Sender clones) in an inner let* whose body returns '{}' — outer scope holds only the Thread. SERVICE-PROGRAMS.md § \"The lockstep\".",
                 span, thread_binding, offending_binding, offending_kind, offending_kind, thread_binding
             ),
+            CheckError::ChannelPairDeadlock {
+                callee,
+                sender_arg,
+                receiver_arg,
+                pair_anchor,
+                span,
+            } => write!(
+                f,
+                "channel-pair-deadlock at {}: function call '{}' receives two halves of the same channel pair. Argument '{}' is a Sender<T> and argument '{}' is a Receiver<T>; both trace back to the make-bounded-channel allocation at '{}' (let* binding above). Holding both ends of one channel in one role deadlocks any recv — the caller's writer keeps the channel alive even when the receiving thread dies. Fix options (per ZERO-MUTEX.md § \"Routing acks\"): 1. Pair-by-index via HandlePool — each producer pops one Handle holding ONE end of EACH of two distinct channels. 2. Embedded reply-tx in payload — caller does not bind the reply-tx; project the Sender directly into the Request.",
+                span, callee, sender_arg, receiver_arg, pair_anchor
+            ),
             CheckError::BareLegacyPrimitive { primitive, fqdn, span } => write!(
                 f,
                 "bare primitive type '{}' at {} is retired (arc 109 slice 1c); canonical FQDN form is '{}'. Substrate-provided primitives live under :wat::core::* (see arc 109 § A). Rename '{}' → '{}' at the offending site.",
@@ -564,6 +600,18 @@ impl CheckError {
                 .field("thread_binding", thread_binding.as_str())
                 .field("offending_binding", offending_binding.as_str())
                 .field("offending_kind", *offending_kind)
+                .field("location", format!("{}", span)),
+            CheckError::ChannelPairDeadlock {
+                callee,
+                sender_arg,
+                receiver_arg,
+                pair_anchor,
+                span,
+            } => Diagnostic::new("ChannelPairDeadlock")
+                .field("callee", callee.as_str())
+                .field("sender_arg", sender_arg.as_str())
+                .field("receiver_arg", receiver_arg.as_str())
+                .field("pair_anchor", pair_anchor.as_str())
                 .field("location", format!("{}", span)),
             CheckError::BareLegacyPrimitive { primitive, fqdn, span } => {
                 Diagnostic::new("BareLegacyPrimitive")
@@ -1055,6 +1103,24 @@ pub fn check_program(
     }
     for form in forms {
         validate_scope_deadlock(form, types, &mut errors);
+    }
+
+    // Arc 126 — refuse to compile a function-call site that passes
+    // BOTH halves of one `make-bounded-channel` / `make-unbounded-channel`
+    // pair. Sibling rule to ScopeDeadlock — same trace machinery
+    // applied at call sites instead of spawn-thread closure bodies.
+    // Catches the arc 119 "Pattern B Put-ack helper-verb cycle"
+    // deadlock at type-check time: when `tx` and `rx` both project
+    // off the same pair-anchor (`(first pair)` / `(second pair)`
+    // with `pair = (make-bounded-channel ...)`), passing them to
+    // one helper guarantees the helper's recv never sees EOF —
+    // the caller's Sender clone keeps the channel alive even when
+    // the receiver should disconnect.
+    for func in sym.functions.values() {
+        validate_channel_pair_deadlock(&func.body, types, &mut errors);
+    }
+    for form in forms {
+        validate_channel_pair_deadlock(form, types, &mut errors);
     }
 
     // Arc 109 slice 1c — refuse bare primitive types (`:i64`, `:f64`,
@@ -2004,6 +2070,348 @@ fn contains_join_on_thread(node: &WatAST, thread_binding: &str) -> bool {
     items
         .iter()
         .any(|child| contains_join_on_thread(child, thread_binding))
+}
+
+// ─── Arc 126 — channel-pair-deadlock prevention ───────────────────────
+//
+// Sibling rule to arc 117 ScopeDeadlock. Same trace machinery, applied
+// at call sites instead of spawn-thread closure bodies. Refuses
+// function-call shapes where both halves of one channel pair are
+// passed to a single callee — the structural shape that produces the
+// arc 119 "Pattern B Put-ack helper-verb cycle" deadlock.
+//
+// The trace walks the let* binding chain:
+//   (call ... arg-name ...) → arg-name's RHS in scope → either
+//     (:wat::core::first <inner>) / (:wat::core::second <inner>) →
+//       recurse on <inner>
+//     (:wat::kernel::make-bounded-channel ...) /
+//     (:wat::kernel::make-unbounded-channel ...) → THIS is the
+//       pair-anchor; return its (binding-name, span)
+//     anything else → trace gives up (conservative; false-negative
+//       is acceptable, false-positive is not — DESIGN § "False-negative
+//       caveats")
+//
+// Type classification mirrors arc 117 — annotation parsed from the
+// let* binding type slot, then `expand_alias` walks user typealiases
+// (`PutAckTx` → `:wat::kernel::Sender<unit>` → `:rust::crossbeam_channel::Sender<unit>`)
+// to the canonical Rust head. Sender side fires `type_is_sender_kind`;
+// Receiver side fires `type_is_receiver_kind`; both sides traced;
+// matched anchors fire ChannelPairDeadlock.
+//
+// Sandbox boundary (arc 128): `walk_for_pair_deadlock` inherits the
+// same boundary guard as `walk_for_deadlock`. The first argument of
+// `run-sandboxed-ast` / `run-sandboxed-hermetic-ast` /
+// `fork-program-ast` / `spawn-program-ast` is a forms-block
+// representing an INNER program; the inner program freezes when the
+// primitive fires at runtime. Outer freeze must NOT walk into it —
+// doing so cascades inner-program errors into the outer file's
+// freeze and breaks sibling deftests. The guard skips arg 0; trailing
+// args (type-list, config) still get walked.
+//
+// Limitations (per DESIGN § "False-negative caveats"):
+// - Multi-step rx/tx derivations skipped (binding through helper fns).
+// - Tuple-typealias unpacks skipped (user struct hiding both halves).
+// - Cross-function tracing skipped (pair allocated in caller A, both
+//   halves passed through helper B that re-passes them).
+// - Type-only arguments skipped (annotation-less bindings).
+
+/// Walk every form in the program looking for the channel-pair-
+/// deadlock shape. Called from `check_program` adjacent to
+/// `validate_scope_deadlock`. Uses the TypeEnv to resolve aliases —
+/// arguments typed `:PutAckTx` (an alias for
+/// `:wat::kernel::Sender<wat::core::unit>`) are detected structurally,
+/// not by surface-name matching.
+fn validate_channel_pair_deadlock(
+    node: &WatAST,
+    types: &TypeEnv,
+    errors: &mut Vec<CheckError>,
+) {
+    walk_for_pair_deadlock(node, types, &Vec::new(), errors);
+}
+
+/// Per-binding scope entry: `(name, type-annotation-keyword, rhs-ast)`.
+/// Accumulated through nested let*'s so the call-site check can look
+/// up an argument's type AND its RHS for binding-chain tracing.
+type PairScopeEntry = (String, String, WatAST);
+
+/// Recursive walker. At every `:wat::core::let*` form, extends the
+/// binding scope with this let*'s entries; recurses into RHSes and
+/// body forms with the extended scope. At every other List form
+/// whose head is a Keyword (potentially a function call), runs
+/// `check_call_for_pair_deadlock`.
+fn walk_for_pair_deadlock(
+    node: &WatAST,
+    types: &TypeEnv,
+    binding_scope: &[PairScopeEntry],
+    errors: &mut Vec<CheckError>,
+) {
+    let WatAST::List(items, _) = node else { return; };
+    let head = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => {
+            for child in items {
+                walk_for_pair_deadlock(child, types, binding_scope, errors);
+            }
+            return;
+        }
+    };
+
+    // Arc 128 — sandbox-boundary guard. The first argument to a
+    // sandbox-program primitive is a `(:wat::core::forms ...)` block
+    // representing an INNER program; the inner program has its own
+    // freeze cycle when the primitive fires at runtime. Outer freeze
+    // must not redundantly walk the inner forms — doing so conflates
+    // outer/inner scope and emits errors that belong to the inner
+    // program. Skip arg 0 (the forms block); recurse into trailing
+    // args (type-list, config arg). Mirrors the guard in
+    // `walk_for_deadlock` so arc 126 inherits the boundary from
+    // inception.
+    if matches!(
+        head,
+        ":wat::kernel::run-sandboxed-ast"
+            | ":wat::kernel::run-sandboxed-hermetic-ast"
+            | ":wat::kernel::fork-program-ast"
+            | ":wat::kernel::spawn-program-ast"
+    ) {
+        for child in items.iter().skip(2) {
+            walk_for_pair_deadlock(child, types, binding_scope, errors);
+        }
+        return;
+    }
+
+    if head == ":wat::core::let*" && items.len() >= 3 {
+        let bindings = match &items[1] {
+            WatAST::List(xs, _) => xs.clone(),
+            _ => return,
+        };
+        // Extend scope with this let*'s typed bindings.
+        let mut extended: Vec<PairScopeEntry> = binding_scope.to_vec();
+        for binding in &bindings {
+            if let Some((name, type_ann, rhs)) = parse_binding_for_pair_check(binding) {
+                extended.push((name, type_ann, rhs));
+            }
+        }
+        // Recurse into each binding's RHS with the *prefix* scope
+        // available at that binding (let* is sequential; later
+        // bindings see earlier ones, but a binding's own RHS is
+        // evaluated before that name enters scope).
+        let mut prefix: Vec<PairScopeEntry> = binding_scope.to_vec();
+        for binding in &bindings {
+            if let WatAST::List(parts, _) = binding {
+                if parts.len() == 2 {
+                    walk_for_pair_deadlock(&parts[1], types, &prefix, errors);
+                    if let Some((name, type_ann, rhs)) =
+                        parse_binding_for_pair_check(binding)
+                    {
+                        prefix.push((name, type_ann, rhs));
+                    }
+                }
+            }
+        }
+        // Body forms see the full extended scope.
+        for body_form in &items[2..] {
+            walk_for_pair_deadlock(body_form, types, &extended, errors);
+        }
+        return;
+    }
+
+    // Skip kernel comm primitives — those are governed by arc 117 /
+    // arc 110, not arc 126. Their argument-shape is well-formed by
+    // construction (one Sender or one Receiver per call).
+    if matches!(
+        head,
+        ":wat::kernel::send"
+            | ":wat::kernel::recv"
+            | ":wat::kernel::try-recv"
+            | ":wat::kernel::select"
+            | ":wat::kernel::process-send"
+            | ":wat::kernel::process-recv"
+    ) {
+        for child in &items[1..] {
+            walk_for_pair_deadlock(child, types, binding_scope, errors);
+        }
+        return;
+    }
+
+    // Run the structural rule at THIS call site.
+    check_call_for_pair_deadlock(node, binding_scope, types, errors);
+
+    // Descend into children — nested calls / bindings still get checked.
+    for child in items {
+        walk_for_pair_deadlock(child, types, binding_scope, errors);
+    }
+}
+
+/// At a function-call site, classify each Symbol argument by type.
+/// For each Sender<T>-typed argument, trace its RHS chain to the
+/// originating make-bounded-channel / make-unbounded-channel binding
+/// (the "pair-anchor"). Same for Receiver<T>-typed arguments. Group
+/// by anchor; if any anchor has BOTH a Sender argument AND a Receiver
+/// argument, emit `ChannelPairDeadlock`.
+fn check_call_for_pair_deadlock(
+    call_form: &WatAST,
+    binding_scope: &[PairScopeEntry],
+    types: &TypeEnv,
+    errors: &mut Vec<CheckError>,
+) {
+    let WatAST::List(items, span) = call_form else { return; };
+    if items.len() < 2 {
+        return;
+    }
+    let callee = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.clone(),
+        _ => return,
+    };
+
+    // Per-anchor: (anchor-name, sender-arg-name, receiver-arg-name).
+    // Built incrementally as we classify each argument.
+    let mut sender_at_anchor: HashMap<String, String> = HashMap::new();
+    let mut receiver_at_anchor: HashMap<String, String> = HashMap::new();
+
+    for arg in &items[1..] {
+        let WatAST::Symbol(id, _) = arg else { continue; };
+        let arg_name = &id.name;
+        // Look up arg in scope for its annotated type.
+        let entry = match binding_scope.iter().find(|(n, _, _)| n == arg_name) {
+            Some(e) => e,
+            None => continue,
+        };
+        let parsed = match crate::types::parse_type_expr(&entry.1) {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        if type_is_sender_kind(&parsed, types) {
+            if let Some((anchor, _)) = trace_to_pair_anchor(arg_name, binding_scope) {
+                sender_at_anchor
+                    .entry(anchor)
+                    .or_insert_with(|| arg_name.clone());
+            }
+        } else if type_is_receiver_kind(&parsed, types) {
+            if let Some((anchor, _)) = trace_to_pair_anchor(arg_name, binding_scope) {
+                receiver_at_anchor
+                    .entry(anchor)
+                    .or_insert_with(|| arg_name.clone());
+            }
+        }
+    }
+
+    for (anchor, sender_arg) in &sender_at_anchor {
+        if let Some(receiver_arg) = receiver_at_anchor.get(anchor) {
+            errors.push(CheckError::ChannelPairDeadlock {
+                callee: callee.clone(),
+                sender_arg: sender_arg.clone(),
+                receiver_arg: receiver_arg.clone(),
+                pair_anchor: anchor.clone(),
+                span: span.clone(),
+            });
+        }
+    }
+}
+
+/// Trace a binding name through the let* binding chain to the
+/// originating `(:wat::kernel::make-bounded-channel ...)` /
+/// `make-unbounded-channel` call. Returns `(anchor-binding-name,
+/// anchor-span)` on success; `None` when the chain doesn't bottom
+/// out at a make-channel call (conservative — false-negative rather
+/// than false-positive, per DESIGN).
+///
+/// The chain is:
+///   name → RHS = (:wat::core::first <inner>) | (:wat::core::second <inner>)
+///        → recurse on <inner> if it's a Symbol
+///   name → RHS = (:wat::kernel::make-bounded-channel ...) |
+///                (:wat::kernel::make-unbounded-channel ...)
+///        → return Some((name, span))
+///   anything else → None
+fn trace_to_pair_anchor(
+    name: &str,
+    binding_scope: &[PairScopeEntry],
+) -> Option<(String, Span)> {
+    let entry = binding_scope.iter().find(|(n, _, _)| n == name)?;
+    let rhs = &entry.2;
+    let WatAST::List(items, span) = rhs else { return None; };
+    let head = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => return None,
+    };
+    match head {
+        ":wat::kernel::make-bounded-channel" | ":wat::kernel::make-unbounded-channel" => {
+            Some((name.to_string(), span.clone()))
+        }
+        ":wat::core::first" | ":wat::core::second" => {
+            // (first <inner>) / (second <inner>); inner must be a
+            // Symbol for the trace to continue. Anything else
+            // (literal, nested call) bottoms out here as unknown.
+            let inner = items.get(1)?;
+            let WatAST::Symbol(id, _) = inner else { return None; };
+            trace_to_pair_anchor(&id.name, binding_scope)
+        }
+        _ => None,
+    }
+}
+
+/// Parse a let* binding `((name :type-annotation) rhs)` →
+/// `(name, type_annotation_keyword, rhs)`. Returns `None` on shapes
+/// that don't fit (untyped bindings, tuple-destructure patterns —
+/// the trace gives up conservatively).
+///
+/// Sibling to `parse_binding_for_typed_check` (arc 117) — that one
+/// returns the binding span; this one returns the RHS so the trace
+/// can chain across `(first pair)` / `(second pair)` projections.
+fn parse_binding_for_pair_check(binding: &WatAST) -> Option<(String, String, WatAST)> {
+    let WatAST::List(items, _) = binding else { return None; };
+    if items.len() != 2 {
+        return None;
+    }
+    let pattern = &items[0];
+    let WatAST::List(parts, _) = pattern else { return None; };
+    if parts.len() < 2 {
+        return None;
+    }
+    let name = match &parts[0] {
+        WatAST::Symbol(id, _) => id.name.clone(),
+        _ => return None,
+    };
+    let type_ann_str = match &parts[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => return None,
+    };
+    Some((name, type_ann_str, items[1].clone()))
+}
+
+/// Does this type, after alias resolution, denote a `Sender<T>` end
+/// of a channel? Mirrors arc 117's `type_contains_sender_kind` but
+/// returns a bool focused on the SURFACE type — we want the
+/// argument's own type to BE a Sender, not contain one.
+///
+/// `expand_alias` walks user typealiases to the canonical
+/// `:rust::crossbeam_channel::Sender` head. `:wat::kernel::Sender`
+/// is a one-step alias to that; `:wat::kernel::Channel` is a tuple
+/// (Sender, Receiver) — but a single Channel-typed argument can't
+/// be both halves at once and isn't traceable as one half, so this
+/// classifier focuses on the bare Sender shape.
+fn type_is_sender_kind(ty: &TypeExpr, types: &TypeEnv) -> bool {
+    let canonical = crate::types::expand_alias(ty, types);
+    match canonical {
+        TypeExpr::Parametric { head, .. } => matches!(
+            head.as_str(),
+            "rust::crossbeam_channel::Sender" | "wat::kernel::Sender"
+        ),
+        _ => false,
+    }
+}
+
+/// Does this type, after alias resolution, denote a `Receiver<T>`
+/// end of a channel? Mirror of `type_is_sender_kind`. Same one-step
+/// alias chain: `:wat::kernel::Receiver` → `:rust::crossbeam_channel::Receiver`.
+fn type_is_receiver_kind(ty: &TypeExpr, types: &TypeEnv) -> bool {
+    let canonical = crate::types::expand_alias(ty, types);
+    match canonical {
+        TypeExpr::Parametric { head, .. } => matches!(
+            head.as_str(),
+            "rust::crossbeam_channel::Receiver" | "wat::kernel::Receiver"
+        ),
+        _ => false,
+    }
 }
 
 fn check_function_body(
@@ -10513,6 +10921,250 @@ mod tests {
                     scope_deadlocks.is_empty(),
                     "arc 128: walker must skip sandboxed forms block; ScopeDeadlock fired at outer freeze: {:?}",
                     scope_deadlocks
+                );
+            }
+        }
+    }
+
+    // ─── Arc 126 — channel-pair-deadlock prevention ─────────────────
+
+    #[test]
+    fn channel_pair_deadlock_fires_on_canonical_anti_pattern() {
+        // The arc 119 minimal repro shape: one make-bounded-channel
+        // pair, both halves bound, both passed to one helper-verb.
+        // Structural truth — same pair-anchor IS same channel — so
+        // the rule fires regardless of helper-verb's body.
+        let src = r#"
+            (:wat::core::define
+              (:my::helper-verb
+                (tx :wat::kernel::Sender<wat::core::unit>)
+                (rx :wat::kernel::Receiver<wat::core::unit>)
+                -> :wat::core::unit)
+              ())
+
+            (:wat::core::define
+              (:my::caller (_d :wat::core::unit) -> :wat::core::unit)
+              (:wat::core::let*
+                (((pair :wat::kernel::Channel<wat::core::unit>)
+                  (:wat::kernel::make-bounded-channel :wat::core::unit 1))
+                 ((tx :wat::kernel::Sender<wat::core::unit>)
+                  (:wat::core::first pair))
+                 ((rx :wat::kernel::Receiver<wat::core::unit>)
+                  (:wat::core::second pair)))
+                (:my::helper-verb tx rx)))
+        "#;
+        let err = check(src).unwrap_err();
+        assert!(
+            err.0.iter().any(|e| matches!(
+                e,
+                CheckError::ChannelPairDeadlock { callee, sender_arg, receiver_arg, pair_anchor, .. }
+                    if callee == ":my::helper-verb"
+                        && sender_arg == "tx"
+                        && receiver_arg == "rx"
+                        && pair_anchor == "pair"
+            )),
+            "expected ChannelPairDeadlock on canonical anti-pattern, got: {:?}",
+            err.0
+        );
+    }
+
+    #[test]
+    fn channel_pair_deadlock_silent_on_two_different_pairs() {
+        // Two SEPARATE make-bounded-channel calls — each end traces
+        // to a distinct pair-anchor. Different anchors = different
+        // channels = no deadlock. The rule must NOT fire.
+        let src = r#"
+            (:wat::core::define
+              (:my::helper-verb
+                (tx :wat::kernel::Sender<wat::core::unit>)
+                (rx :wat::kernel::Receiver<wat::core::unit>)
+                -> :wat::core::unit)
+              ())
+
+            (:wat::core::define
+              (:my::caller (_d :wat::core::unit) -> :wat::core::unit)
+              (:wat::core::let*
+                (((pair-a :wat::kernel::Channel<wat::core::unit>)
+                  (:wat::kernel::make-bounded-channel :wat::core::unit 1))
+                 ((pair-b :wat::kernel::Channel<wat::core::unit>)
+                  (:wat::kernel::make-bounded-channel :wat::core::unit 1))
+                 ((tx :wat::kernel::Sender<wat::core::unit>)
+                  (:wat::core::first pair-a))
+                 ((rx :wat::kernel::Receiver<wat::core::unit>)
+                  (:wat::core::second pair-b)))
+                (:my::helper-verb tx rx)))
+        "#;
+        let result = check(src);
+        // Two-different-pairs is a legitimate shape (the arc 126
+        // canonical fix); no ChannelPairDeadlock should fire.
+        assert!(
+            result.as_ref().is_ok()
+                || result
+                    .as_ref()
+                    .err()
+                    .map(|e| {
+                        !e.0.iter()
+                            .any(|err| matches!(err, CheckError::ChannelPairDeadlock { .. }))
+                    })
+                    .unwrap_or(true),
+            "two different pairs should not fire ChannelPairDeadlock, got: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn channel_pair_deadlock_silent_on_canonical_handle_pop() {
+        // The substrate's canonical pair-by-index pattern: a Handle
+        // is `(ReqTx, AckRx)` where ReqTx is one end of the request
+        // channel and AckRx is one end of the SEPARATE ack channel.
+        // The trace gives up at the Handle (its RHS isn't a
+        // make-channel call); no anchor resolves; no fire. This is
+        // the false-negative-by-design that ZERO-MUTEX.md § "Routing
+        // acks" relies on — the pair-by-index pattern routes both
+        // ends but holds them at separate-anchor positions.
+        let src = r#"
+            (:wat::core::typealias :my::Handle
+              :(wat::kernel::Sender<wat::core::unit>,wat::kernel::Receiver<wat::core::unit>))
+
+            (:wat::core::define
+              (:my::pop-handle (_d :wat::core::unit) -> :my::Handle)
+              (:wat::core::let*
+                (((p :wat::kernel::Channel<wat::core::unit>)
+                  (:wat::kernel::make-bounded-channel :wat::core::unit 1))
+                 ((q :wat::kernel::Channel<wat::core::unit>)
+                  (:wat::kernel::make-bounded-channel :wat::core::unit 1))
+                 ((req-tx :wat::kernel::Sender<wat::core::unit>)
+                  (:wat::core::first p))
+                 ((ack-rx :wat::kernel::Receiver<wat::core::unit>)
+                  (:wat::core::second q)))
+                (:wat::core::Tuple req-tx ack-rx)))
+
+            (:wat::core::define
+              (:my::helper-verb
+                (tx :wat::kernel::Sender<wat::core::unit>)
+                (rx :wat::kernel::Receiver<wat::core::unit>)
+                -> :wat::core::unit)
+              ())
+
+            (:wat::core::define
+              (:my::caller (_d :wat::core::unit) -> :wat::core::unit)
+              (:wat::core::let*
+                (((handle :my::Handle) (:my::pop-handle))
+                 ((req-tx :wat::kernel::Sender<wat::core::unit>)
+                  (:wat::core::first handle))
+                 ((ack-rx :wat::kernel::Receiver<wat::core::unit>)
+                  (:wat::core::second handle)))
+                (:my::helper-verb req-tx ack-rx)))
+        "#;
+        let result = check(src);
+        assert!(
+            result.as_ref().is_ok()
+                || result
+                    .as_ref()
+                    .err()
+                    .map(|e| {
+                        !e.0.iter()
+                            .any(|err| matches!(err, CheckError::ChannelPairDeadlock { .. }))
+                    })
+                    .unwrap_or(true),
+            "HandlePool-pop pattern should not fire ChannelPairDeadlock (trace gives up at user fn boundary), got: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn channel_pair_deadlock_diagnostic_substring() {
+        // Slice 2 of arc 126 converts 6 :ignore'd test sites to
+        // :should-panic with a substring match. This test locks the
+        // contract: the Display impl MUST emit "channel-pair-deadlock"
+        // verbatim. Divergent phrasing breaks the verification chain.
+        let src = r#"
+            (:wat::core::define
+              (:my::helper-verb
+                (tx :wat::kernel::Sender<wat::core::unit>)
+                (rx :wat::kernel::Receiver<wat::core::unit>)
+                -> :wat::core::unit)
+              ())
+
+            (:wat::core::define
+              (:my::caller (_d :wat::core::unit) -> :wat::core::unit)
+              (:wat::core::let*
+                (((pair :wat::kernel::Channel<wat::core::unit>)
+                  (:wat::kernel::make-bounded-channel :wat::core::unit 1))
+                 ((tx :wat::kernel::Sender<wat::core::unit>)
+                  (:wat::core::first pair))
+                 ((rx :wat::kernel::Receiver<wat::core::unit>)
+                  (:wat::core::second pair)))
+                (:my::helper-verb tx rx)))
+        "#;
+        let err = check(src).unwrap_err();
+        let pair_err = err
+            .0
+            .iter()
+            .find(|e| matches!(e, CheckError::ChannelPairDeadlock { .. }))
+            .expect("ChannelPairDeadlock variant present");
+        let display = format!("{}", pair_err);
+        assert!(
+            display.contains("channel-pair-deadlock"),
+            "Display impl missing load-bearing 'channel-pair-deadlock' substring; got: {}",
+            display
+        );
+    }
+
+    /// Arc 126 RELAND — the channel-pair-deadlock anti-pattern, when
+    /// nested inside the forms-block of a `run-sandboxed-hermetic-ast`
+    /// call, MUST NOT fire `ChannelPairDeadlock` at outer freeze. The
+    /// inner program has its own freeze cycle at runtime; outer walker
+    /// stops at the sandbox boundary. Mirrors arc 128's
+    /// `arc_128_inner_scope_deadlock_skipped_in_sandboxed_forms` test
+    /// for the new arc-126 check.
+    #[test]
+    fn channel_pair_deadlock_skipped_in_sandboxed_forms() {
+        let src = r#"
+            (:wat::core::define
+              (:my::deftest-style -> :wat::kernel::RunResult)
+              (:wat::kernel::run-sandboxed-hermetic-ast
+                (:wat::core::forms
+                  (:wat::core::define
+                    (:my::helper-verb
+                      (tx :wat::kernel::Sender<wat::core::unit>)
+                      (rx :wat::kernel::Receiver<wat::core::unit>)
+                      -> :wat::core::unit)
+                    ())
+                  (:wat::core::define
+                    (:user::main
+                      (_stdin  :wat::io::IOReader)
+                      (_stdout :wat::io::IOWriter)
+                      (_stderr :wat::io::IOWriter)
+                      -> :wat::core::unit)
+                    (:wat::core::let*
+                      (((pair :wat::kernel::Channel<wat::core::unit>)
+                        (:wat::kernel::make-bounded-channel :wat::core::unit 1))
+                       ((tx :wat::kernel::Sender<wat::core::unit>)
+                        (:wat::core::first pair))
+                       ((rx :wat::kernel::Receiver<wat::core::unit>)
+                        (:wat::core::second pair)))
+                      (:my::helper-verb tx rx))))
+                (:wat::core::Vector :wat::core::String)
+                :wat::core::None))
+        "#;
+        let result = check(src);
+        // The outer freeze must NOT see the inner anti-pattern.
+        // ChannelPairDeadlock errors firing here would mean the
+        // walker is descending into the forms block — arc 128
+        // boundary not inherited by arc 126's walker.
+        match result {
+            Ok(_) => {}
+            Err(errors) => {
+                let pair_deadlocks: Vec<_> = errors
+                    .0
+                    .iter()
+                    .filter(|e| matches!(e, CheckError::ChannelPairDeadlock { .. }))
+                    .collect();
+                assert!(
+                    pair_deadlocks.is_empty(),
+                    "arc 126 reland: walker must skip sandboxed forms block; ChannelPairDeadlock fired at outer freeze: {:?}",
+                    pair_deadlocks
                 );
             }
         }
