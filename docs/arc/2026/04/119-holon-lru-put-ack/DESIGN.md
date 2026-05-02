@@ -1,6 +1,7 @@
 # Arc 119 — HologramCacheService Put ack-tx (mini-TCP discipline correction)
 
-**Status:** scoping (2026-05-01).
+**Status:** locked 2026-05-01 (post-gaze). Option A + `PutAck*`
+family per gaze verdict. Substrate work proceeding.
 
 ## Provenance
 
@@ -167,6 +168,53 @@ fixes the names — landing against a corrected protocol.
 After both: HologramCacheService is disciplinarily correct AND
 canonically named. Then K.thread-process is the last K-slice;
 then 109's INSCRIPTION can close the arc.
+
+## Gaze verdict (2026-05-01)
+
+**Question 1 — Option A wins.** The substrate already declared
+`Ack*` vs `Reply*` load-bearing at the crate level (INVENTORY
+§ K); arc 119 propagates that distinction to the variant level
+inside one crate. Option B's unified `Reply` family with a
+payload-less `(PutAck)` variant would force the cold reader to
+trust a name that contradicts half its instances — Level 2
+mumble. The cold reader sees `(Put k v ack-tx)` under A and the
+field name matches the type body; under B they'd see
+`(Put k v reply-tx)` and find the "reply" carries nothing.
+
+**Question 2 — `PutAck*` family.** Honest body wins over surface
+symmetry. The substrate's load-bearing rule names families by
+what the back-edge *carries*, not by which verb owns it. Put's
+back-edge carries `unit`; it joins the Ack* family alongside
+Telemetry's and Console's. `PutReply*` would force a
+`Sender<unit>` into the Reply* family — same Level 2 mumble.
+
+The locked typealiases (post-K.holon-lru flatten):
+
+```
+:wat::holon::lru::PutAckTx       = Sender<unit>
+:wat::holon::lru::PutAckRx       = Receiver<unit>
+:wat::holon::lru::PutAckChannel  = Channel<unit>
+```
+
+Plus the existing data-bearing Get pair (post-K.holon-lru):
+
+```
+:wat::holon::lru::GetReplyTx     = Sender<Option<HolonAST>>
+:wat::holon::lru::GetReplyRx     = Receiver<Option<HolonAST>>
+:wat::holon::lru::GetReplyChannel = Channel<Option<HolonAST>>  ;; renamed from GetReplyPair
+```
+
+Final Request enum shape:
+
+```scheme
+(:wat::core::enum :wat::holon::lru::Request
+  (Get  (probe :HolonAST) (reply-tx :GetReplyTx))     ;; data-bearing reply
+  (Put  (key :HolonAST) (val :HolonAST)
+        (ack-tx :PutAckTx)))                          ;; unit-ack release
+```
+
+Honest at every layer: variant declares which pattern; field
+name declares Reply vs Ack; type body confirms data vs unit.
 
 ## Open questions for gaze
 
