@@ -58,7 +58,120 @@
      (:wat-telemetry::log-test::translate-empty
        (_s :wat::telemetry::Stats)
        -> :wat::core::Vector<wat::telemetry::Event>)
-     (:wat::core::Vector :wat::telemetry::Event))))
+     (:wat::core::Vector :wat::telemetry::Event))
+
+   ;; ─── Layer 1 — level extraction ──────────────────────────────────
+   ;;
+   ;; :test::wul-extract-level — pattern-match one Event; return its
+   ;; level keyword when it is a Log variant; sentinel keyword on any
+   ;; other variant. Pure: no channel interaction.
+   (:wat::core::define
+     (:test::wul-extract-level
+       (event :wat::telemetry::Event)
+       -> :wat::core::keyword)
+     (:wat::core::match event -> :wat::core::keyword
+       ((:wat::telemetry::Event::Log
+          _t _ns _c level-notag _u _tags _d)
+         (:wat::core::atom-value
+           (:wat::edn::NoTag/0 level-notag)))
+       ((:wat::telemetry::Event::Metric
+          _s _e _ns _u _tags _n _v _unit)
+         :wrong-variant-metric)))
+
+   ;; :test::wul-recv-level — recv one Event from stub-rx; call
+   ;; wul-extract-level on the unwrapped event; return a sentinel
+   ;; keyword on None or channel error.
+   ;; NOTE: no isolated deftest — constructing a synthetic Event::Log
+   ;; requires substrate-internal field knowledge. Level 3 taste
+   ;; exemption; proven by its callers.
+   (:wat::core::define
+     (:test::wul-recv-level
+       (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
+       -> :wat::core::keyword)
+     (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
+       ((:wat::core::Ok (:wat::core::Some event))
+         (:test::wul-extract-level event))
+       ((:wat::core::Ok :wat::core::None) :no-event)
+       ((:wat::core::Err _died) :no-event)))
+
+   ;; ─── Layer 2 — stub-service + wu + logger runner ─────────────────
+   ;;
+   ;; :test::wul-spawn-stub-and-emit-drain — spawn stub telemetry service
+   ;; (null cadence, translate-empty), pop handle, build a fresh WorkUnit
+   ;; and WorkUnitLog, then call body with (logger, wu, stub-rx). body
+   ;; performs all emit+drain and returns a keyword. stub-tx is captured
+   ;; inside the dispatcher closure and drops when the inner scope exits,
+   ;; letting the driver exit cleanly.
+   ;; Returns (Thread<unit,unit>, keyword) — caller joins driver and asserts
+   ;; on the keyword.
+   (:wat::core::define
+     (:test::wul-spawn-stub-and-emit-drain
+       (body :fn(wat::telemetry::WorkUnitLog,wat::telemetry::WorkUnit,wat::kernel::Receiver<wat::telemetry::Event>)->wat::core::keyword)
+       -> :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::keyword))
+     (:wat::core::let*
+       (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
+         (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
+        ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
+         (:wat::core::first stub-pair))
+        ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
+         (:wat::core::second stub-pair))
+        ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
+         (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))
+        ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
+         (:wat::telemetry::null-metrics-cadence))
+        ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
+         (:wat::telemetry::spawn 1 cadence dispatcher
+           :wat-telemetry::log-test::translate-empty))
+        ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
+         (:wat::core::first spawn))
+        ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+         (:wat::core::second spawn))
+        ((kw :wat::core::keyword)
+         (:wat::core::let*
+           (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
+             (:wat::kernel::HandlePool::pop pool))
+            ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
+            ((wu :wat::telemetry::WorkUnit)
+             (:wat::telemetry::WorkUnit::new
+               (:wat-telemetry::log-test::default-ns)
+               (:wat-telemetry::log-test::empty-tags)))
+            ((logger :wat::telemetry::WorkUnitLog)
+             (:wat::telemetry::WorkUnitLog/new
+               handle
+               (:wat-telemetry::log-test::default-caller)
+               (:wat-telemetry::log-test::fixed-now-fn))))
+           (body logger wu stub-rx))))
+       (:wat::core::Tuple d kw)))
+
+   ))
+
+
+;; ─── Per-layer deftests for new helpers ───────────────────────────────────────
+
+;; Layer 1 — wul-extract-level: Level 3 taste exemption — constructing a
+;; synthetic Event::Log requires substrate-internal field knowledge. Proven
+;; by callers (test-info-emits-log-event + test-each-level-emits-log).
+
+;; Layer 1 — wul-recv-level: Level 3 taste exemption — same constraint as
+;; wul-extract-level. Proven by callers.
+
+;; Layer 2 — wul-spawn-stub-and-emit-drain: body does nothing, returns sentinel.
+;; Proves spawn + configure + pop + build wu + build logger lifecycle is clean.
+(:deftest :wat-telemetry::WorkUnitLog::test-wul-spawn-stub-and-emit-drain
+  (:wat::core::let*
+    (((thr-kw :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::keyword))
+      (:test::wul-spawn-stub-and-emit-drain
+        (:wat::core::lambda
+          ((_logger :wat::telemetry::WorkUnitLog)
+           (_wu :wat::telemetry::WorkUnit)
+           (_stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
+           -> :wat::core::keyword)
+          :ok)))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-kw))
+     ((kw :wat::core::keyword) (:wat::core::second thr-kw))
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver)))
+    (:wat::test::assert-eq kw :ok)))
 
 
 ;; ─── /info ships an Event::Log row through the captured handle ───
@@ -68,65 +181,22 @@
 ;; the lift (keyword → Atom → NoTag) + render round-trip.
 (:deftest :wat-telemetry::WorkUnitLog::test-info-emits-log-event
   (:wat::core::let*
-    ;; Inner owns every Sender clone (stub-pair, stub-tx) AND
-    ;; emits + drains the one /info event before returning. Returns
-    ;; (driver, level-back) so outer can join the driver and assert on
-    ;; the level keyword. SERVICE-PROGRAMS.md § "The lockstep" + arc 117.
-    (((thr-and-level :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::keyword))
-      (:wat::core::let*
-        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
-          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
-         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
-          (:wat::core::first stub-pair))
-         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
-          (:wat::core::second stub-pair))
-         ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
-          (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))
-         ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
-          (:wat::telemetry::null-metrics-cadence))
-         ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
-          (:wat::telemetry::spawn 1 cadence dispatcher
-            :wat-telemetry::log-test::translate-empty))
-         ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
-          (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
-         ;; Inner-inner: pop handle, build wu + logger, emit one /info.
-         ((_inner :wat::core::unit)
+    ;; Body: emit one /info, drain one event, return its level keyword.
+    ;; wul-spawn-stub-and-emit-drain internalizes spawn + configure +
+    ;; pop + wu + logger. Body lambda is the embedded test fixture.
+    (((thr-kw :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::keyword))
+      (:test::wul-spawn-stub-and-emit-drain
+        (:wat::core::lambda
+          ((logger :wat::telemetry::WorkUnitLog)
+           (wu :wat::telemetry::WorkUnit)
+           (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
+           -> :wat::core::keyword)
           (:wat::core::let*
-            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
-              (:wat::kernel::HandlePool::pop pool))
-             ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-             ((wu :wat::telemetry::WorkUnit)
-              (:wat::telemetry::WorkUnit::new
-                (:wat-telemetry::log-test::default-ns)
-                (:wat-telemetry::log-test::empty-tags)))
-             ((logger :wat::telemetry::WorkUnitLog)
-              (:wat::telemetry::WorkUnitLog/new
-                handle
-                (:wat-telemetry::log-test::default-caller)
-                (:wat-telemetry::log-test::fixed-now-fn)))
-             ((_log :wat::core::unit)
+            (((_log :wat::core::unit)
               (:wat::telemetry::WorkUnitLog/info logger wu (:wat::core::quote :hello))))
-            ()))
-         ;; Drain the one event in the same scope (stub-tx still alive,
-         ;; but the row is already enqueued by the synchronous /info
-         ;; round-trip). Match-at-source per arc 110.
-         ((level-back :wat::core::keyword)
-          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
-            ((:wat::core::Ok (:wat::core::Some event))
-              (:wat::core::match event -> :wat::core::keyword
-                ((:wat::telemetry::Event::Log
-                   _t _ns _c level-notag _u _tags _d)
-                  (:wat::core::atom-value
-                    (:wat::edn::NoTag/0 level-notag)))
-                ((:wat::telemetry::Event::Metric
-                   _s _e _ns _u _tags _n _v _unit)
-                  :wrong-variant-metric)))
-            ((:wat::core::Ok :wat::core::None) :no-event)
-            ((:wat::core::Err _died) :no-event))))
-        (:wat::core::Tuple d level-back)))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-level))
-     ((level-back :wat::core::keyword) (:wat::core::second thr-and-level))
+            (:test::wul-recv-level stub-rx)))))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-kw))
+     ((level-back :wat::core::keyword) (:wat::core::second thr-kw))
      ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq level-back :info)))
@@ -141,90 +211,32 @@
 
 (:deftest :wat-telemetry::WorkUnitLog::test-each-level-emits-log
   (:wat::core::let*
-    ;; Inner owns every Sender clone (stub-pair, stub-tx) AND
-    ;; emits the four /level calls and drains all four events in the
-    ;; same scope (the synchronous round-trip means each row is
-    ;; enqueued by the time recv runs). Returns (driver, l4) so outer
-    ;; joins the driver and asserts the last level keyword.
-    ;; SERVICE-PROGRAMS.md § "The lockstep" + arc 117.
-    (((thr-and-l4 :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::keyword))
-      (:wat::core::let*
-        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
-          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
-         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
-          (:wat::core::first stub-pair))
-         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
-          (:wat::core::second stub-pair))
-         ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
-          (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))
-         ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
-          (:wat::telemetry::null-metrics-cadence))
-         ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
-          (:wat::telemetry::spawn 1 cadence dispatcher
-            :wat-telemetry::log-test::translate-empty))
-         ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
-          (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
-         ((_inner :wat::core::unit)
+    ;; Body: emit debug + info + warn + error; drain four events;
+    ;; assert first three; return the fourth level keyword.
+    ;; wul-spawn-stub-and-emit-drain internalizes spawn + configure +
+    ;; pop + wu + logger. Body lambda is the embedded test fixture.
+    (((thr-kw :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::keyword))
+      (:test::wul-spawn-stub-and-emit-drain
+        (:wat::core::lambda
+          ((logger :wat::telemetry::WorkUnitLog)
+           (wu :wat::telemetry::WorkUnit)
+           (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
+           -> :wat::core::keyword)
           (:wat::core::let*
-            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
-              (:wat::kernel::HandlePool::pop pool))
-             ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-             ((wu :wat::telemetry::WorkUnit)
-              (:wat::telemetry::WorkUnit::new
-                (:wat-telemetry::log-test::default-ns)
-                (:wat-telemetry::log-test::empty-tags)))
-             ((logger :wat::telemetry::WorkUnitLog)
-              (:wat::telemetry::WorkUnitLog/new
-                handle
-                (:wat-telemetry::log-test::default-caller)
-                (:wat-telemetry::log-test::fixed-now-fn)))
-             ((data :wat::WatAST) (:wat::core::quote :payload))
+            (((data :wat::WatAST) (:wat::core::quote :payload))
              ((_d :wat::core::unit) (:wat::telemetry::WorkUnitLog/debug logger wu data))
              ((_i :wat::core::unit) (:wat::telemetry::WorkUnitLog/info  logger wu data))
              ((_w :wat::core::unit) (:wat::telemetry::WorkUnitLog/warn  logger wu data))
-             ((_e :wat::core::unit) (:wat::telemetry::WorkUnitLog/error logger wu data)))
-            ()))
-         ;; Arc 110: extract-level takes the unwrapped Event; the
-         ;; match-at-source on recv at each call site supplies the
-         ;; :None default. recv can no longer hide inside a function-arg.
-         ((extract-level :fn(wat::telemetry::Event)->wat::core::keyword)
-          (:wat::core::lambda
-            ((event :wat::telemetry::Event) -> :wat::core::keyword)
-            (:wat::core::match event -> :wat::core::keyword
-              ((:wat::telemetry::Event::Log
-                 _t _ns _c level-notag _u _tags _d)
-                (:wat::core::atom-value
-                  (:wat::edn::NoTag/0 level-notag)))
-              ((:wat::telemetry::Event::Metric
-                 _s _e _ns _u _tags _n _v _unit)
-                :wrong-variant-metric))))
-         ((l1 :wat::core::keyword)
-          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
-            ((:wat::core::Ok (:wat::core::Some event)) (extract-level event))
-            ((:wat::core::Ok :wat::core::None) :no-event)
-            ((:wat::core::Err _died) :no-event)))
-         ((l2 :wat::core::keyword)
-          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
-            ((:wat::core::Ok (:wat::core::Some event)) (extract-level event))
-            ((:wat::core::Ok :wat::core::None) :no-event)
-            ((:wat::core::Err _died) :no-event)))
-         ((l3 :wat::core::keyword)
-          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
-            ((:wat::core::Ok (:wat::core::Some event)) (extract-level event))
-            ((:wat::core::Ok :wat::core::None) :no-event)
-            ((:wat::core::Err _died) :no-event)))
-         ((l4 :wat::core::keyword)
-          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::keyword
-            ((:wat::core::Ok (:wat::core::Some event)) (extract-level event))
-            ((:wat::core::Ok :wat::core::None) :no-event)
-            ((:wat::core::Err _died) :no-event)))
-         ((_a :wat::core::unit) (:wat::test::assert-eq l1 :debug))
-         ((_b :wat::core::unit) (:wat::test::assert-eq l2 :info))
-         ((_c :wat::core::unit) (:wat::test::assert-eq l3 :warn)))
-        (:wat::core::Tuple d l4)))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-l4))
-     ((l4 :wat::core::keyword) (:wat::core::second thr-and-l4))
+             ((_e :wat::core::unit) (:wat::telemetry::WorkUnitLog/error logger wu data))
+             ((l1 :wat::core::keyword) (:test::wul-recv-level stub-rx))
+             ((l2 :wat::core::keyword) (:test::wul-recv-level stub-rx))
+             ((l3 :wat::core::keyword) (:test::wul-recv-level stub-rx))
+             ((_ :wat::core::unit) (:wat::test::assert-eq l1 :debug))
+             ((_ :wat::core::unit) (:wat::test::assert-eq l2 :info))
+             ((_ :wat::core::unit) (:wat::test::assert-eq l3 :warn)))
+            (:test::wul-recv-level stub-rx)))))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-kw))
+     ((l4 :wat::core::keyword) (:wat::core::second thr-kw))
      ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq l4 :error)))

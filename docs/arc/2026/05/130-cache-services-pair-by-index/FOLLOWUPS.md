@@ -56,22 +56,24 @@ Both files use a single `make-deftest` prelude (no mixed outcomes; all clean pas
 
 Slice 2 SCORE: 8/8 hard + 4/4 soft. New SKILL delta surfaced: embedded literals (cadence lambdas, dispatcher closures) generalize the hermetic-program edge case. Baked into the SKILL.
 
-### `crates/wat-telemetry/wat-tests/telemetry/WorkUnit.wat`
+### ✓ `crates/wat-telemetry/wat-tests/telemetry/WorkUnit.wat` — shipped 2026-05-03 (arc 135 slice 3)
 
-- 🟠 L593 `:wat-telemetry::WorkUnit::test-make-scope-ships-counter` body=62
-- 🟠 L467 `:wat-telemetry::WorkUnit::test-collect-metrics-two-duration-samples` body=57
-- 🟠 L273 `:wat-telemetry::WorkUnit::test-build-counter-metric` body=56
-- 🟠 L336 `:wat-telemetry::WorkUnit::test-build-duration-metric` body=55
-- 🟡 L400 `:wat-telemetry::WorkUnit::test-collect-metrics-empty` body=47
+- ✓ L593 `:test-make-scope-ships-counter` outer 7 ✓
+- ✓ L467 `:test-collect-metrics-two-duration-samples` outer 7 ✓
+- ✓ L273 `:test-build-counter-metric` outer 7 ✓
+- ✓ L336 `:test-build-duration-metric` outer 7 ✓
+- ✓ L400 `:test-collect-metrics-empty` outer 4 ✓
 
-5 mid-size deftests; likely strong helper-reuse opportunity (build + collect + emit).
+3 new helpers (`wu-spawn-stub-scope-str` + `-unit` + `-i64`); 2 reused (`wu-spawn-count-and-scope`, `wu-recv-event-is-some`); 3 new per-helper deftests.
 
-### `crates/wat-telemetry/wat-tests/telemetry/WorkUnitLog.wat`
+### ✓ `crates/wat-telemetry/wat-tests/telemetry/WorkUnitLog.wat` — shipped 2026-05-03 (arc 135 slice 3)
 
-- 🟠 L142 `:wat-telemetry::WorkUnitLog::test-each-level-emits-log` body=89
-- 🟠 L69 `:wat-telemetry::WorkUnitLog::test-info-emits-log-event` body=64
+- ✓ L142 `:test-each-level-emits-log` outer 4 + body lambda ✓
+- ✓ L69 `:test-info-emits-log-event` outer 4 + body lambda ✓
 
-Two log-emission tests; likely shareable spawn + emit + drain helpers.
+3 new helpers (`wul-extract-level`, `wul-recv-level`, `wul-spawn-stub-and-emit-drain`); 1 new per-helper deftest. Inner let* (15-18 bindings before) collapsed into body lambda fixture per SKILL edge case 7 (embedded literals).
+
+Slice 3 SCORE: 8/8 hard + 4/4 soft. Substrate-level delta surfaced — generic-T 3-tuple return doesn't propagate; workaround is concrete non-generic helpers + nested 2-tuple returns. Filed separately (NOT a SKILL refinement).
 
 ### `crates/wat-holon-lru/wat-tests/holon/lru/HologramCache.wat`
 

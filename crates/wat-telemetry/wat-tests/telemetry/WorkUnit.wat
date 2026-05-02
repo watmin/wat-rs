@@ -88,7 +88,265 @@
      (:wat-telemetry::scope::translate-empty
        (_s :wat::telemetry::Stats)
        -> :wat::core::Vector<wat::telemetry::Event>)
-     (:wat::core::Vector :wat::telemetry::Event))))
+     (:wat::core::Vector :wat::telemetry::Event))
+
+   ;; ─── Layer 1 — stub-service scope runner ─────────────────────────
+   ;;
+   ;; :test::wu-spawn-stub-and-scope<T> — spawn Service<Event> with stub
+   ;; dispatcher (null cadence, translate-empty). In the inner scope: pop
+   ;; handle, finish pool, build scope-fn with default-ns, call body.
+   ;; Drain happens outside; stub-tx is captured inside the dispatcher
+   ;; closure and drops when the inner scope exits, letting the driver
+   ;; exit after the outer left* drops the handles.
+   ;; Returns :(Thread<unit,unit>, T, Receiver<Event>) — caller joins +
+   ;; drains stub-rx then asserts.
+   ;; :test::wu-spawn-stub-scope-str — spawn stub telemetry service, pop
+   ;; handle, make scope with default-ns, call body (which returns String),
+   ;; return :(Thread<unit,unit>, String, Receiver<Event>).
+   ;; Specialized for bodies that return a String (tests 1, 2 — uuid capture).
+   ;; Uses nested 2-tuples to avoid generic-T return issues:
+   ;;   outer = (Thread, (String, Receiver))
+   (:wat::core::define
+     (:test::wu-spawn-stub-scope-str
+       (body :fn(wat::telemetry::WorkUnit)->wat::core::String)
+       -> :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
+     (:wat::core::let*
+       (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
+         (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
+        ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
+         (:wat::core::first stub-pair))
+        ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
+         (:wat::core::second stub-pair))
+        ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
+         (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
+        ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
+         (:wat::telemetry::null-metrics-cadence))
+        ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
+         (:wat::telemetry::spawn 1 cadence dispatcher
+           :wat-telemetry::scope::translate-empty))
+        ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
+         (:wat::core::first spawn))
+        ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+         (:wat::core::second spawn))
+        ((result :wat::core::String)
+         (:wat::core::let*
+           (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
+             (:wat::kernel::HandlePool::pop pool))
+            ((_finish :wat::core::unit)
+             (:wat::kernel::HandlePool::finish pool))
+            ((scope :wat::telemetry::WorkUnit::Scope<wat::core::String>)
+             (:wat::telemetry::WorkUnit/make-scope handle (:wat-telemetry::default-ns)))
+            ((tags :wat::telemetry::Tags)
+             (:wat-telemetry::empty-tags)))
+           (scope tags body))))
+       (:wat::core::Tuple d (:wat::core::Tuple result stub-rx))))
+
+   ;; :test::wu-spawn-stub-scope-unit — spawn stub telemetry service, pop
+   ;; handle, make scope with default-ns, call body (which returns unit),
+   ;; return :(Thread<unit,unit>, Receiver<Event>).
+   ;; Specialized for bodies that return unit (tests 3, 4).
+   (:wat::core::define
+     (:test::wu-spawn-stub-scope-unit
+       (body :fn(wat::telemetry::WorkUnit)->wat::core::unit)
+       -> :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::kernel::Receiver<wat::telemetry::Event>))
+     (:wat::core::let*
+       (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
+         (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
+        ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
+         (:wat::core::first stub-pair))
+        ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
+         (:wat::core::second stub-pair))
+        ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
+         (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
+        ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
+         (:wat::telemetry::null-metrics-cadence))
+        ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
+         (:wat::telemetry::spawn 1 cadence dispatcher
+           :wat-telemetry::scope::translate-empty))
+        ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
+         (:wat::core::first spawn))
+        ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+         (:wat::core::second spawn))
+        ((_ :wat::core::unit)
+         (:wat::core::let*
+           (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
+             (:wat::kernel::HandlePool::pop pool))
+            ((_finish :wat::core::unit)
+             (:wat::kernel::HandlePool::finish pool))
+            ((scope :wat::telemetry::WorkUnit::Scope<wat::core::unit>)
+             (:wat::telemetry::WorkUnit/make-scope handle (:wat-telemetry::default-ns)))
+            ((tags :wat::telemetry::Tags)
+             (:wat-telemetry::empty-tags)))
+           (scope tags body))))
+       (:wat::core::Tuple d stub-rx)))
+
+   ;; :test::wu-spawn-stub-scope-i64 — spawn stub telemetry service, pop
+   ;; handle, make scope with default-ns, call body (which returns i64),
+   ;; return :(Thread<unit,unit>, (i64, Receiver<Event>)).
+   ;; Specialized for bodies that return i64 (test 5 — result passthrough).
+   (:wat::core::define
+     (:test::wu-spawn-stub-scope-i64
+       (body :fn(wat::telemetry::WorkUnit)->wat::core::i64)
+       -> :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,(wat::core::i64,wat::kernel::Receiver<wat::telemetry::Event>)))
+     (:wat::core::let*
+       (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
+         (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
+        ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
+         (:wat::core::first stub-pair))
+        ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
+         (:wat::core::second stub-pair))
+        ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
+         (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
+        ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
+         (:wat::telemetry::null-metrics-cadence))
+        ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
+         (:wat::telemetry::spawn 1 cadence dispatcher
+           :wat-telemetry::scope::translate-empty))
+        ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
+         (:wat::core::first spawn))
+        ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+         (:wat::core::second spawn))
+        ((result :wat::core::i64)
+         (:wat::core::let*
+           (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
+             (:wat::kernel::HandlePool::pop pool))
+            ((_finish :wat::core::unit)
+             (:wat::kernel::HandlePool::finish pool))
+            ((scope :wat::telemetry::WorkUnit::Scope<wat::core::i64>)
+             (:wat::telemetry::WorkUnit/make-scope handle (:wat-telemetry::default-ns)))
+            ((tags :wat::telemetry::Tags)
+             (:wat-telemetry::empty-tags)))
+           (scope tags body))))
+       (:wat::core::Tuple d (:wat::core::Tuple result stub-rx))))
+
+   ;; ─── Layer 1 — count-service scope runner ────────────────────────
+   ;;
+   ;; :test::wu-spawn-count-and-scope — same as wu-spawn-stub-and-scope
+   ;; but uses count-dispatcher. The count is DRAINED inside the helper
+   ;; (while count-tx is alive in the dispatcher closure), so the caller
+   ;; receives :(Thread<unit,unit>, i64) — the dispatch count.
+   ;; Body returns unit (the count-dispatcher test doesn't need a T payload).
+   (:wat::core::define
+     (:test::wu-spawn-count-and-scope
+       (body :fn(wat::telemetry::WorkUnit)->wat::core::unit)
+       -> :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::i64))
+     (:wat::core::let*
+       (((count-pair :wat::kernel::Channel<wat::core::i64>)
+         (:wat::kernel::make-bounded-channel :wat::core::i64 4))
+        ((count-tx :wat::kernel::Sender<wat::core::i64>)
+         (:wat::core::first count-pair))
+        ((count-rx :wat::kernel::Receiver<wat::core::i64>)
+         (:wat::core::second count-pair))
+        ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
+         (:wat-telemetry::scope::make-count-dispatcher count-tx))
+        ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
+         (:wat::telemetry::null-metrics-cadence))
+        ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
+         (:wat::telemetry::spawn 1 cadence dispatcher
+           :wat-telemetry::scope::translate-empty))
+        ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
+         (:wat::core::first spawn))
+        ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+         (:wat::core::second spawn))
+        ((_ :wat::core::unit)
+         (:wat::core::let*
+           (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
+             (:wat::kernel::HandlePool::pop pool))
+            ((_finish :wat::core::unit)
+             (:wat::kernel::HandlePool::finish pool))
+            ((scope :wat::telemetry::WorkUnit::Scope<wat::core::unit>)
+             (:wat::telemetry::WorkUnit/make-scope handle (:wat-telemetry::default-ns))))
+           (scope (:wat-telemetry::empty-tags) body)))
+        ((cnt :wat::core::i64)
+         (:wat::core::match (:wat::kernel::recv count-rx) -> :wat::core::i64
+           ((:wat::core::Ok (:wat::core::Some n)) n)
+           ((:wat::core::Ok :wat::core::None) -1)
+           ((:wat::core::Err _) -1))))
+       (:wat::core::Tuple d cnt)))
+
+   ;; ─── Layer 2 — recv helpers ───────────────────────────────────────
+   ;;
+   ;; :test::wu-recv-metric-uuid-ok — recv one Event from stub-rx and
+   ;; check whether it is an Event::Metric whose _uuid field matches the
+   ;; given uuid-str. Returns true on match, false on any mismatch.
+   (:wat::core::define
+     (:test::wu-recv-metric-uuid-ok
+       (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
+       (uuid-str :wat::core::String)
+       -> :wat::core::bool)
+     (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool
+       ((:wat::core::Ok (:wat::core::Some (:wat::telemetry::Event::Metric _ _ _ _uuid _ _ _ _)))
+         (:wat::core::= _uuid uuid-str))
+       ((:wat::core::Ok (:wat::core::Some (:wat::telemetry::Event::Log _ _ _ _ _ _ _))) false)
+       ((:wat::core::Ok :wat::core::None) false)
+       ((:wat::core::Err _) false)))
+
+   ;; :test::wu-recv-event-is-some — recv one Event from stub-rx;
+   ;; returns true if Some, false on None or error.
+   (:wat::core::define
+     (:test::wu-recv-event-is-some
+       (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
+       -> :wat::core::bool)
+     (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool
+       ((:wat::core::Ok (:wat::core::Some _)) true)
+       ((:wat::core::Ok :wat::core::None) false)
+       ((:wat::core::Err _) false)))
+
+   ))
+
+
+;; ─── Per-layer deftests for new helpers ───────────────────────────────────────
+
+;; Layer 1 — wu-spawn-stub-scope-unit: runs a unit body; stub-rx receives
+;; zero events (body does nothing). Proves spawn + scope lifecycle is clean.
+(:deftest :wat-telemetry::WorkUnit::test-wu-spawn-stub-scope-unit
+  (:wat::core::let*
+    (((thr-rx :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::kernel::Receiver<wat::telemetry::Event>))
+      (:test::wu-spawn-stub-scope-unit
+        (:wat::core::lambda ((_wu :wat::telemetry::WorkUnit) -> :wat::core::unit) ())))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-rx))
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver)))
+    ()))
+
+
+;; Layer 1 — wu-spawn-count-and-scope: runs a unit body; count = 0
+;; (body does nothing; make-scope ships empty vec → dispatcher sees len 0).
+(:deftest :wat-telemetry::WorkUnit::test-wu-spawn-count-and-scope
+  (:wat::core::let*
+    (((thr-cnt :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::i64))
+      (:test::wu-spawn-count-and-scope
+        (:wat::core::lambda ((_wu :wat::telemetry::WorkUnit) -> :wat::core::unit) ())))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-cnt))
+     ((cnt :wat::core::i64) (:wat::core::second thr-cnt))
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver)))
+    (:wat::test::assert-eq cnt 0)))
+
+
+;; Layer 2 — wu-recv-metric-uuid-ok: proves the helper on a direct stub channel.
+;; We send a synthetic Event::Metric with uuid "test-uuid" and assert match.
+;; NOTE: constructing a synthetic Event::Metric requires field knowledge that
+;; is substrate-internal; instead we prove via wu-spawn-stub-and-scope with
+;; a body that incrs and returns the uuid — same path the full tests take.
+;; Level 3 taste: skip direct stub test; the helper is proven by its callers.
+
+
+;; Layer 2 — wu-recv-event-is-some: proves via wu-spawn-stub-scope-unit with a
+;; body that incrs one counter — scope ships one Event::Metric. recv-event-is-some
+;; returns true.
+(:deftest :wat-telemetry::WorkUnit::test-wu-recv-event-is-some
+  (:wat::core::let*
+    (((thr-rx :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::kernel::Receiver<wat::telemetry::Event>))
+      (:test::wu-spawn-stub-scope-unit
+        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::unit)
+          (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits)))))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-rx))
+     ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>) (:wat::core::second thr-rx))
+     ((got :wat::core::bool) (:test::wu-recv-event-is-some stub-rx))
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result driver)))
+    (:wat::test::assert-eq got true)))
 
 
 ;; ─── uuid is non-empty ────────────────────────────────────────────
@@ -272,57 +530,20 @@
 ;; field confirms the row was built from the right work-unit.
 (:deftest :wat-telemetry::WorkUnit::test-build-counter-metric
   (:wat::core::let*
-    ;; Inner scope: stub queue + service + one-counter make-scope.
-    ;; Body returns the wu's uuid so outer can compare against the event.
-    (((thr-uuid-got :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::String,wat::core::bool))
-      (:wat::core::let*
-        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
-          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
-         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
-          (:wat::core::first stub-pair))
-         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
-          (:wat::core::second stub-pair))
-         ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
-          (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
-         ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
-          (:wat::telemetry::null-metrics-cadence))
-         ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
-          (:wat::telemetry::spawn 1 cadence dispatcher
-            :wat-telemetry::scope::translate-empty))
-         ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
-          (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
-         ;; Pop handle, finish pool, create scope-fn, call it.
-         ;; Body incrs one counter and returns the wu's uuid — carrier
-         ;; for the outer assertion (the event's uuid should match).
-         ((uuid-str :wat::core::String)
+    ;; Body: incr! one counter, return the wu's uuid for the uuid-match check.
+    ;; wu-spawn-stub-scope-str internalizes spawn + stub-channel + pop + scope.
+    (((thr-and-pair :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
+      (:test::wu-spawn-stub-scope-str
+        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::String)
           (:wat::core::let*
-            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
-              (:wat::kernel::HandlePool::pop pool))
-             ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-             ((ns :wat::holon::HolonAST) (:wat-telemetry::default-ns))
-             ((scope :wat::telemetry::WorkUnit::Scope<wat::core::String>)
-              (:wat::telemetry::WorkUnit/make-scope handle ns))
-             ((tags :wat::telemetry::Tags) (:wat-telemetry::empty-tags)))
-            (scope tags
-              (:wat::core::lambda
-                ((wu :wat::telemetry::WorkUnit) -> :wat::core::String)
-                (:wat::core::let*
-                  (((_ :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :requests))))
-                  (:wat::telemetry::WorkUnit/uuid wu))))))
-         ;; Drain the one counter metric the scope shipped.
-         ((got :wat::core::bool)
-          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool
-            ((:wat::core::Ok (:wat::core::Some (:wat::telemetry::Event::Metric _ _ _ _uuid _ _ _ _)))
-              (:wat::core::= _uuid uuid-str))
-            ((:wat::core::Ok (:wat::core::Some (:wat::telemetry::Event::Log _ _ _ _ _ _ _))) false)
-            ((:wat::core::Ok :wat::core::None) false)
-            ((:wat::core::Err _) false))))
-        (:wat::core::Tuple d uuid-str got)))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-uuid-got))
-     ((uuid-str :wat::core::String) (:wat::core::second thr-uuid-got))
-     ((got :wat::core::bool) (:wat::core::third thr-uuid-got))
-     ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+            (((_ :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :requests))))
+            (:wat::telemetry::WorkUnit/uuid wu)))))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-pair))
+     ((str-and-rx :(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)) (:wat::core::second thr-and-pair))
+     ((uuid-str :wat::core::String) (:wat::core::first str-and-rx))
+     ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>) (:wat::core::second str-and-rx))
+     ((got :wat::core::bool) (:test::wu-recv-metric-uuid-ok stub-rx uuid-str))
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((_chk-uuid :wat::core::unit) (:wat::test::assert-eq (:wat::core::= uuid-str "") false)))
     (:wat::test::assert-eq got true)))
@@ -335,56 +556,20 @@
 ;; the body verifies the event was built from the same work-unit.
 (:deftest :wat-telemetry::WorkUnit::test-build-duration-metric
   (:wat::core::let*
-    ;; Inner scope: stub queue + service + one-sample make-scope.
-    ;; Body returns the wu's uuid for the outer uuid-match assertion.
-    (((thr-uuid-got :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::String,wat::core::bool))
-      (:wat::core::let*
-        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
-          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
-         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
-          (:wat::core::first stub-pair))
-         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
-          (:wat::core::second stub-pair))
-         ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
-          (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
-         ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
-          (:wat::telemetry::null-metrics-cadence))
-         ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
-          (:wat::telemetry::spawn 1 cadence dispatcher
-            :wat-telemetry::scope::translate-empty))
-         ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
-          (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
-         ;; Pop handle, finish pool, create scope-fn, call it.
-         ;; Body appends one duration sample and returns the wu's uuid.
-         ((uuid-str :wat::core::String)
+    ;; Body: append-dt! one sample, return the wu's uuid for the uuid-match check.
+    ;; wu-spawn-stub-scope-str internalizes spawn + stub-channel + pop + scope.
+    (((thr-and-pair :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
+      (:test::wu-spawn-stub-scope-str
+        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::String)
           (:wat::core::let*
-            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
-              (:wat::kernel::HandlePool::pop pool))
-             ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-             ((ns :wat::holon::HolonAST) (:wat-telemetry::default-ns))
-             ((scope :wat::telemetry::WorkUnit::Scope<wat::core::String>)
-              (:wat::telemetry::WorkUnit/make-scope handle ns))
-             ((tags :wat::telemetry::Tags) (:wat-telemetry::empty-tags)))
-            (scope tags
-              (:wat::core::lambda
-                ((wu :wat::telemetry::WorkUnit) -> :wat::core::String)
-                (:wat::core::let*
-                  (((_ :wat::core::unit) (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5)))
-                  (:wat::telemetry::WorkUnit/uuid wu))))))
-         ;; Drain the one duration metric the scope shipped.
-         ((got :wat::core::bool)
-          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool
-            ((:wat::core::Ok (:wat::core::Some (:wat::telemetry::Event::Metric _ _ _ _uuid _ _ _ _)))
-              (:wat::core::= _uuid uuid-str))
-            ((:wat::core::Ok (:wat::core::Some (:wat::telemetry::Event::Log _ _ _ _ _ _ _))) false)
-            ((:wat::core::Ok :wat::core::None) false)
-            ((:wat::core::Err _) false))))
-        (:wat::core::Tuple d uuid-str got)))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-uuid-got))
-     ((uuid-str :wat::core::String) (:wat::core::second thr-uuid-got))
-     ((got :wat::core::bool) (:wat::core::third thr-uuid-got))
-     ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+            (((_ :wat::core::unit) (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5)))
+            (:wat::telemetry::WorkUnit/uuid wu)))))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-pair))
+     ((str-and-rx :(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)) (:wat::core::second thr-and-pair))
+     ((uuid-str :wat::core::String) (:wat::core::first str-and-rx))
+     ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>) (:wat::core::second str-and-rx))
+     ((got :wat::core::bool) (:test::wu-recv-metric-uuid-ok stub-rx uuid-str))
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((_chk-uuid :wat::core::unit) (:wat::test::assert-eq (:wat::core::= uuid-str "") false)))
     (:wat::test::assert-eq got true)))
@@ -399,49 +584,13 @@
 ;; This also proves batch-log with an empty vec doesn't deadlock.
 (:deftest :wat-telemetry::WorkUnit::test-collect-metrics-empty
   (:wat::core::let*
-    ;; Inner scope: count queue + service + empty-body make-scope.
-    (((thr-count :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::i64))
-      (:wat::core::let*
-        (((count-pair :wat::kernel::Channel<wat::core::i64>)
-          (:wat::kernel::make-bounded-channel :wat::core::i64 4))
-         ((count-tx :wat::kernel::Sender<wat::core::i64>)
-          (:wat::core::first count-pair))
-         ((count-rx :wat::kernel::Receiver<wat::core::i64>)
-          (:wat::core::second count-pair))
-         ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
-          (:wat-telemetry::scope::make-count-dispatcher count-tx))
-         ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
-          (:wat::telemetry::null-metrics-cadence))
-         ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
-          (:wat::telemetry::spawn 1 cadence dispatcher
-            :wat-telemetry::scope::translate-empty))
-         ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
-          (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
-         ;; Pop handle, finish pool, create scope-fn, call with empty body.
-         ((_ :wat::core::unit)
-          (:wat::core::let*
-            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
-              (:wat::kernel::HandlePool::pop pool))
-             ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-             ((ns :wat::holon::HolonAST) (:wat-telemetry::default-ns))
-             ((scope :wat::telemetry::WorkUnit::Scope<wat::core::unit>)
-              (:wat::telemetry::WorkUnit/make-scope handle ns))
-             ((tags :wat::telemetry::Tags) (:wat-telemetry::empty-tags)))
-            (scope tags
-              (:wat::core::lambda
-                ((_wu :wat::telemetry::WorkUnit) -> :wat::core::unit)
-                ()))))
-         ;; Drain the one count the dispatcher sent (batch-length = 0).
-         ((cnt :wat::core::i64)
-          (:wat::core::match (:wat::kernel::recv count-rx) -> :wat::core::i64
-            ((:wat::core::Ok (:wat::core::Some n)) n)
-            ((:wat::core::Ok :wat::core::None) -1)
-            ((:wat::core::Err _) -1))))
-        (:wat::core::Tuple d cnt)))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-count))
-     ((cnt :wat::core::i64) (:wat::core::second thr-count))
-     ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+    ;; Body: no mutations. wu-spawn-count-and-scope drains the count internally.
+    (((thr-cnt :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::i64))
+      (:test::wu-spawn-count-and-scope
+        (:wat::core::lambda ((_wu :wat::telemetry::WorkUnit) -> :wat::core::unit) ())))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-cnt))
+     ((cnt :wat::core::i64) (:wat::core::second thr-cnt))
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq cnt 0)))
 
@@ -466,58 +615,21 @@
 ;; both and confirm both arrived as Some.
 (:deftest :wat-telemetry::WorkUnit::test-collect-metrics-two-duration-samples
   (:wat::core::let*
-    ;; Inner scope: stub queue + service + two-sample make-scope.
-    (((thr-r1-r2 :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::bool,wat::core::bool))
-      (:wat::core::let*
-        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
-          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
-         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
-          (:wat::core::first stub-pair))
-         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
-          (:wat::core::second stub-pair))
-         ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
-          (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
-         ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
-          (:wat::telemetry::null-metrics-cadence))
-         ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
-          (:wat::telemetry::spawn 1 cadence dispatcher
-            :wat-telemetry::scope::translate-empty))
-         ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
-          (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
-         ;; Pop handle, finish pool, create scope-fn, call with two appends.
-         ((_ :wat::core::unit)
+    ;; Body: two append-dt! calls for the same name → two Event::Metric rows.
+    ;; wu-spawn-stub-scope-unit internalizes spawn + stub-channel + pop + scope.
+    ;; Returns (Thread, stub-rx); we drain TWO events from stub-rx.
+    (((thr-rx :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::kernel::Receiver<wat::telemetry::Event>))
+      (:test::wu-spawn-stub-scope-unit
+        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::unit)
           (:wat::core::let*
-            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
-              (:wat::kernel::HandlePool::pop pool))
-             ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-             ((ns :wat::holon::HolonAST) (:wat-telemetry::default-ns))
-             ((scope :wat::telemetry::WorkUnit::Scope<wat::core::unit>)
-              (:wat::telemetry::WorkUnit/make-scope handle ns))
-             ((tags :wat::telemetry::Tags) (:wat-telemetry::empty-tags)))
-            (scope tags
-              (:wat::core::lambda
-                ((wu :wat::telemetry::WorkUnit) -> :wat::core::unit)
-                (:wat::core::let*
-                  (((_a :wat::core::unit) (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5))
-                   ((_b :wat::core::unit) (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 1.5)))
-                  ())))))
-         ;; Drain TWO duration metrics from stub-rx (both must arrive as Some).
-         ((r1-some? :wat::core::bool)
-          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool
-            ((:wat::core::Ok (:wat::core::Some _)) true)
-            ((:wat::core::Ok :wat::core::None) false)
-            ((:wat::core::Err _) false)))
-         ((r2-some? :wat::core::bool)
-          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool
-            ((:wat::core::Ok (:wat::core::Some _)) true)
-            ((:wat::core::Ok :wat::core::None) false)
-            ((:wat::core::Err _) false))))
-        (:wat::core::Tuple d r1-some? r2-some?)))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-r1-r2))
-     ((r1-some? :wat::core::bool) (:wat::core::second thr-r1-r2))
-     ((r2-some? :wat::core::bool) (:wat::core::third thr-r1-r2))
-     ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+            (((_a :wat::core::unit) (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5))
+             ((_b :wat::core::unit) (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 1.5)))
+            ()))))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-rx))
+     ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>) (:wat::core::second thr-rx))
+     ((r1-some? :wat::core::bool) (:test::wu-recv-event-is-some stub-rx))
+     ((r2-some? :wat::core::bool) (:test::wu-recv-event-is-some stub-rx))
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((_chk-r1 :wat::core::unit) (:wat::test::assert-eq r1-some? true)))
     (:wat::test::assert-eq r2-some? true)))
@@ -592,62 +704,20 @@
 ;;   7. assert result == 42 (body's T flowed through)
 (:deftest :wat-telemetry::WorkUnit::test-make-scope-ships-counter
   (:wat::core::let*
-    ;; Inner owns every Sender clone (stub-pair, stub-tx) AND does
-    ;; the scope work + drains the one expected Event from stub-rx
-    ;; inside the same scope (the dispatcher fires at scope-close, so
-    ;; the row is in the channel before recv runs). Returns
-    ;; (driver, result, r1-some?) to outer; outer joins the driver and
-    ;; asserts on the body's result + the recv'd-Some bool.
-    ;; SERVICE-PROGRAMS.md § "The lockstep" + arc 117.
-    (((thr-result-some :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,wat::core::i64,wat::core::bool))
-      (:wat::core::let*
-        ;; Stub queue — collects the Events the dispatcher sees.
-        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
-          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
-         ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
-          (:wat::core::first stub-pair))
-         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
-          (:wat::core::second stub-pair))
-         ;; Dispatcher closure-over stub-tx; null cadence + empty translator.
-         ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::unit)
-          (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
-         ((cadence :wat::telemetry::MetricsCadence<wat::core::unit>)
-          (:wat::telemetry::null-metrics-cadence))
-         ;; Spawn Service<Event,_> with one client slot.
-         ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
-          (:wat::telemetry::spawn 1 cadence dispatcher
-            :wat-telemetry::scope::translate-empty))
-         ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
-          (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
-         ;; Inner-inner: pop Handle, finish pool, factory + scope-fn-with-counter.
-         ((result :wat::core::i64)
+    ;; Body: incr! one counter, return 42 (body result flows through).
+    ;; wu-spawn-stub-scope-i64 internalizes spawn + stub-channel + pop + scope.
+    ;; Returns (Thread, (i64, stub-rx)); we drain ONE event from stub-rx.
+    (((thr-and-pair :(wat::kernel::Thread<wat::core::unit,wat::core::unit>,(wat::core::i64,wat::kernel::Receiver<wat::telemetry::Event>)))
+      (:test::wu-spawn-stub-scope-i64
+        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
           (:wat::core::let*
-            (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
-              (:wat::kernel::HandlePool::pop pool))
-             ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-             ((ns :wat::holon::HolonAST) (:wat-telemetry::default-ns))
-             ((scope :wat::telemetry::WorkUnit::Scope<wat::core::i64>)
-              (:wat::telemetry::WorkUnit/make-scope handle ns))
-             ((tags :wat::telemetry::Tags) (:wat-telemetry::empty-tags)))
-            (scope tags
-              (:wat::core::lambda
-                ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
-                (:wat::core::let*
-                  (((_ :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
-                  42)))))
-         ;; Drain ONE Event — the single counter (CloudWatch model:
-         ;; one counter = one row, established by
-         ;; test-collect-metrics-one-counter). The dispatcher fires at
-         ;; scope-close above, so the row is already enqueued. recv'ing
-         ;; past one would block (stub-tx is still alive in this scope),
-         ;; so we recv only what we KNOW was sent.
-         ((r1-some? :wat::core::bool)
-          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::bool ((:wat::core::Ok (:wat::core::Some _)) true) ((:wat::core::Ok :wat::core::None) false) ((:wat::core::Err _) false))))
-        (:wat::core::Tuple d result r1-some?)))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-result-some))
-     ((result :wat::core::i64) (:wat::core::second thr-result-some))
-     ((r1-some? :wat::core::bool) (:wat::core::third thr-result-some))
+            (((_ :wat::core::unit) (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))))
+            42))))
+     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::first thr-and-pair))
+     ((i64-and-rx :(wat::core::i64,wat::kernel::Receiver<wat::telemetry::Event>)) (:wat::core::second thr-and-pair))
+     ((result :wat::core::i64) (:wat::core::first i64-and-rx))
+     ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>) (:wat::core::second i64-and-rx))
+     ((r1-some? :wat::core::bool) (:test::wu-recv-event-is-some stub-rx))
      ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((_a :wat::core::unit) (:wat::test::assert-eq result 42)))
