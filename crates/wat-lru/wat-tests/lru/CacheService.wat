@@ -16,10 +16,13 @@
 ;; thread-ownership bug that drove the original test.
 
 
-;; Arc 124 — same Pattern B Put-ack helper-verb cycle deadlock as
-;; HologramCacheService's step3-6. `:ignore` keeps cargo test green;
-;; `:time-limit "200ms"` is the safety net for `--include-ignored`.
-(:wat::test::ignore "arc 119: Put-ack helper-verb cycle deadlock; step 7 under investigation")
+;; Arc 126 — same Pattern B Put-ack helper-verb cycle deadlock as
+;; HologramCacheService's step3-6. The arc 126 check fires at inner
+;; freeze and panics with the substring `channel-pair-deadlock`, so
+;; this test is EXPECTED to panic with that substring (no longer
+;; ignored). `:time-limit "200ms"` stays as a defense-in-depth
+;; safety net in case the panic does not fire.
+(:wat::test::should-panic "channel-pair-deadlock")
 (:wat::test::time-limit "200ms")
 (:wat::test::deftest :wat-lru::test-cache-service-put-then-get-round-trip
   ()

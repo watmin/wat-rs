@@ -169,11 +169,14 @@
 ;; /put helper verb, verify all 3 are present via /get. Scenarios are
 ;; preserved; wire-protocol mechanics are not the test's concern.
 
-;; Arc 124 — `:ignore` keeps cargo test green; the test stays
-;; first-class (cargo test --include-ignored runs it) and the 200ms
-;; budget guarantees a clean timeout instead of a hang. The reason
-;; string carries the diagnostic forward to whoever picks up arc 119.
-(:wat::test::ignore "arc 119: Put-ack helper-verb cycle deadlock; step 7 under investigation")
+;; Arc 126 — the arc 126 check at inner freeze sees the Put-ack
+;; helper-verb cycle (Pattern B: ack-tx held in inner scope while
+;; req-tx is also held) and panics with the substring
+;; `channel-pair-deadlock`. This test is EXPECTED to panic with
+;; that substring; cargo libtest matches by substring and reports
+;; the test as PASSING. `:time-limit "200ms"` stays as a defense-
+;; in-depth safety net in case the expected panic does not fire.
+(:wat::test::should-panic "channel-pair-deadlock")
 (:wat::test::time-limit "200ms")
 (:deftest-hermetic :wat-tests::holon::lru::HologramCacheService::test-step3-put-only
   (:wat::core::let*
@@ -287,7 +290,11 @@
 ;; and HologramCacheService/get. Same scenario: put one item, get it
 ;; back, assert the value is present.
 
-(:wat::test::ignore "arc 119: Put-ack helper-verb cycle deadlock; step 7 under investigation")
+;; Arc 126 — the Put-ack helper-verb cycle (req-tx + ack-tx both held
+;; in the inner scope) trips arc 126's check at inner freeze; the
+;; expected panic substring is `channel-pair-deadlock`. The 200ms
+;; time-limit stays as defense-in-depth.
+(:wat::test::should-panic "channel-pair-deadlock")
 (:wat::test::time-limit "200ms")
 (:deftest-hermetic :wat-tests::holon::lru::HologramCacheService::test-step4-put-get-roundtrip
   (:wat::core::let*
@@ -358,7 +365,10 @@
 ;; helper verbs. Two clients, each does put-then-get on their own key;
 ;; each client sees its own data.
 
-(:wat::test::ignore "arc 119: Put-ack helper-verb cycle deadlock; step 7 under investigation")
+;; Arc 126 — multi-client also holds req-tx + ack-tx pairs in inner
+;; scope; the arc 126 check fires at inner freeze. Expected panic
+;; substring `channel-pair-deadlock`. 200ms safety net preserved.
+(:wat::test::should-panic "channel-pair-deadlock")
 (:wat::test::time-limit "200ms")
 (:deftest-hermetic :wat-tests::holon::lru::HologramCacheService::test-step5-multi-client-via-constructor
   (:wat::core::let*
@@ -467,7 +477,11 @@
 ;; returns Some. Proves the queue-addressed wrapper preserves eviction
 ;; semantics from the client's view.
 
-(:wat::test::ignore "arc 119: Put-ack helper-verb cycle deadlock; step 7 under investigation")
+;; Arc 126 — same Pattern B cycle as steps 3-5; arc 126's check
+;; fires at inner freeze and panics with `channel-pair-deadlock`.
+;; Test EXPECTED to panic with that substring; 200ms safety net
+;; preserved as defense-in-depth.
+(:wat::test::should-panic "channel-pair-deadlock")
 (:wat::test::time-limit "200ms")
 (:deftest-hermetic :wat-tests::holon::lru::HologramCacheService::test-step6-lru-eviction-via-service
   (:wat::core::let*

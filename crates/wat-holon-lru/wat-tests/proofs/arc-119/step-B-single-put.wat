@@ -14,7 +14,13 @@
 ;; specifically — either the driver doesn't ack, or the bounded(1) ack
 ;; channel blocks, or shutdown after a put doesn't clean up.
 
-(:wat::test::ignore "arc 119: Put-ack helper-verb cycle deadlock; this stepping stone IS the minimal reproduction")
+;; Arc 126 — this stepping stone IS the minimal reproduction of the
+;; arc 126 channel-pair-deadlock pattern: req-tx + ack-tx both
+;; bound in the inner scope. Arc 126's check fires at inner freeze
+;; and panics with the substring `channel-pair-deadlock`. The test
+;; is EXPECTED to panic with that substring; 200ms time-limit is
+;; the defense-in-depth safety net.
+(:wat::test::should-panic "channel-pair-deadlock")
 (:wat::test::time-limit "200ms")
 (:wat::test::deftest :wat-tests::holon::lru::proofs::arc_119::step_B_single_put
   ()
