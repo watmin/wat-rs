@@ -3171,7 +3171,7 @@ fn infer_list(
                         param: format!("#{}", i + 1),
                         expected: format_type(&apply_subst(expected, subst)),
                         got: format_type(&apply_subst(&arg_ty, subst)),
-                        span: Span::unknown(),
+                        span: arg.span().clone(),
                     });
                 }
             }
@@ -5788,7 +5788,7 @@ fn infer_spawn(
                     param: format!("#{}", i + 1),
                     expected: format_type(&apply_subst(expected, subst)),
                     got: format_type(&apply_subst(&arg_ty, subst)),
-                    span: Span::unknown(),
+                    span: arg.span().clone(),
                 });
             }
         }
@@ -7835,7 +7835,7 @@ fn infer_list_constructor(
                     param: format!("#{}", i + 2),
                     expected: format_type(&apply_subst(&elem_ty, subst)),
                     got: format_type(&apply_subst(&arg_ty, subst)),
-                    span: Span::unknown(),
+                    span: arg.span().clone(),
                 });
             }
         }
@@ -7963,7 +7963,7 @@ fn infer_boolean_shortcircuit(
                     param: format!("#{}", i + 1),
                     expected: ":bool".into(),
                     got: format_type(&apply_subst(&arg_ty, subst)),
-                    span: Span::unknown(),
+                    span: arg.span().clone(),
                 });
             }
         }
