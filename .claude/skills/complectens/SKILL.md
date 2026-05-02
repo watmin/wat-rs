@@ -235,6 +235,71 @@ A `make-deftest` lifecycle helper that demonstrates spawn-and-shutdown without d
 
 The pop-then-drop pattern is the standard form even when no work happens — the substrate's pool-accounting requires every slot to be visited.
 
+### Non-unit Thread output requires recv-before-join
+
+For services with `Thread<I, O>` output where O is NON-UNIT (the driver loop calls `(:wat::kernel::send out final-state)` before returning), the lifecycle helper MUST `recv` from `Thread/output` BEFORE calling `Thread/join-result`. Dropping the receiver before the send completes panics the driver with "out disconnected".
+
+```scheme
+(:wat::core::define
+  (:test::svc-spawn-and-shutdown -> :wat::core::unit)
+  (:wat::core::let*
+    (((driver-and-final ...)
+      (:wat::core::let*
+        (((spawn ...) (:svc::Service 1))
+         ((pool ...) (:wat::core::first spawn))
+         ((d :wat::kernel::Thread<wat::core::unit,svc::State>) (:wat::core::second spawn))
+         ((final-rx :wat::kernel::Receiver<svc::State>) (:wat::kernel::Thread/output d))
+         ((req-tx ...) (:wat::kernel::HandlePool::pop pool))
+         ((_finish :unit) (:wat::kernel::HandlePool::finish pool))
+         ((_final-state :svc::State)
+          (:wat::core::Option/expect -> :svc::State
+            (:wat::core::Result/expect -> :wat::core::Option<svc::State>
+              (:wat::kernel::recv final-rx)
+              "spawn-and-shutdown: thread died before sending final-state")
+            "spawn-and-shutdown: thread output closed without sending")))
+        d))
+     ((_join ...) (:wat::kernel::Thread/join-result driver-and-final)))
+    ()))
+```
+
+Thread<unit, unit> services (LRU, HCS) DON'T have this issue — the driver doesn't call `send` because there's nothing to send. Only services where the spawned function's output type is non-unit need the drain.
+
+### Arc 126 fires on CALL SITES, not just `make-bounded-channel` definitions
+
+The previous edge case warns against factoring `make-bounded-channel` into a helper. The full picture: arc 126's check fires on any function-call site that passes both halves of a channel pair as arguments — INCLUDING calls to user-defined helpers whose signatures take both halves.
+
+```scheme
+;; ❌ Arc 126 fires HERE — at the call to send-ack-wait — because both
+;; ack-tx and ack-rx are passed in the same call.
+(:wat::core::define
+  (:test::send-ack-wait
+    (req-tx :svc::ReqTx)
+    (ack-tx :svc::AckReplyTx)
+    (ack-rx :svc::AckReplyRx)
+    -> :wat::core::unit)
+  ...)
+
+;; In a deftest body or another helper:
+(:test::send-ack-wait req-tx ack-tx ack-rx)   ;; ← arc 126 fires here
+```
+
+The corollary: do NOT factor a CALL SEQUENCE that uses both halves of a channel pair into a helper that accepts both halves as parameters. Keep `(:wat::kernel::send req-tx ...)` and `(:wat::kernel::recv ack-rx)` as SEPARATE inline calls in the scenario body. Arc 126 only fires when one CALL passes both halves; separate sequential calls each pass one half.
+
+### Hermetic-program tests have inherently irreducible bodies
+
+When a deftest body uses `(:wat::test::run-hermetic-ast (:wat::test::program ...))`, the embedded program AST is a literal that runs in a FORKED SUBPROCESS. The subprocess can't reference the outer prelude's helpers (separate freeze). The embedded program must be self-contained.
+
+This means: the deftest's visual line count is dominated by the embedded program AST, NOT by the outer composition logic. The mechanical phase's `>30 lines = suspect` heuristic over-flags hermetic tests.
+
+**Phase-2 judgment for hermetic tests:** count the OUTER LOGICAL BINDINGS (the let* outside the embedded program's freeze) — those are what composition can shrink. The embedded program is irreducible. A hermetic test whose outer let* has 5 bindings AFTER the rewrite is well-shaped, even if visual line count is 80+.
+
+When extracting helpers FOR a hermetic test, target the OUTER scaffolding:
+- Helpers that SETUP the program AST (build the inner forms incrementally).
+- Helpers that PROCESS the RunResult (extract stdout/stderr, assert on contents, etc.).
+- Helpers that COMPOSE multiple hermetic invocations.
+
+Helpers that try to share logic INSIDE the embedded program's body are not possible without arc-094-style AST quasiquote builders — out of scope for the discipline.
+
 ## Reference
 
 - `docs/arc/2026/05/130-cache-services-pair-by-index/REALIZATIONS.md` — the canonical doc that named the discipline.

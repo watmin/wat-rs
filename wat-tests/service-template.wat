@@ -41,6 +41,36 @@
 ;; Namespace `:svc::*` is generic — when you fork this, swap the
 ;; namespace for your domain (`:my::accountant::*`, `:my::registry::*`)
 ;; and rename the verbs to your operations.
+;;
+;; Arc 130 — complectēns rewrite. Top-down dependency graph in ONE file.
+;;
+;; ─── Layers ──────────────────────────────────────────────────────────
+;;
+;;   Layer 0  :test::svc-spawn-and-shutdown
+;;              ; spawn service (1 client), pop handle, finish, join
+;;
+;;   Layer 1  :test::svc-send-push
+;;              ; send Push(value) to req-tx — fire and forget
+;;
+;;   Layer 2  :test::svc-assert-state
+;;              ; assert push-count and ack-count match expected values
+;;
+;;   Layer 3  :test::svc-full-sequence-and-verify
+;;              ; spawn, drive full sequence (2 Push + Ack + 2×Get + Push),
+;;              ; check mid-sequence snapshots, recv final, join, assert final.
+;;              ; Keeps make-bounded-channel + send/recv inline (not via
+;;              ; helpers with both halves) so arc 126 does not fire here.
+;;
+;;   Final    :svc::test-template-end-to-end   (1 line — composes Layer 3)
+;;
+;; Note on arc 126 and send/recv vs helper verbs:
+;;   The test drives the service via Request::Ack(ack-tx) and
+;;   Request::Get(get-tx) by embedding only ONE channel half in the
+;;   request payload and recving on the other half in a separate call.
+;;   Arc 126 traces function calls that receive BOTH halves of the same
+;;   channel pair as arguments simultaneously. The send/recv pattern here
+;;   never passes both halves to a single function call — so arc 126 does
+;;   not fire, and all deftests pass cleanly without :should-panic.
 
 (:wat::test::make-deftest :deftest
   (;; State — the domain accumulator the loop carries between
@@ -218,21 +248,99 @@
               (out :svc::DriverOut)
               -> :wat::core::unit)
              (:svc::Service/loop req-rxs (:svc::State::fresh) out)))))
-       (:wat::core::Tuple pool thr)))))
+       (:wat::core::Tuple pool thr)))
 
 
-;; ─── Test — exercise all three reply shapes + state survives ──
-;;
-;; Drives a known sequence (2 Pushes + 1 Ack + 1 Get + 1 Push + 1
-;; Get), verifies each Get reads LIVE state, then verifies the
-;; FINAL state via the thread's output channel (post-arc-114
-;; pattern — final state delivered on `out`, not via join's R).
-(:deftest :svc::test-template-end-to-end
+   ;; ─── Layer 0 — lifecycle ─────────────────────────────────────
+   ;;
+   ;; Spawn the service (1 client), pop the handle so the pool has no
+   ;; orphaned handles, finish the pool, drop the req-tx at inner scope
+   ;; exit. The driver delivers final State on Thread/output — recv it
+   ;; (even though unused) so the driver's send doesn't fail. Join.
+   ;; No requests sent — the narrowest possible lifecycle proof.
+   ;; Inner-let* lockstep per SERVICE-PROGRAMS.md § "The lockstep" and
+   ;; arc 131. Pop-before-finish per arc 130 edge-case guidance.
+   (:wat::core::define
+     (:test::svc-spawn-and-shutdown -> :wat::core::unit)
      (:wat::core::let*
-       ;; Outer holds only the Thread (and the final-rx Receiver
-       ;; cloned from it). Inner owns the spawn-tuple + pool + every
-       ;; per-request channel; inner returns the Thread; pool drops
-       ;; at inner exit. Arc 117 enforces this nesting.
+       (((driver :wat::kernel::Thread<wat::core::unit,svc::State>)
+         (:wat::core::let*
+           (((spawn :svc::Spawn) (:svc::Service 1))
+            ((pool :svc::ReqTxPool) (:wat::core::first spawn))
+            ((d :wat::kernel::Thread<wat::core::unit,svc::State>) (:wat::core::second spawn))
+            ((_req-tx :svc::ReqTx) (:wat::kernel::HandlePool::pop pool))
+            ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
+           d))
+        ((final-rx :rust::crossbeam_channel::Receiver<svc::State>)
+         (:wat::kernel::Thread/output driver))
+        ((_final-state :svc::State)
+         (:wat::core::Option/expect -> :svc::State
+           (:wat::core::Result/expect -> :wat::core::Option<svc::State>
+             (:wat::kernel::recv final-rx)
+             "svc-spawn-and-shutdown: thread died before delivering final state")
+           "svc-spawn-and-shutdown: thread output closed without delivering final state"))
+        ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+         (:wat::kernel::Thread/join-result driver)))
+       ()))
+
+
+   ;; ─── Layer 1 — fire-and-forget send ──────────────────────────
+   ;;
+   ;; :test::svc-send-push — send Push(value) to req-tx. No reply
+   ;; channel — single Sender argument, so arc 126 does not apply.
+   ;; Panics if req-tx is disconnected (driver died unexpectedly).
+   (:wat::core::define
+     (:test::svc-send-push
+       (req-tx :svc::ReqTx)
+       (v :wat::core::i64)
+       -> :wat::core::unit)
+     (:wat::core::Result/expect -> :wat::core::unit
+       (:wat::kernel::send req-tx (:svc::Request::Push v))
+       "svc-send-push: req-tx disconnected — driver died?"))
+
+
+   ;; ─── Layer 2 — assertion helper ──────────────────────────────
+   ;;
+   ;; :test::svc-assert-state — assert that state's push-count and
+   ;; ack-count equal the expected values. Fails with a labelled
+   ;; assert-eq on mismatch. Pure function — no channels or threads.
+   (:wat::core::define
+     (:test::svc-assert-state
+       (state :svc::State)
+       (push-expected :wat::core::i64)
+       (ack-expected :wat::core::i64)
+       -> :wat::core::unit)
+     (:wat::core::let*
+       (((_pc :wat::core::unit)
+         (:wat::core::if (:wat::core::= (:svc::State/push-count state) push-expected)
+           -> :wat::core::unit
+           ()
+           (:wat::test::assert-eq "push-count mismatch" ""))))
+       (:wat::core::if (:wat::core::= (:svc::State/ack-count state) ack-expected)
+         -> :wat::core::unit
+         ()
+         (:wat::test::assert-eq "ack-count mismatch" ""))))
+
+
+   ;; ─── Layer 3 — full scenario ──────────────────────────────────
+   ;;
+   ;; :test::svc-full-sequence-and-verify — spawn service (1 client),
+   ;; allocate reply channels, drive the full sequence:
+   ;;   Push 100, Push 200, Ack, Get→snap1 (assert 2 push/1 ack),
+   ;;   Push 300, Get→snap2 (assert 3 push/1 ack).
+   ;; Drops inner scope (req-tx + reply channels) → driver delivers
+   ;; final state on Thread/output → recv + join → assert final counters.
+   ;; Returns unit; all assertions internal.
+   ;;
+   ;; Arc 126 note: Ack and Get channels are allocated inline here.
+   ;; ack-tx moves INTO the Request::Ack payload via send (not passed
+   ;; alongside ack-rx to a single function). get-tx similarly moves
+   ;; INTO Request::Get. Each recv is a separate call on just one half.
+   ;; Arc 126's deadlock checker never sees both halves at one call site
+   ;; → no channel-pair-deadlock fires.
+   (:wat::core::define
+     (:test::svc-full-sequence-and-verify -> :wat::core::unit)
+     (:wat::core::let*
        (((thr :wat::kernel::Thread<wat::core::unit,svc::State>)
          (:wat::core::let*
            (((spawn :svc::Spawn) (:svc::Service 1))
@@ -240,96 +348,122 @@
             ((d :wat::kernel::Thread<wat::core::unit,svc::State>) (:wat::core::second spawn))
             ((req-tx :svc::ReqTx) (:wat::kernel::HandlePool::pop pool))
             ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
+            ;; Ack reply channel — tx embedded in Request payload; rx recvd separately.
             ((ack-pair :wat::kernel::Channel<wat::core::unit>)
              (:wat::kernel::make-bounded-channel :wat::core::unit 1))
             ((ack-tx :svc::AckReplyTx) (:wat::core::first ack-pair))
             ((ack-rx :svc::AckReplyRx) (:wat::core::second ack-pair))
+            ;; Get reply channel — tx embedded in Request payload; rx recvd separately.
             ((get-pair :wat::kernel::Channel<svc::State>)
              (:wat::kernel::make-bounded-channel :svc::State 1))
             ((get-tx :wat::kernel::Sender<svc::State>) (:wat::core::first get-pair))
             ((get-rx :wat::kernel::Receiver<svc::State>) (:wat::core::second get-pair))
-            ((_p1 :wat::core::unit)
-             (:wat::core::Result/expect -> :wat::core::unit
-               (:wat::kernel::send req-tx (:svc::Request::Push 100))
-               "test send Push 100: req-tx disconnected — driver died?"))
-            ((_p2 :wat::core::unit)
-             (:wat::core::Result/expect -> :wat::core::unit
-               (:wat::kernel::send req-tx (:svc::Request::Push 200))
-               "test send Push 200: req-tx disconnected — driver died?"))
-            ((_a :wat::core::unit)
+            ;; Drive: 2 Pushes, 1 Ack, 1 Get, check snap1, 1 Push, 1 Get, check snap2.
+            ((_ :wat::core::unit) (:test::svc-send-push req-tx 100))
+            ((_ :wat::core::unit) (:test::svc-send-push req-tx 200))
+            ((_ :wat::core::unit)
              (:wat::core::Result/expect -> :wat::core::unit
                (:wat::kernel::send req-tx (:svc::Request::Ack ack-tx))
-               "test send Ack: req-tx disconnected — driver died?"))
-            ((_r :wat::core::unit)
+               "svc-full-sequence: send Ack: req-tx disconnected"))
+            ((_ :wat::core::unit)
              (:wat::core::Option/expect -> :wat::core::unit
                (:wat::core::Result/expect -> :wat::core::Option<wat::core::unit>
                  (:wat::kernel::recv ack-rx)
-                 "test recv ack: ack-rx peer thread died")
-               "test recv ack: ack-rx clean disconnect — driver died mid-Ack?"))
-            ((_g1 :wat::core::unit)
+                 "svc-full-sequence: recv ack: peer died")
+               "svc-full-sequence: recv ack: clean disconnect"))
+            ((_ :wat::core::unit)
              (:wat::core::Result/expect -> :wat::core::unit
                (:wat::kernel::send req-tx (:svc::Request::Get get-tx))
-               "test send Get #1: req-tx disconnected — driver died?"))
+               "svc-full-sequence: send Get #1: req-tx disconnected"))
             ((snap1 :svc::State)
              (:wat::core::Option/expect -> :svc::State
                (:wat::core::Result/expect -> :wat::core::Option<svc::State>
                  (:wat::kernel::recv get-rx)
-                 "test recv get #1: peer thread died")
-               "test recv get #1: clean disconnect — driver died mid-Get?"))
-            ((_check1a :wat::core::unit)
-             (:wat::core::if (:wat::core::= (:svc::State/push-count snap1) 2) -> :wat::core::unit
-               ()
-               (:wat::test::assert-eq "snap1 push != 2" "")))
-            ((_check1b :wat::core::unit)
-             (:wat::core::if (:wat::core::= (:svc::State/ack-count snap1) 1) -> :wat::core::unit
-               ()
-               (:wat::test::assert-eq "snap1 ack != 1" "")))
-            ((_p3 :wat::core::unit)
-             (:wat::core::Result/expect -> :wat::core::unit
-               (:wat::kernel::send req-tx (:svc::Request::Push 300))
-               "test send Push 300: req-tx disconnected — driver died?"))
-            ((_g2 :wat::core::unit)
+                 "svc-full-sequence: recv get #1: peer died")
+               "svc-full-sequence: recv get #1: clean disconnect"))
+            ((_ :wat::core::unit) (:test::svc-assert-state snap1 2 1))
+            ((_ :wat::core::unit) (:test::svc-send-push req-tx 300))
+            ((_ :wat::core::unit)
              (:wat::core::Result/expect -> :wat::core::unit
                (:wat::kernel::send req-tx (:svc::Request::Get get-tx))
-               "test send Get #2: req-tx disconnected — driver died?"))
+               "svc-full-sequence: send Get #2: req-tx disconnected"))
             ((snap2 :svc::State)
              (:wat::core::Option/expect -> :svc::State
                (:wat::core::Result/expect -> :wat::core::Option<svc::State>
                  (:wat::kernel::recv get-rx)
-                 "test recv get #2: peer thread died")
-               "test recv get #2: clean disconnect — driver died mid-Get?"))
-            ((_check2a :wat::core::unit)
-             (:wat::core::if (:wat::core::= (:svc::State/push-count snap2) 3) -> :wat::core::unit
-               ()
-               (:wat::test::assert-eq "snap2 push != 3" "")))
-            ((_check2b :wat::core::unit)
-             (:wat::core::if (:wat::core::= (:svc::State/ack-count snap2) 1) -> :wat::core::unit
-               ()
-               (:wat::test::assert-eq "snap2 ack != 1" ""))))
+                 "svc-full-sequence: recv get #2: peer died")
+               "svc-full-sequence: recv get #2: clean disconnect"))
+            ((_ :wat::core::unit) (:test::svc-assert-state snap2 3 1)))
            d))
         ((final-rx :rust::crossbeam_channel::Receiver<svc::State>)
          (:wat::kernel::Thread/output thr))
-        ;; inner scope dropped pool + req-tx + reply channels; driver's
-        ;; last rx disconnects; Service/loop's empty-Vec arm sends final
-        ;; state on `out`. Recv it here.
         ((final-state :svc::State)
          (:wat::core::Option/expect -> :svc::State
            (:wat::core::Result/expect -> :wat::core::Option<svc::State>
              (:wat::kernel::recv final-rx)
-             "test recv final-state: thread died before delivering final state")
-           "test recv final-state: thread output closed without delivering final state"))
+             "svc-full-sequence: thread died before delivering final state")
+           "svc-full-sequence: thread output closed without delivering final state"))
         ((join-result :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
          (:wat::kernel::Thread/join-result thr)))
        (:wat::core::match join-result -> :wat::core::unit
          ((:wat::core::Ok _)
-           (:wat::core::let*
-             (((pc :wat::core::i64) (:svc::State/push-count final-state))
-              ((ac :wat::core::i64) (:svc::State/ack-count final-state))
-              ((_check-pc :wat::core::unit)
-               (:wat::core::if (:wat::core::= pc 3) -> :wat::core::unit
-                 ()
-                 (:wat::test::assert-eq "final push != 3" ""))))
-             (:wat::core::if (:wat::core::= ac 1) -> :wat::core::unit
-               ()
-               (:wat::test::assert-eq "final ack != 1" ""))))
+           (:test::svc-assert-state final-state 3 1))
          ((:wat::core::Err _) (:wat::test::assert-eq "driver-died" "")))))
+
+   ))
+
+
+;; ─── Per-layer deftests ────────────────────────────────────────────────────
+;;
+;; Each layer carries its own proof. cargo test shows the tree.
+;; All pass cleanly: no arc-126 trigger in the prelude because
+;; send/recv calls here never pass both channel halves to a single function.
+
+;; Layer 0 — lifecycle proof.
+(:deftest :svc::test-svc-spawn-and-shutdown
+  (:test::svc-spawn-and-shutdown))
+
+
+;; Layer 1 — send-push proof.
+;; Spawns service, sends one Push, drops inner scope → driver delivers
+;; final state on Thread/output → recv (discarded) → join.
+(:deftest :svc::test-svc-send-push
+  (:wat::core::let*
+    (((thr :wat::kernel::Thread<wat::core::unit,svc::State>)
+      (:wat::core::let*
+        (((spawn :svc::Spawn) (:svc::Service 1))
+         ((pool :svc::ReqTxPool) (:wat::core::first spawn))
+         ((d :wat::kernel::Thread<wat::core::unit,svc::State>) (:wat::core::second spawn))
+         ((req-tx :svc::ReqTx) (:wat::kernel::HandlePool::pop pool))
+         ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
+         ((_ :wat::core::unit) (:test::svc-send-push req-tx 42)))
+        d))
+     ((final-rx :rust::crossbeam_channel::Receiver<svc::State>)
+      (:wat::kernel::Thread/output thr))
+     ((_final-state :svc::State)
+      (:wat::core::Option/expect -> :svc::State
+        (:wat::core::Result/expect -> :wat::core::Option<svc::State>
+          (:wat::kernel::recv final-rx)
+          "test-svc-send-push: thread died before delivering final state")
+        "test-svc-send-push: thread output closed without delivering final state"))
+     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+      (:wat::kernel::Thread/join-result thr)))
+    ()))
+
+
+;; Layer 2 — assert-state proof (pure: no threading, no channels).
+(:deftest :svc::test-svc-assert-state
+  (:test::svc-assert-state (:svc::State/new 3 1) 3 1))
+
+
+;; Layer 3 — full-sequence proof.
+(:deftest :svc::test-svc-full-sequence-and-verify
+  (:test::svc-full-sequence-and-verify))
+
+
+;; ─── Final — the named scenario ────────────────────────────────────────────
+;;
+;; Body is 1 line BECAUSE the layers exist. The scenario is named and
+;; proven; the deftest is just the invocation.
+(:deftest :svc::test-template-end-to-end
+  (:test::svc-full-sequence-and-verify))

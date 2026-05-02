@@ -32,16 +32,16 @@ we work it down arc-by-arc." This doc is the queue.
 
 ## Queue (sweep candidates)
 
-### `wat-tests/service-template.wat`
+### ✓ `wat-tests/service-template.wat` — shipped 2026-05-03 (arc 135 slice 1)
 
-- 🔴 L230 `:svc::test-template-end-to-end` body=106 — flagship service-template test; demonstrates the full pattern. Likely 4-6 named helpers on rewrite (lifecycle / Push / Ack / Get / round-trip).
+- ✓ L230 `:svc::test-template-end-to-end` body 106→1. 4 layered helpers in the prelude.
 
-### `wat-tests/console.wat`
+### ✓ `wat-tests/console.wat` — shipped 2026-05-03 (arc 135 slice 1)
 
-- 🔴 L92 `:wat-tests::std::service::Console::test-multi-writer` body=101
-- 🟡 L35 `:wat-tests::std::service::Console::test-hello-world` body=44
+- ✓ L92 `:wat-tests::std::service::Console::test-multi-writer` body 101→81 (visual; OUTER logical bindings 8→5). Hermetic-program tests have inherently irreducible inner-program bodies; outer scaffolding factored into helpers per phase-2 judgment.
+- ✓ L35 `:wat-tests::std::service::Console::test-hello-world` body 42→37 (visual; outer logical similar). Same hermetic-program constraint.
 
-Both share the Console-spawn + multi-thread shape; helpers should be reusable across them.
+Both files use a single `make-deftest` prelude (no mixed outcomes; all clean pass). 5 outer-scaffolding helpers added to console.wat; 4 lifecycle/scenario helpers to service-template. SCORE-SLICE-1.md surfaced three new SKILL deltas: Thread/output drain on non-unit O; arc 126 fires at call sites passing both halves; hermetic-program inner bodies are irreducible.
 
 ### `crates/wat-telemetry/wat-tests/telemetry/Console.wat`
 

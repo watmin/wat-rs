@@ -19,6 +19,149 @@
 ;; Handle and block on ack-rx until the driver has written. The
 ;; bounded(1) on each pipe is the organic backoff — producer
 ;; can't queue another message until the previous one acked.
+;;
+;; Arc 130 — complectēns rewrite. Top-down dependency graph in ONE file.
+;;
+;; ─── Layers ──────────────────────────────────────────────────────────
+;;
+;;   Layer 1  :test::stdout-from-result
+;;              ; extract stdout Vector<String> from a RunResult
+;;            :test::stdout-first-line-or-empty
+;;              ; return first element of stdout vector, or "" if empty
+;;
+;;   Layer 2  :test::stdout-contains-one?
+;;              ; return true iff exactly one element of stdout equals msg
+;;            :test::assert-stdout-has
+;;              ; assert exactly one occurrence of msg in stdout
+;;
+;; The inner programs embedded in run-hermetic-ast run in a subprocess
+;; and cannot reference prelude helpers. Helpers apply to the OUTER
+;; test logic: extracting stdout, checking membership, asserting lines.
+;;
+;; No arc-126 concern: outer test code has no make-bounded-channel
+;; allocations (the inner program manages Console's channel pairs
+;; internally; those are opaque to the outer test body).
+
+(:wat::test::make-deftest :deftest-console
+  (
+   ;; ─── Layer 1 — RunResult accessors ───────────────────────────
+   ;;
+   ;; :test::stdout-from-result — extract the stdout vector from a
+   ;; RunResult. Thin wrapper kept for named composition in the outer
+   ;; test body; its simplicity is intentional (single accessor call).
+   (:wat::core::define
+     (:test::stdout-from-result
+       (r :wat::kernel::RunResult)
+       -> :wat::core::Vector<wat::core::String>)
+     (:wat::kernel::RunResult/stdout r))
+
+   ;; :test::stdout-first-line-or-empty — return the first element of
+   ;; the stdout vector, or "" if the vector is empty. Used by the
+   ;; single-line assertion in test-hello-world.
+   (:wat::core::define
+     (:test::stdout-first-line-or-empty
+       (stdout :wat::core::Vector<wat::core::String>)
+       -> :wat::core::String)
+     (:wat::core::match (:wat::core::first stdout) -> :wat::core::String
+       ((:wat::core::Some s) s)
+       (:wat::core::None "")))
+
+
+   ;; ─── Layer 2 — assertion helpers ─────────────────────────────
+   ;;
+   ;; :test::stdout-contains-one? — return true iff exactly one element
+   ;; of stdout equals msg (after stripping trailing newlines). Uses
+   ;; filter + length = 1.
+   (:wat::core::define
+     (:test::stdout-contains-one?
+       (stdout :wat::core::Vector<wat::core::String>)
+       (msg :wat::core::String)
+       -> :wat::core::bool)
+     (:wat::core::=
+       (:wat::core::length
+         (:wat::core::filter stdout
+           (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
+             (:wat::core::= s msg))))
+       1))
+
+   ;; :test::assert-stdout-has — assert that stdout contains exactly one
+   ;; occurrence of msg. Fails with assert-eq if the count is not 1.
+   (:wat::core::define
+     (:test::assert-stdout-has
+       (stdout :wat::core::Vector<wat::core::String>)
+       (msg :wat::core::String)
+       -> :wat::core::unit)
+     (:wat::core::if (:test::stdout-contains-one? stdout msg)
+       -> :wat::core::unit
+       ()
+       (:wat::test::assert-eq msg "not found exactly once in stdout")))
+
+   ))
+
+
+;; ─── Per-layer deftests ────────────────────────────────────────────────────
+;;
+;; Prove helpers in isolation before composing them in the scenario tests.
+;; stdout-from-result is a thin accessor (Level 3 taste) — proven
+;; implicitly by the scenario deftests below; no isolated deftest needed.
+
+;; Layer 1 — stdout-first-line-or-empty: some case.
+(:deftest-console :wat-tests::std::service::Console::test-stdout-first-line-some
+  (:wat::core::let*
+    (((stdout :wat::core::Vector<wat::core::String>)
+      (:wat::core::conj
+        (:wat::core::conj
+          (:wat::core::Vector :wat::core::String)
+          "line-one")
+        "line-two")))
+    (:wat::test::assert-eq
+      (:test::stdout-first-line-or-empty stdout)
+      "line-one")))
+
+
+;; Layer 1 — stdout-first-line-or-empty: empty case.
+(:deftest-console :wat-tests::std::service::Console::test-stdout-first-line-empty
+  (:wat::test::assert-eq
+    (:test::stdout-first-line-or-empty (:wat::core::Vector :wat::core::String))
+    ""))
+
+
+;; Layer 2 — stdout-contains-one?: true case.
+(:deftest-console :wat-tests::std::service::Console::test-stdout-contains-one-yes
+  (:wat::core::let*
+    (((stdout :wat::core::Vector<wat::core::String>)
+      (:wat::core::conj
+        (:wat::core::conj
+          (:wat::core::Vector :wat::core::String)
+          "alpha")
+        "bravo")))
+    (:wat::test::assert-eq
+      (:test::stdout-contains-one? stdout "alpha")
+      true)))
+
+
+;; Layer 2 — stdout-contains-one?: false case (not present).
+(:deftest-console :wat-tests::std::service::Console::test-stdout-contains-one-no
+  (:wat::core::let*
+    (((stdout :wat::core::Vector<wat::core::String>)
+      (:wat::core::conj
+        (:wat::core::Vector :wat::core::String)
+        "alpha")))
+    (:wat::test::assert-eq
+      (:test::stdout-contains-one? stdout "missing")
+      false)))
+
+
+;; Layer 2 — assert-stdout-has: passing case (msg present exactly once).
+(:deftest-console :wat-tests::std::service::Console::test-assert-stdout-has-pass
+  (:wat::core::let*
+    (((stdout :wat::core::Vector<wat::core::String>)
+      (:wat::core::conj
+        (:wat::core::conj
+          (:wat::core::Vector :wat::core::String)
+          "hello")
+        "world")))
+    (:test::assert-stdout-has stdout "hello")))
 
 
 ;; ─── hello via Console ────────────────────────────────────────────────
@@ -32,8 +175,7 @@
 ;;     prunes the pair → loop exits → outer join unblocks)
 ;;   - Producer blocks on ack-rx until driver writes (slice 5)
 
-(:wat::test::deftest :wat-tests::std::service::Console::test-hello-world
-  ()
+(:deftest-console :wat-tests::std::service::Console::test-hello-world
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
@@ -68,14 +210,10 @@
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) (:wat::test::assert-eq "console-driver-died" ""))))))
         (:wat::core::Vector :wat::core::String)))
-     ((stdout :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
-     ;; first returns wat::core::Option<String> via arc 047. Test asserts the
-     ;; expected first line; pattern-match unwraps.
-     ((first-line :wat::core::String)
-      (:wat::core::match (:wat::core::first stdout) -> :wat::core::String
-        ((:wat::core::Some s) s)
-        (:wat::core::None ""))))
+     ((stdout :wat::core::Vector<wat::core::String>) (:test::stdout-from-result r))
+     ((first-line :wat::core::String) (:test::stdout-first-line-or-empty stdout)))
     (:wat::test::assert-eq first-line "hello via Console")))
+
 
 ;; ─── Console with N>1 clients ─────────────────────────────────────────
 ;;
@@ -89,8 +227,7 @@
 ;; driver pairs them with the matching (Rx, AckTx) by index inside
 ;; Console/loop.
 
-(:wat::test::deftest :wat-tests::std::service::Console::test-multi-writer
-  ()
+(:deftest-console :wat-tests::std::service::Console::test-multi-writer
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
@@ -168,25 +305,7 @@
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) (:wat::test::assert-eq "console-driver-died" ""))))))
         (:wat::core::Vector :wat::core::String)))
-     ((stdout :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
-     ((seen-alpha :wat::core::bool)
-      (:wat::core::= (:wat::core::length
-                       (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
-                           (:wat::core::= s "alpha"))))
-                     1))
-     ((seen-bravo :wat::core::bool)
-      (:wat::core::= (:wat::core::length
-                       (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
-                           (:wat::core::= s "bravo"))))
-                     1))
-     ((seen-charlie :wat::core::bool)
-      (:wat::core::= (:wat::core::length
-                       (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
-                           (:wat::core::= s "charlie"))))
-                     1))
-     ((_ :wat::core::unit) (:wat::test::assert-eq seen-alpha true))
-     ((_ :wat::core::unit) (:wat::test::assert-eq seen-bravo true)))
-    (:wat::test::assert-eq seen-charlie true)))
+     ((stdout :wat::core::Vector<wat::core::String>) (:test::stdout-from-result r))
+     ((_ :wat::core::unit) (:test::assert-stdout-has stdout "alpha"))
+     ((_ :wat::core::unit) (:test::assert-stdout-has stdout "bravo")))
+    (:test::assert-stdout-has stdout "charlie")))
