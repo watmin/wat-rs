@@ -291,8 +291,8 @@ Per-test annotations attach to the next deftest as sibling
 forms (arcs 122 + 123):
 
 ```scheme
-(:wat::test::ignore "broken on Windows; see #123")
-(:wat::test::deftest :my-app::flaky-windows-only ...)
+(:wat::test::ignore "expensive — only run with --include-ignored")
+(:wat::test::deftest :my-app::full-corpus-replay ...)
 
 (:wat::test::should-panic "divide by zero")
 (:wat::test::deftest :my-app::div-by-zero ...)
