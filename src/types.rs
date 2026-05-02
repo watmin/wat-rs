@@ -185,9 +185,21 @@ impl TypeEnv {
     }
 
     pub fn register(&mut self, def: TypeDef) -> Result<(), TypeError> {
+        // arc 138: no span — public surface preserved; external callers
+        // (lib re-export, test helpers) bind a TypeDef without a source
+        // form. Spanned routing uses `register_with_span` from
+        // `register_types`, which threads the form's decl span.
+        self.register_with_span(def, Span::unknown())
+    }
+
+    /// Arc 138 slice 2 — span-carrying variant. The decl's name keyword
+    /// span surfaces through `ReservedPrefix` / `DuplicateType` /
+    /// `CyclicAlias` errors so consumers (humans + agents) navigate to
+    /// the offending decl.
+    pub fn register_with_span(&mut self, def: TypeDef, span: Span) -> Result<(), TypeError> {
         let name = def.name().to_string();
         if crate::resolve::is_reserved_prefix(&name) {
-            return Err(TypeError::ReservedPrefix { name });
+            return Err(TypeError::ReservedPrefix { name, span });
         }
         // Arc 054: idempotent re-declaration. If the same name is already
         // registered with a byte-equivalent definition, the second
@@ -199,12 +211,12 @@ impl TypeEnv {
             if existing == &def {
                 return Ok(());
             }
-            return Err(TypeError::DuplicateType { name });
+            return Err(TypeError::DuplicateType { name, span });
         }
         // Reject cyclic aliases BEFORE insertion so `expand_alias` can
         // assume every alias in the registry is non-cyclic.
         if let TypeDef::Alias(alias) = &def {
-            check_alias_no_cycle(&name, &alias.expr, self)?;
+            check_alias_no_cycle(&name, &alias.expr, self, &span)?;
         }
         self.types.insert(name, def);
         Ok(())
@@ -222,16 +234,28 @@ impl TypeEnv {
     /// idempotency rule applies — byte-equivalent re-registration is
     /// a no-op.
     pub fn register_stdlib(&mut self, def: TypeDef) -> Result<(), TypeError> {
+        // arc 138: no span — public surface preserved; matches the
+        // user-facing `register()` shape. Real source forms route via
+        // `register_stdlib_with_span` from `register_stdlib_types`.
+        self.register_stdlib_with_span(def, Span::unknown())
+    }
+
+    /// Arc 138 slice 2 — span-carrying variant of [`Self::register_stdlib`].
+    pub fn register_stdlib_with_span(
+        &mut self,
+        def: TypeDef,
+        span: Span,
+    ) -> Result<(), TypeError> {
         let name = def.name().to_string();
         // Arc 054: idempotent re-declaration (see `register`).
         if let Some(existing) = self.types.get(&name) {
             if existing == &def {
                 return Ok(());
             }
-            return Err(TypeError::DuplicateType { name });
+            return Err(TypeError::DuplicateType { name, span });
         }
         if let TypeDef::Alias(alias) = &def {
-            check_alias_no_cycle(&name, &alias.expr, self)?;
+            check_alias_no_cycle(&name, &alias.expr, self, &span)?;
         }
         self.types.insert(name, def);
         Ok(())
@@ -955,11 +979,22 @@ fn register_builtin_types(env: &mut TypeEnv) {
 /// Type-declaration errors.
 #[derive(Debug)]
 pub enum TypeError {
-    DuplicateType { name: String },
-    ReservedPrefix { name: String },
-    MalformedDecl { head: String, reason: String },
-    MalformedName { raw: String, reason: String },
-    MalformedField { reason: String },
+    /// Arc 138 slice 2 — `span` names the OFFENDING decl's name keyword
+    /// (the second declaration that collides). The first registration
+    /// is already in the registry; the diagnostic points at the new one
+    /// the user is trying to add.
+    DuplicateType { name: String, span: Span },
+    /// Arc 138 slice 2 — `span` names the offending name keyword carrying
+    /// the reserved prefix.
+    ReservedPrefix { name: String, span: Span },
+    /// Arc 138 slice 2 — `span` names the whole malformed decl form
+    /// (`(:wat::core::struct ...)` outer span).
+    MalformedDecl { head: String, reason: String, span: Span },
+    /// Arc 138 slice 2 — `span` names the bad name keyword.
+    MalformedName { raw: String, reason: String, span: Span },
+    /// Arc 138 slice 2 — `span` names the offending field item (the
+    /// `(name :Type)` form or whatever stand-in landed in its place).
+    MalformedField { reason: String, span: Span },
     /// Arc 130 follow-up — surface enum / variant / span / hint at
     /// type-registration time. The shape was previously a bare
     /// `reason: String`, which gave consumers no location data and no
@@ -974,12 +1009,17 @@ pub enum TypeError {
         reason: String,
         hint: Option<String>,
     },
-    MalformedTypeExpr { raw: String, reason: String },
+    /// Arc 138 slice 2 — `span` names the bad type keyword (the
+    /// outermost type expression that failed to parse).
+    MalformedTypeExpr { raw: String, reason: String, span: Span },
     /// User source wrote `:Any` (as a bare path or parametric head).
     /// 058-030 forbids the escape hatch; every apparent use has a
     /// principled alternative (`:wat::holon::HolonAST`, parametric T, or a named
     /// enum).
-    AnyBanned { raw: String },
+    ///
+    /// Arc 138 slice 2 — `span` names the keyword carrying the `:Any`
+    /// (the outermost type expression).
+    AnyBanned { raw: String, span: Span },
     /// A typealias's expansion, traced through the currently-registered
     /// aliases, reaches the alias's own name. Detected at registration
     /// time so the wat refuses to start rather than looping at
@@ -987,14 +1027,23 @@ pub enum TypeError {
     /// `(typealias :A :B) (typealias :B :A)` — the second registration
     /// fires this error because walking `:B`'s expression reaches `:A`
     /// which already expands to `:B`.
-    CyclicAlias { name: String },
+    ///
+    /// Arc 138 slice 2 — `span` names the alias decl that closes the
+    /// cycle (the new decl whose registration was refused).
+    CyclicAlias { name: String, span: Span },
     /// A parametric typealias was referenced with the wrong number of
     /// type arguments. Example: `(typealias :Pair<A,B> :(A,B))` used as
     /// `:Pair<i64>` — declared 2 params, supplied 1.
+    ///
+    /// Arc 138 slice 2 — `span` names the call site (where the alias
+    /// is referenced with the wrong arity). Currently no call chain
+    /// constructs this variant inside `src/types.rs`; field is reserved
+    /// for future emitters that have call-site spans in scope.
     AliasArityMismatch {
         name: String,
         expected: usize,
         got: usize,
+        span: Span,
     },
     /// Arc 115 slice 2 — a type argument inside a compound (`<>`,
     /// `()`, `fn(...)`, fn return after `->`) carried a leading
@@ -1008,32 +1057,48 @@ pub enum TypeError {
     ///   `:Result<Option<i64>,wat::kernel::ThreadDiedError>`
     /// - `:fn(:i64)->:bool` → `:fn(i64)->bool`
     /// - `:(:String,:i64)` → `:(String,i64)`
+    ///
+    /// Arc 138 slice 2 — `span` names the outermost type keyword
+    /// (the keyword whose inner argument carries the illegal colon).
     InnerColonInCompoundArg {
         raw: String,
         offending: String,
+        span: Span,
     },
+}
+
+/// Arc 138 slice 2 — render the file:line:col prefix for a TypeError,
+/// or empty when the span is unknown (synthetic check rule with no
+/// originating node). Mirrors `src/check.rs::span_prefix` exactly.
+fn span_prefix(span: &Span) -> String {
+    if span.is_unknown() {
+        String::new()
+    } else {
+        format!("{}: ", span)
+    }
 }
 
 impl fmt::Display for TypeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TypeError::DuplicateType { name } => {
-                write!(f, "duplicate type declaration: {}", name)
+            TypeError::DuplicateType { name, span } => {
+                write!(f, "{}duplicate type declaration: {}", span_prefix(span), name)
             }
-            TypeError::ReservedPrefix { name } => write!(
+            TypeError::ReservedPrefix { name, span } => write!(
                 f,
-                "type name {} uses a reserved prefix ({}); user types must use their own prefix",
+                "{}type name {} uses a reserved prefix ({}); user types must use their own prefix",
+                span_prefix(span),
                 name,
                 crate::resolve::reserved_prefix_list()
             ),
-            TypeError::MalformedDecl { head, reason } => {
-                write!(f, "malformed {} declaration: {}", head, reason)
+            TypeError::MalformedDecl { head, reason, span } => {
+                write!(f, "{}malformed {} declaration: {}", span_prefix(span), head, reason)
             }
-            TypeError::MalformedName { raw, reason } => {
-                write!(f, "malformed type name {:?}: {}", raw, reason)
+            TypeError::MalformedName { raw, reason, span } => {
+                write!(f, "{}malformed type name {:?}: {}", span_prefix(span), raw, reason)
             }
-            TypeError::MalformedField { reason } => {
-                write!(f, "malformed field: {}", reason)
+            TypeError::MalformedField { reason, span } => {
+                write!(f, "{}malformed field: {}", span_prefix(span), reason)
             }
             TypeError::MalformedVariant {
                 enum_name,
@@ -1052,30 +1117,33 @@ impl fmt::Display for TypeError {
                 }
                 Ok(())
             }
-            TypeError::MalformedTypeExpr { raw, reason } => {
-                write!(f, "malformed type expression {:?}: {}", raw, reason)
+            TypeError::MalformedTypeExpr { raw, reason, span } => {
+                write!(f, "{}malformed type expression {:?}: {}", span_prefix(span), raw, reason)
             }
-            TypeError::AnyBanned { raw } => write!(
+            TypeError::AnyBanned { raw, span } => write!(
                 f,
-                ":Any is not part of the type system (058-030); use :wat::holon::HolonAST for any algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: {}",
+                "{}:Any is not part of the type system (058-030); use :wat::holon::HolonAST for any algebra value, a named enum for closed heterogeneous sets, or parametric T/K/V for generics. Offending expression: {}",
+                span_prefix(span),
                 raw
             ),
-            TypeError::CyclicAlias { name } => write!(
+            TypeError::CyclicAlias { name, span } => write!(
                 f,
-                "typealias {} forms a cycle through the current alias graph — refused at registration time so unification doesn't loop",
+                "{}typealias {} forms a cycle through the current alias graph — refused at registration time so unification doesn't loop",
+                span_prefix(span),
                 name
             ),
-            TypeError::AliasArityMismatch { name, expected, got } => write!(
+            TypeError::AliasArityMismatch { name, expected, got, span } => write!(
                 f,
-                "typealias {} declared with {} type parameter(s), used with {}",
-                name, expected, got
+                "{}typealias {} declared with {} type parameter(s), used with {}",
+                span_prefix(span), name, expected, got
             ),
-            TypeError::InnerColonInCompoundArg { raw, offending } => write!(
+            TypeError::InnerColonInCompoundArg { raw, offending, span } => write!(
                 f,
-                "type expression {} contains an illegal leading ':' on the inner argument {}: \
+                "{}type expression {} contains an illegal leading ':' on the inner argument {}: \
                  inside `<>`, `()`, or `fn(...)`, type arguments are bare Rust symbols. \
                  The colon prefix marks wat keywords and lives at the OUTERMOST type position \
                  only. Drop the leading ':' on the inner: write {} instead.",
+                span_prefix(span),
                 raw,
                 offending,
                 raw.replacen(&format!(":{}", offending.trim_start_matches(':')), offending.trim_start_matches(':'), 1)
@@ -1096,8 +1164,12 @@ pub fn register_types(
     for form in forms {
         match classify_type_decl(&form) {
             Some(head) => {
-                let def = parse_type_decl(head, form)?;
-                env.register(def)?;
+                // Arc 138 slice 2 — capture decl span BEFORE the form
+                // is consumed by `parse_type_decl`. Threaded through
+                // every emission site for source-coordinate prefixes.
+                let decl_span = form.span().clone();
+                let def = parse_type_decl(head, form, decl_span.clone())?;
+                env.register_with_span(def, decl_span)?;
             }
             None => rest.push(form),
         }
@@ -1119,8 +1191,9 @@ pub fn register_stdlib_types(
     for form in forms {
         match classify_type_decl(&form) {
             Some(head) => {
-                let def = parse_type_decl(head, form)?;
-                env.register_stdlib(def)?;
+                let decl_span = form.span().clone();
+                let def = parse_type_decl(head, form, decl_span.clone())?;
+                env.register_stdlib_with_span(def, decl_span)?;
             }
             None => rest.push(form),
         }
@@ -1143,34 +1216,40 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
     None
 }
 
-fn parse_type_decl(head: &str, form: WatAST) -> Result<TypeDef, TypeError> {
+fn parse_type_decl(
+    head: &str,
+    form: WatAST,
+    decl_span: Span,
+) -> Result<TypeDef, TypeError> {
     let items = match form {
         WatAST::List(items, _) => items,
         _ => {
             return Err(TypeError::MalformedDecl {
                 head: head.into(),
                 reason: "expected list form".into(),
+                span: decl_span,
             })
         }
     };
     let mut iter = items.into_iter();
     let _head_kw = iter.next();
     match head {
-        "struct" => parse_struct(iter.collect()),
-        "enum" => parse_enum(iter.collect()),
-        "newtype" => parse_newtype(iter.collect()),
-        "typealias" => parse_typealias(iter.collect()),
+        "struct" => parse_struct(iter.collect(), decl_span),
+        "enum" => parse_enum(iter.collect(), decl_span),
+        "newtype" => parse_newtype(iter.collect(), decl_span),
+        "typealias" => parse_typealias(iter.collect(), decl_span),
         _ => unreachable!(),
     }
 }
 
-fn parse_struct(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
+fn parse_struct(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     let mut iter = args.into_iter();
     let name_kw = iter.next().ok_or_else(|| TypeError::MalformedDecl {
         head: "struct".into(),
         reason: "missing name".into(),
+        span: decl_span.clone(),
     })?;
-    let (name, type_params) = parse_declared_name("struct", &name_kw)?;
+    let (name, type_params) = parse_declared_name("struct", &name_kw, &decl_span)?;
     let mut fields = Vec::new();
     for item in iter {
         fields.push(parse_field(item)?);
@@ -1182,13 +1261,14 @@ fn parse_struct(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
     }))
 }
 
-fn parse_enum(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
+fn parse_enum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     let mut iter = args.into_iter();
     let name_kw = iter.next().ok_or_else(|| TypeError::MalformedDecl {
         head: "enum".into(),
         reason: "missing name".into(),
+        span: decl_span.clone(),
     })?;
-    let (name, type_params) = parse_declared_name("enum", &name_kw)?;
+    let (name, type_params) = parse_declared_name("enum", &name_kw, &decl_span)?;
     let mut variants = Vec::new();
     for item in iter {
         variants.push(parse_enum_variant(item, &name)?);
@@ -1197,6 +1277,7 @@ fn parse_enum(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
         return Err(TypeError::MalformedDecl {
             head: "enum".into(),
             reason: "enum must have at least one variant".into(),
+            span: decl_span,
         });
     }
     Ok(TypeDef::Enum(EnumDef {
@@ -1206,7 +1287,7 @@ fn parse_enum(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
     }))
 }
 
-fn parse_newtype(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
+fn parse_newtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     if args.len() != 2 {
         return Err(TypeError::MalformedDecl {
             head: "newtype".into(),
@@ -1214,14 +1295,15 @@ fn parse_newtype(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
                 "expected (:wat::core::newtype :name :InnerType); got {} args",
                 args.len()
             ),
+            span: decl_span,
         });
     }
     let mut iter = args.into_iter();
     let name_kw = iter.next().unwrap();
     let inner_kw = iter.next().unwrap();
-    let (name, type_params) = parse_declared_name("newtype", &name_kw)?;
+    let (name, type_params) = parse_declared_name("newtype", &name_kw, &decl_span)?;
     let inner = match inner_kw {
-        WatAST::Keyword(k, _) => parse_type_expr(&k)?,
+        WatAST::Keyword(k, span) => parse_type_expr_with_span(&k, &span)?,
         other => {
             return Err(TypeError::MalformedDecl {
                 head: "newtype".into(),
@@ -1229,6 +1311,7 @@ fn parse_newtype(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
                     "inner type must be a keyword; got {}",
                     ast_variant_name(&other)
                 ),
+                span: decl_span,
             })
         }
     };
@@ -1239,7 +1322,7 @@ fn parse_newtype(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
     }))
 }
 
-fn parse_typealias(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
+fn parse_typealias(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
     if args.len() != 2 {
         return Err(TypeError::MalformedDecl {
             head: "typealias".into(),
@@ -1247,14 +1330,15 @@ fn parse_typealias(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
                 "expected (:wat::core::typealias :name :Expr); got {} args",
                 args.len()
             ),
+            span: decl_span,
         });
     }
     let mut iter = args.into_iter();
     let name_kw = iter.next().unwrap();
     let expr_kw = iter.next().unwrap();
-    let (name, type_params) = parse_declared_name("typealias", &name_kw)?;
+    let (name, type_params) = parse_declared_name("typealias", &name_kw, &decl_span)?;
     let expr = match expr_kw {
-        WatAST::Keyword(k, _) => parse_type_expr(&k)?,
+        WatAST::Keyword(k, span) => parse_type_expr_with_span(&k, &span)?,
         other => {
             return Err(TypeError::MalformedDecl {
                 head: "typealias".into(),
@@ -1262,6 +1346,7 @@ fn parse_typealias(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
                     "alias expression must be a keyword; got {}",
                     ast_variant_name(&other)
                 ),
+                span: decl_span,
             })
         }
     };
@@ -1274,11 +1359,16 @@ fn parse_typealias(args: Vec<WatAST>) -> Result<TypeDef, TypeError> {
 
 /// `(field-name :Type)` — typed field form used by structs + tagged enum variants.
 fn parse_field(form: WatAST) -> Result<(String, TypeExpr), TypeError> {
+    // Arc 138 slice 2 — field's own span surfaces through every
+    // MalformedField error so consumers navigate to the offending
+    // field item.
+    let field_span = form.span().clone();
     let items = match form {
         WatAST::List(items, _) => items,
         _ => {
             return Err(TypeError::MalformedField {
                 reason: "field must be a (name :Type) list".into(),
+                span: field_span,
             })
         }
     };
@@ -1288,6 +1378,7 @@ fn parse_field(form: WatAST) -> Result<(String, TypeExpr), TypeError> {
                 "field must be exactly (name :Type); got {} elements",
                 items.len()
             ),
+            span: field_span,
         });
     }
     let mut iter = items.into_iter();
@@ -1299,17 +1390,19 @@ fn parse_field(form: WatAST) -> Result<(String, TypeExpr), TypeError> {
                     "field name must be a bare symbol; got {}",
                     ast_variant_name(&other)
                 ),
+                span: field_span,
             })
         }
     };
     let ty = match iter.next().unwrap() {
-        WatAST::Keyword(k, _) => parse_type_expr(&k)?,
+        WatAST::Keyword(k, span) => parse_type_expr_with_span(&k, &span)?,
         other => {
             return Err(TypeError::MalformedField {
                 reason: format!(
                     "field type must be a keyword; got {}",
                     ast_variant_name(&other)
                 ),
+                span: field_span,
             })
         }
     };
@@ -1407,10 +1500,17 @@ fn parse_enum_variant(form: WatAST, enum_name: &str) -> Result<EnumVariant, Type
 /// - `:my::ns::MyType` → ("my/ns/MyType", [])
 /// - `:my::ns::Wrapper<T>` → ("my/ns/Wrapper", ["T"])
 /// - `:my::ns::Container<K,V>` → ("my/ns/Container", ["K", "V"])
+///
+/// Arc 138 slice 2 — `decl_span` is the whole-decl span used for
+/// MalformedDecl errors fired here (when the name slot isn't a
+/// keyword); the name keyword's own span is used for MalformedName
+/// errors (the bad-name shape itself).
 fn parse_declared_name(
     head: &str,
     form: &WatAST,
+    decl_span: &Span,
 ) -> Result<(String, Vec<String>), TypeError> {
+    let name_span = form.span().clone();
     let raw = match form {
         WatAST::Keyword(k, _) => k.clone(),
         other => {
@@ -1420,6 +1520,7 @@ fn parse_declared_name(
                     "name must be a keyword; got {}",
                     ast_variant_name(other)
                 ),
+                span: decl_span.clone(),
             })
         }
     };
@@ -1427,6 +1528,7 @@ fn parse_declared_name(
     let stripped = raw.strip_prefix(':').ok_or_else(|| TypeError::MalformedName {
         raw: raw.clone(),
         reason: "keyword must begin with ':'".into(),
+        span: name_span.clone(),
     })?;
     // Split at first '<' if present.
     match stripped.find('<') {
@@ -1438,6 +1540,7 @@ fn parse_declared_name(
                 return Err(TypeError::MalformedName {
                     raw: raw.clone(),
                     reason: "parametric name must close with '>'".into(),
+                    span: name_span,
                 });
             }
             let inner = &params_part[1..params_part.len() - 1];
@@ -1451,6 +1554,7 @@ fn parse_declared_name(
                     return Err(TypeError::MalformedName {
                         raw: raw.clone(),
                         reason: format!("type parameter {:?} has invalid chars", p),
+                        span: name_span,
                     });
                 }
             }
@@ -1469,13 +1573,32 @@ fn parse_declared_name(
 /// `:Any` has a principled named alternative (`:wat::holon::HolonAST` for algebra
 /// values, parametric `T`/`K`/`V` for generics, a named enum for
 /// closed heterogeneous sets).
+///
+/// Arc 138 slice 2 — public surface preserved; in-types-rs callers go
+/// through [`parse_type_expr_with_span`] for source-coordinate prefixes
+/// in errors. External callers (check.rs / freeze.rs) keep this entry
+/// point and surface unknown-span errors; their downstream re-rendering
+/// already carries the call-site span via CheckError.
 pub fn parse_type_expr(kw: &str) -> Result<TypeExpr, TypeError> {
+    // arc 138: no span — public surface preserved for external callers
+    // (check.rs, freeze.rs). Those callers DO have keyword spans in
+    // scope but the slice 2 brief constrains modification to types.rs;
+    // routing them through `parse_type_expr_with_span` is a follow-up
+    // for whichever slice retrofits check.rs's parse_type_expr usage.
+    parse_type_expr_with_span(kw, &Span::unknown())
+}
+
+/// Arc 138 slice 2 — span-carrying variant. Consumers with a real
+/// keyword span (the type-registration call chain in this file) use
+/// this entry point so emitted errors prefix `<file>:<line>:<col>:`.
+pub fn parse_type_expr_with_span(kw: &str, span: &Span) -> Result<TypeExpr, TypeError> {
     let stripped = kw.strip_prefix(':').ok_or_else(|| TypeError::MalformedTypeExpr {
         raw: kw.into(),
         reason: "type expression keyword must begin with ':'".into(),
+        span: span.clone(),
     })?;
-    let expr = parse_type_inner(stripped, kw, true)?;
-    reject_any(&expr, kw)?;
+    let expr = parse_type_inner(stripped, kw, true, span)?;
+    reject_any(&expr, kw, span)?;
     Ok(expr)
 }
 
@@ -1494,35 +1617,47 @@ pub fn parse_type_expr(kw: &str) -> Result<TypeExpr, TypeError> {
 /// `parse_type_expr` to keep the canonical-form invariant intact.
 pub fn parse_type_expr_audit(kw: &str) -> Option<TypeExpr> {
     let stripped = kw.strip_prefix(':')?;
-    parse_type_inner(stripped, kw, false).ok()
+    // arc 138: no span — audit path returns Option, never surfaces a
+    // TypeError to a consumer; the synthetic span never escapes.
+    parse_type_inner(stripped, kw, false, &Span::unknown()).ok()
 }
 
 /// Walk a parsed [`TypeExpr`] and raise [`TypeError::AnyBanned`] if
 /// `:Any` appears anywhere. Protects the type universe's closure.
-fn reject_any(expr: &TypeExpr, raw: &str) -> Result<(), TypeError> {
+///
+/// Arc 138 slice 2 — `span` is the outermost type-keyword span; the
+/// AnyBanned error prefixes `<file>:<line>:<col>:` so the consumer
+/// navigates straight to the offending decl/field.
+fn reject_any(expr: &TypeExpr, raw: &str, span: &Span) -> Result<(), TypeError> {
     match expr {
         TypeExpr::Path(p) => {
             if p == ":Any" {
-                return Err(TypeError::AnyBanned { raw: raw.into() });
+                return Err(TypeError::AnyBanned {
+                    raw: raw.into(),
+                    span: span.clone(),
+                });
             }
         }
         TypeExpr::Parametric { head, args } => {
             if head == "Any" {
-                return Err(TypeError::AnyBanned { raw: raw.into() });
+                return Err(TypeError::AnyBanned {
+                    raw: raw.into(),
+                    span: span.clone(),
+                });
             }
             for a in args {
-                reject_any(a, raw)?;
+                reject_any(a, raw, span)?;
             }
         }
         TypeExpr::Fn { args, ret } => {
             for a in args {
-                reject_any(a, raw)?;
+                reject_any(a, raw, span)?;
             }
-            reject_any(ret, raw)?;
+            reject_any(ret, raw, span)?;
         }
         TypeExpr::Tuple(elements) => {
             for e in elements {
-                reject_any(e, raw)?;
+                reject_any(e, raw, span)?;
             }
         }
         TypeExpr::Var(_) => {
@@ -1541,11 +1676,17 @@ fn reject_any(expr: &TypeExpr, raw: &str) -> Result<(), TypeError> {
 /// parsing an arg from inside a compound (`<>`, `()`, fn args, fn
 /// return), where the colon prefix is illegal. Inside compounds,
 /// args are bare Rust symbols.
-fn parse_type_inner(s: &str, original: &str, canonicalize: bool) -> Result<TypeExpr, TypeError> {
+fn parse_type_inner(
+    s: &str,
+    original: &str,
+    canonicalize: bool,
+    span: &Span,
+) -> Result<TypeExpr, TypeError> {
     if s.starts_with(':') {
         return Err(TypeError::InnerColonInCompoundArg {
             raw: original.into(),
             offending: s.to_string(),
+            span: span.clone(),
         });
     }
     // Tuple literal — `(T,U,...)`. Must appear at the start; inner
@@ -1555,14 +1696,15 @@ fn parse_type_inner(s: &str, original: &str, canonicalize: bool) -> Result<TypeE
             return Err(TypeError::MalformedTypeExpr {
                 raw: original.into(),
                 reason: "tuple-literal type must close with ')'".into(),
+                span: span.clone(),
             });
         }
         let inside = &rest[..rest.len() - 1];
-        return parse_tuple_body(inside, original, canonicalize);
+        return parse_tuple_body(inside, original, canonicalize, span);
     }
     // `fn(args)->ret` function type — detect at the start.
     if let Some(body) = s.strip_prefix("fn(") {
-        return parse_fn_body(body, original, canonicalize);
+        return parse_fn_body(body, original, canonicalize, span);
     }
     // `Head<args>` parametric.
     if let Some(lt_index) = find_top_level_char(s, '<') {
@@ -1572,10 +1714,11 @@ fn parse_type_inner(s: &str, original: &str, canonicalize: bool) -> Result<TypeE
             return Err(TypeError::MalformedTypeExpr {
                 raw: original.into(),
                 reason: "parametric type must close with '>'".into(),
+                span: span.clone(),
             });
         }
         let inside = &rest[1..rest.len() - 1];
-        let args = parse_type_list(inside, original, canonicalize)?;
+        let args = parse_type_list(inside, original, canonicalize, span)?;
         // Arc 109 slice 1e — FQDN container heads canonicalize to
         // bare so unify sees a single internal form. Audit walker
         // (canonicalize=false) preserves source spelling so the
@@ -1640,7 +1783,12 @@ fn parse_type_inner(s: &str, original: &str, canonicalize: bool) -> Result<TypeE
 /// - Trailing comma or multiple elements: `Tuple(vec![...])`.
 ///
 /// Matches Rust's tuple-type syntax exactly.
-fn parse_tuple_body(inside: &str, original: &str, canonicalize: bool) -> Result<TypeExpr, TypeError> {
+fn parse_tuple_body(
+    inside: &str,
+    original: &str,
+    canonicalize: bool,
+    span: &Span,
+) -> Result<TypeExpr, TypeError> {
     let trimmed = inside.trim();
     if trimmed.is_empty() {
         return Ok(TypeExpr::Tuple(Vec::new()));
@@ -1651,7 +1799,7 @@ fn parse_tuple_body(inside: &str, original: &str, canonicalize: bool) -> Result<
     } else {
         trimmed
     };
-    let elements = parse_type_list(effective, original, canonicalize)?;
+    let elements = parse_type_list(effective, original, canonicalize, span)?;
     if elements.len() == 1 && !has_trailing_comma {
         // `:(T)` is grouping — return the inner type unwrapped.
         return Ok(elements.into_iter().next().unwrap());
@@ -1659,12 +1807,18 @@ fn parse_tuple_body(inside: &str, original: &str, canonicalize: bool) -> Result<
     Ok(TypeExpr::Tuple(elements))
 }
 
-fn parse_fn_body(body: &str, original: &str, canonicalize: bool) -> Result<TypeExpr, TypeError> {
+fn parse_fn_body(
+    body: &str,
+    original: &str,
+    canonicalize: bool,
+    span: &Span,
+) -> Result<TypeExpr, TypeError> {
     // body is `T,U)->R` — find the matching `)` at depth 0.
     let close = find_matching_close(body, '(', ')').ok_or_else(|| {
         TypeError::MalformedTypeExpr {
             raw: original.into(),
             reason: "fn type missing matching ')'".into(),
+            span: span.clone(),
         }
     })?;
     let args_part = &body[..close];
@@ -1674,13 +1828,14 @@ fn parse_fn_body(body: &str, original: &str, canonicalize: bool) -> Result<TypeE
         .ok_or_else(|| TypeError::MalformedTypeExpr {
             raw: original.into(),
             reason: "fn type missing '->' before return".into(),
+            span: span.clone(),
         })?;
     let args = if args_part.trim().is_empty() {
         Vec::new()
     } else {
-        parse_type_list(args_part, original, canonicalize)?
+        parse_type_list(args_part, original, canonicalize, span)?
     };
-    let ret = parse_type_inner(ret_part, original, canonicalize)?;
+    let ret = parse_type_inner(ret_part, original, canonicalize, span)?;
     Ok(TypeExpr::Fn {
         args,
         ret: Box::new(ret),
@@ -1688,7 +1843,12 @@ fn parse_fn_body(body: &str, original: &str, canonicalize: bool) -> Result<TypeE
 }
 
 /// Parse a comma-separated list of types (respecting nested `<>` and `()`).
-fn parse_type_list(s: &str, original: &str, canonicalize: bool) -> Result<Vec<TypeExpr>, TypeError> {
+fn parse_type_list(
+    s: &str,
+    original: &str,
+    canonicalize: bool,
+    span: &Span,
+) -> Result<Vec<TypeExpr>, TypeError> {
     let mut out = Vec::new();
     let mut depth = 0i32;
     let mut start = 0usize;
@@ -1698,7 +1858,7 @@ fn parse_type_list(s: &str, original: &str, canonicalize: bool) -> Result<Vec<Ty
             '>' | ')' => depth -= 1,
             ',' if depth == 0 => {
                 let piece = &s[start..i];
-                out.push(parse_type_inner(piece.trim(), original, canonicalize)?);
+                out.push(parse_type_inner(piece.trim(), original, canonicalize, span)?);
                 start = i + 1;
             }
             _ => {}
@@ -1706,7 +1866,7 @@ fn parse_type_list(s: &str, original: &str, canonicalize: bool) -> Result<Vec<Ty
     }
     let tail = &s[start..];
     if !tail.trim().is_empty() {
-        out.push(parse_type_inner(tail.trim(), original, canonicalize)?);
+        out.push(parse_type_inner(tail.trim(), original, canonicalize, span)?);
     }
     Ok(out)
 }
@@ -1866,9 +2026,10 @@ fn check_alias_no_cycle(
     target_name: &str,
     expr: &TypeExpr,
     env: &TypeEnv,
+    span: &Span,
 ) -> Result<(), TypeError> {
     let mut visiting = std::collections::HashSet::new();
-    check_alias_reaches(target_name, expr, env, &mut visiting)
+    check_alias_reaches(target_name, expr, env, &mut visiting, span)
 }
 
 fn check_alias_reaches(
@@ -1876,17 +2037,19 @@ fn check_alias_reaches(
     expr: &TypeExpr,
     env: &TypeEnv,
     visiting: &mut std::collections::HashSet<String>,
+    span: &Span,
 ) -> Result<(), TypeError> {
     match expr {
         TypeExpr::Path(name) => {
             if name == target_name {
                 return Err(TypeError::CyclicAlias {
                     name: target_name.to_string(),
+                    span: span.clone(),
                 });
             }
             if let Some(TypeDef::Alias(alias)) = env.get(name) {
                 if visiting.insert(name.clone()) {
-                    check_alias_reaches(target_name, &alias.expr, env, visiting)?;
+                    check_alias_reaches(target_name, &alias.expr, env, visiting, span)?;
                     visiting.remove(name);
                 }
             }
@@ -1896,27 +2059,28 @@ fn check_alias_reaches(
             if qualified == target_name {
                 return Err(TypeError::CyclicAlias {
                     name: target_name.to_string(),
+                    span: span.clone(),
                 });
             }
             if let Some(TypeDef::Alias(alias)) = env.get(&qualified) {
                 if visiting.insert(qualified.clone()) {
-                    check_alias_reaches(target_name, &alias.expr, env, visiting)?;
+                    check_alias_reaches(target_name, &alias.expr, env, visiting, span)?;
                     visiting.remove(&qualified);
                 }
             }
             for a in args {
-                check_alias_reaches(target_name, a, env, visiting)?;
+                check_alias_reaches(target_name, a, env, visiting, span)?;
             }
         }
         TypeExpr::Fn { args, ret } => {
             for a in args {
-                check_alias_reaches(target_name, a, env, visiting)?;
+                check_alias_reaches(target_name, a, env, visiting, span)?;
             }
-            check_alias_reaches(target_name, ret, env, visiting)?;
+            check_alias_reaches(target_name, ret, env, visiting, span)?;
         }
         TypeExpr::Tuple(elements) => {
             for e in elements {
-                check_alias_reaches(target_name, e, env, visiting)?;
+                check_alias_reaches(target_name, e, env, visiting, span)?;
             }
         }
         TypeExpr::Var(_) => {}
@@ -2486,5 +2650,30 @@ mod tests {
             }
             other => panic!("expected expanded Vec<HolonAST>, got {:?}", other),
         }
+    }
+
+    // ─── Arc 138 slice 2 — TypeError carries source coordinates ────
+    //
+    // Canary: a TypeError surfaced from user source MUST render with
+    // `<file>:<line>:<col>:` as the leading prefix so consumers (humans
+    // + agents) navigate straight to the offending decl. Mirrors
+    // `check::tests::type_mismatch_message_carries_span`.
+    #[test]
+    fn arc138_type_error_message_carries_span() {
+        // `:my::Empty` is an enum with no variants — fires
+        // MalformedDecl. The form's outer span gets threaded all the
+        // way to the Display arm via `decl_span`.
+        let err = collect(r#"(:wat::core::enum :my::Empty)"#).unwrap_err();
+        let rendered = format!("{}", err);
+        assert!(
+            rendered.contains("<test>:"),
+            "expected TypeError Display to carry `<test>:` (file:line:col); got: {}",
+            rendered
+        );
+        assert!(
+            matches!(err, TypeError::MalformedDecl { .. }),
+            "expected MalformedDecl, got: {:?}",
+            err
+        );
     }
 }
