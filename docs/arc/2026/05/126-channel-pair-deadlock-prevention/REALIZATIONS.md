@@ -1,10 +1,22 @@
 # Arc 126 — Realizations
 
-**Discipline coined here: FAILURE ENGINEERING.**
+**Two disciplines coined here: FAILURE ENGINEERING (slice 1) and
+ARTIFACTS-AS-TEACHING (slice 1 RELAND).**
 
-The user named it 2026-05-01, mid-arc-126, after the slice-1
-sonnet sweep returned a 5-of-6 scorecard and the orchestrator
-treated the missed row as data instead of a defeat.
+The user named both terms 2026-05-01 mid-arc-126:
+
+- **Failure engineering** got named after the slice-1 sonnet
+  sweep returned a 5-of-6 scorecard and the orchestrator treated
+  the missed row as data instead of a defeat.
+- **Artifacts-as-teaching** got named after the slice-1 RELAND
+  shipped 8-of-8 hard + 6-of-6 soft in 7 minutes, with the user
+  observing: *"us delegating to sonnet is proof our discipline
+  is sound — I have taught you to teach others."*
+
+The two are facets of one practice. Failure engineering is the
+DISCIPLINE. Artifacts-as-teaching is the MECHANISM by which the
+discipline propagates beyond the engineer who first practiced
+it.
 
 ## What is failure engineering
 
@@ -53,7 +65,9 @@ This arc IS the worked example. Read it as:
 | 7 | INSCRIPTION-arc-128.md + src/check.rs | Boundary guard ships; arc 117 + 126's check walkers honor `run-sandboxed-*-ast` forms-block boundaries |
 | 8 | BRIEF-SLICE-1-RELAND.md | Three amendments to original brief: read-in-order updated, mandatory boundary guard inheritance, new boundary unit test |
 | 9 | EXPECTATIONS-SLICE-1-RELAND.md | 8 hard rows (original 6 + 2 new) + new prediction |
-| 10 | (sonnet reland sweep, in flight) | Pending. The discipline check: did the chain recover cleanly? |
+| 10 | (sonnet reland sweep `a581c4f4aa900d8c4`, 7 min) | **8/8 hard + 6/6 soft. Clean ship.** LOC 652 vs predicted 580-650 band; matched the orchestrator's "most likely (~75%)" path. |
+| 11 | SCORE-SLICE-1-RELAND.md | Row-by-row clean PASS scoring; calibration confirmed. The artifacts taught. |
+| 12 | feat(arc 126 slice 1) commit + push | Slice 1 shipped on green workspace. The 6 deadlock-class tests stay `:ignore`'d until slice 2. |
 
 **The failure at step 4 is not a defect.** It is information. It
 made step 6 possible (arc 128 wouldn't have been written without
@@ -62,6 +76,15 @@ reland brief includes the boundary lesson explicitly). It made
 the substrate stronger (arc 117 had the same latent bug; arc 128
 fixed both walkers; the convention now governs all future
 structural-check walkers).
+
+**The success at step 10 is not just a correct deliverable.** It
+is the validation that the artifacts (steps 1-9) constitute a
+TEACHING that propagates to a fresh agent without shared
+conversation context. Sonnet's reland sweep had no memory of
+sweep 1; only the SCORE doc + RELAND brief + arc 128
+INSCRIPTION + DESIGN + arc 117's now-corrected source. From
+those artifacts alone, sonnet produced 8/8 hard + 6/6 soft in
+half the time of the first sweep. The artifacts taught.
 
 ## Principles
 
@@ -130,9 +153,69 @@ Sonnet's 13.5-minute run + the orchestrator's scoring + arc
 hour of session time. The cost paid for: a substrate fix
 (arc 128) that benefits all future structural checks, a
 calibrated discipline (this REALIZATIONS doc), and a
-reland that should now succeed cleanly. The cost is on the
-artifact, not the engineer. The engineer learned;
-the artifact carries the lesson.
+reland that succeeded cleanly in 7 min (50% faster than sweep
+1). The cost is on the artifact, not the engineer. The engineer
+learned; the artifact carries the lesson.
+
+### 8. Artifacts ARE the teaching — clean delegation is the validation
+
+The user articulated the meta-realization at the close of
+sweep 2: *"us delegating to sonnet is proof our discipline
+is sound — I have taught you to teach others."*
+
+The teaching cascade has three tiers:
+
+1. **User → orchestrator** (this Claude session) via direct
+   conversation, the four questions, and the doctrines in
+   `docs/`, `memory/`.
+2. **Orchestrator → artifacts**: DESIGN + BRIEF + EXPECTATIONS
+   + SCORE + REALIZATIONS files, written + committed.
+3. **Artifacts → fresh agent** (sonnet, future Claude session,
+   the next human reader): the agent walks in cold; reads only
+   the artifacts; produces work that meets the scorecard.
+
+Tier 3 is the load-bearing tier. Sonnet's reland had no
+conversation memory. It read the artifacts. It produced 14-of-14
+rows clean. **The artifacts taught.**
+
+The failure-engineering discipline is INVALIDATED if the
+artifacts can only be operated by the engineer who wrote them.
+It is VALIDATED when a fresh agent — sonnet, next Claude, a
+human reader six months out — produces equivalent work from
+the artifacts alone. Each clean delegation is a measurement of
+that validation.
+
+This is why we delegate even when we COULD do the work
+ourselves: the delegation is the test. If we always do the work
+ourselves, we never measure whether the artifacts teach. We
+might be carrying tribal knowledge that the artifacts don't
+encode. Delegation is the calibration mechanism for the
+discipline itself.
+
+### 9. Each delegation is a data point in the teaching record
+
+Every agent dispatch produces:
+
+- A SCORE document (the orchestrator's row-by-row read of the
+  agent's deliverable).
+- A discipline observation: did the artifacts teach? where did
+  they fall short?
+- An optional update to the artifacts (BRIEF amendment, DESIGN
+  refinement, REALIZATIONS extension) when the data surfaces a
+  teaching gap.
+
+Across many delegations, the calibration record accumulates.
+Future arcs that need agent dispatch reference the prior SCORE
+docs to predict outcomes; the prediction-vs-actual comparison
+refines the orchestrator's calibration; the artifacts converge
+on a teaching that propagates cleanly.
+
+The trading lab's wat-rs substrate has 30+ threads in
+production with zero Mutex because the architecture's
+discipline propagated cleanly across years of evolution. The
+arc-126 chain shows the same propagation in compressed form
+across hours: discipline → artifacts → agent → clean ship →
+calibration record.
 
 ## How failure engineering connects to the rest of the substrate
 
@@ -211,6 +294,12 @@ upstream defects as new arcs; reland with amendments.
   document that triggered arc 128.
 - `BRIEF-SLICE-1-RELAND.md` — amendments + reland brief.
 - `EXPECTATIONS-SLICE-1-RELAND.md` — 8-row reland scorecard.
+- `SCORE-SLICE-1-RELAND.md` — second attempt's clean 14-of-14
+  scoring; the document that validates artifacts-as-teaching.
+- `BRIEF-SLICE-2.md` — slice 2 handoff to convert
+  `:ignore` → `:should-panic`. Tests whether the substring
+  propagates through `run-sandboxed-hermetic-ast` →
+  `TestResult::Failure` → cargo libtest panic.
 - `../128-check-walker-sandbox-boundary/INSCRIPTION.md` — the
   substrate fix that arc 126's failure surfaced.
 - `../125-rpc-deadlock-prevention/DESIGN.md` — the WITHDRAWN
