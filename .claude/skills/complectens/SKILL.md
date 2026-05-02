@@ -285,20 +285,24 @@ The previous edge case warns against factoring `make-bounded-channel` into a hel
 
 The corollary: do NOT factor a CALL SEQUENCE that uses both halves of a channel pair into a helper that accepts both halves as parameters. Keep `(:wat::kernel::send req-tx ...)` and `(:wat::kernel::recv ack-rx)` as SEPARATE inline calls in the scenario body. Arc 126 only fires when one CALL passes both halves; separate sequential calls each pass one half.
 
-### Hermetic-program tests have inherently irreducible bodies
+### Embedded literals — visual line count vs OUTER LOGICAL BINDINGS
 
-When a deftest body uses `(:wat::test::run-hermetic-ast (:wat::test::program ...))`, the embedded program AST is a literal that runs in a FORKED SUBPROCESS. The subprocess can't reference the outer prelude's helpers (separate freeze). The embedded program must be self-contained.
+Some deftest bodies contain LITERALS that are part of the test's data, not part of its composition logic. These literals are inherently irreducible:
 
-This means: the deftest's visual line count is dominated by the embedded program AST, NOT by the outer composition logic. The mechanical phase's `>30 lines = suspect` heuristic over-flags hermetic tests.
+- `(:wat::test::run-hermetic-ast (:wat::test::program ...))` — the embedded program AST runs in a forked subprocess; it can't reference the outer prelude's helpers, so it must be self-contained.
+- `(:wat::lru::HologramCacheService::MetricsCadence/new gate (:wat::core::lambda ...))` — a cadence's tick lambda; the lambda is data passed to the factory, not composition.
+- `(:wat::core::lambda ((tx :Sender) ...) ...)` as a dispatcher / translator / reporter argument — the lambda is the test fixture, not the test logic.
 
-**Phase-2 judgment for hermetic tests:** count the OUTER LOGICAL BINDINGS (the let* outside the embedded program's freeze) — those are what composition can shrink. The embedded program is irreducible. A hermetic test whose outer let* has 5 bindings AFTER the rewrite is well-shaped, even if visual line count is 80+.
+The mechanical phase's `>30 lines = suspect` heuristic over-flags any deftest containing such literals. Phase-2 judgment counts the **OUTER LOGICAL BINDINGS** of the deftest's let*, NOT the total visual line count. A test whose outer let* has 5 bindings is well-shaped, even if visual line count is 80+.
 
-When extracting helpers FOR a hermetic test, target the OUTER scaffolding:
-- Helpers that SETUP the program AST (build the inner forms incrementally).
-- Helpers that PROCESS the RunResult (extract stdout/stderr, assert on contents, etc.).
-- Helpers that COMPOSE multiple hermetic invocations.
+When extracting helpers FOR an embedded-literal test, target the OUTER scaffolding:
+- Helpers that SETUP the literal (build it from primitive parts; e.g., a `make-null-cadence` helper).
+- Helpers that PROCESS the result (extract stdout/stderr, assert on contents).
+- Helpers that COMPOSE multiple invocations (call the scenario, drain the channel, assert).
 
-Helpers that try to share logic INSIDE the embedded program's body are not possible without arc-094-style AST quasiquote builders — out of scope for the discipline.
+Helpers that try to share logic INSIDE an embedded program's body, or inside an embedded lambda, are not possible without arc-094-style AST quasiquote builders — out of scope for the discipline.
+
+The simpler rule: when one of the deftest's let* bindings has an RHS that EVALUATES to data (an AST, a lambda, a closure, a struct literal), that RHS is the test's fixture and is exempt from the line-count metric. The OUTER let*'s binding count remains the proxy for composition complexity.
 
 ## Reference
 

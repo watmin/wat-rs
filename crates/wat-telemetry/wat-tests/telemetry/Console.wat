@@ -1,12 +1,83 @@
 ;; wat-tests/std/telemetry/Console.wat — arc 081 smoke tests.
 ;;
-;; Decomposed per the one-let*-per-function rule. The hermetic
-;; program ships TWO defines: a helper that takes a Console::Tx and
-;; dispatches three i64 entries, and a :user::main that just
-;; orchestrates spawn + delegate + join.
+;; Arc 130 — complectēns rewrite. Top-down dependency graph in ONE file.
+;;
+;; ─── Layers ──────────────────────────────────────────────────────────
+;;
+;;   Layer 1  :test::tel-stdout-from-result
+;;              ; extract stdout Vector<String> from a RunResult
+;;
+;;   Layer 2  :test::tel-assert-line-once
+;;              ; assert exactly one occurrence of msg in stdout
+;;
+;; Inner programs embedded in run-hermetic-ast run in a subprocess and
+;; cannot reference prelude helpers (separate freeze). Helpers apply to
+;; the OUTER test logic: extracting stdout, asserting line membership.
+;;
+;; No arc-126 concern: outer test code has no make-bounded-channel
+;; allocations (the inner program manages Console's channel pairs
+;; internally; those are opaque to the outer test body).
 
-(:wat::test::deftest :wat-telemetry::Console::test-dispatcher-edn
-  ()
+(:wat::test::make-deftest :deftest
+  (
+   ;; ─── Layer 1 — RunResult accessor ────────────────────────────
+   ;;
+   ;; :test::tel-stdout-from-result — extract stdout vector from a
+   ;; RunResult. Named wrapper for readable outer composition.
+   (:wat::core::define
+     (:test::tel-stdout-from-result
+       (r :wat::kernel::RunResult)
+       -> :wat::core::Vector<wat::core::String>)
+     (:wat::kernel::RunResult/stdout r))
+
+
+   ;; ─── Layer 2 — assertion helper ──────────────────────────────
+   ;;
+   ;; :test::tel-assert-line-once — assert that stdout contains exactly
+   ;; one element equal to msg. Fails with assert-eq if absent.
+   (:wat::core::define
+     (:test::tel-assert-line-once
+       (stdout :wat::core::Vector<wat::core::String>)
+       (msg :wat::core::String)
+       -> :wat::core::unit)
+     (:wat::core::if
+       (:wat::core::=
+         (:wat::core::length
+           (:wat::core::filter stdout
+             (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
+               (:wat::core::= s msg))))
+         1)
+       -> :wat::core::unit
+       ()
+       (:wat::test::assert-eq msg "not found exactly once in stdout")))
+
+   ))
+
+
+;; ─── Per-layer deftests ────────────────────────────────────────────────────
+;;
+;; Prove helpers in isolation. stdout-from-result is a thin accessor
+;; proven implicitly by the scenario deftests (constructing a RunResult
+;; in isolation requires hermetic infrastructure — Level 3 taste gap).
+
+;; Layer 2 — assert-line-once: passes when msg is present exactly once.
+(:deftest :wat-telemetry::Console::test-assert-line-once-pass
+  (:wat::core::let*
+    (((stdout :wat::core::Vector<wat::core::String>)
+      (:wat::core::conj
+        (:wat::core::conj
+          (:wat::core::Vector :wat::core::String)
+          "10")
+        "20")))
+    (:test::tel-assert-line-once stdout "10")))
+
+
+;; ─── Test 1: EDN format renders i64 entries as bare integers ──────────────
+;;
+;; Dispatcher dispatches three i64 entries as ONE batch via EDN format.
+;; Verifies that 10, 20, and 30 each appear exactly once in stdout.
+
+(:deftest :wat-telemetry::Console::test-dispatcher-edn
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
@@ -63,34 +134,15 @@
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) (:wat::test::assert-eq "console-driver-died" ""))))))
         (:wat::core::Vector :wat::core::String)))
-     ((stdout :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
-     ((seen-10 :wat::core::bool)
-      (:wat::core::= (:wat::core::length
-                       (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
-                           (:wat::core::= s "10"))))
-                     1))
-     ((seen-20 :wat::core::bool)
-      (:wat::core::= (:wat::core::length
-                       (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
-                           (:wat::core::= s "20"))))
-                     1))
-     ((seen-30 :wat::core::bool)
-      (:wat::core::= (:wat::core::length
-                       (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
-                           (:wat::core::= s "30"))))
-                     1))
-     ((u1 :wat::core::unit) (:wat::test::assert-eq seen-10 true))
-     ((u2 :wat::core::unit) (:wat::test::assert-eq seen-20 true)))
-    (:wat::test::assert-eq seen-30 true)))
+     ((stdout :wat::core::Vector<wat::core::String>) (:test::tel-stdout-from-result r))
+     ((_ :wat::core::unit) (:test::tel-assert-line-once stdout "10"))
+     ((_ :wat::core::unit) (:test::tel-assert-line-once stdout "20")))
+    (:test::tel-assert-line-once stdout "30")))
 
 
 ;; ─── Test 2: JSON format renders wat::core::Vector<i64> as JSON array ──────────
 
-(:wat::test::deftest :wat-telemetry::Console::test-dispatcher-json
-  ()
+(:deftest :wat-telemetry::Console::test-dispatcher-json
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-hermetic-ast
@@ -146,11 +198,5 @@
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) (:wat::test::assert-eq "console-driver-died" ""))))))
         (:wat::core::Vector :wat::core::String)))
-     ((stdout :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout r))
-     ((seen-row :wat::core::bool)
-      (:wat::core::= (:wat::core::length
-                       (:wat::core::filter stdout
-                         (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
-                           (:wat::core::= s "[1,2,3]"))))
-                     1)))
-    (:wat::test::assert-eq seen-row true)))
+     ((stdout :wat::core::Vector<wat::core::String>) (:test::tel-stdout-from-result r)))
+    (:test::tel-assert-line-once stdout "[1,2,3]")))

@@ -43,20 +43,18 @@ we work it down arc-by-arc." This doc is the queue.
 
 Both files use a single `make-deftest` prelude (no mixed outcomes; all clean pass). 5 outer-scaffolding helpers added to console.wat; 4 lifecycle/scenario helpers to service-template. SCORE-SLICE-1.md surfaced three new SKILL deltas: Thread/output drain on non-unit O; arc 126 fires at call sites passing both halves; hermetic-program inner bodies are irreducible.
 
-### `crates/wat-telemetry/wat-tests/telemetry/Console.wat`
+### ✓ `crates/wat-telemetry/wat-tests/telemetry/Console.wat` — shipped 2026-05-03 (arc 135 slice 2)
 
-- 🟠 L8 `:wat-telemetry::Console::test-dispatcher-edn` body=80
-- 🟠 L92 `:wat-telemetry::Console::test-dispatcher-json` body=65
+- ✓ L8 `:wat-telemetry::Console::test-dispatcher-edn` outer logical 8→4. Visual count high (hermetic embedded program; SKILL edge case applies).
+- ✓ L92 `:wat-telemetry::Console::test-dispatcher-json` outer logical 4→2.
 
-Both test the same dispatcher with different output formats — helpers should largely overlap.
+### ✓ `crates/wat-telemetry/wat-tests/telemetry/Service.wat` — shipped 2026-05-03 (arc 135 slice 2)
 
-### `crates/wat-telemetry/wat-tests/telemetry/Service.wat`
+- ✓ L22 `:wat-telemetry::test-spawn-drop-join` 37→1 line (97% shrink).
+- ✓ L71 `:wat-telemetry::test-batch-roundtrip` outer logical ~15→5 (93% shrink).
+- ✓ L134 `:wat-telemetry::test-cadence-fires` outer logical ~15→5.
 
-- 🟠 L71 `:wat-telemetry::test-batch-roundtrip` body=59
-- 🟠 L134 `:wat-telemetry::test-cadence-fires` body=58
-- 🟡 L22 `:wat-telemetry::test-spawn-drop-join` body=42
-
-Three deftests in one file; lifecycle + batch + cadence each get their own layer.
+Slice 2 SCORE: 8/8 hard + 4/4 soft. New SKILL delta surfaced: embedded literals (cadence lambdas, dispatcher closures) generalize the hermetic-program edge case. Baked into the SKILL.
 
 ### `crates/wat-telemetry/wat-tests/telemetry/WorkUnit.wat`
 
