@@ -41,9 +41,11 @@ pub(crate) fn resolve_sandbox_loader(
 ) -> Result<Arc<dyn SourceLoader>, RuntimeError> {
     match scope_opt {
         Some(path) => {
+            // arc 138 slice 3b: span TBD
             let scoped = ScopedLoader::new(&path).map_err(|e| RuntimeError::MalformedForm {
                 head: op.into(),
                 reason: format!("scope path {:?}: {}", path, e),
+                span: crate::span::Span::unknown(),
             })?;
             Ok(Arc::new(scoped))
         }

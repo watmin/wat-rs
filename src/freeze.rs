@@ -802,8 +802,10 @@ fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
     if let WatAST::List(items, _) = ast {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
             if is_mutation_form(head) {
+                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::EvalForbidsMutationForm {
                     head: head.clone(),
+                    span: crate::span::Span::unknown(),
                 });
             }
         }
@@ -1116,7 +1118,7 @@ mod tests {
         let env = Environment::new();
         let err = eval_in_frozen(&ast, &world, &env).unwrap_err();
         match err {
-            RuntimeError::EvalForbidsMutationForm { head } => {
+            RuntimeError::EvalForbidsMutationForm { head, .. } => {
                 assert_eq!(head, ":wat::core::define");
             }
             other => panic!("expected EvalForbidsMutationForm, got {:?}", other),

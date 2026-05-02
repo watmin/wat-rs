@@ -46,10 +46,12 @@ fn dispatch_uuid_v4(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":rust::telemetry::uuid::v4";
     if !args.is_empty() {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 0,
             got: args.len(),
+            span: wat::span::Span::unknown(),
         });
     }
     let id = wat_edn::new_uuid_v4().to_string();

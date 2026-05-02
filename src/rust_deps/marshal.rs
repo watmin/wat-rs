@@ -59,10 +59,12 @@ impl FromWat for i64 {
     fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
         match v {
             Value::i64(n) => Ok(*n),
+            // arc 138 slice 3b: span TBD
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "i64",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -78,10 +80,12 @@ impl FromWat for f64 {
     fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
         match v {
             Value::f64(x) => Ok(*x),
+            // arc 138 slice 3b: span TBD
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "f64",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -97,10 +101,12 @@ impl FromWat for bool {
     fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
         match v {
             Value::bool(b) => Ok(*b),
+            // arc 138 slice 3b: span TBD
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "bool",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -116,10 +122,12 @@ impl FromWat for String {
     fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
         match v {
             Value::String(s) => Ok((**s).clone()),
+            // arc 138 slice 3b: span TBD
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -137,10 +145,12 @@ impl FromWat for () {
     fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
         match v {
             Value::Unit => Ok(()),
+            // arc 138 slice 3b: span TBD
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "()",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -161,10 +171,12 @@ impl<T: FromWat> FromWat for Option<T> {
                 Some(x) => Ok(Some(T::from_wat(x, op)?)),
                 None => Ok(None),
             },
+            // arc 138 slice 3b: span TBD
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Option",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -194,6 +206,7 @@ macro_rules! impl_tuple_marshaling {
                 match v {
                     Value::Tuple(items) => {
                         if items.len() != $arity {
+                            // arc 138 slice 3b: span TBD
                             return Err(RuntimeError::MalformedForm {
                                 head: op.into(),
                                 reason: format!(
@@ -201,16 +214,19 @@ macro_rules! impl_tuple_marshaling {
                                     $arity,
                                     items.len()
                                 ),
+                                span: $crate::span::Span::unknown(),
                             });
                         }
                         Ok((
                             $( $name::from_wat(&items[$idx], op)?, )+
                         ))
                     }
+                    // arc 138 slice 3b: span TBD
                     other => Err(RuntimeError::TypeMismatch {
                         op: op.into(),
                         expected: "Tuple",
                         got: other.type_name(),
+                        span: $crate::span::Span::unknown(),
                     }),
                 }
             }
@@ -244,10 +260,12 @@ impl<T: FromWat, E: FromWat> FromWat for std::result::Result<T, E> {
                 Ok(inner) => Ok(Ok(T::from_wat(inner, op)?)),
                 Err(inner) => Ok(Err(E::from_wat(inner, op)?)),
             },
+            // arc 138 slice 3b: span TBD
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Result",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -268,10 +286,12 @@ impl<T: FromWat> FromWat for Vec<T> {
                 .iter()
                 .map(|x| T::from_wat(x, op))
                 .collect::<Result<Vec<_>, _>>(),
+            // arc 138 slice 3b: span TBD
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Vec",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -347,18 +367,22 @@ pub fn rust_opaque_arc(
     match v {
         Value::RustOpaque(inner) => {
             if inner.type_path != expected_path {
+                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: expected_path,
                     got: inner.type_path,
+                    span: crate::span::Span::unknown(),
                 });
             }
             Ok(Arc::clone(inner))
         }
+        // arc 138 slice 3b: span TBD
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
             got: other.type_name(),
+            span: crate::span::Span::unknown(),
         }),
     }
 }
@@ -405,6 +429,7 @@ impl<T: Send> ThreadOwnedCell<T> {
 
     fn ensure_owner(&self, op: &'static str) -> Result<(), RuntimeError> {
         if std::thread::current().id() != self.owner {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::MalformedForm {
                 head: op.into(),
                 reason: format!(
@@ -413,6 +438,7 @@ impl<T: Send> ThreadOwnedCell<T> {
                     self.owner,
                     std::thread::current().id()
                 ),
+                span: crate::span::Span::unknown(),
             });
         }
         Ok(())
@@ -492,16 +518,20 @@ impl<T: Send> OwnedMoveCell<T> {
     /// caller receives `RuntimeError::MalformedForm`.
     pub fn take(&self, op: &'static str) -> Result<T, RuntimeError> {
         if self.taken.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::MalformedForm {
                 head: op.into(),
                 reason: "owned-move handle already consumed".into(),
+                span: crate::span::Span::unknown(),
             });
         }
         // Safety: the swap succeeded, so this thread holds exclusive
         // access until the function returns.
+        // arc 138 slice 3b: span TBD
         unsafe { (*self.cell.get()).take() }.ok_or_else(|| RuntimeError::MalformedForm {
             head: op.into(),
             reason: "owned-move handle payload was unexpectedly None".into(),
+            span: crate::span::Span::unknown(),
         })
     }
 }
@@ -516,17 +546,21 @@ pub fn downcast_ref_opaque<'a, T: Any>(
     op: &'static str,
 ) -> Result<&'a T, RuntimeError> {
     if inner.type_path != expected_path {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
             got: inner.type_path,
+            span: crate::span::Span::unknown(),
         });
     }
     inner.payload.downcast_ref::<T>().ok_or_else(|| {
+        // arc 138 slice 3b: span TBD
         RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
             got: "(payload downcast failed — shim author misalignment)",
+            span: crate::span::Span::unknown(),
         }
     })
 }
@@ -705,7 +739,7 @@ mod tests {
         let v = Value::String(Arc::new("not an i64".into()));
         let err = i64::from_wat(&v, ":rust::test::method").unwrap_err();
         match err {
-            RuntimeError::TypeMismatch { op, expected, got } => {
+            RuntimeError::TypeMismatch { op, expected, got, .. } => {
                 assert_eq!(op, ":rust::test::method");
                 assert_eq!(expected, "i64");
                 assert_eq!(got, "String");

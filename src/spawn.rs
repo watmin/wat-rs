@@ -222,10 +222,12 @@ fn spawn_with_world_into_result(
 
 fn arity_2(op: &str, args: &[WatAST]) -> Result<(), RuntimeError> {
     if args.len() != 2 {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 2,
             got: args.len(),
+            span: crate::span::Span::unknown(),
         });
     }
     Ok(())
@@ -234,10 +236,12 @@ fn arity_2(op: &str, args: &[WatAST]) -> Result<(), RuntimeError> {
 fn expect_string(op: &str, v: Value) -> Result<String, RuntimeError> {
     match v {
         Value::String(s) => Ok((*s).clone()),
+        // arc 138 slice 3b: span TBD
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
             got: other.type_name(),
+            span: crate::span::Span::unknown(),
         }),
     }
 }
@@ -246,17 +250,21 @@ fn expect_option_string(op: &str, v: Value) -> Result<Option<String>, RuntimeErr
     match v {
         Value::Option(opt) => match &*opt {
             Some(Value::String(s)) => Ok(Some((**s).clone())),
+            // arc 138 slice 3b: span TBD
             Some(other) => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Option<String>",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             }),
             None => Ok(None),
         },
+        // arc 138 slice 3b: span TBD
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Option<String>",
             got: other.type_name(),
+            span: crate::span::Span::unknown(),
         }),
     }
 }
@@ -269,20 +277,24 @@ fn expect_vec_ast(op: &str, v: Value) -> Result<Vec<WatAST>, RuntimeError> {
                 match item {
                     Value::wat__WatAST(ast) => out.push((**ast).clone()),
                     other => {
+                        // arc 138 slice 3b: span TBD
                         return Err(RuntimeError::TypeMismatch {
                             op: op.into(),
                             expected: "wat::WatAST",
                             got: other.type_name(),
+                            span: crate::span::Span::unknown(),
                         });
                     }
                 }
             }
             Ok(out)
         }
+        // arc 138 slice 3b: span TBD
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Vec<wat::WatAST>",
             got: other.type_name(),
+            span: crate::span::Span::unknown(),
         }),
     }
 }

@@ -87,9 +87,11 @@ pub fn eval_string_split(
     const OP: &str = ":wat::core::string::split";
     let (hay, sep) = two_strings(OP, args, env, sym)?;
     if sep.is_empty() {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
             reason: "separator must not be empty".into(),
+            span: crate::span::Span::unknown(),
         });
     }
     let pieces: Vec<Value> = hay
@@ -110,29 +112,35 @@ pub fn eval_string_join(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::string::join";
     if args.len() != 2 {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
+            span: crate::span::Span::unknown(),
         });
     }
     let sep = match eval(&args[0], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             });
         }
     };
     let pieces = match eval(&args[1], env, sym)? {
         Value::Vec(items) => items,
         other => {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<String>",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             });
         }
     };
@@ -141,10 +149,12 @@ pub fn eval_string_join(
         match item {
             Value::String(s) => pieces_owned.push((**s).clone()),
             other => {
+                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
                     got: other.type_name(),
+                    span: crate::span::Span::unknown(),
                 });
             }
         }
@@ -171,10 +181,12 @@ pub fn eval_string_concat(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::string::concat";
     if args.is_empty() {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: 0,
+            span: crate::span::Span::unknown(),
         });
     }
     let mut total = 0usize;
@@ -186,10 +198,12 @@ pub fn eval_string_concat(
                 pieces.push(s);
             }
             other => {
+                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
                     got: other.type_name(),
+                    span: crate::span::Span::unknown(),
                 });
             }
         }
@@ -216,9 +230,11 @@ pub fn eval_regex_matches(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::regex::matches?";
     let (pattern, haystack) = two_strings(OP, args, env, sym)?;
+    // arc 138 slice 3b: span TBD
     let re = regex::Regex::new(pattern.as_str()).map_err(|e| RuntimeError::MalformedForm {
         head: OP.into(),
         reason: format!("invalid regex: {}", e),
+        span: crate::span::Span::unknown(),
     })?;
     Ok(Value::bool(re.is_match(haystack.as_str())))
 }
@@ -232,18 +248,22 @@ fn one_string(
     sym: &SymbolTable,
 ) -> Result<String, RuntimeError> {
     if args.len() != 1 {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len(),
+            span: crate::span::Span::unknown(),
         });
     }
     match eval(&args[0], env, sym)? {
         Value::String(s) => Ok((*s).clone()),
+        // arc 138 slice 3b: span TBD
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
             got: other.type_name(),
+            span: crate::span::Span::unknown(),
         }),
     }
 }
@@ -255,29 +275,35 @@ fn two_strings(
     sym: &SymbolTable,
 ) -> Result<(String, String), RuntimeError> {
     if args.len() != 2 {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 2,
             got: args.len(),
+            span: crate::span::Span::unknown(),
         });
     }
     let a = match eval(&args[0], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             });
         }
     };
     let b = match eval(&args[1], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             });
         }
     };

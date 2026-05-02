@@ -147,12 +147,16 @@ fn dispatch_auto_prep(
             op: OP.into(),
             expected: 1,
             got: args.len(),
+            // arc 138 slice 3b: span TBD
+            span: wat::span::Span::unknown(),
         });
     }
     let enum_name = eval_keyword(OP, &args[0], env, sym)?;
     let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
         head: OP.into(),
         reason: "no type registry attached to SymbolTable; arc 085 capability missing".into(),
+        // arc 138 slice 3b: span TBD
+        span: wat::span::Span::unknown(),
     })?;
     let enum_def = match types.get(&enum_name) {
         Some(TypeDef::Enum(e)) => e.clone(),
@@ -160,18 +164,24 @@ fn dispatch_auto_prep(
             return Err(RuntimeError::MalformedForm {
                 head: OP.into(),
                 reason: format!("{enum_name} is registered as {:?}, not an enum", other.name()),
+                // arc 138 slice 3b: span TBD
+                span: wat::span::Span::unknown(),
             });
         }
         None => {
             return Err(RuntimeError::MalformedForm {
                 head: OP.into(),
                 reason: format!("no enum declared at {enum_name}"),
+                // arc 138 slice 3b: span TBD
+                span: wat::span::Span::unknown(),
             });
         }
     };
     let schema = derive_schema(&enum_def, types).map_err(|reason| RuntimeError::MalformedForm {
         head: OP.into(),
         reason,
+        // arc 138 slice 3b: span TBD
+        span: wat::span::Span::unknown(),
     })?;
     schemas()
         .write()
@@ -225,6 +235,8 @@ fn dispatch_auto_install(
             op: OP.into(),
             expected: 2,
             got: args.len(),
+            // arc 138 slice 3b: span TBD
+            span: wat::span::Span::unknown(),
         });
     }
     let db_val = eval(&args[0], env, sym)?;
@@ -287,6 +299,8 @@ fn dispatch_auto_dispatch(
             op: OP.into(),
             expected: 3,
             got: args.len(),
+            // arc 138 slice 3b: span TBD
+            span: wat::span::Span::unknown(),
         });
     }
     let db_val = eval(&args[0], env, sym)?;
@@ -302,6 +316,8 @@ fn dispatch_auto_dispatch(
                     "expected an enum value for entry; got {}",
                     entry.type_name()
                 ),
+                // arc 138 slice 3b: span TBD
+                span: wat::span::Span::unknown(),
             });
         }
     };
@@ -312,6 +328,8 @@ fn dispatch_auto_dispatch(
                 "entry type {} doesn't match auto-prep'd enum {enum_name}",
                 ev.type_path
             ),
+            // arc 138 slice 3b: span TBD
+            span: wat::span::Span::unknown(),
         });
     }
     let av = schema.by_variant.get(&ev.variant_name).ok_or_else(|| {
@@ -321,6 +339,8 @@ fn dispatch_auto_dispatch(
                 "no auto-spawn binding for {enum_name}::{} (unit variants are not yet supported)",
                 ev.variant_name
             ),
+            // arc 138 slice 3b: span TBD
+            span: wat::span::Span::unknown(),
         }
     })?;
     if ev.fields.len() != av.field_types.len() {
@@ -333,6 +353,8 @@ fn dispatch_auto_dispatch(
                 av.field_types.len(),
                 ev.fields.len()
             ),
+            // arc 138 slice 3b: span TBD
+            span: wat::span::Span::unknown(),
         });
     }
     let bound: Vec<Box<dyn ToSql>> = ev
@@ -500,6 +522,8 @@ fn value_to_tosql(
                          a HashMap value; got {}",
                         v.type_name()
                     ),
+                    // arc 138 slice 3b: span TBD
+                    span: wat::span::Span::unknown(),
                 });
             }
             let edn = wat::edn_shim::value_to_edn_notag(v, sym.types().map(|a| a.as_ref()));
@@ -517,6 +541,8 @@ fn value_to_tosql(
                      :wat::edn::Tagged / :wat::edn::NoTag newtypes around \
                      HolonAST and :HashMap<K,V>"
                 ),
+                // arc 138 slice 3b: span TBD
+                span: wat::span::Span::unknown(),
             });
         }
     };
@@ -556,6 +582,8 @@ fn value_to_tosql(
                 "{enum_name}::{variant_name}#{idx}: field type {path} doesn't match value {}",
                 v.type_name()
             ),
+            // arc 138 slice 3b: span TBD
+            span: wat::span::Span::unknown(),
         }),
     }
 }
@@ -577,6 +605,8 @@ fn extract_holon_field(
             "{enum_name}::{variant_name}#{idx}: {} value has no inner field",
             s.type_name
         ),
+        // arc 138 slice 3b: span TBD
+        span: wat::span::Span::unknown(),
     })?;
     match f0 {
         Value::holon__HolonAST(h) => Ok(h.clone()),
@@ -587,6 +617,8 @@ fn extract_holon_field(
                 s.type_name,
                 other.type_name()
             ),
+            // arc 138 slice 3b: span TBD
+            span: wat::span::Span::unknown(),
         }),
     }
 }
@@ -602,6 +634,8 @@ fn lookup_schema(op: &str, enum_name: &str) -> Result<Arc<AutoSchema>, RuntimeEr
             reason: format!(
                 "no auto-spawn schemas cached for {enum_name}; was :rust::sqlite::auto-prep called?"
             ),
+            // arc 138 slice 3b: span TBD
+            span: wat::span::Span::unknown(),
         })
 }
 
@@ -618,6 +652,8 @@ fn eval_keyword(
             op: op.into(),
             expected: ":wat::core::keyword",
             got: other.type_name(),
+            // arc 138 slice 3b: span TBD
+            span: wat::span::Span::unknown(),
         }),
     }
 }

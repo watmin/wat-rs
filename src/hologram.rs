@@ -155,12 +155,14 @@ impl Hologram {
                 let pass_b = match pass {
                     Value::bool(b) => b,
                     other => {
+                        // arc 138 slice 3b: span TBD
                         return Err(RuntimeError::MalformedForm {
                             head: ":wat::holon::Hologram/find".into(),
                             reason: format!(
                                 "filter returned non-bool: {}",
                                 other.type_name()
                             ),
+                            span: crate::span::Span::unknown(),
                         })
                     }
                 };

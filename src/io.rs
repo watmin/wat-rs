@@ -115,9 +115,11 @@ impl WatReader for RealStdin {
                 buf.truncate(k);
                 Ok(Some(buf))
             }
+            // arc 138 slice 3b: span TBD
             Err(e) => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::read".into(),
                 reason: format!("stdin read: {}", e),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -126,9 +128,11 @@ impl WatReader for RealStdin {
         use std::io::Read;
         let mut buf = Vec::new();
         let mut guard = self.inner.lock();
+        // arc 138 slice 3b: span TBD
         guard.read_to_end(&mut buf).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::read-all".into(),
             reason: format!("stdin read: {}", e),
+            span: crate::span::Span::unknown(),
         })?;
         Ok(buf)
     }
@@ -148,9 +152,11 @@ impl WatReader for RealStdin {
                 }
                 Ok(Some(buf))
             }
+            // arc 138 slice 3b: span TBD
             Err(e) => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::read-line".into(),
                 reason: format!("stdin read-line: {}", e),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -180,27 +186,33 @@ impl WatWriter for RealStdout {
     fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
+        // arc 138 slice 3b: span TBD
         guard.write(bytes).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::write".into(),
             reason: format!("stdout write: {}", e),
+            span: crate::span::Span::unknown(),
         })
     }
 
     fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
+        // arc 138 slice 3b: span TBD
         guard.write_all(bytes).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::write-all".into(),
             reason: format!("stdout write-all: {}", e),
+            span: crate::span::Span::unknown(),
         })
     }
 
     fn flush(&self) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
+        // arc 138 slice 3b: span TBD
         guard.flush().map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::flush".into(),
             reason: format!("stdout flush: {}", e),
+            span: crate::span::Span::unknown(),
         })
     }
 }
@@ -221,27 +233,33 @@ impl WatWriter for RealStderr {
     fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
+        // arc 138 slice 3b: span TBD
         guard.write(bytes).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::write".into(),
             reason: format!("stderr write: {}", e),
+            span: crate::span::Span::unknown(),
         })
     }
 
     fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
+        // arc 138 slice 3b: span TBD
         guard.write_all(bytes).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::write-all".into(),
             reason: format!("stderr write-all: {}", e),
+            span: crate::span::Span::unknown(),
         })
     }
 
     fn flush(&self) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
+        // arc 138 slice 3b: span TBD
         guard.flush().map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::flush".into(),
             reason: format!("stderr flush: {}", e),
+            span: crate::span::Span::unknown(),
         })
     }
 }
@@ -324,9 +342,11 @@ impl WatReader for StringIoReader {
                 }
                 match String::from_utf8(b) {
                     Ok(s) => Ok(Some(s)),
+                    // arc 138 slice 3b: span TBD
                     Err(e) => Err(RuntimeError::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e),
+                        span: crate::span::Span::unknown(),
                     }),
                 }
             }
@@ -456,9 +476,11 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
+                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::read".into(),
                     reason: format!("pipe read: {}", err),
+                    span: crate::span::Span::unknown(),
                 });
             }
             if ret == 0 {
@@ -485,9 +507,11 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
+                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::read-all".into(),
                     reason: format!("pipe read: {}", err),
+                    span: crate::span::Span::unknown(),
                 });
             }
             if ret == 0 {
@@ -513,9 +537,11 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
+                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::read-line".into(),
                     reason: format!("pipe read: {}", err),
+                    span: crate::span::Span::unknown(),
                 });
             }
             if ret == 0 {
@@ -527,9 +553,11 @@ impl WatReader for PipeReader {
                 }
                 return String::from_utf8(bytes)
                     .map(Some)
+                    // arc 138 slice 3b: span TBD
                     .map_err(|e| RuntimeError::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e),
+                        span: crate::span::Span::unknown(),
                     });
             }
             if one[0] == b'\n' {
@@ -538,9 +566,11 @@ impl WatReader for PipeReader {
                 }
                 return String::from_utf8(bytes)
                     .map(Some)
+                    // arc 138 slice 3b: span TBD
                     .map_err(|e| RuntimeError::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e),
+                        span: crate::span::Span::unknown(),
                     });
             }
             bytes.push(one[0]);
@@ -548,9 +578,11 @@ impl WatReader for PipeReader {
     }
 
     fn rewind(&self) -> Result<(), RuntimeError> {
+        // arc 138 slice 3b: span TBD
         Err(RuntimeError::MalformedForm {
             head: ":wat::io::rewind".into(),
             reason: "pipe fds are not rewindable".into(),
+            span: crate::span::Span::unknown(),
         })
     }
 }
@@ -599,9 +631,11 @@ impl WatWriter for PipeWriter {
         loop {
             let raw = self.fd.load(Ordering::SeqCst);
             if raw < 0 {
+                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::write".into(),
                     reason: "pipe write: writer is closed".into(),
+                    span: crate::span::Span::unknown(),
                 });
             }
             let ret = unsafe {
@@ -612,9 +646,11 @@ impl WatWriter for PipeWriter {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
+                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::write".into(),
                     reason: format!("pipe write: {}", err),
+                    span: crate::span::Span::unknown(),
                 });
             }
             return Ok(ret as usize);
@@ -626,9 +662,11 @@ impl WatWriter for PipeWriter {
         while !remaining.is_empty() {
             let n = self.write(remaining)?;
             if n == 0 {
+                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::write-all".into(),
                     reason: "pipe write returned 0 bytes".into(),
+                    span: crate::span::Span::unknown(),
                 });
             }
             remaining = &remaining[n..];
@@ -664,10 +702,12 @@ impl WatWriter for PipeWriter {
 
 fn arity(op: &str, args: &[WatAST], n: usize) -> Result<(), RuntimeError> {
     if args.len() != n {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: n,
             got: args.len(),
+            span: crate::span::Span::unknown(),
         });
     }
     Ok(())
@@ -676,10 +716,12 @@ fn arity(op: &str, args: &[WatAST], n: usize) -> Result<(), RuntimeError> {
 fn expect_reader(op: &str, v: Value) -> Result<Arc<dyn WatReader>, RuntimeError> {
     match v {
         Value::io__IOReader(r) => Ok(r),
+        // arc 138 slice 3b: span TBD
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOReader",
             got: other.type_name(),
+            span: crate::span::Span::unknown(),
         }),
     }
 }
@@ -687,10 +729,12 @@ fn expect_reader(op: &str, v: Value) -> Result<Arc<dyn WatReader>, RuntimeError>
 fn expect_writer(op: &str, v: Value) -> Result<Arc<dyn WatWriter>, RuntimeError> {
     match v {
         Value::io__IOWriter(w) => Ok(w),
+        // arc 138 slice 3b: span TBD
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOWriter",
             got: other.type_name(),
+            span: crate::span::Span::unknown(),
         }),
     }
 }
@@ -698,10 +742,12 @@ fn expect_writer(op: &str, v: Value) -> Result<Arc<dyn WatWriter>, RuntimeError>
 fn expect_i64(op: &str, v: Value) -> Result<i64, RuntimeError> {
     match v {
         Value::i64(n) => Ok(n),
+        // arc 138 slice 3b: span TBD
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "i64",
             got: other.type_name(),
+            span: crate::span::Span::unknown(),
         }),
     }
 }
@@ -709,10 +755,12 @@ fn expect_i64(op: &str, v: Value) -> Result<i64, RuntimeError> {
 fn expect_string(op: &str, v: Value) -> Result<Arc<String>, RuntimeError> {
     match v {
         Value::String(s) => Ok(s),
+        // arc 138 slice 3b: span TBD
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
             got: other.type_name(),
+            span: crate::span::Span::unknown(),
         }),
     }
 }
@@ -725,10 +773,12 @@ fn expect_vec_u8(op: &str, v: Value) -> Result<Vec<u8>, RuntimeError> {
                 match item {
                     Value::u8(b) => out.push(*b),
                     other => {
+                        // arc 138 slice 3b: span TBD
                         return Err(RuntimeError::TypeMismatch {
                             op: op.into(),
                             expected: "u8",
                             got: other.type_name(),
+                            span: crate::span::Span::unknown(),
                         });
                     }
                 }
@@ -736,10 +786,12 @@ fn expect_vec_u8(op: &str, v: Value) -> Result<Vec<u8>, RuntimeError> {
             }
             Ok(out)
         }
+        // arc 138 slice 3b: span TBD
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Vec<u8>",
             got: other.type_name(),
+            span: crate::span::Span::unknown(),
         }),
     }
 }
@@ -789,9 +841,11 @@ pub fn eval_ioreader_read(
     let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
     let n = expect_i64(op, eval(&args[1], env, sym)?)?;
     if n < 0 {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::MalformedForm {
             head: op.into(),
             reason: format!("negative byte count: {}", n),
+            span: crate::span::Span::unknown(),
         });
     }
     let result = reader.read(n as usize)?;
@@ -877,10 +931,12 @@ pub fn eval_iowriter_open_file(
     let path = match crate::runtime::eval(&args[0], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: ":String",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             });
         }
     };
@@ -942,10 +998,12 @@ fn snapshot_writer(
     // Simplest: extend WatWriter with an optional `snapshot` method
     // that defaults to returning NotSupported. StringIoWriter
     // overrides.
+    // arc 138 slice 3b: span TBD
     writer.snapshot().ok_or_else(|| RuntimeError::MalformedForm {
         head: op.into(),
         reason: "writer does not support snapshot (only StringIoWriter does)"
             .into(),
+        span: crate::span::Span::unknown(),
     })
 }
 
@@ -1113,9 +1171,11 @@ pub fn eval_kernel_pipe(args: &[WatAST]) -> Result<Value, RuntimeError> {
     let ret = unsafe { libc::pipe(fds.as_mut_ptr()) };
     if ret != 0 {
         let err = std::io::Error::last_os_error();
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::MalformedForm {
             head: op.into(),
             reason: format!("pipe(2) syscall failed: {}", err),
+            span: crate::span::Span::unknown(),
         });
     }
     // SAFETY: libc::pipe returned 0, so fds[0] (read) and fds[1]
@@ -1170,9 +1230,11 @@ impl WatTempFile {
     pub fn new() -> Result<Self, RuntimeError> {
         match NamedTempFile::new() {
             Ok(f) => Ok(Self { inner: Some(f) }),
+            // arc 138 slice 3b: span TBD
             Err(e) => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::TempFile/new".into(),
                 reason: format!("create temp file: {e}"),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -1180,9 +1242,11 @@ impl WatTempFile {
     pub fn path(&self) -> Result<String, RuntimeError> {
         match &self.inner {
             Some(f) => Ok(f.path().display().to_string()),
+            // arc 138 slice 3b: span TBD
             None => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::TempFile/path".into(),
                 reason: "TempFile already dropped".into(),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -1198,9 +1262,11 @@ impl WatTempDir {
     pub fn new() -> Result<Self, RuntimeError> {
         match TempDir::new() {
             Ok(d) => Ok(Self { inner: Some(d) }),
+            // arc 138 slice 3b: span TBD
             Err(e) => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::TempDir/new".into(),
                 reason: format!("create temp dir: {e}"),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -1208,9 +1274,11 @@ impl WatTempDir {
     pub fn path(&self) -> Result<String, RuntimeError> {
         match &self.inner {
             Some(d) => Ok(d.path().display().to_string()),
+            // arc 138 slice 3b: span TBD
             None => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::TempDir/path".into(),
                 reason: "TempDir already dropped".into(),
+                span: crate::span::Span::unknown(),
             }),
         }
     }
@@ -1298,16 +1366,20 @@ pub fn eval_io_read_file(
     let op = ":wat::io::read-file";
     arity(op, args, 1)?;
     let path = expect_string(op, eval(&args[0], env, sym)?)?;
+    // arc 138 slice 3b: span TBD
     let loader = sym.source_loader().ok_or_else(|| RuntimeError::MalformedForm {
         head: op.into(),
         reason: "no SourceLoader attached to SymbolTable; \
                  the host must provide one (FsLoader / ScopedLoader / InMemoryLoader)"
             .into(),
+        span: crate::span::Span::unknown(),
     })?;
     let loaded = loader.fetch_source_file(&path, None).map_err(|e| {
+        // arc 138 slice 3b: span TBD
         RuntimeError::MalformedForm {
             head: op.into(),
             reason: format!("loader fetch_source_file({path:?}): {e}"),
+            span: crate::span::Span::unknown(),
         }
     })?;
     Ok(Value::String(Arc::new(loaded.source)))

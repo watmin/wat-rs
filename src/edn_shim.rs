@@ -100,10 +100,12 @@ fn require_one_arg(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len(),
+            span: crate::span::Span::unknown(),
         });
     }
     eval(&args[0], env, sym)
@@ -179,21 +181,27 @@ pub fn eval_edn_read(
     let s = match &v {
         Value::String(s) => (**s).clone(),
         other => {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: ":String",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             });
         }
     };
+    // arc 138 slice 3b: span TBD
     let edn = wat_edn::parse_owned(&s).map_err(|e| RuntimeError::MalformedForm {
         head: OP.into(),
         reason: format!("EDN parse error: {e}"),
+        span: crate::span::Span::unknown(),
     })?;
     edn_to_value(&edn, sym.types().map(|a| a.as_ref())).map_err(|e| {
+        // arc 138 slice 3b: span TBD
         RuntimeError::MalformedForm {
             head: OP.into(),
             reason: e.to_string(),
+            span: crate::span::Span::unknown(),
         }
     })
 }

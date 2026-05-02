@@ -262,19 +262,23 @@ pub fn eval_kernel_wait_child(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::wait-child";
     if args.len() != 1 {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
+            span: crate::span::Span::unknown(),
         });
     }
     let handle = match eval(&args[0], env, sym)? {
         Value::wat__kernel__ChildHandle(h) => h,
         other => {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::kernel::ChildHandle",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             });
         }
     };
@@ -291,9 +295,11 @@ pub fn eval_kernel_wait_child(
     let ret = unsafe { libc::waitpid(handle.pid, &mut status, 0) };
     if ret < 0 {
         let err = std::io::Error::last_os_error();
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
             reason: format!("waitpid({}): {}", handle.pid, err),
+            span: crate::span::Span::unknown(),
         });
     }
 
@@ -312,9 +318,11 @@ pub(crate) fn make_pipe(op: &str) -> Result<(OwnedFd, OwnedFd), RuntimeError> {
     let ret = unsafe { libc::pipe(fds.as_mut_ptr()) };
     if ret != 0 {
         let err = std::io::Error::last_os_error();
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::MalformedForm {
             head: op.into(),
             reason: format!("pipe(2): {}", err),
+            span: crate::span::Span::unknown(),
         });
     }
     let r = unsafe { OwnedFd::from_raw_fd(fds[0]) };
@@ -422,10 +430,12 @@ pub fn eval_kernel_fork_program_ast(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::fork-program-ast";
     if args.len() != 1 {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
+            span: crate::span::Span::unknown(),
         });
     }
 
@@ -438,10 +448,12 @@ pub fn eval_kernel_fork_program_ast(
                 match item {
                     Value::wat__WatAST(ast) => out.push((**ast).clone()),
                     other => {
+                        // arc 138 slice 3b: span TBD
                         return Err(RuntimeError::TypeMismatch {
                             op: OP.into(),
                             expected: "wat::WatAST",
                             got: other.type_name(),
+                            span: crate::span::Span::unknown(),
                         });
                     }
                 }
@@ -449,10 +461,12 @@ pub fn eval_kernel_fork_program_ast(
             out
         }
         other => {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<wat::WatAST>",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             });
         }
     };
@@ -481,9 +495,11 @@ pub fn eval_kernel_fork_program_ast(
     let pid = unsafe { libc::fork() };
     if pid < 0 {
         let err = std::io::Error::last_os_error();
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
             reason: format!("fork(2): {}", err),
+            span: crate::span::Span::unknown(),
         });
     }
 
@@ -729,9 +745,11 @@ pub fn fork_program_from_source(
     let pid = unsafe { libc::fork() };
     if pid < 0 {
         let err = std::io::Error::last_os_error();
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
             reason: format!("fork(2): {}", err),
+            span: crate::span::Span::unknown(),
         });
     }
 
@@ -778,20 +796,24 @@ pub fn eval_kernel_fork_program(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::fork-program";
     if args.len() != 2 {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
+            span: crate::span::Span::unknown(),
         });
     }
 
     let src = match eval(&args[0], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             });
         }
     };
@@ -800,19 +822,23 @@ pub fn eval_kernel_fork_program(
         Value::Option(opt) => match &*opt {
             Some(Value::String(s)) => Some((**s).clone()),
             Some(other) => {
+                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "Option<String>",
                     got: other.type_name(),
+                    span: crate::span::Span::unknown(),
                 });
             }
             None => None,
         },
         other => {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Option<String>",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             });
         }
     };
@@ -825,9 +851,11 @@ pub fn eval_kernel_fork_program(
     //   :Some path  → ScopedLoader rooted at canonical-of-path
     let loader: Arc<dyn SourceLoader> = match scope_opt.as_deref() {
         Some(path) => {
+            // arc 138 slice 3b: span TBD
             let scoped = ScopedLoader::new(path).map_err(|e| RuntimeError::MalformedForm {
                 head: OP.into(),
                 reason: format!("scope path {:?}: {}", path, e),
+                span: crate::span::Span::unknown(),
             })?;
             Arc::new(scoped)
         }

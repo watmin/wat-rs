@@ -111,6 +111,8 @@ fn parse_time_constraints(
                 op: op.into(),
                 expected: ":Vec<wat::telemetry::TimeConstraint>",
                 got: other.type_name(),
+                // arc 138 slice 3b: span TBD
+                span: wat::span::Span::unknown(),
             });
         }
     };
@@ -124,6 +126,8 @@ fn parse_time_constraints(
                     op: op.into(),
                     expected: ":wat::telemetry::TimeConstraint",
                     got: other.type_name(),
+                    // arc 138 slice 3b: span TBD
+                    span: wat::span::Span::unknown(),
                 });
             }
         };
@@ -136,6 +140,8 @@ fn parse_time_constraints(
                         "TimeConstraint::{} at index {idx} missing Instant field",
                         ev.variant_name
                     ),
+                    // arc 138 slice 3b: span TBD
+                    span: wat::span::Span::unknown(),
                 });
             }
         };
@@ -146,6 +152,8 @@ fn parse_time_constraints(
                     "TimeConstraint::{} at index {idx}: Instant out of i64-nanos range",
                     ev.variant_name
                 ),
+                // arc 138 slice 3b: span TBD
+                span: wat::span::Span::unknown(),
             }
         })?;
         let placeholder_idx = params.len() + 1;
@@ -158,6 +166,8 @@ fn parse_time_constraints(
                     reason: format!(
                         "TimeConstraint variant {other}: only Since / Until are recognized"
                     ),
+                    // arc 138 slice 3b: span TBD
+                    span: wat::span::Span::unknown(),
                 });
             }
         }
@@ -692,6 +702,8 @@ fn eval_handle_and_constraints(
             op: op.into(),
             expected: 2,
             got: args.len(),
+            // arc 138 slice 3b: span TBD
+            span: wat::span::Span::unknown(),
         });
     }
     let handle_val = eval(&args[0], env, sym)?;
@@ -750,6 +762,8 @@ fn with_cursor_step<C: Send + Sync + 'static>(
             op: op.into(),
             expected: 1,
             got: args.len(),
+            // arc 138 slice 3b: span TBD
+            span: wat::span::Span::unknown(),
         });
     }
     let cur_val = eval(&args[0], env, sym)?;

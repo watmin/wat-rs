@@ -147,6 +147,8 @@ fn emit_dispatch_fn(
                 op: #wat_path.into(),
                 expected: #arity,
                 got: args.len(),
+                // arc 138 slice 3b: span TBD — proc-macro emit site
+                span: ::wat::span::Span::unknown(),
             });
         }
     };

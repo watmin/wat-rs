@@ -89,20 +89,24 @@ pub fn eval_kernel_assertion_failed(
     const OP: &str = ":wat::kernel::assertion-failed!";
 
     if args.len() != 3 {
+        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 3,
             got: args.len(),
+            span: crate::span::Span::unknown(),
         });
     }
 
     let message = match eval(&args[0], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
+            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             });
         }
     };
@@ -143,16 +147,20 @@ fn eval_opt_string(op: &str, v: Value) -> Result<Option<String>, RuntimeError> {
         Value::Option(opt) => match &*opt {
             None => Ok(None),
             Some(Value::String(s)) => Ok(Some((**s).clone())),
+            // arc 138 slice 3b: span TBD
             Some(other) => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Option<String>",
                 got: other.type_name(),
+                span: crate::span::Span::unknown(),
             }),
         },
+        // arc 138 slice 3b: span TBD
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Option<String>",
             got: other.type_name(),
+            span: crate::span::Span::unknown(),
         }),
     }
 }
