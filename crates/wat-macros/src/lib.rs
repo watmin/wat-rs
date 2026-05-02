@@ -644,78 +644,32 @@ pub fn test(input: TokenStream) -> TokenStream {
             let register_paths = register_paths.clone();
             let loader_root_local = loader_root.clone();
 
-            // Arc 123 — when :time-limit is set, wrap the body in a
-            // thread::spawn + recv_timeout. recv_timeout::Err panics
-            // with the timeout message; cargo sees the test failed.
-            // The runaway worker thread leaks (Rust threads cannot be
-            // killed safely from outside) — process exit reaps it.
-            // Honest in the panic message.
-            let body = if let Some(ms) = site.time_limit_ms {
-                let timeout_msg = format!(
-                    "{}: exceeded time-limit of {}ms (test thread leaked — process exit will reap)",
-                    fn_name, ms,
-                );
-                quote! {
-                    let (__wat_tx, __wat_rx) = ::std::sync::mpsc::channel::<()>();
-                    // Arc 129 — keep the JoinHandle so we can recover the
-                    // panic payload if the inner thread terminates by
-                    // unwinding (and thereby drops the sender, signalling
-                    // Disconnected to recv_timeout below).
-                    let __wat_handle = ::std::thread::spawn(move || {
-                        let __wat_loader_root: &'static str = #loader_root_local;
-                        let __wat_loader: ::std::sync::Arc<
-                            dyn ::wat::load::SourceLoader,
-                        > = ::std::sync::Arc::new(
-                            ::wat::load::ScopedLoader::new(__wat_loader_root)
-                                .expect("wat::test! loader path must exist"),
-                        );
-                        ::wat::test_runner::run_single_deftest(
-                            ::std::path::Path::new(#file_path_str),
-                            #deftest_name,
-                            &[ #(#stdlib_calls),* ],
-                            &[ #(#register_paths),* ],
-                            __wat_loader,
-                        );
-                        let _ = __wat_tx.send(());
-                    });
-                    match __wat_rx.recv_timeout(::std::time::Duration::from_millis(#ms)) {
-                        Ok(_) => {}
-                        Err(::std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                            // Real timeout: inner thread is still running.
-                            // We can't safely kill a Rust thread from
-                            // outside; the runaway worker leaks until
-                            // process exit. Synthesized message preserves
-                            // arc-123's existing UX.
-                            panic!(#timeout_msg);
-                        }
-                        Err(::std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                            // Inner thread terminated before sending.
-                            // Either it completed normally and the send
-                            // failed silently (rare; defensive case
-                            // below), or it panicked and the sender was
-                            // dropped during unwind. Join the handle to
-                            // capture the panic payload, then re-raise so
-                            // the parent's panic message IS the inner
-                            // panic's message verbatim — preserving any
-                            // substring (assertion text, arc-126's
-                            // `channel-pair-deadlock`, etc.) that
-                            // `#[should_panic(expected = "...")]` matches
-                            // against.
-                            match __wat_handle.join() {
-                                Ok(()) => {
-                                    // Thread completed cleanly but didn't
-                                    // send. Defensive: treat as timeout.
-                                    panic!(#timeout_msg);
-                                }
-                                Err(payload) => {
-                                    ::std::panic::resume_unwind(payload);
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                quote! {
+            // Arc 132 — every deftest gets the thread-spawn +
+            // recv_timeout wrapper at proc-macro emission. Default
+            // budget is `DEFAULT_TIME_LIMIT_MS` (200ms); explicit
+            // `:wat::test::time-limit "<dur>"` annotations override
+            // per-test via `unwrap_or`. Belt-and-suspenders for the
+            // deadlock-class chain (arcs 117 / 126 / 131 catch
+            // structural patterns at compile time; arc 132 catches
+            // everything else at runtime). Wrapper shape preserves
+            // arc 129's split-arms (Timeout panic + Disconnected →
+            // join + resume_unwind) so `:should-panic` substring
+            // matching composes uniformly across every deftest.
+            // The runaway worker thread leaks (Rust threads cannot
+            // be killed safely from outside) — process exit reaps it.
+            const DEFAULT_TIME_LIMIT_MS: u64 = 200;
+            let ms = site.time_limit_ms.unwrap_or(DEFAULT_TIME_LIMIT_MS);
+            let timeout_msg = format!(
+                "{}: exceeded time-limit of {}ms (test thread leaked — process exit will reap)",
+                fn_name, ms,
+            );
+            let body = quote! {
+                let (__wat_tx, __wat_rx) = ::std::sync::mpsc::channel::<()>();
+                // Arc 129 — keep the JoinHandle so we can recover the
+                // panic payload if the inner thread terminates by
+                // unwinding (and thereby drops the sender, signalling
+                // Disconnected to recv_timeout below).
+                let __wat_handle = ::std::thread::spawn(move || {
                     let __wat_loader_root: &'static str = #loader_root_local;
                     let __wat_loader: ::std::sync::Arc<
                         dyn ::wat::load::SourceLoader,
@@ -730,6 +684,42 @@ pub fn test(input: TokenStream) -> TokenStream {
                         &[ #(#register_paths),* ],
                         __wat_loader,
                     );
+                    let _ = __wat_tx.send(());
+                });
+                match __wat_rx.recv_timeout(::std::time::Duration::from_millis(#ms)) {
+                    Ok(_) => {}
+                    Err(::std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                        // Real timeout: inner thread is still running.
+                        // We can't safely kill a Rust thread from
+                        // outside; the runaway worker leaks until
+                        // process exit. Synthesized message preserves
+                        // arc-123's existing UX.
+                        panic!(#timeout_msg);
+                    }
+                    Err(::std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                        // Inner thread terminated before sending.
+                        // Either it completed normally and the send
+                        // failed silently (rare; defensive case
+                        // below), or it panicked and the sender was
+                        // dropped during unwind. Join the handle to
+                        // capture the panic payload, then re-raise so
+                        // the parent's panic message IS the inner
+                        // panic's message verbatim — preserving any
+                        // substring (assertion text, arc-126's
+                        // `channel-pair-deadlock`, etc.) that
+                        // `#[should_panic(expected = "...")]` matches
+                        // against.
+                        match __wat_handle.join() {
+                            Ok(()) => {
+                                // Thread completed cleanly but didn't
+                                // send. Defensive: treat as timeout.
+                                panic!(#timeout_msg);
+                            }
+                            Err(payload) => {
+                                ::std::panic::resume_unwind(payload);
+                            }
+                        }
+                    }
                 }
             };
 

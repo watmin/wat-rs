@@ -87,6 +87,15 @@
 
 ;; Round-trip the three Log rows through writer + reader with
 ;; an empty constraint vec (full-table scan).
+;;
+;; Arc 132 — explicit override of the default 200ms budget. This
+;; test spawns a sqlite-writer thread, opens the .db, streams rows
+;; back through a producer thread, and joins both. The combined
+;; thread-spawn + sqlite I/O latency exceeds 200ms in practice; 2s
+;; is generous headroom for CI noise while still catching genuine
+;; deadlocks. Same rationale applies to the five reader tests
+;; below.
+(:wat::test::time-limit "2s")
 (:deftest :wat-telemetry-sqlite::reader::test-roundtrip-three-logs
   (:wat::core::let*
     (;; Phase 1 — write fixture. Auto-deleting TempFile so the
@@ -117,6 +126,7 @@
 ;; Slice 2 — verify the WHERE pushdown actually narrows. Fixture
 ;; rows have time_ns ∈ {1000, 2000, 3000}; a Since cutoff at 2000
 ;; should yield only the {2000, 3000} pair.
+(:wat::test::time-limit "2s")
 (:deftest :wat-telemetry-sqlite::reader::test-since-narrowing
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
@@ -144,6 +154,7 @@
 
 
 ;; Slice 2 — Until cutoff drops the newer rows.
+(:wat::test::time-limit "2s")
 (:deftest :wat-telemetry-sqlite::reader::test-until-narrowing
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
@@ -169,6 +180,7 @@
 
 
 ;; Slice 2 — Since AND Until compose to a window.
+(:wat::test::time-limit "2s")
 (:deftest :wat-telemetry-sqlite::reader::test-since-and-until-window
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
@@ -199,6 +211,7 @@
 ;; event. The fixture writes data via `(:leaf msg)` for each
 ;; row; data-ast unwraps it back to a HolonAST::String leaf;
 ;; atom-value extracts the original message string.
+(:wat::test::time-limit "2s")
 (:deftest :wat-telemetry-sqlite::reader::test-data-ast-extracts-holon
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
@@ -234,6 +247,7 @@
 ;; Slice 3 — data-value<:wat::core::String> lifts the Tagged AST to a bare
 ;; String via eval-ast!. Same fixture as data-ast, but skips the
 ;; explicit atom-value step — the lift goes straight to T.
+(:wat::test::time-limit "2s")
 (:deftest :wat-telemetry-sqlite::reader::test-data-value-lifts-string
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
