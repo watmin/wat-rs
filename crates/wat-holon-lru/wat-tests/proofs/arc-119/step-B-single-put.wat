@@ -24,10 +24,7 @@
 (:wat::test::time-limit "200ms")
 (:wat::test::deftest :wat-tests::holon::lru::proofs::arc_119::step_B_single_put
   ()
-  ;; COMPLECTENS EXEMPT: outer let* has 1 binding (driver) + final match. The nested
-  ;; inner let* IS the proof's content — each allocation is a deliberate stepping-stone
-  ;; assertion; collapsing it further would destroy the proof structure this file exists
-  ;; to document. Visual line count is the proof's inherent complexity, not accidental.
+  ;; rune:complectens(proof-stepping-stones) — outer let* has 1 binding (driver) + final match; the nested inner let* IS the proof's content — each allocation is a deliberate stepping-stone assertion; collapsing it further would destroy the proof structure this file exists to document. Visual line count is the proof's inherent complexity, not accidental.
   (:wat::core::let*
     ;; Outer holds the driver Thread; inner owns everything else.
     (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
