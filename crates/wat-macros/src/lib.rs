@@ -669,7 +669,9 @@ pub fn test(input: TokenStream) -> TokenStream {
                 // panic payload if the inner thread terminates by
                 // unwinding (and thereby drops the sender, signalling
                 // Disconnected to recv_timeout below).
-                let __wat_handle = ::std::thread::spawn(move || {
+                let __wat_handle = ::std::thread::Builder::new()
+                    .name(format!("wat-test::{}", #deftest_name))
+                    .spawn(move || {
                     let __wat_loader_root: &'static str = #loader_root_local;
                     let __wat_loader: ::std::sync::Arc<
                         dyn ::wat::load::SourceLoader,
@@ -685,7 +687,7 @@ pub fn test(input: TokenStream) -> TokenStream {
                         __wat_loader,
                     );
                     let _ = __wat_tx.send(());
-                });
+                }).expect("Thread::Builder::spawn failed");
                 match __wat_rx.recv_timeout(::std::time::Duration::from_millis(#ms)) {
                     Ok(_) => {}
                     Err(::std::sync::mpsc::RecvTimeoutError::Timeout) => {
