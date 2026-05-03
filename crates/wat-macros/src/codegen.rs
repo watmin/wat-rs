@@ -165,6 +165,7 @@ fn emit_dispatch_fn(
                 let #bind_ident: #ty = <#ty as ::wat::rust_deps::FromWat>::from_wat(
                     &::wat::runtime::eval(&args[#idx], env, sym)?,
                     #wat_path,
+                    args[#idx].span().clone(),
                 )?;
             })
         })

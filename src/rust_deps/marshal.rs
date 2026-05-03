@@ -31,6 +31,7 @@ use std::any::Any;
 use std::sync::Arc;
 
 use crate::runtime::{RuntimeError, Value};
+use crate::span::Span;
 
 /// Convert a Rust value into a wat [`Value`]. Used by shim dispatch
 /// fns when marshaling a method's return to wat.
@@ -42,9 +43,11 @@ pub trait ToWat {
 /// fns when marshaling wat arguments into Rust method params.
 ///
 /// The `op` parameter names the wat-level operation so error messages
-/// can point the user at the exact call site.
+/// can point the user at the exact call site. The `span` parameter
+/// carries the source location of the original call-site AST node so
+/// that type-mismatch errors surface with file:line:col coordinates.
 pub trait FromWat: Sized {
-    fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError>;
+    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError>;
 }
 
 // ─── Primitive impls ─────────────────────────────────────────────────
@@ -56,15 +59,14 @@ impl ToWat for i64 {
 }
 
 impl FromWat for i64 {
-    fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
         match v {
             Value::i64(n) => Ok(*n),
-            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "i64",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span, // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -77,15 +79,14 @@ impl ToWat for f64 {
 }
 
 impl FromWat for f64 {
-    fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
         match v {
             Value::f64(x) => Ok(*x),
-            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "f64",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span, // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -98,15 +99,14 @@ impl ToWat for bool {
 }
 
 impl FromWat for bool {
-    fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
         match v {
             Value::bool(b) => Ok(*b),
-            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "bool",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span, // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -119,15 +119,14 @@ impl ToWat for String {
 }
 
 impl FromWat for String {
-    fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
         match v {
             Value::String(s) => Ok((**s).clone()),
-            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span, // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -142,15 +141,14 @@ impl ToWat for () {
 }
 
 impl FromWat for () {
-    fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
         match v {
             Value::Unit => Ok(()),
-            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "()",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span, // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -165,18 +163,17 @@ impl<T: ToWat> ToWat for Option<T> {
 }
 
 impl<T: FromWat> FromWat for Option<T> {
-    fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
         match v {
             Value::Option(inner) => match inner.as_ref() {
-                Some(x) => Ok(Some(T::from_wat(x, op)?)),
+                Some(x) => Ok(Some(T::from_wat(x, op, span.clone())?)),
                 None => Ok(None),
             },
-            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Option",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span, // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -202,11 +199,10 @@ macro_rules! impl_tuple_marshaling {
         }
 
         impl<$( $name: FromWat ),+> FromWat for ( $( $name, )+ ) {
-            fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
+            fn from_wat(v: &Value, op: &'static str, span: $crate::span::Span) -> Result<Self, RuntimeError> {
                 match v {
                     Value::Tuple(items) => {
                         if items.len() != $arity {
-                            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
                             return Err(RuntimeError::MalformedForm {
                                 head: op.into(),
                                 reason: format!(
@@ -214,19 +210,18 @@ macro_rules! impl_tuple_marshaling {
                                     $arity,
                                     items.len()
                                 ),
-                                span: $crate::span::Span::unknown(),
+                                span: span.clone(), // arc 138 F4b: real span threaded through
                             });
                         }
                         Ok((
-                            $( $name::from_wat(&items[$idx], op)?, )+
+                            $( $name::from_wat(&items[$idx], op, span.clone())?, )+
                         ))
                     }
-                    // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
                     other => Err(RuntimeError::TypeMismatch {
                         op: op.into(),
                         expected: "Tuple",
                         got: other.type_name(),
-                        span: $crate::span::Span::unknown(),
+                        span, // arc 138 F4b: real span threaded through
                     }),
                 }
             }
@@ -254,18 +249,17 @@ impl<T: ToWat, E: ToWat> ToWat for std::result::Result<T, E> {
 }
 
 impl<T: FromWat, E: FromWat> FromWat for std::result::Result<T, E> {
-    fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
         match v {
             Value::Result(r) => match r.as_ref() {
-                Ok(inner) => Ok(Ok(T::from_wat(inner, op)?)),
-                Err(inner) => Ok(Err(E::from_wat(inner, op)?)),
+                Ok(inner) => Ok(Ok(T::from_wat(inner, op, span.clone())?)),
+                Err(inner) => Ok(Err(E::from_wat(inner, op, span.clone())?)),
             },
-            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Result",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span, // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -280,18 +274,17 @@ impl<T: ToWat> ToWat for Vec<T> {
 }
 
 impl<T: FromWat> FromWat for Vec<T> {
-    fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError> {
         match v {
             Value::Vec(items) => items
                 .iter()
-                .map(|x| T::from_wat(x, op))
+                .map(|x| T::from_wat(x, op, span.clone()))
                 .collect::<Result<Vec<_>, _>>(),
-            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Vec",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span, // arc 138 F4b: real span threaded through
             }),
         }
     }
@@ -311,7 +304,7 @@ impl ToWat for Value {
 }
 
 impl FromWat for Value {
-    fn from_wat(v: &Value, _op: &'static str) -> Result<Self, RuntimeError> {
+    fn from_wat(v: &Value, _op: &'static str, _span: Span) -> Result<Self, RuntimeError> {
         Ok(v.clone())
     }
 }
@@ -572,114 +565,114 @@ mod tests {
     #[test]
     fn i64_roundtrip() {
         let v = 42i64.to_wat();
-        assert_eq!(i64::from_wat(&v, "test").unwrap(), 42);
+        assert_eq!(i64::from_wat(&v, "test", crate::span::Span::unknown()).unwrap(), 42);
     }
 
     #[test]
     fn f64_roundtrip() {
         let v = 2.5f64.to_wat();
-        assert_eq!(f64::from_wat(&v, "test").unwrap(), 2.5);
+        assert_eq!(f64::from_wat(&v, "test", crate::span::Span::unknown()).unwrap(), 2.5);
     }
 
     #[test]
     fn bool_roundtrip() {
-        assert!(bool::from_wat(&true.to_wat(), "t").unwrap());
-        assert!(!bool::from_wat(&false.to_wat(), "t").unwrap());
+        assert!(bool::from_wat(&true.to_wat(), "t", crate::span::Span::unknown()).unwrap());
+        assert!(!bool::from_wat(&false.to_wat(), "t", crate::span::Span::unknown()).unwrap());
     }
 
     #[test]
     fn string_roundtrip() {
         let v = "hello".to_string().to_wat();
-        assert_eq!(String::from_wat(&v, "test").unwrap(), "hello");
+        assert_eq!(String::from_wat(&v, "test", crate::span::Span::unknown()).unwrap(), "hello");
     }
 
     #[test]
     fn unit_roundtrip() {
         let v = ().to_wat();
-        assert!(matches!(<()>::from_wat(&v, "test"), Ok(())));
+        assert!(matches!(<()>::from_wat(&v, "test", crate::span::Span::unknown()), Ok(())));
     }
 
     #[test]
     fn option_some_roundtrip() {
         let v: Value = Some(7i64).to_wat();
-        let back: Option<i64> = FromWat::from_wat(&v, "test").unwrap();
+        let back: Option<i64> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert_eq!(back, Some(7));
     }
 
     #[test]
     fn option_none_roundtrip() {
         let v: Value = Option::<i64>::None.to_wat();
-        let back: Option<i64> = FromWat::from_wat(&v, "test").unwrap();
+        let back: Option<i64> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert_eq!(back, None);
     }
 
     #[test]
     fn vec_of_i64_roundtrip() {
         let v: Value = vec![1i64, 2, 3].to_wat();
-        let back: Vec<i64> = FromWat::from_wat(&v, "test").unwrap();
+        let back: Vec<i64> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert_eq!(back, vec![1, 2, 3]);
     }
 
     #[test]
     fn vec_of_strings_roundtrip() {
         let v: Value = vec!["a".to_string(), "b".to_string()].to_wat();
-        let back: Vec<String> = FromWat::from_wat(&v, "test").unwrap();
+        let back: Vec<String> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert_eq!(back, vec!["a".to_string(), "b".to_string()]);
     }
 
     #[test]
     fn empty_vec_roundtrip() {
         let v: Value = Vec::<i64>::new().to_wat();
-        let back: Vec<i64> = FromWat::from_wat(&v, "test").unwrap();
+        let back: Vec<i64> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert!(back.is_empty());
     }
 
     #[test]
     fn vec_of_options_roundtrip() {
         let v: Value = vec![Some(1i64), None, Some(3)].to_wat();
-        let back: Vec<Option<i64>> = FromWat::from_wat(&v, "test").unwrap();
+        let back: Vec<Option<i64>> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert_eq!(back, vec![Some(1), None, Some(3)]);
     }
 
     #[test]
     fn vec_from_wrong_value_type_fails() {
         let v = Value::i64(5);
-        let err = <Vec<i64> as FromWat>::from_wat(&v, "test").unwrap_err();
+        let err = <Vec<i64> as FromWat>::from_wat(&v, "test", crate::span::Span::unknown()).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
     #[test]
     fn tuple_2_roundtrip() {
         let v: Value = (42i64, "hello".to_string()).to_wat();
-        let back: (i64, String) = FromWat::from_wat(&v, "test").unwrap();
+        let back: (i64, String) = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert_eq!(back, (42, "hello".to_string()));
     }
 
     #[test]
     fn tuple_3_roundtrip() {
         let v: Value = (1i64, true, 2.5f64).to_wat();
-        let back: (i64, bool, f64) = FromWat::from_wat(&v, "test").unwrap();
+        let back: (i64, bool, f64) = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert_eq!(back, (1, true, 2.5));
     }
 
     #[test]
     fn tuple_4_roundtrip() {
         let v: Value = (1i64, 2i64, 3i64, 4i64).to_wat();
-        let back: (i64, i64, i64, i64) = FromWat::from_wat(&v, "test").unwrap();
+        let back: (i64, i64, i64, i64) = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert_eq!(back, (1, 2, 3, 4));
     }
 
     #[test]
     fn tuple_nested_with_option_vec() {
         let v: Value = (Some(7i64), vec![1i64, 2, 3]).to_wat();
-        let back: (Option<i64>, Vec<i64>) = FromWat::from_wat(&v, "test").unwrap();
+        let back: (Option<i64>, Vec<i64>) = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert_eq!(back, (Some(7), vec![1, 2, 3]));
     }
 
     #[test]
     fn tuple_arity_mismatch_rejected() {
         let v: Value = (1i64, 2i64, 3i64).to_wat();
-        let err = <(i64, i64) as FromWat>::from_wat(&v, "test").unwrap_err();
+        let err = <(i64, i64) as FromWat>::from_wat(&v, "test", crate::span::Span::unknown()).unwrap_err();
         match err {
             RuntimeError::MalformedForm { reason, .. } => {
                 assert!(reason.contains("arity 2"));
@@ -692,21 +685,21 @@ mod tests {
     #[test]
     fn tuple_from_non_tuple_value_fails() {
         let v = Value::i64(1);
-        let err = <(i64, i64) as FromWat>::from_wat(&v, "test").unwrap_err();
+        let err = <(i64, i64) as FromWat>::from_wat(&v, "test", crate::span::Span::unknown()).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
     #[test]
     fn result_ok_roundtrip() {
         let v: Value = std::result::Result::<i64, String>::Ok(7).to_wat();
-        let back: std::result::Result<i64, String> = FromWat::from_wat(&v, "test").unwrap();
+        let back: std::result::Result<i64, String> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert_eq!(back, Ok(7));
     }
 
     #[test]
     fn result_err_roundtrip() {
         let v: Value = std::result::Result::<i64, String>::Err("boom".into()).to_wat();
-        let back: std::result::Result<i64, String> = FromWat::from_wat(&v, "test").unwrap();
+        let back: std::result::Result<i64, String> = FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert_eq!(back, Err("boom".to_string()));
     }
 
@@ -715,7 +708,7 @@ mod tests {
         let v: Value =
             std::result::Result::<Option<i64>, Vec<String>>::Ok(Some(5)).to_wat();
         let back: std::result::Result<Option<i64>, Vec<String>> =
-            FromWat::from_wat(&v, "test").unwrap();
+            FromWat::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert_eq!(back, Ok(Some(5)));
     }
 
@@ -723,21 +716,21 @@ mod tests {
     fn result_from_non_result_fails() {
         let v = Value::i64(1);
         let err =
-            <std::result::Result<i64, String> as FromWat>::from_wat(&v, "test").unwrap_err();
+            <std::result::Result<i64, String> as FromWat>::from_wat(&v, "test", crate::span::Span::unknown()).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
     #[test]
     fn value_passthrough() {
         let v = Value::i64(99);
-        let back = Value::from_wat(&v, "test").unwrap();
+        let back = Value::from_wat(&v, "test", crate::span::Span::unknown()).unwrap();
         assert!(matches!(back, Value::i64(99)));
     }
 
     #[test]
     fn type_mismatch_surfaces_op_name() {
         let v = Value::String(Arc::new("not an i64".into()));
-        let err = i64::from_wat(&v, ":rust::test::method").unwrap_err();
+        let err = i64::from_wat(&v, ":rust::test::method", crate::span::Span::unknown()).unwrap_err();
         match err {
             RuntimeError::TypeMismatch { op, expected, got, .. } => {
                 assert_eq!(op, ":rust::test::method");
