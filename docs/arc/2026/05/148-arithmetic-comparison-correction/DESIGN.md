@@ -256,6 +256,26 @@ Arc 148 closure (slice 6) adds:
 verb pipe-separated form). All failed convergence; the gaze-resolved
 form holds.**
 
+##### Naming templates (abstract)
+
+```
+Variadic macro:           :<namespace>::<verb>
+Binary dispatch:          :<namespace>::<verb>/<arity>
+Same-type per-Type impl:  :<namespace>::<Type>/<verb>/<arity>
+Mixed-type per-Type impl: :<namespace>::<verb>/<type-pair>/<arity>
+```
+
+Where `<type-pair>` is `<Type1>-<Type2>` (hyphen-joined). `/` is
+the SOLE structural separator at every tier; `::` is the namespace
+separator (only between `wat` / `core` / verb-or-Type segments).
+
+**For verbs that ARE the slash character (`/` — division):** the
+slash collides with the separator. The template applies unchanged;
+the result reads as multiple consecutive slashes. Honest about the
+double-duty; visually dense.
+
+##### Substitutions per op
+
 The full surface for arithmetic + comparison families = **54 names
 across 3 layers**:
 
@@ -265,16 +285,16 @@ ARITHMETIC (4 ops × 4 type combos + 4 binary dispatches + 4 variadic macros = 2
 ;; Layer 1 — Variadic macros (user-facing):
 :wat::core::+      :wat::core::-      :wat::core::*      :wat::core::/
 
-;; Layer 2 — Binary dispatches:
-:wat::core::+/2    :wat::core::-/2    :wat::core::*/2    :wat::core:///2  ⚠
+;; Layer 2 — Binary dispatches (template: :wat::core::<verb>/2):
+:wat::core::+/2    :wat::core::-/2    :wat::core::*/2    :wat::core://2   ⚠ verb=/ + sep=/ → 2 slashes
 
-;; Layer 3a — Same-type per-Type impls:
-:wat::core::i64/+/2    :wat::core::i64/-/2    :wat::core::i64/*/2    :wat::core::i64///2  ⚠
-:wat::core::f64/+/2    :wat::core::f64/-/2    :wat::core::f64/*/2    :wat::core::f64///2  ⚠
+;; Layer 3a — Same-type per-Type impls (template: :wat::core::<Type>/<verb>/<arity>):
+:wat::core::i64/+/2    :wat::core::i64/-/2    :wat::core::i64/*/2    :wat::core::i64///2   ⚠ → 3 slashes
+:wat::core::f64/+/2    :wat::core::f64/-/2    :wat::core::f64/*/2    :wat::core::f64///2   ⚠ → 3 slashes
 
-;; Layer 3b — Mixed-type per-Type impls:
-:wat::core::+/i64-f64/2    :wat::core::-/i64-f64/2    :wat::core::*/i64-f64/2    :wat::core:////i64-f64/2  ⚠⚠
-:wat::core::+/f64-i64/2    :wat::core::-/f64-i64/2    :wat::core::*/f64-i64/2    :wat::core:////f64-i64/2  ⚠⚠
+;; Layer 3b — Mixed-type per-Type impls (template: :wat::core::<verb>/<type-pair>/<arity>):
+:wat::core::+/i64-f64/2    :wat::core::-/i64-f64/2    :wat::core::*/i64-f64/2    :wat::core://i64-f64/2   ⚠ → 2-then-1 slashes
+:wat::core::+/f64-i64/2    :wat::core::-/f64-i64/2    :wat::core::*/f64-i64/2    :wat::core://f64-i64/2   ⚠ → 2-then-1 slashes
 
 COMPARISON (5 ops × 4 type combos + 5 binary dispatches + 5 variadic macros = 30 names):
 
