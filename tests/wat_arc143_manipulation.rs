@@ -272,15 +272,16 @@ fn extract_arg_names_foldl_returns_three_names() {
         line
     );
     // Ensure the return type Symbol after "->" is NOT included.
-    // The return type keyword for foldl contains "Acc" — but so do arg
-    // types. What should NOT appear is ":Acc" as a standalone extracted
-    // name (the arrow stops collection before the return type Symbol).
-    // The count is the most reliable check: exactly 3 keywords.
-    // We count occurrences of ":_a" to verify exactly 3 arg names.
-    let count = line.matches(":_a").count();
+    // Per arc 143 slice 5b's deliberate fix, extract-arg-names returns
+    // bare HolonAST::Symbol items (needed as variable references for
+    // macro splice positions, not literal keywords). edn::write renders
+    // each as `#wat-edn.holon/Symbol "_aN"`. We count occurrences of
+    // `Symbol "_a` to verify exactly 3 arg names; the return type would
+    // render with a different name (e.g., `Symbol "Acc"`) and not match.
+    let count = line.matches("Symbol \"_a").count();
     assert_eq!(
         count, 3,
-        "expected exactly 3 arg names (_a0/_a1/_a2), counted {} occurrences of ':_a' in: {}",
+        "expected exactly 3 arg names (_a0/_a1/_a2), counted {} Symbol \"_a* occurrences in: {}",
         count, line
     );
 }
@@ -364,11 +365,13 @@ fn extract_arg_names_stops_before_return_type() {
     );
     // The return type "i64" should NOT appear as an extracted name.
     // (It may appear in type annotations within the pairs, but NOT as
-    // a standalone keyword extracted from a pair[0].)
-    // The arg names are ":x" and ":y".
+    // an extracted Symbol from a pair[0] position.)
+    // Per arc 143 slice 5b, extract-arg-names returns bare
+    // HolonAST::Symbol items (variable references for splice positions).
+    // edn::write renders each as `#wat-edn.holon/Symbol "x"` etc.
     assert!(
-        line.contains(":x") && line.contains(":y"),
-        "expected arg names ':x' and ':y' in output, got: {}",
+        line.contains("Symbol \"x\"") && line.contains("Symbol \"y\""),
+        "expected arg-name Symbols \"x\" and \"y\" in output, got: {}",
         line
     );
 }
@@ -467,10 +470,12 @@ fn rename_then_extract_preserves_arg_names() {
         "expected length 2 preserved after rename, got: {}",
         line
     );
-    // Arg names :x and :y still present.
+    // Arg-name Symbols x and y still present after rename. Per arc
+    // 143 slice 5b, extract-arg-names returns bare HolonAST::Symbol
+    // items; edn::write renders each as `#wat-edn.holon/Symbol "x"`.
     assert!(
-        line.contains(":x") && line.contains(":y"),
-        "expected ':x' and ':y' preserved after rename, got: {}",
+        line.contains("Symbol \"x\"") && line.contains("Symbol \"y\""),
+        "expected arg-name Symbols \"x\" and \"y\" preserved after rename, got: {}",
         line
     );
 }

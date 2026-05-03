@@ -375,6 +375,35 @@ changing cwd.
 attempted to commit it to the holon root repo. User rejected:
 *"do not touch the holon root git repo at all - its frozen."*
 
+### Failure mode 9 — Trusting that "arc N closed" means "arc N's tests are green"
+
+**Signature:** drafting a brief that says "the existing tests in
+this area are all green" without re-running them; basing the
+expectations on the most recent INSCRIPTION's claims.
+
+**Reality check:** Re-run `cargo test --release --test
+wat_arc<N>_*` (or the equivalent module-scoped sweep) against the
+ACTUAL working-tree state BEFORE writing the brief's hard scorecard
+row that asserts "tests still green." A slice's SCORE typically
+verifies only its load-bearing test — adjacent tests in the same
+arc may have silently rotted as a side-effect of the slice's
+deliberate runtime change.
+
+**Real incident, 2026-05-03:** Arc 144 slice 1's brief claimed
+`wat_arc143_manipulation` was "FULLY GREEN" — based on arc 143
+slice 3's SCORE which said all 8 tests passed. But arc 143 slice
+5b's later runtime change (extract-arg-names returning
+`HolonAST::symbol` instead of `wat__core__keyword`) had broken 3 of
+the 8 manipulation test assertions. Slice 5b's SCORE only verified
+the foldl macro test (its load-bearing row); it never re-ran the
+manipulation suite. The arc 143 INSCRIPTION shipped with the
+incorrect "workspace clean except length canary" claim. Sonnet
+caught the discrepancy via git-stash round-trips during slice 1
+and surfaced it as an honest delta — which let the orchestrator
+ship a paired drift fix. Cost: one stash-test cycle (~30 sec) +
+3-line test assertion fix; could have been zero cost if the
+orchestrator had run the baseline check pre-spawn.
+
 ### Failure mode 8 — Adding to a namespace that's being killed
 
 **Signature:** creating a new file under `wat/std/` or adding new
@@ -410,6 +439,12 @@ When you are about to delegate to sonnet via the Agent tool:
 - [ ] Where the substrate doesn't support what the brief asks, you have
       EITHER (a) added a prior slice that fixes the substrate, OR
       (b) explicitly scoped the brief to not depend on the missing piece
+- [ ] **You have re-run the EXISTING test suite for the modules the
+      brief touches** (e.g., `cargo test --release --test wat_arc<N>_*`)
+      so the brief's failure-profile expectations match the actual
+      baseline on disk. **Slice-N's SCORE verifying only slice-N's
+      load-bearing test does NOT prove the workspace is clean** —
+      adjacent tests in the same arc may have silently rotted.
 - [ ] The brief's "STOP at first red" + scope constraints do NOT force
       sonnet into a workaround corner
 - [ ] You are spawning with `run_in_background: true`
