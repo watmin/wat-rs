@@ -5886,6 +5886,7 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, Runtime
         Value::String(s) => Ok(WatAST::StringLit((*s).clone(), span)),
         Value::wat__core__keyword(k) => Ok(WatAST::Keyword((*k).clone(), span)),
         Value::wat__WatAST(a) => Ok((*a).clone()),
+        Value::holon__HolonAST(h) => Ok(holon_to_watast(&h)),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "primitive (i64/f64/bool/String/keyword) or :wat::WatAST",
@@ -5987,7 +5988,10 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
     for (param, ty) in f.params.iter().zip(f.param_types.iter()) {
         items.push(WatAST::List(
             vec![
-                WatAST::Keyword(param.clone(), span.clone()),
+                WatAST::Symbol(
+                    crate::identifier::Identifier::bare(param.clone()),
+                    span.clone(),
+                ),
                 type_expr_to_kw(ty),
             ],
             span.clone(),
@@ -6034,7 +6038,10 @@ fn type_scheme_to_signature_ast(name: &str, scheme: &crate::check::TypeScheme) -
     for (i, ty) in scheme.params.iter().enumerate() {
         items.push(WatAST::List(
             vec![
-                WatAST::Keyword(format!(":_a{}", i), span.clone()),
+                WatAST::Symbol(
+                    crate::identifier::Identifier::bare(format!("_a{}", i)),
+                    span.clone(),
+                ),
                 type_expr_to_kw(ty),
             ],
             span.clone(),
@@ -6468,8 +6475,12 @@ fn eval_extract_arg_names(
             // Arg-pair Bundle: [Symbol(arg_name), Symbol(type)].
             HolonAST::Bundle(pair) if pair.len() == 2 => {
                 if let HolonAST::Symbol(arg_name) = &pair[0] {
-                    names.push(Value::wat__core__keyword(Arc::new(
-                        arg_name.to_string(),
+                    // Return as HolonAST::symbol so value_to_watast →
+                    // holon_to_watast emits WatAST::Symbol (variable
+                    // reference) for bare names and WatAST::Keyword for
+                    // `:keyword`-shaped names. Both are spliced correctly.
+                    names.push(Value::holon__HolonAST(Arc::new(
+                        HolonAST::symbol(arg_name.as_ref()),
                     )));
                 }
                 // If first child isn't a Symbol, skip (not a recognised pair).
@@ -21431,5 +21442,23 @@ mod tests {
             "RuntimeError Display must include source coordinates; rendered:\n{}",
             rendered
         );
+    }
+
+    /// Arc 143 slice 5b — `value_to_watast` bridges `Value::holon__HolonAST`.
+    ///
+    /// A `HolonAST::Symbol` whose content begins with `:` is a keyword.
+    /// `holon_to_watast` maps it to `WatAST::Keyword`; `value_to_watast`
+    /// must now thread through `holon_to_watast` instead of falling to the
+    /// TypeMismatch catch-all.
+    #[test]
+    fn arc143_slice5b_value_to_watast_accepts_holon_ast() {
+        use std::sync::Arc;
+        let h = HolonAST::symbol(":foo");
+        let v = Value::holon__HolonAST(Arc::new(h));
+        let result = value_to_watast("test_op", v, Span::unknown());
+        match result {
+            Ok(WatAST::Keyword(k, _)) => assert_eq!(k, ":foo"),
+            other => panic!("expected Ok(WatAST::Keyword(\":foo\", _)), got {:?}", other),
+        }
     }
 }
