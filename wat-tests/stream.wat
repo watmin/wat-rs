@@ -80,6 +80,10 @@
 
 (:wat::test::deftest :wat-tests::std::stream::test-with-state-dedupe-adjacent
   ()
+  ;; COMPLECTENS EXEMPT: 8 outer bindings, but `step` and `flush` are inline lambda
+  ;; fixtures defining the Mealy stage — irreducible data; cannot be extracted without
+  ;; losing the test's self-contained definition of "dedupe" behavior.
+  ;;
   ;; Input: 1 1 2 2 2 3 1 1 → expect 1 2 3 1.
   (:wat::core::let*
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 1 2 2 2 3 1 1))

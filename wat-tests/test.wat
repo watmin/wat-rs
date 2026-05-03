@@ -39,6 +39,8 @@
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-eq-fail-populates-message
   ()
+  ;; COMPLECTENS EXEMPT: outer let* has 2 bindings (r, fail); bulk is embedded-program
+  ;; AST literal (test fixture, not composition). SKILL edge case: embedded literals.
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
@@ -68,6 +70,8 @@
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-contains-fail-populates-actual
   ()
+  ;; COMPLECTENS EXEMPT: outer let* has 2 bindings (r, fail); bulk is embedded-program
+  ;; AST literal (test fixture, not composition). SKILL edge case: embedded literals.
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
@@ -113,6 +117,8 @@
 ;; on the encoder's d at run time).
 (:wat::test::deftest :wat-tests::std::test::test-assert-coincident-fail-renders-explanation
   ()
+  ;; COMPLECTENS EXEMPT: outer let* has 2 bindings (r, fail); bulk is embedded-program
+  ;; AST literal (test fixture, not composition). SKILL edge case: embedded literals.
   (:wat::core::let*
     (((r :wat::kernel::RunResult)
       (:wat::test::run-ast
@@ -190,6 +196,9 @@
 
 (:wat::test::deftest :wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern
   ()
+  ;; COMPLECTENS EXEMPT: outer let* has 2 bindings (r, fail); bulk is a TWO-level
+  ;; nested embedded-program AST literal (fixture). SKILL edge case: embedded literals.
+  ;;
   ;; Two-level nested sandbox: outer program runs inner program that
   ;; runs silent program. The middle layer calls assert-stderr-matches
   ;; against the silent program's empty stderr; that assertion fires;
