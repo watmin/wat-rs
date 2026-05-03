@@ -3110,16 +3110,20 @@ fn infer_list(
             ":wat::core::dissoc" => return infer_dissoc(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::keys" => return infer_keys(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::values" => return infer_values(args, head_span, env, locals, fresh, subst, errors),
-            ":wat::core::empty?" => return infer_empty_q(args, head_span, env, locals, fresh, subst, errors),
-            ":wat::core::conj" => return infer_conj(args, head_span, env, locals, fresh, subst, errors),
-            ":wat::core::contains?" => return infer_contains_q(args, head_span, env, locals, fresh, subst, errors),
+            // Arc 146 slice 3 — `:wat::core::empty?` / `:conj` /
+            // `:contains?` retired here; each is now a Dispatch
+            // (declared in `wat/core.wat`). The dispatch_registry guard
+            // above intercepts before reaching this match. Per-Type
+            // impls (`:wat::core::Vector/empty?` etc.) reach the
+            // standard scheme path via env.get.
             // Arc 146 slice 2 — `:wat::core::length` retired here; it
             // is now a Dispatch (declared in `wat/core.wat`). The
             // dispatch_registry guard above intercepts before reaching
             // this match. Per-Type impls (`:wat::core::Vector/length`
             // etc.) reach the standard scheme path via env.get.
             ":wat::core::HashSet" => return infer_hashset_constructor(args, head_span, env, locals, fresh, subst, errors),
-            ":wat::core::get" => return infer_get(args, head_span, env, locals, fresh, subst, errors),
+            // Arc 146 slice 3 — `:wat::core::get` retired here; it is
+            // now a Dispatch (declared in `wat/core.wat`).
             ":wat::core::quote" => {
                 // Quote captures an unevaluated AST. The argument is
                 // DATA, not an expression — the type checker does not
@@ -7274,116 +7278,14 @@ fn infer_polymorphic_holon_to_i64(
     Some(i64_ty)
 }
 
-/// Type-check `(:wat::core::get container locator)`. Polymorphic over
-/// HashMap and HashSet; dispatch by arg shape. Rank-1 HM can't
-/// express the union at the SCHEME layer, so special-case: inspect
-/// the first arg's type and produce the matching return type.
-///   HashMap<K,V>, K → Option<V>
-///   HashSet<T>,   T → Option<T>
-fn infer_get(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
-    if args.len() != 2 {
-        errors.push(CheckError::ArityMismatch {
-            callee: ":wat::core::get".into(),
-            expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
-        return Some(TypeExpr::Parametric {
-            head: "Option".into(),
-            args: vec![fresh.fresh()],
-        });
-    }
-    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    let key_ty = infer(&args[1], env, locals, fresh, subst, errors);
-    if let Some(ct) = container_ty {
-        // Reduce for the shape match — a user typealias over HashMap
-        // / HashSet (e.g., `(typealias :my::Row :HashMap<String,i64>)`)
-        // must be recognized by its structural root here.
-        let reduced = reduce(&ct, subst, env.types());
-        match &reduced {
-            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
-                let k = apply_subst(&ta[0], subst);
-                let v = apply_subst(&ta[1], subst);
-                if let Some(key_ty) = key_ty {
-                    if unify(&key_ty, &k, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::get".into(),
-                            param: "key".into(),
-                            expected: format_type(&apply_subst(&k, subst)),
-                            got: format_type(&apply_subst(&key_ty, subst)),
-                            span: args[1].span().clone(),
-                        });
-                    }
-                }
-                return Some(TypeExpr::Parametric {
-                    head: "Option".into(),
-                    args: vec![apply_subst(&v, subst)],
-                });
-            }
-            // Arc 025: Vec support. `(get xs i)` with :i64 index
-            // returns `:Option<T>`. Unify key with i64; container's
-            // element type is the Option's T. 058-026 INSCRIPTION.
-            TypeExpr::Parametric { head, args: ta } if head == "Vec" && ta.len() == 1 => {
-                let t = apply_subst(&ta[0], subst);
-                if let Some(key_ty) = key_ty {
-                    let i64_ty = TypeExpr::Path(":i64".into());
-                    if unify(&key_ty, &i64_ty, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::get".into(),
-                            param: "key".into(),
-                            expected: "i64".into(),
-                            got: format_type(&apply_subst(&key_ty, subst)),
-                            span: args[1].span().clone(),
-                        });
-                    }
-                }
-                return Some(TypeExpr::Parametric {
-                    head: "Option".into(),
-                    args: vec![apply_subst(&t, subst)],
-                });
-            }
-            TypeExpr::Parametric { head, args: ta } if head == "HashSet" && ta.len() == 1 => {
-                let t = apply_subst(&ta[0], subst);
-                if let Some(key_ty) = key_ty {
-                    if unify(&key_ty, &t, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::get".into(),
-                            param: "element".into(),
-                            expected: format_type(&apply_subst(&t, subst)),
-                            got: format_type(&apply_subst(&key_ty, subst)),
-                            span: args[1].span().clone(),
-                        });
-                    }
-                }
-                return Some(TypeExpr::Parametric {
-                    head: "Option".into(),
-                    args: vec![apply_subst(&t, subst)],
-                });
-            }
-            _ => {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::get".into(),
-                    param: "container".into(),
-                    expected: "HashMap<K,V> | HashSet<T> | Vec<T>".into(),
-                    got: format_type(&apply_subst(&ct, subst)),
-                    span: args[0].span().clone(),
-                });
-            }
-        }
-    }
-    Some(TypeExpr::Parametric {
-        head: "Option".into(),
-        args: vec![fresh.fresh()],
-    })
-}
+// Arc 146 slice 3 — `infer_get` retired. Polymorphism is honest now
+// via the Dispatch entity declared in `wat/core.wat`; per-Type impls
+// (`:wat::core::Vector/get`, `:wat::core::HashMap/get`) carry clean
+// rank-1 schemes the standard infer_list path resolves through env.get;
+// the dispatch_registry guard above intercepts surface calls to
+// `:wat::core::get` and routes via `infer_dispatch_call`. HashSet's
+// "get-by-equality" is just `:contains?` per arc 146 DESIGN audit
+// table; that path migrated to the contains? dispatch.
 
 /// Arc 020 — `(:wat::core::assoc container key value)`. Clojure
 /// `assoc`: associate key with value in a HashMap, return new map.
@@ -7661,233 +7563,25 @@ fn infer_values(
     })
 }
 
-/// Arc 058 — `(:wat::core::empty? container)`. Polymorphic empty-check;
-/// mirrors `length`'s polymorphism shape:
-///   ∀T.   Vec<T>       → bool
-///   ∀K,V. HashMap<K,V> → bool
-///   ∀T.   HashSet<T>   → bool
-fn infer_empty_q(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
-    if args.len() != 1 {
-        errors.push(CheckError::ArityMismatch {
-            callee: ":wat::core::empty?".into(),
-            expected: 1,
-            got: args.len(),
-            span: head_span.clone(),
-        });
-        return Some(TypeExpr::Path(":bool".into()));
-    }
-    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    if let Some(ct) = container_ty {
-        let reduced = reduce(&ct, subst, env.types());
-        match &reduced {
-            TypeExpr::Parametric { head, args: ta } if head == "Vec" && ta.len() == 1 => {
-                let _ = ta;
-                return Some(TypeExpr::Path(":bool".into()));
-            }
-            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
-                let _ = ta;
-                return Some(TypeExpr::Path(":bool".into()));
-            }
-            TypeExpr::Parametric { head, args: ta } if head == "HashSet" && ta.len() == 1 => {
-                let _ = ta;
-                return Some(TypeExpr::Path(":bool".into()));
-            }
-            _ => {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::empty?".into(),
-                    param: "container".into(),
-                    expected: "Vec<T> | HashMap<K,V> | HashSet<T>".into(),
-                    got: format_type(&apply_subst(&ct, subst)),
-                    span: args[0].span().clone(),
-                });
-            }
-        }
-    }
-    Some(TypeExpr::Path(":bool".into()))
-}
-
-/// Arc 025 — `(:wat::core::conj container value)`. Polymorphic
-/// over Vec and HashSet; HashMap illegal (no key-value pairing —
-/// use assoc).
-///   ∀T. Vec<T>     × T -> Vec<T>
-///   ∀T. HashSet<T> × T -> HashSet<T>
-fn infer_conj(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
-    if args.len() != 2 {
-        errors.push(CheckError::ArityMismatch {
-            callee: ":wat::core::conj".into(),
-            expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
-        return Some(TypeExpr::Parametric {
-            head: "Vec".into(),
-            args: vec![fresh.fresh()],
-        });
-    }
-    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    let value_ty = infer(&args[1], env, locals, fresh, subst, errors);
-    if let Some(ct) = container_ty {
-        let reduced = reduce(&ct, subst, env.types());
-        match &reduced {
-            TypeExpr::Parametric { head, args: ta } if head == "Vec" && ta.len() == 1 => {
-                let t = apply_subst(&ta[0], subst);
-                if let Some(value_ty) = value_ty {
-                    if unify(&value_ty, &t, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::conj".into(),
-                            param: "value".into(),
-                            expected: format_type(&apply_subst(&t, subst)),
-                            got: format_type(&apply_subst(&value_ty, subst)),
-                            span: args[1].span().clone(),
-                        });
-                    }
-                }
-                return Some(reduced);
-            }
-            TypeExpr::Parametric { head, args: ta } if head == "HashSet" && ta.len() == 1 => {
-                let t = apply_subst(&ta[0], subst);
-                if let Some(value_ty) = value_ty {
-                    if unify(&value_ty, &t, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::conj".into(),
-                            param: "value".into(),
-                            expected: format_type(&apply_subst(&t, subst)),
-                            got: format_type(&apply_subst(&value_ty, subst)),
-                            span: args[1].span().clone(),
-                        });
-                    }
-                }
-                return Some(reduced);
-            }
-            _ => {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::conj".into(),
-                    param: "container".into(),
-                    expected: "Vec<T> | HashSet<T>".into(),
-                    got: format_type(&apply_subst(&ct, subst)),
-                    span: args[0].span().clone(),
-                });
-            }
-        }
-    }
-    Some(TypeExpr::Parametric {
-        head: "Vec".into(),
-        args: vec![fresh.fresh()],
-    })
-}
-
-// Arc 146 slice 2 — `infer_length` retired. Polymorphism is now
-// honest via the Dispatch entity declared in `wat/core.wat`; per-Type
-// impls (`:wat::core::Vector/length` etc.) carry clean rank-1 schemes
+// Arc 146 slice 3 — `infer_empty_q`, `infer_conj`, `infer_contains_q`
+// retired. Polymorphism is now honest via the Dispatch entities
+// declared in `wat/core.wat`; per-Type impls
+// (`:wat::core::Vector/empty?` etc., `:wat::core::Vector/conj` etc.,
+// `:wat::core::Vector/contains?` etc.) carry clean rank-1 schemes
 // the standard infer_list path resolves through env.get; the dispatch
-// guard above (line 2984) intercepts surface calls to
-// `:wat::core::length` and routes via `infer_dispatch_call`.
-
-/// Arc 025 — `(:wat::core::contains? container key)`. Polymorphic
-/// membership/key predicate:
-///   ∀K,V. HashMap<K,V> × K -> bool    (has key)
-///   ∀T.   HashSet<T>   × T -> bool    (has element)
-///   ∀T.   Vec<T>       × i64 -> bool  (has valid index)
-/// Retires `:wat::std::member?` — contains? covers it now.
-fn infer_contains_q(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
-    if args.len() != 2 {
-        errors.push(CheckError::ArityMismatch {
-            callee: ":wat::core::contains?".into(),
-            expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
-        return Some(TypeExpr::Path(":bool".into()));
-    }
-    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    let key_ty = infer(&args[1], env, locals, fresh, subst, errors);
-    if let Some(ct) = container_ty {
-        let reduced = reduce(&ct, subst, env.types());
-        match &reduced {
-            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
-                let k = apply_subst(&ta[0], subst);
-                if let Some(key_ty) = key_ty {
-                    if unify(&key_ty, &k, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::contains?".into(),
-                            param: "key".into(),
-                            expected: format_type(&apply_subst(&k, subst)),
-                            got: format_type(&apply_subst(&key_ty, subst)),
-                            span: args[1].span().clone(),
-                        });
-                    }
-                }
-                return Some(TypeExpr::Path(":bool".into()));
-            }
-            TypeExpr::Parametric { head, args: ta } if head == "HashSet" && ta.len() == 1 => {
-                let t = apply_subst(&ta[0], subst);
-                if let Some(key_ty) = key_ty {
-                    if unify(&key_ty, &t, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::contains?".into(),
-                            param: "key".into(),
-                            expected: format_type(&apply_subst(&t, subst)),
-                            got: format_type(&apply_subst(&key_ty, subst)),
-                            span: args[1].span().clone(),
-                        });
-                    }
-                }
-                return Some(TypeExpr::Path(":bool".into()));
-            }
-            TypeExpr::Parametric { head, args: ta } if head == "Vec" && ta.len() == 1 => {
-                if let Some(key_ty) = key_ty {
-                    let i64_ty = TypeExpr::Path(":i64".into());
-                    if unify(&key_ty, &i64_ty, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::contains?".into(),
-                            param: "key".into(),
-                            expected: "i64".into(),
-                            got: format_type(&apply_subst(&key_ty, subst)),
-                            span: args[1].span().clone(),
-                        });
-                    }
-                }
-                // suppress unused-arg warnings in this arm
-                let _ = ta;
-                return Some(TypeExpr::Path(":bool".into()));
-            }
-            _ => {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::contains?".into(),
-                    param: "container".into(),
-                    expected: "HashMap<K,V> | HashSet<T> | Vec<T>".into(),
-                    got: format_type(&apply_subst(&ct, subst)),
-                    span: args[0].span().clone(),
-                });
-            }
-        }
-    }
-    Some(TypeExpr::Path(":bool".into()))
-}
+// guard above intercepts surface calls and routes via
+// `infer_dispatch_call`.
+//
+// Slice 3 also makes contains?'s mixed verbs first-class: HashMap's
+// arm impl is `:HashMap/contains-key?` (KEY membership); Vector's
+// and HashSet's arm impls are `:Vector/contains?` and
+// `:HashSet/contains?` (ELEMENT membership). The pre-arc-146
+// Vec×i64-as-valid-index check was retired; index validity is now
+// expressed via `(< i (length xs))`.
+//
+// Arc 146 slice 2 — `infer_length` retired. Same shape as the
+// above: Dispatch entity routes the polymorphic surface name to
+// per-Type rank-1 impls.
 
 /// Type-check `(:wat::core::HashMap :(K,V) k1 v1 k2 v2 ...)`. First arg
 /// is a tuple-type keyword `:(K,V)` encoding both parameters; the
@@ -11813,47 +11507,85 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 146 slice 2 — the `:wat::core::length` arc 144 slice 3
-    // fingerprint is retired. The dispatch (declared in
-    // `wat/core.wat`) is the new contract; lookup_form returns
-    // Binding::Dispatch via the dispatch_registry branch, and the
-    // per-Type impls (`:wat::core::Vector/length` etc.) are the
-    // queryable rank-1 schemes registered above.
+    // Arc 146 slice 3 — per-Type empty? / contains? / get / conj impls.
+    // Same shape as slice 2's length registrations: each impl is a
+    // clean rank-1 scheme; the dispatch (declared in `wat/core.wat`)
+    // routes call sites by value-tag. infer_dispatch_call instantiates
+    // the matched arm's scheme to determine the call's return type.
+    // Each per-Type impl is also directly callable as
+    // `:wat::core::Vector/empty?` etc.
 
-    // :wat::core::empty? — same polymorphism as length
-    // (infer_empty_q at check.rs:7629).
+    // empty? — 3 arms (Vector / HashMap / HashSet → :bool)
     env.register(
-        ":wat::core::empty?".into(),
+        ":wat::core::Vector/empty?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
-            params: vec![t_var()],
+            params: vec![vec_of(t_var())],
             ret: bool_ty(),
         },
     );
-
-    // :wat::core::contains? — polymorphic membership/key predicate
-    // over HashMap / HashSet / Vec (infer_contains_q at
-    // check.rs:7815). 2-arg fingerprint with two type-vars: T for
-    // the container, K for the key/element. Real per-container key
-    // unification happens in the handler.
     env.register(
-        ":wat::core::contains?".into(),
+        ":wat::core::HashMap/empty?".into(),
         TypeScheme {
-            type_params: vec!["T".into(), "K".into()],
-            params: vec![t_var(), k_var()],
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: bool_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::HashSet/empty?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![hashset_of(t_var())],
             ret: bool_ty(),
         },
     );
 
-    // :wat::core::get — polymorphic lookup; handler accepts
-    // HashMap<K,V> + K, Vec<T> + i64, AND HashSet<T> + T
-    // (infer_get at check.rs:7243; broader than the brief's pre-flight
-    // table). The fingerprint is the HashMap-shaped variant since
-    // it's the most informative shape (carries both K and V); the
-    // Vec/HashSet branches still work because real checking lives in
-    // the handler.
+    // contains? — 3 arms with MIXED VERBS. HashMap tests KEY
+    // membership (verb `contains-key?`); Vector + HashSet test
+    // ELEMENT membership (verb `contains?`). Per arc 146 slice 3
+    // BRIEF: the surface dispatch `(:contains? c x)` routes by
+    // container shape; impl name verbs differ by semantic role.
     env.register(
-        ":wat::core::get".into(),
+        ":wat::core::Vector/contains?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), t_var()],
+            ret: bool_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::HashMap/contains-key?".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var()],
+            ret: bool_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::HashSet/contains?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![hashset_of(t_var()), t_var()],
+            ret: bool_ty(),
+        },
+    );
+
+    // get — 2 arms; per-arm return-type variance:
+    //   Vector/get :: ∀T. Vec<T> × :i64 -> :Option<T>
+    //   HashMap/get :: ∀K,V. HashMap<K,V> × K -> :Option<V>
+    // infer_dispatch_call returns the matched arm's specific Option<_>;
+    // no union-type machinery needed (per arc 146 DESIGN).
+    env.register(
+        ":wat::core::Vector/get".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), i64_ty()],
+            ret: opt(t_var()),
+        },
+    );
+    env.register(
+        ":wat::core::HashMap/get".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![hashmap_of(k_var(), v_var()), k_var()],
@@ -11861,18 +11593,47 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // :wat::core::conj — polymorphic over Vec<T> + T and HashSet<T> + T
-    // (infer_conj at check.rs:7682). Vec-shaped fingerprint since
-    // both branches share the same arity + return-the-container
-    // pattern. HashMap is illegal at the handler.
+    // conj — 2 arms (HashMap excluded; HashMap uses assoc).
+    //   Vector/conj :: ∀T. Vec<T> × T -> Vec<T>
+    //   HashSet/conj :: ∀T. HashSet<T> × T -> HashSet<T>
     env.register(
-        ":wat::core::conj".into(),
+        ":wat::core::Vector/conj".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), t_var()],
             ret: vec_of(t_var()),
         },
     );
+    env.register(
+        ":wat::core::HashSet/conj".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![hashset_of(t_var()), t_var()],
+            ret: hashset_of(t_var()),
+        },
+    );
+
+    // Arc 146 slice 2 — the `:wat::core::length` arc 144 slice 3
+    // fingerprint is retired. The dispatch (declared in
+    // `wat/core.wat`) is the new contract; lookup_form returns
+    // Binding::Dispatch via the dispatch_registry branch, and the
+    // per-Type impls (`:wat::core::Vector/length` etc.) are the
+    // queryable rank-1 schemes registered above.
+    //
+    // Arc 146 slice 3 — same retirement applies to the
+    // `:wat::core::empty?` / `:wat::core::contains?` /
+    // `:wat::core::get` / `:wat::core::conj` arc 144 slice 3
+    // fingerprints. The dispatches declared in `wat/core.wat` are
+    // the new contracts; the per-Type impls registered above carry
+    // the queryable rank-1 schemes.
+
+    // Arc 146 slice 3 — the `:wat::core::empty?` /
+    // `:wat::core::contains?` / `:wat::core::get` /
+    // `:wat::core::conj` arc 144 slice 3 fingerprints are retired.
+    // Each is now a Dispatch (declared in `wat/core.wat`);
+    // signature-of returns Some via `dispatch_to_signature_ast` (slice
+    // 2 Delta 4); per-Type impls registered above are the queryable
+    // rank-1 schemes.
 
     // :wat::core::assoc — handler accepts HashMap<K,V> + K + V AND
     // Vec<T> + i64 + T (infer_assoc at check.rs:7354). HashMap-shaped
@@ -12033,11 +11794,31 @@ mod tests {
             let mut macros = MacroRegistry::new();
             let stdlib_post_macros =
                 register_stdlib_defmacros(stdlib, &mut macros).expect("stdlib defmacros");
+            // Arc 146 slice 3 — mirror production startup (freeze.rs
+            // step 4a): register stdlib dispatches BEFORE macro
+            // expansion, attach the registry to the ambient
+            // SymbolTable used during expansion, and carry it through
+            // to the SymbolTable returned to test callers. Without
+            // this the test fixture fails to type-check stdlib code
+            // that calls polymorphic primitives (length, get,
+            // contains?, empty?, conj) — those names are now
+            // Dispatches and the type checker reaches them via
+            // dispatch_registry, not via env.get on a fingerprint
+            // scheme.
+            let mut dispatchs = crate::dispatch::DispatchRegistry::new();
+            let stdlib_post_macros_post_dispatches =
+                crate::dispatch::register_stdlib_define_dispatches(
+                    stdlib_post_macros,
+                    &mut dispatchs,
+                )
+                .expect("stdlib dispatches");
+            let mut macro_sym = SymbolTable::default();
+            macro_sym.set_dispatch_registry(std::sync::Arc::new(dispatchs.clone()));
             let expanded_stdlib = expand_all(
-                stdlib_post_macros,
+                stdlib_post_macros_post_dispatches,
                 &mut macros,
                 &Environment::default(),
-                &SymbolTable::default(),
+                &macro_sym,
             )
             .expect("stdlib macro expansion");
             let mut types = TypeEnv::with_builtins();
@@ -12048,6 +11829,10 @@ mod tests {
                 .expect("stdlib defines");
             register_struct_methods(&types, &mut symbols)
                 .expect("built-in struct methods");
+            // Attach the dispatch registry to the symbols carried back
+            // to test callers so check_program reaches dispatches via
+            // CheckEnv::with_builtins's clone of sym.dispatch_registry().
+            symbols.set_dispatch_registry(std::sync::Arc::new(dispatchs));
             (symbols, macros, types)
         })
     }

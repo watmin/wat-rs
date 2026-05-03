@@ -2648,7 +2648,11 @@ fn dispatch_keyword_head(
         // redirect to :wat::core::Vector. Runtime keeps working
         // through the migration window.
         ":wat::core::list" => eval_list_ctor(args, env, sym),
-        ":wat::core::conj" => eval_conj(args, env, sym),
+        // Arc 146 slice 3 — `:wat::core::conj` is now a Dispatch
+        // (declared in `wat/core.wat`). The dispatch_keyword_head
+        // guard above intercepts before reaching this arm; the
+        // per-Type impls (`:wat::core::Vector/conj` / `HashSet/conj`)
+        // sit further down in this match.
         // Arc 109 slice 1g — :wat::core::Tuple is the canonical
         // tuple constructor (verb-equals-type per slice 1f's
         // vec→Vector playbook); :wat::core::tuple stays during
@@ -2663,7 +2667,20 @@ fn dispatch_keyword_head(
         ":wat::core::Vector/length" => eval_vector_length(args, env, sym),
         ":wat::core::HashMap/length" => eval_hashmap_length(args, env, sym),
         ":wat::core::HashSet/length" => eval_hashset_length(args, env, sym),
-        ":wat::core::empty?" => eval_empty_q(args, env, sym),
+        // Arc 146 slice 3 — empty? / contains? / get / conj are now
+        // Dispatches (declared in `wat/core.wat`). Per-Type impls also
+        // directly callable; the dispatch_keyword_head guard above
+        // intercepts the polymorphic surface name first.
+        ":wat::core::Vector/empty?" => eval_vector_empty_q(args, env, sym),
+        ":wat::core::HashMap/empty?" => eval_hashmap_empty_q(args, env, sym),
+        ":wat::core::HashSet/empty?" => eval_hashset_empty_q(args, env, sym),
+        ":wat::core::Vector/contains?" => eval_vector_contains_q(args, env, sym),
+        ":wat::core::HashMap/contains-key?" => eval_hashmap_contains_key_q(args, env, sym),
+        ":wat::core::HashSet/contains?" => eval_hashset_contains_q(args, env, sym),
+        ":wat::core::Vector/get" => eval_vector_get(args, env, sym),
+        ":wat::core::HashMap/get" => eval_hashmap_get(args, env, sym),
+        ":wat::core::Vector/conj" => eval_vector_conj(args, env, sym),
+        ":wat::core::HashSet/conj" => eval_hashset_conj(args, env, sym),
         ":wat::core::reverse" => eval_vec_reverse(args, list_span, env, sym),
         ":wat::core::range" => eval_vec_range(args, list_span, env, sym),
         ":wat::core::take" => eval_vec_take(args, list_span, env, sym),
@@ -2678,14 +2695,17 @@ fn dispatch_keyword_head(
         ":wat::std::list::remove-at" => eval_list_remove_at(args, list_span, env, sym),
         ":wat::core::HashMap" => eval_hashmap_ctor(args, list_span, env, sym),
         ":wat::core::HashSet" => eval_hashset_ctor(args, list_span, env, sym),
-        ":wat::core::get" => eval_get(args, list_span, env, sym),
+        // Arc 146 slice 3 — `:wat::core::get` and `:wat::core::contains?`
+        // are now Dispatches (declared in `wat/core.wat`). The
+        // dispatch_keyword_head guard above intercepts them; the
+        // per-Type impls (`Vector/get`, `HashMap/get`,
+        // `Vector/contains?`, `HashMap/contains-key?`,
+        // `HashSet/contains?`) sit in the per-Type block above.
         ":wat::core::concat" => eval_concat(args, env, sym),
         ":wat::core::assoc" => eval_assoc(args, env, sym),
         ":wat::core::dissoc" => eval_dissoc(args, env, sym),
         ":wat::core::keys" => eval_keys(args, env, sym),
         ":wat::core::values" => eval_values(args, env, sym),
-        ":wat::core::contains?" => eval_contains_q(args, list_span, env, sym),
-        // :wat::core::contains? retired in arc 025 — contains? is polymorphic now.
         // :wat::io::IOReader / :wat::io::IOWriter — abstract IO
         // substrate (arc 008 slice 2). Two wat-level types; multiple
         // concrete backings (real stdio, StringIo). Byte-oriented
@@ -4842,50 +4862,11 @@ fn eval_list_ctor(
     Ok(Value::Vec(Arc::new(items)))
 }
 
-/// `(:wat::core::conj vec item)` → new Vec with `item` appended.
-/// Immutable append; wat has no mutation. The type checker enforces
-/// that `item` matches the Vec's element type.
-fn eval_conj(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span threading.
-        return Err(RuntimeError::ArityMismatch {
-            op: ":wat::core::conj".into(),
-            expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        });
-    }
-    let container = eval(&args[0], env, sym)?;
-    let item = eval(&args[1], env, sym)?;
-    match container {
-        Value::Vec(xs) => {
-            let mut out = (*xs).clone();
-            out.push(item);
-            Ok(Value::Vec(Arc::new(out)))
-        }
-        // Arc 025: HashSet support. `(conj set x)` returns a new set
-        // with x added. HashSet's `assoc` is illegal (no key-value
-        // pairing); `conj` is the honest verb for "add one element
-        // to this growing collection" — Clojure convention.
-        Value::wat__std__HashSet(s) => {
-            let key = hashmap_key(":wat::core::conj", &item)?;
-            let mut out = (*s).clone();
-            out.insert(key, item);
-            Ok(Value::wat__std__HashSet(Arc::new(out)))
-        }
-        // arc 138: no span — same rationale.
-        other => Err(RuntimeError::TypeMismatch {
-            op: ":wat::core::conj".into(),
-            expected: "Vec<T> | HashSet<T>",
-            got: other.type_name(),
-            span: Span::unknown(),
-        }),
-    }
-}
+// Arc 146 slice 3 — `eval_conj` retired. The polymorphism is honest
+// now: a Dispatch (declared in `wat/core.wat`) routes
+// `:wat::core::conj` to `:Vector/conj` and `:HashSet/conj` per-Type
+// impls (above). HashMap doesn't conj — it requires key+value
+// pairing, so `:wat::core::assoc` is the right verb there.
 
 /// `(:wat::core::tuple a b c ...)` — build a heterogeneous tuple
 /// `Value::Tuple`. Arity 1+; the 0-tuple is the unit `:()` handled
@@ -5053,6 +5034,377 @@ fn eval_hashset_length(
     hashset_length_inner(&v)
 }
 
+// ─── Arc 146 slice 3 — per-Type empty? / contains? / get / conj impls ────────
+//
+// Mirrors slice 2's per-Type-length shape. Each primitive has an inner
+// helper that takes pre-evaluated `Value`(s) so the dispatch path
+// (which already evaluated args for arm matching) can invoke it
+// without re-evaluating ASTs (no double side effects). The outer
+// `eval_*` wrappers do the AST-eval and arity check for direct
+// keyword calls.
+//
+// Semantic note for `contains?`: per the arc 146 slice 3 BRIEF the
+// dispatch arms are now ELEMENT membership for Vector / HashSet and
+// KEY membership for HashMap (verb `contains-key?`). This corrects
+// the pre-arc-146 `eval_contains_q` which treated Vec×i64 as a
+// VALID-INDEX check; the new shape is honest membership-equality
+// matching HashSet semantics. In-runtime.rs unit tests updated in
+// the same sweep.
+
+fn vector_empty_q_inner(v: &Value) -> Result<Value, RuntimeError> {
+    match v {
+        Value::Vec(xs) => Ok(Value::bool(xs.is_empty())),
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::Vector/empty?".into(),
+            expected: "Vec<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn hashmap_empty_q_inner(v: &Value) -> Result<Value, RuntimeError> {
+    match v {
+        Value::wat__std__HashMap(m) => Ok(Value::bool(m.is_empty())),
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::HashMap/empty?".into(),
+            expected: "HashMap<K,V>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn hashset_empty_q_inner(v: &Value) -> Result<Value, RuntimeError> {
+    match v {
+        Value::wat__std__HashSet(s) => Ok(Value::bool(s.is_empty())),
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::HashSet/empty?".into(),
+            expected: "HashSet<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn eval_vector_empty_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::Vector/empty?".into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    vector_empty_q_inner(&v)
+}
+
+fn eval_hashmap_empty_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::HashMap/empty?".into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    hashmap_empty_q_inner(&v)
+}
+
+fn eval_hashset_empty_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::HashSet/empty?".into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    hashset_empty_q_inner(&v)
+}
+
+// ─── contains? — MIXED VERBS ────────────────────────────────────────────────
+
+fn vector_contains_q_inner(container: &Value, item: &Value) -> Result<Value, RuntimeError> {
+    match container {
+        Value::Vec(xs) => {
+            // Element membership via canonical-key equality (same
+            // mechanism HashSet uses). This corrects the pre-arc-146
+            // Vec×i64 valid-index check.
+            let item_key = hashmap_key(":wat::core::Vector/contains?", item)?;
+            for x in xs.iter() {
+                if let Ok(x_key) = hashmap_key(":wat::core::Vector/contains?", x) {
+                    if x_key == item_key {
+                        return Ok(Value::bool(true));
+                    }
+                }
+            }
+            Ok(Value::bool(false))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::Vector/contains?".into(),
+            expected: "Vec<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn hashmap_contains_key_q_inner(container: &Value, key: &Value) -> Result<Value, RuntimeError> {
+    match container {
+        Value::wat__std__HashMap(m) => {
+            let k = hashmap_key(":wat::core::HashMap/contains-key?", key)?;
+            Ok(Value::bool(m.contains_key(&k)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::HashMap/contains-key?".into(),
+            expected: "HashMap<K,V>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn hashset_contains_q_inner(container: &Value, item: &Value) -> Result<Value, RuntimeError> {
+    match container {
+        Value::wat__std__HashSet(s) => {
+            let key = hashmap_key(":wat::core::HashSet/contains?", item)?;
+            Ok(Value::bool(s.contains_key(&key)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::HashSet/contains?".into(),
+            expected: "HashSet<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn eval_vector_contains_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::Vector/contains?".into(),
+            expected: 2,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let item = eval(&args[1], env, sym)?;
+    vector_contains_q_inner(&container, &item)
+}
+
+fn eval_hashmap_contains_key_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::HashMap/contains-key?".into(),
+            expected: 2,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let key = eval(&args[1], env, sym)?;
+    hashmap_contains_key_q_inner(&container, &key)
+}
+
+fn eval_hashset_contains_q(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::HashSet/contains?".into(),
+            expected: 2,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let item = eval(&args[1], env, sym)?;
+    hashset_contains_q_inner(&container, &item)
+}
+
+// ─── get — return type varies per arm (Option<T> vs Option<V>) ──────────────
+
+fn vector_get_inner(container: &Value, index: &Value) -> Result<Value, RuntimeError> {
+    match container {
+        Value::Vec(xs) => {
+            let i = match index {
+                Value::i64(n) => *n,
+                other => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: ":wat::core::Vector/get".into(),
+                        expected: "i64 index",
+                        got: other.type_name(),
+                        span: Span::unknown(),
+                    });
+                }
+            };
+            if i < 0 || (i as usize) >= xs.len() {
+                Ok(Value::Option(Arc::new(None)))
+            } else {
+                Ok(Value::Option(Arc::new(Some(xs[i as usize].clone()))))
+            }
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::Vector/get".into(),
+            expected: "Vec<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value, RuntimeError> {
+    match container {
+        Value::wat__std__HashMap(m) => {
+            let k = hashmap_key(":wat::core::HashMap/get", key)?;
+            match m.get(&k) {
+                Some((_stored_k, v)) => Ok(Value::Option(Arc::new(Some(v.clone())))),
+                None => Ok(Value::Option(Arc::new(None))),
+            }
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::HashMap/get".into(),
+            expected: "HashMap<K,V>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn eval_vector_get(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::Vector/get".into(),
+            expected: 2,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let index = eval(&args[1], env, sym)?;
+    vector_get_inner(&container, &index)
+}
+
+fn eval_hashmap_get(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::HashMap/get".into(),
+            expected: 2,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let key = eval(&args[1], env, sym)?;
+    hashmap_get_inner(&container, &key)
+}
+
+// ─── conj — append element to growing collection ────────────────────────────
+
+fn vector_conj_inner(container: &Value, item: &Value) -> Result<Value, RuntimeError> {
+    match container {
+        Value::Vec(xs) => {
+            let mut out = (**xs).clone();
+            out.push(item.clone());
+            Ok(Value::Vec(Arc::new(out)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::Vector/conj".into(),
+            expected: "Vec<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Value, RuntimeError> {
+    match container {
+        Value::wat__std__HashSet(s) => {
+            let key = hashmap_key(":wat::core::HashSet/conj", item)?;
+            let mut out = (**s).clone();
+            out.insert(key, item.clone());
+            Ok(Value::wat__std__HashSet(Arc::new(out)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::HashSet/conj".into(),
+            expected: "HashSet<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn eval_vector_conj(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::Vector/conj".into(),
+            expected: 2,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let item = eval(&args[1], env, sym)?;
+    vector_conj_inner(&container, &item)
+}
+
+fn eval_hashset_conj(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::HashSet/conj".into(),
+            expected: 2,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let item = eval(&args[1], env, sym)?;
+    hashset_conj_inner(&container, &item)
+}
+
 /// Arc 146 slice 2 — substrate-primitive impl dispatch from
 /// `eval_dispatch_call` when an arm's impl is NOT a user-define
 /// `Function` (i.e., not present in `sym.functions`). Routes to the
@@ -5063,6 +5415,9 @@ fn eval_hashset_length(
 /// Returns `Some(result)` when the impl is a known substrate
 /// primitive; `None` when no substrate impl matches (caller surfaces
 /// `UnknownFunction`).
+///
+/// Arc 146 slice 3 extends this with the per-Type empty? / contains? /
+/// get / conj impls (10 new arms; 3+3+2+2).
 pub(crate) fn dispatch_substrate_impl(
     impl_name: &str,
     vals: &[Value],
@@ -5077,41 +5432,55 @@ pub(crate) fn dispatch_substrate_impl(
         ":wat::core::HashSet/length" => {
             Some(hashset_length_inner(vals.first().expect("arity-checked")))
         }
+        // empty? — 1 arg
+        ":wat::core::Vector/empty?" => {
+            Some(vector_empty_q_inner(vals.first().expect("arity-checked")))
+        }
+        ":wat::core::HashMap/empty?" => {
+            Some(hashmap_empty_q_inner(vals.first().expect("arity-checked")))
+        }
+        ":wat::core::HashSet/empty?" => {
+            Some(hashset_empty_q_inner(vals.first().expect("arity-checked")))
+        }
+        // contains? — 2 args (mixed verbs)
+        ":wat::core::Vector/contains?" => Some(vector_contains_q_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
+        ":wat::core::HashMap/contains-key?" => Some(hashmap_contains_key_q_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
+        ":wat::core::HashSet/contains?" => Some(hashset_contains_q_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
+        // get — 2 args (return type varies per arm: Option<T> vs Option<V>)
+        ":wat::core::Vector/get" => Some(vector_get_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
+        ":wat::core::HashMap/get" => Some(hashmap_get_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
+        // conj — 2 args (returns container type)
+        ":wat::core::Vector/conj" => Some(vector_conj_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
+        ":wat::core::HashSet/conj" => Some(hashset_conj_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
         _ => None,
     }
 }
 
-/// `(:wat::core::empty? container)` → `:bool`. Polymorphic since arc
-/// 058: Vec, HashMap, and HashSet all answer "no entries?" the same
-/// way. Mirrors `length`'s polymorphism shape.
-fn eval_empty_q(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    if args.len() != 1 {
-        // arc 138: no span — leaf helper.
-        return Err(RuntimeError::ArityMismatch {
-            op: ":wat::core::empty?".into(),
-            expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        });
-    }
-    let v = eval(&args[0], env, sym)?;
-    match v {
-        Value::Vec(xs) => Ok(Value::bool(xs.is_empty())),
-        Value::wat__std__HashMap(m) => Ok(Value::bool(m.is_empty())),
-        Value::wat__std__HashSet(s) => Ok(Value::bool(s.is_empty())),
-        // arc 138: no span — leaf helper.
-        other => Err(RuntimeError::TypeMismatch {
-            op: ":wat::core::empty?".into(),
-            expected: "Vec<T> | HashMap<K,V> | HashSet<T>",
-            got: other.type_name(),
-            span: Span::unknown(),
-        }),
-    }
-}
+// Arc 146 slice 3 — `eval_empty_q` retired. The polymorphism is
+// honest now: a Dispatch (declared in `wat/core.wat`) routes
+// `:wat::core::empty?` to the per-Type `:Vector/empty?` /
+// `:HashMap/empty?` / `:HashSet/empty?` impls above.
 
 /// `(:wat::core::concat v1 v2 ...)` → `Vec<T>`. Variadic Vec
 /// concatenation (arc 059). Allocates a fresh Vec of the combined
@@ -5686,81 +6055,18 @@ fn eval_hashmap_ctor(
     Ok(Value::wat__std__HashMap(Arc::new(map)))
 }
 
-/// `(:wat::core::get container locator)` — unified accessor per
-/// FOUNDATION line 2634. Dispatches on the container's runtime
-/// variant:
-///   - `:HashMap<K,V>` × `:K` → `:Option<V>`
-///   - `:HashSet<T>`   × `:T` → `:Option<T>` (Some of the stored
-///     element on membership, None on miss — round-trips the
-///     caller's value)
-///
-/// Vec index-get graduates when a caller demands it.
-fn eval_get(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
-            op: ":wat::core::get".into(),
-            expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        });
-    }
-    let container = eval(&args[0], env, sym)?;
-    let k = eval(&args[1], env, sym)?;
-    match container {
-        Value::wat__std__HashMap(m) => {
-            let key = hashmap_key(":wat::core::get", &k)?;
-            match m.get(&key) {
-                Some((_stored_k, v)) => Ok(Value::Option(Arc::new(Some(v.clone())))),
-                None => Ok(Value::Option(Arc::new(None))),
-            }
-        }
-        Value::wat__std__HashSet(s) => {
-            let key = hashmap_key(":wat::core::get", &k)?;
-            match s.get(&key) {
-                Some(stored) => Ok(Value::Option(Arc::new(Some(stored.clone())))),
-                None => Ok(Value::Option(Arc::new(None))),
-            }
-        }
-        // Arc 025: Vec support — `(get xs i)` with :i64 index returns
-        // `:Option<T>`. (Some v) at valid index; :None at negative or
-        // out-of-range. Matches 058-026-array's INSCRIPTION intent.
-        Value::Vec(xs) => {
-            let i = match k {
-                Value::i64(n) => n,
-                other => {
-                    return Err(RuntimeError::TypeMismatch {
-                        op: ":wat::core::get".into(),
-                        expected: "i64 index for Vec",
-                        got: other.type_name(),
-                        span: args[1].span().clone(),
-                    });
-                }
-            };
-            if i < 0 || (i as usize) >= xs.len() {
-                Ok(Value::Option(Arc::new(None)))
-            } else {
-                Ok(Value::Option(Arc::new(Some(xs[i as usize].clone()))))
-            }
-        }
-        other => Err(RuntimeError::TypeMismatch {
-            op: ":wat::core::get".into(),
-            expected: "HashMap | HashSet | Vec",
-            got: other.type_name(),
-            span: args[0].span().clone(),
-        }),
-    }
-}
+// Arc 146 slice 3 — `eval_get` retired. The polymorphism is honest
+// now: a Dispatch (declared in `wat/core.wat`) routes
+// `:wat::core::get` to `:Vector/get` (Vec×i64 → Option<T>) and
+// `:HashMap/get` (HashMap<K,V>×K → Option<V>). HashSet's
+// "get-by-equality" is just `:contains?` per arc 146 DESIGN audit
+// table.
 
 /// Arc 020 — `(:wat::core::assoc container key value)`. Clojure
 /// `assoc`: return a new HashMap with the entry added/replaced.
 /// Values-up: input container unchanged. HashMap-only for now;
 /// other containers dispatched off the same function if demand
-/// surfaces (matches `eval_get`'s pattern).
+/// surfaces (matches the per-container dispatch shape).
 fn eval_assoc(
     args: &[WatAST],
     env: &Environment,
@@ -5967,60 +6273,13 @@ fn eval_hashset_ctor(
     Ok(Value::wat__std__HashSet(Arc::new(set)))
 }
 
-/// Arc 025 — `(:wat::core::contains? container key)`. Polymorphic
-/// membership / key / index predicate:
-///   HashMap<K,V> × K    -> bool   (has key)
-///   HashSet<T>   × T    -> bool   (has element)
-///   Vec<T>       × i64  -> bool   (has valid index)
-/// Retires `:wat::core::contains?` — this covers it. Dispatched in
-/// check.rs via `infer_contains_q`.
-fn eval_contains_q(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
-            op: ":wat::core::contains?".into(),
-            expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        });
-    }
-    let container = eval(&args[0], env, sym)?;
-    let k = eval(&args[1], env, sym)?;
-    match container {
-        Value::wat__std__HashMap(m) => {
-            let key = hashmap_key(":wat::core::contains?", &k)?;
-            Ok(Value::bool(m.contains_key(&key)))
-        }
-        Value::wat__std__HashSet(s) => {
-            let key = hashmap_key(":wat::core::contains?", &k)?;
-            Ok(Value::bool(s.contains_key(&key)))
-        }
-        Value::Vec(xs) => {
-            let i = match k {
-                Value::i64(n) => n,
-                other => {
-                    return Err(RuntimeError::TypeMismatch {
-                        op: ":wat::core::contains?".into(),
-                        expected: "i64 index for Vec",
-                        got: other.type_name(),
-                        span: args[1].span().clone(),
-                    });
-                }
-            };
-            Ok(Value::bool(i >= 0 && (i as usize) < xs.len()))
-        }
-        other => Err(RuntimeError::TypeMismatch {
-            op: ":wat::core::contains?".into(),
-            expected: "HashMap | HashSet | Vec",
-            got: other.type_name(),
-            span: args[0].span().clone(),
-        }),
-    }
-}
+// Arc 146 slice 3 — `eval_contains_q` retired. The polymorphism is
+// honest now: a Dispatch (declared in `wat/core.wat`) routes
+// `:wat::core::contains?` to per-Type impls with MIXED VERBS:
+// `:Vector/contains?` (element membership), `:HashMap/contains-key?`
+// (key membership), and `:HashSet/contains?` (element membership).
+// The pre-arc-146 Vec×i64-as-valid-index check was retired with the
+// semantic correction (use `(< i (length xs))` for index validity).
 
 /// `(:wat::core::quote <expr>)` — capture an unevaluated AST.
 ///
@@ -19544,8 +19803,16 @@ mod tests {
 
     #[test]
     fn hashmap_get_requires_hashmap_arg() {
+        // Arc 146 slice 3 — `:wat::core::get` is now a Dispatch with
+        // arms (Vec / HashMap). Calling it on an `:i64` matches no arm;
+        // the runtime error is `MalformedForm` (no-arm-match) rather
+        // than `TypeMismatch` (the pre-arc-146 single-handler shape).
         let err = eval_expr(r#"(:wat::core::get 42 "k")"#).unwrap_err();
-        assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
+        assert!(
+            matches!(err, RuntimeError::MalformedForm { .. }),
+            "expected MalformedForm (no-arm-match); got {:?}",
+            err
+        );
     }
 
     // ─── :wat::core::assoc (arc 020) ───────────────────────────────────
@@ -19833,17 +20100,18 @@ mod tests {
     #[test]
     fn keys_contents_match_map() {
         // Order is unspecified — check membership via contains?.
+        // Arc 146 slice 3: contains? now tests ELEMENT membership
+        // (was: Vec×i64 valid-index). The honest check is "does the
+        // returned keys Vec contain each known key string?"
         let src = r#"
             (:wat::core::let*
               (((ks :Vec<String>)
                 (:wat::core::keys
                   (:wat::core::HashMap :(String,i64) "alpha" 1 "beta" 2))))
               (:wat::core::and
-                (:wat::core::contains? ks 0)
-                (:wat::core::contains? ks 1)))
+                (:wat::core::contains? ks "alpha")
+                (:wat::core::contains? ks "beta")))
         "#;
-        // contains? on Vec checks valid index; both keys present means
-        // a 2-element Vec which has indices 0 and 1.
         match eval_expr(src).unwrap() {
             Value::bool(true) => {}
             v => panic!("expected true, got {:?}", v),
@@ -20081,60 +20349,59 @@ mod tests {
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
     }
 
+    // Arc 146 slice 3 — Vector/contains? now tests ELEMENT membership
+    // (matching HashSet semantics), not valid-index. The pre-arc-146
+    // Vec×i64-as-index check was inconsistent with `contains?` across
+    // HashSet (which always tested element equality); the dispatch
+    // promotion regularises it. Index-validity callers should use
+    // `(< i (length xs))` directly.
     #[test]
-    fn vec_contains_valid_index_returns_true() {
+    fn vec_contains_existing_element_returns_true() {
         let src = r#"(:wat::core::let*
             (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
-            (:wat::core::contains? xs 2))"#;
+            (:wat::core::contains? xs 20))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
     }
 
     #[test]
-    fn vec_contains_out_of_range_returns_false() {
+    fn vec_contains_missing_element_returns_false() {
         let src = r#"(:wat::core::let*
             (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
-            (:wat::core::contains? xs 5))"#;
+            (:wat::core::contains? xs 99))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
     }
 
     #[test]
-    fn vec_contains_negative_index_returns_false() {
+    fn vec_contains_negative_missing_element_returns_false() {
         let src = r#"(:wat::core::let*
             (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
             (:wat::core::contains? xs -1))"#;
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
     }
 
+    // Arc 146 slice 3 — HashSet/get retired (per arc 146 DESIGN audit
+    // table: "HashSet's 'get-by-equality' IS just contains?"). The
+    // dispatch arms for `:get` now cover only Vector + HashMap; HashSet
+    // membership is expressed via `:contains?`. These two tests
+    // restructured to assert the contains? equivalent.
     #[test]
-    fn hashset_get_returns_stored_element() {
-        // (get s x) on HashSet returns (Some stored-x) on hit —
-        // round-trips the caller's element through the Rust backing.
+    fn hashset_contains_existing_element_returns_true() {
         let src = r#"
             (:wat::core::let*
               (((s :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "apple" "banana")))
-              (:wat::core::match (:wat::core::get s "apple") -> :String
-                ((:wat::core::Some x) x)
-                (:wat::core::None "missing")))
+              (:wat::core::contains? s "apple"))
         "#;
-        match eval_expr(src).unwrap() {
-            Value::String(s) => assert_eq!(&*s, "apple"),
-            v => panic!("expected \"apple\", got {:?}", v),
-        }
+        assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
     }
 
     #[test]
-    fn hashset_get_miss_returns_none() {
+    fn hashset_contains_missing_element_returns_false() {
         let src = r#"
             (:wat::core::let*
               (((s :rust::std::collections::HashSet<String>) (:wat::core::HashSet :String "apple")))
-              (:wat::core::match (:wat::core::get s "banana") -> :String
-                ((:wat::core::Some x) x)
-                (:wat::core::None "not-found")))
+              (:wat::core::contains? s "banana"))
         "#;
-        match eval_expr(src).unwrap() {
-            Value::String(s) => assert_eq!(&*s, "not-found"),
-            v => panic!("expected fallback, got {:?}", v),
-        }
+        assert!(matches!(eval_expr(src).unwrap(), Value::bool(false)));
     }
 
     #[test]
