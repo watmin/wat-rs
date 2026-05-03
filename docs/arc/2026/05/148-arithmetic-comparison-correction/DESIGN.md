@@ -249,6 +249,120 @@ Arc 148 closure (slice 6) adds:
 - Reflection example showing `signature-of :+/2` vs `signature-of :+`
   return different shapes (both honest)
 
+#### Full enumeration + visual collisions + maintainer mitigation
+
+**Settled 2026-05-03 after gaze ran on three additional candidates
+(operator-as-separator with three different namespacings + spelled-
+verb pipe-separated form). All failed convergence; the gaze-resolved
+form holds.**
+
+The full surface for arithmetic + comparison families = **54 names
+across 3 layers**:
+
+```
+ARITHMETIC (4 ops × 4 type combos + 4 binary dispatches + 4 variadic macros = 24 names):
+
+;; Layer 1 — Variadic macros (user-facing):
+:wat::core::+      :wat::core::-      :wat::core::*      :wat::core::/
+
+;; Layer 2 — Binary dispatches:
+:wat::core::+/2    :wat::core::-/2    :wat::core::*/2    :wat::core:///2  ⚠
+
+;; Layer 3a — Same-type per-Type impls:
+:wat::core::i64/+/2    :wat::core::i64/-/2    :wat::core::i64/*/2    :wat::core::i64///2  ⚠
+:wat::core::f64/+/2    :wat::core::f64/-/2    :wat::core::f64/*/2    :wat::core::f64///2  ⚠
+
+;; Layer 3b — Mixed-type per-Type impls:
+:wat::core::+/i64-f64/2    :wat::core::-/i64-f64/2    :wat::core::*/i64-f64/2    :wat::core:////i64-f64/2  ⚠⚠
+:wat::core::+/f64-i64/2    :wat::core::-/f64-i64/2    :wat::core::*/f64-i64/2    :wat::core:////f64-i64/2  ⚠⚠
+
+COMPARISON (5 ops × 4 type combos + 5 binary dispatches + 5 variadic macros = 30 names):
+
+;; Layer 1 — Variadic macros:
+:wat::core::=    :wat::core::<    :wat::core::>    :wat::core::<=    :wat::core::>=
+
+;; Layer 2 — Binary dispatches:
+:wat::core::=/2   :wat::core::</2 ⚠   :wat::core::>/2 ⚠   :wat::core::<=/2   :wat::core::>=/2
+
+;; Layer 3a — Same-type per-Type impls (showing i64; f64 mirrors):
+:wat::core::i64/=/2    :wat::core::i64/</2 ⚠    :wat::core::i64/>/2 ⚠    :wat::core::i64/<=/2    :wat::core::i64/>=/2
+
+;; Layer 3b — Mixed-type per-Type impls:
+:wat::core::=/i64-f64/2    :wat::core::</i64-f64/2 ⚠    :wat::core::>/i64-f64/2 ⚠    :wat::core::<=/i64-f64/2    :wat::core::>=/i64-f64/2
+;; (plus f64-i64 variants)
+```
+
+**Three known visual collisions (acknowledged + accepted):**
+
+1. **Division verb `/` ↔ separator `/`.** `:wat::core:///2`,
+   `:wat::core::i64///2`, `:wat::core:////i64-f64/2`. Verb-character
+   doubles as separator-character. Honest about the truth that `/`
+   IS both. Visually dense for the maintainer reading the dispatch
+   declaration.
+
+2. **Comparison `<` `>` ↔ type-parameter syntax `<>`.**
+   `:wat::core::</2`, `:wat::core::i64/</2`. The `<` character has
+   structural meaning in wat (`<>` for type parameters). Visual
+   collision risk. The lexer doesn't confuse them (different
+   contexts) but the eye might.
+
+3. **Subtraction verb `-` ↔ type-pair tag separator `-`.**
+   `:wat::core::-/i64-f64/2` — three `-` characters in one name.
+   Less disruptive than (1) because slash-arity provides
+   structure, but still same-character double-duty.
+
+**Mitigation: leave good comments at the dispatch declaration
+sites + per-Type impl registration sites.** Each `(:define-dispatch
+:/ ...)` declaration in `wat/core.wat` gets a header comment
+explaining the slash collision is intentional + honest. Each
+`env.register(":wat::core:////i64-f64/2", ...)` block in
+`register_builtins` gets a header comment naming the visual
+collision so the substrate maintainer reading it doesn't have to
+reverse-engineer the structure.
+
+**Why we accept the visual collisions:**
+
+The "subpar" UX falls on substrate maintainers (us) reading
+`wat/core.wat` and `register_builtins`. End-users write
+`(:+ 1 2.0)` / `(:/ 10 3)` and never see the slash-laden names.
+Per arc 109's no-privacy doctrine: every name is reachable; the
+recommended INTERFACE is the macro. Calling per-Type impls
+directly is possible but not the documented path.
+
+**Per the four questions on this stance:**
+- Obvious? YES — the macro IS the recommended interface; per-Type
+  impls are leaves
+- Simple? YES — no technical change; documentation + comments
+  stance
+- Honest? YES — collisions are honest about substrate truths
+  (slash IS the separator AND the division verb); no-privacy
+  doctrine is honest
+- Good UX? YES for end-users (clean macro UX); meh for substrate
+  maintainers (we knew; we paid; we comment); honest for
+  reflection consumers
+
+**Reflection / help / error-output guidance for arc 148 closure:**
+
+When a future REPL `(:help :+)` or error message surfaces these
+names, the output should LEAD with the variadic surface
+(`(:+ x y ... )` first, "implementation routes via :+/2 to per-Type
+impls" second). Per-Type impls appear ONLY when the user has
+explicitly drilled into substrate internals via
+`(:wat::runtime::lookup-define :wat::core:////i64-f64/2)` or
+similar. Closure slice updates docs + reflection helpers
+accordingly.
+
+**Gaze trail (compaction recovery):**
+- 1st gaze: 3 candidates (i64+f64/2, +/i64-f64/2, numeric/+/i64-f64/2)
+  → converged on `:+/i64-f64/2` (agent `a73eba99aab6ccec5`)
+- 2nd gaze: operator-as-separator under `:wat::numeric::*` →
+  4 L1 lies + 4 L2 mumbles; rejected (agent `aa006b4413efab294`)
+- 3rd gaze: spelled-verb (`add`/`gte`) + pipe-separator → 4 L1
+  lies + 4 L2 mumbles; rejected (agent `a8f372c98c5fec695`)
+
+Ward isolation maintained across all three; ward-converged form
+holds.
+
 ## What gets migrated (the audit)
 
 | Class | Polymorphic name | Per-Type impls (audit refines) |
