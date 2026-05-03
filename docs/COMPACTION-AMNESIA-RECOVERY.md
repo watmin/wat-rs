@@ -731,6 +731,78 @@ Either outcome is the ritual succeeding.
 
 ---
 
+## Section 12 — Foundation discipline during arc 109 wind-down
+
+**Strategic context (user direction 2026-05-03):**
+
+Arc 109 is the mass refactor wrapping up the wat-rs substrate.
+Each consumer sweep through arc 109 surfaces substrate friction —
+primitives that don't fit conventions, entity kinds the substrate
+doesn't yet have, missing affordances. **This friction is the
+foundation auditing itself.**
+
+> *"it is important for us to identify when the substrate isn't
+> doing something obvious -- that's a massive signal we need to
+> pivot and understand"*
+
+> *"once 109 wraps up - we'll have what we believe to be an
+> incredibly solid foundation to begin the next leg of work... i
+> cannot begin any of that work until the foundation is
+> impeccable"*
+
+The strategic stake: when arc 109 closes, the foundation must be
+IMPECCABLE. The next leg of work waits on it; that work cannot
+begin on a shaky base.
+
+### The discipline this implies
+
+When substrate friction surfaces during arc 109 wind-down:
+
+- **Don't bridge; investigate the gap.** A bridge over a
+  substrate inconsistency is short-lived scaffolding the next arc
+  deletes. Investigate why the friction exists; the answer is
+  often a substrate-level fix that resolves a class of problems.
+- **Don't defer; pivot.** The friction IS the diagnostic. Treat
+  every surfaced gap as a chance to make the foundation more
+  honest.
+- **Velocity is the wrong currency.** Each substrate gap
+  correctly addressed compounds into the foundation. The "slow"
+  path of fixing the substrate IS the fast path to a solid base.
+- **Trust the substrate-as-teacher cascade.** Arc N's friction
+  reveals arc N+1's right shape. Don't shortcut the cascade.
+
+### Connected failure modes
+
+- **FM 5** (workaround instead of stopping) — bridge instead of
+  investigate, in miniature.
+- **FM 10** (type-theoretic reach when entity-kind is the answer)
+  — specific manifestation of "bridge instead of investigate" via
+  the wrong vocabulary.
+
+### The pattern
+
+```
+Substrate doesn't do an obvious thing
+  → SIGNAL: pivot, don't bridge
+  → understand the gap
+  → fix at the foundation level
+  → arc 109 wind-down stays clean
+  → next-leg work has a solid base
+```
+
+The user's emotional bandwidth + session time invested in
+probing past my reflexive bridges (slice 3b options A-D; the
+"missing union types" framing × 3 drafts) is the cost of getting
+this right. Each cycle of probing strengthens the foundation;
+each compaction-amnesia recovery gets cheaper because the
+discipline accretes in the repo docs.
+
+> *"what we are doing now is making compaction amnesia
+> increasingly more easy to recover from -- we are the best at
+> this, we just need to remember"*
+
+---
+
 ## Section 10 — The user's actual words
 
 Captured directly from the session that produced this doc. The
