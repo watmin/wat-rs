@@ -11457,6 +11457,235 @@ fn register_builtins(env: &mut CheckEnv) {
             ret: vec_of(u_var()),
         },
     );
+
+    // ─── Arc 144 slice 3 — fingerprints for hardcoded callables ─────────────
+    //
+    // The 15 callables dispatched in `infer_list` (check.rs:3036-3082)
+    // do their own type-checking via `infer_*` handlers — those
+    // handlers continue to own real type-checking and stay untouched
+    // by this slice. The TypeScheme entries below are FINGERPRINTS:
+    // they capture arity + return type so `lookup_form` (arc 144
+    // slice 1) reaches them via the `CheckEnv::with_builtins().get(name)`
+    // path and emits `Binding::Primitive`. Reflection (`signature-of`,
+    // `body-of`, `lookup-define`) and the `define-alias` macro
+    // (slice 6 length canary) then "just work" uniformly.
+    //
+    // For variadic constructors (Vector, Tuple, HashMap, HashSet,
+    // concat, string::concat) the fingerprint is a single-arity
+    // sentinel because TypeScheme has no variadic shape today; each
+    // such registration carries a Rust comment naming the runtime
+    // arity + the dispatch site that owns real checking.
+    let k_var = || TypeExpr::Path(":K".into());
+    let v_var = || TypeExpr::Path(":V".into());
+    let hashmap_of = |k: TypeExpr, v: TypeExpr| TypeExpr::Parametric {
+        head: "HashMap".into(),
+        args: vec![k, v],
+    };
+    let hashset_of = |t: TypeExpr| TypeExpr::Parametric {
+        head: "HashSet".into(),
+        args: vec![t],
+    };
+
+    // :wat::core::length — polymorphic over Vec / HashMap / HashSet
+    // (infer_length at check.rs:7761). 1-arg fingerprint with a single
+    // type-var T captures the polymorphism honestly; the handler
+    // re-checks the container shape per call. SLICE 6 LENGTH CANARY
+    // depends on this entry being reachable through lookup_form.
+    env.register(
+        ":wat::core::length".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: i64_ty(),
+        },
+    );
+
+    // :wat::core::empty? — same polymorphism as length
+    // (infer_empty_q at check.rs:7629).
+    env.register(
+        ":wat::core::empty?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: bool_ty(),
+        },
+    );
+
+    // :wat::core::contains? — polymorphic membership/key predicate
+    // over HashMap / HashSet / Vec (infer_contains_q at
+    // check.rs:7815). 2-arg fingerprint with two type-vars: T for
+    // the container, K for the key/element. Real per-container key
+    // unification happens in the handler.
+    env.register(
+        ":wat::core::contains?".into(),
+        TypeScheme {
+            type_params: vec!["T".into(), "K".into()],
+            params: vec![t_var(), k_var()],
+            ret: bool_ty(),
+        },
+    );
+
+    // :wat::core::get — polymorphic lookup; handler accepts
+    // HashMap<K,V> + K, Vec<T> + i64, AND HashSet<T> + T
+    // (infer_get at check.rs:7243; broader than the brief's pre-flight
+    // table). The fingerprint is the HashMap-shaped variant since
+    // it's the most informative shape (carries both K and V); the
+    // Vec/HashSet branches still work because real checking lives in
+    // the handler.
+    env.register(
+        ":wat::core::get".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var()],
+            ret: opt(v_var()),
+        },
+    );
+
+    // :wat::core::conj — polymorphic over Vec<T> + T and HashSet<T> + T
+    // (infer_conj at check.rs:7682). Vec-shaped fingerprint since
+    // both branches share the same arity + return-the-container
+    // pattern. HashMap is illegal at the handler.
+    env.register(
+        ":wat::core::conj".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), t_var()],
+            ret: vec_of(t_var()),
+        },
+    );
+
+    // :wat::core::assoc — handler accepts HashMap<K,V> + K + V AND
+    // Vec<T> + i64 + T (infer_assoc at check.rs:7354). HashMap-shaped
+    // fingerprint since it carries both type-vars + the value-position
+    // distinction.
+    env.register(
+        ":wat::core::assoc".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var(), v_var()],
+            ret: hashmap_of(k_var(), v_var()),
+        },
+    );
+
+    // :wat::core::dissoc — HashMap-only at the handler
+    // (infer_dissoc at check.rs:7460).
+    env.register(
+        ":wat::core::dissoc".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var()],
+            ret: hashmap_of(k_var(), v_var()),
+        },
+    );
+
+    // :wat::core::keys — HashMap-only (infer_keys at check.rs:7523).
+    env.register(
+        ":wat::core::keys".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: vec_of(k_var()),
+        },
+    );
+
+    // :wat::core::values — HashMap-only (infer_values at check.rs:7575).
+    env.register(
+        ":wat::core::values".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: vec_of(v_var()),
+        },
+    );
+
+    // :wat::core::concat — variadic at runtime (1+ Vec<T> args;
+    // infer_concat at check.rs:8054). TypeScheme has no variadic
+    // shape today, so the fingerprint registers the canonical 2-arg
+    // case; real arity-checking lives in the handler. Per arc 144
+    // slice 3 limitation.
+    env.register(
+        ":wat::core::concat".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), vec_of(t_var())],
+            ret: vec_of(t_var()),
+        },
+    );
+
+    // :wat::core::string::concat — variadic at runtime (0+ :String
+    // args; infer_string_concat at check.rs:8096). TypeScheme has no
+    // variadic shape today, so the fingerprint registers the canonical
+    // 2-arg case; real per-arg :String unification + zero-arg accept
+    // lives in the handler. Per arc 144 slice 3 limitation.
+    env.register(
+        ":wat::core::string::concat".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty(), string_ty()],
+            ret: string_ty(),
+        },
+    );
+
+    // :wat::core::Vector — variadic constructor at runtime (accepts
+    // `:T x1 x2 ...`, 1+ args; infer_list_constructor at
+    // check.rs:8122). The first runtime arg is the element-type
+    // keyword; the fingerprint registers a 1-arg `:T` form to expose
+    // the polymorphism without modeling the type-keyword convention.
+    // Real arity + type-keyword + per-element checking lives in the
+    // handler. Per arc 144 slice 3 limitation.
+    env.register(
+        ":wat::core::Vector".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: vec_of(t_var()),
+        },
+    );
+
+    // :wat::core::Tuple — variadic heterogeneous constructor at
+    // runtime (accepts `a b c ...`, 1+ args, no leading type
+    // keyword; infer_tuple_constructor at check.rs:8013). Tuple
+    // arity/element-types are structural and known at type-check
+    // time; the fingerprint registers a 1-element sentinel since
+    // TypeScheme has no variadic-heterogeneous shape today. Per arc
+    // 144 slice 3 limitation.
+    env.register(
+        ":wat::core::Tuple".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: TypeExpr::Tuple(vec![t_var()]),
+        },
+    );
+
+    // :wat::core::HashMap — variadic at runtime (accepts a leading
+    // `:(K,V)` tuple-keyword followed by alternating key/value
+    // pairs; infer_hashmap_constructor at check.rs:7904). The
+    // fingerprint registers a 2-arg `:K, :V` sentinel since
+    // TypeScheme has no variadic shape today AND no
+    // tuple-type-keyword shape. Real shape checking lives in the
+    // handler. Per arc 144 slice 3 limitation.
+    env.register(
+        ":wat::core::HashMap".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![k_var(), v_var()],
+            ret: hashmap_of(k_var(), v_var()),
+        },
+    );
+
+    // :wat::core::HashSet — variadic at runtime (accepts `:T x1 x2 ...`,
+    // 1+ args; infer_hashset_constructor at check.rs:6450). 1-arg
+    // `:T` sentinel mirrors :wat::core::Vector. Per arc 144 slice 3
+    // limitation.
+    env.register(
+        ":wat::core::HashSet".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![t_var()],
+            ret: hashset_of(t_var()),
+        },
+    );
 }
 
 #[cfg(test)]
