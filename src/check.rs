@@ -11314,7 +11314,6 @@ mod tests {
     use crate::macros::{
         expand_all, register_defmacros, register_stdlib_defmacros, MacroRegistry,
     };
-    use crate::parser::parse_all;
     use crate::runtime::{
         register_defines, register_stdlib_defines, register_struct_methods, SymbolTable,
     };
@@ -11349,7 +11348,7 @@ mod tests {
 
     fn check(src: &str) -> Result<(), CheckErrors> {
         let (stdlib_sym, stdlib_macros, stdlib_types) = stdlib_loaded();
-        let forms = parse_all(src).expect("parse ok");
+        let forms = crate::parse_all!(src).expect("parse ok");
         let mut macros = stdlib_macros.clone();
         let rest = register_defmacros(forms, &mut macros).expect("register macros");
         let expanded = expand_all(rest, &mut macros).expect("expand");
@@ -11410,8 +11409,8 @@ mod tests {
         let err = check(r#"(:wat::core::i64::+ "hello" 3)"#).unwrap_err();
         let rendered = format!("{}", err);
         assert!(
-            rendered.contains("<test>:"),
-            "TypeMismatch Display must include source coordinates; rendered:\n{}",
+            rendered.contains("src/") || rendered.contains(".rs:"),
+            "TypeMismatch Display must include real source coordinates; rendered:\n{}",
             rendered
         );
     }
@@ -11454,7 +11453,7 @@ mod tests {
             "rendered must name the offending function; got:\n{}", rendered
         );
         assert!(
-            rendered.contains("<test>:"),
+            rendered.contains("src/") || rendered.contains(".rs:"),
             "rendered must include file:line:col coordinates (arc 138); got:\n{}", rendered
         );
         assert!(

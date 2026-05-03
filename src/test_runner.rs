@@ -548,7 +548,7 @@ fn discover_wat_files(path: &Path) -> std::io::Result<Vec<PathBuf>> {
 /// surfaces with full diagnostic context. Treating parse-failed files
 /// as "not an entry" (and skipping) would mask real errors.
 fn source_has_config_setter(src: &str) -> bool {
-    let forms = match crate::parser::parse_all(src) {
+    let forms = match crate::parse_all!(src) {
         Ok(f) => f,
         // Parse error — let the caller's freeze path report it.
         // Return `true` so we proceed to freeze.

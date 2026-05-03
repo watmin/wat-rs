@@ -82,7 +82,7 @@
 //! driver and don't go through the trait.
 
 use crate::ast::WatAST;
-use crate::parser::{parse_all, ParseError};
+use crate::parser::{parse_all_with_file, ParseError};
 use std::collections::HashSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -367,7 +367,7 @@ fn process_single_load(
     visited.insert(fetched.canonical_path.clone());
     stack.push(fetched.canonical_path.clone());
 
-    let loaded_forms = parse_all(&fetched.source).map_err(|err| LoadError::Parse {
+    let loaded_forms = parse_all_with_file(&fetched.source, &fetched.canonical_path).map_err(|err| LoadError::Parse {
         path: fetched.canonical_path.clone(),
         err,
     })?;
@@ -1039,14 +1039,13 @@ fn resolve_relative(path: &str, base_canonical: Option<&str>) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::parse_all;
 
     fn resolve_mem(entry: &str, source_files: &[(&str, &str)]) -> Result<Vec<WatAST>, LoadError> {
         let mut loader = InMemoryLoader::new();
         for (p, s) in source_files {
             loader.add_source(*p, *s);
         }
-        let forms = parse_all(entry).expect("entry parse succeeds");
+        let forms = crate::parse_all!(entry).expect("entry parse succeeds");
         resolve_loads(forms, None, &loader)
     }
 
@@ -1062,7 +1061,7 @@ mod tests {
         for (p, s) in payload_files {
             loader.add_payload(*p, *s);
         }
-        let forms = parse_all(entry).expect("entry parse succeeds");
+        let forms = crate::parse_all!(entry).expect("entry parse succeeds");
         resolve_loads(forms, None, &loader)
     }
 
@@ -1206,7 +1205,7 @@ mod tests {
         use base64::engine::general_purpose::STANDARD as B64;
         use base64::Engine;
         use ed25519_dalek::Signer;
-        let forms = parse_all(source).expect("source parses");
+        let forms = crate::parse_all!(source).expect("source parses");
         let hash = crate::hash::hash_canonical_program(&forms);
         let sig = signing_key.sign(&hash);
         let sig_b64 = B64.encode(sig.to_bytes());

@@ -435,11 +435,10 @@ impl std::error::Error for HashError {}
 mod tests {
     use super::*;
     use crate::identifier::{fresh_scope, Identifier};
-    use crate::parser::{parse_all, parse_one};
     use ed25519_dalek::{Signer, SigningKey};
 
     fn parse(src: &str) -> WatAST {
-        parse_one(src).expect("parse ok")
+        crate::parse_one!(src).expect("parse ok")
     }
 
     /// Fixed 32-byte seed for deterministic test keypair. Any bytes
@@ -506,22 +505,22 @@ mod tests {
     #[test]
     fn program_tag_discriminates_from_list() {
         // A program of [A, B, C] must not collide with a single list (A B C).
-        let forms = parse_all("a b c").unwrap();
+        let forms = crate::parse_all!("a b c").unwrap();
         let single = parse("(a b c)");
         assert_ne!(canonical_edn_program(&forms), canonical_edn_wat(&single));
     }
 
     #[test]
     fn program_deterministic() {
-        let f1 = parse_all(r#"(:wat::holon::Atom "x") (:wat::holon::Atom "y")"#).unwrap();
-        let f2 = parse_all(r#"(:wat::holon::Atom "x") (:wat::holon::Atom "y")"#).unwrap();
+        let f1 = crate::parse_all!(r#"(:wat::holon::Atom "x") (:wat::holon::Atom "y")"#).unwrap();
+        let f2 = crate::parse_all!(r#"(:wat::holon::Atom "x") (:wat::holon::Atom "y")"#).unwrap();
         assert_eq!(canonical_edn_program(&f1), canonical_edn_program(&f2));
     }
 
     #[test]
     fn program_order_matters() {
-        let f1 = parse_all(r#"(:wat::holon::Atom "x") (:wat::holon::Atom "y")"#).unwrap();
-        let f2 = parse_all(r#"(:wat::holon::Atom "y") (:wat::holon::Atom "x")"#).unwrap();
+        let f1 = crate::parse_all!(r#"(:wat::holon::Atom "x") (:wat::holon::Atom "y")"#).unwrap();
+        let f2 = crate::parse_all!(r#"(:wat::holon::Atom "y") (:wat::holon::Atom "x")"#).unwrap();
         assert_ne!(canonical_edn_program(&f1), canonical_edn_program(&f2));
     }
 
@@ -531,7 +530,7 @@ mod tests {
     fn hash_is_32_bytes() {
         let a = parse(r#"(:wat::holon::Atom "x")"#);
         assert_eq!(hash_canonical_ast(&a).len(), 32);
-        let forms = parse_all(r#"(:wat::holon::Atom "x")"#).unwrap();
+        let forms = crate::parse_all!(r#"(:wat::holon::Atom "x")"#).unwrap();
         assert_eq!(hash_canonical_program(&forms).len(), 32);
     }
 
@@ -634,7 +633,7 @@ mod tests {
     fn ed25519_program_round_trip() {
         let sk = test_signing_key();
         let forms =
-            parse_all(r#"(:wat::holon::Atom "a") (:wat::holon::Atom "b")"#).unwrap();
+            crate::parse_all!(r#"(:wat::holon::Atom "a") (:wat::holon::Atom "b")"#).unwrap();
         let hash = hash_canonical_program(&forms);
         let sig = sk.sign(&hash);
         let sig_b64 = b64(&sig.to_bytes());
@@ -645,13 +644,13 @@ mod tests {
     #[test]
     fn ed25519_program_tampered_rejected() {
         let sk = test_signing_key();
-        let authored = parse_all(r#"(:wat::holon::Atom "a")"#).unwrap();
+        let authored = crate::parse_all!(r#"(:wat::holon::Atom "a")"#).unwrap();
         let sig = sk.sign(&hash_canonical_program(&authored));
         let sig_b64 = b64(&sig.to_bytes());
         let pk_b64 = b64(sk.verifying_key().as_bytes());
         // A program with an extra form is NOT the signed program.
         let tampered =
-            parse_all(r#"(:wat::holon::Atom "a") (:wat::holon::Atom "injected")"#).unwrap();
+            crate::parse_all!(r#"(:wat::holon::Atom "a") (:wat::holon::Atom "injected")"#).unwrap();
         let err = verify_program_signature(&tampered, "ed25519", &sig_b64, &pk_b64).unwrap_err();
         assert!(matches!(err, HashError::SignatureMismatch { .. }));
     }

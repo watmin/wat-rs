@@ -7,10 +7,12 @@
 //! happens at later passes, not here.
 //!
 //! Two entry points:
-//! - [`parse_one`] — parse a single top-level form; errors if there's
-//!   trailing content.
-//! - [`parse_all`] — parse a sequence of top-level forms; errors on
-//!   unclosed parens or unexpected closers.
+//! - [`parse_one!`] — macro that parses a single top-level form and
+//!   auto-captures the call-site Rust file:line as the span label.
+//! - [`parse_all!`] — macro that parses a sequence of top-level forms
+//!   and auto-captures the call-site Rust file:line as the span label.
+//! Production callers with real source paths use
+//! [`parse_one_with_file`] / [`parse_all_with_file`] directly.
 
 use crate::ast::WatAST;
 use crate::identifier::Identifier;
@@ -61,24 +63,39 @@ impl From<LexError> for ParseError {
     }
 }
 
-/// Parse the input as a single top-level `WatAST` form.
+/// Parse one form, auto-capturing the call-site Rust source location as
+/// the span file label. Use in tests and any call site where a real
+/// path is not available. Production code with a real path calls
+/// [`parse_one_with_file`] directly.
 ///
-/// Errors if the input is empty, if it contains more than one top-level
-/// form, or if any lex/parse rule is violated. Uses `<test>` as the
-/// span file label — callers with a real path use
-/// [`parse_one_with_file`].
-pub fn parse_one(src: &str) -> Result<WatAST, ParseError> {
-    parse_one_with_file(src, "<test>")
+/// Expands to `parse_one_with_file(src, concat!(file!(), ":", line!()))`.
+#[macro_export]
+macro_rules! parse_one {
+    ($src:expr $(,)?) => {
+        $crate::parser::parse_one_with_file(
+            $src,
+            concat!(file!(), ":", line!()),
+        )
+    };
 }
 
-/// Parse the input as a sequence of top-level `WatAST` forms. Uses
-/// `<test>` as the span file label — callers with a real path use
-/// [`parse_all_with_file`].
-pub fn parse_all(src: &str) -> Result<Vec<WatAST>, ParseError> {
-    parse_all_with_file(src, "<test>")
+/// Parse all forms, auto-capturing the call-site Rust source location as
+/// the span file label. Use in tests and any call site where a real
+/// path is not available. Production code with a real path calls
+/// [`parse_all_with_file`] directly.
+///
+/// Expands to `parse_all_with_file(src, concat!(file!(), ":", line!()))`.
+#[macro_export]
+macro_rules! parse_all {
+    ($src:expr $(,)?) => {
+        $crate::parser::parse_all_with_file(
+            $src,
+            concat!(file!(), ":", line!()),
+        )
+    };
 }
 
-/// [`parse_one`] with a span-label for diagnostics. Arc 016 slice 1.
+/// [`parse_one!`] with an explicit span-label for diagnostics. Arc 016 slice 1.
 pub fn parse_one_with_file(src: &str, file: &str) -> Result<WatAST, ParseError> {
     let file_arc = Arc::new(file.to_string());
     let tokens = lex(src, file_arc)?;
@@ -93,7 +110,7 @@ pub fn parse_one_with_file(src: &str, file: &str) -> Result<WatAST, ParseError> 
     Ok(node)
 }
 
-/// [`parse_all`] with a span-label for diagnostics. Arc 016 slice 1.
+/// [`parse_all!`] with an explicit span-label for diagnostics. Arc 016 slice 1.
 pub fn parse_all_with_file(src: &str, file: &str) -> Result<Vec<WatAST>, ParseError> {
     let file_arc = Arc::new(file.to_string());
     let tokens = lex(src, file_arc)?;
@@ -218,25 +235,25 @@ mod tests {
         // Tests rely on WatAST's structural PartialEq, which uses
         // Span::eq (always-true). Constructing expected with
         // Span::unknown() still matches the parser's real spans.
-        assert_eq!(parse_one("42").unwrap(), WatAST::int(42));
-        assert_eq!(parse_one("-1").unwrap(), WatAST::int(-1));
-        assert_eq!(parse_one("2.5").unwrap(), WatAST::float(2.5));
-        assert_eq!(parse_one("true").unwrap(), WatAST::bool(true));
-        assert_eq!(parse_one("false").unwrap(), WatAST::bool(false));
-        assert_eq!(parse_one("\"hello\"").unwrap(), str_lit("hello"));
-        assert_eq!(parse_one(":foo").unwrap(), kw(":foo"));
-        assert_eq!(parse_one("x").unwrap(), sym("x"));
+        assert_eq!(crate::parse_one!("42").unwrap(), WatAST::int(42));
+        assert_eq!(crate::parse_one!("-1").unwrap(), WatAST::int(-1));
+        assert_eq!(crate::parse_one!("2.5").unwrap(), WatAST::float(2.5));
+        assert_eq!(crate::parse_one!("true").unwrap(), WatAST::bool(true));
+        assert_eq!(crate::parse_one!("false").unwrap(), WatAST::bool(false));
+        assert_eq!(crate::parse_one!("\"hello\"").unwrap(), str_lit("hello"));
+        assert_eq!(crate::parse_one!(":foo").unwrap(), kw(":foo"));
+        assert_eq!(crate::parse_one!("x").unwrap(), sym("x"));
     }
 
     #[test]
     fn empty_list() {
-        assert_eq!(parse_one("()").unwrap(), list(vec![]));
+        assert_eq!(crate::parse_one!("()").unwrap(), list(vec![]));
     }
 
     #[test]
     fn simple_list() {
         assert_eq!(
-            parse_one("(a b c)").unwrap(),
+            crate::parse_one!("(a b c)").unwrap(),
             list(vec![sym("a"), sym("b"), sym("c")])
         );
     }
@@ -244,7 +261,7 @@ mod tests {
     #[test]
     fn nested_list() {
         assert_eq!(
-            parse_one("(a (b c) d)").unwrap(),
+            crate::parse_one!("(a (b c) d)").unwrap(),
             list(vec![
                 sym("a"),
                 list(vec![sym("b"), sym("c")]),
@@ -256,7 +273,7 @@ mod tests {
     #[test]
     fn algebra_core_atom() {
         assert_eq!(
-            parse_one(r#"(:wat::holon::Atom "role")"#).unwrap(),
+            crate::parse_one!(r#"(:wat::holon::Atom "role")"#).unwrap(),
             list(vec![kw(":wat::holon::Atom"), str_lit("role")])
         );
     }
@@ -270,13 +287,13 @@ mod tests {
             list(vec![kw(":wat::holon::Atom"), str_lit("role")]),
             list(vec![kw(":wat::holon::Atom"), str_lit("filler")]),
         ]);
-        assert_eq!(parse_one(src).unwrap(), expected);
+        assert_eq!(crate::parse_one!(src).unwrap(), expected);
     }
 
     #[test]
     fn algebra_core_thermometer() {
         assert_eq!(
-            parse_one("(:wat::holon::Thermometer 0.5 0.0 1.0)").unwrap(),
+            crate::parse_one!("(:wat::holon::Thermometer 0.5 0.0 1.0)").unwrap(),
             list(vec![
                 kw(":wat::holon::Thermometer"),
                 WatAST::FloatLit(0.5, Span::unknown()),
@@ -289,7 +306,7 @@ mod tests {
     #[test]
     fn algebra_core_blend_negative_weight() {
         assert_eq!(
-            parse_one("(:wat::holon::Blend a b 1 -1)").unwrap(),
+            crate::parse_one!("(:wat::holon::Blend a b 1 -1)").unwrap(),
             list(vec![
                 kw(":wat::holon::Blend"),
                 sym("a"),
@@ -305,7 +322,7 @@ mod tests {
         // Just verifying the shape survives parsing as a uniform List.
         // Dispatch to a Define node happens in a later pass.
         let src = "(:wat::core::define (:my::app::amplify (x :wat::holon::HolonAST) (y :wat::holon::HolonAST) (s :f64) -> :wat::holon::HolonAST) (:wat::holon::Blend x y 1 s))";
-        let parsed = parse_one(src).unwrap();
+        let parsed = crate::parse_one!(src).unwrap();
         // First child must be the :wat::core::define keyword.
         if let WatAST::List(items, _) = &parsed {
             assert_eq!(items[0], kw(":wat::core::define"));
@@ -316,11 +333,11 @@ mod tests {
 
     #[test]
     fn parse_all_multiple_forms() {
-        let forms = parse_all(
+        let forms = crate::parse_all!(
             r#"
             (:wat::config::set-capacity-mode! :error)
             (:wat::load-file! "wat/holon/Subtract.wat")
-            "#,
+            "#
         )
         .unwrap();
         assert_eq!(forms.len(), 2);
@@ -328,13 +345,13 @@ mod tests {
 
     #[test]
     fn parse_all_ignores_comments_and_whitespace() {
-        let forms = parse_all(
+        let forms = crate::parse_all!(
             r#"
             ;; comment
             42
             ;; another comment
             "hello"
-            "#,
+            "#
         )
         .unwrap();
         assert_eq!(forms, vec![WatAST::IntLit(42, Span::unknown()), str_lit("hello")]);
@@ -342,14 +359,14 @@ mod tests {
 
     #[test]
     fn unexpected_rparen_at_start() {
-        assert!(matches!(parse_one(")"), Err(ParseError::UnexpectedRParen(_))));
+        assert!(matches!(crate::parse_one!(")"), Err(ParseError::UnexpectedRParen(_))));
     }
 
     #[test]
     fn extra_rparen_after_complete_form_is_trailing() {
         // `(a))` — `(a)` parses fine; the extra `)` is trailing content.
         assert!(matches!(
-            parse_one("(a))"),
+            crate::parse_one!("(a))"),
             Err(ParseError::TrailingContent(_))
         ));
     }
@@ -359,38 +376,38 @@ mod tests {
         // `(a ))` — inner ) closes the list; outer ) is then at top-level
         // via parse_all, which treats it as UnexpectedRParen.
         assert!(matches!(
-            parse_all("(a)) foo"),
+            crate::parse_all!("(a)) foo"),
             Err(ParseError::UnexpectedRParen(_))
         ));
     }
 
     #[test]
     fn unclosed_paren() {
-        assert!(matches!(parse_one("("), Err(ParseError::UnclosedParen(_))));
-        assert!(matches!(parse_one("(a b"), Err(ParseError::UnclosedParen(_))));
+        assert!(matches!(crate::parse_one!("("), Err(ParseError::UnclosedParen(_))));
+        assert!(matches!(crate::parse_one!("(a b"), Err(ParseError::UnclosedParen(_))));
         assert!(matches!(
-            parse_one("(a (b)"),
+            crate::parse_one!("(a (b)"),
             Err(ParseError::UnclosedParen(_))
         ));
     }
 
     #[test]
     fn empty_input_errors_in_parse_one() {
-        assert!(matches!(parse_one(""), Err(ParseError::Empty)));
-        assert!(matches!(parse_one("   "), Err(ParseError::Empty)));
-        assert!(matches!(parse_one("; comment"), Err(ParseError::Empty)));
+        assert!(matches!(crate::parse_one!(""), Err(ParseError::Empty)));
+        assert!(matches!(crate::parse_one!("   "), Err(ParseError::Empty)));
+        assert!(matches!(crate::parse_one!("; comment"), Err(ParseError::Empty)));
     }
 
     #[test]
     fn empty_input_ok_in_parse_all() {
-        assert_eq!(parse_all("").unwrap(), vec![]);
-        assert_eq!(parse_all("   ").unwrap(), vec![]);
+        assert_eq!(crate::parse_all!("").unwrap(), vec![]);
+        assert_eq!(crate::parse_all!("   ").unwrap(), vec![]);
     }
 
     #[test]
     fn trailing_content_rejected_by_parse_one() {
         assert!(matches!(
-            parse_one("1 2"),
+            crate::parse_one!("1 2"),
             Err(ParseError::TrailingContent(_))
         ));
     }
@@ -400,7 +417,7 @@ mod tests {
         // A lex error must surface as ParseError::Lex. Use the
         // unclosed-bracket-in-keyword error — whitespace inside an
         // unclosed `(` in a keyword body.
-        let e = parse_one(":fn(T ").unwrap_err();
+        let e = crate::parse_one!(":fn(T ").unwrap_err();
         assert!(matches!(e, ParseError::Lex(_)));
     }
 
@@ -410,11 +427,11 @@ mod tests {
         // macro — one leading `:` marks the start; internal `::` is
         // just the Rust path separator, pushed as body characters.
         assert_eq!(
-            parse_one(":wat::load-file!").unwrap(),
+            crate::parse_one!(":wat::load-file!").unwrap(),
             kw(":wat::load-file!")
         );
         assert_eq!(
-            parse_one(":rust::crossbeam_channel::Sender<T>").unwrap(),
+            crate::parse_one!(":rust::crossbeam_channel::Sender<T>").unwrap(),
             kw(":rust::crossbeam_channel::Sender<T>")
         );
     }
@@ -422,7 +439,7 @@ mod tests {
     #[test]
     fn keyword_with_parens_inside() {
         // :fn(T,U)->R — internal parens must parse as a single keyword.
-        assert_eq!(parse_one(":fn(T,U)->R").unwrap(), kw(":fn(T,U)->R"));
+        assert_eq!(crate::parse_one!(":fn(T,U)->R").unwrap(), kw(":fn(T,U)->R"));
     }
 
     // ─── Quasiquote reader macros ───────────────────────────────────────
@@ -430,7 +447,7 @@ mod tests {
     #[test]
     fn quasiquote_wraps_following_form() {
         assert_eq!(
-            parse_one("`foo").unwrap(),
+            crate::parse_one!("`foo").unwrap(),
             list(vec![kw(":wat::core::quasiquote"), sym("foo")])
         );
     }
@@ -442,13 +459,13 @@ mod tests {
             kw(":wat::core::quasiquote"),
             list(vec![sym("a"), sym("b"), sym("c")]),
         ]);
-        assert_eq!(parse_one("`(a b c)").unwrap(), expected);
+        assert_eq!(crate::parse_one!("`(a b c)").unwrap(), expected);
     }
 
     #[test]
     fn unquote_wraps_following_form() {
         assert_eq!(
-            parse_one(",x").unwrap(),
+            crate::parse_one!(",x").unwrap(),
             list(vec![kw(":wat::core::unquote"), sym("x")])
         );
     }
@@ -456,7 +473,7 @@ mod tests {
     #[test]
     fn unquote_splicing_wraps_following_form() {
         assert_eq!(
-            parse_one(",@xs").unwrap(),
+            crate::parse_one!(",@xs").unwrap(),
             list(vec![kw(":wat::core::unquote-splicing"), sym("xs")])
         );
     }
@@ -473,7 +490,7 @@ mod tests {
             ]),
         ]);
         assert_eq!(
-            parse_one("`(:wat::holon::Bind ,x ,y)").unwrap(),
+            crate::parse_one!("`(:wat::holon::Bind ,x ,y)").unwrap(),
             expected
         );
     }
@@ -488,23 +505,23 @@ mod tests {
             ]),
         ]);
         assert_eq!(
-            parse_one("`(:wat::holon::Bundle ,@xs)").unwrap(),
+            crate::parse_one!("`(:wat::holon::Bundle ,@xs)").unwrap(),
             expected
         );
     }
 
     #[test]
     fn reader_macro_without_following_form_errors() {
-        assert!(matches!(parse_one("`"), Err(ParseError::Empty)));
-        assert!(matches!(parse_one(","), Err(ParseError::Empty)));
-        assert!(matches!(parse_one(",@"), Err(ParseError::Empty)));
+        assert!(matches!(crate::parse_one!("`"), Err(ParseError::Empty)));
+        assert!(matches!(crate::parse_one!(","), Err(ParseError::Empty)));
+        assert!(matches!(crate::parse_one!(",@"), Err(ParseError::Empty)));
     }
 
     #[test]
     fn parametric_keyword_survives_in_call() {
         let src = "(foo :Vec<T>)";
         assert_eq!(
-            parse_one(src).unwrap(),
+            crate::parse_one!(src).unwrap(),
             list(vec![sym("foo"), kw(":Vec<T>")])
         );
     }

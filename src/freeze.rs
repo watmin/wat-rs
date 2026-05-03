@@ -1081,7 +1081,7 @@ mod tests {
               (:wat::core::i64::* x 3))
         "#,
         );
-        let ast = crate::parser::parse_one("(:my::app::triple 7)").unwrap();
+        let ast = crate::parse_one!("(:my::app::triple 7)").unwrap();
         let env = Environment::new();
         let result = eval_in_frozen(&ast, &world, &env).expect("eval ok");
         assert!(matches!(result, Value::i64(21)));
@@ -1094,7 +1094,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::holon::Bind (:wat::holon::Atom "role") (:wat::holon::Atom "filler"))"#,
         )
         .unwrap();
@@ -1110,7 +1110,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::core::define (:evil::backdoor (x :i64) -> :i64) x)"#,
         )
         .unwrap();
@@ -1131,7 +1131,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::core::defmacro (:evil::M (x :AST<wat::holon::HolonAST>) -> :AST<wat::holon::HolonAST>) x)"#,
         )
         .unwrap();
@@ -1146,7 +1146,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::core::struct :evil::T (x :i64))"#,
         )
         .unwrap();
@@ -1162,7 +1162,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parser::parse_one(r#"(:wat::core::enum :evil::E :A :B)"#).unwrap();
+            crate::parse_one!(r#"(:wat::core::enum :evil::E :A :B)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
         assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
     }
@@ -1175,7 +1175,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parser::parse_one(r#"(:wat::core::newtype :evil::N :i64)"#).unwrap();
+            crate::parse_one!(r#"(:wat::core::newtype :evil::N :i64)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
         assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
     }
@@ -1188,7 +1188,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parser::parse_one(r#"(:wat::core::typealias :evil::A :i64)"#).unwrap();
+            crate::parse_one!(r#"(:wat::core::typealias :evil::A :i64)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
         assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
     }
@@ -1200,7 +1200,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::load-file! "evil.wat")"#,
         )
         .unwrap();
@@ -1215,7 +1215,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::digest-load! "x" :wat::verify::digest-sha256 :wat::verify::string "hex")"#,
         )
         .unwrap();
@@ -1230,7 +1230,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::signed-load! "x" :wat::verify::signed-ed25519 :wat::verify::string "sig" :wat::verify::string "pk")"#,
         )
         .unwrap();
@@ -1246,7 +1246,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parser::parse_one(r#"(:wat::config::set-dims! 8192)"#).unwrap();
+            crate::parse_one!(r#"(:wat::config::set-dims! 8192)"#).unwrap();
         let err = eval_in_frozen(&ast, &world, &Environment::new()).unwrap_err();
         assert!(matches!(err, RuntimeError::EvalForbidsMutationForm { .. }));
     }
@@ -1260,7 +1260,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::core::let (((x :i64) 1))
                  (:wat::core::define (:evil (y :i64) -> :i64) y))"#,
         )
@@ -1287,7 +1287,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parser::parse_one(r#"(:wat::core::i64::+ 20 22)"#).unwrap();
+            crate::parse_one!(r#"(:wat::core::i64::+ 20 22)"#).unwrap();
         let hex = digest_hex_for(&ast);
         let result =
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
@@ -1302,7 +1302,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one(r#"(:wat::core::i64::+ 1 1)"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::core::i64::+ 1 1)"#).unwrap();
         let wrong =
             "0000000000000000000000000000000000000000000000000000000000000000";
         let err =
@@ -1323,7 +1323,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one("42").unwrap();
+        let ast = crate::parse_one!("42").unwrap();
         let err =
             eval_digest_in_frozen(&ast, &world, &Environment::new(), "md5", "abc123")
                 .unwrap_err();
@@ -1358,7 +1358,7 @@ mod tests {
         "#,
         );
         let ast =
-            crate::parser::parse_one(r#"(:wat::core::i64::+ 40 2)"#).unwrap();
+            crate::parse_one!(r#"(:wat::core::i64::+ 40 2)"#).unwrap();
         let (sig, pk) = sign_ast_ed25519(&ast);
         let result = eval_signed_in_frozen(
             &ast,
@@ -1379,8 +1379,8 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let original = crate::parser::parse_one(r#"(:wat::core::i64::+ 1 1)"#).unwrap();
-        let tampered = crate::parser::parse_one(r#"(:wat::core::i64::+ 99 99)"#).unwrap();
+        let original = crate::parse_one!(r#"(:wat::core::i64::+ 1 1)"#).unwrap();
+        let tampered = crate::parse_one!(r#"(:wat::core::i64::+ 99 99)"#).unwrap();
         let (sig, pk) = sign_ast_ed25519(&original);
         let err = eval_signed_in_frozen(
             &tampered,
@@ -1406,7 +1406,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one("42").unwrap();
+        let ast = crate::parse_one!("42").unwrap();
         let err = eval_signed_in_frozen(
             &ast,
             &world,
@@ -1437,7 +1437,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
         "#,
         );
-        let ast = crate::parser::parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::core::define (:evil (x :i64) -> :i64) x)"#,
         )
         .unwrap();

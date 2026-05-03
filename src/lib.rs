@@ -130,7 +130,10 @@ pub use lower::{lower, LowerError};
 pub use macros::{
     expand_all, register_defmacros, MacroDef, MacroError, MacroRegistry,
 };
-pub use parser::{parse_all, parse_one, ParseError};
+pub use parser::{parse_all_with_file, parse_one_with_file, ParseError};
+// The parse_one! and parse_all! macros are exported at crate root via
+// #[macro_export] in parser.rs — consumers call them as `wat::parse_one!(src)`.
+
 pub use resolve::{is_reserved_prefix, resolve_references, ResolveError, UnresolvedReference};
 pub use runtime::{
     eval, register_defines, register_struct_methods, EncodingCtx, EnvBuilder, Environment,
@@ -198,7 +201,7 @@ pub fn eval_algebra_source(
     vm: &VectorManager,
     scalar: &ScalarEncoder,
 ) -> Result<Vector, Error> {
-    let ast = parse_one(src)?;
+    let ast = parse_one!(src)?;
     let holon = lower(&ast)?;
     Ok(encode(&holon, vm, scalar))
 }

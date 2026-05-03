@@ -353,16 +353,17 @@ mod tests {
     #[test]
     fn arc138_clause_grammar_error_message_carries_span() {
         // Trigger UnknownHead via a clause with an unrecognized keyword head.
-        // Build the AST using the parser so spans carry `<test>:<line>:<col>`.
-        // The Display arm prefixes the span via `span_prefix`, so the rendered
-        // message must contain `<test>:` when the variant's span is known.
-        let forms = crate::parser::parse_all("(:bogus-op ?x ?y)").expect("parse ok");
+        // Build the AST using parse_all! so spans carry the real call-site
+        // Rust file:line. The Display arm prefixes the span via `span_prefix`,
+        // so the rendered message must contain a real source coordinate
+        // (not `<test>:`).
+        let forms = crate::parse_all!("(:bogus-op ?x ?y)").expect("parse ok");
         let clause = &forms[0];
         let err = classify_clause(clause).unwrap_err();
         let rendered = format!("{}", err);
         assert!(
-            rendered.contains("<test>:"),
-            "expected ClauseGrammarError Display to carry `<test>:` (file:line:col); got: {}",
+            rendered.contains("src/") || rendered.contains(".rs:"),
+            "expected ClauseGrammarError Display to carry real source coordinates (file:line:col); got: {}",
             rendered
         );
         assert!(

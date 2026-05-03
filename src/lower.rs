@@ -326,7 +326,6 @@ fn numeric(ast: &WatAST) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::parse_one;
     use holon::{encode, ScalarEncoder, VectorManager};
 
     const D: usize = 1024;
@@ -340,35 +339,35 @@ mod tests {
 
     #[test]
     fn lower_atom_string() {
-        let ast = parse_one(r#"(:wat::holon::Atom "role")"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::holon::Atom "role")"#).unwrap();
         let holon = lower(&ast).unwrap();
         assert_eq!(holon.as_string(), Some("role"));
     }
 
     #[test]
     fn lower_atom_int() {
-        let ast = parse_one("(:wat::holon::Atom 42)").unwrap();
+        let ast = crate::parse_one!("(:wat::holon::Atom 42)").unwrap();
         let holon = lower(&ast).unwrap();
         assert_eq!(holon.as_i64(), Some(42));
     }
 
     #[test]
     fn lower_atom_float() {
-        let ast = parse_one("(:wat::holon::Atom 2.5)").unwrap();
+        let ast = crate::parse_one!("(:wat::holon::Atom 2.5)").unwrap();
         let holon = lower(&ast).unwrap();
         assert_eq!(holon.as_f64(), Some(2.5));
     }
 
     #[test]
     fn lower_atom_bool() {
-        let ast = parse_one("(:wat::holon::Atom true)").unwrap();
+        let ast = crate::parse_one!("(:wat::holon::Atom true)").unwrap();
         let holon = lower(&ast).unwrap();
         assert_eq!(holon.as_bool(), Some(true));
     }
 
     #[test]
     fn lower_atom_keyword() {
-        let ast = parse_one("(:wat::holon::Atom :foo::bar)").unwrap();
+        let ast = crate::parse_one!("(:wat::holon::Atom :foo::bar)").unwrap();
         let holon = lower(&ast).unwrap();
         // Keywords lower to Symbol leaves with the leading `:` preserved.
         assert_eq!(holon.as_symbol(), Some(":foo::bar"));
@@ -376,7 +375,7 @@ mod tests {
 
     #[test]
     fn lower_bind() {
-        let ast = parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::holon::Bind (:wat::holon::Atom "role") (:wat::holon::Atom "filler"))"#,
         )
         .unwrap();
@@ -389,7 +388,7 @@ mod tests {
 
     #[test]
     fn lower_bundle() {
-        let ast = parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::holon::Bundle (:wat::core::vec :wat::holon::HolonAST (:wat::holon::Atom "a") (:wat::holon::Atom "b") (:wat::holon::Atom "c")))"#,
         )
         .unwrap();
@@ -401,7 +400,7 @@ mod tests {
 
     #[test]
     fn lower_permute() {
-        let ast = parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::holon::Permute (:wat::holon::Atom "x") 3)"#,
         )
         .unwrap();
@@ -413,7 +412,7 @@ mod tests {
 
     #[test]
     fn lower_thermometer() {
-        let ast = parse_one("(:wat::holon::Thermometer 0.5 0.0 1.0)").unwrap();
+        let ast = crate::parse_one!("(:wat::holon::Thermometer 0.5 0.0 1.0)").unwrap();
         let holon = lower(&ast).unwrap();
         let (vm, se) = env();
         let v = encode(&holon, &vm, &se);
@@ -422,7 +421,7 @@ mod tests {
 
     #[test]
     fn lower_blend_subtract() {
-        let ast = parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::holon::Blend (:wat::holon::Atom "x") (:wat::holon::Atom "y") 1 -1)"#,
         )
         .unwrap();
@@ -436,7 +435,7 @@ mod tests {
 
     #[test]
     fn atom_wrong_arity() {
-        let ast = parse_one(r#"(:wat::holon::Atom "a" "b")"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::holon::Atom "a" "b")"#).unwrap();
         // mandatory compile fix: AtomArity now carries (usize, Span)
         assert!(matches!(lower(&ast), Err(LowerError::AtomArity(2, _))));
     }
@@ -444,7 +443,7 @@ mod tests {
     #[test]
     fn atom_non_literal_rejected() {
         // An argument that's a list, not a literal.
-        let ast = parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::holon::Atom (:wat::holon::Atom "inner"))"#,
         )
         .unwrap();
@@ -454,7 +453,7 @@ mod tests {
 
     #[test]
     fn permute_step_must_be_int() {
-        let ast = parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::holon::Permute (:wat::holon::Atom "x") 1.5)"#,
         )
         .unwrap();
@@ -465,7 +464,7 @@ mod tests {
     #[test]
     fn bundle_must_take_list_form() {
         // Bundle directly with args, not (:wat::core::vec ...).
-        let ast = parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::holon::Bundle (:wat::holon::Atom "a") (:wat::holon::Atom "b"))"#,
         )
         .unwrap();
@@ -475,7 +474,7 @@ mod tests {
 
     #[test]
     fn unsupported_upper_call() {
-        let ast = parse_one(r#"(:wat::holon::MadeUp "a")"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::holon::MadeUp "a")"#).unwrap();
         // mandatory compile fix: UnsupportedUpperCall now carries (String, Span)
         assert!(matches!(
             lower(&ast),
@@ -485,7 +484,7 @@ mod tests {
 
     #[test]
     fn bare_symbol_rejected() {
-        let ast = parse_one("x").unwrap();
+        let ast = crate::parse_one!("x").unwrap();
         // mandatory compile fix: UnsupportedForm now carries (String, Span)
         assert!(matches!(lower(&ast), Err(LowerError::UnsupportedForm(_, _))));
     }
@@ -495,15 +494,16 @@ mod tests {
     #[test]
     fn arc138_lower_error_message_carries_span() {
         // Trigger MalformedCall — a list whose first element is not a keyword.
-        // parse_one labels spans `<test>:<line>:<col>`. The LowerError Display
-        // arm prefixes the span via `span_prefix`, so the rendered message must
-        // contain `<test>:` when the variant's span is known.
-        let ast = parse_one("(123)").unwrap(); // first element is IntLit, not Keyword
+        // parse_one! labels spans with the real call-site Rust file:line.
+        // The LowerError Display arm prefixes the span via `span_prefix`,
+        // so the rendered message must contain a real source coordinate
+        // (not `<test>:`).
+        let ast = crate::parse_one!("(123)").unwrap(); // first element is IntLit, not Keyword
         let err = lower(&ast).unwrap_err();
         let rendered = format!("{}", err);
         assert!(
-            rendered.contains("<test>:"),
-            "expected LowerError Display to carry `<test>:` (file:line:col); got: {}",
+            rendered.contains("src/") || rendered.contains(".rs:"),
+            "expected LowerError Display to carry real source coordinates (file:line:col); got: {}",
             rendered
         );
         assert!(

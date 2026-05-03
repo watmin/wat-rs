@@ -857,10 +857,9 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
 mod tests {
     use super::*;
     use crate::identifier::Identifier;
-    use crate::parser::parse_all;
 
     fn expand(src: &str) -> Result<Vec<WatAST>, MacroError> {
-        let forms = parse_all(src).expect("parse ok");
+        let forms = crate::parse_all!(src).expect("parse ok");
         let mut reg = MacroRegistry::new();
         let rest = register_defmacros(forms, &mut reg)?;
         expand_all(rest, &mut reg)
@@ -870,7 +869,7 @@ mod tests {
     /// output. Arc 029 slice 1 tests use this to inspect the body of
     /// a defmacro produced by an outer macro-generating-macro call.
     fn expand_keeping_defmacros(src: &str) -> Result<Vec<WatAST>, MacroError> {
-        let forms = parse_all(src).expect("parse ok");
+        let forms = crate::parse_all!(src).expect("parse ok");
         let mut reg = MacroRegistry::new();
         let rest = register_defmacros(forms, &mut reg)?;
         let mut out = Vec::with_capacity(rest.len());
@@ -1454,8 +1453,8 @@ mod tests {
         .unwrap_err();
         let rendered = format!("{}", err);
         assert!(
-            rendered.contains("<test>:"),
-            "expected MacroError Display to carry `<test>:` (file:line:col); got: {}",
+            rendered.contains("src/") || rendered.contains(".rs:"),
+            "expected MacroError Display to carry real source coordinates (file:line:col); got: {}",
             rendered
         );
         assert!(

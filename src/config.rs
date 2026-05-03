@@ -535,10 +535,9 @@ fn variant_name(ast: &WatAST) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::parse_all;
 
     fn collect(src: &str) -> Result<(Config, Vec<WatAST>), ConfigError> {
-        let forms = parse_all(src).expect("parse succeeds");
+        let forms = crate::parse_all!(src).expect("parse succeeds");
         collect_entry_file(forms)
     }
 
@@ -785,7 +784,7 @@ mod tests {
     }
 
     fn collect_inherit(src: &str, inherit: &Config) -> Result<(Config, Vec<WatAST>), ConfigError> {
-        let forms = parse_all(src).expect("parse succeeds");
+        let forms = crate::parse_all!(src).expect("parse succeeds");
         collect_entry_file_with_inherit(forms, inherit)
     }
 
@@ -825,12 +824,13 @@ mod tests {
 
     // ─── Arc 138 canary ─────────────────────────────────────────────────
 
-    /// Arc 138 slice 5: ConfigError Display carries span coordinates.
+    /// Arc 138 slice 5 / F-NAMES-1: ConfigError Display carries real span coordinates.
     ///
     /// Triggers `BadType` via a wrong-typed argument to `set-dim-count!`
     /// (string literal instead of integer). Asserts that the rendered
-    /// Display message contains `"<test>:"` — confirming span coordinates
-    /// are threaded from the parsed AST into the error.
+    /// Display message contains a real Rust file:line coordinate (not
+    /// `<test>:`) — confirming span coordinates are threaded from the
+    /// parsed AST (via `parse_all!` call site) into the error.
     #[test]
     fn arc138_config_error_message_carries_span() {
         let src = r#"(:wat::config::set-dim-count! "not-a-number")"#;
@@ -842,8 +842,8 @@ mod tests {
         );
         let msg = err.to_string();
         assert!(
-            msg.contains("<test>:"),
-            "expected span coords in Display (\"<test>:\"), got: {}",
+            msg.contains("src/") || msg.contains(".rs:"),
+            "expected real source coordinates in Display (file:line:col), got: {}",
             msg
         );
     }

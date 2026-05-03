@@ -14978,7 +14978,7 @@ fn parse_verify_algo_keyword(
 
 /// Parse a source string into one or more top-level forms.
 fn parse_program(source: &str, form: &str) -> Result<Vec<WatAST>, RuntimeError> {
-    crate::parser::parse_all(source).map_err(|e| RuntimeError::MalformedForm {
+    crate::parser::parse_all_with_file(source, "<runtime-eval>").map_err(|e| RuntimeError::MalformedForm {
         head: form.into(),
         reason: format!("parse error: {}", e),
         // arc 138: no span — parsing a raw string; no WatAST call-site in scope
@@ -15058,7 +15058,6 @@ fn is_mutation_head(head: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::{parse_all, parse_one};
     use std::sync::OnceLock;
 
     /// The stdlib is the standard library — always available, without
@@ -15107,7 +15106,7 @@ mod tests {
     fn run(src: &str) -> Result<Value, RuntimeError> {
         let (stdlib_sym, stdlib_macros, stdlib_types) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
-        let forms = parse_all(src).expect("parse ok");
+        let forms = crate::parse_all!(src).expect("parse ok");
         // Expand any stdlib-macro calls in the user source before
         // registering defines and evaluating.
         let expanded =
@@ -15135,7 +15134,7 @@ mod tests {
     fn eval_expr(src: &str) -> Result<Value, RuntimeError> {
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
-        let ast = parse_one(src).expect("parse ok");
+        let ast = crate::parse_one!(src).expect("parse ok");
         let expanded = crate::macros::expand_all(vec![ast], &mut macros)
             .expect("macro expansion");
         let ast = expanded.into_iter().next().expect("one form in, one form out");
@@ -15153,7 +15152,7 @@ mod tests {
         let mut macros = stdlib_macros.clone();
         let mut sym = stdlib_sym.clone();
         sym.set_source_loader(std::sync::Arc::new(crate::load::FsLoader));
-        let ast = parse_one(src).expect("parse ok");
+        let ast = crate::parse_one!(src).expect("parse ok");
         let expanded = crate::macros::expand_all(vec![ast], &mut macros)
             .expect("macro expansion");
         let ast = expanded.into_iter().next().expect("one form in, one form out");
@@ -15189,7 +15188,7 @@ mod tests {
         "#;
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
-        let forms = parse_all(src).expect("parse");
+        let forms = crate::parse_all!(src).expect("parse");
         let expanded =
             crate::macros::expand_all(forms, &mut macros).expect("expand");
         let mut sym = stdlib_sym.clone();
@@ -15237,7 +15236,7 @@ mod tests {
         "#;
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
-        let forms = parse_all(src).expect("parse");
+        let forms = crate::parse_all!(src).expect("parse");
         let expanded =
             crate::macros::expand_all(forms, &mut macros).expect("expand");
         let mut sym = stdlib_sym.clone();
@@ -16012,7 +16011,7 @@ mod tests {
         body: &str,
         ast_to_bind: WatAST,
     ) -> Result<Value, RuntimeError> {
-        let form = parse_one(body).expect("parse body");
+        let form = crate::parse_one!(body).expect("parse body");
         let env = Environment::new().child().bind(
             "program",
             Value::wat__WatAST(Arc::new(ast_to_bind)),
@@ -16079,7 +16078,7 @@ mod tests {
         // → Value::i64(42); the polymorphic Result<:T, :EvalError>
         // scheme has T = i64 here. Caller match-arm gets the
         // bare i64 directly.
-        let program = parse_one("(:wat::core::i64::+ 40 2)").unwrap();
+        let program = crate::parse_one!("(:wat::core::i64::+ 40 2)").unwrap();
         let result =
             run_with_ast_local("(:wat::eval-ast! program)", program).unwrap();
         let inner = eval_ok_inner(result);
@@ -16091,8 +16090,8 @@ mod tests {
 
     #[test]
     fn eval_ast_bang_refuses_mutation_form() {
-        let program = parse_one(
-            r#"(:wat::core::define (:evil (x :i64) -> :i64) x)"#,
+        let program = crate::parse_one!(
+            r#"(:wat::core::define (:evil (x :i64) -> :i64) x)"#
         )
         .unwrap();
         let result = run_with_ast_local("(:wat::eval-ast! program)", program)
@@ -16108,7 +16107,7 @@ mod tests {
         // The refusal lands as Err(EvalError{kind="type-mismatch"}),
         // NOT a RuntimeError unwind — the eval-family Result-wrap
         // per the 2026-04-20 INSCRIPTION.
-        let form = parse_one(r#"(:wat::eval-ast! "oops")"#).unwrap();
+        let form = crate::parse_one!(r#"(:wat::eval-ast! "oops")"#).unwrap();
         let result = eval(&form, &Environment::new(), &SymbolTable::new()).unwrap();
         let (kind, msg) = eval_err_kind_and_message(result);
         assert_eq!(kind, "type-mismatch");
@@ -16314,7 +16313,7 @@ mod tests {
     }
 
     fn eval_with_ctx(src: &str, dims: usize) -> Result<Value, RuntimeError> {
-        let ast = parse_one(src).expect("parse ok");
+        let ast = crate::parse_one!(src).expect("parse ok");
         let sym = test_sym_with_ctx(dims);
         eval(&ast, &Environment::new(), &sym)
     }
@@ -16393,7 +16392,7 @@ mod tests {
 
     #[test]
     fn dot_wrong_arity() {
-        let ast = parse_one(r#"(:wat::holon::dot (:wat::holon::Atom "a"))"#).unwrap();
+        let ast = crate::parse_one!(r#"(:wat::holon::dot (:wat::holon::Atom "a"))"#).unwrap();
         let err = eval(&ast, &Environment::new(), &test_sym_with_ctx(1024)).unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
@@ -17047,7 +17046,7 @@ mod tests {
         use base64::Engine;
         use ed25519_dalek::Signer;
         let signing_key = ed25519_dalek::SigningKey::from_bytes(&[7u8; 32]);
-        let forms = crate::parser::parse_all(source).expect("source parses");
+        let forms = crate::parse_all!(source).expect("source parses");
         let hash = crate::hash::hash_canonical_program(&forms);
         let sig = signing_key.sign(&hash);
         let sig_b64 = B64.encode(sig.to_bytes());
@@ -17193,10 +17192,10 @@ mod tests {
     fn presence_requires_encoding_ctx() {
         // Without a frozen SymbolTable, presence must error — can't
         // reach into encoding machinery that doesn't exist.
-        let ast = parse_one(
+        let ast = crate::parse_one!(
             r#"(:wat::holon::cosine
                  (:wat::holon::Atom "a")
-                 (:wat::holon::Atom "b"))"#,
+                 (:wat::holon::Atom "b"))"#
         )
         .unwrap();
         let err = eval(&ast, &Environment::new(), &SymbolTable::new()).unwrap_err();
@@ -17362,7 +17361,7 @@ mod tests {
         use ed25519_dalek::{Signer, SigningKey};
         let source = r#"(:wat::core::i64::+ 20 22)"#;
         let sk = SigningKey::from_bytes(&[17u8; 32]);
-        let forms = parse_all(source).unwrap();
+        let forms = crate::parse_all!(source).unwrap();
         let hash = crate::hash::hash_canonical_program(&forms);
         let sig = sk.sign(&hash);
         let sig_b64 = B64.encode(sig.to_bytes());
@@ -17388,7 +17387,7 @@ mod tests {
         let signed_source = r#"(:wat::core::i64::+ 20 22)"#;
         let tampered_source = r#"(:wat::core::i64::+ 99 99)"#;
         let sk = SigningKey::from_bytes(&[17u8; 32]);
-        let forms = parse_all(signed_source).unwrap();
+        let forms = crate::parse_all!(signed_source).unwrap();
         let hash = crate::hash::hash_canonical_program(&forms);
         let sig = sk.sign(&hash);
         let sig_b64 = B64.encode(sig.to_bytes());
@@ -17583,7 +17582,7 @@ mod tests {
 
     /// Helper: evaluate `src` in an env pre-bound with `name -> value`.
     fn eval_with_binding(src: &str, name: &str, value: Value) -> Result<Value, RuntimeError> {
-        let ast = parse_one(src).expect("parse ok");
+        let ast = crate::parse_one!(src).expect("parse ok");
         let env = Environment::new().child().bind(name, value).build();
         eval(&ast, &env, &SymbolTable::new())
     }
@@ -20076,7 +20075,7 @@ mod tests {
     fn run_with_ctx(src: &str, dims: usize) -> Result<Value, RuntimeError> {
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
-        let forms = parse_all(src).expect("parse ok");
+        let forms = crate::parse_all!(src).expect("parse ok");
         let expanded =
             crate::macros::expand_all(forms, &mut macros).expect("macro expansion");
         let mut sym = stdlib_sym.clone();
@@ -20418,9 +20417,8 @@ mod tests {
         // outer list's parsed span, run one step (which descends the
         // inner `(+ 1 2)`), and assert the rebuilt outer form carries
         // the same span. Direct Rust access — no eval-step! wrap.
-        use crate::parser::parse_one;
         let src = "(:wat::core::i64::+ (:wat::core::i64::+ 1 2) 3)";
-        let ast = parse_one(src).expect("parse");
+        let ast = crate::parse_one!(src).expect("parse");
         let outer_span = ast.span().clone();
         let (sym, _, _) = stdlib_loaded();
         let env = Environment::new();
@@ -20516,7 +20514,7 @@ mod tests {
             Value::crossbeam_channel__Receiver(Arc::new(rx1)),
         ]));
         let env = Environment::new().child().bind("rxs", rxs).build();
-        let ast = parse_one("(:wat::kernel::select rxs)").expect("parse");
+        let ast = crate::parse_one!("(:wat::kernel::select rxs)").expect("parse");
         let result = eval(&ast, &env, &SymbolTable::new()).expect("select");
         match result {
             Value::Tuple(items) => {
@@ -20726,7 +20724,7 @@ mod tests {
         // Build the OUTER scope: stdlib + a user-defined helper.
         let (stdlib_sym, _, _) = stdlib_loaded();
         let mut outer_sym = stdlib_sym.clone();
-        let helper_body = parse_one("42").expect("parse body");
+        let helper_body = crate::parse_one!("42").expect("parse body");
         outer_sym.functions.insert(
             ":my::helper".to_string(),
             Arc::new(Function {
@@ -20746,7 +20744,7 @@ mod tests {
         inner_sym.outer_symbols = Some(Arc::new(outer_sym));
 
         // Construct the call: `(:my::helper)`.
-        let call = parse_one("(:my::helper)").expect("parse call");
+        let call = crate::parse_one!("(:my::helper)").expect("parse call");
 
         let env = Environment::new();
         let result = eval(&call, &env, &inner_sym);
@@ -20776,7 +20774,7 @@ mod tests {
         let mut inner_sym = stdlib_sym.clone();
         inner_sym.outer_symbols = Some(Arc::new(outer_sym));
 
-        let call = parse_one("(:totally::made::up::name)").expect("parse call");
+        let call = crate::parse_one!("(:totally::made::up::name)").expect("parse call");
 
         let env = Environment::new();
         let result = eval(&call, &env, &inner_sym);
@@ -20802,7 +20800,7 @@ mod tests {
         let (stdlib_sym, _, _) = stdlib_loaded();
         let inner_sym = stdlib_sym.clone(); // outer_symbols stays None
 
-        let call = parse_one("(:my::helper)").expect("parse call");
+        let call = crate::parse_one!("(:my::helper)").expect("parse call");
         let env = Environment::new();
         let result = eval(&call, &env, &inner_sym);
 
@@ -20825,7 +20823,7 @@ mod tests {
         let err = eval_expr("nonexistent-bare-symbol").unwrap_err();
         let rendered = format!("{}", err);
         assert!(
-            rendered.contains("<eval>:") || rendered.contains("<test>:"),
+            rendered.contains("<eval>:") || rendered.contains("src/") || rendered.contains(".rs:"),
             "RuntimeError Display must include source coordinates; rendered:\n{}",
             rendered
         );

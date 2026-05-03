@@ -15,7 +15,7 @@
 //! stdlib — every deployment of `wat` carries the same stdlib bits.
 
 use crate::ast::WatAST;
-use crate::parser::parse_all;
+use crate::parser::parse_all_with_file;
 use crate::source::{installed_dep_sources, WatSource};
 
 /// Every stdlib source baked into the binary. Order here determines
@@ -145,14 +145,14 @@ const STDLIB_FILES: &[WatSource] = &[
 pub fn stdlib_forms() -> Result<Vec<WatAST>, StdlibError> {
     let mut all = Vec::new();
     for file in stdlib_files() {
-        let forms = parse_all(file.source).map_err(|e| StdlibError::ParseFailed {
+        let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError::ParseFailed {
             path: file.path,
             source: format!("{}", e),
         })?;
         all.extend(forms);
     }
     for file in installed_dep_sources().iter().flat_map(|slice| slice.iter()) {
-        let forms = parse_all(file.source).map_err(|e| StdlibError::ParseFailed {
+        let forms = parse_all_with_file(file.source, file.path).map_err(|e| StdlibError::ParseFailed {
             path: file.path,
             source: format!("{}", e),
         })?;

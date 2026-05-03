@@ -2133,10 +2133,8 @@ mod tests {
             assert!(r.is_ok(), "expected {} to parse; got: {:?}", input, r);
         }
     }
-    use crate::parser::parse_all;
-
     fn collect(src: &str) -> Result<(TypeEnv, Vec<WatAST>), TypeError> {
-        let forms = parse_all(src).expect("parse ok");
+        let forms = crate::parse_all!(src).expect("parse ok");
         let mut env = TypeEnv::new();
         let rest = register_types(forms, &mut env)?;
         Ok((env, rest))
@@ -2149,7 +2147,7 @@ mod tests {
     /// LexError::UnclosedBracketInKeyword rather than slipping
     /// through to a TypeError downstream.
     fn collect_lenient(src: &str) -> Result<(TypeEnv, Vec<WatAST>), String> {
-        let forms = parse_all(src).map_err(|e| format!("parse: {:?}", e))?;
+        let forms = crate::parse_all!(src).map_err(|e| format!("parse: {:?}", e))?;
         let mut env = TypeEnv::new();
         let rest = register_types(forms, &mut env).map_err(|e| format!("type: {:?}", e))?;
         Ok((env, rest))
@@ -2666,8 +2664,8 @@ mod tests {
         let err = collect(r#"(:wat::core::enum :my::Empty)"#).unwrap_err();
         let rendered = format!("{}", err);
         assert!(
-            rendered.contains("<test>:"),
-            "expected TypeError Display to carry `<test>:` (file:line:col); got: {}",
+            rendered.contains("src/") || rendered.contains(".rs:"),
+            "expected TypeError Display to carry real source coordinates (file:line:col); got: {}",
             rendered
         );
         assert!(
