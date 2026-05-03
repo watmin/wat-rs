@@ -233,13 +233,27 @@ requirement:
   conj, plus the pure-rename family. EACH is a half-completion
   risk if shipped before arc 147.
 
-**Decision (per user direction):** ship arc 147 FIRST after slice
-2 returns. Then arc 146 slices 3-7 use the macro from the start.
-Net cost: small delay on arc 146; net benefit: ~50 primitive
-migrations done with structural enforcement instead of trust.
+**Decision (user direction 2026-05-03):** ship arc 147 AFTER arc
+146 wraps up. If arc 146 reveals we need 147 sooner, we pivot
+and make it first.
 
-The retrofit of EXISTING ~150 substrate primitives is its own
-substantial work; happens in arc 147 slices 2-N.
+The pivot signal is concrete drift evidence — e.g.:
+- Sonnet's slice 2 review surfaces a check/runtime inconsistency
+  that arc 147 would have structurally prevented
+- A migration slice (3-7) hits the half-completion bug class
+  during execution
+- The aggregate cost of N more manual migrations exceeds arc
+  147's investment
+
+If any of these surfaces, arc 147 jumps ahead.
+
+If arc 146 ships clean, arc 147 follows naturally; the existing
+~150 primitives retrofit happens in arc 147 slices 2-N regardless
+of order.
+
+This is the substrate-as-teacher pattern at the arc level: let
+the work surface evidence; respond to evidence; don't lock the
+plan in advance.
 
 ## Why this is foundation work (not velocity work)
 
