@@ -58,6 +58,13 @@ pub struct DeftestSite {
     /// Fully-qualified deftest keyword name, including the leading
     /// colon — e.g. `:wat-tests::holon::lru::test-foo`.
     pub name: String,
+    /// Arc 138 F-NAMES-1f — 1-indexed line number where the deftest
+    /// form opens in `file_path`. Threaded into the timeout panic
+    /// message so test authors can navigate even when libtest's
+    /// panic-header location points at `tests/test.rs`.
+    pub line: usize,
+    /// Arc 138 F-NAMES-1f — 1-indexed column number, paired with `line`.
+    pub col: usize,
     /// Arc 122 — `(:wat::test::ignore "<reason>")` annotation
     /// preceding this deftest, if any. Causes the proc macro to
     /// emit `#[ignore = "<reason>"]` on the generated `#[test] fn`.
@@ -93,6 +100,8 @@ pub fn discover_deftests(root: &Path) -> Result<Vec<DeftestSite>, DiscoverError>
             sites.push(DeftestSite {
                 file_path: file.clone(),
                 name: parsed.name,
+                line: parsed.line,
+                col: parsed.col,
                 ignore: parsed.ignore,
                 should_panic: parsed.should_panic,
                 time_limit_ms: parsed.time_limit_ms,
@@ -107,6 +116,10 @@ pub fn discover_deftests(root: &Path) -> Result<Vec<DeftestSite>, DiscoverError>
 #[derive(Debug, Clone)]
 pub struct ParsedSite {
     pub name: String,
+    /// Arc 138 F-NAMES-1f — 1-indexed line where the deftest opens.
+    pub line: usize,
+    /// Arc 138 F-NAMES-1f — 1-indexed column.
+    pub col: usize,
     pub ignore: Option<String>,
     pub should_panic: Option<String>,
     pub time_limit_ms: Option<u64>,
@@ -234,6 +247,19 @@ fn collect_wat_files(root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Discover
 /// Comments are skipped (`;` to end of line). String literals are
 /// skipped (`"..."` with `\\` and `\"` escapes). The scanner is a
 /// hand-rolled paren-balanced reader, NOT a full wat parser.
+/// Arc 138 F-NAMES-1f — convert a byte offset within `src` to a
+/// 1-indexed (line, col) pair. UTF-8 char-count for column matches
+/// the lexer's convention. Used by [`scan_file`] to record each
+/// deftest's source position for the timeout panic message.
+fn byte_offset_to_line_col(src: &str, offset: usize) -> (usize, usize) {
+    let off = offset.min(src.len());
+    let prefix = &src[..off];
+    let line = prefix.bytes().filter(|&b| b == b'\n').count() + 1;
+    let last_nl = prefix.rfind('\n').map(|p| p + 1).unwrap_or(0);
+    let col = src[last_nl..off].chars().count() + 1;
+    (line, col)
+}
+
 pub fn scan_file(src: &str) -> Vec<ParsedSite> {
     let bytes = src.as_bytes();
     let mut i = 0usize;
@@ -325,8 +351,14 @@ pub fn scan_file(src: &str) -> Vec<ParsedSite> {
                     if let Some(name_bytes) = read_keyword(bytes, name_start) {
                         let name =
                             std::str::from_utf8(name_bytes).unwrap_or("").to_string();
+                        // Arc 138 F-NAMES-1f — the `(` byte at offset `i`
+                        // is the deftest form's opening paren; convert to
+                        // 1-indexed (line, col).
+                        let (line, col) = byte_offset_to_line_col(src, i);
                         sites.push(ParsedSite {
                             name,
+                            line,
+                            col,
                             ignore: pending_ignore.take(),
                             should_panic: pending_should_panic.take(),
                             time_limit_ms: pending_time_limit_ms.take(),
@@ -365,8 +397,11 @@ pub fn scan_file(src: &str) -> Vec<ParsedSite> {
                     if let Some(name_bytes) = read_keyword(bytes, name_start) {
                         let name =
                             std::str::from_utf8(name_bytes).unwrap_or("").to_string();
+                        let (line, col) = byte_offset_to_line_col(src, i);
                         sites.push(ParsedSite {
                             name,
+                            line,
+                            col,
                             ignore: pending_ignore.take(),
                             should_panic: pending_should_panic.take(),
                             time_limit_ms: pending_time_limit_ms.take(),

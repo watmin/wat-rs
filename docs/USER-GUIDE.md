@@ -2381,6 +2381,74 @@ frame has a real `file:line:col`.
 - Backtrace (optional) → how the runtime got there, if you need
   to trace the call path.
 
+### Every error type carries source coordinates (arc 138)
+
+Arc 016 made assertion failures navigable. Arc 138 extended that
+discipline to **every error type** the substrate emits. Any error a
+user or agent reads now leads with `file:line:col:`:
+
+```
+src/check.rs:61:7: type mismatch on `:my::add`#1: expected :i64, got :String
+```
+
+```
+wat-tests/Filter.wat:14:3: macro :my::filter expects 2 arguments; got 1
+```
+
+```
+src/runtime.rs:289:11: division by zero
+```
+
+The eight user-facing error types — `CheckError`, `TypeError`,
+`RuntimeError`, `MacroError`, `ClauseGrammarError`, `EdnReadError`,
+`LowerError`, `ConfigError` — all gained `Span` fields and Display-arm
+prefixes. Substrate trait surfaces (`SchemeCtx`, `WatReader`,
+`WatWriter`, `FromWat`) gained span parameters so dispatched-from-Rust
+errors carry coordinates too.
+
+Beyond span-threading, the placeholder labels that used to fill the
+`file` slot (`<test>` for embedded wat strings; `<unnamed>` for
+unnamed worker threads) all got resolved:
+
+- `(:wat::test::deftest …)` workers run on `Thread::Builder::new()
+  .name(format!("wat-test::{}", deftest_name)).spawn(…)`. Panic
+  headers read `thread 'wat-test::my-test' …` instead of
+  `thread '<unnamed>' …`.
+- `:wat::kernel::spawn` workers run on threads named
+  `wat-thread::<primitive>` (e.g., `wat-thread:::wat::kernel::spawn-program-ast`).
+- Anonymous lambdas render as `<lambda@<file>:<line>:<col>>` —
+  template name preserved, definition coordinates appended.
+- `parse_one(src)` / `parse_all(src)` convenience wrappers were
+  retired; tests use the `parse_one!(src)` / `parse_all!(src)`
+  macros that auto-capture the calling Rust file:line. Every test
+  panic now points at the Rust source where the embedded wat string
+  lives.
+- `(:wat::test::time-limit …)` timeouts include the deftest's `.wat`
+  file path in the panic body so the test author can navigate even
+  when libtest's panic-header location points at `tests/test.rs`.
+
+After arc 138, **every panic in the substrate carries a real thread
+name + a real file path + real line:col coordinates**. The
+coordinates open in your editor. The thread names disambiguate which
+worker fired. There is no `<test>`, `<unnamed>`, `<runtime>`, or
+`<entry>` in user-visible test output.
+
+The discipline that made this possible:
+- **Span on every user-facing variant** — no exceptions.
+- **`span_prefix` helper convention** — `Span::unknown()` renders
+  empty; real spans render `file:line:col:`.
+- **`_with_span` sibling-API pattern** — when expanding a public
+  signature would break callers, add a sibling that delegates with
+  `Span::unknown()`.
+- **Pattern E with rationale, not silent placeholders** — every
+  leftover `Span::unknown()` carries a `// arc 138: no span — <reason>`
+  comment so future readers know it was deliberate.
+- **Trait expansion as fix shape** — when a trait surface lacks
+  span-carrier (e.g., `WatReader::read(&self)`), expand the method
+  signature uniformly across all implementors and callers.
+- **Template + coordinates** — placeholder labels are fine as long
+  as they pair with real coordinates pointing at the source.
+
 ### Fork/sandbox tests — when you need an inner program
 
 Sometimes a test wants to verify how an INNER program behaves — its

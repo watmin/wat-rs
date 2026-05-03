@@ -659,9 +659,16 @@ pub fn test(input: TokenStream) -> TokenStream {
             // be killed safely from outside) — process exit reaps it.
             const DEFAULT_TIME_LIMIT_MS: u64 = 200;
             let ms = site.time_limit_ms.unwrap_or(DEFAULT_TIME_LIMIT_MS);
+            // Arc 138 F-NAMES-1f: include the deftest's .wat
+            // file:line:col and FQDN keyword so the panic body
+            // carries fully navigable coordinates even when Rust's
+            // panic-header file:line points at the libtest test
+            // thread (tests/test.rs).
+            let line = site.line;
+            let col = site.col;
             let timeout_msg = format!(
-                "{}: exceeded time-limit of {}ms (test thread leaked — process exit will reap)",
-                fn_name, ms,
+                "{}: exceeded time-limit of {}ms — deftest {} at {}:{}:{} (test thread leaked — process exit will reap)",
+                fn_name, ms, deftest_name, file_path_str, line, col,
             );
             let body = quote! {
                 let (__wat_tx, __wat_rx) = ::std::sync::mpsc::channel::<()>();
