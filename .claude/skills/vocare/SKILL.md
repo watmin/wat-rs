@@ -82,6 +82,41 @@ For each flagged test, report:
 - The recommended-surface call the test should be using instead
 - One-sentence judgment: real defect surfaced, or scenario coverage that needs rewriting at the right layer
 
+## The rune
+
+Some tests intentionally test from a non-consumer vantage — they
+exist as substrate references, protocol fixtures, or vantage-bypass
+tests by design. For these cases, the test gets a **rune** that
+declares the vantage exempt with a justified reason:
+
+```scheme
+(:wat::test::deftest :wat::kernel::test-spawn-program-stdout-piping
+  ;; rune:vocare(substrate-primitive-reference) — this test documents the spawn-program substrate primitive's stdout-piping contract; the implementer's vantage IS the canonical vantage here
+  (:wat::core::let* (...) ...))
+```
+
+Format: `;; rune:vocare(<category>) — <reason>`
+
+Mirrors the lab's ward-rune convention (`~/work/holon/holon-lab-trading/.claude/skills/`):
+positional category in parens, em-dash separator, free-text reason after.
+
+**Categories:**
+
+- `substrate-primitive-reference` — test exists to document the substrate primitive itself (e.g., `wat-tests/service-template.wat`). The implementer's vantage is the canonical vantage at this site; consumer-vantage doesn't apply.
+- `protocol-fixture` — test exercises protocol mechanics as setup for downstream tests; consumer doesn't see this layer but it's load-bearing for the next layer's coverage.
+- `vantage-bypass-test` — intentional internals test (parser tests touching the token stream, runtime tests probing internal state) that validates substrate machinery a consumer wouldn't reach.
+- `defect-exposure-fixture` — test sets up a state the caller can produce; the setup intricacy is the bug surface being demonstrated, not a wrong vantage.
+
+Placement: on the line immediately above the deftest body
+(typically inside the deftest form, before the let*).
+
+The reason field is required. A rune with an empty reason fails
+the spell — the rune's job is to capture the WHY so the next
+reader understands the exemption rather than guessing.
+
+When vocare encounters a rune, it skips the test and records the
+exemption in its report. Recognize `rune:vocare(...)` runes.
+
 ## Cross-references
 
 - `docs/CONVENTIONS.md` § "Caller-perspective verification" — the principle the spell defends.

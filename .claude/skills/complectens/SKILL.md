@@ -304,6 +304,42 @@ Helpers that try to share logic INSIDE an embedded program's body, or inside an 
 
 The simpler rule: when one of the deftest's let* bindings has an RHS that EVALUATES to data (an AST, a lambda, a closure, a struct literal), that RHS is the test's fixture and is exempt from the line-count metric. The OUTER let*'s binding count remains the proxy for composition complexity.
 
+## The rune
+
+Some deftest bodies are inherently complex by design — the bulk
+is a fixture, not scaffolding, and refactoring would make the test
+worse. For these cases, the line gets a **rune** that declares
+the deftest exempt with a justified reason:
+
+```scheme
+(:wat::test::deftest :my::test-with-fixture
+  ;; rune:complectens(embedded-program) — outer let* has 2 bindings; bulk is embedded-program AST literal (sandboxed subprocess fixture)
+  (:wat::core::let* (...) ...))
+```
+
+Format: `;; rune:complectens(<category>) — <reason>`
+
+Mirrors the lab's ward-rune convention (`~/work/holon/holon-lab-trading/.claude/skills/`):
+positional category in parens, em-dash separator, free-text reason after.
+
+**Categories:**
+
+- `embedded-program` — body's bulk is an AST literal running in a sandboxed subprocess; the literal cannot reference outer prelude helpers (sandbox isolation), so extraction is impossible.
+- `inline-fixtures` — outer-bindings count is high but the bindings are inline lambda/closure literals defining the test's own fixture (e.g., a Mealy step+flush pair). Extracting them to the prelude would lose the file's self-contained definition.
+- `proof-stepping-stones` — the body's bindings are deliberate stepping-stone assertions documenting a contract (most often in `wat-tests/proofs/` files). Collapsing them would destroy the proof structure the file exists to document.
+- `assertion-sequence` — tight sequence of related asserts on a single result; helper extraction would obscure the assertion-by-assertion narrative.
+- `match-on-state` — long match expression on enum state where each arm tests a different scenario; the match IS the test's structure.
+
+Placement: on the line immediately above the deftest body
+(typically inside the deftest form, before the let*).
+
+The reason field is required. A rune with an empty reason fails
+the spell — the rune's job is to capture the WHY so the next
+reader understands the exemption rather than guessing.
+
+When complectens encounters a rune, it skips the deftest and
+records the exemption in its report. Recognize `rune:complectens(...)` runes.
+
 ## Reference
 
 - `docs/arc/2026/05/130-cache-services-pair-by-index/REALIZATIONS.md` — the canonical doc that named the discipline.

@@ -59,8 +59,8 @@ Examples NOT flagged:
 
 ## What perspicere does NOT flag
 
-- Lines marked with the rune `rune:perspicere(reason: "...")`
-  (see § "The rune" below).
+- Lines marked with the rune `rune:perspicere(<category>) — <reason>`
+  (see § "The rune" below). Recognize `rune:perspicere(...)` runes.
 - Typealias bodies — the typealias declaration is the answer,
   not the question. `:wat::core::typealias :foo::Bar :Sender<Vec<Option<HolonAST>>>`
   is fine; `Bar` is the name perspicere wanted.
@@ -86,12 +86,21 @@ For these cases, the line gets a **rune** that declares the
 deep type viable for a justified reason:
 
 ```scheme
-;; rune:perspicere(reason: "called once at the test boundary; alias would be a Level 2 mumble")
+;; rune:perspicere(read-once) — called once at the test boundary; alias would be a Level 2 mumble
 ((_ :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>)
   ...)
 ```
 
-Format: `;; rune:perspicere(reason: "<short justification>")`
+Format: `;; rune:perspicere(<category>) — <reason>`
+
+Mirrors the lab's ward-rune convention (`~/work/holon/holon-lab-trading/.claude/skills/`):
+positional category in parens, em-dash separator, free-text reason after.
+
+**Categories:**
+
+- `read-once` — deep type appears exactly once and a name would be read-once-then-forgotten.
+- `mumble-alias` — the typealias would itself be a Level 2 mumble (e.g., naming `Sender<Vector<Option<HolonAST>>>` as `BatchedHolonASTSender` reads worse than the type itself).
+- `intentional-structure` — the deep type is intentionally exposing structure the reader needs to see at this site.
 
 Placement: on the line immediately above the type expression
 OR as a trailing comment on the same line.
@@ -101,7 +110,7 @@ the spell — the rune's job is to capture the WHY so the next
 reader understands the exemption rather than guessing.
 
 When perspicere encounters a rune, it skips the line and
-records the exemption in its report.
+records the exemption in its report. Recognize `rune:perspicere(...)` runes.
 
 ## How to read a flagged type
 
