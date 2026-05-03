@@ -121,6 +121,14 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     insert(&mut m, ":wat::core::lambda", &["<params>", "<body>+"]);
     insert(&mut m, ":wat::core::define", &["<head>", "<body>"]);
     insert(&mut m, ":wat::core::defmacro", &["<head>", "<template>"]);
+    // Arc 146 slice 1 — multimethod declaration form. Each <arm> is
+    // `((<type-pattern>...) <impl-keyword>)`. Slot here so reflection
+    // sees it as a special form alongside defmacro / define.
+    insert(
+        &mut m,
+        ":wat::core::defmultimethod",
+        &["<name>", "<arm>+"],
+    );
 
     // ─── Type definitions ───────────────────────────────────────────────
     // Dispatch sites: `src/check.rs:3393-3396` (return None at

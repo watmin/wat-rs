@@ -1084,6 +1084,13 @@ pub struct CheckEnv {
     /// walking every `:wat::core::enum` declaration in `types`.
     unit_variant_types: HashMap<String, TypeExpr>,
     types: Arc<TypeEnv>,
+    /// Arc 146 slice 1 — multimethod registry, attached when CheckEnv
+    /// is built from a SymbolTable that has multimethods registered
+    /// (post-freeze and check_program flows). `None` for test harnesses
+    /// that build a CheckEnv directly without a SymbolTable. Consulted
+    /// in `infer_list` BEFORE the substrate-primitive scheme path so
+    /// multimethod-declared names route to per-Type arm impls.
+    multimethod_registry: Option<Arc<crate::multimethod::MultimethodRegistry>>,
 }
 
 impl CheckEnv {
@@ -1102,6 +1109,12 @@ impl CheckEnv {
             if let Some(scheme) = derive_scheme_from_function(func) {
                 env.register(path.clone(), scheme);
             }
+        }
+        // Arc 146 slice 1 — capture the multimethod registry through the
+        // SymbolTable's capability-carrier slot. `None` is a clean
+        // fall-through (no multimethods registered).
+        if let Some(reg) = sym.multimethod_registry() {
+            env.multimethod_registry = Some(reg.clone());
         }
         env
     }
@@ -1137,6 +1150,7 @@ impl CheckEnv {
             schemes: HashMap::new(),
             unit_variant_types,
             types,
+            multimethod_registry: None,
         }
     }
 
@@ -1159,6 +1173,16 @@ impl CheckEnv {
     /// structural match.
     pub fn types(&self) -> &TypeEnv {
         &self.types
+    }
+
+    /// Arc 146 slice 1 — borrow the attached multimethod registry, if
+    /// one was attached via `from_symbols`. `infer_list` consults this
+    /// before the substrate-primitive scheme path so multimethod-
+    /// declared names route to per-Type arm impls.
+    pub fn multimethod_registry(
+        &self,
+    ) -> Option<&Arc<crate::multimethod::MultimethodRegistry>> {
+        self.multimethod_registry.as_ref()
     }
 }
 
@@ -2952,6 +2976,18 @@ fn infer_list(
 
     if let WatAST::Keyword(k, head_span) = head {
         let args = &items[1..];
+        // Arc 146 slice 1 — multimethod dispatch. If `k` names a
+        // registered multimethod, route to arm-pattern matching
+        // BEFORE the substrate special-case dispatch (multimethods
+        // win per Q3 of the BRIEF — user-declarable names take
+        // precedence over substrate-fixed forms).
+        if let Some(reg) = env.multimethod_registry() {
+            if let Some(mm) = reg.get(k) {
+                return infer_multimethod_call(
+                    mm, args, head_span, env, locals, fresh, subst, errors,
+                );
+            }
+        }
         match k.as_str() {
             ":wat::core::if" => return infer_if(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::cond" => return infer_cond(args, head_span, env, locals, fresh, subst, errors),
@@ -8117,6 +8153,214 @@ fn infer_string_concat(
         }
     }
     Some(string_ty)
+}
+
+/// Arc 146 slice 1 — multimethod check-time dispatch.
+///
+/// Walks `mm.arms` in declaration order; for each arm, tries to unify
+/// each call-arg's inferred type with the arm's pattern (after
+/// instantiating arm-pattern type variables to fresh unification
+/// vars). The first arm whose pattern unifies wins; the call's return
+/// type is that arm's impl scheme's instantiated return type.
+///
+/// On no-match: emits a `TypeMismatch` listing every arm's pattern.
+/// On arm-impl arity disagreement: emits a `MalformedForm` carrying
+/// the multimethod's surface arity vs the arm impl's arity (per
+/// arc 146 BRIEF Q1, this validation is deferred from parse-time to
+/// first check-time call so freeze ordering stays simple).
+#[allow(clippy::too_many_arguments)]
+fn infer_multimethod_call(
+    mm: &crate::multimethod::Multimethod,
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    // Surface arity = arms[0].pattern.len() (parse-time enforced
+    // uniform across arms via InconsistentArmArity).
+    let surface_arity = mm.arms.first().map(|a| a.pattern.len()).unwrap_or(0);
+    if args.len() != surface_arity {
+        errors.push(CheckError::ArityMismatch {
+            callee: mm.name.clone(),
+            expected: surface_arity,
+            got: args.len(),
+            span: head_span.clone(),
+        });
+        return Some(fresh.fresh());
+    }
+
+    // Infer arg types eagerly (one shot) — pattern matching against each
+    // arm is structural and consumes the inferred types repeatedly.
+    let arg_types: Vec<Option<TypeExpr>> = args
+        .iter()
+        .map(|a| infer(a, env, locals, fresh, subst, errors))
+        .collect();
+
+    // Try each arm in declaration order. Each arm forks the substitution
+    // so failed arms don't pollute later attempts.
+    for arm in &mm.arms {
+        // Instantiate arm-pattern type vars to fresh unification vars
+        // (treat `:T`, `:K`, `:V` etc. as universally quantified per arm).
+        let pattern_type_vars = collect_pattern_type_vars(&arm.pattern);
+        let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
+        for tv in &pattern_type_vars {
+            mapping.insert(tv.clone(), fresh.fresh());
+        }
+        let instantiated_pattern: Vec<TypeExpr> = arm
+            .pattern
+            .iter()
+            .map(|p| rename(p, &mapping))
+            .collect();
+
+        let mut trial_subst = subst.clone();
+        let mut all_match = true;
+        for (arg_ty_opt, arm_param) in arg_types.iter().zip(instantiated_pattern.iter()) {
+            let arg_ty = match arg_ty_opt {
+                Some(t) => t,
+                None => {
+                    // We couldn't infer the arg type at all (already
+                    // reported); treat as non-match so we don't push a
+                    // misleading TypeMismatch on top.
+                    all_match = false;
+                    break;
+                }
+            };
+            if unify(arg_ty, arm_param, &mut trial_subst, env.types()).is_err() {
+                all_match = false;
+                break;
+            }
+        }
+        if !all_match {
+            continue;
+        }
+        // Arm matches. Commit the trial substitution and resolve the
+        // arm's impl to determine the call's return type.
+        *subst = trial_subst;
+
+        // Look up the arm's impl scheme (BRIEF Q1: deferred arity check).
+        let impl_scheme = match env.get(&arm.impl_name) {
+            Some(s) => s.clone(),
+            None => {
+                errors.push(CheckError::UnknownCallee {
+                    callee: arm.impl_name.clone(),
+                    span: head_span.clone(),
+                });
+                return Some(fresh.fresh());
+            }
+        };
+        if impl_scheme.params.len() != surface_arity {
+            errors.push(CheckError::MalformedForm {
+                head: mm.name.clone(),
+                reason: format!(
+                    "multimethod {} surface arity {} disagrees with arm impl {}'s arity {}",
+                    mm.name,
+                    surface_arity,
+                    arm.impl_name,
+                    impl_scheme.params.len()
+                ),
+                span: head_span.clone(),
+            });
+            return Some(fresh.fresh());
+        }
+        let (impl_params, impl_ret) = instantiate(&impl_scheme, fresh);
+        // Unify each arg against the impl's param types so type-vars
+        // in the impl scheme propagate into the return type.
+        for (i, (arg_ty_opt, impl_param)) in arg_types.iter().zip(impl_params.iter()).enumerate() {
+            if let Some(arg_ty) = arg_ty_opt {
+                if unify(arg_ty, impl_param, subst, env.types()).is_err() {
+                    errors.push(CheckError::TypeMismatch {
+                        callee: arm.impl_name.clone(),
+                        param: format!("#{}", i + 1),
+                        expected: format_type(&apply_subst(impl_param, subst)),
+                        got: format_type(&apply_subst(arg_ty, subst)),
+                        span: args[i].span().clone(),
+                    });
+                }
+            }
+        }
+        return Some(apply_subst(&impl_ret, subst));
+    }
+
+    // No arm matched. Emit a clean diagnostic listing every arm's pattern.
+    let arm_summaries: Vec<String> = mm
+        .arms
+        .iter()
+        .map(|a| {
+            let parts: Vec<String> = a.pattern.iter().map(format_type).collect();
+            format!("({})", parts.join(", "))
+        })
+        .collect();
+    let got_summary = if arg_types.iter().all(|t| t.is_some()) {
+        let parts: Vec<String> = arg_types
+            .iter()
+            .map(|t| format_type(&apply_subst(t.as_ref().expect("checked"), subst)))
+            .collect();
+        format!("({})", parts.join(", "))
+    } else {
+        "(<unresolved>)".to_string()
+    };
+    errors.push(CheckError::TypeMismatch {
+        callee: mm.name.clone(),
+        param: "(multimethod dispatch)".into(),
+        expected: format!("one of: {}", arm_summaries.join(" | ")),
+        got: got_summary,
+        span: head_span.clone(),
+    });
+    Some(fresh.fresh())
+}
+
+/// Walk a multimethod arm's pattern and collect every type-variable
+/// path (a `Path(":X")` whose first non-colon character is uppercase
+/// ASCII — matches the convention from `parse_define_form`'s scheme
+/// extraction). Used to instantiate arm patterns so a pattern like
+/// `(:wat::core::Vector<T>)` matches any `Vec<...>` at the call site.
+fn collect_pattern_type_vars(pattern: &[TypeExpr]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for p in pattern {
+        collect_pattern_type_vars_inner(p, &mut out);
+    }
+    out
+}
+
+fn collect_pattern_type_vars_inner(ty: &TypeExpr, out: &mut Vec<String>) {
+    match ty {
+        TypeExpr::Path(p) => {
+            let stripped = p.strip_prefix(':').unwrap_or(p);
+            // Heuristic: a single bare uppercase-leading segment with no
+            // `::` is a type variable (`:T`, `:K`, `:V`). Anything with
+            // `::` (e.g. `:wat::core::i64`) is a concrete type path.
+            if !stripped.contains("::")
+                && stripped
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_uppercase())
+                    .unwrap_or(false)
+                && !out.iter().any(|s| s == stripped)
+            {
+                out.push(stripped.to_string());
+            }
+        }
+        TypeExpr::Parametric { args, .. } => {
+            for a in args {
+                collect_pattern_type_vars_inner(a, out);
+            }
+        }
+        TypeExpr::Fn { args, ret } => {
+            for a in args {
+                collect_pattern_type_vars_inner(a, out);
+            }
+            collect_pattern_type_vars_inner(ret, out);
+        }
+        TypeExpr::Tuple(elements) => {
+            for e in elements {
+                collect_pattern_type_vars_inner(e, out);
+            }
+        }
+        TypeExpr::Var(_) => {}
+    }
 }
 
 fn infer_list_constructor(

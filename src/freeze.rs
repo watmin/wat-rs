@@ -56,6 +56,9 @@ use crate::load::{resolve_loads, LoadError, SourceLoader};
 use crate::macros::{
     expand_all, register_defmacros, register_stdlib_defmacros, MacroError, MacroRegistry,
 };
+use crate::multimethod::{
+    register_defmultimethods, MultimethodError, MultimethodRegistry,
+};
 use crate::parser::{parse_all_with_file, ParseError};
 use crate::stdlib::{stdlib_forms, StdlibError};
 use crate::resolve::{resolve_references, ResolveError};
@@ -75,6 +78,12 @@ pub struct FrozenWorld {
     pub config: Config,
     pub types: TypeEnv,
     pub macros: MacroRegistry,
+    /// Arc 146 slice 1 — multimethod registry. Stays accessible after
+    /// freeze for reflection (arc 144 `lookup_form` uses
+    /// `symbols.multimethod_registry` directly; this field is here to
+    /// mirror `macros` for callers that want a borrowable handle on the
+    /// frozen registry).
+    pub multimethods: MultimethodRegistry,
     pub symbols: SymbolTable,
     /// The post-load, post-expand, post-type-check AST — the
     /// residue of forms left after all definitions were registered.
@@ -99,6 +108,7 @@ impl FrozenWorld {
         config: Config,
         types: TypeEnv,
         macros: MacroRegistry,
+        multimethods: MultimethodRegistry,
         mut symbols: SymbolTable,
         program: Vec<WatAST>,
         loader: Arc<dyn crate::load::SourceLoader>,
@@ -109,6 +119,10 @@ impl FrozenWorld {
         // Arc 030: runtime macroexpand / macroexpand-1 primitives need
         // access to the frozen macro registry.
         symbols.set_macro_registry(Arc::new(macros.clone()));
+        // Arc 146 slice 1: check-time + runtime list-call dispatch consult
+        // the multimethod registry through SymbolTable (capability-carrier
+        // pattern, alongside macro_registry / encoding_ctx / source_loader).
+        symbols.set_multimethod_registry(Arc::new(multimethods.clone()));
         // Arc 085: shims that reflect on declared types (auto-spawn
         // walks an enum decl) reach the registry through SymbolTable
         // alongside the other capability carriers.
@@ -185,6 +199,7 @@ impl FrozenWorld {
             config,
             types,
             macros,
+            multimethods,
             symbols,
             program,
         })
@@ -196,6 +211,10 @@ impl FrozenWorld {
 
     pub fn types(&self) -> &TypeEnv {
         &self.types
+    }
+
+    pub fn multimethods(&self) -> &MultimethodRegistry {
+        &self.multimethods
     }
 
     pub fn macros(&self) -> &MacroRegistry {
@@ -220,6 +239,9 @@ pub enum StartupError {
     Config(ConfigError),
     Load(LoadError),
     Macro(MacroError),
+    /// Arc 146 slice 1 — `(:wat::core::defmultimethod ...)` registration
+    /// failed (malformed form, duplicate name, reserved prefix, etc.).
+    Multimethod(MultimethodError),
     Type(TypeError),
     Resolve(ResolveError),
     Check(CheckErrors),
@@ -246,6 +268,7 @@ impl fmt::Display for StartupError {
             StartupError::Config(e) => write!(f, "config: {}", e),
             StartupError::Load(e) => write!(f, "load: {}", e),
             StartupError::Macro(e) => write!(f, "macro: {}", e),
+            StartupError::Multimethod(e) => write!(f, "multimethod: {}", e),
             StartupError::Type(e) => write!(f, "types: {}", e),
             StartupError::Resolve(e) => write!(f, "resolve: {}", e),
             StartupError::Check(e) => write!(f, "check:\n{}", e),
@@ -315,6 +338,9 @@ impl StartupError {
             StartupError::Macro(e) => {
                 vec![Diagnostic::new("Macro").field("message", format!("{}", e))]
             }
+            StartupError::Multimethod(e) => {
+                vec![Diagnostic::new("Multimethod").field("message", format!("{}", e))]
+            }
             StartupError::Type(e) => {
                 vec![Diagnostic::new("Type").field("message", format!("{}", e))]
             }
@@ -354,6 +380,11 @@ impl From<LoadError> for StartupError {
 impl From<MacroError> for StartupError {
     fn from(e: MacroError) -> Self {
         StartupError::Macro(e)
+    }
+}
+impl From<MultimethodError> for StartupError {
+    fn from(e: MultimethodError) -> Self {
+        StartupError::Multimethod(e)
     }
 }
 impl From<TypeError> for StartupError {
@@ -552,6 +583,19 @@ fn startup_from_forms_post_config(
     //      and struct-field primitives.
     crate::runtime::register_newtype_methods(&types, &mut symbols)?;
 
+    // 6b. Multimethod declarations — arc 146 slice 1. Walks the residue
+    //     left after define registration, peels off every
+    //     `(:wat::core::defmultimethod ...)` form, registers it into a
+    //     `MultimethodRegistry`, and attaches that registry to
+    //     SymbolTable so the type-check + runtime list-call dispatch
+    //     paths can consult it. Per arc 146 BRIEF Q4: multimethods
+    //     register AFTER defines so each arm's impl-keyword can refer
+    //     to a fully-registered Function (the impl-arity validation is
+    //     deferred to first check-time call per BRIEF Q1).
+    let mut multimethods = MultimethodRegistry::new();
+    let residue = register_defmultimethods(residue, &mut multimethods)?;
+    symbols.set_multimethod_registry(Arc::new(multimethods.clone()));
+
     // 7. Name resolution.
     resolve_references(&residue, &symbols, &macros)?;
 
@@ -567,6 +611,7 @@ fn startup_from_forms_post_config(
         config,
         types,
         macros,
+        multimethods,
         symbols,
         residue,
         loader,
@@ -830,6 +875,7 @@ fn is_mutation_form(head: &str) -> bool {
         head,
         ":wat::core::define"
             | ":wat::core::defmacro"
+            | ":wat::core::defmultimethod"
             | ":wat::core::struct"
             | ":wat::core::enum"
             | ":wat::core::newtype"

@@ -688,6 +688,13 @@ pub struct SymbolTable {
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
     pub source_loader: Option<Arc<dyn crate::load::SourceLoader>>,
     pub macro_registry: Option<Arc<crate::macros::MacroRegistry>>,
+    /// Arc 146 slice 1 — multimethod registry. Carries every
+    /// `(:wat::core::defmultimethod ...)` declaration registered at
+    /// freeze time. The check-time + runtime list-call dispatch sites
+    /// consult this BEFORE the substrate-primitive scheme path so
+    /// multimethod-declared names route to per-Type arm impls. Mirrors
+    /// `macro_registry` (capability-carrier pattern, arc 109).
+    pub multimethod_registry: Option<Arc<crate::multimethod::MultimethodRegistry>>,
     /// Ambient presence-sigma function — `:fn(:i64) -> :i64`. Takes
     /// dim, returns σ count. Used by `presence?` to compute the
     /// per-d floor (`σ(d) / sqrt(d)`). Built-in default is
@@ -732,6 +739,7 @@ impl std::fmt::Debug for SymbolTable {
             .field("encoding_ctx", &self.encoding_ctx.is_some())
             .field("source_loader", &self.source_loader.is_some())
             .field("macro_registry", &self.macro_registry.is_some())
+            .field("multimethod_registry", &self.multimethod_registry.is_some())
             .field("presence_sigma_fn", &self.presence_sigma_fn.is_some())
             .field("coincident_sigma_fn", &self.coincident_sigma_fn.is_some())
             .field("types", &self.types.is_some())
@@ -792,6 +800,28 @@ impl SymbolTable {
     /// without going through freeze don't have macros attached.
     pub fn macro_registry(&self) -> Option<&Arc<crate::macros::MacroRegistry>> {
         self.macro_registry.as_ref()
+    }
+
+    /// Attach the multimethod registry. Called once at freeze time by
+    /// [`crate::freeze::FrozenWorld::freeze`] so check-time + runtime
+    /// list-call dispatch can consult registered multimethods before
+    /// the scheme path. Arc 146 slice 1.
+    pub fn set_multimethod_registry(
+        &mut self,
+        registry: Arc<crate::multimethod::MultimethodRegistry>,
+    ) {
+        self.multimethod_registry = Some(registry);
+    }
+
+    /// Borrow the multimethod registry, if one is attached. Test
+    /// harnesses that build a SymbolTable directly without going
+    /// through freeze don't have multimethods attached; the
+    /// dispatch sites treat `None` as "no multimethods registered"
+    /// and fall through to the scheme path.
+    pub fn multimethod_registry(
+        &self,
+    ) -> Option<&Arc<crate::multimethod::MultimethodRegistry>> {
+        self.multimethod_registry.as_ref()
     }
 
     /// Attach the ambient presence-sigma function. Called once at
@@ -2395,6 +2425,15 @@ fn dispatch_keyword_head(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
+    // Arc 146 slice 1 — multimethod dispatch. If `head` names a
+    // registered multimethod, route to arm-pattern matching against
+    // the args' value tags (per Q3 of the BRIEF: multimethods win over
+    // substrate-fixed forms).
+    if let Some(reg) = &sym.multimethod_registry {
+        if let Some(mm) = reg.get(head) {
+            return eval_multimethod_call(mm, args, list_span, env, sym);
+        }
+    }
     match head {
         // Language forms
         ":wat::core::define" => Err(RuntimeError::DefineInExpressionPosition(list_span.clone())),
@@ -3068,6 +3107,133 @@ fn dispatch_keyword_head(
             apply_function(func, vals, sym, list_span.clone())
         }
     }
+}
+
+// ─── Arc 146 slice 1 — multimethod runtime dispatch ─────────────────────
+
+/// Match a runtime [`Value`]'s tag against a [`TypeExpr`] arm-pattern
+/// element. Returns true if the value tag is consistent with the
+/// pattern. Concrete `Path` patterns require a tag-match; type-variable
+/// `Path` patterns (single uppercase-leading bare segment) match any
+/// value (the substrate's rank-1 instantiation freshens them per call
+/// site, but at runtime any value satisfies the constraint). Parametric
+/// patterns (e.g. `Vec<T>`) match by container head; the inner type-vars
+/// are treated as wildcards at runtime (the type checker has already
+/// ensured shape consistency).
+fn value_matches_type_pattern(v: &Value, pattern: &crate::types::TypeExpr) -> bool {
+    use crate::types::TypeExpr;
+    match pattern {
+        TypeExpr::Path(p) => {
+            let stripped = p.strip_prefix(':').unwrap_or(p);
+            if !stripped.contains("::")
+                && stripped
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_uppercase())
+                    .unwrap_or(false)
+            {
+                // Type variable — matches anything.
+                return true;
+            }
+            // Concrete path. Compare against the value's type tag.
+            let value_tag = v.type_name();
+            // Accept BOTH the FQDN form (`:wat::core::i64`) and the
+            // bare form (`:i64`) — both are legal user spellings; the
+            // type system treats them as the same type via parse-time
+            // canonicalization.
+            stripped == value_tag
+                || matches!(
+                    (stripped, value_tag),
+                    ("wat::core::i64", "i64")
+                        | ("wat::core::f64", "f64")
+                        | ("wat::core::bool", "bool")
+                        | ("wat::core::u8", "u8")
+                        | ("wat::core::String", "String")
+                        | ("wat::core::keyword", "wat::core::keyword")
+                        | ("wat::core::unit", "()")
+                )
+        }
+        TypeExpr::Parametric { head, .. } => {
+            // Container-head matching only — type-vars in args are
+            // wildcards at runtime (check-time has enforced shape).
+            let value_tag = v.type_name();
+            match head.as_str() {
+                "Vec" => value_tag == "Vec",
+                "HashMap" => value_tag == "rust::std::collections::HashMap",
+                "HashSet" => value_tag == "rust::std::collections::HashSet",
+                "Option" => value_tag == "Option",
+                "Result" => value_tag == "Result",
+                _ => false,
+            }
+        }
+        TypeExpr::Tuple(_) => v.type_name() == "tuple",
+        TypeExpr::Fn { .. } => v.type_name() == "wat::core::lambda",
+        TypeExpr::Var(_) => true,
+    }
+}
+
+/// Arc 146 slice 1 — runtime multimethod dispatch.
+///
+/// Eval each arg, walk `mm.arms` in declaration order, match each
+/// arg's value tag against the arm's pattern, dispatch to the matched
+/// arm's impl by calling its registered `Function`. If no arm matches:
+/// emit `MalformedForm` carrying the actual arg type tags so the user
+/// can see why dispatch failed.
+fn eval_multimethod_call(
+    mm: &crate::multimethod::Multimethod,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    // Surface arity = arms[0].pattern.len().
+    let surface_arity = mm.arms.first().map(|a| a.pattern.len()).unwrap_or(0);
+    if args.len() != surface_arity {
+        return Err(RuntimeError::ArityMismatch {
+            op: mm.name.clone(),
+            expected: surface_arity,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let vals: Vec<Value> = args
+        .iter()
+        .map(|a| eval(a, env, sym))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    for arm in &mm.arms {
+        if vals
+            .iter()
+            .zip(arm.pattern.iter())
+            .all(|(v, p)| value_matches_type_pattern(v, p))
+        {
+            // Arm matches. Resolve the impl as a registered Function
+            // and apply it with the same args.
+            let canonical = canonical_callable_name(&arm.impl_name);
+            let func = match sym.get(canonical) {
+                Some(f) => f.clone(),
+                None => {
+                    return Err(RuntimeError::UnknownFunction(
+                        arm.impl_name.clone(),
+                        list_span.clone(),
+                    ));
+                }
+            };
+            return apply_function(func, vals, sym, list_span.clone());
+        }
+    }
+
+    // No arm matched. Build a clean diagnostic listing the actual arg
+    // type tags so the user can see what dispatch missed.
+    let actual: Vec<&str> = vals.iter().map(|v| v.type_name()).collect();
+    Err(RuntimeError::MalformedForm {
+        head: mm.name.clone(),
+        reason: format!(
+            "no multimethod arm matched the call; got args ({})",
+            actual.join(", ")
+        ),
+        span: list_span.clone(),
+    })
 }
 
 // ─── Language forms ─────────────────────────────────────────────────────
@@ -6225,6 +6391,42 @@ fn typedef_to_define_ast(def: &crate::types::TypeDef) -> WatAST {
     )
 }
 
+/// Arc 146 slice 1 — build the full `(:wat::core::defmultimethod ...)`
+/// declaration form for reflection. Reconstructs the original surface
+/// syntax: head keyword + multimethod name + each arm as
+/// `((<type-pattern>...) <impl-keyword>)`. Caller renders to EDN via
+/// the standard HolonAST round-trip.
+///
+/// Type patterns are emitted as keyword strings (the user's source
+/// spelling round-trips via `format_type` in check.rs; here we render
+/// the `TypeExpr` back to its `:`-prefixed keyword form).
+fn multimethod_to_define_ast(mm: &crate::multimethod::Multimethod) -> WatAST {
+    let span = Span::unknown();
+    let name_kw = WatAST::Keyword(mm.name.clone(), span.clone());
+    let mut children = vec![
+        WatAST::Keyword(":wat::core::defmultimethod".into(), span.clone()),
+        name_kw,
+    ];
+    for arm in &mm.arms {
+        let pattern_items: Vec<WatAST> = arm
+            .pattern
+            .iter()
+            .map(|t| WatAST::Keyword(type_expr_to_keyword(t), span.clone()))
+            .collect();
+        let pattern_list = WatAST::List(pattern_items, span.clone());
+        let impl_kw = WatAST::Keyword(arm.impl_name.clone(), span.clone());
+        children.push(WatAST::List(vec![pattern_list, impl_kw], span.clone()));
+    }
+    WatAST::List(children, span)
+}
+
+/// Render a `TypeExpr` back to its `:`-prefixed keyword spelling. Uses
+/// `crate::check::format_type` to produce the post-`:` body, then
+/// prepends the colon. Mirrors how arm patterns are written in source.
+fn type_expr_to_keyword(t: &crate::types::TypeExpr) -> String {
+    format!(":{}", crate::check::format_type(t))
+}
+
 /// Extract the name string from a value that may be either a bare keyword
 /// or a function value (arc 009 "names are values" means keywords that
 /// refer to defined functions evaluate to their Function value). Returns
@@ -6295,6 +6497,14 @@ pub enum Binding<'a> {
         def: &'a crate::types::TypeDef,
         doc_string: Option<String>,
     },
+    /// Arc 146 slice 1 — a `(:wat::core::defmultimethod ...)`
+    /// declaration. Reflection emits the multimethod's full
+    /// declaration (head + name + arms) via `multimethod_to_define_ast`.
+    Multimethod {
+        name: String,
+        mm: &'a crate::multimethod::Multimethod,
+        doc_string: Option<String>,
+    },
 }
 
 /// Walk every form-kind registry in dispatch order, returning the
@@ -6330,6 +6540,21 @@ pub fn lookup_form<'a>(
             return Some(Binding::Macro {
                 name: name.to_string(),
                 def,
+                doc_string: None,
+            });
+        }
+    }
+    // 2a. Multimethods — arc 146 slice 1. Per Q3 of the BRIEF,
+    //     multimethods take precedence over substrate primitives /
+    //     special forms (they are user-declarable; substrate-fixed
+    //     names are not). Slot here so a future arc-146-migrated
+    //     primitive (e.g. `:wat::core::length` after slice 2) reflects
+    //     as a Multimethod, not as a stale Primitive.
+    if let Some(reg) = &sym.multimethod_registry {
+        if let Some(mm) = reg.get(name) {
+            return Some(Binding::Multimethod {
+                name: name.to_string(),
+                mm,
                 doc_string: None,
             });
         }
@@ -6431,6 +6656,14 @@ fn eval_lookup_define(
                 Arc::new(watast_to_holon(&ast)),
             )))))
         }
+        Some(Binding::Multimethod { mm, .. }) => {
+            // Arc 146 slice 1 — emit the full
+            // (:wat::core::defmultimethod :name <arm>+) declaration.
+            let ast = multimethod_to_define_ast(mm);
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&ast)),
+            )))))
+        }
         Some(Binding::SpecialForm { name: n, .. }) => {
             // Slice 2 populates the SpecialForm registry; until then
             // this arm is unreachable. Sentinel emission keeps the
@@ -6512,6 +6745,17 @@ fn eval_signature_of(
                 Arc::new(watast_to_holon(&ast)),
             )))))
         }
+        Some(Binding::Multimethod { mm, .. }) => {
+            // Arc 146 slice 1 — multimethods don't have a "header" in
+            // the function sense; the dispatch table IS the contract.
+            // Emit the same declaration form as lookup-define so the
+            // signature view still tells the reader "this is a
+            // multimethod with arms X/Y/Z".
+            let ast = multimethod_to_define_ast(mm);
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&ast)),
+            )))))
+        }
         Some(Binding::SpecialForm { signature, .. }) => {
             // Slice 2 populates SpecialForm.signature with a synthetic
             // HolonAST at registration time; emit it directly.
@@ -6578,6 +6822,11 @@ fn eval_body_of(
         }
         Some(Binding::Primitive { .. }) => Ok(Value::Option(Arc::new(None))),
         Some(Binding::Type { .. }) => Ok(Value::Option(Arc::new(None))),
+        // Arc 146 slice 1 — multimethods have no "body" in the function
+        // sense; the dispatch table IS the contract. body-of returns
+        // :None (honest about absence — the declaration is the
+        // lookup-define output).
+        Some(Binding::Multimethod { .. }) => Ok(Value::Option(Arc::new(None))),
         Some(Binding::SpecialForm { .. }) => Ok(Value::Option(Arc::new(None))),
         None => Ok(Value::Option(Arc::new(None))),
     }
