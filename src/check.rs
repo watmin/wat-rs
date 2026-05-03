@@ -3105,11 +3105,14 @@ fn infer_list(
             ":wat::core::Tuple" => return infer_tuple_constructor(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::string::concat" => return infer_string_concat(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::HashMap" => return infer_hashmap_constructor(args, head_span, env, locals, fresh, subst, errors),
-            ":wat::core::assoc" => return infer_assoc(args, head_span, env, locals, fresh, subst, errors),
-            ":wat::core::concat" => return infer_concat(args, head_span, env, locals, fresh, subst, errors),
-            ":wat::core::dissoc" => return infer_dissoc(args, head_span, env, locals, fresh, subst, errors),
-            ":wat::core::keys" => return infer_keys(args, head_span, env, locals, fresh, subst, errors),
-            ":wat::core::values" => return infer_values(args, head_span, env, locals, fresh, subst, errors),
+            // Arc 146 slice 4 — `:wat::core::assoc` / `:dissoc` /
+            // `:keys` / `:values` / `:concat` retired here; each is now
+            // a user-define alias (declared in `wat/core-aliases.wat`)
+            // that delegates to the per-Type impl
+            // (`:wat::core::HashMap/assoc` etc., `:Vector/concat`).
+            // Aliases reach the standard env.get scheme path; per-Type
+            // impls carry clean rank-1 schemes registered in
+            // register_builtins.
             // Arc 146 slice 3 — `:wat::core::empty?` / `:conj` /
             // `:contains?` retired here; each is now a Dispatch
             // (declared in `wat/core.wat`). The dispatch_registry guard
@@ -7287,281 +7290,14 @@ fn infer_polymorphic_holon_to_i64(
 // "get-by-equality" is just `:contains?` per arc 146 DESIGN audit
 // table; that path migrated to the contains? dispatch.
 
-/// Arc 020 — `(:wat::core::assoc container key value)`. Clojure
-/// `assoc`: associate key with value in a HashMap, return new map.
-/// For `HashMap<K,V>`: unifies key-ty with K, value-ty with V;
-/// returns the input HashMap type. Matches `infer_get`'s dispatch-
-/// on-container shape; extends to other containers if demand
-/// surfaces.
-fn infer_assoc(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
-    if args.len() != 3 {
-        errors.push(CheckError::ArityMismatch {
-            callee: ":wat::core::assoc".into(),
-            expected: 3,
-            got: args.len(),
-            span: head_span.clone(),
-        });
-        return Some(TypeExpr::Parametric {
-            head: "HashMap".into(),
-            args: vec![fresh.fresh(), fresh.fresh()],
-        });
-    }
-    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    let key_ty = infer(&args[1], env, locals, fresh, subst, errors);
-    let value_ty = infer(&args[2], env, locals, fresh, subst, errors);
-    if let Some(ct) = container_ty {
-        let reduced = reduce(&ct, subst, env.types());
-        match &reduced {
-            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
-                let k = apply_subst(&ta[0], subst);
-                let v = apply_subst(&ta[1], subst);
-                if let Some(key_ty) = key_ty {
-                    if unify(&key_ty, &k, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::assoc".into(),
-                            param: "key".into(),
-                            expected: format_type(&apply_subst(&k, subst)),
-                            got: format_type(&apply_subst(&key_ty, subst)),
-                            span: args[1].span().clone(),
-                        });
-                    }
-                }
-                if let Some(value_ty) = value_ty {
-                    if unify(&value_ty, &v, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::assoc".into(),
-                            param: "value".into(),
-                            expected: format_type(&apply_subst(&v, subst)),
-                            got: format_type(&apply_subst(&value_ty, subst)),
-                            span: args[2].span().clone(),
-                        });
-                    }
-                }
-                return Some(reduced);
-            }
-            // Arc 025: Vec support. `(assoc xs i v)` replaces xs[i]
-            // with v; i must unify with :i64, v must unify with T.
-            // Returns Vec<T>. Out-of-range i is a runtime error, not
-            // a type error.
-            TypeExpr::Parametric { head, args: ta } if head == "Vec" && ta.len() == 1 => {
-                let t = apply_subst(&ta[0], subst);
-                if let Some(key_ty) = key_ty {
-                    let i64_ty = TypeExpr::Path(":i64".into());
-                    if unify(&key_ty, &i64_ty, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::assoc".into(),
-                            param: "key".into(),
-                            expected: "i64".into(),
-                            got: format_type(&apply_subst(&key_ty, subst)),
-                            span: args[1].span().clone(),
-                        });
-                    }
-                }
-                if let Some(value_ty) = value_ty {
-                    if unify(&value_ty, &t, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::assoc".into(),
-                            param: "value".into(),
-                            expected: format_type(&apply_subst(&t, subst)),
-                            got: format_type(&apply_subst(&value_ty, subst)),
-                            span: args[2].span().clone(),
-                        });
-                    }
-                }
-                return Some(reduced);
-            }
-            _ => {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::assoc".into(),
-                    param: "container".into(),
-                    expected: "HashMap<K,V> | Vec<T>".into(),
-                    got: format_type(&apply_subst(&ct, subst)),
-                    span: args[0].span().clone(),
-                });
-            }
-        }
-    }
-    Some(TypeExpr::Parametric {
-        head: "HashMap".into(),
-        args: vec![fresh.fresh(), fresh.fresh()],
-    })
-}
-
-/// Arc 058 — `(:wat::core::dissoc m k)`. Returns a NEW HashMap
-/// without `k`; original unchanged. Missing key is no-op
-/// (returns clone of input). Mirrors Clojure's dissoc.
-///   ∀K, V. HashMap<K,V> × K → HashMap<K,V>
-fn infer_dissoc(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
-    if args.len() != 2 {
-        errors.push(CheckError::ArityMismatch {
-            callee: ":wat::core::dissoc".into(),
-            expected: 2,
-            got: args.len(),
-            span: head_span.clone(),
-        });
-        return Some(TypeExpr::Parametric {
-            head: "HashMap".into(),
-            args: vec![fresh.fresh(), fresh.fresh()],
-        });
-    }
-    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    let key_ty = infer(&args[1], env, locals, fresh, subst, errors);
-    if let Some(ct) = container_ty {
-        let reduced = reduce(&ct, subst, env.types());
-        match &reduced {
-            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
-                let k = apply_subst(&ta[0], subst);
-                if let Some(key_ty) = key_ty {
-                    if unify(&key_ty, &k, subst, env.types()).is_err() {
-                        errors.push(CheckError::TypeMismatch {
-                            callee: ":wat::core::dissoc".into(),
-                            param: "key".into(),
-                            expected: format_type(&apply_subst(&k, subst)),
-                            got: format_type(&apply_subst(&key_ty, subst)),
-                            span: args[1].span().clone(),
-                        });
-                    }
-                }
-                return Some(reduced);
-            }
-            _ => {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::dissoc".into(),
-                    param: "container".into(),
-                    expected: "HashMap<K,V>".into(),
-                    got: format_type(&apply_subst(&ct, subst)),
-                    span: args[0].span().clone(),
-                });
-            }
-        }
-    }
-    Some(TypeExpr::Parametric {
-        head: "HashMap".into(),
-        args: vec![fresh.fresh(), fresh.fresh()],
-    })
-}
-
-/// Arc 058 — `(:wat::core::keys m)`. Materializes the map's keys
-/// as a Vec (order unspecified — Rust's HashMap iteration order
-/// depends on hash randomization; sort the result if you need
-/// determinism).
-///   ∀K, V. HashMap<K,V> → Vec<K>
-fn infer_keys(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
-    if args.len() != 1 {
-        errors.push(CheckError::ArityMismatch {
-            callee: ":wat::core::keys".into(),
-            expected: 1,
-            got: args.len(),
-            span: head_span.clone(),
-        });
-        return Some(TypeExpr::Parametric {
-            head: "Vec".into(),
-            args: vec![fresh.fresh()],
-        });
-    }
-    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    if let Some(ct) = container_ty {
-        let reduced = reduce(&ct, subst, env.types());
-        match &reduced {
-            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
-                let k = apply_subst(&ta[0], subst);
-                return Some(TypeExpr::Parametric {
-                    head: "Vec".into(),
-                    args: vec![k],
-                });
-            }
-            _ => {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::keys".into(),
-                    param: "container".into(),
-                    expected: "HashMap<K,V>".into(),
-                    got: format_type(&apply_subst(&ct, subst)),
-                    span: args[0].span().clone(),
-                });
-            }
-        }
-    }
-    Some(TypeExpr::Parametric {
-        head: "Vec".into(),
-        args: vec![fresh.fresh()],
-    })
-}
-
-/// Arc 058 — `(:wat::core::values m)`. Materializes the map's
-/// values as a Vec (order unspecified — same caveat as `keys`).
-///   ∀K, V. HashMap<K,V> → Vec<V>
-fn infer_values(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
-    if args.len() != 1 {
-        errors.push(CheckError::ArityMismatch {
-            callee: ":wat::core::values".into(),
-            expected: 1,
-            got: args.len(),
-            span: head_span.clone(),
-        });
-        return Some(TypeExpr::Parametric {
-            head: "Vec".into(),
-            args: vec![fresh.fresh()],
-        });
-    }
-    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    if let Some(ct) = container_ty {
-        let reduced = reduce(&ct, subst, env.types());
-        match &reduced {
-            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
-                let v = apply_subst(&ta[1], subst);
-                return Some(TypeExpr::Parametric {
-                    head: "Vec".into(),
-                    args: vec![v],
-                });
-            }
-            _ => {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::values".into(),
-                    param: "container".into(),
-                    expected: "HashMap<K,V>".into(),
-                    got: format_type(&apply_subst(&ct, subst)),
-                    span: args[0].span().clone(),
-                });
-            }
-        }
-    }
-    Some(TypeExpr::Parametric {
-        head: "Vec".into(),
-        args: vec![fresh.fresh()],
-    })
-}
+// Arc 146 slice 4 — `infer_assoc` / `infer_dissoc` / `infer_keys` /
+// `infer_values` retired. Each is now a user-define alias (declared in
+// `wat/core-aliases.wat`) delegating to `:wat::core::HashMap/assoc` /
+// `dissoc` / `keys` / `values`. Aliases reach the standard env.get
+// scheme path; per-Type impls carry clean rank-1 schemes registered in
+// `register_builtins`. The pre-arc-146 Vec branch on assoc was a
+// Vec-as-HashMap-anachronism per arc 146 DESIGN audit table; Vec/set
+// is the honest verb for "replace at index" and lives independently.
 
 // Arc 146 slice 3 — `infer_empty_q`, `infer_conj`, `infer_contains_q`
 // retired. Polymorphism is now honest via the Dispatch entities
@@ -7730,55 +7466,11 @@ fn infer_tuple_constructor(
 /// rationale as `vec` / `tuple`). Empty arg list errors at the
 /// runtime; the checker accepts arity 0 and returns `:String` so the
 /// runtime owns the diagnostic — this mirrors how `tuple` behaves.
-/// Arc 059 — `(:wat::core::concat v1 v2 ...)`. Variadic Vec
-/// concatenation; ≥1 arg required (zero-arg ambiguous on T, same
-/// reasoning as `:wat::core::vec`'s rejection of zero-arg).
-///   ∀T. (Vec<T>)+ → Vec<T>
-/// All args must unify on the same `Vec<T>` — no implicit coercion
-/// (a `Vec<i64>` and `Vec<f64>` don't concat). Mirrors the
-/// `string::concat` shape but with a fresh element type variable
-/// instead of a fixed `:String`.
-fn infer_concat(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
-    if args.is_empty() {
-        errors.push(CheckError::ArityMismatch {
-            callee: ":wat::core::concat".into(),
-            expected: 1,
-            got: 0,
-            span: head_span.clone(),
-        });
-        return Some(TypeExpr::Parametric {
-            head: "Vec".into(),
-            args: vec![fresh.fresh()],
-        });
-    }
-    let elem_ty = fresh.fresh();
-    let vec_ty = TypeExpr::Parametric {
-        head: "Vec".into(),
-        args: vec![elem_ty],
-    };
-    for arg in args {
-        if let Some(ty) = infer(arg, env, locals, fresh, subst, errors) {
-            if unify(&ty, &vec_ty, subst, env.types()).is_err() {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::concat".into(),
-                    param: "arg".into(),
-                    expected: format_type(&apply_subst(&vec_ty, subst)),
-                    got: format_type(&apply_subst(&ty, subst)),
-                    span: arg.span().clone(),
-                });
-            }
-        }
-    }
-    Some(apply_subst(&vec_ty, subst))
-}
+// Arc 146 slice 4 — `infer_concat` retired. The single-impl
+// polymorphism is honest now: an alias (declared in
+// `wat/core-aliases.wat`) maps `:wat::core::concat` to the per-Type
+// `:wat::core::Vector/concat` impl. Variadic 1+ arg shape collapsed
+// to honest binary; callers nest for >2 args (or fold).
 
 fn infer_string_concat(
     args: &[WatAST],
@@ -11613,6 +11305,65 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat
+    // impls. These ops aren't dispatched (only one container per name);
+    // surface short names (:assoc / :dissoc / :keys / :values / :concat)
+    // become user-define aliases via `wat/core-aliases.wat` that
+    // delegate to the impls below. Each per-Type impl is also directly
+    // callable (`:wat::core::HashMap/assoc` etc., `:Vector/concat`).
+    //
+    // assoc / dissoc / keys / values — HashMap-only (DESIGN audit).
+    //   HashMap/assoc  :: ∀K,V. HashMap<K,V> × K × V -> HashMap<K,V>
+    //   HashMap/dissoc :: ∀K,V. HashMap<K,V> × K     -> HashMap<K,V>
+    //   HashMap/keys   :: ∀K,V. HashMap<K,V>         -> Vec<K>
+    //   HashMap/values :: ∀K,V. HashMap<K,V>         -> Vec<V>
+    env.register(
+        ":wat::core::HashMap/assoc".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var(), v_var()],
+            ret: hashmap_of(k_var(), v_var()),
+        },
+    );
+    env.register(
+        ":wat::core::HashMap/dissoc".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var()],
+            ret: hashmap_of(k_var(), v_var()),
+        },
+    );
+    env.register(
+        ":wat::core::HashMap/keys".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: vec_of(k_var()),
+        },
+    );
+    env.register(
+        ":wat::core::HashMap/values".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: vec_of(v_var()),
+        },
+    );
+
+    // concat — Vector-only (DESIGN audit; string::concat already
+    // namespaced separately). 2-arg fingerprint per arc 144 slice 3
+    // limitation; pre-arc-146 1+ variadic shape collapsed to honest
+    // binary; callers nest for >2 args (or fold).
+    //   Vector/concat :: ∀T. Vec<T> × Vec<T> -> Vec<T>
+    env.register(
+        ":wat::core::Vector/concat".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![vec_of(t_var()), vec_of(t_var())],
+            ret: vec_of(t_var()),
+        },
+    );
+
     // Arc 146 slice 2 — the `:wat::core::length` arc 144 slice 3
     // fingerprint is retired. The dispatch (declared in
     // `wat/core.wat`) is the new contract; lookup_form returns
@@ -11635,63 +11386,14 @@ fn register_builtins(env: &mut CheckEnv) {
     // 2 Delta 4); per-Type impls registered above are the queryable
     // rank-1 schemes.
 
-    // :wat::core::assoc — handler accepts HashMap<K,V> + K + V AND
-    // Vec<T> + i64 + T (infer_assoc at check.rs:7354). HashMap-shaped
-    // fingerprint since it carries both type-vars + the value-position
-    // distinction.
-    env.register(
-        ":wat::core::assoc".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var()), k_var(), v_var()],
-            ret: hashmap_of(k_var(), v_var()),
-        },
-    );
-
-    // :wat::core::dissoc — HashMap-only at the handler
-    // (infer_dissoc at check.rs:7460).
-    env.register(
-        ":wat::core::dissoc".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var()), k_var()],
-            ret: hashmap_of(k_var(), v_var()),
-        },
-    );
-
-    // :wat::core::keys — HashMap-only (infer_keys at check.rs:7523).
-    env.register(
-        ":wat::core::keys".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var())],
-            ret: vec_of(k_var()),
-        },
-    );
-
-    // :wat::core::values — HashMap-only (infer_values at check.rs:7575).
-    env.register(
-        ":wat::core::values".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var())],
-            ret: vec_of(v_var()),
-        },
-    );
-
-    // :wat::core::concat — variadic at runtime (1+ Vec<T> args;
-    // infer_concat at check.rs:8054). TypeScheme has no variadic
-    // shape today, so the fingerprint registers the canonical 2-arg
-    // case; real arity-checking lives in the handler. Per arc 144
-    // slice 3 limitation.
-    env.register(
-        ":wat::core::concat".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var()), vec_of(t_var())],
-            ret: vec_of(t_var()),
-        },
-    );
+    // Arc 146 slice 4 — `:wat::core::assoc` / `:dissoc` / `:keys` /
+    // `:values` / `:concat` arc 144 slice 3 fingerprints retired. Each
+    // is now a user-define alias (declared in `wat/core-aliases.wat`)
+    // delegating to the per-Type impl (`:wat::core::HashMap/assoc` etc.,
+    // `:wat::core::Vector/concat`); signature-of returns the alias's
+    // user-define signature; per-Type impls registered above (and
+    // adjacent to slice 2/3 blocks below) are the queryable rank-1
+    // schemes.
 
     // :wat::core::string::concat — variadic at runtime (0+ :String
     // args; infer_string_concat at check.rs:8096). TypeScheme has no

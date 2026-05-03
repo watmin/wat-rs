@@ -46,3 +46,18 @@
 (:wat::core::define-dispatch :wat::core::conj
   ((:wat::core::Vector<T>  :T) :wat::core::Vector/conj)
   ((:wat::core::HashSet<T> :T) :wat::core::HashSet/conj))
+
+;; Arc 146 slice 4 — :wat::core::* short-name aliases for single-impl
+;; ops. Each alias maps a short ergonomic name to its explicit per-Type
+;; impl. Per arc 146 DESIGN: single-impl ops are aliases (not
+;; dispatches; dispatch is for genuine polymorphism). Both short + long
+;; names work; both are honest. The alias machinery (arc 143's
+;; :wat::runtime::define-alias) expands at registration time into a
+;; delegating user-define whose head copies the target's signature
+;; with the alias name substituted.
+
+(:wat::runtime::define-alias :wat::core::assoc   :wat::core::HashMap/assoc)
+(:wat::runtime::define-alias :wat::core::dissoc  :wat::core::HashMap/dissoc)
+(:wat::runtime::define-alias :wat::core::keys    :wat::core::HashMap/keys)
+(:wat::runtime::define-alias :wat::core::values  :wat::core::HashMap/values)
+(:wat::runtime::define-alias :wat::core::concat  :wat::core::Vector/concat)

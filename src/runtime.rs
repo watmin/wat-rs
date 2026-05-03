@@ -2681,6 +2681,16 @@ fn dispatch_keyword_head(
         ":wat::core::HashMap/get" => eval_hashmap_get(args, env, sym),
         ":wat::core::Vector/conj" => eval_vector_conj(args, env, sym),
         ":wat::core::HashSet/conj" => eval_hashset_conj(args, env, sym),
+        // Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat.
+        // Single-impl-per-container ops. Surface short names
+        // (:assoc / :dissoc / :keys / :values / :concat) become user-define
+        // aliases via `wat/core-aliases.wat`; they delegate to these per-Type
+        // impls (each is also directly callable as `:HashMap/assoc` etc.).
+        ":wat::core::HashMap/assoc" => eval_hashmap_assoc(args, env, sym),
+        ":wat::core::HashMap/dissoc" => eval_hashmap_dissoc(args, env, sym),
+        ":wat::core::HashMap/keys" => eval_hashmap_keys(args, env, sym),
+        ":wat::core::HashMap/values" => eval_hashmap_values(args, env, sym),
+        ":wat::core::Vector/concat" => eval_vector_concat(args, env, sym),
         ":wat::core::reverse" => eval_vec_reverse(args, list_span, env, sym),
         ":wat::core::range" => eval_vec_range(args, list_span, env, sym),
         ":wat::core::take" => eval_vec_take(args, list_span, env, sym),
@@ -2701,11 +2711,13 @@ fn dispatch_keyword_head(
         // per-Type impls (`Vector/get`, `HashMap/get`,
         // `Vector/contains?`, `HashMap/contains-key?`,
         // `HashSet/contains?`) sit in the per-Type block above.
-        ":wat::core::concat" => eval_concat(args, env, sym),
-        ":wat::core::assoc" => eval_assoc(args, env, sym),
-        ":wat::core::dissoc" => eval_dissoc(args, env, sym),
-        ":wat::core::keys" => eval_keys(args, env, sym),
-        ":wat::core::values" => eval_values(args, env, sym),
+        //
+        // Arc 146 slice 4 — `:wat::core::concat` / `:assoc` / `:dissoc` /
+        // `:keys` / `:values` retired here; each is now a user-define
+        // alias (declared in `wat/core-aliases.wat`) that delegates to
+        // the per-Type impl (`:HashMap/assoc` etc., `:Vector/concat`).
+        // Aliases dispatch through env.get; the per-Type primitives
+        // sit in the per-Type block above.
         // :wat::io::IOReader / :wat::io::IOWriter — abstract IO
         // substrate (arc 008 slice 2). Two wat-level types; multiple
         // concrete backings (real stdio, StringIo). Byte-oriented
@@ -5405,6 +5417,206 @@ fn eval_hashset_conj(
     hashset_conj_inner(&container, &item)
 }
 
+// ─── Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat impls ─
+//
+// Single-impl-per-container ops migrated to honest per-Type names. The
+// surface short names (:assoc / :dissoc / :keys / :values / :concat)
+// become user-defines via `:wat::runtime::define-alias` declarations in
+// `wat/core-aliases.wat`; they delegate to these per-Type impls. Each
+// impl is also directly callable as `:wat::core::HashMap/assoc` etc.
+//
+// Pattern mirrors slice 2/3: inner helper (Value-only, span-free) +
+// eval wrapper (arity check + AST→Value evaluation). Inner helpers are
+// reused by `dispatch_substrate_impl` for fallback routing through
+// alias-expanded calls.
+
+fn hashmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::HashMap/assoc";
+    match container {
+        Value::wat__std__HashMap(m) => {
+            let key = hashmap_key(OP, k)?;
+            let mut new_map = (**m).clone();
+            new_map.insert(key, (k.clone(), v.clone()));
+            Ok(Value::wat__std__HashMap(Arc::new(new_map)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "HashMap<K,V>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn hashmap_dissoc_inner(container: &Value, k: &Value) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::HashMap/dissoc";
+    match container {
+        Value::wat__std__HashMap(m) => {
+            let key = hashmap_key(OP, k)?;
+            let mut new_map = (**m).clone();
+            new_map.remove(&key);
+            Ok(Value::wat__std__HashMap(Arc::new(new_map)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "HashMap<K,V>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn hashmap_keys_inner(container: &Value) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::HashMap/keys";
+    match container {
+        Value::wat__std__HashMap(m) => {
+            let ks: Vec<Value> = m.values().map(|(k, _v)| k.clone()).collect();
+            Ok(Value::Vec(Arc::new(ks)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "HashMap<K,V>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn hashmap_values_inner(container: &Value) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::HashMap/values";
+    match container {
+        Value::wat__std__HashMap(m) => {
+            let vs: Vec<Value> = m.values().map(|(_k, v)| v.clone()).collect();
+            Ok(Value::Vec(Arc::new(vs)))
+        }
+        other => Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "HashMap<K,V>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::Vector/concat";
+    let l = match left {
+        Value::Vec(xs) => xs.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Vec<T>",
+                got: other.type_name(),
+                span: Span::unknown(),
+            });
+        }
+    };
+    let r = match right {
+        Value::Vec(xs) => xs.clone(),
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Vec<T>",
+                got: other.type_name(),
+                span: Span::unknown(),
+            });
+        }
+    };
+    let mut out: Vec<Value> = Vec::with_capacity(l.len() + r.len());
+    out.extend((*l).iter().cloned());
+    out.extend((*r).iter().cloned());
+    Ok(Value::Vec(Arc::new(out)))
+}
+
+fn eval_hashmap_assoc(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::HashMap/assoc".into(),
+            expected: 3,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let k = eval(&args[1], env, sym)?;
+    let v = eval(&args[2], env, sym)?;
+    hashmap_assoc_inner(&container, &k, &v)
+}
+
+fn eval_hashmap_dissoc(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::HashMap/dissoc".into(),
+            expected: 2,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    let k = eval(&args[1], env, sym)?;
+    hashmap_dissoc_inner(&container, &k)
+}
+
+fn eval_hashmap_keys(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::HashMap/keys".into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    hashmap_keys_inner(&container)
+}
+
+fn eval_hashmap_values(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::HashMap/values".into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let container = eval(&args[0], env, sym)?;
+    hashmap_values_inner(&container)
+}
+
+fn eval_vector_concat(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::Vector/concat".into(),
+            expected: 2,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let left = eval(&args[0], env, sym)?;
+    let right = eval(&args[1], env, sym)?;
+    vector_concat_inner(&left, &right)
+}
+
 /// Arc 146 slice 2 — substrate-primitive impl dispatch from
 /// `eval_dispatch_call` when an arm's impl is NOT a user-define
 /// `Function` (i.e., not present in `sym.functions`). Routes to the
@@ -5418,6 +5630,12 @@ fn eval_hashset_conj(
 ///
 /// Arc 146 slice 3 extends this with the per-Type empty? / contains? /
 /// get / conj impls (10 new arms; 3+3+2+2).
+///
+/// Arc 146 slice 4 extends this with the per-Type assoc / dissoc /
+/// keys / values / concat impls (5 new arms). These ops aren't
+/// dispatched (alias-expansion goes through user-define), but the
+/// substrate-impl entries here let the alias body resolve when the
+/// per-Type impl is the named target.
 pub(crate) fn dispatch_substrate_impl(
     impl_name: &str,
     vals: &[Value],
@@ -5473,6 +5691,29 @@ pub(crate) fn dispatch_substrate_impl(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
+        // Arc 146 slice 4 — assoc / dissoc / keys / values / concat
+        // per-Type impls. Routed here so alias-expanded user-defines
+        // resolve to the substrate impl when the body's call lands on
+        // a per-Type primitive name.
+        ":wat::core::HashMap/assoc" => Some(hashmap_assoc_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+            vals.get(2).expect("arity-checked"),
+        )),
+        ":wat::core::HashMap/dissoc" => Some(hashmap_dissoc_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
+        ":wat::core::HashMap/keys" => {
+            Some(hashmap_keys_inner(vals.first().expect("arity-checked")))
+        }
+        ":wat::core::HashMap/values" => {
+            Some(hashmap_values_inner(vals.first().expect("arity-checked")))
+        }
+        ":wat::core::Vector/concat" => Some(vector_concat_inner(
+            vals.first().expect("arity-checked"),
+            vals.get(1).expect("arity-checked"),
+        )),
         _ => None,
     }
 }
@@ -5481,51 +5722,12 @@ pub(crate) fn dispatch_substrate_impl(
 // honest now: a Dispatch (declared in `wat/core.wat`) routes
 // `:wat::core::empty?` to the per-Type `:Vector/empty?` /
 // `:HashMap/empty?` / `:HashSet/empty?` impls above.
-
-/// `(:wat::core::concat v1 v2 ...)` → `Vec<T>`. Variadic Vec
-/// concatenation (arc 059). Allocates a fresh Vec of the combined
-/// length; copies elements from each input. Inputs unchanged
-/// (values-up). Single-arg `(concat v)` returns a clone of v.
-fn eval_concat(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::concat";
-    if args.is_empty() {
-        // arc 138: no span — leaf helper.
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: 0,
-            span: Span::unknown(),
-        });
-    }
-    // Pre-evaluate all args (collect Vec<Arc<Vec<Value>>>) so we can
-    // size the result vector exactly before copying.
-    let mut pieces: Vec<Arc<Vec<Value>>> = Vec::with_capacity(args.len());
-    for arg in args {
-        let v = eval(arg, env, sym)?;
-        match v {
-            Value::Vec(xs) => pieces.push(xs),
-            other => {
-                // arc 138: no span — leaf helper.
-                return Err(RuntimeError::TypeMismatch {
-                    op: OP.into(),
-                    expected: "Vec<T>",
-                    got: other.type_name(),
-                    span: Span::unknown(),
-                });
-            }
-        }
-    }
-    let total: usize = pieces.iter().map(|p| p.len()).sum();
-    let mut out: Vec<Value> = Vec::with_capacity(total);
-    for piece in pieces {
-        out.extend((*piece).iter().cloned());
-    }
-    Ok(Value::Vec(Arc::new(out)))
-}
+//
+// Arc 146 slice 4 — `eval_concat` retired. The single-impl polymorphism
+// is honest now: an alias (declared in `wat/core-aliases.wat`) maps
+// `:wat::core::concat` to the per-Type `:wat::core::Vector/concat`
+// impl above. Variadic 1+ arg shape collapsed to honest binary; callers
+// nest for >2 args (or fold).
 
 /// `(:wat::core::reverse xs)` → `Vec<T>`. New Vec with elements
 /// reversed; input unchanged.
@@ -6062,183 +6264,14 @@ fn eval_hashmap_ctor(
 // "get-by-equality" is just `:contains?` per arc 146 DESIGN audit
 // table.
 
-/// Arc 020 — `(:wat::core::assoc container key value)`. Clojure
-/// `assoc`: return a new HashMap with the entry added/replaced.
-/// Values-up: input container unchanged. HashMap-only for now;
-/// other containers dispatched off the same function if demand
-/// surfaces (matches the per-container dispatch shape).
-fn eval_assoc(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::assoc";
-    if args.len() != 3 {
-        // arc 138: no span — leaf helper without list_span.
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 3,
-            got: args.len(),
-            span: Span::unknown(),
-        });
-    }
-    let container = eval(&args[0], env, sym)?;
-    let k = eval(&args[1], env, sym)?;
-    let v = eval(&args[2], env, sym)?;
-    match container {
-        Value::wat__std__HashMap(m) => {
-            let key = hashmap_key(OP, &k)?;
-            // Clone the inner HashMap — cheap shallow copy of buckets;
-            // keys and values are `Arc`-shared where applicable.
-            let mut new_map = (*m).clone();
-            new_map.insert(key, (k, v));
-            Ok(Value::wat__std__HashMap(Arc::new(new_map)))
-        }
-        // Arc 025: Vec support. `(assoc xs i v)` returns a new Vec
-        // with xs[i] replaced. Runtime out-of-range index → runtime
-        // error (type checker accepts any i64; only the value bounds
-        // check at runtime). Values-up — input Vec unchanged.
-        Value::Vec(xs) => {
-            let i = match k {
-                Value::i64(n) => n,
-                other => {
-                    return Err(RuntimeError::TypeMismatch {
-                        op: OP.into(),
-                        expected: "i64 index for Vec",
-                        got: other.type_name(),
-                        span: args[1].span().clone(),
-                    });
-                }
-            };
-            if i < 0 || (i as usize) >= xs.len() {
-                return Err(RuntimeError::MalformedForm {
-                    head: OP.into(),
-                    reason: format!(
-                        "index {} out of range for Vec of length {}",
-                        i,
-                        xs.len()
-                    ),
-                    span: args[1].span().clone(),
-                });
-            }
-            let mut out = (*xs).clone();
-            out[i as usize] = v;
-            Ok(Value::Vec(Arc::new(out)))
-        }
-        other => Err(RuntimeError::TypeMismatch {
-            op: OP.into(),
-            expected: "HashMap<K,V> | Vec<T>",
-            got: other.type_name(),
-            span: args[0].span().clone(),
-        }),
-    }
-}
-
-/// `(:wat::core::dissoc m k)` → `HashMap<K,V>`. Returns a NEW map
-/// without `k`; original unchanged. Missing key is no-op (returns
-/// clone of input). Mirrors Clojure's dissoc; same values-up
-/// template as assoc.
-fn eval_dissoc(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::dissoc";
-    if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 2,
-            got: args.len(),
-            span: Span::unknown(),
-        });
-    }
-    let container = eval(&args[0], env, sym)?;
-    let k = eval(&args[1], env, sym)?;
-    match container {
-        Value::wat__std__HashMap(m) => {
-            let key = hashmap_key(OP, &k)?;
-            let mut new_map = (*m).clone();
-            new_map.remove(&key);
-            Ok(Value::wat__std__HashMap(Arc::new(new_map)))
-        }
-        other => Err(RuntimeError::TypeMismatch {
-            op: OP.into(),
-            expected: "HashMap<K,V>",
-            got: other.type_name(),
-            span: args[0].span().clone(),
-        }),
-    }
-}
-
-/// `(:wat::core::keys m)` → `Vec<K>`. Materializes the map's keys.
-/// Order is unspecified — Rust's HashMap iteration order depends on
-/// hash randomization. Sort the result if you need determinism.
-fn eval_keys(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::keys";
-    if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        });
-    }
-    match eval(&args[0], env, sym)? {
-        Value::wat__std__HashMap(m) => {
-            // Inner stored as (canonical-key-string → (original-key-Value, value-Value))
-            // — the first tuple slot carries the original key Value
-            // (the second is the entry value); collect those.
-            let ks: Vec<Value> = m.values().map(|(k, _v)| k.clone()).collect();
-            Ok(Value::Vec(Arc::new(ks)))
-        }
-        other => Err(RuntimeError::TypeMismatch {
-            op: OP.into(),
-            expected: "HashMap<K,V>",
-            got: other.type_name(),
-            span: args[0].span().clone(),
-        }),
-    }
-}
-
-/// `(:wat::core::values m)` → `Vec<V>`. Materializes the map's
-/// values. Same order caveat as `keys`.
-fn eval_values(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::values";
-    if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::ArityMismatch {
-            op: OP.into(),
-            expected: 1,
-            got: args.len(),
-            span: Span::unknown(),
-        });
-    }
-    match eval(&args[0], env, sym)? {
-        Value::wat__std__HashMap(m) => {
-            let vs: Vec<Value> = m.values().map(|(_k, v)| v.clone()).collect();
-            Ok(Value::Vec(Arc::new(vs)))
-        }
-        other => Err(RuntimeError::TypeMismatch {
-            op: OP.into(),
-            expected: "HashMap<K,V>",
-            got: other.type_name(),
-            span: args[0].span().clone(),
-        }),
-    }
-}
+// Arc 146 slice 4 — `eval_assoc` / `eval_dissoc` / `eval_keys` /
+// `eval_values` retired. The single-impl polymorphism is honest now:
+// aliases (declared in `wat/core-aliases.wat`) map the short surface
+// names to the per-Type `:wat::core::HashMap/assoc` / `dissoc` /
+// `keys` / `values` impls (defined above adjacent to the slice 2/3
+// per-Type block). The pre-arc-146 Vec branch on assoc was a Vec-as-
+// HashMap-anachronism per arc 146 DESIGN audit table; Vec/set is the
+// honest verb for "replace at index" and lives independently.
 
 /// `(:wat::core::HashSet :T x1 x2 x3 ...)` — first arg is a type
 /// keyword read by the checker; remaining args are elements. Duplicate
@@ -19889,7 +19922,12 @@ mod tests {
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
 
-    // ─── Vec concat (arc 059) ────────────────────────────────────────────
+    // ─── Vec concat (arc 059, arc 146 slice 4) ───────────────────────────
+    //
+    // Arc 146 slice 4 — variadic concat retired; honest binary shape.
+    // `:wat::core::concat` is now an alias for `:wat::core::Vector/concat`
+    // (HashMap and other containers excluded per DESIGN audit table).
+    // Callers nest for >2 args (or use foldl over a Vec of Vecs).
 
     #[test]
     fn concat_two_arg_basic() {
@@ -19906,15 +19944,19 @@ mod tests {
     }
 
     #[test]
-    fn concat_n_arg_variadic() {
+    fn concat_nested_for_more_than_two() {
         // Sum the result to verify all elements made it through in order.
+        // Variadic 4-arg form is no longer supported; nest two binary
+        // concats instead.
         let src = r#"
             (:wat::core::foldl
               (:wat::core::concat
-                (:wat::core::vec :i64 1)
-                (:wat::core::vec :i64 2)
-                (:wat::core::vec :i64 3)
-                (:wat::core::vec :i64 4))
+                (:wat::core::concat
+                  (:wat::core::vec :i64 1)
+                  (:wat::core::vec :i64 2))
+                (:wat::core::concat
+                  (:wat::core::vec :i64 3)
+                  (:wat::core::vec :i64 4)))
               0
               (:wat::core::lambda ((acc :i64) (n :i64) -> :i64)
                 (:wat::core::i64::+ acc n)))
@@ -19942,7 +19984,6 @@ mod tests {
             (:wat::core::length
               (:wat::core::concat
                 (:wat::core::vec :i64)
-                (:wat::core::vec :i64)
                 (:wat::core::vec :i64)))
         "#;
         match eval_expr(all_empty).unwrap() {
@@ -19952,27 +19993,16 @@ mod tests {
     }
 
     #[test]
-    fn concat_single_arg_returns_clone() {
-        let src = r#"
-            (:wat::core::length
-              (:wat::core::concat (:wat::core::vec :i64 1 2 3)))
-        "#;
-        match eval_expr(src).unwrap() {
-            Value::i64(3) => {}
-            v => panic!("expected 3, got {:?}", v),
-        }
-    }
-
-    #[test]
     fn concat_preserves_left_to_right_order() {
-        // First element of (concat [10] [20] [30]) must be 10.
+        // First element of (concat [10] (concat [20] [30])) must be 10.
         let src = r#"
             (:wat::core::match
               (:wat::core::get
                 (:wat::core::concat
                   (:wat::core::vec :i64 10)
-                  (:wat::core::vec :i64 20)
-                  (:wat::core::vec :i64 30))
+                  (:wat::core::concat
+                    (:wat::core::vec :i64 20)
+                    (:wat::core::vec :i64 30)))
                 0)
               -> :i64
               ((:wat::core::Some n) n)
@@ -19995,6 +20025,7 @@ mod tests {
 
     #[test]
     fn concat_zero_arg_rejected() {
+        // Post-slice-4 the alias has arity 2; zero-arg → ArityMismatch.
         let err = eval_expr(r#"(:wat::core::concat)"#).unwrap_err();
         assert!(matches!(err, RuntimeError::ArityMismatch { .. }));
     }
@@ -20293,40 +20324,24 @@ mod tests {
         assert!(matches!(eval_expr(src).unwrap(), Value::bool(true)));
     }
 
-    #[test]
-    fn vec_assoc_replaces_at_index() {
-        let src = r#"(:wat::core::let*
-            (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30))
-             ((ys :Vec<i64>) (:wat::core::assoc xs 1 99)))
-            (:wat::core::match (:wat::core::get ys 1) -> :i64
-              ((:wat::core::Some v) v)
-              (:wat::core::None    -1)))"#;
-        assert!(matches!(eval_expr(src).unwrap(), Value::i64(99)));
-    }
+    // Arc 146 slice 4 — `assoc` is HashMap-only post-migration (DESIGN
+    // audit table). The pre-arc-146 Vec branch was a Vec-as-HashMap
+    // anachronism (arc 025); Vec/set is the honest verb for "replace
+    // at index" and lives independently. These tests now assert the
+    // post-migration honest behaviour: the alias delegates to
+    // `:wat::core::HashMap/assoc`, which surfaces a TypeMismatch when
+    // a Vec is passed.
 
     #[test]
-    fn vec_assoc_values_up_preserves_input() {
-        // Confirm assoc doesn't mutate the input Vec — the original
-        // binding still reads the pre-update value.
-        let src = r#"(:wat::core::let*
-            (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30))
-             ((_  :Vec<i64>) (:wat::core::assoc xs 1 99)))
-            (:wat::core::match (:wat::core::get xs 1) -> :i64
-              ((:wat::core::Some v) v)
-              (:wat::core::None    -1)))"#;
-        assert!(matches!(eval_expr(src).unwrap(), Value::i64(20)));
-    }
-
-    #[test]
-    fn vec_assoc_out_of_range_runtime_errors() {
+    fn assoc_on_vec_rejects_post_slice4() {
         let src = r#"(:wat::core::let*
             (((xs :Vec<i64>) (:wat::core::vec :i64 10 20 30)))
-            (:wat::core::assoc xs 5 99))"#;
+            (:wat::core::assoc xs 1 99))"#;
         let err = eval_expr(src).unwrap_err();
         assert!(
-            matches!(err, RuntimeError::MalformedForm { ref head, .. }
-                     if head == ":wat::core::assoc"),
-            "expected MalformedForm on assoc out-of-range; got {:?}",
+            matches!(err, RuntimeError::TypeMismatch { ref op, .. }
+                     if op == ":wat::core::HashMap/assoc"),
+            "expected HashMap/assoc TypeMismatch on Vec; got {:?}",
             err
         );
     }
