@@ -248,7 +248,7 @@
               (:wat::core::lambda ((probe :wat::holon::HolonAST) -> :wat::core::Option<wat::holon::HolonAST>)
                 (:wat::holon::lru::HologramCache/get cache probe))))
            ((hit-count :wat::core::i64)
-            (:wat::core::reduce results 0
+            (:wat::list::reduce results 0
               (:wat::core::lambda
                 ((acc :wat::core::i64) (slot :wat::core::Option<wat::holon::HolonAST>) -> :wat::core::i64)
                 (:wat::core::match slot -> :wat::core::i64

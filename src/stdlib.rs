@@ -137,6 +137,14 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/runtime.wat",
         source: include_str!("../wat/runtime.wat"),
     },
+    // Arc 143 slice 7 — :wat::list::* list-operation aliases.
+    // Applies :wat::runtime::define-alias to create :wat::list::reduce
+    // as an alias for :wat::core::foldl. Must load AFTER wat/runtime.wat
+    // so the define-alias macro is registered before this application form.
+    WatSource {
+        path: "wat/list.wat",
+        source: include_str!("../wat/list.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.

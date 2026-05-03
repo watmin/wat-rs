@@ -7,26 +7,23 @@
 ;; at the namespace level. Real types Stats / MetricsCadence /
 ;; State / Report keep their PascalCase + /methods.
 ;;
-;; Channel-naming family: Pattern B (Get — data-back, Reply*)
-;; + Pattern A (Put — unit-ack, PutAck*). See INVENTORY § K.
+;; Channel-naming family: Arc 130 — pair-by-index via HandlePool.
+;; Unified Reply<V> enum replaces per-verb channel families.
 ;;
-;; Arc 119: symmetric batch protocol. Request is now an enum
-;; (Get | Put) rather than a tagged-tuple Body<K,V>. Body<K,V>
-;; retires. Entry<K,V> = (K,V) is the batch-element name.
+;; Arc 119: symmetric batch protocol. Request is an enum (Get | Put).
+;;   Get carries Vec<K> probes,   returns Vec<Option<V>>  via Reply::GetResult
+;;   Put carries Vec<Entry<K,V>>, returns unit             via Reply::PutAck
 ;;
-;;   Get carries Vec<K> probes,   returns Vec<Option<V>>  (Pattern B back-edge)
-;;   Put carries Vec<Entry<K,V>>, returns unit-ack        (Pattern A back-edge)
-;;
-;; Variant-scoped channel families:
-;;   Reply*   (ReplyTx, ReplyRx, ReplyChannel)   — GET data-bearing back-edge
-;;   PutAck*  (PutAckTx, PutAckRx, PutAckChannel) — PUT unit-ack release
+;; Arc 130: pair-by-index. spawn pre-allocates N (ReqChannel, ReplyChannel)
+;; pairs. HandlePool holds N Handle<K,V> = (ReqTx, ReplyRx). Driver holds
+;; N DriverPair<K,V> = (ReqRx, ReplyTx). select fires at index i; same
+;; index locates the ReplyTx. No per-call channel allocation.
 ;;
 ;; See docs/CONVENTIONS.md § "Batch convention" and
 ;; docs/arc/2026/04/119-holon-lru-put-ack/DESIGN.md.
 ;;
 ;; A program that owns its own LocalCache<K,V> behind a select loop;
-;; clients send requests with their own reply/ack address attached so
-;; the driver routes responses without a sender-index map.
+;; the driver routes responses via the pair index from select's return.
 ;;
 ;; Generic over K,V — type params propagate through every define via
 ;; wat's `<K,V>` declaration syntax, same pattern LocalCache uses.
@@ -53,31 +50,42 @@
 (:wat::core::typealias :wat::lru::Entry<K,V>
   :(K,V))
 
-;; PutAck* — Pattern A (unit-ack release) back-edge family for Put.
-(:wat::core::typealias :wat::lru::PutAckTx
-  :wat::kernel::Sender<wat::core::unit>)
-(:wat::core::typealias :wat::lru::PutAckRx
-  :wat::kernel::Receiver<wat::core::unit>)
-(:wat::core::typealias :wat::lru::PutAckChannel
-  :(wat::lru::PutAckTx,wat::lru::PutAckRx))
+;; Reply<V> — unified enum (arc 130). Get returns GetResult carrying
+;; Vec<Option<V>>; Put returns PutAck carrying unit. Both verbs share ONE
+;; reply channel per slot (pair-by-index via HandlePool). Replaces the
+;; old per-verb channel families (PutAck* + bare-Sender ReplyTx<V>).
+(:wat::core::enum :wat::lru::Reply<V>
+  (GetResult (results :wat::core::Vector<wat::core::Option<V>>))
+  (PutAck))
 
-;; Reply* — Pattern B (data-bearing back-edge) family for Get.
-;; Body widens from Sender<Option<V>> to Sender<Vec<Option<V>>> (arc 119 batch).
+;; Reply* — pair-by-index reply channel family (arc 130).
+;; ReplyTx<V> widens from Sender<Vec<Option<V>>> to Sender<Reply<V>>
+;; so Get + Put share one channel per slot.
 (:wat::core::typealias :wat::lru::ReplyTx<V>
-  :wat::kernel::Sender<wat::core::Vector<wat::core::Option<V>>>)
+  :wat::kernel::Sender<wat::lru::Reply<V>>)
 (:wat::core::typealias :wat::lru::ReplyRx<V>
-  :wat::kernel::Receiver<wat::core::Vector<wat::core::Option<V>>>)
+  :wat::kernel::Receiver<wat::lru::Reply<V>>)
 (:wat::core::typealias :wat::lru::ReplyChannel<V>
   :(wat::lru::ReplyTx<V>,wat::lru::ReplyRx<V>))
 
-;; Request<K,V> — enum-based (arc 119). Body<K,V> tagged-tuple retires.
-;;   Get carries a Vec<K> probe batch + a reply-tx for the batch result.
-;;   Put carries a Vec<Entry<K,V>> entries batch + an ack-tx for the unit release.
+;; Handle<K,V> — the client's view of one slot: (ReqTx, ReplyRx).
+;; Mirrors Console::Handle = (ReqTx, AckRx). Pop one from the pool;
+;; pass to :wat::lru::get / :wat::lru::put. No per-call channel allocation.
+(:wat::core::typealias :wat::lru::Handle<K,V>
+  :(wat::lru::ReqTx<K,V>,wat::lru::ReplyRx<V>))
+
+;; DriverPair<K,V> — the driver's view of one slot: (ReqRx, ReplyTx).
+;; Mirrors Console::DriverPair = (ReqRx, AckTx). select fires at index i;
+;; driver-pairs[i].second is the ReplyTx for the matching client.
+(:wat::core::typealias :wat::lru::DriverPair<K,V>
+  :(wat::lru::ReqRx<K,V>,wat::lru::ReplyTx<V>))
+
+;; Request<K,V> — enum-based (arc 119); embedded channels removed (arc 130).
+;;   Get carries a Vec<K> probe batch; driver replies via indexed ReplyTx.
+;;   Put carries a Vec<Entry<K,V>> entries batch; driver replies PutAck via same.
 (:wat::core::enum :wat::lru::Request<K,V>
-  (Get  (probes   :wat::core::Vector<K>)
-        (reply-tx :wat::lru::ReplyTx<V>))
-  (Put  (entries  :wat::core::Vector<wat::lru::Entry<K,V>>)
-        (ack-tx   :wat::lru::PutAckTx)))
+  (Get  (probes   :wat::core::Vector<K>))
+  (Put  (entries  :wat::core::Vector<wat::lru::Entry<K,V>>)))
 
 (:wat::core::typealias :wat::lru::ReqTx<K,V>
   :wat::kernel::Sender<wat::lru::Request<K,V>>)
@@ -93,11 +101,11 @@
 ;; --- Spawn return shape ---
 ;;
 ;; What `:wat::lru::spawn` returns: the HandlePool of
-;; client request senders + the driver's Thread handle (arc 114).
-;; Caller pops N senders, finishes the pool, scoped-drops at end →
-;; driver exits.
+;; per-client Handles ((ReqTx, ReplyRx) pairs) + the driver's Thread
+;; handle (arc 114). Caller pops N handles, finishes the pool,
+;; scoped-drops at end → driver exits. Mirrors Console::Spawn.
 (:wat::core::typealias :wat::lru::Spawn<K,V>
-  :(wat::kernel::HandlePool<wat::lru::ReqTx<K,V>>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
+  :(wat::kernel::HandlePool<wat::lru::Handle<K,V>>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
 
 ;; ─── Reporting contract — non-negotiable ───────────────────────
 ;;
@@ -186,6 +194,7 @@
 (:wat::core::define
   (:wat::lru::handle<K,V>
     (req :wat::lru::Request<K,V>)
+    (reply-tx :wat::lru::ReplyTx<V>)
     (state :wat::lru::State<K,V>)
     -> :wat::lru::State<K,V>)
   (:wat::core::let*
@@ -194,14 +203,14 @@
      ((stats :wat::lru::Stats)
       (:wat::lru::State/stats state)))
     (:wat::core::match req -> :wat::lru::State<K,V>
-      ((:wat::lru::Request::Get probes reply-tx)
+      ((:wat::lru::Request::Get probes)
         (:wat::core::let*
           (((results :wat::core::Vector<wat::core::Option<V>>)
             (:wat::core::map probes
               (:wat::core::lambda ((k :K) -> :wat::core::Option<V>)
                 (:wat::lru::LocalCache::get cache k))))
            ((hit-count :wat::core::i64)
-            (:wat::core::reduce results 0
+            (:wat::list::reduce results 0
               (:wat::core::lambda
                 ((acc :wat::core::i64) (slot :wat::core::Option<V>) -> :wat::core::i64)
                 (:wat::core::match slot -> :wat::core::i64
@@ -211,9 +220,10 @@
            ((miss-count :wat::core::i64) (:wat::core::i64::- n hit-count))
            ;; Arc 110: in-memory peer-death is catastrophic; panic with a
            ;; meaningful message rather than silently dropping the reply.
+           ;; Arc 130: send Reply::GetResult variant on the slot's reply-tx.
            ((_send :wat::core::unit)
             (:wat::core::Result/expect -> :wat::core::unit
-              (:wat::kernel::send reply-tx results)
+              (:wat::kernel::send reply-tx (:wat::lru::Reply::GetResult results))
               "CacheService/handle: reply-tx disconnected — client died mid-request?"))
            ((stats' :wat::lru::Stats)
             (:wat::lru::Stats/new
@@ -223,7 +233,7 @@
               (:wat::lru::Stats/puts stats)
               (:wat::lru::Stats/cache-size stats))))
           (:wat::lru::State/new cache stats')))
-      ((:wat::lru::Request::Put entries ack-tx)
+      ((:wat::lru::Request::Put entries)
         (:wat::core::let*
           (((_ :wat::core::Vector<wat::core::Option<(K,V)>>)
             (:wat::core::map entries
@@ -236,10 +246,11 @@
            ((n :wat::core::i64) (:wat::core::Vector/len entries))
            ;; Arc 110: same discipline — driver dying mid-protocol is
            ;; catastrophic; panic with a meaningful message.
+           ;; Arc 130: send Reply::PutAck variant on the slot's reply-tx.
            ((_send :wat::core::unit)
             (:wat::core::Result/expect -> :wat::core::unit
-              (:wat::kernel::send ack-tx ())
-              "CacheService/handle: ack-tx disconnected — client died mid-request?"))
+              (:wat::kernel::send reply-tx (:wat::lru::Reply::PutAck))
+              "CacheService/handle: reply-tx disconnected — client died mid-request?"))
            ((stats' :wat::lru::Stats)
             (:wat::lru::Stats/new
               (:wat::lru::Stats/lookups stats)
@@ -248,6 +259,7 @@
               (:wat::core::i64::+ (:wat::lru::Stats/puts stats) n)
               (:wat::lru::Stats/cache-size stats))))
           (:wat::lru::State/new cache stats'))))))
+
 
 ;; ─── Tick the metrics window — advance gate, emit+reset on fire ──
 
@@ -287,14 +299,52 @@
         (:wat::core::Tuple state' cadence'))
       (:wat::core::Tuple state cadence'))))
 
+;; --- Helper — dispatch req to handle + send Reply on pairs[idx].second ---
+;;
+;; Lifted out of loop-step for the same reason Console lifts ack-at:
+;; keeps loop-step's outer let* one-let-deep per
+;; `feedback_simple_forms_per_func`. Looks up the DriverPair at idx,
+;; extracts the ReplyTx, calls handle (which sends the reply on reply-tx),
+;; ticks the window, recurses.
+(:wat::core::define
+  (:wat::lru::reply-at<K,V,G>
+    (driver-pairs :wat::core::Vector<wat::lru::DriverPair<K,V>>)
+    (idx :wat::core::i64)
+    (req :wat::lru::Request<K,V>)
+    (state :wat::lru::State<K,V>)
+    (reporter :wat::lru::Reporter)
+    (metrics-cadence :wat::lru::MetricsCadence<G>)
+    -> :wat::core::unit)
+  (:wat::core::match (:wat::core::get driver-pairs idx) -> :wat::core::unit
+    ((:wat::core::Some pair)
+      (:wat::core::let*
+        (((reply-tx :wat::lru::ReplyTx<V>)
+          (:wat::core::second pair))
+         ((after-handle :wat::lru::State<K,V>)
+          (:wat::lru::handle req reply-tx state))
+         ((step :wat::lru::Step<K,V,G>)
+          (:wat::lru::tick-window
+            after-handle reporter metrics-cadence))
+         ((next-state :wat::lru::State<K,V>)
+          (:wat::core::first step))
+         ((cadence' :wat::lru::MetricsCadence<G>)
+          (:wat::core::second step)))
+        (:wat::lru::loop-step
+          next-state driver-pairs reporter cadence')))
+    (:wat::core::None ())))
+
 ;; Driver entry — allocates the LocalCache INSIDE the driver thread
 ;; (LocalCache is thread-owned; creating it in the caller and passing
 ;; across threads would trip the thread-id guard and wedge the
 ;; driver). Then delegates to `loop-step` for the recursion.
+;;
+;; Arc 130: takes driver-pairs Vec<DriverPair<K,V>> instead of bare
+;; req-rxs. The driver uses the pair index to locate the matching
+;; ReplyTx after select fires.
 (:wat::core::define
   (:wat::lru::loop<K,V,G>
     (capacity :wat::core::i64)
-    (req-rxs :wat::core::Vector<wat::lru::ReqRx<K,V>>)
+    (driver-pairs :wat::core::Vector<wat::lru::DriverPair<K,V>>)
     (reporter :wat::lru::Reporter)
     (metrics-cadence :wat::lru::MetricsCadence<G>)
     -> :wat::core::unit)
@@ -305,56 +355,51 @@
       (:wat::lru::State/new
         cache (:wat::lru::Stats/zero))))
     (:wat::lru::loop-step
-      initial req-rxs reporter metrics-cadence)))
+      initial driver-pairs reporter metrics-cadence)))
 
 ;; Recursive inner loop. Owns the cache for the duration of the
-;; driver thread's lifetime; select across request receivers; each
-;; request carries its reply-to sender for routing. After every
-;; dispatch, tick the metrics window (advance gate; emit on fire).
+;; driver thread's lifetime; select across request receivers (projected
+;; from driver-pairs); index i → driver-pairs[i].second is the ReplyTx
+;; for routing. After every dispatch, tick the metrics window.
 (:wat::core::define
   (:wat::lru::loop-step<K,V,G>
     (state :wat::lru::State<K,V>)
-    (req-rxs :wat::core::Vector<wat::lru::ReqRx<K,V>>)
+    (driver-pairs :wat::core::Vector<wat::lru::DriverPair<K,V>>)
     (reporter :wat::lru::Reporter)
     (metrics-cadence :wat::lru::MetricsCadence<G>)
     -> :wat::core::unit)
-  (:wat::core::if (:wat::core::empty? req-rxs) -> :wat::core::unit
+  (:wat::core::if (:wat::core::empty? driver-pairs) -> :wat::core::unit
     ()
     (:wat::core::let*
-      (((chosen :wat::kernel::Chosen<wat::lru::Request<K,V>>)
+      (((req-rxs :wat::core::Vector<wat::lru::ReqRx<K,V>>)
+        (:wat::core::map driver-pairs
+          (:wat::core::lambda
+            ((p :wat::lru::DriverPair<K,V>) -> :wat::lru::ReqRx<K,V>)
+            (:wat::core::first p))))
+       ((chosen :wat::kernel::Chosen<wat::lru::Request<K,V>>)
         (:wat::kernel::select req-rxs))
        ((idx :wat::core::i64) (:wat::core::first chosen))
        ((maybe :wat::kernel::CommResult<wat::lru::Request<K,V>>)
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::core::unit
         ((:wat::core::Ok (:wat::core::Some req))
-          (:wat::core::let*
-            (((after-handle :wat::lru::State<K,V>)
-              (:wat::lru::handle req state))
-             ((step :wat::lru::Step<K,V,G>)
-              (:wat::lru::tick-window
-                after-handle reporter metrics-cadence))
-             ((next-state :wat::lru::State<K,V>)
-              (:wat::core::first step))
-             ((cadence' :wat::lru::MetricsCadence<G>)
-              (:wat::core::second step)))
-            (:wat::lru::loop-step
-              next-state req-rxs reporter cadence')))
+          (:wat::lru::reply-at driver-pairs idx req state reporter metrics-cadence))
         ((:wat::core::Ok :wat::core::None)
           (:wat::lru::loop-step
             state
-            (:wat::std::list::remove-at req-rxs idx)
+            (:wat::std::list::remove-at driver-pairs idx)
             reporter metrics-cadence))
         ((:wat::core::Err _died) ())))))
 
 ;; --- Client helpers ---
 ;;
-;; A client creates its reply/ack channel once at setup and reuses it
-;; for every request. :wat::lru::get and :wat::lru::put package the
-;; batch request, send it, and block on the response.
+;; Arc 130: helper verbs take a single Handle<K,V> (pair-by-index).
+;; No per-call channel allocation. The channels are pre-allocated by
+;; spawn and owned by the Handle; the driver holds the matching
+;; DriverPair indexed the same way.
 ;;
 ;; Arc 119: get takes Vec<K> probes, returns Vec<Option<V>>.
-;;          put takes Vec<Entry<K,V>>, returns unit after ack.
+;;          put takes Vec<Entry<K,V>>, returns unit after PutAck.
 ;;
 ;; Recv pattern (two nested levels per arc 111+113):
 ;;   Result/expect unwraps the outer Result (ThreadDiedError on peer death).
@@ -362,59 +407,69 @@
 
 (:wat::core::define
   (:wat::lru::get<K,V>
-    (req-tx :wat::lru::ReqTx<K,V>)
-    (reply-tx :wat::lru::ReplyTx<V>)
-    (reply-rx :wat::lru::ReplyRx<V>)
+    (handle :wat::lru::Handle<K,V>)
     (probes :wat::core::Vector<K>)
     -> :wat::core::Vector<wat::core::Option<V>>)
   (:wat::core::let*
-    (((req :wat::lru::Request<K,V>)
-      (:wat::lru::Request::Get probes reply-tx))
+    (((req-tx :wat::lru::ReqTx<K,V>)
+      (:wat::core::first handle))
+     ((reply-rx :wat::lru::ReplyRx<V>)
+      (:wat::core::second handle))
      ;; Arc 110: in-memory peer-death is catastrophic; cache driver
      ;; dying means our state-of-the-world claim is invalid. Panic
      ;; with a meaningful message rather than silently returning
      ;; :None and pretending we got a "miss."
      ((_send :wat::core::unit)
       (:wat::core::Result/expect -> :wat::core::unit
-        (:wat::kernel::send req-tx req)
-        "lru::get: req-tx disconnected — driver died?")))
-    (:wat::core::Option/expect -> :wat::core::Vector<wat::core::Option<V>>
-      (:wat::core::Result/expect -> :wat::core::Option<wat::core::Vector<wat::core::Option<V>>>
-        (:wat::kernel::recv reply-rx)
-        "lru::get: reply-rx disconnected — driver died mid-request?")
-      "lru::get: reply channel closed — driver dropped reply-tx?")))
+        (:wat::kernel::send req-tx (:wat::lru::Request::Get probes))
+        "lru::get: req-tx disconnected — driver died?"))
+     ((reply :wat::lru::Reply<V>)
+      (:wat::core::Option/expect -> :wat::lru::Reply<V>
+        (:wat::core::Result/expect -> :wat::core::Option<wat::lru::Reply<V>>
+          (:wat::kernel::recv reply-rx)
+          "lru::get: reply-rx disconnected — driver died mid-request?")
+        "lru::get: reply channel closed — driver dropped reply-tx?")))
+    (:wat::core::match reply -> :wat::core::Vector<wat::core::Option<V>>
+      ((:wat::lru::Reply::GetResult results) results)
+      ((:wat::lru::Reply::PutAck)
+        (:wat::core::panic! "lru::get: driver sent PutAck on Get reply channel")))))
 
 (:wat::core::define
   (:wat::lru::put<K,V>
-    (req-tx :wat::lru::ReqTx<K,V>)
-    (ack-tx :wat::lru::PutAckTx)
-    (ack-rx :wat::lru::PutAckRx)
+    (handle :wat::lru::Handle<K,V>)
     (entries :wat::core::Vector<wat::lru::Entry<K,V>>)
     -> :wat::core::unit)
   (:wat::core::let*
-    (((req :wat::lru::Request<K,V>)
-      (:wat::lru::Request::Put entries ack-tx))
+    (((req-tx :wat::lru::ReqTx<K,V>)
+      (:wat::core::first handle))
+     ((reply-rx :wat::lru::ReplyRx<V>)
+      (:wat::core::second handle))
      ;; Arc 110: same as lru::get — driver dying mid-protocol
      ;; is catastrophic; panic with a meaningful message rather than
      ;; silently absorbing the disconnect.
      ((_send :wat::core::unit)
       (:wat::core::Result/expect -> :wat::core::unit
-        (:wat::kernel::send req-tx req)
+        (:wat::kernel::send req-tx (:wat::lru::Request::Put entries))
         "lru::put: req-tx disconnected — driver died?"))
-     ((_ :wat::core::unit)
-      (:wat::core::Option/expect -> :wat::core::unit
-        (:wat::core::Result/expect -> :wat::core::Option<wat::core::unit>
-          (:wat::kernel::recv ack-rx)
-          "lru::put: ack-rx disconnected — driver died mid-request?")
-        "lru::put: ack channel closed — driver dropped ack-tx?")))
-    ()))
+     ((reply :wat::lru::Reply<V>)
+      (:wat::core::Option/expect -> :wat::lru::Reply<V>
+        (:wat::core::Result/expect -> :wat::core::Option<wat::lru::Reply<V>>
+          (:wat::kernel::recv reply-rx)
+          "lru::put: reply-rx disconnected — driver died mid-request?")
+        "lru::put: reply channel closed — driver dropped reply-tx?")))
+    (:wat::core::match reply -> :wat::core::unit
+      ((:wat::lru::Reply::PutAck) ())
+      ((:wat::lru::Reply::GetResult _)
+        (:wat::core::panic! "lru::put: driver sent GetResult on Put reply channel")))))
 
 ;; --- CacheService setup ---
 ;;
-;; Creates N bounded(1) request queues, wraps senders in a HandlePool,
-;; spawns one driver thread that owns a fresh LocalCache<K,V> of the
-;; given capacity and fans in all request receivers. Returns the
-;; (pool, driver-handle) pair.
+;; Arc 130: Creates N bounded(1) request queues + N bounded(1) reply
+;; queues in lock-step. The index of the request pair matches the index
+;; of the reply pair — this is what makes pair-by-index reply routing
+;; possible inside loop-step. Builds N Handle<K,V> tuples (client's
+;; view = (ReqTx, ReplyRx)) and N DriverPair<K,V> tuples (driver's
+;; view = (ReqRx, ReplyTx)). Mirrors Console::spawn.
 ;;
 ;; Both reporter + metrics-cadence are required; pass
 ;; :wat::lru::null-reporter and
@@ -428,23 +483,39 @@
     (metrics-cadence :wat::lru::MetricsCadence<G>)
     -> :wat::lru::Spawn<K,V>)
   (:wat::core::let*
-    (((pairs :wat::core::Vector<wat::lru::ReqChannel<K,V>>)
+    ;; N request pairs and N reply pairs in lock-step. The pair index
+    ;; is preserved so Handle[i] and DriverPair[i] correspond to the
+    ;; same slot.
+    (((req-pairs :wat::core::Vector<wat::lru::ReqChannel<K,V>>)
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::lambda ((_i :wat::core::i64) -> :wat::lru::ReqChannel<K,V>)
           (:wat::kernel::make-bounded-channel :wat::lru::Request<K,V> 1))))
-     ((req-txs :wat::core::Vector<wat::lru::ReqTx<K,V>>)
-      (:wat::core::map pairs
-        (:wat::core::lambda ((p :wat::lru::ReqChannel<K,V>)
-                            -> :wat::lru::ReqTx<K,V>)
-          (:wat::core::first p))))
-     ((req-rxs :wat::core::Vector<wat::lru::ReqRx<K,V>>)
-      (:wat::core::map pairs
-        (:wat::core::lambda ((p :wat::lru::ReqChannel<K,V>)
-                            -> :wat::lru::ReqRx<K,V>)
-          (:wat::core::second p))))
-     ((pool :wat::kernel::HandlePool<wat::lru::ReqTx<K,V>>)
-      (:wat::kernel::HandlePool::new "CacheService" req-txs))
+     ((reply-pairs :wat::core::Vector<wat::lru::ReplyChannel<V>>)
+      (:wat::core::map
+        (:wat::core::range 0 count)
+        (:wat::core::lambda ((_i :wat::core::i64) -> :wat::lru::ReplyChannel<V>)
+          (:wat::kernel::make-bounded-channel :wat::lru::Reply<V> 1))))
+     ;; Client-side: Handle = (ReqTx, ReplyRx).
+     ((handles :wat::core::Vector<wat::lru::Handle<K,V>>)
+      (:wat::std::list::zip
+        (:wat::core::map req-pairs
+          (:wat::core::lambda ((p :wat::lru::ReqChannel<K,V>) -> :wat::lru::ReqTx<K,V>)
+            (:wat::core::first p)))
+        (:wat::core::map reply-pairs
+          (:wat::core::lambda ((p :wat::lru::ReplyChannel<V>) -> :wat::lru::ReplyRx<V>)
+            (:wat::core::second p)))))
+     ;; Driver-side: DriverPair = (ReqRx, ReplyTx) at matching index.
+     ((driver-pairs :wat::core::Vector<wat::lru::DriverPair<K,V>>)
+      (:wat::std::list::zip
+        (:wat::core::map req-pairs
+          (:wat::core::lambda ((p :wat::lru::ReqChannel<K,V>) -> :wat::lru::ReqRx<K,V>)
+            (:wat::core::second p)))
+        (:wat::core::map reply-pairs
+          (:wat::core::lambda ((p :wat::lru::ReplyChannel<V>) -> :wat::lru::ReplyTx<V>)
+            (:wat::core::first p)))))
+     ((pool :wat::kernel::HandlePool<wat::lru::Handle<K,V>>)
+      (:wat::kernel::HandlePool::new "CacheService" handles))
      ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
@@ -452,5 +523,5 @@
            (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
            -> :wat::core::unit)
           (:wat::lru::loop
-            capacity req-rxs reporter metrics-cadence)))))
+            capacity driver-pairs reporter metrics-cadence)))))
     (:wat::core::Tuple pool driver)))
