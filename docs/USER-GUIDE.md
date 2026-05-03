@@ -2449,6 +2449,98 @@ The discipline that made this possible:
 - **Template + coordinates** — placeholder labels are fine as long
   as they pair with real coordinates pointing at the source.
 
+### Runtime reflection — `:wat::runtime::*` (arc 143)
+
+Userland macros that need to look at substrate primitives or user
+defines have a substrate-side query surface in the
+`:wat::runtime::*` namespace:
+
+```scheme
+(:wat::runtime::lookup-callable :wat::core::foldl)
+;; → :Option<:wat::holon::HolonAST> wrapping a synthesized define
+;;   form (head + body sentinel for substrate primitives; real body
+;;   for user defines)
+
+(:wat::runtime::signature-of :wat::core::foldl)
+;; → :Option<:wat::holon::HolonAST> wrapping the signature head only
+
+(:wat::runtime::body-of :user::my-add)
+;; → :Option<:wat::holon::HolonAST> wrapping the body for user
+;;   defines (:None for substrate primitives — Rust-implemented;
+;;   no wat body)
+
+(:wat::runtime::rename-callable-name <signature> :from :to)
+;; → new bundle with the head's base name renamed; type-params
+;;   + args + return preserved
+
+(:wat::runtime::extract-arg-names <signature>)
+;; → :Vec<:wat::holon::HolonAST> of bare-symbol arg names
+;;   (suitable for splicing as call positions)
+```
+
+**The wat-side macro that composes them — `:wat::runtime::define-alias`**
+in `wat/runtime.wat` — generates a fresh `:wat::core::define` whose
+body is a single delegating call to the target:
+
+```scheme
+(:wat::runtime::define-alias :wat::list::reduce :wat::core::foldl)
+(:wat::runtime::define-alias :wat::list::fold   :wat::core::foldl)
+;; each expands to a delegating define:
+;; (:wat::core::define
+;;   (:wat::list::reduce<T,Acc> (acc :Acc) (vec :Vec<T>) (f :fn(Acc,T)->Acc) -> :Acc)
+;;   (:wat::core::foldl acc vec f))
+```
+
+The atomic forms are `:wat::core::foldl` and `:wat::core::foldr`;
+`:wat::list::reduce` and `:wat::list::fold` are opinionated helpers
+for users reaching for either name (Clojure's `reduce`, Haskell's
+`foldl`, Lisp's `fold`, JS / Python / Ruby flavor of `reduce`).
+The macro fires at expand-time. Failure to look up the target name
+emits a panic naming the missing name.
+
+**Computed unquote in defmacro bodies (arc 143 slice 2).** Pre-arc-143
+the macro expander was quasiquote-template only; `,X` substituted a
+bound parameter but `,(expr)` was not evaluated. Post-arc-143, the
+expander uses a head-is-Keyword heuristic: when the unquote argument
+is a List whose head is a `WatAST::Keyword`, the expander substitutes
+bindings then evaluates the substrate call at expand-time. Non-callable
+list shapes preserve template substitution behavior. The two shapes
+coexist; the heuristic disambiguates by head.
+
+**Coverage today.** `:wat::runtime::signature-of` + `lookup-callable` +
+`body-of` find:
+
+- User defines (registered in `SymbolTable.functions`)
+- Substrate primitives that have a TypeScheme registration in
+  `CheckEnv` (foldl, foldr, map, filter, etc. — most of `:wat::core::*`)
+
+**Coverage gaps closed by arc 144.** The following are NOT yet visible
+to `:wat::runtime::signature-of`; arc 144 ships their TypeScheme
+registrations + the unified `Binding` reflection layer:
+
+- **Hardcoded `infer_*` primitives** — `:wat::core::length`,
+  `:wat::core::get`, `:wat::core::conj`, the container constructors
+  (Vector / Tuple / HashMap / HashSet), `:wat::core::contains?`,
+  `:wat::core::empty?`, `:wat::core::keys`, `:wat::core::values`,
+  `:wat::core::dissoc`, `:wat::core::assoc`, `:wat::core::concat`,
+  `:wat::core::string::concat`. These pass type-checking via
+  hardcoded handlers in `check.rs::infer_list` instead of a
+  TypeScheme registration.
+- **Special forms** — `:wat::core::if`, `cond`, `match`, `let*`,
+  `lambda`, `define`, `defmacro`, `try`, `option/expect`,
+  `result/expect`, the spawn family, the quasiquote family,
+  `forms`. These dispatch via dedicated `infer_*` arms; no Binding
+  exists for them yet. After arc 144, `(help :if) /just works/`.
+
+**Aliasing limitation.** The macro fires at expand-time (step 4);
+user defines register at step 6. `:wat::runtime::define-alias` can
+alias substrate primitives but not user defines under the current
+load-order. Out of scope for arc 143; future arc if the bias surfaces.
+
+See `docs/arc/2026/05/143-define-alias/INSCRIPTION.md` for the full
+slice cadence + the substrate-as-teacher cascade record. Arc 144
+DESIGN at `docs/arc/2026/05/144-uniform-reflection-foundation/DESIGN.md`.
+
 ### Fork/sandbox tests — when you need an inner program
 
 Sometimes a test wants to verify how an INNER program behaves — its

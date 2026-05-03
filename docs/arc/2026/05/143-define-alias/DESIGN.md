@@ -414,14 +414,33 @@ reply-tx-disconnected — a different arc 130 stepping stone
 still on the chain; even that transition is the diagnostic value
 of slice 7).
 
-### Slice 8 — closure
+### Slice 5c — REASSIGNED to arc 144
 
-INSCRIPTION + 058 row + USER-GUIDE entry. Cross-references to
-arc 091 slice 8 (quasiquote precedent), arc 057 (HolonAST
-polymorphism), arc 037 (introspection precedent), arc 138
-(span coordinates the discipline upgrades), arc 109 (the
-canonical-namespace discipline this arc honors by placing
-the new macro in `wat/runtime.wat`).
+The slice 5c originally planned for arc 143 (register TypeScheme
+entries for hardcoded `infer_*` primitives so `signature-of` finds
+them) was elevated 2026-05-02 (late evening) per the user's
+"nothing is special — `(help :if) /just works/`" principle into
+**arc 144 — uniform reflection foundation**. Arc 144 ships the
+unified `Binding` enum (UserFunction / Macro / Primitive /
+SpecialForm / Type) + `lookup-form` + the special-form registry +
+TypeScheme registrations for the 15 hardcoded callable primitives
++ paved-road `:doc-string: Option<String>` field for arc 141.
+
+The slice 6 length test (`define_alias_length_to_user_size_delegates_correctly`)
+stays red as a known-defect canary that arc 144's slice 4 turns
+green. Documented up-front in INSCRIPTION + arc 144 DESIGN.
+
+### Slice 8 — closure (THIS — shipping)
+
+INSCRIPTION + 058 row + USER-GUIDE entry + arc 144 hand-off.
+Cross-references to arc 091 slice 8 (quasiquote precedent), arc
+057 (HolonAST polymorphism), arc 037 (introspection precedent),
+arc 138 (span coordinates the discipline upgrades), arc 109 (the
+canonical-namespace discipline this arc honors by placing the
+new macro in `wat/runtime.wat`), arc 144 (the follow-on arc that
+generalizes the reflection layer + closes the slice 6 length
+canary), `docs/COMPACTION-AMNESIA-RECOVERY.md` (the protocol
+forged mid-arc).
 
 ## The four questions (against the expanded scope)
 
