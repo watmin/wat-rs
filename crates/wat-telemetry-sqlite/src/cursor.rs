@@ -609,18 +609,28 @@ fn scheme_cursor_new_inner(
     cursor_path: &'static str,
 ) -> Option<TypeExpr> {
     if args.len() != 2 {
-        ctx.push_arity_mismatch(op, 2, args.len());
+        // Pattern B: arity mismatch — use first arg span if any, else unknown
+        ctx.push_arity_mismatch(
+            op,
+            2,
+            args.len(),
+            args.first()
+                .map(|a| a.span().clone())
+                .unwrap_or_else(wat::span::Span::unknown),
+        );
         return Some(TypeExpr::Path(cursor_path.into()));
     }
     // #1 — :wat::sqlite::ReadHandle
     if let Some(t) = ctx.infer(&args[0]) {
         let expected = TypeExpr::Path(READ_HANDLE_PATH.into());
         if !ctx.unify_types(&t, &expected) {
+            // Pattern A: type mismatch on arg #1
             ctx.push_type_mismatch(
                 op,
                 "#1",
                 READ_HANDLE_PATH.into(),
                 format!("{:?}", ctx.apply_subst(&t)),
+                args[0].span().clone(),
             );
         }
     }
@@ -631,11 +641,13 @@ fn scheme_cursor_new_inner(
             args: vec![TypeExpr::Path(TIME_CONSTRAINT_TYPE_PATH.into())],
         };
         if !ctx.unify_types(&t, &expected) {
+            // Pattern A: type mismatch on arg #2
             ctx.push_type_mismatch(
                 op,
                 "#2",
                 ":Vec<wat::telemetry::TimeConstraint>".into(),
                 format!("{:?}", ctx.apply_subst(&t)),
+                args[1].span().clone(),
             );
         }
     }
@@ -644,7 +656,15 @@ fn scheme_cursor_new_inner(
 
 fn scheme_cursor_step(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<TypeExpr> {
     if args.len() != 1 {
-        ctx.push_arity_mismatch(":rust::telemetry::sqlite::*::step", 1, args.len());
+        // Pattern B: arity mismatch — use first arg span if any, else unknown
+        ctx.push_arity_mismatch(
+            ":rust::telemetry::sqlite::*::step",
+            1,
+            args.len(),
+            args.first()
+                .map(|a| a.span().clone())
+                .unwrap_or_else(wat::span::Span::unknown),
+        );
     }
     // Return :Option<:wat::telemetry::Event>. Both Log and
     // Metric cursors return events of the same enum type — the

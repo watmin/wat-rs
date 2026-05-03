@@ -53,6 +53,7 @@ use std::sync::OnceLock;
 
 use crate::ast::WatAST;
 use crate::runtime::{Environment, RuntimeError, SymbolTable, Value};
+use crate::span::Span;
 
 pub mod marshal;
 
@@ -102,11 +103,18 @@ pub trait SchemeCtx {
 
     fn apply_subst(&self, t: &crate::types::TypeExpr) -> crate::types::TypeExpr;
 
-    fn push_type_mismatch(&mut self, callee: &str, param: &str, expected: String, got: String);
+    fn push_type_mismatch(
+        &mut self,
+        callee: &str,
+        param: &str,
+        expected: String,
+        got: String,
+        span: Span,
+    );
 
-    fn push_arity_mismatch(&mut self, callee: &str, expected: usize, got: usize);
+    fn push_arity_mismatch(&mut self, callee: &str, expected: usize, got: usize, span: Span);
 
-    fn push_malformed(&mut self, head: &str, reason: String);
+    fn push_malformed(&mut self, head: &str, reason: String, span: Span);
 
     fn parse_type_keyword(
         &self,

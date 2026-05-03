@@ -431,11 +431,13 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
                 let expected_ty = #self_expected_ts;
                 if let Some(got_ty) = ctx.infer(&args[0]) {
                     if !ctx.unify_types(&got_ty, &expected_ty) {
+                        // Pattern A: type mismatch on self — use args[0].span()
                         ctx.push_type_mismatch(
                             #wat_path,
                             "self",
                             format!("{:?}", ctx.apply_subst(&expected_ty)),
                             format!("{:?}", ctx.apply_subst(&got_ty)),
+                            args[0].span().clone(),
                         );
                     }
                 }
@@ -458,11 +460,13 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
                     let expected_ty = #expected_ty_ts;
                     if let Some(got_ty) = ctx.infer(&args[#idx]) {
                         if !ctx.unify_types(&got_ty, &expected_ty) {
+                            // Pattern A: type mismatch on arg #idx — use args[idx].span()
                             ctx.push_type_mismatch(
                                 #wat_path,
                                 #param_name_ts,
                                 format!("{:?}", ctx.apply_subst(&expected_ty)),
                                 format!("{:?}", ctx.apply_subst(&got_ty)),
+                                args[#idx].span().clone(),
                             );
                         }
                     }
@@ -485,7 +489,15 @@ fn emit_scheme_fn(attr: &WatDispatchAttr, method: &ImplItemFn) -> syn::Result<To
             ctx: &mut dyn ::wat::rust_deps::SchemeCtx,
         ) -> ::std::option::Option<::wat::types::TypeExpr> {
             if args.len() != #arity {
-                ctx.push_arity_mismatch(#wat_path, #arity, args.len());
+                // Pattern B: arity mismatch — use first arg span if any, else unknown
+                ctx.push_arity_mismatch(
+                    #wat_path,
+                    #arity,
+                    args.len(),
+                    args.first()
+                        .map(|a| a.span().clone())
+                        .unwrap_or_else(::wat::span::Span::unknown),
+                );
                 return Some(#fallback_ty);
             }
             #self_arg_check

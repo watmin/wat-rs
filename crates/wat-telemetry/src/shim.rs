@@ -32,7 +32,14 @@ pub(crate) fn register(builder: &mut RustDepsBuilder) {
 /// time so call-site mistakes surface before runtime.
 fn scheme_uuid_v4(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<TypeExpr> {
     if !args.is_empty() {
-        ctx.push_arity_mismatch(":rust::telemetry::uuid::v4", 0, args.len());
+        // Pattern A: arity-0 call but args present — first arg IS the offending surplus.
+        // arc 138 F2: use first arg's span as the error anchor.
+        ctx.push_arity_mismatch(
+            ":rust::telemetry::uuid::v4",
+            0,
+            args.len(),
+            args[0].span().clone(),
+        );
     }
     Some(TypeExpr::Path(":String".into()))
 }

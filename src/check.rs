@@ -8389,37 +8389,37 @@ impl<'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a> {
         apply_subst(t, self.subst)
     }
 
-    fn push_type_mismatch(&mut self, callee: &str, param: &str, expected: String, got: String) {
+    fn push_type_mismatch(
+        &mut self,
+        callee: &str,
+        param: &str,
+        expected: String,
+        got: String,
+        span: Span,
+    ) {
         self.errors.push(CheckError::TypeMismatch {
             callee: callee.into(),
             param: param.into(),
             expected,
             got,
-            // arc 138: no span — `SchemeCtx` trait (in `rust_deps/mod.rs`)
-            // does not carry an AST node through these `push_*` methods;
-            // shim authors call them without per-arg context. Threading
-            // a span requires expanding the trait surface, which is out
-            // of scope for slice 1.
-            span: Span::unknown(),
+            span, // arc 138 F2: real span threaded through
         });
     }
 
-    fn push_arity_mismatch(&mut self, callee: &str, expected: usize, got: usize) {
+    fn push_arity_mismatch(&mut self, callee: &str, expected: usize, got: usize, span: Span) {
         self.errors.push(CheckError::ArityMismatch {
             callee: callee.into(),
             expected,
             got,
-            // arc 138: no span — see `push_type_mismatch` above.
-            span: Span::unknown(),
+            span, // arc 138 F2: real span threaded through
         });
     }
 
-    fn push_malformed(&mut self, head: &str, reason: String) {
+    fn push_malformed(&mut self, head: &str, reason: String, span: Span) {
         self.errors.push(CheckError::MalformedForm {
             head: head.into(),
             reason,
-            // arc 138: no span — see `push_type_mismatch` above.
-            span: Span::unknown(),
+            span, // arc 138 F2: real span threaded through
         });
     }
 

@@ -119,17 +119,27 @@ pub(crate) fn register(builder: &mut wat::rust_deps::RustDepsBuilder) {
 
 fn scheme_auto_prep(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<TypeExpr> {
     if args.len() != 1 {
-        ctx.push_arity_mismatch(":rust::sqlite::auto-prep", 1, args.len());
+        // Pattern B: arity mismatch — use first arg span if any, else unknown
+        ctx.push_arity_mismatch(
+            ":rust::sqlite::auto-prep",
+            1,
+            args.len(),
+            args.first()
+                .map(|a| a.span().clone())
+                .unwrap_or_else(wat::span::Span::unknown),
+        );
         return Some(TypeExpr::Tuple(vec![]));
     }
     let expected = TypeExpr::Path(":wat::core::keyword".into());
     if let Some(got) = ctx.infer(&args[0]) {
         if !ctx.unify_types(&got, &expected) {
+            // Pattern A: type mismatch on arg #1
             ctx.push_type_mismatch(
                 ":rust::sqlite::auto-prep",
                 "#1",
                 format!("{:?}", ctx.apply_subst(&expected)),
                 format!("{:?}", ctx.apply_subst(&got)),
+                args[0].span().clone(),
             );
         }
     }
@@ -195,28 +205,40 @@ fn dispatch_auto_prep(
 fn scheme_auto_install(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<TypeExpr> {
     let path = ":rust::sqlite::auto-install-schemas";
     if args.len() != 2 {
-        ctx.push_arity_mismatch(path, 2, args.len());
+        // Pattern B: arity mismatch — use first arg span if any, else unknown
+        ctx.push_arity_mismatch(
+            path,
+            2,
+            args.len(),
+            args.first()
+                .map(|a| a.span().clone())
+                .unwrap_or_else(wat::span::Span::unknown),
+        );
         return Some(TypeExpr::Tuple(vec![]));
     }
     let db_ty = TypeExpr::Path(":rust::sqlite::Db".into());
     if let Some(got) = ctx.infer(&args[0]) {
         if !ctx.unify_types(&got, &db_ty) {
+            // Pattern A: type mismatch on arg #1
             ctx.push_type_mismatch(
                 path,
                 "#1",
                 format!("{:?}", ctx.apply_subst(&db_ty)),
                 format!("{:?}", ctx.apply_subst(&got)),
+                args[0].span().clone(),
             );
         }
     }
     let kw_ty = TypeExpr::Path(":wat::core::keyword".into());
     if let Some(got) = ctx.infer(&args[1]) {
         if !ctx.unify_types(&got, &kw_ty) {
+            // Pattern A: type mismatch on arg #2
             ctx.push_type_mismatch(
                 path,
                 "#2",
                 format!("{:?}", ctx.apply_subst(&kw_ty)),
                 format!("{:?}", ctx.apply_subst(&got)),
+                args[1].span().clone(),
             );
         }
     }
@@ -257,28 +279,40 @@ fn dispatch_auto_install(
 fn scheme_auto_dispatch(args: &[WatAST], ctx: &mut dyn SchemeCtx) -> Option<TypeExpr> {
     let path = ":rust::sqlite::auto-dispatch";
     if args.len() != 3 {
-        ctx.push_arity_mismatch(path, 3, args.len());
+        // Pattern B: arity mismatch — use first arg span if any, else unknown
+        ctx.push_arity_mismatch(
+            path,
+            3,
+            args.len(),
+            args.first()
+                .map(|a| a.span().clone())
+                .unwrap_or_else(wat::span::Span::unknown),
+        );
         return Some(TypeExpr::Tuple(vec![]));
     }
     let db_ty = TypeExpr::Path(":rust::sqlite::Db".into());
     if let Some(got) = ctx.infer(&args[0]) {
         if !ctx.unify_types(&got, &db_ty) {
+            // Pattern A: type mismatch on arg #1
             ctx.push_type_mismatch(
                 path,
                 "#1",
                 format!("{:?}", ctx.apply_subst(&db_ty)),
                 format!("{:?}", ctx.apply_subst(&got)),
+                args[0].span().clone(),
             );
         }
     }
     let kw_ty = TypeExpr::Path(":wat::core::keyword".into());
     if let Some(got) = ctx.infer(&args[1]) {
         if !ctx.unify_types(&got, &kw_ty) {
+            // Pattern A: type mismatch on arg #2
             ctx.push_type_mismatch(
                 path,
                 "#2",
                 format!("{:?}", ctx.apply_subst(&kw_ty)),
                 format!("{:?}", ctx.apply_subst(&got)),
+                args[1].span().clone(),
             );
         }
     }
