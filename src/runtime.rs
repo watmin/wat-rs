@@ -2655,7 +2655,14 @@ fn dispatch_keyword_head(
         // migration window.
         ":wat::core::tuple" => eval_tuple_ctor(args, env, sym),
         ":wat::core::Tuple" => eval_tuple_ctor(args, env, sym),
-        ":wat::core::length" => eval_length(args, env, sym),
+        // Arc 146 slice 2 — `:wat::core::length` is now a Dispatch
+        // (declared in `wat/core.wat`). The dispatch routes to one of
+        // these per-Type impls by inspecting the arg's value tag.
+        // Direct calls to the per-Type names are also legal and
+        // bypass the dispatch hop.
+        ":wat::core::Vector/length" => eval_vector_length(args, env, sym),
+        ":wat::core::HashMap/length" => eval_hashmap_length(args, env, sym),
+        ":wat::core::HashSet/length" => eval_hashset_length(args, env, sym),
         ":wat::core::empty?" => eval_empty_q(args, env, sym),
         ":wat::core::reverse" => eval_vec_reverse(args, list_span, env, sym),
         ":wat::core::range" => eval_vec_range(args, list_span, env, sym),
@@ -3208,18 +3215,23 @@ fn eval_dispatch_call(
             .all(|(v, p)| value_matches_type_pattern(v, p))
         {
             // Arm matches. Resolve the impl as a registered Function
-            // and apply it with the same args.
+            // and apply it with the same args. Arc 146 slice 2: if no
+            // user-defined Function exists under that name, fall
+            // through to the substrate-primitive impl table — that
+            // table receives the already-evaluated `vals` so side
+            // effects fire exactly once (mirroring the apply_function
+            // path's pre-evaluated invariant).
             let canonical = canonical_callable_name(&arm.impl_name);
-            let func = match sym.get(canonical) {
-                Some(f) => f.clone(),
-                None => {
-                    return Err(RuntimeError::UnknownFunction(
-                        arm.impl_name.clone(),
-                        list_span.clone(),
-                    ));
-                }
-            };
-            return apply_function(func, vals, sym, list_span.clone());
+            if let Some(f) = sym.get(canonical) {
+                return apply_function(f.clone(), vals, sym, list_span.clone());
+            }
+            if let Some(result) = dispatch_substrate_impl(&arm.impl_name, &vals) {
+                return result;
+            }
+            return Err(RuntimeError::UnknownFunction(
+                arm.impl_name.clone(),
+                list_span.clone(),
+            ));
         }
     }
 
@@ -4933,36 +4945,139 @@ fn require_i64(op: &'static str, v: Value) -> Result<i64, RuntimeError> {
     }
 }
 
-/// `(:wat::core::length xs)` → `:i64`. Polymorphic over Vec,
-/// HashMap, and HashSet — each returns its element/entry count
-/// as an i64. Arc 035 (2026-04-23): was Vec-only; promoted when
-/// lab arc 007 surfaced HashMap-counting as a real caller need.
-fn eval_length(
+// ─── Arc 146 slice 2 — per-Type length impls ────────────────────────────────
+//
+// Retired: `eval_length` (single polymorphic-handler primitive). See
+// arc 146 DESIGN — the polymorphism became honest by promotion to a
+// Dispatch entity (declared in `wat/core.wat`) over per-Type rank-1
+// impls. The dispatch_keyword_head arm for `:wat::core::length` was
+// retired alongside the function (the dispatch path now intercepts
+// the call at `dispatch_keyword_head`'s top guard).
+//
+// `:wat::core::length` migrates from a single polymorphic-handler
+// primitive to a Dispatch (declared in `wat/core.wat`) over three
+// per-Type rank-1 impls. Each impl below is a clean substrate
+// primitive; the dispatch routes by inspecting the arg's value tag.
+//
+// The inner helpers (`vector_length_inner` / `hashmap_length_inner` /
+// `hashset_length_inner`) accept a pre-evaluated `Value` so the
+// dispatch path (which has already evaluated args for arm matching)
+// can invoke them WITHOUT re-evaluating ASTs (avoiding double side
+// effects). The outer `eval_*_length` wrappers do the AST-eval and
+// arity check for direct keyword calls.
+
+fn vector_length_inner(v: &Value) -> Result<Value, RuntimeError> {
+    match v {
+        Value::Vec(xs) => Ok(Value::i64(xs.len() as i64)),
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::Vector/length".into(),
+            expected: "Vec<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn hashmap_length_inner(v: &Value) -> Result<Value, RuntimeError> {
+    match v {
+        Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::HashMap/length".into(),
+            expected: "HashMap<K,V>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn hashset_length_inner(v: &Value) -> Result<Value, RuntimeError> {
+    match v {
+        Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
+        other => Err(RuntimeError::TypeMismatch {
+            op: ":wat::core::HashSet/length".into(),
+            expected: "HashSet<T>",
+            got: other.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn eval_vector_length(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
-        // arc 138: no span — leaf helper.
         return Err(RuntimeError::ArityMismatch {
-            op: ":wat::core::length".into(),
+            op: ":wat::core::Vector/length".into(),
             expected: 1,
             got: args.len(),
             span: Span::unknown(),
         });
     }
     let v = eval(&args[0], env, sym)?;
-    match v {
-        Value::Vec(xs) => Ok(Value::i64(xs.len() as i64)),
-        Value::wat__std__HashMap(m) => Ok(Value::i64(m.len() as i64)),
-        Value::wat__std__HashSet(s) => Ok(Value::i64(s.len() as i64)),
-        // arc 138: no span — leaf helper.
-        other => Err(RuntimeError::TypeMismatch {
-            op: ":wat::core::length".into(),
-            expected: "Vec<T> | HashMap<K,V> | HashSet<T>",
-            got: other.type_name(),
+    vector_length_inner(&v)
+}
+
+fn eval_hashmap_length(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::HashMap/length".into(),
+            expected: 1,
+            got: args.len(),
             span: Span::unknown(),
-        }),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    hashmap_length_inner(&v)
+}
+
+fn eval_hashset_length(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: ":wat::core::HashSet/length".into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    hashset_length_inner(&v)
+}
+
+/// Arc 146 slice 2 — substrate-primitive impl dispatch from
+/// `eval_dispatch_call` when an arm's impl is NOT a user-define
+/// `Function` (i.e., not present in `sym.functions`). Routes to the
+/// per-Type Rust handler, passing the already-evaluated values so
+/// side effects fire exactly once (sym.get path also fires once
+/// via apply_function with pre-evaluated values).
+///
+/// Returns `Some(result)` when the impl is a known substrate
+/// primitive; `None` when no substrate impl matches (caller surfaces
+/// `UnknownFunction`).
+pub(crate) fn dispatch_substrate_impl(
+    impl_name: &str,
+    vals: &[Value],
+) -> Option<Result<Value, RuntimeError>> {
+    match impl_name {
+        ":wat::core::Vector/length" => {
+            Some(vector_length_inner(vals.first().expect("arity-checked")))
+        }
+        ":wat::core::HashMap/length" => {
+            Some(hashmap_length_inner(vals.first().expect("arity-checked")))
+        }
+        ":wat::core::HashSet/length" => {
+            Some(hashset_length_inner(vals.first().expect("arity-checked")))
+        }
+        _ => None,
     }
 }
 
@@ -6420,11 +6535,97 @@ fn dispatch_to_define_ast(mm: &crate::dispatch::Dispatch) -> WatAST {
     WatAST::List(children, span)
 }
 
-/// Render a `TypeExpr` back to its `:`-prefixed keyword spelling. Uses
-/// `crate::check::format_type` to produce the post-`:` body, then
-/// prepends the colon. Mirrors how arm patterns are written in source.
+/// Render a `TypeExpr` back to its `:`-prefixed keyword spelling.
+/// `format_type` already emits the `:` prefix for top-level shapes
+/// (Path / Parametric / Fn / Tuple / Var), so this helper is a thin
+/// wrapper that forwards directly. Kept for naming clarity at call
+/// sites.
 fn type_expr_to_keyword(t: &crate::types::TypeExpr) -> String {
-    format!(":{}", crate::check::format_type(t))
+    crate::check::format_type(t)
+}
+
+/// Arc 146 slice 2 — synthesise a generic signature head for a Dispatch
+/// so consumers expecting a function-shaped signature (notably the
+/// `:wat::runtime::define-alias` macro's `rename-callable-name` step)
+/// can treat a dispatch like any other callable.
+///
+/// Shape: `(<name><type-params>? (_a0 :T0) ... -> :ret)` where:
+/// - The arity is the dispatch's surface arity (uniform across arms,
+///   enforced at parse time via `InconsistentArmArity`).
+/// - The param types are user-named type variables (`:T`, `:U`, ...)
+///   so callers reading the head see "this is polymorphic".
+/// - The return type is taken from arm[0]'s impl scheme via
+///   `lookup_form` on the impl name. If lookup fails (impossible in
+///   practice — arms register-time-validate per BRIEF Q1's deferred
+///   check), the substrate falls back to `:T`.
+///
+/// Per-arm specifics (Vec<T> vs HashMap<K,V> vs HashSet<T>) are NOT
+/// rendered here — they're available via `lookup-define` (which emits
+/// the full `define-dispatch` form). The single-head shape exists for
+/// CALLABLE INTEROP (the dispatch presents as a polymorphic function
+/// to the alias machinery); the arms-as-data view stays on lookup-define.
+fn dispatch_to_signature_ast(mm: &crate::dispatch::Dispatch, sym: &SymbolTable) -> WatAST {
+    let span = Span::unknown();
+    let surface_arity = mm.arms.first().map(|a| a.pattern.len()).unwrap_or(0);
+
+    // Resolve the return type from arm[0]'s impl scheme. If unavailable,
+    // synthesise `:T` as the honest fallback. Letters cycle T, U, V, ...
+    // for param-type-var names (`:T0`-style would be ugly; T/U/V is the
+    // wat-rs convention).
+    let ret_kw: WatAST = match mm.arms.first() {
+        Some(arm) => {
+            if let Some(Binding::Primitive { scheme, .. }) =
+                lookup_form(&arm.impl_name, sym)
+            {
+                WatAST::Keyword(type_expr_to_keyword(&scheme.ret), span.clone())
+            } else {
+                WatAST::Keyword(":T".into(), span.clone())
+            }
+        }
+        None => WatAST::Keyword(":T".into(), span.clone()),
+    };
+
+    // Param-type-var letters — T, U, V, W, ... (wraps to TT after Z but
+    // realistic dispatch arities cap at 2-3 args).
+    let var_letter = |i: usize| -> String {
+        let c = char::from_u32('T' as u32 + i as u32).unwrap_or('T');
+        format!(":{}", c)
+    };
+
+    // Head keyword — include type-params <T,U,...> when arity > 0 so
+    // consumers reading the head see the polymorphic shape.
+    let head_kw = if surface_arity == 0 {
+        mm.name.clone()
+    } else {
+        let params: Vec<String> = (0..surface_arity)
+            .map(|i| {
+                let c = char::from_u32('T' as u32 + i as u32).unwrap_or('T');
+                c.to_string()
+            })
+            .collect();
+        format!("{}<{}>", mm.name, params.join(","))
+    };
+
+    let mut items: Vec<WatAST> = Vec::with_capacity(3 + surface_arity * 2);
+    items.push(WatAST::Keyword(head_kw, span.clone()));
+    for i in 0..surface_arity {
+        items.push(WatAST::List(
+            vec![
+                WatAST::Symbol(
+                    crate::identifier::Identifier::bare(format!("_a{}", i)),
+                    span.clone(),
+                ),
+                WatAST::Keyword(var_letter(i), span.clone()),
+            ],
+            span.clone(),
+        ));
+    }
+    items.push(WatAST::Symbol(
+        crate::identifier::Identifier::bare("->"),
+        span.clone(),
+    ));
+    items.push(ret_kw);
+    WatAST::List(items, span)
 }
 
 /// Extract the name string from a value that may be either a bare keyword
@@ -6746,12 +6947,16 @@ fn eval_signature_of(
             )))))
         }
         Some(Binding::Dispatch { mm, .. }) => {
-            // Arc 146 slice 1 — dispatchs don't have a "header" in
-            // the function sense; the dispatch table IS the contract.
-            // Emit the same declaration form as lookup-define so the
-            // signature view still tells the reader "this is a
-            // dispatch with arms X/Y/Z".
-            let ast = dispatch_to_define_ast(mm);
+            // Arc 146 slice 2 — emit a SYNTHETIC polymorphic signature
+            // head so consumers of `signature-of` (notably
+            // `:wat::runtime::define-alias`'s `rename-callable-name`
+            // step) can treat a dispatch like any other callable. The
+            // synthetic head is `(<name> (_a0 :T) ... -> :ret)` where
+            // arity matches the dispatch's surface arity and `:ret` is
+            // taken from arm[0]'s impl scheme. The full declaration
+            // form (with arms) remains queryable via `lookup-define`
+            // / `body-of`.
+            let ast = dispatch_to_signature_ast(mm, sym);
             Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
                 Arc::new(watast_to_holon(&ast)),
             )))))
@@ -16225,11 +16430,25 @@ mod tests {
             let stdlib_post_macros =
                 crate::macros::register_stdlib_defmacros(stdlib, &mut macros)
                     .expect("stdlib defmacros register");
+            // Arc 146 slice 2: stdlib dispatch registration BEFORE
+            // macro expansion (mirrors freeze.rs's step 4a). Reflection-
+            // driven macros invoke `signature-of` on dispatch-promoted
+            // names (e.g. `:wat::core::length`); the dispatch_registry
+            // must be visible to the expander.
+            let mut dispatchs = crate::dispatch::DispatchRegistry::new();
+            let stdlib_post_macros_post_dispatches =
+                crate::dispatch::register_stdlib_define_dispatches(
+                    stdlib_post_macros,
+                    &mut dispatchs,
+                )
+                .expect("stdlib dispatches register");
+            let mut macro_sym = SymbolTable::default();
+            macro_sym.set_dispatch_registry(std::sync::Arc::new(dispatchs.clone()));
             let expanded_stdlib = crate::macros::expand_all(
-                stdlib_post_macros,
+                stdlib_post_macros_post_dispatches,
                 &mut macros,
                 &Environment::default(),
-                &SymbolTable::default(),
+                &macro_sym,
             )
             .expect("stdlib macro expansion");
             let mut types = crate::types::TypeEnv::with_builtins();
@@ -16243,6 +16462,9 @@ mod tests {
                 .expect("built-in struct methods register");
             register_enum_methods(&types, &mut symbols)
                 .expect("built-in enum methods register");
+            // Attach the dispatch registry so `eval` sees substrate
+            // dispatches (e.g. `:wat::core::length`).
+            symbols.set_dispatch_registry(std::sync::Arc::new(dispatchs));
             (symbols, macros, types)
         })
     }

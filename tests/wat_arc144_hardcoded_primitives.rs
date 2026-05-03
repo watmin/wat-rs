@@ -237,8 +237,13 @@ fn body_of_length_returns_none() {
 fn lookup_define_length_renders_primitive_sentinel() {
     // For substrate primitives, lookup-define returns the synthetic
     // `(:wat::core::define <head> (:wat::core::__internal/primitive <name>))`
-    // form (per arc 143 slice 1's primitive_to_define_ast). Confirm
-    // `:wat::core::length` now reaches this path through lookup_form.
+    // form (per arc 143 slice 1's primitive_to_define_ast). Arc 146
+    // slice 2 migrated `:wat::core::length` from Primitive to Dispatch
+    // (the polymorphism is now honest — one entity-kind dispatching to
+    // per-Type rank-1 impls). Querying the per-Type impl
+    // `:wat::core::Vector/length` preserves this test's intent:
+    // verifying that the per-Type primitive's scheme is queryable via
+    // reflection. Per arc 146 slice 2 BRIEF Q2 (Option A).
     let src = r##"
         (:wat::core::define
           (:user::main
@@ -248,7 +253,7 @@ fn lookup_define_length_renders_primitive_sentinel() {
             -> :wat::core::unit)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
-              (:wat::runtime::lookup-define :wat::core::length))
+              (:wat::runtime::lookup-define :wat::core::Vector/length))
              ((rendered :wat::core::String)
               (:wat::edn::write def-opt)))
             (:wat::io::IOWriter/println stdout rendered)))

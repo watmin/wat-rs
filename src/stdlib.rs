@@ -128,6 +128,14 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/edn.wat",
         source: include_str!("../wat/edn.wat"),
     },
+    // Arc 146 slice 2 — :wat::core::* dispatches. Routes polymorphic
+    // primitive names (length, etc.) to per-Type impls. Loads BEFORE
+    // wat/runtime.wat so dispatches are visible to any reflection-driven
+    // macro that might reference them.
+    WatSource {
+        path: "wat/core.wat",
+        source: include_str!("../wat/core.wat"),
+    },
     // Arc 143 slice 6 — :wat::runtime::* reflection-driven macros.
     // Depends on substrate primitives from slices 1+2+3 (lookup-define,
     // signature-of, body-of, rename-callable-name, extract-arg-names,

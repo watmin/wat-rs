@@ -57,7 +57,8 @@ use crate::macros::{
     expand_all, register_defmacros, register_stdlib_defmacros, MacroError, MacroRegistry,
 };
 use crate::dispatch::{
-    register_define_dispatches, DispatchError, DispatchRegistry,
+    register_define_dispatches, register_stdlib_define_dispatches, DispatchError,
+    DispatchRegistry,
 };
 use crate::parser::{parse_all_with_file, ParseError};
 use crate::stdlib::{stdlib_forms, StdlibError};
@@ -530,21 +531,47 @@ fn startup_from_forms_post_config(
     let mut macros = MacroRegistry::new();
     let stdlib_post_macros = register_stdlib_defmacros(stdlib, &mut macros)?;
     let post_macro_reg = register_defmacros(loaded, &mut macros)?;
+
+    // 4a. Arc 146 slice 2 — stdlib dispatch registration BEFORE
+    //     macro expansion. Reflection-driven macros (e.g.
+    //     `:wat::runtime::define-alias`) call `signature-of` /
+    //     `lookup-define` on substrate names during expansion; if a
+    //     substrate name is now a Dispatch (e.g. `:wat::core::length`
+    //     post-arc-146-slice-2), the dispatch_registry must be
+    //     attached before the expander runs or the reflection returns
+    //     None.
+    //
+    //     Stdlib dispatch impls are substrate primitives (known via
+    //     CheckEnv::with_builtins) so the impls are always available;
+    //     user dispatch registration stays at step 6b where it can
+    //     reference user-defined Function impls. Per arc 146 slice 1
+    //     Q4 (defines before user dispatches; substrate primitives
+    //     before stdlib dispatches).
+    let mut dispatchs = DispatchRegistry::new();
+    let stdlib_post_macros_post_dispatches =
+        register_stdlib_define_dispatches(stdlib_post_macros, &mut dispatchs)?;
+
     // Expand BOTH stdlib non-defmacro residue and user forms against
     // the combined macro registry. Stdlib functions are authored
     // against stdlib defmacros too — e.g., :wat::console's body
     // uses :wat::holon::Subtract / list helpers / etc.
+    //
+    // The ambient SymbolTable carries the stdlib dispatch registry so
+    // reflection primitives invoked from macro bodies (signature-of,
+    // lookup-define, body-of) see substrate dispatches.
+    let mut macro_sym = SymbolTable::default();
+    macro_sym.set_dispatch_registry(Arc::new(dispatchs.clone()));
     let expanded_stdlib = expand_all(
-        stdlib_post_macros,
+        stdlib_post_macros_post_dispatches,
         &mut macros,
         &Environment::default(),
-        &SymbolTable::default(),
+        &macro_sym,
     )?;
     let expanded_user = expand_all(
         post_macro_reg,
         &mut macros,
         &Environment::default(),
-        &SymbolTable::default(),
+        &macro_sym,
     )?;
 
     // 5. Type declarations. Seeded with wat-rs's own :wat::*
@@ -583,16 +610,19 @@ fn startup_from_forms_post_config(
     //      and struct-field primitives.
     crate::runtime::register_newtype_methods(&types, &mut symbols)?;
 
-    // 6b. Dispatch declarations — arc 146 slice 1. Walks the residue
-    //     left after define registration, peels off every
-    //     `(:wat::core::define-dispatch ...)` form, registers it into a
-    //     `DispatchRegistry`, and attaches that registry to
-    //     SymbolTable so the type-check + runtime list-call dispatch
-    //     paths can consult it. Per arc 146 BRIEF Q4: dispatchs
-    //     register AFTER defines so each arm's impl-keyword can refer
-    //     to a fully-registered Function (the impl-arity validation is
-    //     deferred to first check-time call per BRIEF Q1).
-    let mut dispatchs = DispatchRegistry::new();
+    // 6b. User dispatch declarations — arc 146 slice 1 + slice 2.
+    //     Walks the residue left after define registration, peels
+    //     off every `(:wat::core::define-dispatch ...)` form, and
+    //     registers it into the existing `DispatchRegistry` (already
+    //     seeded with stdlib dispatches at step 4a). Per arc 146
+    //     BRIEF Q4: USER dispatches register AFTER user defines so
+    //     each arm's impl-keyword can refer to a fully-registered
+    //     Function (the impl-arity validation is deferred to first
+    //     check-time call per BRIEF Q1).
+    //
+    //     The `dispatchs` registry was created at step 4a (so stdlib
+    //     dispatches are visible to macro expansion); user dispatches
+    //     layer on top here.
     let residue = register_define_dispatches(residue, &mut dispatchs)?;
     symbols.set_dispatch_registry(Arc::new(dispatchs.clone()));
 

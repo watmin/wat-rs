@@ -3113,7 +3113,11 @@ fn infer_list(
             ":wat::core::empty?" => return infer_empty_q(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::conj" => return infer_conj(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::contains?" => return infer_contains_q(args, head_span, env, locals, fresh, subst, errors),
-            ":wat::core::length" => return infer_length(args, head_span, env, locals, fresh, subst, errors),
+            // Arc 146 slice 2 — `:wat::core::length` retired here; it
+            // is now a Dispatch (declared in `wat/core.wat`). The
+            // dispatch_registry guard above intercepts before reaching
+            // this match. Per-Type impls (`:wat::core::Vector/length`
+            // etc.) reach the standard scheme path via env.get.
             ":wat::core::HashSet" => return infer_hashset_constructor(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::get" => return infer_get(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::quote" => {
@@ -7788,59 +7792,12 @@ fn infer_conj(
     })
 }
 
-/// Arc 035 — `(:wat::core::length container)`. Polymorphic size:
-///   ∀T.   Vec<T>       -> i64    (elements)
-///   ∀K,V. HashMap<K,V> -> i64    (entries)
-///   ∀T.   HashSet<T>   -> i64    (elements)
-/// Tuple is deliberately excluded — arity is structural and known
-/// at type-check time.
-fn infer_length(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-    errors: &mut Vec<CheckError>,
-) -> Option<TypeExpr> {
-    if args.len() != 1 {
-        errors.push(CheckError::ArityMismatch {
-            callee: ":wat::core::length".into(),
-            expected: 1,
-            got: args.len(),
-            span: head_span.clone(),
-        });
-        return Some(TypeExpr::Path(":i64".into()));
-    }
-    let container_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    if let Some(ct) = container_ty {
-        let reduced = reduce(&ct, subst, env.types());
-        match &reduced {
-            TypeExpr::Parametric { head, args: ta } if head == "Vec" && ta.len() == 1 => {
-                let _ = ta;
-                return Some(TypeExpr::Path(":i64".into()));
-            }
-            TypeExpr::Parametric { head, args: ta } if head == "HashMap" && ta.len() == 2 => {
-                let _ = ta;
-                return Some(TypeExpr::Path(":i64".into()));
-            }
-            TypeExpr::Parametric { head, args: ta } if head == "HashSet" && ta.len() == 1 => {
-                let _ = ta;
-                return Some(TypeExpr::Path(":i64".into()));
-            }
-            _ => {
-                errors.push(CheckError::TypeMismatch {
-                    callee: ":wat::core::length".into(),
-                    param: "container".into(),
-                    expected: "Vec<T> | HashMap<K,V> | HashSet<T>".into(),
-                    got: format_type(&apply_subst(&ct, subst)),
-                    span: args[0].span().clone(),
-                });
-            }
-        }
-    }
-    Some(TypeExpr::Path(":i64".into()))
-}
+// Arc 146 slice 2 — `infer_length` retired. Polymorphism is now
+// honest via the Dispatch entity declared in `wat/core.wat`; per-Type
+// impls (`:wat::core::Vector/length` etc.) carry clean rank-1 schemes
+// the standard infer_list path resolves through env.get; the dispatch
+// guard above (line 2984) intercepts surface calls to
+// `:wat::core::length` and routes via `infer_dispatch_call`.
 
 /// Arc 025 — `(:wat::core::contains? container key)`. Polymorphic
 /// membership/key predicate:
@@ -8215,9 +8172,41 @@ fn infer_dispatch_call(
             .map(|p| rename(p, &mapping))
             .collect();
 
+        // Arc 146 slice 2: also instantiate user-named type-var Paths
+        // in the arg types to fresh unification vars. When a caller
+        // (e.g., the body of `define-alias :user::my-size :length`) has
+        // a parameter typed `:T`, the inferred arg type is `Path(":T")`
+        // — a user-named type-var that should behave polymorphically.
+        // Using a SEPARATE mapping per arm-attempt so arg-side Vars
+        // stay independent of pattern-side Vars (unify is symmetric on
+        // Var-vs-anything; both sides become unbound fresh Vars and the
+        // pattern's structural shape commits the binding).
+        //
+        // Stricter heuristic than `collect_pattern_type_vars`: only
+        // SINGLE-CHARACTER uppercase identifiers (T, K, V, A, B, ...)
+        // are treated as type variables. `String`, `Vec`, `Option`
+        // etc. — though they'd pass the bare-leading-uppercase test —
+        // are NOT type variables here because user code routinely
+        // calls into the dispatch with concrete types whose names
+        // happen to start with a capital. The arm-pattern-side helper
+        // can be permissive because the substrate authors arm patterns;
+        // the arg-side cannot.
+        let mut arg_type_vars: Vec<String> = Vec::new();
+        for t in arg_types.iter().flatten() {
+            collect_single_char_type_vars(t, &mut arg_type_vars);
+        }
+        let mut arg_mapping: HashMap<String, TypeExpr> = HashMap::new();
+        for tv in &arg_type_vars {
+            arg_mapping.insert(tv.clone(), fresh.fresh());
+        }
+        let renamed_arg_types: Vec<Option<TypeExpr>> = arg_types
+            .iter()
+            .map(|o| o.as_ref().map(|t| rename(t, &arg_mapping)))
+            .collect();
+
         let mut trial_subst = subst.clone();
         let mut all_match = true;
-        for (arg_ty_opt, arm_param) in arg_types.iter().zip(instantiated_pattern.iter()) {
+        for (arg_ty_opt, arm_param) in renamed_arg_types.iter().zip(instantiated_pattern.iter()) {
             let arg_ty = match arg_ty_opt {
                 Some(t) => t,
                 None => {
@@ -8267,8 +8256,14 @@ fn infer_dispatch_call(
         }
         let (impl_params, impl_ret) = instantiate(&impl_scheme, fresh);
         // Unify each arg against the impl's param types so type-vars
-        // in the impl scheme propagate into the return type.
-        for (i, (arg_ty_opt, impl_param)) in arg_types.iter().zip(impl_params.iter()).enumerate() {
+        // in the impl scheme propagate into the return type. Use the
+        // user-type-var-renamed arg types (matching the arm-pattern
+        // matching above) so user-named polymorphic args (e.g. `:T`
+        // from an alias-synthesised body) unify cleanly with the
+        // impl's parametric param shape.
+        for (i, (arg_ty_opt, impl_param)) in
+            renamed_arg_types.iter().zip(impl_params.iter()).enumerate()
+        {
             if let Some(arg_ty) = arg_ty_opt {
                 if unify(arg_ty, impl_param, subst, env.types()).is_err() {
                     errors.push(CheckError::TypeMismatch {
@@ -8357,6 +8352,52 @@ fn collect_pattern_type_vars_inner(ty: &TypeExpr, out: &mut Vec<String>) {
         TypeExpr::Tuple(elements) => {
             for e in elements {
                 collect_pattern_type_vars_inner(e, out);
+            }
+        }
+        TypeExpr::Var(_) => {}
+    }
+}
+
+/// Arc 146 slice 2 — strict variant of `collect_pattern_type_vars_inner`
+/// for arg-side instantiation in `infer_dispatch_call`. Only
+/// SINGLE-CHARACTER uppercase identifiers (e.g. `:T`, `:K`, `:V`,
+/// `:A`, `:B`) are recognised as user-named type variables. Multi-
+/// character names (`:String`, `:Vec`, `:Option`, etc.) are treated
+/// as concrete types — they routinely appear as inferred arg types
+/// in user code and must NOT be quietly relabelled as polymorphic.
+///
+/// The arm-pattern-side helper above can be permissive because the
+/// substrate authors arm patterns; the arg-side cannot.
+fn collect_single_char_type_vars(ty: &TypeExpr, out: &mut Vec<String>) {
+    match ty {
+        TypeExpr::Path(p) => {
+            let stripped = p.strip_prefix(':').unwrap_or(p);
+            if !stripped.contains("::")
+                && stripped.len() == 1
+                && stripped
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_uppercase())
+                    .unwrap_or(false)
+                && !out.iter().any(|s| s == stripped)
+            {
+                out.push(stripped.to_string());
+            }
+        }
+        TypeExpr::Parametric { args, .. } => {
+            for a in args {
+                collect_single_char_type_vars(a, out);
+            }
+        }
+        TypeExpr::Fn { args, ret } => {
+            for a in args {
+                collect_single_char_type_vars(a, out);
+            }
+            collect_single_char_type_vars(ret, out);
+        }
+        TypeExpr::Tuple(elements) => {
+            for e in elements {
+                collect_single_char_type_vars(e, out);
             }
         }
         TypeExpr::Var(_) => {}
@@ -11730,19 +11771,54 @@ fn register_builtins(env: &mut CheckEnv) {
         args: vec![t],
     };
 
-    // :wat::core::length — polymorphic over Vec / HashMap / HashSet
-    // (infer_length at check.rs:7761). 1-arg fingerprint with a single
-    // type-var T captures the polymorphism honestly; the handler
-    // re-checks the container shape per call. SLICE 6 LENGTH CANARY
-    // depends on this entry being reachable through lookup_form.
+    // Arc 146 slice 2 — per-Type length impls. The dispatch
+    // `:wat::core::length` (declared in `wat/core.wat`) routes call
+    // sites to one of these clean rank-1 schemes based on the arg's
+    // value-tag. infer_dispatch_call instantiates the matched arm's
+    // scheme to determine the call's return type. Each per-Type impl
+    // is also directly callable as `:wat::core::Vector/length` etc.
+    //
+    // `t_var()` / `k_var()` / `v_var()` defined below at line ~11770
+    // return `Path(":T")` etc. — the substrate's convention for
+    // user-named type variables (instantiated to fresh unification
+    // vars during scheme instantiation).
     env.register(
-        ":wat::core::length".into(),
+        ":wat::core::Vector/length".into(),
         TypeScheme {
             type_params: vec!["T".into()],
-            params: vec![t_var()],
+            params: vec![vec_of(t_var())],
             ret: i64_ty(),
         },
     );
+    env.register(
+        ":wat::core::HashMap/length".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![TypeExpr::Parametric {
+                head: "HashMap".into(),
+                args: vec![TypeExpr::Path(":K".into()), TypeExpr::Path(":V".into())],
+            }],
+            ret: i64_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::HashSet/length".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![TypeExpr::Parametric {
+                head: "HashSet".into(),
+                args: vec![t_var()],
+            }],
+            ret: i64_ty(),
+        },
+    );
+
+    // Arc 146 slice 2 — the `:wat::core::length` arc 144 slice 3
+    // fingerprint is retired. The dispatch (declared in
+    // `wat/core.wat`) is the new contract; lookup_form returns
+    // Binding::Dispatch via the dispatch_registry branch, and the
+    // per-Type impls (`:wat::core::Vector/length` etc.) are the
+    // queryable rank-1 schemes registered above.
 
     // :wat::core::empty? — same polymorphism as length
     // (infer_empty_q at check.rs:7629).
