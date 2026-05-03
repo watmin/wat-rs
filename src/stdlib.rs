@@ -128,6 +128,15 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/edn.wat",
         source: include_str!("../wat/edn.wat"),
     },
+    // Arc 143 slice 6 — :wat::runtime::* reflection-driven macros.
+    // Depends on substrate primitives from slices 1+2+3 (lookup-define,
+    // signature-of, body-of, rename-callable-name, extract-arg-names,
+    // and computed-unquote in defmacro bodies). Loads last so all
+    // substrate dispatch is in place when this defmacro registers.
+    WatSource {
+        path: "wat/runtime.wat",
+        source: include_str!("../wat/runtime.wat"),
+    },
 ];
 
 /// Parse every stdlib source into a flat vec of forms in source order.
