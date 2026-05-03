@@ -2358,16 +2358,16 @@ fn eval_list(
     // The bare forms continue to work at runtime; type-check time
     // surfaces the migration hint via Pattern 2 poison.
     match head {
-        WatAST::Keyword(k, _) if k == ":wat::core::Some" => return eval_some_ctor(rest, env, sym),
-        WatAST::Keyword(k, _) if k == ":wat::core::Ok" => return eval_ok_ctor(rest, env, sym),
-        WatAST::Keyword(k, _) if k == ":wat::core::Err" => return eval_err_ctor(rest, env, sym),
+        WatAST::Keyword(k, _) if k == ":wat::core::Some" => return eval_some_ctor(rest, list_span, env, sym),
+        WatAST::Keyword(k, _) if k == ":wat::core::Ok" => return eval_ok_ctor(rest, list_span, env, sym),
+        WatAST::Keyword(k, _) if k == ":wat::core::Err" => return eval_err_ctor(rest, list_span, env, sym),
         _ => {}
     }
     match head {
         WatAST::Keyword(k, _) => dispatch_keyword_head(k, rest, list_span, env, sym),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Some" => eval_some_ctor(rest, env, sym),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => eval_ok_ctor(rest, env, sym),
-        WatAST::Symbol(ident, _) if ident.as_str() == "Err" => eval_err_ctor(rest, env, sym),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Some" => eval_some_ctor(rest, list_span, env, sym),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Ok" => eval_ok_ctor(rest, list_span, env, sym),
+        WatAST::Symbol(ident, _) if ident.as_str() == "Err" => eval_err_ctor(rest, list_span, env, sym),
         WatAST::Symbol(ident, span) => {
             // Bare symbol as head — look up a callable in the env.
             let callee = env
@@ -2403,7 +2403,7 @@ fn dispatch_keyword_head(
         ":wat::core::let*" => eval_let_star(args, list_span, env, sym),
         ":wat::core::if" => eval_if(args, list_span, env, sym),
         ":wat::core::cond" => eval_cond(args, list_span, env, sym),
-        ":wat::core::quote" => eval_quote(args),
+        ":wat::core::quote" => eval_quote(args, list_span),
         ":wat::core::quasiquote" => eval_quasiquote(args, env, sym),
         ":wat::core::struct->form" => eval_struct_to_form(args, env, sym),
         // Arc 098 — Clara-style single-item pattern matcher.
@@ -2413,49 +2413,49 @@ fn dispatch_keyword_head(
         ":wat::core::forms" => Ok(eval_forms(args)?),
         ":wat::core::macroexpand-1" => eval_macroexpand_1(args, env, sym),
         ":wat::core::macroexpand" => eval_macroexpand(args, env, sym),
-        ":wat::core::atom-value" => eval_atom_value(args, env, sym),
+        ":wat::core::atom-value" => eval_atom_value(args, list_span, env, sym),
         ":wat::core::match" => eval_match(args, list_span, env, sym),
         // Arc 109 slice 1j — § D' Option/Result method forms.
         // Three retiring verbs (Pattern 2): pre-slice spellings still
         // dispatch (so the program runs through type-check + execution
         // even with old call sites) but the type checker poisons them
         // with a redirect to the canonical `Type/verb` shape.
-        ":wat::core::try" => eval_try(":wat::core::try", args, env, sym),
+        ":wat::core::try" => eval_try(":wat::core::try", args, list_span, env, sym),
         ":wat::core::option::expect" => {
-            eval_option_expect(":wat::core::option::expect", args, env, sym)
+            eval_option_expect(":wat::core::option::expect", args, list_span, env, sym)
         }
         ":wat::core::result::expect" => {
-            eval_result_expect(":wat::core::result::expect", args, env, sym)
+            eval_result_expect(":wat::core::result::expect", args, list_span, env, sym)
         }
         // Canonical post-slice forms.
-        ":wat::core::Result/try" => eval_try(":wat::core::Result/try", args, env, sym),
+        ":wat::core::Result/try" => eval_try(":wat::core::Result/try", args, list_span, env, sym),
         ":wat::core::Result/expect" => {
-            eval_result_expect(":wat::core::Result/expect", args, env, sym)
+            eval_result_expect(":wat::core::Result/expect", args, list_span, env, sym)
         }
         ":wat::core::Option/expect" => {
-            eval_option_expect(":wat::core::Option/expect", args, env, sym)
+            eval_option_expect(":wat::core::Option/expect", args, list_span, env, sym)
         }
         // New substrate addition (Option-side propagation).
         ":wat::core::Option/try" => {
-            eval_option_try(":wat::core::Option/try", args, env, sym)
+            eval_option_try(":wat::core::Option/try", args, list_span, env, sym)
         }
-        ":wat::core::struct-new" => eval_struct_new(args, env, sym),
-        ":wat::core::struct-field" => eval_struct_field(args, env, sym),
-        ":wat::core::variant" => eval_variant(args, env, sym),
+        ":wat::core::struct-new" => eval_struct_new(args, list_span, env, sym),
+        ":wat::core::struct-field" => eval_struct_field(args, list_span, env, sym),
+        ":wat::core::variant" => eval_variant(args, list_span, env, sym),
         ":wat::core::first" => {
-            eval_positional_accessor(args, env, sym, ":wat::core::first", 0)
+            eval_positional_accessor(args, list_span, env, sym, ":wat::core::first", 0)
         }
         ":wat::core::second" => {
-            eval_positional_accessor(args, env, sym, ":wat::core::second", 1)
+            eval_positional_accessor(args, list_span, env, sym, ":wat::core::second", 1)
         }
         ":wat::core::third" => {
-            eval_positional_accessor(args, env, sym, ":wat::core::third", 2)
+            eval_positional_accessor(args, list_span, env, sym, ":wat::core::third", 2)
         }
         // Vec last + find-last-index. Arc 047.
-        ":wat::core::last" => eval_vec_last(args, env, sym),
+        ":wat::core::last" => eval_vec_last(args, list_span, env, sym),
         ":wat::core::find-last-index" => eval_vec_find_last_index(args, env, sym),
-        ":wat::core::rest" => eval_vec_rest(args, env, sym),
-        ":wat::std::list::map-with-index" => eval_list_map_with_index(args, env, sym),
+        ":wat::core::rest" => eval_vec_rest(args, list_span, env, sym),
+        ":wat::std::list::map-with-index" => eval_list_map_with_index(args, list_span, env, sym),
 
         // :u8 range-checked cast from :i64. Arc 008 slice 1.
         ":wat::core::u8" => eval_u8_cast(args, list_span, env, sym),
@@ -2610,27 +2610,27 @@ fn dispatch_keyword_head(
         ":wat::core::Tuple" => eval_tuple_ctor(args, env, sym),
         ":wat::core::length" => eval_length(args, env, sym),
         ":wat::core::empty?" => eval_empty_q(args, env, sym),
-        ":wat::core::reverse" => eval_vec_reverse(args, env, sym),
-        ":wat::core::range" => eval_vec_range(args, env, sym),
-        ":wat::core::take" => eval_vec_take(args, env, sym),
-        ":wat::core::drop" => eval_vec_drop(args, env, sym),
+        ":wat::core::reverse" => eval_vec_reverse(args, list_span, env, sym),
+        ":wat::core::range" => eval_vec_range(args, list_span, env, sym),
+        ":wat::core::take" => eval_vec_take(args, list_span, env, sym),
+        ":wat::core::drop" => eval_vec_drop(args, list_span, env, sym),
         ":wat::core::sort-by" => eval_vec_sort_by(args, env, sym),
         ":wat::core::map" => eval_vec_map(args, env, sym),
         ":wat::core::foldl" => eval_vec_foldl(args, env, sym),
         ":wat::core::foldr" => eval_vec_foldr(args, env, sym),
         ":wat::core::filter" => eval_vec_filter(args, env, sym),
-        ":wat::std::list::zip" => eval_list_zip(args, env, sym),
-        ":wat::std::list::window" => eval_list_window(args, env, sym),
-        ":wat::std::list::remove-at" => eval_list_remove_at(args, env, sym),
-        ":wat::core::HashMap" => eval_hashmap_ctor(args, env, sym),
-        ":wat::core::HashSet" => eval_hashset_ctor(args, env, sym),
-        ":wat::core::get" => eval_get(args, env, sym),
+        ":wat::std::list::zip" => eval_list_zip(args, list_span, env, sym),
+        ":wat::std::list::window" => eval_list_window(args, list_span, env, sym),
+        ":wat::std::list::remove-at" => eval_list_remove_at(args, list_span, env, sym),
+        ":wat::core::HashMap" => eval_hashmap_ctor(args, list_span, env, sym),
+        ":wat::core::HashSet" => eval_hashset_ctor(args, list_span, env, sym),
+        ":wat::core::get" => eval_get(args, list_span, env, sym),
         ":wat::core::concat" => eval_concat(args, env, sym),
         ":wat::core::assoc" => eval_assoc(args, env, sym),
         ":wat::core::dissoc" => eval_dissoc(args, env, sym),
         ":wat::core::keys" => eval_keys(args, env, sym),
         ":wat::core::values" => eval_values(args, env, sym),
-        ":wat::core::contains?" => eval_contains_q(args, env, sym),
+        ":wat::core::contains?" => eval_contains_q(args, list_span, env, sym),
         // :wat::core::contains? retired in arc 025 — contains? is polymorphic now.
         // :wat::io::IOReader / :wat::io::IOWriter — abstract IO
         // substrate (arc 008 slice 2). Two wat-level types; multiple
@@ -2664,79 +2664,79 @@ fn dispatch_keyword_head(
         ":wat::io::IOWriter/close" => crate::io::eval_iowriter_close(args, env, sym),
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
-        ":wat::holon::Atom" => eval_algebra_atom(args, env, sym),
-        ":wat::holon::leaf" => eval_holon_leaf(args, env, sym),
-        ":wat::holon::from-watast" => eval_holon_from_watast(args, env, sym),
-        ":wat::holon::to-watast" => eval_holon_to_watast(args, env, sym),
-        ":wat::holon::Bind" => eval_algebra_bind(args, env, sym),
-        ":wat::holon::Bundle" => eval_algebra_bundle(args, env, sym),
-        ":wat::holon::Permute" => eval_algebra_permute(args, env, sym),
-        ":wat::holon::Thermometer" => eval_algebra_thermometer(args, env, sym),
-        ":wat::holon::Blend" => eval_algebra_blend(args, env, sym),
+        ":wat::holon::Atom" => eval_algebra_atom(args, list_span, env, sym),
+        ":wat::holon::leaf" => eval_holon_leaf(args, list_span, env, sym),
+        ":wat::holon::from-watast" => eval_holon_from_watast(args, list_span, env, sym),
+        ":wat::holon::to-watast" => eval_holon_to_watast(args, list_span, env, sym),
+        ":wat::holon::Bind" => eval_algebra_bind(args, list_span, env, sym),
+        ":wat::holon::Bundle" => eval_algebra_bundle(args, list_span, env, sym),
+        ":wat::holon::Permute" => eval_algebra_permute(args, list_span, env, sym),
+        ":wat::holon::Thermometer" => eval_algebra_thermometer(args, list_span, env, sym),
+        ":wat::holon::Blend" => eval_algebra_blend(args, list_span, env, sym),
 
         // Term decomposition (arc 073). Read the form's structure as a
         // Prolog term: template (the cell type), slots (the tuning
         // values), ranges (the receptive fields). The cache slice
         // (lab umbrella 059) and population-code consumers compose
         // these directly.
-        ":wat::holon::term::template" => eval_term_template(args, env, sym),
-        ":wat::holon::term::slots" => eval_term_slots(args, env, sym),
-        ":wat::holon::term::ranges" => eval_term_ranges(args, env, sym),
-        ":wat::holon::term::matches?" => eval_term_matches_q(args, env, sym),
+        ":wat::holon::term::template" => eval_term_template(args, list_span, env, sym),
+        ":wat::holon::term::slots" => eval_term_slots(args, list_span, env, sym),
+        ":wat::holon::term::ranges" => eval_term_ranges(args, list_span, env, sym),
+        ":wat::holon::term::matches?" => eval_term_matches_q(args, list_span, env, sym),
 
         // Substrate floor accessors (arc 074). Read the substrate's
         // presence and coincident floors at the given d. Users compose
         // these into filter funcs for `Hologram/get`.
-        ":wat::holon::presence-floor" => eval_presence_floor(args, env, sym),
-        ":wat::holon::coincident-floor" => eval_coincident_floor(args, env, sym),
+        ":wat::holon::presence-floor" => eval_presence_floor(args, list_span, env, sym),
+        ":wat::holon::coincident-floor" => eval_coincident_floor(args, list_span, env, sym),
 
         // Therm-routed coordinate-cell store (arc 076). The slot is
         // derived from the form's structure — no caller-supplied pos.
         // Filter is bound at construction; get is filtered-argmax.
-        ":wat::holon::Hologram/make" => eval_hologram_make(args, env, sym),
-        ":wat::holon::Hologram/put" => eval_hologram_put(args, env, sym),
-        ":wat::holon::Hologram/get" => eval_hologram_get(args, env, sym),
-        ":wat::holon::Hologram/find" => eval_hologram_find(args, env, sym),
-        ":wat::holon::Hologram/remove" => eval_hologram_remove(args, env, sym),
-        ":wat::holon::Hologram/len" => eval_hologram_len(args, env, sym),
+        ":wat::holon::Hologram/make" => eval_hologram_make(args, list_span, env, sym),
+        ":wat::holon::Hologram/put" => eval_hologram_put(args, list_span, env, sym),
+        ":wat::holon::Hologram/get" => eval_hologram_get(args, list_span, env, sym),
+        ":wat::holon::Hologram/find" => eval_hologram_find(args, list_span, env, sym),
+        ":wat::holon::Hologram/remove" => eval_hologram_remove(args, list_span, env, sym),
+        ":wat::holon::Hologram/len" => eval_hologram_len(args, list_span, env, sym),
         ":wat::holon::Hologram/capacity" => eval_hologram_capacity(args, env, sym),
 
         // Therm-form constructor (arc 076 slice 2). Caller passes their
         // natural domain bounds; the form carries them; the Hologram
         // applies its own capacity at slot time. No capacity arg —
         // capacity lives only in the Hologram instance.
-        ":wat::holon::therm-form" => eval_therm_form(args, env, sym),
+        ":wat::holon::therm-form" => eval_therm_form(args, list_span, env, sym),
 
         // Presence — the retrieval primitive per FOUNDATION 1718.
         // Cosine between encoded target and encoded reference. Returns
         // scalar :f64; the caller binarizes at the noise floor.
-        ":wat::holon::cosine" => eval_algebra_cosine(args, env, sym),
-        ":wat::holon::presence?" => eval_algebra_presence_q(args, env, sym),
-        ":wat::holon::coincident?" => eval_algebra_coincident_q(args, env, sym),
+        ":wat::holon::cosine" => eval_algebra_cosine(args, list_span, env, sym),
+        ":wat::holon::presence?" => eval_algebra_presence_q(args, list_span, env, sym),
+        ":wat::holon::coincident?" => eval_algebra_coincident_q(args, list_span, env, sym),
         ":wat::holon::coincident-explain" => {
-            eval_algebra_coincident_explain(args, env, sym)
+            eval_algebra_coincident_explain(args, list_span, env, sym)
         }
-        ":wat::holon::eval-coincident?" => eval_form_ast_coincident_q(args, env, sym),
-        ":wat::holon::eval-edn-coincident?" => eval_form_edn_coincident_q(args, env, sym),
+        ":wat::holon::eval-coincident?" => eval_form_ast_coincident_q(args, list_span, env, sym),
+        ":wat::holon::eval-edn-coincident?" => eval_form_edn_coincident_q(args, list_span, env, sym),
         ":wat::holon::eval-digest-coincident?" => {
-            eval_form_digest_coincident_q(args, env, sym)
+            eval_form_digest_coincident_q(args, list_span, env, sym)
         }
         ":wat::holon::eval-digest-string-coincident?" => {
-            eval_form_digest_string_coincident_q(args, env, sym)
+            eval_form_digest_string_coincident_q(args, list_span, env, sym)
         }
         ":wat::holon::eval-signed-coincident?" => {
-            eval_form_signed_coincident_q(args, env, sym)
+            eval_form_signed_coincident_q(args, list_span, env, sym)
         }
         ":wat::holon::eval-signed-string-coincident?" => {
-            eval_form_signed_string_coincident_q(args, env, sym)
+            eval_form_signed_string_coincident_q(args, list_span, env, sym)
         }
-        ":wat::holon::dot" => eval_algebra_dot(args, env, sym),
-        ":wat::holon::simhash" => eval_algebra_simhash(args, env, sym),
-        ":wat::holon::encode" => eval_holon_encode(args, env, sym),
-        ":wat::holon::vector-bytes" => eval_holon_vector_bytes(args, env, sym),
-        ":wat::holon::bytes-vector" => eval_holon_bytes_vector(args, env, sym),
-        ":wat::core::Bytes::to-hex" => eval_bytes_to_hex(args, env, sym),
-        ":wat::core::Bytes::from-hex" => eval_bytes_from_hex(args, env, sym),
+        ":wat::holon::dot" => eval_algebra_dot(args, list_span, env, sym),
+        ":wat::holon::simhash" => eval_algebra_simhash(args, list_span, env, sym),
+        ":wat::holon::encode" => eval_holon_encode(args, list_span, env, sym),
+        ":wat::holon::vector-bytes" => eval_holon_vector_bytes(args, list_span, env, sym),
+        ":wat::holon::bytes-vector" => eval_holon_bytes_vector(args, list_span, env, sym),
+        ":wat::core::Bytes::to-hex" => eval_bytes_to_hex(args, list_span, env, sym),
+        ":wat::core::Bytes::from-hex" => eval_bytes_from_hex(args, list_span, env, sym),
         ":wat::core::show" => eval_show(args, env, sym),
         ":wat::edn::write" => crate::edn_shim::eval_edn_write(args, env, sym),
         ":wat::edn::write-pretty" => crate::edn_shim::eval_edn_write_pretty(args, env, sym),
@@ -2746,111 +2746,111 @@ fn dispatch_keyword_head(
             crate::edn_shim::eval_edn_write_json_natural(args, env, sym)
         }
         ":wat::edn::read" => crate::edn_shim::eval_edn_read(args, env, sym),
-        ":wat::holon::vector-bind" => eval_holon_vector_bind(args, env, sym),
-        ":wat::holon::vector-bundle" => eval_holon_vector_bundle(args, env, sym),
-        ":wat::holon::vector-blend" => eval_holon_vector_blend(args, env, sym),
-        ":wat::holon::vector-permute" => eval_holon_vector_permute(args, env, sym),
+        ":wat::holon::vector-bind" => eval_holon_vector_bind(args, list_span, env, sym),
+        ":wat::holon::vector-bundle" => eval_holon_vector_bundle(args, list_span, env, sym),
+        ":wat::holon::vector-blend" => eval_holon_vector_blend(args, list_span, env, sym),
+        ":wat::holon::vector-permute" => eval_holon_vector_permute(args, list_span, env, sym),
 
         // Arc 053: OnlineSubspace native primitives.
-        ":wat::holon::OnlineSubspace/new" => eval_subspace_new(args, env, sym),
-        ":wat::holon::OnlineSubspace/dim" => eval_subspace_dim(args, env, sym),
-        ":wat::holon::OnlineSubspace/k" => eval_subspace_k(args, env, sym),
-        ":wat::holon::OnlineSubspace/n" => eval_subspace_n(args, env, sym),
-        ":wat::holon::OnlineSubspace/threshold" => eval_subspace_threshold(args, env, sym),
-        ":wat::holon::OnlineSubspace/eigenvalues" => eval_subspace_eigenvalues(args, env, sym),
-        ":wat::holon::OnlineSubspace/update" => eval_subspace_update(args, env, sym),
-        ":wat::holon::OnlineSubspace/residual" => eval_subspace_residual(args, env, sym),
-        ":wat::holon::OnlineSubspace/project" => eval_subspace_project(args, env, sym),
+        ":wat::holon::OnlineSubspace/new" => eval_subspace_new(args, list_span, env, sym),
+        ":wat::holon::OnlineSubspace/dim" => eval_subspace_dim(args, list_span, env, sym),
+        ":wat::holon::OnlineSubspace/k" => eval_subspace_k(args, list_span, env, sym),
+        ":wat::holon::OnlineSubspace/n" => eval_subspace_n(args, list_span, env, sym),
+        ":wat::holon::OnlineSubspace/threshold" => eval_subspace_threshold(args, list_span, env, sym),
+        ":wat::holon::OnlineSubspace/eigenvalues" => eval_subspace_eigenvalues(args, list_span, env, sym),
+        ":wat::holon::OnlineSubspace/update" => eval_subspace_update(args, list_span, env, sym),
+        ":wat::holon::OnlineSubspace/residual" => eval_subspace_residual(args, list_span, env, sym),
+        ":wat::holon::OnlineSubspace/project" => eval_subspace_project(args, list_span, env, sym),
         ":wat::holon::OnlineSubspace/reconstruct" => {
-            eval_subspace_reconstruct(args, env, sym)
+            eval_subspace_reconstruct(args, list_span, env, sym)
         }
 
         // Arc 053: Reckoner native primitives.
-        ":wat::holon::Reckoner/new-discrete" => eval_reckoner_new_discrete(args, env, sym),
+        ":wat::holon::Reckoner/new-discrete" => eval_reckoner_new_discrete(args, list_span, env, sym),
         ":wat::holon::Reckoner/new-continuous" => {
-            eval_reckoner_new_continuous(args, env, sym)
+            eval_reckoner_new_continuous(args, list_span, env, sym)
         }
-        ":wat::holon::Reckoner/observe" => eval_reckoner_observe(args, env, sym),
-        ":wat::holon::Reckoner/predict" => eval_reckoner_predict(args, env, sym),
-        ":wat::holon::Reckoner/resolve" => eval_reckoner_resolve(args, env, sym),
-        ":wat::holon::Reckoner/curve" => eval_reckoner_curve(args, env, sym),
-        ":wat::holon::Reckoner/labels" => eval_reckoner_labels(args, env, sym),
-        ":wat::holon::Reckoner/dims" => eval_reckoner_dims(args, env, sym),
+        ":wat::holon::Reckoner/observe" => eval_reckoner_observe(args, list_span, env, sym),
+        ":wat::holon::Reckoner/predict" => eval_reckoner_predict(args, list_span, env, sym),
+        ":wat::holon::Reckoner/resolve" => eval_reckoner_resolve(args, list_span, env, sym),
+        ":wat::holon::Reckoner/curve" => eval_reckoner_curve(args, list_span, env, sym),
+        ":wat::holon::Reckoner/labels" => eval_reckoner_labels(args, list_span, env, sym),
+        ":wat::holon::Reckoner/dims" => eval_reckoner_dims(args, list_span, env, sym),
 
         // Arc 053: Engram native primitives.
-        ":wat::holon::Engram/name" => eval_engram_name(args, env, sym),
+        ":wat::holon::Engram/name" => eval_engram_name(args, list_span, env, sym),
         ":wat::holon::Engram/eigenvalue-signature" => {
-            eval_engram_eigenvalue_signature(args, env, sym)
+            eval_engram_eigenvalue_signature(args, list_span, env, sym)
         }
-        ":wat::holon::Engram/n" => eval_engram_n(args, env, sym),
-        ":wat::holon::Engram/residual" => eval_engram_residual(args, env, sym),
+        ":wat::holon::Engram/n" => eval_engram_n(args, list_span, env, sym),
+        ":wat::holon::Engram/residual" => eval_engram_residual(args, list_span, env, sym),
 
         // Arc 053: EngramLibrary native primitives.
-        ":wat::holon::EngramLibrary/new" => eval_library_new(args, env, sym),
-        ":wat::holon::EngramLibrary/add" => eval_library_add(args, env, sym),
-        ":wat::holon::EngramLibrary/match-vec" => eval_library_match_vec(args, env, sym),
-        ":wat::holon::EngramLibrary/len" => eval_library_len(args, env, sym),
-        ":wat::holon::EngramLibrary/contains" => eval_library_contains(args, env, sym),
-        ":wat::holon::EngramLibrary/names" => eval_library_names(args, env, sym),
-        ":wat::holon::statement-length" => eval_holon_statement_length(args, env, sym),
+        ":wat::holon::EngramLibrary/new" => eval_library_new(args, list_span, env, sym),
+        ":wat::holon::EngramLibrary/add" => eval_library_add(args, list_span, env, sym),
+        ":wat::holon::EngramLibrary/match-vec" => eval_library_match_vec(args, list_span, env, sym),
+        ":wat::holon::EngramLibrary/len" => eval_library_len(args, list_span, env, sym),
+        ":wat::holon::EngramLibrary/contains" => eval_library_contains(args, list_span, env, sym),
+        ":wat::holon::EngramLibrary/names" => eval_library_names(args, list_span, env, sym),
+        ":wat::holon::statement-length" => eval_holon_statement_length(args, list_span, env, sym),
 
         // Constrained runtime eval — four forms, matching the load
         // pipeline's discipline on source interface and verification.
-        ":wat::eval-ast!" => eval_form_ast(args, env, sym),
-        ":wat::eval-step!" => eval_form_step(args, env, sym),
-        ":wat::eval::walk" => eval_walk(args, env, sym),
-        ":wat::eval-edn!" => eval_form_edn(args, env, sym),
-        ":wat::eval-file!" => eval_form_file(args, env, sym),
-        ":wat::eval-digest!" => eval_form_digest(args, env, sym),
-        ":wat::eval-digest-string!" => eval_form_digest_string(args, env, sym),
-        ":wat::eval-signed!" => eval_form_signed(args, env, sym),
-        ":wat::eval-signed-string!" => eval_form_signed_string(args, env, sym),
+        ":wat::eval-ast!" => eval_form_ast(args, env, sym, list_span),
+        ":wat::eval-step!" => eval_form_step(args, env, sym, list_span),
+        ":wat::eval::walk" => eval_walk(args, env, sym, list_span),
+        ":wat::eval-edn!" => eval_form_edn(args, env, sym, list_span),
+        ":wat::eval-file!" => eval_form_file(args, env, sym, list_span),
+        ":wat::eval-digest!" => eval_form_digest(args, env, sym, list_span),
+        ":wat::eval-digest-string!" => eval_form_digest_string(args, env, sym, list_span),
+        ":wat::eval-signed!" => eval_form_signed(args, env, sym, list_span),
+        ":wat::eval-signed-string!" => eval_form_signed_string(args, env, sym, list_span),
 
         // Kernel primitives — channel IO + stop flag + user signals.
-        ":wat::kernel::stopped?" => eval_kernel_stopped(args),
-        ":wat::kernel::send" => eval_kernel_send(args, env, sym),
-        ":wat::kernel::recv" => eval_kernel_recv(args, env, sym),
-        ":wat::kernel::try-recv" => eval_kernel_try_recv(args, env, sym),
-        ":wat::kernel::drop" => eval_kernel_drop(args, env, sym),
+        ":wat::kernel::stopped?" => eval_kernel_stopped(args, list_span),
+        ":wat::kernel::send" => eval_kernel_send(args, env, sym, list_span),
+        ":wat::kernel::recv" => eval_kernel_recv(args, env, sym, list_span),
+        ":wat::kernel::try-recv" => eval_kernel_try_recv(args, env, sym, list_span),
+        ":wat::kernel::drop" => eval_kernel_drop(args, env, sym, list_span),
         // :wat::kernel::spawn / :wat::kernel::join / :wat::kernel::join-result
         // retired in arc 114. spawn-thread + Thread/join-result are the
         // canonical replacements; the type-checker poisons every call site
         // with a self-describing migration hint. Runtime impls deleted
         // alongside the dispatch — no callers reach this layer post-poison.
         ":wat::kernel::ThreadDiedError/message" => {
-            eval_thread_died_error_message(args, env, sym)
+            eval_thread_died_error_message(args, env, sym, list_span)
         }
         ":wat::kernel::ThreadDiedError/to-failure" => {
-            eval_thread_died_error_to_failure(args, env, sym)
+            eval_thread_died_error_to_failure(args, env, sym, list_span)
         }
         ":wat::kernel::ProcessDiedError/message" => {
-            eval_process_died_error_message(args, env, sym)
+            eval_process_died_error_message(args, env, sym, list_span)
         }
         ":wat::kernel::ProcessDiedError/to-failure" => {
-            eval_process_died_error_to_failure(args, env, sym)
+            eval_process_died_error_to_failure(args, env, sym, list_span)
         }
         ":wat::kernel::extract-panics" => {
-            eval_kernel_extract_panics(args, env, sym)
+            eval_kernel_extract_panics(args, env, sym, list_span)
         }
         ":wat::kernel::Process/join-result" => {
-            eval_kernel_process_join_result(args, env, sym)
+            eval_kernel_process_join_result(args, env, sym, list_span)
         }
         ":wat::kernel::spawn-thread" => {
-            eval_kernel_spawn_thread(args, env, sym)
+            eval_kernel_spawn_thread(args, env, sym, list_span)
         }
         ":wat::kernel::Thread/join-result" => {
-            eval_kernel_thread_join_result(args, env, sym)
+            eval_kernel_thread_join_result(args, env, sym, list_span)
         }
         ":wat::kernel::process-send" => {
-            eval_kernel_process_send(args, env, sym)
+            eval_kernel_process_send(args, env, sym, list_span)
         }
         ":wat::kernel::process-recv" => {
-            eval_kernel_process_recv(args, env, sym)
+            eval_kernel_process_recv(args, env, sym, list_span)
         }
-        ":wat::kernel::select" => eval_kernel_select(args, env, sym),
-        ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym),
-        ":wat::kernel::HandlePool::pop" => eval_handle_pool_pop(args, env, sym),
-        ":wat::kernel::HandlePool::finish" => eval_handle_pool_finish(args, env, sym),
+        ":wat::kernel::select" => eval_kernel_select(args, env, sym, list_span),
+        ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym, list_span),
+        ":wat::kernel::HandlePool::pop" => eval_handle_pool_pop(args, env, sym, list_span),
+        ":wat::kernel::HandlePool::finish" => eval_handle_pool_finish(args, env, sym, list_span),
         // Arc 105c — substrate `:wat::kernel::run-sandboxed` /
         // `-ast` dispatch arms are GONE. The wat-level defines in
         // `wat/std/sandbox.wat` (bundled in `src/stdlib.rs`) atop
@@ -2864,8 +2864,8 @@ fn dispatch_keyword_head(
             crate::assertion::eval_kernel_assertion_failed(args, env, sym)
         }
         ":wat::kernel::raise!" => eval_kernel_raise(args, env, sym),
-        ":wat::kernel::make-bounded-channel" => eval_make_bounded_queue(args, env, sym),
-        ":wat::kernel::make-unbounded-channel" => eval_make_unbounded_queue(args),
+        ":wat::kernel::make-bounded-channel" => eval_make_bounded_queue(args, env, sym, list_span),
+        ":wat::kernel::make-unbounded-channel" => eval_make_unbounded_queue(args, list_span),
         ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args),
         ":wat::kernel::fork-program-ast" => {
             crate::fork::eval_kernel_fork_program_ast(args, env, sym)
@@ -2880,22 +2880,22 @@ fn dispatch_keyword_head(
         // ProcessDiedError>. The runtime fn in src/fork.rs is left
         // for now (unreferenced) and removed in slice 5 closure.
         ":wat::kernel::sigusr1?" => {
-            eval_user_signal_query(args, ":wat::kernel::sigusr1?", &KERNEL_SIGUSR1)
+            eval_user_signal_query(args, ":wat::kernel::sigusr1?", &KERNEL_SIGUSR1, list_span)
         }
         ":wat::kernel::sigusr2?" => {
-            eval_user_signal_query(args, ":wat::kernel::sigusr2?", &KERNEL_SIGUSR2)
+            eval_user_signal_query(args, ":wat::kernel::sigusr2?", &KERNEL_SIGUSR2, list_span)
         }
         ":wat::kernel::sighup?" => {
-            eval_user_signal_query(args, ":wat::kernel::sighup?", &KERNEL_SIGHUP)
+            eval_user_signal_query(args, ":wat::kernel::sighup?", &KERNEL_SIGHUP, list_span)
         }
         ":wat::kernel::reset-sigusr1!" => {
-            eval_user_signal_reset(args, ":wat::kernel::reset-sigusr1!", &KERNEL_SIGUSR1)
+            eval_user_signal_reset(args, ":wat::kernel::reset-sigusr1!", &KERNEL_SIGUSR1, list_span)
         }
         ":wat::kernel::reset-sigusr2!" => {
-            eval_user_signal_reset(args, ":wat::kernel::reset-sigusr2!", &KERNEL_SIGUSR2)
+            eval_user_signal_reset(args, ":wat::kernel::reset-sigusr2!", &KERNEL_SIGUSR2, list_span)
         }
         ":wat::kernel::reset-sighup!" => {
-            eval_user_signal_reset(args, ":wat::kernel::reset-sighup!", &KERNEL_SIGHUP)
+            eval_user_signal_reset(args, ":wat::kernel::reset-sighup!", &KERNEL_SIGHUP, list_span)
         }
 
         // :wat::core::use! — resolve-pass declaration, no-op at runtime.
@@ -2914,26 +2914,26 @@ fn dispatch_keyword_head(
         // coincident? / (statement-length ast) primitives instead.
         // Shimmed here so existing lab code compiles; deprecation
         // arc will sweep callers later.
-        ":wat::config::dim-count" => eval_config_dim_count(args, sym),
-        ":wat::config::dim-capacity" => eval_config_dim_capacity(args, sym),
-        ":wat::config::global-seed" => eval_config_global_seed(args, sym),
-        ":wat::config::noise-floor" => eval_config_noise_floor_default_shim(args, sym),
+        ":wat::config::dim-count" => eval_config_dim_count(args, sym, list_span),
+        ":wat::config::dim-capacity" => eval_config_dim_capacity(args, sym, list_span),
+        ":wat::config::global-seed" => eval_config_global_seed(args, sym, list_span),
+        ":wat::config::noise-floor" => eval_config_noise_floor_default_shim(args, sym, list_span),
 
         // Stdlib math — single-method Rust calls packaged at
         // :wat::std::math::* per FOUNDATION-CHANGELOG 2026-04-18.
         // Not at :wat::core:: because they're numeric utilities, not
         // Lisp or algebra primitives; only stdlib macros (Log, Circular)
         // need them, and userland picks them up the same way.
-        ":wat::std::math::ln" => eval_math_unary(args, env, sym, "ln", f64::ln),
-        ":wat::std::math::log" => eval_math_unary(args, env, sym, "log", f64::ln),
-        ":wat::std::math::exp" => eval_math_unary(args, env, sym, "exp", f64::exp),
-        ":wat::std::math::sqrt" => eval_math_unary(args, env, sym, "sqrt", f64::sqrt),
-        ":wat::std::math::sin" => eval_math_unary(args, env, sym, "sin", f64::sin),
-        ":wat::std::math::cos" => eval_math_unary(args, env, sym, "cos", f64::cos),
-        ":wat::std::math::pi" => eval_math_pi(args),
-        ":wat::std::stat::mean" => eval_stat_mean(args, env, sym),
-        ":wat::std::stat::variance" => eval_stat_variance(args, env, sym),
-        ":wat::std::stat::stddev" => eval_stat_stddev(args, env, sym),
+        ":wat::std::math::ln" => eval_math_unary(args, env, sym, "ln", f64::ln, list_span),
+        ":wat::std::math::log" => eval_math_unary(args, env, sym, "log", f64::ln, list_span),
+        ":wat::std::math::exp" => eval_math_unary(args, env, sym, "exp", f64::exp, list_span),
+        ":wat::std::math::sqrt" => eval_math_unary(args, env, sym, "sqrt", f64::sqrt, list_span),
+        ":wat::std::math::sin" => eval_math_unary(args, env, sym, "sin", f64::sin, list_span),
+        ":wat::std::math::cos" => eval_math_unary(args, env, sym, "cos", f64::cos, list_span),
+        ":wat::std::math::pi" => eval_math_pi(args, list_span),
+        ":wat::std::stat::mean" => eval_stat_mean(args, env, sym, list_span),
+        ":wat::std::stat::variance" => eval_stat_variance(args, env, sym, list_span),
+        ":wat::std::stat::stddev" => eval_stat_stddev(args, env, sym, list_span),
 
         // Time primitives — arc 056. World-observing (`now`) +
         // pure converters at `:wat::time::*`, sibling of `:wat::io::*`
@@ -4873,6 +4873,7 @@ fn eval_concat(
 /// reversed; input unchanged.
 fn eval_vec_reverse(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -4881,8 +4882,7 @@ fn eval_vec_reverse(
             op: ":wat::core::reverse".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let xs = require_vec(":wat::core::reverse", eval(&args[0], env, sym)?)?;
@@ -4896,6 +4896,7 @@ fn eval_vec_reverse(
 /// write `(range 0 n)` explicitly for 0..n.
 fn eval_vec_range(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -4904,8 +4905,7 @@ fn eval_vec_range(
             op: ":wat::core::range".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let start = require_i64(":wat::core::range", eval(&args[0], env, sym)?)?;
@@ -4923,6 +4923,7 @@ fn eval_vec_range(
 /// (empty Vec).
 fn eval_vec_take(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -4931,8 +4932,7 @@ fn eval_vec_take(
             op: ":wat::core::take".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let xs = require_vec(":wat::core::take", eval(&args[0], env, sym)?)?;
@@ -4947,6 +4947,7 @@ fn eval_vec_take(
 /// (returns the full Vec).
 fn eval_vec_drop(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -4955,8 +4956,7 @@ fn eval_vec_drop(
             op: ":wat::core::drop".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let xs = require_vec(":wat::core::drop", eval(&args[0], env, sym)?)?;
@@ -5009,8 +5009,7 @@ fn eval_vec_sort_by(
                 op: OP.into(),
                 expected: "wat::core::lambda",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
@@ -5034,7 +5033,7 @@ fn eval_vec_sort_by(
                     op: OP.into(),
                     expected: "bool",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
+                    // arc 138: no span — inside sort_by closure, no AST args in scope
                     span: Span::unknown(),
                 }),
             }
@@ -5234,6 +5233,7 @@ fn eval_vec_filter(
 /// the shorter input's length (matches Rust's `xs.iter().zip(ys)`).
 fn eval_list_zip(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -5242,8 +5242,7 @@ fn eval_list_zip(
             op: ":wat::std::list::zip".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let xs = require_vec(":wat::std::list::zip", eval(&args[0], env, sym)?)?;
@@ -5262,6 +5261,7 @@ fn eval_list_zip(
 /// window fits) — matches Rust's behavior.
 fn eval_list_window(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -5270,8 +5270,7 @@ fn eval_list_window(
             op: ":wat::std::list::window".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let xs = require_vec(":wat::std::list::window", eval(&args[0], env, sym)?)?;
@@ -5295,6 +5294,7 @@ fn eval_list_window(
 /// no-ops.
 fn eval_list_remove_at(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -5303,8 +5303,7 @@ fn eval_list_remove_at(
             op: ":wat::std::list::remove-at".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let xs = require_vec(":wat::std::list::remove-at", eval(&args[0], env, sym)?)?;
@@ -5346,7 +5345,7 @@ pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
             op: op.into(),
             expected: "hashable value (primitive or HolonAST)",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
+            // arc 138: no span — public helper takes &Value, not &WatAST; no source coordinates available
             span: Span::unknown(),
         }),
     }
@@ -5358,6 +5357,7 @@ pub fn hashmap_key(op: &str, v: &Value) -> Result<String, RuntimeError> {
 /// keys: later entries overwrite earlier.
 fn eval_hashmap_ctor(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -5366,16 +5366,14 @@ fn eval_hashmap_ctor(
             op: ":wat::core::HashMap".into(),
             expected: 1,
             got: 0,
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::HashMap".into(),
             reason: "first argument must be a tuple type keyword :(K,V)".into(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         });
     }
     let pairs = &args[1..];
@@ -5386,8 +5384,7 @@ fn eval_hashmap_ctor(
                 "arity after :(K,V) must be even (alternating key/value pairs); got {}",
                 pairs.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let mut map = std::collections::HashMap::with_capacity(pairs.len() / 2);
@@ -5411,6 +5408,7 @@ fn eval_hashmap_ctor(
 /// Vec index-get graduates when a caller demands it.
 fn eval_get(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -5419,8 +5417,7 @@ fn eval_get(
             op: ":wat::core::get".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let container = eval(&args[0], env, sym)?;
@@ -5451,8 +5448,7 @@ fn eval_get(
                         op: ":wat::core::get".into(),
                         expected: "i64 index for Vec",
                         got: other.type_name(),
-                        // arc 138 slice 3a-finish: span TBD
-                        span: Span::unknown(),
+                        span: args[1].span().clone(),
                     });
                 }
             };
@@ -5466,8 +5462,7 @@ fn eval_get(
             op: ":wat::core::get".into(),
             expected: "HashMap | HashSet | Vec",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -5516,8 +5511,7 @@ fn eval_assoc(
                         op: OP.into(),
                         expected: "i64 index for Vec",
                         got: other.type_name(),
-                        // arc 138 slice 3a-finish: span TBD
-                        span: Span::unknown(),
+                        span: args[1].span().clone(),
                     });
                 }
             };
@@ -5529,8 +5523,7 @@ fn eval_assoc(
                         i,
                         xs.len()
                     ),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    span: args[1].span().clone(),
                 });
             }
             let mut out = (*xs).clone();
@@ -5541,8 +5534,7 @@ fn eval_assoc(
             op: OP.into(),
             expected: "HashMap<K,V> | Vec<T>",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -5580,8 +5572,7 @@ fn eval_dissoc(
             op: OP.into(),
             expected: "HashMap<K,V>",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -5617,8 +5608,7 @@ fn eval_keys(
             op: OP.into(),
             expected: "HashMap<K,V>",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -5650,8 +5640,7 @@ fn eval_values(
             op: OP.into(),
             expected: "HashMap<K,V>",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -5661,6 +5650,7 @@ fn eval_values(
 /// elements collapse (last stored wins on the exact canonical key).
 fn eval_hashset_ctor(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -5669,16 +5659,14 @@ fn eval_hashset_ctor(
             op: ":wat::core::HashSet".into(),
             expected: 1,
             got: 0,
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::HashSet".into(),
             reason: "first argument must be a type keyword (e.g., :i64)".into(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         });
     }
     let mut set = std::collections::HashMap::with_capacity(args.len() - 1);
@@ -5699,6 +5687,7 @@ fn eval_hashset_ctor(
 /// check.rs via `infer_contains_q`.
 fn eval_contains_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -5707,8 +5696,7 @@ fn eval_contains_q(
             op: ":wat::core::contains?".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let container = eval(&args[0], env, sym)?;
@@ -5730,8 +5718,7 @@ fn eval_contains_q(
                         op: ":wat::core::contains?".into(),
                         expected: "i64 index for Vec",
                         got: other.type_name(),
-                        // arc 138 slice 3a-finish: span TBD
-                        span: Span::unknown(),
+                        span: args[1].span().clone(),
                     });
                 }
             };
@@ -5741,8 +5728,7 @@ fn eval_contains_q(
             op: ":wat::core::contains?".into(),
             expected: "HashMap | HashSet | Vec",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -5756,14 +5742,13 @@ fn eval_contains_q(
 /// `:wat::eval-ast!`, stored in environments, etc.
 ///
 /// Quote is how programs become holons without running.
-fn eval_quote(args: &[WatAST]) -> Result<Value, RuntimeError> {
+fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::core::quote".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
@@ -5897,8 +5882,7 @@ fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, RuntimeErro
             op: op.into(),
             expected: "primitive (i64/f64/bool/String/keyword) or :wat::WatAST",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span,
         }),
     }
 }
@@ -5946,8 +5930,7 @@ fn eval_struct_to_form(
                 op: OP.into(),
                 expected: "struct value (e.g. `:my::Foo/new`'s output)",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -6025,21 +6008,19 @@ fn eval_form_matches(
     let (type_name, clauses) = match &args[1] {
         WatAST::List(items, _) if !items.is_empty() => match &items[0] {
             WatAST::Keyword(k, _) => (k.as_str(), &items[1..]),
-            _ => {
+            other_head => {
                 return Err(RuntimeError::MalformedForm {
                     head: OP.into(),
                     reason: "pattern head must be a struct type keyword".into(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    span: other_head.span().clone(),
                 });
             }
         },
-        _ => {
+        other_pat => {
             return Err(RuntimeError::MalformedForm {
                 head: OP.into(),
                 reason: "pattern must be a list `(:TYPE-NAME clause ...)`".into(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: other_pat.span().clone(),
             });
         }
     };
@@ -6103,8 +6084,7 @@ fn walk_match_clause(
     let raw = classify_clause(clause).map_err(|e| RuntimeError::MalformedForm {
         head: ":wat::form::matches?".into(),
         reason: format!("classifier: {:?}", e),
-        // arc 138 slice 3a-finish: span TBD
-        span: Span::unknown(),
+        span: clause.span().clone(),
     })?;
 
     match raw {
@@ -6121,8 +6101,7 @@ fn walk_match_clause(
                                 "binding RHS for {} must be a field keyword",
                                 var
                             ),
-                            // arc 138 slice 3a-finish: span TBD
-                            span: Span::unknown(),
+                            span: right.span().clone(),
                         }
                     })?;
                     let field_lookup = field_kw.strip_prefix(':').unwrap_or(field_kw);
@@ -6242,8 +6221,7 @@ fn walk_match_clause(
                     op: ":wat::form::matches?".into(),
                     expected: "bool from where-body",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    span: body.span().clone(),
                 }),
             }
         }
@@ -6302,22 +6280,19 @@ fn eval_macroexpand_1(
                 op: OP.into(),
                 expected: "wat::WatAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
     let registry = sym.macro_registry().ok_or(RuntimeError::NoMacroRegistry {
         op: OP.into(),
-        // arc 138 slice 3a-finish: span TBD
-        span: Span::unknown(),
+        span: args[0].span().clone(),
     })?;
     let expanded = crate::macros::expand_once(ast, registry)
         .map_err(|e| RuntimeError::MacroExpansionFailed {
             op: OP.into(),
             reason: format!("{}", e),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         })?;
     Ok(Value::wat__WatAST(Arc::new(expanded)))
 }
@@ -6348,23 +6323,20 @@ fn eval_macroexpand(
                 op: OP.into(),
                 expected: "wat::WatAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
     let registry = sym.macro_registry().ok_or(RuntimeError::NoMacroRegistry {
         op: OP.into(),
-        // arc 138 slice 3a-finish: span TBD
-        span: Span::unknown(),
+        span: args[0].span().clone(),
     })?;
     for _ in 0..crate::macros::EXPANSION_DEPTH_LIMIT {
         let next = crate::macros::expand_once(ast.clone(), registry)
             .map_err(|e| RuntimeError::MacroExpansionFailed {
                 op: OP.into(),
                 reason: format!("{}", e),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             })?;
         if next == ast {
             return Ok(Value::wat__WatAST(Arc::new(next)));
@@ -6377,8 +6349,7 @@ fn eval_macroexpand(
             "expansion did not reach fixpoint within {} iterations",
             crate::macros::EXPANSION_DEPTH_LIMIT
         ),
-        // arc 138 slice 3a-finish: span TBD
-        span: Span::unknown(),
+        span: args[0].span().clone(),
     })
 }
 
@@ -6400,6 +6371,7 @@ fn eval_macroexpand(
 /// higher indices go through `:wat::core::get`.
 fn eval_positional_accessor(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
     op: &'static str,
@@ -6410,8 +6382,7 @@ fn eval_positional_accessor(
             op: op.into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let v = eval(&args[0], env, sym)?;
@@ -6424,8 +6395,7 @@ fn eval_positional_accessor(
                     items.len(),
                     index
                 ),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             }
         }),
         Value::Vec(items) => Ok(Value::Option(Arc::new(items.get(index).cloned()))),
@@ -6433,8 +6403,7 @@ fn eval_positional_accessor(
             op: op.into(),
             expected: "tuple or Vec",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -6445,6 +6414,7 @@ fn eval_positional_accessor(
 /// non-empty → `Some(items[len - 1])`.
 fn eval_vec_last(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -6453,8 +6423,7 @@ fn eval_vec_last(
             op: ":wat::core::last".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let xs = require_vec(":wat::core::last", eval(&args[0], env, sym)?)?;
@@ -6491,8 +6460,7 @@ fn eval_vec_find_last_index(
                 op: OP.into(),
                 expected: "wat::core::lambda",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
@@ -6512,7 +6480,7 @@ fn eval_vec_find_last_index(
                     op: OP.into(),
                     expected: "bool (predicate result)",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
+                    // arc 138: no span — predicate result from apply_function; no AST arg in scope
                     span: Span::unknown(),
                 });
             }
@@ -6581,6 +6549,7 @@ fn eval_f64_reduce(
 /// tuple arity is fixed at the type level.
 fn eval_vec_rest(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -6589,8 +6558,7 @@ fn eval_vec_rest(
             op: ":wat::core::rest".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let xs = require_vec(":wat::core::rest", eval(&args[0], env, sym)?)?;
@@ -6598,8 +6566,7 @@ fn eval_vec_rest(
         return Err(RuntimeError::MalformedForm {
             head: ":wat::core::rest".into(),
             reason: "cannot take rest of empty Vec".into(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         });
     }
     let out: Vec<Value> = xs.iter().skip(1).cloned().collect();
@@ -6611,6 +6578,7 @@ fn eval_vec_rest(
 /// `(item, index)` and returns U. Used by Sequential's indexed fold.
 fn eval_list_map_with_index(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -6619,8 +6587,7 @@ fn eval_list_map_with_index(
             op: ":wat::std::list::map-with-index".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let xs = require_vec(":wat::std::list::map-with-index", eval(&args[0], env, sym)?)?;
@@ -6632,8 +6599,7 @@ fn eval_list_map_with_index(
                 op: ":wat::std::list::map-with-index".into(),
                 expected: "wat::core::lambda",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
@@ -6658,6 +6624,7 @@ fn eval_list_map_with_index(
 /// callers consume via `(:wat::core::match ...)`.
 fn eval_some_ctor(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -6666,8 +6633,7 @@ fn eval_some_ctor(
             op: "Some".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let v = eval(&args[0], env, sym)?;
@@ -6679,6 +6645,7 @@ fn eval_some_ctor(
 /// in `Value::Result(Ok(_))`.
 fn eval_ok_ctor(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -6687,8 +6654,7 @@ fn eval_ok_ctor(
             op: "Ok".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let v = eval(&args[0], env, sym)?;
@@ -6700,6 +6666,7 @@ fn eval_ok_ctor(
 /// in `Value::Result(Err(_))`.
 fn eval_err_ctor(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -6708,8 +6675,7 @@ fn eval_err_ctor(
             op: "Err".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let v = eval(&args[0], env, sym)?;
@@ -6741,6 +6707,7 @@ fn eval_err_ctor(
 fn eval_try(
     op: &str,
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -6749,8 +6716,7 @@ fn eval_try(
             op: op.into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let v = eval(&args[0], env, sym)?;
@@ -6767,8 +6733,7 @@ fn eval_try(
             op: op.into(),
             expected: "Result<T,E>",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -6792,6 +6757,7 @@ fn eval_try(
 fn eval_option_try(
     op: &str,
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -6800,8 +6766,7 @@ fn eval_option_try(
             op: op.into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let v = eval(&args[0], env, sym)?;
@@ -6818,8 +6783,7 @@ fn eval_option_try(
             op: op.into(),
             expected: "Option<T>",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -6843,6 +6807,7 @@ fn eval_option_try(
 fn eval_option_expect(
     op: &str,
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -6851,8 +6816,7 @@ fn eval_option_expect(
             op: op.into(),
             expected: 4,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let opt = eval(&args[2], env, sym)?;
@@ -6869,8 +6833,7 @@ fn eval_option_expect(
             op: op.into(),
             expected: "Option<T>",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[2].span().clone(),
         }),
     }
 }
@@ -6880,6 +6843,7 @@ fn eval_option_expect(
 fn eval_result_expect(
     op: &str,
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -6888,8 +6852,7 @@ fn eval_result_expect(
             op: op.into(),
             expected: 4,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let res = eval(&args[2], env, sym)?;
@@ -6912,8 +6875,7 @@ fn eval_result_expect(
             op: op.into(),
             expected: "Result<T,E>",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[2].span().clone(),
         }),
     }
 }
@@ -6964,8 +6926,7 @@ fn expect_panic(
                 op: op.into(),
                 expected: "String",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: msg_ast.span().clone(),
             });
         }
     };
@@ -7023,8 +6984,7 @@ fn eval_kernel_raise(
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -7061,6 +7021,7 @@ fn eval_kernel_raise(
 /// the `<struct>/new` scheme — this primitive trusts the caller.
 fn eval_struct_new(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -7069,8 +7030,7 @@ fn eval_struct_new(
             op: ":wat::core::struct-new".into(),
             expected: 1,
             got: 0,
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let type_name = match &args[0] {
@@ -7082,8 +7042,7 @@ fn eval_struct_new(
                     "first argument must be a keyword literal (the struct's type name); got {}",
                     ast_variant_name(other)
                 ),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: other.span().clone(),
             });
         }
     };
@@ -7116,6 +7075,7 @@ fn eval_struct_new(
 ///   the type checker at the synthesized constructor scheme.
 fn eval_variant(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -7124,8 +7084,7 @@ fn eval_variant(
             op: ":wat::core::variant".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let type_path = match &args[0] {
@@ -7137,8 +7096,7 @@ fn eval_variant(
                     "first argument must be a keyword literal (the enum's type path); got {}",
                     ast_variant_name(other)
                 ),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: other.span().clone(),
             });
         }
     };
@@ -7155,8 +7113,7 @@ fn eval_variant(
                     "second argument must be a keyword literal (the variant identifier); got {}",
                     ast_variant_name(other)
                 ),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: other.span().clone(),
             });
         }
     };
@@ -7188,6 +7145,7 @@ fn eval_variant(
 /// raises `MalformedForm` for the ill-typed runtime path.
 fn eval_struct_field(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -7196,8 +7154,7 @@ fn eval_struct_field(
             op: ":wat::core::struct-field".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let struct_val = eval(&args[0], env, sym)?;
@@ -7208,19 +7165,17 @@ fn eval_struct_field(
                 op: ":wat::core::struct-field".into(),
                 expected: "Struct",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
     let index = match &args[1] {
         WatAST::IntLit(n, _) if *n >= 0 => *n as usize,
-        WatAST::IntLit(n, _) => {
+        WatAST::IntLit(n, span) => {
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::struct-field".into(),
                 reason: format!("field index must be non-negative; got {}", n),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: span.clone(),
             });
         }
         other => {
@@ -7230,8 +7185,7 @@ fn eval_struct_field(
                     "second argument must be an integer literal (the field index); got {}",
                     ast_variant_name(other)
                 ),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: other.span().clone(),
             });
         }
     };
@@ -7244,8 +7198,7 @@ fn eval_struct_field(
                 inner.type_name,
                 inner.fields.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[1].span().clone(),
         });
     }
     Ok(inner.fields[index].clone())
@@ -7432,8 +7385,7 @@ fn try_match_pattern(
             let head = items.first().ok_or_else(|| RuntimeError::MalformedForm {
                 head: ":wat::core::match".into(),
                 reason: "empty list pattern".into(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: pattern.span().clone(),
             })?;
             // Arc 109 slice 1h — recognize FQDN keyword forms for
             // Option variant patterns. Both bare-Symbol "Some" and
@@ -7454,8 +7406,7 @@ fn try_match_pattern(
                             "(Some _) takes exactly one field, got {}",
                             items.len() - 1
                         ),
-                        // arc 138 slice 3a-finish: span TBD
-                        span: Span::unknown(),
+                        span: pattern.span().clone(),
                     });
                 }
                 return match value {
@@ -7485,8 +7436,7 @@ fn try_match_pattern(
                             "(Ok _) takes exactly one field, got {}",
                             items.len() - 1
                         ),
-                        // arc 138 slice 3a-finish: span TBD
-                        span: Span::unknown(),
+                        span: pattern.span().clone(),
                     });
                 }
                 return match value {
@@ -7512,8 +7462,7 @@ fn try_match_pattern(
                             "(Err _) takes exactly one field, got {}",
                             items.len() - 1
                         ),
-                        // arc 138 slice 3a-finish: span TBD
-                        span: Span::unknown(),
+                        span: pattern.span().clone(),
                     });
                 }
                 return match value {
@@ -7553,8 +7502,7 @@ fn try_match_pattern(
                                     ev.variant_name,
                                     sub_pats.len()
                                 ),
-                                // arc 138 slice 3a-finish: span TBD
-                                span: Span::unknown(),
+                                span: pattern.span().clone(),
                             });
                         }
                         let mut env = outer.clone();
@@ -7611,6 +7559,7 @@ fn try_match_pattern(
 ///   atom-value.
 fn eval_atom_value(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -7619,8 +7568,7 @@ fn eval_atom_value(
             op: ":wat::core::atom-value".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let v = eval(&args[0], env, sym)?;
@@ -7631,8 +7579,7 @@ fn eval_atom_value(
                 op: ":wat::core::atom-value".into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -7647,8 +7594,7 @@ fn eval_atom_value(
             op: ":wat::core::atom-value".into(),
             expected: "Atom or primitive leaf",
             got: "composite HolonAST variant (Bind/Bundle/Permute/Thermometer/Blend)",
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -7657,6 +7603,7 @@ fn eval_atom_value(
 
 fn eval_algebra_atom(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -7665,15 +7612,14 @@ fn eval_algebra_atom(
             op: ":wat::holon::Atom".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let v = eval(&args[0], env, sym)?;
-    value_to_atom(v)
+    value_to_atom(v, args[0].span())
 }
 
-fn value_to_atom(v: Value) -> Result<Value, RuntimeError> {
+fn value_to_atom(v: Value, arg_span: &Span) -> Result<Value, RuntimeError> {
     // Per arc 057 (typed leaves; algebra closed) the Atom constructor
     // is a polymorphic dispatcher onto HolonAST:
     //
@@ -7706,8 +7652,7 @@ fn value_to_atom(v: Value) -> Result<Value, RuntimeError> {
                 op: ":wat::holon::Atom".into(),
                 expected: "primitive, HolonAST, or quoted wat form",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: arg_span.clone(),
             });
         }
     };
@@ -7745,18 +7690,17 @@ fn watast_to_holon(a: &WatAST) -> HolonAST {
 /// (`Atom` for HolonAST inputs; `from-watast` for quoted forms).
 fn eval_holon_leaf(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::leaf";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let v = eval(&args[0], env, sym)?;
@@ -7773,8 +7717,7 @@ fn eval_holon_leaf(
                            use :wat::holon::Atom to wrap a HolonAST, \
                            :wat::holon::from-watast to lower a quoted form",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -7793,18 +7736,17 @@ fn eval_holon_leaf(
 /// and a hint pointing at the right verb.
 fn eval_holon_from_watast(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::from-watast";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let v = eval(&args[0], env, sym)?;
@@ -7817,8 +7759,7 @@ fn eval_holon_from_watast(
                            use :wat::holon::Atom for HolonAST inputs, \
                            :wat::holon::leaf for primitives",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -7844,6 +7785,7 @@ fn eval_holon_from_watast(
 /// span info (never preserved on either side).
 fn eval_holon_to_watast(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -7852,8 +7794,7 @@ fn eval_holon_to_watast(
             op: ":wat::holon::to-watast".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let h = match eval(&args[0], env, sym)? {
@@ -7863,8 +7804,7 @@ fn eval_holon_to_watast(
                 op: ":wat::holon::to-watast".into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -7880,18 +7820,17 @@ fn eval_holon_to_watast(
 /// HashMap lookup before sliding into per-slot tolerance.
 fn eval_term_template(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::term::template";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let h = match eval(&args[0], env, sym)? {
@@ -7901,8 +7840,7 @@ fn eval_term_template(
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -7916,18 +7854,17 @@ fn eval_term_template(
 /// to score per-slot tolerance against the bucket's stored slots.
 fn eval_term_slots(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::term::slots";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let h = match eval(&args[0], env, sym)? {
@@ -7937,8 +7874,7 @@ fn eval_term_slots(
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -7953,18 +7889,17 @@ fn eval_term_slots(
 /// the substrate's `coincident?` floor.
 fn eval_term_ranges(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::term::ranges";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let h = match eval(&args[0], env, sym)? {
@@ -7974,8 +7909,7 @@ fn eval_term_ranges(
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -8005,18 +7939,17 @@ fn eval_term_ranges(
 /// crossed the encoding boundary and don't have term structure.
 fn eval_term_matches_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::term::matches?";
     if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let q = match eval(&args[0], env, sym)? {
@@ -8026,8 +7959,7 @@ fn eval_term_matches_q(
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -8038,8 +7970,7 @@ fn eval_term_matches_q(
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
@@ -8053,8 +7984,8 @@ fn eval_term_matches_q(
     // the template decomposition reads the form's shape and slots/
     // ranges read the same Thermometer leaves in the same pre-order
     // sequence.
-    let d = program_dim(OP, sym)?;
-    let ctx = require_encoding_ctx(OP, sym)?;
+    let d = program_dim(OP, sym, list_span)?;
+    let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let floor = ctx.encoders.get(d).coincident_floor(sym);
     for i in 0..q_slots.len() {
         let (lo, hi) = q_ranges[i];
@@ -8081,18 +8012,17 @@ fn eval_term_matches_q(
 /// filter funcs they pass to `Hologram/get`.
 fn eval_presence_floor(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::presence-floor";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let d = require_i64(OP, eval(&args[0], env, sym)?)?;
@@ -8100,11 +8030,10 @@ fn eval_presence_floor(
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
             reason: format!("d must be positive; got {}", d),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         });
     }
-    let ctx = require_encoding_ctx(OP, sym)?;
+    let ctx = require_encoding_ctx(OP, sym, list_span)?;
     Ok(Value::f64(ctx.encoders.get(d as usize).presence_floor(sym)))
 }
 
@@ -8114,18 +8043,17 @@ fn eval_presence_floor(
 /// formula but a tighter sigma). Users compose this into filter funcs.
 fn eval_coincident_floor(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::coincident-floor";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let d = require_i64(OP, eval(&args[0], env, sym)?)?;
@@ -8133,11 +8061,10 @@ fn eval_coincident_floor(
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
             reason: format!("d must be positive; got {}", d),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         });
     }
-    let ctx = require_encoding_ctx(OP, sym)?;
+    let ctx = require_encoding_ctx(OP, sym, list_span)?;
     Ok(Value::f64(ctx.encoders.get(d as usize).coincident_floor(sym)))
 }
 
@@ -8153,7 +8080,7 @@ fn require_hologram(
             op: op.into(),
             expected: "wat::holon::Hologram",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
+            // arc 138: no span — takes Value, not WatAST; no source coords available
             span: Span::unknown(),
         }),
     }
@@ -8166,7 +8093,7 @@ fn require_lambda(op: &str, v: Value) -> Result<Arc<Function>, RuntimeError> {
             op: op.into(),
             expected: "fn(f64)->bool",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
+            // arc 138: no span — takes Value, not WatAST; no source coords available
             span: Span::unknown(),
         }),
     }
@@ -8180,22 +8107,21 @@ fn require_lambda(op: &str, v: Value) -> Result<Arc<Function>, RuntimeError> {
 /// lifetime of the store and invoked during every get.
 fn eval_hologram_make(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::Hologram/make";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let filter = require_lambda(OP, eval(&args[0], env, sym)?)?;
-    let ctx = require_encoding_ctx(OP, sym)?;
+    let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let h = crate::hologram::Hologram::make(ctx.dim_count, filter);
     Ok(Value::Hologram(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(h),
@@ -8209,17 +8135,17 @@ fn eval_hologram_make(
 /// overwritten. Mutates in place.
 fn eval_hologram_put(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::Hologram/put";
     if args.len() != 3 {
-        // arc 138: no span — leaf helper without list_span.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 3,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
@@ -8230,8 +8156,7 @@ fn eval_hologram_put(
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
@@ -8242,8 +8167,7 @@ fn eval_hologram_put(
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[2].span().clone(),
             });
         }
     };
@@ -8259,18 +8183,17 @@ fn eval_hologram_put(
 /// candidate's val is returned.
 fn eval_hologram_get(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::Hologram/get";
     if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
@@ -8281,12 +8204,11 @@ fn eval_hologram_get(
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
-    let ctx = require_encoding_ctx(OP, sym)?;
+    let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let span = crate::rust_caller_span!();
     let result = store.with_ref(OP, |s| {
         s.get(&probe, sym, span.clone(), &ctx.encoders)
@@ -8307,18 +8229,17 @@ fn eval_hologram_get(
 /// the user-facing call is `Hologram/get` which discards the key.
 fn eval_hologram_find(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::Hologram/find";
     if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
@@ -8329,12 +8250,11 @@ fn eval_hologram_find(
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
-    let ctx = require_encoding_ctx(OP, sym)?;
+    let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let span = crate::rust_caller_span!();
     let result = store.with_ref(OP, |s| {
         s.find(&probe, sym, span.clone(), &ctx.encoders)
@@ -8355,18 +8275,17 @@ fn eval_hologram_find(
 /// Hologram in sync.
 fn eval_hologram_remove(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::Hologram/remove";
     if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
@@ -8377,8 +8296,7 @@ fn eval_hologram_remove(
                 op: OP.into(),
                 expected: "wat::holon::HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
@@ -8395,18 +8313,17 @@ fn eval_hologram_remove(
 /// across all slots.
 fn eval_hologram_len(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::Hologram/len";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let store = require_hologram(OP, eval(&args[0], env, sym)?)?;
@@ -8447,17 +8364,17 @@ fn eval_hologram_capacity(
 /// never crosses this call site.
 fn eval_therm_form(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::therm-form";
     if args.len() != 3 {
-        // arc 138: no span — leaf helper without list_span.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 3,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let low = match eval(&args[0], env, sym)? {
@@ -8467,8 +8384,7 @@ fn eval_therm_form(
                 op: OP.into(),
                 expected: "f64",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -8479,8 +8395,7 @@ fn eval_therm_form(
                 op: OP.into(),
                 expected: "f64",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
@@ -8491,8 +8406,7 @@ fn eval_therm_form(
                 op: OP.into(),
                 expected: "f64",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[2].span().clone(),
             });
         }
     };
@@ -8500,8 +8414,7 @@ fn eval_therm_form(
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
             reason: format!("require finite low < high; got low={}, high={}", low, high),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let clamped = if !value.is_finite() {
@@ -8603,6 +8516,7 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
 
 fn eval_algebra_bind(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8611,8 +8525,7 @@ fn eval_algebra_bind(
             op: ":wat::holon::Bind".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let a = require_holon(":wat::holon::Bind", eval(&args[0], env, sym)?)?;
@@ -8658,6 +8571,7 @@ fn eval_algebra_bind(
 /// behavior.
 fn eval_algebra_bundle(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8666,8 +8580,7 @@ fn eval_algebra_bundle(
             op: ":wat::holon::Bundle".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let list = match eval(&args[0], env, sym)? {
@@ -8677,8 +8590,7 @@ fn eval_algebra_bundle(
                 op: ":wat::holon::Bundle".into(),
                 expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -8702,7 +8614,7 @@ fn eval_algebra_bundle(
     // Clone-on-use this is cheap; the AST is Arc-shared through
     // HolonAST's internal structure.
     let bundle_ast = HolonAST::bundle(children);
-    let ctx = require_encoding_ctx(":wat::holon::Bundle", sym)?;
+    let ctx = require_encoding_ctx(":wat::holon::Bundle", sym, list_span)?;
     let mode = ctx.config.capacity_mode;
     let d = ctx.dim_count;
 
@@ -8735,6 +8647,7 @@ fn eval_algebra_bundle(
 
 fn eval_algebra_permute(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8743,8 +8656,7 @@ fn eval_algebra_permute(
             op: ":wat::holon::Permute".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let child = require_holon(":wat::holon::Permute", eval(&args[0], env, sym)?)?;
@@ -8753,16 +8665,14 @@ fn eval_algebra_permute(
             op: ":wat::holon::Permute".into(),
             expected: "i32 step (integer fitting in i32)",
             got: "i64 out of range",
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[1].span().clone(),
         })?,
         other => {
             return Err(RuntimeError::TypeMismatch {
                 op: ":wat::holon::Permute".into(),
                 expected: "i32 step",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
@@ -8790,6 +8700,7 @@ fn eval_algebra_permute(
 /// the dual-LRU coordinate cache (Chapter 59) keys neighborhoods on.
 fn eval_algebra_thermometer(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8798,18 +8709,18 @@ fn eval_algebra_thermometer(
             op: ":wat::holon::Thermometer".into(),
             expected: 3,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let v = require_numeric(":wat::holon::Thermometer", eval(&args[0], env, sym)?)?;
-    let mn = require_numeric(":wat::holon::Thermometer", eval(&args[1], env, sym)?)?;
-    let mx = require_numeric(":wat::holon::Thermometer", eval(&args[2], env, sym)?)?;
+    let v = require_numeric(":wat::holon::Thermometer", eval(&args[0], env, sym)?, list_span)?;
+    let mn = require_numeric(":wat::holon::Thermometer", eval(&args[1], env, sym)?, list_span)?;
+    let mx = require_numeric(":wat::holon::Thermometer", eval(&args[2], env, sym)?, list_span)?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::thermometer(v, mn, mx))))
 }
 
 fn eval_algebra_blend(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8818,14 +8729,13 @@ fn eval_algebra_blend(
             op: ":wat::holon::Blend".into(),
             expected: 4,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let a = require_holon(":wat::holon::Blend", eval(&args[0], env, sym)?)?;
     let b = require_holon(":wat::holon::Blend", eval(&args[1], env, sym)?)?;
-    let w1 = require_numeric(":wat::holon::Blend", eval(&args[2], env, sym)?)?;
-    let w2 = require_numeric(":wat::holon::Blend", eval(&args[3], env, sym)?)?;
+    let w1 = require_numeric(":wat::holon::Blend", eval(&args[2], env, sym)?, list_span)?;
+    let w2 = require_numeric(":wat::holon::Blend", eval(&args[3], env, sym)?, list_span)?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::blend((*a).clone(), (*b).clone(), w1, w2))))
 }
 
@@ -8836,7 +8746,7 @@ fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, RuntimeError> {
             op: op.into(),
             expected: "Holon",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
+            // arc 138: no span — takes Value, not WatAST; no source coords available
             span: Span::unknown(),
         }),
     }
@@ -8860,8 +8770,9 @@ fn pair_values_to_vectors(
     a: Value,
     b: Value,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<(holon::Vector, holon::Vector), RuntimeError> {
-    let ctx = require_encoding_ctx(op, sym)?;
+    let ctx = require_encoding_ctx(op, sym, list_span)?;
     match (a, b) {
         (Value::Vector(va), Value::Vector(vb)) => {
             if va.dimensions() != vb.dimensions() {
@@ -8869,7 +8780,7 @@ fn pair_values_to_vectors(
                     op: op.into(),
                     expected: "Vector pair with matching dimensions",
                     got: "mismatched-dim Vector pair",
-                    // arc 138 slice 3a-finish: span TBD
+                    // arc 138: no span — takes Value pair, no AST in scope
                     span: Span::unknown(),
                 });
             }
@@ -8888,7 +8799,7 @@ fn pair_values_to_vectors(
             Ok((va, vb.as_ref().clone()))
         }
         (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => {
-            let d = program_dim(op, sym)?;
+            let d = program_dim(op, sym, list_span)?;
             let enc = ctx.encoders.get(d);
             let va = encode(&a, &enc.vm, &enc.scalar);
             let vb = encode(&b, &enc.vm, &enc.scalar);
@@ -8898,7 +8809,7 @@ fn pair_values_to_vectors(
             op: op.into(),
             expected: "wat::holon::HolonAST or wat::holon::Vector",
             got: a.type_name(),
-            // arc 138 slice 3a-finish: span TBD
+            // arc 138: no span — takes Value pair, no AST in scope
             span: Span::unknown(),
         }),
     }
@@ -8916,6 +8827,7 @@ fn pair_values_to_vectors(
 /// against the committed noise floor.
 fn eval_algebra_cosine(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8924,13 +8836,12 @@ fn eval_algebra_cosine(
             op: ":wat::holon::cosine".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let a = eval(&args[0], env, sym)?;
     let b = eval(&args[1], env, sym)?;
-    let (vt, vr) = pair_values_to_vectors(":wat::holon::cosine", a, b, sym)?;
+    let (vt, vr) = pair_values_to_vectors(":wat::holon::cosine", a, b, sym, list_span)?;
     Ok(Value::f64(Similarity::cosine(&vt, &vr)))
 }
 
@@ -8949,6 +8860,7 @@ fn eval_algebra_cosine(
 /// `:wat::holon::cosine`.
 fn eval_algebra_presence_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -8957,13 +8869,12 @@ fn eval_algebra_presence_q(
             op: ":wat::holon::presence?".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let target = require_holon(":wat::holon::presence?", eval(&args[0], env, sym)?)?;
     let reference = require_holon(":wat::holon::presence?", eval(&args[1], env, sym)?)?;
-    let ctx = require_encoding_ctx(":wat::holon::presence?", sym)?;
+    let ctx = require_encoding_ctx(":wat::holon::presence?", sym, list_span)?;
 
     // Arc 037 slice 3: normalize UP via ambient router. Presence
     // sigma is computed at the ACTUAL encoding d via arc 024's
@@ -8971,7 +8882,7 @@ fn eval_algebra_presence_q(
     // slack-lemma). Using config.presence_sigma directly would
     // over-threshold at smaller d (sigma was calibrated at
     // config.dims).
-    let d = program_dim(":wat::holon::presence?", sym)?;
+    let d = program_dim(":wat::holon::presence?", sym, list_span)?;
     let enc = ctx.encoders.get(d);
     let vt = encode(&target, &enc.vm, &enc.scalar);
     let vr = encode(&reference, &enc.vm, &enc.scalar);
@@ -9004,18 +8915,17 @@ fn eval_algebra_presence_q(
 /// raw scalar reach for `:wat::holon::cosine`.
 fn eval_algebra_coincident_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::coincident?";
     if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let a = eval(&args[0], env, sym)?;
@@ -9026,8 +8936,8 @@ fn eval_algebra_coincident_q(
     // promote the AST side at the Vector side's d. Coincident
     // sigma stays at 1 (the 1σ native-granularity floor — Ch 28),
     // applied at the actual encoding d.
-    let (va, vb) = pair_values_to_vectors(OP, a, b, sym)?;
-    let ctx = require_encoding_ctx(OP, sym)?;
+    let (va, vb) = pair_values_to_vectors(OP, a, b, sym, list_span)?;
+    let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let enc = ctx.encoders.get(va.dimensions());
     let cosine = Similarity::cosine(&va, &vb);
     Ok(Value::bool((1.0 - cosine) < enc.coincident_floor(sym)))
@@ -9052,24 +8962,23 @@ fn eval_algebra_coincident_q(
 /// situation directly. Q3 of arc 069 DESIGN.
 fn eval_algebra_coincident_explain(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::coincident-explain";
     if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let a = eval(&args[0], env, sym)?;
     let b = eval(&args[1], env, sym)?;
-    let (va, vb) = pair_values_to_vectors(OP, a, b, sym)?;
-    let ctx = require_encoding_ctx(OP, sym)?;
+    let (va, vb) = pair_values_to_vectors(OP, a, b, sym, list_span)?;
+    let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let dim = va.dimensions();
     let enc = ctx.encoders.get(dim);
     let cosine = Similarity::cosine(&va, &vb);
@@ -9119,6 +9028,7 @@ fn eval_algebra_coincident_explain(
 /// `eval-edn!` / `eval-digest!` / `eval-signed!`.
 fn eval_form_ast_coincident_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9131,15 +9041,14 @@ fn eval_form_ast_coincident_q(
                 "(:wat::holon::eval-coincident? <ast-a> <ast-b>) takes exactly 2 arguments; got {}",
                 args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
         let op = ":wat::holon::eval-coincident?";
         let value_a = run_ast_arg_for_eval_coincident(&args[0], env, sym, op)?;
         let value_b = run_ast_arg_for_eval_coincident(&args[1], env, sym, op)?;
-        coincident_of_two_values(value_a, value_b, sym, op)
+        coincident_of_two_values(value_a, value_b, sym, op, list_span)
     })())
 }
 
@@ -9162,8 +9071,7 @@ fn run_ast_arg_for_eval_coincident(
                 op: op.into(),
                 expected: "Ast",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: arg.span().clone(),
             });
         }
     };
@@ -9181,15 +9089,18 @@ fn coincident_of_two_values(
     value_b: Value,
     sym: &SymbolTable,
     op: &'static str,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    let atom_a = value_to_atom(value_a)?;
-    let atom_b = value_to_atom(value_b)?;
+    // arc 138: no span — values produced by evaluation; no AST args in scope
+    let unknown = Span::unknown();
+    let atom_a = value_to_atom(value_a, &unknown)?;
+    let atom_b = value_to_atom(value_b, &unknown)?;
     let holon_a = require_holon(op, atom_a)?;
     let holon_b = require_holon(op, atom_b)?;
-    let ctx = require_encoding_ctx(op, sym)?;
+    let ctx = require_encoding_ctx(op, sym, list_span)?;
     // Arc 037 slice 3: normalize UP via ambient router. Coincident
     // floor at actual encoding d.
-    let d = program_dim(op, sym)?;
+    let d = program_dim(op, sym, list_span)?;
     let enc = ctx.encoders.get(d);
     let va = encode(&holon_a, &enc.vm, &enc.scalar);
     let vb = encode(&holon_b, &enc.vm, &enc.scalar);
@@ -9203,6 +9114,7 @@ fn coincident_of_two_values(
 /// arity is 1; total is 2.
 fn eval_form_edn_coincident_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9213,17 +9125,16 @@ fn eval_form_edn_coincident_q(
                 "(:wat::holon::eval-edn-coincident? <source-a> <source-b>) takes exactly 2 arguments; got {}",
                 args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
         let op = ":wat::holon::eval-edn-coincident?";
-        let src_a = expect_string_value(op, &args[0], env, sym, "source-a")?;
-        let src_b = expect_string_value(op, &args[1], env, sym, "source-b")?;
+        let src_a = expect_string_value(op, &args[0], env, sym)?;
+        let src_b = expect_string_value(op, &args[1], env, sym)?;
         let value_a = parse_and_run(&src_a, env, sym)?;
         let value_b = parse_and_run(&src_b, env, sym)?;
-        coincident_of_two_values(value_a, value_b, sym, op)
+        coincident_of_two_values(value_a, value_b, sym, op, list_span)
     })())
 }
 
@@ -9233,10 +9144,11 @@ fn eval_form_edn_coincident_q(
 /// SHA-256 verification variant. Per-side arity 4; total 8.
 fn eval_form_digest_coincident_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    eval_form_digest_coincident_shared(args, env, sym, false)
+    eval_form_digest_coincident_shared(args, list_span, env, sym, false)
 }
 
 /// `(:wat::holon::eval-digest-string-coincident?
@@ -9245,14 +9157,16 @@ fn eval_form_digest_coincident_q(
 /// SHA-256 verification variant. Inline sources on both sides.
 fn eval_form_digest_string_coincident_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    eval_form_digest_coincident_shared(args, env, sym, true)
+    eval_form_digest_coincident_shared(args, list_span, env, sym, true)
 }
 
 fn eval_form_digest_coincident_shared(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
     is_string: bool,
@@ -9269,14 +9183,13 @@ fn eval_form_digest_coincident_shared(
                 "({} <4-arg side A> <4-arg side B>) takes exactly 8 arguments; got {}",
                 op, args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
         // Side A — 4-arg block [0..4).
         let src_a = if is_string {
-            expect_string_value(op, &args[0], env, sym, "source-a")?
+            expect_string_value(op, &args[0], env, sym)?
         } else {
             read_source_via_loader(op, &args[0], env, sym)?
         };
@@ -9288,7 +9201,7 @@ fn eval_form_digest_coincident_shared(
 
         // Side B — 4-arg block [4..8).
         let src_b = if is_string {
-            expect_string_value(op, &args[4], env, sym, "source-b")?
+            expect_string_value(op, &args[4], env, sym)?
         } else {
             read_source_via_loader(op, &args[4], env, sym)?
         };
@@ -9298,7 +9211,7 @@ fn eval_form_digest_coincident_shared(
             .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
         let value_b = parse_and_run(&src_b, env, sym)?;
 
-        coincident_of_two_values(value_a, value_b, sym, op)
+        coincident_of_two_values(value_a, value_b, sym, op, list_span)
     })())
 }
 
@@ -9317,24 +9230,27 @@ fn eval_form_digest_coincident_shared(
 /// — file-based Ed25519 verification. Per-side arity 6; total 12.
 fn eval_form_signed_coincident_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    eval_form_signed_coincident_shared(args, env, sym, false)
+    eval_form_signed_coincident_shared(args, list_span, env, sym, false)
 }
 
 /// Inline-source sibling of `eval-signed-coincident?`. Both sides'
 /// sources are string literals.
 fn eval_form_signed_string_coincident_q(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    eval_form_signed_coincident_shared(args, env, sym, true)
+    eval_form_signed_coincident_shared(args, list_span, env, sym, true)
 }
 
 fn eval_form_signed_coincident_shared(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
     is_string: bool,
@@ -9351,14 +9267,13 @@ fn eval_form_signed_coincident_shared(
                 "({} <6-arg side A> <6-arg side B>) takes exactly 12 arguments; got {}",
                 op, args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
         // Side A — 6-arg block [0..6).
         let src_a = if is_string {
-            expect_string_value(op, &args[0], env, sym, "source-a")?
+            expect_string_value(op, &args[0], env, sym)?
         } else {
             read_source_via_loader(op, &args[0], env, sym)?
         };
@@ -9372,7 +9287,7 @@ fn eval_form_signed_coincident_shared(
 
         // Side B — 6-arg block [6..12).
         let src_b = if is_string {
-            expect_string_value(op, &args[6], env, sym, "source-b")?
+            expect_string_value(op, &args[6], env, sym)?
         } else {
             read_source_via_loader(op, &args[6], env, sym)?
         };
@@ -9384,7 +9299,7 @@ fn eval_form_signed_coincident_shared(
             .map_err(|err| RuntimeError::EvalVerificationFailed { err })?;
         let value_b = run_program(&ast_b, env, sym)?;
 
-        coincident_of_two_values(value_a, value_b, sym, op)
+        coincident_of_two_values(value_a, value_b, sym, op, list_span)
     })())
 }
 
@@ -9401,6 +9316,7 @@ fn eval_form_signed_coincident_shared(
 /// Bundle → `children.len()`.
 fn eval_holon_statement_length(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9409,8 +9325,7 @@ fn eval_holon_statement_length(
             op: ":wat::holon::statement-length".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let ast = require_holon(":wat::holon::statement-length", eval(&args[0], env, sym)?)?;
@@ -9432,6 +9347,7 @@ fn eval_holon_statement_length(
 
 fn eval_algebra_dot(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9440,15 +9356,14 @@ fn eval_algebra_dot(
             op: ":wat::holon::dot".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     // Arc 052 — polymorphic input: HolonAST or Vector in either
     // position. Same dim-resolution rule as cosine.
     let a = eval(&args[0], env, sym)?;
     let b = eval(&args[1], env, sym)?;
-    let (vx, vy) = pair_values_to_vectors(":wat::holon::dot", a, b, sym)?;
+    let (vx, vy) = pair_values_to_vectors(":wat::holon::dot", a, b, sym, list_span)?;
     Ok(Value::f64(Similarity::dot(&vx, &vy)))
 }
 
@@ -9481,6 +9396,7 @@ fn eval_algebra_dot(
 /// bucket if multiple matches.
 fn eval_algebra_simhash(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9489,12 +9405,11 @@ fn eval_algebra_simhash(
             op: ":wat::holon::simhash".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let target = eval(&args[0], env, sym)?;
-    let ctx = require_encoding_ctx(":wat::holon::simhash", sym)?;
+    let ctx = require_encoding_ctx(":wat::holon::simhash", sym, list_span)?;
     // Arc 052 — polymorphic input: HolonAST encodes at router-picked d;
     // Vector uses its native dim directly.
     let (v, enc) = match target {
@@ -9512,8 +9427,7 @@ fn eval_algebra_simhash(
                 op: ":wat::holon::simhash".into(),
                 expected: "wat::holon::HolonAST or wat::holon::Vector",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             })
         }
     };
@@ -9547,6 +9461,7 @@ fn eval_algebra_simhash(
 /// at different d produces different Vectors; that's by design.
 fn eval_holon_encode(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -9555,12 +9470,11 @@ fn eval_holon_encode(
             op: ":wat::holon::encode".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let target = require_holon(":wat::holon::encode", eval(&args[0], env, sym)?)?;
-    let ctx = require_encoding_ctx(":wat::holon::encode", sym)?;
+    let ctx = require_encoding_ctx(":wat::holon::encode", sym, list_span)?;
     let enc = ctx.encoders.get(ctx.dim_count);
     let v = encode(&target, &enc.vm, &enc.scalar);
     Ok(Value::Vector(Arc::new(v)))
@@ -9597,18 +9511,17 @@ fn eval_holon_encode(
 /// same Vector → same bytes.
 fn eval_holon_vector_bytes(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::vector-bytes";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let v = require_vector(OP, eval(&args[0], env, sym)?)?;
@@ -9617,7 +9530,7 @@ fn eval_holon_vector_bytes(
         op: OP.into(),
         expected: "Vector with dim representable as u32",
         got: "oversized Vector dim",
-        // arc 138 slice 3a-finish: span TBD
+        // arc 138: no span — dim comes from Vector value, not AST
         span: Span::unknown(),
     })?;
     // 4-byte dim header + ceil(dim/4) data bytes.
@@ -9643,7 +9556,7 @@ fn eval_holon_vector_bytes(
                             other
                         )
                         .leak(),
-                        // arc 138 slice 3a-finish: span TBD
+                        // arc 138: no span — cell value from Vector data, not AST
                         span: Span::unknown(),
                     });
                 }
@@ -9671,18 +9584,17 @@ fn eval_holon_vector_bytes(
 /// binary outcome from the caller's perspective.
 fn eval_holon_bytes_vector(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::holon::bytes-vector";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     // Pull the byte vector contents out as Vec<u8>.
@@ -9693,8 +9605,7 @@ fn eval_holon_bytes_vector(
                 op: OP.into(),
                 expected: "Vec<u8>",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -9707,7 +9618,7 @@ fn eval_holon_bytes_vector(
                     op: OP.into(),
                     expected: "Vec<u8>",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
+                    // arc 138: no span — element from Vec value, not AST
                     span: Span::unknown(),
                 });
             }
@@ -9727,7 +9638,7 @@ fn eval_holon_bytes_vector(
     // (arc 037's router materializes per-d encoders). If a vector
     // arrives at a d the ambient world doesn't know about, treat as
     // structural failure — return :None.
-    let ctx = require_encoding_ctx(OP, sym)?;
+    let ctx = require_encoding_ctx(OP, sym, list_span)?;
     if ctx.encoders.get(dim).vm.dimensions() != dim {
         return Ok(Value::Option(Arc::new(None)));
     }
@@ -9771,18 +9682,17 @@ fn eval_holon_bytes_vector(
 /// always produce the same String.
 fn eval_bytes_to_hex(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Bytes::to-hex";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let xs = match eval(&args[0], env, sym)? {
@@ -9792,8 +9702,7 @@ fn eval_bytes_to_hex(
                 op: OP.into(),
                 expected: "wat::core::Bytes (Vec<u8>)",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -9806,7 +9715,7 @@ fn eval_bytes_to_hex(
                     op: OP.into(),
                     expected: "wat::core::Bytes (Vec<u8>)",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
+                    // arc 138: no span — element from Vec value, not AST
                     span: Span::unknown(),
                 });
             }
@@ -9839,18 +9748,17 @@ const NIBBLE: [char; 16] = [
 /// `from-iso8601` and arc 061's `bytes-vector`.
 fn eval_bytes_from_hex(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::Bytes::from-hex";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let s = match eval(&args[0], env, sym)? {
@@ -9860,8 +9768,7 @@ fn eval_bytes_from_hex(
                 op: OP.into(),
                 expected: "String",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -10118,7 +10025,7 @@ fn require_vector(op: &str, v: Value) -> Result<Arc<holon::Vector>, RuntimeError
             op: op.into(),
             expected: "wat::holon::Vector",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
+            // arc 138: no span — takes Value, not WatAST; no source coords available
             span: Span::unknown(),
         }),
     }
@@ -10132,6 +10039,7 @@ fn require_vector(op: &str, v: Value) -> Result<Arc<holon::Vector>, RuntimeError
 /// to compose them without round-tripping through HolonAST.
 fn eval_holon_vector_bind(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10140,8 +10048,7 @@ fn eval_holon_vector_bind(
             op: ":wat::holon::vector-bind".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let va = require_vector(":wat::holon::vector-bind", eval(&args[0], env, sym)?)?;
@@ -10151,7 +10058,7 @@ fn eval_holon_vector_bind(
             op: ":wat::holon::vector-bind".into(),
             expected: "Vector pair with matching dimensions",
             got: "mismatched-dim Vector pair",
-            // arc 138 slice 3a-finish: span TBD
+            // arc 138: no span — dimensions from Vector values, not AST
             span: Span::unknown(),
         });
     }
@@ -10167,6 +10074,7 @@ fn eval_holon_vector_bind(
 /// if a "neutral" vector is needed).
 fn eval_holon_vector_bundle(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10175,8 +10083,7 @@ fn eval_holon_vector_bundle(
             op: ":wat::holon::vector-bundle".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let vec_value = eval(&args[0], env, sym)?;
@@ -10187,8 +10094,7 @@ fn eval_holon_vector_bundle(
                 op: ":wat::holon::vector-bundle".into(),
                 expected: "Vec of wat::holon::Vector",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             })
         }
     };
@@ -10197,8 +10103,7 @@ fn eval_holon_vector_bundle(
             op: ":wat::holon::vector-bundle".into(),
             expected: "non-empty Vec of Vector",
             got: "empty Vec",
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         });
     }
     let mut owned: Vec<Arc<holon::Vector>> = Vec::with_capacity(elements.len());
@@ -10216,7 +10121,7 @@ fn eval_holon_vector_bundle(
                 op: ":wat::holon::vector-bundle".into(),
                 expected: "Vec of Vectors with matching dimensions",
                 got: "mismatched-dim Vector in Vec",
-                // arc 138 slice 3a-finish: span TBD
+                // arc 138: no span — dimensions from Vector values, not AST
                 span: Span::unknown(),
             });
         }
@@ -10233,6 +10138,7 @@ fn eval_holon_vector_bundle(
 /// Project / weighted prototype updates.
 fn eval_holon_vector_blend(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10241,20 +10147,19 @@ fn eval_holon_vector_blend(
             op: ":wat::holon::vector-blend".into(),
             expected: 4,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let va = require_vector(":wat::holon::vector-blend", eval(&args[0], env, sym)?)?;
     let vb = require_vector(":wat::holon::vector-blend", eval(&args[1], env, sym)?)?;
-    let w1 = require_numeric(":wat::holon::vector-blend", eval(&args[2], env, sym)?)?;
-    let w2 = require_numeric(":wat::holon::vector-blend", eval(&args[3], env, sym)?)?;
+    let w1 = require_numeric(":wat::holon::vector-blend", eval(&args[2], env, sym)?, list_span)?;
+    let w2 = require_numeric(":wat::holon::vector-blend", eval(&args[3], env, sym)?, list_span)?;
     if va.dimensions() != vb.dimensions() {
         return Err(RuntimeError::TypeMismatch {
             op: ":wat::holon::vector-blend".into(),
             expected: "Vector pair with matching dimensions",
             got: "mismatched-dim Vector pair",
-            // arc 138 slice 3a-finish: span TBD
+            // arc 138: no span — dimensions from Vector values, not AST
             span: Span::unknown(),
         });
     }
@@ -10270,6 +10175,7 @@ fn eval_holon_vector_blend(
 /// to a Vector.
 fn eval_holon_vector_permute(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10278,8 +10184,7 @@ fn eval_holon_vector_permute(
             op: ":wat::holon::vector-permute".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let v = require_vector(":wat::holon::vector-permute", eval(&args[0], env, sym)?)?;
@@ -10291,8 +10196,7 @@ fn eval_holon_vector_permute(
                 op: ":wat::holon::vector-permute".into(),
                 expected: "i64 shift amount",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             })
         }
     };
@@ -10304,6 +10208,7 @@ fn eval_holon_vector_permute(
 fn require_subspace(
     op: &str,
     v: Value,
+    list_span: &Span,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::OnlineSubspace>>, RuntimeError> {
     match v {
         Value::OnlineSubspace(s) => Ok(s),
@@ -10311,8 +10216,7 @@ fn require_subspace(
             op: op.into(),
             expected: "wat::holon::OnlineSubspace",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         }),
     }
 }
@@ -10325,6 +10229,7 @@ fn vec_f64_to_value(xs: Vec<f64>) -> Value {
 /// `(:wat::holon::OnlineSubspace/new dim k) -> :OnlineSubspace` — arc 053.
 fn eval_subspace_new(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10333,8 +10238,7 @@ fn eval_subspace_new(
             op: ":wat::holon::OnlineSubspace/new".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let dim = require_i64(":wat::holon::OnlineSubspace/new", eval(&args[0], env, sym)?)?;
@@ -10347,6 +10251,7 @@ fn eval_subspace_new(
 
 fn eval_subspace_dim(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10355,17 +10260,17 @@ fn eval_subspace_dim(
             op: ":wat::holon::OnlineSubspace/dim".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let s = require_subspace(":wat::holon::OnlineSubspace/dim", eval(&args[0], env, sym)?)?;
+    let s = require_subspace(":wat::holon::OnlineSubspace/dim", eval(&args[0], env, sym)?, list_span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/dim", |s| s.dim())?;
     Ok(Value::i64(n as i64))
 }
 
 fn eval_subspace_k(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10374,17 +10279,17 @@ fn eval_subspace_k(
             op: ":wat::holon::OnlineSubspace/k".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let s = require_subspace(":wat::holon::OnlineSubspace/k", eval(&args[0], env, sym)?)?;
+    let s = require_subspace(":wat::holon::OnlineSubspace/k", eval(&args[0], env, sym)?, list_span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/k", |s| s.k())?;
     Ok(Value::i64(n as i64))
 }
 
 fn eval_subspace_n(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10393,17 +10298,17 @@ fn eval_subspace_n(
             op: ":wat::holon::OnlineSubspace/n".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let s = require_subspace(":wat::holon::OnlineSubspace/n", eval(&args[0], env, sym)?)?;
+    let s = require_subspace(":wat::holon::OnlineSubspace/n", eval(&args[0], env, sym)?, list_span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/n", |s| s.n())?;
     Ok(Value::i64(n as i64))
 }
 
 fn eval_subspace_threshold(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10412,13 +10317,13 @@ fn eval_subspace_threshold(
             op: ":wat::holon::OnlineSubspace/threshold".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/threshold",
         eval(&args[0], env, sym)?,
+        list_span,
     )?;
     let t = s.with_ref(":wat::holon::OnlineSubspace/threshold", |s| s.threshold())?;
     Ok(Value::f64(t))
@@ -10426,6 +10331,7 @@ fn eval_subspace_threshold(
 
 fn eval_subspace_eigenvalues(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10434,13 +10340,13 @@ fn eval_subspace_eigenvalues(
             op: ":wat::holon::OnlineSubspace/eigenvalues".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/eigenvalues",
         eval(&args[0], env, sym)?,
+        list_span,
     )?;
     let xs = s.with_ref(":wat::holon::OnlineSubspace/eigenvalues", |s| s.eigenvalues())?;
     Ok(vec_f64_to_value(xs))
@@ -10448,6 +10354,7 @@ fn eval_subspace_eigenvalues(
 
 fn eval_subspace_update(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10456,13 +10363,13 @@ fn eval_subspace_update(
             op: ":wat::holon::OnlineSubspace/update".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/update",
         eval(&args[0], env, sym)?,
+        list_span,
     )?;
     let v = require_vector(":wat::holon::OnlineSubspace/update", eval(&args[1], env, sym)?)?;
     let xs = v.to_f64();
@@ -10472,6 +10379,7 @@ fn eval_subspace_update(
 
 fn eval_subspace_residual(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10480,13 +10388,13 @@ fn eval_subspace_residual(
             op: ":wat::holon::OnlineSubspace/residual".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/residual",
         eval(&args[0], env, sym)?,
+        list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/residual",
@@ -10499,6 +10407,7 @@ fn eval_subspace_residual(
 
 fn eval_subspace_project(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10507,13 +10416,13 @@ fn eval_subspace_project(
             op: ":wat::holon::OnlineSubspace/project".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/project",
         eval(&args[0], env, sym)?,
+        list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/project",
@@ -10526,6 +10435,7 @@ fn eval_subspace_project(
 
 fn eval_subspace_reconstruct(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10534,13 +10444,13 @@ fn eval_subspace_reconstruct(
             op: ":wat::holon::OnlineSubspace/reconstruct".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/reconstruct",
         eval(&args[0], env, sym)?,
+        list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/reconstruct",
@@ -10557,6 +10467,7 @@ fn eval_subspace_reconstruct(
 fn require_reckoner(
     op: &str,
     v: Value,
+    list_span: &Span,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::Reckoner>>, RuntimeError> {
     match v {
         Value::Reckoner(r) => Ok(r),
@@ -10564,8 +10475,7 @@ fn require_reckoner(
             op: op.into(),
             expected: "wat::holon::Reckoner",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         }),
     }
 }
@@ -10573,6 +10483,7 @@ fn require_reckoner(
 /// `(:wat::holon::Reckoner/new-discrete name dims recalib-interval labels) -> :Reckoner`
 fn eval_reckoner_new_discrete(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10581,8 +10492,7 @@ fn eval_reckoner_new_discrete(
             op: ":wat::holon::Reckoner/new-discrete".into(),
             expected: 4,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let name_val = eval(&args[0], env, sym)?;
@@ -10593,8 +10503,7 @@ fn eval_reckoner_new_discrete(
                 op: ":wat::holon::Reckoner/new-discrete".into(),
                 expected: "String",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             })
         }
     };
@@ -10619,8 +10528,7 @@ fn eval_reckoner_new_discrete(
                 op: ":wat::holon::Reckoner/new-discrete".into(),
                 expected: "Vec of HolonAST",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[3].span().clone(),
             })
         }
     };
@@ -10638,6 +10546,7 @@ fn eval_reckoner_new_discrete(
 /// `(:wat::holon::Reckoner/new-continuous name dims recalib default-value buckets) -> :Reckoner`
 fn eval_reckoner_new_continuous(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10646,8 +10555,7 @@ fn eval_reckoner_new_continuous(
             op: ":wat::holon::Reckoner/new-continuous".into(),
             expected: 5,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let name_val = eval(&args[0], env, sym)?;
@@ -10658,8 +10566,7 @@ fn eval_reckoner_new_continuous(
                 op: ":wat::holon::Reckoner/new-continuous".into(),
                 expected: "String",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             })
         }
     };
@@ -10669,6 +10576,7 @@ fn eval_reckoner_new_continuous(
     let default_value = require_numeric(
         ":wat::holon::Reckoner/new-continuous",
         eval(&args[3], env, sym)?,
+        list_span,
     )?;
     let buckets =
         require_i64(":wat::holon::Reckoner/new-continuous", eval(&args[4], env, sym)?)?;
@@ -10689,6 +10597,7 @@ fn eval_reckoner_new_continuous(
 /// `(:wat::holon::Reckoner/observe r vec label weight) -> :()`
 fn eval_reckoner_observe(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10697,16 +10606,16 @@ fn eval_reckoner_observe(
             op: ":wat::holon::Reckoner/observe".into(),
             expected: 4,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/observe", eval(&args[0], env, sym)?)?;
+    let r = require_reckoner(":wat::holon::Reckoner/observe", eval(&args[0], env, sym)?, list_span)?;
     let v = require_vector(":wat::holon::Reckoner/observe", eval(&args[1], env, sym)?)?;
     let label_idx = require_i64(":wat::holon::Reckoner/observe", eval(&args[2], env, sym)?)?;
     let weight = require_numeric(
         ":wat::holon::Reckoner/observe",
         eval(&args[3], env, sym)?,
+        list_span,
     )?;
     r.with_mut(":wat::holon::Reckoner/observe", |r| {
         r.observe(&v, holon::Label::from_index(label_idx as usize), weight)
@@ -10722,6 +10631,7 @@ fn eval_reckoner_observe(
 /// winner).
 fn eval_reckoner_predict(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10730,11 +10640,10 @@ fn eval_reckoner_predict(
             op: ":wat::holon::Reckoner/predict".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/predict", eval(&args[0], env, sym)?)?;
+    let r = require_reckoner(":wat::holon::Reckoner/predict", eval(&args[0], env, sym)?, list_span)?;
     let v = require_vector(":wat::holon::Reckoner/predict", eval(&args[1], env, sym)?)?;
     let pred = r.with_ref(":wat::holon::Reckoner/predict", |r| r.predict(&v))?;
     // Pack scores as Vec<(i64, f64)> tuples.
@@ -10768,6 +10677,7 @@ fn eval_reckoner_predict(
 /// `(:wat::holon::Reckoner/resolve r conviction correct) -> :()`
 fn eval_reckoner_resolve(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10776,14 +10686,14 @@ fn eval_reckoner_resolve(
             op: ":wat::holon::Reckoner/resolve".into(),
             expected: 3,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/resolve", eval(&args[0], env, sym)?)?;
+    let r = require_reckoner(":wat::holon::Reckoner/resolve", eval(&args[0], env, sym)?, list_span)?;
     let conviction = require_numeric(
         ":wat::holon::Reckoner/resolve",
         eval(&args[1], env, sym)?,
+        list_span,
     )?;
     let correct_val = eval(&args[2], env, sym)?;
     let correct = match correct_val {
@@ -10793,8 +10703,7 @@ fn eval_reckoner_resolve(
                 op: ":wat::holon::Reckoner/resolve".into(),
                 expected: "bool",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[2].span().clone(),
             })
         }
     };
@@ -10807,6 +10716,7 @@ fn eval_reckoner_resolve(
 /// `(:wat::holon::Reckoner/curve r) -> :Option<(f64,f64)>`
 fn eval_reckoner_curve(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10815,11 +10725,10 @@ fn eval_reckoner_curve(
             op: ":wat::holon::Reckoner/curve".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/curve", eval(&args[0], env, sym)?)?;
+    let r = require_reckoner(":wat::holon::Reckoner/curve", eval(&args[0], env, sym)?, list_span)?;
     let curve = r.with_mut(":wat::holon::Reckoner/curve", |r| r.curve())?;
     Ok(match curve {
         Some((a, b)) => Value::Option(Arc::new(Some(Value::Tuple(Arc::new(vec![
@@ -10833,6 +10742,7 @@ fn eval_reckoner_curve(
 /// `(:wat::holon::Reckoner/labels r) -> :Vec<i64>`
 fn eval_reckoner_labels(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10841,11 +10751,10 @@ fn eval_reckoner_labels(
             op: ":wat::holon::Reckoner/labels".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/labels", eval(&args[0], env, sym)?)?;
+    let r = require_reckoner(":wat::holon::Reckoner/labels", eval(&args[0], env, sym)?, list_span)?;
     let labels = r.with_ref(":wat::holon::Reckoner/labels", |r| r.labels())?;
     let xs: Vec<Value> = labels
         .into_iter()
@@ -10856,6 +10765,7 @@ fn eval_reckoner_labels(
 
 fn eval_reckoner_dims(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10864,11 +10774,10 @@ fn eval_reckoner_dims(
             op: ":wat::holon::Reckoner/dims".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let r = require_reckoner(":wat::holon::Reckoner/dims", eval(&args[0], env, sym)?)?;
+    let r = require_reckoner(":wat::holon::Reckoner/dims", eval(&args[0], env, sym)?, list_span)?;
     let n = r.with_ref(":wat::holon::Reckoner/dims", |r| r.dims())?;
     Ok(Value::i64(n as i64))
 }
@@ -10877,6 +10786,7 @@ fn eval_reckoner_dims(
 fn require_engram(
     op: &str,
     v: Value,
+    list_span: &Span,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::Engram>>, RuntimeError> {
     match v {
         Value::Engram(e) => Ok(e),
@@ -10884,8 +10794,7 @@ fn require_engram(
             op: op.into(),
             expected: "wat::holon::Engram",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         }),
     }
 }
@@ -10894,6 +10803,7 @@ fn require_engram(
 fn require_engram_library(
     op: &str,
     v: Value,
+    list_span: &Span,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::EngramLibrary>>, RuntimeError> {
     match v {
         Value::EngramLibrary(l) => Ok(l),
@@ -10901,28 +10811,27 @@ fn require_engram_library(
             op: op.into(),
             expected: "wat::holon::EngramLibrary",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         }),
     }
 }
 
 /// Arc 053 — extract a String from a Value.
-fn require_string(op: &str, v: Value) -> Result<String, RuntimeError> {
+fn require_string(op: &str, v: Value, list_span: &Span) -> Result<String, RuntimeError> {
     match v {
         Value::String(s) => Ok((*s).clone()),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         }),
     }
 }
 
 fn eval_engram_name(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10931,17 +10840,17 @@ fn eval_engram_name(
             op: ":wat::holon::Engram/name".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let e = require_engram(":wat::holon::Engram/name", eval(&args[0], env, sym)?)?;
+    let e = require_engram(":wat::holon::Engram/name", eval(&args[0], env, sym)?, list_span)?;
     let s = e.with_ref(":wat::holon::Engram/name", |e| e.name().to_string())?;
     Ok(Value::String(Arc::new(s)))
 }
 
 fn eval_engram_eigenvalue_signature(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10950,13 +10859,13 @@ fn eval_engram_eigenvalue_signature(
             op: ":wat::holon::Engram/eigenvalue-signature".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let e = require_engram(
         ":wat::holon::Engram/eigenvalue-signature",
         eval(&args[0], env, sym)?,
+        list_span,
     )?;
     let xs =
         e.with_ref(":wat::holon::Engram/eigenvalue-signature", |e| {
@@ -10967,6 +10876,7 @@ fn eval_engram_eigenvalue_signature(
 
 fn eval_engram_n(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10975,17 +10885,17 @@ fn eval_engram_n(
             op: ":wat::holon::Engram/n".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let e = require_engram(":wat::holon::Engram/n", eval(&args[0], env, sym)?)?;
+    let e = require_engram(":wat::holon::Engram/n", eval(&args[0], env, sym)?, list_span)?;
     let n = e.with_ref(":wat::holon::Engram/n", |e| e.n())?;
     Ok(Value::i64(n as i64))
 }
 
 fn eval_engram_residual(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -10994,11 +10904,10 @@ fn eval_engram_residual(
             op: ":wat::holon::Engram/residual".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let e = require_engram(":wat::holon::Engram/residual", eval(&args[0], env, sym)?)?;
+    let e = require_engram(":wat::holon::Engram/residual", eval(&args[0], env, sym)?, list_span)?;
     let v = require_vector(":wat::holon::Engram/residual", eval(&args[1], env, sym)?)?;
     let xs = v.to_f64();
     let r = e.with_mut(":wat::holon::Engram/residual", |e| e.residual(&xs))?;
@@ -11008,6 +10917,7 @@ fn eval_engram_residual(
 /// `(:wat::holon::EngramLibrary/new dim) -> :EngramLibrary`
 fn eval_library_new(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -11016,8 +10926,7 @@ fn eval_library_new(
             op: ":wat::holon::EngramLibrary/new".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let dim = require_i64(":wat::holon::EngramLibrary/new", eval(&args[0], env, sym)?)?;
@@ -11034,6 +10943,7 @@ fn eval_library_new(
 /// `/add-with-meta` variant if metadata becomes a real concern.
 fn eval_library_add(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -11042,15 +10952,15 @@ fn eval_library_add(
             op: ":wat::holon::EngramLibrary/add".into(),
             expected: 3,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    let lib = require_engram_library(":wat::holon::EngramLibrary/add", eval(&args[0], env, sym)?)?;
-    let name = require_string(":wat::holon::EngramLibrary/add", eval(&args[1], env, sym)?)?;
+    let lib = require_engram_library(":wat::holon::EngramLibrary/add", eval(&args[0], env, sym)?, list_span)?;
+    let name = require_string(":wat::holon::EngramLibrary/add", eval(&args[1], env, sym)?, list_span)?;
     let subspace = require_subspace(
         ":wat::holon::EngramLibrary/add",
         eval(&args[2], env, sym)?,
+        list_span,
     )?;
     // EngramLibrary::add takes &OnlineSubspace by reference; we have
     // ThreadOwnedCell. Borrow immutably to get the reference.
@@ -11065,6 +10975,7 @@ fn eval_library_add(
 /// `(:wat::holon::EngramLibrary/match-vec lib probe top-k prefilter-k) -> :Vec<(String,f64)>`
 fn eval_library_match_vec(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -11073,13 +10984,13 @@ fn eval_library_match_vec(
             op: ":wat::holon::EngramLibrary/match-vec".into(),
             expected: 4,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/match-vec",
         eval(&args[0], env, sym)?,
+        list_span,
     )?;
     let probe = require_vector(
         ":wat::holon::EngramLibrary/match-vec",
@@ -11111,6 +11022,7 @@ fn eval_library_match_vec(
 
 fn eval_library_len(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -11119,13 +11031,13 @@ fn eval_library_len(
             op: ":wat::holon::EngramLibrary/len".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/len",
         eval(&args[0], env, sym)?,
+        list_span,
     )?;
     let n = lib.with_ref(":wat::holon::EngramLibrary/len", |lib| lib.len())?;
     Ok(Value::i64(n as i64))
@@ -11133,6 +11045,7 @@ fn eval_library_len(
 
 fn eval_library_contains(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -11141,17 +11054,18 @@ fn eval_library_contains(
             op: ":wat::holon::EngramLibrary/contains".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/contains",
         eval(&args[0], env, sym)?,
+        list_span,
     )?;
     let name = require_string(
         ":wat::holon::EngramLibrary/contains",
         eval(&args[1], env, sym)?,
+        list_span,
     )?;
     let b = lib.with_ref(":wat::holon::EngramLibrary/contains", |lib| {
         lib.contains(&name)
@@ -11161,6 +11075,7 @@ fn eval_library_contains(
 
 fn eval_library_names(
     args: &[WatAST],
+    list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
@@ -11169,13 +11084,13 @@ fn eval_library_names(
             op: ":wat::holon::EngramLibrary/names".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/names",
         eval(&args[0], env, sym)?,
+        list_span,
     )?;
     let names = lib.with_ref(":wat::holon::EngramLibrary/names", |lib| {
         lib.names().into_iter().map(|s| s.to_string()).collect::<Vec<String>>()
@@ -11187,7 +11102,7 @@ fn eval_library_names(
     Ok(Value::Vec(Arc::new(elems)))
 }
 
-fn require_numeric(op: &str, v: Value) -> Result<f64, RuntimeError> {
+fn require_numeric(op: &str, v: Value, list_span: &Span) -> Result<f64, RuntimeError> {
     match v {
         Value::i64(n) => Ok(n as f64),
         Value::f64(x) => Ok(x),
@@ -11195,8 +11110,7 @@ fn require_numeric(op: &str, v: Value) -> Result<f64, RuntimeError> {
             op: op.into(),
             expected: "numeric",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         }),
     }
 }
@@ -11212,9 +11126,9 @@ fn apply_value(
     let func = match callee {
         Value::wat__core__lambda(f) => f.clone(),
         other => {
+            // arc 138: no span — apply_value receives a Value not a WatAST; callee span not in scope
             return Err(RuntimeError::NotCallable {
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
                 span: Span::unknown(),
             })
         }
@@ -11279,8 +11193,7 @@ pub fn apply_function(
                 op: cur_func.name.clone().unwrap_or_else(|| "<lambda>".into()),
                 expected: cur_func.params.len(),
                 got: cur_args.len(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: cur_span.clone(),
             });
         }
         // Build the call env: parent is the closed env (lambda) or a
@@ -11439,14 +11352,13 @@ fn ast_variant_name(ast: &WatAST) -> &'static str {
 ///
 /// `?` suffix per the 2026-04-19 naming-convention stance —
 /// predicates end in `?`.
-fn eval_kernel_stopped(args: &[WatAST]) -> Result<Value, RuntimeError> {
+fn eval_kernel_stopped(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError> {
     if !args.is_empty() {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::kernel::stopped?".into(),
             expected: 0,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     Ok(Value::bool(KERNEL_STOPPED.load(Ordering::SeqCst)))
@@ -11459,14 +11371,14 @@ fn eval_user_signal_query(
     args: &[WatAST],
     op: &str,
     flag: &AtomicBool,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if !args.is_empty() {
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 0,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     Ok(Value::bool(flag.load(Ordering::SeqCst)))
@@ -11480,14 +11392,14 @@ fn eval_user_signal_reset(
     args: &[WatAST],
     op: &str,
     flag: &AtomicBool,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if !args.is_empty() {
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 0,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     flag.store(false, Ordering::SeqCst);
@@ -11506,32 +11418,31 @@ fn eval_user_signal_reset(
 fn require_encoding_ctx<'a>(
     op: &'static str,
     sym: &'a SymbolTable,
+    list_span: &Span,
 ) -> Result<&'a EncodingCtx, RuntimeError> {
     sym.encoding_ctx()
         .map(|arc| arc.as_ref())
         .ok_or_else(|| RuntimeError::NoEncodingCtx {
             op: op.into(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         })
 }
 
 /// Arc 077: the program runs at one d. Read it from the ambient
 /// `EncodingCtx`. Returns `NoEncodingCtx` if no ctx is attached
 /// (test harnesses that bypass freeze).
-fn program_dim(op: &'static str, sym: &SymbolTable) -> Result<usize, RuntimeError> {
-    let ctx = require_encoding_ctx(op, sym)?;
+fn program_dim(op: &'static str, sym: &SymbolTable, list_span: &Span) -> Result<usize, RuntimeError> {
+    let ctx = require_encoding_ctx(op, sym, list_span)?;
     Ok(ctx.dim_count)
 }
 
-fn check_nullary(op: &'static str, args: &[WatAST]) -> Result<(), RuntimeError> {
+fn check_nullary(op: &'static str, args: &[WatAST], list_span: &Span) -> Result<(), RuntimeError> {
     if !args.is_empty() {
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 0,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     Ok(())
@@ -11545,8 +11456,9 @@ fn check_nullary(op: &'static str, args: &[WatAST]) -> Result<(), RuntimeError> 
 fn eval_config_dim_count(
     args: &[WatAST],
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    check_nullary(":wat::config::dim-count", args)?;
+    check_nullary(":wat::config::dim-count", args, list_span)?;
     match sym.encoding_ctx() {
         Some(ctx) => Ok(Value::i64(ctx.dim_count as i64)),
         None => Ok(Value::i64(crate::config::DEFAULT_DIM_COUNT as i64)),
@@ -11560,8 +11472,9 @@ fn eval_config_dim_count(
 fn eval_config_dim_capacity(
     args: &[WatAST],
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    check_nullary(":wat::config::dim-capacity", args)?;
+    check_nullary(":wat::config::dim-capacity", args, list_span)?;
     match sym.encoding_ctx() {
         Some(ctx) => Ok(Value::i64(ctx.capacity as i64)),
         None => {
@@ -11579,8 +11492,9 @@ fn eval_config_dim_capacity(
 fn eval_config_noise_floor_default_shim(
     args: &[WatAST],
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    check_nullary(":wat::config::noise-floor", args)?;
+    check_nullary(":wat::config::noise-floor", args, list_span)?;
     let d = match sym.encoding_ctx() {
         Some(ctx) => ctx.dim_count,
         None => crate::config::DEFAULT_DIM_COUNT,
@@ -11592,9 +11506,10 @@ fn eval_config_noise_floor_default_shim(
 fn eval_config_global_seed(
     args: &[WatAST],
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    check_nullary(":wat::config::global-seed", args)?;
-    let ctx = require_encoding_ctx(":wat::config::global-seed", sym)?;
+    check_nullary(":wat::config::global-seed", args, list_span)?;
+    let ctx = require_encoding_ctx(":wat::config::global-seed", sym, list_span)?;
     Ok(Value::i64(ctx.config.global_seed as i64))
 }
 
@@ -11613,22 +11528,21 @@ fn eval_make_bounded_queue(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::kernel::make-bounded-channel".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::kernel::make-bounded-channel".into(),
             reason: "first argument must be a type keyword (e.g., :Candle)".into(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         });
     }
     let capacity = match eval(&args[1], env, sym)? {
@@ -11637,8 +11551,7 @@ fn eval_make_bounded_queue(
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::kernel::make-bounded-channel".into(),
                 reason: format!("capacity must be non-negative; got {}", n),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
         other => {
@@ -11646,8 +11559,7 @@ fn eval_make_bounded_queue(
                 op: ":wat::kernel::make-bounded-channel".into(),
                 expected: "i64",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
@@ -11664,22 +11576,20 @@ fn eval_make_bounded_queue(
 ///
 /// Like `make-bounded-channel` the first argument is a type keyword for
 /// the checker; the runtime transports any `Value`.
-fn eval_make_unbounded_queue(args: &[WatAST]) -> Result<Value, RuntimeError> {
+fn eval_make_unbounded_queue(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::kernel::make-unbounded-channel".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     if !matches!(&args[0], WatAST::Keyword(_, _)) {
         return Err(RuntimeError::MalformedForm {
             head: ":wat::kernel::make-unbounded-channel".into(),
             reason: "argument must be a type keyword (e.g., :LearnSignal)".into(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         });
     }
     let (tx, rx) = crossbeam_channel::unbounded::<Value>();
@@ -11709,14 +11619,14 @@ fn eval_kernel_send(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::kernel::send".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let sender = match eval(&args[0], env, sym)? {
@@ -11726,8 +11636,7 @@ fn eval_kernel_send(
                 op: ":wat::kernel::send".into(),
                 expected: "rust::crossbeam_channel::Sender",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -11754,14 +11663,14 @@ fn eval_kernel_recv(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::kernel::recv".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let receiver = match eval(&args[0], env, sym)? {
@@ -11771,8 +11680,7 @@ fn eval_kernel_recv(
                 op: ":wat::kernel::recv".into(),
                 expected: "rust::crossbeam_channel::Receiver",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -11793,14 +11701,14 @@ fn eval_kernel_try_recv(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::kernel::try-recv".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let receiver = match eval(&args[0], env, sym)? {
@@ -11810,8 +11718,7 @@ fn eval_kernel_try_recv(
                 op: ":wat::kernel::try-recv".into(),
                 expected: "rust::crossbeam_channel::Receiver",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -11844,14 +11751,14 @@ fn eval_kernel_drop(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::kernel::drop".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let handle = eval(&args[0], env, sym)?;
@@ -11867,8 +11774,7 @@ fn eval_kernel_drop(
             op: ":wat::kernel::drop".into(),
             expected: "rust::crossbeam_channel::Sender | rust::crossbeam_channel::Receiver",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -11883,14 +11789,14 @@ fn eval_math_unary(
     sym: &SymbolTable,
     op_name: &str,
     f: fn(f64) -> f64,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: format!(":wat::std::math::{}", op_name),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let x = match eval(&args[0], env, sym)? {
@@ -11901,8 +11807,7 @@ fn eval_math_unary(
                 op: format!(":wat::std::math::{}", op_name),
                 expected: "f64",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -11911,14 +11816,13 @@ fn eval_math_unary(
 
 /// `(:wat::std::math::pi)` — the mathematical constant π as `:f64`.
 /// Nullary. Backing: `std::f64::consts::PI`.
-fn eval_math_pi(args: &[WatAST]) -> Result<Value, RuntimeError> {
+fn eval_math_pi(args: &[WatAST], list_span: &Span) -> Result<Value, RuntimeError> {
     if !args.is_empty() {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::std::math::pi".into(),
             expected: 0,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     Ok(Value::f64(std::f64::consts::PI))
@@ -11935,16 +11839,15 @@ fn eval_stat_mean(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::std::stat::mean";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let xs = require_vec(OP, eval(&args[0], env, sym)?)?;
@@ -11960,8 +11863,8 @@ fn eval_stat_mean(
                     op: OP.into(),
                     expected: "Vec<f64>",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    // arc 138: no span — iterating over Vec<Value>; no per-element AST span
+                    span: args[0].span().clone(),
                 });
             }
         }
@@ -11978,16 +11881,15 @@ fn eval_stat_variance(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::std::stat::variance";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let xs = require_vec(OP, eval(&args[0], env, sym)?)?;
@@ -12004,8 +11906,8 @@ fn eval_stat_variance(
                     op: OP.into(),
                     expected: "Vec<f64>",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    // arc 138: no span — iterating over Vec<Value>; no per-element AST span
+                    span: args[0].span().clone(),
                 });
             }
         }
@@ -12027,19 +11929,18 @@ fn eval_stat_stddev(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::std::stat::stddev";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
-    match eval_stat_variance(args, env, sym)? {
+    match eval_stat_variance(args, env, sym, list_span)? {
         Value::Option(opt) => match &*opt {
             Some(Value::f64(var)) => Ok(Value::Option(Arc::new(Some(Value::f64(var.sqrt()))))),
             Some(_) => unreachable!("variance returned a non-f64 inside Option"),
@@ -12049,8 +11950,8 @@ fn eval_stat_stddev(
             op: OP.into(),
             expected: "Option<f64> from inner variance",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            // arc 138: no span — internal variance re-wrap; no originating AST element
+            span: list_span.clone(),
         }),
     }
 }
@@ -12068,14 +11969,14 @@ fn eval_handle_pool_new(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::kernel::HandlePool::new".into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let name = match eval(&args[0], env, sym)? {
@@ -12085,8 +11986,7 @@ fn eval_handle_pool_new(
                 op: ":wat::kernel::HandlePool::new".into(),
                 expected: "String",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12097,8 +11997,7 @@ fn eval_handle_pool_new(
                 op: ":wat::kernel::HandlePool::new".into(),
                 expected: "Vec",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
@@ -12130,14 +12029,14 @@ fn eval_handle_pool_pop(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::kernel::HandlePool::pop".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let (name, rx) = match eval(&args[0], env, sym)? {
@@ -12147,8 +12046,7 @@ fn eval_handle_pool_pop(
                 op: ":wat::kernel::HandlePool::pop".into(),
                 expected: "wat::kernel::HandlePool",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12160,8 +12058,7 @@ fn eval_handle_pool_pop(
                 "{}: no handles left to claim (pool drained or mis-counted at construction)",
                 name
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         }),
     }
 }
@@ -12177,14 +12074,14 @@ fn eval_handle_pool_finish(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::kernel::HandlePool::finish".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let (name, rx) = match eval(&args[0], env, sym)? {
@@ -12194,8 +12091,7 @@ fn eval_handle_pool_finish(
                 op: ":wat::kernel::HandlePool::finish".into(),
                 expected: "wat::kernel::HandlePool",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12207,8 +12103,7 @@ fn eval_handle_pool_finish(
                 "{}: {} orphaned handle(s) — deadlock risk (every handle must be claimed before finish)",
                 name, remaining
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     Ok(Value::Unit)
@@ -12232,14 +12127,14 @@ fn eval_kernel_select(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: ":wat::kernel::select".into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let items = match eval(&args[0], env, sym)? {
@@ -12249,8 +12144,7 @@ fn eval_kernel_select(
                 op: ":wat::kernel::select".into(),
                 expected: "Vec",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12258,8 +12152,7 @@ fn eval_kernel_select(
         return Err(RuntimeError::MalformedForm {
             head: ":wat::kernel::select".into(),
             reason: "receivers vec cannot be empty — select would block forever".into(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         });
     }
     // Extract Arc<Receiver<Value>> for each element; error on any
@@ -12273,8 +12166,8 @@ fn eval_kernel_select(
                     op: ":wat::kernel::select".into(),
                     expected: "rust::crossbeam_channel::Receiver",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    // arc 138: no span — iterating over Vec<Value>; no per-element AST span
+                    span: args[0].span().clone(),
                 });
             }
         }
@@ -12382,16 +12275,15 @@ fn eval_kernel_process_join_result(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::Process/join-result";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let proc_value = eval(&args[0], env, sym)?;
@@ -12402,8 +12294,7 @@ fn eval_kernel_process_join_result(
                 op: OP.into(),
                 expected: "wat::kernel::Process",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12416,8 +12307,8 @@ fn eval_kernel_process_join_result(
                 op: OP.into(),
                 expected: "Process.join (ProgramHandle)",
                 got: "missing or wrong-type field",
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                // arc 138: no span — struct field lookup; no per-field AST
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12482,22 +12373,21 @@ fn eval_kernel_spawn_thread(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::spawn-thread";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let body_fn = match &args[0] {
-        WatAST::Keyword(k, _) => match sym.get(k) {
+        WatAST::Keyword(k, kspan) => match sym.get(k) {
             Some(f) => f.clone(),
-            None => return Err(RuntimeError::UnknownFunction(k.clone(), Span::unknown())),
+            None => return Err(RuntimeError::UnknownFunction(k.clone(), kspan.clone())),
         },
         _ => match eval(&args[0], env, sym)? {
             Value::wat__core__lambda(f) => f,
@@ -12506,8 +12396,7 @@ fn eval_kernel_spawn_thread(
                     op: OP.into(),
                     expected: "function keyword path or lambda value",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    span: args[0].span().clone(),
                 });
             }
         },
@@ -12572,16 +12461,15 @@ fn eval_kernel_thread_join_result(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::Thread/join-result";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let thread_value = eval(&args[0], env, sym)?;
@@ -12592,8 +12480,7 @@ fn eval_kernel_thread_join_result(
                 op: OP.into(),
                 expected: "wat::kernel::Thread",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12605,8 +12492,8 @@ fn eval_kernel_thread_join_result(
                 op: OP.into(),
                 expected: "Thread.join (ProgramHandle)",
                 got: "missing or wrong-type field",
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                // arc 138: no span — struct field lookup; no per-field AST
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12632,8 +12519,8 @@ fn eval_kernel_thread_join_result(
                 op: OP.into(),
                 expected: "Thread.join (InThread variant)",
                 got: "Forked variant on a Thread<I,O> — substrate bug",
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                // arc 138: no span — internal substrate invariant; no AST source
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12653,16 +12540,15 @@ fn eval_kernel_process_send(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::process-send";
     if args.len() != 2 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let proc_value = eval(&args[0], env, sym)?;
@@ -12675,8 +12561,7 @@ fn eval_kernel_process_send(
                 op: OP.into(),
                 expected: "wat::kernel::Process",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12687,8 +12572,8 @@ fn eval_kernel_process_send(
                 op: OP.into(),
                 expected: "Process.stdin (IOWriter)",
                 got: "missing or wrong-type field",
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                // arc 138: no span — struct field lookup; no per-field AST
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12731,16 +12616,15 @@ fn eval_kernel_process_recv(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::process-recv";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let proc_value = eval(&args[0], env, sym)?;
@@ -12751,8 +12635,7 @@ fn eval_kernel_process_recv(
                 op: OP.into(),
                 expected: "wat::kernel::Process",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12764,8 +12647,8 @@ fn eval_kernel_process_recv(
                 op: OP.into(),
                 expected: "Process.stdout (IOReader)",
                 got: "missing or wrong-type field",
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                // arc 138: no span — struct field lookup; no per-field AST
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12776,8 +12659,8 @@ fn eval_kernel_process_recv(
                 op: OP.into(),
                 expected: "Process.stderr (IOReader)",
                 got: "missing or wrong-type field",
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                // arc 138: no span — struct field lookup; no per-field AST
+                span: args[0].span().clone(),
             });
         }
     };
@@ -12788,8 +12671,8 @@ fn eval_kernel_process_recv(
                 op: OP.into(),
                 expected: "Process.join (ProgramHandle)",
                 got: "missing or wrong-type field",
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                // arc 138: no span — struct field lookup; no per-field AST
+                span: args[0].span().clone(),
             });
         }
     };
@@ -13083,8 +12966,9 @@ pub fn eval_thread_died_error_message(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    eval_died_error_message(args, env, sym, ":wat::kernel::ThreadDiedError")
+    eval_died_error_message(args, env, sym, ":wat::kernel::ThreadDiedError", list_span)
 }
 
 /// Arc 112 sibling — `(:wat::kernel::ProcessDiedError/message err)
@@ -13094,8 +12978,9 @@ pub fn eval_process_died_error_message(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    eval_died_error_message(args, env, sym, ":wat::kernel::ProcessDiedError")
+    eval_died_error_message(args, env, sym, ":wat::kernel::ProcessDiedError", list_span)
 }
 
 /// Shared backbone for ThreadDiedError/message and
@@ -13106,6 +12991,7 @@ fn eval_died_error_message(
     env: &Environment,
     sym: &SymbolTable,
     expected_type_path: &'static str,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op_string = format!("{}/message", expected_type_path);
     let op: &str = &op_string;
@@ -13114,8 +13000,7 @@ fn eval_died_error_message(
             op: op.into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let val = eval(&args[0], env, sym)?;
@@ -13128,8 +13013,8 @@ fn eval_died_error_message(
                         op: op.into(),
                         expected: "String inside *DiedError variant",
                         got: "non-String payload",
-                        // arc 138 slice 3a-finish: span TBD
-                        span: Span::unknown(),
+                        // arc 138: no span — matching on Value::Enum fields; no AST element
+                        span: args[0].span().clone(),
                     }),
                 },
                 "ChannelDisconnected" => {
@@ -13139,8 +13024,8 @@ fn eval_died_error_message(
                     op: op.into(),
                     expected: "*DiedError variant",
                     got: "unknown *DiedError variant",
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    // arc 138: no span — matching on Value::Enum variant_name; no AST element
+                    span: args[0].span().clone(),
                 }),
             }
         }
@@ -13148,8 +13033,7 @@ fn eval_died_error_message(
             op: op.into(),
             expected: "wat::kernel::*DiedError",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -13175,8 +13059,9 @@ pub fn eval_thread_died_error_to_failure(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    eval_died_error_to_failure(args, env, sym, ":wat::kernel::ThreadDiedError")
+    eval_died_error_to_failure(args, env, sym, ":wat::kernel::ThreadDiedError", list_span)
 }
 
 /// Arc 112 sibling — `(:wat::kernel::ProcessDiedError/to-failure
@@ -13186,8 +13071,9 @@ pub fn eval_process_died_error_to_failure(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    eval_died_error_to_failure(args, env, sym, ":wat::kernel::ProcessDiedError")
+    eval_died_error_to_failure(args, env, sym, ":wat::kernel::ProcessDiedError", list_span)
 }
 
 /// Arc 113 slice 3 — `(:wat::kernel::extract-panics
@@ -13219,16 +13105,15 @@ fn eval_kernel_extract_panics(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::extract-panics";
     if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let lines = match eval(&args[0], env, sym)? {
@@ -13238,8 +13123,7 @@ fn eval_kernel_extract_panics(
                 op: OP.into(),
                 expected: "Vec<String>",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -13279,6 +13163,7 @@ fn eval_died_error_to_failure(
     env: &Environment,
     sym: &SymbolTable,
     expected_type_path: &'static str,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op_string = format!("{}/to-failure", expected_type_path);
     let op: &str = &op_string;
@@ -13287,8 +13172,7 @@ fn eval_died_error_to_failure(
             op: op.into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let val = eval(&args[0], env, sym)?;
@@ -13302,8 +13186,8 @@ fn eval_died_error_to_failure(
                             op: op.into(),
                             expected: "String at Panic.message",
                             got: "non-String at field 0",
-                            // arc 138 slice 3a-finish: span TBD
-                            span: Span::unknown(),
+                            // arc 138: no span — matching on Value::Enum fields; no AST element
+                            span: args[0].span().clone(),
                         }),
                     };
                     // Field 1 is declared `Option<Failure>`. The
@@ -13327,8 +13211,8 @@ fn eval_died_error_to_failure(
                         op: op.into(),
                         expected: "String at RuntimeError.message",
                         got: "non-String at field 0",
-                        // arc 138 slice 3a-finish: span TBD
-                        span: Span::unknown(),
+                        // arc 138: no span — matching on Value::Enum fields; no AST element
+                        span: args[0].span().clone(),
                     }),
                 },
                 "ChannelDisconnected" => {
@@ -13338,8 +13222,8 @@ fn eval_died_error_to_failure(
                     op: op.into(),
                     expected: "*DiedError variant",
                     got: "unknown *DiedError variant",
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    // arc 138: no span — matching on Value::Enum variant_name; no AST element
+                    span: args[0].span().clone(),
                 }),
             }
         }
@@ -13347,8 +13231,7 @@ fn eval_died_error_to_failure(
             op: op.into(),
             expected: "wat::kernel::*DiedError",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -13470,6 +13353,7 @@ fn eval_form_ast(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     // Structural pre-check — NOT wrapped as EvalError. This is the
     // caller's syntactic shape; the type checker should have caught
@@ -13483,8 +13367,7 @@ fn eval_form_ast(
                 "(:wat::eval-ast! <ast-value>) takes exactly 1 argument; got {}",
                 args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     // From here, any RuntimeError (except TryPropagate) becomes an
@@ -13501,8 +13384,7 @@ fn eval_form_ast(
                     op: ":wat::eval-ast!".into(),
                     expected: "Ast",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    span: args[0].span().clone(),
                 });
             }
         };
@@ -13548,7 +13430,7 @@ fn value_to_holon(op: &'static str, v: Value) -> Result<Value, RuntimeError> {
                 expected: "form whose terminal value has a HolonAST \
                            representation (primitive or HolonAST)",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
+                // arc 138: no span — receives a Value, no originating AST in scope
                 span: Span::unknown(),
             });
         }
@@ -13604,6 +13486,7 @@ fn eval_form_step(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::MalformedForm {
@@ -13612,8 +13495,7 @@ fn eval_form_step(
                 "(:wat::eval-step! <ast-value>) takes exactly 1 argument; got {}",
                 args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
@@ -13625,8 +13507,7 @@ fn eval_form_step(
                     op: ":wat::eval-step!".into(),
                     expected: "wat::WatAST",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    span: args[0].span().clone(),
                 });
             }
         };
@@ -13660,6 +13541,7 @@ fn eval_walk(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::eval::walk";
     if args.len() != 3 {
@@ -13669,8 +13551,7 @@ fn eval_walk(
                 "(:wat::eval::walk form init visit) takes exactly 3 args; got {}",
                 args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
@@ -13682,8 +13563,7 @@ fn eval_walk(
                     op: OP.into(),
                     expected: "wat::WatAST",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    span: args[0].span().clone(),
                 });
             }
         };
@@ -13696,8 +13576,7 @@ fn eval_walk(
                     op: OP.into(),
                     expected: "wat::core::lambda — visitor (acc, form, step) → WalkStep<A>",
                     got: other.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    span: args[2].span().clone(),
                 });
             }
         };
@@ -13731,8 +13610,8 @@ fn eval_walk(
                             op: OP.into(),
                             expected: "wat::eval::WalkStep<A>",
                             got: "different enum",
-                            // arc 138 slice 3a-finish: span TBD
-                            span: Span::unknown(),
+                            // arc 138: no span — Value::Enum result from visitor; no originating AST
+                            span: args[2].span().clone(),
                         });
                     }
                     let ev = (*ev).clone();
@@ -13743,8 +13622,8 @@ fn eval_walk(
                         op: OP.into(),
                         expected: "wat::eval::WalkStep<A>",
                         got: other.type_name(),
-                        // arc 138 slice 3a-finish: span TBD
-                        span: Span::unknown(),
+                        // arc 138: no span — visitor return value; no originating AST
+                        span: args[2].span().clone(),
                     });
                 }
             };
@@ -13757,8 +13636,8 @@ fn eval_walk(
                                 "WalkStep::Continue takes exactly 1 field (acc); got {}",
                                 fields.len()
                             ),
-                            // arc 138 slice 3a-finish: span TBD
-                            span: Span::unknown(),
+                            // arc 138: no span — WalkStep field count from visitor return; no AST
+                            span: args[2].span().clone(),
                         });
                     }
                     let mut iter = fields.into_iter();
@@ -13782,8 +13661,8 @@ fn eval_walk(
                                 "WalkStep::Skip takes exactly 2 fields (terminal, acc); got {}",
                                 fields.len()
                             ),
-                            // arc 138 slice 3a-finish: span TBD
-                            span: Span::unknown(),
+                            // arc 138: no span — WalkStep field count from visitor return; no AST
+                            span: args[2].span().clone(),
                         });
                     }
                     let mut iter = fields.into_iter();
@@ -13796,8 +13675,8 @@ fn eval_walk(
                                 op: OP.into(),
                                 expected: "wat::holon::HolonAST (Skip's terminal field)",
                                 got: other.type_name(),
-                                // arc 138 slice 3a-finish: span TBD
-                                span: Span::unknown(),
+                                // arc 138: no span — visitor return value field; no AST
+                                span: args[2].span().clone(),
                             });
                         }
                     };
@@ -13813,8 +13692,8 @@ fn eval_walk(
                             "WalkStep variant must be Continue or Skip; got {}",
                             other
                         ),
-                        // arc 138 slice 3a-finish: span TBD
-                        span: Span::unknown(),
+                        // arc 138: no span — visitor return value variant; no AST
+                        span: args[2].span().clone(),
                     });
                 }
             }
@@ -13879,10 +13758,9 @@ fn step_form(
         // didn't reach it — an unbound free variable. Surface as
         // NoStepRule so the consumer falls back to eval-ast! (which
         // would have raised UnboundSymbol there too).
-        WatAST::Symbol(ident, _) => Err(RuntimeError::NoStepRule {
+        WatAST::Symbol(ident, sym_span) => Err(RuntimeError::NoStepRule {
             op: format!("symbol-ref:{}", ident.name),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: sym_span.clone(),
         }),
         WatAST::List(items, span) => step_list(items, span, env, sym),
     }
@@ -14049,27 +13927,24 @@ fn step_list(
         Some(h) => h,
         None => return Err(RuntimeError::NoStepRule {
             op: "()".into(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         }),
     };
     let head_kw = match head {
         WatAST::Keyword(k, _) => k.clone(),
-        WatAST::Symbol(ident, _) => {
+        WatAST::Symbol(ident, sym_span) => {
             // Bare-symbol heads (inline lambda call sites, let-bound
             // function values) need a higher-order step rule that
             // hasn't shipped yet. Phase 3 territory.
             return Err(RuntimeError::NoStepRule {
                 op: format!("symbol-head:{}", ident.name),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: sym_span.clone(),
             });
         }
         _ => {
             return Err(RuntimeError::NoStepRule {
                 op: "<non-keyword-head>".into(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: head.span().clone(),
             });
         }
     };
@@ -14077,8 +13952,7 @@ fn step_list(
     if is_effectful_op(&head_kw) {
         return Err(RuntimeError::EffectfulInStep {
             op: head_kw,
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: head.span().clone(),
         });
     }
 
@@ -14165,8 +14039,7 @@ fn step_list(
             } else {
                 Err(RuntimeError::NoStepRule {
                     op: head_kw,
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    span: list_span.clone(),
                 })
             }
         }
@@ -14293,8 +14166,7 @@ fn step_holon_descend_then_fire(
                     op: ":wat::eval-step!".into(),
                     expected: "successful holon construction",
                     got: err_val.type_name(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    span: list_span.clone(),
                 });
             }
         },
@@ -14365,8 +14237,7 @@ fn step_if(
                 "expected (:wat::core::if cond -> :T then else); got {} args",
                 args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let cond = &args[0];
@@ -14406,8 +14277,7 @@ fn step_let_star(
                 "expected (:wat::core::let* bindings body); got {} args",
                 args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let bindings = match &args[0] {
@@ -14416,8 +14286,7 @@ fn step_let_star(
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let*".into(),
                 reason: "bindings must be a list".into(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -14434,8 +14303,7 @@ fn step_let_star(
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let*".into(),
                 reason: "binding shape must be ((name :T) rhs)".into(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: bindings[0].span().clone(),
             });
         }
     };
@@ -14446,8 +14314,7 @@ fn step_let_star(
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let*".into(),
                 reason: "binding name must be (name :T)".into(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: first[0].span().clone(),
             });
         }
     };
@@ -14457,8 +14324,7 @@ fn step_let_star(
             return Err(RuntimeError::MalformedForm {
                 head: ":wat::core::let*".into(),
                 reason: "binding name must be a symbol".into(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: name_type[0].span().clone(),
             });
         }
     };
@@ -14520,8 +14386,7 @@ fn step_match(
                 "expected (:wat::core::match scrut -> :T arm1 ...); got {} args",
                 args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let scrut = &args[0];
@@ -14541,8 +14406,7 @@ fn step_match(
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::core::match".into(),
                     reason: "arm shape must be (pattern body)".into(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    span: arm.span().clone(),
                 });
             }
         };
@@ -14555,8 +14419,7 @@ fn step_match(
     }
     Err(RuntimeError::PatternMatchFailed {
         value_type: ast_variant_name(scrut),
-        // arc 138 slice 3a-finish: span TBD
-        span: Span::unknown(),
+        span: scrut.span().clone(),
     })
 }
 
@@ -14713,13 +14576,12 @@ fn step_user_call(
 ) -> Result<StepValue, RuntimeError> {
     let func = match sym.get(head_kw) {
         Some(f) => f.clone(),
-        None => return Err(RuntimeError::UnknownFunction(head_kw.to_string(), Span::unknown())),
+        None => return Err(RuntimeError::UnknownFunction(head_kw.to_string(), list_span.clone())),
     };
     if func.closed_env.is_some() {
         return Err(RuntimeError::NoStepRule {
             op: format!("{} (closure-bearing — Phase 3)", head_kw),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     let args = &items[1..];
@@ -14728,8 +14590,7 @@ fn step_user_call(
             op: head_kw.into(),
             expected: func.params.len(),
             got: args.len(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     for (idx, arg) in args.iter().enumerate() {
@@ -14759,6 +14620,7 @@ fn eval_form_edn(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::MalformedForm {
@@ -14767,12 +14629,11 @@ fn eval_form_edn(
                 "(:wat::eval-edn! <source>) takes exactly 1 argument; got {}",
                 args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
-        let source = expect_string_value(":wat::eval-edn!", &args[0], env, sym, "source")?;
+        let source = expect_string_value(":wat::eval-edn!", &args[0], env, sym)?;
         parse_and_run(&source, env, sym)
     })())
 }
@@ -14785,6 +14646,7 @@ fn eval_form_file(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
         return Err(RuntimeError::MalformedForm {
@@ -14793,8 +14655,7 @@ fn eval_form_file(
                 "(:wat::eval-file! <path>) takes exactly 1 argument; got {}",
                 args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
@@ -14812,8 +14673,9 @@ fn eval_form_digest(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    eval_form_digest_shared(args, env, sym, /*is_string*/ false)
+    eval_form_digest_shared(args, env, sym, list_span, /*is_string*/ false)
 }
 
 /// `(:wat::eval-digest-string! <source>
@@ -14825,14 +14687,16 @@ fn eval_form_digest_string(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    eval_form_digest_shared(args, env, sym, /*is_string*/ true)
+    eval_form_digest_shared(args, env, sym, list_span, /*is_string*/ true)
 }
 
 fn eval_form_digest_shared(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
     is_string: bool,
 ) -> Result<Value, RuntimeError> {
     let op: &'static str = if is_string {
@@ -14848,13 +14712,12 @@ fn eval_form_digest_shared(
                 "({} {} :wat::verify::digest-<algo> :wat::verify::<iface> <hex>) takes exactly 4 arguments; got {}",
                 op, shape, args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
         let source = if is_string {
-            expect_string_value(op, &args[0], env, sym, "source")?
+            expect_string_value(op, &args[0], env, sym)?
         } else {
             read_source_via_loader(op, &args[0], env, sym)?
         };
@@ -14876,8 +14739,9 @@ fn eval_form_signed(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    eval_form_signed_shared(args, env, sym, /*is_string*/ false)
+    eval_form_signed_shared(args, env, sym, list_span, /*is_string*/ false)
 }
 
 /// `(:wat::eval-signed-string! <source>
@@ -14890,14 +14754,16 @@ fn eval_form_signed_string(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
-    eval_form_signed_shared(args, env, sym, /*is_string*/ true)
+    eval_form_signed_shared(args, env, sym, list_span, /*is_string*/ true)
 }
 
 fn eval_form_signed_shared(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
     is_string: bool,
 ) -> Result<Value, RuntimeError> {
     let op: &'static str = if is_string {
@@ -14913,13 +14779,12 @@ fn eval_form_signed_shared(
                 "({} {} :wat::verify::signed-<algo> :wat::verify::<iface> <sig> :wat::verify::<iface> <pubkey>) takes exactly 6 arguments; got {}",
                 op, shape, args.len()
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: list_span.clone(),
         });
     }
     wrap_as_eval_result((|| -> Result<Value, RuntimeError> {
         let source = if is_string {
-            expect_string_value(op, &args[0], env, sym, "source")?
+            expect_string_value(op, &args[0], env, sym)?
         } else {
             read_source_via_loader(op, &args[0], env, sym)?
         };
@@ -14941,16 +14806,14 @@ fn expect_string_value(
     arg: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    arg_name: &'static str,
 ) -> Result<String, RuntimeError> {
     match eval(arg, env, sym)? {
         Value::String(s) => Ok((*s).clone()),
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
-            expected: arg_name,
+            expected: "String",
             got: other.type_name(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: arg.span().clone(),
         }),
     }
 }
@@ -14964,13 +14827,12 @@ fn read_source_via_loader(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<String, RuntimeError> {
-    let path = expect_string_value(op, arg, env, sym, "path")?;
+    let path = expect_string_value(op, arg, env, sym)?;
     let loader = sym
         .source_loader()
         .ok_or_else(|| RuntimeError::NoSourceLoader {
             op: op.into(),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: arg.span().clone(),
         })?;
     loader
         .fetch_source_file(&path, None)
@@ -14978,8 +14840,7 @@ fn read_source_via_loader(
         .map_err(|e| RuntimeError::MalformedForm {
             head: op.into(),
             reason: format!("read {:?}: {:?}", path, e),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: arg.span().clone(),
         })
 }
 
@@ -15007,8 +14868,7 @@ fn resolve_verify_payload(
                     "verify payload interface must be a :wat::verify::<iface> keyword; got {}",
                     ast_variant_name(other)
                 ),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: iface_ast.span().clone(),
             });
         }
     };
@@ -15019,8 +14879,7 @@ fn resolve_verify_payload(
                 op: ":wat::verify::string".into(),
                 expected: "String",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: locator_ast.span().clone(),
             }),
         },
         ":wat::verify::file-path" => match eval(locator_ast, env, sym)? {
@@ -15028,24 +14887,21 @@ fn resolve_verify_payload(
                 let loader = sym.source_loader().ok_or_else(|| {
                     RuntimeError::NoSourceLoader {
                         op: ":wat::verify::file-path".into(),
-                        // arc 138 slice 3a-finish: span TBD
-                        span: Span::unknown(),
+                        span: locator_ast.span().clone(),
                     }
                 })?;
                 loader.fetch_payload_file(&s, None)
                     .map_err(|e| RuntimeError::MalformedForm {
                         head: ":wat::verify::file-path".into(),
                         reason: format!("read {:?}: {:?}", s, e),
-                        // arc 138 slice 3a-finish: span TBD
-                        span: Span::unknown(),
+                        span: locator_ast.span().clone(),
                     })
             }
             other => Err(RuntimeError::TypeMismatch {
                 op: ":wat::verify::file-path".into(),
                 expected: "String",
                 got: other.type_name(),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: locator_ast.span().clone(),
             }),
         },
         ":wat::verify::http-path" | ":wat::verify::s3-path" => {
@@ -15055,8 +14911,7 @@ fn resolve_verify_payload(
                     "verify payload interface {} is reserved but not implemented in this build",
                     iface
                 ),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: iface_ast.span().clone(),
             })
         }
         other => Err(RuntimeError::MalformedForm {
@@ -15065,8 +14920,7 @@ fn resolve_verify_payload(
                 "unknown verify payload interface {}; expected :wat::verify::string or :wat::verify::file-path",
                 other
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: iface_ast.span().clone(),
         }),
     }
 }
@@ -15088,8 +14942,7 @@ fn parse_verify_algo_keyword(
                     "verification algorithm must be a :wat::verify::<kind>-<algo> keyword; got {}",
                     ast_variant_name(other)
                 ),
-                // arc 138 slice 3a-finish: span TBD
-                span: Span::unknown(),
+                span: ast.span().clone(),
             });
         }
     };
@@ -15100,8 +14953,7 @@ fn parse_verify_algo_keyword(
                 "verification algorithm keyword must start with :wat::verify::; got {}",
                 kw
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: ast.span().clone(),
         }
     })?;
     let algo = stripped.strip_prefix(expected_kind).ok_or_else(|| {
@@ -15111,16 +14963,14 @@ fn parse_verify_algo_keyword(
                 "this form expects a :wat::verify::{}<algo> keyword; got {}",
                 expected_kind, kw
             ),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: ast.span().clone(),
         }
     })?;
     if algo.is_empty() {
         return Err(RuntimeError::MalformedForm {
             head: form.into(),
             reason: format!("no algorithm named after {}", expected_kind),
-            // arc 138 slice 3a-finish: span TBD
-            span: Span::unknown(),
+            span: ast.span().clone(),
         });
     }
     Ok(algo.to_string())
@@ -15131,7 +14981,7 @@ fn parse_program(source: &str, form: &str) -> Result<Vec<WatAST>, RuntimeError> 
     crate::parser::parse_all(source).map_err(|e| RuntimeError::MalformedForm {
         head: form.into(),
         reason: format!("parse error: {}", e),
-        // arc 138 slice 3a-finish: span TBD
+        // arc 138: no span — parsing a raw string; no WatAST call-site in scope
         span: Span::unknown(),
     })
 }
@@ -15174,13 +15024,12 @@ fn run_constrained(
 }
 
 fn refuse_mutation_forms_in(ast: &WatAST) -> Result<(), RuntimeError> {
-    if let WatAST::List(items, _) = ast {
+    if let WatAST::List(items, list_span) = ast {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
             if is_mutation_head(head) {
                 return Err(RuntimeError::EvalForbidsMutationForm {
                     head: head.clone(),
-                    // arc 138 slice 3a-finish: span TBD
-                    span: Span::unknown(),
+                    span: list_span.clone(),
                 });
             }
         }
