@@ -375,6 +375,67 @@ changing cwd.
 attempted to commit it to the holon root repo. User rejected:
 *"do not touch the holon root git repo at all - its frozen."*
 
+### Failure mode 10 — Type-theoretic reach when an entity-kind addition is the answer
+
+**Signature:** sensing "the substrate is missing X" and reaching for
+type-system vocabulary — "we need union types," "we need type
+classes," "we need bounded polymorphism," "we need ad-hoc
+polymorphism." Or its sibling: "TypeScheme is too narrow."
+
+**Reality check:** the wat-rs substrate has multiple ENTITY KINDS
+(functions/schemes, macros, special forms, types). When polymorphism
+or dispatch doesn't fit one rank-1 scheme, the answer is almost
+always a NEW ENTITY KIND, not a type-system feature.
+
+**Real incident, 2026-05-03 (arc 144 slice 3 → arc 146):** I
+proposed "missing union types" THREE TIMES in increasingly
+degraded framings before the user broke through. Each of my drafts
+defaulted to type-theoretic vocabulary; each was wrong. The actual
+answer (multimethod — Clojure's term; CL's generic function;
+Julia's multiple dispatch) is an entity kind addition, not a
+type-system extension. Cost: ~2 hours of probing the user had to
+drive. Path-discovery friction that should have been ~20 minutes.
+
+**STOP signal — when these phrases want to leave my fingers:**
+- "missing union types"
+- "missing type bounds / type classes"
+- "missing ad-hoc polymorphism"
+- "TypeScheme is too narrow"
+- "the type system can't express..."
+- "the future fix is open"
+
+**Before any of those go to disk, run the entity-kind check:**
+1. Is the polymorphism a DISPATCH problem? (Different impls per
+   input shape.) → MULTIMETHOD. Probably the answer.
+2. Is it a SYNTACTIC construct? → SPECIAL FORM. Maybe.
+3. Is it a SHAPE TEMPLATE? → MACRO. Maybe.
+4. Is it a TYPE ALIAS / wrapper? → TYPEALIAS / NEWTYPE.
+
+The substrate already has these kinds. Adding one more is
+incremental. Adding type-system features is a paradigm shift.
+**Default to the smaller change.**
+
+**Cross-language reference:** if Clojure / CL / Julia / Rust /
+Haskell already solves this with a non-type-system construct
+(multimethod, generic function, protocol, multiple dispatch,
+trait), the answer is probably that construct. Reach for the
+non-type-system vocabulary FIRST.
+
+**Self-probe before committing to architectural framing — these
+are the user's tools; use them on yourself:**
+- "What does this option MASK?"
+- "Do I KNOW this or assume?"
+- "Why am I using THIS word? What's the bias signal?"
+- "Did we already have X (or part of X) somewhere?"
+- "Could this be a new KIND of thing rather than a feature
+  extension?"
+
+**Voice discipline:** when you don't know, sound like you don't
+know. The four questions framework (obvious/simple/honest/good UX)
+forces decisive scoring; resist that pressure when undecided.
+"I see two options and both feel wrong" is a valid place to stop
+and probe.
+
 ### Failure mode 9 — Trusting that "arc N closed" means "arc N's tests are green"
 
 **Signature:** drafting a brief that says "the existing tests in
