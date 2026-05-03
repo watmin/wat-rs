@@ -84,6 +84,7 @@ pub mod spawn;
 pub mod panic_hook;
 pub mod source;
 pub mod span;
+pub mod special_forms;
 pub(crate) mod stdlib;
 pub mod string_ops;
 pub mod test_runner;

@@ -6353,8 +6353,16 @@ pub fn lookup_form<'a>(
             });
         }
     }
-    // 5. SpecialForm registry — slice 2 will populate. Until then no
-    //    special form is reachable through this path.
+    // 5. SpecialForm registry — arc 144 slice 2 populated. Cloning
+    //    the HolonAST per lookup is acceptable on the reflection-only
+    //    path (clone is O(1) — Arc-wrapped recursive payloads).
+    if let Some(def) = crate::special_forms::lookup_special_form(name) {
+        return Some(Binding::SpecialForm {
+            name: def.name.clone(),
+            signature: def.signature.clone(),
+            doc_string: def.doc_string.clone(),
+        });
+    }
     None
 }
 
