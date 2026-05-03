@@ -1,226 +1,217 @@
-# Arc 145 — Typed `let` (`-> :T` declaration) + collapse `let*` → `let`
+# Arc 145 — Typed `let` + `let*` (`-> :T` declaration on both)
 
-**Status:** drafted 2026-05-03 (mid-arc-144-slice-2-closure). User
-direction:
+**Status:** drafted 2026-05-03 (mid-arc-144-slice-2-closure).
+**Revised** 2026-05-03 after user clarified the scope.
+
+## User direction (verbatim)
 
 > *"we need a new arc to land before 109 closes - we need let to be
 > typed... we need to declare let as value bearing explciitly...
 > some -> :T declaration like if, match, cond, and so on do..."*
->
-> *"(and we'll kill let* in favor of the the current let* being
-> let...) if there's an existing let... it'll assume let*'s behavior
-> at the end of 109"*
+
+Initial draft also included a `let*` → `let` rename. User
+clarified after seeing the design:
+
+> *"oh... i didn't realize we have both let and let* defined.. then
+> the arc is... both will be typed.. we just typcally only use let*
+> in our examples because we need the sequential binding.. but
+> users can make their own choice.. that's a good stance to have"*
 
 ## Goal
 
-Two paired changes:
+Add `-> :T` declaration support to BOTH `:wat::core::let` (parallel)
+and `:wat::core::let*` (sequential). Both forms remain — users
+choose the binding strategy that fits the call site (parallel
+when bindings are independent; sequential when later bindings need
+earlier ones). The typing addition makes both forms explicitly
+value-bearing, matching the substrate's `if` / `match` / `cond` /
+`Option/expect` / `Result/expect` convention.
 
-1. **Add `-> :T` declaration to `:wat::core::let`** so the form is
-   explicitly value-bearing — readers see the result type at the
-   form, not inferred from context.
-2. **Kill `:wat::core::let*`.** Collapse to ONE binding form named
-   `:wat::core::let` that uses today's `let*`'s sequential
-   semantics (each RHS sees the previous bindings). Today's
-   `:wat::core::let` (parallel; RHSs see only outer scope) gets
-   absorbed into the sequential semantics at the end of arc 109.
+After arc 145, both forms read like:
+```scheme
+(:wat::core::let -> :T (((<n> :Type) <expr>) ...) <body>)
+(:wat::core::let* -> :T (((<n> :Type) <expr>) ...) <body>)
+```
 
-After arc 145, the substrate has ONE binding form (`let`) with
-EXPLICIT `-> :T` and sequential bindings — the same shape readers
-already use today as `let*`, just with one fewer name to remember
-and a head-anchored result type.
+(Exact `-> :T` placement matches whatever the substrate's existing
+convention dictates — see Q1 below.)
 
-This is the expansion of task #185 (arc 109 follow-up: rename
-`:wat::core::let*` → `:wat::core::let`) — the rename PLUS the
-typing.
+## What this arc does NOT do
+
+- **Does NOT rename `let*` → `let`.** Both forms stay distinct; the
+  user direction "users can make their own choice" preserves
+  parallel-vs-sequential as a deliberate decision at each call site.
+- **Does NOT kill either form.** Task #185 (the original arc 109
+  follow-up to rename `let*` → `let`) is SUPERSEDED by this arc's
+  "both stay" stance.
+- **Does NOT change runtime semantics.** Parallel-let stays
+  parallel; sequential-let stays sequential. Only the type-checker
+  surface changes (an optional `-> :T` annotation that gets
+  validated against the body's inferred type).
 
 ## Current state
 
 `src/check.rs:5184-5208` (`infer_let`): PARALLEL semantics. All
-RHSs see only outer locals; bindings are extended after the whole
-binding-list is processed. Result type is the body's type.
+RHSs see only outer locals. Result type = body's type (no `-> :T`
+today).
 
 `src/check.rs:5946+` (`infer_let_star`): SEQUENTIAL semantics. Each
-RHS sees the PREVIOUS bindings via a `cumulative` env that grows as
-each binding is processed. Result type is the body's type.
+RHS sees the previous bindings via a `cumulative` env. Result type
+= body's type (no `-> :T` today).
 
 Runtime (`src/runtime.rs:2402-2403`): `eval_let` + `eval_let_star`
 mirror the check semantics. Tail-call paths
-(`src/runtime.rs:1969-1970`): same.
-
-There's also an incremental-evaluator step (`runtime.rs:14852+`):
-`step_let_star` exists; `step_let` may not exist as separate.
-
-Surface count of usage sites:
-- `let*` is the pervasive form across the substrate stdlib and lab.
-- `let` (parallel) is RARE in user code per the grep observation.
-
-Today's typing for both: bindings, body. NO `-> :T` declaration —
-result type is purely inferred from body.
+(`src/runtime.rs:1969-1970`): same. Incremental evaluator
+(`runtime.rs:14852+`): `step_let_star` exists.
 
 ## Target shape
 
 ```scheme
+;; Without -> :T (untyped — preserves today's behavior; backwards
+;; compatible)
 (:wat::core::let
-  (((<name> :Type) <expr>)
-   ((<name> :Type) <expr>)
-   ...)
-  -> :ResultType
-  <body-expr>)
-```
+  (((<n> :Type) <expr>) ...)
+  <body>)
 
-OR (open question — see below):
+(:wat::core::let*
+  (((<n> :Type) <expr>) ...)
+  <body>)
 
-```scheme
+;; With -> :T (NEW — explicit value-bearing declaration)
 (:wat::core::let -> :ResultType
-  (((<name> :Type) <expr>) ...)
-  <body-expr>)
+  (((<n> :Type) <expr>) ...)
+  <body>)
+
+(:wat::core::let* -> :ResultType
+  (((<n> :Type) <expr>) ...)
+  <body>)
 ```
 
-`-> :ResultType` placement matches the substrate's existing pattern
-for value-bearing forms with a "dispatch-determiner" arg (the
-bindings list is the let-equivalent of `match`'s scrutinee — sets
-up the context but doesn't produce the result).
+Both shapes work after arc 145. The `-> :T` form validates the
+body's inferred type unifies with `:T`; surfaces a clean
+`TypeMismatch` if not.
 
-Per arc 108's analysis: forms whose first arg DOESN'T itself
-produce the result put `-> :T` AFTER that arg (like `match` /
-`if`). Forms whose first value-position DOES produce the result
-put `-> :T` at HEAD (like `Option/expect`). Bindings don't produce
-the result; the body does. So `-> :T` belongs AFTER the bindings.
+## Slice plan (2 slices)
 
-## Slice plan (sketch — ~3-4 slices)
+### Slice 1 — Add `-> :T` to BOTH `infer_let` + `infer_let_star` + eval counterparts
 
-### Slice 1 — Add `-> :T` parsing to `infer_let_star` + `eval_let_star`
+Extend `infer_let` (check.rs:5184) and `infer_let_star`
+(check.rs:5946) to accept an OPTIONAL `-> :T` arrow + return-type
+keyword AT THE PLACEMENT THE SUBSTRATE'S CONVENTION DICTATES (see
+Q1). When present, validate body's inferred type unifies with `:T`.
+When absent, today's behavior preserved (full backwards compat).
 
-Extend `infer_let_star` (check.rs:5946) + `eval_let_star`
-(runtime.rs) to OPTIONALLY accept a `-> :T` arrow + return-type
-keyword between the bindings and the body. When present, validate
-the body's inferred type unifies with `:T`; surface a clean
-`TypeMismatch` if not. When absent, today's behavior preserved.
+Mirror at runtime: `eval_let` (runtime.rs:2402+) and `eval_let_star`
+(runtime.rs:2403+). The `-> :T` token doesn't affect runtime
+evaluation; it's a no-op at the eval layer. Tail-call paths
+(`eval_let_tail`, `eval_let_star_tail`) and incremental-step paths
+(`step_let_star`) similarly thread the optional arm-result.
 
-This is purely additive — no existing call site breaks. Sets up the
-syntax for slice 2's rename.
+Update arc 144 slice 2's special-form registry (`src/special_forms.rs`)
+to reflect the optional `-> :T` slot in the let / let* sketches.
 
-~80-150 LOC + 4-6 unit tests.
+~150-300 LOC + 6-10 unit tests covering: typed parallel, typed
+sequential, untyped parallel still works, untyped sequential still
+works, type mismatch on typed parallel, type mismatch on typed
+sequential.
 
-### Slice 2 — Sweep wat sources to use `-> :T` (optional adoption)
+### Slice 2 — Closure
 
-Mid-arc 109's wind-down: encourage (not require) substrate +
-stdlib code to declare `-> :T` on let* call sites. This is a
-documentation pass — making the form's value-bearing nature
-explicit at every site.
-
-Optional — slice 1's optionality means existing call sites work
-unchanged.
-
-~100-200 LOC across substrate + stdlib wat files.
-
-### Slice 3 — Rename `:wat::core::let*` → `:wat::core::let`
-
-The big sweep. Per task #185 + arc 109 follow-up rename pattern:
-
-1. Rename the dispatch site at check.rs:2959 + runtime.rs:2403
-   to point at `:wat::core::let` (the existing parallel-let dispatch).
-2. RETIRE `infer_let` (parallel) — it's superseded; merge its
-   behavior into `infer_let_star` OR ship a deprecation poison that
-   redirects + assumes sequential semantics.
-3. Sweep ALL wat sources: `:wat::core::let*` → `:wat::core::let`.
-4. Sweep ALL Rust sources for the same rename.
-5. Add deprecation poison for any remaining `:wat::core::let*` call
-   sites (Pattern 2 — synthetic TypeMismatch + redirect to new
-   name).
-
-Per the user's "if there's an existing let... it'll assume let*'s
-behavior at the end of 109" — the parallel-let semantics get
-absorbed. Most call sites don't rely on the parallel-vs-sequential
-distinction.
-
-~300-500 LOC sweep + grammar + tests.
-
-### Slice 4 — Closure
-
-INSCRIPTION + 058 row + USER-GUIDE entry + amnesia doc end-of-work
-review.
+INSCRIPTION + 058 row + USER-GUIDE entry documenting the new
+`-> :T` shapes for both forms + cross-references to arc 108 (the
+`-> :T` precedent) + arc 144 slice 2 (special-form registry sketch
+update). End-of-work ritual review of COMPACTION-AMNESIA-RECOVERY.
 
 ## Open questions
 
-### Q1 — `-> :T` placement: after bindings, or at HEAD?
+### Q1 — `-> :T` placement
 
-Per the substrate's own pattern:
-- `match <scrutinee> -> :T <arms>+` — after dispatch-determiner
-- `if -> :T <cond> <then> <else>` — at HEAD (or after cond?)
-- `Option/expect -> :T <opt> <msg>` — at HEAD
-- `Result/expect -> :T <res> <msg>` — at HEAD
+Per arc 108's INSCRIPTION:
+> match and if put `-> :T` AFTER the first arg (scrutinee / cond)
+> because that arg is a dispatch-determiner that doesn't itself
+> produce the result. expect's value expression DOES produce the
+> result (Some-/Ok-arm yields its inner). The honest position for
+> `-> :T` is HEAD — declared before any value producer.
 
-Actually per check.rs:2956 `infer_if`: `if` puts `-> :T` at HEAD.
-The "after dispatch-determiner" interpretation may be wrong.
+Verify by reading actual implementations:
+- `infer_if` (check.rs around 2956 dispatch + the impl) — does it
+  put `-> :T` at HEAD or after cond?
+- `infer_match` (check.rs around 1420) — does it put `-> :T` at
+  HEAD or after scrutinee?
+- `infer_option_expect` / `infer_result_expect` — HEAD position
+  per arc 108.
 
-DEFER to slice 1 implementation: orchestrator (or sonnet during
-slice 1 audit) verifies the actual placement convention by reading
-`infer_if`/`infer_match`/`infer_option_expect`. The choice for
-`let` should match the established convention.
+For `let`: bindings don't produce the result; the body does. So
+either:
+- HEAD position (matches `Option/expect` — value producer is the
+  body, not the bindings):
+  `(:let -> :T <bindings> <body>)`
+- AFTER bindings (matches `match` — bindings are the
+  dispatch-determiner analog):
+  `(:let <bindings> -> :T <body>)`
 
-### Q2 — Slice 2 optionality: required or encouraged?
+Slice 1 brief MUST resolve this by reading the actual `infer_if` /
+`infer_match` / `infer_option_expect` placements + matching whichever
+convention is most consistent.
 
-Slice 1 makes `-> :T` optional. Slice 2 sweeps the substrate +
-stdlib to ADOPT it. Question: should arc 145 close with `-> :T`
-REQUIRED (every let* call site MUST declare result type), or
-OPTIONAL (forever encouraged but not required)?
+### Q2 — Required or optional `-> :T`?
 
-Per arc 110's discipline (silent kernel-comm illegal): the substrate
-has a track record of making "the right way" the only legal way
-once the migration completes. If `-> :T` is the right way for `let`,
-ARC 145 should close with it required.
+Per user direction "users can make their own choice" — `-> :T` is
+OPTIONAL forever. Backwards compatible; users adopt at their own
+pace if they want explicit value-bearing declaration.
 
-DEFER to slice 3: the rename slice decides whether deprecation
-poison applies to `(let bindings body)` (no `-> :T`) or whether
-both shapes coexist forever.
+Consistency note: `Option/expect` and `Result/expect` REQUIRE
+`-> :T` per arc 108. `if` and `match` REQUIRE `-> :T`. `let` and
+`let*` would be the only value-bearing forms where `-> :T` is
+optional.
 
-### Q3 — Parallel-let semantics: deprecate or absorb?
+The trade-off:
+- Required: consistency with other value-bearing forms; one less
+  variant in the substrate; readers don't have to handle two
+  shapes.
+- Optional: backwards compat (no breaking change to existing
+  call sites); users opt-in.
 
-User said "it'll assume let*'s behavior at the end of 109." Two
-interpretations:
-- **Absorb**: existing `:wat::core::let` call sites continue to type-check
-  and run, but with sequential semantics (potentially changing
-  behavior IF the call site relied on parallel-ness).
-- **Deprecate-with-poison**: existing `:wat::core::let` call sites get a
-  Pattern 2 poison ("use :wat::core::let* until the rename") so they
-  surface the inconsistency before the rename lands.
+**Per the user direction**: optional. Users choose. Reconsider in
+a future arc if the substrate-wide consistency becomes load-bearing.
 
-Per arc 110's discipline: deprecate-with-poison is the calibrated
-move. Absorb-silently risks a runtime behavior change for code that
-relies on parallel-let semantics.
+### Q3 — Special-form registry sketch
 
-DEFER to slice 3: confirm via grep whether ANY user code relies on
-parallel-ness; absorb if zero matches, deprecate-with-poison
-otherwise.
+Arc 144 slice 2 registered both `:wat::core::let` and
+`:wat::core::let*` in the special-form registry with sketches:
+```
+(:wat::core::let <bindings> <body>+)
+(:wat::core::let* <bindings> <body>+)
+```
+
+Slice 1 should update these sketches to reflect the new optional
+`-> :T` slot. Exact format depends on Q1's resolution.
 
 ## Why this arc must land before arc 109 v1 closes
 
 Arc 109's wind-down rule: arc 109 v1 doesn't close until all
-post-109 arcs implement (no deferrals). The `let*` → `let` rename
-was already on the list (task #185); the typed-let addition expands
-that task into a proper arc.
-
-Closing arc 109 with both `let` and `let*` AND no `-> :T`
-declaration on either would lock in the inconsistency.
+post-109 arcs implement (no deferrals). Closing arc 109 with
+let / let* untyped (when every other value-bearing form has
+explicit `-> :T`) would lock in the inconsistency.
 
 ## Cross-references
 
 - `docs/arc/2026/04/108-typed-expect-special-forms/INSCRIPTION.md`
   — the prior arc that established the `-> :T` declaration pattern
   for value-bearing special forms.
-- `docs/arc/2026/04/110-kernel-comm-expect/INSCRIPTION.md` — the
-  Pattern 2 poison + deprecation discipline this arc uses.
-- Task #185 — "arc 109 follow-up: rename :wat::core::let* →
-  :wat::core::let" — superseded by this arc.
-- `src/check.rs:5184-5208` (current `infer_let` parallel)
-- `src/check.rs:5946+` (current `infer_let_star` sequential)
-- `src/runtime.rs:2402-2403` (current dispatch)
+- `docs/arc/2026/05/144-uniform-reflection-foundation/SCORE-SLICE-2.md`
+  — the slice that registered `let` + `let*` in the special-form
+  registry (slice 1 here updates those sketches).
+- Task #185 (SUPERSEDED): "rename :wat::core::let* → :wat::core::let"
+  is no longer in scope; user direction preserved both forms.
+- `src/check.rs:5184-5208` (current `infer_let` parallel — DOES NOT
+  CHANGE in this arc; only gains optional `-> :T`)
+- `src/check.rs:5946+` (current `infer_let_star` sequential — same)
+- `src/runtime.rs:2402-2403` (eval dispatch)
 
 ## Status notes
 
-- DESIGN drafted. Implementation not started.
-- Arc 144 takes priority (in flight: slices 3-5 remaining).
-- Arc 130 (in flight) closure required for arc 109 v1.
-- This arc joins the queue: arc 109 v1 closure now blocks on
-  arc 144 + arc 130 + arc 145.
+- DESIGN drafted (revised after user clarification).
+- Implementation deferred until arc 144 ships (in flight: slices
+  3-5 remaining).
+- Arc 109 v1 closure blocks on arc 144 + arc 130 + arc 145.
