@@ -34,12 +34,34 @@ NOT a crack = an emission site where there genuinely is no AST to read a span fr
 - **Scope:** src/io.rs (trait def + impls + callers in eval_io_* functions).
 - **Estimated runtime:** ~30-45 min sonnet.
 
-### F4. Value-shaped API threading (slice 3b leftover)
-- **Where:** ~30 Pattern E sites across spawn.rs, string_ops.rs, edn_shim.rs, marshal.rs in helpers like `expect_string(op, v: Value)`, `expect_i64(op, v: Value)`, `expect_option_string`, etc.
-- **Cause:** these helpers receive already-evaluated `Value`, not `WatAST`. The originating AST has been discarded by the time the helper runs.
-- **Fix:** add `span: Span` parameter parallel to the Value (e.g., `expect_string(op, v, span)`). Callers thread `args[i].span().clone()` at each call site.
-- **Scope:** multi-file across spawn.rs, string_ops.rs, edn_shim.rs, marshal.rs, possibly assertion.rs and others. Caller updates wide.
-- **Estimated runtime:** ~60+ min sonnet. Largest of the four.
+### F4. Value-shaped API threading (slice 3b leftover) — DECOMPOSED into F4a/F4b/F4c
+
+After F3 ship, F4 inventory revealed three distinct sub-cracks sharing the "Value lacks AST context" theme. Each is its own slice:
+
+#### F4a. Value-shaped helpers (spawn.rs / string_ops.rs / io.rs)
+- **Where:** ~11 helpers like `expect_string(op, v: Value)`, `expect_i64`, `two_strings`, `expect_reader`, `expect_writer`, etc.
+- **Cause:** helpers receive already-evaluated `Value`, not `WatAST`.
+- **Fix:** add `span: Span` parameter to each helper. Callers thread span (already in scope as `list_span` or `args[i]`).
+- **Scope:** src/spawn.rs (4 helpers), src/string_ops.rs (1 helper, called many times), src/io.rs (5 helpers + leftover from F3). ~11 helpers + ~30 call sites.
+- **Estimated runtime:** 15-25 min sonnet.
+
+#### F4b. FromWat trait expansion (marshal.rs)
+- **Where:** `pub trait FromWat` at src/rust_deps/marshal.rs:46 with `from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError>` method. ~10 impls (i64/f64/bool/String/Unit/Option/Vec/etc.).
+- **Cause:** Same shape as WatReader/WatWriter trait gap (closed by F3). FromWat::from_wat takes Value but no span; the 17 Pattern E sites in marshal.rs are inside the impls.
+- **Fix:** expand trait surface — `from_wat(v: &Value, op: &'static str, span: Span) -> Result<Self, RuntimeError>`. Update all impls + callers.
+- **Scope:** src/rust_deps/marshal.rs only (trait + impls + callers all live here).
+- **Estimated runtime:** 15-25 min sonnet (similar shape to F3).
+
+#### F4c. ThreadOwnedCell::with_mut signature broadening
+- **Where:** ThreadOwnedCell::with_mut method (mentioned by F3 sonnet); takes `&'static str` for the op name but no span.
+- **Cause:** Used inside StringIoWriter::write/write_all (and possibly other places) where owner-check failures emit RuntimeError without span context.
+- **Fix:** add `span: Span` parameter to with_mut. Update implementors (1 file probably). Update callers.
+- **Scope:** smaller — single helper expansion + few callers.
+- **Estimated runtime:** 5-15 min sonnet.
+
+#### Out of F4 scope (intentionally Pattern E)
+- **edn_shim.rs Pattern E sites:** the EDN parser layer is correct architecture (per F5 investigation); Pattern E here is intentional, NOT a crack.
+- **time.rs / fork.rs / sandbox.rs OS errors:** chrono parsing failures + fork() syscall errors + path validation errors don't have AST context to thread; genuine Pattern E.
 
 ### F5. EdnReadError direct Rust callers — INVESTIGATED, NOT A CRACK
 - **Investigation result (2026-05-03):** grep across src/ + crates/ found read_edn called only at src/runtime.rs:12686 (inside an eval shim that catches EdnReadError and wraps with span). edn_to_value called only at src/runtime.rs:13149 (also inside a wrapper). NO direct external callers in wat-telemetry-sqlite or anywhere else.
@@ -63,9 +85,11 @@ Sequential sonnet engagements. Each is its own slice with BRIEF + EXPECTATIONS +
 2. **Slice 4a-followup-F1 (sonnet):** MacroDef gains span field. Smallest crack; validates the followup pattern. ~10-15 min.
 3. **Slice 1-followup-F2 (sonnet):** SchemeCtx trait expansion + 3 implementors. ~30-45 min.
 4. **Slice 3b-followup-F3 (sonnet):** WatReader/WatWriter trait expansion + implementors + eval shim callers. ~30-45 min.
-5. **Slice 3b-followup-F4 (sonnet):** Value-shaped API threading across spawn/string_ops/edn_shim/marshal. ~60+ min. Largest.
-6. **Slice 5 (sonnet):** ConfigError form_index → Span (the original slice 5; deferred until cracks closed).
-7. **Slice 6:** doctrine + INSCRIPTION + USER-GUIDE + 058 row → arc 138 closure.
+5. **F4a (sonnet):** Value-shaped helpers in spawn/string_ops/io. 15-25 min.
+6. **F4b (sonnet):** FromWat trait expansion in marshal.rs. 15-25 min.
+7. **F4c (sonnet):** ThreadOwnedCell::with_mut signature broadening. 5-15 min.
+8. **Slice 5 (sonnet):** ConfigError form_index → Span (the original slice 5; deferred until cracks closed).
+9. **Slice 6:** doctrine + INSCRIPTION + USER-GUIDE + 058 row → arc 138 closure.
 
 ## Disk note for context refresh
 
