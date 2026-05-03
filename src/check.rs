@@ -8142,7 +8142,7 @@ fn infer_lambda(
     if let Some(body_ty) = body_ty {
         if unify(&body_ty, &ret_type, subst, env.types()).is_err() {
             errors.push(CheckError::ReturnTypeMismatch {
-                function: "<lambda>".into(),
+                function: format!("<lambda@{}>", body.span()),
                 expected: format_type(&apply_subst(&ret_type, subst)),
                 got: format_type(&apply_subst(&body_ty, subst)),
                 span: body.span().clone(),

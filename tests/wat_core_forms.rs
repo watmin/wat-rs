@@ -13,7 +13,7 @@ use wat::load::InMemoryLoader;
 use wat::runtime::Value;
 
 fn run(src: &str) -> Vec<String> {
-    let world = startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
         .expect("startup");
     let stdin: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
     let stdout = Arc::new(StringIoWriter::new());

@@ -24,7 +24,7 @@ use wat::runtime::Value;
 
 fn run(src: &str) -> Value {
     let world =
-        startup_from_source(src, None, Arc::new(InMemoryLoader::new())).expect("startup");
+        startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new())).expect("startup");
     invoke_user_main(&world, Vec::new()).expect("main")
 }
 

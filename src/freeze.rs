@@ -142,10 +142,10 @@ impl FrozenWorld {
                 }
             };
             check_sigma_fn_signature("set-presence-sigma!", &func)?;
-            let path = func
-                .name
-                .clone()
-                .unwrap_or_else(|| "<lambda>".to_string());
+            let path = match func.name.clone() {
+                Some(name) => name,
+                None => format!("<lambda@{}>", func.body.span()),
+            };
             symbols.set_presence_sigma_fn(Arc::new(crate::sigma::WatLambdaSigmaFn {
                 path,
                 func,
@@ -171,10 +171,10 @@ impl FrozenWorld {
                 }
             };
             check_sigma_fn_signature("set-coincident-sigma!", &func)?;
-            let path = func
-                .name
-                .clone()
-                .unwrap_or_else(|| "<lambda>".to_string());
+            let path = match func.name.clone() {
+                Some(name) => name,
+                None => format!("<lambda@{}>", func.body.span()),
+            };
             symbols.set_coincident_sigma_fn(Arc::new(crate::sigma::WatLambdaSigmaFn {
                 path,
                 func,
@@ -837,7 +837,7 @@ mod tests {
 
     /// Helper: start from an entry string with no loaded files.
     fn startup(entry: &str) -> Result<FrozenWorld, StartupError> {
-        startup_from_source(entry, None, Arc::new(InMemoryLoader::new()))
+        startup_from_source(entry, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
     }
 
     // ─── Happy path ─────────────────────────────────────────────────────
@@ -991,7 +991,7 @@ mod tests {
             (:wat::config::set-capacity-mode! :error)
             (:wat::load-file! "lib.wat")
         "#;
-        let world = startup_from_source(entry, None, Arc::new(loader)).expect("startup");
+        let world = startup_from_source(entry, Some(concat!(file!(), ":", line!())), Arc::new(loader)).expect("startup");
         assert!(world.symbols().get(":lib::square").is_some());
     }
 

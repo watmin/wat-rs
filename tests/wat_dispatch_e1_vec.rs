@@ -48,7 +48,7 @@ fn sum_vec_via_macro() {
           (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64 10 20 30)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
+    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(60)), "got {:?}", result);
 }
@@ -68,7 +68,7 @@ fn reverse_vec_via_macro() {
             (:wat::core::None -1)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
+    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(3)), "got {:?}", result);
 }
@@ -88,7 +88,7 @@ fn sort_vec_via_macro() {
             (:wat::core::None -1)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
+    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(1)), "got {:?}", result);
 }
@@ -103,7 +103,7 @@ fn empty_vec_via_macro() {
           (:rust::test::VecUtils::sum (:wat::core::Vector :wat::core::i64)))
     "#;
     let loader = InMemoryLoader::new();
-    let world = startup_from_source(src, None, Arc::new(loader)).expect("startup");
+    let world = startup_from_source(src, Some(concat!(file!(), ":", line!())), Arc::new(loader)).expect("startup");
     let result = invoke_user_main(&world, Vec::new()).expect("main");
     assert!(matches!(result, Value::i64(0)), "got {:?}", result);
 }

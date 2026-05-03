@@ -11188,13 +11188,19 @@ pub fn apply_function(
     // in place (the current call is substituted by the next callee
     // at the same stack depth), matching what a user reads as
     // "recursion without stack growth."
-    let callee_name_initial = cur_func.name.clone().unwrap_or_else(|| "<lambda>".into());
+    let callee_name_initial = match cur_func.name.clone() {
+        Some(name) => name,
+        None => format!("<lambda@{}>", cur_func.body.span()),
+    };
     let _frame_guard = FrameGuard::push(callee_name_initial, cur_span.clone());
 
     loop {
         if cur_args.len() != cur_func.params.len() {
             return Err(RuntimeError::ArityMismatch {
-                op: cur_func.name.clone().unwrap_or_else(|| "<lambda>".into()),
+                op: match cur_func.name.clone() {
+                    Some(name) => name,
+                    None => format!("<lambda@{}>", cur_func.body.span()),
+                },
                 expected: cur_func.params.len(),
                 got: cur_args.len(),
                 span: cur_span.clone(),
@@ -11226,7 +11232,10 @@ pub fn apply_function(
                 cur_span = next_span;
                 // Replace the top frame with the new callee's info —
                 // tail calls don't deepen the stack; they substitute.
-                let next_name = cur_func.name.clone().unwrap_or_else(|| "<lambda>".into());
+                let next_name = match cur_func.name.clone() {
+                    Some(name) => name,
+                    None => format!("<lambda@{}>", cur_func.body.span()),
+                };
                 replace_top_frame(next_name, cur_span.clone());
                 continue;
             }
