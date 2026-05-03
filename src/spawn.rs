@@ -63,10 +63,15 @@ pub fn eval_kernel_spawn_program(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::spawn-program";
-    arity_2(OP, args)?;
+    let list_span = args
+        .first()
+        .map(|a| a.span().clone())
+        .unwrap_or_else(crate::span::Span::unknown);
+    arity_2(OP, args, &list_span)?;
 
-    let src = expect_string(OP, eval(&args[0], env, sym)?)?;
-    let scope_opt = expect_option_string(OP, eval(&args[1], env, sym)?)?;
+    let src = expect_string(OP, eval(&args[0], env, sym)?, args[0].span().clone())?;
+    let scope_opt =
+        expect_option_string(OP, eval(&args[1], env, sym)?, args[1].span().clone())?;
 
     let loader = resolve_sandbox_loader(scope_opt, sym, OP)?;
     let world = match startup_from_source(&src, None, loader) {
@@ -90,10 +95,15 @@ pub fn eval_kernel_spawn_program_ast(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::spawn-program-ast";
-    arity_2(OP, args)?;
+    let list_span = args
+        .first()
+        .map(|a| a.span().clone())
+        .unwrap_or_else(crate::span::Span::unknown);
+    arity_2(OP, args, &list_span)?;
 
-    let forms = expect_vec_ast(OP, eval(&args[0], env, sym)?)?;
-    let scope_opt = expect_option_string(OP, eval(&args[1], env, sym)?)?;
+    let forms = expect_vec_ast(OP, eval(&args[0], env, sym)?, args[0].span().clone())?;
+    let scope_opt =
+        expect_option_string(OP, eval(&args[1], env, sym)?, args[1].span().clone())?;
 
     let loader = resolve_sandbox_loader(scope_opt, sym, OP)?;
     let inherit_config: Option<Config> = sym.encoding_ctx().map(|ctx| ctx.config.clone());
@@ -220,56 +230,56 @@ fn spawn_with_world_into_result(
 
 // ─── Arg-parsing helpers ─────────────────────────────────────────────
 
-fn arity_2(op: &str, args: &[WatAST]) -> Result<(), RuntimeError> {
+fn arity_2(op: &str, args: &[WatAST], list_span: &crate::span::Span) -> Result<(), RuntimeError> {
     if args.len() != 2 {
-        // arc 138: no span — arity_2 has no list_span; callers in runtime.rs don't pass it; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 2,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span: list_span.clone(),
         });
     }
     Ok(())
 }
 
-fn expect_string(op: &str, v: Value) -> Result<String, RuntimeError> {
+fn expect_string(op: &str, v: Value, span: crate::span::Span) -> Result<String, RuntimeError> {
     match v {
         Value::String(s) => Ok((*s).clone()),
-        // arc 138: no span — expect_string receives evaluated Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
             got: other.type_name(),
-            span: crate::span::Span::unknown(),
+            span,
         }),
     }
 }
 
-fn expect_option_string(op: &str, v: Value) -> Result<Option<String>, RuntimeError> {
+fn expect_option_string(
+    op: &str,
+    v: Value,
+    span: crate::span::Span,
+) -> Result<Option<String>, RuntimeError> {
     match v {
         Value::Option(opt) => match &*opt {
             Some(Value::String(s)) => Ok(Some((**s).clone())),
-            // arc 138: no span — expect_option_string receives evaluated Value, no WatAST trace available
             Some(other) => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Option<String>",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span: span.clone(),
             }),
             None => Ok(None),
         },
-        // arc 138: no span — expect_option_string receives evaluated Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Option<String>",
             got: other.type_name(),
-            span: crate::span::Span::unknown(),
+            span,
         }),
     }
 }
 
-fn expect_vec_ast(op: &str, v: Value) -> Result<Vec<WatAST>, RuntimeError> {
+fn expect_vec_ast(op: &str, v: Value, span: crate::span::Span) -> Result<Vec<WatAST>, RuntimeError> {
     match v {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
@@ -277,24 +287,23 @@ fn expect_vec_ast(op: &str, v: Value) -> Result<Vec<WatAST>, RuntimeError> {
                 match item {
                     Value::wat__WatAST(ast) => out.push((**ast).clone()),
                     other => {
-                        // arc 138: no span — Vec element iteration over Values, per-element WatAST span unavailable
+                        // arc 138: no span — Vec element iteration; per-element WatAST span unavailable; use form span
                         return Err(RuntimeError::TypeMismatch {
                             op: op.into(),
                             expected: "wat::WatAST",
                             got: other.type_name(),
-                            span: crate::span::Span::unknown(),
+                            span: span.clone(),
                         });
                     }
                 }
             }
             Ok(out)
         }
-        // arc 138: no span — expect_vec_ast receives evaluated Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Vec<wat::WatAST>",
             got: other.type_name(),
-            span: crate::span::Span::unknown(),
+            span,
         }),
     }
 }

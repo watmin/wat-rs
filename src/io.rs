@@ -695,85 +695,79 @@ fn arity(op: &str, args: &[WatAST], n: usize) -> Result<(), RuntimeError> {
     Ok(())
 }
 
-fn expect_reader(op: &str, v: Value) -> Result<Arc<dyn WatReader>, RuntimeError> {
+fn expect_reader(op: &str, v: Value, span: Span) -> Result<Arc<dyn WatReader>, RuntimeError> {
     match v {
         Value::io__IOReader(r) => Ok(r),
-        // arc 138: no span — helper receives evaluated Value, no WatAST; Value-only context
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOReader",
             got: other.type_name(),
-            span: crate::span::Span::unknown(),
+            span,
         }),
     }
 }
 
-fn expect_writer(op: &str, v: Value) -> Result<Arc<dyn WatWriter>, RuntimeError> {
+fn expect_writer(op: &str, v: Value, span: Span) -> Result<Arc<dyn WatWriter>, RuntimeError> {
     match v {
         Value::io__IOWriter(w) => Ok(w),
-        // arc 138: no span — helper receives evaluated Value, no WatAST; Value-only context
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOWriter",
             got: other.type_name(),
-            span: crate::span::Span::unknown(),
+            span,
         }),
     }
 }
 
-fn expect_i64(op: &str, v: Value) -> Result<i64, RuntimeError> {
+fn expect_i64(op: &str, v: Value, span: Span) -> Result<i64, RuntimeError> {
     match v {
         Value::i64(n) => Ok(n),
-        // arc 138: no span — helper receives evaluated Value, no WatAST; Value-only context
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "i64",
             got: other.type_name(),
-            span: crate::span::Span::unknown(),
+            span,
         }),
     }
 }
 
-fn expect_string(op: &str, v: Value) -> Result<Arc<String>, RuntimeError> {
+fn expect_string(op: &str, v: Value, span: Span) -> Result<Arc<String>, RuntimeError> {
     match v {
         Value::String(s) => Ok(s),
-        // arc 138: no span — helper receives evaluated Value, no WatAST; Value-only context
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
             got: other.type_name(),
-            span: crate::span::Span::unknown(),
+            span,
         }),
     }
 }
 
-fn expect_vec_u8(op: &str, v: Value) -> Result<Vec<u8>, RuntimeError> {
+fn expect_vec_u8(op: &str, v: Value, span: Span) -> Result<Vec<u8>, RuntimeError> {
     match v {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
-            for (i, item) in items.iter().enumerate() {
+            for item in items.iter() {
                 match item {
                     Value::u8(b) => out.push(*b),
                     other => {
-                        // arc 138: no span — helper receives evaluated Value, no WatAST; Value-only context
+                        // arc 138: no span — Vec element iteration; per-element WatAST span unavailable; use form span
                         return Err(RuntimeError::TypeMismatch {
                             op: op.into(),
                             expected: "u8",
                             got: other.type_name(),
-                            span: crate::span::Span::unknown(),
+                            span: span.clone(),
                         });
                     }
                 }
-                let _ = i;
             }
             Ok(out)
         }
-        // arc 138: no span — helper receives evaluated Value, no WatAST; Value-only context
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Vec<u8>",
             got: other.type_name(),
-            span: crate::span::Span::unknown(),
+            span,
         }),
     }
 }
@@ -792,7 +786,7 @@ pub fn eval_ioreader_from_bytes(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/from-bytes";
     arity(op, args, 1)?;
-    let bytes = expect_vec_u8(op, eval(&args[0], env, sym)?)?;
+    let bytes = expect_vec_u8(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let reader: Arc<dyn WatReader> = Arc::new(StringIoReader::from_bytes(bytes));
     Ok(Value::io__IOReader(reader))
 }
@@ -805,7 +799,7 @@ pub fn eval_ioreader_from_string(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/from-string";
     arity(op, args, 1)?;
-    let s = expect_string(op, eval(&args[0], env, sym)?)?;
+    let s = expect_string(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let reader: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string((*s).clone()));
     Ok(Value::io__IOReader(reader))
 }
@@ -821,8 +815,8 @@ pub fn eval_ioreader_read(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/read";
     arity(op, args, 2)?;
-    let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
-    let n = expect_i64(op, eval(&args[1], env, sym)?)?;
+    let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
+    let n = expect_i64(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     if n < 0 {
         return Err(RuntimeError::MalformedForm {
             head: op.into(),
@@ -843,7 +837,7 @@ pub fn eval_ioreader_read_all(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/read-all";
     arity(op, args, 1)?;
-    let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
+    let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let bytes = reader.read_all(list_span.clone())?;
     Ok(bytes_to_vec_u8_value(bytes))
 }
@@ -857,7 +851,7 @@ pub fn eval_ioreader_read_line(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/read-line";
     arity(op, args, 1)?;
-    let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
+    let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let line = reader.read_line(list_span.clone())?;
     Ok(Value::Option(Arc::new(
         line.map(|s| Value::String(Arc::new(s))),
@@ -873,7 +867,7 @@ pub fn eval_ioreader_rewind(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/rewind";
     arity(op, args, 1)?;
-    let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
+    let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     reader.rewind(list_span.clone())?;
     Ok(Value::Unit)
 }
@@ -946,7 +940,7 @@ pub fn eval_iowriter_to_bytes(
     let op = ":wat::io::IOWriter/to-bytes";
     arity(op, args, 1)?;
     let writer_value = eval(&args[0], env, sym)?;
-    let writer = expect_writer(op, writer_value)?;
+    let writer = expect_writer(op, writer_value, args[0].span().clone())?;
     let bytes = snapshot_writer(op, &writer)?;
     Ok(bytes_to_vec_u8_value(bytes))
 }
@@ -960,7 +954,7 @@ pub fn eval_iowriter_to_string(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/to-string";
     arity(op, args, 1)?;
-    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     let bytes = snapshot_writer(op, &writer)?;
     let decoded = String::from_utf8(bytes).ok();
     Ok(Value::Option(Arc::new(
@@ -1002,8 +996,8 @@ pub fn eval_iowriter_write(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/write";
     arity(op, args, 2)?;
-    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
-    let bytes = expect_vec_u8(op, eval(&args[1], env, sym)?)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
+    let bytes = expect_vec_u8(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     let n = writer.write(&bytes, list_span.clone())?;
     Ok(Value::i64(n as i64))
 }
@@ -1017,8 +1011,8 @@ pub fn eval_iowriter_write_all(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/write-all";
     arity(op, args, 2)?;
-    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
-    let bytes = expect_vec_u8(op, eval(&args[1], env, sym)?)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
+    let bytes = expect_vec_u8(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     writer.write_all(&bytes, list_span.clone())?;
     Ok(Value::Unit)
 }
@@ -1036,8 +1030,8 @@ pub fn eval_iowriter_write_string(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/write-string";
     arity(op, args, 2)?;
-    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
-    let s = expect_string(op, eval(&args[1], env, sym)?)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
+    let s = expect_string(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     let bytes = s.as_bytes();
     let n = bytes.len();
     writer.write_all(bytes, list_span.clone())?;
@@ -1056,8 +1050,8 @@ pub fn eval_iowriter_print(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/print";
     arity(op, args, 2)?;
-    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
-    let s = expect_string(op, eval(&args[1], env, sym)?)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
+    let s = expect_string(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     writer.write_all(s.as_bytes(), list_span.clone())?;
     Ok(Value::Unit)
 }
@@ -1073,8 +1067,8 @@ pub fn eval_iowriter_println(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/println";
     arity(op, args, 2)?;
-    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
-    let s = expect_string(op, eval(&args[1], env, sym)?)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
+    let s = expect_string(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     let mut bytes = s.as_bytes().to_vec();
     bytes.push(b'\n');
     writer.write_all(&bytes, list_span.clone())?;
@@ -1091,8 +1085,8 @@ pub fn eval_iowriter_writeln(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/writeln";
     arity(op, args, 2)?;
-    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
-    let s = expect_string(op, eval(&args[1], env, sym)?)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
+    let s = expect_string(op, eval(&args[1], env, sym)?, args[1].span().clone())?;
     let mut bytes = s.as_bytes().to_vec();
     bytes.push(b'\n');
     let n = bytes.len();
@@ -1109,7 +1103,7 @@ pub fn eval_iowriter_flush(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/flush";
     arity(op, args, 1)?;
-    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     writer.flush(list_span.clone())?;
     Ok(Value::Unit)
 }
@@ -1137,7 +1131,7 @@ pub fn eval_iowriter_close(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/close";
     arity(op, args, 1)?;
-    let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
+    let writer = expect_writer(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     writer.close(list_span.clone())?;
     Ok(Value::Unit)
 }
@@ -1357,7 +1351,7 @@ pub fn eval_io_read_file(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::read-file";
     arity(op, args, 1)?;
-    let path = expect_string(op, eval(&args[0], env, sym)?)?;
+    let path = expect_string(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     // arc 138: no span — host configuration error; no WatAST context at loader-lookup depth
     let loader = sym.source_loader().ok_or_else(|| RuntimeError::MalformedForm {
         head: op.into(),

@@ -87,11 +87,10 @@ pub fn eval_string_split(
     const OP: &str = ":wat::core::string::split";
     let (hay, sep) = two_strings(OP, args, env, sym)?;
     if sep.is_empty() {
-        // arc 138: no span — sep is a plain String extracted from evaluated Value; no WatAST trace
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
             reason: "separator must not be empty".into(),
-            span: crate::span::Span::unknown(),
+            span: args[1].span().clone(),
         });
     }
     let pieces: Vec<Value> = hay
@@ -112,12 +111,15 @@ pub fn eval_string_join(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::string::join";
     if args.len() != 2 {
-        // arc 138: no span — eval_string_join has no list_span; cross-file broadening out of scope
+        let span = args
+            .first()
+            .map(|a| a.span().clone())
+            .unwrap_or_else(crate::span::Span::unknown);
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span,
         });
     }
     let sep = match eval(&args[0], env, sym)? {
@@ -227,11 +229,10 @@ pub fn eval_regex_matches(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::regex::matches?";
     let (pattern, haystack) = two_strings(OP, args, env, sym)?;
-    // arc 138: no span — pattern is a plain String from two_strings; no WatAST trace at this point
     let re = regex::Regex::new(pattern.as_str()).map_err(|e| RuntimeError::MalformedForm {
         head: OP.into(),
         reason: format!("invalid regex: {}", e),
-        span: crate::span::Span::unknown(),
+        span: args[0].span().clone(),
     })?;
     Ok(Value::bool(re.is_match(haystack.as_str())))
 }
@@ -245,12 +246,15 @@ fn one_string(
     sym: &SymbolTable,
 ) -> Result<String, RuntimeError> {
     if args.len() != 1 {
-        // arc 138: no span — one_string has no list_span; cross-file broadening out of scope
+        let span = args
+            .first()
+            .map(|a| a.span().clone())
+            .unwrap_or_else(crate::span::Span::unknown);
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 1,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span,
         });
     }
     match eval(&args[0], env, sym)? {
@@ -271,12 +275,15 @@ fn two_strings(
     sym: &SymbolTable,
 ) -> Result<(String, String), RuntimeError> {
     if args.len() != 2 {
-        // arc 138: no span — two_strings has no list_span; cross-file broadening out of scope
+        let span = args
+            .first()
+            .map(|a| a.span().clone())
+            .unwrap_or_else(crate::span::Span::unknown);
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 2,
             got: args.len(),
-            span: crate::span::Span::unknown(),
+            span,
         });
     }
     let a = match eval(&args[0], env, sym)? {
