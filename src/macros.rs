@@ -95,13 +95,16 @@ impl MacroRegistry {
     /// matching params + rest_param + body AST count as equivalent.
     pub fn register(&mut self, def: MacroDef) -> Result<(), MacroError> {
         if crate::resolve::is_reserved_prefix(&def.name) {
-            return Err(MacroError::ReservedPrefix(def.name));
+            // arc 138: no span — MacroDef carries no source span; caller
+            // would need to thread the defmacro form's span through.
+            return Err(MacroError::ReservedPrefix(def.name, Span::unknown()));
         }
         if let Some(existing) = self.macros.get(&def.name) {
             if macro_byte_equivalent(existing, &def) {
                 return Ok(());
             }
-            return Err(MacroError::DuplicateMacro(def.name));
+            // arc 138: no span — MacroDef carries no source span.
+            return Err(MacroError::DuplicateMacro(def.name, Span::unknown()));
         }
         self.macros.insert(def.name.clone(), def);
         Ok(())
@@ -120,7 +123,8 @@ impl MacroRegistry {
             if macro_byte_equivalent(existing, &def) {
                 return Ok(());
             }
-            return Err(MacroError::DuplicateMacro(def.name));
+            // arc 138: no span — MacroDef carries no source span.
+            return Err(MacroError::DuplicateMacro(def.name, Span::unknown()));
         }
         self.macros.insert(def.name.clone(), def);
         Ok(())
@@ -141,73 +145,90 @@ fn macro_byte_equivalent(a: &MacroDef, b: &MacroDef) -> bool {
 #[derive(Debug)]
 pub enum MacroError {
     /// Two `(:wat::core::defmacro ...)` forms registered the same name.
-    DuplicateMacro(String),
+    DuplicateMacro(String, Span),
     /// A user macro declared under a reserved `:wat::...` prefix.
-    ReservedPrefix(String),
+    ReservedPrefix(String, Span),
     /// A `defmacro` form was malformed.
-    MalformedDefmacro { reason: String },
+    MalformedDefmacro { reason: String, span: Span },
     /// The macro's body wasn't a quasiquote template — this slice only
     /// supports quasiquote bodies.
-    UnsupportedBody { name: String, reason: String },
+    UnsupportedBody { name: String, reason: String, span: Span },
     /// A macro call passed the wrong number of arguments.
     ArityMismatch {
         name: String,
         expected: usize,
         got: usize,
+        span: Span,
     },
     /// An `unquote` reference named a parameter the macro didn't declare.
-    UnboundMacroParam { name: String },
+    UnboundMacroParam { name: String, span: Span },
     /// `unquote-splicing` was applied to a non-list argument.
-    SpliceNotList { name: String, got: &'static str },
+    SpliceNotList { name: String, got: &'static str, span: Span },
     /// Expansion depth exceeded a sanity limit — probably an infinite
     /// recursive macro.
-    ExpansionDepthExceeded { limit: usize },
+    ExpansionDepthExceeded { limit: usize, span: Span },
     /// Other malformation in a macro invocation or template.
-    MalformedTemplate { reason: String },
+    MalformedTemplate { reason: String, span: Span },
+}
+
+/// Prefix `"<file>:<line>:<col>: "` when span is known; empty string
+/// when unknown. Mirrors `src/check.rs::span_prefix` and
+/// `src/types.rs::span_prefix` exactly.
+fn span_prefix(span: &Span) -> String {
+    if span.is_unknown() {
+        String::new()
+    } else {
+        format!("{}: ", span)
+    }
 }
 
 impl fmt::Display for MacroError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MacroError::DuplicateMacro(n) => {
-                write!(f, "duplicate macro registration: {}", n)
+            MacroError::DuplicateMacro(n, span) => {
+                write!(f, "{}duplicate macro registration: {}", span_prefix(span), n)
             }
-            MacroError::ReservedPrefix(n) => write!(
+            MacroError::ReservedPrefix(n, span) => write!(
                 f,
-                "cannot declare macro {} — reserved prefix ({}); user macros must use their own prefix",
+                "{}cannot declare macro {} — reserved prefix ({}); user macros must use their own prefix",
+                span_prefix(span),
                 n,
                 crate::resolve::reserved_prefix_list()
             ),
-            MacroError::MalformedDefmacro { reason } => {
-                write!(f, "malformed defmacro: {}", reason)
+            MacroError::MalformedDefmacro { reason, span } => {
+                write!(f, "{}malformed defmacro: {}", span_prefix(span), reason)
             }
-            MacroError::UnsupportedBody { name, reason } => write!(
+            MacroError::UnsupportedBody { name, reason, span } => write!(
                 f,
-                "macro {} body not supported: {} (this slice handles quasiquote-template bodies only)",
+                "{}macro {} body not supported: {} (this slice handles quasiquote-template bodies only)",
+                span_prefix(span),
                 name, reason
             ),
-            MacroError::ArityMismatch { name, expected, got } => {
+            MacroError::ArityMismatch { name, expected, got, span } => {
                 write!(
                     f,
-                    "macro {} expects {} arguments; got {}",
+                    "{}macro {} expects {} arguments; got {}",
+                    span_prefix(span),
                     name, expected, got
                 )
             }
-            MacroError::UnboundMacroParam { name } => {
-                write!(f, "unquote references unbound macro parameter: {}", name)
+            MacroError::UnboundMacroParam { name, span } => {
+                write!(f, "{}unquote references unbound macro parameter: {}", span_prefix(span), name)
             }
-            MacroError::SpliceNotList { name, got } => write!(
+            MacroError::SpliceNotList { name, got, span } => write!(
                 f,
-                "unquote-splicing (,@{}) requires a List argument; got {}",
+                "{}unquote-splicing (,@{}) requires a List argument; got {}",
+                span_prefix(span),
                 name, got
             ),
-            MacroError::ExpansionDepthExceeded { limit } => write!(
+            MacroError::ExpansionDepthExceeded { limit, span } => write!(
                 f,
-                "macro expansion exceeded depth limit {} — likely infinite recursion",
+                "{}macro expansion exceeded depth limit {} — likely infinite recursion",
+                span_prefix(span),
                 limit
             ),
-            MacroError::MalformedTemplate { reason } => {
-                write!(f, "malformed template: {}", reason)
+            MacroError::MalformedTemplate { reason, span } => {
+                write!(f, "{}malformed template: {}", span_prefix(span), reason)
             }
         }
     }
@@ -286,11 +307,13 @@ fn is_defmacro_form(form: &WatAST) -> bool {
 
 /// Parse `(:wat::core::defmacro (:name::path (p :AST<T>) ... -> :AST<R>) body)`.
 fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
-    let items = match form {
-        WatAST::List(items, _) => items,
+    let (items, list_span) = match form {
+        WatAST::List(items, span) => (items, span),
         _ => {
             return Err(MacroError::MalformedDefmacro {
                 reason: "expected list form".into(),
+                // arc 138: no span — form was not a List, no span to extract.
+                span: Span::unknown(),
             })
         }
     };
@@ -300,6 +323,7 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
                 "expected (:wat::core::defmacro signature body); got {} elements",
                 items.len()
             ),
+            span: list_span, // Pattern B: outer list span
         });
     }
     let mut iter = items.into_iter();
@@ -307,7 +331,7 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     let signature = iter.next().expect("length checked");
     let body = iter.next().expect("length checked");
 
-    let (name, params, rest_param) = parse_defmacro_signature(signature)?;
+    let (name, params, rest_param) = parse_defmacro_signature(signature, list_span)?;
     Ok(MacroDef {
         name,
         params,
@@ -318,26 +342,30 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
 
 fn parse_defmacro_signature(
     sig: WatAST,
+    defmacro_span: Span,
 ) -> Result<(String, Vec<String>, Option<String>), MacroError> {
-    let items = match sig {
-        WatAST::List(items, _) => items,
+    let (items, sig_span) = match sig {
+        WatAST::List(items, span) => (items, span),
         _ => {
             return Err(MacroError::MalformedDefmacro {
                 reason: "signature must be a list".into(),
+                span: defmacro_span, // Pattern F: propagated from parse_defmacro_form
             })
         }
     };
     let mut iter = items.into_iter();
     let name = match iter.next() {
         Some(WatAST::Keyword(k, _)) => k,
-        Some(_other) => {
+        Some(other) => {
             return Err(MacroError::MalformedDefmacro {
                 reason: "macro name must be a keyword-path".into(),
+                span: other.span().clone(), // Pattern A: offending element span
             })
         }
         None => {
             return Err(MacroError::MalformedDefmacro {
                 reason: "signature is empty".into(),
+                span: sig_span.clone(), // Pattern B: signature list span
             })
         }
     };
@@ -350,25 +378,28 @@ fn parse_defmacro_signature(
             // `&` marker — the next binder is the rest-param. Only one
             // rest-binder is allowed; additional params after it are
             // rejected (same as Common Lisp's `&rest` discipline).
-            WatAST::Symbol(ref s, _) if s.as_str() == "&" => {
+            WatAST::Symbol(ref s, ref item_span) if s.as_str() == "&" => {
                 if saw_rest_marker {
                     return Err(MacroError::MalformedDefmacro {
                         reason: "duplicate `&` rest-marker in macro signature".into(),
+                        span: item_span.clone(), // Pattern A: offending `&` span
                     });
                 }
                 if rest_param.is_some() {
                     return Err(MacroError::MalformedDefmacro {
                         reason: "`&` must precede its rest-binder".into(),
+                        span: item_span.clone(), // Pattern A
                     });
                 }
                 saw_rest_marker = true;
             }
-            WatAST::List(pair, _) => {
+            WatAST::List(pair, pair_span) => {
                 let paramname = match pair.into_iter().next() {
                     Some(WatAST::Symbol(ident, _)) => ident.name,
                     _ => {
                         return Err(MacroError::MalformedDefmacro {
                             reason: "parameter name must be a bare symbol".into(),
+                            span: pair_span, // Pattern B: param list span
                         })
                     }
                 };
@@ -376,6 +407,7 @@ fn parse_defmacro_signature(
                     if rest_param.is_some() {
                         return Err(MacroError::MalformedDefmacro {
                             reason: "only one rest-binder is allowed after `&`".into(),
+                            span: sig_span.clone(), // Pattern B: signature list span
                         });
                     }
                     rest_param = Some(paramname);
@@ -383,9 +415,10 @@ fn parse_defmacro_signature(
                     params.push(paramname);
                 }
             }
-            _ => {
+            other => {
                 return Err(MacroError::MalformedDefmacro {
                     reason: "unexpected signature element".into(),
+                    span: other.span().clone(), // Pattern A: offending element span
                 })
             }
         }
@@ -393,6 +426,7 @@ fn parse_defmacro_signature(
     if saw_rest_marker && rest_param.is_none() {
         return Err(MacroError::MalformedDefmacro {
             reason: "`&` rest-marker with no binder".into(),
+            span: sig_span, // Pattern B: signature list span
         });
     }
     Ok((name, params, rest_param))
@@ -441,6 +475,7 @@ fn expand_form(
     if depth > EXPANSION_DEPTH_LIMIT {
         return Err(MacroError::ExpansionDepthExceeded {
             limit: EXPANSION_DEPTH_LIMIT,
+            span: form.span().clone(), // Pattern B: the form being expanded
         });
     }
 
@@ -515,6 +550,7 @@ fn expand_macro_call(
                     name: def.name.clone(),
                     expected: fixed_arity,
                     got: args.len(),
+                    span: call_site_span.clone(), // Pattern B: macro call-site span
                 });
             }
         }
@@ -524,6 +560,7 @@ fn expand_macro_call(
                     name: def.name.clone(),
                     expected: fixed_arity,
                     got: args.len(),
+                    span: call_site_span.clone(), // Pattern B: macro call-site span
                 });
             }
         }
@@ -569,6 +606,7 @@ fn expand_template(
                 return Err(MacroError::UnsupportedBody {
                     name: macro_name.into(),
                     reason: "body must be a quasiquote template (`X form)".into(),
+                    span: call_site_span.clone(), // Pattern B: call-site span
                 })
             }
         },
@@ -576,6 +614,7 @@ fn expand_template(
             return Err(MacroError::UnsupportedBody {
                 name: macro_name.into(),
                 reason: "body must be a quasiquote template (`X form)".into(),
+                span: call_site_span.clone(), // Pattern B: call-site span
             })
         }
     };
@@ -747,10 +786,11 @@ fn unquote_argument(
     bindings: &HashMap<String, WatAST>,
 ) -> Result<WatAST, MacroError> {
     match arg {
-        WatAST::Symbol(ident, _) => match bindings.get(&ident.name) {
+        WatAST::Symbol(ident, sym_span) => match bindings.get(&ident.name) {
             Some(bound) => Ok(bound.clone()),
             None => Err(MacroError::UnboundMacroParam {
                 name: ident.name.clone(),
+                span: sym_span.clone(), // Pattern A: symbol span
             }),
         },
         // Already-substituted literal (from a `,,X` outer pass or any
@@ -770,17 +810,19 @@ fn splice_argument(
     macro_name: &str,
 ) -> Result<Vec<WatAST>, MacroError> {
     match arg {
-        WatAST::Symbol(ident, _) => {
+        WatAST::Symbol(ident, sym_span) => {
             let bound = bindings
                 .get(&ident.name)
                 .ok_or_else(|| MacroError::UnboundMacroParam {
                     name: ident.name.clone(),
+                    span: sym_span.clone(), // Pattern A: symbol span
                 })?;
             match bound {
                 WatAST::List(items, _) => Ok(items.clone()),
                 other => Err(MacroError::SpliceNotList {
                     name: ident.name.clone(),
                     got: ast_variant_name(other),
+                    span: other.span().clone(), // Pattern A: bound value's span
                 }),
             }
         }
@@ -793,6 +835,7 @@ fn splice_argument(
                 macro_name,
                 ast_variant_name(other)
             ),
+            span: other.span().clone(), // Pattern A: offending node's span
         }),
     }
 }
@@ -1078,7 +1121,7 @@ mod tests {
             r#"(:wat::core::defmacro (:wat::std::MyMacro (x :AST) -> :AST) `,x)"#,
         )
         .unwrap_err();
-        assert!(matches!(err, MacroError::ReservedPrefix(_)));
+        assert!(matches!(err, MacroError::ReservedPrefix(_, _)));
     }
 
     #[test]
@@ -1095,7 +1138,7 @@ mod tests {
             "#,
         )
         .unwrap_err();
-        assert!(matches!(err, MacroError::DuplicateMacro(_)));
+        assert!(matches!(err, MacroError::DuplicateMacro(_, _)));
     }
 
     #[test]
@@ -1389,5 +1432,35 @@ mod tests {
             }
             _ => panic!("expected final list"),
         }
+    }
+
+    // ─── Arc 138 canary ─────────────────────────────────────────────────
+
+    #[test]
+    fn arc138_macro_error_message_carries_span() {
+        // Trigger ArityMismatch — a two-param macro called with one arg.
+        // The call-site form is parsed with `parse_all` which labels spans
+        // `<test>:<line>:<col>`. The MacroError Display arm prefixes the
+        // span via `span_prefix`, so the rendered message must contain
+        // `<test>:` when the variant's span is known.
+        let err = expand(
+            r#"
+            (:wat::core::defmacro (:my::two (x :AST) (y :AST) -> :AST)
+              `(:wat::core::vec ,x ,y))
+            (:my::two 1)
+            "#,
+        )
+        .unwrap_err();
+        let rendered = format!("{}", err);
+        assert!(
+            rendered.contains("<test>:"),
+            "expected MacroError Display to carry `<test>:` (file:line:col); got: {}",
+            rendered
+        );
+        assert!(
+            matches!(err, MacroError::ArityMismatch { .. }),
+            "expected ArityMismatch, got: {:?}",
+            err
+        );
     }
 }
