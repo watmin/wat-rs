@@ -2408,9 +2408,9 @@ fn dispatch_keyword_head(
         ":wat::core::struct->form" => eval_struct_to_form(args, env, sym),
         // Arc 143 slice 1 — runtime introspection: look up a named
         // callable by keyword and return its AST representation.
-        ":wat::core::lookup-define" => eval_lookup_define(args, env, sym),
-        ":wat::core::signature-of" => eval_signature_of(args, env, sym),
-        ":wat::core::body-of" => eval_body_of(args, env, sym),
+        ":wat::runtime::lookup-define" => eval_lookup_define(args, env, sym),
+        ":wat::runtime::signature-of" => eval_signature_of(args, env, sym),
+        ":wat::runtime::body-of" => eval_body_of(args, env, sym),
         // Arc 098 — Clara-style single-item pattern matcher.
         // Both type checker and runtime walk the same pattern grammar
         // via the shared classifier in `crate::form_match`.
@@ -6108,7 +6108,7 @@ enum LookupResult<'a> {
     Primitive(crate::check::TypeScheme),
 }
 
-/// `(:wat::core::lookup-define <name :keyword>) -> :Option<wat::holon::HolonAST>`
+/// `(:wat::runtime::lookup-define <name :keyword>) -> :Option<wat::holon::HolonAST>`
 ///
 /// Arc 143 slice 1. Returns the FULL define AST:
 /// `(:wat::core::define <head> <body>)`.
@@ -6124,7 +6124,7 @@ fn eval_lookup_define(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::lookup-define";
+    const OP: &str = ":wat::runtime::lookup-define";
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
@@ -6162,7 +6162,7 @@ fn eval_lookup_define(
     }
 }
 
-/// `(:wat::core::signature-of <name :keyword>) -> :Option<wat::holon::HolonAST>`
+/// `(:wat::runtime::signature-of <name :keyword>) -> :Option<wat::holon::HolonAST>`
 ///
 /// Arc 143 slice 1. Returns ONLY the signature HEAD:
 /// `(<name><type_params> (param :Type) ... -> :Ret)`.
@@ -6175,7 +6175,7 @@ fn eval_signature_of(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::signature-of";
+    const OP: &str = ":wat::runtime::signature-of";
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
@@ -6213,7 +6213,7 @@ fn eval_signature_of(
     }
 }
 
-/// `(:wat::core::body-of <name :keyword>) -> :Option<wat::holon::HolonAST>`
+/// `(:wat::runtime::body-of <name :keyword>) -> :Option<wat::holon::HolonAST>`
 ///
 /// Arc 143 slice 1. Returns the body AST only.
 ///
@@ -6227,7 +6227,7 @@ fn eval_body_of(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::body-of";
+    const OP: &str = ":wat::runtime::body-of";
     if args.len() != 1 {
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),

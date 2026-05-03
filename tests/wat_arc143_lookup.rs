@@ -1,8 +1,8 @@
 //! Integration coverage for arc 143 slice 1 — three substrate
 //! introspection primitives:
-//!   `:wat::core::lookup-define`
-//!   `:wat::core::signature-of`
-//!   `:wat::core::body-of`
+//!   `:wat::runtime::lookup-define`
+//!   `:wat::runtime::signature-of`
+//!   `:wat::runtime::body-of`
 //!
 //! Each primitive takes a keyword name and returns
 //! `:Option<wat::holon::HolonAST>`. Test coverage:
@@ -53,7 +53,7 @@ fn run(src: &str) -> Vec<String> {
     lines
 }
 
-// ─── :wat::core::lookup-define ───────────────────────────────────────────
+// ─── :wat::runtime::lookup-define ───────────────────────────────────────────
 
 #[test]
 fn lookup_define_user_define_returns_some() {
@@ -71,7 +71,7 @@ fn lookup_define_user_define_returns_some() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::match
-            (:wat::core::lookup-define :user::my-add)
+            (:wat::runtime::lookup-define :user::my-add)
             -> :wat::core::unit
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
@@ -92,7 +92,7 @@ fn lookup_define_substrate_primitive_returns_some() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::match
-            (:wat::core::lookup-define :wat::core::foldl)
+            (:wat::runtime::lookup-define :wat::core::foldl)
             -> :wat::core::unit
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
@@ -112,7 +112,7 @@ fn lookup_define_unknown_name_returns_none() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::match
-            (:wat::core::lookup-define :user::this-does-not-exist)
+            (:wat::runtime::lookup-define :user::this-does-not-exist)
             -> :wat::core::unit
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
@@ -120,7 +120,7 @@ fn lookup_define_unknown_name_returns_none() {
     assert_eq!(run(src), vec!["pass".to_string()]);
 }
 
-// ─── :wat::core::signature-of ────────────────────────────────────────────
+// ─── :wat::runtime::signature-of ────────────────────────────────────────────
 
 #[test]
 fn signature_of_user_define_returns_some() {
@@ -138,7 +138,7 @@ fn signature_of_user_define_returns_some() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::match
-            (:wat::core::signature-of :user::my-mul)
+            (:wat::runtime::signature-of :user::my-mul)
             -> :wat::core::unit
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
@@ -158,7 +158,7 @@ fn signature_of_substrate_primitive_returns_some() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::match
-            (:wat::core::signature-of :wat::core::foldl)
+            (:wat::runtime::signature-of :wat::core::foldl)
             -> :wat::core::unit
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
@@ -177,7 +177,7 @@ fn signature_of_unknown_name_returns_none() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::match
-            (:wat::core::signature-of :no::such::function)
+            (:wat::runtime::signature-of :no::such::function)
             -> :wat::core::unit
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
@@ -185,7 +185,7 @@ fn signature_of_unknown_name_returns_none() {
     assert_eq!(run(src), vec!["pass".to_string()]);
 }
 
-// ─── :wat::core::body-of ─────────────────────────────────────────────────
+// ─── :wat::runtime::body-of ─────────────────────────────────────────────────
 
 #[test]
 fn body_of_user_define_returns_some() {
@@ -203,7 +203,7 @@ fn body_of_user_define_returns_some() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::match
-            (:wat::core::body-of :user::my-neg)
+            (:wat::runtime::body-of :user::my-neg)
             -> :wat::core::unit
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
@@ -224,7 +224,7 @@ fn body_of_substrate_primitive_returns_none() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::match
-            (:wat::core::body-of :wat::core::foldl)
+            (:wat::runtime::body-of :wat::core::foldl)
             -> :wat::core::unit
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
@@ -243,7 +243,7 @@ fn body_of_unknown_name_returns_none() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::match
-            (:wat::core::body-of :totally::unknown)
+            (:wat::runtime::body-of :totally::unknown)
             -> :wat::core::unit
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
@@ -269,7 +269,7 @@ fn signature_of_foldl_renders_synthesised_shape() {
             -> :wat::core::unit)
           (:wat::core::let*
             (((sig-opt :wat::core::Option<wat::holon::HolonAST>)
-              (:wat::core::signature-of :wat::core::foldl))
+              (:wat::runtime::signature-of :wat::core::foldl))
              ((rendered :wat::core::String)
               (:wat::edn::write sig-opt)))
             (:wat::io::IOWriter/println stdout rendered)))
@@ -298,7 +298,7 @@ fn signature_of_foldl_renders_synthesised_shape() {
         "expected type-param names T/Acc and Vec in signature, got: {}",
         line
     );
-    // Verbatim EDN output of `(:wat::core::signature-of :wat::core::foldl)`:
+    // Verbatim EDN output of `(:wat::runtime::signature-of :wat::core::foldl)`:
     //   #wat-edn.holon/Bundle [
     //     #wat-edn.holon/Symbol ":wat::core::foldl<T,Acc>"
     //     #wat-edn.holon/Bundle [#wat-edn.holon/Symbol ":_a0" #wat-edn.holon/Symbol ":Vec<T>"]
@@ -327,7 +327,7 @@ fn lookup_define_user_function_contains_define_keyword() {
             -> :wat::core::unit)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
-              (:wat::core::lookup-define :user::my-square))
+              (:wat::runtime::lookup-define :user::my-square))
              ((rendered :wat::core::String)
               (:wat::edn::write def-opt)))
             (:wat::io::IOWriter/println stdout rendered)))

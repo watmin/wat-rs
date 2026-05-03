@@ -3123,9 +3123,9 @@ fn infer_list(
                 }
                 return Some(TypeExpr::Path(":wat::WatAST".into()));
             }
-            ":wat::core::lookup-define"
-            | ":wat::core::signature-of"
-            | ":wat::core::body-of" => {
+            ":wat::runtime::lookup-define"
+            | ":wat::runtime::signature-of"
+            | ":wat::runtime::body-of" => {
                 // Arc 143 slice 1 — runtime introspection primitives.
                 // Each takes a keyword name (`:fn::path`) and returns
                 // `:Option<wat::holon::HolonAST>`. The argument may be
@@ -10994,7 +10994,7 @@ fn register_builtins(env: &mut CheckEnv) {
         args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
     };
     env.register(
-        ":wat::core::lookup-define".into(),
+        ":wat::runtime::lookup-define".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![symbol_ty()],
@@ -11002,7 +11002,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::signature-of".into(),
+        ":wat::runtime::signature-of".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![symbol_ty()],
@@ -11010,7 +11010,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::body-of".into(),
+        ":wat::runtime::body-of".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![symbol_ty()],
