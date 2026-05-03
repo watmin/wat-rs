@@ -222,7 +222,7 @@ fn spawn_with_world_into_result(
 
 fn arity_2(op: &str, args: &[WatAST]) -> Result<(), RuntimeError> {
     if args.len() != 2 {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — arity_2 has no list_span; callers in runtime.rs don't pass it; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 2,
@@ -236,7 +236,7 @@ fn arity_2(op: &str, args: &[WatAST]) -> Result<(), RuntimeError> {
 fn expect_string(op: &str, v: Value) -> Result<String, RuntimeError> {
     match v {
         Value::String(s) => Ok((*s).clone()),
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — expect_string receives evaluated Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
@@ -250,7 +250,7 @@ fn expect_option_string(op: &str, v: Value) -> Result<Option<String>, RuntimeErr
     match v {
         Value::Option(opt) => match &*opt {
             Some(Value::String(s)) => Ok(Some((**s).clone())),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — expect_option_string receives evaluated Value, no WatAST trace available
             Some(other) => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Option<String>",
@@ -259,7 +259,7 @@ fn expect_option_string(op: &str, v: Value) -> Result<Option<String>, RuntimeErr
             }),
             None => Ok(None),
         },
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — expect_option_string receives evaluated Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Option<String>",
@@ -277,7 +277,7 @@ fn expect_vec_ast(op: &str, v: Value) -> Result<Vec<WatAST>, RuntimeError> {
                 match item {
                     Value::wat__WatAST(ast) => out.push((**ast).clone()),
                     other => {
-                        // arc 138 slice 3b: span TBD
+                        // arc 138: no span — Vec element iteration over Values, per-element WatAST span unavailable
                         return Err(RuntimeError::TypeMismatch {
                             op: op.into(),
                             expected: "wat::WatAST",
@@ -289,7 +289,7 @@ fn expect_vec_ast(op: &str, v: Value) -> Result<Vec<WatAST>, RuntimeError> {
             }
             Ok(out)
         }
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — expect_vec_ast receives evaluated Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Vec<wat::WatAST>",

@@ -147,7 +147,7 @@ fn dispatch_auto_prep(
             op: OP.into(),
             expected: 1,
             got: args.len(),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — dispatch_auto_prep has no list_span; cross-file broadening out of scope
             span: wat::span::Span::unknown(),
         });
     }
@@ -155,7 +155,7 @@ fn dispatch_auto_prep(
     let types = sym.types().ok_or_else(|| RuntimeError::MalformedForm {
         head: OP.into(),
         reason: "no type registry attached to SymbolTable; arc 085 capability missing".into(),
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — sym.types() absence; no WatAST span in context
         span: wat::span::Span::unknown(),
     })?;
     let enum_def = match types.get(&enum_name) {
@@ -164,7 +164,7 @@ fn dispatch_auto_prep(
             return Err(RuntimeError::MalformedForm {
                 head: OP.into(),
                 reason: format!("{enum_name} is registered as {:?}, not an enum", other.name()),
-                // arc 138 slice 3b: span TBD
+                // arc 138: no span — type registry lookup; enum_name is plain String, no WatAST trace
                 span: wat::span::Span::unknown(),
             });
         }
@@ -172,7 +172,7 @@ fn dispatch_auto_prep(
             return Err(RuntimeError::MalformedForm {
                 head: OP.into(),
                 reason: format!("no enum declared at {enum_name}"),
-                // arc 138 slice 3b: span TBD
+                // arc 138: no span — type registry lookup; enum_name is plain String, no WatAST trace
                 span: wat::span::Span::unknown(),
             });
         }
@@ -180,7 +180,7 @@ fn dispatch_auto_prep(
     let schema = derive_schema(&enum_def, types).map_err(|reason| RuntimeError::MalformedForm {
         head: OP.into(),
         reason,
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — derive_schema error on TypeDef, no WatAST trace available
         span: wat::span::Span::unknown(),
     })?;
     schemas()
@@ -235,7 +235,7 @@ fn dispatch_auto_install(
             op: OP.into(),
             expected: 2,
             got: args.len(),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — dispatch_auto_install has no list_span; cross-file broadening out of scope
             span: wat::span::Span::unknown(),
         });
     }
@@ -299,7 +299,7 @@ fn dispatch_auto_dispatch(
             op: OP.into(),
             expected: 3,
             got: args.len(),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — dispatch_auto_dispatch has no list_span; cross-file broadening out of scope
             span: wat::span::Span::unknown(),
         });
     }
@@ -316,7 +316,7 @@ fn dispatch_auto_dispatch(
                     "expected an enum value for entry; got {}",
                     entry.type_name()
                 ),
-                // arc 138 slice 3b: span TBD
+                // arc 138: no span — entry is evaluated Value; no WatAST trace available
                 span: wat::span::Span::unknown(),
             });
         }
@@ -328,7 +328,7 @@ fn dispatch_auto_dispatch(
                 "entry type {} doesn't match auto-prep'd enum {enum_name}",
                 ev.type_path
             ),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — ev is extracted from evaluated Value; no WatAST trace available
             span: wat::span::Span::unknown(),
         });
     }
@@ -339,7 +339,7 @@ fn dispatch_auto_dispatch(
                 "no auto-spawn binding for {enum_name}::{} (unit variants are not yet supported)",
                 ev.variant_name
             ),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — schema lookup error; ev is from evaluated Value, no WatAST trace
             span: wat::span::Span::unknown(),
         }
     })?;
@@ -353,7 +353,7 @@ fn dispatch_auto_dispatch(
                 av.field_types.len(),
                 ev.fields.len()
             ),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — field count mismatch on evaluated Value; no WatAST trace
             span: wat::span::Span::unknown(),
         });
     }
@@ -522,7 +522,7 @@ fn value_to_tosql(
                          a HashMap value; got {}",
                         v.type_name()
                     ),
-                    // arc 138 slice 3b: span TBD
+                    // arc 138: no span — value_to_tosql receives &Value; no WatAST trace available
                     span: wat::span::Span::unknown(),
                 });
             }
@@ -541,7 +541,7 @@ fn value_to_tosql(
                      :wat::edn::Tagged / :wat::edn::NoTag newtypes around \
                      HolonAST and :HashMap<K,V>"
                 ),
-                // arc 138 slice 3b: span TBD
+                // arc 138: no span — value_to_tosql receives &Value; no WatAST trace available
                 span: wat::span::Span::unknown(),
             });
         }
@@ -582,7 +582,7 @@ fn value_to_tosql(
                 "{enum_name}::{variant_name}#{idx}: field type {path} doesn't match value {}",
                 v.type_name()
             ),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — value_to_tosql receives &Value; no WatAST trace available
             span: wat::span::Span::unknown(),
         }),
     }
@@ -605,7 +605,7 @@ fn extract_holon_field(
             "{enum_name}::{variant_name}#{idx}: {} value has no inner field",
             s.type_name
         ),
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — extract_holon_field receives &StructValue; no WatAST trace available
         span: wat::span::Span::unknown(),
     })?;
     match f0 {
@@ -617,7 +617,7 @@ fn extract_holon_field(
                 s.type_name,
                 other.type_name()
             ),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — extract_holon_field receives &StructValue; no WatAST trace available
             span: wat::span::Span::unknown(),
         }),
     }
@@ -634,7 +634,7 @@ fn lookup_schema(op: &str, enum_name: &str) -> Result<Arc<AutoSchema>, RuntimeEr
             reason: format!(
                 "no auto-spawn schemas cached for {enum_name}; was :rust::sqlite::auto-prep called?"
             ),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — lookup_schema receives plain String; no WatAST trace available
             span: wat::span::Span::unknown(),
         })
 }
@@ -652,8 +652,7 @@ fn eval_keyword(
             op: op.into(),
             expected: ":wat::core::keyword",
             got: other.type_name(),
-            // arc 138 slice 3b: span TBD
-            span: wat::span::Span::unknown(),
+            span: ast.span().clone(),
         }),
     }
 }

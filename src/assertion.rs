@@ -89,7 +89,7 @@ pub fn eval_kernel_assertion_failed(
     const OP: &str = ":wat::kernel::assertion-failed!";
 
     if args.len() != 3 {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — eval_kernel_assertion_failed has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 3,
@@ -101,12 +101,11 @@ pub fn eval_kernel_assertion_failed(
     let message = match eval(&args[0], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
-            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -147,7 +146,7 @@ fn eval_opt_string(op: &str, v: Value) -> Result<Option<String>, RuntimeError> {
         Value::Option(opt) => match &*opt {
             None => Ok(None),
             Some(Value::String(s)) => Ok(Some((**s).clone())),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — eval_opt_string receives Value, no WatAST trace available
             Some(other) => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Option<String>",
@@ -155,7 +154,7 @@ fn eval_opt_string(op: &str, v: Value) -> Result<Option<String>, RuntimeError> {
                 span: crate::span::Span::unknown(),
             }),
         },
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — eval_opt_string receives Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Option<String>",

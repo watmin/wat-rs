@@ -87,7 +87,7 @@ pub fn eval_string_split(
     const OP: &str = ":wat::core::string::split";
     let (hay, sep) = two_strings(OP, args, env, sym)?;
     if sep.is_empty() {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — sep is a plain String extracted from evaluated Value; no WatAST trace
         return Err(RuntimeError::MalformedForm {
             head: OP.into(),
             reason: "separator must not be empty".into(),
@@ -112,7 +112,7 @@ pub fn eval_string_join(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::string::join";
     if args.len() != 2 {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — eval_string_join has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 2,
@@ -123,24 +123,22 @@ pub fn eval_string_join(
     let sep = match eval(&args[0], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
-            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "String",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
     let pieces = match eval(&args[1], env, sym)? {
         Value::Vec(items) => items,
         other => {
-            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: "Vec<String>",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };
@@ -149,7 +147,7 @@ pub fn eval_string_join(
         match item {
             Value::String(s) => pieces_owned.push((**s).clone()),
             other => {
-                // arc 138 slice 3b: span TBD
+                // arc 138: no span — Vec element iteration over Values; per-element WatAST span unavailable
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
@@ -181,7 +179,7 @@ pub fn eval_string_concat(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::string::concat";
     if args.is_empty() {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — args is empty, no WatAST span available; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: OP.into(),
             expected: 1,
@@ -198,12 +196,11 @@ pub fn eval_string_concat(
                 pieces.push(s);
             }
             other => {
-                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::TypeMismatch {
                     op: OP.into(),
                     expected: "String",
                     got: other.type_name(),
-                    span: crate::span::Span::unknown(),
+                    span: arg.span().clone(),
                 });
             }
         }
@@ -230,7 +227,7 @@ pub fn eval_regex_matches(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::core::regex::matches?";
     let (pattern, haystack) = two_strings(OP, args, env, sym)?;
-    // arc 138 slice 3b: span TBD
+    // arc 138: no span — pattern is a plain String from two_strings; no WatAST trace at this point
     let re = regex::Regex::new(pattern.as_str()).map_err(|e| RuntimeError::MalformedForm {
         head: OP.into(),
         reason: format!("invalid regex: {}", e),
@@ -248,7 +245,7 @@ fn one_string(
     sym: &SymbolTable,
 ) -> Result<String, RuntimeError> {
     if args.len() != 1 {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — one_string has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 1,
@@ -258,12 +255,11 @@ fn one_string(
     }
     match eval(&args[0], env, sym)? {
         Value::String(s) => Ok((*s).clone()),
-        // arc 138 slice 3b: span TBD
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
             got: other.type_name(),
-            span: crate::span::Span::unknown(),
+            span: args[0].span().clone(),
         }),
     }
 }
@@ -275,7 +271,7 @@ fn two_strings(
     sym: &SymbolTable,
 ) -> Result<(String, String), RuntimeError> {
     if args.len() != 2 {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — two_strings has no list_span; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 2,
@@ -286,24 +282,22 @@ fn two_strings(
     let a = match eval(&args[0], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
-            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
     let b = match eval(&args[1], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
-            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span: args[1].span().clone(),
             });
         }
     };

@@ -100,7 +100,7 @@ fn require_one_arg(
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
     if args.len() != 1 {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — require_one_arg has no list_span; callers in runtime.rs don't pass it; cross-file broadening out of scope
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: 1,
@@ -181,7 +181,7 @@ pub fn eval_edn_read(
     let s = match &v {
         Value::String(s) => (**s).clone(),
         other => {
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — eval_edn_read receives evaluated Value via require_one_arg, no WatAST trace
             return Err(RuntimeError::TypeMismatch {
                 op: OP.into(),
                 expected: ":String",
@@ -190,14 +190,14 @@ pub fn eval_edn_read(
             });
         }
     };
-    // arc 138 slice 3b: span TBD
+    // arc 138: no span — s is a plain String extracted from Value; no WatAST span to thread
     let edn = wat_edn::parse_owned(&s).map_err(|e| RuntimeError::MalformedForm {
         head: OP.into(),
         reason: format!("EDN parse error: {e}"),
         span: crate::span::Span::unknown(),
     })?;
     edn_to_value(&edn, sym.types().map(|a| a.as_ref())).map_err(|e| {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — edn_to_value errors on parsed EDN, no originating WatAST
         RuntimeError::MalformedForm {
             head: OP.into(),
             reason: e.to_string(),

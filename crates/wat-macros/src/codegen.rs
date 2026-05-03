@@ -147,7 +147,7 @@ fn emit_dispatch_fn(
                 op: #wat_path.into(),
                 expected: #arity,
                 got: args.len(),
-                // arc 138 slice 3b: span TBD — proc-macro emit site
+                // arc 138: no span — proc-macro emit at compile time; runtime span emerges from caller AST
                 span: ::wat::span::Span::unknown(),
             });
         }

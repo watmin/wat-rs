@@ -59,7 +59,7 @@ impl FromWat for i64 {
     fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
         match v {
             Value::i64(n) => Ok(*n),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "i64",
@@ -80,7 +80,7 @@ impl FromWat for f64 {
     fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
         match v {
             Value::f64(x) => Ok(*x),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "f64",
@@ -101,7 +101,7 @@ impl FromWat for bool {
     fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
         match v {
             Value::bool(b) => Ok(*b),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "bool",
@@ -122,7 +122,7 @@ impl FromWat for String {
     fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
         match v {
             Value::String(s) => Ok((**s).clone()),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "String",
@@ -145,7 +145,7 @@ impl FromWat for () {
     fn from_wat(v: &Value, op: &'static str) -> Result<Self, RuntimeError> {
         match v {
             Value::Unit => Ok(()),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "()",
@@ -171,7 +171,7 @@ impl<T: FromWat> FromWat for Option<T> {
                 Some(x) => Ok(Some(T::from_wat(x, op)?)),
                 None => Ok(None),
             },
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Option",
@@ -206,7 +206,7 @@ macro_rules! impl_tuple_marshaling {
                 match v {
                     Value::Tuple(items) => {
                         if items.len() != $arity {
-                            // arc 138 slice 3b: span TBD
+                            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
                             return Err(RuntimeError::MalformedForm {
                                 head: op.into(),
                                 reason: format!(
@@ -221,7 +221,7 @@ macro_rules! impl_tuple_marshaling {
                             $( $name::from_wat(&items[$idx], op)?, )+
                         ))
                     }
-                    // arc 138 slice 3b: span TBD
+                    // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
                     other => Err(RuntimeError::TypeMismatch {
                         op: op.into(),
                         expected: "Tuple",
@@ -260,7 +260,7 @@ impl<T: FromWat, E: FromWat> FromWat for std::result::Result<T, E> {
                 Ok(inner) => Ok(Ok(T::from_wat(inner, op)?)),
                 Err(inner) => Ok(Err(E::from_wat(inner, op)?)),
             },
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Result",
@@ -286,7 +286,7 @@ impl<T: FromWat> FromWat for Vec<T> {
                 .iter()
                 .map(|x| T::from_wat(x, op))
                 .collect::<Result<Vec<_>, _>>(),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — FromWat::from_wat receives evaluated Value, no WatAST trace available
             other => Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: "Vec",
@@ -367,7 +367,7 @@ pub fn rust_opaque_arc(
     match v {
         Value::RustOpaque(inner) => {
             if inner.type_path != expected_path {
-                // arc 138 slice 3b: span TBD
+                // arc 138: no span — rust_opaque_arc receives evaluated Value, no WatAST trace available
                 return Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: expected_path,
@@ -377,7 +377,7 @@ pub fn rust_opaque_arc(
             }
             Ok(Arc::clone(inner))
         }
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — rust_opaque_arc receives evaluated Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
@@ -429,7 +429,7 @@ impl<T: Send> ThreadOwnedCell<T> {
 
     fn ensure_owner(&self, op: &'static str) -> Result<(), RuntimeError> {
         if std::thread::current().id() != self.owner {
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — ThreadOwnedCell::ensure_owner has no WatAST context; thread boundary violation is a runtime invariant
             return Err(RuntimeError::MalformedForm {
                 head: op.into(),
                 reason: format!(
@@ -518,7 +518,7 @@ impl<T: Send> OwnedMoveCell<T> {
     /// caller receives `RuntimeError::MalformedForm`.
     pub fn take(&self, op: &'static str) -> Result<T, RuntimeError> {
         if self.taken.swap(true, std::sync::atomic::Ordering::SeqCst) {
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — OwnedMoveCell::take has no WatAST context; double-consume is a runtime invariant
             return Err(RuntimeError::MalformedForm {
                 head: op.into(),
                 reason: "owned-move handle already consumed".into(),
@@ -527,7 +527,7 @@ impl<T: Send> OwnedMoveCell<T> {
         }
         // Safety: the swap succeeded, so this thread holds exclusive
         // access until the function returns.
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — OwnedMoveCell::take has no WatAST context; unexpected-None is a runtime invariant
         unsafe { (*self.cell.get()).take() }.ok_or_else(|| RuntimeError::MalformedForm {
             head: op.into(),
             reason: "owned-move handle payload was unexpectedly None".into(),
@@ -546,7 +546,7 @@ pub fn downcast_ref_opaque<'a, T: Any>(
     op: &'static str,
 ) -> Result<&'a T, RuntimeError> {
     if inner.type_path != expected_path {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — downcast_ref_opaque receives RustOpaqueInner, no WatAST trace available
         return Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
@@ -555,7 +555,7 @@ pub fn downcast_ref_opaque<'a, T: Any>(
         });
     }
     inner.payload.downcast_ref::<T>().ok_or_else(|| {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — downcast_ref_opaque receives RustOpaqueInner, no WatAST trace available
         RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,

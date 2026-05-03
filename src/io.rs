@@ -115,7 +115,7 @@ impl WatReader for RealStdin {
                 buf.truncate(k);
                 Ok(Some(buf))
             }
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
             Err(e) => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::read".into(),
                 reason: format!("stdin read: {}", e),
@@ -128,7 +128,7 @@ impl WatReader for RealStdin {
         use std::io::Read;
         let mut buf = Vec::new();
         let mut guard = self.inner.lock();
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
         guard.read_to_end(&mut buf).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::read-all".into(),
             reason: format!("stdin read: {}", e),
@@ -152,7 +152,7 @@ impl WatReader for RealStdin {
                 }
                 Ok(Some(buf))
             }
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
             Err(e) => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::read-line".into(),
                 reason: format!("stdin read-line: {}", e),
@@ -186,7 +186,7 @@ impl WatWriter for RealStdout {
     fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
         guard.write(bytes).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::write".into(),
             reason: format!("stdout write: {}", e),
@@ -197,7 +197,7 @@ impl WatWriter for RealStdout {
     fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
         guard.write_all(bytes).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::write-all".into(),
             reason: format!("stdout write-all: {}", e),
@@ -208,7 +208,7 @@ impl WatWriter for RealStdout {
     fn flush(&self) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
         guard.flush().map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::flush".into(),
             reason: format!("stdout flush: {}", e),
@@ -233,7 +233,7 @@ impl WatWriter for RealStderr {
     fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
         guard.write(bytes).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::write".into(),
             reason: format!("stderr write: {}", e),
@@ -244,7 +244,7 @@ impl WatWriter for RealStderr {
     fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
         guard.write_all(bytes).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::write-all".into(),
             reason: format!("stderr write-all: {}", e),
@@ -255,7 +255,7 @@ impl WatWriter for RealStderr {
     fn flush(&self) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
         guard.flush().map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::flush".into(),
             reason: format!("stderr flush: {}", e),
@@ -342,7 +342,7 @@ impl WatReader for StringIoReader {
                 }
                 match String::from_utf8(b) {
                     Ok(s) => Ok(Some(s)),
-                    // arc 138 slice 3b: span TBD
+                    // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
                     Err(e) => Err(RuntimeError::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e),
@@ -476,7 +476,7 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                // arc 138 slice 3b: span TBD
+                // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::read".into(),
                     reason: format!("pipe read: {}", err),
@@ -507,7 +507,7 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                // arc 138 slice 3b: span TBD
+                // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::read-all".into(),
                     reason: format!("pipe read: {}", err),
@@ -537,7 +537,7 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                // arc 138 slice 3b: span TBD
+                // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::read-line".into(),
                     reason: format!("pipe read: {}", err),
@@ -553,7 +553,7 @@ impl WatReader for PipeReader {
                 }
                 return String::from_utf8(bytes)
                     .map(Some)
-                    // arc 138 slice 3b: span TBD
+                    // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
                     .map_err(|e| RuntimeError::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e),
@@ -566,7 +566,7 @@ impl WatReader for PipeReader {
                 }
                 return String::from_utf8(bytes)
                     .map(Some)
-                    // arc 138 slice 3b: span TBD
+                    // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
                     .map_err(|e| RuntimeError::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e),
@@ -578,7 +578,7 @@ impl WatReader for PipeReader {
     }
 
     fn rewind(&self) -> Result<(), RuntimeError> {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
         Err(RuntimeError::MalformedForm {
             head: ":wat::io::rewind".into(),
             reason: "pipe fds are not rewindable".into(),
@@ -631,7 +631,7 @@ impl WatWriter for PipeWriter {
         loop {
             let raw = self.fd.load(Ordering::SeqCst);
             if raw < 0 {
-                // arc 138 slice 3b: span TBD
+                // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::write".into(),
                     reason: "pipe write: writer is closed".into(),
@@ -646,7 +646,7 @@ impl WatWriter for PipeWriter {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                // arc 138 slice 3b: span TBD
+                // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::write".into(),
                     reason: format!("pipe write: {}", err),
@@ -662,7 +662,7 @@ impl WatWriter for PipeWriter {
         while !remaining.is_empty() {
             let n = self.write(remaining)?;
             if n == 0 {
-                // arc 138 slice 3b: span TBD
+                // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::write-all".into(),
                     reason: "pipe write returned 0 bytes".into(),
@@ -702,7 +702,7 @@ impl WatWriter for PipeWriter {
 
 fn arity(op: &str, args: &[WatAST], n: usize) -> Result<(), RuntimeError> {
     if args.len() != n {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — helper receives raw args slice, no list_span; cross-file broadening OOS
         return Err(RuntimeError::ArityMismatch {
             op: op.into(),
             expected: n,
@@ -716,7 +716,7 @@ fn arity(op: &str, args: &[WatAST], n: usize) -> Result<(), RuntimeError> {
 fn expect_reader(op: &str, v: Value) -> Result<Arc<dyn WatReader>, RuntimeError> {
     match v {
         Value::io__IOReader(r) => Ok(r),
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — helper receives evaluated Value, no WatAST; Value-only context
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOReader",
@@ -729,7 +729,7 @@ fn expect_reader(op: &str, v: Value) -> Result<Arc<dyn WatReader>, RuntimeError>
 fn expect_writer(op: &str, v: Value) -> Result<Arc<dyn WatWriter>, RuntimeError> {
     match v {
         Value::io__IOWriter(w) => Ok(w),
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — helper receives evaluated Value, no WatAST; Value-only context
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "wat::io::IOWriter",
@@ -742,7 +742,7 @@ fn expect_writer(op: &str, v: Value) -> Result<Arc<dyn WatWriter>, RuntimeError>
 fn expect_i64(op: &str, v: Value) -> Result<i64, RuntimeError> {
     match v {
         Value::i64(n) => Ok(n),
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — helper receives evaluated Value, no WatAST; Value-only context
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "i64",
@@ -755,7 +755,7 @@ fn expect_i64(op: &str, v: Value) -> Result<i64, RuntimeError> {
 fn expect_string(op: &str, v: Value) -> Result<Arc<String>, RuntimeError> {
     match v {
         Value::String(s) => Ok(s),
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — helper receives evaluated Value, no WatAST; Value-only context
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "String",
@@ -773,7 +773,7 @@ fn expect_vec_u8(op: &str, v: Value) -> Result<Vec<u8>, RuntimeError> {
                 match item {
                     Value::u8(b) => out.push(*b),
                     other => {
-                        // arc 138 slice 3b: span TBD
+                        // arc 138: no span — helper receives evaluated Value, no WatAST; Value-only context
                         return Err(RuntimeError::TypeMismatch {
                             op: op.into(),
                             expected: "u8",
@@ -786,7 +786,7 @@ fn expect_vec_u8(op: &str, v: Value) -> Result<Vec<u8>, RuntimeError> {
             }
             Ok(out)
         }
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — helper receives evaluated Value, no WatAST; Value-only context
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: "Vec<u8>",
@@ -841,11 +841,10 @@ pub fn eval_ioreader_read(
     let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
     let n = expect_i64(op, eval(&args[1], env, sym)?)?;
     if n < 0 {
-        // arc 138 slice 3b: span TBD
         return Err(RuntimeError::MalformedForm {
             head: op.into(),
             reason: format!("negative byte count: {}", n),
-            span: crate::span::Span::unknown(),
+            span: args[1].span().clone(),
         });
     }
     let result = reader.read(n as usize)?;
@@ -931,12 +930,11 @@ pub fn eval_iowriter_open_file(
     let path = match crate::runtime::eval(&args[0], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
-            // arc 138 slice 3b: span TBD
             return Err(RuntimeError::TypeMismatch {
                 op: op.into(),
                 expected: ":String",
                 got: other.type_name(),
-                span: crate::span::Span::unknown(),
+                span: args[0].span().clone(),
             });
         }
     };
@@ -998,7 +996,7 @@ fn snapshot_writer(
     // Simplest: extend WatWriter with an optional `snapshot` method
     // that defaults to returning NotSupported. StringIoWriter
     // overrides.
-    // arc 138 slice 3b: span TBD
+    // arc 138: no span — helper receives evaluated Arc<dyn WatWriter>, no WatAST; Value-only context
     writer.snapshot().ok_or_else(|| RuntimeError::MalformedForm {
         head: op.into(),
         reason: "writer does not support snapshot (only StringIoWriter does)"
@@ -1171,7 +1169,7 @@ pub fn eval_kernel_pipe(args: &[WatAST]) -> Result<Value, RuntimeError> {
     let ret = unsafe { libc::pipe(fds.as_mut_ptr()) };
     if ret != 0 {
         let err = std::io::Error::last_os_error();
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — OS syscall error; no AST context available at the point of failure
         return Err(RuntimeError::MalformedForm {
             head: op.into(),
             reason: format!("pipe(2) syscall failed: {}", err),
@@ -1230,7 +1228,7 @@ impl WatTempFile {
     pub fn new() -> Result<Self, RuntimeError> {
         match NamedTempFile::new() {
             Ok(f) => Ok(Self { inner: Some(f) }),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — OS error from tempfile creation; no WatAST at this call depth
             Err(e) => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::TempFile/new".into(),
                 reason: format!("create temp file: {e}"),
@@ -1242,7 +1240,7 @@ impl WatTempFile {
     pub fn path(&self) -> Result<String, RuntimeError> {
         match &self.inner {
             Some(f) => Ok(f.path().display().to_string()),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — runtime invariant; no WatAST at this call depth
             None => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::TempFile/path".into(),
                 reason: "TempFile already dropped".into(),
@@ -1262,7 +1260,7 @@ impl WatTempDir {
     pub fn new() -> Result<Self, RuntimeError> {
         match TempDir::new() {
             Ok(d) => Ok(Self { inner: Some(d) }),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — OS error from tempdir creation; no WatAST at this call depth
             Err(e) => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::TempDir/new".into(),
                 reason: format!("create temp dir: {e}"),
@@ -1274,7 +1272,7 @@ impl WatTempDir {
     pub fn path(&self) -> Result<String, RuntimeError> {
         match &self.inner {
             Some(d) => Ok(d.path().display().to_string()),
-            // arc 138 slice 3b: span TBD
+            // arc 138: no span — runtime invariant; no WatAST at this call depth
             None => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::TempDir/path".into(),
                 reason: "TempDir already dropped".into(),
@@ -1366,7 +1364,7 @@ pub fn eval_io_read_file(
     let op = ":wat::io::read-file";
     arity(op, args, 1)?;
     let path = expect_string(op, eval(&args[0], env, sym)?)?;
-    // arc 138 slice 3b: span TBD
+    // arc 138: no span — host configuration error; no WatAST context at loader-lookup depth
     let loader = sym.source_loader().ok_or_else(|| RuntimeError::MalformedForm {
         head: op.into(),
         reason: "no SourceLoader attached to SymbolTable; \
@@ -1375,7 +1373,7 @@ pub fn eval_io_read_file(
         span: crate::span::Span::unknown(),
     })?;
     let loaded = loader.fetch_source_file(&path, None).map_err(|e| {
-        // arc 138 slice 3b: span TBD
+        // arc 138: no span — OS/path error from loader; path is a plain String after eval
         RuntimeError::MalformedForm {
             head: op.into(),
             reason: format!("loader fetch_source_file({path:?}): {e}"),

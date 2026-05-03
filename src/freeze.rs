@@ -799,13 +799,12 @@ pub fn eval_signed_in_frozen(
 /// `typealias`, the three `load!` variants, and any
 /// `:wat::config::set-*!` setter.
 fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
-    if let WatAST::List(items, _) = ast {
+    if let WatAST::List(items, list_span) = ast {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
             if is_mutation_form(head) {
-                // arc 138 slice 3b: span TBD
                 return Err(RuntimeError::EvalForbidsMutationForm {
                     head: head.clone(),
-                    span: crate::span::Span::unknown(),
+                    span: list_span.clone(),
                 });
             }
         }
