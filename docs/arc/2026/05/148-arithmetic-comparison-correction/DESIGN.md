@@ -73,42 +73,146 @@ Arc 146 slice 1's pass-through dispatch already supports
 multi-arg arms (slice 3 used 2-arg patterns for contains?/get/
 conj). The substrate machinery handles this.
 
-### Coercion across numeric types
+### Variadic surface — three-layer architecture
 
-`(:+ 2 40.0)` should return `42.0` (i64 coerced to f64).
-Today's `eval_poly_arith` does this internally. The dispatch-
-based replacement needs to either:
+User writes `(:+ 1 2.2 4 3.2)` (variadic; Lisp convention). The
+substrate has three layers:
 
-- **Option A — coerce in the impl:** dispatch arm `(:i64, :f64)
-  → :wat::core::i64+f64` whose impl converts the i64 to f64
-  internally + calls f64+f64. ~12 per-Type combo impls.
-- **Option B — coerce in the dispatch:** dispatch declares
-  arms with optional coercion: `(:i64, :f64) → coerce-to-f64
-  → :wat::core::f64/+`. Requires extending arc 146's dispatch
-  with coercion arms. Substrate change.
-- **Option C — no automatic coercion:** user writes
-  `(:f64/+ (:to-f64 x) y)` for mixed types. Cleanest substrate;
-  worst UX.
+1. **`:wat::core::+`** — VARIADIC MACRO (user-facing). Defined
+   via arc 143's defmacro with rest-param. Expands left-
+   associative to nested binary calls.
+2. **`:wat::core::+/2`** — BINARY DISPATCH (the truth table).
+   Arc 146's Dispatch entity with 4 per-combo arms.
+3. **`:wat::core::i64/+/2`, `:f64/+/2`, `<MIXED>`, etc.** —
+   PER-TYPE IMPLS. Clean rank-1 substrate primitives.
 
-Slice 1 brief decides + the audit informs.
+The variadic macro pattern (left-associative for `-` and `/`
+correctness):
 
-### Per-Type impl naming convention
+```scheme
+(:wat::core::defmacro
+  (:wat::core::+ (x :AST<numeric>) (y :AST<numeric>) & (rest :AST<Vec<wat::WatAST>>) -> :AST<numeric>)
+  (:wat::core::if (:wat::core::empty? rest)
+    `(:wat::core::+/2 ,x ,y)
+    `(:wat::core::+ (:wat::core::+/2 ,x ,y) ,@rest)))
+```
 
-Arc 146 used `:wat::core::Vector/length` (PascalCase Type +
-slash + verb). For arithmetic over PRIMITIVE types (i64, f64),
-options:
+`(:+ 1 2.2 4 3.2)` expands at compile-time to:
+```
+(:+/2 (:+/2 (:+/2 1 2.2) 4) 3.2)
+```
 
-- `:wat::core::i64/+` (Type/verb shape; matches arc 146)
-- `:wat::core::i64::+` (`::` namespace shape)
-- Other?
+Each `:+/2` step type-checks via the binary dispatch. Result
+type at each step is the join of inputs (per the truth table).
+Final result type is the join of ALL inputs.
 
-Recommend: `:wat::core::<type>/<op>` — matches arc 146's
-convention. Type names are all-lowercase for primitives (i64,
-f64) per arc 109's FQDN sweep. Slash separates Type from verb.
+**Static expansion (not runtime fold via reduce):** each binary
+step type-checks at compile time; errors localize per-step;
+result type known statically; introspection (macroexpand)
+shows what happened.
 
-For mixed-type combos (i64+f64): `:wat::core::i64+f64` (single
-name encoding the combo) OR `:wat::core::f64/+_i64_lhs` (Type/
-verb with hint of the mixed shape). Slice 1 brief decides.
+**Macro shadows Dispatch in lookup_form precedence** (arc 144
+slice 1 + arc 146 slice 1 Q3): user writing `(:+ ...)` hits the
+variadic macro; the macro internally references the distinct
+`:+/2` name for the binary form.
+
+### Coercion across numeric types — RESOLVED: Path A (per-combo impls)
+
+**Settled 2026-05-03 via the four questions.** Path A wins.
+
+The truth table for `:+`:
+```
+(i64, i64) → :i64
+(f64, f64) → :f64
+(i64, f64) → :f64
+(f64, i64) → :f64
+```
+
+Path A — explicit per-combo dispatch arms (4 arms per arith op):
+```scheme
+(:wat::core::define-dispatch :wat::core::+/2
+  ((:wat::core::i64 :wat::core::i64) :wat::core::i64/+/2)
+  ((:wat::core::i64 :wat::core::f64) :wat::core::<MIXED-NAME>)
+  ((:wat::core::f64 :wat::core::i64) :wat::core::<MIXED-NAME>)
+  ((:wat::core::f64 :wat::core::f64) :wat::core::f64/+/2))
+```
+
+Where `<MIXED-NAME>` is per the deferred mixed-combo naming Q
+above.
+
+Why Path A:
+- **Obvious**: dispatch declaration IS the table; reader sees
+  all rules in one place
+- **Simple**: arc 146's existing Dispatch entity unchanged;
+  N identical arm changes IS simple
+- **Honest**: each arm declares the route; impl does the work;
+  no hidden coercion mechanism
+- **Good UX**: `(:+ 1 2.0)` works; substrate routes via the
+  truth table
+
+Path B (substrate coercion mechanism) FAILED Obvious — required
+two sources of truth (dispatch + coercion table). Per FM 10:
+default to no substrate extension when existing patterns suffice.
+
+### Per-Type impl naming convention — `<verb>/N` for arity-N
+
+**Settled 2026-05-03 user direction + gaze.** The substrate
+adopts the Erlang/Prolog tradition: `<verb>/N` suffix means
+"the N-ary form." Specialist convention; mumbles once; speaks
+forever after; standardized.
+
+For arithmetic + comparison families:
+
+```
+ARITHMETIC:
+  :+/2  :-/2  :*/2  ://2          (4 binary dispatches)
+  :+    :-    :*    :/            (4 variadic macros)
+
+COMPARISON:
+  :=/2  :</2  :>/2  :<=/2  :>=/2  (5 binary dispatches)
+  :=    :<    :>    :<=    :>=    (5 variadic macros)
+```
+
+Pattern: `<verb>/N` for the N-ary substrate primitive (the
+binary dispatch); `<verb>` alone for the user-facing variadic
+macro that reduces over the binary form.
+
+The variadic-MACRO shadows the binary-DISPATCH per arc 144
+slice 1's lookup_form precedence (Macro > Primitive > Dispatch).
+This is the architectural reason a separate `/N` name is needed
+for the underlying binary form.
+
+#### Per-Type impl names (same-type combos)
+
+The arity-in-name extends to per-Type impls cleanly:
+
+```
+:wat::core::i64/+/2  — (i64, i64) → i64
+:wat::core::f64/+/2  — (f64, f64) → f64
+```
+
+Type/verb/arity. Each piece meaningful.
+
+#### Per-Type impl names (mixed-type combos) — DEFERRED to slice 1
+
+Mixed-combo impls (i64+f64, f64+i64) don't fit Type/verb
+because they don't BELONG to one Type. Candidates for slice 1
+audit to pick from:
+
+- `:wat::core::i64+f64/2` — single combo token + arity
+- `:wat::core::+/i64-f64/2` — verb-first + type-pair tag + arity
+- `:wat::core::numeric/+/i64-f64/2` — fully namespaced
+
+Slice 1 brief picks one + applies uniformly across all 4 arith +
+5 comparison ops.
+
+#### Documentation responsibility
+
+Arc 148 closure (slice 6) adds:
+- USER-GUIDE entry naming the `<verb>/N` convention
+- CONVENTIONS.md addition documenting arity-in-name
+- Reflection example showing `signature-of :+/2` vs `signature-of :+`
+  return different shapes (both honest)
 
 ## What gets migrated (the audit)
 
