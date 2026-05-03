@@ -48,6 +48,7 @@
 //! and raise `LoadError::SetterInLoadedFile`.
 
 use crate::ast::WatAST;
+use crate::span::Span;
 use std::fmt;
 
 /// Default `capacity-mode` when `(:wat::config::set-capacity-mode!)`
@@ -118,83 +119,102 @@ pub enum ConfigError {
     /// A `set-*!` form appeared after a non-setter form in the entry file.
     /// Entry-file discipline: all setters precede all other forms.
     SetterAfterNonSetter {
-        form_index: usize,
         setter_head: String,
+        span: Span,
     },
     /// The same field was set more than once.
-    DuplicateField { field: String },
+    DuplicateField { field: String, span: Span },
     /// A required field was not set. `global-seed` is optional
     /// (defaults to 42); `dims` and `capacity-mode` are required.
-    RequiredFieldMissing { field: String },
+    RequiredFieldMissing { field: String, span: Span },
     /// A setter head didn't match any known `:wat::config::set-*!`.
-    UnknownSetter { head: String },
+    UnknownSetter { head: String, span: Span },
     /// A setter was called with the wrong number of arguments.
     BadArity {
         head: String,
         expected: usize,
         got: usize,
+        span: Span,
     },
     /// A setter's argument was the wrong kind of WatAST.
     BadType {
         field: String,
         expected: &'static str,
         got: &'static str,
+        span: Span,
     },
     /// A setter's argument was well-typed but out-of-range / not a
     /// recognized variant.
     BadValue {
         field: String,
         reason: String,
+        span: Span,
     },
     /// A setter form was malformed (empty list, head not a keyword).
-    MalformedSetter { form_index: usize },
+    MalformedSetter { span: Span },
+}
+
+fn span_prefix(span: &Span) -> String {
+    if span.is_unknown() {
+        String::new()
+    } else {
+        format!("{}: ", span)
+    }
 }
 
 impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ConfigError::SetterAfterNonSetter { form_index, setter_head } => {
+            // Intentional content change: dropped "(form index N)" suffix —
+            // span coords supersede form_index.
+            ConfigError::SetterAfterNonSetter { setter_head, span } => {
                 write!(
                     f,
-                    "config setter follows non-setter; entry-file discipline requires all {} setters before any load! or program body (form index {})",
-                    setter_head, form_index
+                    "{}config setter follows non-setter; entry-file discipline requires all {} setters before any load! or program body",
+                    span_prefix(span), setter_head
                 )
             }
-            ConfigError::DuplicateField { field } => {
-                write!(f, "config field :{} set more than once; each field may be committed at most once", field)
-            }
-            ConfigError::RequiredFieldMissing { field } => {
+            ConfigError::DuplicateField { field, span } => {
                 write!(
                     f,
-                    "required config field :{} not set; :dims and :capacity-mode must be committed by the entry file",
-                    field
+                    "{}config field :{} set more than once; each field may be committed at most once",
+                    span_prefix(span), field
                 )
             }
-            ConfigError::UnknownSetter { head } => {
-                write!(f, "unknown config setter {}", head)
-            }
-            ConfigError::BadArity { head, expected, got } => {
+            ConfigError::RequiredFieldMissing { field, span } => {
                 write!(
                     f,
-                    "config setter {} expects {} argument(s); got {}",
-                    head, expected, got
+                    "{}required config field :{} not set; :dims and :capacity-mode must be committed by the entry file",
+                    span_prefix(span), field
                 )
             }
-            ConfigError::BadType { field, expected, got } => {
+            ConfigError::UnknownSetter { head, span } => {
+                write!(f, "{}unknown config setter {}", span_prefix(span), head)
+            }
+            ConfigError::BadArity { head, expected, got, span } => {
                 write!(
                     f,
-                    "config field :{} expects {}; got {}",
-                    field, expected, got
+                    "{}config setter {} expects {} argument(s); got {}",
+                    span_prefix(span), head, expected, got
                 )
             }
-            ConfigError::BadValue { field, reason } => {
-                write!(f, "config field :{}: {}", field, reason)
-            }
-            ConfigError::MalformedSetter { form_index } => {
+            ConfigError::BadType { field, expected, got, span } => {
                 write!(
                     f,
-                    "malformed config setter at form index {} (empty list or head not a keyword)",
-                    form_index
+                    "{}config field :{} expects {}; got {}",
+                    span_prefix(span), field, expected, got
+                )
+            }
+            ConfigError::BadValue { field, reason, span } => {
+                write!(f, "{}config field :{}: {}", span_prefix(span), field, reason)
+            }
+            // Intentional content change: dropped "at form index N" suffix —
+            // span coords supersede form_index.
+            ConfigError::MalformedSetter { span } => {
+                write!(
+                    f,
+                    "{}malformed config setter (empty list or head not a keyword)",
+                    span_prefix(span)
                 )
             }
         }
@@ -265,6 +285,8 @@ fn collect_entry_file_inner(
     let mut remainder_start: Option<usize> = None;
 
     for (i, form) in forms.iter().enumerate() {
+        let form_span = form.span().clone();
+
         let setter_head = match setter_head_of(form) {
             Some(head) if head.starts_with(":wat::config::set-") && head.ends_with('!') => {
                 head.to_string()
@@ -279,18 +301,22 @@ fn collect_entry_file_inner(
         // Make sure we haven't already passed the setter section.
         if remainder_start.is_some() {
             return Err(ConfigError::SetterAfterNonSetter {
-                form_index: i,
                 setter_head,
+                span: form_span,
             });
         }
 
-        let args = setter_args_of(form).ok_or(ConfigError::MalformedSetter { form_index: i })?;
+        // Pattern B: form's outermost span — covers malformed-setter cases
+        // (empty list, non-keyword head) where no arg is available yet.
+        let args = setter_args_of(form)
+            .ok_or_else(|| ConfigError::MalformedSetter { span: form_span.clone() })?;
 
         match setter_head.as_str() {
             ":wat::config::set-capacity-mode!" => {
                 if set_capacity_mode {
                     return Err(ConfigError::DuplicateField {
                         field: "capacity-mode".into(),
+                        span: form_span,
                     });
                 }
                 set_capacity_mode = true;
@@ -299,14 +325,17 @@ fn collect_entry_file_inner(
                         head: setter_head,
                         expected: 1,
                         got: args.len(),
+                        span: form_span,
                     });
                 }
-                capacity_mode = Some(parse_capacity_mode(&args[0])?);
+                // Pattern A: arg's own span for type/value errors.
+                capacity_mode = Some(parse_capacity_mode(&args[0], args[0].span().clone())?);
             }
             ":wat::config::set-global-seed!" => {
                 if set_global_seed {
                     return Err(ConfigError::DuplicateField {
                         field: "global-seed".into(),
+                        span: form_span,
                     });
                 }
                 set_global_seed = true;
@@ -315,14 +344,17 @@ fn collect_entry_file_inner(
                         head: setter_head,
                         expected: 1,
                         got: args.len(),
+                        span: form_span,
                     });
                 }
-                global_seed = Some(parse_u64(&args[0], "global-seed")?);
+                // Pattern A: arg's own span for type/value errors.
+                global_seed = Some(parse_u64(&args[0], "global-seed", args[0].span().clone())?);
             }
             ":wat::config::set-dim-count!" => {
                 if set_dim_count {
                     return Err(ConfigError::DuplicateField {
                         field: "dim-count".into(),
+                        span: form_span,
                     });
                 }
                 set_dim_count = true;
@@ -331,13 +363,17 @@ fn collect_entry_file_inner(
                         head: setter_head,
                         expected: 1,
                         got: args.len(),
+                        span: form_span,
                     });
                 }
-                let n = parse_u64(&args[0], "dim-count")?;
+                // Pattern A: arg's own span for type/value errors.
+                let arg_span = args[0].span().clone();
+                let n = parse_u64(&args[0], "dim-count", arg_span.clone())?;
                 if n == 0 {
                     return Err(ConfigError::BadValue {
                         field: "dim-count".into(),
                         reason: "dim-count must be > 0".into(),
+                        span: arg_span,
                     });
                 }
                 dim_count = n as usize;
@@ -349,6 +385,7 @@ fn collect_entry_file_inner(
                 if set_presence_sigma {
                     return Err(ConfigError::DuplicateField {
                         field: "presence-sigma".into(),
+                        span: form_span,
                     });
                 }
                 set_presence_sigma = true;
@@ -357,6 +394,7 @@ fn collect_entry_file_inner(
                         head: setter_head,
                         expected: 1,
                         got: args.len(),
+                        span: form_span,
                     });
                 }
                 // Arc 037 slice 6: AST-valued, not scalar. Freeze
@@ -368,6 +406,7 @@ fn collect_entry_file_inner(
                 if set_coincident_sigma {
                     return Err(ConfigError::DuplicateField {
                         field: "coincident-sigma".into(),
+                        span: form_span,
                     });
                 }
                 set_coincident_sigma = true;
@@ -376,6 +415,7 @@ fn collect_entry_file_inner(
                         head: setter_head,
                         expected: 1,
                         got: args.len(),
+                        span: form_span,
                     });
                 }
                 // Arc 037 slice 6: AST-valued. Signature `:fn(:i64) -> :i64`.
@@ -384,6 +424,7 @@ fn collect_entry_file_inner(
             _ => {
                 return Err(ConfigError::UnknownSetter {
                     head: setter_head,
+                    span: form_span,
                 });
             }
         }
@@ -434,13 +475,14 @@ fn setter_args_of(form: &WatAST) -> Option<&[WatAST]> {
     }
 }
 
-fn parse_u64(ast: &WatAST, field: &'static str) -> Result<u64, ConfigError> {
+fn parse_u64(ast: &WatAST, field: &'static str, span: Span) -> Result<u64, ConfigError> {
     match ast {
         WatAST::IntLit(n, _) => {
             if *n < 0 {
                 return Err(ConfigError::BadValue {
                     field: field.into(),
                     reason: format!("expected non-negative integer, got {}", n),
+                    span,
                 });
             }
             Ok(*n as u64)
@@ -449,11 +491,12 @@ fn parse_u64(ast: &WatAST, field: &'static str) -> Result<u64, ConfigError> {
             field: field.into(),
             expected: "integer literal",
             got: variant_name(other),
+            span,
         }),
     }
 }
 
-fn parse_capacity_mode(ast: &WatAST) -> Result<CapacityMode, ConfigError> {
+fn parse_capacity_mode(ast: &WatAST, span: Span) -> Result<CapacityMode, ConfigError> {
     match ast {
         WatAST::Keyword(k, _) => match k.as_str() {
             ":error" => Ok(CapacityMode::Error),
@@ -464,12 +507,14 @@ fn parse_capacity_mode(ast: &WatAST) -> Result<CapacityMode, ConfigError> {
                     "unknown variant {}; expected :error / :panic (arc 037 retired :silent and :warn; arc 045 renamed :abort → :panic)",
                     other
                 ),
+                span,
             }),
         },
         other => Err(ConfigError::BadType {
             field: "capacity-mode".into(),
             expected: "keyword (:error / :panic)",
             got: variant_name(other),
+            span,
         }),
     }
 }
@@ -535,7 +580,7 @@ mod tests {
         .unwrap_err();
         assert!(matches!(
             err,
-            ConfigError::DuplicateField { ref field } if field == "dim-count"
+            ConfigError::DuplicateField { ref field, .. } if field == "dim-count"
         ));
     }
 
@@ -569,7 +614,7 @@ mod tests {
     fn retired_silent_variant_rejected_at_parse() {
         let err = collect("(:wat::config::set-capacity-mode! :silent)").unwrap_err();
         match err {
-            ConfigError::BadValue { field, reason } => {
+            ConfigError::BadValue { field, reason, .. } => {
                 assert_eq!(field, "capacity-mode");
                 assert!(reason.contains(":silent"), "reason: {}", reason);
             }
@@ -581,7 +626,7 @@ mod tests {
     fn retired_warn_variant_rejected_at_parse() {
         let err = collect("(:wat::config::set-capacity-mode! :warn)").unwrap_err();
         match err {
-            ConfigError::BadValue { field, reason } => {
+            ConfigError::BadValue { field, reason, .. } => {
                 assert_eq!(field, "capacity-mode");
                 assert!(reason.contains(":warn"), "reason: {}", reason);
             }
@@ -616,7 +661,7 @@ mod tests {
         .unwrap_err();
         assert!(matches!(
             err,
-            ConfigError::DuplicateField { ref field } if field == "presence-sigma"
+            ConfigError::DuplicateField { ref field, .. } if field == "presence-sigma"
         ));
     }
 
@@ -631,7 +676,7 @@ mod tests {
         .unwrap_err();
         assert!(matches!(
             err,
-            ConfigError::DuplicateField { ref field } if field == "coincident-sigma"
+            ConfigError::DuplicateField { ref field, .. } if field == "coincident-sigma"
         ));
     }
 
@@ -642,7 +687,7 @@ mod tests {
         let err = collect("(:wat::config::set-dims! 1024)").unwrap_err();
         assert!(matches!(
             err,
-            ConfigError::UnknownSetter { ref head } if head == ":wat::config::set-dims!"
+            ConfigError::UnknownSetter { ref head, .. } if head == ":wat::config::set-dims!"
         ));
     }
 
@@ -651,7 +696,7 @@ mod tests {
         let err = collect("(:wat::config::set-noise-floor! 0.1)").unwrap_err();
         assert!(matches!(
             err,
-            ConfigError::UnknownSetter { ref head } if head == ":wat::config::set-noise-floor!"
+            ConfigError::UnknownSetter { ref head, .. } if head == ":wat::config::set-noise-floor!"
         ));
     }
 
@@ -693,7 +738,7 @@ mod tests {
         .unwrap_err();
         assert!(matches!(
             err,
-            ConfigError::DuplicateField { ref field } if field == "capacity-mode"
+            ConfigError::DuplicateField { ref field, .. } if field == "capacity-mode"
         ));
     }
 
@@ -702,7 +747,7 @@ mod tests {
         let err = collect("(:wat::config::set-bogus! 1)").unwrap_err();
         assert!(matches!(
             err,
-            ConfigError::UnknownSetter { ref head } if head == ":wat::config::set-bogus!"
+            ConfigError::UnknownSetter { ref head, .. } if head == ":wat::config::set-bogus!"
         ));
     }
 
@@ -775,7 +820,32 @@ mod tests {
             &parent,
         )
         .unwrap_err();
-        assert!(matches!(err, ConfigError::DuplicateField { ref field } if field == "global-seed"));
+        assert!(matches!(err, ConfigError::DuplicateField { ref field, .. } if field == "global-seed"));
+    }
+
+    // ─── Arc 138 canary ─────────────────────────────────────────────────
+
+    /// Arc 138 slice 5: ConfigError Display carries span coordinates.
+    ///
+    /// Triggers `BadType` via a wrong-typed argument to `set-dim-count!`
+    /// (string literal instead of integer). Asserts that the rendered
+    /// Display message contains `"<test>:"` — confirming span coordinates
+    /// are threaded from the parsed AST into the error.
+    #[test]
+    fn arc138_config_error_message_carries_span() {
+        let src = r#"(:wat::config::set-dim-count! "not-a-number")"#;
+        let err = collect(src).unwrap_err();
+        assert!(
+            matches!(err, ConfigError::BadType { ref field, .. } if field == "dim-count"),
+            "expected BadType for dim-count, got {:?}",
+            err
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("<test>:"),
+            "expected span coords in Display (\"<test>:\"), got: {}",
+            msg
+        );
     }
 }
 
