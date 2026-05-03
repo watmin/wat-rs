@@ -117,6 +117,7 @@ fn shared_handle_survives_thread_crossing() {
                     inner,
                     ":rust::test::Greeting",
                     ":test::year",
+                    wat::span::Span::unknown(),
                 )
                 .expect("downcast");
                 g.year()

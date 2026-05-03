@@ -188,10 +188,10 @@ fn emit_dispatch_fn(
             quote! {
                 let self_val = ::wat::runtime::eval(&args[0], env, sym)?;
                 let self_inner =
-                    ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path)?;
+                    ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path, args[0].span().clone())?;
                 let self_cell: &::wat::rust_deps::ThreadOwnedCell<#self_type> =
-                    ::wat::rust_deps::downcast_ref_opaque(&self_inner, TYPE_PATH, #wat_path)?;
-                let result = self_cell.with_mut(#wat_path, |__self_ref| {
+                    ::wat::rust_deps::downcast_ref_opaque(&self_inner, TYPE_PATH, #wat_path, args[0].span().clone())?;
+                let result = self_cell.with_mut(#wat_path, args[0].span().clone(), |__self_ref| {
                     __self_ref.#name(#(#arg_idents),*)
                 })?;
             }
@@ -201,9 +201,9 @@ fn emit_dispatch_fn(
             quote! {
                 let self_val = ::wat::runtime::eval(&args[0], env, sym)?;
                 let self_inner =
-                    ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path)?;
+                    ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path, args[0].span().clone())?;
                 let self_cell: &::wat::rust_deps::ThreadOwnedCell<#self_type> =
-                    ::wat::rust_deps::downcast_ref_opaque(&self_inner, TYPE_PATH, #wat_path)?;
+                    ::wat::rust_deps::downcast_ref_opaque(&self_inner, TYPE_PATH, #wat_path, args[0].span().clone())?;
                 let result = self_cell.with_ref(#wat_path, |__self_ref| {
                     __self_ref.#name(#(#arg_idents),*)
                 })?;
@@ -215,9 +215,9 @@ fn emit_dispatch_fn(
             quote! {
                 let self_val = ::wat::runtime::eval(&args[0], env, sym)?;
                 let self_inner =
-                    ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path)?;
+                    ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path, args[0].span().clone())?;
                 let self_ref: &#self_type =
-                    ::wat::rust_deps::downcast_ref_opaque(&self_inner, TYPE_PATH, #wat_path)?;
+                    ::wat::rust_deps::downcast_ref_opaque(&self_inner, TYPE_PATH, #wat_path, args[0].span().clone())?;
                 let result = self_ref.#name(#(#arg_idents),*);
             }
         }
@@ -237,10 +237,10 @@ fn emit_dispatch_fn(
             quote! {
                 let self_val = ::wat::runtime::eval(&args[0], env, sym)?;
                 let self_inner =
-                    ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path)?;
+                    ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path, args[0].span().clone())?;
                 let self_cell: &::wat::rust_deps::OwnedMoveCell<#self_type> =
-                    ::wat::rust_deps::downcast_ref_opaque(&self_inner, TYPE_PATH, #wat_path)?;
-                let __self_owned = self_cell.take(#wat_path)?;
+                    ::wat::rust_deps::downcast_ref_opaque(&self_inner, TYPE_PATH, #wat_path, args[0].span().clone())?;
+                let __self_owned = self_cell.take(#wat_path, args[0].span().clone())?;
                 let result = __self_owned.#name(#(#arg_idents),*);
             }
         }

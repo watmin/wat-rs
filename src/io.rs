@@ -288,8 +288,8 @@ impl StringIoReader {
 }
 
 impl WatReader for StringIoReader {
-    fn read(&self, n: usize, _span: Span) -> Result<Option<Vec<u8>>, RuntimeError> {
-        self.state.with_mut(":wat::io::read", |s| {
+    fn read(&self, n: usize, span: Span) -> Result<Option<Vec<u8>>, RuntimeError> {
+        self.state.with_mut(":wat::io::read", span, |s| {
             if s.cursor >= s.bytes.len() {
                 return None;
             }
@@ -300,8 +300,8 @@ impl WatReader for StringIoReader {
         })
     }
 
-    fn read_all(&self, _span: Span) -> Result<Vec<u8>, RuntimeError> {
-        self.state.with_mut(":wat::io::read-all", |s| {
+    fn read_all(&self, span: Span) -> Result<Vec<u8>, RuntimeError> {
+        self.state.with_mut(":wat::io::read-all", span, |s| {
             let out = s.bytes[s.cursor..].to_vec();
             s.cursor = s.bytes.len();
             out
@@ -310,7 +310,7 @@ impl WatReader for StringIoReader {
 
     fn read_line(&self, span: Span) -> Result<Option<String>, RuntimeError> {
         // Find next \n from cursor. Consume it. Decode as UTF-8.
-        let bytes = self.state.with_mut(":wat::io::read-line", |s| {
+        let bytes = self.state.with_mut(":wat::io::read-line", span.clone(), |s| {
             if s.cursor >= s.bytes.len() {
                 return None;
             }
@@ -344,8 +344,8 @@ impl WatReader for StringIoReader {
         }
     }
 
-    fn rewind(&self, _span: Span) -> Result<(), RuntimeError> {
-        self.state.with_mut(":wat::io::rewind", |s| {
+    fn rewind(&self, span: Span) -> Result<(), RuntimeError> {
+        self.state.with_mut(":wat::io::rewind", span, |s| {
             s.cursor = 0;
         })
     }
@@ -388,16 +388,16 @@ impl StringIoWriter {
 }
 
 impl WatWriter for StringIoWriter {
-    fn write(&self, bytes: &[u8], _span: Span) -> Result<usize, RuntimeError> {
+    fn write(&self, bytes: &[u8], span: Span) -> Result<usize, RuntimeError> {
         let n = bytes.len();
-        self.buf.with_mut(":wat::io::write", |b| {
+        self.buf.with_mut(":wat::io::write", span, |b| {
             b.extend_from_slice(bytes);
         })?;
         Ok(n)
     }
 
-    fn write_all(&self, bytes: &[u8], _span: Span) -> Result<(), RuntimeError> {
-        self.buf.with_mut(":wat::io::write-all", |b| {
+    fn write_all(&self, bytes: &[u8], span: Span) -> Result<(), RuntimeError> {
+        self.buf.with_mut(":wat::io::write-all", span, |b| {
             b.extend_from_slice(bytes);
         })
     }
@@ -1295,9 +1295,9 @@ pub fn eval_io_temp_file_path(
     let op = ":wat::io::TempFile/path";
     arity(op, args, 1)?;
     let v = eval(&args[0], env, sym)?;
-    let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempFile", op)?;
+    let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempFile", op, args[0].span().clone())?;
     let cell: &crate::rust_deps::ThreadOwnedCell<WatTempFile> =
-        crate::rust_deps::downcast_ref_opaque(&inner, ":wat::io::TempFile", op)?;
+        crate::rust_deps::downcast_ref_opaque(&inner, ":wat::io::TempFile", op, args[0].span().clone())?;
     let s = cell.with_ref(op, |f| f.path())??;
     Ok(Value::String(Arc::new(s)))
 }
@@ -1322,9 +1322,9 @@ pub fn eval_io_temp_dir_path(
     let op = ":wat::io::TempDir/path";
     arity(op, args, 1)?;
     let v = eval(&args[0], env, sym)?;
-    let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempDir", op)?;
+    let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempDir", op, args[0].span().clone())?;
     let cell: &crate::rust_deps::ThreadOwnedCell<WatTempDir> =
-        crate::rust_deps::downcast_ref_opaque(&inner, ":wat::io::TempDir", op)?;
+        crate::rust_deps::downcast_ref_opaque(&inner, ":wat::io::TempDir", op, args[0].span().clone())?;
     let s = cell.with_ref(op, |d| d.path())??;
     Ok(Value::String(Arc::new(s)))
 }

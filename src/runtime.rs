@@ -8171,7 +8171,7 @@ fn eval_hologram_put(
             });
         }
     };
-    store.with_mut(OP, |s| s.put(key, val))?;
+    store.with_mut(OP, list_span.clone(), |s| s.put(key, val))?;
     Ok(Value::Unit)
 }
 
@@ -8300,7 +8300,7 @@ fn eval_hologram_remove(
             });
         }
     };
-    let removed = store.with_mut(OP, |s| s.remove(&key))?;
+    let removed = store.with_mut(OP, list_span.clone(), |s| s.remove(&key))?;
     match removed {
         Some(val) => Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
             Arc::new(val),
@@ -10373,7 +10373,7 @@ fn eval_subspace_update(
     )?;
     let v = require_vector(":wat::holon::OnlineSubspace/update", eval(&args[1], env, sym)?)?;
     let xs = v.to_f64();
-    let residual = s.with_mut(":wat::holon::OnlineSubspace/update", |s| s.update(&xs))?;
+    let residual = s.with_mut(":wat::holon::OnlineSubspace/update", list_span.clone(), |s| s.update(&xs))?;
     Ok(Value::f64(residual))
 }
 
@@ -10617,7 +10617,7 @@ fn eval_reckoner_observe(
         eval(&args[3], env, sym)?,
         list_span,
     )?;
-    r.with_mut(":wat::holon::Reckoner/observe", |r| {
+    r.with_mut(":wat::holon::Reckoner/observe", list_span.clone(), |r| {
         r.observe(&v, holon::Label::from_index(label_idx as usize), weight)
     })?;
     Ok(Value::Unit)
@@ -10707,7 +10707,7 @@ fn eval_reckoner_resolve(
             })
         }
     };
-    r.with_mut(":wat::holon::Reckoner/resolve", |r| {
+    r.with_mut(":wat::holon::Reckoner/resolve", list_span.clone(), |r| {
         r.resolve(conviction, correct)
     })?;
     Ok(Value::Unit)
@@ -10729,7 +10729,7 @@ fn eval_reckoner_curve(
         });
     }
     let r = require_reckoner(":wat::holon::Reckoner/curve", eval(&args[0], env, sym)?, list_span)?;
-    let curve = r.with_mut(":wat::holon::Reckoner/curve", |r| r.curve())?;
+    let curve = r.with_mut(":wat::holon::Reckoner/curve", list_span.clone(), |r| r.curve())?;
     Ok(match curve {
         Some((a, b)) => Value::Option(Arc::new(Some(Value::Tuple(Arc::new(vec![
             Value::f64(a),
@@ -10910,7 +10910,7 @@ fn eval_engram_residual(
     let e = require_engram(":wat::holon::Engram/residual", eval(&args[0], env, sym)?, list_span)?;
     let v = require_vector(":wat::holon::Engram/residual", eval(&args[1], env, sym)?)?;
     let xs = v.to_f64();
-    let r = e.with_mut(":wat::holon::Engram/residual", |e| e.residual(&xs))?;
+    let r = e.with_mut(":wat::holon::Engram/residual", list_span.clone(), |e| e.residual(&xs))?;
     Ok(Value::f64(r))
 }
 
@@ -10964,7 +10964,7 @@ fn eval_library_add(
     )?;
     // EngramLibrary::add takes &OnlineSubspace by reference; we have
     // ThreadOwnedCell. Borrow immutably to get the reference.
-    lib.with_mut(":wat::holon::EngramLibrary/add", |lib| {
+    lib.with_mut(":wat::holon::EngramLibrary/add", list_span.clone(), |lib| {
         subspace.with_ref(":wat::holon::EngramLibrary/add", |s| {
             lib.add(&name, s, None, std::collections::HashMap::new());
         })
@@ -11005,7 +11005,7 @@ fn eval_library_match_vec(
         eval(&args[3], env, sym)?,
     )?;
     let xs = probe.to_f64();
-    let matches = lib.with_mut(":wat::holon::EngramLibrary/match-vec", |lib| {
+    let matches = lib.with_mut(":wat::holon::EngramLibrary/match-vec", list_span.clone(), |lib| {
         lib.match_vec(&xs, top_k as usize, prefilter_k as usize)
     })?;
     let elems: Vec<Value> = matches
@@ -18765,14 +18765,14 @@ mod tests {
         // the generic guard itself.
         use crate::rust_deps::ThreadOwnedCell;
         let cell: Arc<ThreadOwnedCell<i64>> = Arc::new(ThreadOwnedCell::new(1));
-        cell.with_mut(":test::put", |n| {
+        cell.with_mut(":test::put", crate::span::Span::unknown(), |n| {
             *n = 42;
         })
         .unwrap();
 
         let cell_clone = Arc::clone(&cell);
         let handle = std::thread::spawn(move || {
-            cell_clone.with_mut(":test::get", |n| *n)
+            cell_clone.with_mut(":test::get", crate::span::Span::unknown(), |n| *n)
         });
         let child_result = handle.join().unwrap();
         assert!(
@@ -18780,7 +18780,7 @@ mod tests {
             "expected cross-thread access to error, got {:?}",
             child_result
         );
-        let parent_result = cell.with_mut(":test::get", |n| *n).unwrap();
+        let parent_result = cell.with_mut(":test::get", crate::span::Span::unknown(), |n| *n).unwrap();
         assert_eq!(parent_result, 42);
     }
 

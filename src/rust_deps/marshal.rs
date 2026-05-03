@@ -356,26 +356,25 @@ pub fn rust_opaque_arc(
     v: &Value,
     expected_path: &'static str,
     op: &'static str,
+    span: crate::span::Span,
 ) -> Result<Arc<RustOpaqueInner>, RuntimeError> {
     match v {
         Value::RustOpaque(inner) => {
             if inner.type_path != expected_path {
-                // arc 138: no span — rust_opaque_arc receives evaluated Value, no WatAST trace available
                 return Err(RuntimeError::TypeMismatch {
                     op: op.into(),
                     expected: expected_path,
                     got: inner.type_path,
-                    span: crate::span::Span::unknown(),
+                    span,
                 });
             }
             Ok(Arc::clone(inner))
         }
-        // arc 138: no span — rust_opaque_arc receives evaluated Value, no WatAST trace available
         other => Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
             got: other.type_name(),
-            span: crate::span::Span::unknown(),
+            span,
         }),
     }
 }
@@ -420,9 +419,8 @@ impl<T: Send> ThreadOwnedCell<T> {
         }
     }
 
-    fn ensure_owner(&self, op: &'static str) -> Result<(), RuntimeError> {
+    fn ensure_owner(&self, op: &'static str, span: crate::span::Span) -> Result<(), RuntimeError> {
         if std::thread::current().id() != self.owner {
-            // arc 138: no span — ThreadOwnedCell::ensure_owner has no WatAST context; thread boundary violation is a runtime invariant
             return Err(RuntimeError::MalformedForm {
                 head: op.into(),
                 reason: format!(
@@ -431,7 +429,7 @@ impl<T: Send> ThreadOwnedCell<T> {
                     self.owner,
                     std::thread::current().id()
                 ),
-                span: crate::span::Span::unknown(),
+                span,
             });
         }
         Ok(())
@@ -441,9 +439,10 @@ impl<T: Send> ThreadOwnedCell<T> {
     pub fn with_mut<R>(
         &self,
         op: &'static str,
+        span: crate::span::Span,
         f: impl FnOnce(&mut T) -> R,
     ) -> Result<R, RuntimeError> {
-        self.ensure_owner(op)?;
+        self.ensure_owner(op, span.clone())?;
         // Safety: thread-owner invariant checked above.
         Ok(unsafe { f(&mut *self.cell.get()) })
     }
@@ -455,7 +454,7 @@ impl<T: Send> ThreadOwnedCell<T> {
         op: &'static str,
         f: impl FnOnce(&T) -> R,
     ) -> Result<R, RuntimeError> {
-        self.ensure_owner(op)?;
+        self.ensure_owner(op, crate::span::Span::unknown())?;
         // Safety: thread-owner invariant checked above.
         Ok(unsafe { f(&*self.cell.get()) })
     }
@@ -509,22 +508,20 @@ impl<T: Send> OwnedMoveCell<T> {
 
     /// Consume the payload. The first caller wins; every subsequent
     /// caller receives `RuntimeError::MalformedForm`.
-    pub fn take(&self, op: &'static str) -> Result<T, RuntimeError> {
+    pub fn take(&self, op: &'static str, span: crate::span::Span) -> Result<T, RuntimeError> {
         if self.taken.swap(true, std::sync::atomic::Ordering::SeqCst) {
-            // arc 138: no span — OwnedMoveCell::take has no WatAST context; double-consume is a runtime invariant
             return Err(RuntimeError::MalformedForm {
                 head: op.into(),
                 reason: "owned-move handle already consumed".into(),
-                span: crate::span::Span::unknown(),
+                span: span.clone(),
             });
         }
         // Safety: the swap succeeded, so this thread holds exclusive
         // access until the function returns.
-        // arc 138: no span — OwnedMoveCell::take has no WatAST context; unexpected-None is a runtime invariant
         unsafe { (*self.cell.get()).take() }.ok_or_else(|| RuntimeError::MalformedForm {
             head: op.into(),
             reason: "owned-move handle payload was unexpectedly None".into(),
-            span: crate::span::Span::unknown(),
+            span,
         })
     }
 }
@@ -537,23 +534,22 @@ pub fn downcast_ref_opaque<'a, T: Any>(
     inner: &'a RustOpaqueInner,
     expected_path: &'static str,
     op: &'static str,
+    span: crate::span::Span,
 ) -> Result<&'a T, RuntimeError> {
     if inner.type_path != expected_path {
-        // arc 138: no span — downcast_ref_opaque receives RustOpaqueInner, no WatAST trace available
         return Err(RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
             got: inner.type_path,
-            span: crate::span::Span::unknown(),
+            span: span.clone(),
         });
     }
     inner.payload.downcast_ref::<T>().ok_or_else(|| {
-        // arc 138: no span — downcast_ref_opaque receives RustOpaqueInner, no WatAST trace available
         RuntimeError::TypeMismatch {
             op: op.into(),
             expected: expected_path,
             got: "(payload downcast failed — shim author misalignment)",
-            span: crate::span::Span::unknown(),
+            span,
         }
     })
 }
@@ -747,8 +743,8 @@ mod tests {
             tag: i64,
         }
         let v = make_rust_opaque(":rust::test::Widget", Widget { tag: 7 });
-        let inner = rust_opaque_arc(&v, ":rust::test::Widget", ":test").unwrap();
-        let w: &Widget = downcast_ref_opaque(&inner, ":rust::test::Widget", ":test").unwrap();
+        let inner = rust_opaque_arc(&v, ":rust::test::Widget", ":test", crate::span::Span::unknown()).unwrap();
+        let w: &Widget = downcast_ref_opaque(&inner, ":rust::test::Widget", ":test", crate::span::Span::unknown()).unwrap();
         assert_eq!(w.tag, 7);
     }
 
@@ -756,7 +752,7 @@ mod tests {
     fn opaque_wrong_type_path_rejected() {
         struct A;
         let v = make_rust_opaque(":rust::test::A", A);
-        let err = rust_opaque_arc(&v, ":rust::test::B", ":test").unwrap_err();
+        let err = rust_opaque_arc(&v, ":rust::test::B", ":test", crate::span::Span::unknown()).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));
     }
 
@@ -768,8 +764,8 @@ mod tests {
         #[derive(Debug)]
         struct ExpectedWrong;
         let v = make_rust_opaque(":rust::test::Mixed", Actual { _t: 1 });
-        let inner = rust_opaque_arc(&v, ":rust::test::Mixed", ":test").unwrap();
-        let result = downcast_ref_opaque::<ExpectedWrong>(&inner, ":rust::test::Mixed", ":test");
+        let inner = rust_opaque_arc(&v, ":rust::test::Mixed", ":test", crate::span::Span::unknown()).unwrap();
+        let result = downcast_ref_opaque::<ExpectedWrong>(&inner, ":rust::test::Mixed", ":test", crate::span::Span::unknown());
         assert!(result.is_err());
         assert!(matches!(
             result.err().unwrap(),

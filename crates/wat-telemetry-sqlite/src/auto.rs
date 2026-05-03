@@ -264,9 +264,9 @@ fn dispatch_auto_install(
     let db_val = eval(&args[0], env, sym)?;
     let enum_name = eval_keyword(OP, &args[1], env, sym)?;
     let schema = lookup_schema(OP, &enum_name)?;
-    let inner = rust_opaque_arc(&db_val, TYPE_PATH, OP)?;
-    let cell: &ThreadOwnedCell<WatSqliteDb> = downcast_ref_opaque(&inner, TYPE_PATH, OP)?;
-    cell.with_mut(OP, |db| {
+    let inner = rust_opaque_arc(&db_val, TYPE_PATH, OP, args[0].span().clone())?;
+    let cell: &ThreadOwnedCell<WatSqliteDb> = downcast_ref_opaque(&inner, TYPE_PATH, OP, args[0].span().clone())?;
+    cell.with_mut(OP, args[0].span().clone(), |db| {
         for ddl in &schema.ordered_ddls {
             db.execute_ddl(ddl.clone());
         }
@@ -398,10 +398,10 @@ fn dispatch_auto_dispatch(
         .enumerate()
         .map(|(i, (v, t))| value_to_tosql(OP, &enum_name, &ev.variant_name, i, v, t, sym))
         .collect::<Result<_, _>>()?;
-    let inner = rust_opaque_arc(&db_val, TYPE_PATH, OP)?;
-    let cell: &ThreadOwnedCell<WatSqliteDb> = downcast_ref_opaque(&inner, TYPE_PATH, OP)?;
+    let inner = rust_opaque_arc(&db_val, TYPE_PATH, OP, args[0].span().clone())?;
+    let cell: &ThreadOwnedCell<WatSqliteDb> = downcast_ref_opaque(&inner, TYPE_PATH, OP, args[0].span().clone())?;
     let sql = av.insert_sql.clone();
-    cell.with_mut(OP, move |db| {
+    cell.with_mut(OP, args[0].span().clone(), move |db| {
         let mut stmt = db.conn.prepare_cached(&sql).unwrap_or_else(|e| {
             panic!("{OP}: prepare {sql:?}: {e}")
         });

@@ -727,8 +727,8 @@ fn eval_handle_and_constraints(
         });
     }
     let handle_val = eval(&args[0], env, sym)?;
-    let inner = rust_opaque_arc(&handle_val, READ_HANDLE_PATH, op)?;
-    let cell: &ThreadOwnedCell<ReadHandle> = downcast_ref_opaque(&inner, READ_HANDLE_PATH, op)?;
+    let inner = rust_opaque_arc(&handle_val, READ_HANDLE_PATH, op, args[0].span().clone())?;
+    let cell: &ThreadOwnedCell<ReadHandle> = downcast_ref_opaque(&inner, READ_HANDLE_PATH, op, args[0].span().clone())?;
     let path = cell.with_ref(op, |h| h.path())?;
     let handle = ReadHandle::open(path);
 
@@ -787,7 +787,7 @@ fn with_cursor_step<C: Send + Sync + 'static>(
         });
     }
     let cur_val = eval(&args[0], env, sym)?;
-    let inner = rust_opaque_arc(&cur_val, cursor_path, op)?;
-    let cell: &ThreadOwnedCell<C> = downcast_ref_opaque(&inner, cursor_path, op)?;
+    let inner = rust_opaque_arc(&cur_val, cursor_path, op, args[0].span().clone())?;
+    let cell: &ThreadOwnedCell<C> = downcast_ref_opaque(&inner, cursor_path, op, args[0].span().clone())?;
     cell.with_ref(op, step)
 }
