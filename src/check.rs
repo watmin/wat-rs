@@ -3123,6 +3123,41 @@ fn infer_list(
                 }
                 return Some(TypeExpr::Path(":wat::WatAST".into()));
             }
+            ":wat::core::lookup-define"
+            | ":wat::core::signature-of"
+            | ":wat::core::body-of" => {
+                // Arc 143 slice 1 — runtime introspection primitives.
+                // Each takes a keyword name (`:fn::path`) and returns
+                // `:Option<wat::holon::HolonAST>`. The argument may be
+                // a known function name (inferred as its fn-type by arc
+                // 009) or an unknown bare keyword. In either case, arity
+                // must be exactly 1; the argument's inferred type is NOT
+                // unified against `:wat::core::keyword` — the runtime
+                // evaluates the keyword path at dispatch time and does its
+                // own lookup. The type scheme registered for these
+                // primitives in `register_builtins` handles call sites
+                // whose first arg is an ordinary keyword; this special
+                // case handles the arc-009 "names are values" path.
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                }
+                // Infer the argument for side-effects (e.g., symbol
+                // resolution in the local environment) but do not
+                // constrain its type — any keyword or function-valued
+                // keyword is accepted.
+                if args.len() >= 1 {
+                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "Option".into(),
+                    args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+                });
+            }
             ":wat::core::macroexpand-1" | ":wat::core::macroexpand" => {
                 // Arc 030: macro debugging primitives.
                 // (:wat::core::macroexpand{-1}? <wat::WatAST>) -> :wat::WatAST
@@ -8566,7 +8601,10 @@ fn rename(ty: &TypeExpr, mapping: &HashMap<String, TypeExpr>) -> TypeExpr {
 
 // ─── Pretty printing ────────────────────────────────────────────────────
 
-fn format_type(t: &TypeExpr) -> String {
+/// Arc 143 — exposed so `runtime.rs` helpers can render a `TypeExpr`
+/// as a keyword string for AST reconstruction in the three introspection
+/// primitives (`lookup-define`, `signature-of`, `body-of`).
+pub fn format_type(t: &TypeExpr) -> String {
     match t {
         TypeExpr::Path(p) => p.clone(),
         TypeExpr::Parametric { head, args } => {
@@ -8591,7 +8629,9 @@ fn format_type(t: &TypeExpr) -> String {
     }
 }
 
-fn format_type_inner(t: &TypeExpr) -> String {
+/// Arc 143 — exposed as companion to `format_type` (used recursively
+/// for inner type arguments where the leading `:` is omitted).
+pub fn format_type_inner(t: &TypeExpr) -> String {
     match t {
         TypeExpr::Path(p) => p.strip_prefix(':').unwrap_or(p).to_string(),
         TypeExpr::Parametric { head, args } => {
@@ -10940,6 +10980,41 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty()],
             ret: i64_ty(),
+        },
+    );
+
+    // Arc 143 slice 1 — three runtime introspection primitives. Each
+    // takes a :Symbol (keyword name) and returns :Option<HolonAST>:
+    //   lookup-define  — full (:define <head> <body>) AST
+    //   signature-of   — head only
+    //   body-of        — body only (:None for substrate primitives)
+    let symbol_ty = || TypeExpr::Path(":wat::core::keyword".into());
+    let opt_holon_ty = || TypeExpr::Parametric {
+        head: "Option".into(),
+        args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
+    };
+    env.register(
+        ":wat::core::lookup-define".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![symbol_ty()],
+            ret: opt_holon_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::signature-of".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![symbol_ty()],
+            ret: opt_holon_ty(),
+        },
+    );
+    env.register(
+        ":wat::core::body-of".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![symbol_ty()],
+            ret: opt_holon_ty(),
         },
     );
 

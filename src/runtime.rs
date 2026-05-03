@@ -2406,6 +2406,11 @@ fn dispatch_keyword_head(
         ":wat::core::quote" => eval_quote(args, list_span),
         ":wat::core::quasiquote" => eval_quasiquote(args, env, sym),
         ":wat::core::struct->form" => eval_struct_to_form(args, env, sym),
+        // Arc 143 slice 1 — runtime introspection: look up a named
+        // callable by keyword and return its AST representation.
+        ":wat::core::lookup-define" => eval_lookup_define(args, env, sym),
+        ":wat::core::signature-of" => eval_signature_of(args, env, sym),
+        ":wat::core::body-of" => eval_body_of(args, env, sym),
         // Arc 098 — Clara-style single-item pattern matcher.
         // Both type checker and runtime walk the same pattern grammar
         // via the shared classifier in `crate::form_match`.
@@ -5943,6 +5948,316 @@ fn eval_struct_to_form(
         items.push(value_to_watast(OP, f.clone(), span.clone())?);
     }
     Ok(Value::wat__WatAST(Arc::new(WatAST::List(items, span))))
+}
+
+
+// ─── Arc 143 slice 1 — runtime introspection helpers ────────────────────────
+//
+// Four Rust-internal helpers that reconstruct WatAST from stored runtime
+// data. Used by `eval_lookup_define`, `eval_signature_of`, `eval_body_of`.
+// None of these are exposed to wat; they are pure implementation detail.
+
+/// Render a `TypeExpr` as a WatAST keyword node.
+/// Delegates to `crate::check::format_type` which produces the canonical
+/// `:foo<Bar>` / `:fn(A,B)->R` / `:(T,U)` surface spelling.
+fn type_expr_to_kw(ty: &crate::types::TypeExpr) -> WatAST {
+    WatAST::Keyword(crate::check::format_type(ty), Span::unknown())
+}
+
+/// Build `(<name><type_params> (param0 :Type0) (param1 :Type1) ... -> :Ret)`
+/// from a user-defined `Function`. This is the signature HEAD as it would
+/// appear in a `:wat::core::define` form.
+///
+/// The name keyword is emitted with the type-param suffix appended
+/// (e.g., `:my::fn<T,U>`). Each parameter pair is a two-element list
+/// `(param-name :Type)`. The `->` arrow and return type come last.
+fn function_to_signature_ast(f: &Function) -> WatAST {
+    let span = Span::unknown();
+    // Head keyword: name + optional type-param suffix.
+    let head_kw = match &f.name {
+        Some(n) if f.type_params.is_empty() => n.clone(),
+        Some(n) => format!("{}<{}>", n, f.type_params.join(",")),
+        None => ":anonymous".into(),
+    };
+    let mut items: Vec<WatAST> = Vec::with_capacity(3 + f.params.len() * 2);
+    items.push(WatAST::Keyword(head_kw, span.clone()));
+    for (param, ty) in f.params.iter().zip(f.param_types.iter()) {
+        items.push(WatAST::List(
+            vec![
+                WatAST::Keyword(param.clone(), span.clone()),
+                type_expr_to_kw(ty),
+            ],
+            span.clone(),
+        ));
+    }
+    // Arrow + return type.
+    items.push(WatAST::Symbol(
+        crate::identifier::Identifier::bare("->"),
+        span.clone(),
+    ));
+    items.push(type_expr_to_kw(&f.ret_type));
+    WatAST::List(items, span)
+}
+
+/// Build the full `(:wat::core::define <head> <body>)` AST for a
+/// user-defined function. The `body` field is the stored WatAST verbatim.
+fn function_to_define_ast(f: &Function) -> WatAST {
+    let head = function_to_signature_ast(f);
+    let body = (*f.body).clone();
+    WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::define".into(), Span::unknown()),
+            head,
+            body,
+        ],
+        Span::unknown(),
+    )
+}
+
+/// Build the signature HEAD for a substrate primitive from its `TypeScheme`.
+/// Because `TypeScheme` carries no param names, we synthesise `:_a0`,
+/// `:_a1`, ... as standin names.
+///
+/// Shape: `(<name><type_params> (_a0 :Type0) ... -> :Ret)`
+fn type_scheme_to_signature_ast(name: &str, scheme: &crate::check::TypeScheme) -> WatAST {
+    let span = Span::unknown();
+    let head_kw = if scheme.type_params.is_empty() {
+        name.to_string()
+    } else {
+        format!("{}<{}>", name, scheme.type_params.join(","))
+    };
+    let mut items: Vec<WatAST> = Vec::with_capacity(3 + scheme.params.len() * 2);
+    items.push(WatAST::Keyword(head_kw, span.clone()));
+    for (i, ty) in scheme.params.iter().enumerate() {
+        items.push(WatAST::List(
+            vec![
+                WatAST::Keyword(format!(":_a{}", i), span.clone()),
+                type_expr_to_kw(ty),
+            ],
+            span.clone(),
+        ));
+    }
+    items.push(WatAST::Symbol(
+        crate::identifier::Identifier::bare("->"),
+        span.clone(),
+    ));
+    items.push(type_expr_to_kw(&scheme.ret));
+    WatAST::List(items, span)
+}
+
+/// Build the full `(:wat::core::define <head> <sentinel-body>)` for a
+/// substrate primitive.  The sentinel body
+/// `(:wat::core::__internal/primitive <name>)` is a marker — it is
+/// NEVER evaluated; substrate primitives use Rust dispatch, not wat
+/// bodies. `body-of` returns `:None` for primitives rather than this
+/// sentinel; it is exposed only through `lookup-define`.
+fn primitive_to_define_ast(name: &str, scheme: &crate::check::TypeScheme) -> WatAST {
+    let span = Span::unknown();
+    let head = type_scheme_to_signature_ast(name, scheme);
+    let sentinel = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::__internal/primitive".into(), span.clone()),
+            WatAST::Keyword(name.to_string(), span.clone()),
+        ],
+        span.clone(),
+    );
+    WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::define".into(), span.clone()),
+            head,
+            sentinel,
+        ],
+        span,
+    )
+}
+
+/// Extract the name string from a value that may be either a bare keyword
+/// or a function value (arc 009 "names are values" means keywords that
+/// refer to defined functions evaluate to their Function value). Returns
+/// `Some(name)` for both; `None` for any other value shape.
+fn name_from_keyword_or_lambda(v: &Value) -> Option<String> {
+    match v {
+        Value::wat__core__keyword(k) => Some((**k).clone()),
+        Value::wat__core__lambda(f) => f.name.clone(),
+        _ => None,
+    }
+}
+
+/// Shared lookup: given a name string, return either
+/// - `Some(LookupResult::UserDefine(f))` — user-defined function in `sym.functions`
+/// - `Some(LookupResult::Primitive(scheme))` — substrate primitive in `CheckEnv`
+/// - `None` — not found anywhere
+///
+/// Lookup order matches call-dispatch: user defines shadow builtins.
+fn lookup_callable<'a>(
+    name: &str,
+    sym: &'a SymbolTable,
+) -> Option<LookupResult<'a>> {
+    if let Some(f) = sym.functions.get(name) {
+        return Some(LookupResult::UserDefine(f));
+    }
+    let env = crate::check::CheckEnv::with_builtins();
+    if let Some(scheme) = env.get(name) {
+        return Some(LookupResult::Primitive(scheme.clone()));
+    }
+    None
+}
+
+enum LookupResult<'a> {
+    UserDefine(&'a Arc<Function>),
+    Primitive(crate::check::TypeScheme),
+}
+
+/// `(:wat::core::lookup-define <name :keyword>) -> :Option<wat::holon::HolonAST>`
+///
+/// Arc 143 slice 1. Returns the FULL define AST:
+/// `(:wat::core::define <head> <body>)`.
+///
+/// For user defines, reconstructs from the stored `Function`
+/// (params, param_types, ret_type, body are all preserved).
+/// For substrate primitives, synthesises from the registered
+/// `TypeScheme` with `:_a0`, `:_a1`, ... param names and the sentinel body
+/// `(:wat::core::__internal/primitive <name>)`.
+/// For unknown names, returns `:None`.
+fn eval_lookup_define(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::lookup-define";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    let name = match name_from_keyword_or_lambda(&v) {
+        Some(n) => n,
+        None => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::keyword or named function (e.g. :my::fn)",
+                got: v.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    match lookup_callable(&name, sym) {
+        Some(LookupResult::UserDefine(f)) => {
+            let ast = function_to_define_ast(f);
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&ast)),
+            )))))
+        }
+        Some(LookupResult::Primitive(scheme)) => {
+            let ast = primitive_to_define_ast(&name, &scheme);
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&ast)),
+            )))))
+        }
+        None => Ok(Value::Option(Arc::new(None))),
+    }
+}
+
+/// `(:wat::core::signature-of <name :keyword>) -> :Option<wat::holon::HolonAST>`
+///
+/// Arc 143 slice 1. Returns ONLY the signature HEAD:
+/// `(<name><type_params> (param :Type) ... -> :Ret)`.
+///
+/// For user defines, reconstructs from the `Function`.
+/// For substrate primitives, synthesises from the `TypeScheme`.
+/// For unknown names, returns `:None`.
+fn eval_signature_of(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::signature-of";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    let name = match name_from_keyword_or_lambda(&v) {
+        Some(n) => n,
+        None => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::keyword or named function (e.g. :my::fn)",
+                got: v.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    match lookup_callable(&name, sym) {
+        Some(LookupResult::UserDefine(f)) => {
+            let ast = function_to_signature_ast(f);
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&ast)),
+            )))))
+        }
+        Some(LookupResult::Primitive(scheme)) => {
+            let ast = type_scheme_to_signature_ast(&name, &scheme);
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&ast)),
+            )))))
+        }
+        None => Ok(Value::Option(Arc::new(None))),
+    }
+}
+
+/// `(:wat::core::body-of <name :keyword>) -> :Option<wat::holon::HolonAST>`
+///
+/// Arc 143 slice 1. Returns the body AST only.
+///
+/// For user defines, returns the `body` field's WatAST directly.
+/// For substrate primitives, returns `:None` — no wat-side body exists.
+/// (The sentinel from `lookup-define` is for the FULL define structure
+/// only; `body-of` is honest about absence.)
+/// For unknown names, returns `:None`.
+fn eval_body_of(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::core::body-of";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let v = eval(&args[0], env, sym)?;
+    let name = match name_from_keyword_or_lambda(&v) {
+        Some(n) => n,
+        None => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::keyword or named function (e.g. :my::fn)",
+                got: v.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    match lookup_callable(&name, sym) {
+        Some(LookupResult::UserDefine(f)) => {
+            let body = (*f.body).clone();
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&body)),
+            )))))
+        }
+        Some(LookupResult::Primitive(_)) => Ok(Value::Option(Arc::new(None))),
+        None => Ok(Value::Option(Arc::new(None))),
+    }
 }
 
 

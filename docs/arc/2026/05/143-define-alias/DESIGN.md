@@ -1,163 +1,129 @@
-# Arc 143 — `:wat::core::define-alias` — close the homoiconic reflection loop for callables
+# Arc 143 — Reflection layer + `:wat::core::define-alias`
 
-**Status:** drafted 2026-05-02 (evening). Surfaced from arc 130
-slice 1 RELAND's diagnostic at Layer 1: substrate code reaches
-for `:wat::core::reduce`, gets "unknown function." `reduce` is
-empirically the cognitive default for the fold-left pattern;
-two independent code-writes (LRU + HolonLRU substrate Get
-branches) both reached for it. The signature is identical to
-`:wat::core::foldl`'s. The bias is data; the absence is a
-substrate gap.
+**Status:**
+- drafted 2026-05-02 (evening) as the narrow `:wat::core::define-alias`
+  arc surfaced from arc 130 slice 1 RELAND's `:reduce` gap
+- **SCOPE EXPANDED 2026-05-02 (evening)** per user direction: the
+  narrow 3-primitive design was insufficient. The substrate needs
+  the full Ruby-style reflection surface. `define-alias` becomes
+  ONE downstream consumer of a broader reflection foundation.
 
-**Goal:** ship `(:wat::core::define-alias :wat::core::reduce :wat::core::foldl)`
-as a working wat-side primitive. The form expands at macro-time
-into a fresh `:wat::core::define` whose head copies the target's
-signature with the alias name substituted, and whose body
-delegates to the target. The checker re-parses the new head
-into a fresh TypeScheme. No TypeScheme copying. Pure
-homoiconic AST manipulation.
+**The architectural framing the user landed:**
 
-The arc closes a structural absence the substrate has had since
-macros shipped: the inability for wat-side code to ASK
-"what's the signature of this named callable?" The macro
-substrate has been able to BUILD new defines (via quasiquote)
-but not to LOOK UP existing signatures.
+> *"we need to be able to query /all/ symbols that are
+> registered... the users can filter out what they want.. we can
+> recall every definition... think ruby... we can ask all the
+> questions we want about symbols in the environment... all
+> modules... all classes.. all functions on them... all methods...
+> instance and class methods... all the constants... we must have
+> an identical query interface.. yes?... we must be able to query
+> our env to do macro work proper..."*
 
-## What's there
+The wat substrate is closed under macro + AST construction. It
+lacks the ability to OBSERVE the runtime's own symbol table. This
+arc closes that gap with a Ruby-analog reflection surface — the
+primitives that let userland macros enumerate + lookup + test +
+inspect any binding, regardless of kind.
 
-Verified via filesystem crawl 2026-05-02 evening:
+`(:define-alias :reduce :foldl)` becomes the FIRST USER of this
+foundation. Every future reflection-driven macro (sweep generators,
+spec validators, doc extractors) sits on top of the same surface.
 
-- **`:wat::core::defmacro`** — substrate special form
-  (`runtime.rs:15077`). Defmacros store name, params,
-  rest_param, body (WatAST), span (`macros.rs:54`). Registry
-  `HashMap<String, MacroDef>` (`macros.rs:79`).
-- **`:wat::core::quote`** / **`:wat::core::quasiquote`** —
-  capture and template AST (`runtime.rs:2406-2407, 5736+`).
-  Quasiquote nesting depth handled.
-- **`:wat::core::struct->form`** — converts a struct value to
-  its WatAST representation (`runtime.rs:5891+`). PARTIAL
-  reflection: works for structs.
-- **`:wat::holon::leaf`** / **`:wat::holon::from-watast`** —
-  HolonAST construction primitives (arc 057 / 065).
-- **Typed macros** — every defmacro parameter is `:AST<T>`
-  with concrete T per 058-032 (lab proposal). The substrate
-  enforces this at parse-time (`macros.rs::parse_defmacro_signature`).
-- **Macros-that-build-macros precedent**: `wat::test::make-deftest`
-  in `wat/test.wat:387+` is a defmacro whose body is
-  ```scheme
-  `(:wat::core::defmacro
-     (,name ...) `...)
-  ```
-  Quasiquote splices the user-passed name into a generated
-  defmacro registration.
-- **AST-introspection precedent**: `statement-length` (arc
-  037) operates on AST values. INSCRIPTION 224: "the
-  introspection primitive."
+## Why this isn't a "v2" deferral
 
-## What's missing
+Per the v1 wind-down: "all arcs after 109 must be implemented
+without deferral." Arc 143 surfaced from arc 130's reland (which
+is part of arc 109's chain). The reduce gap blocks arc 130.
+Closing it via Rust-side aliasing (the 5-line patch I originally
+proposed) addresses the symptom. Closing it via the full
+reflection foundation addresses the structural absence and
+unlocks every future reflection-driven userland macro.
 
-Verified via filesystem crawl — these primitives DO NOT exist:
+The bias to reach for `reduce` was the empirical signal. The
+absence of reflection was the deeper diagnosis.
 
-- `:wat::core::lookup-define`
-- `:wat::core::signature-of`
-- `:wat::core::body-of`
-- `:wat::core::source-of`
-- Any macro/binding inspection from wat code
+## The Ruby analog
 
-The macro substrate can BUILD new forms via quasiquote but
-cannot LOOK UP existing forms by name. The inspection loop
-is half-closed: forward (build) works; backward (introspect)
-doesn't.
+| Ruby | wat |
+|---|---|
+| `Module#instance_methods` / `class_methods` | `(:wat::core::all-defines)`, `(:wat::core::all-primitives)` |
+| `Module.constants` | `(:wat::core::all-typealiases)`, `(:wat::core::all-structs)` |
+| `Object#method(:foo)` | `(:wat::core::lookup-define :foo)` |
+| `Method#parameters` / `#source_location` | `(:wat::core::signature-of :foo)`, `(:wat::core::origin-of :foo)` |
+| `Method#owner` | (n/a — wat is flat-namespaced) |
+| `Object#respond_to?(:foo)` | `(:wat::core::callable? :foo)`, `(:wat::core::defined? :foo)` |
+| `Symbol.all_symbols` | `(:wat::core::all-symbols)` |
 
-## The narrow target
+Ruby's `Module#define_method` is the imperative analog of
+`define-alias` — both create a new method by referencing
+existing metadata. wat's defmacro doing this at expand-time
+parallels Ruby's metaprogramming idioms.
 
-```scheme
-(:wat::core::define-alias :wat::core::reduce :wat::core::foldl)
-```
+## The full primitive surface
 
-Macro-expands to:
-
-```scheme
-(:wat::core::define
-  (:wat::core::reduce<T,Acc>
-    (xs :Vec<T>) (init :Acc) (f :fn(Acc,T)->Acc) -> :Acc)
-  (:wat::core::foldl xs init f))
-```
-
-The checker processes the new define normally — re-parses the
-head into a fresh TypeScheme that's identical to `foldl`'s.
-At runtime, calls to `:wat::core::reduce` evaluate the body
-which delegates to `foldl`. Same dispatch path; +1 stack
-frame (could be optimized away later via a tail-call or
-direct alias).
-
-## The substrate addition
-
-ONE primitive: `:wat::core::signature-of`.
+### Enumeration (per-kind + union)
 
 ```
-(:wat::core::signature-of <name :Symbol>) -> :Option<HolonAST>
+(:wat::core::all-defines)      -> :Vec<Symbol>
+(:wat::core::all-macros)       -> :Vec<Symbol>
+(:wat::core::all-primitives)   -> :Vec<Symbol>
+(:wat::core::all-typealiases)  -> :Vec<Symbol>
+(:wat::core::all-structs)      -> :Vec<Symbol>
+(:wat::core::all-enums)        -> :Vec<Symbol>
+(:wat::core::all-newtypes)     -> :Vec<Symbol>
+(:wat::core::all-symbols)      -> :Vec<Symbol>   ;; union of the above
 ```
 
-Returns the signature HEAD as a HolonAST node:
-`(name<TypeParams> (arg-name :ArgType) ... -> :ReturnType)`.
+### Predicates (per-kind + cross-cutting)
 
-For a USER-DEFINED `:wat::core::define`, returns the head
-extracted from the stored AST (the head is `(define <head>
-<body>)`'s second element).
+```
+;; Per-kind
+(:wat::core::define?     <name>) -> :bool
+(:wat::core::macro?      <name>) -> :bool
+(:wat::core::primitive?  <name>) -> :bool
+(:wat::core::typealias?  <name>) -> :bool
+(:wat::core::struct?     <name>) -> :bool
+(:wat::core::enum?       <name>) -> :bool
+(:wat::core::newtype?    <name>) -> :bool
 
-For a SUBSTRATE PRIMITIVE (Rust-implemented like `foldl`),
-synthesizes the head from the registered TypeScheme. The
-TypeScheme already carries name + parameter types + return
-type; we materialize them as a HolonAST signature node.
-
-For a name with no binding, returns `:None`.
-
-This is the minimal reflection primitive. It does NOT expose
-function bodies (no `body-of`); it does NOT expose macro
-templates (no `template-of`). Just signatures. That's
-sufficient for `define-alias` and for any future macro that
-wants to wrap or re-export a callable.
-
-## The wat-side macro
-
-```scheme
-(:wat::core::defmacro
-  (:wat::core::define-alias
-    (alias-name :AST<wat::core::Symbol>)
-    (target-name :AST<wat::core::Symbol>)
-    -> :AST<wat::core::unit>)
-  (:wat::core::let*
-    (((sig :wat::core::Option<wat::holon::HolonAST>)
-      (:wat::core::signature-of target-name))
-     ((renamed :wat::holon::HolonAST)
-      (:rename-callable-name sig target-name alias-name))
-     ((arg-names :wat::core::Vector<wat::core::Symbol>)
-      (:extract-arg-names sig)))
-    `(:wat::core::define
-       ,renamed
-       (,target-name ,@arg-names))))
+;; Cross-cutting
+(:wat::core::callable?   <name>) -> :bool   ;; define | macro | primitive
+(:wat::core::type?       <name>) -> :bool   ;; typealias | struct | enum | newtype
+(:wat::core::defined?    <name>) -> :bool   ;; any kind
 ```
 
-Two helper functions written in wat (~20 LOC each):
+### Typed lookups (kind-specific AST shape)
 
-- `:rename-callable-name (head :HolonAST) (from :Symbol) (to :Symbol) -> :HolonAST` —
-  substitute the callable name in the signature head.
-- `:extract-arg-names (head :HolonAST) -> :Vec<Symbol>` —
-  return the arg-name symbols from the head's
-  `(arg-name :Type)` pairs.
+```
+(:wat::core::lookup-define     <name>) -> :Option<HolonAST>  ;; (define <head> <body>)
+(:wat::core::lookup-macro      <name>) -> :Option<HolonAST>  ;; (defmacro <head> <template>)
+(:wat::core::lookup-primitive  <name>) -> :Option<HolonAST>  ;; (define <head> <sentinel>)
+(:wat::core::lookup-typealias  <name>) -> :Option<HolonAST>  ;; (typealias <name> <target>)
+(:wat::core::lookup-struct     <name>) -> :Option<HolonAST>  ;; (struct <name> <fields>)
+(:wat::core::lookup-enum       <name>) -> :Option<HolonAST>  ;; (enum <name> <variants>)
+(:wat::core::lookup-newtype    <name>) -> :Option<HolonAST>  ;; (newtype <name> <target>)
+```
 
-Both are pure HolonAST manipulation atop existing
-primitives.
+### Cross-cutting projections (work on any callable)
 
-## Findings — open questions resolved 2026-05-02 evening
+```
+(:wat::core::signature-of  <name>) -> :Option<HolonAST>   ;; head only, any callable
+(:wat::core::body-of       <name>) -> :Option<HolonAST>   ;; body for defines/macros; :None for primitives
+(:wat::core::origin-of     <name>) -> :Option<wat::Span>  ;; source location for any binding
+```
 
-Filesystem investigation closed Q1 + Q2 before slice 1 brief drafted.
+~25 primitives total. Each is small (registry iteration or
+HashMap lookup wrapped as `eval_*` + check.rs scheme
+registration). Per-primitive cost is low; cumulative
+substrate weight matters and is justified by the unlocked
+userland macro surface.
+
+## Findings (open questions resolved 2026-05-02 evening)
 
 ### Q1 — User-define AST preservation: RESOLVED
 
 `Value::wat__core__lambda(Arc<Function>)` per `runtime.rs:158`.
-The `Function` struct (line 499) carries everything we need:
+The `Function` struct (line 499) carries everything needed:
 
 ```rust
 pub struct Function {
@@ -171,196 +137,247 @@ pub struct Function {
 }
 ```
 
-For a user-defined function, all three primitives reconstruct
-trivially:
-
-- `signature-of`: build `(name<type_params> (params[i] :param_types[i]) ... -> :ret_type)`
-- `body-of`: return `body` directly
-- `lookup-define`: build `(:define <head> <body>)`
+For a user-defined function, all callable-projecting
+primitives reconstruct trivially.
 
 Lookup path: `Environment::lookup(name)` returns
-`Option<Value>` per `runtime.rs:563`. If `Some(Value::wat__core__lambda(f))`,
-reconstruct from `f`.
+`Option<Value>` per `runtime.rs:563`.
 
 ### Q2 — Arg name preservation in TypeSchemes: RESOLVED via synthesis
 
-TypeScheme (per `check.rs:11200+ foldl registration`) has:
-
-```rust
-TypeScheme {
-    type_params: Vec<String>,
-    params: Vec<TypeExpr>,    // TYPES ONLY, no names
-    ret: TypeExpr,
-}
-```
-
-No param names. For substrate primitives, the three primitives
-synthesize names: `:_a0`, `:_a1`, ..., `:_a<n-1>`. The resulting
-alias body uses the same synthetic names; the generated define
-type-checks identically to the pretty version. Cosmetic loss only.
-
-Future polish (not this arc): extend TypeScheme with
-`Option<Vec<String>>` param names; primitives that want pretty
-aliases register with names. Out of scope.
+TypeScheme has no param names. For substrate primitives,
+synthesize: `:_a0`, `:_a1`, ..., `:_a<n-1>`. Generated
+alias bodies use synthetic names — type-checks identically;
+cosmetic loss only.
 
 Lookup path: `env.schemes.get(name)` per `check.rs:1149-1150`.
-Substrate primitives are NOT in `Environment` (env.lookup returns
-None) — they live in the TypeScheme registry.
+Substrate primitives are NOT in `Environment` (env.lookup
+returns None) — they live in the TypeScheme registry.
+
+### Q3 — Span discipline (NEW, raised 2026-05-02 evening)
+
+`Span::unknown()` for synthesized AST nodes ACTIVELY undermines
+arc 138 (errors carry coordinates). The right discipline:
+
+- **For user defines**: `Function` gains `pub define_span: Span`
+  populated at `parse_define_form` time. Synthesized head AST
+  uses this span. Body keeps native spans.
+- **For substrate primitives**: TypeScheme gains
+  `pub register_span: Option<Span>`. Each primitive registration
+  captures `Span::new(Arc::new(file!().into()), line!() as i64, 0)`
+  via Rust's `file!()` / `line!()` macros at the call site.
+- **For other kinds (typeliases / structs / enums / newtypes)**:
+  same pattern — preserve registration span at parse time;
+  thread it through to all reflection projections.
+
+This is **slice 5** of the arc (origin-of + span discipline
+fix together). Slice 1 (currently in flight) ships with
+`Span::unknown()` per its existing brief; slice 5 retroactively
+upgrades the helpers to use real spans.
 
 ## Resolution-order semantics
 
-For each primitive's lookup:
+For each callable's lookup (lookup-define, signature-of,
+body-of):
 
 1. **First**: check `Environment::lookup(name)` for a user define
 2. **Then**: check `env.schemes.get(name)` for a substrate primitive
 3. **Else**: return `:None`
 
-User defines shadow primitive registrations (matches normal call
-dispatch precedence).
+User defines shadow primitive registrations (matches normal
+call dispatch precedence).
 
-## Slices (revised post-investigation)
+For typed lookups (`lookup-macro`, `lookup-typealias`, etc.),
+each consults the registry that owns its kind:
 
-### Slice 1 — three substrate primitives (lookup-define, signature-of, body-of)
+- `lookup-macro` → `MacroRegistry` (`src/macros.rs`)
+- `lookup-typealias` → typealias registry (likely in `check.rs` —
+  TBD slice 4 investigation)
+- `lookup-struct` / `lookup-enum` / `lookup-newtype` → similar
 
-Combined slice — they share lookup machinery + AST construction
-helpers. Mechanical to ship together.
+For predicates: each just runs the corresponding `lookup-X` and
+checks `Some` vs `None`.
 
-- Add three `eval_*` functions in `runtime.rs`:
-  - `eval_lookup_define(args, env, sym) -> Result<Value::holon__HolonAST, _>`
-  - `eval_signature_of(args, env, sym)` — same shape
-  - `eval_body_of(args, env, sym)` — same shape, returns `:None`
-    for substrate primitives
-- Helper: `fn function_to_define_ast(f: &Function) -> WatAST` —
-  reconstructs `(:define <head> <body>)` from a user Function.
-- Helper: `fn type_scheme_to_signature_ast(name: &str, scheme: &TypeScheme) -> WatAST` —
-  synthesizes head with `:_aN` names from a TypeScheme.
-- Register all three in:
-  - Runtime dispatch (`runtime.rs` near line 2406+)
-  - Check.rs schemes (each takes `:Symbol -> :Option<HolonAST>`)
-- 6-9 unit tests via `wat-tests/` — for each primitive:
-  - User define lookup → returns expected AST
-  - Substrate primitive lookup → returns synthesized AST
-  - Unknown name → returns `:None`
-  - body-of for substrate primitive → returns `:None`
+For enumerations: each iterates its corresponding registry's
+keys.
 
-### Slice 2 — wat helpers `:rename-callable-name` + `:extract-arg-names`
+## Slice plan (7 slices)
 
-- New file: `wat/std/ast.wat`
-- `:rename-callable-name (head :HolonAST) (from :Symbol) (to :Symbol) -> :HolonAST` —
-  substitute the callable name in the signature head.
-- `:extract-arg-names (head :HolonAST) -> :Vec<Symbol>` —
-  return arg-name symbols from `(arg-name :Type)` pairs.
-- ~40 LOC of HolonAST manipulation.
-- 2-3 unit tests.
+### Slice 1 — point lookups for callables (IN FLIGHT)
 
-### Slice 3 — `:wat::core::define-alias` defmacro
+Three substrate primitives: `lookup-define`, `signature-of`,
+`body-of`. ~80-150 LOC Rust + 9-12 tests. Sonnet sweep launched
+2026-05-02 evening with BRIEF-SLICE-1 + EXPECTATIONS-SLICE-1.
 
-- Add to `wat/std/ast.wat`.
-- ~10 LOC macro body using slice 1 + slice 2 primitives.
-- 2-3 unit tests:
-  - Alias a substrate primitive (`foldl` → `reduce`); verify
-    type-check passes; verify call-site resolves
-  - Alias a user-define; verify the same
-  - Verify TypeScheme identity via a probe test
-    (call site type-checks with the alias the same as the
-    target)
+NOTE: this slice ships with `Span::unknown()` per its brief;
+slice 5 retroactively upgrades the span discipline.
 
-### Slice 4 — use it
+### Slice 2 — enumeration primitives
 
-- `(:wat::core::define-alias :wat::core::reduce :wat::core::foldl)`
-  in `wat/std/ast.wat` (or `wat/core.wat`).
-- Re-run `cargo test --workspace`; verify `:wat::core::reduce`
-  resolves correctly at the two existing substrate call sites
-  (`crates/wat-lru/wat/lru/CacheService.wat:213` +
-  `crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat:251`).
-- Confirms arc 130's substrate stops failing on the missing-
-  reduce gap; arc 130 slice 1 RELAND can resume Layer 2+.
+Eight `:wat::core::all-X` primitives. Each iterates its
+registry's keys and returns `Vec<Symbol>`. The `all-symbols`
+union concatenates the seven kind-specific lists.
 
-### Slice 5 — closure
+Mechanical to ship together (they share registry-iteration
+machinery; differ only by which registry they walk).
 
-- INSCRIPTION + 058 row + USER-GUIDE entry.
-- Cross-references to arc 091 slice 8 (quasiquote precedent)
-  + arc 057 (HolonAST polymorphism) + arc 037 (introspection
-  precedent).
+~50-100 LOC Rust + 8-10 tests.
 
-## Why this isn't a "v2" deferral
+### Slice 3 — predicate primitives
 
-The user wind-down rule for arc 109 v1: "all arcs after 109
-must be implemented without deferral before we close 109."
-Arc 143 surfaced from arc 130's reland, which is itself part
-of arc 109's chain. The reduce gap blocks arc 130's stepping
-stones from progressing past Layer 1. Either:
+Ten `:wat::core::X?` primitives. Each is a 1-line wrapper over
+the corresponding registry's `contains_key` (or `.get(name).is_some()`).
+The cross-cutting predicates (callable?, type?, defined?) compose
+the per-kind ones.
 
-1. We add a 5-line Rust alias for `reduce → foldl` (surgical;
-   doesn't address the underlying absence)
-2. We ship arc 143 (closes the homoiconic gap permanently)
+~30-60 LOC Rust + 10-12 tests.
 
-Path 2 is the right architectural answer. The bias is
-empirical (two independent miswrites). The absence is felt.
-The substrate primitives needed are minimal (one
-`signature-of`). The macro is small (~70 LOC of wat across
-helpers + macro). The cost-benefit favors closing the gap.
+### Slice 4 — typed lookups for non-callables
 
-Path 1 would leave the substrate able to register Rust-side
-aliases but not wat-side aliases. Future writers (lab,
-sonnet, future-us) reach for `reduce` — works for that name
-specifically, but the next bias (`fold` instead of `foldl`?
-`map-indexed`? `partition`?) requires another Rust addition.
-With arc 143, future biases get one-line wat fixes.
+Six `:wat::core::lookup-X` primitives for macros, typealiases,
+structs, enums, newtypes, primitives. Each reconstructs the
+kind-appropriate AST from its registry entry.
 
-## The four questions
+Investigation: do typealiases / structs / enums / newtypes
+preserve their original AST? Likely yes (similar to
+`Function.body`); confirm during slice 4 implementation.
 
-**Obvious?** Yes. `(:define-alias :new :existing)` reads as
-"define `:new` as an alias for `:existing`." Anyone familiar
-with Clojure's `(def new existing)`, JS's `const new =
-existing`, or Lisp's `(defalias 'new 'existing)` reads it
-fluently.
+~80-150 LOC Rust + 6-12 tests.
 
-**Simple?** Yes. ONE substrate primitive (`signature-of`).
-Two wat helpers (rename-head, extract-arg-names). One
-macro. Total: ~30 LOC Rust + ~70 LOC wat. The substrate
-addition is small and bounded — it doesn't touch the type
-system; it just exposes existing TypeScheme data as HolonAST.
+### Slice 5 — `origin-of` + span discipline fix
 
-**Honest?** Yes. The aliasing is REAL — calls to the alias
-go through a wat-defined wrapper that delegates. The
-TypeScheme identity is preserved through normal define
-processing (no shortcutting). The macro expansion is visible
-(quasiquote shows the structure). Future readers see what
-happens.
+Add `define_span: Span` to `Function`. Add `register_span:
+Option<Span>` to `TypeScheme`. Update `parse_define_form` to
+populate; update primitive registrations to capture
+`file!()` / `line!()`. Update slice 1's helpers to use real
+spans. Add `:wat::core::origin-of <name> -> :Option<wat::Span>`
+primitive.
 
-**Good UX?** Yes. The user types `(:define-alias :new
-:existing)` once. The substrate handles signature lookup,
-rename, body delegation. No need to restate signatures.
-No TypeScheme manual entry. Bias-aligned naming becomes a
-one-line fix for the rest of the substrate's life.
+Retroactively closes the diagnostic gap I introduced in slice 1.
 
-## Open questions (Q1, Q2 resolved 2026-05-02 evening — see Findings)
+~50-100 LOC Rust + 5-8 tests.
 
-### Q3 — Placement of the alias macro
+### Slice 6 — wat-side define-alias
 
-Where does `:wat::core::define-alias` live?
+Three pieces in one slice (small enough):
 
-- `wat/std/ast.wat` (new file) — clean separation of AST
-  primitives + their consumers
-- `wat/core.wat` (extend existing core stdlib) — keeps `core`
-  primitives together
-- `wat/std/alias.wat` (new file) — single-purpose
+1. wat helpers `:rename-callable-name` + `:extract-arg-names`
+   in `wat/std/ast.wat`. ~40 LOC of HolonAST manipulation.
+2. `:wat::core::define-alias` defmacro. ~10 LOC atop slice 1's
+   primitives.
+3. Apply: `(:wat::core::define-alias :wat::core::reduce
+   :wat::core::foldl)` in `wat/std/ast.wat` (or `wat/core.wat`).
 
-Defer to slice 2 / 3 implementation. Probably `wat/std/ast.wat`.
+Verify arc 130's substrate stops failing on the missing-reduce
+gap (re-run cargo test --workspace post-application).
 
-### Q4 — Should the alias macro work for macros too?
+~70 LOC wat + 5-8 tests.
 
-`define-alias :my-macro :their-macro` — alias one defmacro
+### Slice 7 — closure
+
+INSCRIPTION + 058 row + USER-GUIDE entry. Cross-references to
+arc 091 slice 8 (quasiquote precedent), arc 057 (HolonAST
+polymorphism), arc 037 (introspection precedent), arc 138
+(span coordinates the discipline upgrades).
+
+## The four questions (against the expanded scope)
+
+**Obvious?** Yes. Each primitive's name names exactly what it
+does. The Ruby analogs are universally familiar; readers from
+Clojure / JS / Python / Lisp / Ruby all read `(:all-defines)`
+and `(:lookup-define name)` fluently.
+
+**Simple?** The aggregate is substantial (~25 primitives) but
+each is tiny (registry walk OR HashMap lookup). The Function
+struct addition + TypeScheme addition are surgical. The pattern
+is uniform across kinds — write one, the rest mirror it.
+
+**Honest?** Yes. The reflection surface mirrors what the
+substrate ACTUALLY holds — defines, macros, primitives,
+typealiases, structs, enums, newtypes. No invented categories.
+No glossed-over inconsistencies. The synthesized AST for
+substrate primitives uses honest sentinel bodies + synthetic
+arg names; the limitations are visible.
+
+**Good UX?** Yes. Userland macros become first-class consumers
+of the env. `define-alias` is the immediate beneficiary; the
+next dozen reflection-driven macros (sweep generators, spec
+validators, doc extractors) get the foundation for free.
+
+## Open questions
+
+### Q4 — Unified `Binding` sum type + universal `lookup`?
+
+In addition to the typed lookups, should there be a unified
+`(:wat::core::lookup name) -> :Option<Binding>` where `Binding`
+is a sum type covering all kinds?
+
+```scheme
+(:wat::core::enum :wat::core::Binding
+  (Define     (signature :HolonAST) (body :HolonAST))
+  (Macro      (signature :HolonAST) (template :HolonAST))
+  (Primitive  (signature :HolonAST))
+  (Typealias  (target :HolonAST))
+  (Struct     (fields :HolonAST))
+  (Enum       (variants :HolonAST))
+  (Newtype    (target :HolonAST)))
+```
+
+Pros: macros that don't know the kind in advance can dispatch
+on the variant. Mirrors Ruby's `Object#method` + `Method` class.
+
+Cons: another sum type to maintain alongside the typed lookups.
+Most macro use-cases are kind-specific.
+
+**Defer to slice 4 implementation.** If the typed lookups
+suffice for `define-alias`, defer the unified `Binding` to a
+post-v1 arc. If unified `lookup` becomes load-bearing for some
+slice's wat code, add it then.
+
+### Q5 — Should `define-alias` work for macros too?
+
+`(:define-alias :my-macro :their-macro)` — alias one defmacro
 to another. Mechanically possible via the same approach (look
-up the source macro's signature, generate a defmacro that
-delegates). Out of scope for this arc; defer.
+up the source macro, generate a defmacro that delegates).
 
-### Q5 — Should there be a sibling `:typealias-alias` for type names?
+**Defer.** Slice 6 ships callable-aliasing only. A future arc
+adds `define-macro-alias` (or extends `define-alias` to
+dispatch on kind) if the bias surfaces.
 
-Probably not. `typealias` already exists; aliasing typealiases
-is `(:typealias :NewName ExistingType)`. The asymmetry is
-honest — types vs callables are different reflection surfaces.
+### Q6 — Sibling `:typealias-alias` for type names?
+
+`typealias` already exists; aliasing typealiases is just
+`(:typealias :NewName ExistingType)`. The asymmetry between
+callables (macro-needed) and types (one-line wat) is honest.
+
+**Don't ship.** Typealiases don't need a defalias macro.
+
+### Q7 — Placement of reflection primitives in stdlib
+
+Where does `:wat::core::all-X` etc. live in wat-side code?
+
+- `wat/std/ast.wat` (new file) — sibling of `wat/std/option.wat`
+- `wat/core.wat` (extend existing core stdlib)
+
+**Defer to slice 6 implementation.** The substrate primitives
+register in Rust regardless; the wat-side `define-alias` macro
++ helpers need a home. Probably `wat/std/ast.wat`.
+
+## Why this scope is right for v1
+
+The user's wind-down rule: arc 109 v1 doesn't close until all
+post-109 arcs implement (no deferrals). The reflection layer
+is needed for `define-alias`; `define-alias` unblocks arc 130;
+arc 130 unblocks arc 109; arc 109 v1 ships.
+
+Each slice is small enough for one sonnet sweep. The 7-slice
+arc is comparable in scope to arc 091 (8 slices), arc 109
+(many sub-slices), arc 138 (multiple F-NAMES sub-slices).
+
+The substrate gains a foundational capability (full reflection)
+that pays back across years of future macro work. The cost-
+benefit favors shipping the proper foundation over the
+narrow patch.
 
 ## Cross-references
 
@@ -372,21 +389,27 @@ honest — types vs callables are different reflection surfaces.
 - `docs/arc/2026/04/037-dim-router/INSCRIPTION.md` (arc 037
   intro of `statement-length` as introspection primitive
   precedent)
+- `docs/arc/2026/05/138-errors-carry-coordinates/INSCRIPTION.md`
+  (the span discipline this arc's slice 5 honors)
 - `docs/arc/2026/05/130-cache-services-pair-by-index/SCORE-SLICE-1-RELAND.md`
-  (the reland that surfaced the reduce gap)
-- `holon-lab-trading/docs/proposals/2026/04/058-ast-algebra-surface/058-032-typed-macros/PROPOSAL.md`
-  (typed macros)
+  (the reland that surfaced the reduce gap → motivated this arc)
 - `holon-lab-trading/docs/proposals/2026/04/058-ast-algebra-surface/058-031-defmacro/PROPOSAL.md`
   (defmacro definition)
-- `wat/test.wat:387+` (`:wat::test::make-deftest` — the
-  worked example of macros-building-macros via quasiquote)
+- `holon-lab-trading/docs/proposals/2026/04/058-ast-algebra-surface/058-032-typed-macros/PROPOSAL.md`
+  (typed macros — every defmacro param :AST<T>)
+- `wat/test.wat:387+` (`:wat::test::make-deftest` — the worked
+  example of macros-building-macros via quasiquote)
 - `src/macros.rs` (MacroDef, MacroRegistry; parse_defmacro_signature)
+- `src/runtime.rs:499` (Function struct — Q1 resolution)
+- `src/check.rs:11200+` (TypeScheme registration — Q2 resolution)
 
 ## What's next
 
-This DESIGN ships first. The 4 implementation slices follow
-once the design is approved. After arc 143 closes, arc 130
-slice 1 RELAND continues with the stepping stones (Layer 2+)
-against a substrate that has `reduce` working.
+Slice 1 in flight (sonnet, ~15-25 min predicted). After SCORE,
+slice 2 BRIEF + EXPECTATIONS gets drafted against slice 1's
+calibration; same pattern through slice 7.
 
-Slice 1 of arc 130 RELAND blocks on this arc.
+Arc 130 slice 1 RELAND v2 picks up at Layer 2+ once arc 143
+slice 6 ships the `:reduce` alias.
+
+Arc 109 v1 closure waits on the chain.
