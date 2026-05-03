@@ -2638,18 +2638,18 @@ fn dispatch_keyword_head(
         // primitives with char-level conveniences.
         ":wat::io::IOReader/from-bytes" => crate::io::eval_ioreader_from_bytes(args, env, sym),
         ":wat::io::IOReader/from-string" => crate::io::eval_ioreader_from_string(args, env, sym),
-        ":wat::io::IOReader/read" => crate::io::eval_ioreader_read(args, env, sym),
-        ":wat::io::IOReader/read-all" => crate::io::eval_ioreader_read_all(args, env, sym),
-        ":wat::io::IOReader/read-line" => crate::io::eval_ioreader_read_line(args, env, sym),
-        ":wat::io::IOReader/rewind" => crate::io::eval_ioreader_rewind(args, env, sym),
+        ":wat::io::IOReader/read" => crate::io::eval_ioreader_read(args, env, sym, list_span),
+        ":wat::io::IOReader/read-all" => crate::io::eval_ioreader_read_all(args, env, sym, list_span),
+        ":wat::io::IOReader/read-line" => crate::io::eval_ioreader_read_line(args, env, sym, list_span),
+        ":wat::io::IOReader/rewind" => crate::io::eval_ioreader_rewind(args, env, sym, list_span),
         ":wat::io::IOWriter/new" => crate::io::eval_iowriter_new(args, env, sym),
         ":wat::io::IOWriter/open-file" => crate::io::eval_iowriter_open_file(args, env, sym),
         ":wat::io::IOWriter/to-bytes" => crate::io::eval_iowriter_to_bytes(args, env, sym),
         ":wat::io::IOWriter/to-string" => crate::io::eval_iowriter_to_string(args, env, sym),
-        ":wat::io::IOWriter/write" => crate::io::eval_iowriter_write(args, env, sym),
-        ":wat::io::IOWriter/write-all" => crate::io::eval_iowriter_write_all(args, env, sym),
-        ":wat::io::IOWriter/write-string" => crate::io::eval_iowriter_write_string(args, env, sym),
-        ":wat::io::IOWriter/print" => crate::io::eval_iowriter_print(args, env, sym),
+        ":wat::io::IOWriter/write" => crate::io::eval_iowriter_write(args, env, sym, list_span),
+        ":wat::io::IOWriter/write-all" => crate::io::eval_iowriter_write_all(args, env, sym, list_span),
+        ":wat::io::IOWriter/write-string" => crate::io::eval_iowriter_write_string(args, env, sym, list_span),
+        ":wat::io::IOWriter/print" => crate::io::eval_iowriter_print(args, env, sym, list_span),
         // Arc 093 — auto-deleting temp file / temp dir wrappers
         // around Rust's `tempfile` crate. Drop unlinks the
         // file/dir when the wat value's Arc-count reaches zero.
@@ -2658,10 +2658,10 @@ fn dispatch_keyword_head(
         ":wat::io::TempDir/new" => crate::io::eval_io_temp_dir_new(args, env, sym),
         ":wat::io::TempDir/path" => crate::io::eval_io_temp_dir_path(args, env, sym),
         ":wat::io::read-file" => crate::io::eval_io_read_file(args, env, sym),
-        ":wat::io::IOWriter/println" => crate::io::eval_iowriter_println(args, env, sym),
-        ":wat::io::IOWriter/writeln" => crate::io::eval_iowriter_writeln(args, env, sym),
-        ":wat::io::IOWriter/flush" => crate::io::eval_iowriter_flush(args, env, sym),
-        ":wat::io::IOWriter/close" => crate::io::eval_iowriter_close(args, env, sym),
+        ":wat::io::IOWriter/println" => crate::io::eval_iowriter_println(args, env, sym, list_span),
+        ":wat::io::IOWriter/writeln" => crate::io::eval_iowriter_writeln(args, env, sym, list_span),
+        ":wat::io::IOWriter/flush" => crate::io::eval_iowriter_flush(args, env, sym, list_span),
+        ":wat::io::IOWriter/close" => crate::io::eval_iowriter_close(args, env, sym, list_span),
 
         // Algebra-core UpperCalls — construct HolonAST values at runtime.
         ":wat::holon::Atom" => eval_algebra_atom(args, list_span, env, sym),
@@ -12583,7 +12583,7 @@ fn eval_kernel_process_send(
     let mut payload = wat_edn::write(&edn);
     payload.push('\n');
 
-    match stdin_writer.write_all(payload.as_bytes()) {
+    match stdin_writer.write_all(payload.as_bytes(), list_span.clone()) {
         Ok(()) => Ok(Value::Result(Arc::new(Ok(Value::Unit)))),
         Err(_) => Ok(Value::Result(Arc::new(Err(single_died_chain(
             process_died_error_channel_disconnected(),
@@ -12680,7 +12680,7 @@ fn eval_kernel_process_recv(
     // Read one line from stdout. If got a line: parse as EDN, return
     // Ok(Some). If EOF: drain stderr, wait for program exit, build
     // the terminal answer (Ok(:None) or Err).
-    let line_opt = stdout_reader.read_line()?;
+    let line_opt = stdout_reader.read_line(list_span.clone())?;
     if let Some(line) = line_opt {
         let trimmed = line.trim_end_matches('\n');
         match crate::edn_shim::read_edn(trimmed, sym.types().map(|a| a.as_ref())) {
@@ -12694,7 +12694,7 @@ fn eval_kernel_process_recv(
     } else {
         // stdout EOF — drain stderr, then wait for program exit.
         let mut stderr_lines = Vec::new();
-        while let Some(line) = stderr_reader.read_line()? {
+        while let Some(line) = stderr_reader.read_line(list_span.clone())? {
             stderr_lines.push(line);
         }
 

@@ -28,6 +28,7 @@
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
 use crate::rust_deps::ThreadOwnedCell;
+use crate::span::Span;
 use std::sync::Arc;
 
 // ─── Traits ──────────────────────────────────────────────────────────────
@@ -37,20 +38,20 @@ pub trait WatReader: Send + Sync + std::fmt::Debug {
     /// Read up to `n` bytes. Returns `Ok(None)` on EOF, `Ok(Some(bytes))`
     /// with the actual bytes (may be fewer than `n`). I/O errors and
     /// owner-check failures surface as `RuntimeError`.
-    fn read(&self, n: usize) -> Result<Option<Vec<u8>>, RuntimeError>;
+    fn read(&self, n: usize, span: Span) -> Result<Option<Vec<u8>>, RuntimeError>;
 
     /// Read until EOF. Returns every byte in order.
-    fn read_all(&self) -> Result<Vec<u8>, RuntimeError>;
+    fn read_all(&self, span: Span) -> Result<Vec<u8>, RuntimeError>;
 
     /// Read one line (up to and including `\n`, which is consumed but
     /// not returned). Returns `Ok(None)` on EOF. The string is
     /// UTF-8-decoded; invalid bytes surface as a `MalformedForm` error.
-    fn read_line(&self) -> Result<Option<String>, RuntimeError>;
+    fn read_line(&self, span: Span) -> Result<Option<String>, RuntimeError>;
 
     /// Reset the read cursor to the start of the backing source. No-op
     /// for real stdin (real fds aren't rewindable); meaningful for
     /// `StringIoReader`.
-    fn rewind(&self) -> Result<(), RuntimeError>;
+    fn rewind(&self, span: Span) -> Result<(), RuntimeError>;
 }
 
 /// A sink for bytes. Wat-level type `:wat::io::IOWriter`.
@@ -58,14 +59,14 @@ pub trait WatWriter: Send + Sync + std::fmt::Debug {
     /// Write up to `bytes.len()` bytes. Returns the count actually
     /// written. Matches Rust `Write::write` semantics (fd-honest
     /// partial writes).
-    fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError>;
+    fn write(&self, bytes: &[u8], span: Span) -> Result<usize, RuntimeError>;
 
     /// Write all `bytes`. Loops internally if a single write is
     /// partial. Matches Rust `Write::write_all`.
-    fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError>;
+    fn write_all(&self, bytes: &[u8], span: Span) -> Result<(), RuntimeError>;
 
     /// Flush any buffered output.
-    fn flush(&self) -> Result<(), RuntimeError>;
+    fn flush(&self, span: Span) -> Result<(), RuntimeError>;
 
     /// Clone the writer's accumulated bytes, if the impl backs to an
     /// in-memory buffer. `None` for real stdio (the OS pipe's past is
@@ -84,7 +85,7 @@ pub trait WatWriter: Send + Sync + std::fmt::Debug {
     /// reach zero — needed when the writer Arc is held by a struct
     /// (e.g., `:wat::kernel::Process.stdin`) that outlives the write
     /// phase. Subsequent writes to a closed writer return an error.
-    fn close(&self) -> Result<(), RuntimeError> {
+    fn close(&self, _span: Span) -> Result<(), RuntimeError> {
         Ok(())
     }
 }
@@ -105,7 +106,7 @@ impl RealStdin {
 }
 
 impl WatReader for RealStdin {
-    fn read(&self, n: usize) -> Result<Option<Vec<u8>>, RuntimeError> {
+    fn read(&self, n: usize, span: Span) -> Result<Option<Vec<u8>>, RuntimeError> {
         use std::io::Read;
         let mut buf = vec![0u8; n];
         let mut guard = self.inner.lock();
@@ -115,29 +116,27 @@ impl WatReader for RealStdin {
                 buf.truncate(k);
                 Ok(Some(buf))
             }
-            // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
             Err(e) => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::read".into(),
                 reason: format!("stdin read: {}", e),
-                span: crate::span::Span::unknown(),
+                span,
             }),
         }
     }
 
-    fn read_all(&self) -> Result<Vec<u8>, RuntimeError> {
+    fn read_all(&self, span: Span) -> Result<Vec<u8>, RuntimeError> {
         use std::io::Read;
         let mut buf = Vec::new();
         let mut guard = self.inner.lock();
-        // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
         guard.read_to_end(&mut buf).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::read-all".into(),
             reason: format!("stdin read: {}", e),
-            span: crate::span::Span::unknown(),
+            span,
         })?;
         Ok(buf)
     }
 
-    fn read_line(&self) -> Result<Option<String>, RuntimeError> {
+    fn read_line(&self, span: Span) -> Result<Option<String>, RuntimeError> {
         use std::io::BufRead;
         let mut guard = self.inner.lock();
         let mut buf = String::new();
@@ -152,16 +151,15 @@ impl WatReader for RealStdin {
                 }
                 Ok(Some(buf))
             }
-            // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
             Err(e) => Err(RuntimeError::MalformedForm {
                 head: ":wat::io::read-line".into(),
                 reason: format!("stdin read-line: {}", e),
-                span: crate::span::Span::unknown(),
+                span,
             }),
         }
     }
 
-    fn rewind(&self) -> Result<(), RuntimeError> {
+    fn rewind(&self, _span: Span) -> Result<(), RuntimeError> {
         // Real stdin is not rewindable — this is a no-op per the trait
         // contract. If a test program calls rewind on real stdin it's
         // probably a portability bug, but the no-op matches Rust's
@@ -183,36 +181,33 @@ impl RealStdout {
 }
 
 impl WatWriter for RealStdout {
-    fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
+    fn write(&self, bytes: &[u8], span: Span) -> Result<usize, RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
         guard.write(bytes).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::write".into(),
             reason: format!("stdout write: {}", e),
-            span: crate::span::Span::unknown(),
+            span,
         })
     }
 
-    fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError> {
+    fn write_all(&self, bytes: &[u8], span: Span) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
         guard.write_all(bytes).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::write-all".into(),
             reason: format!("stdout write-all: {}", e),
-            span: crate::span::Span::unknown(),
+            span,
         })
     }
 
-    fn flush(&self) -> Result<(), RuntimeError> {
+    fn flush(&self, span: Span) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
         guard.flush().map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::flush".into(),
             reason: format!("stdout flush: {}", e),
-            span: crate::span::Span::unknown(),
+            span,
         })
     }
 }
@@ -230,36 +225,33 @@ impl RealStderr {
 }
 
 impl WatWriter for RealStderr {
-    fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
+    fn write(&self, bytes: &[u8], span: Span) -> Result<usize, RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
         guard.write(bytes).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::write".into(),
             reason: format!("stderr write: {}", e),
-            span: crate::span::Span::unknown(),
+            span,
         })
     }
 
-    fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError> {
+    fn write_all(&self, bytes: &[u8], span: Span) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
         guard.write_all(bytes).map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::write-all".into(),
             reason: format!("stderr write-all: {}", e),
-            span: crate::span::Span::unknown(),
+            span,
         })
     }
 
-    fn flush(&self) -> Result<(), RuntimeError> {
+    fn flush(&self, span: Span) -> Result<(), RuntimeError> {
         use std::io::Write;
         let mut guard = self.inner.lock();
-        // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
         guard.flush().map_err(|e| RuntimeError::MalformedForm {
             head: ":wat::io::flush".into(),
             reason: format!("stderr flush: {}", e),
-            span: crate::span::Span::unknown(),
+            span,
         })
     }
 }
@@ -296,7 +288,7 @@ impl StringIoReader {
 }
 
 impl WatReader for StringIoReader {
-    fn read(&self, n: usize) -> Result<Option<Vec<u8>>, RuntimeError> {
+    fn read(&self, n: usize, _span: Span) -> Result<Option<Vec<u8>>, RuntimeError> {
         self.state.with_mut(":wat::io::read", |s| {
             if s.cursor >= s.bytes.len() {
                 return None;
@@ -308,7 +300,7 @@ impl WatReader for StringIoReader {
         })
     }
 
-    fn read_all(&self) -> Result<Vec<u8>, RuntimeError> {
+    fn read_all(&self, _span: Span) -> Result<Vec<u8>, RuntimeError> {
         self.state.with_mut(":wat::io::read-all", |s| {
             let out = s.bytes[s.cursor..].to_vec();
             s.cursor = s.bytes.len();
@@ -316,7 +308,7 @@ impl WatReader for StringIoReader {
         })
     }
 
-    fn read_line(&self) -> Result<Option<String>, RuntimeError> {
+    fn read_line(&self, span: Span) -> Result<Option<String>, RuntimeError> {
         // Find next \n from cursor. Consume it. Decode as UTF-8.
         let bytes = self.state.with_mut(":wat::io::read-line", |s| {
             if s.cursor >= s.bytes.len() {
@@ -342,18 +334,17 @@ impl WatReader for StringIoReader {
                 }
                 match String::from_utf8(b) {
                     Ok(s) => Ok(Some(s)),
-                    // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
                     Err(e) => Err(RuntimeError::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e),
-                        span: crate::span::Span::unknown(),
+                        span,
                     }),
                 }
             }
         }
     }
 
-    fn rewind(&self) -> Result<(), RuntimeError> {
+    fn rewind(&self, _span: Span) -> Result<(), RuntimeError> {
         self.state.with_mut(":wat::io::rewind", |s| {
             s.cursor = 0;
         })
@@ -397,7 +388,7 @@ impl StringIoWriter {
 }
 
 impl WatWriter for StringIoWriter {
-    fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
+    fn write(&self, bytes: &[u8], _span: Span) -> Result<usize, RuntimeError> {
         let n = bytes.len();
         self.buf.with_mut(":wat::io::write", |b| {
             b.extend_from_slice(bytes);
@@ -405,13 +396,13 @@ impl WatWriter for StringIoWriter {
         Ok(n)
     }
 
-    fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError> {
+    fn write_all(&self, bytes: &[u8], _span: Span) -> Result<(), RuntimeError> {
         self.buf.with_mut(":wat::io::write-all", |b| {
             b.extend_from_slice(bytes);
         })
     }
 
-    fn flush(&self) -> Result<(), RuntimeError> {
+    fn flush(&self, _span: Span) -> Result<(), RuntimeError> {
         // In-memory buffer — nothing to flush.
         Ok(())
     }
@@ -465,7 +456,7 @@ impl PipeReader {
 }
 
 impl WatReader for PipeReader {
-    fn read(&self, n: usize) -> Result<Option<Vec<u8>>, RuntimeError> {
+    fn read(&self, n: usize, span: Span) -> Result<Option<Vec<u8>>, RuntimeError> {
         let mut buf = vec![0u8; n];
         loop {
             let ret = unsafe {
@@ -476,11 +467,10 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::read".into(),
                     reason: format!("pipe read: {}", err),
-                    span: crate::span::Span::unknown(),
+                    span,
                 });
             }
             if ret == 0 {
@@ -491,7 +481,7 @@ impl WatReader for PipeReader {
         }
     }
 
-    fn read_all(&self) -> Result<Vec<u8>, RuntimeError> {
+    fn read_all(&self, span: Span) -> Result<Vec<u8>, RuntimeError> {
         let mut out = Vec::new();
         let mut buf = [0u8; 4096];
         loop {
@@ -507,11 +497,10 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::read-all".into(),
                     reason: format!("pipe read: {}", err),
-                    span: crate::span::Span::unknown(),
+                    span,
                 });
             }
             if ret == 0 {
@@ -521,7 +510,7 @@ impl WatReader for PipeReader {
         }
     }
 
-    fn read_line(&self) -> Result<Option<String>, RuntimeError> {
+    fn read_line(&self, span: Span) -> Result<Option<String>, RuntimeError> {
         // Byte-at-a-time until `\n` or EOF. Pipes are kernel-buffered;
         // an extra read(2) per byte is cheap, and avoids maintaining a
         // user-level read-ahead buffer (which would need interior
@@ -537,11 +526,10 @@ impl WatReader for PipeReader {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::read-line".into(),
                     reason: format!("pipe read: {}", err),
-                    span: crate::span::Span::unknown(),
+                    span,
                 });
             }
             if ret == 0 {
@@ -553,11 +541,10 @@ impl WatReader for PipeReader {
                 }
                 return String::from_utf8(bytes)
                     .map(Some)
-                    // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
                     .map_err(|e| RuntimeError::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e),
-                        span: crate::span::Span::unknown(),
+                        span,
                     });
             }
             if one[0] == b'\n' {
@@ -566,23 +553,21 @@ impl WatReader for PipeReader {
                 }
                 return String::from_utf8(bytes)
                     .map(Some)
-                    // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
                     .map_err(|e| RuntimeError::MalformedForm {
                         head: ":wat::io::read-line".into(),
                         reason: format!("invalid UTF-8 in line: {}", e),
-                        span: crate::span::Span::unknown(),
+                        span,
                     });
             }
             bytes.push(one[0]);
         }
     }
 
-    fn rewind(&self) -> Result<(), RuntimeError> {
-        // arc 138: no span — WatReader trait method; span only at wat call site, threading would expand trait surface
+    fn rewind(&self, span: Span) -> Result<(), RuntimeError> {
         Err(RuntimeError::MalformedForm {
             head: ":wat::io::rewind".into(),
             reason: "pipe fds are not rewindable".into(),
-            span: crate::span::Span::unknown(),
+            span,
         })
     }
 }
@@ -627,15 +612,14 @@ impl Drop for PipeWriter {
 }
 
 impl WatWriter for PipeWriter {
-    fn write(&self, bytes: &[u8]) -> Result<usize, RuntimeError> {
+    fn write(&self, bytes: &[u8], span: Span) -> Result<usize, RuntimeError> {
         loop {
             let raw = self.fd.load(Ordering::SeqCst);
             if raw < 0 {
-                // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::write".into(),
                     reason: "pipe write: writer is closed".into(),
-                    span: crate::span::Span::unknown(),
+                    span,
                 });
             }
             let ret = unsafe {
@@ -646,27 +630,25 @@ impl WatWriter for PipeWriter {
                 if err.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
-                // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::write".into(),
                     reason: format!("pipe write: {}", err),
-                    span: crate::span::Span::unknown(),
+                    span,
                 });
             }
             return Ok(ret as usize);
         }
     }
 
-    fn write_all(&self, bytes: &[u8]) -> Result<(), RuntimeError> {
+    fn write_all(&self, bytes: &[u8], span: Span) -> Result<(), RuntimeError> {
         let mut remaining = bytes;
         while !remaining.is_empty() {
-            let n = self.write(remaining)?;
+            let n = self.write(remaining, span.clone())?;
             if n == 0 {
-                // arc 138: no span — WatWriter trait method; span only at wat call site, threading would expand trait surface
                 return Err(RuntimeError::MalformedForm {
                     head: ":wat::io::write-all".into(),
                     reason: "pipe write returned 0 bytes".into(),
-                    span: crate::span::Span::unknown(),
+                    span,
                 });
             }
             remaining = &remaining[n..];
@@ -674,13 +656,13 @@ impl WatWriter for PipeWriter {
         Ok(())
     }
 
-    fn flush(&self) -> Result<(), RuntimeError> {
+    fn flush(&self, _span: Span) -> Result<(), RuntimeError> {
         // Pipes have no user-level buffer. Kernel-buffered bytes
         // become readable to the peer as soon as write(2) returns.
         Ok(())
     }
 
-    fn close(&self) -> Result<(), RuntimeError> {
+    fn close(&self, _span: Span) -> Result<(), RuntimeError> {
         let raw = self.fd.swap(-1, Ordering::SeqCst);
         if raw >= 0 {
             // Errors from close(2) are advisory (typically EINTR or
@@ -835,6 +817,7 @@ pub fn eval_ioreader_read(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/read";
     arity(op, args, 2)?;
@@ -847,7 +830,7 @@ pub fn eval_ioreader_read(
             span: args[1].span().clone(),
         });
     }
-    let result = reader.read(n as usize)?;
+    let result = reader.read(n as usize, list_span.clone())?;
     Ok(Value::Option(Arc::new(result.map(bytes_to_vec_u8_value))))
 }
 
@@ -856,11 +839,12 @@ pub fn eval_ioreader_read_all(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/read-all";
     arity(op, args, 1)?;
     let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
-    let bytes = reader.read_all()?;
+    let bytes = reader.read_all(list_span.clone())?;
     Ok(bytes_to_vec_u8_value(bytes))
 }
 
@@ -869,11 +853,12 @@ pub fn eval_ioreader_read_line(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/read-line";
     arity(op, args, 1)?;
     let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
-    let line = reader.read_line()?;
+    let line = reader.read_line(list_span.clone())?;
     Ok(Value::Option(Arc::new(
         line.map(|s| Value::String(Arc::new(s))),
     )))
@@ -884,11 +869,12 @@ pub fn eval_ioreader_rewind(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOReader/rewind";
     arity(op, args, 1)?;
     let reader = expect_reader(op, eval(&args[0], env, sym)?)?;
-    reader.rewind()?;
+    reader.rewind(list_span.clone())?;
     Ok(Value::Unit)
 }
 
@@ -1012,12 +998,13 @@ pub fn eval_iowriter_write(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/write";
     arity(op, args, 2)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
     let bytes = expect_vec_u8(op, eval(&args[1], env, sym)?)?;
-    let n = writer.write(&bytes)?;
+    let n = writer.write(&bytes, list_span.clone())?;
     Ok(Value::i64(n as i64))
 }
 
@@ -1026,12 +1013,13 @@ pub fn eval_iowriter_write_all(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/write-all";
     arity(op, args, 2)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
     let bytes = expect_vec_u8(op, eval(&args[1], env, sym)?)?;
-    writer.write_all(&bytes)?;
+    writer.write_all(&bytes, list_span.clone())?;
     Ok(Value::Unit)
 }
 
@@ -1044,6 +1032,7 @@ pub fn eval_iowriter_write_string(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/write-string";
     arity(op, args, 2)?;
@@ -1051,7 +1040,7 @@ pub fn eval_iowriter_write_string(
     let s = expect_string(op, eval(&args[1], env, sym)?)?;
     let bytes = s.as_bytes();
     let n = bytes.len();
-    writer.write_all(bytes)?;
+    writer.write_all(bytes, list_span.clone())?;
     Ok(Value::i64(n as i64))
 }
 
@@ -1063,12 +1052,13 @@ pub fn eval_iowriter_print(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/print";
     arity(op, args, 2)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
     let s = expect_string(op, eval(&args[1], env, sym)?)?;
-    writer.write_all(s.as_bytes())?;
+    writer.write_all(s.as_bytes(), list_span.clone())?;
     Ok(Value::Unit)
 }
 
@@ -1079,6 +1069,7 @@ pub fn eval_iowriter_println(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/println";
     arity(op, args, 2)?;
@@ -1086,7 +1077,7 @@ pub fn eval_iowriter_println(
     let s = expect_string(op, eval(&args[1], env, sym)?)?;
     let mut bytes = s.as_bytes().to_vec();
     bytes.push(b'\n');
-    writer.write_all(&bytes)?;
+    writer.write_all(&bytes, list_span.clone())?;
     Ok(Value::Unit)
 }
 
@@ -1096,6 +1087,7 @@ pub fn eval_iowriter_writeln(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/writeln";
     arity(op, args, 2)?;
@@ -1104,7 +1096,7 @@ pub fn eval_iowriter_writeln(
     let mut bytes = s.as_bytes().to_vec();
     bytes.push(b'\n');
     let n = bytes.len();
-    writer.write_all(&bytes)?;
+    writer.write_all(&bytes, list_span.clone())?;
     Ok(Value::i64(n as i64))
 }
 
@@ -1113,11 +1105,12 @@ pub fn eval_iowriter_flush(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/flush";
     arity(op, args, 1)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
-    writer.flush()?;
+    writer.flush(list_span.clone())?;
     Ok(Value::Unit)
 }
 
@@ -1140,11 +1133,12 @@ pub fn eval_iowriter_close(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
+    list_span: &Span,
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::IOWriter/close";
     arity(op, args, 1)?;
     let writer = expect_writer(op, eval(&args[0], env, sym)?)?;
-    writer.close()?;
+    writer.close(list_span.clone())?;
     Ok(Value::Unit)
 }
 
@@ -1411,32 +1405,35 @@ mod pipe_tests {
     #[test]
     fn round_trip_bytes() {
         let (w, r) = make_pipe();
-        w.write_all(b"hello").expect("write");
+        let s = Span::unknown();
+        w.write_all(b"hello", s.clone()).expect("write");
         drop(w); // close writer so read_all sees EOF
-        let got = r.read_all().expect("read_all");
+        let got = r.read_all(s).expect("read_all");
         assert_eq!(got, b"hello");
     }
 
     #[test]
     fn read_returns_partial() {
         let (w, r) = make_pipe();
-        w.write_all(b"abcdef").expect("write");
+        let s = Span::unknown();
+        w.write_all(b"abcdef", s.clone()).expect("write");
         // Ask for 3 of 6 available bytes — read(n) returns what's ready.
-        let got = r.read(3).expect("read").expect("not EOF");
+        let got = r.read(3, s.clone()).expect("read").expect("not EOF");
         assert_eq!(got, b"abc");
-        let got = r.read(3).expect("read").expect("not EOF");
+        let got = r.read(3, s).expect("read").expect("not EOF");
         assert_eq!(got, b"def");
     }
 
     #[test]
     fn read_all_eof_when_writer_dropped() {
         let (w, r) = make_pipe();
-        w.write_all(b"once").expect("write");
+        let s = Span::unknown();
+        w.write_all(b"once", s.clone()).expect("write");
         drop(w);
-        let got = r.read_all().expect("read_all");
+        let got = r.read_all(s.clone()).expect("read_all");
         assert_eq!(got, b"once");
         // Re-reading after EOF returns empty.
-        let again = r.read_all().expect("read_all again");
+        let again = r.read_all(s).expect("read_all again");
         assert_eq!(again, Vec::<u8>::new());
     }
 
@@ -1444,43 +1441,46 @@ mod pipe_tests {
     fn read_returns_none_on_eof() {
         let (w, r) = make_pipe();
         drop(w);
-        let got = r.read(16).expect("read");
+        let got = r.read(16, Span::unknown()).expect("read");
         assert!(got.is_none(), "expected None on EOF; got {:?}", got);
     }
 
     #[test]
     fn read_line_lf() {
         let (w, r) = make_pipe();
-        w.write_all(b"first\nsecond\n").expect("write");
+        let s = Span::unknown();
+        w.write_all(b"first\nsecond\n", s.clone()).expect("write");
         drop(w);
-        assert_eq!(r.read_line().expect("line1"), Some("first".to_string()));
-        assert_eq!(r.read_line().expect("line2"), Some("second".to_string()));
-        assert_eq!(r.read_line().expect("eof"), None);
+        assert_eq!(r.read_line(s.clone()).expect("line1"), Some("first".to_string()));
+        assert_eq!(r.read_line(s.clone()).expect("line2"), Some("second".to_string()));
+        assert_eq!(r.read_line(s).expect("eof"), None);
     }
 
     #[test]
     fn read_line_crlf_stripped() {
         let (w, r) = make_pipe();
-        w.write_all(b"win\r\nline\r\n").expect("write");
+        let s = Span::unknown();
+        w.write_all(b"win\r\nline\r\n", s.clone()).expect("write");
         drop(w);
-        assert_eq!(r.read_line().expect("line1"), Some("win".to_string()));
-        assert_eq!(r.read_line().expect("line2"), Some("line".to_string()));
-        assert_eq!(r.read_line().expect("eof"), None);
+        assert_eq!(r.read_line(s.clone()).expect("line1"), Some("win".to_string()));
+        assert_eq!(r.read_line(s.clone()).expect("line2"), Some("line".to_string()));
+        assert_eq!(r.read_line(s).expect("eof"), None);
     }
 
     #[test]
     fn read_line_no_trailing_newline() {
         let (w, r) = make_pipe();
-        w.write_all(b"bare").expect("write");
+        let s = Span::unknown();
+        w.write_all(b"bare", s.clone()).expect("write");
         drop(w);
-        assert_eq!(r.read_line().expect("bare"), Some("bare".to_string()));
-        assert_eq!(r.read_line().expect("eof"), None);
+        assert_eq!(r.read_line(s.clone()).expect("bare"), Some("bare".to_string()));
+        assert_eq!(r.read_line(s).expect("eof"), None);
     }
 
     #[test]
     fn rewind_is_error() {
         let (_w, r) = make_pipe();
-        let err = r.rewind().expect_err("pipe rewind must error");
+        let err = r.rewind(Span::unknown()).expect_err("pipe rewind must error");
         match err {
             RuntimeError::MalformedForm { head, .. } => {
                 assert_eq!(head, ":wat::io::rewind");
@@ -1492,16 +1492,17 @@ mod pipe_tests {
     #[test]
     fn write_returns_count() {
         let (w, r) = make_pipe();
-        let n = w.write(b"abc").expect("write");
+        let s = Span::unknown();
+        let n = w.write(b"abc", s.clone()).expect("write");
         assert_eq!(n, 3);
         drop(w);
-        assert_eq!(r.read_all().expect("read_all"), b"abc");
+        assert_eq!(r.read_all(s).expect("read_all"), b"abc");
     }
 
     #[test]
     fn flush_is_ok() {
         let (w, _r) = make_pipe();
-        w.flush().expect("flush");
+        w.flush(Span::unknown()).expect("flush");
     }
 
     #[test]
