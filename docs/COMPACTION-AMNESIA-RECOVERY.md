@@ -499,6 +499,90 @@ update Section 1.
 Keep the doc operational. It exists to be read in one pass at session
 start. If it grows unwieldy, refactor — don't accumulate without pruning.
 
+## Section 11 — The end-of-work ritual (self-reflection)
+
+**At every wrap-up point** — arc closure, slice ship, the end of any
+discrete unit of work — the orchestrator MUST ask:
+
+> *Did we learn anything in this set of work that future-me shouldn't
+> forget?*
+
+This is part of the protocol. **Self-reflection + improvement** is
+how the discipline propagates across compactions.
+
+### When the ritual fires
+
+- An arc closes (INSCRIPTION shipped)
+- A multi-slice campaign wraps up
+- A long debugging session ends
+- A failure-engineering chain delivers its diagnostic
+- Any natural pause where work has been completed
+
+### What the ritual asks
+
+1. **Did a NEW failure mode surface?** Add it to Section 6 with a
+   real incident reference (date + concrete example).
+2. **Did the workspace structure change?** Update Section 1.
+3. **Did a new foundational artifact join the canon?** Update
+   Section 8.
+4. **Did a new orchestrator-discipline pattern emerge?** Add it
+   wherever it fits.
+5. **Did anything in the doc become stale or redundant?** Refactor
+   or remove. Don't accumulate without pruning.
+
+### What the ritual does NOT do
+
+- Add minor preferences or one-off tactical decisions
+- Document substrate-doctrine learnings (those go in
+  ZERO-MUTEX.md, CONVENTIONS.md, the relevant arc's REALIZATIONS,
+  etc. — NOT here)
+- Capture project-specific knowledge (that lives in the arc record
+  + the spell library)
+
+This doc is for ORCHESTRATOR DISCIPLINE — the meta-protocol for how
+the user and Claude work together post-compaction. Don't pollute it
+with substrate or arc-level learnings.
+
+### The discipline beneath the ritual
+
+If the doc changes EVERY work session, something is wrong — either
+the discipline isn't holding (failures keep surfacing) OR the doc
+is collecting cruft. Aim for FEW changes; each amendment should
+encode a real lesson worth carrying forward.
+
+If the doc changes RARELY, the discipline is holding. The ritual
+keeps us alert without forcing change.
+
+### The ritual in practice — verification commands
+
+When the ritual fires, run:
+
+```bash
+# Has anything we touched in this session NOT been captured in
+# the appropriate doc?
+git log --oneline | head -20  # what shipped this session
+
+# Are there orchestrator-discipline lessons buried in commit
+# messages that should be promoted to this doc?
+git log --grep="discipline\|lesson\|orchestrator\|brief gap" \
+    --since="2 days ago" --pretty=oneline
+```
+
+Read the recent commits. Ask: is there a META-PATTERN here that
+future-me should know? If yes, amend Section 6 (failure modes) or
+add a new section.
+
+### Sample wrap-up question
+
+> "Arc 143 just closed. Running the recovery-doc ritual: did we
+> learn anything in this arc that future-me shouldn't forget?
+> Reviewing the SCORE docs + commit messages..."
+
+Then either propose amendments or note "no amendments needed; the
+discipline held."
+
+Either outcome is the ritual succeeding.
+
 ---
 
 ## Section 10 — The user's actual words
