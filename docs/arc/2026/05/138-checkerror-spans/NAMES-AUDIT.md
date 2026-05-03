@@ -34,21 +34,15 @@ Sweep result from `grep -rn '"<[a-z][a-z-]*>"' src/ crates/`:
    - `wat::test!` proc-macro at crates/wat-macros/src/lib.rs:672 spawns the test thread via bare `std::thread::spawn(move || { ... })` — no `.name()` call.
    - Rust's catch_unwind machinery shows `<unnamed>` as the thread label.
 
-### Possible cracks (worth checking; less common visibility)
+### Possible cracks (worth checking; less common visibility) — ALL INVESTIGATED, ALL NOT CRACKS
 
-3. **`<lambda>`** — src/runtime.rs lines 9997, 11187, 11193, 11225 + src/check.rs:8145 + src/freeze.rs:148, 177
-   - Anonymous lambda fallback. Visible when error messages mention the callee.
-   - May be acceptable when the lambda is genuinely anonymous (literal `(lambda (x) x)` not bound to a name); less acceptable when the lambda IS named via `define` and we lose the name.
-   - Investigation needed to distinguish.
+See `SCORE-F-NAMES-2-3-4-INVESTIGATIONS.md` for the combined investigation results.
 
-4. **`<runtime>`** — src/span.rs:67
-   - `Span::unknown()` default file label.
-   - SHOULD be invisible after arc 138 — every error path that emits a span uses a real one. If `<runtime>` ever surfaces in user output, it's a Pattern E gap we missed (and the rationale comment somewhere is wrong).
-   - Audit task: grep for any user-visible error that renders `<runtime>:` — should find zero.
+3. **`<lambda>`** — INVESTIGATED, NOT A CRACK. Fires only for genuinely-anonymous `(lambda ...)` expressions. `Function.name = None` only at the lambda primitive (src/runtime.rs:3084); all 8 other Function constructors set `name: Some(...)`. Honest fallback.
 
-5. **`<entry>`** — src/freeze.rs:421
-   - Entry-file label fallback when base_canonical is None.
-   - Probably correct architecture (no entry path = bare `wat <code>`); investigate.
+4. **`<runtime>`** — INVESTIGATED, NOT A CRACK. Suppressed by `is_unknown()` checks in every span_prefix render path. Workspace test produces 0 `<runtime>` occurrences. Sentinel never user-visible.
+
+5. **`<entry>`** — INVESTIGATED, NOT A CRACK. Honest fallback for in-memory/test sources with no canonical disk path. Workspace test produces 0 `<entry>` occurrences.
 
 ### NOT cracks (intentional shape-describing UI)
 
@@ -127,15 +121,14 @@ Per user direction: address AFTER span work wraps. Span work wrapped at slice 5 
 1. ✓ F4b FromWat (commit `fbcc1a4`)
 2. ✓ F4c ThreadOwnedCell + adjacent (commit `55c21f6`)
 3. ✓ Slice 5 ConfigError (commit `53ec071`)
-4. **F-NAMES-1a** — deprecate `<test>` default + sweep ~10 callers (15-25 min)
-5. **F-NAMES-1c** — wat::test! deftest thread name (5-10 min)
-6. **F-NAMES-1d** — lib::run public API source label (10-15 min)
-7. **F-NAMES-2** — `<lambda>` audit
-8. **F-NAMES-3** — `<runtime>` invariant check
-9. **F-NAMES-4** — `<entry>` investigation
-10. Slice 6 — doctrine + INSCRIPTION + USER-GUIDE + 058 row → arc 138 closure
+4. ✓ F-NAMES-1 (commit `fc32611`) — `<test>` placeholder eliminated; convenience wrappers deleted; 132 callers swept; production callers explicit.
+5. ✓ F-NAMES-1c (commit `76e2b76`) — wat::test! deftest worker named via Thread::Builder.
+6. ✓ F-NAMES-1d-asserthook (commit `f803712`) — AssertionPayload.thread_name field captures name at panic site.
+7. ✓ F-NAMES-1e (commit `c8a0ed8`) — wat-side spawn workers named (3 sites). ZERO `<unnamed>` panics.
+8. ✓ F-NAMES-2/3/4 investigations — all NOT cracks; see SCORE-F-NAMES-2-3-4-INVESTIGATIONS.md.
+9. Slice 6 — doctrine + INSCRIPTION + USER-GUIDE + 058 row → arc 138 closure (NEXT and FINAL).
 
-F-NAMES-1b folds into F-NAMES-1a (test helpers updated together).
+All known cracks closed. Slice 6 is documentation + closure.
 
 ## Disk note for context refresh
 
