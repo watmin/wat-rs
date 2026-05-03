@@ -5875,7 +5875,7 @@ fn match_qq_head<'a>(items: &'a [WatAST], head: &str) -> Option<&'a WatAST> {
 /// `walk_quasiquote` at unquote sites. Inverse of the eval-eval
 /// path: this is "value back to source" for the supported leaf
 /// shapes.
-fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, RuntimeError> {
+pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, RuntimeError> {
     match v {
         Value::i64(n) => Ok(WatAST::IntLit(n, span)),
         Value::f64(x) => Ok(WatAST::FloatLit(x, span)),
@@ -6603,7 +6603,7 @@ fn eval_macroexpand_1(
         op: OP.into(),
         span: args[0].span().clone(),
     })?;
-    let expanded = crate::macros::expand_once(ast, registry)
+    let expanded = crate::macros::expand_once(ast, registry, env, sym)
         .map_err(|e| RuntimeError::MacroExpansionFailed {
             op: OP.into(),
             reason: format!("{}", e),
@@ -6647,7 +6647,7 @@ fn eval_macroexpand(
         span: args[0].span().clone(),
     })?;
     for _ in 0..crate::macros::EXPANSION_DEPTH_LIMIT {
-        let next = crate::macros::expand_once(ast.clone(), registry)
+        let next = crate::macros::expand_once(ast.clone(), registry, env, sym)
             .map_err(|e| RuntimeError::MacroExpansionFailed {
                 op: OP.into(),
                 reason: format!("{}", e),
@@ -15431,8 +15431,13 @@ mod tests {
             let stdlib_post_macros =
                 crate::macros::register_stdlib_defmacros(stdlib, &mut macros)
                     .expect("stdlib defmacros register");
-            let expanded_stdlib = crate::macros::expand_all(stdlib_post_macros, &mut macros)
-                .expect("stdlib macro expansion");
+            let expanded_stdlib = crate::macros::expand_all(
+                stdlib_post_macros,
+                &mut macros,
+                &Environment::default(),
+                &SymbolTable::default(),
+            )
+            .expect("stdlib macro expansion");
             let mut types = crate::types::TypeEnv::with_builtins();
             let stdlib_post_types =
                 crate::types::register_stdlib_types(expanded_stdlib, &mut types)
@@ -15454,8 +15459,13 @@ mod tests {
         let forms = crate::parse_all!(src).expect("parse ok");
         // Expand any stdlib-macro calls in the user source before
         // registering defines and evaluating.
-        let expanded =
-            crate::macros::expand_all(forms, &mut macros).expect("macro expansion");
+        let expanded = crate::macros::expand_all(
+            forms,
+            &mut macros,
+            &Environment::new(),
+            stdlib_sym,
+        )
+        .expect("macro expansion");
         let mut sym = stdlib_sym.clone();
         let rest = register_defines(expanded, &mut sym)?;
         // Arc 071 follow-up — type-check the program before
@@ -15480,8 +15490,13 @@ mod tests {
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let ast = crate::parse_one!(src).expect("parse ok");
-        let expanded = crate::macros::expand_all(vec![ast], &mut macros)
-            .expect("macro expansion");
+        let expanded = crate::macros::expand_all(
+            vec![ast],
+            &mut macros,
+            &Environment::new(),
+            stdlib_sym,
+        )
+        .expect("macro expansion");
         let ast = expanded.into_iter().next().expect("one form in, one form out");
         eval(&ast, &Environment::new(), stdlib_sym)
     }
@@ -15498,8 +15513,13 @@ mod tests {
         let mut sym = stdlib_sym.clone();
         sym.set_source_loader(std::sync::Arc::new(crate::load::FsLoader));
         let ast = crate::parse_one!(src).expect("parse ok");
-        let expanded = crate::macros::expand_all(vec![ast], &mut macros)
-            .expect("macro expansion");
+        let expanded = crate::macros::expand_all(
+            vec![ast],
+            &mut macros,
+            &Environment::new(),
+            &sym,
+        )
+        .expect("macro expansion");
         let ast = expanded.into_iter().next().expect("one form in, one form out");
         eval(&ast, &Environment::new(), &sym)
     }
@@ -15534,8 +15554,13 @@ mod tests {
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let forms = crate::parse_all!(src).expect("parse");
-        let expanded =
-            crate::macros::expand_all(forms, &mut macros).expect("expand");
+        let expanded = crate::macros::expand_all(
+            forms,
+            &mut macros,
+            &Environment::new(),
+            stdlib_sym,
+        )
+        .expect("expand");
         let mut sym = stdlib_sym.clone();
         let _ = register_defines(expanded, &mut sym).expect("register");
         let func = sym.get(":my::app::failing-fn").expect("defined").clone();
@@ -15582,8 +15607,13 @@ mod tests {
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let forms = crate::parse_all!(src).expect("parse");
-        let expanded =
-            crate::macros::expand_all(forms, &mut macros).expect("expand");
+        let expanded = crate::macros::expand_all(
+            forms,
+            &mut macros,
+            &Environment::new(),
+            stdlib_sym,
+        )
+        .expect("expand");
         let mut sym = stdlib_sym.clone();
         let _ = register_defines(expanded, &mut sym).expect("register");
         let func = sym.get(":my::app::plain-fn").expect("defined").clone();
@@ -20424,8 +20454,13 @@ mod tests {
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let forms = crate::parse_all!(src).expect("parse ok");
-        let expanded =
-            crate::macros::expand_all(forms, &mut macros).expect("macro expansion");
+        let expanded = crate::macros::expand_all(
+            forms,
+            &mut macros,
+            &Environment::new(),
+            stdlib_sym,
+        )
+        .expect("macro expansion");
         let mut sym = stdlib_sym.clone();
         sym.set_encoding_ctx(Arc::new(EncodingCtx::from_config(&Config {
             capacity_mode: crate::config::CapacityMode::Error,

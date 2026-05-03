@@ -503,8 +503,18 @@ fn startup_from_forms_post_config(
     // the combined macro registry. Stdlib functions are authored
     // against stdlib defmacros too — e.g., :wat::console's body
     // uses :wat::holon::Subtract / list helpers / etc.
-    let expanded_stdlib = expand_all(stdlib_post_macros, &mut macros)?;
-    let expanded_user = expand_all(post_macro_reg, &mut macros)?;
+    let expanded_stdlib = expand_all(
+        stdlib_post_macros,
+        &mut macros,
+        &Environment::default(),
+        &SymbolTable::default(),
+    )?;
+    let expanded_user = expand_all(
+        post_macro_reg,
+        &mut macros,
+        &Environment::default(),
+        &SymbolTable::default(),
+    )?;
 
     // 5. Type declarations. Seeded with wat-rs's own :wat::*
     //    built-in types (e.g., :wat::holon::CapacityExceeded)

@@ -11390,7 +11390,8 @@ mod tests {
         expand_all, register_defmacros, register_stdlib_defmacros, MacroRegistry,
     };
     use crate::runtime::{
-        register_defines, register_stdlib_defines, register_struct_methods, SymbolTable,
+        register_defines, register_stdlib_defines, register_struct_methods, Environment,
+        SymbolTable,
     };
     use crate::types::{parse_type_expr, register_stdlib_types, register_types, TypeEnv};
     use std::sync::OnceLock;
@@ -11407,8 +11408,13 @@ mod tests {
             let mut macros = MacroRegistry::new();
             let stdlib_post_macros =
                 register_stdlib_defmacros(stdlib, &mut macros).expect("stdlib defmacros");
-            let expanded_stdlib =
-                expand_all(stdlib_post_macros, &mut macros).expect("stdlib macro expansion");
+            let expanded_stdlib = expand_all(
+                stdlib_post_macros,
+                &mut macros,
+                &Environment::default(),
+                &SymbolTable::default(),
+            )
+            .expect("stdlib macro expansion");
             let mut types = TypeEnv::with_builtins();
             let stdlib_post_types =
                 register_stdlib_types(expanded_stdlib, &mut types).expect("stdlib types");
@@ -11426,7 +11432,13 @@ mod tests {
         let forms = crate::parse_all!(src).expect("parse ok");
         let mut macros = stdlib_macros.clone();
         let rest = register_defmacros(forms, &mut macros).expect("register macros");
-        let expanded = expand_all(rest, &mut macros).expect("expand");
+        let expanded = expand_all(
+            rest,
+            &mut macros,
+            &Environment::new(),
+            stdlib_sym,
+        )
+        .expect("expand");
         // Register user-defined type decls (struct / enum / newtype /
         // typealias) into a fresh clone of the stdlib type env. Mirrors
         // production startup: register_stdlib_types for stdlib, then

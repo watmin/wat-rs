@@ -46,6 +46,7 @@
 use crate::ast::WatAST;
 use crate::span::Span;
 use crate::identifier::{fresh_scope, ScopeId};
+use crate::runtime::{Environment, SymbolTable};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -246,12 +247,17 @@ pub const EXPANSION_DEPTH_LIMIT: usize = 512;
 ///
 /// Unlike [`expand_form`], does NOT recurse into children and does
 /// NOT fixpoint. Matches Common Lisp / Clojure `macroexpand-1`.
-pub fn expand_once(form: WatAST, registry: &MacroRegistry) -> Result<WatAST, MacroError> {
+pub fn expand_once(
+    form: WatAST,
+    registry: &MacroRegistry,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<WatAST, MacroError> {
     if let WatAST::List(items, span) = &form {
         if let Some(WatAST::Keyword(head, _)) = items.first() {
             if let Some(def) = registry.get(head) {
                 let args = items[1..].to_vec();
-                return expand_macro_call(def, args, span.clone());
+                return expand_macro_call(def, args, span.clone(), env, sym);
             }
         }
     }
@@ -440,6 +446,8 @@ fn parse_defmacro_signature(
 pub fn expand_all(
     forms: Vec<WatAST>,
     registry: &mut MacroRegistry,
+    env: &Environment,
+    sym: &SymbolTable,
 ) -> Result<Vec<WatAST>, MacroError> {
     // Arc 029 slice 1: handle macro-generating-macros. A macro call
     // may expand to a `(:wat::core::defmacro ...)` registration for
@@ -454,7 +462,7 @@ pub fn expand_all(
     // macroexpand / macroexpand-1 primitives to find them).
     let mut out = Vec::with_capacity(forms.len());
     for form in forms {
-        let expanded = expand_form(form, registry, 0)?;
+        let expanded = expand_form(form, registry, 0, env, sym)?;
         if is_defmacro_form(&expanded) {
             let def = parse_defmacro_form(expanded)?;
             registry.register(def)?;
@@ -472,6 +480,8 @@ fn expand_form(
     form: WatAST,
     registry: &MacroRegistry,
     depth: usize,
+    env: &Environment,
+    sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
     if depth > EXPANSION_DEPTH_LIMIT {
         return Err(MacroError::ExpansionDepthExceeded {
@@ -503,7 +513,7 @@ fn expand_form(
             // resolved before we check the outer for a macro call.
             let expanded_children: Result<Vec<_>, _> = items
                 .into_iter()
-                .map(|c| expand_form(c, registry, depth + 1))
+                .map(|c| expand_form(c, registry, depth + 1, env, sym))
                 .collect();
             let expanded_children = expanded_children?;
 
@@ -516,9 +526,9 @@ fn expand_form(
                     // DESIGN: generated forms inherit the caller's
                     // span).
                     let args = expanded_children[1..].to_vec();
-                    let expanded = expand_macro_call(def, args, list_span.clone())?;
+                    let expanded = expand_macro_call(def, args, list_span.clone(), env, sym)?;
                     // Re-expand the result to fixpoint.
-                    return expand_form(expanded, registry, depth + 1);
+                    return expand_form(expanded, registry, depth + 1, env, sym);
                 }
             }
 
@@ -542,6 +552,8 @@ fn expand_macro_call(
     def: &MacroDef,
     args: Vec<WatAST>,
     call_site_span: Span,
+    env: &Environment,
+    sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
     let fixed_arity = def.params.len();
     match &def.rest_param {
@@ -584,7 +596,7 @@ fn expand_macro_call(
     }
 
     let macro_scope = fresh_scope();
-    expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span)
+    expand_template(&def.body, &bindings, macro_scope, &def.name, &call_site_span, env, sym)
 }
 
 /// Walk a macro template, substituting `,param` and `,@param` at
@@ -599,6 +611,8 @@ fn expand_template(
     macro_scope: ScopeId,
     macro_name: &str,
     call_site_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
     let quasi_body = match template {
         WatAST::List(items, _) if items.len() == 2 => match items.first() {
@@ -620,7 +634,7 @@ fn expand_template(
         }
     };
 
-    walk_template(quasi_body, bindings, macro_scope, macro_name, call_site_span, 1)
+    walk_template(quasi_body, bindings, macro_scope, macro_name, call_site_span, 1, env, sym)
 }
 
 /// Walk a quasiquoted form, expanding `,x` unquotes to their argument
@@ -653,6 +667,8 @@ fn walk_template(
     macro_name: &str,
     call_site_span: &Span,
     depth: u32,
+    env: &Environment,
+    sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
     match form {
         WatAST::List(items, _) => {
@@ -666,6 +682,8 @@ fn walk_template(
                     macro_name,
                     call_site_span,
                     depth + 1,
+                    env,
+                    sym,
                 )?;
                 return Ok(WatAST::List(
                     vec![
@@ -682,7 +700,7 @@ fn walk_template(
             // Unquote — fires at depth 1, preserves + peels at depth > 1.
             if let Some(arg) = match_unquote(items, ":wat::core::unquote") {
                 if depth == 1 {
-                    return unquote_argument(arg, bindings);
+                    return unquote_argument(arg, bindings, env, sym);
                 } else {
                     let inner = walk_template(
                         arg,
@@ -691,6 +709,8 @@ fn walk_template(
                         macro_name,
                         call_site_span,
                         depth - 1,
+                        env,
+                        sym,
                     )?;
                     return Ok(WatAST::List(
                         vec![
@@ -714,7 +734,8 @@ fn walk_template(
                     {
                         if depth == 1 {
                             // Fire: splice the argument's elements.
-                            let spliced = splice_argument(splice_arg, bindings, macro_name)?;
+                            let spliced =
+                                splice_argument(splice_arg, bindings, macro_name, env, sym)?;
                             out.extend(spliced);
                             continue;
                         } else {
@@ -727,6 +748,8 @@ fn walk_template(
                                 macro_name,
                                 call_site_span,
                                 depth - 1,
+                                env,
+                                sym,
                             )?;
                             out.push(WatAST::List(
                                 vec![
@@ -749,6 +772,8 @@ fn walk_template(
                     macro_name,
                     call_site_span,
                     depth,
+                    env,
+                    sym,
                 )?);
             }
             Ok(WatAST::List(out, call_site_span.clone()))
@@ -777,14 +802,51 @@ fn match_unquote<'a>(items: &'a [WatAST], head_kw: &str) -> Option<&'a WatAST> {
     }
 }
 
+/// Walk `form`, replacing every `WatAST::Symbol` whose name is a key
+/// in `bindings` with the bound AST. Recursive on `WatAST::List`.
+/// Other variants (keywords, literals) pass through unchanged.
+///
+/// Used by `unquote_argument` and `splice_argument` to substitute macro
+/// parameters into a List expression BEFORE evaluating it at expand-time.
+/// Arc 143 slice 2.
+fn substitute_bindings(form: &WatAST, bindings: &HashMap<String, WatAST>) -> WatAST {
+    match form {
+        WatAST::Symbol(ident, _) => {
+            if let Some(bound) = bindings.get(&ident.name) {
+                bound.clone()
+            } else {
+                form.clone()
+            }
+        }
+        WatAST::List(items, span) => {
+            let new_items: Vec<WatAST> = items
+                .iter()
+                .map(|item| substitute_bindings(item, bindings))
+                .collect();
+            WatAST::List(new_items, span.clone())
+        }
+        other => other.clone(),
+    }
+}
+
 /// `,X` — the argument is either a macro parameter (substitute its
-/// bound AST) or an already-substituted literal value from a prior
+/// bound AST), a List expression to evaluate at expand-time (arc 143
+/// slice 2), or an already-substituted literal value from a prior
 /// expansion pass (arc 029 slice 1: the tail-end of the `,,X`
-/// resolution path). Symbols look up in `bindings`; everything else
-/// returns as-is.
+/// resolution path).
+///
+/// **Backward-compat heuristic (arc 143 slice 2):** a `WatAST::List`
+/// whose first element is a `WatAST::Keyword` is treated as a
+/// callable expression (e.g., `(:wat::core::i64::+ a 1)`) and
+/// evaluated at expand-time with macro params substituted. A List
+/// whose head is NOT a Keyword (e.g., a data list from a `,,X`
+/// outer-pass substitution) returns as-is, preserving pre-slice-2
+/// behavior.
 fn unquote_argument(
     arg: &WatAST,
     bindings: &HashMap<String, WatAST>,
+    env: &Environment,
+    sym: &SymbolTable,
 ) -> Result<WatAST, MacroError> {
     match arg {
         WatAST::Symbol(ident, sym_span) => match bindings.get(&ident.name) {
@@ -794,21 +856,52 @@ fn unquote_argument(
                 span: sym_span.clone(), // Pattern A: symbol span
             }),
         },
+        // Arc 143 slice 2: a List whose head is a Keyword is a
+        // callable expression. Substitute macro params, evaluate,
+        // convert result to WatAST.
+        WatAST::List(items, span)
+            if items
+                .first()
+                .map(|h| matches!(h, WatAST::Keyword(_, _)))
+                .unwrap_or(false) =>
+        {
+            let substituted = substitute_bindings(arg, bindings);
+            let val = crate::runtime::eval(&substituted, env, sym).map_err(|e| {
+                MacroError::MalformedTemplate {
+                    reason: format!("computed unquote eval failed: {}", e),
+                    span: span.clone(),
+                }
+            })?;
+            crate::runtime::value_to_watast(",(expr)", val, span.clone()).map_err(|e| {
+                MacroError::MalformedTemplate {
+                    reason: format!("computed unquote value_to_watast failed: {}", e),
+                    span: span.clone(),
+                }
+            })
+        }
         // Already-substituted literal (from a `,,X` outer pass or any
         // other macro that built `(:wat::core::unquote <value>)`
-        // directly). Return as-is; the parent list absorbs it.
+        // directly, or a non-callable List). Return as-is.
         _ => Ok(arg.clone()),
     }
 }
 
-/// `,@X` — argument must be a parameter bound to a List AST OR an
-/// already-substituted List value (arc 029 slice 1: the `,,@X`
-/// resolution tail); splice its elements into the surrounding list
-/// context.
+/// `,@X` — argument must be a parameter bound to a List AST, a
+/// callable List expression to evaluate at expand-time (arc 143
+/// slice 2), or an already-substituted List value (arc 029 slice 1:
+/// the `,,@X` resolution tail); splice its elements into the
+/// surrounding list context.
+///
+/// **Backward-compat heuristic (arc 143 slice 2):** same as
+/// `unquote_argument` — a List whose head is a Keyword is evaluated;
+/// otherwise it's treated as an already-substituted list and its
+/// elements are spliced directly.
 fn splice_argument(
     arg: &WatAST,
     bindings: &HashMap<String, WatAST>,
     macro_name: &str,
+    env: &Environment,
+    sym: &SymbolTable,
 ) -> Result<Vec<WatAST>, MacroError> {
     match arg {
         WatAST::Symbol(ident, sym_span) => {
@@ -824,6 +917,57 @@ fn splice_argument(
                     name: ident.name.clone(),
                     got: ast_variant_name(other),
                     span: other.span().clone(), // Pattern A: bound value's span
+                }),
+            }
+        }
+        // Arc 143 slice 2: a List whose head is a Keyword — evaluate
+        // at expand-time, then splice the resulting Vec elements.
+        WatAST::List(items, span)
+            if items
+                .first()
+                .map(|h| matches!(h, WatAST::Keyword(_, _)))
+                .unwrap_or(false) =>
+        {
+            let substituted = substitute_bindings(arg, bindings);
+            let val = crate::runtime::eval(&substituted, env, sym).map_err(|e| {
+                MacroError::MalformedTemplate {
+                    reason: format!(
+                        "macro {} — computed unquote-splicing eval failed: {}",
+                        macro_name, e
+                    ),
+                    span: span.clone(),
+                }
+            })?;
+            // Result must be a Vec; extract elements, convert each to WatAST.
+            match val {
+                crate::runtime::Value::Vec(elems) => {
+                    let ast_elems: Result<Vec<WatAST>, _> = elems
+                        .iter()
+                        .map(|v| {
+                            crate::runtime::value_to_watast(
+                                ",@(expr)",
+                                v.clone(),
+                                span.clone(),
+                            )
+                            .map_err(|e| MacroError::MalformedTemplate {
+                                reason: format!(
+                                    "macro {} — computed unquote-splicing element conversion failed: {}",
+                                    macro_name, e
+                                ),
+                                span: span.clone(),
+                            })
+                        })
+                        .collect();
+                    ast_elems
+                }
+                other => Err(MacroError::MalformedTemplate {
+                    reason: format!(
+                        "macro {} — computed unquote-splicing ',@(expr)' evaluated to {}; \
+                         expected a Vec",
+                        macro_name,
+                        other.type_name()
+                    ),
+                    span: span.clone(),
                 }),
             }
         }
@@ -862,7 +1006,9 @@ mod tests {
         let forms = crate::parse_all!(src).expect("parse ok");
         let mut reg = MacroRegistry::new();
         let rest = register_defmacros(forms, &mut reg)?;
-        expand_all(rest, &mut reg)
+        let env = crate::runtime::Environment::default();
+        let sym = crate::runtime::SymbolTable::default();
+        expand_all(rest, &mut reg, &env, &sym)
     }
 
     /// Like `expand`, but DOES NOT strip generated defmacros from the
@@ -872,9 +1018,11 @@ mod tests {
         let forms = crate::parse_all!(src).expect("parse ok");
         let mut reg = MacroRegistry::new();
         let rest = register_defmacros(forms, &mut reg)?;
+        let env = crate::runtime::Environment::default();
+        let sym = crate::runtime::SymbolTable::default();
         let mut out = Vec::with_capacity(rest.len());
         for form in rest {
-            out.push(expand_form(form, &reg, 0)?);
+            out.push(expand_form(form, &reg, 0, &env, &sym)?);
         }
         Ok(out)
     }
@@ -1311,19 +1459,22 @@ mod tests {
         // concrete value (from a prior substitution pass), return
         // as-is. Supports the `,,X` two-pass resolution.
         let bindings = HashMap::new();
+        let env = crate::runtime::Environment::default();
+        let sym = crate::runtime::SymbolTable::default();
         // A literal int — not a symbol, no binding needed.
         let lit = WatAST::IntLit(99, Span::unknown());
-        let out = unquote_argument(&lit, &bindings).unwrap();
+        let out = unquote_argument(&lit, &bindings, &env, &sym).unwrap();
         match out {
             WatAST::IntLit(n, _) => assert_eq!(n, 99),
             _ => panic!("expected IntLit"),
         }
-        // A list — same path.
+        // A list whose head is NOT a keyword — treated as already-substituted
+        // literal (backward-compat heuristic: head must be Keyword to eval).
         let list = WatAST::List(
             vec![WatAST::IntLit(1, Span::unknown()), WatAST::IntLit(2, Span::unknown())],
             Span::unknown(),
         );
-        let out = unquote_argument(&list, &bindings).unwrap();
+        let out = unquote_argument(&list, &bindings, &env, &sym).unwrap();
         assert!(matches!(out, WatAST::List(_, _)));
     }
 
@@ -1461,6 +1612,191 @@ mod tests {
             matches!(err, MacroError::ArityMismatch { .. }),
             "expected ArityMismatch, got: {:?}",
             err
+        );
+    }
+
+    // ─── Arc 143 slice 2 — computed unquote ─────────────────────────────
+
+    /// `substitute_bindings` helper: replaces Symbols bound in the map,
+    /// recurses into Lists, passes keywords + literals through unchanged.
+    #[test]
+    fn substitute_bindings_replaces_symbols_and_recurses() {
+        let mut bindings = HashMap::new();
+        let span = Span::unknown();
+        bindings.insert("x".into(), WatAST::IntLit(42, span.clone()));
+        // Symbol that IS in bindings → replaced.
+        let sym = WatAST::Symbol(
+            Identifier::bare("x"),
+            span.clone(),
+        );
+        let out = substitute_bindings(&sym, &bindings);
+        assert!(matches!(out, WatAST::IntLit(42, _)));
+        // Symbol NOT in bindings → passes through as-is.
+        let sym2 = WatAST::Symbol(
+            Identifier::bare("y"),
+            span.clone(),
+        );
+        let out2 = substitute_bindings(&sym2, &bindings);
+        assert!(matches!(out2, WatAST::Symbol(_, _)));
+        // List containing the symbol — recursive replacement.
+        let list = WatAST::List(
+            vec![
+                WatAST::Keyword(":head".into(), span.clone()),
+                sym.clone(),
+            ],
+            span.clone(),
+        );
+        let out3 = substitute_bindings(&list, &bindings);
+        match out3 {
+            WatAST::List(items, _) => {
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":head"));
+                assert!(matches!(&items[1], WatAST::IntLit(42, _)));
+            }
+            _ => panic!("expected List"),
+        }
+    }
+
+    /// `,(some-list-with-non-keyword-head)` — the backward-compat heuristic
+    /// treats a List whose head is NOT a Keyword as an already-substituted
+    /// literal. It is returned as-is, not evaluated.
+    #[test]
+    fn computed_unquote_non_keyword_head_list_is_literal() {
+        let bindings = HashMap::new();
+        let env = crate::runtime::Environment::default();
+        let sym = crate::runtime::SymbolTable::default();
+        let span = Span::unknown();
+        // Head is an IntLit, not a Keyword — must return as-is.
+        let list = WatAST::List(
+            vec![
+                WatAST::IntLit(1, span.clone()),
+                WatAST::IntLit(2, span.clone()),
+            ],
+            span.clone(),
+        );
+        let out = unquote_argument(&list, &bindings, &env, &sym).unwrap();
+        match out {
+            WatAST::List(items, _) => {
+                assert_eq!(items.len(), 2);
+                assert!(matches!(items[0], WatAST::IntLit(1, _)));
+                assert!(matches!(items[1], WatAST::IntLit(2, _)));
+            }
+            _ => panic!("expected List returned as-is"),
+        }
+    }
+
+    /// `,(substrate-primitive-call)` in a macro body evaluates the call
+    /// at expand-time with a bare SymbolTable. Uses `:wat::core::i64::+`
+    /// which dispatches as a substrate primitive (no sym.functions needed).
+    #[test]
+    fn computed_unquote_evaluates_substrate_call() {
+        let forms = expand(
+            r#"
+            (:wat::core::defmacro (:my::computed-test -> :AST)
+              `(:result ,(:wat::core::i64::+ 10 32)))
+            (:my::computed-test)
+            "#,
+        )
+        .unwrap();
+        // Expansion: (:result 42)
+        assert_eq!(forms.len(), 1);
+        match &forms[0] {
+            WatAST::List(items, _) => {
+                assert_eq!(items.len(), 2);
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":result"));
+                assert!(matches!(&items[1], WatAST::IntLit(42, _)));
+            }
+            _ => panic!("expected List"),
+        }
+    }
+
+    /// Macro params are substituted into the unquoted expression before
+    /// evaluation. The macro takes a param `n` and uses it inside
+    /// `,(+ n 1)` — the substituted value is what gets evaluated.
+    #[test]
+    fn computed_unquote_substitutes_params_before_eval() {
+        let forms = expand(
+            r#"
+            (:wat::core::defmacro (:my::succ (n :AST<i64>) -> :AST)
+              `(:result ,(:wat::core::i64::+ n 1)))
+            (:my::succ 41)
+            "#,
+        )
+        .unwrap();
+        // Expansion: (:result 42) — param n=41, +1 → 42.
+        assert_eq!(forms.len(), 1);
+        match &forms[0] {
+            WatAST::List(items, _) => {
+                assert_eq!(items.len(), 2);
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":result"));
+                assert!(matches!(&items[1], WatAST::IntLit(42, _)));
+            }
+            _ => panic!("expected (:result 42)"),
+        }
+    }
+
+    /// `,@(expr)` — computed unquote-splicing. The expression evaluates
+    /// to a Vec and its elements are spliced into the surrounding list.
+    /// Uses `:wat::core::vec` to build the Vec at expand-time.
+    #[test]
+    fn computed_unquote_splicing_evaluates_and_splices() {
+        let forms = expand(
+            r#"
+            (:wat::core::defmacro (:my::trio -> :AST)
+              `(:wrapper ,@(:wat::core::vec :wat::core::i64 1 2 3)))
+            (:my::trio)
+            "#,
+        )
+        .unwrap();
+        // Expansion: (:wrapper 1 2 3)
+        assert_eq!(forms.len(), 1);
+        match &forms[0] {
+            WatAST::List(items, _) => {
+                assert_eq!(items.len(), 4);
+                assert!(matches!(&items[0], WatAST::Keyword(k, _) if k == ":wrapper"));
+                assert!(matches!(&items[1], WatAST::IntLit(1, _)));
+                assert!(matches!(&items[2], WatAST::IntLit(2, _)));
+                assert!(matches!(&items[3], WatAST::IntLit(3, _)));
+            }
+            _ => panic!("expected (:wrapper 1 2 3)"),
+        }
+    }
+
+    /// Computed unquote inside a nested quasiquote at depth > 1 does NOT
+    /// fire at the outer expansion — it is preserved for the inner pass.
+    /// The expression survives verbatim inside the inner quasiquote body.
+    #[test]
+    fn computed_unquote_in_nested_quasiquote_preserved_at_outer() {
+        // make-mac creates an inner macro whose body has ,(+ 1 2).
+        // At the outer expansion of make-mac, the ,(+ 1 2) is at
+        // depth 2 — it should be PRESERVED (not evaluated), because
+        // only depth-1 unquotes fire at the outer level.
+        let forms = expand_keeping_defmacros(
+            r#"
+            (:wat::core::defmacro (:my::make-inner (name :AST<()>) -> :AST<()>)
+              `(:wat::core::defmacro (,name -> :AST)
+                 `(:result ,(:wat::core::i64::+ 1 2))))
+            (:my::make-inner :my::inner)
+            "#,
+        )
+        .unwrap();
+        // The generated defmacro's body should still contain an
+        // unquote wrapping the list expression — NOT the evaluated 3.
+        let body = find_defmacro_body(&forms[0]);
+        let body_items = match body {
+            WatAST::List(items, _) => items,
+            _ => panic!("expected list body"),
+        };
+        assert_eq!(body_items.len(), 2);
+        assert!(matches!(&body_items[0], WatAST::Keyword(k, _) if k == ":result"));
+        // body_items[1] should be (:wat::core::unquote (:wat::core::i64::+ 1 2))
+        // — the unquote survived to the inner macro's body.
+        let inner = expect_unquote(&body_items[1]);
+        // The inner arg should be the list (:wat::core::i64::+ 1 2),
+        // NOT the evaluated IntLit(3).
+        assert!(
+            matches!(inner, WatAST::List(_, _)),
+            "expected the unquote arg to be the unevaluated List, not an IntLit; got {:?}",
+            inner
         );
     }
 }

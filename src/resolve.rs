@@ -273,14 +273,17 @@ pub fn reserved_prefix_list() -> String {
 mod tests {
     use super::*;
     use crate::macros::{register_defmacros, MacroRegistry};
-    use crate::runtime::{register_defines, SymbolTable};
+    use crate::runtime::{register_defines, Environment, SymbolTable};
 
     /// Full pipeline helper: parse → register-defmacros → expand → register-defines → resolve.
     fn resolve(src: &str) -> Result<(), ResolveError> {
         let forms = crate::parse_all!(src).expect("parse ok");
         let mut macros = MacroRegistry::new();
         let rest = register_defmacros(forms, &mut macros).expect("register macros");
-        let expanded = crate::macros::expand_all(rest, &mut macros).expect("expand");
+        let env = Environment::default();
+        let sym = SymbolTable::default();
+        let expanded =
+            crate::macros::expand_all(rest, &mut macros, &env, &sym).expect("expand");
         let mut sym = SymbolTable::new();
         let rest = register_defines(expanded, &mut sym).expect("register defines");
         resolve_references(&rest, &sym, &macros)
