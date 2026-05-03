@@ -59,19 +59,46 @@ Sweep result from `grep -rn '"<[a-z][a-z-]*>"' src/ crates/`:
 
 ## Proposed fix plan
 
-### F-NAMES-1: `<test>` and `<unnamed>` (the wat::test! macro emit)
+### F-NAMES-1: `<test>` and `<unnamed>` (broader scope after investigation)
 
-Single-slice fix. Modify the `wat::test!` proc-macro at crates/wat-macros/src/lib.rs:
+**Finding (2026-05-03):** `<test>` is hardcoded in `parse_one(src)` and `parse_all(src)` convenience wrappers (src/parser.rs:71/78). Callers that inherit `<test>`:
+- src/lib.rs:201 — `pub fn run(src: &str)` USER-FACING public API
+- src/runtime.rs lib tests (`eval_expr` helper at line 15138)
+- src/macros.rs / config.rs / resolve.rs lib tests
+- src/stdlib.rs production stdlib loading (lines 148, 155)
+- Any direct `parse_one`/`parse_all` caller in tests
 
-1. Capture `test_name` (the function name) in the macro's input parsing — already available since the macro generates `fn <name> { ... }`.
-2. Compute source label at emit time: `&format!("{}::{}", file!(), test_name)` → renders as `tests/wat_macros.rs::my_test_name` in error messages.
-3. Pass that label as the source argument to `parse_*` (use the `_with_file` variants).
-4. Spawn the test thread via `Thread::Builder::new().name(format!("wat-test::{}", test_name)).spawn(...)` (the macro at line 672) → panic header reads `thread 'wat-test::my_test_name' panicked at tests/wat_macros.rs::my_test_name:10:19:`.
+`<unnamed>` is from src/panic_hook.rs:105 + the unnamed thread spawned at crates/wat-macros/src/lib.rs:672 (wat::test! deftest worker).
 
-Optional: also capture `line!()` from the macro invocation site for the source label — gives `tests/wat_macros.rs:42::my_test_name` if that's clearer.
+**Decomposed fix plan:**
 
-**Scope:** crates/wat-macros/src/lib.rs (one file). Add a canary test that exercises a failing wat::test! and asserts the rendered panic mentions the test function's actual Rust file path.
-**Estimated runtime:** 15-25 min sonnet (proc-macro emit changes + canary).
+#### F-NAMES-1a: deprecate `<test>` convenience wrapper default
+- Change src/parser.rs:71/78 — `parse_one(src)` / `parse_all(src)` either:
+  - **Option A**: remove the convenience wrappers entirely; force every caller to use `_with_file(src, label)` siblings.
+  - **Option B**: change the default from `<test>` to `<unknown-source>` so the placeholder loudly self-identifies as a missing-label gap.
+- Either way, audit every caller and provide a real label.
+- **Scope:** src/parser.rs + every caller (~10 sites across runtime.rs/macros.rs/config.rs/resolve.rs/stdlib.rs/lib.rs).
+- **Estimated runtime:** 15-25 min sonnet.
+
+#### F-NAMES-1b: Rust test helpers pass file!()
+- Test helpers like `eval_expr(src)` in src/runtime.rs at line 15135 use `parse_one(src)` directly. After F-NAMES-1a, they need to pass a real label.
+- Option: helper macro `eval_expr!(src)` that captures `file!()` / `function_name!()` at call site, OR test helpers take `(src, file_label)` explicitly.
+- **Scope:** test helpers across src/.
+- Folds into F-NAMES-1a likely.
+
+#### F-NAMES-1c: wat::test! macro deftest thread name
+- crates/wat-macros/src/lib.rs:672 — `std::thread::spawn` becomes `Thread::Builder::new().name(format!("wat-test::{}", deftest_name)).spawn(...)`.
+- Panic header reads `thread 'wat-test::my_deftest_name' panicked at <real-wat-file>:10:19:` — both pieces become navigable.
+- **Scope:** single-file fix in wat-macros/src/lib.rs.
+- **Estimated runtime:** 5-10 min sonnet.
+
+#### F-NAMES-1d: lib::run public API source label
+- src/lib.rs:201 `pub fn run(src: &str)` should accept a `source_label: &str` parameter (or auto-detect via call-site? unlikely without a macro).
+- Public API change — needs versioning consideration.
+- **Scope:** src/lib.rs + any callers in tests/examples.
+- **Estimated runtime:** 10-15 min sonnet.
+
+**Total F-NAMES-1 estimate:** 30-60 min across 4 sub-slices. Could fold 1a+1b together, 1c standalone, 1d standalone.
 
 ### F-NAMES-2: `<lambda>` audit (decide which sites lose name info)
 
@@ -93,18 +120,22 @@ Check src/freeze.rs:421 — confirm `<entry>` only fires when there genuinely is
 
 **Scope:** investigation, probably documentation-only fix.
 
-## Position in queue
+## Position in queue (updated 2026-05-03 post-investigation)
 
-Per user direction: address AFTER span work wraps:
+Per user direction: address AFTER span work wraps. Span work wrapped at slice 5 commit `53ec071`. Now:
 
-1. F4b — FromWat trait expansion
-2. F4c — ThreadOwnedCell::with_mut
-3. Slice 5 — ConfigError form_index → Span
-4. **F-NAMES-1** — wat::test! macro emit (this audit's primary fix)
-5. **F-NAMES-2** — `<lambda>` audit
-6. **F-NAMES-3** — `<runtime>` invariant check
-7. **F-NAMES-4** — `<entry>` investigation
-8. Slice 6 — doctrine + INSCRIPTION + USER-GUIDE + 058 row → arc 138 closure
+1. ✓ F4b FromWat (commit `fbcc1a4`)
+2. ✓ F4c ThreadOwnedCell + adjacent (commit `55c21f6`)
+3. ✓ Slice 5 ConfigError (commit `53ec071`)
+4. **F-NAMES-1a** — deprecate `<test>` default + sweep ~10 callers (15-25 min)
+5. **F-NAMES-1c** — wat::test! deftest thread name (5-10 min)
+6. **F-NAMES-1d** — lib::run public API source label (10-15 min)
+7. **F-NAMES-2** — `<lambda>` audit
+8. **F-NAMES-3** — `<runtime>` invariant check
+9. **F-NAMES-4** — `<entry>` investigation
+10. Slice 6 — doctrine + INSCRIPTION + USER-GUIDE + 058 row → arc 138 closure
+
+F-NAMES-1b folds into F-NAMES-1a (test helpers updated together).
 
 ## Disk note for context refresh
 
