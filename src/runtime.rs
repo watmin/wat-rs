@@ -688,13 +688,13 @@ pub struct SymbolTable {
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
     pub source_loader: Option<Arc<dyn crate::load::SourceLoader>>,
     pub macro_registry: Option<Arc<crate::macros::MacroRegistry>>,
-    /// Arc 146 slice 1 — multimethod registry. Carries every
-    /// `(:wat::core::defmultimethod ...)` declaration registered at
+    /// Arc 146 slice 1 — dispatch registry. Carries every
+    /// `(:wat::core::define-dispatch ...)` declaration registered at
     /// freeze time. The check-time + runtime list-call dispatch sites
     /// consult this BEFORE the substrate-primitive scheme path so
-    /// multimethod-declared names route to per-Type arm impls. Mirrors
+    /// dispatch-declared names route to per-Type arm impls. Mirrors
     /// `macro_registry` (capability-carrier pattern, arc 109).
-    pub multimethod_registry: Option<Arc<crate::multimethod::MultimethodRegistry>>,
+    pub dispatch_registry: Option<Arc<crate::dispatch::DispatchRegistry>>,
     /// Ambient presence-sigma function — `:fn(:i64) -> :i64`. Takes
     /// dim, returns σ count. Used by `presence?` to compute the
     /// per-d floor (`σ(d) / sqrt(d)`). Built-in default is
@@ -739,7 +739,7 @@ impl std::fmt::Debug for SymbolTable {
             .field("encoding_ctx", &self.encoding_ctx.is_some())
             .field("source_loader", &self.source_loader.is_some())
             .field("macro_registry", &self.macro_registry.is_some())
-            .field("multimethod_registry", &self.multimethod_registry.is_some())
+            .field("dispatch_registry", &self.dispatch_registry.is_some())
             .field("presence_sigma_fn", &self.presence_sigma_fn.is_some())
             .field("coincident_sigma_fn", &self.coincident_sigma_fn.is_some())
             .field("types", &self.types.is_some())
@@ -802,26 +802,26 @@ impl SymbolTable {
         self.macro_registry.as_ref()
     }
 
-    /// Attach the multimethod registry. Called once at freeze time by
+    /// Attach the dispatch registry. Called once at freeze time by
     /// [`crate::freeze::FrozenWorld::freeze`] so check-time + runtime
-    /// list-call dispatch can consult registered multimethods before
+    /// list-call dispatch can consult registered dispatchs before
     /// the scheme path. Arc 146 slice 1.
-    pub fn set_multimethod_registry(
+    pub fn set_dispatch_registry(
         &mut self,
-        registry: Arc<crate::multimethod::MultimethodRegistry>,
+        registry: Arc<crate::dispatch::DispatchRegistry>,
     ) {
-        self.multimethod_registry = Some(registry);
+        self.dispatch_registry = Some(registry);
     }
 
-    /// Borrow the multimethod registry, if one is attached. Test
+    /// Borrow the dispatch registry, if one is attached. Test
     /// harnesses that build a SymbolTable directly without going
-    /// through freeze don't have multimethods attached; the
-    /// dispatch sites treat `None` as "no multimethods registered"
+    /// through freeze don't have dispatchs attached; the
+    /// dispatch sites treat `None` as "no dispatchs registered"
     /// and fall through to the scheme path.
-    pub fn multimethod_registry(
+    pub fn dispatch_registry(
         &self,
-    ) -> Option<&Arc<crate::multimethod::MultimethodRegistry>> {
-        self.multimethod_registry.as_ref()
+    ) -> Option<&Arc<crate::dispatch::DispatchRegistry>> {
+        self.dispatch_registry.as_ref()
     }
 
     /// Attach the ambient presence-sigma function. Called once at
@@ -2425,13 +2425,13 @@ fn dispatch_keyword_head(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    // Arc 146 slice 1 — multimethod dispatch. If `head` names a
-    // registered multimethod, route to arm-pattern matching against
-    // the args' value tags (per Q3 of the BRIEF: multimethods win over
+    // Arc 146 slice 1 — dispatch dispatch. If `head` names a
+    // registered dispatch, route to arm-pattern matching against
+    // the args' value tags (per Q3 of the BRIEF: dispatchs win over
     // substrate-fixed forms).
-    if let Some(reg) = &sym.multimethod_registry {
+    if let Some(reg) = &sym.dispatch_registry {
         if let Some(mm) = reg.get(head) {
-            return eval_multimethod_call(mm, args, list_span, env, sym);
+            return eval_dispatch_call(mm, args, list_span, env, sym);
         }
     }
     match head {
@@ -3109,7 +3109,7 @@ fn dispatch_keyword_head(
     }
 }
 
-// ─── Arc 146 slice 1 — multimethod runtime dispatch ─────────────────────
+// ─── Arc 146 slice 1 — dispatch runtime dispatch ─────────────────────
 
 /// Match a runtime [`Value`]'s tag against a [`TypeExpr`] arm-pattern
 /// element. Returns true if the value tag is consistent with the
@@ -3172,15 +3172,15 @@ fn value_matches_type_pattern(v: &Value, pattern: &crate::types::TypeExpr) -> bo
     }
 }
 
-/// Arc 146 slice 1 — runtime multimethod dispatch.
+/// Arc 146 slice 1 — runtime dispatch dispatch.
 ///
 /// Eval each arg, walk `mm.arms` in declaration order, match each
 /// arg's value tag against the arm's pattern, dispatch to the matched
 /// arm's impl by calling its registered `Function`. If no arm matches:
 /// emit `MalformedForm` carrying the actual arg type tags so the user
 /// can see why dispatch failed.
-fn eval_multimethod_call(
-    mm: &crate::multimethod::Multimethod,
+fn eval_dispatch_call(
+    mm: &crate::dispatch::Dispatch,
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -3229,7 +3229,7 @@ fn eval_multimethod_call(
     Err(RuntimeError::MalformedForm {
         head: mm.name.clone(),
         reason: format!(
-            "no multimethod arm matched the call; got args ({})",
+            "no dispatch arm matched the call; got args ({})",
             actual.join(", ")
         ),
         span: list_span.clone(),
@@ -6391,20 +6391,20 @@ fn typedef_to_define_ast(def: &crate::types::TypeDef) -> WatAST {
     )
 }
 
-/// Arc 146 slice 1 — build the full `(:wat::core::defmultimethod ...)`
+/// Arc 146 slice 1 — build the full `(:wat::core::define-dispatch ...)`
 /// declaration form for reflection. Reconstructs the original surface
-/// syntax: head keyword + multimethod name + each arm as
+/// syntax: head keyword + dispatch name + each arm as
 /// `((<type-pattern>...) <impl-keyword>)`. Caller renders to EDN via
 /// the standard HolonAST round-trip.
 ///
 /// Type patterns are emitted as keyword strings (the user's source
 /// spelling round-trips via `format_type` in check.rs; here we render
 /// the `TypeExpr` back to its `:`-prefixed keyword form).
-fn multimethod_to_define_ast(mm: &crate::multimethod::Multimethod) -> WatAST {
+fn dispatch_to_define_ast(mm: &crate::dispatch::Dispatch) -> WatAST {
     let span = Span::unknown();
     let name_kw = WatAST::Keyword(mm.name.clone(), span.clone());
     let mut children = vec![
-        WatAST::Keyword(":wat::core::defmultimethod".into(), span.clone()),
+        WatAST::Keyword(":wat::core::define-dispatch".into(), span.clone()),
         name_kw,
     ];
     for arm in &mm.arms {
@@ -6497,12 +6497,12 @@ pub enum Binding<'a> {
         def: &'a crate::types::TypeDef,
         doc_string: Option<String>,
     },
-    /// Arc 146 slice 1 — a `(:wat::core::defmultimethod ...)`
-    /// declaration. Reflection emits the multimethod's full
-    /// declaration (head + name + arms) via `multimethod_to_define_ast`.
-    Multimethod {
+    /// Arc 146 slice 1 — a `(:wat::core::define-dispatch ...)`
+    /// declaration. Reflection emits the dispatch's full
+    /// declaration (head + name + arms) via `dispatch_to_define_ast`.
+    Dispatch {
         name: String,
-        mm: &'a crate::multimethod::Multimethod,
+        mm: &'a crate::dispatch::Dispatch,
         doc_string: Option<String>,
     },
 }
@@ -6544,15 +6544,15 @@ pub fn lookup_form<'a>(
             });
         }
     }
-    // 2a. Multimethods — arc 146 slice 1. Per Q3 of the BRIEF,
-    //     multimethods take precedence over substrate primitives /
+    // 2a. Dispatchs — arc 146 slice 1. Per Q3 of the BRIEF,
+    //     dispatchs take precedence over substrate primitives /
     //     special forms (they are user-declarable; substrate-fixed
     //     names are not). Slot here so a future arc-146-migrated
     //     primitive (e.g. `:wat::core::length` after slice 2) reflects
-    //     as a Multimethod, not as a stale Primitive.
-    if let Some(reg) = &sym.multimethod_registry {
+    //     as a Dispatch, not as a stale Primitive.
+    if let Some(reg) = &sym.dispatch_registry {
         if let Some(mm) = reg.get(name) {
-            return Some(Binding::Multimethod {
+            return Some(Binding::Dispatch {
                 name: name.to_string(),
                 mm,
                 doc_string: None,
@@ -6656,10 +6656,10 @@ fn eval_lookup_define(
                 Arc::new(watast_to_holon(&ast)),
             )))))
         }
-        Some(Binding::Multimethod { mm, .. }) => {
+        Some(Binding::Dispatch { mm, .. }) => {
             // Arc 146 slice 1 — emit the full
-            // (:wat::core::defmultimethod :name <arm>+) declaration.
-            let ast = multimethod_to_define_ast(mm);
+            // (:wat::core::define-dispatch :name <arm>+) declaration.
+            let ast = dispatch_to_define_ast(mm);
             Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
                 Arc::new(watast_to_holon(&ast)),
             )))))
@@ -6745,13 +6745,13 @@ fn eval_signature_of(
                 Arc::new(watast_to_holon(&ast)),
             )))))
         }
-        Some(Binding::Multimethod { mm, .. }) => {
-            // Arc 146 slice 1 — multimethods don't have a "header" in
+        Some(Binding::Dispatch { mm, .. }) => {
+            // Arc 146 slice 1 — dispatchs don't have a "header" in
             // the function sense; the dispatch table IS the contract.
             // Emit the same declaration form as lookup-define so the
             // signature view still tells the reader "this is a
-            // multimethod with arms X/Y/Z".
-            let ast = multimethod_to_define_ast(mm);
+            // dispatch with arms X/Y/Z".
+            let ast = dispatch_to_define_ast(mm);
             Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
                 Arc::new(watast_to_holon(&ast)),
             )))))
@@ -6822,11 +6822,11 @@ fn eval_body_of(
         }
         Some(Binding::Primitive { .. }) => Ok(Value::Option(Arc::new(None))),
         Some(Binding::Type { .. }) => Ok(Value::Option(Arc::new(None))),
-        // Arc 146 slice 1 — multimethods have no "body" in the function
+        // Arc 146 slice 1 — dispatchs have no "body" in the function
         // sense; the dispatch table IS the contract. body-of returns
         // :None (honest about absence — the declaration is the
         // lookup-define output).
-        Some(Binding::Multimethod { .. }) => Ok(Value::Option(Arc::new(None))),
+        Some(Binding::Dispatch { .. }) => Ok(Value::Option(Arc::new(None))),
         Some(Binding::SpecialForm { .. }) => Ok(Value::Option(Arc::new(None))),
         None => Ok(Value::Option(Arc::new(None))),
     }

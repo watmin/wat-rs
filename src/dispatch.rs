@@ -1,30 +1,30 @@
-//! Arc 146 slice 1 — multimethod entity + registry + parsing.
+//! Arc 146 slice 1 — dispatch entity + registry + parsing.
 //!
-//! A multimethod is a substrate entity that dispatches over input
+//! A dispatch is a substrate entity that dispatches over input
 //! type to one of N per-Type implementations. Pass-through semantics:
-//! the multimethod's surface arity equals each arm's impl arity; all
+//! the dispatch's surface arity equals each arm's impl arity; all
 //! args at the call site flow unchanged to the matched impl.
 //!
 //! # Why an entity kind, not a type-system feature
 //!
 //! Per `docs/COMPACTION-AMNESIA-RECOVERY.md` § FM 10 + arc 144
 //! REALIZATIONS § 2: when polymorphism doesn't fit ONE rank-1 scheme,
-//! the right answer is a NEW ENTITY KIND (multimethod — Clojure /
+//! the right answer is a NEW ENTITY KIND (dispatch — Clojure /
 //! Common Lisp generic function / Julia multiple dispatch), NOT a
 //! type-system extension. Each arm's impl is a clean rank-1 scheme;
-//! the multimethod is the dispatch table that routes to them.
+//! the dispatch is the dispatch table that routes to them.
 //!
 //! # Form
 //!
 //! ```scheme
-//! (:wat::core::defmultimethod :wat::core::length
+//! (:wat::core::define-dispatch :wat::core::length
 //!   ((:wat::core::Vector<T>)    :wat::core::Vector/length)
 //!   ((:wat::core::HashMap<K,V>) :wat::core::HashMap/length)
 //!   ((:wat::core::HashSet<T>)   :wat::core::HashSet/length))
 //! ```
 //!
 //! Each arm is `((<type-pattern>...) <impl-keyword>)`. The type-pattern
-//! arity defines the multimethod's surface arity; ALL arms must have
+//! arity defines the dispatch's surface arity; ALL arms must have
 //! the same arity. The impl-keyword names a per-Type primitive whose
 //! arity must match the surface arity (verified at first check-time
 //! call — see arc 146 BRIEF Q1).
@@ -33,7 +33,7 @@
 //!
 //! Per `docs/ZERO-MUTEX.md`: the registry is owned via Arc; per-
 //! definition data is immutable after registration. The mutable
-//! HashMap inside `MultimethodRegistry` is only mutated during freeze
+//! HashMap inside `DispatchRegistry` is only mutated during freeze
 //! (single-threaded). Post-freeze the registry is wrapped in `Arc<...>`
 //! and shared read-only — no Mutex/RwLock/CondVar.
 
@@ -43,12 +43,12 @@ use crate::types::{parse_type_expr_with_span, TypeError, TypeExpr};
 use std::collections::HashMap;
 use std::fmt;
 
-/// One arm of a multimethod's dispatch table — a per-Type pattern
+/// One arm of a dispatch's dispatch table — a per-Type pattern
 /// paired with the keyword path of the impl that handles that pattern.
 #[derive(Debug, Clone)]
-pub struct MultimethodArm {
+pub struct DispatchArm {
     /// Input-type pattern, one TypeExpr per surface argument. Arity
-    /// of this Vec is the multimethod's surface arity.
+    /// of this Vec is the dispatch's surface arity.
     pub pattern: Vec<TypeExpr>,
     /// Full keyword path of the per-Type impl (e.g.
     /// `:wat::core::Vector/length`). The impl must exist as a callable
@@ -58,96 +58,96 @@ pub struct MultimethodArm {
     pub span: Span,
 }
 
-/// A registered multimethod.
+/// A registered dispatch.
 #[derive(Debug, Clone)]
-pub struct Multimethod {
-    /// Full keyword path of the multimethod (e.g. `:wat::core::length`).
+pub struct Dispatch {
+    /// Full keyword path of the dispatch (e.g. `:wat::core::length`).
     pub name: String,
     /// Dispatch table — one arm per per-Type impl. Order is the
     /// declaration order; check-time arm matching scans in this order
     /// and picks the first arm that unifies.
-    pub arms: Vec<MultimethodArm>,
-    /// Source span of the `(:wat::core::defmultimethod ...)` form.
+    pub arms: Vec<DispatchArm>,
+    /// Source span of the `(:wat::core::define-dispatch ...)` form.
     pub span: Span,
 }
 
-/// Keyword-path → `Multimethod` registry. Mirrors
+/// Keyword-path → `Dispatch` registry. Mirrors
 /// `crate::macros::MacroRegistry`'s shape.
 #[derive(Debug, Default, Clone)]
-pub struct MultimethodRegistry {
-    multimethods: HashMap<String, Multimethod>,
+pub struct DispatchRegistry {
+    dispatchs: HashMap<String, Dispatch>,
 }
 
-impl MultimethodRegistry {
+impl DispatchRegistry {
     pub fn new() -> Self {
         Self::default()
     }
 
     pub fn contains(&self, name: &str) -> bool {
-        self.multimethods.contains_key(name)
+        self.dispatchs.contains_key(name)
     }
 
-    pub fn get(&self, name: &str) -> Option<&Multimethod> {
-        self.multimethods.get(name)
+    pub fn get(&self, name: &str) -> Option<&Dispatch> {
+        self.dispatchs.get(name)
     }
 
-    /// Register a multimethod. Errors on duplicate or reserved prefix.
-    pub fn register(&mut self, def: Multimethod) -> Result<(), MultimethodError> {
+    /// Register a dispatch. Errors on duplicate or reserved prefix.
+    pub fn register(&mut self, def: Dispatch) -> Result<(), DispatchError> {
         if crate::resolve::is_reserved_prefix(&def.name) {
-            return Err(MultimethodError::ReservedPrefix(def.name, def.span.clone()));
+            return Err(DispatchError::ReservedPrefix(def.name, def.span.clone()));
         }
-        if self.multimethods.contains_key(&def.name) {
-            return Err(MultimethodError::DuplicateMultimethod(
+        if self.dispatchs.contains_key(&def.name) {
+            return Err(DispatchError::DuplicateDispatch(
                 def.name,
                 def.span.clone(),
             ));
         }
-        self.multimethods.insert(def.name.clone(), def);
+        self.dispatchs.insert(def.name.clone(), def);
         Ok(())
     }
 
     /// Stdlib-registration variant — bypasses the reserved-prefix gate
-    /// (substrate-declared multimethods live under `:wat::core::*`).
+    /// (substrate-declared dispatchs live under `:wat::core::*`).
     /// Still errors on duplicates.
-    pub fn register_stdlib(&mut self, def: Multimethod) -> Result<(), MultimethodError> {
-        if self.multimethods.contains_key(&def.name) {
-            return Err(MultimethodError::DuplicateMultimethod(
+    pub fn register_stdlib(&mut self, def: Dispatch) -> Result<(), DispatchError> {
+        if self.dispatchs.contains_key(&def.name) {
+            return Err(DispatchError::DuplicateDispatch(
                 def.name,
                 def.span.clone(),
             ));
         }
-        self.multimethods.insert(def.name.clone(), def);
+        self.dispatchs.insert(def.name.clone(), def);
         Ok(())
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&String, &Multimethod)> {
-        self.multimethods.iter()
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &Dispatch)> {
+        self.dispatchs.iter()
     }
 }
 
-/// Errors during multimethod registration / parsing / dispatch.
+/// Errors during dispatch registration / parsing / dispatch.
 #[derive(Debug)]
-pub enum MultimethodError {
-    /// A user multimethod declared under a reserved `:wat::...` prefix.
+pub enum DispatchError {
+    /// A user dispatch declared under a reserved `:wat::...` prefix.
     ReservedPrefix(String, Span),
-    /// Two `(:wat::core::defmultimethod ...)` forms registered the same
+    /// Two `(:wat::core::define-dispatch ...)` forms registered the same
     /// name.
-    DuplicateMultimethod(String, Span),
-    /// The `defmultimethod` form was malformed.
-    MalformedDefmultimethod { reason: String, span: Span },
+    DuplicateDispatch(String, Span),
+    /// The `define_dispatch` form was malformed.
+    MalformedDefdispatch { reason: String, span: Span },
     /// The arm-pattern arity disagreed with another arm's pattern arity
     /// (surface arity must be uniform across all arms).
     InconsistentArmArity {
-        multimethod: String,
+        dispatch: String,
         first_arity: usize,
         offending_arity: usize,
         span: Span,
     },
     /// At first check-time call, an arm's impl was looked up and its
-    /// arity disagreed with the multimethod's surface arity. Surfaced
+    /// arity disagreed with the dispatch's surface arity. Surfaced
     /// per arc 146 slice 1 BRIEF Q1 (deferred to call-time).
     ArityMismatch {
-        multimethod: String,
+        dispatch: String,
         surface_arity: usize,
         arm_impl: String,
         arm_arity: usize,
@@ -155,7 +155,7 @@ pub enum MultimethodError {
     },
     /// A type-pattern keyword failed to parse via `parse_type_expr`.
     InvalidTypePattern {
-        multimethod: String,
+        dispatch: String,
         raw: String,
         cause: String,
         span: Span,
@@ -172,66 +172,66 @@ fn span_prefix(span: &Span) -> String {
     }
 }
 
-impl fmt::Display for MultimethodError {
+impl fmt::Display for DispatchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MultimethodError::ReservedPrefix(n, span) => write!(
+            DispatchError::ReservedPrefix(n, span) => write!(
                 f,
-                "{}cannot declare multimethod {} — reserved prefix ({}); user multimethods must use their own prefix",
+                "{}cannot declare dispatch {} — reserved prefix ({}); user dispatchs must use their own prefix",
                 span_prefix(span),
                 n,
                 crate::resolve::reserved_prefix_list()
             ),
-            MultimethodError::DuplicateMultimethod(n, span) => write!(
+            DispatchError::DuplicateDispatch(n, span) => write!(
                 f,
-                "{}duplicate multimethod registration: {}",
+                "{}duplicate dispatch registration: {}",
                 span_prefix(span),
                 n
             ),
-            MultimethodError::MalformedDefmultimethod { reason, span } => write!(
+            DispatchError::MalformedDefdispatch { reason, span } => write!(
                 f,
-                "{}malformed defmultimethod: {}",
+                "{}malformed define_dispatch: {}",
                 span_prefix(span),
                 reason
             ),
-            MultimethodError::InconsistentArmArity {
-                multimethod,
+            DispatchError::InconsistentArmArity {
+                dispatch,
                 first_arity,
                 offending_arity,
                 span,
             } => write!(
                 f,
-                "{}multimethod {} arm-pattern arity {} disagrees with first arm's arity {}; all arms must share surface arity",
+                "{}dispatch {} arm-pattern arity {} disagrees with first arm's arity {}; all arms must share surface arity",
                 span_prefix(span),
-                multimethod,
+                dispatch,
                 offending_arity,
                 first_arity
             ),
-            MultimethodError::ArityMismatch {
-                multimethod,
+            DispatchError::ArityMismatch {
+                dispatch,
                 surface_arity,
                 arm_impl,
                 arm_arity,
                 span,
             } => write!(
                 f,
-                "{}multimethod {} surface arity {} disagrees with arm impl {}'s arity {}",
+                "{}dispatch {} surface arity {} disagrees with arm impl {}'s arity {}",
                 span_prefix(span),
-                multimethod,
+                dispatch,
                 surface_arity,
                 arm_impl,
                 arm_arity
             ),
-            MultimethodError::InvalidTypePattern {
-                multimethod,
+            DispatchError::InvalidTypePattern {
+                dispatch,
                 raw,
                 cause,
                 span,
             } => write!(
                 f,
-                "{}multimethod {} arm-pattern type {} failed to parse: {}",
+                "{}dispatch {} arm-pattern type {} failed to parse: {}",
                 span_prefix(span),
-                multimethod,
+                dispatch,
                 raw,
                 cause
             ),
@@ -239,19 +239,19 @@ impl fmt::Display for MultimethodError {
     }
 }
 
-impl std::error::Error for MultimethodError {}
+impl std::error::Error for DispatchError {}
 
-/// Walk `forms`, peel off every `(:wat::core::defmultimethod ...)`,
+/// Walk `forms`, peel off every `(:wat::core::define-dispatch ...)`,
 /// parse + register each into `registry`, and return the remaining
 /// forms in order. Mirrors `crate::macros::register_defmacros`.
-pub fn register_defmultimethods(
+pub fn register_define_dispatches(
     forms: Vec<WatAST>,
-    registry: &mut MultimethodRegistry,
-) -> Result<Vec<WatAST>, MultimethodError> {
+    registry: &mut DispatchRegistry,
+) -> Result<Vec<WatAST>, DispatchError> {
     let mut rest = Vec::new();
     for form in forms {
-        if is_defmultimethod_form(&form) {
-            let def = parse_defmultimethod_form(form)?;
+        if is_define_dispatch_form(&form) {
+            let def = parse_define_dispatch_form(form)?;
             registry.register(def)?;
         } else {
             rest.push(form);
@@ -261,14 +261,14 @@ pub fn register_defmultimethods(
 }
 
 /// Stdlib-registration variant — bypasses the reserved-prefix gate.
-pub fn register_stdlib_defmultimethods(
+pub fn register_stdlib_define_dispatches(
     forms: Vec<WatAST>,
-    registry: &mut MultimethodRegistry,
-) -> Result<Vec<WatAST>, MultimethodError> {
+    registry: &mut DispatchRegistry,
+) -> Result<Vec<WatAST>, DispatchError> {
     let mut rest = Vec::new();
     for form in forms {
-        if is_defmultimethod_form(&form) {
-            let def = parse_defmultimethod_form(form)?;
+        if is_define_dispatch_form(&form) {
+            let def = parse_define_dispatch_form(form)?;
             registry.register_stdlib(def)?;
         } else {
             rest.push(form);
@@ -277,20 +277,20 @@ pub fn register_stdlib_defmultimethods(
     Ok(rest)
 }
 
-pub fn is_defmultimethod_form(form: &WatAST) -> bool {
+pub fn is_define_dispatch_form(form: &WatAST) -> bool {
     matches!(
         form,
         WatAST::List(items, _)
             if matches!(
                 items.first(),
-                Some(WatAST::Keyword(k, _)) if k == ":wat::core::defmultimethod"
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::define-dispatch"
             )
     )
 }
 
-/// Parse `(:wat::core::defmultimethod :name ((<type-pattern>...) <impl>) ...)`.
+/// Parse `(:wat::core::define-dispatch :name ((<type-pattern>...) <impl>) ...)`.
 ///
-/// The first child after the head must be a Keyword (the multimethod
+/// The first child after the head must be a Keyword (the dispatch
 /// name); each remaining child must be a 2-element List whose first
 /// child is a List of type-pattern keywords (the arm pattern) and
 /// whose second child is a Keyword (the impl path).
@@ -298,51 +298,51 @@ pub fn is_defmultimethod_form(form: &WatAST) -> bool {
 /// Surface arity is the arity of arms[0].pattern; later arms must
 /// match. Per BRIEF Q1, impl-arity validation is deferred to
 /// first check-time call.
-pub fn parse_defmultimethod_form(form: WatAST) -> Result<Multimethod, MultimethodError> {
+pub fn parse_define_dispatch_form(form: WatAST) -> Result<Dispatch, DispatchError> {
     let (items, list_span) = match form {
         WatAST::List(items, span) => (items, span),
         _ => {
-            return Err(MultimethodError::MalformedDefmultimethod {
+            return Err(DispatchError::MalformedDefdispatch {
                 reason: "expected list form".into(),
                 span: Span::unknown(),
             });
         }
     };
     if items.len() < 3 {
-        return Err(MultimethodError::MalformedDefmultimethod {
+        return Err(DispatchError::MalformedDefdispatch {
             reason: format!(
-                "expected (:wat::core::defmultimethod :name <arm>+); got {} elements",
+                "expected (:wat::core::define-dispatch :name <arm>+); got {} elements",
                 items.len()
             ),
             span: list_span,
         });
     }
     let mut iter = items.into_iter();
-    let _defmultimethod_kw = iter.next();
+    let _define_dispatch_kw = iter.next();
     let name = match iter.next() {
         Some(WatAST::Keyword(k, _)) => k,
         Some(other) => {
-            return Err(MultimethodError::MalformedDefmultimethod {
-                reason: "multimethod name must be a keyword-path".into(),
+            return Err(DispatchError::MalformedDefdispatch {
+                reason: "dispatch name must be a keyword-path".into(),
                 span: other.span().clone(),
             });
         }
         None => {
-            return Err(MultimethodError::MalformedDefmultimethod {
-                reason: "missing multimethod name".into(),
+            return Err(DispatchError::MalformedDefdispatch {
+                reason: "missing dispatch name".into(),
                 span: list_span,
             });
         }
     };
 
-    let mut arms: Vec<MultimethodArm> = Vec::new();
+    let mut arms: Vec<DispatchArm> = Vec::new();
     let mut surface_arity: Option<usize> = None;
     for item in iter {
         let arm = parse_arm(&name, item)?;
         if let Some(a) = surface_arity {
             if arm.pattern.len() != a {
-                return Err(MultimethodError::InconsistentArmArity {
-                    multimethod: name.clone(),
+                return Err(DispatchError::InconsistentArmArity {
+                    dispatch: name.clone(),
                     first_arity: a,
                     offending_arity: arm.pattern.len(),
                     span: arm.span.clone(),
@@ -354,31 +354,31 @@ pub fn parse_defmultimethod_form(form: WatAST) -> Result<Multimethod, Multimetho
         arms.push(arm);
     }
     if arms.is_empty() {
-        return Err(MultimethodError::MalformedDefmultimethod {
-            reason: "multimethod must declare at least one arm".into(),
+        return Err(DispatchError::MalformedDefdispatch {
+            reason: "dispatch must declare at least one arm".into(),
             span: list_span,
         });
     }
 
-    Ok(Multimethod {
+    Ok(Dispatch {
         name,
         arms,
         span: list_span,
     })
 }
 
-fn parse_arm(mm_name: &str, arm: WatAST) -> Result<MultimethodArm, MultimethodError> {
+fn parse_arm(mm_name: &str, arm: WatAST) -> Result<DispatchArm, DispatchError> {
     let (children, arm_span) = match arm {
         WatAST::List(children, span) => (children, span),
         other => {
-            return Err(MultimethodError::MalformedDefmultimethod {
+            return Err(DispatchError::MalformedDefdispatch {
                 reason: "each arm must be a list ((<type-pattern>...) <impl-keyword>)".into(),
                 span: other.span().clone(),
             });
         }
     };
     if children.len() != 2 {
-        return Err(MultimethodError::MalformedDefmultimethod {
+        return Err(DispatchError::MalformedDefdispatch {
             reason: format!(
                 "each arm must have exactly 2 elements (pattern + impl); got {}",
                 children.len()
@@ -397,15 +397,15 @@ fn parse_arm(mm_name: &str, arm: WatAST) -> Result<MultimethodArm, MultimethodEr
                 let (raw, item_span) = match item {
                     WatAST::Keyword(k, span) => (k, span),
                     other => {
-                        return Err(MultimethodError::MalformedDefmultimethod {
+                        return Err(DispatchError::MalformedDefdispatch {
                             reason: "arm-pattern element must be a type keyword".into(),
                             span: other.span().clone(),
                         });
                     }
                 };
                 let ty = parse_type_expr_with_span(&raw, &item_span).map_err(|e| {
-                    MultimethodError::InvalidTypePattern {
-                        multimethod: mm_name.to_string(),
+                    DispatchError::InvalidTypePattern {
+                        dispatch: mm_name.to_string(),
                         raw: raw.clone(),
                         cause: format_type_error(&e),
                         span: item_span,
@@ -416,7 +416,7 @@ fn parse_arm(mm_name: &str, arm: WatAST) -> Result<MultimethodArm, MultimethodEr
             out
         }
         other => {
-            return Err(MultimethodError::MalformedDefmultimethod {
+            return Err(DispatchError::MalformedDefdispatch {
                 reason: "arm pattern must be a list of type keywords".into(),
                 span: other.span().clone(),
             });
@@ -426,14 +426,14 @@ fn parse_arm(mm_name: &str, arm: WatAST) -> Result<MultimethodArm, MultimethodEr
     let impl_name = match impl_form {
         WatAST::Keyword(k, _) => k,
         other => {
-            return Err(MultimethodError::MalformedDefmultimethod {
+            return Err(DispatchError::MalformedDefdispatch {
                 reason: "arm impl must be a keyword-path".into(),
                 span: other.span().clone(),
             });
         }
     };
 
-    Ok(MultimethodArm {
+    Ok(DispatchArm {
         pattern,
         impl_name,
         span: arm_span,

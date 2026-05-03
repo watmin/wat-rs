@@ -1084,13 +1084,13 @@ pub struct CheckEnv {
     /// walking every `:wat::core::enum` declaration in `types`.
     unit_variant_types: HashMap<String, TypeExpr>,
     types: Arc<TypeEnv>,
-    /// Arc 146 slice 1 — multimethod registry, attached when CheckEnv
-    /// is built from a SymbolTable that has multimethods registered
+    /// Arc 146 slice 1 — dispatch registry, attached when CheckEnv
+    /// is built from a SymbolTable that has dispatchs registered
     /// (post-freeze and check_program flows). `None` for test harnesses
     /// that build a CheckEnv directly without a SymbolTable. Consulted
     /// in `infer_list` BEFORE the substrate-primitive scheme path so
-    /// multimethod-declared names route to per-Type arm impls.
-    multimethod_registry: Option<Arc<crate::multimethod::MultimethodRegistry>>,
+    /// dispatch-declared names route to per-Type arm impls.
+    dispatch_registry: Option<Arc<crate::dispatch::DispatchRegistry>>,
 }
 
 impl CheckEnv {
@@ -1110,11 +1110,11 @@ impl CheckEnv {
                 env.register(path.clone(), scheme);
             }
         }
-        // Arc 146 slice 1 — capture the multimethod registry through the
+        // Arc 146 slice 1 — capture the dispatch registry through the
         // SymbolTable's capability-carrier slot. `None` is a clean
-        // fall-through (no multimethods registered).
-        if let Some(reg) = sym.multimethod_registry() {
-            env.multimethod_registry = Some(reg.clone());
+        // fall-through (no dispatchs registered).
+        if let Some(reg) = sym.dispatch_registry() {
+            env.dispatch_registry = Some(reg.clone());
         }
         env
     }
@@ -1150,7 +1150,7 @@ impl CheckEnv {
             schemes: HashMap::new(),
             unit_variant_types,
             types,
-            multimethod_registry: None,
+            dispatch_registry: None,
         }
     }
 
@@ -1175,14 +1175,14 @@ impl CheckEnv {
         &self.types
     }
 
-    /// Arc 146 slice 1 — borrow the attached multimethod registry, if
+    /// Arc 146 slice 1 — borrow the attached dispatch registry, if
     /// one was attached via `from_symbols`. `infer_list` consults this
-    /// before the substrate-primitive scheme path so multimethod-
+    /// before the substrate-primitive scheme path so dispatch-
     /// declared names route to per-Type arm impls.
-    pub fn multimethod_registry(
+    pub fn dispatch_registry(
         &self,
-    ) -> Option<&Arc<crate::multimethod::MultimethodRegistry>> {
-        self.multimethod_registry.as_ref()
+    ) -> Option<&Arc<crate::dispatch::DispatchRegistry>> {
+        self.dispatch_registry.as_ref()
     }
 }
 
@@ -2976,14 +2976,14 @@ fn infer_list(
 
     if let WatAST::Keyword(k, head_span) = head {
         let args = &items[1..];
-        // Arc 146 slice 1 — multimethod dispatch. If `k` names a
-        // registered multimethod, route to arm-pattern matching
-        // BEFORE the substrate special-case dispatch (multimethods
+        // Arc 146 slice 1 — dispatch dispatch. If `k` names a
+        // registered dispatch, route to arm-pattern matching
+        // BEFORE the substrate special-case dispatch (dispatchs
         // win per Q3 of the BRIEF — user-declarable names take
         // precedence over substrate-fixed forms).
-        if let Some(reg) = env.multimethod_registry() {
+        if let Some(reg) = env.dispatch_registry() {
             if let Some(mm) = reg.get(k) {
-                return infer_multimethod_call(
+                return infer_dispatch_call(
                     mm, args, head_span, env, locals, fresh, subst, errors,
                 );
             }
@@ -8155,7 +8155,7 @@ fn infer_string_concat(
     Some(string_ty)
 }
 
-/// Arc 146 slice 1 — multimethod check-time dispatch.
+/// Arc 146 slice 1 — dispatch check-time dispatch.
 ///
 /// Walks `mm.arms` in declaration order; for each arm, tries to unify
 /// each call-arg's inferred type with the arm's pattern (after
@@ -8165,12 +8165,12 @@ fn infer_string_concat(
 ///
 /// On no-match: emits a `TypeMismatch` listing every arm's pattern.
 /// On arm-impl arity disagreement: emits a `MalformedForm` carrying
-/// the multimethod's surface arity vs the arm impl's arity (per
+/// the dispatch's surface arity vs the arm impl's arity (per
 /// arc 146 BRIEF Q1, this validation is deferred from parse-time to
 /// first check-time call so freeze ordering stays simple).
 #[allow(clippy::too_many_arguments)]
-fn infer_multimethod_call(
-    mm: &crate::multimethod::Multimethod,
+fn infer_dispatch_call(
+    mm: &crate::dispatch::Dispatch,
     args: &[WatAST],
     head_span: &Span,
     env: &CheckEnv,
@@ -8255,7 +8255,7 @@ fn infer_multimethod_call(
             errors.push(CheckError::MalformedForm {
                 head: mm.name.clone(),
                 reason: format!(
-                    "multimethod {} surface arity {} disagrees with arm impl {}'s arity {}",
+                    "dispatch {} surface arity {} disagrees with arm impl {}'s arity {}",
                     mm.name,
                     surface_arity,
                     arm.impl_name,
@@ -8304,7 +8304,7 @@ fn infer_multimethod_call(
     };
     errors.push(CheckError::TypeMismatch {
         callee: mm.name.clone(),
-        param: "(multimethod dispatch)".into(),
+        param: "(dispatch dispatch)".into(),
         expected: format!("one of: {}", arm_summaries.join(" | ")),
         got: got_summary,
         span: head_span.clone(),
@@ -8312,7 +8312,7 @@ fn infer_multimethod_call(
     Some(fresh.fresh())
 }
 
-/// Walk a multimethod arm's pattern and collect every type-variable
+/// Walk a dispatch arm's pattern and collect every type-variable
 /// path (a `Path(":X")` whose first non-colon character is uppercase
 /// ASCII — matches the convention from `parse_define_form`'s scheme
 /// extraction). Used to instantiate arm patterns so a pattern like

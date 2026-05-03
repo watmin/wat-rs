@@ -1,10 +1,10 @@
-//! Arc 146 slice 1 — substrate multimethod MECHANISM coverage.
+//! Arc 146 slice 1 — substrate dispatch MECHANISM coverage.
 //!
-//! The multimethod entity kind is the substrate's honest representation
+//! The dispatch entity kind is the substrate's honest representation
 //! of "this name dispatches over input type to one of N per-Type
 //! impls" (per arc 144 REALIZATION 2 + COMPACTION-AMNESIA-RECOVERY
 //! § FM 10). Slice 1 ships the mechanism only — NO migration of any
-//! existing primitive. These tests use a SYNTHETIC multimethod over
+//! existing primitive. These tests use a SYNTHETIC dispatch over
 //! leaf types (`:wat::core::i64`, `:wat::core::f64`, `:wat::core::String`)
 //! so the test surface depends on nothing that's about to change.
 //!
@@ -13,12 +13,12 @@
 //!   2. Dispatch hits the `:f64` arm for an f64 call site.
 //!   3. Check-time TypeMismatch when no arm matches the input type.
 //!   4. `lookup-define` returns Some + emission carries
-//!      `:wat::core::defmultimethod` head.
+//!      `:wat::core::define-dispatch` head.
 //!   5. `signature-of` returns Some (the declaration form).
-//!   6. `body-of` returns :None (multimethods have no wat body — the
+//!   6. `body-of` returns :None (dispatchs have no wat body — the
 //!      arms ARE the contract).
-//!   7. `defmultimethod` arity-mismatch surfaces as a startup error
-//!      when an arm impl's arity disagrees with the multimethod's
+//!   7. `define_dispatch` arity-mismatch surfaces as a startup error
+//!      when an arm impl's arity disagrees with the dispatch's
 //!      surface arity.
 
 use std::sync::Arc;
@@ -67,7 +67,7 @@ fn try_startup(src: &str) -> Result<(), StartupError> {
 }
 
 // Common preamble: two per-Type impls (clean rank-1 schemes — the
-// substrate handles them today) plus a defmultimethod that routes
+// substrate handles them today) plus a define_dispatch that routes
 // `:test::describe` over `:wat::core::i64` and `:wat::core::f64`.
 const PREAMBLE: &str = r##"
     (:wat::core::define
@@ -78,7 +78,7 @@ const PREAMBLE: &str = r##"
       (:test::f64-describe (x :wat::core::f64) -> :wat::core::String)
       "f64-arm")
 
-    (:wat::core::defmultimethod :test::describe
+    (:wat::core::define-dispatch :test::describe
       ((:wat::core::i64) :test::i64-describe)
       ((:wat::core::f64) :test::f64-describe))
 "##;
@@ -86,7 +86,7 @@ const PREAMBLE: &str = r##"
 // ─── Runtime dispatch coverage ──────────────────────────────────────────────
 
 #[test]
-fn multimethod_dispatches_to_i64_arm() {
+fn dispatch_dispatches_to_i64_arm() {
     let src = format!(
         r##"
         {preamble}
@@ -105,7 +105,7 @@ fn multimethod_dispatches_to_i64_arm() {
 }
 
 #[test]
-fn multimethod_dispatches_to_f64_arm() {
+fn dispatch_dispatches_to_f64_arm() {
     let src = format!(
         r##"
         {preamble}
@@ -126,9 +126,9 @@ fn multimethod_dispatches_to_f64_arm() {
 // ─── Check-time arm coverage ───────────────────────────────────────────────
 
 #[test]
-fn multimethod_no_arm_match_check_time() {
+fn dispatch_no_arm_match_check_time() {
     // Calling with a String when only :i64 + :f64 arms exist should
-    // surface as a check-time TypeMismatch (multimethod dispatch
+    // surface as a check-time TypeMismatch (dispatch dispatch
     // diagnostic; the call-site type tag does not unify with any arm
     // pattern).
     let src = format!(
@@ -149,12 +149,12 @@ fn multimethod_no_arm_match_check_time() {
     let msg = format!("{}", err);
     assert!(
         msg.contains("test::describe"),
-        "expected the multimethod name in the diagnostic; got: {}",
+        "expected the dispatch name in the diagnostic; got: {}",
         msg
     );
     assert!(
-        msg.contains("multimethod") || msg.contains("dispatch") || msg.contains("expected one of"),
-        "expected a multimethod-dispatch diagnostic; got: {}",
+        msg.contains("dispatch") || msg.contains("dispatch") || msg.contains("expected one of"),
+        "expected a dispatch-dispatch diagnostic; got: {}",
         msg
     );
 }
@@ -162,10 +162,10 @@ fn multimethod_no_arm_match_check_time() {
 // ─── Reflection coverage (arc 144 extension) ────────────────────────────────
 
 #[test]
-fn lookup_form_returns_multimethod_binding() {
-    // `:wat::runtime::lookup-define` on a multimethod returns Some
-    // and the rendered AST carries the `:wat::core::defmultimethod`
-    // head — distinguishing a multimethod from a function or macro.
+fn lookup_form_returns_dispatch_binding() {
+    // `:wat::runtime::lookup-define` on a dispatch returns Some
+    // and the rendered AST carries the `:wat::core::define-dispatch`
+    // head — distinguishing a dispatch from a function or macro.
     let src = format!(
         r##"
         {preamble}
@@ -189,20 +189,20 @@ fn lookup_form_returns_multimethod_binding() {
     assert_eq!(out.len(), 1, "expected one rendered line, got {:?}", out);
     let line = &out[0];
     assert!(
-        line.contains("defmultimethod"),
-        "expected 'defmultimethod' head in rendered multimethod define-ast, got: {}",
+        line.contains("define-dispatch"),
+        "expected 'define-dispatch' head in rendered dispatch define-ast, got: {}",
         line
     );
     assert!(
         line.contains("test::describe"),
-        "expected multimethod name 'test::describe' in rendered AST, got: {}",
+        "expected dispatch name 'test::describe' in rendered AST, got: {}",
         line
     );
 }
 
 #[test]
-fn signature_of_multimethod_returns_declaration() {
-    // signature-of on a multimethod returns Some — the declaration
+fn signature_of_dispatch_returns_declaration() {
+    // signature-of on a dispatch returns Some — the declaration
     // form (no separate "header" — the dispatch table IS the contract).
     let src = format!(
         r##"
@@ -226,8 +226,8 @@ fn signature_of_multimethod_returns_declaration() {
 }
 
 #[test]
-fn body_of_multimethod_returns_none() {
-    // Multimethods have no wat-side body — the arms table IS the
+fn body_of_dispatch_returns_none() {
+    // Dispatchs have no wat-side body — the arms table IS the
     // contract. body-of is honest about absence and returns :None.
     let src = format!(
         r##"
@@ -253,11 +253,11 @@ fn body_of_multimethod_returns_none() {
 // ─── Bonus: arity validation surfaces deferred-to-call-time per Q1 ──────────
 
 #[test]
-fn defmultimethod_arity_mismatch_errors() {
+fn define_dispatch_arity_mismatch_errors() {
     // Per BRIEF Q1 — arity validation is deferred to first check-time
-    // call. A multimethod whose arm impl has a different arity than
-    // the multimethod's surface arity surfaces a clean check-time
-    // diagnostic when the multimethod is called.
+    // call. A dispatch whose arm impl has a different arity than
+    // the dispatch's surface arity surfaces a clean check-time
+    // diagnostic when the dispatch is called.
     let src = r##"
         ;; Two-arg impl (binary)
         (:wat::core::define
@@ -267,8 +267,8 @@ fn defmultimethod_arity_mismatch_errors() {
             -> :wat::core::String)
           "two-arg")
 
-        ;; Multimethod with surface arity 1 but arm impl with arity 2
-        (:wat::core::defmultimethod :test::arity-mismatched
+        ;; Dispatch with surface arity 1 but arm impl with arity 2
+        (:wat::core::define-dispatch :test::arity-mismatched
           ((:wat::core::i64) :test::two-arg-i64))
 
         (:wat::core::define
@@ -283,7 +283,7 @@ fn defmultimethod_arity_mismatch_errors() {
     let msg = format!("{}", err);
     assert!(
         msg.contains("arity-mismatched"),
-        "expected the multimethod name in the diagnostic; got: {}",
+        "expected the dispatch name in the diagnostic; got: {}",
         msg
     );
     assert!(
