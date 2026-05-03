@@ -67,6 +67,10 @@ pub struct MacroDef {
     pub rest_param: Option<String>,
     /// The template — typically `(:wat::core::quasiquote ...)`.
     pub body: WatAST,
+    /// Source span of the `(:wat::core::defmacro ...)` form that registered
+    /// this macro. Used by register/register_stdlib to attribute MacroError
+    /// emissions back to the user's source position.
+    pub span: Span,
 }
 
 /// Keyword-path ↦ `MacroDef` registry.
@@ -95,16 +99,13 @@ impl MacroRegistry {
     /// matching params + rest_param + body AST count as equivalent.
     pub fn register(&mut self, def: MacroDef) -> Result<(), MacroError> {
         if crate::resolve::is_reserved_prefix(&def.name) {
-            // arc 138: no span — MacroDef carries no source span; caller
-            // would need to thread the defmacro form's span through.
-            return Err(MacroError::ReservedPrefix(def.name, Span::unknown()));
+            return Err(MacroError::ReservedPrefix(def.name, def.span.clone()));
         }
         if let Some(existing) = self.macros.get(&def.name) {
             if macro_byte_equivalent(existing, &def) {
                 return Ok(());
             }
-            // arc 138: no span — MacroDef carries no source span.
-            return Err(MacroError::DuplicateMacro(def.name, Span::unknown()));
+            return Err(MacroError::DuplicateMacro(def.name, def.span.clone()));
         }
         self.macros.insert(def.name.clone(), def);
         Ok(())
@@ -123,8 +124,7 @@ impl MacroRegistry {
             if macro_byte_equivalent(existing, &def) {
                 return Ok(());
             }
-            // arc 138: no span — MacroDef carries no source span.
-            return Err(MacroError::DuplicateMacro(def.name, Span::unknown()));
+            return Err(MacroError::DuplicateMacro(def.name, def.span.clone()));
         }
         self.macros.insert(def.name.clone(), def);
         Ok(())
@@ -331,12 +331,13 @@ fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> {
     let signature = iter.next().expect("length checked");
     let body = iter.next().expect("length checked");
 
-    let (name, params, rest_param) = parse_defmacro_signature(signature, list_span)?;
+    let (name, params, rest_param) = parse_defmacro_signature(signature, list_span.clone())?;
     Ok(MacroDef {
         name,
         params,
         rest_param,
         body,
+        span: list_span,
     })
 }
 
