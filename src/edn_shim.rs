@@ -51,8 +51,20 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, SymbolTable, Value};
+use crate::span::Span;
 use std::sync::Arc;
 use wat_edn::{Keyword, OwnedValue, Tag};
+
+/// Prefix `"<file>:<line>:<col>: "` when span is known; empty string
+/// when unknown. Mirrors `src/macros.rs::span_prefix` and
+/// `src/types.rs::span_prefix` exactly.
+fn span_prefix(span: &Span) -> String {
+    if span.is_unknown() {
+        String::new()
+    } else {
+        format!("{}: ", span)
+    }
+}
 
 // ─── Public eval entry points ────────────────────────────────────
 
@@ -222,57 +234,68 @@ pub enum EdnReadError {
         ns: String,
         name: String,
         body_shape: &'static str,
+        span: Span,
     },
     /// A substrate-reserved tag the bridge doesn't currently
     /// understand. `#inst` is handled by the underlying
     /// `wat_edn` parser; everything else lands here.
-    UnsupportedTag(String),
+    UnsupportedTag(String, Span),
     /// No type registry was attached. The bridge needs the
     /// registry to interpret `#ns/Name` tags; without one,
     /// any tagged value fails. Pass `None` only when you know
     /// the EDN document contains no tagged values.
-    NoTypeRegistry,
+    NoTypeRegistry(Span),
     /// `#ns/Name {map}` referenced a key that isn't a declared
     /// field of the named struct.
     UnknownStructField {
         type_path: String,
         key: String,
+        span: Span,
     },
     /// `#ns/Name [body]` or `#ns/Name nil` referenced a variant
     /// name that isn't declared on the named enum.
     EnumVariantNotFound {
         type_path: String,
         variant: String,
+        span: Span,
     },
     /// Catch-all — the EDN value couldn't be coerced to a wat
     /// Value for the listed structural reason (e.g. unsupported
     /// `wat_edn::Value` variant like Symbol or BigInt, or a
     /// surface-level parse error wrapped here).
-    Other(String),
+    Other(String, Span),
 }
 
 impl std::fmt::Display for EdnReadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnknownTag { ns, name, body_shape } => write!(
+            Self::UnknownTag { ns, name, body_shape, span } => write!(
                 f,
-                "unknown tag #{ns}/{name} (body shape: {body_shape}); \
-                 no matching struct or enum in the type registry"
+                "{}unknown tag #{ns}/{name} (body shape: {body_shape}); \
+                 no matching struct or enum in the type registry",
+                span_prefix(span)
             ),
-            Self::UnsupportedTag(t) => write!(f, "unsupported substrate tag #{t}"),
-            Self::NoTypeRegistry => write!(
+            Self::UnsupportedTag(t, span) => {
+                write!(f, "{}unsupported substrate tag #{t}", span_prefix(span))
+            }
+            Self::NoTypeRegistry(span) => write!(
                 f,
-                "no type registry attached to SymbolTable; arc 085 capability missing"
+                "{}no type registry attached to SymbolTable; arc 085 capability missing",
+                span_prefix(span)
             ),
-            Self::UnknownStructField { type_path, key } => write!(
+            Self::UnknownStructField { type_path, key, span } => write!(
                 f,
-                "struct {type_path} has no field named {key}"
+                "{}struct {type_path} has no field named {key}",
+                span_prefix(span)
             ),
-            Self::EnumVariantNotFound { type_path, variant } => write!(
+            Self::EnumVariantNotFound { type_path, variant, span } => write!(
                 f,
-                "enum {type_path} has no variant named {variant}"
+                "{}enum {type_path} has no variant named {variant}",
+                span_prefix(span)
             ),
-            Self::Other(s) => f.write_str(s),
+            Self::Other(s, span) => {
+                write!(f, "{}{s}", span_prefix(span))
+            }
         }
     }
 }
@@ -301,7 +324,8 @@ pub fn read_edn(
     types: Option<&crate::types::TypeEnv>,
 ) -> Result<Value, EdnReadError> {
     let edn = wat_edn::parse_owned(s)
-        .map_err(|e| EdnReadError::Other(format!("EDN parse error: {e}")))?;
+        // arc 138: no span — read_edn operates on a raw &str with no WatAST trace
+        .map_err(|e| EdnReadError::Other(format!("EDN parse error: {e}"), Span::unknown()))?;
     edn_to_value(&edn, types)
 }
 
@@ -329,11 +353,14 @@ pub fn edn_to_value(
             };
             Ok(Value::wat__core__keyword(Arc::new(s)))
         }
+        // arc 138: no span — edn_to_value walks an OwnedValue tree (already-parsed EDN); no WatAST available
         Edn::Symbol(_) => Err(EdnReadError::Other(
             "EDN Symbol — wat has no symbol value type".into(),
+            Span::unknown(),
         )),
         Edn::BigInt(_) | Edn::BigDec(_) => Err(EdnReadError::Other(
             "EDN BigInt / BigDecimal — wat numeric tower is i64 + f64 only".into(),
+            Span::unknown(),
         )),
         Edn::List(items) | Edn::Vector(items) => {
             let walked: Vec<Value> = items
@@ -350,9 +377,10 @@ pub fn edn_to_value(
                 let v_val = edn_to_value(v, types)?;
                 let canonical =
                     crate::runtime::hashmap_key(":wat::edn::read", &k_val)
+                        // arc 138: no span — hashmap_key error has no WatAST origin
                         .map_err(|e| EdnReadError::Other(format!(
                             "non-hashable map key: {e:?}"
-                        )))?;
+                        ), Span::unknown()))?;
                 backing.insert(canonical, (k_val, v_val));
             }
             Ok(Value::wat__std__HashMap(Arc::new(backing)))
@@ -363,16 +391,19 @@ pub fn edn_to_value(
                 let v_val = edn_to_value(x, types)?;
                 let canonical =
                     crate::runtime::hashmap_key(":wat::edn::read", &v_val)
+                        // arc 138: no span — hashmap_key error has no WatAST origin
                         .map_err(|e| EdnReadError::Other(format!(
                             "non-hashable set element: {e:?}"
-                        )))?;
+                        ), Span::unknown()))?;
                 backing.insert(canonical, v_val);
             }
             Ok(Value::wat__std__HashSet(Arc::new(backing)))
         }
         Edn::Inst(t) => Ok(Value::Instant(*t)),
+        // arc 138: no span — edn_to_value walks an OwnedValue tree (already-parsed EDN); no WatAST available
         Edn::Uuid(_) => Err(EdnReadError::Other(
             "EDN Uuid — wat has no UUID value type yet".into(),
+            Span::unknown(),
         )),
         Edn::Tagged(tag, body) => tagged_to_value(tag, body, types),
     }
@@ -663,7 +694,8 @@ fn tagged_to_value(
     // handles (Sender, ProgramHandle, etc.) — they have no
     // serializable identity. Treat as errors.
     if ns == "wat-edn.opaque" {
-        return Err(EdnReadError::UnsupportedTag(format!("{ns}/{name}")));
+        // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
+        return Err(EdnReadError::UnsupportedTag(format!("{ns}/{name}"), Span::unknown()));
     }
     if ns == "wat-edn.holon" {
         // Arc 093 — substrate-internal HolonAST round-trip.
@@ -679,11 +711,13 @@ fn tagged_to_value(
         return Ok(Value::Result(Arc::new(match name {
             "ok" => Ok(inner),
             "err" => Err(inner),
-            _ => return Err(EdnReadError::UnsupportedTag(format!("{ns}/{name}"))),
+            // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
+            _ => return Err(EdnReadError::UnsupportedTag(format!("{ns}/{name}"), Span::unknown())),
         })));
     }
 
-    let types = types.ok_or(EdnReadError::NoTypeRegistry)?;
+    // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
+    let types = types.ok_or(EdnReadError::NoTypeRegistry(Span::unknown()))?;
 
     // Body shape disambiguates struct vs enum.
     match body {
@@ -700,10 +734,12 @@ fn tagged_to_value(
                 Edn::Inst(_) => "inst",
                 _ => "other",
             };
+            // arc 138: no span — tagged_to_value walks parsed OwnedValue, no WatAST in scope
             Err(EdnReadError::UnknownTag {
                 ns: ns.to_string(),
                 name: name.to_string(),
                 body_shape: shape,
+                span: Span::unknown(),
             })
         }
     }
@@ -727,10 +763,12 @@ fn reconstruct_struct(
     let def = match types.get(&path) {
         Some(crate::types::TypeDef::Struct(d)) => d,
         _ => {
+            // arc 138: no span — reconstruct_struct operates on parsed OwnedValue, no WatAST
             return Err(EdnReadError::UnknownTag {
                 ns: ns.to_string(),
                 name: name.to_string(),
                 body_shape: "map",
+                span: Span::unknown(),
             });
         }
     };
@@ -759,9 +797,11 @@ fn reconstruct_struct(
     let mut fields: Vec<Value> = Vec::with_capacity(def.fields.len());
     for (fname, fty) in &def.fields {
         let fv = by_key.get(fname.as_str()).ok_or_else(|| {
+            // arc 138: no span — reconstruct_struct operates on parsed OwnedValue, no WatAST
             EdnReadError::UnknownStructField {
                 type_path: path.clone(),
                 key: fname.clone(),
+                span: Span::unknown(),
             }
         })?;
         let inner = edn_to_value(fv, Some(types))?;
@@ -804,10 +844,12 @@ fn reconstruct_enum_tagged(
     let def = match types.get(&path) {
         Some(crate::types::TypeDef::Enum(d)) => d,
         _ => {
+            // arc 138: no span — reconstruct_enum_tagged operates on parsed OwnedValue, no WatAST
             return Err(EdnReadError::UnknownTag {
                 ns: ns.to_string(),
                 name: variant_name.to_string(),
                 body_shape: "vector",
+                span: Span::unknown(),
             });
         }
     };
@@ -818,9 +860,13 @@ fn reconstruct_enum_tagged(
             crate::types::EnumVariant::Unit(n) => n == variant_name,
             crate::types::EnumVariant::Tagged { name, .. } => name == variant_name,
         })
-        .ok_or_else(|| EdnReadError::EnumVariantNotFound {
-            type_path: path.clone(),
-            variant: variant_name.to_string(),
+        .ok_or_else(|| {
+            // arc 138: no span — reconstruct_enum_tagged operates on parsed OwnedValue, no WatAST
+            EdnReadError::EnumVariantNotFound {
+                type_path: path.clone(),
+                variant: variant_name.to_string(),
+                span: Span::unknown(),
+            }
         })?;
     // Arc 113 slice 3 — Option-aware field wrapping (same shape as
     // reconstruct_struct). Variant field types come from
@@ -855,10 +901,12 @@ fn reconstruct_enum_unit(
     let def = match types.get(&path) {
         Some(crate::types::TypeDef::Enum(d)) => d,
         _ => {
+            // arc 138: no span — reconstruct_enum_unit operates on parsed OwnedValue, no WatAST
             return Err(EdnReadError::UnknownTag {
                 ns: ns.to_string(),
                 name: variant_name.to_string(),
                 body_shape: "nil",
+                span: Span::unknown(),
             });
         }
     };
@@ -869,9 +917,13 @@ fn reconstruct_enum_unit(
             crate::types::EnumVariant::Unit(n) => n == variant_name,
             crate::types::EnumVariant::Tagged { name, .. } => name == variant_name,
         })
-        .ok_or_else(|| EdnReadError::EnumVariantNotFound {
-            type_path: path.clone(),
-            variant: variant_name.to_string(),
+        .ok_or_else(|| {
+            // arc 138: no span — reconstruct_enum_unit operates on parsed OwnedValue, no WatAST
+            EdnReadError::EnumVariantNotFound {
+                type_path: path.clone(),
+                variant: variant_name.to_string(),
+                span: Span::unknown(),
+            }
         })?;
     Ok(Value::Enum(Arc::new(crate::runtime::EnumValue {
         type_path: path,
@@ -1190,10 +1242,12 @@ fn edn_to_holon_ast(edn: &OwnedValue) -> Result<Arc<holon::HolonAST>, EdnReadErr
         OwnedValue::Tagged(tag, body) if tag.namespace() == "wat-edn.holon" => {
             edn_holon_tag_to_ast(tag.name(), body)
         }
+        // arc 138: no span — edn_to_holon_ast walks parsed OwnedValue, no WatAST in scope
         _ => Err(EdnReadError::Other(
             "expected #wat-edn.holon/* tagged form for HolonAST round-trip; \
              use edn_to_holon_ast_natural for the tagless read"
                 .into(),
+            Span::unknown(),
         )),
     }
 }
@@ -1232,10 +1286,11 @@ fn edn_to_holon_ast_natural(edn: &OwnedValue) -> Result<Arc<holon::HolonAST>, Ed
         // Anything else (Map, Vector, Tagged with non-holon ns,
         // Nil, Char, Symbol, BigInt, BigDec, Inst, Set) doesn't
         // correspond to a HolonAST shape in the natural form.
+        // arc 138: no span — edn_to_holon_ast_natural walks parsed OwnedValue, no WatAST
         _ => Err(EdnReadError::Other(format!(
             "natural-form HolonAST read can't lift this EDN shape; \
              expected primitive leaf or #wat-edn.holon/* tagged composite"
-        ))),
+        ), Span::unknown())),
     }
 }
 
@@ -1277,10 +1332,12 @@ fn edn_holon_tag_to_ast(
             let child = edn_to_holon_ast(&items[0])?;
             let k = match &items[1] {
                 OwnedValue::Integer(n) => *n as i32,
+                // arc 138: no span — edn_holon_tag_to_ast walks parsed OwnedValue, no WatAST
                 _ => {
                     return Err(EdnReadError::Other(
                         "#wat-edn.holon/Permute body[1] must be an Integer (k)"
                             .into(),
+                        Span::unknown(),
                     ));
                 }
             };
@@ -1296,18 +1353,22 @@ fn edn_holon_tag_to_ast(
             let w1 = match &items[2] {
                 OwnedValue::Float(x) => *x,
                 OwnedValue::Integer(n) => *n as f64,
+                // arc 138: no span — edn_holon_tag_to_ast walks parsed OwnedValue, no WatAST
                 _ => {
                     return Err(EdnReadError::Other(
                         "#wat-edn.holon/Blend body[2] must be a Float (w1)".into(),
+                        Span::unknown(),
                     ));
                 }
             };
             let w2 = match &items[3] {
                 OwnedValue::Float(x) => *x,
                 OwnedValue::Integer(n) => *n as f64,
+                // arc 138: no span — edn_holon_tag_to_ast walks parsed OwnedValue, no WatAST
                 _ => {
                     return Err(EdnReadError::Other(
                         "#wat-edn.holon/Blend body[3] must be a Float (w2)".into(),
+                        Span::unknown(),
                     ));
                 }
             };
@@ -1334,17 +1395,19 @@ fn edn_holon_tag_to_ast(
                     _ => {}
                 }
             }
+            // arc 138: no span — edn_holon_tag_to_ast walks parsed OwnedValue, no WatAST
             let min = min.ok_or_else(|| {
-                EdnReadError::Other("#wat-edn.holon/SlotMarker missing :min".into())
+                EdnReadError::Other("#wat-edn.holon/SlotMarker missing :min".into(), Span::unknown())
             })?;
             let max = max.ok_or_else(|| {
-                EdnReadError::Other("#wat-edn.holon/SlotMarker missing :max".into())
+                EdnReadError::Other("#wat-edn.holon/SlotMarker missing :max".into(), Span::unknown())
             })?;
             Ok(Arc::new(HolonAST::SlotMarker { min, max }))
         }
+        // arc 138: no span — edn_holon_tag_to_ast walks parsed OwnedValue, no WatAST
         (other, _) => Err(EdnReadError::Other(format!(
             "#wat-edn.holon/{other}: unrecognized tag or body shape"
-        ))),
+        ), Span::unknown())),
     }
 }
 
@@ -1375,12 +1438,13 @@ fn read_three_floats(
             _ => {}
         }
     }
+    // arc 138: no span — read_three_floats operates on parsed OwnedValue Map entries, no WatAST
     let value = value
-        .ok_or_else(|| EdnReadError::Other(format!("#wat-edn.holon/{op} missing :value")))?;
+        .ok_or_else(|| EdnReadError::Other(format!("#wat-edn.holon/{op} missing :value"), Span::unknown()))?;
     let min = min
-        .ok_or_else(|| EdnReadError::Other(format!("#wat-edn.holon/{op} missing :min")))?;
+        .ok_or_else(|| EdnReadError::Other(format!("#wat-edn.holon/{op} missing :min"), Span::unknown()))?;
     let max = max
-        .ok_or_else(|| EdnReadError::Other(format!("#wat-edn.holon/{op} missing :max")))?;
+        .ok_or_else(|| EdnReadError::Other(format!("#wat-edn.holon/{op} missing :max"), Span::unknown()))?;
     Ok((value, min, max))
 }
 
@@ -1391,7 +1455,8 @@ fn read_three_floats(
 /// column.
 pub fn read_holon_ast_tagged(s: &str) -> Result<Arc<holon::HolonAST>, EdnReadError> {
     let edn = wat_edn::parse_owned(s)
-        .map_err(|e| EdnReadError::Other(format!("EDN parse error: {e}")))?;
+        // arc 138: no span — read_holon_ast_tagged operates on a raw &str with no WatAST trace
+        .map_err(|e| EdnReadError::Other(format!("EDN parse error: {e}"), Span::unknown()))?;
     edn_to_holon_ast(&edn)
 }
 
@@ -1402,7 +1467,8 @@ pub fn read_holon_ast_tagged(s: &str) -> Result<Arc<holon::HolonAST>, EdnReadErr
 /// `:wat::edn::NoTag` column.
 pub fn read_holon_ast_natural(s: &str) -> Result<Arc<holon::HolonAST>, EdnReadError> {
     let edn = wat_edn::parse_owned(s)
-        .map_err(|e| EdnReadError::Other(format!("EDN parse error: {e}")))?;
+        // arc 138: no span — read_holon_ast_natural operates on a raw &str with no WatAST trace
+        .map_err(|e| EdnReadError::Other(format!("EDN parse error: {e}"), Span::unknown()))?;
     edn_to_holon_ast_natural(&edn)
 }
 
@@ -1435,5 +1501,35 @@ fn holon_ast_to_edn_notag(h: &holon::HolonAST) -> OwnedValue {
         // Composites: keep the tag so the operation's identity
         // survives the strip — same rule that keeps :Result tagged.
         _ => holon_ast_to_edn(h),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ─── Arc 138 canary ─────────────────────────────────────────────────
+
+    #[test]
+    fn arc138_edn_read_error_message_carries_span() {
+        // Trigger NoTypeRegistry — call read_edn with a tagged value but
+        // no type registry. The error variant carries Span::unknown()
+        // (pattern E — raw EDN string has no WatAST origin). The Display
+        // arm prefixes span_prefix, which returns "" for unknown spans.
+        // This canary verifies the variant structurally carries a span and
+        // that Display still renders without panic.
+        let result = read_edn("#unknown/Type {}", None);
+        let err = result.unwrap_err();
+        let rendered = format!("{}", err);
+        assert!(
+            matches!(err, EdnReadError::NoTypeRegistry(_)),
+            "expected NoTypeRegistry, got: {:?}",
+            err
+        );
+        assert!(
+            rendered.contains("no type registry"),
+            "expected NoTypeRegistry message; got: {}",
+            rendered
+        );
     }
 }
