@@ -1,38 +1,49 @@
 # Arc 130 Slice 1 — Pre-handoff expectations
 
-**Refreshed 2026-05-02** after the deadlock-class chain (arcs
-131 / 132 / 133 / 134) shipped. Original was written
-2026-05-01 mid-pause; this version restarts the handoff with
-the post-chain context. Durable scorecard.
+**Refreshed 2026-05-02 (evening)** after arc 135 slice 1's
+complectens sweep reshaped the LRU test file from a single
+round-trip into a 4-helper / 5-deftest compositional structure
+(per arc 130 REALIZATIONS.md). Workspace baseline re-locked
+against the post-arc-135 state.
+
+**Refreshed 2026-05-02 (early)** after the deadlock-class
+chain (arcs 131 / 132 / 133 / 134) shipped. Restart with
+post-chain context.
 
 **Brief:** `BRIEF-SLICE-1.md`
 **Output:** `crates/wat-lru/wat/lru/CacheService.wat` +
 `crates/wat-lru/wat-tests/lru/CacheService.wat` modifications +
 ~250-word written report.
 
-## Setup — workspace state pre-spawn
+## Setup — workspace state pre-spawn (verified 2026-05-02 evening)
 
 - LRU substrate uses pre-arc-130 shape (HandlePool<ReqTx>,
   per-verb reply types, embedded reply-tx in Request).
-- LRU's single deadlock-class test carries
-  `:should-panic("channel-pair-deadlock")` from arc 126 slice
-  2. The 200ms default time-limit (arc 132) means an explicit
-  `:time-limit` annotation is needed only for tests that
-  actually exceed 200ms; the cache test should not.
-- HolonLRU's tests: same `:should-panic` shape on 5 tests + 1
-  in `proofs/arc-119/step-B-single-put.wat`. Slice 2 of arc
+- LRU test file: 4-helper / 5-deftest compositional structure
+  per arc 135 slice 1's complectens shape (file header
+  documents the layers). All 5 deftests carry
+  `:should-panic("channel-pair-deadlock")` because the shared
+  prelude includes Layer 1+ helpers with `make-bounded-channel`
+  calls. The 200ms default time-limit (arc 132) is in force;
+  no explicit `:time-limit` annotations on the file.
+- HolonLRU's tests: similar `:should-panic` shape on 5 tests +
+  1 in `proofs/arc-119/step-B-single-put.wat`. Slice 2 of arc
   130 (separate session) reshapes HolonLRU.
 - Arc 131's check fires on `HandlePool<Handle<K,V>>` siblings
-  to `Thread/join-result` — the rewritten test MUST use the
-  canonical inner-let* nesting pattern from SERVICE-
-  PROGRAMS.md § "The lockstep" (arc 131 slice 2 swept other
-  consumer tests to this shape).
-- Workspace test green: `cargo test --release --workspace`
-  exit=0; 100 `test result: ok` blocks; 1765 total individual
-  tests passed; 6 should-panic tests pass via the panic; 1
-  ignored (arc-122 mechanism).
+  to `Thread/join-result` — the existing helpers ALREADY use
+  inner-let* nesting per SERVICE-PROGRAMS.md § "The lockstep"
+  (arc 131 slice 2 swept it across all consumer tests + arc
+  135 preserved it through the layered split).
+- Workspace test green:
+  - `cargo test --release --workspace`: exit=0
+  - 103 `test result: ok` lines
+  - **1820 passed**, 0 failed, **1 ignored** (arc-122 mechanism)
+  - **19 `should panic` markers** total across the workspace
+- LRU package baseline: `cargo test --release -p wat-lru` →
+  12 passed, 0 failed, 0 ignored, **5 `should panic` markers**
+  on the deadlock-class deftests.
 
-## Hard scorecard (10 rows)
+## Hard scorecard (11 rows)
 
 | # | Criterion | Pass condition |
 |---|---|---|
@@ -43,13 +54,15 @@ the post-chain context. Durable scorecard.
 | 5 | Request enum simplification | `Request<K,V>` enum no longer carries embedded `reply-tx` or `ack-tx` fields. Variants are `(Get (probes :Vec<K>))` and `(Put (entries :Vec<Entry<K,V>>))`. |
 | 6 | PutAck typealiases retired | `:wat::lru::PutAckTx`, `:PutAckRx`, `:PutAckChannel` no longer present in the substrate file. `grep -c "PutAck" crates/wat-lru/wat/lru/CacheService.wat` should return 0 OR refer only to the new `Reply::PutAck` variant. |
 | 7 | Helper-verb signatures reshape | `:wat::lru::get<K,V>` and `:wat::lru::put<K,V>` take `(handle :Handle<K,V>)` as their first parameter, NOT `(req-tx, reply-tx, reply-rx)` or `(req-tx, ack-tx, ack-rx)`. |
-| 8 | **`cargo test --release -p wat-lru --test test`** | Exit=0; 8 passed; 0 failed; 0 ignored. The `test-cache-service-put-then-get-round-trip` test reports `... ok` (NOT `... ok (should panic)`). |
-| 9 | **`cargo test --release --workspace`** | Exit=0; 100 `test result: ok` lines (or close); HolonLRU's 6 tests STILL `should panic` (not affected by this slice). 1 ignored (arc-122 mechanism test). |
-| 10 | Honest report | 200-word report includes: file:line refs for the new typealiases + the reshaped Spawn + Request enum + helper-verb signatures; the exact final form of the Reply enum + Handle typealias + get signature; the driver-loop reshape note (how DriverPair is indexed); test totals; arc-126 check status; honest deltas (anything Console's pattern didn't directly transcribe). |
+| 8 | **`cargo test --release -p wat-lru`** | Exit=0; **12 passed; 0 failed; 0 ignored; 0 should-panic markers in output.** ALL 5 deadlock-class tests (`test-lru-spawn-and-shutdown`, `test-lru-spawn-then-put`, `test-lru-spawn-then-get`, `test-lru-spawn-put-then-get`, `test-cache-service-put-then-get-round-trip`) report plain `... ok` — NOT `... ok (should panic)`. The Final test's `assert-eq` passes (`Some Some 42`). |
+| 9 | **`cargo test --release --workspace`** | Exit=0; **1820 passed; 0 failed; 1 ignored** (arc-122 mechanism); ~103 `test result: ok` lines; **14 `should panic` markers remaining** (was 19 pre-slice; the 5 LRU markers retired; the 14 in HolonLRU + step-B + others stay until slice 2). |
+| 10 | **Complectens preserved** | The 4-helper / 5-deftest layered structure of the test file STAYS. No helpers merged. No layers collapsed. No new `make-deftest` factory needed. Deftest names unchanged. Layer 0 helper still does pure lifecycle (no `make-bounded-channel`, just spawn → pop-then-finish → join). Layers 1a/1b/2 helpers update verb signatures + drop channel-pair allocations. Verifiable: `grep -c "deftest" crates/wat-lru/wat-tests/lru/CacheService.wat` returns same count as baseline (5). |
+| 11 | Honest report | 200-word report includes: file:line refs for the new typealiases + the reshaped Spawn + Request enum + helper-verb signatures; the exact final form of the Reply enum + Handle typealias + get signature; the driver-loop reshape note (how DriverPair is indexed); test totals; arc-126 check status; honest deltas (anything Console's pattern didn't directly transcribe). |
 
-**Hard verdict:** all 10 must pass for slice 1 to ship clean.
-Row 8 + 9 are load-bearing — they validate the redesign at
-runtime end-to-end.
+**Hard verdict:** all 11 must pass for slice 1 to ship clean.
+Rows 8 + 9 are load-bearing for runtime correctness; row 10 is
+load-bearing for the test-shape discipline (complectens
+preservation — the layered structure stays).
 
 ## Soft scorecard (6 rows)
 
@@ -66,26 +79,35 @@ runtime end-to-end.
 
 Before reading the agent's output, the orchestrator predicts:
 
-- **Most likely (~50%):** all 10 hard + 5-6 soft pass cleanly.
-  Console's pattern transcribes well; the Reply enum unification
-  is the only real new substrate concept; sonnet ships in
-  10-20 min.
-- **Second-most-likely (~30%):** 9-10 hard pass + soft drift on
-  Console-pattern-fidelity (sonnet invents a slightly different
-  shape because Console doesn't have a multi-verb Reply pattern).
-  Outcome still committable.
-- **Driver-loop reshape difficulty (~12%):** 8 of 10 hard pass;
+- **Most likely (~55%):** all 11 hard + 5-6 soft pass cleanly.
+  Console's pattern transcribes well; the test file's existing
+  layered structure makes the test-side reshape mechanical
+  (4 helper updates + 5 annotation drops); Reply enum
+  unification is the only real new substrate concept; sonnet
+  ships in 10-20 min. The arc-135-shipped layered shape +
+  /complectens SKILL pre-read gives sonnet a clear discipline
+  to preserve.
+- **Second-most-likely (~25%):** 10-11 hard pass + soft drift
+  on Console-pattern-fidelity (sonnet invents a slightly
+  different shape because Console doesn't have a multi-verb
+  Reply pattern). Outcome still committable.
+- **Driver-loop reshape difficulty (~12%):** 9 of 11 hard pass;
   the driver-loop's pair-by-index logic doesn't quite match
-  Console's pattern (Console is single-verb-unit-reply; cache is
-  multi-verb-with-Reply-enum-dispatch). Sonnet may need to
-  invent a shape that select-by-index + dispatch-by-Reply-variant
-  composes correctly. If row 8 (LRU green) fails, this is the
-  failure mode; surface in the report and we open arc 131.
-- **Type-system surprise (~8%):** the `Reply<V>` enum's
+  Console's pattern (Console is single-verb-unit-reply; cache
+  is multi-verb-with-Reply-enum-dispatch). Sonnet may need to
+  invent a shape that select-by-index + dispatch-by-Reply-
+  variant composes correctly. If row 8 (LRU green) fails,
+  this is the failure mode; surface in the report and we open
+  a follow-on arc.
+- **Complectens drift (~5%):** sonnet collapses the layered
+  structure (merges helpers, drops a deftest, restructures the
+  factory). Row 10 fails; row 8 may still pass. The reland
+  brief encodes the discipline more emphatically.
+- **Type-system surprise (~3%):** the `Reply<V>` enum's
   parametric instantiation might not unify cleanly with
-  generic Sender<...> typing in some place we didn't anticipate.
-  Sonnet would surface this with a specific compile error;
-  another arc opens.
+  generic Sender<...> typing in some place we didn't
+  anticipate. Sonnet would surface this with a specific
+  compile error; another arc opens.
 
 ## Methodology
 
@@ -94,13 +116,16 @@ After the agent reports back, the orchestrator MUST:
 1. Read this file FIRST.
 2. Score each row of both scorecards explicitly.
 3. Diff via `git diff --stat` (expect 2 files, both LRU).
-4. Verify hard rows 2-7 by `grep -n` for the new
-   typealiases.
+4. Verify hard rows 2-7 by `grep -n` for the new typealiases
+   in the substrate file.
 5. Verify hard rows 8 + 9 by reading the cargo-test totals
-   from the agent's report.
-6. Verify hard row 10 by reading the report itself for
+   from the agent's report (and re-running locally to confirm).
+6. Verify hard row 10 (complectens preserved) by `grep -c
+   "deftest" crates/wat-lru/wat-tests/lru/CacheService.wat` →
+   should equal baseline 5.
+7. Verify hard row 11 by reading the report itself for
    completeness.
-7. Score; commit SCORE-SLICE-1.md as a sibling.
+8. Score; commit SCORE-SLICE-1.md as a sibling.
 
 ## Why this slice matters for the chain
 
