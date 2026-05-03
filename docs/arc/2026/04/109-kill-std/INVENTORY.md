@@ -1166,6 +1166,93 @@ hint helpers redirecting to the new namespace-level form):
   Slice K is the inverse: when there's NO real Type, the
   `/`-suggesting form retires.
 
+## L. Substrate verb-naming consistency — DEBATE LATER (not blocker)
+
+**Surfaced 2026-05-03 mid-arc-146 slice 4 + the unified-alias
+discussion.** Recorded so future-us doesn't forget; not
+immediate; not a blocker for arc 109 v1 closure.
+
+### The observation
+
+Substrate has a NAMING TENSION between two conventions:
+
+**Hyphenated** `<verb>-<noun>` (newer arc-substrate convention):
+- `:wat::runtime::define-alias` (arc 143)
+- `:wat::core::define-dispatch` (arc 146 slice 1b — hyphenated
+  per user direction; gaze-justified rename from `defdispatch`)
+
+**Single-word** Lisp-historical compressions (older inherited):
+- `:wat::core::typealias`
+- `:wat::core::defmacro`
+- `:wat::core::newtype`
+
+### Per gaze
+
+- `typealias` — Level 2 mumble for non-Lisp readers; specialist
+  compression
+- `type-alias` — obvious; parallels `define-alias`; reads as
+  "alias for a type"
+- `defmacro` / `newtype` — same Lisp-tradition single-word
+  shape; same tension
+- Hyphenated forms (`def-macro`, `new-type`) parallel the newer
+  convention
+
+The substrate's INTERNAL consistency favors hyphenated. Older
+single-word forms are inherited convention from Lisp ancestry.
+
+### Candidate renames (in user-benefit order)
+
+1. **`:wat::core::typealias` → `:wat::core::type-alias`** —
+   highest user-facing benefit. Aligns with the short-form-lib
+   direction (lib authors write `(:type-alias :hash-map :HashMap)`
+   alongside `(:define-alias :+ :i64::+)` — uniform parallel
+   verb shape across kinds of alias).
+2. **`:wat::core::defmacro` → `:wat::core::def-macro`** — same
+   tension; broader sweep (every macro definition site uses
+   defmacro). Lower urgency.
+3. **`:wat::core::newtype` → `:wat::core::new-type`** — same
+   tension; bigger sweep (every newtype declaration). Lower
+   urgency.
+
+### Migration shape (when we get to it)
+
+Per arc 109 K.* slice pattern + arc 110 Pattern 2 deprecation
+poison:
+- New name registered as canonical
+- Old name gets `TypeMismatch` synthetic + redirect (continues
+  to dispatch; user sees migration message at every call site)
+- Substrate stdlib swept (lab-side out of scope per arc 109's
+  charter; lab catches up on its own schedule)
+- Old name retired after sweep verified zero callers
+
+Each rename is a small slice (~50-150 LOC depending on call-site
+count).
+
+### Status: DEBATE LATER
+
+User direction 2026-05-03: *"add some notes to 109 — we'll
+debate this much later — this is good context — i don't want
+to forget but its not an immediate problem to address."*
+
+NOT a blocker for arc 109 v1 closure. When we DO debate:
+- Decide how broadly to apply the hyphenated convention (just
+  type-alias? typealias + defmacro? + newtype?)
+- Sequence the slices (typealias first per highest user-benefit)
+- Decide whether the renames happen pre-closure or as a
+  post-arc-109 follow-up
+- Cross-reference arc 146 slice 1b's gaze precedent
+  (`Multimethod → Dispatch` + `defdispatch → define-dispatch`)
+  as the discipline anchor
+
+### Cross-references
+
+- arc 146 slice 1b — gaze ward precedent for substrate name
+  rename based on Level 2 mumble detection
+- arc 110 — Pattern 2 deprecation poison mechanism
+- arc 143 — `:wat::runtime::define-alias` (the canonical
+  hyphenated `<verb>-<noun>` form that the alignment compares
+  against)
+
 ## Cross-references
 
 - Arc 005 — stdlib naming audit (the inventory this arc updates).
