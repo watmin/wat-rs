@@ -75,26 +75,26 @@ Slice 2 SCORE: 8/8 hard + 4/4 soft. New SKILL delta surfaced: embedded literals 
 
 Slice 3 SCORE: 8/8 hard + 4/4 soft. Substrate-level delta surfaced — generic-T 3-tuple return doesn't propagate; workaround is concrete non-generic helpers + nested 2-tuple returns. Filed separately (NOT a SKILL refinement).
 
-### `crates/wat-holon-lru/wat-tests/holon/lru/HologramCache.wat`
+### ✓ `crates/wat-holon-lru/wat-tests/holon/lru/HologramCache.wat` — shipped 2026-05-03 (arc 135 slice 4)
 
 - 🟡 L74 `:wat-tests::holon::HologramCache::test-lru-evicts-from-hologram` body=35
 - 🟡 L115 `:wat-tests::holon::HologramCache::test-get-bumps-lru` body=35
 
 Both at the suspect threshold; phase-2 judgment may exempt them as inherently complex match expressions on cache state.
 
-### `crates/wat-holon-lru/wat-tests/proofs/arc-119/step-B-single-put.wat`
+### ✓ `crates/wat-holon-lru/wat-tests/proofs/arc-119/step-B-single-put.wat` — exempt 2026-05-03 (arc 135 slice 4; proof-stepping-stones)
 
 - 🟡 L25 `:step_B_single_put` body=43
 
 Arc 119 stepping-stone proof. Already in stepping-stone shape; the body is the proof's content. Phase-2 may exempt.
 
-### `wat-tests/stream.wat`
+### ✓ `wat-tests/stream.wat` — exempt 2026-05-03 (arc 135 slice 4; inline-fixtures)
 
 - 🟡 L81 `:wat-tests::std::stream::test-with-state-dedupe-adjacent` body=31
 
 Stream pipeline test; likely simple to factor.
 
-### `wat-tests/test.wat`
+### ✓ `wat-tests/test.wat` — exempt 2026-05-03 (arc 135 slice 4; embedded-program ×4)
 
 - 🟡 L191 `:wat-tests::std::test::test-assert-stderr-matches-fail-reports-pattern` body=42
 - 🟡 L114 `:wat-tests::std::test::test-assert-coincident-fail-renders-explanation` body=36
