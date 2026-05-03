@@ -6081,6 +6081,150 @@ fn primitive_to_define_ast(name: &str, scheme: &crate::check::TypeScheme) -> Wat
     )
 }
 
+// ─── Arc 144 slice 1 — emission helpers for Macro + Type variants ───────────
+//
+// Slice 1 extends the arc-143 emission helpers
+// (`function_to_signature_ast`, `function_to_define_ast`,
+// `type_scheme_to_signature_ast`, `primitive_to_define_ast`) with
+// sibling helpers for the two NEW kinds reflection now covers:
+// `Macro` and `Type`. Each helper renders a WatAST whose shape matches
+// what its declaration form looks like in source:
+//
+// - `macrodef_to_define_ast` → `(:wat::core::defmacro <head> <template>)`
+// - `macrodef_to_signature_ast` → just the head Bundle
+// - `typedef_to_define_ast` → `(:wat::core::struct|enum|newtype|typealias :Name<T...> ...)`
+//   with a sentinel body slot (real field emission is a future arc)
+// - `typedef_to_signature_ast` → the bare type head as a single-element Bundle
+//
+// Honest-sentinel discipline: the substrate doesn't preserve every
+// detail (e.g. defmacro's per-param `:AST<T>` type isn't tracked
+// separately from the template), so we emit a clearly-marked sentinel
+// shape rather than a half-rendered fiction.
+
+/// Build the signature HEAD for a registered defmacro from its
+/// `MacroDef`. The substrate doesn't track per-parameter `:AST<T>`
+/// type annotations (they're lost after defmacro registration), so
+/// every param gets the honest sentinel `:AST<wat::WatAST>` — the
+/// param IS an AST; the specific T isn't tracked.
+///
+/// Shape: `(<name> (p1 :AST<wat::WatAST>) ... [& (rest :AST<Vec<wat::WatAST>>)] -> :AST<wat::WatAST>)`.
+fn macrodef_to_signature_ast(def: &crate::macros::MacroDef) -> WatAST {
+    let span = Span::unknown();
+    let ast_kw = WatAST::Keyword(":AST<wat::WatAST>".into(), span.clone());
+    let mut items: Vec<WatAST> = Vec::with_capacity(3 + def.params.len() * 2 + 4);
+    items.push(WatAST::Keyword(def.name.clone(), span.clone()));
+    for p in def.params.iter() {
+        items.push(WatAST::List(
+            vec![
+                WatAST::Symbol(
+                    crate::identifier::Identifier::bare(p.clone()),
+                    span.clone(),
+                ),
+                ast_kw.clone(),
+            ],
+            span.clone(),
+        ));
+    }
+    if let Some(rest) = &def.rest_param {
+        items.push(WatAST::Symbol(
+            crate::identifier::Identifier::bare("&"),
+            span.clone(),
+        ));
+        items.push(WatAST::List(
+            vec![
+                WatAST::Symbol(
+                    crate::identifier::Identifier::bare(rest.clone()),
+                    span.clone(),
+                ),
+                WatAST::Keyword(":AST<Vec<wat::WatAST>>".into(), span.clone()),
+            ],
+            span.clone(),
+        ));
+    }
+    items.push(WatAST::Symbol(
+        crate::identifier::Identifier::bare("->"),
+        span.clone(),
+    ));
+    items.push(ast_kw);
+    WatAST::List(items, span)
+}
+
+/// Build the full `(:wat::core::defmacro <head> <template>)` AST for
+/// a registered defmacro. The template is the stored `def.body` WatAST
+/// verbatim (the same value the expander uses).
+fn macrodef_to_define_ast(def: &crate::macros::MacroDef) -> WatAST {
+    let head = macrodef_to_signature_ast(def);
+    let body = def.body.clone();
+    WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::defmacro".into(), Span::unknown()),
+            head,
+            body,
+        ],
+        Span::unknown(),
+    )
+}
+
+/// Build the signature HEAD for a `TypeDef`. Unlike functions and
+/// macros, type "signatures" are just the type's name keyword + its
+/// optional `<T,U,...>` parametric suffix — types declare a name
+/// shape, not a callable arity. Wrapping the head in a single-element
+/// List keeps the surface uniform with the function/macro helpers
+/// (always a List around a head Keyword + zero-or-more sub-forms).
+fn typedef_to_signature_ast(def: &crate::types::TypeDef) -> WatAST {
+    let span = Span::unknown();
+    let (base, type_params) = match def {
+        crate::types::TypeDef::Struct(s) => (s.name.clone(), &s.type_params),
+        crate::types::TypeDef::Enum(e) => (e.name.clone(), &e.type_params),
+        crate::types::TypeDef::Newtype(n) => (n.name.clone(), &n.type_params),
+        crate::types::TypeDef::Alias(a) => (a.name.clone(), &a.type_params),
+    };
+    let head_kw = if type_params.is_empty() {
+        base
+    } else {
+        format!("{}<{}>", base, type_params.join(","))
+    };
+    WatAST::List(
+        vec![WatAST::Keyword(head_kw, span.clone())],
+        span,
+    )
+}
+
+/// Build the full declaration form for a `TypeDef`. Slice 1 emits a
+/// MINIMAL, honest shape: the correct declaration head keyword
+/// (`:wat::core::struct` / `:wat::core::enum` / `:wat::core::newtype` /
+/// `:wat::core::typealias`) + the type's name + a sentinel body slot
+/// `(:wat::core::__internal/type-decl :Name)` declaring "the real
+/// fields/variants/inner/expr aren't rendered yet — readers know the
+/// declaration head + the type's name; grep for the actual decl in
+/// source." Real field emission is deferred to a future arc; honest
+/// sentinel beats a half-rendered struct.
+fn typedef_to_define_ast(def: &crate::types::TypeDef) -> WatAST {
+    let span = Span::unknown();
+    let head_kw = match def {
+        crate::types::TypeDef::Struct(_) => ":wat::core::struct",
+        crate::types::TypeDef::Enum(_) => ":wat::core::enum",
+        crate::types::TypeDef::Newtype(_) => ":wat::core::newtype",
+        crate::types::TypeDef::Alias(_) => ":wat::core::typealias",
+    };
+    let name_kw = WatAST::Keyword(def.name().to_string(), span.clone());
+    let sentinel = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::__internal/type-decl".into(), span.clone()),
+            WatAST::Keyword(def.name().to_string(), span.clone()),
+        ],
+        span.clone(),
+    );
+    WatAST::List(
+        vec![
+            WatAST::Keyword(head_kw.into(), span.clone()),
+            name_kw,
+            sentinel,
+        ],
+        span,
+    )
+}
+
 /// Extract the name string from a value that may be either a bare keyword
 /// or a function value (arc 009 "names are values" means keywords that
 /// refer to defined functions evaluate to their Function value). Returns
@@ -6093,29 +6237,125 @@ fn name_from_keyword_or_lambda(v: &Value) -> Option<String> {
     }
 }
 
-/// Shared lookup: given a name string, return either
-/// - `Some(LookupResult::UserDefine(f))` — user-defined function in `sym.functions`
-/// - `Some(LookupResult::Primitive(scheme))` — substrate primitive in `CheckEnv`
-/// - `None` — not found anywhere
+// ─── Arc 144 slice 1 — uniform reflection: Binding + lookup_form ────────────
+//
+// Replaces arc 143 slice 1's `LookupResult` (UserDefine / Primitive only)
+// with a uniform `Binding<'a>` enum covering the five known wat form
+// kinds. Every variant carries `name` + the form's backing data (or
+// derived shape) + a `doc_string: Option<String>` slot reserved for
+// arc 141 (always `None` until that arc populates it).
+//
+// The 'a lifetime ties UserFunction / Macro / Type bindings to their
+// SymbolTable-borrowed data; Primitive + SpecialForm own their data
+// (TypeScheme + HolonAST respectively).
+//
+// SpecialForm is the slice-2 territory — slice 1 carries its shape so
+// the dispatch is structurally complete; `lookup_form`'s SpecialForm
+// path returns None today (no registry to walk yet).
+
+/// Arc 144 slice 1 — uniform reflection binding. Every kind of known
+/// wat form (user defines, macros, substrate primitives, special forms,
+/// types) produces a `Binding` when looked up. The reflection-layer
+/// consumers (`lookup-define`, `signature-of`, `body-of`) dispatch on
+/// the variant uniformly — the consumer doesn't case the kinds it
+/// cares about; the data flows through one shape.
 ///
-/// Lookup order matches call-dispatch: user defines shadow builtins.
-fn lookup_callable<'a>(
-    name: &str,
-    sym: &'a SymbolTable,
-) -> Option<LookupResult<'a>> {
-    if let Some(f) = sym.functions.get(name) {
-        return Some(LookupResult::UserDefine(f));
-    }
-    let env = crate::check::CheckEnv::with_builtins();
-    if let Some(scheme) = env.get(name) {
-        return Some(LookupResult::Primitive(scheme.clone()));
-    }
-    None
+/// Each variant carries `doc_string: Option<String>` as the paved road
+/// for arc 141 (docstrings on user defines + macros + substrate
+/// primitives + special forms). Always `None` here in slice 1; arc 141
+/// populates the `Some` cases as docstring sources arrive.
+pub enum Binding<'a> {
+    UserFunction {
+        name: String,
+        f: &'a Arc<Function>,
+        doc_string: Option<String>,
+    },
+    Macro {
+        name: String,
+        def: &'a crate::macros::MacroDef,
+        doc_string: Option<String>,
+    },
+    Primitive {
+        name: String,
+        scheme: crate::check::TypeScheme,
+        doc_string: Option<String>,
+    },
+    SpecialForm {
+        name: String,
+        /// Slice 2 will populate this with synthetic signature ASTs at
+        /// registration time. Slice 1 carries the shape so the
+        /// dispatch arm is structurally present; until slice 2 ships,
+        /// the SpecialForm path of `lookup_form` returns `None` and
+        /// this variant is unreachable in practice.
+        signature: HolonAST,
+        doc_string: Option<String>,
+    },
+    Type {
+        name: String,
+        def: &'a crate::types::TypeDef,
+        doc_string: Option<String>,
+    },
 }
 
-enum LookupResult<'a> {
-    UserDefine(&'a Arc<Function>),
-    Primitive(crate::check::TypeScheme),
+/// Walk every form-kind registry in dispatch order, returning the
+/// first match wrapped in a `Binding`. Lookup precedence mirrors the
+/// runtime's call dispatch:
+///
+/// 1. **User defines** (`sym.functions`) — shadow builtins per
+///    call-dispatch precedent.
+/// 2. **Macros** (`sym.macro_registry`) — only consulted when the
+///    SymbolTable carries a registry (test harnesses sometimes don't).
+/// 3. **Substrate primitives** (`CheckEnv::with_builtins()`) — built
+///    on demand from the canonical scheme registry.
+/// 4. **Types** (`sym.types`) — only consulted when the SymbolTable
+///    carries a type registry.
+/// 5. **Special forms** — slice 2's territory; returns `None` today.
+///
+/// Returns `None` only when every registry misses.
+pub fn lookup_form<'a>(
+    name: &str,
+    sym: &'a SymbolTable,
+) -> Option<Binding<'a>> {
+    // 1. User defines shadow builtins (call-dispatch precedent).
+    if let Some(f) = sym.functions.get(name) {
+        return Some(Binding::UserFunction {
+            name: name.to_string(),
+            f,
+            doc_string: None,
+        });
+    }
+    // 2. Macros — only when a registry is attached.
+    if let Some(reg) = &sym.macro_registry {
+        if let Some(def) = reg.get(name) {
+            return Some(Binding::Macro {
+                name: name.to_string(),
+                def,
+                doc_string: None,
+            });
+        }
+    }
+    // 3. Substrate primitives via on-demand CheckEnv.
+    let env = crate::check::CheckEnv::with_builtins();
+    if let Some(scheme) = env.get(name) {
+        return Some(Binding::Primitive {
+            name: name.to_string(),
+            scheme: scheme.clone(),
+            doc_string: None,
+        });
+    }
+    // 4. Types — only when a type registry is attached.
+    if let Some(types) = &sym.types {
+        if let Some(def) = types.get(name) {
+            return Some(Binding::Type {
+                name: name.to_string(),
+                def,
+                doc_string: None,
+            });
+        }
+    }
+    // 5. SpecialForm registry — slice 2 will populate. Until then no
+    //    special form is reachable through this path.
+    None
 }
 
 /// `(:wat::runtime::lookup-define <name :keyword>) -> :Option<wat::holon::HolonAST>`
@@ -6155,17 +6395,48 @@ fn eval_lookup_define(
             });
         }
     };
-    match lookup_callable(&name, sym) {
-        Some(LookupResult::UserDefine(f)) => {
+    // Arc 144 slice 1 — dispatch on uniform Binding. Each variant
+    // emits its declaration form via the matching helper; SpecialForm
+    // is structurally present (slice 2 will populate the registry).
+    match lookup_form(&name, sym) {
+        Some(Binding::UserFunction { f, .. }) => {
             let ast = function_to_define_ast(f);
             Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
                 Arc::new(watast_to_holon(&ast)),
             )))))
         }
-        Some(LookupResult::Primitive(scheme)) => {
-            let ast = primitive_to_define_ast(&name, &scheme);
+        Some(Binding::Primitive { name: n, scheme, .. }) => {
+            let ast = primitive_to_define_ast(&n, &scheme);
             Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
                 Arc::new(watast_to_holon(&ast)),
+            )))))
+        }
+        Some(Binding::Macro { def, .. }) => {
+            let ast = macrodef_to_define_ast(def);
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&ast)),
+            )))))
+        }
+        Some(Binding::Type { def, .. }) => {
+            let ast = typedef_to_define_ast(def);
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&ast)),
+            )))))
+        }
+        Some(Binding::SpecialForm { name: n, .. }) => {
+            // Slice 2 populates the SpecialForm registry; until then
+            // this arm is unreachable. Sentinel emission keeps the
+            // dispatch structurally complete.
+            let span = Span::unknown();
+            let sentinel = WatAST::List(
+                vec![
+                    WatAST::Keyword(":wat::core::__internal/special-form".into(), span.clone()),
+                    WatAST::Keyword(n, span.clone()),
+                ],
+                span,
+            );
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&sentinel)),
             )))))
         }
         None => Ok(Value::Option(Arc::new(None))),
@@ -6206,17 +6477,38 @@ fn eval_signature_of(
             });
         }
     };
-    match lookup_callable(&name, sym) {
-        Some(LookupResult::UserDefine(f)) => {
+    // Arc 144 slice 1 — dispatch on uniform Binding. SpecialForm
+    // returns its pre-built signature directly (slice 2 populates).
+    match lookup_form(&name, sym) {
+        Some(Binding::UserFunction { f, .. }) => {
             let ast = function_to_signature_ast(f);
             Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
                 Arc::new(watast_to_holon(&ast)),
             )))))
         }
-        Some(LookupResult::Primitive(scheme)) => {
-            let ast = type_scheme_to_signature_ast(&name, &scheme);
+        Some(Binding::Primitive { name: n, scheme, .. }) => {
+            let ast = type_scheme_to_signature_ast(&n, &scheme);
             Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
                 Arc::new(watast_to_holon(&ast)),
+            )))))
+        }
+        Some(Binding::Macro { def, .. }) => {
+            let ast = macrodef_to_signature_ast(def);
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&ast)),
+            )))))
+        }
+        Some(Binding::Type { def, .. }) => {
+            let ast = typedef_to_signature_ast(def);
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&ast)),
+            )))))
+        }
+        Some(Binding::SpecialForm { signature, .. }) => {
+            // Slice 2 populates SpecialForm.signature with a synthetic
+            // HolonAST at registration time; emit it directly.
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(signature),
             )))))
         }
         None => Ok(Value::Option(Arc::new(None))),
@@ -6258,14 +6550,27 @@ fn eval_body_of(
             });
         }
     };
-    match lookup_callable(&name, sym) {
-        Some(LookupResult::UserDefine(f)) => {
+    // Arc 144 slice 1 — dispatch on uniform Binding. Bodies exist for
+    // UserFunction (the wat body) + Macro (the template). Primitive,
+    // Type, and SpecialForm are all body-less in the wat sense:
+    // primitives are Rust-implemented; types declare shapes (no body);
+    // special forms are semantic operations, not data with a body.
+    match lookup_form(&name, sym) {
+        Some(Binding::UserFunction { f, .. }) => {
             let body = (*f.body).clone();
             Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
                 Arc::new(watast_to_holon(&body)),
             )))))
         }
-        Some(LookupResult::Primitive(_)) => Ok(Value::Option(Arc::new(None))),
+        Some(Binding::Macro { def, .. }) => {
+            let body = def.body.clone();
+            Ok(Value::Option(Arc::new(Some(Value::holon__HolonAST(
+                Arc::new(watast_to_holon(&body)),
+            )))))
+        }
+        Some(Binding::Primitive { .. }) => Ok(Value::Option(Arc::new(None))),
+        Some(Binding::Type { .. }) => Ok(Value::Option(Arc::new(None))),
+        Some(Binding::SpecialForm { .. }) => Ok(Value::Option(Arc::new(None))),
         None => Ok(Value::Option(Arc::new(None))),
     }
 }
