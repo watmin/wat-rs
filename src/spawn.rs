@@ -180,33 +180,36 @@ fn spawn_with_world_into_result(
     // work without modification on Process.join.
     let (tx, rx) = crossbeam_channel::bounded::<SpawnOutcome>(1);
 
-    std::thread::spawn(move || {
-        let main_args = vec![
-            Value::io__IOReader(child_stdin),
-            Value::io__IOWriter(child_stdout),
-            Value::io__IOWriter(child_stderr),
-        ];
+    std::thread::Builder::new()
+        .name(format!("wat-thread::{}", op))
+        .spawn(move || {
+            let main_args = vec![
+                Value::io__IOReader(child_stdin),
+                Value::io__IOWriter(child_stdout),
+                Value::io__IOWriter(child_stderr),
+            ];
 
-        // Catch panics in the inner :user::main so the parent's
-        // join surfaces them as data instead of unwinding silently.
-        // AssertUnwindSafe is honest — `world` and `main_args` are
-        // owned by this closure; nothing the caller still references
-        // gets corrupted by a panic-mid-eval.
-        let outcome = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            invoke_user_main(&world, main_args)
-        })) {
-            Ok(Ok(v)) => SpawnOutcome::Ok(v),
-            Ok(Err(e)) => SpawnOutcome::RuntimeErr(e),
-            Err(payload) => {
-                let (message, assertion) = extract_panic_payload(payload);
-                SpawnOutcome::Panic { message, assertion }
-            }
-        };
-        let _ = tx.send(outcome);
-        // Thread closure returns; child-side pipe Arcs drop; child's
-        // stdout / stderr write-ends close; parent's read-line on
-        // those readers returns :None — the drop-cascade contract.
-    });
+            // Catch panics in the inner :user::main so the parent's
+            // join surfaces them as data instead of unwinding silently.
+            // AssertUnwindSafe is honest — `world` and `main_args` are
+            // owned by this closure; nothing the caller still references
+            // gets corrupted by a panic-mid-eval.
+            let outcome = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                invoke_user_main(&world, main_args)
+            })) {
+                Ok(Ok(v)) => SpawnOutcome::Ok(v),
+                Ok(Err(e)) => SpawnOutcome::RuntimeErr(e),
+                Err(payload) => {
+                    let (message, assertion) = extract_panic_payload(payload);
+                    SpawnOutcome::Panic { message, assertion }
+                }
+            };
+            let _ = tx.send(outcome);
+            // Thread closure returns; child-side pipe Arcs drop; child's
+            // stdout / stderr write-ends close; parent's read-line on
+            // those readers returns :None — the drop-cascade contract.
+        })
+        .expect("Thread::Builder::spawn failed");
 
     // Parent-side IO Values — caller writes child's stdin, reads
     // child's stdout / stderr.

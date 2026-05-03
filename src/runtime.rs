@@ -12414,28 +12414,42 @@ fn eval_kernel_spawn_thread(
     let (outcome_tx, outcome_rx) = crossbeam_channel::bounded::<SpawnOutcome>(1);
     let thread_sym = sym.clone();
     let span = crate::rust_caller_span!();
+    // Derive the most informative name: prefer the keyword path from
+    // args[0] (the WAT identifier the caller passed to spawn-thread),
+    // fall back to the function's declared name, then to a generic marker.
+    let thread_fn_name: String = match &args[0] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => body_fn
+            .name
+            .as_deref()
+            .unwrap_or(":wat::kernel::spawn-thread::<anon>")
+            .to_string(),
+    };
     let body_args = vec![
         Value::crossbeam_channel__Receiver(Arc::new(in_rx)),
         Value::crossbeam_channel__Sender(Arc::new(out_tx)),
     ];
-    std::thread::spawn(move || {
-        // Mirror eval_kernel_spawn's catch_unwind: panics in the
-        // body surface as data on the outcome channel rather than
-        // unwinding the thread silently. AssertUnwindSafe is honest;
-        // body_args + thread_sym are owned by this closure, not
-        // shared with the caller post-panic.
-        let outcome = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            apply_function(body_fn, body_args, &thread_sym, span)
-        })) {
-            Ok(Ok(v)) => SpawnOutcome::Ok(v),
-            Ok(Err(e)) => SpawnOutcome::RuntimeErr(e),
-            Err(payload) => {
-                let (message, assertion) = extract_panic_payload(payload);
-                SpawnOutcome::Panic { message, assertion }
-            }
-        };
-        let _ = outcome_tx.send(outcome);
-    });
+    std::thread::Builder::new()
+        .name(format!("wat-thread::{}", thread_fn_name))
+        .spawn(move || {
+            // Mirror eval_kernel_spawn's catch_unwind: panics in the
+            // body surface as data on the outcome channel rather than
+            // unwinding the thread silently. AssertUnwindSafe is honest;
+            // body_args + thread_sym are owned by this closure, not
+            // shared with the caller post-panic.
+            let outcome = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                apply_function(body_fn, body_args, &thread_sym, span)
+            })) {
+                Ok(Ok(v)) => SpawnOutcome::Ok(v),
+                Ok(Err(e)) => SpawnOutcome::RuntimeErr(e),
+                Err(payload) => {
+                    let (message, assertion) = extract_panic_payload(payload);
+                    SpawnOutcome::Panic { message, assertion }
+                }
+            };
+            let _ = outcome_tx.send(outcome);
+        })
+        .expect("Thread::Builder::spawn failed");
     Ok(Value::Struct(Arc::new(StructValue {
         type_name: ":wat::kernel::Thread".into(),
         fields: vec![
@@ -18777,9 +18791,12 @@ mod tests {
         .unwrap();
 
         let cell_clone = Arc::clone(&cell);
-        let handle = std::thread::spawn(move || {
-            cell_clone.with_mut(":test::get", crate::span::Span::unknown(), |n| *n)
-        });
+        let handle = std::thread::Builder::new()
+            .name("wat-thread::thread_owned_cell_crossing_thread_boundary_errors".to_string())
+            .spawn(move || {
+                cell_clone.with_mut(":test::get", crate::span::Span::unknown(), |n| *n)
+            })
+            .expect("Thread::Builder::spawn failed");
         let child_result = handle.join().unwrap();
         assert!(
             matches!(child_result, Err(RuntimeError::MalformedForm { .. })),
