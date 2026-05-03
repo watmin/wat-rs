@@ -193,18 +193,53 @@ The arity-in-name extends to per-Type impls cleanly:
 
 Type/verb/arity. Each piece meaningful.
 
-#### Per-Type impl names (mixed-type combos) — DEFERRED to slice 1
+#### Per-Type impl names (mixed-type combos) — RESOLVED via gaze ward
 
-Mixed-combo impls (i64+f64, f64+i64) don't fit Type/verb
-because they don't BELONG to one Type. Candidates for slice 1
-audit to pick from:
+**Settled 2026-05-03 via gaze ward summoning** (per arc 146 slice
+1b precedent). Three candidates evaluated:
 
-- `:wat::core::i64+f64/2` — single combo token + arity
-- `:wat::core::+/i64-f64/2` — verb-first + type-pair tag + arity
-- `:wat::core::numeric/+/i64-f64/2` — fully namespaced
+- `:wat::core::i64+f64/2` — **L1 LIES.** Slash position promises
+  a verb to its left (per `:+/2`); delivers a fused pair where
+  `+` does double duty as operator AND separator.
+- `:wat::core::numeric/+/i64-f64/2` — **L1 LIES.** The `numeric/`
+  prefix promises a namespace separation that the same-type
+  impls (`:i64/+/2`, `:f64/+/2`) don't carry. False category
+  boundary.
+- `:wat::core::+/i64-f64/2` — **CONVERGES** (L1 = 0; L2 = one
+  learn-once cost — third slash semantic: verb / pair-tag /
+  arity — intrinsic to mixed-combo naming).
 
-Slice 1 brief picks one + applies uniformly across all 4 arith +
-5 comparison ops.
+**Mixed-combo names follow `:wat::core::<verb>/<type-a>-<type-b>/<N>`**
+
+Pattern slots:
+- `<verb>` — the operator (where `:+/2` puts the verb)
+- `<type-a>-<type-b>` — hyphen-joined type pair tag for the
+  CONCRETE combo this impl serves
+- `<N>` — arity (consistent with `:+/2` family)
+
+Examples:
+- `:wat::core::+/i64-f64/2` — (i64, f64) → :f64 — left-to-right
+  signature
+- `:wat::core::+/f64-i64/2` — (f64, i64) → :f64 — distinct from
+  above; not commutative-collapsed (subtraction needs the order
+  preserved; same shape uniformly across arith ops)
+
+Per-arith-op breakdown (4 impls each):
+- `:wat::core::i64/+/2` (i64, i64) → :i64
+- `:wat::core::f64/+/2` (f64, f64) → :f64
+- `:wat::core::+/i64-f64/2` (i64, f64) → :f64
+- `:wat::core::+/f64-i64/2` (f64, i64) → :f64
+
+Total: 4 per-Type impls × 4 arith ops = 16. Plus comparison
+ops (5 × 4 combos each) = 20. ~36 substrate primitives for the
+arithmetic + comparison families.
+
+**Cost acknowledged.** Honest naming carries the cost of being
+explicit. Each name speaks; no name lies.
+
+**Gaze trail:** see arc 146 slice 1b's gaze precedent
+(Multimethod → Dispatch); same ward; same discipline. Ward
+agent: `a73eba99aab6ccec5` (logged for compaction recovery).
 
 #### Documentation responsibility
 
