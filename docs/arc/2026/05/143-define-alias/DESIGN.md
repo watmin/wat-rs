@@ -150,45 +150,131 @@ Two helper functions written in wat (~20 LOC each):
 Both are pure HolonAST manipulation atop existing
 primitives.
 
-## Slices
+## Findings — open questions resolved 2026-05-02 evening
 
-### Slice 1 — substrate primitive `:wat::core::signature-of`
+Filesystem investigation closed Q1 + Q2 before slice 1 brief drafted.
 
-- Add `eval_signature_of` in `runtime.rs` — dispatches to
-  symbol-table lookup, returns the head AST or `:None`.
-- For user defines: extract the head from the stored
-  define AST (need to check how user-define ASTs are
-  preserved — see Open Questions below).
-- For substrate primitives: synthesize the head from the
-  registered TypeScheme — write a `TypeScheme → HolonAST`
-  converter (~30 LOC).
-- Register in dispatch + check.rs scheme.
-- 3-5 unit tests: lookup user-define, lookup substrate
-  primitive, lookup unknown name (None).
+### Q1 — User-define AST preservation: RESOLVED
+
+`Value::wat__core__lambda(Arc<Function>)` per `runtime.rs:158`.
+The `Function` struct (line 499) carries everything we need:
+
+```rust
+pub struct Function {
+    pub name: Option<String>,
+    pub params: Vec<String>,           // ARG NAMES preserved
+    pub type_params: Vec<String>,
+    pub param_types: Vec<TypeExpr>,
+    pub ret_type: TypeExpr,
+    pub body: Arc<WatAST>,             // BODY preserved
+    pub closed_env: Option<Environment>,
+}
+```
+
+For a user-defined function, all three primitives reconstruct
+trivially:
+
+- `signature-of`: build `(name<type_params> (params[i] :param_types[i]) ... -> :ret_type)`
+- `body-of`: return `body` directly
+- `lookup-define`: build `(:define <head> <body>)`
+
+Lookup path: `Environment::lookup(name)` returns
+`Option<Value>` per `runtime.rs:563`. If `Some(Value::wat__core__lambda(f))`,
+reconstruct from `f`.
+
+### Q2 — Arg name preservation in TypeSchemes: RESOLVED via synthesis
+
+TypeScheme (per `check.rs:11200+ foldl registration`) has:
+
+```rust
+TypeScheme {
+    type_params: Vec<String>,
+    params: Vec<TypeExpr>,    // TYPES ONLY, no names
+    ret: TypeExpr,
+}
+```
+
+No param names. For substrate primitives, the three primitives
+synthesize names: `:_a0`, `:_a1`, ..., `:_a<n-1>`. The resulting
+alias body uses the same synthetic names; the generated define
+type-checks identically to the pretty version. Cosmetic loss only.
+
+Future polish (not this arc): extend TypeScheme with
+`Option<Vec<String>>` param names; primitives that want pretty
+aliases register with names. Out of scope.
+
+Lookup path: `env.schemes.get(name)` per `check.rs:1149-1150`.
+Substrate primitives are NOT in `Environment` (env.lookup returns
+None) — they live in the TypeScheme registry.
+
+## Resolution-order semantics
+
+For each primitive's lookup:
+
+1. **First**: check `Environment::lookup(name)` for a user define
+2. **Then**: check `env.schemes.get(name)` for a substrate primitive
+3. **Else**: return `:None`
+
+User defines shadow primitive registrations (matches normal call
+dispatch precedence).
+
+## Slices (revised post-investigation)
+
+### Slice 1 — three substrate primitives (lookup-define, signature-of, body-of)
+
+Combined slice — they share lookup machinery + AST construction
+helpers. Mechanical to ship together.
+
+- Add three `eval_*` functions in `runtime.rs`:
+  - `eval_lookup_define(args, env, sym) -> Result<Value::holon__HolonAST, _>`
+  - `eval_signature_of(args, env, sym)` — same shape
+  - `eval_body_of(args, env, sym)` — same shape, returns `:None`
+    for substrate primitives
+- Helper: `fn function_to_define_ast(f: &Function) -> WatAST` —
+  reconstructs `(:define <head> <body>)` from a user Function.
+- Helper: `fn type_scheme_to_signature_ast(name: &str, scheme: &TypeScheme) -> WatAST` —
+  synthesizes head with `:_aN` names from a TypeScheme.
+- Register all three in:
+  - Runtime dispatch (`runtime.rs` near line 2406+)
+  - Check.rs schemes (each takes `:Symbol -> :Option<HolonAST>`)
+- 6-9 unit tests via `wat-tests/` — for each primitive:
+  - User define lookup → returns expected AST
+  - Substrate primitive lookup → returns synthesized AST
+  - Unknown name → returns `:None`
+  - body-of for substrate primitive → returns `:None`
 
 ### Slice 2 — wat helpers `:rename-callable-name` + `:extract-arg-names`
 
-- New file: `wat/std/ast.wat` (or fold into existing
-  `wat/std/option.wat` next to other AST helpers — TBD).
+- New file: `wat/std/ast.wat`
+- `:rename-callable-name (head :HolonAST) (from :Symbol) (to :Symbol) -> :HolonAST` —
+  substitute the callable name in the signature head.
+- `:extract-arg-names (head :HolonAST) -> :Vec<Symbol>` —
+  return arg-name symbols from `(arg-name :Type)` pairs.
 - ~40 LOC of HolonAST manipulation.
-- 2-3 unit tests via `wat/test.wat`.
+- 2-3 unit tests.
 
 ### Slice 3 — `:wat::core::define-alias` defmacro
 
-- Add to `wat/std/ast.wat` (or wat/core.wat — placement TBD).
-- ~10 LOC of macro body using slice 1 + slice 2.
-- 2-3 unit tests: alias a substrate primitive (foldl ↔
-  reduce); alias a user-define; verify TypeScheme identity
-  via type-check assertion.
+- Add to `wat/std/ast.wat`.
+- ~10 LOC macro body using slice 1 + slice 2 primitives.
+- 2-3 unit tests:
+  - Alias a substrate primitive (`foldl` → `reduce`); verify
+    type-check passes; verify call-site resolves
+  - Alias a user-define; verify the same
+  - Verify TypeScheme identity via a probe test
+    (call site type-checks with the alias the same as the
+    target)
 
 ### Slice 4 — use it
 
 - `(:wat::core::define-alias :wat::core::reduce :wat::core::foldl)`
-  — added to wat/std/ast.wat or wat/core.wat.
-- Re-run cargo test --workspace; verify `:wat::core::reduce`
-  resolves correctly at every call site.
+  in `wat/std/ast.wat` (or `wat/core.wat`).
+- Re-run `cargo test --workspace`; verify `:wat::core::reduce`
+  resolves correctly at the two existing substrate call sites
+  (`crates/wat-lru/wat/lru/CacheService.wat:213` +
+  `crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat:251`).
 - Confirms arc 130's substrate stops failing on the missing-
-  reduce gap.
+  reduce gap; arc 130 slice 1 RELAND can resume Layer 2+.
 
 ### Slice 5 — closure
 
@@ -249,47 +335,7 @@ rename, body delegation. No need to restate signatures.
 No TypeScheme manual entry. Bias-aligned naming becomes a
 one-line fix for the rest of the substrate's life.
 
-## Open questions
-
-### Q1 — User-define AST preservation
-
-`define` evaluates a function and stores it as `Value::Function`
-in the env. Does the stored value carry the original define's
-head AST, or only the body + closed env?
-
-- **If head AST is preserved**: `signature-of` on a user-define
-  is trivial (read from the stored value).
-- **If only body is preserved**: we need to either (a) preserve
-  the head at define-time (small change to the `Value::Function`
-  shape) or (b) maintain a parallel `defines: HashMap<String,
-  WatAST>` registry alongside the env.
-
-Investigate during slice 1's implementation. Either path is
-small.
-
-### Q2 — TypeScheme → HolonAST converter
-
-The TypeScheme is the checker's internal type representation
-(`TypeExpr` per `check.rs`). For `signature-of` to return a
-HolonAST, we need a converter. Roughly:
-
-```rust
-fn type_scheme_to_signature_ast(name: &str, scheme: &TypeScheme) -> WatAST {
-    // Build a list AST: (:name<T,Acc> (arg-name :ArgType) ... -> :Ret)
-    // Type vars come from the scheme's quantified vars.
-    // Arg names: synthesize as :_a0, :_a1, ... (no original names known).
-    // Or: store original arg names alongside the TypeScheme at registration.
-}
-```
-
-Original arg names matter for the alias body (the macro needs
-to splice them as the call's actual args). If they aren't
-preserved, the alias macro generates `(target _a0 _a1 _a2)`
-which works but reads less obviously than `(target xs init f)`.
-
-Investigate at primitive-registration sites: can we preserve
-arg names alongside TypeSchemes? Likely a small addition to
-the registration call.
+## Open questions (Q1, Q2 resolved 2026-05-02 evening — see Findings)
 
 ### Q3 — Placement of the alias macro
 
