@@ -402,6 +402,8 @@ When you are about to delegate to sonnet via the Agent tool:
       scope expansions
 - [ ] BRIEF-SLICE-N.md is committed (not just drafted)
 - [ ] EXPECTATIONS-SLICE-N.md is committed (not just drafted)
+- [ ] EXPECTATIONS includes a runtime-band prediction in the
+      Independent prediction section (e.g., "10-15 min Mode A")
 - [ ] You have grep'd for every primitive/function/behavior the brief
       references
 - [ ] You have verified each one exists and works as the brief assumes
@@ -412,6 +414,54 @@ When you are about to delegate to sonnet via the Agent tool:
       sonnet into a workaround corner
 - [ ] You are spawning with `run_in_background: true`
 - [ ] You have non-overlapping work queued for the time sonnet runs
+- [ ] **You have scheduled a wakeup at 2× the predicted upper-bound**
+      via ScheduleWakeup (the time-box; see "Time-boxing" below)
+
+### Time-boxing every sonnet sweep (the failure-to-communicate detector)
+
+Every sonnet spawn is paired with a `ScheduleWakeup` at **2× the
+predicted upper-bound runtime**. This catches:
+
+- Sonnet stuck in a loop (no output)
+- Sonnet hitting an unforeseen substrate edge it can't escape from
+- Sonnet generating verbose output without progressing
+- Sonnet shipping wrong work that takes a long time
+
+If the wakeup fires AND sonnet hasn't completed, kill it via `TaskStop`
+and score as Mode B-time-violation. The overrun itself is data —
+signals either a brief gap (substrate complexity exceeded the
+prediction), a scope underestimation, or a sonnet looping issue.
+
+**Sample wakeup logic:**
+
+```
+Predicted upper-bound: 15 min
+2× cap: 30 min
+Spawn at T
+Schedule wakeup at T + 30 min (1800 seconds)
+
+On wake-up:
+  if sonnet still running → TaskStop + Mode B-time-violation in SCORE
+  else → no-op (sonnet already returned and was scored normally)
+```
+
+**Real incidents that time-boxing would have caught:**
+
+- **Arc 130 slice 1 first sweep (2026-05-02 morning)**: predicted ~10-25
+  min; ran 4+ hours before user killed. Cost: ~4 hours of wasted
+  context. With 2× cap (50 min): user gets clean diagnostic in <1 hour.
+- **Arc 143 slice 6 first attempt (2026-05-02 evening)**: sonnet ran
+  ~18+ min producing wrong work before completing. Cost: revert + reland.
+  With 2× cap on a predicted 10-15 min sweep (= 30 min): would have
+  been killed before completion if it had stalled, OR completed within
+  budget but flagged as overrun-suspect for closer scoring.
+
+**Calibration loop:**
+
+After each sweep, compare actual runtime to prediction. If actuals are
+trending under the prediction (as in arc 143 slices 1→2→3: 18→12→7.5
+min), tighten future predictions. If actuals are trending over,
+investigate the discipline gap.
 
 ### When sonnet completes
 
