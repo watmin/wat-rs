@@ -1,325 +1,224 @@
-# Arc 143 Slice 6 — Sonnet Brief — define-alias defmacro + apply
+# Arc 143 Slice 6 — Sonnet Brief — `:wat::runtime::define-alias` defmacro
 
-**Drafted 2026-05-02 (evening).** Slice 6 of 7. Slice 1 shipped
-the three substrate query primitives (lookup-define,
-signature-of, body-of) — the introspection bridge from wat
-to runtime. This slice ships the userland define-alias macro
-+ helpers + applies it for `:wat::core::reduce ↔ :wat::core::foldl`.
+**Drafted 2026-05-02 (late evening)** in parallel with slice 3 sweep.
+Substrate-informed: orchestrator crawled the macro precedents
+(`wat/test.wat:387-403`, `wat/holon/Subtract.wat`, etc.), the
+substrate primitives shipped in slices 1+2+3, and the type-registry
+canonicalization (substrate stores bare-name heads; parser accepts
+bare names) BEFORE writing this brief.
 
-**The architectural framing:** wat is closed under macro + AST
-construction. Slice 1 added the OBSERVATION primitives. This
-slice consumes them: a defmacro that LOOKS UP an existing
-function's signature, RENAMES the head, and emits a fresh
-define that delegates. Pure userland wat. The alias is the
-first user of the reflection foundation; future
-reflection-driven macros (sweep generators, spec validators,
-doc extractors) reuse the same pattern.
+**The architectural framing:** slices 1+2+3 ship the substrate
+foundation. Slice 1 added the runtime introspection point-lookups
+(`signature-of`, `lookup-define`, `body-of`). Slice 2 enabled
+computed unquote in defmacro bodies. Slice 3 added HolonAST
+manipulation primitives (`rename-callable-name`,
+`extract-arg-names`). Slice 6 composes them into ONE userland
+defmacro: `:wat::runtime::define-alias`.
 
-**Goal:** four atomic pieces, composed linearly, shipped in
-ONE sweep:
-
-1. `:wat::core::rename-callable-name` (wat helper)
-2. `:wat::core::extract-arg-names` (wat helper)
-3. `:wat::core::define-alias` (defmacro)
-4. `(:wat::core::define-alias :wat::core::reduce :wat::core::foldl)` (the application)
+**Goal:** ship `:wat::runtime::define-alias` as a defmacro in a NEW
+top-level wat file `wat/runtime.wat`. The macro takes two keyword
+arguments (alias-name + target-name) and emits a fresh
+`:wat::core::define` whose head copies the target's signature with
+the alias name substituted, and whose body delegates to the target.
 
 **Working directory:** `/home/watmin/work/holon/wat-rs/`.
 
 ## Required pre-reads (in order)
 
-1. **`docs/arc/2026/05/143-define-alias/DESIGN.md`** —
-   the arc's source of truth (now expanded to full
-   reflection layer). Read the "Findings" section + the
-   "Slice 6" plan + the "Resolution-order semantics" rule.
-2. **`docs/arc/2026/05/143-define-alias/SCORE-SLICE-1.md`**
-   — slice 1's score, with TWO concerns flagged for slice 5/6:
-   - Concern 1 (FQDN rendering): synthesised AST renders
-     `:Vec<T>` not `:wat::core::Vec<T>`. **This slice tests
-     whether that breaks define-alias's generated code.**
-     If it does, STOP — surface the failure; don't fix it
-     here. Slice 5 owns the FQDN fix.
-   - Concern 2 (span discipline): slice 1 used `Span::unknown`
-     per brief permission. NOT your concern — slice 5 fixes.
-3. **`tests/wat_arc143_lookup.rs`** — the 11 tests slice 1
-   shipped. Read them to see the EXACT AST shape the three
-   primitives return. Your helpers + macro work against this
-   shape.
-4. **`src/runtime.rs:5974-6261`** — slice 1's substrate
-   implementations of the three primitives (lookup-define,
-   signature-of, body-of). Optional read; understand the
-   AST construction pattern if you need to debug what
-   signature-of returns.
-5. **`wat/test.wat:387-403`** — the `:wat::test::make-deftest`
-   defmacro. Worked precedent for "macro that builds a
-   define using quasiquote + parameter splicing."
-6. **`docs/arc/2026/04/091-batch-as-protocol/INSCRIPTION.md`**
-   — arc 091 slice 8 documented the quasiquote + struct→form
-   semantics. Skim if quasiquote behavior is unclear.
-7. **`wat/std/option.wat`** + **`wat/std/result.wat`** —
-   stdlib helper precedent. The two new wat helpers + the
-   defmacro live in `wat/std/ast.wat` (NEW file) per the
-   DESIGN's slice 6 placement.
+1. **`docs/arc/2026/05/143-define-alias/DESIGN.md`** — read the
+   slice-6 plan + the post-slice-3 architecture.
+2. **`docs/arc/2026/05/143-define-alias/SCORE-SLICE-1.md`** — slice 1
+   primitives' AST shapes.
+3. **`docs/arc/2026/05/143-define-alias/SCORE-SLICE-2.md`** — slice 2
+   computed-unquote semantics and the head-is-Keyword heuristic.
+4. **`docs/arc/2026/05/143-define-alias/SCORE-SLICE-3.md`** (read
+   when shipped) — slice 3 manipulation primitives' exact APIs.
+5. **`tests/wat_arc143_lookup.rs`** — slice 1 tests; verify the
+   AST shape `signature-of` returns.
+6. **`wat/test.wat:387-403`** — `:wat::test::make-deftest` defmacro,
+   the worked precedent for "macro that builds a define using
+   quasiquote." Note the `:AST<T>` parameter typing.
+7. **`wat/holon/Subtract.wat`** — simple defmacro example for
+   placement style + header comments.
+8. **`src/stdlib.rs:100-130`** — how top-level wat files
+   (`wat/test.wat`, `wat/console.wat`, etc.) are registered. New
+   `wat/runtime.wat` registers similarly.
 
 ## What to ship
 
-### Piece 1 — `:wat::core::rename-callable-name` (wat helper)
+### Piece 1 — Create `wat/runtime.wat` (NEW top-level file)
 
-Signature:
+File header (mirror `wat/test.wat`'s style — short doc comment +
+section markers):
+
 ```scheme
-(:wat::core::define
-  (:wat::core::rename-callable-name
-    (head :wat::holon::HolonAST)
-    (from :wat::core::keyword)
-    (to :wat::core::keyword)
-    -> :wat::holon::HolonAST))
+;; wat/runtime.wat — :wat::runtime::* macros.
+;;
+;; Runtime-discovery + reflection-driven macros built atop the
+;; substrate primitives shipped in arcs 143 slices 1+2+3.
 ```
 
-Takes a signature head AST like
-`(:wat::core::foldl<T,Acc> (_a0 :Vec<T>) ... -> :Acc)` and
-returns the same head with the function name part of the
-first symbol replaced.
+### Piece 2 — `:wat::runtime::define-alias` defmacro
 
-Input: `from = :wat::core::foldl`, `to = :wat::core::reduce`.
-Output head: `(:wat::core::reduce<T,Acc> (_a0 :Vec<T>) ... -> :Acc)`.
+Signature (typed-macros per 058-032):
 
-**The first symbol** in the head is `:wat::core::foldl<T,Acc>`
-— a SINGLE keyword whose string contains both the name and
-type-params. To rename, you need to:
-1. Extract the type-params suffix (everything from `<` onward,
-   if present)
-2. Replace the name part (before `<`) with `to`'s string
-3. Re-attach the type-params suffix
-
-If wat has string primitives (`:wat::core::string::contains?`,
-`:wat::core::string::split`, `:wat::core::string::concat`),
-use them. If they don't exist, **STOP and report** —
-"slice 6 needs string primitives; substrate gap surfaced."
-
-### Piece 2 — `:wat::core::extract-arg-names` (wat helper)
-
-Signature:
-```scheme
-(:wat::core::define
-  (:wat::core::extract-arg-names
-    (head :wat::holon::HolonAST)
-    -> :wat::core::Vector<wat::core::keyword>))
-```
-
-Takes a signature head AST and returns a Vec of arg-name
-keywords. From `(:foldl<T,Acc> (_a0 :Vec<T>) (_a1 :Acc)
-(_a2 :fn(Acc,T)->Acc) -> :Acc)` returns `[:_a0, :_a1, :_a2]`.
-
-Implementation: walk the head's children (it's a
-`HolonAST::Bundle`), skip the first child (the function name
-symbol), filter for `(arg-name :type)` Bundle pairs (skipping
-the `->` symbol and the trailing return-type symbol),
-extract the first element of each pair.
-
-### Piece 3 — `:wat::core::define-alias` (defmacro)
-
-Signature:
 ```scheme
 (:wat::core::defmacro
-  (:wat::core::define-alias
+  (:wat::runtime::define-alias
     (alias-name :AST<wat::core::keyword>)
     (target-name :AST<wat::core::keyword>)
     -> :AST<wat::core::unit>)
-  ...)
+  ...body...)
 ```
 
-Body composes pieces 1 + 2 + slice 1's signature-of:
+Body composition (using slices 1+2+3's primitives):
 
 ```scheme
-;; ROUGH SHAPE — adapt to actual wat semantics:
-(:wat::core::let*
-  (((sig-opt :wat::core::Option<wat::holon::HolonAST>)
-    (:wat::core::signature-of target-name))
-   ((sig :wat::holon::HolonAST)
-    (:wat::core::Option/expect -> :wat::holon::HolonAST
-      sig-opt
-      "define-alias: target name not found in environment"))
-   ((renamed :wat::holon::HolonAST)
-    (:wat::core::rename-callable-name sig target-name alias-name))
-   ((arg-names :wat::core::Vector<wat::core::keyword>)
-    (:wat::core::extract-arg-names sig)))
-  `(:wat::core::define
-     ,renamed
-     (,target-name ,@arg-names)))
+;; Use computed unquote (slice 2) to call substrate primitives
+;; at expand-time, splicing the results into a generated define.
+;;
+;; signature-of returns Option<HolonAST>; we Option/expect to a HolonAST,
+;; then rename + extract-arg-names from it.
+`(:wat::core::define
+   ,(:wat::runtime::rename-callable-name
+      (:wat::core::Option/expect -> :wat::holon::HolonAST
+        (:wat::runtime::signature-of target-name)
+        "define-alias: target name not found in environment")
+      target-name
+      alias-name)
+   (,target-name ,@(:wat::runtime::extract-arg-names
+                     (:wat::core::Option/expect -> :wat::holon::HolonAST
+                       (:wat::runtime::signature-of target-name)
+                       "define-alias: target name not found in environment"))))
 ```
 
-The expansion takes `(:define-alias :reduce :foldl)` and
-produces `(:define (:reduce<T,Acc> (_a0 :Vec<T>) (_a1 :Acc)
-(_a2 :fn(Acc,T)->Acc) -> :Acc) (:foldl _a0 _a1 _a2))`.
-
-**HOW the macro receives args**: per typed-macros (058-032),
-defmacro params are `:AST<T>` typed. `alias-name` and
-`target-name` arrive as AST nodes representing the
-keywords the user wrote. Inside the macro body, calling
-`(:wat::core::signature-of target-name)` evaluates the AST
-to extract the underlying keyword and dispatches.
-
-### Piece 4 — apply
-
-ONE LINE in `wat/std/ast.wat` (or the file where the macro
-is defined):
+The macro expands `(:wat::runtime::define-alias :reduce :foldl)` to:
 
 ```scheme
-(:wat::core::define-alias :wat::core::reduce :wat::core::foldl)
+(:wat::core::define
+  (:reduce<T,Acc>
+    (_a0 :Vec<T>)
+    (_a1 :Acc)
+    (_a2 :fn(Acc,T)->Acc)
+    -> :Acc)
+  (:foldl _a0 _a1 _a2))
 ```
 
-After the macro expansion, `:wat::core::reduce` becomes a
-real callable in the substrate. Calls to `(:wat::core::reduce
-xs init f)` dispatch to the macro-emitted define which
-delegates to `(:wat::core::foldl xs init f)`.
+(or whatever the exact shape is per slice 3's `rename-callable-name`
+output and slice 1's `signature-of` output.)
 
-## Workflow per piece (THE LOAD-BEARING DISCIPLINE)
+### Piece 3 — Register `wat/runtime.wat` in `src/stdlib.rs`
 
-For each of the 4 pieces:
+Add an entry for the new file alongside the existing
+`wat/test.wat`, `wat/console.wat`, etc. entries (around
+`src/stdlib.rs:100-130`).
 
-1. Add the code (helper / macro / application).
-2. Run `cargo test --release --workspace`.
-3. Verify: workspace stays green AT LEAST as much as before
-   (the 1 pre-existing arc 130 stepping-stone failure may
-   FLIP TO PASSING after piece 4 ships — that's the
-   confirmation `:reduce` resolves correctly).
-4. ONLY THEN move to the next piece.
+The exact registration shape mirrors the existing entries — a
+struct/tuple with `path: "wat/runtime.wat"` + `source:
+include_str!("../wat/runtime.wat")`.
 
-For pieces 1 and 2 (helpers), add 2-3 unit tests as you go.
-For piece 3 (macro), add 1-2 expansion tests. For piece 4
-(application), the verification IS the formerly-failing arc
-130 test now passing.
+## Tests
 
-**STOP at first red:** if a piece fails, surface the failure
-+ stop. Do NOT modify the substrate. Do NOT modify slice 1's
-primitives. The failure is data — it surfaces the next gap.
+Add 2-3 tests in a new test file `tests/wat_arc143_define_alias.rs`
+(mirror slice 1 + 3's test placement convention):
+
+1. **Macro expansion test** — verify `(:wat::runtime::define-alias
+   :my::test-alias :wat::core::foldl)` in a deftest body expands to
+   a `(:wat::core::define ...)` form that itself parses + type-checks.
+2. **Functional test** — define a user function `:user::triple` that
+   uses `:my::test-alias` (the alias). Verify the call resolves
+   correctly (delegates to foldl).
+3. **Error case** — `(:wat::runtime::define-alias :a :name-that-does-not-exist)`
+   surfaces a clear error at expand-time (the
+   `define-alias: target name not found` message from `Option/expect`).
 
 ## Constraints
 
-- **Files modified:**
-  - `wat/std/ast.wat` (NEW file, all 4 pieces live here)
-  - Possibly a new test file (`wat-tests/std/ast.wat` or similar)
-  - The expectation: 1 new wat source file + 1 new wat-test
-    file. No Rust changes. No substrate changes.
+- **Files modified:** `wat/runtime.wat` (NEW), `src/stdlib.rs` (1
+  registration entry), `tests/wat_arc143_define_alias.rs` (NEW).
+  No substrate Rust changes.
+- **`wat/std/` is OFF LIMITS.** Arc 109 is killing the `:wat::std::*`
+  namespace. The new file goes at `wat/runtime.wat` (top-level).
+- **Workspace stays GREEN:** `cargo test --release --workspace`
+  exit non-zero only because of the 1 pre-existing arc 130 LRU
+  failure; new tests pass; ZERO new regressions.
 - **No commits, no pushes.**
-- **Workspace stays GREEN at piece 3 ship time** (everything
-  except the arc 130 stepping stone, which should turn green
-  at piece 4 ship). Run `cargo test --release --workspace`
-  after each piece.
-- **STOP at first red.** Don't grind. Surface + report.
 
 ## What success looks like
 
-**Mode A — all 4 pieces ship clean:**
-- 2 wat helpers (rename-callable-name + extract-arg-names) defined
-- 1 defmacro (define-alias) defined
-- 1 apply line ships
-- Workspace test green: `cargo test --release --workspace` exit=0
-- The arc 130 stepping stone test (`deftest_wat_lru_test_lru_raw_send_no_recv`)
-  formerly failing with "unknown function: :wat::core::reduce"
-  now PASSES (or fails differently — see Mode B branches).
-- Slice 6's own tests (helpers + macro expansion) all pass.
+**Mode A — clean ship:**
+- The defmacro is registered in the macro registry at stdlib load.
+- The 2-3 new tests pass.
+- The macro expansion test verifies the emitted define's exact AST
+  shape.
+- The functional test calls the alias and gets the expected result.
 
-**Mode B variants (each is a clean diagnostic, not a failure):**
-- **B-string-primitives**: piece 1 fails because wat lacks
-  string primitives needed for the rename. Surface; opens
-  a follow-on arc.
-- **B-FQDN-rendering**: pieces 1-3 ship; piece 4 emits the
-  alias define; type checker rejects the synthesised head
-  because `:Vec<T>` isn't a known FQDN type. Surface; slice 5
-  takes over.
-- **B-other-substrate-gap**: pieces 1-3 ship; piece 4 reveals
-  some other subtle issue (e.g., the macro expansion fires
-  before signature-of can see the registered foldl primitive,
-  or some quasiquote-arity bug). Surface; opens diagnostic
-  arc.
+**Mode B — FQDN gap surfaces:**
+- The macro expansion succeeds, BUT the emitted define fails to
+  parse / type-check because the head's bare type names
+  (`:Vec<T>`, etc.) don't resolve in the parsing context. STOP and
+  report exactly what failed.
+- This means slice 5a (FQDN rendering fix) is needed BEFORE slice 6
+  ships. The brief said this might happen; clean diagnostic.
 
-**EITHER mode is a successful run.** The reland brief — if
-needed — encodes whatever surfaced.
+**Mode B — type-checker special-case gap:**
+- The macro's body uses `signature-of`, `rename-callable-name`,
+  `extract-arg-names`, `Option/expect`. If the type-checker rejects
+  the body's expression at expand-time (e.g., the special-case for
+  the runtime primitives doesn't extend to nested calls), STOP and
+  report.
+
+EITHER mode is a clean run of the discipline.
 
 ## Reporting back
 
 Target ~250 words:
 
-1. **Piece-by-piece pass/fail roll-up:**
-   ```
-   Piece 1 (rename-callable-name): PASS — N tests
-   Piece 2 (extract-arg-names):    PASS — N tests
-   Piece 3 (define-alias macro):   PASS — N expansion tests
-   Piece 4 (apply :reduce :foldl): PASS — arc 130 stepping
-                                   stone now reports `... ok`
-   ```
-
-2. **Final cargo test totals** for `cargo test --release
-   --workspace`: passed / failed / ignored.
-
-3. **The macro expansion verbatim** — quote the AST that
-   `(:define-alias :reduce :foldl)` expands to. Should look
-   like the rough shape in Piece 3's spec.
-
-4. **The four questions verdict** on the wat code YOU wrote:
-   - Obvious? Does each helper's failure trace name what
-     broke?
-   - Simple? Are bodies one outer let* of 3-7 bindings?
-   - Honest? Do helper names match bodies?
-   - Good UX? Top-down readable; no forward refs?
-
-5. **Honest deltas** — anything you needed to invent or
-   diverge from the brief (e.g., wat string primitives didn't
-   exist where expected; quasiquote arity required wrapping
-   in a different shape; etc.).
-
-6. **File LOC** — wat/std/ast.wat + the test file.
+1. **`wat/runtime.wat` content** verbatim (the file is small; quote
+   it).
+2. **`src/stdlib.rs` change** — line numbers + the new entry.
+3. **The macro expansion verbatim** — what does
+   `(:wat::runtime::define-alias :my::alias :wat::core::foldl)`
+   expand to? Quote the AST.
+4. **Test file content** — name + count of tests.
+5. **Test totals** — `cargo test --release --workspace` passed /
+   failed / ignored. Confirm 1 pre-existing failure unchanged + 0
+   new regressions.
+6. **Honest deltas** — anything you needed to invent or adapt
+   (e.g., the macro body's quasiquote shape, `Option/expect` usage,
+   any FQDN gap if Mode B).
 
 ## Sequencing — what to do, in order
 
-1. Read DESIGN.md + SCORE-SLICE-1.md.
-2. Read tests/wat_arc143_lookup.rs to see the exact AST
-   shape signature-of returns.
-3. Read wat/test.wat:387-403 (make-deftest precedent).
-4. Read wat/std/option.wat for stdlib placement style.
-5. Investigate: do `:wat::core::string::*` primitives exist?
-   Quick grep: `grep -n '"wat::core::string' src/runtime.rs`.
-   If yes, list what's available. If no, surface as a Mode B
-   blocker.
-6. Create `wat/std/ast.wat`. Add Piece 1
-   (`rename-callable-name`). Add 2-3 tests.
-7. Run `cargo test --release --workspace`. Verify Piece 1
-   tests pass.
-8. Add Piece 2 (`extract-arg-names`). Add 2-3 tests.
-9. Run cargo test. Verify Piece 2 tests pass.
-10. Add Piece 3 (`define-alias` defmacro). Add 1-2 expansion
-    tests.
-11. Run cargo test. Verify Piece 3 tests pass + macro
-    expansion produces the expected AST.
-12. Add Piece 4 (one line: `(:define-alias :reduce :foldl)`).
-13. Run cargo test. Verify the arc 130 stepping stone
-    (`deftest_wat_lru_test_lru_raw_send_no_recv`) NOW PASSES
-    (or fails with a DIFFERENT error — Mode B).
-14. Report per "Reporting back."
+1. Read DESIGN.md + SCORE-SLICE-1/2/3 + slice 3's test file (when
+   shipped).
+2. Read `wat/test.wat:387-403` for the make-deftest precedent.
+3. Read `wat/holon/Subtract.wat` for placement style.
+4. Read `src/stdlib.rs:100-130` for registration shape.
+5. Create `wat/runtime.wat` with the header + the defmacro.
+6. Update `src/stdlib.rs` with the registration entry.
+7. Create `tests/wat_arc143_define_alias.rs` with 2-3 tests.
+8. Run `cargo test --release --workspace`.
+9. If Mode A: report success; STOP.
+10. If Mode B: report exactly what failed + hypothesis; STOP. Don't
+    grind.
 
 Then DO NOT commit. Working tree stays modified for the
 orchestrator to score.
 
-## Why this slice matters for the chain
+## Why this slice matters
 
-This slice TESTS whether the substrate-as-teacher cascade
-holds across the full arc 143 stack:
-- Slice 1 shipped the introspection primitives
-- Slice 6 builds the userland macro atop them
-- The arc 130 stepping stone is the END-TO-END verification:
-  if `:reduce` resolves correctly, the chain held.
+Slice 6 is the END-TO-END test of arc 143's substrate-as-teacher
+cascade. Slices 1+2+3 shipped the foundation; slice 6 is the FIRST
+USER. If it ships clean, the whole reflection layer works as
+designed.
 
-If Mode A: the discipline propagates from substrate to
-userland in a single sweep. Arc 130 unblocks. Arc 109 v1
-gets one slice closer. Slices 2/3/4/5 ship as parallel
-breadth/improvement work; slice 7 closes when all done.
+Mode A ships clean → slice 7 (apply :reduce/:foldl) trivially → arc
+130 stepping stone unblocks → arc 109 v1 closes.
 
-If Mode B: a clean diagnostic surfaces; we open the
-appropriate follow-on arc; slice 6 relands; arc 130 still
-unblocks once the diagnostic is closed.
+Mode B with FQDN gap → slice 5a opens, fixes, slice 6 relands.
 
-This is the full failure-engineering chain in motion. Sonnet
-shipped clean for slice 1 from a tight brief; the question
-is whether the same discipline holds when the brief
-composes 4 sequential userland pieces against the substrate
-slice 1 added.
+Mode B with macro-body-typing gap → slice 5b opens, fixes, slice 6
+relands.
+
+Either path is the discipline working. The value is the calibration.

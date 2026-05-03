@@ -3158,6 +3158,50 @@ fn infer_list(
                     args: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
                 });
             }
+            ":wat::runtime::rename-callable-name" => {
+                // Arc 143 slice 3 — rename-callable-name.
+                // (head :HolonAST) (from :keyword) (to :keyword) -> :HolonAST
+                // The first arg is a HolonAST value (may come from
+                // `signature-of` which returns Option<HolonAST>; caller
+                // unwraps it first). We infer all args for side-effects
+                // but do not enforce type constraints — the runtime does
+                // its own validation. Arity must be exactly 3.
+                let expected_arity = 3;
+                if args.len() != expected_arity {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: expected_arity,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                }
+                for arg in args.iter() {
+                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Path(":wat::holon::HolonAST".into()));
+            }
+            ":wat::runtime::extract-arg-names" => {
+                // Arc 143 slice 3 — extract-arg-names.
+                // (head :HolonAST) -> :Vec<keyword>
+                // First arg is a HolonAST (not a keyword), so normal
+                // type-scheme unification would fail on arc-009 call
+                // sites. Infer for side-effects; return the concrete type.
+                if args.len() != 1 {
+                    errors.push(CheckError::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: 1,
+                        got: args.len(),
+                        span: head_span.clone(),
+                    });
+                }
+                if args.len() >= 1 {
+                    let _ = infer(&args[0], env, locals, fresh, subst, errors);
+                }
+                return Some(TypeExpr::Parametric {
+                    head: "Vec".into(),
+                    args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+                });
+            }
             ":wat::core::macroexpand-1" | ":wat::core::macroexpand" => {
                 // Arc 030: macro debugging primitives.
                 // (:wat::core::macroexpand{-1}? <wat::WatAST>) -> :wat::WatAST
@@ -11015,6 +11059,38 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![symbol_ty()],
             ret: opt_holon_ty(),
+        },
+    );
+
+    // Arc 143 slice 3 — HolonAST manipulation primitives.
+    //
+    // rename-callable-name (head :HolonAST) (from :keyword) (to :keyword) -> :HolonAST
+    // extract-arg-names    (head :HolonAST)                               -> :Vec<keyword>
+    //
+    // The type-checker special-case in `infer_list` (check.rs:3126+) bypasses
+    // normal type-unification for these primitives because the first argument
+    // is a HolonAST value (not a plain keyword), which interacts with the arc-009
+    // "names are values" dispatch the same way as the slice-1 introspection
+    // primitives.
+    let holon_ty = || TypeExpr::Path(":wat::holon::HolonAST".into());
+    let vec_kw_ty = || TypeExpr::Parametric {
+        head: "Vec".into(),
+        args: vec![TypeExpr::Path(":wat::core::keyword".into())],
+    };
+    env.register(
+        ":wat::runtime::rename-callable-name".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty(), symbol_ty(), symbol_ty()],
+            ret: holon_ty(),
+        },
+    );
+    env.register(
+        ":wat::runtime::extract-arg-names".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![holon_ty()],
+            ret: vec_kw_ty(),
         },
     );
 

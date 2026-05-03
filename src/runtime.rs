@@ -2411,6 +2411,9 @@ fn dispatch_keyword_head(
         ":wat::runtime::lookup-define" => eval_lookup_define(args, env, sym),
         ":wat::runtime::signature-of" => eval_signature_of(args, env, sym),
         ":wat::runtime::body-of" => eval_body_of(args, env, sym),
+        // Arc 143 slice 3 — HolonAST manipulation primitives.
+        ":wat::runtime::rename-callable-name" => eval_rename_callable_name(args, env, sym),
+        ":wat::runtime::extract-arg-names" => eval_extract_arg_names(args, env, sym),
         // Arc 098 — Clara-style single-item pattern matcher.
         // Both type checker and runtime walk the same pattern grammar
         // via the shared classifier in `crate::form_match`.
@@ -6260,6 +6263,224 @@ fn eval_body_of(
     }
 }
 
+// ─── Arc 143 slice 3 — HolonAST manipulation primitives ─────────────────────
+
+/// Destructure a `HolonAST` into its `Bundle` children. Returns a
+/// `RuntimeError` if the AST is not a `Bundle` variant.
+fn require_bundle<'a>(
+    op: &'static str,
+    holon: &'a HolonAST,
+    arg_span: &Span,
+) -> Result<&'a Vec<HolonAST>, RuntimeError> {
+    match holon {
+        HolonAST::Bundle(children) => Ok(children),
+        _ => Err(RuntimeError::TypeMismatch {
+            op: op.into(),
+            expected: "Bundle (signature head HolonAST)",
+            got: "non-Bundle HolonAST variant",
+            span: arg_span.clone(),
+        }),
+    }
+}
+
+/// Split a symbol string at the first `<`, returning `(base, suffix)`.
+/// `suffix` includes the `<` when present, or is empty when there are
+/// no type-params.
+///
+/// Example: `":wat::core::foldl<T,Acc>"` → `(":wat::core::foldl", "<T,Acc>")`
+/// Example: `":my::fn"` → `(":my::fn", "")`
+fn split_type_params(s: &str) -> (&str, &str) {
+    match s.find('<') {
+        Some(idx) => (&s[..idx], &s[idx..]),
+        None => (s, ""),
+    }
+}
+
+/// `(:wat::runtime::rename-callable-name head from to) -> :wat::holon::HolonAST`
+///
+/// Arc 143 slice 3. Takes a signature head AST (a `Bundle` whose first
+/// `Symbol` child is `"<name><type-params>"`) and returns a new head
+/// with the function-name part replaced.
+///
+/// Steps:
+/// 1. Eval all three args; verify arg types.
+/// 2. Destructure head into Bundle children (error if not Bundle).
+/// 3. Verify children[0] is a Symbol; split it at `<` to separate
+///    base name from type-param suffix.
+/// 4. Verify base == `from` keyword string (colon-prefixed). On mismatch,
+///    error "rename-callable-name: head name does not match `from`".
+/// 5. Construct new first symbol: `to + suffix`.
+/// 6. Rebuild Bundle with [new_symbol, children[1..]].
+fn eval_rename_callable_name(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::runtime::rename-callable-name";
+    if args.len() != 3 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 3,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    // Eval all three args.
+    let head_val = eval(&args[0], env, sym)?;
+    let from_val = eval(&args[1], env, sym)?;
+    let to_val = eval(&args[2], env, sym)?;
+
+    // Extract HolonAST from head arg.
+    let holon_arc = match head_val {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST (signature head)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+
+    // Extract keyword strings from `from` and `to`.
+    // Arc-009: known function names evaluate to their Function value, not
+    // a keyword literal. Use `name_from_keyword_or_lambda` to handle both.
+    let from_str = match name_from_keyword_or_lambda(&from_val) {
+        Some(n) => n,
+        None => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::core::keyword or named function (from name)",
+                got: from_val.type_name(),
+                span: args[1].span().clone(),
+            });
+        }
+    };
+    let to_str = match name_from_keyword_or_lambda(&to_val) {
+        Some(n) => n,
+        None => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::core::keyword or named function (to name)",
+                got: to_val.type_name(),
+                span: args[2].span().clone(),
+            });
+        }
+    };
+
+    // Destructure Bundle; check children[0] is a Symbol.
+    let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
+    if children.is_empty() {
+        return Err(RuntimeError::TypeMismatch {
+            op: OP.into(),
+            expected: "Bundle with at least one Symbol child (the function name)",
+            got: "empty Bundle",
+            span: args[0].span().clone(),
+        });
+    }
+    let first_str = match &children[0] {
+        HolonAST::Symbol(s) => s.as_ref(),
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "Symbol as first Bundle child (the function name)",
+                got: "non-Symbol first child",
+                span: args[0].span().clone(),
+            });
+        }
+    };
+
+    // Split name at `<` to preserve type-param suffix.
+    let (base, suffix) = split_type_params(first_str);
+
+    // Verify base matches `from`.
+    if base != from_str.as_str() {
+        return Err(RuntimeError::MalformedForm {
+            head: OP.into(),
+            reason: format!(
+                "rename-callable-name: head base name '{}' does not match `from` argument '{}'",
+                base, from_str
+            ),
+            span: args[1].span().clone(),
+        });
+    }
+
+    // Construct new first symbol: to + suffix.
+    let new_name = format!("{}{}", to_str, suffix);
+    let new_first = HolonAST::symbol(new_name.as_str());
+
+    // Rebuild Bundle: [new_first] ++ children[1..].
+    let mut new_children: Vec<HolonAST> = Vec::with_capacity(children.len());
+    new_children.push(new_first);
+    new_children.extend_from_slice(&children[1..]);
+
+    Ok(Value::holon__HolonAST(Arc::new(HolonAST::bundle(new_children))))
+}
+
+/// `(:wat::runtime::extract-arg-names head) -> :wat::core::Vector<wat::core::keyword>`
+///
+/// Arc 143 slice 3. Takes a signature head AST and returns a `Vec` of
+/// the arg-name keywords (`:_a0`, `:_a1`, ... or user-defined names).
+///
+/// Algorithm:
+/// 1. Eval and destructure head as Bundle.
+/// 2. Skip children[0] (the function name symbol).
+/// 3. For each remaining child:
+///    - Symbol("->"): STOP collecting (everything after is return type).
+///    - Bundle([Symbol(arg_name), _]): collect arg_name as a keyword.
+///    - Anything else: skip.
+/// 4. Return Vec<Value::keyword>.
+fn eval_extract_arg_names(
+    args: &[WatAST],
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, RuntimeError> {
+    const OP: &str = ":wat::runtime::extract-arg-names";
+    if args.len() != 1 {
+        return Err(RuntimeError::ArityMismatch {
+            op: OP.into(),
+            expected: 1,
+            got: args.len(),
+            span: Span::unknown(),
+        });
+    }
+    let head_val = eval(&args[0], env, sym)?;
+    let holon_arc = match head_val {
+        Value::holon__HolonAST(h) => h,
+        other => {
+            return Err(RuntimeError::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::holon::HolonAST (signature head)",
+                got: other.type_name(),
+                span: args[0].span().clone(),
+            });
+        }
+    };
+    let children = require_bundle(OP, &*holon_arc, &args[0].span())?;
+
+    let mut names: Vec<Value> = Vec::new();
+    // Skip children[0] (function name symbol); walk from index 1.
+    for child in children.iter().skip(1) {
+        match child {
+            // Arrow symbol — stop collecting.
+            HolonAST::Symbol(s) if s.as_ref() == "->" => break,
+            // Arg-pair Bundle: [Symbol(arg_name), Symbol(type)].
+            HolonAST::Bundle(pair) if pair.len() == 2 => {
+                if let HolonAST::Symbol(arg_name) = &pair[0] {
+                    names.push(Value::wat__core__keyword(Arc::new(
+                        arg_name.to_string(),
+                    )));
+                }
+                // If first child isn't a Symbol, skip (not a recognised pair).
+            }
+            // Any other shape: skip.
+            _ => {}
+        }
+    }
+
+    Ok(Value::Vec(Arc::new(names)))
+}
 
 /// Arc 098 — `:wat::form::matches?` runtime walker. Clara-style
 /// single-item pattern matcher.
