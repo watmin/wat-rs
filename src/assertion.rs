@@ -41,6 +41,13 @@ use crate::span::Span;
 /// present, `actual` / `expected` optional (plain `panic!()` and raw
 /// runtime errors don't have them), `location` / `frames` populated
 /// from the wat call stack at panic time (arc 016 slice 2).
+///
+/// Arc 138 F-NAMES-1d — `thread_name` is captured at construction
+/// time (on the panicking thread) so `write_assertion_failure` renders
+/// the correct name even after `panic::resume_unwind` re-panics the
+/// payload on the parent thread (which may have a different or absent
+/// name). The name travels with the payload exactly as `location` and
+/// `frames` do.
 #[derive(Debug, Clone)]
 pub struct AssertionPayload {
     pub message: String,
@@ -66,6 +73,14 @@ pub struct AssertionPayload {
     /// Each element is a runtime `:wat::kernel::ThreadDiedError` /
     /// `:wat::kernel::ProcessDiedError` enum value.
     pub upstream_chain: Option<Vec<Value>>,
+    /// Arc 138 F-NAMES-1d — thread name captured at panic site.
+    /// `std::thread::current().name()` is called here, on the thread
+    /// that constructs the payload (the wat test worker thread, already
+    /// named by F-NAMES-1c). The name travels with the payload through
+    /// `panic::resume_unwind`, so `write_assertion_failure` does NOT
+    /// re-query `thread::current()` on the parent — which would return
+    /// the parent's name or `None` instead of the worker's name.
+    pub thread_name: Option<String>,
 }
 
 /// `(:wat::kernel::assertion-failed! message actual expected)` → `:()`.
@@ -126,6 +141,8 @@ pub fn eval_kernel_assertion_failed(
         location,
         frames,
         upstream_chain: None,
+        // Arc 138 F-NAMES-1d — capture name NOW on the panicking thread.
+        thread_name: std::thread::current().name().map(String::from),
     };
 
     // panic_any carries the typed payload through catch_unwind's

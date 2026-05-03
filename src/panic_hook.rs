@@ -100,9 +100,18 @@ fn render_assertion_failure(payload: &AssertionPayload) {
 
 /// Build the failure text. Separated from rendering so tests can
 /// inspect the exact bytes produced.
+///
+/// Arc 138 F-NAMES-1d — `thread_name` is read from the payload (captured
+/// at panic site on the worker thread) rather than queried via
+/// `thread::current()`. This survives `panic::resume_unwind` re-panicking
+/// the payload on the parent thread, which would otherwise return the
+/// parent's name or `None`.
 fn write_assertion_failure<W: Write>(out: &mut W, payload: &AssertionPayload) {
-    let thread = std::thread::current();
-    let thread_name = thread.name().unwrap_or("<unnamed>");
+    // Arc 138 F-NAMES-1d: read name from payload (captured on panicking
+    // thread at construction time), not from thread::current() here.
+    // After resume_unwind the hook fires on the parent; the parent's
+    // thread::current().name() would differ (or be None) from the worker.
+    let thread_name = payload.thread_name.as_deref().unwrap_or("<unnamed>");
 
     // Line 1 — thread + file:line:col header.
     match &payload.location {
@@ -183,6 +192,7 @@ mod tests {
                 call_span: mk_span("wat-tests/foo.wat", 12, 5),
             }],
             upstream_chain: None,
+            thread_name: Some("wat-test::my-deftest".into()),
         };
         let mut out = Vec::new();
         write_assertion_failure(&mut out, &payload);
@@ -208,6 +218,7 @@ mod tests {
             location: None,
             frames: Vec::new(),
             upstream_chain: None,
+            thread_name: None,
         };
         let mut out = Vec::new();
         write_assertion_failure(&mut out, &payload);
@@ -216,5 +227,51 @@ mod tests {
         assert!(s.contains("plain panic"), "has message: {}", s);
         // No `at FILE:` when location is None.
         assert!(!s.contains(" at <synthetic>:"), "no synthetic location: {}", s);
+    }
+
+    // Arc 138 F-NAMES-1d — verify thread_name field is used as-is, NOT
+    // queried from thread::current(). This matters because resume_unwind
+    // re-panics the payload on the PARENT thread; the parent has a
+    // different (or absent) name. Payload carries the worker's name.
+
+    #[test]
+    fn renders_thread_name_from_payload_field() {
+        let payload = AssertionPayload {
+            message: "assert-eq failed".into(),
+            actual: None,
+            expected: None,
+            location: None,
+            frames: Vec::new(),
+            upstream_chain: None,
+            // Explicit name that does NOT match this test's thread name.
+            thread_name: Some("wat-test:::my::deftest".into()),
+        };
+        let mut out = Vec::new();
+        write_assertion_failure(&mut out, &payload);
+        let s = String::from_utf8(out).unwrap();
+        assert!(
+            s.contains("thread 'wat-test:::my::deftest'"),
+            "renders payload thread_name verbatim: {}", s
+        );
+    }
+
+    #[test]
+    fn renders_unnamed_when_thread_name_field_is_none() {
+        let payload = AssertionPayload {
+            message: "some failure".into(),
+            actual: None,
+            expected: None,
+            location: None,
+            frames: Vec::new(),
+            upstream_chain: None,
+            thread_name: None,
+        };
+        let mut out = Vec::new();
+        write_assertion_failure(&mut out, &payload);
+        let s = String::from_utf8(out).unwrap();
+        assert!(
+            s.contains("thread '<unnamed>'"),
+            "falls back to <unnamed> when field is None: {}", s
+        );
     }
 }

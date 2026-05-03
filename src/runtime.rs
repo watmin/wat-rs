@@ -6938,6 +6938,8 @@ fn expect_panic(
         location: Some(location),
         frames,
         upstream_chain,
+        // Arc 138 F-NAMES-1d — capture name on the panicking thread.
+        thread_name: std::thread::current().name().map(String::from),
     };
     std::panic::panic_any(payload);
 }
@@ -7002,6 +7004,8 @@ fn eval_kernel_raise(
         location,
         frames,
         upstream_chain: None,
+        // Arc 138 F-NAMES-1d — capture name on the panicking thread.
+        thread_name: std::thread::current().name().map(String::from),
     };
     std::panic::panic_any(payload);
 }
@@ -12776,6 +12780,9 @@ fn failure_value_from_assertion_payload(p: crate::assertion::AssertionPayload) -
         // chain; cascade reconstruction lives one layer up, in
         // join-result).
         upstream_chain: _,
+        // Arc 138 F-NAMES-1d — thread_name is for the panic hook render
+        // only; it doesn't map to a Failure struct field.
+        thread_name: _,
     } = p;
     let location_field = match location {
         Some(span) => Value::Option(Arc::new(Some(value_from_span(span)))),
