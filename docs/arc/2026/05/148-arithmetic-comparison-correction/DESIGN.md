@@ -1,13 +1,32 @@
-# Arc 148 — Arithmetic / comparison / holon-pair correction
+# Arc 148 — Arithmetic / comparison correction
 
-**Status:** drafted 2026-05-03 mid-arc-146-slice-4-closure. User
-direction after orchestrator surfaced the lurking polymorphic
+**Status:** drafted 2026-05-03 mid-arc-146-slice-4-closure;
+architecture locked 2026-05-03 (this session) after multi-turn
+debate that walked through three rejected naming schemes
+(slash-stacking, uniform-comma, hybrid) before converging on
+the user's proposal: **Type-as-namespace for same-type +
+verb-comma-pair for mixed-type + variadic wat function reducing
+over binary Dispatch**.
+
+User direction after orchestrator surfaced the lurking polymorphic
 primitives that arc 146 missed:
 
 > *"a new arc is fine with me ... i say... new arc ... 146
 > closure is dependent on this new arc being resolved.."*
 
 Arc 146 closure (slice 5) BLOCKS on arc 148 closure.
+
+User direction 2026-05-03 (this session):
+
+> *"get the number ops and comparators figured out now - we'll
+> deal with string, bool and time while sonnet makes numbers work"*
+
+Arc 148 immediate scope = NUMERIC arithmetic + NUMERIC comparison.
+Non-numeric eq/ord (String, bool, Holon, etc.) and time-arith and
+holon-pair = parallel track in user's hands while sonnet works
+numerics. Slice 1 audit ENUMERATES all 7 polymorphic_* handler
+surfaces for the record, but implementation slices (2-3) ship
+numeric-only.
 
 ## What arc 146 missed
 
@@ -17,480 +36,565 @@ excluded other classes of polymorphic primitives — same anti-
 pattern (hardcoded `infer_*` doing ad-hoc dispatch by input
 type, with parallel runtime `eval_*`), different domain.
 
-Surfaced by orchestrator's audit 2026-05-03:
+Surfaced by orchestrator's audit 2026-05-03 across `src/check.rs`:
 
-### Class A — Arithmetic (4 ops, ~16 per-Type combos)
+| Class | Handler | Location | Scope in arc 148 |
+|---|---|---|---|
+| Arithmetic | `infer_polymorphic_arith` | check.rs:6619 | IMMEDIATE (slice 2) |
+| Comparison | `infer_polymorphic_compare` | check.rs:6567 | IMMEDIATE numeric (slice 3); non-numeric deferred |
+| Time-arith | `infer_polymorphic_time_arith` | check.rs:6698 | DEFERRED — user track |
+| Holon-pair → f64 | `infer_polymorphic_holon_pair_to_f64` | check.rs:7075 | DEFERRED |
+| Holon-pair → bool | `infer_polymorphic_holon_pair_to_bool` | check.rs:7132 | DEFERRED |
+| Holon-pair → path | `infer_polymorphic_holon_pair_to_path` | check.rs:7190 | DEFERRED |
+| Holon → i64 | `infer_polymorphic_holon_to_i64` | check.rs:7245 | DEFERRED |
 
-`infer_polymorphic_arith` (check.rs:6619) + `eval_poly_arith`
-(runtime.rs:2628-2631):
-- `:wat::core::+` `:-` `:*` `:/` — over (i64,i64) | (i64,f64) |
-  (f64,i64) | (f64,f64); coercion to wider numeric type
+Runtime side: `eval_eq` (runtime.rs:4424), `eval_compare`
+(runtime.rs:4603), `eval_poly_arith` (runtime.rs:4677); 9
+user-facing op arms at runtime.rs:2593-2631.
 
-### Class B — Comparison (5 ops)
+Same anti-pattern arc 146 corrected: a polymorphic-name primitive
+with hardcoded check-side handler + hardcoded runtime-side handler.
+Two type-system models colliding (per arc 144 REALIZATIONS).
 
-`infer_polymorphic_compare` (check.rs:6567) + `eval_compare`
-(runtime.rs:2595-2600) + `eval_eq` (runtime.rs:2593):
-- `:wat::core::=` `:<` `:>` `:<=` `:>=` — over comparable types
+## Architecture (LOCKED)
 
-### Class C — Holon-pair operations (4 distinct shapes)
+### Architecture differs between arithmetic and comparison
 
-- `infer_polymorphic_holon_pair_to_f64` (check.rs:7075)
-- `infer_polymorphic_holon_pair_to_bool` (check.rs:7132)
-- `infer_polymorphic_holon_pair_to_path` (check.rs:7190)
-- `infer_polymorphic_holon_to_i64` (check.rs:7245)
+**Arithmetic** needs per-Type Rust leaves because the underlying Rust
+impls differ per type (integer addition vs float addition are
+different functions). Three layers.
 
-Domain-specific holon algebra. Sonnet's audit during slice 1
-will enumerate the actual operators these handlers serve.
+**Comparison** does NOT need per-Type Rust leaves because Rust's
+`PartialEq`/`PartialOrd` traits provide one polymorphic impl that
+works on any same-type pair. ONE substrate primitive per op +
+selective mixed-type arms.
 
-### Class D — Time arithmetic
+User direction 2026-05-03 (this session) — the simplifying rule:
 
-- `infer_polymorphic_time_arith` (check.rs:6698)
+> *"we have known overrides for mixed types.. same types of anything
+> we just delegate to that type's func.... we selectively choose to
+> support convenience for mixed values and we raise for those we
+> don't"*
 
-Time-specific arithmetic — likely a small set of operators.
-Slice 1 audit enumerates.
+This rule applies to BOTH numeric and non-numeric comparison —
+arc 148's comparison family AND Category A (non-numeric eq/ord)
+collapse into the same architecture: substrate primitive + chosen
+mixed-type arms.
 
-## Same anti-pattern; same fix
+### Arithmetic — three layers
 
-Each of these classes has the SAME shape arc 146 corrected:
-- A polymorphic-name primitive (`:+`, `:=`, etc.)
-- A hardcoded check-side handler that dispatches by input type
-- A hardcoded runtime-side handler doing the same
-- Two type-system models colliding (per arc 144 REALIZATIONS)
+1. **Variadic wat function (top-level user surface)** — `:wat::core::+`,
+   `:wat::core::-`, `:wat::core::*`, `:wat::core::/`. Variadic; min 2
+   args; reduces over the binary Dispatch entity.
 
-The fix is the same: arc 146's Dispatch entity. Each polymorphic
-name becomes a dispatch with arms; each per-Type combo becomes
-a clean rank-1 substrate primitive.
+2. **Binary Dispatch entity** — arc 146 Dispatch entity at
+   `:wat::core::<verb>,2` (sibling name to the variadic). Arms per
+   type-pair → routes to per-Type leaf.
 
-## What's different from arc 146
+3. **Per-Type Rust primitives (the leaves)** — actual binary ops:
+   - **Same-type:** `:wat::core::<Type>::<verb>` is the variadic wat
+     wrapper for that Type; binary Rust leaf lives at
+     `:wat::core::<Type>::<verb>,2`.
+   - **Mixed-type:** `:wat::core::<verb>,<type1>-<type2>` (verb +
+     comma + hyphenated operand pair). Always binary; no variadic
+     possible (variadic over a fixed type-pair has no coherent
+     semantics).
 
-### Two-argument dispatch (arithmetic + comparison)
+### Comparison — substrate primitive + selective mixed arms
 
-Arc 146's container methods dispatched on ONE arg's type
-(the container). Arc 148's arithmetic + comparison dispatch on
-TWO args' types (both operands).
+Each comparison op (`:=`, `:not=`, `:<`, `:>`, `:<=`, `:>=`) is a
+SINGLE substrate primitive that:
 
-Arc 146 slice 1's pass-through dispatch already supports
-multi-arg arms (slice 3 used 2-arg patterns for contains?/get/
-conj). The substrate machinery handles this.
+- **Same-type:** delegates to the type's existing comparator via
+  Rust's `PartialEq`/`PartialOrd` on the underlying Value. Works
+  universally for `=`/`not=` (any type with `PartialEq` — basically
+  everything). For ord (`<`/`>`/`<=`/`>=`) the substrate maintains an
+  opinionated allowlist of types with meaningful order (numeric,
+  String, time, Bytes, Vector\<T\>, Tuple\<T...\>, Option\<T\>,
+  Result\<T,E\>); types not on the allowlist raise at compile time.
 
-### Variadic surface — three-layer architecture
+- **Mixed-type:** routes to an EXPLICIT named arm if one exists;
+  raises at compile time otherwise. Arc 148 ships only numeric mixed
+  arms ((i64, f64) and (f64, i64) for all 6 ops). Other mixed pairs
+  (`(:= "1" 1)`, `(:< :keyword 5)`) are type errors, not silently-
+  false coercions.
 
-User writes `(:+ 1 2.2 4 3.2)` (variadic; Lisp convention). The
-substrate has three layers:
+No per-Type Rust leaves for comparison. Same-type comparison goes
+through the polymorphic substrate primitive (Rust's trait dispatch);
+mixed-type comparison goes through the substrate primitive's named
+arm dispatch.
 
-1. **`:wat::core::+`** — VARIADIC MACRO (user-facing). Defined
-   via arc 143's defmacro with rest-param. Expands left-
-   associative to nested binary calls.
-2. **`:wat::core::+/2`** — BINARY DISPATCH (the truth table).
-   Arc 146's Dispatch entity with 4 per-combo arms.
-3. **`:wat::core::i64/+/2`, `:f64/+/2`, `<MIXED>`, etc.** —
-   PER-TYPE IMPLS. Clean rank-1 substrate primitives.
+### Variadic semantics (arithmetic only)
 
-The variadic macro pattern (left-associative for `-` and `/`
-correctness):
+`(:wat::core::+ 0 40.0 2)` walks left-to-right:
+- Step 1: pair `(0:i64, 40.0:f64)` → dispatch finds (i64, f64) →
+  calls `:wat::core::+,i64-f64`(0, 40.0) → 40.0:f64
+- Step 2: pair `(40.0:f64, 2:i64)` → dispatch finds (f64, i64) →
+  calls `:wat::core::+,f64-i64`(40.0, 2) → 42.0:f64
+- Result: **`:f64 42.0`**
 
-```scheme
-(:wat::core::defmacro
-  (:wat::core::+ (x :AST<numeric>) (y :AST<numeric>) & (rest :AST<Vec<wat::WatAST>>) -> :AST<numeric>)
-  (:wat::core::if (:wat::core::empty? rest)
-    `(:wat::core::+/2 ,x ,y)
-    `(:wat::core::+ (:wat::core::+/2 ,x ,y) ,@rest)))
-```
+Same-type variadic `(:wat::core::i64::+ 1 2 3 4 5)` skips dispatch
+because type is fixed by the call signature: walks the list reducing
+directly via `:wat::core::i64::+,2` (the i64 binary leaf). Compile-
+time type error if any arg is non-i64.
 
-`(:+ 1 2.2 4 3.2)` expands at compile-time to:
-```
-(:+/2 (:+/2 (:+/2 1 2.2) 4) 3.2)
-```
+### Comparison semantics
 
-Each `:+/2` step type-checks via the binary dispatch. Result
-type at each step is the join of inputs (per the truth table).
-Final result type is the join of ALL inputs.
+Strict binary. `(:wat::core::< 1 2 3)` is rejected (arity mismatch).
+Chained comparison written explicitly via `:and`:
+`(:wat::core::and (:wat::core::< 1 2) (:wat::core::< 2 3))`. Reasoning:
+the only meaningful variadic comparison semantics is Python-style
+pairwise-AND, which would introduce a SECOND "what does variadic mean"
+rule alongside arithmetic's fold. Two semantics for variadic fails
+the four questions on Simple. Strict binary keeps one rule per family.
 
-**Static expansion (not runtime fold via reduce):** each binary
-step type-checks at compile time; errors localize per-step;
-result type known statically; introspection (macroexpand)
-shows what happened.
+### Min-2 arity (uniform across the substrate)
 
-**Macro shadows Dispatch in lookup_form precedence** (arc 144
-slice 1 + arc 146 slice 1 Q3): user writing `(:+ ...)` hits the
-variadic macro; the macro internally references the distinct
-`:+/2` name for the binary form.
+All arithmetic + comparison ops require at least 2 operands.
+`(:wat::core::+ 1)` rejected. `(:wat::core::-  1)` rejected (no
+implicit negation; mint `:wat::core::negate` separately if wanted).
+`(:wat::core::/ 5)` rejected (no implicit reciprocal). `(:wat::core::<
+1)` rejected. Reasoning per user: *"the value -1 is obvious; the
+phrase 'subtract 1' is an incomplete statement."*
 
-### Coercion across numeric types — RESOLVED: Path A (per-combo impls)
+### Why this architecture wins the four questions
 
-**Settled 2026-05-03 via the four questions.** Path A wins.
+- **Obvious?** YES — `(:+ 1 2.0 3)` does what users mean; per-Type
+  leaves callable directly for explicit-Type usage.
+- **Simple?** YES — three layers each doing ONE thing; uniform rule
+  per layer (top = variadic; middle = binary dispatch; leaves =
+  Rust). Per-Type variadic at the Type-namespace gives users
+  type-locked variadic when wanted.
+- **Honest?** YES — composition (variadic fold) lives in wat where it
+  belongs; metal work (binary ops) lives in Rust where it belongs.
+  Names speak: `,2` = binary form; `,<pair>` = mixed-type leaf;
+  `<Type>::<verb>` = Type's verb.
+- **Good UX?** YES — variadic Lisp tradition; type-locked variadic
+  available; per-Type leaves reachable per arc 109 no-privacy.
 
-The truth table for `:+`:
-```
-(i64, i64) → :i64
-(f64, f64) → :f64
-(i64, f64) → :f64
-(f64, i64) → :f64
-```
+## Naming convention (LOCKED)
 
-Path A — explicit per-combo dispatch arms (4 arms per arith op):
-```scheme
-(:wat::core::define-dispatch :wat::core::+/2
-  ((:wat::core::i64 :wat::core::i64) :wat::core::i64/+/2)
-  ((:wat::core::i64 :wat::core::f64) :wat::core::<MIXED-NAME>)
-  ((:wat::core::f64 :wat::core::i64) :wat::core::<MIXED-NAME>)
-  ((:wat::core::f64 :wat::core::f64) :wat::core::f64/+/2))
-```
+Three shapes; each uses one rule.
 
-Where `<MIXED-NAME>` is per the deferred mixed-combo naming Q
-above.
-
-Why Path A:
-- **Obvious**: dispatch declaration IS the table; reader sees
-  all rules in one place
-- **Simple**: arc 146's existing Dispatch entity unchanged;
-  N identical arm changes IS simple
-- **Honest**: each arm declares the route; impl does the work;
-  no hidden coercion mechanism
-- **Good UX**: `(:+ 1 2.0)` works; substrate routes via the
-  truth table
-
-Path B (substrate coercion mechanism) FAILED Obvious — required
-two sources of truth (dispatch + coercion table). Per FM 10:
-default to no substrate extension when existing patterns suffice.
-
-### Per-Type impl naming convention — `<verb>/N` for arity-N
-
-**Settled 2026-05-03 user direction + gaze.** The substrate
-adopts the Erlang/Prolog tradition: `<verb>/N` suffix means
-"the N-ary form." Specialist convention; mumbles once; speaks
-forever after; standardized.
-
-For arithmetic + comparison families:
+### Same-type per-Type — Type as namespace segment
 
 ```
-ARITHMETIC:
-  :+/2  :-/2  :*/2  ://2          (4 binary dispatches)
-  :+    :-    :*    :/            (4 variadic macros)
-
-COMPARISON:
-  :=/2  :</2  :>/2  :<=/2  :>=/2  (5 binary dispatches)
-  :=    :<    :>    :<=    :>=    (5 variadic macros)
+:wat::core::<Type>::<verb>      ; arithmetic: variadic wat function over Type
+:wat::core::<Type>::<verb>,2    ; arithmetic: binary Rust leaf
+:wat::core::<Type>::<verb>      ; comparison: binary Rust leaf (no variadic)
 ```
 
-Pattern: `<verb>/N` for the N-ary substrate primitive (the
-binary dispatch); `<verb>` alone for the user-facing variadic
-macro that reduces over the binary form.
+Type sits in the namespace path. `::` is the standard namespace
+separator. Mirrors the existing `:wat::core::i64::+` convention
+already in use across `resolve.rs`, `freeze.rs`, `macros.rs`,
+`string_ops.rs` per CONVENTIONS.md line 23.
 
-The variadic-MACRO shadows the binary-DISPATCH per arc 144
-slice 1's lookup_form precedence (Macro > Primitive > Dispatch).
-This is the architectural reason a separate `/N` name is needed
-for the underlying binary form.
-
-#### Per-Type impl names (same-type combos)
-
-The arity-in-name extends to per-Type impls cleanly:
+### Mixed-type per-Type — verb + comma + hyphenated pair
 
 ```
-:wat::core::i64/+/2  — (i64, i64) → i64
-:wat::core::f64/+/2  — (f64, f64) → f64
+:wat::core::<verb>,<type1>-<type2>
 ```
 
-Type/verb/arity. Each piece meaningful.
+Comma separates the verb from the operand-pair tag. Hyphen joins
+the two types in the pair. Always binary. Both orderings get
+distinct names (`+,i64-f64` vs `+,f64-i64`); not commutative-
+collapsed because subtraction needs operand order preserved and
+we want one shape uniform across all ops.
 
-#### Per-Type impl names (mixed-type combos) — RESOLVED via gaze ward
+The comma is a NEW structural separator in wat keyword grammar
+(alongside `/` for `<Type>/<method>` precedent and `::` for
+namespaces). Lexer accepts commas inside keyword bodies per
+`src/lexer.rs:335` ("Every other character (including `<`, `>`,
+`/`, `-`, `,`, `!`, `?`) is pushed as-is"). Verified empirically
+2026-05-03: comma-bearing keywords lex/parse/register/check/execute.
 
-**Settled 2026-05-03 via gaze ward summoning** (per arc 146 slice
-1b precedent). Three candidates evaluated:
-
-- `:wat::core::i64+f64/2` — **L1 LIES.** Slash position promises
-  a verb to its left (per `:+/2`); delivers a fused pair where
-  `+` does double duty as operator AND separator.
-- `:wat::core::numeric/+/i64-f64/2` — **L1 LIES.** The `numeric/`
-  prefix promises a namespace separation that the same-type
-  impls (`:i64/+/2`, `:f64/+/2`) don't carry. False category
-  boundary.
-- `:wat::core::+/i64-f64/2` — **CONVERGES** (L1 = 0; L2 = one
-  learn-once cost — third slash semantic: verb / pair-tag /
-  arity — intrinsic to mixed-combo naming).
-
-**Mixed-combo names follow `:wat::core::<verb>/<type-a>-<type-b>/<N>`**
-
-Pattern slots:
-- `<verb>` — the operator (where `:+/2` puts the verb)
-- `<type-a>-<type-b>` — hyphen-joined type pair tag for the
-  CONCRETE combo this impl serves
-- `<N>` — arity (consistent with `:+/2` family)
-
-Examples:
-- `:wat::core::+/i64-f64/2` — (i64, f64) → :f64 — left-to-right
-  signature
-- `:wat::core::+/f64-i64/2` — (f64, i64) → :f64 — distinct from
-  above; not commutative-collapsed (subtraction needs the order
-  preserved; same shape uniformly across arith ops)
-
-Per-arith-op breakdown (4 impls each):
-- `:wat::core::i64/+/2` (i64, i64) → :i64
-- `:wat::core::f64/+/2` (f64, f64) → :f64
-- `:wat::core::+/i64-f64/2` (i64, f64) → :f64
-- `:wat::core::+/f64-i64/2` (f64, i64) → :f64
-
-Total: 4 per-Type impls × 4 arith ops = 16. Plus comparison
-ops (5 × 4 combos each) = 20. ~36 substrate primitives for the
-arithmetic + comparison families.
-
-**Cost acknowledged.** Honest naming carries the cost of being
-explicit. Each name speaks; no name lies.
-
-**Gaze trail:** see arc 146 slice 1b's gaze precedent
-(Multimethod → Dispatch); same ward; same discipline. Ward
-agent: `a73eba99aab6ccec5` (logged for compaction recovery).
-
-#### Documentation responsibility
-
-Arc 148 closure (slice 6) adds:
-- USER-GUIDE entry naming the `<verb>/N` convention
-- CONVENTIONS.md addition documenting arity-in-name
-- Reflection example showing `signature-of :+/2` vs `signature-of :+`
-  return different shapes (both honest)
-
-#### Full enumeration + visual collisions + maintainer mitigation
-
-**Settled 2026-05-03 after gaze ran on three additional candidates
-(operator-as-separator with three different namespacings + spelled-
-verb pipe-separated form). All failed convergence; the gaze-resolved
-form holds.**
-
-##### Naming templates (abstract)
+### Binary form of variadic (arithmetic only)
 
 ```
-Variadic macro:           :<namespace>::<verb>
-Binary dispatch:          :<namespace>::<verb>/<arity>
-Same-type per-Type impl:  :<namespace>::<Type>/<verb>/<arity>
-Mixed-type per-Type impl: :<namespace>::<verb>/<type-pair>/<arity>
+:wat::core::<verb>,2
 ```
 
-Where `<type-pair>` is `<Type1>-<Type2>` (hyphen-joined). `/` is
-the SOLE structural separator at every tier; `::` is the namespace
-separator (only between `wat` / `core` / verb-or-Type segments).
+Comma + arity digit `2`. Distinguishes the binary Dispatch entity
+(arc 146 Dispatch; one fixed surface arity) from the variadic wat
+function at the bare verb name. Sibling name pattern; needed only
+where the variadic wrapper exists (arithmetic). Comparison uses
+the bare name for the Dispatch directly (no wrapper).
 
-**For verbs that ARE the slash character (`/` — division):** the
-slash collides with the separator. The template applies unchanged;
-the result reads as multiple consecutive slashes. Honest about the
-double-duty; visually dense.
+The arity digit is COMMA-separated, not slash-separated. Erlang's
+`/N` was rejected during this session because it conflicts with
+the namespace-suffix `/method` precedent (`HashMap/get`); the
+slash-stacking that resulted (`:i64///2`, `:////i64-f64/2`) failed
+the gaze ward on Lies (templates structurally diverged between
+same-type and mixed-type cases).
 
-##### Substitutions per op
+### Why these two separators (not one)
 
-The full surface for arithmetic + comparison families = **54 names
-across 3 layers**:
+The substrate now has TWO name-internal structural separators:
+- `/` — `<Type>/<method>` (existing per `HashMap/get`, etc.)
+- `,` — verb/operand-pair seam AND verb/arity-digit seam (NEW)
+
+Single-separator alternatives were considered and rejected (gaze
+2026-05-03): unifying everything to slash creates the slash-
+stacking visual collision for division; unifying everything to
+comma breaks the existing `Type/method` precedent. The two-
+separator decision is the gaze-converged answer; documentation
+must cover this clearly per CONVENTIONS.md update at closure.
+
+## Full enumeration — NUMERIC arc 148 surface
+
+### Arithmetic family (4 ops × 8 entities = 32 names)
+
+For each op `<v>` ∈ {`+`, `-`, `*`, `/`}:
 
 ```
-ARITHMETIC (4 ops × 4 type combos + 4 binary dispatches + 4 variadic macros = 24 names):
-
-;; Layer 1 — Variadic macros (user-facing):
-:wat::core::+      :wat::core::-      :wat::core::*      :wat::core::/
-
-;; Layer 2 — Binary dispatches (template: :wat::core::<verb>/2):
-:wat::core::+/2    :wat::core::-/2    :wat::core::*/2    :wat::core://2   ⚠ verb=/ + sep=/ → 2 slashes
-
-;; Layer 3a — Same-type per-Type impls (template: :wat::core::<Type>/<verb>/<arity>):
-:wat::core::i64/+/2    :wat::core::i64/-/2    :wat::core::i64/*/2    :wat::core::i64///2   ⚠ → 3 slashes
-:wat::core::f64/+/2    :wat::core::f64/-/2    :wat::core::f64/*/2    :wat::core::f64///2   ⚠ → 3 slashes
-
-;; Layer 3b — Mixed-type per-Type impls (template: :wat::core::<verb>/<type-pair>/<arity>):
-:wat::core::+/i64-f64/2    :wat::core::-/i64-f64/2    :wat::core::*/i64-f64/2    :wat::core://i64-f64/2   ⚠ → 2-then-1 slashes
-:wat::core::+/f64-i64/2    :wat::core::-/f64-i64/2    :wat::core::*/f64-i64/2    :wat::core://f64-i64/2   ⚠ → 2-then-1 slashes
-
-COMPARISON (5 ops × 4 type combos + 5 binary dispatches + 5 variadic macros = 30 names):
-
-;; Layer 1 — Variadic macros:
-:wat::core::=    :wat::core::<    :wat::core::>    :wat::core::<=    :wat::core::>=
-
-;; Layer 2 — Binary dispatches:
-:wat::core::=/2   :wat::core::</2 ⚠   :wat::core::>/2 ⚠   :wat::core::<=/2   :wat::core::>=/2
-
-;; Layer 3a — Same-type per-Type impls (showing i64; f64 mirrors):
-:wat::core::i64/=/2    :wat::core::i64/</2 ⚠    :wat::core::i64/>/2 ⚠    :wat::core::i64/<=/2    :wat::core::i64/>=/2
-
-;; Layer 3b — Mixed-type per-Type impls:
-:wat::core::=/i64-f64/2    :wat::core::</i64-f64/2 ⚠    :wat::core::>/i64-f64/2 ⚠    :wat::core::<=/i64-f64/2    :wat::core::>=/i64-f64/2
-;; (plus f64-i64 variants)
+:wat::core::<v>                  variadic wat function (folds via :<v>,2)
+:wat::core::<v>,2                binary Dispatch entity (arms per type-pair)
+:wat::core::i64::<v>             variadic wat function over i64-only (folds via :i64::<v>,2)
+:wat::core::i64::<v>,2           binary Rust primitive — (i64, i64) → i64
+:wat::core::f64::<v>             variadic wat function over f64-only (folds via :f64::<v>,2)
+:wat::core::f64::<v>,2           binary Rust primitive — (f64, f64) → f64
+:wat::core::<v>,i64-f64          binary Rust primitive — (i64, f64) → f64
+:wat::core::<v>,f64-i64          binary Rust primitive — (f64, i64) → f64
 ```
 
-**Three known visual collisions (acknowledged + accepted):**
+### Comparison family (6 ops × 3 entities = 18 names)
 
-1. **Division verb `/` ↔ separator `/`.** `:wat::core:///2`,
-   `:wat::core::i64///2`, `:wat::core:////i64-f64/2`. Verb-character
-   doubles as separator-character. Honest about the truth that `/`
-   IS both. Visually dense for the maintainer reading the dispatch
-   declaration.
+For each op `<v>` ∈ {`=`, `not=`, `<`, `>`, `<=`, `>=`}:
 
-2. **Comparison `<` `>` ↔ type-parameter syntax `<>`.**
-   `:wat::core::</2`, `:wat::core::i64/</2`. The `<` character has
-   structural meaning in wat (`<>` for type parameters). Visual
-   collision risk. The lexer doesn't confuse them (different
-   contexts) but the eye might.
+```
+:wat::core::<v>                  substrate primitive (universal same-type via PartialEq/PartialOrd; mixed via named arm)
+:wat::core::<v>,i64-f64          mixed-type leaf — (i64, f64) → bool
+:wat::core::<v>,f64-i64          mixed-type leaf — (f64, i64) → bool
+```
 
-3. **Subtraction verb `-` ↔ type-pair tag separator `-`.**
-   `:wat::core::-/i64-f64/2` — three `-` characters in one name.
-   Less disruptive than (1) because slash-arity provides
-   structure, but still same-character double-duty.
+NO per-Type same-type leaves (`:i64::<` etc. omitted) — the substrate
+primitive's universal same-type delegation handles them via Rust's
+trait dispatch; carrying separate names would be redundant.
 
-**Mitigation: leave good comments at the dispatch declaration
-sites + per-Type impl registration sites.** Each `(:define-dispatch
-:/ ...)` declaration in `wat/core.wat` gets a header comment
-explaining the slash collision is intentional + honest. Each
-`env.register(":wat::core:////i64-f64/2", ...)` block in
-`register_builtins` gets a header comment naming the visual
-collision so the substrate maintainer reading it doesn't have to
-reverse-engineer the structure.
+The 6th op `:not=` was missed in earlier enumeration; per-handler
+audit at check.rs:3287-3293 confirms the dispatch site lists all six.
 
-**Why we accept the visual collisions:**
+**Total: 32 + 18 = 50 names for the immediate arc 148 scope.**
 
-The "subpar" UX falls on substrate maintainers (us) reading
-`wat/core.wat` and `register_builtins`. End-users write
-`(:+ 1 2.0)` / `(:/ 10 3)` and never see the slash-laden names.
-Per arc 109's no-privacy doctrine: every name is reachable; the
-recommended INTERFACE is the macro. Calling per-Type impls
-directly is possible but not the documented path.
+### What "same-type universal delegation" actually serves
 
-**Per the four questions on this stance:**
-- Obvious? YES — the macro IS the recommended interface; per-Type
-  impls are leaves
-- Simple? YES — no technical change; documentation + comments
-  stance
-- Honest? YES — collisions are honest about substrate truths
-  (slash IS the separator AND the division verb); no-privacy
-  doctrine is honest
-- Good UX? YES for end-users (clean macro UX); meh for substrate
-  maintainers (we knew; we paid; we comment); honest for
-  reflection consumers
+Because the comparison primitive uses Rust's `PartialEq` / `PartialOrd`
+traits, the SAME 18 entities cover same-type comparison on EVERY
+type the substrate's Value enum supports. This means **Category A
+of the previously-deferred surface (non-numeric eq/ord) is solved
+by arc 148 itself, not deferred to a parallel track**:
 
-**Reflection / help / error-output guidance for arc 148 closure:**
-
-When a future REPL `(:help :+)` or error message surfaces these
-names, the output should LEAD with the variadic surface
-(`(:+ x y ... )` first, "implementation routes via :+/2 to per-Type
-impls" second). Per-Type impls appear ONLY when the user has
-explicitly drilled into substrate internals via
-`(:wat::runtime::lookup-define :wat::core:////i64-f64/2)` or
-similar. Closure slice updates docs + reflection helpers
-accordingly.
-
-**Gaze trail (compaction recovery):**
-- 1st gaze: 3 candidates (i64+f64/2, +/i64-f64/2, numeric/+/i64-f64/2)
-  → converged on `:+/i64-f64/2` (agent `a73eba99aab6ccec5`)
-- 2nd gaze: operator-as-separator under `:wat::numeric::*` →
-  4 L1 lies + 4 L2 mumbles; rejected (agent `aa006b4413efab294`)
-- 3rd gaze: spelled-verb (`add`/`gte`) + pipe-separator → 4 L1
-  lies + 4 L2 mumbles; rejected (agent `a8f372c98c5fec695`)
-
-Ward isolation maintained across all three; ward-converged form
-holds.
-
-## What gets migrated (the audit)
-
-| Class | Polymorphic name | Per-Type impls (audit refines) |
+| Same-type pair | `:=` `:not=` | `:<` `:>` `:<=` `:>=` |
 |---|---|---|
-| Arithmetic | `:+` | i64/+, f64/+, i64+f64, f64+i64 (or coerce) |
-| Arithmetic | `:-` | same shape |
-| Arithmetic | `:*` | same shape |
-| Arithmetic | `:/` | same shape |
-| Comparison | `:=` | over numeric, string, bool, etc. (audit refines) |
-| Comparison | `:<` `:>` `:<=` `:>=` | numeric only? Or wider? |
-| Holon-pair | (4 polymorphic handlers) | sonnet audit enumerates |
-| Time-arith | (1 polymorphic handler) | sonnet audit enumerates |
+| `:i64`, `:f64` | yes | yes |
+| `:String` | yes | yes (lexicographic) |
+| `:wat::time::Instant`, `:Duration` | yes | yes (chronological) |
+| `:wat::core::Bytes` | yes | yes (byte-wise) |
+| `:wat::core::Vector<T>` | yes | yes if T has ord (parametric) |
+| `:wat::core::Tuple<T...>` | yes | yes if all elements have ord |
+| `:wat::core::Option<T>` | yes | yes if T has ord |
+| `:wat::core::Result<T,E>` | yes | yes if both have ord |
+| `:bool` | yes | **NO** — meaningless (false < true is technically true but useless) |
+| `:wat::core::keyword` | yes | **NO** — no compelling case |
+| `:wat::core::HashMap` `:HashSet` | yes | **NO** — no canonical order |
+| `:wat::holon::HolonAST` | yes | **NO** — algebraic surface; no canonical order |
+| `:wat::core::unit` | yes | **NO** — only one value; meaningless |
+| user-defined enums/structs | yes | **NO by default** — unless user opts in (future feature) |
 
-Slice 1 audit ENUMERATES the actual primitives + their per-Type
-combos for each class. The DESIGN sketch above is approximate.
+Equality (`:=`, `:not=`) is universal across ALL same-type pairs.
+Ord is selective: the substrate's compare primitive's check-time
+logic enforces the allowlist; ord on a non-allowlisted type raises
+a compile-time `TypeMismatch` diagnostic naming the offending type.
 
-## Slice plan (sketch — refine after audit)
+### Mixed-type — what arc 148 chooses to be convenient about
 
-### Slice 1 — Audit + Design
+| Mixed pair | Supported? | Reason |
+|---|---|---|
+| `(:i64, :f64)`, `(:f64, :i64)` | yes — explicit named arms | Numeric promotion is conventional and useful |
+| Anything else | no — raise compile error | Honest: `(:= "1" 1)` is a type confusion, not false |
 
-Sonnet (or orchestrator) walks each polymorphic_* handler in
-check.rs; enumerates the per-Type combos; documents in a
-SCORE-style audit doc.
+The substrate primitive's mixed-type dispatch consults a registry
+of named mixed arms; misses raise. Future mixed conveniences (e.g.,
+String/Bytes equality if compelling) can be added by registering new
+arms — additive, no architectural change.
 
-**Open questions resolved here:**
-- Coercion: A / B / C
-- Per-Type naming: Type/op or Type::op?
-- Mixed-type-combo naming
-- Whether comparison ops are bool-returning or have other shapes
-- Whether holon-pair handlers can be unified or stay distinct
+### What's NOT in arc 148's immediate scope
 
-Ships: AUDIT-SLICE-1.md detailing all per-Type combos for the 4
-arithmetic + 5 comparison + holon-pair + time-arith handlers.
+Per user direction 2026-05-03 + the simplifying rule: only TWO
+categories remain genuinely deferred (down from three):
 
-### Slice 2 — Migrate arithmetic family
+- **Category B — time arithmetic** (`:wat::time::+`, `:wat::time::-`)
+  — handler `infer_polymorphic_time_arith` (check.rs:6698). Two ops
+  with three signatures: `(Instant, Duration) → Instant`,
+  `(Instant, Instant) → Duration` (only `-`), `(Instant, Duration)
+  → Instant` (only `+`). Small, contained.
 
-Per-Type impls for `:+`, `:-`, `:*`, `:/` (~16 impls). Dispatch
-declarations in wat/core.wat. Retire `infer_polymorphic_arith`
-+ `eval_poly_arith` + their dispatch arms.
+- **Category C — holon-pair algebra** (5 ops across 4 handlers):
+  `:wat::holon::cosine`, `:wat::holon::dot`, `:wat::holon::coincident?`,
+  `:wat::holon::coincident-explain`, `:wat::holon::simhash`. All
+  consume HolonAST or Vector. Algebraic surface, not comparison.
 
-### Slice 3 — Migrate comparison family
+**Category A — non-numeric eq/ord — IS NOT DEFERRED.** It's served
+by arc 148's comparison architecture directly via the universal
+same-type delegation rule. String/bool/time/holon/etc. equality
+just works through `:wat::core::=` because Rust's `PartialEq` is
+universal. Ord on the allowlisted types works the same way.
 
-Per-Type impls for `:=`, `:<`, `:>`, `:<=`, `:>=`. Dispatch
-declarations. Retire `infer_polymorphic_compare` + `eval_compare`
-+ `eval_eq` + dispatch arms.
+The "parallel user track" reduces from three categories to two
+(B time-arith + C holon-pair).
 
-### Slice 4 — Migrate holon-pair family
+## Worked examples — wat call shapes
 
-Per-Type impls for the 4 handlers' polymorphic names. Dispatch
-declarations. Retire each.
+```scheme
+;; Polymorphic variadic — folds over dispatch
+(:wat::core::+ 0 40.0 2)               => :f64 42.0
+(:wat::core::+ 1 2 3 4 5)              => :i64 15
+(:wat::core::* 1.0 2 3)                => :f64 6.0
 
-### Slice 5 — Migrate time-arith family
+;; Same-type variadic — type-locked
+(:wat::core::i64::+ 1 2 3 4 5)         => :i64 15
+(:wat::core::i64::+ 1 2.0)             => COMPILE ERROR (2.0 is :f64)
+(:wat::core::f64::* 1.0 2.0 3.0)       => :f64 6.0
 
-Same shape; smaller scope.
+;; Per-Type leaf — direct binary call
+(:wat::core::i64::+,2 1 2)             => :i64 3
+(:wat::core::+,i64-f64 1 2.0)          => :f64 3.0
 
-### Slice 6 — Closure
+;; Comparison — strict binary
+(:wat::core::< 1 2)                    => :bool true
+(:wat::core::< 1 2.0)                  => :bool true       ; mixed routes via dispatch
+(:wat::core::< 1 2 3)                  => COMPILE ERROR    ; arity mismatch
+(:wat::core::and (:< 1 2) (:< 2 3))    => :bool true       ; chains via :and
 
-INSCRIPTION + 058 row + USER-GUIDE entry + cross-references.
+;; Rejected unary (no implicit negation/reciprocal)
+(:wat::core::- 1)                      => COMPILE ERROR
+(:wat::core::/ 5)                      => COMPILE ERROR
+```
+
+## Substrate registration — sketch shape
+
+Implementation slices (2-3) realize this; sketch here is for design
+clarity, not literal slice 1 deliverable.
+
+```scheme
+;; ─── Per-Type Rust primitives — registered via env.register in
+;;     register_builtins (or per arc 147's macro when shipped) ───
+;; (Rust impls; not shown — bind_i64_plus_i64, etc.)
+
+;; ─── Binary Dispatch entity — wat declaration in wat/core.wat ───
+(:wat::core::define-dispatch :wat::core::+,2
+  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::+,2)
+  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::+,2)
+  ((:wat::core::i64 :wat::core::f64)  :wat::core::+,i64-f64)
+  ((:wat::core::f64 :wat::core::i64)  :wat::core::+,f64-i64))
+
+;; ─── Variadic wat function — wat declaration in wat/core.wat ───
+;; (Polymorphic top-level)
+(:wat::core::define
+  (:wat::core::+ & (xs :wat::core::Vector<numeric>) -> :numeric)
+  (:wat::core::reduce :wat::core::+,2 xs))
+
+;; (Same-type i64)
+(:wat::core::define
+  (:wat::core::i64::+ & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+  (:wat::core::reduce :wat::core::i64::+,2 xs))
+
+;; ─── Comparison Dispatch entity (no wrapper needed) ───
+(:wat::core::define-dispatch :wat::core::<
+  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::<)
+  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::<)
+  ((:wat::core::i64 :wat::core::f64)  :wat::core::<,i64-f64)
+  ((:wat::core::f64 :wat::core::i64)  :wat::core::<,f64-i64))
+```
+
+The `numeric` shorthand in the variadic signatures is approximate;
+slice 2 audits whether wat has a numeric union type or whether
+the variadic uses inference + min-2-args validation. Sonnet's
+slice 2 brief resolves this concretely.
+
+## Slice plan
+
+### Slice 1 — AUDIT (no code changes)
+
+Sonnet enumerates the existing surfaces of all 7 polymorphic_*
+handlers. Produces `AUDIT-SLICE-1.md`. No migration, no new
+primitives, no test changes. Pure documentation deliverable.
+
+Audit format per handler:
+- User-facing operators served (e.g., `infer_polymorphic_arith`
+  serves `:+`, `:-`, `:*`, `:/`)
+- Per-Type combinations supported (which Types each handler
+  accepts; check.rs source-of-truth)
+- Runtime impl reference (which `eval_*` handles each)
+- Whether scoped INTO arc 148 immediate (numeric) or DEFERRED
+  (non-numeric / holon / time)
+
+### Slice 2 — Migrate numeric arithmetic family (32 names)
+
+For each of `+`, `-`, `*`, `/`: ship 8 entities:
+- 1 polymorphic variadic wat function
+- 1 binary Dispatch entity
+- 2 same-type variadic wat functions (i64, f64)
+- 2 same-type binary Rust primitives (i64::v,2; f64::v,2)
+- 2 mixed-type binary Rust primitives (v,i64-f64; v,f64-i64)
+
+Retire `infer_polymorphic_arith` + `eval_poly_arith` + their
+runtime dispatch arms.
+
+### Slice 3 — Migrate numeric comparison family (25 names)
+
+For each of `=`, `<`, `>`, `<=`, `>=`: ship 5 entities:
+- 1 binary Dispatch entity
+- 2 same-type binary Rust primitives (i64::v; f64::v)
+- 2 mixed-type binary Rust primitives (v,i64-f64; v,f64-i64)
+
+Retire numeric portion of `infer_polymorphic_compare` + the
+numeric arms of `eval_eq` / `eval_compare` + their runtime
+dispatch. NON-NUMERIC remains in the legacy handlers until the
+parallel user-track lands its work.
+
+### Slice 4 — Closure
+
+INSCRIPTION + 058 row + USER-GUIDE entry + arc 146 slice 5 unblock
+note. Names what's NOT done (non-numeric eq/ord deferred to user
+track) so the foundation stays honest.
+
+### Deferred (parallel user track)
+
+User works in parallel while sonnet runs slices 1-4:
+- Non-numeric eq/ord (String, bool, Holon, keyword, Vector<T>, etc.)
+- Time-arith family (Instant, Duration)
+- Holon-pair family (4 distinct shapes)
+
+Each follows the same architectural pattern (per-Type Rust leaves
+under Type-as-namespace; mixed via verb-comma-pair where applicable;
+strict-binary or variadic per family). Specific naming + scope
+captured by user as that work lands.
 
 ## Why arc 146 closure depends on this
 
-User direction: 146 closure (slice 5) BLOCKS on arc 148
+User direction: 146 slice 5 (closure paperwork) BLOCKS on arc 148
 completion. Reasoning:
 
-Arc 146's INSCRIPTION would claim "every defined symbol
-queryable at runtime" / "substrate has 6 entity kinds with
-honest representation." Both claims are FALSE while arithmetic
-+ comparison + holon-pair + time-arith are still using the
-hardcoded-handler anti-pattern.
+Arc 146's INSCRIPTION would claim "every defined symbol queryable
+at runtime" / "substrate has 6 entity kinds with honest
+representation." Both claims are FALSE while arithmetic +
+comparison are still using the hardcoded-handler anti-pattern.
 
-Closing arc 146 prematurely would lock in the misleading claim.
-Honest closure requires arc 148 to finish the work.
+Honest closure of 146 requires arc 148 to finish the numeric
+correction. Non-numeric work continues in parallel without
+blocking either arc.
 
-Arc 146 slice 5 (closure paperwork) becomes:
+Arc 146 slice 5 closure paperwork becomes:
 - "arc 146 closes the CONTAINER METHODS chapter"
-- "arc 148 closes the ARITHMETIC + COMPARISON + HOLON-PAIR +
-  TIME-ARITH chapter"
-- TOGETHER, the polymorphic-primitive correction completes
+- "arc 148 closes the NUMERIC ARITHMETIC + NUMERIC COMPARISON
+  chapter"
+- Non-numeric polymorphism work in user-track; future arc when ready
 
-OR: rename arc 146 to "polymorphic-primitive-correction-chapter-1"
-and arc 148 becomes "chapter 2." Naming TBD in slice 5 brief.
+## Decision history (this session, 2026-05-03)
+
+The naming + architecture went through three rejected schemes
+before converging. Recorded for future-self compaction recovery
+and so the rationale doesn't get re-litigated.
+
+### What was tried and rejected
+
+1. **Slash-stacking (initial DESIGN)** — `:wat::core::i64/+/2`
+   for same-type; `:wat::core::+/i64-f64/2` for mixed; `:i64///2`
+   and `://i64-f64/2` for division. Gaze converged on this scheme
+   earlier in the session. REJECTED in this session because:
+   - Same-type and mixed templates structurally diverge (verb
+     migrates slots) — gaze L1 lie on later re-audit
+   - Division produces 3-4 consecutive slashes — visual debt
+   - Doesn't leverage the existing `:wat::core::i64::+`
+     convention already in `resolve.rs` etc.
+
+2. **Uniform comma everywhere** — `:wat::core::+,i64-i64` for
+   same-type; `:+,i64-f64` for mixed. REJECTED:
+   - Same-type form breaks the established `<Type>/<method>` /
+     `<Type>::<verb>` precedent
+   - Forces the `,` separator into name positions where slash/
+     namespace already speaks
+
+3. **Hybrid (gaze's surfaced third path)** — slash for same-type;
+   comma for mixed. REJECTED in favor of the user's proposal
+   below because:
+   - Same-type slash form (`:i64/+/2`) still has division collision
+   - Doesn't unify with existing `:i64::+` convention
+
+### What converged (the locked architecture)
+
+User proposal 2026-05-03 — Type-as-namespace for same-type
+(extends existing `:wat::core::i64::+` precedent in
+CONVENTIONS.md line 23 + already-shipped impls); verb-comma-pair
+for mixed-type (new but lands in the gap where existing convention
+has nothing to say). Min-2 arity. Variadic wat function for
+arithmetic surfaces; strict binary for comparison.
+
+### Gaze trail (this session, compaction recovery)
+
+- Gaze 1: A=slash-stacking vs B=uniform-comma. B closer to
+  convergence; flagged that slash-stacking has L1 lie (template
+  divergence). Surfaced the existing `:wat::core::i64::+`
+  precedent the orchestrator was ignoring. Agent
+  `a523e3add6b2b8286`.
+- Gaze 2: User's Type-as-namespace + comma-mixed proposal.
+  CONVERGED. L1=0, L2=0. The user's "new convention" was actually
+  the existing convention rediscovered. Agent `a7f9660b3fa0c5eb5`.
+- Gaze 3: Binary dispatch sibling-name candidates A=`,binary`
+  vs B=`,2` vs C=`,pair`. B (`,2`) wins head-to-head (zero L1,
+  borderline-zero L2). A mumbles ("binary as opposed to what?");
+  C soft-lies ("pair" suggests pair-typed argument). Agent
+  `a1fe13dcce1fcd9a0`.
+
+Ward isolation maintained across all three; ward-converged
+architecture holds.
+
+### Reframings the user drove
+
+- **"Reduce over dispatch."** Composition lives in wat (variadic
+  fold via `:wat::core::reduce`); leaves live in Rust (per-Type
+  binary primitives). Orchestrator had been over-engineering the
+  variadic resolver as a Rust mega-impl; user reframed as a
+  trivially-small wat function. Architecturally lighter; honest
+  about where each concern belongs.
+- **"`(:- 1)` is an incomplete statement."** Min-2 arity rule;
+  no implicit negation/reciprocal from unary forms. Mint
+  `:wat::core::negate` separately if wanted.
+- **Same-type variadic gets its own surface.** `(:i64::+ 1 2 3)`
+  works as type-locked variadic, folding over `:i64::+,2` (the
+  binary leaf). User caught that the orchestrator's "8 entities
+  has 2 redundant" claim was wrong — the variadic + binary
+  distinction holds at the Type level too when same-type variadic
+  is a desired UX.
 
 ## Cross-references
 
 - arc 146 — container method correction (precedent + Dispatch
-  mechanism)
+  mechanism; its slice 5 closure blocks on this arc)
 - arc 144 REALIZATIONS — the two-type-system-models collision
-  (this arc closes the same disagreement for arithmetic + comp)
+  (same root cause this arc closes for arithmetic + comparison)
 - COMPACTION-AMNESIA-RECOVERY § FM 10 — entity-kind-not-
   type-system-feature discipline
-- arc 109 INVENTORY § L — pending naming consistency (typealias
-  → type-alias). This arc may surface naming questions for the
-  per-Type primitives that align with § L's debate.
-
-## Note: `:wat::core::string::*` namespace separation
-
-User noted side-channel 2026-05-03: `:wat::core::string::concat`
-should probably be `:wat::string::concat` (separate namespace
-like `:wat::list::*` per arc 109 § H). NOT arc 148's scope —
-that's a future arc 109 K.* slice. Recorded here as awareness;
-arc 148 stays focused on the polymorphic-primitive correction.
+- CONVENTIONS.md line 23 — `:wat::core::i64::+` Type-as-namespace
+  convention (which this arc consciously extends to arithmetic +
+  comparison families)
+- arc 109 INVENTORY § L — pending naming consistency. Closure of
+  arc 148 will likely touch CONVENTIONS.md to formalize the
+  comma separator + the Type-as-namespace pattern uniformly.
 
 ## Status notes
 
-- DESIGN drafted.
-- Implementation deferred until arc 146 slices 1-4 wrap (slice
-  5 closure paperwork waits on arc 148).
-- Arc 109 v1 closure now blocks on arc 144 + arc 130 + arc 145 +
+- DESIGN locked 2026-05-03 after multi-session debate.
+- Slice 1 (AUDIT) ready to spawn; BRIEF + EXPECTATIONS shipped
+  alongside this DESIGN.
+- Slices 2-3 (numeric arithmetic + numeric comparison) wait on
+  slice 1 audit deliverable.
+- Slice 4 closure ships after slices 2-3 land; unblocks arc 146
+  slice 5.
+- Non-numeric / holon / time work proceeds in user-track; not
+  blocking; lands in future arc when ready.
+- Arc 109 v1 closure now waits on arc 144 + arc 130 + arc 145 +
   arc 146 + arc 147 + arc 148. The "impeccable foundation"
   milestone moves further out — but each arc compounds; the
   foundation strengthens with each.
