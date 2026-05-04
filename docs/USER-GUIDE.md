@@ -297,15 +297,18 @@ forms (arcs 122 + 123):
 (:wat::test::should-panic "divide by zero")
 (:wat::test::deftest :my-app::div-by-zero ...)
 
-(:wat::test::time-limit "2s")    ;; override the 200ms default
+(:wat::test::time-limit "5s")    ;; override the 1000ms default
 (:wat::test::deftest :my-app::sqlite-roundtrip ...)
 ```
 
-Every deftest carries a 200ms default time-limit (arc 132).
-Tests should run in milliseconds; if yours genuinely needs
-more (sqlite I/O, sandboxed integration), pass an explicit
-`:time-limit "<N>ms" | "<N>s" | "<N>m"`. A hung deftest panics
-with a clear timeout message and other tests continue.
+Every deftest carries a 1000ms default time-limit (arc 132;
+raised from 200ms 2026-05-03). Tests should run quickly; the
+1000ms budget absorbs intra-binary contention on computationally-
+heavy tests under realistic parallel-test execution. If yours
+genuinely needs more (sqlite I/O, sandboxed integration), pass
+an explicit `:time-limit "<N>ms" | "<N>s" | "<N>m"`. A hung
+deftest panics with a clear timeout message and other tests
+continue.
 
 Hermetic + alias variants discover identically (arc 124):
 `:wat::test::deftest-hermetic`, plus any alias the file

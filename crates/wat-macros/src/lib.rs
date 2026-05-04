@@ -646,7 +646,7 @@ pub fn test(input: TokenStream) -> TokenStream {
 
             // Arc 132 — every deftest gets the thread-spawn +
             // recv_timeout wrapper at proc-macro emission. Default
-            // budget is `DEFAULT_TIME_LIMIT_MS` (200ms); explicit
+            // budget is `DEFAULT_TIME_LIMIT_MS` (1000ms); explicit
             // `:wat::test::time-limit "<dur>"` annotations override
             // per-test via `unwrap_or`. Belt-and-suspenders for the
             // deadlock-class chain (arcs 117 / 126 / 131 catch
@@ -657,7 +657,16 @@ pub fn test(input: TokenStream) -> TokenStream {
             // matching composes uniformly across every deftest.
             // The runaway worker thread leaks (Rust threads cannot
             // be killed safely from outside) — process exit reaps it.
-            const DEFAULT_TIME_LIMIT_MS: u64 = 200;
+            //
+            // Default raised from 200ms to 1000ms 2026-05-03 after
+            // observing intra-binary contention flakes on
+            // computationally-heavy tests (holon VSA at 4096 dims +
+            // spawn/program tests). 200ms was tight under realistic
+            // parallel-test execution; 1000ms gives clear headroom
+            // while preserving the safety-net role. Tests that
+            // genuinely need >1s still annotate explicitly via
+            // `:wat::test::time-limit`.
+            const DEFAULT_TIME_LIMIT_MS: u64 = 1000;
             let ms = site.time_limit_ms.unwrap_or(DEFAULT_TIME_LIMIT_MS);
             // Arc 138 F-NAMES-1f: include the deftest's .wat
             // file:line:col and FQDN keyword so the panic body
