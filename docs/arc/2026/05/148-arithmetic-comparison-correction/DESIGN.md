@@ -597,6 +597,14 @@ revises: `(:/ 5)` would return `1/5:Ratio` instead of `0:i64`
 (integer truncation). That's a deliberate behavior change captured
 in Ratio arc's INSCRIPTION.
 
+**Scratch notes for the Ratio arc are at
+`docs/arc/2026/05/149-ratio-support/DESIGN.md`** — preserves the
+open questions surfaced during this session (mixed Ratio×f64
+coercion direction; equality across numeric types; canonical-form
+enforcement; type-locked variant semantics; display semantics)
+plus a sketch of the substrate touch points. NOT a planned arc;
+spawn when a lab use case needs exact ratios.
+
 ## Why arc 146 closure depends on this
 
 User direction: 146 slice 5 (closure paperwork) BLOCKS on arc 148
