@@ -284,24 +284,42 @@ For each op `<v>` ∈ {`+`, `-`, `*`, `/`}:
 :wat::core::<v>,f64-i64          binary Rust primitive — (f64, i64) → f64
 ```
 
-### Comparison family (6 ops × 3 entities = 18 names)
+### Comparison family (6 ops × 1 entity = 6 names)
 
 For each op `<v>` ∈ {`=`, `not=`, `<`, `>`, `<=`, `>=`}:
 
 ```
-:wat::core::<v>                  substrate primitive (universal same-type via PartialEq/PartialOrd; mixed via named arm)
-:wat::core::<v>,i64-f64          mixed-type leaf — (i64, f64) → bool
-:wat::core::<v>,f64-i64          mixed-type leaf — (f64, i64) → bool
+:wat::core::<v>                  substrate primitive (universal via values_compare/values_equal; mixed-numeric via existing cross-type arms in those helpers)
 ```
 
-NO per-Type same-type leaves (`:i64::<` etc. omitted) — the substrate
-primitive's universal same-type delegation handles them via Rust's
-trait dispatch; carrying separate names would be redundant.
+**NO mixed-type comma-typed leaves for comparison.** Slice 3's
+`values_compare` extension already handles mixed-numeric promotion
+via existing `(i64, f64)` and `(f64, i64)` cross-type arms; shipping
+`:wat::core::<v>,i64-f64` etc. would be cosmetic crutches duplicating
+what `values_compare` already does.
+
+User direction 2026-05-03 — the rule:
+
+> *"the fewer of these 'comma typed funcs' the better — they are a
+> crutch to make a strongly typed lisp feel more lisp-y. i'm chasing
+> ux gains to make it easier for llms to produce wat code organically
+> while being forced to live with the constraints the language is
+> imposing"*
+
+**Comma-typed leaves exist iff Rust impls genuinely differ per
+type-pair.** Arithmetic needs them (i64+i64 and i64+f64 are
+different Rust functions). Comparison doesn't (one `values_compare`
+helper handles universal delegation including mixed-numeric).
+
+NO per-Type same-type leaves either (`:i64::<` etc.) — already
+covered by the polymorphic substrate primitive via `values_compare`.
+Slice 5 RETIRES the existing per-Type comparison leaves (currently
+at bare names; redundant under the universal-delegation rule).
 
 The 6th op `:not=` was missed in earlier enumeration; per-handler
 audit at check.rs:3287-3293 confirms the dispatch site lists all six.
 
-**Total: 32 + 18 = 50 names for the immediate arc 148 scope.**
+**Total: 32 + 6 = 38 names for the immediate arc 148 scope.**
 
 ### What "same-type universal delegation" actually serves
 
@@ -344,6 +362,47 @@ The substrate primitive's mixed-type dispatch consults a registry
 of named mixed arms; misses raise. Future mixed conveniences (e.g.,
 String/Bytes equality if compelling) can be added by registering new
 arms — additive, no architectural change.
+
+## The comma-typed-leaf rule (LLM affordance)
+
+User direction 2026-05-03 — captured for future arc work:
+
+> *"the fewer of these 'comma typed funcs' the better — they are a
+> crutch to make a strongly typed lisp feel more lisp-y. i'm chasing
+> ux gains to make it easier for llms to produce wat code organically
+> while being forced to live with the constraints the language is
+> imposing"*
+
+**The rule:** comma-typed leaves (`:<verb>,<type-pair>`) exist iff
+the underlying Rust impls genuinely differ per type-pair. They are
+substrate-internal addressing — the dispatch table's named arms,
+exposed per the no-privacy doctrine, but NOT part of the everyday
+LLM-facing surface.
+
+**LLM affordance pyramid (default → specialty):**
+
+1. **Default reach: bare polymorphic names.** `(:wat::core::+ 1 2 3)`,
+   `(:wat::core::< 1 2.5)`. Lisp-natural; type system enforces
+   correctness at the call site via param types.
+2. **Type-locked reach: same-type variadic** (arithmetic only).
+   `(:wat::core::i64::+ 1 2 3 4 5)`. Useful when the LLM wants to
+   assert "this operates only over i64."
+3. **Substrate addressing: comma-typed leaves.** `(:wat::core::+,i64-f64
+   1 2.0)`. Reachable per no-privacy; rarely needed; their existence
+   is the substrate being honest about routing, not the user-facing
+   convenience.
+
+**Per-family application:**
+
+| Family | Comma-typed leaves | Reason |
+|---|---|---|
+| Arithmetic (slice 4) | YES — `:+,i64-f64`, `:+,f64-i64`, etc. | Rust impls differ (i64+i64 ≠ i64+f64); explicit dispatch arms needed |
+| Comparison (slice 5) | NO | One `values_compare` helper handles universal delegation including mixed-numeric promotion |
+| Future Ratio arc | YES — `:+,i64-Ratio`, etc. | Rust impls differ across the numeric tower |
+| Future eq beyond `=` (none planned) | depends — same rule | "comma-typed iff Rust impls differ per pair" |
+
+Documenting in CONVENTIONS.md at arc 148 closure (slice 6) so
+future-self + future-LLMs know the rule.
 
 ### What's NOT in arc 148's immediate scope
 
@@ -536,28 +595,41 @@ For each of `+`, `-`, `*`, `/`: ship 8 entities:
 Retire `infer_polymorphic_arith` + `eval_poly_arith` + 4 runtime
 dispatch arms + 4 freeze pipeline pure-redex entries.
 
-### Slice 5 — Numeric comparison migration (16 names)
+### Slice 5 — Numeric comparison cleanup (6 names; net retirement)
 
-For each of `=`, `<`, `>`, `<=`, `>=`: ship 3 entities:
-- 1 substrate primitive at `:wat::core::<v>` (uses Rust's
-  PartialEq/PartialOrd polymorphically for same-type; routes
-  named mixed arms; raises otherwise)
-- 2 mixed-type binary Rust primitives at `:wat::core::<v>,i64-f64`
-  and `,f64-i64`
+**Pure cleanup slice.** Substrate primitives for `=`, `not=`, `<`,
+`>`, `<=`, `>=` ALREADY exist at bare names (`eval_eq`,
+`eval_compare`, `eval_not_eq`); slice 3's `values_compare` extension
+made them universal. Slice 5 retires the legacy machinery:
 
-Plus `:wat::core::not=` as 1 substrate primitive computing
-`not(:wat::core::= ...)` internally — no per-Type or mixed leaves.
+**RETIRE:**
+- `infer_polymorphic_compare` (the polymorphic-handler anti-pattern
+  in check.rs:6567) + dispatch site at check.rs:3292
+- 10 per-Type comparison leaves: `:wat::core::{i64,f64}::{=,<,>,<=,>=}`
+  (currently at bare names per slice 1 audit; redundant under the
+  universal-delegation rule). Sweep call sites to use the polymorphic
+  bare names instead (`:wat::core::<` etc.).
+- 10 freeze-pipeline pure-redex entries for the retired per-Type
+  leaves (runtime.rs:15716-15731 area).
+- 10 TypeScheme registrations for the retired per-Type leaves
+  (check.rs:9013-9024 area).
 
-Retire numeric portion of `infer_polymorphic_compare` + numeric
-arms of `eval_eq` / `eval_compare` + 6 runtime dispatch arms +
-6 freeze pipeline pure-redex entries.
+**ADD (TypeScheme registrations only — no new substrate primitives):**
+- TypeScheme entries for `:wat::core::{=,not=,<,>,<=,>=}` so the
+  check side knows the polymorphic surface signatures (input: any
+  matching pair; output: `:bool`). The substrate Rust functions
+  (`eval_eq`, `eval_compare`, `eval_not_eq`) already exist and
+  handle the work via slice 3's `values_compare`.
 
-**Also retire per-Type comparison leaves** (`:wat::core::i64::=`,
-`:i64::<`, `:i64::>`, `:i64::<=`, `:i64::>=` and same for f64 —
-10 names total) — the substrate primitive's universal delegation
-makes them redundant; keeping them creates "two ways to do the
-same thing" cruft that fails the four questions on Simple. Update
-all call sites to use the polymorphic substrate primitive.
+**NO comma-typed mixed leaves shipped.** Per the rule:
+*"comma-typed leaves exist iff Rust impls genuinely differ per
+type-pair."* Comparison's universal delegation makes them
+unnecessary cosmetic crutches.
+
+**Net effect:** substrate has 6 polymorphic comparison surface names
+(all at bare polymorphic names — maximum LLM affordance) + 10 fewer
+per-Type leaves + 1 fewer polymorphic-handler anti-pattern function
++ ~20 fewer registration entries (TypeScheme + freeze-pipeline).
 
 ### Slice 6 — Closure
 
