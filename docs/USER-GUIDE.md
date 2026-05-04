@@ -811,6 +811,38 @@ Tail-position is preserved through the selected arm — a
 tail-recursive function ending in `cond` trampolines correctly
 (same TCO discipline `if` inherits).
 
+### Variadic functions — `& rest` (arc 150)
+
+`:wat::core::define` accepts an optional rest-param after the fixed
+params, mirroring `:wat::core::defmacro`'s syntax:
+
+```scheme
+(:wat::core::define
+  (:my::app::sum (init :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+  (:wat::core::foldl xs init :wat::core::i64::+,2))
+
+(:my::app::sum 0)              ;; → 0  (rest binds to empty Vector)
+(:my::app::sum 0 1 2 3)        ;; → 6
+(:my::app::sum 10 1 2)         ;; → 13
+```
+
+Rules:
+- `&` followed by exactly one binder `(name :Type)`; type is required
+- Type MUST be `Vector<T>` — rest-args collect into a Vector
+- Rest-binder is the LAST element of the signature (no fixed params after `&`)
+- Caller passes `>= fixed_arity` args; the first `fixed_arity` bind
+  positionally, the rest collect into the Vector
+
+Type-checking enforces both fixed-arity-or-more AND that each
+rest-arg unifies with `T`. Reflection (`signature-of`) round-trips
+the variadic shape correctly.
+
+This is the foundation for variadic surfaces — Lisp-natural call
+shapes (`(:format "x={}" x)`, `(:log :info ...)`, `(:pipe a b c)`,
+the variadic `:wat::core::+` in arc 148) are all expressible without
+falling back to defmacro-with-runtime-branching or Rust-only
+primitives.
+
 ### `defmacro` — compile-time rewriting
 
 ```scheme
