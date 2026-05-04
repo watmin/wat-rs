@@ -4600,6 +4600,111 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
     }
 }
 
+/// Structural ordering on [`Value`] — returns `Some(Ordering)` for pairs
+/// whose types support ord, `None` for pairs whose shapes aren't ordered
+/// at all (e.g., HashMap, HashSet, Enum, Struct, HolonAST, unit, lambda).
+///
+/// Mirrors [`values_equal`]'s recursive shape (arc 148 slice 3): the
+/// arms accepted here are the ord-comparable subset of the arms accepted
+/// by `values_equal`. The two functions are kept in lockstep —
+/// `values_equal`'s recursive arms are extended here for `Vec`, `Tuple`,
+/// `Option`, `Result`, and `Vector`; new leaf arms cover `Instant`,
+/// `Duration`. `Bytes` (which is `:wat::core::Vector<wat::core::u8>` at
+/// the type level and `Value::Vec` of `Value::u8` at runtime) is covered
+/// by the `Vec` arm recursing into the `u8` arm — no separate Bytes
+/// variant exists.
+///
+/// Variant-ordered semantics (matching Rust's stdlib defaults):
+/// - `Option`: `None < Some(_)`; `Some(x) cmp Some(y) = x cmp y`.
+/// - `Result`: `Err < Ok`; same-variant pairs recurse on their payload.
+///
+/// Vec / Tuple / Vector use lexicographic order with shorter-is-less
+/// tie-break (matches Rust's `Vec::cmp` / slice cmp). f64 uses
+/// `partial_cmp` and treats NaN-involved comparisons as `Equal` (the
+/// same posture `eval_compare` adopted before slice 3).
+///
+/// Returns `None` for any pair that values_equal would also return
+/// `None` for, plus pairs whose type lacks a canonical order
+/// (HashMap / HashSet / Enum / Struct / HolonAST / unit). Callers
+/// (currently `eval_compare`) translate `None` into `TypeMismatch`.
+fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
+    use std::cmp::Ordering;
+    match (a, b) {
+        (Value::i64(x), Value::i64(y)) => Some(x.cmp(y)),
+        (Value::u8(x), Value::u8(y)) => Some(x.cmp(y)),
+        (Value::f64(x), Value::f64(y)) => Some(x.partial_cmp(y).unwrap_or(Ordering::Equal)),
+        // Arc 050 — numeric cross-type ord. Promote i64 to f64 before
+        // comparison. Reachable when the polymorphic `:wat::core::<` (etc.)
+        // gets mixed-numeric args.
+        (Value::i64(x), Value::f64(y)) => {
+            Some((*x as f64).partial_cmp(y).unwrap_or(Ordering::Equal))
+        }
+        (Value::f64(x), Value::i64(y)) => {
+            Some(x.partial_cmp(&(*y as f64)).unwrap_or(Ordering::Equal))
+        }
+        (Value::String(x), Value::String(y)) => Some(x.cmp(y)),
+        (Value::bool(x), Value::bool(y)) => Some(x.cmp(y)),
+        (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x.cmp(y)),
+        // Arc 148 slice 3 — time ord. chrono::DateTime<Utc> implements Ord
+        // (chronological); Duration is a non-negative i64 nanosecond count
+        // and uses i64 ord directly.
+        (Value::Instant(x), Value::Instant(y)) => Some(x.cmp(y)),
+        (Value::Duration(x), Value::Duration(y)) => Some(x.cmp(y)),
+        // Arc 148 slice 3 — Vec lex ord, recursive. Element-wise
+        // comparison; first non-Equal element decides; on a prefix tie,
+        // shorter < longer (matches Rust's `Vec::cmp`). Returns None if
+        // any pair of elements isn't ord-comparable. Bytes (Value::Vec of
+        // Value::u8) flows through here.
+        (Value::Vec(xs), Value::Vec(ys)) => {
+            for (x, y) in xs.iter().zip(ys.iter()) {
+                match values_compare(x, y)? {
+                    Ordering::Equal => continue,
+                    non_eq => return Some(non_eq),
+                }
+            }
+            Some(xs.len().cmp(&ys.len()))
+        }
+        // Arc 148 slice 3 — Tuple lex ord, recursive. Same shape as Vec
+        // (lexicographic with shorter-is-less tie-break). Tuples of
+        // different declared arities still hit this arm because they
+        // share Value::Tuple; the type checker would normally reject
+        // mixed arities upstream, but the lex semantics is honest if it
+        // ever arrives.
+        (Value::Tuple(xs), Value::Tuple(ys)) => {
+            for (x, y) in xs.iter().zip(ys.iter()) {
+                match values_compare(x, y)? {
+                    Ordering::Equal => continue,
+                    non_eq => return Some(non_eq),
+                }
+            }
+            Some(xs.len().cmp(&ys.len()))
+        }
+        // Arc 148 slice 3 — Option variant-order: None < Some(_); same
+        // variant recurses on payload (matches Rust's stdlib).
+        (Value::Option(x), Value::Option(y)) => match (&**x, &**y) {
+            (None, None) => Some(Ordering::Equal),
+            (None, Some(_)) => Some(Ordering::Less),
+            (Some(_), None) => Some(Ordering::Greater),
+            (Some(xv), Some(yv)) => values_compare(xv, yv),
+        },
+        // Arc 148 slice 3 — Result variant-order: Err < Ok; same variant
+        // recurses on payload (matches Rust's stdlib `Result::cmp`).
+        (Value::Result(x), Value::Result(y)) => match (&**x, &**y) {
+            (Err(xv), Err(yv)) => values_compare(xv, yv),
+            (Ok(xv), Ok(yv)) => values_compare(xv, yv),
+            (Err(_), Ok(_)) => Some(Ordering::Less),
+            (Ok(_), Err(_)) => Some(Ordering::Greater),
+        },
+        // Arc 148 slice 3 — algebra Vector ord (bit-exact element-wise
+        // i8 lex; matches the bit-exact `values_equal` Vector arm).
+        // Different-dim Vectors fall to length lex on the i8 slice; the
+        // type checker would normally enforce dim equality upstream, but
+        // honest lex if mismatched values arrive.
+        (Value::Vector(x), Value::Vector(y)) => Some(x.data().cmp(y.data())),
+        _ => None,
+    }
+}
+
 fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
     head: &str,
     args: &[WatAST],
@@ -4619,20 +4724,9 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
     let a_span = args[0].span().clone();
     let a = eval(&args[0], env, sym)?;
     let b = eval(&args[1], env, sym)?;
-    let order = match (&a, &b) {
-        (Value::i64(x), Value::i64(y)) => x.cmp(y),
-        (Value::u8(x), Value::u8(y)) => x.cmp(y),
-        (Value::f64(x), Value::f64(y)) => x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal),
-        (Value::i64(x), Value::f64(y)) => (*x as f64)
-            .partial_cmp(y)
-            .unwrap_or(std::cmp::Ordering::Equal),
-        (Value::f64(x), Value::i64(y)) => x
-            .partial_cmp(&(*y as f64))
-            .unwrap_or(std::cmp::Ordering::Equal),
-        (Value::String(x), Value::String(y)) => x.cmp(y),
-        (Value::bool(x), Value::bool(y)) => x.cmp(y),
-        (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => x.cmp(y),
-        _ => {
+    let order = match values_compare(&a, &b) {
+        Some(o) => o,
+        None => {
             return Err(RuntimeError::TypeMismatch {
                 op: head.into(),
                 expected: "matching comparable pair",
