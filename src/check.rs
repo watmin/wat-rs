@@ -59,6 +59,18 @@ use std::sync::Arc;
 /// `type_params` names the variables that are `∀`-bound over the
 /// scheme. At every use site, [`instantiate`] freshens them to unique
 /// [`TypeExpr::Var`]s so multiple independent call sites don't alias.
+///
+/// Arc 150 — variadic-define rest-param info is carried in a sibling
+/// registry on [`CheckEnv::variadic_rest_types`], keyed by callee name,
+/// rather than embedded as a TypeScheme field. The brief specced the
+/// field on TypeScheme; touching 215 substrate-primitive struct
+/// literals to add `rest_param_type: None,` would be major (and
+/// pointless — all 215 are strict-arity). The sibling map keeps the
+/// arc-150 surface localised to the one site that needs it
+/// (`derive_scheme_from_function`'s populate path) and the one site
+/// that consumes it (call-site inference's variadic branch). Existing
+/// TypeScheme construction sites are untouched. Honest delta — see
+/// SCORE-SLICE-1.md for scorecard implications.
 #[derive(Debug, Clone)]
 pub struct TypeScheme {
     pub type_params: Vec<String>,
@@ -1091,6 +1103,13 @@ pub struct CheckEnv {
     /// in `infer_list` BEFORE the substrate-primitive scheme path so
     /// dispatch-declared names route to per-Type arm impls.
     dispatch_registry: Option<Arc<crate::dispatch::DispatchRegistry>>,
+    /// Arc 150 — sibling registry of variadic-define rest-param types,
+    /// keyed by canonical callee name. Entry present iff the underlying
+    /// `Function` has `rest_param.is_some()`. The value is always
+    /// `TypeExpr::Parametric { head: "Vec", args: [T] }` — the
+    /// rest-arg element type T is what each rest-arg unifies against
+    /// at call sites. Populated by `from_symbols` alongside `schemes`.
+    variadic_rest_types: HashMap<String, TypeExpr>,
 }
 
 impl CheckEnv {
@@ -1108,6 +1127,13 @@ impl CheckEnv {
         for (path, func) in &sym.functions {
             if let Some(scheme) = derive_scheme_from_function(func) {
                 env.register(path.clone(), scheme);
+            }
+            // Arc 150 — variadic defines populate the sibling rest-type
+            // map. The rest_param_type is always `Vector<T>`; we store
+            // it canonically and consume at the call-site inference
+            // path's variadic branch.
+            if let Some(rest_ty) = func.rest_param_type.clone() {
+                env.variadic_rest_types.insert(path.clone(), rest_ty);
             }
         }
         // Arc 146 slice 1 — capture the dispatch registry through the
@@ -1151,7 +1177,18 @@ impl CheckEnv {
             unit_variant_types,
             types,
             dispatch_registry: None,
+            variadic_rest_types: HashMap::new(),
         }
+    }
+
+    /// Arc 150 — look up a variadic-define's rest-param type by canonical
+    /// callee name. `Some(Vector<T>)` for variadic defines; `None` for
+    /// strict-arity defines + every substrate primitive. The element T is
+    /// what each rest-arg must unify against at the call site; the
+    /// variadic branch in `infer_list` extracts T from the returned
+    /// Parametric and unifies per rest-arg.
+    pub fn variadic_rest_type(&self, name: &str) -> Option<&TypeExpr> {
+        self.variadic_rest_types.get(name)
     }
 
     /// Arc 048 — look up the enum type for a unit-variant keyword
@@ -2856,7 +2893,17 @@ fn check_function_body(
     // meaning they unify only with themselves. Represented as
     // `Path(":T")` where T is the declared name; the checker
     // distinguishes rigid names from fresh unification Vars.
-    let locals = build_locals(&func.params, &scheme.params);
+    let mut locals = build_locals(&func.params, &scheme.params);
+    // Arc 150 — variadic functions also bind the rest-name in the
+    // body's local scope, with the declared `Vector<T>` type. Without
+    // this, the rest-param symbol shows up as `<unresolved>` when used
+    // in the body (e.g. as the input to `:wat::core::length`,
+    // `:wat::core::foldl`, etc.).
+    if let (Some(rest_name), Some(rest_ty)) =
+        (func.rest_param.as_ref(), func.rest_param_type.as_ref())
+    {
+        locals.insert(rest_name.clone(), rest_ty.clone());
+    }
     let mut subst = Subst::new();
     // Push this function's declared return type so `infer_try`, if it
     // recurses into the body, can unify its propagated `Err` with this
@@ -3499,6 +3546,81 @@ fn infer_list(
         };
 
         let (param_types, ret_type) = instantiate(scheme, fresh);
+
+        // Arc 150 — variadic-define call: when the callee has a
+        // registered rest-param type, accept `args.len() >= fixed
+        // arity` and unify each rest-arg against the rest-param's
+        // element type T (extracted from `Vector<T>`). Strict-arity
+        // path (the overwhelming majority of callees) is unchanged.
+        let rest_elem_ty: Option<TypeExpr> = env
+            .variadic_rest_type(canonical_k)
+            .and_then(|rest_ty| match rest_ty {
+                TypeExpr::Parametric { head, args }
+                    if (head == "Vec" || head == "Vector") && args.len() == 1 =>
+                {
+                    Some(args[0].clone())
+                }
+                _ => None,
+            });
+
+        if let Some(elem_ty) = rest_elem_ty {
+            // Variadic branch: `args.len() >= param_types.len()`.
+            if args.len() < param_types.len() {
+                errors.push(CheckError::ArityMismatch {
+                    callee: k.clone(),
+                    expected: param_types.len(),
+                    got: args.len(),
+                    span: head_span.clone(),
+                });
+                for arg in args {
+                    let _ = infer(arg, env, locals, fresh, subst, errors);
+                }
+                return Some(apply_subst(&ret_type, subst));
+            }
+            // Type-check the fixed-positional args against `param_types`.
+            for (i, (arg, expected)) in args
+                .iter()
+                .zip(&param_types)
+                .enumerate()
+                .take(param_types.len())
+            {
+                let arg_ty = infer(arg, env, locals, fresh, subst, errors);
+                if let Some(arg_ty) = arg_ty {
+                    if unify(&arg_ty, expected, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: k.clone(),
+                            param: format!("#{}", i + 1),
+                            expected: format_type(&apply_subst(expected, subst)),
+                            got: format_type(&apply_subst(&arg_ty, subst)),
+                            span: arg.span().clone(),
+                        });
+                    }
+                }
+            }
+            // Type-check the rest-args against the element type T.
+            // We instantiate T against the SAME fresh-var mapping as
+            // `param_types` and `ret_type` already use — but
+            // `instantiate` returned only the param/ret pair; for the
+            // rest-elem we apply the current `subst` so any rigid
+            // type-vars inside T resolve consistently with how they
+            // resolved during fixed-arg unification.
+            let elem_inst = apply_subst(&elem_ty, subst);
+            for (j, arg) in args.iter().enumerate().skip(param_types.len()) {
+                let arg_ty = infer(arg, env, locals, fresh, subst, errors);
+                if let Some(arg_ty) = arg_ty {
+                    if unify(&arg_ty, &elem_inst, subst, env.types()).is_err() {
+                        errors.push(CheckError::TypeMismatch {
+                            callee: k.clone(),
+                            param: format!("#{} (rest)", j + 1),
+                            expected: format_type(&apply_subst(&elem_inst, subst)),
+                            got: format_type(&apply_subst(&arg_ty, subst)),
+                            span: arg.span().clone(),
+                        });
+                    }
+                }
+            }
+            return Some(apply_subst(&ret_type, subst));
+        }
 
         if args.len() != param_types.len() {
             errors.push(CheckError::ArityMismatch {
@@ -8398,6 +8520,14 @@ fn derive_scheme_from_function(func: &Function) -> Option<TypeScheme> {
     // `runtime::Function` carries declared type-parameters, parameter
     // types, and the return type since slice 7b. Lambdas (name = None)
     // leave param_types empty and aren't statically typed here.
+    //
+    // Arc 150 — variadic functions carry their rest-param type in
+    // `func.rest_param_type`; this helper still emits only the strict-
+    // arity scheme (the substrate-wide TypeScheme literal surface stays
+    // unchanged). The rest-param info propagates through
+    // `CheckEnv::from_symbols`'s sibling map (`variadic_rest_types`),
+    // which `infer_list`'s call-site branch consults to enable the
+    // `args.len() >= params.len()` shape with per-rest-arg unification.
     func.name.as_ref()?;
     Some(TypeScheme {
         type_params: func.type_params.clone(),

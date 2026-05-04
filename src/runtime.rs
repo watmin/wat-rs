@@ -515,6 +515,20 @@ pub struct Function {
     /// return type. For lambdas, `:()` — the checker treats lambda
     /// values as opaque function values in slice 7b.
     pub ret_type: crate::types::TypeExpr,
+    /// Arc 150 — optional rest-parameter name. When present, the
+    /// function accepts `args.len() >= params.len()` at apply time;
+    /// the first N args bind positionally to `params`, and the
+    /// REMAINING args are wrapped in a `Value::Vec(Arc::new(rest))`
+    /// and bound to this name. Mirrors `MacroDef.rest_param`. Syntax
+    /// at declaration:
+    /// `(:wat::core::define (:name (p1 :T1) ... & (rest :Vector<R>) -> :Ret) body)`.
+    /// `None` for strict-arity defines and for all lambdas.
+    pub rest_param: Option<String>,
+    /// Arc 150 — declared type of the rest-parameter. Always
+    /// `Some(TypeExpr::Parametric { head: "Vec", args: [T] })` when
+    /// `rest_param.is_some()`; `None` otherwise. The element type T
+    /// is what each rest-arg must unify against at call sites.
+    pub rest_param_type: Option<crate::types::TypeExpr>,
     pub body: Arc<WatAST>,
     pub closed_env: Option<Environment>,
 }
@@ -524,6 +538,7 @@ impl fmt::Debug for Function {
         f.debug_struct("Function")
             .field("name", &self.name)
             .field("params", &self.params)
+            .field("rest_param", &self.rest_param)
             .field(
                 "closed_env",
                 &if self.closed_env.is_some() { "<env>" } else { "<none>" },
@@ -1402,6 +1417,8 @@ pub fn register_struct_methods(
             type_params: struct_def.type_params.clone(),
             param_types: param_types.clone(),
             ret_type: struct_type.clone(),
+            rest_param: None,
+            rest_param_type: None,
             body: Arc::new(WatAST::List(new_body_items, Span::unknown())),
             closed_env: None,
         };
@@ -1429,6 +1446,8 @@ pub fn register_struct_methods(
                 type_params: struct_def.type_params.clone(),
                 param_types: vec![struct_type.clone()],
                 ret_type: field_type.clone(),
+                rest_param: None,
+                rest_param_type: None,
                 body: Arc::new(accessor_body),
                 closed_env: None,
             };
@@ -1546,6 +1565,8 @@ pub fn register_enum_methods(
                         type_params: enum_def.type_params.clone(),
                         param_types,
                         ret_type: enum_type.clone(),
+                        rest_param: None,
+                        rest_param_type: None,
                         body: Arc::new(WatAST::List(body_items, Span::unknown())),
                         closed_env: None,
                     };
@@ -1617,6 +1638,8 @@ pub fn register_newtype_methods(
             type_params: nt_def.type_params.clone(),
             param_types: vec![nt_def.inner.clone()],
             ret_type: nt_type.clone(),
+            rest_param: None,
+            rest_param_type: None,
             body: Arc::new(new_body),
             closed_env: None,
         };
@@ -1644,6 +1667,8 @@ pub fn register_newtype_methods(
             type_params: nt_def.type_params.clone(),
             param_types: vec![nt_type.clone()],
             ret_type: nt_def.inner.clone(),
+            rest_param: None,
+            rest_param_type: None,
             body: Arc::new(accessor_body),
             closed_env: None,
         };
@@ -1671,6 +1696,11 @@ struct ParsedDefineSignature {
     params: Vec<String>,
     param_types: Vec<crate::types::TypeExpr>,
     ret_type: crate::types::TypeExpr,
+    /// Arc 150 — `Some((name, Vector<T>))` when the signature carries
+    /// a `& (rest :Vector<T>)` rest-binder; `None` for strict-arity
+    /// defines.
+    rest_param: Option<String>,
+    rest_param_type: Option<crate::types::TypeExpr>,
 }
 
 /// Parse `(:wat::core::define (:name::path<T,U> (p1 :T1) ... -> :R) body)`
@@ -1709,6 +1739,8 @@ fn parse_define_form(form: WatAST) -> Result<(String, Arc<Function>), RuntimeErr
         params,
         param_types,
         ret_type,
+        rest_param,
+        rest_param_type,
     } = parse_define_signature(signature)?;
     Ok((
         canonical_name.clone(),
@@ -1718,6 +1750,8 @@ fn parse_define_form(form: WatAST) -> Result<(String, Arc<Function>), RuntimeErr
             type_params,
             param_types,
             ret_type,
+            rest_param,
+            rest_param_type,
             body: Arc::new(body),
             closed_env: None,
         }),
@@ -1774,6 +1808,15 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
     let mut param_types = Vec::new();
     let mut ret_type: Option<crate::types::TypeExpr> = None;
     let mut saw_arrow = false;
+    // Arc 150 — variadic rest-param state. Mirrors
+    // `parse_defmacro_signature` (`src/macros.rs:380-440`):
+    // - `&` may appear at most once before the arrow
+    // - exactly one `(name :Type)` binder must follow `&`
+    // - the rest-binder type is required and must be `Vector<T>`
+    // - no fixed param may follow the rest-binder
+    let mut rest_param: Option<String> = None;
+    let mut rest_param_type: Option<crate::types::TypeExpr> = None;
+    let mut saw_rest_marker = false;
     for item in iter {
         if saw_arrow {
             // Only one form may follow `->` — the return type keyword.
@@ -1804,12 +1847,71 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
         }
         match item {
             WatAST::Symbol(ref s, _) if s.as_str() == "->" => {
+                // Arc 150 — `& without binder` short-circuits here so the
+                // user gets a precise error pointing at the missing
+                // binder rather than a stray "->" complaint downstream.
+                if saw_rest_marker && rest_param.is_none() {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat::core::define".into(),
+                        reason: "`&` rest-marker with no binder".into(),
+                        span: sig_span,
+                    });
+                }
                 saw_arrow = true;
             }
-            WatAST::List(pair, _) => {
+            // Arc 150 — `&` rest-marker: the next List element is the
+            // rest-binder. Mirrors defmacro: only one rest-marker is
+            // allowed; multiple `&` markers are a parse error.
+            WatAST::Symbol(ref s, ref item_span) if s.as_str() == "&" => {
+                if saw_rest_marker {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat::core::define".into(),
+                        reason: "duplicate `&` rest-marker in define signature".into(),
+                        span: item_span.clone(),
+                    });
+                }
+                if rest_param.is_some() {
+                    return Err(RuntimeError::MalformedForm {
+                        head: ":wat::core::define".into(),
+                        reason: "`&` must precede its rest-binder".into(),
+                        span: item_span.clone(),
+                    });
+                }
+                saw_rest_marker = true;
+            }
+            WatAST::List(pair, pair_span) => {
                 let (pname, ptype) = parse_param_pair(pair)?;
-                params.push(pname);
-                param_types.push(ptype);
+                if saw_rest_marker {
+                    if rest_param.is_some() {
+                        // A second binder follows the rest-binder — that's
+                        // a fixed param after rest, which is illegal.
+                        return Err(RuntimeError::MalformedForm {
+                            head: ":wat::core::define".into(),
+                            reason: "fixed parameter cannot follow `&` rest-binder".into(),
+                            span: pair_span,
+                        });
+                    }
+                    // Arc 150 — rest-binder type MUST be `Vector<T>` (or
+                    // its alias `Vec<T>`). The substrate carries rest-args
+                    // as a `Value::Vec` at runtime; any other shape would
+                    // fail to bind. Reject at parse so the error points at
+                    // the source pair, not a later runtime mismatch.
+                    if !is_vector_type(&ptype) {
+                        return Err(RuntimeError::MalformedForm {
+                            head: ":wat::core::define".into(),
+                            reason: format!(
+                                "`& (rest :Type)` requires :Vector<T> (or :Vec<T>); got {}",
+                                crate::check::format_type(&ptype)
+                            ),
+                            span: pair_span,
+                        });
+                    }
+                    rest_param = Some(pname);
+                    rest_param_type = Some(ptype);
+                } else {
+                    params.push(pname);
+                    param_types.push(ptype);
+                }
             }
             other => {
                 let other_span = other.span().clone();
@@ -1824,6 +1926,15 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
             }
         }
     }
+    // Arc 150 — `&` with no following binder AND no `->` is also a
+    // malformed signature (the loop never hits the arrow short-circuit).
+    if saw_rest_marker && rest_param.is_none() {
+        return Err(RuntimeError::MalformedForm {
+            head: ":wat::core::define".into(),
+            reason: "`&` rest-marker with no binder".into(),
+            span: sig_span,
+        });
+    }
 
     Ok(ParsedDefineSignature {
         canonical_name,
@@ -1831,7 +1942,24 @@ fn parse_define_signature(sig: WatAST) -> Result<ParsedDefineSignature, RuntimeE
         params,
         param_types,
         ret_type: ret_type.unwrap_or_else(|| crate::types::TypeExpr::Tuple(Vec::new())),
+        rest_param,
+        rest_param_type,
     })
+}
+
+/// Arc 150 — does this TypeExpr denote a `Vector<T>` (alias) or
+/// `Vec<T>`? Both are accepted as the rest-binder type. The substrate
+/// canonicalises `Vector` → `Vec` at registration (see the type-alias
+/// list at `register_builtin`); we accept both spellings here so the
+/// parse-time check matches what the user wrote in source.
+fn is_vector_type(ty: &crate::types::TypeExpr) -> bool {
+    match ty {
+        crate::types::TypeExpr::Parametric { head, args } => {
+            (head == "Vec" || head == "Vector" || head == "wat::core::Vector")
+                && args.len() == 1
+        }
+        _ => false,
+    }
 }
 
 /// `(p1 :T1)` → (`"p1"`, `TypeExpr`). Refuses malformed shapes.
@@ -3292,6 +3420,8 @@ fn eval_lambda(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError
         type_params: Vec::new(),
         param_types,
         ret_type,
+        rest_param: None,
+        rest_param_type: None,
         body: Arc::new(body.clone()),
         closed_env: Some(env.clone()),
     })))
@@ -6640,7 +6770,7 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
         Some(n) => format!("{}<{}>", n, f.type_params.join(",")),
         None => ":anonymous".into(),
     };
-    let mut items: Vec<WatAST> = Vec::with_capacity(3 + f.params.len() * 2);
+    let mut items: Vec<WatAST> = Vec::with_capacity(3 + f.params.len() * 2 + 4);
     items.push(WatAST::Keyword(head_kw, span.clone()));
     for (param, ty) in f.params.iter().zip(f.param_types.iter()) {
         items.push(WatAST::List(
@@ -6650,6 +6780,29 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
                     span.clone(),
                 ),
                 type_expr_to_kw(ty),
+            ],
+            span.clone(),
+        ));
+    }
+    // Arc 150 — variadic defines render their rest-binder as
+    // `& (rest :Vector<T>)` between the fixed params and the arrow.
+    // Mirrors `macrodef_to_signature_ast`'s shape so reflection
+    // consumers see a uniform variadic surface across functions and
+    // macros. Strict-arity defines skip this block (`rest_param.is_none()`).
+    if let (Some(rest_name), Some(rest_ty)) =
+        (f.rest_param.as_ref(), f.rest_param_type.as_ref())
+    {
+        items.push(WatAST::Symbol(
+            crate::identifier::Identifier::bare("&"),
+            span.clone(),
+        ));
+        items.push(WatAST::List(
+            vec![
+                WatAST::Symbol(
+                    crate::identifier::Identifier::bare(rest_name.clone()),
+                    span.clone(),
+                ),
+                type_expr_to_kw(rest_ty),
             ],
             span.clone(),
         ));
@@ -12885,23 +13038,70 @@ pub fn apply_function(
     let _frame_guard = FrameGuard::push(callee_name_initial, cur_span.clone());
 
     loop {
-        if cur_args.len() != cur_func.params.len() {
-            return Err(RuntimeError::ArityMismatch {
-                op: match cur_func.name.clone() {
-                    Some(name) => name,
-                    None => format!("<lambda@{}>", cur_func.body.span()),
-                },
-                expected: cur_func.params.len(),
-                got: cur_args.len(),
-                span: cur_span.clone(),
-            });
+        let fixed_arity = cur_func.params.len();
+        let actual_arity = cur_args.len();
+        // Arc 150 — variadic arity: when the callee has a rest-param,
+        // accept `actual_arity >= fixed_arity`. The first N args bind
+        // positionally; the remainder collect into a Value::Vec bound
+        // to `rest_param`. Strict-arity behavior is preserved when
+        // `rest_param.is_none()`. Mirrors `expand_macro_call`'s
+        // arity check (`src/macros.rs:558-580`).
+        match cur_func.rest_param {
+            None => {
+                if actual_arity != fixed_arity {
+                    return Err(RuntimeError::ArityMismatch {
+                        op: match cur_func.name.clone() {
+                            Some(name) => name,
+                            None => format!("<lambda@{}>", cur_func.body.span()),
+                        },
+                        expected: fixed_arity,
+                        got: actual_arity,
+                        span: cur_span.clone(),
+                    });
+                }
+            }
+            Some(_) => {
+                if actual_arity < fixed_arity {
+                    return Err(RuntimeError::ArityMismatch {
+                        op: match cur_func.name.clone() {
+                            Some(name) => name,
+                            None => format!("<lambda@{}>", cur_func.body.span()),
+                        },
+                        expected: fixed_arity,
+                        got: actual_arity,
+                        span: cur_span.clone(),
+                    });
+                }
+            }
         }
         // Build the call env: parent is the closed env (lambda) or a
         // fresh root (define — the body resolves global names via sym).
         let parent = cur_func.closed_env.clone().unwrap_or_default();
         let mut builder = parent.child();
-        for (name, value) in cur_func.params.iter().zip(cur_args.drain(..)) {
+        // Bind the first `fixed_arity` args positionally to `params`.
+        // `cur_args.drain(..fixed_arity)` empties the front of the Vec
+        // and leaves the rest-args (if any) at indices 0..N for the
+        // rest-binding pass below.
+        let mut drained = cur_args.drain(..);
+        for name in cur_func.params.iter() {
+            let value = drained.next().expect("arity checked above");
             builder = builder.bind(name.clone(), value);
+        }
+        // Arc 150 — collect the remaining args (post-fixed) into a
+        // Value::Vec and bind to the rest-name. For zero rest-args the
+        // binding is an empty Vec; tests rely on this for the
+        // zero-rest-args coverage row.
+        if let Some(rest_name) = &cur_func.rest_param {
+            let rest: Vec<Value> = drained.collect();
+            builder = builder.bind(
+                rest_name.clone(),
+                Value::Vec(Arc::new(rest)),
+            );
+        } else {
+            // Drop the iterator so cur_args is fully drained even on
+            // the strict-arity path. (drain runs to completion on
+            // drop; explicit drop here makes the lifecycle obvious.)
+            drop(drained);
         }
         let call_env = builder.build();
         // Evaluate the body in tail position. `eval_tail` is the
@@ -22488,6 +22688,8 @@ mod tests {
                 type_params: vec![],
                 param_types: vec![],
                 ret_type: crate::types::TypeExpr::Path(":wat::core::i64".to_string()),
+                rest_param: None,
+                rest_param_type: None,
                 body: Arc::new(helper_body),
                 closed_env: None,
             }),
