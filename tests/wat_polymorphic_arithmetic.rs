@@ -293,16 +293,27 @@ fn poly_eq_strings_still_works() {
 
 // ─── Typed strict comparison/equality variants ───────────────────────
 
+// Arc 148 slice 5 — per-Type comparison leaves
+// (`:wat::core::{i64,f64}::{=,<,>,<=,>=}`) retired. Strict
+// type-locking is now expressed via param types at the call
+// site's enclosing function: a helper with `(a :i64) (b :i64)`
+// params calling the polymorphic `:wat::core::=` enforces the
+// same constraint at the binding site that the per-Type leaf
+// used to enforce in-line.
+
 #[test]
 fn typed_strict_i64_eq_homogeneous_works() {
     let src = r##"
+        (:wat::core::define
+          (:my::test::eq-i64 (a :wat::core::i64) (b :wat::core::i64) -> :wat::core::bool)
+          (:wat::core::= a b))
         (:wat::core::define
           (:user::main
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
-          (:wat::core::if (:wat::core::i64::= 3 3) -> :wat::core::unit
+          (:wat::core::if (:my::test::eq-i64 3 3) -> :wat::core::unit
             (:wat::io::IOWriter/println stdout "yes")
             (:wat::io::IOWriter/println stdout "no")))
     "##;
@@ -313,12 +324,15 @@ fn typed_strict_i64_eq_homogeneous_works() {
 fn typed_strict_i64_eq_rejects_f64_arg() {
     let src = r##"
         (:wat::core::define
+          (:my::test::eq-i64 (a :wat::core::i64) (b :wat::core::i64) -> :wat::core::bool)
+          (:wat::core::= a b))
+        (:wat::core::define
           (:user::main
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
-          (:wat::core::if (:wat::core::i64::= 3 3.0) -> :wat::core::unit
+          (:wat::core::if (:my::test::eq-i64 3 3.0) -> :wat::core::unit
             (:wat::io::IOWriter/println stdout "yes")
             (:wat::io::IOWriter/println stdout "no")))
     "##;
@@ -331,12 +345,15 @@ fn typed_strict_i64_eq_rejects_f64_arg() {
 fn typed_strict_f64_lt_homogeneous_works() {
     let src = r##"
         (:wat::core::define
+          (:my::test::lt-f64 (a :wat::core::f64) (b :wat::core::f64) -> :wat::core::bool)
+          (:wat::core::< a b))
+        (:wat::core::define
           (:user::main
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
-          (:wat::core::if (:wat::core::f64::< 1.5 2.5) -> :wat::core::unit
+          (:wat::core::if (:my::test::lt-f64 1.5 2.5) -> :wat::core::unit
             (:wat::io::IOWriter/println stdout "less")
             (:wat::io::IOWriter/println stdout "not less")))
     "##;
@@ -347,12 +364,15 @@ fn typed_strict_f64_lt_homogeneous_works() {
 fn typed_strict_f64_lt_rejects_i64_arg() {
     let src = r##"
         (:wat::core::define
+          (:my::test::lt-f64 (a :wat::core::f64) (b :wat::core::f64) -> :wat::core::bool)
+          (:wat::core::< a b))
+        (:wat::core::define
           (:user::main
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
-          (:wat::core::if (:wat::core::f64::< 1 2.5) -> :wat::core::unit
+          (:wat::core::if (:my::test::lt-f64 1 2.5) -> :wat::core::unit
             (:wat::io::IOWriter/println stdout "less")
             (:wat::io::IOWriter/println stdout "not less")))
     "##;

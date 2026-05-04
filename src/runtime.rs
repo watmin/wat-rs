@@ -1912,7 +1912,7 @@ fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, RuntimeError> 
 ///
 /// **Balanced-suffix rule**: only strip when the keyword ends in
 /// `>` AND contains a `<`. Comparison operators like
-/// `:wat::core::f64::<` end with `<` (no closing `>`); they are NOT
+/// `:wat::core::<` end with `<` (no closing `>`); they are NOT
 /// turbofish suffixes and must NOT be stripped. Substrate
 /// convention is `<T1,T2,...>` only as a balanced suffix after the
 /// identifier; the lexer admits both forms (depth tracking permits
@@ -2599,25 +2599,13 @@ fn dispatch_keyword_head(
         }),
         ":wat::core::>=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Less),
 
-        // Arc 050 — typed strict comparison/equality variants. The
-        // runtime delegates to the same eval_eq / eval_compare paths
-        // because the type checker already enforces same-numeric-type
-        // input. The strict variants ARE the strict-typed scheme;
-        // the runtime needs no separate strictness logic.
-        ":wat::core::i64::=" => eval_eq(head, args, list_span, env, sym),
-        ":wat::core::i64::<" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Less),
-        ":wat::core::i64::>" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Greater),
-        ":wat::core::i64::<=" => eval_compare(head, args, list_span, env, sym, |o| {
-            o != std::cmp::Ordering::Greater
-        }),
-        ":wat::core::i64::>=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Less),
-        ":wat::core::f64::=" => eval_eq(head, args, list_span, env, sym),
-        ":wat::core::f64::<" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Less),
-        ":wat::core::f64::>" => eval_compare(head, args, list_span, env, sym, |o| o == std::cmp::Ordering::Greater),
-        ":wat::core::f64::<=" => eval_compare(head, args, list_span, env, sym, |o| {
-            o != std::cmp::Ordering::Greater
-        }),
-        ":wat::core::f64::>=" => eval_compare(head, args, list_span, env, sym, |o| o != std::cmp::Ordering::Less),
+        // Arc 148 slice 5 — per-Type comparison leaves
+        // (`:wat::core::{i64,f64}::{=,<,>,<=,>=}`) RETIRED. The
+        // polymorphic bare-name ops above already cover same-type and
+        // mixed-numeric via `values_compare` / `values_equal`. Strict
+        // type-locking is now expressed via param types at the call
+        // site's enclosing function (the binding-site enforces the
+        // same constraint the per-Type leaves used to).
 
         // Arc 050 — polymorphic arithmetic with int → float promotion.
         // Lisp-traditional semantics: i64+i64→i64, f64+f64→f64,
@@ -4455,7 +4443,7 @@ fn eval_eq(
 /// Inverse of `:wat::core::=`. Same polymorphism (cross-numeric
 /// promotion, structural equality on composites, Enum equality post-
 /// arc-056-companion). The runtime is `not(=)`; the type checker
-/// shares `infer_polymorphic_compare` so call-site type rules are
+/// shares `infer_comparison` so call-site type rules are
 /// identical.
 ///
 /// `(not= a b)` reads more naturally aloud than `(not (= a b))` and
@@ -4495,9 +4483,11 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         (Value::f64(x), Value::f64(y)) => Some(x == y),
         // Arc 050 — numeric cross-type equality. Promote i64 to f64
         // before comparison. Reachable when the polymorphic
-        // `:wat::core::=` gets mixed-numeric args (the typed strict
-        // `:wat::core::i64::=` and `:wat::core::f64::=` variants are
-        // gated by the checker before reaching here).
+        // `:wat::core::=` gets mixed-numeric args. Per arc 148 slice
+        // 5, the per-Type comparison leaves are retired; strict
+        // type-locking now lives at call-site param types, so
+        // mismatched pairs are rejected at the binding site before
+        // reaching here.
         (Value::i64(x), Value::f64(y)) => Some((*x as f64) == *y),
         (Value::f64(x), Value::i64(y)) => Some(*x == (*y as f64)),
         (Value::String(x), Value::String(y)) => Some(x == y),
@@ -15713,22 +15703,12 @@ fn step_list(
         | ":wat::core::i64::-,2"
         | ":wat::core::i64::*,2"
         | ":wat::core::i64::/,2"
-        | ":wat::core::i64::="
-        | ":wat::core::i64::<"
-        | ":wat::core::i64::>"
-        | ":wat::core::i64::<="
-        | ":wat::core::i64::>="
         | ":wat::core::i64::to-string"
         | ":wat::core::i64::to-f64"
         | ":wat::core::f64::+,2"
         | ":wat::core::f64::-,2"
         | ":wat::core::f64::*,2"
         | ":wat::core::f64::/,2"
-        | ":wat::core::f64::="
-        | ":wat::core::f64::<"
-        | ":wat::core::f64::>"
-        | ":wat::core::f64::<="
-        | ":wat::core::f64::>="
         | ":wat::core::f64::abs"
         | ":wat::core::f64::max"
         | ":wat::core::f64::min"
@@ -21399,7 +21379,7 @@ mod tests {
         let src = r#"
             (:wat::core::match
               (:wat::eval-ast!
-                (:wat::core::quote (:wat::core::i64::> 5 3)))
+                (:wat::core::quote (:wat::core::> 5 3)))
               -> :bool
               ((:wat::core::Ok b) b)
               ((:wat::core::Err _) false))
@@ -21935,7 +21915,7 @@ mod tests {
         // `(if (= 1 1) -> :wat::core::i64 1 0)` — cond non-canonical, descend until
         // BoolLit, then project.
         let h = step_drive_to_terminal(
-            "(:wat::core::if (:wat::core::i64::= 1 1) -> :wat::core::i64 1 0)",
+            "(:wat::core::if (:wat::core::= 1 1) -> :wat::core::i64 1 0)",
         );
         assert_eq!(h.as_i64(), Some(1));
     }
@@ -22050,7 +22030,7 @@ mod tests {
             r#"
             (:wat::core::define
               (:my::test::sum-to (n :wat::core::i64) (acc :wat::core::i64) -> :wat::core::i64)
-              (:wat::core::if (:wat::core::i64::= n 0) -> :wat::core::i64
+              (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
                 acc
                 (:my::test::sum-to (:wat::core::i64::-,2 n 1)
                                    (:wat::core::i64::+,2 acc n))))

@@ -3289,7 +3289,7 @@ fn infer_list(
             | ":wat::core::>"
             | ":wat::core::<="
             | ":wat::core::>=" => {
-                return infer_polymorphic_compare(k, head_span, args, env, locals, fresh, subst, errors);
+                return infer_comparison(k, head_span, args, env, locals, fresh, subst, errors);
             }
             // Arc 050 — polymorphic arithmetic. Both args must be
             // numeric (i64 or f64); result type is f64 if either is
@@ -6557,14 +6557,26 @@ fn infer_hashset_constructor(
 
 /// Arc 050 — polymorphic comparison/equality inference.
 ///
-/// For `:wat::core::=`, `<`, `>`, `<=`, `>=`. Same-type-for-non-
+/// Check-side signature inference for the polymorphic comparison
+/// family (`:wat::core::{=,not=,<,>,<=,>=}`). Same-type-for-non-
 /// numeric, cross-numeric-promotion-for-(i64,f64) pairs. Always
 /// returns `:bool`.
 ///
-/// The runtime path (`eval_compare`, `values_equal` post-arc-050)
-/// already handles the cross-numeric case; this checker branch
-/// makes the runtime path reachable.
-fn infer_polymorphic_compare(
+/// The runtime path (`eval_eq` / `eval_compare` / `eval_not_eq`
+/// over `values_equal` / `values_compare`) already handles
+/// cross-numeric routing AND universal same-type delegation (arc
+/// 148 slice 3). This checker branch is the call-side companion
+/// that admits the (i64, f64) mixed pair and otherwise unifies
+/// the two arg types — which is genuine custom inference (any-
+/// same-type-with-PartialOrd + mixed-numeric exception) that no
+/// arc-146 Dispatch entity can express without arm-explosion.
+///
+/// Renamed from `infer_polymorphic_compare` in arc 148 slice 5
+/// to drop the polymorphic-handler anti-pattern framing. The
+/// function IS the check-side `:wat::core::<` family inference;
+/// nothing about it is anti-pattern. Per-Type comparison leaves
+/// retired in the same slice.
+fn infer_comparison(
     op: &str,
     head_span: &Span,
     args: &[WatAST],
@@ -8997,50 +9009,20 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Comparison / equality — arc 050. The polymorphic forms
-    // (`:wat::core::=`, `<`, `>`, `<=`, `>=`) are special-cased in
-    // `infer_list` so they accept mixed numeric pairs (i64+f64) and
-    // promote at runtime. For non-numeric types they still require
-    // both operands to be the same type, same as the prior
-    // `∀T. T → T → :bool` shape. No scheme registration here — the
+    // Comparison / equality — arc 050 + arc 148 slice 5. The
+    // polymorphic forms (`:wat::core::{=,not=,<,>,<=,>=}`) are
+    // special-cased in `infer_list` so they accept mixed numeric
+    // pairs (i64+f64) and promote at runtime. For non-numeric types
+    // they require both operands to be the same type
+    // (`∀T. T → T → :bool` shape). No scheme registration here — the
     // special-case branch handles inference end-to-end.
+    //
+    // Per arc 148 slice 5 the per-Type comparison leaves
+    // (`:wat::core::{i64,f64}::{=,<,>,<=,>=}`) are retired; strict
+    // type-locking is now expressed via param types at the call
+    // site's enclosing function (the binding-site enforces what the
+    // per-Type leaves used to enforce in-line).
 
-    // Typed strict comparison/equality — arc 050. Power-user opt-in
-    // for callers who want the type-guard behavior. Reject mixed
-    // input at the checker; runtime delegates to the same eval_eq /
-    // eval_compare paths.
-    for op in &[
-        ":wat::core::i64::=",
-        ":wat::core::i64::<",
-        ":wat::core::i64::>",
-        ":wat::core::i64::<=",
-        ":wat::core::i64::>=",
-    ] {
-        env.register(
-            op.to_string(),
-            TypeScheme {
-                type_params: vec![],
-                params: vec![i64_ty(), i64_ty()],
-                ret: bool_ty(),
-            },
-        );
-    }
-    for op in &[
-        ":wat::core::f64::=",
-        ":wat::core::f64::<",
-        ":wat::core::f64::>",
-        ":wat::core::f64::<=",
-        ":wat::core::f64::>=",
-    ] {
-        env.register(
-            op.to_string(),
-            TypeScheme {
-                type_params: vec![],
-                params: vec![f64_ty(), f64_ty()],
-                ret: bool_ty(),
-            },
-        );
-    }
     // Polymorphic arithmetic — arc 050. Special-cased in `infer_list`
     // for the cross-numeric promotion rule (i64+f64→f64). No scheme
     // registration here — the special-case branch handles inference

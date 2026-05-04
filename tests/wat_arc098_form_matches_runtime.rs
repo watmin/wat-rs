@@ -336,7 +336,7 @@ fn binding_visible_in_later_clauses_including_where() {
               (= ?o :outcome)
               (= ?gr :grace-residue)
               (= ?o "Grace")
-              (:where (:wat::core::f64::> ?gr 10.0)))))
+              (:where (:wat::core::> ?gr 10.0)))))
         "#,
     );
     assert_bool(run(&src), true, "binding ?gr visible in where");

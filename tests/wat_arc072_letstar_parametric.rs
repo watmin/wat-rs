@@ -152,8 +152,8 @@ fn operator_lt_gt_keywords_still_lex() {
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
-          (:wat::core::if (:wat::core::i64::< 1 2) -> :wat::core::unit
-            (:wat::core::if (:wat::core::i64::>= 5 5) -> :wat::core::unit
+          (:wat::core::if (:wat::core::< 1 2) -> :wat::core::unit
+            (:wat::core::if (:wat::core::>= 5 5) -> :wat::core::unit
               (:wat::io::IOWriter/println stdout "ok")
               (:wat::io::IOWriter/println stdout "ge-fail"))
             (:wat::io::IOWriter/println stdout "lt-fail")))
