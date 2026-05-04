@@ -55,7 +55,7 @@ fn user_struct_constructor_and_accessor_round_trip() {
             (((b :my::market::Bar) (:my::market::Bar/new 1.0 2.0))
              ((o :wat::core::f64)             (:my::market::Bar/open b))
              ((c :wat::core::f64)             (:my::market::Bar/close b)))
-            (:wat::core::f64::- c o)))
+            (:wat::core::f64::-,2 c o)))
     "#;
     match run(src) {
         Value::f64(x) if (x - 1.0).abs() < 1e-12 => {}
@@ -75,7 +75,7 @@ fn user_method_can_use_auto_accessors_in_body() {
           (low  :wat::core::f64))
 
         (:wat::core::define (:my::market::spread-of (b :my::market::Bar) -> :wat::core::f64)
-          (:wat::core::f64::- (:my::market::Bar/high b) (:my::market::Bar/low b)))
+          (:wat::core::f64::-,2 (:my::market::Bar/high b) (:my::market::Bar/low b)))
 
         (:wat::core::define (:user::main -> :wat::core::f64)
           (:wat::core::let*
@@ -218,7 +218,7 @@ fn builtin_capacity_exceeded_struct_is_usable() {
               (:wat::holon::CapacityExceeded/new 200 100))
              ((cost   :wat::core::i64) (:wat::holon::CapacityExceeded/cost   e))
              ((budget :wat::core::i64) (:wat::holon::CapacityExceeded/budget e)))
-            (:wat::core::i64::- cost budget)))
+            (:wat::core::i64::-,2 cost budget)))
     "#;
     match run(src) {
         Value::i64(100) => {}

@@ -252,10 +252,10 @@
               (:wat::core::lambda
                 ((acc :wat::core::i64) (slot :wat::core::Option<wat::holon::HolonAST>) -> :wat::core::i64)
                 (:wat::core::match slot -> :wat::core::i64
-                  ((:wat::core::Some _) (:wat::core::i64::+ acc 1))
+                  ((:wat::core::Some _) (:wat::core::i64::+,2 acc 1))
                   (:wat::core::None acc)))))
            ((n :wat::core::i64) (:wat::core::Vector/len probes))
-           ((miss-count :wat::core::i64) (:wat::core::i64::- n hit-count))
+           ((miss-count :wat::core::i64) (:wat::core::i64::-,2 n hit-count))
            ;; Arc 110: in-memory peer-death is catastrophic; panic with a
            ;; meaningful message rather than silently dropping the reply.
            ((_send :wat::core::unit)
@@ -264,9 +264,9 @@
               "HologramCacheService/handle: reply-tx disconnected — client died mid-request?"))
            ((stats' :wat::holon::lru::HologramCacheService::Stats)
             (:wat::holon::lru::HologramCacheService::Stats/new
-              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/lookups stats) n)
-              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/hits stats) hit-count)
-              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/misses stats) miss-count)
+              (:wat::core::i64::+,2 (:wat::holon::lru::HologramCacheService::Stats/lookups stats) n)
+              (:wat::core::i64::+,2 (:wat::holon::lru::HologramCacheService::Stats/hits stats) hit-count)
+              (:wat::core::i64::+,2 (:wat::holon::lru::HologramCacheService::Stats/misses stats) miss-count)
               (:wat::holon::lru::HologramCacheService::Stats/puts stats)
               (:wat::holon::lru::HologramCacheService::Stats/cache-size stats))))
           (:wat::holon::lru::HologramCacheService::State/new cache stats')))
@@ -294,7 +294,7 @@
               (:wat::holon::lru::HologramCacheService::Stats/lookups stats)
               (:wat::holon::lru::HologramCacheService::Stats/hits stats)
               (:wat::holon::lru::HologramCacheService::Stats/misses stats)
-              (:wat::core::i64::+ (:wat::holon::lru::HologramCacheService::Stats/puts stats) n)
+              (:wat::core::i64::+,2 (:wat::holon::lru::HologramCacheService::Stats/puts stats) n)
               (:wat::holon::lru::HologramCacheService::Stats/cache-size stats))))
           (:wat::holon::lru::HologramCacheService::State/new cache stats'))))))
 

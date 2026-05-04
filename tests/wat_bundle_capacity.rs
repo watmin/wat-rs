@@ -130,7 +130,7 @@ fn bundle_err_cost_and_budget_readable_via_accessors() {
           (:wat::core::match (:wat::holon::Bundle {}) -> :wat::core::i64
             ((:wat::core::Ok _) 0)
             ((:wat::core::Err e)
-              (:wat::core::i64::-
+              (:wat::core::i64::-,2
                 (:wat::holon::CapacityExceeded/cost e)
                 (:wat::holon::CapacityExceeded/budget e)))))
         "#,

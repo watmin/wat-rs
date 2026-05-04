@@ -106,7 +106,7 @@ fn newtype_rejected_where_inner_expected() {
           ;; Pass a Price where an f64 is expected — type-checker should refuse.
           (:wat::core::let*
             (((p :my::trading::Price) (:my::trading::Price/new 100.0))
-             ((bogus :f64) (:wat::core::f64::+ p 1.0)))
+             ((bogus :f64) (:wat::core::f64::+,2 p 1.0)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string bogus))))
     "##;
     let err = run_expecting_check_error(src);

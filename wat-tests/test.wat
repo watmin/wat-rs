@@ -295,11 +295,11 @@
 
 (:wat-tests::std::test::cfg-deftest
   :wat-tests::std::test::test-make-deftest-runs
-  (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
+  (:wat::test::assert-eq (:wat::core::i64::+,2 2 2) 4))
 
 (:wat-tests::std::test::cfg-deftest
   :wat-tests::std::test::test-make-deftest-second-test
-  (:wat::test::assert-eq 10 (:wat::core::i64::* 5 2)))
+  (:wat::test::assert-eq 10 (:wat::core::i64::*,2 5 2)))
 
 ;; ─── :wat::core::macroexpand / macroexpand-1 — arc 030 ────────────────
 ;;
@@ -314,7 +314,7 @@
   (:wat::core::match
     (:wat::eval-ast!
       (:wat::core::macroexpand-1
-        (:wat::core::quote (:wat::core::i64::+ 2 2))))
+        (:wat::core::quote (:wat::core::i64::+,2 2 2))))
     -> :wat::core::unit
     ((:wat::core::Ok _) (:wat::test::assert-eq true true))
     ((:wat::core::Err _) (:wat::test::assert-eq true false))))
@@ -326,7 +326,7 @@
   (:wat::core::match
     (:wat::eval-ast!
       (:wat::core::macroexpand
-        (:wat::core::quote (:wat::core::i64::* 3 4))))
+        (:wat::core::quote (:wat::core::i64::*,2 3 4))))
     -> :wat::core::unit
     ((:wat::core::Ok _) (:wat::test::assert-eq true true))
     ((:wat::core::Err _) (:wat::test::assert-eq true false))))

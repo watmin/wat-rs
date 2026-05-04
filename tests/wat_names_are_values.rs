@@ -50,7 +50,7 @@ fn named_define_is_a_function_value() {
     let src = r##"
 
         (:wat::core::define (:my::double (x :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::* x 2))
+          (:wat::core::i64::*,2 x 2))
 
         (:wat::core::define
           (:user::main
@@ -70,7 +70,7 @@ fn named_define_is_a_function_value() {
     let src_check_result = r##"
 
         (:wat::core::define (:my::double (x :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::* x 2))
+          (:wat::core::i64::*,2 x 2))
 
         (:wat::core::define
           (:user::main
@@ -99,7 +99,7 @@ fn named_define_passes_to_higher_order_fn() {
     let src = r##"
 
         (:wat::core::define (:my::inc (n :wat::core::i64) -> :wat::core::i64)
-          (:wat::core::i64::+ n 1))
+          (:wat::core::i64::+,2 n 1))
 
         (:wat::core::define (:my::apply-twice (f :fn(wat::core::i64)->wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
           (f (f x)))
@@ -181,7 +181,7 @@ fn named_define_as_stream_map_fn() {
     let src = r##"
 
         (:wat::core::define (:my::double (n :i64) -> :i64)
-          (:wat::core::i64::* n 2))
+          (:wat::core::i64::*,2 n 2))
 
         (:wat::core::define
           (:user::main

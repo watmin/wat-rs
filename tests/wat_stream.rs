@@ -110,7 +110,7 @@ fn from_receiver_composes_with_map() {
              ((doubled :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::map source
                 (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
-                  (:wat::core::i64::* n 2)))))
+                  (:wat::core::i64::*,2 n 2)))))
             (:wat::stream::collect doubled)))
     "#;
     assert_eq!(collected_i64(src), vec![2, 4, 6]);
@@ -155,7 +155,7 @@ fn spawn_producer_map_collect_doubles_each_value() {
              ((doubled :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::map source
                 (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
-                  (:wat::core::i64::* n 2)))))
+                  (:wat::core::i64::*,2 n 2)))))
             (:wat::stream::collect doubled)))
     "#;
     assert_eq!(collected_i64(src), vec![2, 4, 6, 8]);
@@ -183,11 +183,11 @@ fn three_stage_pipeline_map_map_collect() {
              ((s1 :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::map s0
                 (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
-                  (:wat::core::i64::+ n 1))))
+                  (:wat::core::i64::+,2 n 1))))
              ((s2 :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::map s1
                 (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
-                  (:wat::core::i64::* n 3)))))
+                  (:wat::core::i64::*,2 n 3)))))
             (:wat::stream::collect s2)))
     "#;
     // (0+1)*3, (1+1)*3, (2+1)*3 = 3, 6, 9
@@ -251,15 +251,15 @@ fn filter_keeps_only_passing_values() {
              ((evens :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::filter source
                 (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::bool)
-                  (:wat::core::= (:wat::core::i64::/ (:wat::core::i64::* n 2) 2)
+                  (:wat::core::= (:wat::core::i64::/,2 (:wat::core::i64::*,2 n 2) 2)
                                  n)))))
             (:wat::stream::collect evens)))
     "#;
     // Identity check inside the lambda — (n*2)/2 == n is always true.
     // Swap in a real parity check:
     let src = src.replace(
-        "(:wat::core::= (:wat::core::i64::/ (:wat::core::i64::* n 2) 2)\n                                 n)",
-        "(:wat::core::= (:wat::core::i64::* (:wat::core::i64::/ n 2) 2) n)",
+        "(:wat::core::= (:wat::core::i64::/,2 (:wat::core::i64::*,2 n 2) 2)\n                                 n)",
+        "(:wat::core::= (:wat::core::i64::*,2 (:wat::core::i64::/,2 n 2) 2) n)",
     );
     assert_eq!(collected_i64(&src), vec![2, 4, 6]);
 }
@@ -281,7 +281,7 @@ fn fold_sums_the_stream() {
                   ())))
             0
             (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
-              (:wat::core::i64::+ acc x))))
+              (:wat::core::i64::+,2 acc x))))
     "#;
     assert!(matches!(run(src), Value::i64(60)));
 }
@@ -297,7 +297,7 @@ fn fold_with_empty_stream_returns_init() {
                 ()))
             42
             (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
-              (:wat::core::i64::+ acc x))))
+              (:wat::core::i64::+,2 acc x))))
     "#;
     assert!(matches!(run(src), Value::i64(42)));
 }
@@ -416,7 +416,7 @@ fn chunks_into_map_composes() {
               (:wat::core::lambda ((batch :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
                 (:wat::core::foldl batch 0
                   (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
-                    (:wat::core::i64::+ acc x)))))))
+                    (:wat::core::i64::+,2 acc x)))))))
     "#;
     assert_eq!(collected_i64(src), vec![3, 7, 5]);
 }
@@ -521,7 +521,7 @@ fn take_composes_with_map() {
              ((mapped :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::map source
                 (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
-                  (:wat::core::i64::+ n 10))))
+                  (:wat::core::i64::+,2 n 10))))
              ((taken :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::take mapped 2)))
             (:wat::stream::collect taken)))
@@ -576,14 +576,14 @@ fn inspect_composes_between_map_and_collect() {
              ((s1 :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::map s0
                 (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
-                  (:wat::core::i64::+ n 1))))
+                  (:wat::core::i64::+,2 n 1))))
              ((s2 :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::inspect s1
                 (:wat::core::lambda ((_n :wat::core::i64) -> :wat::core::unit) ())))
              ((s3 :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::map s2
                 (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
-                  (:wat::core::i64::* n 10)))))
+                  (:wat::core::i64::*,2 n 10)))))
             (:wat::stream::collect s3)))
     "#;
     assert_eq!(collected_i64(src), vec![20, 30, 40]);
@@ -609,7 +609,7 @@ fn flat_map_expands_each_input_to_two_outputs() {
              ((expanded :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::flat-map source
                 (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::Vector<wat::core::i64>)
-                  (:wat::core::Vector :wat::core::i64 n (:wat::core::i64::* n 10))))))
+                  (:wat::core::Vector :wat::core::i64 n (:wat::core::i64::*,2 n 10))))))
             (:wat::stream::collect expanded)))
     "#;
     assert_eq!(collected_i64(src), vec![1, 10, 2, 20, 3, 30]);

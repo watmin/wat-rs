@@ -74,7 +74,7 @@ fn letstar_result_no_whitespace_simple_payload() {
               (:wat::core::Ok 42))
              ((extracted :wat::core::i64)
               (:wat::core::match wrapped -> :wat::core::i64
-                ((:wat::core::Ok n) (:wat::core::i64::+ n 1))
+                ((:wat::core::Ok n) (:wat::core::i64::+,2 n 1))
                 ((:wat::core::Err _) -1))))
             (:wat::io::IOWriter/println stdout
               (:wat::core::i64::to-string extracted))))

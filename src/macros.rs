@@ -837,7 +837,7 @@ fn substitute_bindings(form: &WatAST, bindings: &HashMap<String, WatAST>) -> Wat
 ///
 /// **Backward-compat heuristic (arc 143 slice 2):** a `WatAST::List`
 /// whose first element is a `WatAST::Keyword` is treated as a
-/// callable expression (e.g., `(:wat::core::i64::+ a 1)`) and
+/// callable expression (e.g., `(:wat::core::i64::+,2 a 1)`) and
 /// evaluated at expand-time with macro params substituted. A List
 /// whose head is NOT a Keyword (e.g., a data list from a `,,X`
 /// outer-pass substitution) returns as-is, preserving pre-slice-2
@@ -1685,14 +1685,14 @@ mod tests {
     }
 
     /// `,(substrate-primitive-call)` in a macro body evaluates the call
-    /// at expand-time with a bare SymbolTable. Uses `:wat::core::i64::+`
+    /// at expand-time with a bare SymbolTable. Uses `:wat::core::i64::+,2`
     /// which dispatches as a substrate primitive (no sym.functions needed).
     #[test]
     fn computed_unquote_evaluates_substrate_call() {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::computed-test -> :AST)
-              `(:result ,(:wat::core::i64::+ 10 32)))
+              `(:result ,(:wat::core::i64::+,2 10 32)))
             (:my::computed-test)
             "#,
         )
@@ -1717,7 +1717,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::succ (n :AST<i64>) -> :AST)
-              `(:result ,(:wat::core::i64::+ n 1)))
+              `(:result ,(:wat::core::i64::+,2 n 1)))
             (:my::succ 41)
             "#,
         )
@@ -1774,7 +1774,7 @@ mod tests {
             r#"
             (:wat::core::defmacro (:my::make-inner (name :AST<()>) -> :AST<()>)
               `(:wat::core::defmacro (,name -> :AST)
-                 `(:result ,(:wat::core::i64::+ 1 2))))
+                 `(:result ,(:wat::core::i64::+,2 1 2))))
             (:my::make-inner :my::inner)
             "#,
         )
@@ -1788,10 +1788,10 @@ mod tests {
         };
         assert_eq!(body_items.len(), 2);
         assert!(matches!(&body_items[0], WatAST::Keyword(k, _) if k == ":result"));
-        // body_items[1] should be (:wat::core::unquote (:wat::core::i64::+ 1 2))
+        // body_items[1] should be (:wat::core::unquote (:wat::core::i64::+,2 1 2))
         // — the unquote survived to the inner macro's body.
         let inner = expect_unquote(&body_items[1]);
-        // The inner arg should be the list (:wat::core::i64::+ 1 2),
+        // The inner arg should be the list (:wat::core::i64::+,2 1 2),
         // NOT the evaluated IntLit(3).
         assert!(
             matches!(inner, WatAST::List(_, _)),

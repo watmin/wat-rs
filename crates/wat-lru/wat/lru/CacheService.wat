@@ -214,10 +214,10 @@
               (:wat::core::lambda
                 ((acc :wat::core::i64) (slot :wat::core::Option<V>) -> :wat::core::i64)
                 (:wat::core::match slot -> :wat::core::i64
-                  ((:wat::core::Some _) (:wat::core::i64::+ acc 1))
+                  ((:wat::core::Some _) (:wat::core::i64::+,2 acc 1))
                   (:wat::core::None acc)))))
            ((n :wat::core::i64) (:wat::core::Vector/len probes))
-           ((miss-count :wat::core::i64) (:wat::core::i64::- n hit-count))
+           ((miss-count :wat::core::i64) (:wat::core::i64::-,2 n hit-count))
            ;; Arc 110: in-memory peer-death is catastrophic; panic with a
            ;; meaningful message rather than silently dropping the reply.
            ;; Arc 130: send Reply::GetResult variant on the slot's reply-tx.
@@ -227,9 +227,9 @@
               "CacheService/handle: reply-tx disconnected — client died mid-request?"))
            ((stats' :wat::lru::Stats)
             (:wat::lru::Stats/new
-              (:wat::core::i64::+ (:wat::lru::Stats/lookups stats) n)
-              (:wat::core::i64::+ (:wat::lru::Stats/hits stats) hit-count)
-              (:wat::core::i64::+ (:wat::lru::Stats/misses stats) miss-count)
+              (:wat::core::i64::+,2 (:wat::lru::Stats/lookups stats) n)
+              (:wat::core::i64::+,2 (:wat::lru::Stats/hits stats) hit-count)
+              (:wat::core::i64::+,2 (:wat::lru::Stats/misses stats) miss-count)
               (:wat::lru::Stats/puts stats)
               (:wat::lru::Stats/cache-size stats))))
           (:wat::lru::State/new cache stats')))
@@ -256,7 +256,7 @@
               (:wat::lru::Stats/lookups stats)
               (:wat::lru::Stats/hits stats)
               (:wat::lru::Stats/misses stats)
-              (:wat::core::i64::+ (:wat::lru::Stats/puts stats) n)
+              (:wat::core::i64::+,2 (:wat::lru::Stats/puts stats) n)
               (:wat::lru::Stats/cache-size stats))))
           (:wat::lru::State/new cache stats'))))))
 

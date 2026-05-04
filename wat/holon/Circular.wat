@@ -11,7 +11,7 @@
 ;;   - arith is binary: the proposal's `(* 2 pi (/ v p))` trinary form
 ;;     becomes nested binary `(:wat::core::*` + `:wat::core::/`)
 ;;     calls. Polymorphic forms used (arc 050); the typed strict
-;;     `:wat::core::f64::*` and `:wat::core::f64::/` remain available
+;;     `:wat::core::f64::*,2` and `:wat::core::f64::/,2` remain available
 ;;     when callers want the type-guard behavior.
 ;;   - `:wat::std::math::pi` was written bare in the proposal; it's a
 ;;     nullary primitive, called as `(:wat::std::math::pi)` here.

@@ -113,7 +113,7 @@ fn walk_visitor_signature_matches_at_use_site() {
             (form :wat::WatAST)
             (step :wat::eval::StepResult)
             -> :wat::eval::WalkStep<wat::core::i64>)
-          (:wat::eval::WalkStep::Continue (:wat::core::i64::+ acc 1)))
+          (:wat::eval::WalkStep::Continue (:wat::core::i64::+,2 acc 1)))
         (:wat::core::define
           (:user::main
             (stdin  :wat::io::IOReader)

@@ -1,6 +1,6 @@
 //! `:wat::core::string::*` + `:wat::core::regex::*` — string basics.
 //!
-//! Follows the `:wat::core::i64::*` precedent: per-type operations live
+//! Follows the `:wat::core::i64` precedent: per-type operations live
 //! in their own sub-namespace under `:wat::core::`. Keeps the top-level
 //! `:wat::core::*` reserved for polymorphic forms (`=`, `first`, `map`,
 //! `length` on Vec, etc.).

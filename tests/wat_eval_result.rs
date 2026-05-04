@@ -96,7 +96,7 @@ fn eval_edn_bang_parse_failure_surfaces_as_err() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
-          (:wat::eval-edn! "(:wat::core::i64::+ 1"))
+          (:wat::eval-edn! "(:wat::core::i64::+,2 1"))
     "#;
     let result = run(src);
     assert_eq!(err_kind(&result), "malformed-form");

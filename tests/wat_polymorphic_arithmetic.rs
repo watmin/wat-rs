@@ -384,7 +384,7 @@ fn poly_add_string_rejected_at_check() {
 
 #[test]
 fn typed_strict_arithmetic_coexists() {
-    // Existing :wat::core::i64::+ / :wat::core::f64::+ still work
+    // Existing :wat::core::i64::+,2 / :wat::core::f64::+,2 still work
     // and reject cross-type. Polymorphic + works alongside.
     let src = r##"
         (:wat::core::define
@@ -394,8 +394,8 @@ fn typed_strict_arithmetic_coexists() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::unit)
           (:wat::core::let*
-            (((a :wat::core::i64) (:wat::core::i64::+ 1 2))
-             ((b :wat::core::f64) (:wat::core::f64::+ 1.0 2.0))
+            (((a :wat::core::i64) (:wat::core::i64::+,2 1 2))
+             ((b :wat::core::f64) (:wat::core::f64::+,2 1.0 2.0))
              ((c :wat::core::f64) (:wat::core::+ 1 2.5)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string a))))
     "##;

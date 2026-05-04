@@ -59,7 +59,7 @@ fn hermetic_inner_program_stdout_captured() {
 #[test]
 fn hermetic_output_evaluated_in_outer_scope() {
     // Inner program's stdout: a literal wat expression
-    // "(:wat::core::i64::+ 40 2)". Outer program: takes the captured
+    // "(:wat::core::i64::+,2 40 2)". Outer program: takes the captured
     // stdout[0] and passes it to eval-edn!. The Ok arm carries
     // i64(42).
     //
@@ -78,7 +78,7 @@ fn hermetic_output_evaluated_in_outer_scope() {
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::unit)
-                    (:wat::io::IOWriter/println stdout "(:wat::core::i64::+ 40 2)")))
+                    (:wat::io::IOWriter/println stdout "(:wat::core::i64::+,2 40 2)")))
                 (:wat::core::Vector :wat::core::String)
                 :wat::core::None))
              ((lines :wat::core::Vector<wat::core::String>)

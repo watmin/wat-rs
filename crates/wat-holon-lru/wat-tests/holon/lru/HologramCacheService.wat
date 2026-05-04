@@ -111,7 +111,7 @@
      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
        ((:wat::core::Ok (:wat::core::Some _v))
          (:wat-tests::holon::lru::HologramCacheService::count-recv
-           rx (:wat::core::i64::+ acc 1)))
+           rx (:wat::core::i64::+,2 acc 1)))
        ((:wat::core::Ok :wat::core::None) acc)
        ((:wat::core::Err _died) acc)))
 

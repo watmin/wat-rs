@@ -376,7 +376,7 @@ fn scoped_file_eval_inside_scope_succeeds() {
     // read it. The ScopedLoader allows the read because the target
     // is inside the canonical root.
     let scope = ScopeDir::new();
-    let inner_source_path = scope.write("fortytwo.wat", "(:wat::core::i64::+ 40 2)");
+    let inner_source_path = scope.write("fortytwo.wat", "(:wat::core::i64::+,2 40 2)");
     let inner_src = format!(
         r#"(:wat::config::set-capacity-mode! :error)
          (:wat::core::define (:user::main

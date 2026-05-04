@@ -278,7 +278,7 @@
 ;;
 ;;   (:wat::test::deftest :my::test::two-plus-two
 ;;     ()
-;;     (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
+;;     (:wat::test::assert-eq (:wat::core::i64::+,2 2 2) 4))
 ;;
 ;; Shape — loads in prelude (arc 027 slice 4):
 ;;
