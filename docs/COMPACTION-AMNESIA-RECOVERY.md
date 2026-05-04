@@ -480,6 +480,78 @@ the manual reduce define. User: *"remove wat/std/ast.wat — we are
 actively killing the std namespace — 109's purpose is to eliminate
 it."*
 
+### Failure mode 11 — Inscribing deferrals as DONE
+
+**Signature:** writing an INSCRIPTION.md that contains language
+like "deferred", "future arc", "future cleanup", "future fix",
+"out of scope; future arc if X surfaces", "small follow-up",
+"when a caller surfaces", "when demand surfaces", "TODO", "left
+for", "to be added", "not yet implemented", "next arc could", or
+a `## Queued follow-ups` / `## Known limitations / deferred`
+section.
+
+**Reality check:** **INSCRIPTION = DONE.** Closure means every
+commitment the DESIGN made has shipped. If ANY deferral lives in
+the INSCRIPTION, the arc is not done. The INSCRIPTION must
+EITHER ship the deferred work OR retract it from scope with
+affirmative language ("Out of arc N's scope; tracked in arc M
+(DESIGN at ...)" OR "Out of arc N's scope; not tracked elsewhere
+because <architectural reason>"). "Deferred to a future arc when
+a caller needs it" is the failure pattern; ship it or retract it.
+
+**Pre-INSCRIPTION grep — MANDATORY before committing closure
+paperwork:**
+
+```bash
+grep -nE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of scope|when a caller|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" <INSCRIPTION>
+```
+
+For each match: **is the work in this arc, or is it explicitly
+out of scope?** If the answer is "we'll do it later" — STOP. The
+arc is not done. Either ship the work, or rewrite the prose to
+affirmative-out-of-scope (which the user accepts; "deferred" is
+what they reject).
+
+**Worst real incident, 2026-05-03:** I shipped FOUR INSCRIPTIONs
+in one session (arcs 144, 146, 148, 150) carrying explicit
+deferral language while arc 138's no-deferrals doctrine had been
+on disk for ~6 hours. I co-authored the doctrine (arc 144 + arc
+146 are the worked examples) and still wrote "future arc" / "out
+of scope" / "future cleanup" into the INSCRIPTIONs the same
+session. The user surfaced the violation in two stages:
+disappointment at the pattern, then "the explore missed items"
+when the v1 audit was incomplete. Documented at
+`docs/arc/2026/04/109-kill-std/DEFERRAL-VIOLATIONS.md` (v2; the
+audit is still not exhaustive).
+
+**The auditor was the violator.** This is the failure shape to
+remember: knowing the doctrine isn't enough; the discipline
+mechanism (the grep) must run on every INSCRIPTION before
+commit. The pre-INSCRIPTION grep above is mandatory; not
+optional; not "if I remember." Run it like FM 9's baseline-
+re-run before sonnet spawn.
+
+**Affirmative scope-bounding language (acceptable):**
+- *"Out of arc N's scope. Tracked in arc M (DESIGN.md at ...)."*
+- *"Out of arc N's scope; substrate-architectural reason: <X>;
+  not tracked elsewhere."*
+- *"Arc N intentionally does NOT cover <Y> because the caller
+  set hasn't surfaced demand. If/when a caller surfaces, a NEW
+  ARC opens; arc N's INSCRIPTION does not commit to it."*
+
+**Rejected language (per user direction):**
+- *"deferred to a follow-up"* (no follow-up named)
+- *"future arc when X surfaces"* (no arc named; inherits the
+  uncertainty)
+- *"future cleanup not load-bearing"* (still cleanup that didn't
+  ship)
+- *"will land in a future REPL"* (no arc; vaporware promise)
+- *"on the deck"* (folksy but vague)
+
+The discipline: **if the language reads as 'we'll do this later,'
+it's a violation. Ship it or affirm the scope cut. Nothing
+in between.**
+
 ---
 
 ## Section 7 — Sonnet delegation protocol (substrate-informed briefs)
@@ -633,6 +705,15 @@ canonical sources.
 - `wat-rs/docs/arc/2026/<MM>/<NNN>-<name>/` — every arc's
   DESIGN/SCORE/INSCRIPTION/REALIZATIONS
 
+### Closure-discipline tracker
+- `wat-rs/docs/arc/2026/04/109-kill-std/DEFERRAL-VIOLATIONS.md`
+  — running tracker of arcs marked INSCRIBED while carrying
+  open deferrals. The 2026-05-03 audit identified violations
+  across pre-109, post-109, and same-session-as-doctrine arcs
+  (incl. arcs I closed myself). Per FM 11 + Section 11's
+  pre-INSCRIPTION grep, this tracker should shrink, not grow,
+  going forward. New violations land here when caught.
+
 ### Memory (already auto-loaded)
 - `~/.claude/projects/-home-watmin-work-holon/memory/MEMORY.md`
 - Specific memories of interest:
@@ -676,6 +757,28 @@ how the discipline propagates across compactions.
 - A failure-engineering chain delivers its diagnostic
 - Any natural pause where work has been completed
 
+### MANDATORY pre-INSCRIPTION grep (before ANY closure commit)
+
+**Run this BEFORE committing any INSCRIPTION.md.** Per FM 11
+(inscribing deferrals as DONE), the closure paperwork is the
+discipline checkpoint that catches deferral language before it
+ships to disk:
+
+```bash
+grep -nE "deferred|deferral|future arc|future fix|future cleanup|future polish|future REPL|future-self|TODO|out of scope|when a caller|if pressure|if demand|when demand|when pressure|when needed|when surfaces|surfaces a need|small follow-up|small future|punted|scratch arc|next arc|pending arc|land later|will be|will land|can land later|left for|to be added|to-be-added|not yet implemented|not yet supported|not implemented" <INSCRIPTION>
+```
+
+For each match: ship the work in this arc OR rewrite to
+affirmative-out-of-scope language ("Out of arc N's scope. Tracked
+in arc M (DESIGN at ...)" OR "Out of arc N's scope; reason: <X>;
+not tracked elsewhere"). **No "deferred to a future arc"
+language. No "future cleanup" tail-ends. INSCRIPTION = DONE.**
+
+The 2026-05-03 violation pattern (FM 11 incident) was that I
+KNEW the doctrine and shipped four INSCRIPTIONs anyway. The grep
+runs MECHANICALLY at commit time, regardless of whether I "feel"
+the discipline is holding. **Trust the grep, not the felt sense.**
+
 ### What the ritual asks
 
 1. **Did a NEW failure mode surface?** Add it to Section 6 with a
@@ -687,6 +790,10 @@ how the discipline propagates across compactions.
    wherever it fits.
 5. **Did anything in the doc become stale or redundant?** Refactor
    or remove. Don't accumulate without pruning.
+6. **Did the pre-INSCRIPTION grep run?** If the answer is no
+   AND an INSCRIPTION shipped this session, you committed an
+   FM 11 violation. Run the grep against every INSCRIPTION
+   committed this session NOW and amend the ones that match.
 
 ### What the ritual does NOT do
 
