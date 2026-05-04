@@ -26,13 +26,48 @@ ships, the substrate has every primitive a pry-like REPL needs.
 | `show-source method` | `:wat::runtime::body-of` | ✅ shipped (arc 143/144) |
 | `show-doc method` | `:wat::runtime::doc-string-of` (future) | ⏳ paved road; pending arc 141 |
 | `cd object` (drill into type) | `:wat::runtime::lookup-define :wat::core::Type` | ✅ shipped (arc 144 Binding::Type) |
-| `ls type` (members of a type) | derive from `lookup-define` of the type + walk struct field accessors | ⏳ likely works post-arc-144; verify in arc 152 audit |
+| `ls type` (members of a type) | TypeDef walk + per-field `lookup-define :T/<field>` | ✅ shipped — verified 2026-05-03; field accessors + constructors + enum variant constructors all register as `Binding::UserFunction` per `src/runtime.rs:1432-1466` (`sym.functions.insert(accessor_path, ...)`); doc comment at line 1339 makes the contract explicit |
 | `whereami` (current location) | `:wat::core::location` (errors carry coordinates per arc 138) | ✅ partial (errors carry; need explicit primitive) |
 | **`ls` (local bindings in scope)** | **`:wat::runtime::local-bindings`** | ❌ **MISSING — this arc** |
 | `wtf?` (backtrace) | arc 113 cascading runtime errors carry the backtrace | ✅ partial (errors carry) |
 
-**Arc 152 closes the `ls` gap.** Once this ships, every pry primitive
-has a substrate equivalent.
+**Arc 152 closes the `ls` gap for local bindings.** Once this ships,
+the only remaining pry-shape gap is **namespace enumeration** —
+the ability to list everything registered under a prefix without
+knowing the names in advance.
+
+## Sibling gap — namespace enumeration
+
+The reflection trio answers "what is at this exact path" but doesn't
+answer "what paths exist under prefix X." Pry's `ls SomeClass` lists
+methods without the caller knowing the method names; the wat
+equivalent today requires walking the TypeDef's field list first
+then querying each accessor.
+
+Workaround today (works without new substrate):
+```scheme
+(:wat::core::define
+  (:user::list-methods (T :wat::holon::HolonAST) -> :Vec<wat::holon::HolonAST>)
+  (:wat::core::let*
+    (((typedef :Option<wat::holon::HolonAST>)
+      (:wat::runtime::lookup-define T)))
+    ;; walk typedef.fields, build :T/<field> path per field,
+    ;; lookup-define each, return Vec of signatures.
+    ...))
+```
+
+Future substrate primitive (cleaner shape):
+```scheme
+(:wat::runtime::list-under :wat::core::String)
+;; → :Vec<wat::holon::HolonAST> of every Binding declaration head
+;;   whose path starts with `:wat::core::String`
+```
+
+Decide in a future arc whether the workaround is sufficient or
+whether the dedicated primitive earns its keep. Probably the
+workaround is fine for arc 152's pry-shape use; the dedicated
+primitive becomes worthwhile if/when many consumers want
+prefix-enumeration semantics.
 
 ## What this arc would ship — sketched
 
