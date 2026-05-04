@@ -60,22 +60,25 @@ use std::sync::Arc;
 /// scheme. At every use site, [`instantiate`] freshens them to unique
 /// [`TypeExpr::Var`]s so multiple independent call sites don't alias.
 ///
-/// Arc 150 — variadic-define rest-param info is carried in a sibling
-/// registry on [`CheckEnv::variadic_rest_types`], keyed by callee name,
-/// rather than embedded as a TypeScheme field. The brief specced the
-/// field on TypeScheme; touching 215 substrate-primitive struct
-/// literals to add `rest_param_type: None,` would be major (and
-/// pointless — all 215 are strict-arity). The sibling map keeps the
-/// arc-150 surface localised to the one site that needs it
-/// (`derive_scheme_from_function`'s populate path) and the one site
-/// that consumes it (call-site inference's variadic branch). Existing
-/// TypeScheme construction sites are untouched. Honest delta — see
-/// SCORE-SLICE-1.md for scorecard implications.
+/// Arc 150 — variadic-define rest-param info carried inline.
+/// `rest_param_type` is `Some(:wat::core::Vector<T>)` for variadic
+/// callees (the call-site inference accepts `args.len() >= params.len()`
+/// and unifies each rest-arg against `T`); `None` for strict-arity
+/// callees (existing behavior unchanged).
+///
+/// All 215 existing substrate-primitive struct literals carry
+/// `rest_param_type: None,` (mechanically populated 2026-05-03 via
+/// brace-depth-tracking python script — sonnet's slice-1 sibling-map
+/// folded back into TypeScheme proper per user direction).
 #[derive(Debug, Clone)]
 pub struct TypeScheme {
     pub type_params: Vec<String>,
     pub params: Vec<TypeExpr>,
     pub ret: TypeExpr,
+    /// Arc 150 — `Some(Vector<T>)` for variadic callees; `None` for
+    /// strict-arity. Populated by `derive_scheme_from_function` from
+    /// `Function.rest_param_type`. Consumed at call-site inference.
+    pub rest_param_type: Option<TypeExpr>,
 }
 
 /// Type-checking errors. Multiple errors accumulate in a single pass
@@ -1103,13 +1106,6 @@ pub struct CheckEnv {
     /// in `infer_list` BEFORE the substrate-primitive scheme path so
     /// dispatch-declared names route to per-Type arm impls.
     dispatch_registry: Option<Arc<crate::dispatch::DispatchRegistry>>,
-    /// Arc 150 — sibling registry of variadic-define rest-param types,
-    /// keyed by canonical callee name. Entry present iff the underlying
-    /// `Function` has `rest_param.is_some()`. The value is always
-    /// `TypeExpr::Parametric { head: "Vec", args: [T] }` — the
-    /// rest-arg element type T is what each rest-arg unifies against
-    /// at call sites. Populated by `from_symbols` alongside `schemes`.
-    variadic_rest_types: HashMap<String, TypeExpr>,
 }
 
 impl CheckEnv {
@@ -1127,13 +1123,6 @@ impl CheckEnv {
         for (path, func) in &sym.functions {
             if let Some(scheme) = derive_scheme_from_function(func) {
                 env.register(path.clone(), scheme);
-            }
-            // Arc 150 — variadic defines populate the sibling rest-type
-            // map. The rest_param_type is always `Vector<T>`; we store
-            // it canonically and consume at the call-site inference
-            // path's variadic branch.
-            if let Some(rest_ty) = func.rest_param_type.clone() {
-                env.variadic_rest_types.insert(path.clone(), rest_ty);
             }
         }
         // Arc 146 slice 1 — capture the dispatch registry through the
@@ -1177,18 +1166,7 @@ impl CheckEnv {
             unit_variant_types,
             types,
             dispatch_registry: None,
-            variadic_rest_types: HashMap::new(),
         }
-    }
-
-    /// Arc 150 — look up a variadic-define's rest-param type by canonical
-    /// callee name. `Some(Vector<T>)` for variadic defines; `None` for
-    /// strict-arity defines + every substrate primitive. The element T is
-    /// what each rest-arg must unify against at the call site; the
-    /// variadic branch in `infer_list` extracts T from the returned
-    /// Parametric and unifies per rest-arg.
-    pub fn variadic_rest_type(&self, name: &str) -> Option<&TypeExpr> {
-        self.variadic_rest_types.get(name)
     }
 
     /// Arc 048 — look up the enum type for a unit-variant keyword
@@ -3547,13 +3525,14 @@ fn infer_list(
 
         let (param_types, ret_type) = instantiate(scheme, fresh);
 
-        // Arc 150 — variadic-define call: when the callee has a
-        // registered rest-param type, accept `args.len() >= fixed
-        // arity` and unify each rest-arg against the rest-param's
-        // element type T (extracted from `Vector<T>`). Strict-arity
-        // path (the overwhelming majority of callees) is unchanged.
-        let rest_elem_ty: Option<TypeExpr> = env
-            .variadic_rest_type(canonical_k)
+        // Arc 150 — variadic-define call: when the callee's scheme
+        // has rest_param_type set, accept `args.len() >= fixed arity`
+        // and unify each rest-arg against the rest-param's element
+        // type T (extracted from `Vector<T>`). Strict-arity path
+        // (the overwhelming majority of callees) is unchanged.
+        let rest_elem_ty: Option<TypeExpr> = scheme
+            .rest_param_type
+            .as_ref()
             .and_then(|rest_ty| match rest_ty {
                 TypeExpr::Parametric { head, args }
                     if (head == "Vec" || head == "Vector") && args.len() == 1 =>
@@ -8522,17 +8501,15 @@ fn derive_scheme_from_function(func: &Function) -> Option<TypeScheme> {
     // leave param_types empty and aren't statically typed here.
     //
     // Arc 150 — variadic functions carry their rest-param type in
-    // `func.rest_param_type`; this helper still emits only the strict-
-    // arity scheme (the substrate-wide TypeScheme literal surface stays
-    // unchanged). The rest-param info propagates through
-    // `CheckEnv::from_symbols`'s sibling map (`variadic_rest_types`),
-    // which `infer_list`'s call-site branch consults to enable the
-    // `args.len() >= params.len()` shape with per-rest-arg unification.
+    // `func.rest_param_type` (Some(Vector<T>)); strict-arity functions
+    // have None. The scheme propagates this directly to call-site
+    // inference via `TypeScheme.rest_param_type`.
     func.name.as_ref()?;
     Some(TypeScheme {
         type_params: func.type_params.clone(),
         params: func.param_types.clone(),
         ret: func.ret_type.clone(),
+        rest_param_type: func.rest_param_type.clone(),
     })
 }
 
@@ -8554,6 +8531,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![i64_ty()],
             ret: u8_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -8585,6 +8563,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![vec_u8_ty()],
             ret: ioreader_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8593,6 +8572,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty()],
             ret: ioreader_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8601,6 +8581,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![ioreader_ty(), i64_ty()],
             ret: opt_vec_u8_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8609,6 +8590,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![ioreader_ty()],
             ret: vec_u8_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8617,6 +8599,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![ioreader_ty()],
             ret: opt_string_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8625,6 +8608,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![ioreader_ty()],
             ret: unit_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -8635,6 +8619,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![],
             ret: iowriter_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8643,6 +8628,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":String".into())],
             ret: iowriter_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8651,6 +8637,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![iowriter_ty()],
             ret: vec_u8_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8659,6 +8646,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![iowriter_ty()],
             ret: opt_string_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8667,6 +8655,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![iowriter_ty(), vec_u8_ty()],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8675,6 +8664,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![iowriter_ty(), vec_u8_ty()],
             ret: unit_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8683,6 +8673,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![iowriter_ty(), string_ty()],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8691,6 +8682,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![iowriter_ty(), string_ty()],
             ret: unit_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8699,6 +8691,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![iowriter_ty(), string_ty()],
             ret: unit_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8707,6 +8700,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![iowriter_ty(), string_ty()],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8715,6 +8709,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![iowriter_ty()],
             ret: unit_ty(),
+            rest_param_type: None,
         },
     );
     // Arc 103b — explicit close for pipe-backed writers. Idempotent.
@@ -8727,6 +8722,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![iowriter_ty()],
             ret: unit_ty(),
+            rest_param_type: None,
         },
     );
     // Arc 093 — auto-deleting temp file / temp dir wrappers
@@ -8740,6 +8736,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![],
             ret: TypeExpr::Path(":wat::io::TempFile".into()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8748,6 +8745,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::io::TempFile".into())],
             ret: string_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8756,6 +8754,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![],
             ret: TypeExpr::Path(":wat::io::TempDir".into()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8764,6 +8763,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::io::TempDir".into())],
             ret: string_ty(),
+            rest_param_type: None,
         },
     );
     // `(:wat::io::read-file path) -> :String` — read file
@@ -8778,6 +8778,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty()],
             ret: string_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -8828,6 +8829,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: TypeExpr::Path(":T".into()),
+            rest_param_type: None,
         },
     );
 
@@ -8852,6 +8854,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![TypeExpr::Path(":wat::holon::HolonAST".into())],
             ret: TypeExpr::Path(":T".into()),
+            rest_param_type: None,
         },
     );
 
@@ -8871,6 +8874,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![i64_ty(), i64_ty()],
                 ret: i64_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -8889,6 +8893,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![f64_ty(), f64_ty()],
                 ret: f64_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -8903,6 +8908,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![f64_ty(), i64_ty()],
             ret: f64_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -8917,6 +8923,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![f64_ty(), f64_ty()],
                 ret: f64_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -8926,6 +8933,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![f64_ty()],
             ret: f64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8934,6 +8942,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![f64_ty(), f64_ty(), f64_ty()],
             ret: f64_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -8954,6 +8963,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var())],
             ret: opt(t_var()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8968,6 +8978,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: opt(i64_ty()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8976,6 +8987,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![vec_of(f64_ty())],
             ret: opt(f64_ty()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -8984,6 +8996,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![vec_of(f64_ty())],
             ret: opt(f64_ty()),
+            rest_param_type: None,
         },
     );
 
@@ -9010,6 +9023,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![i64_ty()],
             ret: string_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9018,6 +9032,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![i64_ty()],
             ret: f64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9026,6 +9041,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![f64_ty()],
             ret: string_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9034,6 +9050,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![f64_ty()],
             ret: opt_i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9042,6 +9059,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty()],
             ret: opt_i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9050,6 +9068,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty()],
             ret: opt_f64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9058,6 +9077,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![bool_ty()],
             ret: string_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9066,6 +9086,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty()],
             ret: opt_bool_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -9083,6 +9104,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![string_ty(), string_ty()],
                 ret: bool_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -9092,6 +9114,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty()],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9100,6 +9123,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty()],
             ret: string_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9111,6 +9135,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Vec".into(),
                 args: vec![string_ty()],
             },
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9125,6 +9150,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: string_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -9136,6 +9162,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty(), string_ty()],
             ret: bool_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -9165,6 +9192,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![bool_ty()],
             ret: bool_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -9181,6 +9209,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![t_var()],
             ret: holon_ty(),
+            rest_param_type: None,
         },
     );
     // Arc 065 named siblings of polymorphic Atom — one verb per
@@ -9191,6 +9220,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![t_var()],
             ret: holon_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9199,6 +9229,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::WatAST".into())],
             ret: holon_ty(),
+            rest_param_type: None,
         },
     );
     // atom-value — ∀T. :wat::holon::HolonAST → :T. Dual of Atom. The caller's
@@ -9211,6 +9242,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![holon_ty()],
             ret: t_var(),
+            rest_param_type: None,
         },
     );
 
@@ -9224,6 +9256,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty()],
             ret: TypeExpr::Path(":wat::WatAST".into()),
+            rest_param_type: None,
         },
     );
 
@@ -9237,6 +9270,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty()],
             ret: holon_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9248,6 +9282,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Vec".into(),
                 args: vec![TypeExpr::Path(":f64".into())],
             },
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9262,6 +9297,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     TypeExpr::Path(":f64".into()),
                 ])],
             },
+            rest_param_type: None,
         },
     );
     // term::matches? — composes template + slots + ranges + sigma. The
@@ -9274,6 +9310,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty()],
             ret: TypeExpr::Path(":bool".into()),
+            rest_param_type: None,
         },
     );
 
@@ -9286,6 +9323,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":i64".into())],
             ret: TypeExpr::Path(":f64".into()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9294,6 +9332,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":i64".into())],
             ret: TypeExpr::Path(":f64".into()),
+            rest_param_type: None,
         },
     );
 
@@ -9314,6 +9353,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![filter_ty()],
             ret: hologram_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9322,6 +9362,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![hologram_ty(), holon_ty(), holon_ty()],
             ret: TypeExpr::Tuple(vec![]),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9333,6 +9374,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Option".into(),
                 args: vec![holon_ty()],
             },
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9344,6 +9386,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Option".into(),
                 args: vec![TypeExpr::Tuple(vec![holon_ty(), holon_ty()])],
             },
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9355,6 +9398,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Option".into(),
                 args: vec![holon_ty()],
             },
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9363,6 +9407,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![hologram_ty()],
             ret: TypeExpr::Path(":i64".into()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9371,6 +9416,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![hologram_ty()],
             ret: TypeExpr::Path(":i64".into()),
+            rest_param_type: None,
         },
     );
 
@@ -9383,6 +9429,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![f64_ty(), f64_ty(), f64_ty()],
             ret: holon_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -9436,6 +9483,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     TypeExpr::Path(":wat::core::EvalError".into()),
                 ],
             },
+            rest_param_type: None,
         },
     );
     // :wat::eval-step! (arc 068) — one CBV reduction at the leftmost-
@@ -9455,6 +9503,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     TypeExpr::Path(":wat::core::EvalError".into()),
                 ],
             },
+            rest_param_type: None,
         },
     );
     // :wat::eval::walk<A> (arc 070) — fold over the eval-step! chain.
@@ -9491,6 +9540,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     TypeExpr::Path(":wat::core::EvalError".into()),
                 ],
             },
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9500,6 +9550,7 @@ fn register_builtins(env: &mut CheckEnv) {
             // <source-string>
             params: vec![string_ty()],
             ret: eval_result_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9509,6 +9560,7 @@ fn register_builtins(env: &mut CheckEnv) {
             // <path>
             params: vec![string_ty()],
             ret: eval_result_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9518,6 +9570,7 @@ fn register_builtins(env: &mut CheckEnv) {
             // <path>, :wat::verify::digest-<algo>, :wat::verify::<iface>, <hex>
             params: vec![string_ty(), keyword_ty(), keyword_ty(), string_ty()],
             ret: eval_result_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9527,6 +9580,7 @@ fn register_builtins(env: &mut CheckEnv) {
             // <source>, :wat::verify::digest-<algo>, :wat::verify::<iface>, <hex>
             params: vec![string_ty(), keyword_ty(), keyword_ty(), string_ty()],
             ret: eval_result_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9544,6 +9598,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 string_ty(),
             ],
             ret: eval_result_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9561,6 +9616,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 string_ty(),
             ],
             ret: eval_result_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9569,6 +9625,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty()],
             ret: holon_ty(),
+            rest_param_type: None,
         },
     );
     // Bundle takes :wat::holon::Holons and returns
@@ -9594,6 +9651,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     TypeExpr::Path(":wat::holon::CapacityExceeded".into()),
                 ],
             },
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9602,6 +9660,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty(), i64_ty()],
             ret: holon_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9610,6 +9669,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![f64_ty(), f64_ty(), f64_ty()],
             ret: holon_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9618,6 +9678,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty(), f64_ty(), f64_ty()],
             ret: holon_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -9641,6 +9702,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty(), holon_ty()],
             ret: bool_ty(),
+            rest_param_type: None,
         },
     );
     // :wat::holon::coincident? scheme retired in arc 061; polymorphic
@@ -9666,6 +9728,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![wat_ast_ty(), wat_ast_ty()],
             ret: eval_coincident_ret(),
+            rest_param_type: None,
         },
     );
     // Arc 028 slice 3 — eval-coincident family arities updated to
@@ -9677,6 +9740,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty(), string_ty()],
             ret: eval_coincident_ret(),
+            rest_param_type: None,
         },
     );
     // digest variant — 2 × (path, algo, payload-iface, hex) = 8 args.
@@ -9689,6 +9753,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 string_ty(), keyword_ty(), keyword_ty(), string_ty(),
             ],
             ret: eval_coincident_ret(),
+            rest_param_type: None,
         },
     );
     // digest-string variant — same arity, inline sources.
@@ -9701,6 +9766,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 string_ty(), keyword_ty(), keyword_ty(), string_ty(),
             ],
             ret: eval_coincident_ret(),
+            rest_param_type: None,
         },
     );
     // signed variant — 2 × (path, algo, sig-iface, sig, pk-iface, pk) = 12 args.
@@ -9713,6 +9779,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 string_ty(), keyword_ty(), keyword_ty(), string_ty(), keyword_ty(), string_ty(),
             ],
             ret: eval_coincident_ret(),
+            rest_param_type: None,
         },
     );
     // signed-string variant — same arity, inline sources.
@@ -9725,6 +9792,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 string_ty(), keyword_ty(), keyword_ty(), string_ty(), keyword_ty(), string_ty(),
             ],
             ret: eval_coincident_ret(),
+            rest_param_type: None,
         },
     );
 
@@ -9737,6 +9805,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9745,6 +9814,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9753,6 +9823,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9761,6 +9832,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![],
             ret: f64_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -9772,6 +9844,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![],
             ret: bool_ty(),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::pipe) → :(wat::io::IOWriter, wat::io::IOReader).
@@ -9785,6 +9858,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 TypeExpr::Path(":wat::io::IOWriter".into()),
                 TypeExpr::Path(":wat::io::IOReader".into()),
             ]),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::fork-program-ast forms) → :wat::kernel::Process<I, O>.
@@ -9813,6 +9887,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![TypeExpr::Path(":wat::WatAST".into())],
             }],
             ret: process_ty(),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::fork-program src scope) → :wat::kernel::Process<I, O>.
@@ -9829,6 +9904,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: process_ty(),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::spawn-program src scope) →
@@ -9872,6 +9948,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: process_or_startup_error(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -9889,6 +9966,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: process_or_startup_error(),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::Process/join-result proc) →
@@ -9923,6 +10001,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     process_died_chain_ty(),
                 ],
             },
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::spawn-thread body) →
@@ -9971,6 +10050,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["I".into(), "O".into()],
             params: vec![thread_body_fn_ty()],
             ret: thread_ty(),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::Thread/join-result thr) →
@@ -10001,6 +10081,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     thread_died_chain_ty(),
                 ],
             },
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::process-send proc :I) →
@@ -10027,6 +10108,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     process_died_chain_ty(),
                 ],
             },
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::process-recv proc) →
@@ -10068,6 +10150,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     process_died_chain_ty(),
                 ],
             },
+            rest_param_type: None,
         },
     );
     // User-signal surface — 2026-04-19 stance: kernel measures, userland
@@ -10085,6 +10168,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![],
                 ret: bool_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -10099,6 +10183,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![],
                 ret: TypeExpr::Tuple(vec![]),
+                rest_param_type: None,
             },
         );
     }
@@ -10158,6 +10243,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 t_var(),
             ],
             ret: comm_send_ret(),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::try-recv receiver) —
@@ -10173,6 +10259,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![t_var()],
             }],
             ret: comm_ok_option_t(),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::recv receiver) —
@@ -10186,6 +10273,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![t_var()],
             }],
             ret: comm_ok_option_t(),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::join handle) — ∀R. ProgramHandle<R> -> R.
@@ -10199,6 +10287,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![r_var()],
             }],
             ret: r_var(),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::join-result handle) — arc 060 + arc 113.
@@ -10222,6 +10311,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     died_chain_ty(),
                 ],
             },
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::ThreadDiedError/message err) -> :String — arc 105b.
@@ -10236,6 +10326,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
             ret: TypeExpr::Path(":String".into()),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::ThreadDiedError/to-failure err) -> :wat::kernel::Failure
@@ -10250,6 +10341,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::kernel::ThreadDiedError".into())],
             ret: TypeExpr::Path(":wat::kernel::Failure".into()),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::ProcessDiedError/message err) -> :String — arc 112.
@@ -10260,6 +10352,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
             ret: TypeExpr::Path(":String".into()),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::ProcessDiedError/to-failure err) -> :wat::kernel::Failure
@@ -10272,6 +10365,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
             ret: TypeExpr::Path(":wat::kernel::Failure".into()),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::extract-panics (lines :Vec<String>))
@@ -10306,6 +10400,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     args: vec![TypeExpr::Path(":wat::kernel::ProcessDiedError".into())],
                 }],
             },
+            rest_param_type: None,
         },
     );
     // HandlePool — claim-or-panic discipline.
@@ -10327,6 +10422,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "wat::kernel::HandlePool".into(),
                 args: vec![t_var()],
             },
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10338,6 +10434,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![t_var()],
             }],
             ret: t_var(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10349,6 +10446,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![t_var()],
             }],
             ret: TypeExpr::Tuple(vec![]),
+            rest_param_type: None,
         },
     );
     // (:wat::kernel::select receivers) —
@@ -10370,6 +10468,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 TypeExpr::Path(":i64".into()),
                 comm_ok_option_t(),
             ]),
+            rest_param_type: None,
         },
     );
     // Algebra measurement: dot product. Per 058-005 new measurement
@@ -10389,6 +10488,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty()],
             ret: TypeExpr::Path(":wat::holon::Vector".into()),
+            rest_param_type: None,
         },
     );
     // Arc 061 — vector portability. Serialize / deserialize the
@@ -10405,6 +10505,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::holon::Vector".into())],
             ret: TypeExpr::Path(":wat::core::Bytes".into()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10416,6 +10517,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Option".into(),
                 args: vec![TypeExpr::Path(":wat::holon::Vector".into())],
             },
+            rest_param_type: None,
         },
     );
     // Arc 063 — Bytes ↔ hex text bridge. to-hex emits lowercase
@@ -10428,6 +10530,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::core::Bytes".into())],
             ret: TypeExpr::Path(":String".into()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10439,6 +10542,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Option".into(),
                 args: vec![TypeExpr::Path(":wat::core::Bytes".into())],
             },
+            rest_param_type: None,
         },
     );
     // Arc 064 — polymorphic value rendering. `:wat::core::show<T>`
@@ -10452,6 +10556,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![t_var()],
             ret: TypeExpr::Path(":String".into()),
+            rest_param_type: None,
         },
     );
     // Arc 079 — polymorphic value-to-EDN rendering. Three primitives
@@ -10473,6 +10578,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec!["T".into()],
                 params: vec![t_var()],
                 ret: TypeExpr::Path(":String".into()),
+                rest_param_type: None,
             },
         );
     }
@@ -10487,6 +10593,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![TypeExpr::Path(":String".into())],
             ret: t_var(),
+            rest_param_type: None,
         },
     );
     // Arc 053: Vector-tier algebra primitives. Operate on raw
@@ -10499,6 +10606,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![vector_ty(), vector_ty()],
             ret: vector_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10510,6 +10618,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![vector_ty()],
             }],
             ret: vector_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10518,6 +10627,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![vector_ty(), vector_ty(), f64_ty(), f64_ty()],
             ret: vector_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10526,6 +10636,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![vector_ty(), i64_ty()],
             ret: vector_ty(),
+            rest_param_type: None,
         },
     );
     // Arc 053: OnlineSubspace native value + 10 core methods.
@@ -10540,6 +10651,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![i64_ty(), i64_ty()],
             ret: subspace_ty(),
+            rest_param_type: None,
         },
     );
     for unary_to_i64 in &[
@@ -10553,6 +10665,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![subspace_ty()],
                 ret: i64_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -10562,6 +10675,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![subspace_ty()],
             ret: f64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10570,6 +10684,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![subspace_ty()],
             ret: vec_f64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10578,6 +10693,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![subspace_ty(), vector_ty()],
             ret: f64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10586,6 +10702,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![subspace_ty(), vector_ty()],
             ret: f64_ty(),
+            rest_param_type: None,
         },
     );
     for unary_to_vec in &[
@@ -10598,6 +10715,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![subspace_ty(), vector_ty()],
                 ret: vec_f64_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -10622,6 +10740,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: reckoner_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10630,6 +10749,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty(), i64_ty(), i64_ty(), f64_ty(), i64_ty()],
             ret: reckoner_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10638,6 +10758,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![reckoner_ty(), vector_ty(), i64_ty(), f64_ty()],
             ret: unit_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10657,6 +10778,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 f64_ty(),
                 f64_ty(),
             ]),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10665,6 +10787,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![reckoner_ty(), f64_ty(), bool_ty()],
             ret: unit_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10676,6 +10799,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Option".into(),
                 args: vec![TypeExpr::Tuple(vec![f64_ty(), f64_ty()])],
             },
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10687,6 +10811,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Vec".into(),
                 args: vec![i64_ty()],
             },
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10695,6 +10820,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![reckoner_ty()],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -10706,6 +10832,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![engram_ty()],
             ret: string_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10714,6 +10841,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![engram_ty()],
             ret: vec_f64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10722,6 +10850,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![engram_ty()],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10730,6 +10859,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![engram_ty(), vector_ty()],
             ret: f64_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -10741,6 +10871,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![i64_ty()],
             ret: library_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10749,6 +10880,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![library_ty(), string_ty(), subspace_ty()],
             ret: unit_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10760,6 +10892,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Vec".into(),
                 args: vec![TypeExpr::Tuple(vec![string_ty(), f64_ty()])],
             },
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10768,6 +10901,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![library_ty()],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10776,6 +10910,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![library_ty(), string_ty()],
             ret: bool_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10787,6 +10922,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "Vec".into(),
                 args: vec![string_ty()],
             },
+            rest_param_type: None,
         },
     );
     // Arc 051: SimHash — direction-space lattice position. Charikar's
@@ -10809,6 +10945,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty()],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -10828,6 +10965,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![symbol_ty()],
             ret: opt_holon_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10836,6 +10974,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![symbol_ty()],
             ret: opt_holon_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10844,6 +10983,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![symbol_ty()],
             ret: opt_holon_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -10868,6 +11008,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty(), symbol_ty(), symbol_ty()],
             ret: holon_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10876,6 +11017,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![holon_ty()],
             ret: vec_kw_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -10895,6 +11037,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![f64_ty()],
                 ret: f64_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -10904,6 +11047,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![],
             ret: f64_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -10925,6 +11069,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![vec_f64_ty()],
                 ret: opt_f64_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -10946,6 +11091,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![],
             ret: instant_ty(),
+            rest_param_type: None,
         },
     );
     for name in ["at", "at-millis", "at-nanos"] {
@@ -10955,6 +11101,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![i64_ty()],
                 ret: instant_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -10964,6 +11111,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty()],
             ret: opt_instant_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -10972,6 +11120,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![instant_ty(), i64_ty()],
             ret: string_ty(),
+            rest_param_type: None,
         },
     );
     for name in ["epoch-seconds", "epoch-millis", "epoch-nanos"] {
@@ -10981,6 +11130,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![instant_ty()],
                 ret: i64_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -11004,6 +11154,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![i64_ty()],
                 ret: duration_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -11017,6 +11168,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![duration_ty()],
                 ret: instant_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -11046,6 +11198,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 type_params: vec![],
                 params: vec![i64_ty()],
                 ret: instant_ty(),
+                rest_param_type: None,
             },
         );
     }
@@ -11077,6 +11230,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var())],
             ret: vec_of(t_var()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11085,6 +11239,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![i64_ty(), i64_ty()],
             ret: vec_of(i64_ty()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11093,6 +11248,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), i64_ty()],
             ret: vec_of(t_var()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11101,6 +11257,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), i64_ty()],
             ret: vec_of(t_var()),
+            rest_param_type: None,
         },
     );
     // Arc 056 — sort-by with user-supplied less-than predicate.
@@ -11119,6 +11276,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: vec_of(t_var()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11133,6 +11291,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: vec_of(u_var()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11148,6 +11307,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: acc_var(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11163,6 +11323,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: acc_var(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11177,6 +11338,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: vec_of(t_var()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11185,6 +11347,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into(), "U".into()],
             params: vec![vec_of(t_var()), vec_of(u_var())],
             ret: vec_of(TypeExpr::Tuple(vec![t_var(), u_var()])),
+            rest_param_type: None,
         },
     );
     // get, assoc, conj, and contains? are all polymorphic over
@@ -11198,6 +11361,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), i64_ty()],
             ret: vec_of(t_var()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11206,6 +11370,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), i64_ty()],
             ret: vec_of(vec_of(t_var())),
+            rest_param_type: None,
         },
     );
 
@@ -11217,6 +11382,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var())],
             ret: vec_of(t_var()),
+            rest_param_type: None,
         },
     );
     // :wat::core::conj — polymorphic add-to-growing-collection.
@@ -11240,6 +11406,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 },
             ],
             ret: vec_of(u_var()),
+            rest_param_type: None,
         },
     );
 
@@ -11288,6 +11455,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var())],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11299,6 +11467,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![TypeExpr::Path(":K".into()), TypeExpr::Path(":V".into())],
             }],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11310,6 +11479,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 args: vec![t_var()],
             }],
             ret: i64_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -11328,6 +11498,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var())],
             ret: bool_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11336,6 +11507,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["K".into(), "V".into()],
             params: vec![hashmap_of(k_var(), v_var())],
             ret: bool_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11344,6 +11516,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![hashset_of(t_var())],
             ret: bool_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -11358,6 +11531,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), t_var()],
             ret: bool_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11366,6 +11540,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["K".into(), "V".into()],
             params: vec![hashmap_of(k_var(), v_var()), k_var()],
             ret: bool_ty(),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11374,6 +11549,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![hashset_of(t_var()), t_var()],
             ret: bool_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -11388,6 +11564,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), i64_ty()],
             ret: opt(t_var()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11396,6 +11573,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["K".into(), "V".into()],
             params: vec![hashmap_of(k_var(), v_var()), k_var()],
             ret: opt(v_var()),
+            rest_param_type: None,
         },
     );
 
@@ -11408,6 +11586,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), t_var()],
             ret: vec_of(t_var()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11416,6 +11595,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![hashset_of(t_var()), t_var()],
             ret: hashset_of(t_var()),
+            rest_param_type: None,
         },
     );
 
@@ -11437,6 +11617,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["K".into(), "V".into()],
             params: vec![hashmap_of(k_var(), v_var()), k_var(), v_var()],
             ret: hashmap_of(k_var(), v_var()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11445,6 +11626,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["K".into(), "V".into()],
             params: vec![hashmap_of(k_var(), v_var()), k_var()],
             ret: hashmap_of(k_var(), v_var()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11453,6 +11635,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["K".into(), "V".into()],
             params: vec![hashmap_of(k_var(), v_var())],
             ret: vec_of(k_var()),
+            rest_param_type: None,
         },
     );
     env.register(
@@ -11461,6 +11644,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["K".into(), "V".into()],
             params: vec![hashmap_of(k_var(), v_var())],
             ret: vec_of(v_var()),
+            rest_param_type: None,
         },
     );
 
@@ -11475,6 +11659,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), vec_of(t_var())],
             ret: vec_of(t_var()),
+            rest_param_type: None,
         },
     );
 
@@ -11520,6 +11705,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![string_ty(), string_ty()],
             ret: string_ty(),
+            rest_param_type: None,
         },
     );
 
@@ -11536,6 +11722,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![t_var()],
             ret: vec_of(t_var()),
+            rest_param_type: None,
         },
     );
 
@@ -11552,6 +11739,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![t_var()],
             ret: TypeExpr::Tuple(vec![t_var()]),
+            rest_param_type: None,
         },
     );
 
@@ -11568,6 +11756,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["K".into(), "V".into()],
             params: vec![k_var(), v_var()],
             ret: hashmap_of(k_var(), v_var()),
+            rest_param_type: None,
         },
     );
 
@@ -11581,6 +11770,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![t_var()],
             ret: hashset_of(t_var()),
+            rest_param_type: None,
         },
     );
 }
