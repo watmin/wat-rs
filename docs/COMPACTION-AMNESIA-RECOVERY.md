@@ -585,6 +585,18 @@ investigate the discipline gap.
   answer impossible — write briefs where the right answer is achievable
 - Sonnet trusts the brief over its own investigation when the two
   conflict — write briefs that don't conflict with substrate truth
+- **Sonnet may claim a tool is unavailable when it isn't.** Empirically
+  verify before accepting workarounds rooted in tool-unavailability
+  claims (`which sed perl python3` → 2 seconds). **Real incident,
+  2026-05-03 (arc 150 slice 1):** sonnet shipped a sibling-map
+  workaround for what should have been an inline TypeScheme field
+  because it assumed mass-edit tooling was unavailable. User direction
+  surfaced the gap; orchestrator verified `which` returned paths;
+  215 sites mass-edited cleanly via a 24-line python state-tracker.
+  Cost of testing: ~2 seconds. Cost of accepting the wrong assumption:
+  a follow-up arc to clean up. **Briefs that depend on mass-edit
+  tooling should explicitly direct sonnet to `which <tool>` before
+  claiming it's unavailable.**
 
 ---
 
