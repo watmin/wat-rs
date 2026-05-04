@@ -76,9 +76,13 @@ The substrate examples:
 
 - **`FrozenWorld`** — the result of the 12-step startup pipeline.
   After `freeze()`, the symbol table, type environment, macro
-  registry, and config are bundled into an immutable value.
+  registry, special-form registry (arc 144), Dispatch registry
+  (arc 146), and config are bundled into an immutable value.
   Every thread holds an `Arc<FrozenWorld>` or `&FrozenWorld`. No
-  mutation possible; no lock needed.
+  mutation possible; no lock needed. Reflection (arcs 143/144/146)
+  walks these registries via the uniform `Binding` enum; the trio
+  `:wat::runtime::lookup-define / signature-of / body-of` reads
+  them through the `Arc<FrozenWorld>` with zero coordination.
 - **`EncodingCtx`** — `EncoderRegistry` (per-dim VM/Scalar pair) +
   `Config`, populated at freeze, referenced by every thread that
   encodes or presence-measures. The encoder registry's internal

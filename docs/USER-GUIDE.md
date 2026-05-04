@@ -2611,23 +2611,39 @@ coexist; the heuristic disambiguates by head.
 - Substrate primitives that have a TypeScheme registration in
   `CheckEnv` (foldl, foldr, map, filter, etc. — most of `:wat::core::*`)
 
-**Coverage gaps closed by arc 144.** The following are NOT yet visible
-to `:wat::runtime::signature-of`; arc 144 ships their TypeScheme
-registrations + the unified `Binding` reflection layer:
+**Uniform reflection — every form-kind answers (arc 144 + 146 + 148).**
+The reflection trio walks a unified `Binding` enum with 6 variants:
+`UserFunction`, `Macro`, `Primitive`, `SpecialForm`, `Type`,
+`Dispatch`. `lookup-form` returns Some for any known symbol;
+nothing is special at the consumer layer. The principle the user
+articulated — *"(help :if) /just works/"* — has substrate-level
+test evidence (`tests/wat_arc144_uniform_reflection.rs`).
 
-- **Hardcoded `infer_*` primitives** — `:wat::core::length`,
-  `:wat::core::get`, `:wat::core::conj`, the container constructors
-  (Vector / Tuple / HashMap / HashSet), `:wat::core::contains?`,
-  `:wat::core::empty?`, `:wat::core::keys`, `:wat::core::values`,
-  `:wat::core::dissoc`, `:wat::core::assoc`, `:wat::core::concat`,
-  `:wat::core::string::concat`. These pass type-checking via
-  hardcoded handlers in `check.rs::infer_list` instead of a
-  TypeScheme registration.
+What's reflectable today:
+
+- **User defines + macros** (registered in SymbolTable + MacroRegistry)
+- **Substrate primitives** with TypeScheme registrations (foldl, foldr,
+  map, filter, the core arithmetic + comparison families, etc.)
+- **Container methods** (length, empty?, contains?, get, conj —
+  reflected via arc 146's Dispatch entities; assoc, dissoc, keys,
+  values, concat — reflected via arc 143's define-alias to single
+  per-Type impls)
+- **Numeric arithmetic + comparison** (`:+`, `:-`, `:*`, `:/`, `:=`,
+  `:not=`, `:<`, `:>`, `:<=`, `:>=` over i64/f64 — first-class
+  per arc 148's Dispatch entities + per-Type leaves; mixed-numeric
+  types reachable via `:wat::core::+,i64-f64` etc.)
 - **Special forms** — `:wat::core::if`, `cond`, `match`, `let*`,
   `lambda`, `define`, `defmacro`, `try`, `option/expect`,
-  `result/expect`, the spawn family, the quasiquote family,
-  `forms`. These dispatch via dedicated `infer_*` arms; no Binding
-  exists for them yet. After arc 144, `(help :if) /just works/`.
+  `result/expect`, the spawn family, the quasiquote family, `forms`.
+  Each carries a synthetic signature AST (slice 2's registry).
+- **Dispatch entities** — `:wat::core::define-dispatch` declarations
+  reflect through `lookup-define` rendering head + arms list (arc 146).
+- **Type declarations** — struct, enum, newtype, typealias.
+
+The `:doc-string` field is structurally in place across all 6
+Binding kinds, defaulting to `None`. Arc 141 (pending) will
+populate it; reflection consumers don't need to change when arc
+141 lands. Paved-road discipline.
 
 **Aliasing limitation.** The macro fires at expand-time (step 4);
 user defines register at step 6. `:wat::runtime::define-alias` can
@@ -2636,7 +2652,7 @@ load-order. Out of scope for arc 143; future arc if the bias surfaces.
 
 See `docs/arc/2026/05/143-define-alias/INSCRIPTION.md` for the full
 slice cadence + the substrate-as-teacher cascade record. Arc 144
-DESIGN at `docs/arc/2026/05/144-uniform-reflection-foundation/DESIGN.md`.
+INSCRIPTION at `docs/arc/2026/05/144-uniform-reflection-foundation/INSCRIPTION.md`.
 
 ### Fork/sandbox tests — when you need an inner program
 
