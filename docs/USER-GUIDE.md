@@ -962,7 +962,7 @@ unified the surface; arc 035 added `length`):
 | Verb | `HashMap<K,V>` | `HashSet<T>` | `Vec<T>` |
 |---|---|---|---|
 | `get`        | `Option<V>` by key      | `Option<T>` by element      | `Option<T>` by index |
-| `assoc`      | new map (key→value)     | **illegal** — use `conj`    | new vec (index→value) |
+| `assoc`      | new map (key→value)     | **illegal** — use `conj`    | **illegal** (arc 146)   |
 | `dissoc`     | new map (key removed)   | **illegal** (arc 058)       | **illegal** (arc 058) |
 | `conj`       | **illegal** — use `assoc` | new set (insert element)  | new vec (push tail) |
 | `contains?`  | `bool` by key           | `bool` by element           | `bool` by index |
@@ -993,8 +993,7 @@ unified the surface; arc 035 added `length`):
 (:wat::core::let*
   (((v :Vec<i64>) (:wat::core::vec :i64 10 20 30))
    ((v1 :Vec<i64>) (:wat::core::conj v 40))               ;; → [10,20,30,40]
-   ((v2 :Vec<i64>) (:wat::core::assoc v1 0 99))           ;; → [99,20,30,40]
-   ((x :Option<i64>) (:wat::core::get v2 1)))             ;; → (Some 20)
+   ((x :Option<i64>) (:wat::core::get v1 1)))             ;; → (Some 20)
   ...)
 ```
 
@@ -1008,6 +1007,17 @@ startup, pointing at the offending call site.
 All five verbs are values-up: `assoc` and `conj` return new
 collections; the inputs are unchanged. No mutation. No surprise
 sharing.
+
+**Each polymorphic verb is a first-class entity (arc 146).** The
+substrate backs `length` / `empty?` / `contains?` / `get` / `conj`
+with **Dispatch entities** (one entity per polymorphic surface;
+arms route by input type to per-Type Rust leaves). The single-impl
+verbs `assoc` / `dissoc` / `keys` / `values` / `concat` use
+**`:wat::runtime::define-alias`** to point the polymorphic name at
+the one per-Type impl that exists. All ten verbs are queryable via
+`signature-of` / `lookup-define` / `body-of` (arc 144) — the
+substrate runs ONE polymorphism model (rank-1 schemes + Dispatch
+composing them); the polymorphic-handler anti-pattern is retired.
 
 ---
 
