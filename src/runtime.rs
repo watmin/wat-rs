@@ -2687,6 +2687,52 @@ fn dispatch_keyword_head(
                 Ok(a / b)
             }
         }),
+
+        // Arc 148 slice 4 — mixed-type binary leaves. Substrate-internal
+        // addressing for the binary Dispatch entities at
+        // `:wat::core::<v>,2` (declared in `wat/core.wat`). Reachable
+        // per the no-privacy doctrine; rarely needed at user-call sites
+        // (the polymorphic variadic `:wat::core::<v>` covers mixed
+        // numerics ergonomically). Per the comma-typed-leaf rule:
+        // these exist iff Rust impls genuinely differ per type-pair —
+        // i64+i64 and i64+f64 ARE different functions, so the leaves
+        // are honest substrate.
+        ":wat::core::+,i64-f64" => {
+            eval_i64_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a + b))
+        }
+        ":wat::core::-,i64-f64" => {
+            eval_i64_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a - b))
+        }
+        ":wat::core::*,i64-f64" => {
+            eval_i64_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a * b))
+        }
+        ":wat::core::/,i64-f64" => {
+            eval_i64_f64_arith(head, args, list_span, env, sym, |a, b, b_span| {
+                if b == 0.0 {
+                    Err(RuntimeError::DivisionByZero(b_span.clone()))
+                } else {
+                    Ok(a / b)
+                }
+            })
+        }
+        ":wat::core::+,f64-i64" => {
+            eval_f64_i64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a + b))
+        }
+        ":wat::core::-,f64-i64" => {
+            eval_f64_i64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a - b))
+        }
+        ":wat::core::*,f64-i64" => {
+            eval_f64_i64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a * b))
+        }
+        ":wat::core::/,f64-i64" => {
+            eval_f64_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
+                if b == 0.0 {
+                    Err(RuntimeError::DivisionByZero(b_span.clone()))
+                } else {
+                    Ok(a / b)
+                }
+            })
+        }
         // Float min/max — strict f64. Arc 046.
         ":wat::core::f64::max" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a.max(b))),
         ":wat::core::f64::min" => eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a.min(b))),
@@ -2735,16 +2781,28 @@ fn dispatch_keyword_head(
         // site's enclosing function (the binding-site enforces the
         // same constraint the per-Type leaves used to).
 
-        // Arc 050 — polymorphic arithmetic with int → float promotion.
-        // Lisp-traditional semantics: i64+i64→i64, f64+f64→f64,
-        // mixed-numeric → f64 (LHS or RHS cast to f64 first).
-        // Coexists with the strict typed forms (`:wat::core::i64::+,2`,
-        // `:wat::core::f64::+,2`, etc.); user picks per-callsite which
-        // discipline they want.
-        ":wat::core::+" => eval_poly_arith(head, args, list_span, env, sym, PolyOp::Add),
-        ":wat::core::-" => eval_poly_arith(head, args, list_span, env, sym, PolyOp::Sub),
-        ":wat::core::*" => eval_poly_arith(head, args, list_span, env, sym, PolyOp::Mul),
-        ":wat::core::/" => eval_poly_arith(head, args, list_span, env, sym, PolyOp::Div),
+        // Arc 148 slice 4 — polymorphic variadic arithmetic. Per the
+        // locked DESIGN: each op is variadic over numeric pairs;
+        // reduces left-to-right via per-pair dispatch (i64+i64 → i64;
+        // f64+f64 → f64; mixed → f64). Lisp/Clojure arity tradition:
+        // `+`/`*` have identity 0/1 for 0-ary; `-`/`/` reject 0-ary.
+        // 1-ary inserts identity-on-left for `-`/`/` (negation/
+        // reciprocal) and returns the arg unchanged for `+`/`*`.
+        //
+        // Same-type variadic at `:wat::core::<Type>::<v>` is a wat
+        // function (declared in `wat/core.wat`); the binary Dispatch
+        // entity at `:wat::core::<v>,2` (also wat-declared) is the
+        // routing layer the per-pair fold consumes.
+        //
+        // The polymorphic variadic STAYS as a substrate primitive
+        // (Path C of slice 4's BRIEF) because no wat type expresses
+        // "Vector of mixed numerics with f64-promoting fold." Custom
+        // inference (`infer_arithmetic`) is honest substrate; the
+        // anti-pattern framing is what the rename retires.
+        ":wat::core::+" => eval_arithmetic_variadic(head, args, list_span, env, sym, ArithOp::Add),
+        ":wat::core::-" => eval_arithmetic_variadic(head, args, list_span, env, sym, ArithOp::Sub),
+        ":wat::core::*" => eval_arithmetic_variadic(head, args, list_span, env, sym, ArithOp::Mul),
+        ":wat::core::/" => eval_arithmetic_variadic(head, args, list_span, env, sym, ArithOp::Div),
 
         // Boolean
         ":wat::core::not" => eval_not(args, list_span, env, sym),
@@ -4167,6 +4225,97 @@ where
     }
 }
 
+/// Arc 148 slice 4 — mixed-type leaf: `(i64, f64) → f64`.
+///
+/// Substrate-internal addressing for the 4 binary Dispatch entities
+/// (`:wat::core::{+,-,*,/},2`). Promotion rule: LHS i64 cast to f64,
+/// then f64 binary op. Names registered as
+/// `:wat::core::<v>,i64-f64`. Always binary; no variadic possible
+/// over a fixed type-pair.
+fn eval_i64_f64_arith<F>(
+    head: &str,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+    op: F,
+) -> Result<Value, RuntimeError>
+where
+    F: Fn(f64, f64, &Span) -> Result<f64, RuntimeError>,
+{
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: head.into(),
+            expected: 2,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let a_span = args[0].span().clone();
+    let b_span = args[1].span().clone();
+    let a = eval(&args[0], env, sym)?;
+    let b = eval(&args[1], env, sym)?;
+    match (a, b) {
+        (Value::i64(x), Value::f64(y)) => Ok(Value::f64(op(x as f64, y, &b_span)?)),
+        (other, _) if !matches!(other, Value::i64(_)) => Err(RuntimeError::TypeMismatch {
+            op: head.into(),
+            expected: "i64",
+            got: other.type_name(),
+            span: a_span,
+        }),
+        (_, other) => Err(RuntimeError::TypeMismatch {
+            op: head.into(),
+            expected: "f64",
+            got: other.type_name(),
+            span: b_span,
+        }),
+    }
+}
+
+/// Arc 148 slice 4 — mixed-type leaf: `(f64, i64) → f64`.
+///
+/// Sibling to `eval_i64_f64_arith`. RHS i64 cast to f64, then f64
+/// binary op. Names registered as `:wat::core::<v>,f64-i64`.
+fn eval_f64_i64_arith<F>(
+    head: &str,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+    op: F,
+) -> Result<Value, RuntimeError>
+where
+    F: Fn(f64, f64, &Span) -> Result<f64, RuntimeError>,
+{
+    if args.len() != 2 {
+        return Err(RuntimeError::ArityMismatch {
+            op: head.into(),
+            expected: 2,
+            got: args.len(),
+            span: list_span.clone(),
+        });
+    }
+    let a_span = args[0].span().clone();
+    let b_span = args[1].span().clone();
+    let a = eval(&args[0], env, sym)?;
+    let b = eval(&args[1], env, sym)?;
+    match (a, b) {
+        (Value::f64(x), Value::i64(y)) => Ok(Value::f64(op(x, y as f64, &b_span)?)),
+        (other, _) if !matches!(other, Value::f64(_)) => Err(RuntimeError::TypeMismatch {
+            op: head.into(),
+            expected: "f64",
+            got: other.type_name(),
+            span: a_span,
+        }),
+        (_, other) => Err(RuntimeError::TypeMismatch {
+            op: head.into(),
+            expected: "i64",
+            got: other.type_name(),
+            span: b_span,
+        }),
+    }
+}
+
 // ─── Scalar conversions (arc 014) ───────────────────────────────────
 //
 // :wat::core::<source>::to-<target> — explicit named casts between
@@ -4858,69 +5007,67 @@ fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
     Ok(Value::bool(pred(order)))
 }
 
-/// Polymorphic-arithmetic dispatch tag — arc 050.
+/// Arc 148 slice 4 — polymorphic arithmetic dispatch tag.
 ///
-/// One per binary arithmetic operator. The eval helper switches on
-/// this to apply the right Rust operator after promotion. Kept
-/// private to runtime.rs; callers reach the ops via the
-/// `:wat::core::+` / `-` / `*` / `/` keyword paths.
+/// One per arithmetic operator. The variadic eval helper folds
+/// left-to-right via the per-pair impl selected by Rust matching
+/// on the operand value tags — the same routing the binary Dispatch
+/// entity at `:wat::core::<v>,2` (declared in `wat/core.wat`)
+/// performs structurally. Kept private to runtime.rs; callers
+/// reach the ops via the `:wat::core::+` / `-` / `*` / `/` keyword
+/// paths.
 #[derive(Clone, Copy)]
-enum PolyOp {
+enum ArithOp {
     Add,
     Sub,
     Mul,
     Div,
 }
 
-/// Polymorphic arithmetic evaluator — arc 050.
-///
-/// `(:wat::core::+ a b)` and friends. Promotion rule:
-/// - `(i64, i64)` → `i64`
-/// - `(f64, f64)` → `f64`
-/// - `(i64, f64)` or `(f64, i64)` → `f64` (i64 cast to f64 first)
-///
-/// Division-by-zero check matches the existing typed forms:
-/// `i64 / 0`, `f64 / 0.0`, and mixed-promoted `/ 0` all raise
-/// [`RuntimeError::DivisionByZero`]. The substrate explicitly
-/// catches `f64 / 0.0` rather than producing inf/nan; the
-/// polymorphic form preserves that.
-///
-/// Non-numeric inputs raise [`RuntimeError::TypeMismatch`]. The
-/// type checker rejects them before reaching here; the runtime
-/// arm is defense-in-depth.
-fn eval_poly_arith(
-    head: &str,
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-    op: PolyOp,
-) -> Result<Value, RuntimeError> {
-    if args.len() != 2 {
-        return Err(RuntimeError::ArityMismatch {
-            op: head.into(),
-            expected: 2,
-            got: args.len(),
-            span: list_span.clone(),
-        });
+impl ArithOp {
+    /// Identity element for the op (Lisp/Clojure tradition):
+    /// `+` → 0, `*` → 1, `-` → 0 (only used for 1-ary negation),
+    /// `/` → 1 (only used for 1-ary reciprocal).
+    fn identity_i64(self) -> i64 {
+        match self {
+            ArithOp::Add | ArithOp::Sub => 0,
+            ArithOp::Mul | ArithOp::Div => 1,
+        }
     }
-    let a_span = args[0].span().clone();
-    let b_span = args[1].span().clone();
-    let a = eval(&args[0], env, sym)?;
-    let b = eval(&args[1], env, sym)?;
-    match (&a, &b) {
+
+    /// Lisp/Clojure 0-ary rule: `+`/`*` return identity; `-`/`/`
+    /// reject 0-ary (no meaningful identity-for-self interpretation).
+    fn allows_zero_ary(self) -> bool {
+        matches!(self, ArithOp::Add | ArithOp::Mul)
+    }
+
+    /// Lisp/Clojure 1-ary rule: `+`/`*` return arg unchanged;
+    /// `-`/`/` insert identity-on-left (negation, reciprocal).
+    fn one_ary_inserts_identity(self) -> bool {
+        matches!(self, ArithOp::Sub | ArithOp::Div)
+    }
+}
+
+/// Apply a single binary arithmetic step between two numeric values,
+/// promoting per the (i64, i64) → i64 / mixed → f64 / (f64, f64) → f64
+/// rule. This IS the per-pair routing the binary Dispatch entity at
+/// `:wat::core::<v>,2` performs structurally — kept here as a Rust
+/// fold step so the polymorphic variadic doesn't need to round-trip
+/// through eval_dispatch_call per pair.
+fn apply_arith_pair(
+    op: ArithOp,
+    head: &str,
+    a: &Value,
+    b: &Value,
+    a_span: &Span,
+    b_span: &Span,
+) -> Result<Value, RuntimeError> {
+    match (a, b) {
         (Value::i64(x), Value::i64(y)) => match op {
-            // Wrapping i64 arithmetic — matches typical Lisp/Scheme
-            // semantics for `+` on machine integers and prevents debug-
-            // mode panics on overflow when the inputs come from hash-
-            // derived sources (`:wat::holon::simhash`, etc.). Callers
-            // wanting overflow-checked arithmetic compose `:wat::core::
-            // i64::*` primitives with explicit guards; the substrate's
-            // bare `+/-/*` is the wrap-on-overflow shape.
-            PolyOp::Add => Ok(Value::i64(x.wrapping_add(*y))),
-            PolyOp::Sub => Ok(Value::i64(x.wrapping_sub(*y))),
-            PolyOp::Mul => Ok(Value::i64(x.wrapping_mul(*y))),
-            PolyOp::Div => {
+            ArithOp::Add => Ok(Value::i64(x.wrapping_add(*y))),
+            ArithOp::Sub => Ok(Value::i64(x.wrapping_sub(*y))),
+            ArithOp::Mul => Ok(Value::i64(x.wrapping_mul(*y))),
+            ArithOp::Div => {
                 if *y == 0 {
                     Err(RuntimeError::DivisionByZero(b_span.clone()))
                 } else {
@@ -4929,10 +5076,10 @@ fn eval_poly_arith(
             }
         },
         (Value::f64(x), Value::f64(y)) => match op {
-            PolyOp::Add => Ok(Value::f64(x + y)),
-            PolyOp::Sub => Ok(Value::f64(x - y)),
-            PolyOp::Mul => Ok(Value::f64(x * y)),
-            PolyOp::Div => {
+            ArithOp::Add => Ok(Value::f64(x + y)),
+            ArithOp::Sub => Ok(Value::f64(x - y)),
+            ArithOp::Mul => Ok(Value::f64(x * y)),
+            ArithOp::Div => {
                 if *y == 0.0 {
                     Err(RuntimeError::DivisionByZero(b_span.clone()))
                 } else {
@@ -4943,10 +5090,10 @@ fn eval_poly_arith(
         (Value::i64(x), Value::f64(y)) => {
             let xf = *x as f64;
             match op {
-                PolyOp::Add => Ok(Value::f64(xf + y)),
-                PolyOp::Sub => Ok(Value::f64(xf - y)),
-                PolyOp::Mul => Ok(Value::f64(xf * y)),
-                PolyOp::Div => {
+                ArithOp::Add => Ok(Value::f64(xf + y)),
+                ArithOp::Sub => Ok(Value::f64(xf - y)),
+                ArithOp::Mul => Ok(Value::f64(xf * y)),
+                ArithOp::Div => {
                     if *y == 0.0 {
                         Err(RuntimeError::DivisionByZero(b_span.clone()))
                     } else {
@@ -4958,10 +5105,10 @@ fn eval_poly_arith(
         (Value::f64(x), Value::i64(y)) => {
             let yf = *y as f64;
             match op {
-                PolyOp::Add => Ok(Value::f64(x + yf)),
-                PolyOp::Sub => Ok(Value::f64(x - yf)),
-                PolyOp::Mul => Ok(Value::f64(x * yf)),
-                PolyOp::Div => {
+                ArithOp::Add => Ok(Value::f64(x + yf)),
+                ArithOp::Sub => Ok(Value::f64(x - yf)),
+                ArithOp::Mul => Ok(Value::f64(x * yf)),
+                ArithOp::Div => {
                     if yf == 0.0 {
                         Err(RuntimeError::DivisionByZero(b_span.clone()))
                     } else {
@@ -4974,8 +5121,95 @@ fn eval_poly_arith(
             op: head.into(),
             expected: "matching numeric pair (i64 or f64)",
             got: a.type_name(),
-            span: a_span,
+            span: a_span.clone(),
         }),
+    }
+}
+
+/// Arc 148 slice 4 — polymorphic variadic arithmetic evaluator.
+///
+/// `(:wat::core::+ x y z ...)` walks left-to-right reducing via
+/// `apply_arith_pair`. Lisp/Clojure arity rules:
+///
+/// | Op      | 0-ary           | 1-ary                                  | 2+-ary    |
+/// | ------- | --------------- | -------------------------------------- | --------- |
+/// | `:+`    | `:i64 0`        | arg unchanged                          | reduce    |
+/// | `:*`    | `:i64 1`        | arg unchanged                          | reduce    |
+/// | `:-`    | ARITY ERROR     | `(- x)` → `(- 0 x)` = `-x` (negation)  | reduce    |
+/// | `:/`    | ARITY ERROR     | `(/ x)` → `(/ 1 x)` = `1/x` (reciproc.)| reduce    |
+///
+/// Implicit identity for 1-ary `-`/`/` takes the SAME TYPE as the
+/// arg (`(- 5)` → `0:i64`; `(- 5.0)` → `0:f64`). Integer reciprocal
+/// `(/ 5)` returns `0:i64` (i64 truncation honest about i64
+/// semantics — see DESIGN § "Type preservation for 1-ary").
+///
+/// Non-numeric args raise TypeMismatch. The type checker
+/// (`infer_arithmetic`) rejects non-numerics before reaching here;
+/// the runtime arm is defense-in-depth.
+fn eval_arithmetic_variadic(
+    head: &str,
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+    op: ArithOp,
+) -> Result<Value, RuntimeError> {
+    // 0-ary handling.
+    if args.is_empty() {
+        if op.allows_zero_ary() {
+            return Ok(Value::i64(op.identity_i64()));
+        }
+        return Err(RuntimeError::ArityMismatch {
+            op: head.into(),
+            expected: 1,
+            got: 0,
+            span: list_span.clone(),
+        });
+    }
+
+    // 1-ary handling.
+    if args.len() == 1 {
+        let arg_span = args[0].span().clone();
+        let v = eval(&args[0], env, sym)?;
+        if op.one_ary_inserts_identity() {
+            // Build identity matching the arg's type, then run a
+            // single binary pair (identity OP arg).
+            let identity = match &v {
+                Value::i64(_) => Value::i64(op.identity_i64()),
+                Value::f64(_) => Value::f64(op.identity_i64() as f64),
+                _ => {
+                    return Err(RuntimeError::TypeMismatch {
+                        op: head.into(),
+                        expected: "i64 or f64",
+                        got: v.type_name(),
+                        span: arg_span,
+                    });
+                }
+            };
+            return apply_arith_pair(op, head, &identity, &v, &arg_span, &arg_span);
+        }
+        // `+` / `*` 1-ary return arg unchanged (after type check).
+        match &v {
+            Value::i64(_) | Value::f64(_) => Ok(v),
+            _ => Err(RuntimeError::TypeMismatch {
+                op: head.into(),
+                expected: "i64 or f64",
+                got: v.type_name(),
+                span: arg_span,
+            }),
+        }
+    } else {
+        // 2+-ary: fold left.
+        let first_span = args[0].span().clone();
+        let mut acc = eval(&args[0], env, sym)?;
+        let mut acc_span = first_span;
+        for arg in &args[1..] {
+            let arg_span = arg.span().clone();
+            let v = eval(arg, env, sym)?;
+            acc = apply_arith_pair(op, head, &acc, &v, &acc_span, &arg_span)?;
+            acc_span = arg_span;
+        }
+        Ok(acc)
     }
 }
 
@@ -5928,7 +6162,149 @@ pub(crate) fn dispatch_substrate_impl(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
+        // Arc 148 slice 4 — arithmetic leaves reachable via the binary
+        // Dispatch entities at `:wat::core::<v>,2` (declared in
+        // `wat/core.wat`). The dispatch routes here once an arm
+        // matches; the Value-level helpers live alongside the
+        // AST-level `eval_*_arith` functions and operate on the
+        // already-evaluated args.
+        //
+        // 4 same-type i64-i64 + 4 same-type f64-f64 + 4 mixed
+        // i64-f64 + 4 mixed f64-i64 = 16 leaves.
+        ":wat::core::i64::+,2" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_add(b)))),
+        ":wat::core::i64::-,2" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_sub(b)))),
+        ":wat::core::i64::*,2" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| Ok(a.wrapping_mul(b)))),
+        ":wat::core::i64::/,2" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
+            if b == 0 { Err(()) } else { Ok(a.wrapping_div(b)) }
+        })),
+        ":wat::core::f64::+,2" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a + b))),
+        ":wat::core::f64::-,2" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a - b))),
+        ":wat::core::f64::*,2" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a * b))),
+        ":wat::core::f64::/,2" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| {
+            if b == 0.0 { Err(()) } else { Ok(a / b) }
+        })),
+        ":wat::core::+,i64-f64" => Some(arith_i64_f64_inner(impl_name, vals, |a, b| Ok(a + b))),
+        ":wat::core::-,i64-f64" => Some(arith_i64_f64_inner(impl_name, vals, |a, b| Ok(a - b))),
+        ":wat::core::*,i64-f64" => Some(arith_i64_f64_inner(impl_name, vals, |a, b| Ok(a * b))),
+        ":wat::core::/,i64-f64" => Some(arith_i64_f64_inner(impl_name, vals, |a, b| {
+            if b == 0.0 { Err(()) } else { Ok(a / b) }
+        })),
+        ":wat::core::+,f64-i64" => Some(arith_f64_i64_inner(impl_name, vals, |a, b| Ok(a + b))),
+        ":wat::core::-,f64-i64" => Some(arith_f64_i64_inner(impl_name, vals, |a, b| Ok(a - b))),
+        ":wat::core::*,f64-i64" => Some(arith_f64_i64_inner(impl_name, vals, |a, b| Ok(a * b))),
+        ":wat::core::/,f64-i64" => Some(arith_f64_i64_inner(impl_name, vals, |a, b| {
+            if b == 0.0 { Err(()) } else { Ok(a / b) }
+        })),
         _ => None,
+    }
+}
+
+/// Arc 148 slice 4 — Value-level arithmetic leaves used by
+/// `dispatch_substrate_impl` when the binary Dispatch entity at
+/// `:wat::core::<v>,2` routes to a per-Type or mixed-type leaf with
+/// already-evaluated args. The four shape-specific helpers below
+/// (i64-i64, f64-f64, i64-f64, f64-i64) mirror the AST-level
+/// `eval_<T>_arith` helpers; they exist so direct calls to the
+/// dispatch entity (e.g., `(:wat::core::+,2 1 2.0)`) reach the same
+/// leaf code as the polymorphic variadic's per-pair fold.
+///
+/// The `Err(())` channel signals divide-by-zero (the helper translates
+/// to `RuntimeError::DivisionByZero` with a synthesized span — the
+/// dispatch path doesn't have argument spans available, so the span
+/// is unknown).
+fn arith_i64_i64_inner<F>(
+    impl_name: &str,
+    vals: &[Value],
+    op: F,
+) -> Result<Value, RuntimeError>
+where
+    F: Fn(i64, i64) -> Result<i64, ()>,
+{
+    let a = vals.first().expect("arity-checked");
+    let b = vals.get(1).expect("arity-checked");
+    match (a, b) {
+        (Value::i64(x), Value::i64(y)) => match op(*x, *y) {
+            Ok(r) => Ok(Value::i64(r)),
+            Err(()) => Err(RuntimeError::DivisionByZero(Span::unknown())),
+        },
+        _ => Err(RuntimeError::TypeMismatch {
+            op: impl_name.into(),
+            expected: "(i64, i64)",
+            got: a.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn arith_f64_f64_inner<F>(
+    impl_name: &str,
+    vals: &[Value],
+    op: F,
+) -> Result<Value, RuntimeError>
+where
+    F: Fn(f64, f64) -> Result<f64, ()>,
+{
+    let a = vals.first().expect("arity-checked");
+    let b = vals.get(1).expect("arity-checked");
+    match (a, b) {
+        (Value::f64(x), Value::f64(y)) => match op(*x, *y) {
+            Ok(r) => Ok(Value::f64(r)),
+            Err(()) => Err(RuntimeError::DivisionByZero(Span::unknown())),
+        },
+        _ => Err(RuntimeError::TypeMismatch {
+            op: impl_name.into(),
+            expected: "(f64, f64)",
+            got: a.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn arith_i64_f64_inner<F>(
+    impl_name: &str,
+    vals: &[Value],
+    op: F,
+) -> Result<Value, RuntimeError>
+where
+    F: Fn(f64, f64) -> Result<f64, ()>,
+{
+    let a = vals.first().expect("arity-checked");
+    let b = vals.get(1).expect("arity-checked");
+    match (a, b) {
+        (Value::i64(x), Value::f64(y)) => match op(*x as f64, *y) {
+            Ok(r) => Ok(Value::f64(r)),
+            Err(()) => Err(RuntimeError::DivisionByZero(Span::unknown())),
+        },
+        _ => Err(RuntimeError::TypeMismatch {
+            op: impl_name.into(),
+            expected: "(i64, f64)",
+            got: a.type_name(),
+            span: Span::unknown(),
+        }),
+    }
+}
+
+fn arith_f64_i64_inner<F>(
+    impl_name: &str,
+    vals: &[Value],
+    op: F,
+) -> Result<Value, RuntimeError>
+where
+    F: Fn(f64, f64) -> Result<f64, ()>,
+{
+    let a = vals.first().expect("arity-checked");
+    let b = vals.get(1).expect("arity-checked");
+    match (a, b) {
+        (Value::f64(x), Value::i64(y)) => match op(*x, *y as f64) {
+            Ok(r) => Ok(Value::f64(r)),
+            Err(()) => Err(RuntimeError::DivisionByZero(Span::unknown())),
+        },
+        _ => Err(RuntimeError::TypeMismatch {
+            op: impl_name.into(),
+            expected: "(f64, i64)",
+            got: a.type_name(),
+            span: Span::unknown(),
+        }),
     }
 }
 
@@ -15912,6 +16288,16 @@ fn step_list(
         | ":wat::core::f64::abs"
         | ":wat::core::f64::max"
         | ":wat::core::f64::min"
+        // Arc 148 slice 4 — mixed-type arithmetic leaves.
+        // Substrate-internal addressing reachable per no-privacy.
+        | ":wat::core::+,i64-f64"
+        | ":wat::core::-,i64-f64"
+        | ":wat::core::*,i64-f64"
+        | ":wat::core::/,i64-f64"
+        | ":wat::core::+,f64-i64"
+        | ":wat::core::-,f64-i64"
+        | ":wat::core::*,f64-i64"
+        | ":wat::core::/,f64-i64"
         | ":wat::core::u8" => step_descend_then_fire(items, list_span, env, sym),
         // Holon constructors — pure ops over the closed algebra (arc 057).
         // They use a holon-canonical fire condition: a list whose head is

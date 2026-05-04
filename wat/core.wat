@@ -61,3 +61,132 @@
 (:wat::runtime::define-alias :wat::core::keys    :wat::core::HashMap/keys)
 (:wat::runtime::define-alias :wat::core::values  :wat::core::HashMap/values)
 (:wat::runtime::define-alias :wat::core::concat  :wat::core::Vector/concat)
+
+;; ─── Arc 148 slice 4 — Numeric arithmetic ────────────────────────────
+;;
+;; Each of `+`, `-`, `*`, `/` is now a polymorphic surface backed by
+;; a binary Dispatch entity routing to per-Type Rust leaves. Three
+;; layers per the locked DESIGN § "Arithmetic — three layers":
+;;
+;;   1. Polymorphic variadic at `:wat::core::<v>` (bare name) — STAYS
+;;      as a substrate primitive (Path C of slice 4's BRIEF). Custom
+;;      inference (`infer_arithmetic`) is honest substrate; no wat
+;;      type expresses "Vector of mixed numerics with f64-promoting
+;;      fold." Variadic arity per Lisp/Clojure tradition.
+;;
+;;   2. Binary Dispatch entity at `:wat::core::<v>,2` — declared
+;;      below. 4 arms covering (i64,i64), (f64,f64), (i64,f64),
+;;      (f64,i64). Routes to per-Type leaves and mixed leaves.
+;;
+;;   3. Per-Type Rust binary primitives at `:wat::core::<Type>::<v>,2`
+;;      and mixed-type leaves at `:wat::core::<v>,<type1>-<type2>` —
+;;      registered in `register_builtins` (src/runtime.rs +
+;;      src/check.rs). Reachable per the no-privacy doctrine.
+;;
+;; Same-type variadic wat fns at `:wat::core::<Type>::<v>` (the bare
+;; per-Type name) wrap the per-Type binary leaf via arc 150's variadic
+;; define + `:wat::core::foldl` — declared after the dispatches below.
+
+(:wat::core::define-dispatch :wat::core::+,2
+  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::+,2)
+  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::+,2)
+  ((:wat::core::i64 :wat::core::f64)  :wat::core::+,i64-f64)
+  ((:wat::core::f64 :wat::core::i64)  :wat::core::+,f64-i64))
+
+(:wat::core::define-dispatch :wat::core::-,2
+  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::-,2)
+  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::-,2)
+  ((:wat::core::i64 :wat::core::f64)  :wat::core::-,i64-f64)
+  ((:wat::core::f64 :wat::core::i64)  :wat::core::-,f64-i64))
+
+(:wat::core::define-dispatch :wat::core::*,2
+  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::*,2)
+  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::*,2)
+  ((:wat::core::i64 :wat::core::f64)  :wat::core::*,i64-f64)
+  ((:wat::core::f64 :wat::core::i64)  :wat::core::*,f64-i64))
+
+(:wat::core::define-dispatch :wat::core::/,2
+  ((:wat::core::i64 :wat::core::i64)  :wat::core::i64::/,2)
+  ((:wat::core::f64 :wat::core::f64)  :wat::core::f64::/,2)
+  ((:wat::core::i64 :wat::core::f64)  :wat::core::/,i64-f64)
+  ((:wat::core::f64 :wat::core::i64)  :wat::core::/,f64-i64))
+
+;; ─── Same-type variadic wat fns (8 total) ─────────────────────────────
+;;
+;; Per-Type variadic wrappers using arc 150's variadic define syntax.
+;; Each folds left over the per-Type binary leaf.
+;;
+;; Lisp/Clojure arity rules per DESIGN § "Arity rules":
+;;   `+`/`*` — 0-ary returns identity; 1-ary returns arg unchanged
+;;   `-`/`/` — 0-ary errors via 1-arity-min substrate enforcement;
+;;             1-ary inserts identity-on-left (negation/reciprocal)
+;;
+;; The 0-ary case for `:i64::+`/`:i64::*` is expressed as the foldl
+;; seed when the variadic surface receives zero rest args. For
+;; `-`/`/`, the 0-ary case is enforced by requiring at least one
+;; fixed parameter (the variadic accepts >= 1 arg via the (first
+;; rest) convention — see DESIGN § "Variadic semantics").
+
+;; i64 same-type variadic — :+/:*/:- / :/  fold over per-Type binary leaf.
+
+(:wat::core::define
+  (:wat::core::i64::+ & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+  (:wat::core::foldl xs 0
+    (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+      (:wat::core::i64::+,2 acc x))))
+
+(:wat::core::define
+  (:wat::core::i64::* & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+  (:wat::core::foldl xs 1
+    (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+      (:wat::core::i64::*,2 acc x))))
+
+;; `:-` and `:/` require >= 1 arg. Express via fixed first param +
+;; rest. 1-ary inserts identity-on-left; 2+-ary folds. The arity
+;; checker rejects 0-ary via the fixed-param requirement.
+
+(:wat::core::define
+  (:wat::core::i64::- (first :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+  (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::i64
+    (:wat::core::i64::-,2 0 first)
+    (:wat::core::foldl xs first
+      (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+        (:wat::core::i64::-,2 acc x)))))
+
+(:wat::core::define
+  (:wat::core::i64::/ (first :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+  (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::i64
+    (:wat::core::i64::/,2 1 first)
+    (:wat::core::foldl xs first
+      (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+        (:wat::core::i64::/,2 acc x)))))
+
+;; f64 same-type variadic — :+/:*/:- / :/
+
+(:wat::core::define
+  (:wat::core::f64::+ & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
+  (:wat::core::foldl xs 0.0
+    (:wat::core::lambda ((acc :wat::core::f64) (x :wat::core::f64) -> :wat::core::f64)
+      (:wat::core::f64::+,2 acc x))))
+
+(:wat::core::define
+  (:wat::core::f64::* & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
+  (:wat::core::foldl xs 1.0
+    (:wat::core::lambda ((acc :wat::core::f64) (x :wat::core::f64) -> :wat::core::f64)
+      (:wat::core::f64::*,2 acc x))))
+
+(:wat::core::define
+  (:wat::core::f64::- (first :wat::core::f64) & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
+  (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
+    (:wat::core::f64::-,2 0.0 first)
+    (:wat::core::foldl xs first
+      (:wat::core::lambda ((acc :wat::core::f64) (x :wat::core::f64) -> :wat::core::f64)
+        (:wat::core::f64::-,2 acc x)))))
+
+(:wat::core::define
+  (:wat::core::f64::/ (first :wat::core::f64) & (xs :wat::core::Vector<wat::core::f64>) -> :wat::core::f64)
+  (:wat::core::if (:wat::core::Vector/empty? xs) -> :wat::core::f64
+    (:wat::core::f64::/,2 1.0 first)
+    (:wat::core::foldl xs first
+      (:wat::core::lambda ((acc :wat::core::f64) (x :wat::core::f64) -> :wat::core::f64)
+        (:wat::core::f64::/,2 acc x)))))

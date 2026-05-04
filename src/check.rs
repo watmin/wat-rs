@@ -3316,14 +3316,18 @@ fn infer_list(
             | ":wat::core::>=" => {
                 return infer_comparison(k, head_span, args, env, locals, fresh, subst, errors);
             }
-            // Arc 050 — polymorphic arithmetic. Both args must be
-            // numeric (i64 or f64); result type is f64 if either is
-            // f64, else i64.
+            // Arc 148 slice 4 — polymorphic variadic arithmetic. All
+            // args must be numeric (i64 or f64); result type is f64 if
+            // any arg is f64 (or 1-ary `-`/`/` with f64 arg), else
+            // i64. Lisp/Clojure arity rules per DESIGN § "Arity rules":
+            // `+`/`*` 0-ary returns `:i64`; `-`/`/` 0-ary errors.
+            // 1-ary `-`/`/` insert identity-on-left (negation/recip);
+            // 1-ary `+`/`*` return arg unchanged. 2+-ary folds left.
             ":wat::core::+"
             | ":wat::core::-"
             | ":wat::core::*"
             | ":wat::core::/" => {
-                return infer_polymorphic_arith(k, head_span, args, env, locals, fresh, subst, errors);
+                return infer_arithmetic(k, head_span, args, env, locals, fresh, subst, errors);
             }
             // Arc 097 slice 2 — polymorphic Instant ± Duration. Result
             // type depends on the RHS variant:
@@ -6724,12 +6728,29 @@ fn infer_comparison(
     Some(bool_ty)
 }
 
-/// Arc 050 — polymorphic arithmetic inference.
+/// Arc 148 slice 4 — polymorphic variadic arithmetic inference.
 ///
-/// For `:wat::core::+`, `-`, `*`, `/`. Both args must be numeric
-/// (`:i64` or `:f64`). Result type is `:f64` if either is `:f64`,
-/// else `:i64`. Mixed inputs promote at runtime (i64 cast to f64).
-fn infer_polymorphic_arith(
+/// For `:wat::core::+`, `-`, `*`, `/`. Renamed from
+/// `infer_polymorphic_arith` per slice 5 precedent: the polymorphic-
+/// handler anti-pattern framing was the issue; the function itself
+/// is honest substrate. Custom inference is the right shape because
+/// no wat type expresses "Vector of mixed numerics with f64-promoting
+/// fold" — Vector<T> can't unify across i64/f64; an untyped vector
+/// would lose all check-time safety.
+///
+/// All args must be numeric (`:i64` or `:f64`). Result type is `:f64`
+/// if any arg is `:f64` (or 1-ary `-`/`/` with f64 arg), else `:i64`.
+/// Mixed inputs promote at runtime (i64 cast to f64) per the binary
+/// Dispatch entity arms at `:wat::core::<v>,2`.
+///
+/// Lisp/Clojure arity rules per DESIGN § "Arity rules":
+/// - `+`/`*` 0-ary returns `:i64` (identity 0/1)
+/// - `-`/`/` 0-ary is ARITY ERROR
+/// - 1-ary `+`/`*` returns the arg unchanged (preserves type)
+/// - 1-ary `-`/`/` inserts identity-on-left (negation/reciprocal;
+///   preserves type)
+/// - 2+-ary folds left via the binary Dispatch (per-pair routing)
+fn infer_arithmetic(
     op: &str,
     head_span: &Span,
     args: &[WatAST],
@@ -6741,53 +6762,72 @@ fn infer_polymorphic_arith(
 ) -> Option<TypeExpr> {
     let i64_ty = TypeExpr::Path(":i64".into());
     let f64_ty = TypeExpr::Path(":f64".into());
-    if args.len() != 2 {
+
+    // 0-ary: `+`/`*` return identity `:i64`; `-`/`/` reject.
+    if args.is_empty() {
+        if op == ":wat::core::+" || op == ":wat::core::*" {
+            return Some(i64_ty);
+        }
         errors.push(CheckError::ArityMismatch {
             callee: op.into(),
-            expected: 2,
-            got: args.len(),
+            expected: 1,
+            got: 0,
             span: head_span.clone(),
         });
-        for arg in args {
-            let _ = infer(arg, env, locals, fresh, subst, errors);
-        }
         return Some(f64_ty);
     }
-    let a_ty = infer(&args[0], env, locals, fresh, subst, errors);
-    let b_ty = infer(&args[1], env, locals, fresh, subst, errors);
-    let a_resolved = a_ty.as_ref().map(|t| apply_subst(t, subst));
-    let b_resolved = b_ty.as_ref().map(|t| apply_subst(t, subst));
 
-    // Push diagnostic if either arg is non-numeric.
-    if let Some(t) = &a_resolved {
-        if !is_numeric(t) {
-            errors.push(CheckError::TypeMismatch {
-                callee: op.into(),
-                param: "#1".into(),
-                expected: ":i64 or :f64".into(),
-                got: format_type(t),
-                span: args[0].span().clone(),
-            });
-        }
-    }
-    if let Some(t) = &b_resolved {
-        if !is_numeric(t) {
-            errors.push(CheckError::TypeMismatch {
-                callee: op.into(),
-                param: "#2".into(),
-                expected: ":i64 or :f64".into(),
-                got: format_type(t),
-                span: args[1].span().clone(),
-            });
+    // Type-check every arg (fold-left consumes them all).
+    let arg_types: Vec<Option<TypeExpr>> = args
+        .iter()
+        .map(|a| infer(a, env, locals, fresh, subst, errors))
+        .collect();
+    let resolved: Vec<Option<TypeExpr>> = arg_types
+        .iter()
+        .map(|o| o.as_ref().map(|t| apply_subst(t, subst)))
+        .collect();
+
+    // Push diagnostic for any non-numeric arg.
+    for (i, t_opt) in resolved.iter().enumerate() {
+        if let Some(t) = t_opt {
+            if !is_numeric(t) {
+                errors.push(CheckError::TypeMismatch {
+                    callee: op.into(),
+                    param: format!("#{}", i + 1),
+                    expected: ":i64 or :f64".into(),
+                    got: format_type(t),
+                    span: args[i].span().clone(),
+                });
+            }
         }
     }
 
-    match (&a_resolved, &b_resolved) {
-        (Some(a), Some(b)) if is_i64(a) && is_i64(b) => Some(i64_ty),
-        (Some(a), Some(b)) if is_numeric(a) && is_numeric(b) => Some(f64_ty),
-        // Either non-numeric or unknown — fall back to f64 so downstream
-        // inference doesn't cascade more errors.
-        _ => Some(f64_ty),
+    // 1-ary: result type = arg type (`+`/`*` return arg; `-`/`/`
+    // insert identity-on-left preserving the arg's type per
+    // DESIGN § "Type preservation for 1-ary").
+    if args.len() == 1 {
+        return match &resolved[0] {
+            Some(t) if is_i64(t) => Some(i64_ty),
+            Some(t) if is_numeric(t) => Some(f64_ty),
+            // Non-numeric or unknown: fall back to f64 to keep
+            // downstream inference quiet (a TypeMismatch was pushed
+            // above).
+            _ => Some(f64_ty),
+        };
+    }
+
+    // 2+-ary: result type is :f64 if ANY arg is :f64; else :i64.
+    let any_f64 = resolved.iter().any(|o| matches!(o, Some(t) if !is_i64(t) && is_numeric(t)));
+    let all_known_numeric = resolved.iter().all(|o| matches!(o, Some(t) if is_numeric(t)));
+    if all_known_numeric {
+        if any_f64 {
+            Some(f64_ty)
+        } else {
+            Some(i64_ty)
+        }
+    } else {
+        // Unknown or non-numeric somewhere — fall back to f64.
+        Some(f64_ty)
     }
 }
 
@@ -8892,6 +8932,45 @@ fn register_builtins(env: &mut CheckEnv) {
             TypeScheme {
                 type_params: vec![],
                 params: vec![f64_ty(), f64_ty()],
+                ret: f64_ty(),
+                rest_param_type: None,
+            },
+        );
+    }
+
+    // Arc 148 slice 4 — mixed-type arithmetic leaves. Per the locked
+    // DESIGN: the 4 binary Dispatch entities at `:wat::core::<v>,2`
+    // (declared in `wat/core.wat`) route mixed-numeric calls to
+    // these named arms. Substrate-internal addressing reachable per
+    // no-privacy; rarely needed at user-call sites (the polymorphic
+    // variadic `:wat::core::<v>` covers mixed numerics ergonomically).
+    for op in &[
+        ":wat::core::+,i64-f64",
+        ":wat::core::-,i64-f64",
+        ":wat::core::*,i64-f64",
+        ":wat::core::/,i64-f64",
+    ] {
+        env.register(
+            op.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![i64_ty(), f64_ty()],
+                ret: f64_ty(),
+                rest_param_type: None,
+            },
+        );
+    }
+    for op in &[
+        ":wat::core::+,f64-i64",
+        ":wat::core::-,f64-i64",
+        ":wat::core::*,f64-i64",
+        ":wat::core::/,f64-i64",
+    ] {
+        env.register(
+            op.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![f64_ty(), i64_ty()],
                 ret: f64_ty(),
                 rest_param_type: None,
             },

@@ -421,3 +421,222 @@ fn typed_strict_arithmetic_coexists() {
     "##;
     assert_eq!(run(src), vec!["3".to_string()]);
 }
+
+// ─── Arc 148 slice 4 — variadic polymorphic arithmetic ───────────────
+//
+// Per the locked DESIGN: the polymorphic surface at `:wat::core::<v>`
+// is variadic; reduces left-to-right via per-pair routing. Lisp/
+// Clojure arity rules: `+`/`*` 0-ary returns identity; `-`/`/` 0-ary
+// errors. 1-ary `+`/`*` returns arg unchanged; `-`/`/` insert
+// identity-on-left (negation/reciprocal). 2+-ary folds.
+
+#[test]
+fn slice4_variadic_add_three_i64_args_folds() {
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((sum :wat::core::i64) (:wat::core::+ 1 2 3 4 5)))
+            (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string sum))))
+    "##;
+    assert_eq!(run(src), vec!["15".to_string()]);
+}
+
+#[test]
+fn slice4_variadic_add_mixed_numerics_design_worked_example() {
+    // The DESIGN's worked example: (:wat::core::+ 0 40.0 2) => :f64 42.0
+    // Mixed-numeric variadic via dispatch + per-pair routing.
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((sum :wat::core::f64) (:wat::core::+ 0 40.0 2)))
+            (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string sum))))
+    "##;
+    assert_eq!(run(src), vec!["42".to_string()]);
+}
+
+#[test]
+fn slice4_variadic_add_zero_ary_returns_i64_zero() {
+    // `+` 0-ary returns identity 0:i64 per Lisp/Clojure tradition.
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((zero :wat::core::i64) (:wat::core::+)))
+            (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string zero))))
+    "##;
+    assert_eq!(run(src), vec!["0".to_string()]);
+}
+
+#[test]
+fn slice4_variadic_mul_zero_ary_returns_i64_one() {
+    // `*` 0-ary returns identity 1:i64.
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((one :wat::core::i64) (:wat::core::*)))
+            (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string one))))
+    "##;
+    assert_eq!(run(src), vec!["1".to_string()]);
+}
+
+#[test]
+fn slice4_variadic_sub_one_ary_negates_i64() {
+    // `(- x)` inserts identity-on-left = -x.
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((neg :wat::core::i64) (:wat::core::- 5)))
+            (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string neg))))
+    "##;
+    assert_eq!(run(src), vec!["-5".to_string()]);
+}
+
+#[test]
+fn slice4_variadic_sub_one_ary_negates_f64() {
+    // 1-ary `-` preserves type (DESIGN § "Type preservation").
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((neg :wat::core::f64) (:wat::core::- 5.5)))
+            (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string neg))))
+    "##;
+    assert_eq!(run(src), vec!["-5.5".to_string()]);
+}
+
+#[test]
+fn slice4_variadic_div_one_ary_reciprocal_i64_truncates() {
+    // `(/ 5)` = `(/ 1 5)` = 0 (i64 truncation; honest).
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((r :wat::core::i64) (:wat::core::/ 5)))
+            (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string r))))
+    "##;
+    assert_eq!(run(src), vec!["0".to_string()]);
+}
+
+#[test]
+fn slice4_variadic_sub_zero_ary_errors() {
+    // `(:-)` is ARITY ERROR — `-` has no identity.
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((bad :wat::core::i64) (:wat::core::-)))
+            (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string bad))))
+    "##;
+    let err = run_expecting_check_error(src);
+    assert!(err.to_lowercase().contains("arity") || err.contains("ArityMismatch"),
+        "expected ArityMismatch on 0-ary `-`; got {}", err);
+}
+
+#[test]
+fn slice4_variadic_div_zero_ary_errors() {
+    // `(:/)` is ARITY ERROR — `/` has no identity.
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((bad :wat::core::i64) (:wat::core::/)))
+            (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string bad))))
+    "##;
+    let err = run_expecting_check_error(src);
+    assert!(err.to_lowercase().contains("arity") || err.contains("ArityMismatch"),
+        "expected ArityMismatch on 0-ary `/`; got {}", err);
+}
+
+#[test]
+fn slice4_same_type_variadic_i64_add_works() {
+    // The wat-defined :wat::core::i64::+ variadic wrapper.
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((sum :wat::core::i64) (:wat::core::i64::+ 1 2 3 4 5)))
+            (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string sum))))
+    "##;
+    assert_eq!(run(src), vec!["15".to_string()]);
+}
+
+#[test]
+fn slice4_same_type_variadic_f64_mul_works() {
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((p :wat::core::f64) (:wat::core::f64::* 1.0 2.0 3.0)))
+            (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string p))))
+    "##;
+    assert_eq!(run(src), vec!["6".to_string()]);
+}
+
+#[test]
+fn slice4_mixed_type_leaf_directly_callable() {
+    // The mixed-type leaf is reachable per no-privacy.
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((s :wat::core::f64) (:wat::core::+,i64-f64 1 2.0)))
+            (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string s))))
+    "##;
+    assert_eq!(run(src), vec!["3".to_string()]);
+}
+
+#[test]
+fn slice4_binary_dispatch_directly_callable() {
+    // The binary Dispatch entity at :wat::core::+,2 routes by type.
+    let src = r##"
+        (:wat::core::define
+          (:user::main
+            (stdin :wat::io::IOReader)
+            (stdout :wat::io::IOWriter)
+            (stderr :wat::io::IOWriter)
+            -> :wat::core::unit)
+          (:wat::core::let* (((s :wat::core::f64) (:wat::core::+,2 1 2.0)))
+            (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string s))))
+    "##;
+    assert_eq!(run(src), vec!["3".to_string()]);
+}
