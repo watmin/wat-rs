@@ -899,6 +899,58 @@ recurses until the head of the form is no longer a macro. Useful
 when a macro's expansion isn't producing what you expected — invoke
 the expander, read the resulting AST.
 
+### Numeric arithmetic + comparison — first-class entities (arc 148)
+
+Arithmetic (`+`, `-`, `*`, `/`) and comparison (`=`, `not=`, `<`, `>`,
+`<=`, `>=`) over `i64` / `f64` ship as first-class entities. Three
+reach tiers, one rule about which to use:
+
+```scheme
+;; Tier 1 — DEFAULT REACH (Lisp-natural; the call shape you'll write 99% of the time)
+(:wat::core::+ x y z)               ;; variadic; mixed-numeric promotes to f64
+(:wat::core::< a b)                 ;; binary (chains via :and explicitly)
+(:wat::core::- 5)                   ;; → -5 (1-ary inserts identity-on-left)
+(:wat::core::+)                     ;; → 0:i64 (0-ary returns identity)
+(:wat::core::*)                     ;; → 1:i64 (0-ary returns identity)
+
+;; Tier 2 — TYPE-LOCKED (assert "this operates only over T"; mixed-numeric is a compile error)
+(:wat::core::i64::+ a b c)          ;; same shape as default; type-locked
+(:wat::core::f64::* x y z)
+(:wat::core::i64::- 10 3 2)         ;; → 5 (folds left)
+
+;; Tier 3 — SUBSTRATE ADDRESSING (rarely needed in everyday code; reachable per arc 109 no-privacy)
+(:wat::core::+,2 a b)               ;; binary Dispatch entity; routes by type-pair
+(:wat::core::+,i64-f64 1 2.0)       ;; mixed-numeric leaf; substrate honesty
+(:wat::core::i64::+,2 a b)          ;; same-type binary leaf
+```
+
+**Arity rules** (Lisp/Clojure tradition):
+
+| Op | 0-ary | 1-ary | 2+-ary |
+|---|---|---|---|
+| `+` | `0` (identity) | passes arg through | folds left |
+| `*` | `1` (identity) | passes arg through | folds left |
+| `-` | ARITY ERROR | inserts identity-on-left: `(:- x) → -x` | folds left |
+| `/` | ARITY ERROR | inserts identity-on-left: `(:/ x) → 1/x` (integer-truncated for `i64`) | folds left |
+
+Comparison ops (`=`, `not=`, `<`, `>`, `<=`, `>=`) are strict-binary.
+Chains via `:and` explicitly: `(:and (:< a b) (:< b c))`. Equality
+delegates universally via `values_compare` — same-type comparison
+works for every comparable type (numerics, strings, bools, time,
+holons, options, results, tuples, vectors, bytes); mixed-numeric is
+handled internally without comma-typed leaves.
+
+**The comma-typed-leaf rule** — comma-typed leaves
+(`:<verb>,<type-pair>`) exist iff the underlying Rust impls
+genuinely differ per type-pair. Arithmetic needs them
+(`i64+i64 ≠ i64+f64`); comparison doesn't (one universal helper).
+LLM-generated code stays at Tier 1; substrate addressing is for
+substrate authors.
+
+Every entity is queryable via `:wat::core::signature-of`,
+`:wat::core::lookup-define`, `:wat::core::body-of` — discoverable,
+addressable, reflectable per arc 144.
+
 ### Containers — polymorphic `get` / `assoc` / `conj` / `contains?` / `length`
 
 Five core verbs operate uniformly across the three built-in
