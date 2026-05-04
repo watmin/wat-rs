@@ -531,6 +531,33 @@ commit. The pre-INSCRIPTION grep above is mandatory; not
 optional; not "if I remember." Run it like FM 9's baseline-
 re-run before sonnet spawn.
 
+**Crucial corollary — what is inscribed is inscribed.** When a
+past INSCRIPTION is found to carry deferrals, **do NOT amend it
+in place.** The INSCRIPTION is historical record of what
+shipped, including its imperfections. Editing past INSCRIPTIONs
+to retract deferral prose is revisionism — it erases the
+failure-as-data the artifact preserves. Per user direction
+2026-05-03 evening:
+
+> *"what is inscribed is inscribed - all we can do is make
+> forward progress - we do not hide our faults - we learn from
+> them"*
+
+**The remediation pattern:**
+- Open a NEW arc that closes the deferred work
+- The new arc's DESIGN cites the old arc's INSCRIPTION
+  ("arc N inscribed with deferral X; arc M closes that deferral
+  cleanly")
+- The old INSCRIPTION stays unchanged
+- DEFERRAL-VIOLATIONS.md tracks the discipline failure
+  perpetually — closed-by-arc-M annotations append; original
+  violation entries do NOT get deleted
+
+The audit names the past; the mechanism prevents the future;
+the past stays as it shipped. Same shape as `git log` —
+historical record is read-only. See memory
+`feedback_inscription_immutable.md`.
+
 **Affirmative scope-bounding language (acceptable):**
 - *"Out of arc N's scope. Tracked in arc M (DESIGN.md at ...)."*
 - *"Out of arc N's scope; substrate-architectural reason: <X>;

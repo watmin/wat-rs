@@ -38,6 +38,34 @@ stay open until the deferred work either ships in a follow-up
 arc OR is removed from scope (the scope reduction itself
 documented as out-of-scope, not deferred).
 
+## Crucial: this tracker does NOT amend past INSCRIPTIONs
+
+**What is inscribed is inscribed.** Per user direction 2026-05-03
+evening:
+
+> *"what is inscribed is inscribed - all we can do is make
+> forward progress - we do not hide our faults - we learn from
+> them"*
+
+This document records the discipline failures that shipped. It
+does NOT exist to retroactively edit INSCRIPTIONs to remove
+deferral prose. Past INSCRIPTIONs are historical record;
+rewriting them would erase the failure-as-data this tracker
+preserves. **The lesson lives in the imperfection.**
+
+**The remediation pattern (forward progress only):**
+- Open a NEW arc that closes a deferred item
+- The new arc's DESIGN cites the old arc's INSCRIPTION
+- The old INSCRIPTION stays unchanged forever
+- This tracker appends "closed-by-arc-M" annotations to
+  violation entries; original entries are not deleted
+
+The audit names the past; the mechanism (FM 11 + Section 11
+pre-INSCRIPTION grep) prevents the future; the past stays as
+it shipped.
+
+See memory `feedback_inscription_immutable.md`.
+
 ## Arc 138 — the doctrine that I violated within hours
 
 **Path:** `docs/arc/2026/05/138-checkerror-spans/INSCRIPTION.md`
