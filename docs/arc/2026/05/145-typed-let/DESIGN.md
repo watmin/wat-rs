@@ -17,6 +17,21 @@ clarified after seeing the design:
 > in our examples because we need the sequential binding.. but
 > users can make their own choice.. that's a good stance to have"*
 
+Further clarification 2026-05-03 evening (DESIGN re-revised):
+
+> *"the ret val of a let statement /must be declared/ .. the
+> 'user's choice' is whether or not to use let or let* -- both
+> must have a ret val declared.. the let's ret val can be bound
+> to something and used later - just like if, match etc"*
+
+**`-> :T` is REQUIRED on both forms.** The "user's choice" is the
+BINDING STRATEGY — parallel (`let`) vs sequential (`let*`). Both
+forms produce values; both forms declare their return type. This
+matches `if` / `match` / `cond` / `try` / `Option/expect` /
+`Result/expect` — every value-bearing form in the substrate
+declares `-> :T`. `let`/`let*` are the only outliers; arc 145
+fixes that.
+
 ## Goal
 
 Add `-> :T` declaration support to BOTH `:wat::core::let` (parallel)
@@ -67,29 +82,29 @@ mirror the check semantics. Tail-call paths
 ## Target shape
 
 ```scheme
-;; Without -> :T (untyped — preserves today's behavior; backwards
-;; compatible)
-(:wat::core::let
-  (((<n> :Type) <expr>) ...)
-  <body>)
-
-(:wat::core::let*
-  (((<n> :Type) <expr>) ...)
-  <body>)
-
-;; With -> :T (NEW — explicit value-bearing declaration)
+;; let — parallel binding (RHS expressions can't see each other)
 (:wat::core::let -> :ResultType
   (((<n> :Type) <expr>) ...)
   <body>)
 
+;; let* — sequential binding (later RHS expressions see earlier bindings)
 (:wat::core::let* -> :ResultType
   (((<n> :Type) <expr>) ...)
   <body>)
 ```
 
-Both shapes work after arc 145. The `-> :T` form validates the
-body's inferred type unifies with `:T`; surfaces a clean
-`TypeMismatch` if not.
+`-> :T` is REQUIRED on both forms. Body's inferred type must unify
+with `:T`; mismatch surfaces a clean `TypeMismatch` at the body's
+position. Bare `(:wat::core::let bindings body)` without `-> :T`
+is a parse error post-arc-145.
+
+**Existing call sites must be migrated.** Arc 145 sweeps every
+`(:wat::core::let ...)` and `(:wat::core::let* ...)` call site in
+the repo (substrate `wat/`, tests, examples, lab consumers if
+referenced) to add `-> :T` annotations. This is a foundation-
+correction breaking change; per arc 109's "no bridges" doctrine,
+ship the consistency cleanly. The migration is mechanical —
+sonnet sweep with substrate-informed brief.
 
 ## Slice plan (2 slices)
 
