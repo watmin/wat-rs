@@ -148,14 +148,41 @@ pairwise-AND, which would introduce a SECOND "what does variadic mean"
 rule alongside arithmetic's fold. Two semantics for variadic fails
 the four questions on Simple. Strict binary keeps one rule per family.
 
-### Min-2 arity (uniform across the substrate)
+### Arity rules — Lisp/Clojure tradition for arithmetic; strict 2 for comparison
 
-All arithmetic + comparison ops require at least 2 operands.
-`(:wat::core::+ 1)` rejected. `(:wat::core::-  1)` rejected (no
-implicit negation; mint `:wat::core::negate` separately if wanted).
-`(:wat::core::/ 5)` rejected (no implicit reciprocal). `(:wat::core::<
-1)` rejected. Reasoning per user: *"the value -1 is obvious; the
-phrase 'subtract 1' is an incomplete statement."*
+User direction 2026-05-03 (mid-session reversal): mirror Clojure's
+identity-element rule for arithmetic.
+
+**Arithmetic arity rules:**
+
+| Op | 0-ary | 1-ary | 2+-ary |
+|---|---|---|---|
+| `:+` | returns `:i64 0` (identity) | returns the arg unchanged | reduces via dispatch |
+| `:*` | returns `:i64 1` (identity) | returns the arg unchanged | reduces via dispatch |
+| `:-` | ARITY ERROR | `(:- x)` → `(:- 0 x)` = `-x` (negation) | reduces via dispatch |
+| `:/` | ARITY ERROR | `(:/ x)` → `(:/ 1 x)` = `1/x` (reciprocal, type-preserving) | reduces via dispatch |
+
+The 1-ary identity is inserted on the LEFT (the only ordering that
+gives useful semantics for `-` / `/`).
+
+**Type preservation for 1-ary** — implicit identity takes the SAME
+TYPE as the argument:
+- `(:- 5)` → `-5:i64` (insert `0:i64`)
+- `(:- 5.0)` → `-5.0:f64` (insert `0:f64`)
+- `(:/ 5)` → `0:i64` (insert `1:i64`; integer truncation — 1/5 in i64 = 0)
+- `(:/ 5.0)` → `0.2:f64` (insert `1.0:f64`; float reciprocal)
+
+The integer reciprocal returning 0 is honest about i64 semantics.
+Users wanting f64 reciprocal write `(:wat::core::/ 1.0 5)` explicitly,
+or call `:wat::core::f64::/` if Ratio support lands later.
+
+**Comparison arity rule: strict 2.** Comparison has no identity
+element; chained comparison is meaningless under fold semantics
+(`(:< 1 2 3)` would fold to `(:< (:< 1 2) 3) = (:< true 3)` —
+nonsense). Pairwise-AND would introduce a SECOND "what does variadic
+mean" rule alongside arithmetic's fold (fails Simple). Comparison
+ops require exactly 2 args; chains via `:and`:
+`(:wat::core::and (:< 1 2) (:< 2 3))`.
 
 ### Why this architecture wins the four questions
 
@@ -412,64 +439,163 @@ slice 2 audits whether wat has a numeric union type or whether
 the variadic uses inference + min-2-args validation. Sonnet's
 slice 2 brief resolves this concretely.
 
-## Slice plan
+## Slice plan (revised post-audit, 2026-05-03)
 
-### Slice 1 — AUDIT (no code changes)
+The audit (`AUDIT-SLICE-1.md`) surfaced three discrepancies between
+DESIGN's assumptions and the substrate's current state. Resolutions
+adopted under the durability discipline ("eliminate failure domains;
+build the substrate up, don't bridge over its gaps"):
 
-Sonnet enumerates the existing surfaces of all 7 polymorphic_*
-handlers. Produces `AUDIT-SLICE-1.md`. No migration, no new
-primitives, no test changes. Pure documentation deliverable.
+- **OQ1 — `eval_compare` allowlist narrower than DESIGN's ord
+  allowlist.** Resolution: build the substrate up. Add `values_compare`
+  arms for `:wat::time::Instant`, `:wat::time::Duration`,
+  `:wat::core::Bytes`, `:wat::core::Vector<T>`, `:wat::core::Tuple<T...>`,
+  `:wat::core::Option<T>`, `:wat::core::Result<T,E>` mirroring
+  `values_equal`'s recursive shape. KEEP `bool` and `keyword` ord
+  (substrate already supports; PartialOrd is honest). Eliminates
+  failure domain "I tried to compare X and got a runtime error."
 
-Audit format per handler:
-- User-facing operators served (e.g., `infer_polymorphic_arith`
-  serves `:+`, `:-`, `:*`, `:/`)
-- Per-Type combinations supported (which Types each handler
-  accepts; check.rs source-of-truth)
-- Runtime impl reference (which `eval_*` handles each)
-- Whether scoped INTO arc 148 immediate (numeric) or DEFERRED
-  (non-numeric / holon / time)
+- **OQ2 — Per-Type arithmetic leaves already exist at bare names
+  (no `,2` suffix).** Resolution: rename existing
+  `:wat::core::i64::+`/`-`/`*`/`/` and `:wat::core::f64::+`/`-`/`*`/`/`
+  to add `,2`. Bare names become available for the variadic wat
+  wrappers slice 4 ships. Mass call-site sweep across tests/examples
+  /lab. Eliminates failure domain "same name, sometimes binary,
+  sometimes variadic." (Comparison per-Type leaves are NOT renamed —
+  they get RETIRED in slice 5 instead, see below.)
 
-### Slice 2 — Migrate numeric arithmetic family (32 names)
+- **OQ3 — `:not=` is computed, not per-Type leaved.** Resolution:
+  keep current substrate behavior — `:wat::core::not=` computes
+  `not(:wat::core::= ...)` internally. No per-Type `:not=` leaves.
+  Drops comparison count from 6 ops × 3 = 18 names to 5 ops × 3 +
+  `:not=` × 1 = **16 names**. Eliminates failure domain "per-Type
+  `:not=` drifts from `:=`."
+
+**Revised total: 32 (arithmetic) + 16 (comparison) = 48 names.**
+
+### Slice 1 — AUDIT (SHIPPED 2026-05-03)
+
+Sonnet enumerated all 7 `infer_polymorphic_*` handler surfaces.
+Produced `AUDIT-SLICE-1.md` (616 lines). Surfaced OQ1 + OQ2 + OQ3
+above. No code changes.
+
+### Slice 2 — Rename per-Type arithmetic leaves (OQ2 fix)
+
+Foundation slice. Renames the 8 existing per-Type arithmetic Rust
+primitives to add `,2` suffix; sweeps all call sites; verifies
+green. NO new entities; NO architectural change beyond the rename.
+
+Affected substrate registrations:
+- `src/runtime.rs:2514-2529` (`eval_i64_arith` arms — register at
+  new names)
+- `src/runtime.rs:2552-2561` (`eval_f64_arith` arms — register at
+  new names)
+- `src/check.rs:8718-8732` (TypeScheme registrations for i64)
+- `src/check.rs:8736-8750` (TypeScheme registrations for f64)
+- `src/runtime.rs:15605-15641` (freeze pipeline pure-redex list)
+
+Comparison per-Type leaves (`:wat::core::i64::<` etc.) are NOT
+renamed — they get retired entirely in slice 5.
+
+`:f64::abs`, `:f64::max`, `:f64::min` are NOT renamed — they have
+no polymorphic counterpart (they're Type-specific functions; no
+variadic wrapper needed at the bare name).
+
+**Unlocks:** slice 4 (arithmetic migration can place variadic wat
+fns at the freed bare names).
+
+### Slice 3 — Build out `values_compare` for ord coverage (OQ1 fix)
+
+Foundation slice. Extends `src/runtime.rs:4622-4634` (`values_compare`)
+with arms mirroring `values_equal` (`src/runtime.rs:4491-4601`):
+
+- `(time::Instant, time::Instant)` — chronological
+- `(time::Duration, time::Duration)` — chronological
+- `(Bytes, Bytes)` — byte-wise
+- `(Vec, Vec)` — element-wise recursive
+- `(Tuple, Tuple)` — element-wise recursive
+- `(Option, Option)` — None < Some(_); Some(x) cmp Some(y) = x cmp y
+- `(Result, Result)` — Err < Ok; Err(x) cmp Err(y) = x cmp y; same for Ok
+
+Plus tests for each new ord arm. Existing comparison tests must
+still pass (bool/keyword/String/numeric).
+
+**Unlocks:** slice 5 (comparison migration can retire
+`infer_polymorphic_compare`'s non-numeric branch without
+regressing ord on the new types — universal delegation now works).
+
+### Slice 4 — Numeric arithmetic migration (32 names)
 
 For each of `+`, `-`, `*`, `/`: ship 8 entities:
-- 1 polymorphic variadic wat function
-- 1 binary Dispatch entity
-- 2 same-type variadic wat functions (i64, f64)
-- 2 same-type binary Rust primitives (i64::v,2; f64::v,2)
-- 2 mixed-type binary Rust primitives (v,i64-f64; v,f64-i64)
+- 1 polymorphic variadic wat function at `:wat::core::<v>`
+- 1 binary Dispatch entity at `:wat::core::<v>,2`
+- 2 same-type variadic wat functions at `:wat::core::<Type>::<v>` (uses bare names freed by slice 2)
+- (2 same-type binary Rust primitives at `:wat::core::<Type>::<v>,2` — already exist post-slice-2)
+- 2 mixed-type binary Rust primitives at `:wat::core::<v>,i64-f64` and `,f64-i64`
 
-Retire `infer_polymorphic_arith` + `eval_poly_arith` + their
-runtime dispatch arms.
+Retire `infer_polymorphic_arith` + `eval_poly_arith` + 4 runtime
+dispatch arms + 4 freeze pipeline pure-redex entries.
 
-### Slice 3 — Migrate numeric comparison family (25 names)
+### Slice 5 — Numeric comparison migration (16 names)
 
-For each of `=`, `<`, `>`, `<=`, `>=`: ship 5 entities:
-- 1 binary Dispatch entity
-- 2 same-type binary Rust primitives (i64::v; f64::v)
-- 2 mixed-type binary Rust primitives (v,i64-f64; v,f64-i64)
+For each of `=`, `<`, `>`, `<=`, `>=`: ship 3 entities:
+- 1 substrate primitive at `:wat::core::<v>` (uses Rust's
+  PartialEq/PartialOrd polymorphically for same-type; routes
+  named mixed arms; raises otherwise)
+- 2 mixed-type binary Rust primitives at `:wat::core::<v>,i64-f64`
+  and `,f64-i64`
 
-Retire numeric portion of `infer_polymorphic_compare` + the
-numeric arms of `eval_eq` / `eval_compare` + their runtime
-dispatch. NON-NUMERIC remains in the legacy handlers until the
-parallel user-track lands its work.
+Plus `:wat::core::not=` as 1 substrate primitive computing
+`not(:wat::core::= ...)` internally — no per-Type or mixed leaves.
 
-### Slice 4 — Closure
+Retire numeric portion of `infer_polymorphic_compare` + numeric
+arms of `eval_eq` / `eval_compare` + 6 runtime dispatch arms +
+6 freeze pipeline pure-redex entries.
+
+**Also retire per-Type comparison leaves** (`:wat::core::i64::=`,
+`:i64::<`, `:i64::>`, `:i64::<=`, `:i64::>=` and same for f64 —
+10 names total) — the substrate primitive's universal delegation
+makes them redundant; keeping them creates "two ways to do the
+same thing" cruft that fails the four questions on Simple. Update
+all call sites to use the polymorphic substrate primitive.
+
+### Slice 6 — Closure
 
 INSCRIPTION + 058 row + USER-GUIDE entry + arc 146 slice 5 unblock
-note. Names what's NOT done (non-numeric eq/ord deferred to user
-track) so the foundation stays honest.
+note + Ratio forward-reference (future arc — see "Future work"
+below).
 
-### Deferred (parallel user track)
+### Deferred (parallel user track) — Categories B + C only
 
-User works in parallel while sonnet runs slices 1-4:
-- Non-numeric eq/ord (String, bool, Holon, keyword, Vector<T>, etc.)
-- Time-arith family (Instant, Duration)
-- Holon-pair family (4 distinct shapes)
+After arc 148 closes, two categories remain in the parallel
+user-track:
 
-Each follows the same architectural pattern (per-Type Rust leaves
-under Type-as-namespace; mixed via verb-comma-pair where applicable;
-strict-binary or variadic per family). Specific naming + scope
-captured by user as that work lands.
+- **Category B** — Time arithmetic (`:wat::time::-`,
+  `:wat::time::+`). Handler `infer_polymorphic_time_arith`.
+  2 ops × 3 signatures.
+- **Category C** — Holon-pair algebra. 4 handlers, 5 user-facing
+  ops (`:cosine`, `:dot`, `:coincident?`, `:coincident-explain`,
+  `:simhash`).
+
+Category A (non-numeric eq/ord) is NOT deferred — slice 5's
+substrate primitive handles it via the universal-delegation rule
+made tractable by slice 3's `values_compare` buildout.
+
+## Future work — Ratio support (separate arc)
+
+User direction 2026-05-03: **Ratio is a separate arc, not arc 148.**
+Adding a native `:wat::core::Ratio` type for exact rational
+arithmetic is a coherent substrate addition (Clojure-style), but
+it expands the numeric tower from {i64, f64} to {i64, Ratio, f64}
+with new mixed combos and a real semantics question (Ratio + f64
+coerces which way? equality across types?). That work waits on
+explicit arc spawn; arc 148 ships {i64, f64} per the locked
+architecture above.
+
+When Ratio arc lands, the implicit-identity rule for 1-ary `:/`
+revises: `(:/ 5)` would return `1/5:Ratio` instead of `0:i64`
+(integer truncation). That's a deliberate behavior change captured
+in Ratio arc's INSCRIPTION.
 
 ## Why arc 146 closure depends on this
 
