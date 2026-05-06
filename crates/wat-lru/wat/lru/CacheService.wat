@@ -216,7 +216,7 @@
                 (:wat::core::match slot -> :wat::core::i64
                   ((:wat::core::Some _) (:wat::core::i64::+,2 acc 1))
                   (:wat::core::None acc)))))
-           ((n :wat::core::i64) (:wat::core::Vector/len probes))
+           ((n :wat::core::i64) (:wat::core::Vector/length probes))
            ((miss-count :wat::core::i64) (:wat::core::i64::-,2 n hit-count))
            ;; Arc 110: in-memory peer-death is catastrophic; panic with a
            ;; meaningful message rather than silently dropping the reply.
@@ -243,7 +243,7 @@
                   (((k :K) (:wat::core::first entry))
                    ((v :V) (:wat::core::second entry)))
                   (:wat::lru::LocalCache::put cache k v)))))
-           ((n :wat::core::i64) (:wat::core::Vector/len entries))
+           ((n :wat::core::i64) (:wat::core::Vector/length entries))
            ;; Arc 110: same discipline — driver dying mid-protocol is
            ;; catastrophic; panic with a meaningful message.
            ;; Arc 130: send Reply::PutAck variant on the slot's reply-tx.
