@@ -485,13 +485,30 @@ pub enum CheckError {
         span: Span,
     },
     /// Arc 157 — `:wat::core::def` attempted to redefine a name that
-    /// is already bound in `defined_values`. Slice 1a-i: every
-    /// collision is an error. Slice 1a-ii will introduce
-    /// `(:wat::config::set-redef! true)` to opt in to redef with
-    /// type-stability checking.
+    /// is already bound in `defined_values`. Fires when `redef_allowed`
+    /// is `false` (the strict default). Enable opt-in redef via
+    /// `(:wat::config::set-redef! true)`.
     DefRedefForbidden {
         /// The name that was already bound.
         name: String,
+        /// Source location of the prior (first) binding.
+        prior_loc: Span,
+        /// Source location of the new (colliding) binding.
+        current_loc: Span,
+    },
+    /// Arc 157 slice 1a-ii — `:wat::core::def` redef permitted by
+    /// `(:wat::config::set-redef! true)` but the new expression's
+    /// inferred type differs from the prior registered type.
+    /// Type-stability is mandatory whenever redef happens — opt-in to
+    /// redef does NOT opt out of type-stability. The contract downstream
+    /// callers depend on must remain intact.
+    DefRedefTypeChange {
+        /// The name whose type would change.
+        name: String,
+        /// The inferred type of the prior binding.
+        prior_type: String,
+        /// The inferred type of the new expression.
+        new_type: String,
         /// Source location of the prior (first) binding.
         prior_loc: Span,
         /// Source location of the new (colliding) binding.
@@ -664,8 +681,14 @@ impl fmt::Display for CheckError {
             ),
             CheckError::DefRedefForbidden { name, prior_loc, current_loc } => write!(
                 f,
-                "{}`:wat::core::def` redef of `{}`: name already bound at {}. Redef is forbidden in slice 1a-i (arc 157); opt-in gating (`(:wat::config::set-redef! true)`) lands in arc 157 slice 1a-ii. Use a different name, or wait for slice 1a-ii if you intend a redefinition.",
+                "{}`:wat::core::def` redef of `{}`: name already bound at {}. Redef is forbidden by default; opt in via `(:wat::config::set-redef! true)` before this form. Use a different name, or enable redef explicitly.",
                 span_prefix(current_loc), name, prior_loc
+            ),
+            // Arc 157 slice 1a-ii — type-stability violation on opt-in redef.
+            CheckError::DefRedefTypeChange { name, prior_type, new_type, prior_loc, current_loc } => write!(
+                f,
+                "{}`:wat::core::def` redef of `{}` changes type from `{}` to `{}` (prior binding at {}). Type-stability is mandatory on redef — the signature downstream callers depend on must stay intact. Only the expression's value may change; the type must not.",
+                span_prefix(current_loc), name, prior_type, new_type, prior_loc
             ),
         }
     }
@@ -944,6 +967,15 @@ impl CheckError {
             CheckError::DefRedefForbidden { name, prior_loc, current_loc } => {
                 Diagnostic::new("DefRedefForbidden")
                     .field("name", name.as_str())
+                    .field("prior_loc", format!("{}", prior_loc))
+                    .field("current_loc", format!("{}", current_loc))
+            }
+            // Arc 157 slice 1a-ii — type-stability violation.
+            CheckError::DefRedefTypeChange { name, prior_type, new_type, prior_loc, current_loc } => {
+                Diagnostic::new("DefRedefTypeChange")
+                    .field("name", name.as_str())
+                    .field("prior_type", prior_type.as_str())
+                    .field("new_type", new_type.as_str())
                     .field("prior_loc", format!("{}", prior_loc))
                     .field("current_loc", format!("{}", current_loc))
             }
@@ -1290,6 +1322,13 @@ pub struct CheckEnv {
     /// the binding site. Used to emit `DefRedefForbidden` with the
     /// prior location when a collision is detected.
     pub defined_value_spans: HashMap<String, Span>,
+    /// Arc 157 slice 1a-ii — compile-time redef-allowed flag. Default
+    /// `false` (strict default: every redef is an error). Updated
+    /// in-line by `check_program` when it encounters a top-level
+    /// `(:wat::config::set-redef! <bool>)` form (single-pass
+    /// program-order semantics). Consulted by `infer_def` at the
+    /// redef-collision site.
+    pub redef_allowed: bool,
 }
 
 impl CheckEnv {
@@ -1315,6 +1354,11 @@ impl CheckEnv {
         if let Some(reg) = sym.dispatch_registry() {
             env.dispatch_registry = Some(reg.clone());
         }
+        // Arc 157 slice 1a-ii — mirror the redef-allowed flag from the
+        // SymbolTable carrier (populated from Config at freeze time) so
+        // `infer_def` can gate the collision check without needing direct
+        // SymbolTable access. Option (b) per the BRIEF: mirror, not direct.
+        env.redef_allowed = sym.redef_allowed;
         env
     }
 
@@ -1352,6 +1396,7 @@ impl CheckEnv {
             dispatch_registry: None,
             defined_values: HashMap::new(),
             defined_value_spans: HashMap::new(),
+            redef_allowed: false,
         }
     }
 
@@ -1640,6 +1685,12 @@ pub fn check_program(
         // After the immutable borrow is released, register any top-
         // level def bindings for subsequent forms to resolve.
         collect_and_register_splice_defs(form, &mut env, &mut fresh, &mut errors);
+        // Arc 157 slice 1a-ii — if the form is a set-redef! setter,
+        // update env.redef_allowed in-line so subsequent def forms see
+        // the new flag (single-pass program-order semantics).
+        if let Some(flag) = extract_redef_setter(form) {
+            env.redef_allowed = flag;
+        }
     }
 
     // Check each user define's body against its declared return type.
@@ -3411,6 +3462,14 @@ fn infer_list(
             // call returns) using the helper `extract_def_binding`.
             // This two-phase approach keeps `infer`'s signature pure.
             ":wat::core::def" => return infer_def(args, head_span, env, locals, fresh, subst, errors),
+            // Arc 157 slice 1a-ii — config setters for redef opt-in.
+            // Shape: (:wat::config::set-redef! <bool>) — returns Unit.
+            // The bool arg is type-checked; the actual flag update is
+            // handled out-of-band in `check_program`'s sequential loop
+            // after `check_form` returns (same two-phase pattern as def).
+            ":wat::config::set-redef!" | ":wat::config::set-eval-redef!" => {
+                return infer_config_set_bool(k, args, head_span, env, locals, fresh, subst, errors);
+            }
             ":wat::core::if" => return infer_if(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::cond" => return infer_cond(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::let" => return infer_let(args, head_span, env, locals, fresh, subst, errors),
@@ -5903,18 +5962,114 @@ fn infer_def(
     };
 
     // Infer the type of the expression.
-    let _expr_ty = infer(&args[1], env, locals, fresh, subst, errors);
+    let expr_ty = infer(&args[1], env, locals, fresh, subst, errors);
 
-    // Redef check — every collision is an error in slice 1a-i.
+    // Arc 157 slice 1a-ii — redef gating.
+    //
+    // Three-way dispatch at the collision site:
+    //   1. Flag off (strict default) → DefRedefForbidden (1a-i path)
+    //   2. Flag on + types match → permit redef (no error)
+    //   3. Flag on + types differ → DefRedefTypeChange (type-stability violation)
+    //
+    // `redef_allowed` lives on `CheckEnv` and is updated in-line by
+    // `check_program` when it processes a `(:wat::config::set-redef! <bool>)`
+    // top-level form before this def form. Single-pass program-order semantics.
     if let Some(prior_span) = env.get_defined_value_span(&name) {
-        errors.push(CheckError::DefRedefForbidden {
-            name,
-            prior_loc: prior_span.clone(),
-            current_loc: head_span.clone(),
-        });
+        if !env.redef_allowed {
+            // Strict default — every redef is an error.
+            errors.push(CheckError::DefRedefForbidden {
+                name,
+                prior_loc: prior_span.clone(),
+                current_loc: head_span.clone(),
+            });
+        } else {
+            // Opt-in redef: check type-stability.
+            let prior_type = env.get_defined_value_type(&name).cloned();
+            let new_type = expr_ty.as_ref().cloned();
+            match (prior_type, new_type) {
+                (Some(pt), Some(nt)) => {
+                    // Compare structural representation via `format_type`.
+                    // TypeExpr::Path(":i64") == TypeExpr::Path(":i64") etc.
+                    let pt_str = format_type(&pt);
+                    let nt_str = format_type(&nt);
+                    if pt_str != nt_str {
+                        errors.push(CheckError::DefRedefTypeChange {
+                            name,
+                            prior_type: pt_str,
+                            new_type: nt_str,
+                            prior_loc: prior_span.clone(),
+                            current_loc: head_span.clone(),
+                        });
+                    }
+                    // else: types match → permit redef (no error).
+                }
+                _ => {
+                    // One or both types failed to infer — errors already
+                    // pushed by `infer`. Don't emit a spurious type-change
+                    // error on top of the inference failure.
+                }
+            }
+        }
     }
 
     // Return unit — `def` is a declaration, not a value expression.
+    Some(TypeExpr::Tuple(vec![]))
+}
+
+/// Arc 157 slice 1a-ii — type-check arm for
+/// `(:wat::config::set-redef! <bool>)` and
+/// `(:wat::config::set-eval-redef! <bool>)`.
+///
+/// Validates arity (exactly 1 arg) and that the argument is a bool
+/// literal (`true` or `false`). Returns Unit — the setter is a
+/// declaration, not a value expression.
+///
+/// The actual flag update (setting `env.redef_allowed`) happens in
+/// `check_program`'s sequential loop AFTER this function returns, via
+/// `extract_redef_setter`. Same two-phase split as `infer_def` /
+/// `extract_def_binding`.
+fn infer_config_set_bool(
+    head: &str,
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 1 {
+        errors.push(CheckError::MalformedForm {
+            head: head.into(),
+            reason: format!(
+                "expected (:{} true) or (:{} false); got {} args",
+                head, head, args.len()
+            ),
+            span: head_span.clone(),
+        });
+        return Some(TypeExpr::Tuple(vec![]));
+    }
+    // The argument must be a bool literal — infer it to surface any
+    // type errors, then verify it's a bool.
+    let arg_ty = infer(&args[0], env, locals, fresh, subst, errors);
+    match arg_ty {
+        Some(TypeExpr::Path(ref p)) if p == ":bool" => {
+            // Well-typed bool arg — accepted.
+        }
+        Some(ref ty) => {
+            errors.push(CheckError::TypeMismatch {
+                callee: head.into(),
+                param: "flag".into(),
+                expected: ":bool".into(),
+                got: format_type(ty),
+                span: head_span.clone(),
+            });
+        }
+        None => {
+            // Inference failed — error already pushed by infer.
+        }
+    }
+    // Returns Unit — setter is a declaration.
     Some(TypeExpr::Tuple(vec![]))
 }
 
@@ -5963,8 +6118,25 @@ fn collect_splice_defs_ctx(
         ":wat::core::def" if is_top => {
             if let Some((name, ty, span)) = extract_def_binding(form, env, fresh, errors) {
                 if !env.defined_values.contains_key(&name) {
+                    // First binding — always register.
                     env.register_defined_value(name, ty, span);
+                } else if env.redef_allowed {
+                    // Arc 157 slice 1a-ii — opt-in redef with type-stability.
+                    // If types match (already verified in infer_def), replace
+                    // the prior entry so subsequent references see the
+                    // current type. If types differ, infer_def already emitted
+                    // DefRedefTypeChange; don't overwrite.
+                    let prior_str = env.get_defined_value_type(&name)
+                        .map(|t| format_type(t))
+                        .unwrap_or_default();
+                    let new_str = format_type(&ty);
+                    if prior_str == new_str {
+                        env.register_defined_value(name, ty, span);
+                    }
+                    // else: type mismatch — don't overwrite the prior entry.
                 }
+                // else: redef_allowed = false → DefRedefForbidden already
+                // emitted by infer_def; don't overwrite.
             }
         }
         ":wat::core::do" if is_top => {
@@ -6017,6 +6189,32 @@ fn extract_def_binding(
     let ty = infer(&items[2], env, &HashMap::new(), fresh, &mut subst, errors)?;
     let ty = apply_subst(&ty, &subst);
     Some((name, ty, span))
+}
+
+/// Arc 157 slice 1a-ii — extract the bool flag from a top-level
+/// `(:wat::config::set-redef! <bool>)` form. Returns `Some(bool)` when
+/// the form is a well-formed setter; `None` otherwise.
+///
+/// Called from `check_program`'s sequential loop to update
+/// `env.redef_allowed` after each top-level form is processed.
+/// Single-pass program-order: the flag is updated immediately so
+/// subsequent def forms in the same program see the new value.
+fn extract_redef_setter(form: &WatAST) -> Option<bool> {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return None,
+    };
+    if items.len() != 2 {
+        return None;
+    }
+    match &items[0] {
+        WatAST::Keyword(k, _) if k == ":wat::config::set-redef!" => {}
+        _ => return None,
+    }
+    match &items[1] {
+        WatAST::BoolLit(b, _) => Some(*b),
+        _ => None,
+    }
 }
 
 // ─── Arc 157 — position predicate walker ────────────────────────────────

@@ -94,6 +94,16 @@ pub struct Config {
     /// `:fn(:i64) -> :i64`. `None` → built-in default `1` constant
     /// (the 1σ native granularity). Arc 037 slice 6.
     pub coincident_sigma_ast: Option<WatAST>,
+    /// Arc 157 slice 1a-ii — compile-time redef opt-in. Default `false`
+    /// (strict: every redef is an error). Set `true` to permit redef with
+    /// mandatory type-stability check. Toggled via
+    /// `(:wat::config::set-redef! true)`.
+    pub redef_allowed: bool,
+    /// Arc 157 slice 1a-ii — eval-time redef opt-in. Default `false`.
+    /// Carrier + setter scaffolding wired; eval-time `def` binding is not
+    /// yet wired (eval arm returns Value::Unit). A future arc opens IFF
+    /// a caller surfaces wanting eval-time def redef.
+    pub eval_redef_allowed: bool,
 }
 
 /// `:wat::config::CapacityMode` — overflow policy when a frame exceeds
@@ -272,6 +282,10 @@ fn collect_entry_file_inner(
         inherit.and_then(|c| c.presence_sigma_ast.clone());
     let mut coincident_sigma_ast: Option<WatAST> =
         inherit.and_then(|c| c.coincident_sigma_ast.clone());
+    // Arc 157 slice 1a-ii — redef opt-in flags. Default false; inherit
+    // carries parent's value when sandboxing.
+    let mut redef_allowed: bool = inherit.map(|c| c.redef_allowed).unwrap_or(false);
+    let mut eval_redef_allowed: bool = inherit.map(|c| c.eval_redef_allowed).unwrap_or(false);
 
     // Separate tracker: has this field's setter appeared in THIS forms
     // list? Inheritance pre-seeds the Some; duplicate-in-forms still
@@ -281,6 +295,8 @@ fn collect_entry_file_inner(
     let mut set_dim_count = false;
     let mut set_presence_sigma = false;
     let mut set_coincident_sigma = false;
+    let mut set_redef = false;
+    let mut set_eval_redef = false;
 
     let mut remainder_start: Option<usize> = None;
 
@@ -421,6 +437,45 @@ fn collect_entry_file_inner(
                 // Arc 037 slice 6: AST-valued. Signature `:fn(:i64) -> :i64`.
                 coincident_sigma_ast = Some(args[0].clone());
             }
+            // Arc 157 slice 1a-ii — redef opt-in flags.
+            // Shape: (:wat::config::set-redef! true) or (:wat::config::set-redef! false)
+            ":wat::config::set-redef!" => {
+                if set_redef {
+                    return Err(ConfigError::DuplicateField {
+                        field: "redef".into(),
+                        span: form_span,
+                    });
+                }
+                set_redef = true;
+                if args.len() != 1 {
+                    return Err(ConfigError::BadArity {
+                        head: setter_head,
+                        expected: 1,
+                        got: args.len(),
+                        span: form_span,
+                    });
+                }
+                redef_allowed = parse_bool(&args[0], "redef", args[0].span().clone())?;
+            }
+            // Shape: (:wat::config::set-eval-redef! true) or (:wat::config::set-eval-redef! false)
+            ":wat::config::set-eval-redef!" => {
+                if set_eval_redef {
+                    return Err(ConfigError::DuplicateField {
+                        field: "eval-redef".into(),
+                        span: form_span,
+                    });
+                }
+                set_eval_redef = true;
+                if args.len() != 1 {
+                    return Err(ConfigError::BadArity {
+                        head: setter_head,
+                        expected: 1,
+                        got: args.len(),
+                        span: form_span,
+                    });
+                }
+                eval_redef_allowed = parse_bool(&args[0], "eval-redef", args[0].span().clone())?;
+            }
             _ => {
                 return Err(ConfigError::UnknownSetter {
                     head: setter_head,
@@ -443,6 +498,8 @@ fn collect_entry_file_inner(
         dim_count,
         presence_sigma_ast,
         coincident_sigma_ast,
+        redef_allowed,
+        eval_redef_allowed,
     };
 
     let remainder = match remainder_start {
@@ -472,6 +529,20 @@ fn setter_args_of(form: &WatAST) -> Option<&[WatAST]> {
     match form {
         WatAST::List(items, _) => items.get(1..),
         _ => None,
+    }
+}
+
+/// Arc 157 slice 1a-ii — parse a bool literal (`true` / `false`) from
+/// an AST node. Used for `set-redef!` and `set-eval-redef!` setters.
+fn parse_bool(ast: &WatAST, field: &'static str, span: Span) -> Result<bool, ConfigError> {
+    match ast {
+        WatAST::BoolLit(b, _) => Ok(*b),
+        other => Err(ConfigError::BadType {
+            field: field.into(),
+            expected: "bool literal (true or false)",
+            got: variant_name(other),
+            span,
+        }),
     }
 }
 
@@ -780,6 +851,8 @@ mod tests {
             dim_count: DEFAULT_DIM_COUNT,
             presence_sigma_ast: None,
             coincident_sigma_ast: None,
+            redef_allowed: false,
+            eval_redef_allowed: false,
         }
     }
 

@@ -111,6 +111,21 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // via the `validate_def_position` walker called in `check_program`.
     insert(&mut m, ":wat::core::def", &["<name>", "<expr>"]);
 
+    // ─── Redef config setters (arc 157 slice 1a-ii) ─────────────────────
+    // Arc 157 slice 1a-ii — compile-time redef opt-in. Default `false`
+    // (strict: every redef is an error). Set `true` to permit redef with
+    // mandatory type-stability check (type of re-bound name must not change).
+    // Shape: `(:wat::config::set-redef! true)` — takes one bool literal.
+    // Dispatch sites: `src/check.rs` (infer_config_set_bool arm +
+    // extract_redef_setter in check_program loop) +
+    // `src/runtime.rs` (register_runtime_defs_form arm + dispatch_keyword_head no-op).
+    insert(&mut m, ":wat::config::set-redef!", &["<bool>"]);
+    // Arc 157 slice 1a-ii — eval-time redef opt-in. Default `false`.
+    // Carrier + setter scaffolding wired; behavior gate is a no-op until
+    // eval-time def-binding is implemented (eval arm returns Value::Unit).
+    // A future arc opens IFF a caller surfaces wanting eval-time def redef.
+    insert(&mut m, ":wat::config::set-eval-redef!", &["<bool>"]);
+
     // ─── Control / branching ────────────────────────────────────────────
     // Dispatch sites: `src/check.rs:2956-2959` + `src/runtime.rs:2402-2405`.
     insert(&mut m, ":wat::core::if", &["<cond>", "<then>", "<else>"]);

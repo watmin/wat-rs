@@ -337,3 +337,110 @@ fn def_runtime_let_splice_closure_capture() {
         other => panic!("expected Value::i64; got {:?}", other),
     }
 }
+
+// ─── Arc 157 slice 1a-ii: redef opt-in + type-stability — 5 tests ────────────
+
+/// Test 15 — default flag off → strict default still holds.
+/// Without any set-redef! form, redefining `:a` must still fire
+/// `DefRedefForbidden` (sanity that 1a-i behavior is preserved).
+#[test]
+fn def_redef_default_flag_off_strict_default() {
+    let src = r#"
+        (:wat::core::def :a 1)
+        (:wat::core::def :a 2)
+    "#;
+    let err = startup_err(src);
+    assert!(
+        err.contains("DefRedefForbidden"),
+        "expected DefRedefForbidden with default flag off; got: {}",
+        err
+    );
+}
+
+/// Test 16 — `set-redef! true` + same type → succeeds; runtime resolves
+/// to the new value.
+/// `(:wat::config::set-redef! true)` enables opt-in redef; redefining
+/// `:a` from `1` to `2` (both `:i64`) must succeed, and at runtime `:a`
+/// must resolve to `2`.
+#[test]
+fn def_redef_set_redef_true_same_type_succeeds() {
+    let src = r#"
+        (:wat::config::set-redef! true)
+        (:wat::core::def :a 1)
+        (:wat::core::def :a 2)
+        (:wat::core::define (:user::main -> :wat::core::i64)
+          :a)
+    "#;
+    let v = run(src);
+    match v {
+        Value::i64(n) => {
+            assert_eq!(n, 2, "expected :a == 2 after redef; got {}", n);
+        }
+        other => panic!("expected Value::i64; got {:?}", other),
+    }
+}
+
+/// Test 17 — `set-redef! true` + different type → fires `DefRedefTypeChange`.
+/// Redefining `:a` from `1` (`:i64`) to `"hello"` (`:String`) with
+/// `set-redef! true` must fire `DefRedefTypeChange` naming both types.
+/// Type-stability is mandatory regardless of the redef flag.
+#[test]
+fn def_redef_set_redef_true_type_change_fires() {
+    let src = r#"
+        (:wat::config::set-redef! true)
+        (:wat::core::def :a 1)
+        (:wat::core::def :a "hello")
+    "#;
+    let err = startup_err(src);
+    assert!(
+        err.contains("DefRedefTypeChange"),
+        "expected DefRedefTypeChange on type-changing redef; got: {}",
+        err
+    );
+    // The diagnostic must name both the prior type and the new type.
+    assert!(
+        err.contains(":i64") || err.contains("i64"),
+        "DefRedefTypeChange should name prior type :i64; got: {}",
+        err
+    );
+    assert!(
+        err.contains(":String") || err.contains("String"),
+        "DefRedefTypeChange should name new type :String; got: {}",
+        err
+    );
+}
+
+/// Test 18 — explicit `set-redef! false` → strict default holds.
+/// Verifies that setting the flag to `false` explicitly is the same
+/// as the default: a subsequent redef fires `DefRedefForbidden`.
+/// This test ensures the flag actually gates (not always-on after set).
+#[test]
+fn def_redef_set_redef_false_strict_default() {
+    let src = r#"
+        (:wat::config::set-redef! false)
+        (:wat::core::def :a 1)
+        (:wat::core::def :a 2)
+    "#;
+    let err = startup_err(src);
+    assert!(
+        err.contains("DefRedefForbidden"),
+        "expected DefRedefForbidden after explicit set-redef! false; got: {}",
+        err
+    );
+}
+
+/// Test 19 — `set-eval-redef!` form is recognized at top-level.
+/// The form `(:wat::config::set-eval-redef! true)` must be accepted at
+/// top-level without a check error (form recognized; carrier flag
+/// wires on the SymbolTable). Behavior gating is scope-out per the
+/// eval-time STOP signal in the BRIEF: eval-time def-binding is not
+/// yet wired (eval arm returns Value::Unit), so the flag is functional
+/// on the SymbolTable but the gate is inert. This test verifies the
+/// surface lands (form accepted without error).
+#[test]
+fn def_set_eval_redef_form_recognized() {
+    let src = r#"
+        (:wat::config::set-eval-redef! true)
+    "#;
+    startup_ok(src);
+}

@@ -770,6 +770,19 @@ pub struct SymbolTable {
     /// `Value`. Populated by `register_runtime_defs` in `FrozenWorld::freeze`
     /// after all capability carriers are installed.
     pub runtime_def_values: HashMap<String, Value>,
+    /// Arc 157 slice 1a-ii — controls compile-time / load-time `def` redef.
+    /// Default `false` (opt-in). Toggled via
+    /// `(:wat::config::set-redef! true)`. Type-stability check applies
+    /// whenever redef happens, regardless of flag value (enforced at
+    /// check time via `CheckEnv.redef_allowed`).
+    pub redef_allowed: bool,
+    /// Arc 157 slice 1a-ii — controls eval-time `def` redef (interactive
+    /// `eval-ast!` flow). Default `false` (opt-in). Toggled via
+    /// `(:wat::config::set-eval-redef! true)`. Type-stability check applies.
+    /// NOTE: eval-time `def` binding is not yet wired (eval arm returns
+    /// `Value::Unit`); this flag is scaffolding. A future arc opens IFF a
+    /// caller surfaces wanting eval-time def redef.
+    pub eval_redef_allowed: bool,
 }
 
 impl std::fmt::Debug for SymbolTable {
@@ -786,6 +799,8 @@ impl std::fmt::Debug for SymbolTable {
             .field("types", &self.types.is_some())
             .field("defined_values", &self.defined_values.len())
             .field("runtime_def_values", &self.runtime_def_values.len())
+            .field("redef_allowed", &self.redef_allowed)
+            .field("eval_redef_allowed", &self.eval_redef_allowed)
             .finish()
     }
 }
@@ -1761,6 +1776,27 @@ fn register_runtime_defs_form(
     };
 
     match head {
+        // Arc 157 slice 1a-ii — config setters. Update the SymbolTable
+        // carrier flags so subsequent def-processing in this freeze pass
+        // sees the correct redef_allowed / eval_redef_allowed state.
+        // Shape: (:wat::config::set-redef! <bool-literal>)
+        ":wat::config::set-redef!" => {
+            if items.len() == 2 {
+                match &items[1] {
+                    WatAST::BoolLit(b, _) => { sym.redef_allowed = *b; }
+                    _ => {} // malformed; check already caught it
+                }
+            }
+        }
+        // Shape: (:wat::config::set-eval-redef! <bool-literal>)
+        ":wat::config::set-eval-redef!" => {
+            if items.len() == 2 {
+                match &items[1] {
+                    WatAST::BoolLit(b, _) => { sym.eval_redef_allowed = *b; }
+                    _ => {} // malformed; check already caught it
+                }
+            }
+        }
         ":wat::core::def" => {
             // Shape: (:wat::core::def :name expr)
             // The type checker already validated shape + position; here we
@@ -1774,6 +1810,15 @@ fn register_runtime_defs_form(
                 _ => return Ok(()), // malformed; type checker already caught it
             };
             let expr = &items[2];
+            // Arc 157 slice 1a-ii — redef gating at freeze time.
+            // If the name is already in runtime_def_values and redef_allowed
+            // is false, this is a redef violation. The type checker already
+            // emitted DefRedefForbidden; here we simply skip to avoid
+            // overwriting the prior value (the program may still partially
+            // execute to surface other errors).
+            if sym.runtime_def_values.contains_key(&name) && !sym.redef_allowed {
+                return Ok(()); // redef rejected; type checker already caught it
+            }
             // Evaluate the expr in the current env (which carries any
             // enclosing let-bindings from a splice-eligible let wrapper).
             // sym must be passed as immutable here for eval; the write
@@ -2727,6 +2772,16 @@ fn dispatch_keyword_head(
     }
     match head {
         // Language forms
+        // Arc 157 slice 1a-ii — config setters. These are top-level forms
+        // that update the SymbolTable carrier flags at freeze time (via
+        // `register_runtime_defs_form`). At eval time (this arm), the flag
+        // has already been processed at freeze time; return Unit as a no-op.
+        // The `dispatch_keyword_head` takes `sym: &SymbolTable` (immutable),
+        // so there is no way to mutate the flag here — and no need to,
+        // because freeze-time processing already set it.
+        ":wat::config::set-redef!" | ":wat::config::set-eval-redef!" => {
+            Ok(Value::Unit)
+        }
         // Arc 157 — `:wat::core::def` top-level value-binding form.
         // Evaluates `<expr>` and returns Unit. The type-checker
         // enforces position rules and redef discipline at startup.
@@ -18926,6 +18981,8 @@ mod tests {
             dim_count,
             presence_sigma_ast: None,
             coincident_sigma_ast: None,
+            redef_allowed: false,
+            eval_redef_allowed: false,
         };
         let mut sym = SymbolTable::new();
         sym.set_encoding_ctx(Arc::new(EncodingCtx::from_config(&cfg)));
@@ -22707,6 +22764,8 @@ mod tests {
             dim_count: dims,
             presence_sigma_ast: None,
             coincident_sigma_ast: None,
+            redef_allowed: false,
+            eval_redef_allowed: false,
         })));
         sym.set_presence_sigma_fn(Arc::new(crate::sigma::DefaultPresenceSigma));
         sym.set_coincident_sigma_fn(Arc::new(crate::sigma::DefaultCoincidentSigma));

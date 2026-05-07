@@ -639,6 +639,13 @@ fn startup_from_forms_post_config(
     // 7. Name resolution.
     resolve_references(&residue, &symbols, &macros)?;
 
+    // 7.5. Arc 157 slice 1a-ii — propagate redef config flags to the
+    // SymbolTable carrier BEFORE check_program so that CheckEnv::from_symbols
+    // sees the correct redef_allowed flag (check happens at step 8;
+    // FrozenWorld::freeze at step 9 would be too late).
+    symbols.redef_allowed = config.redef_allowed;
+    symbols.eval_redef_allowed = config.eval_redef_allowed;
+
     // 8. Type check.
     check_program(&residue, &symbols, &types)?;
 
