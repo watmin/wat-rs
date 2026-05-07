@@ -2478,6 +2478,15 @@ pub fn eval(
         WatAST::BoolLit(b, _) => Ok(Value::bool(*b)),
         WatAST::StringLit(s, _) => Ok(Value::String(Arc::new(s.clone()))),
         WatAST::Keyword(k, _) => {
+            // Arc 153 slice 1a — `:wat::core::nil` at value
+            // position evaluates to `Value::Unit` (the nil
+            // singleton). The infer hook in check.rs types this
+            // keyword as `:wat::core::nil` (singleton type);
+            // evaluation here returns the singleton value.
+            // Special-case is narrow: only the exact FQDN string.
+            if k == ":wat::core::nil" {
+                return Ok(Value::Unit);
+            }
             // `:None` is the nullary constructor of the built-in
             // `:Option<T>` enum (058-030). Special-cased here so users
             // can write `:None` in expression position to produce
@@ -21843,7 +21852,7 @@ mod tests {
                     (stdin  :wat::io::IOReader)
                     (stdout :wat::io::IOWriter)
                     (stderr :wat::io::IOWriter)
-                    -> :wat::core::unit)
+                    -> :wat::core::nil)
                   (:wat::test::assert-eq 1 2)))
               (:wat::core::Vector :wat::core::String))
         "#;

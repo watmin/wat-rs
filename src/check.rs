@@ -213,9 +213,10 @@ pub enum CheckError {
     },
     /// Arc 109 slice 1d — the bare unit type annotation (`:()` or
     /// `()` inside a parametric/tuple/fn) appears in user code.
-    /// `:wat::core::unit` is the canonical FQDN form. The
-    /// empty-tuple LITERAL VALUE `()` is a list literal and is not
-    /// affected; only the type-position spelling retires.
+    /// `:wat::core::nil` is the canonical FQDN form (renamed from
+    /// `:wat::core::unit` per arc 153). The empty-tuple LITERAL
+    /// VALUE `()` is a list literal and is not affected; only the
+    /// type-position spelling retires.
     ///
     /// Distinct from `BareLegacyPrimitive` because the unit type
     /// parses to `TypeExpr::Tuple(vec![])`, not `TypeExpr::Path` —
@@ -224,6 +225,24 @@ pub enum CheckError {
     BareLegacyUnitType {
         /// Source location of the keyword carrying the bare unit
         /// token.
+        span: Span,
+    },
+    /// Arc 153 — `:wat::core::unit` retired in favor of
+    /// `:wat::core::nil`. Same role (singleton type, "no
+    /// meaningful return value"); rename ships the marker effect
+    /// of a Lisp's `nil` while preserving wat's existing
+    /// `Option<T>::None` / `Some(t)` discipline (per arc 153
+    /// DESIGN — `nil` ≠ `None` ≠ `false` ≠ empty-list).
+    ///
+    /// Detected via TypeExpr walker (Pattern 3 per arc 109 slice
+    /// 1d's `BareLegacyUnitType` precedent). Fires on every
+    /// `TypeExpr::Path(":wat::core::unit")` site post-parse;
+    /// canonicalize=true does NOT rewrite `:wat::core::unit` (only
+    /// `:wat::core::nil`), so the retired spelling reaches the
+    /// walker as a Path.
+    BareLegacyUnitName {
+        /// Source location of the keyword carrying the retired
+        /// `:wat::core::unit` token.
         span: Span,
     },
     /// Arc 109 slice 1e — a bare substrate-named parametric type
@@ -489,7 +508,12 @@ impl fmt::Display for CheckError {
             ),
             CheckError::BareLegacyUnitType { span } => write!(
                 f,
-                "bare unit type '()' at {} is retired (arc 109 slice 1d); canonical FQDN form is ':wat::core::unit'. Substrate-provided primitives live under :wat::core::* (see arc 109 § A). The empty-tuple LITERAL VALUE `()` is unaffected; only the type-position spelling renames. Rename ':()' → ':wat::core::unit' (or '()' → 'wat::core::unit' inside parametrics) at the offending site.",
+                "bare unit type '()' at {} is retired (arc 109 slice 1d); canonical FQDN form is ':wat::core::nil' (arc 153 renamed unit -> nil). Substrate-provided primitives live under :wat::core::* (see arc 109 § A). The empty-tuple LITERAL VALUE `()` is unaffected; only the type-position spelling renames. Rename ':()' -> ':wat::core::nil' (or '()' -> 'wat::core::nil' inside parametrics) at the offending site.",
+                span
+            ),
+            CheckError::BareLegacyUnitName { span } => write!(
+                f,
+                "':wat::core::unit' at {} is retired (arc 153); canonical FQDN is ':wat::core::nil'. Same role (singleton type, 'no meaningful return value'); rename ships the marker effect of a Lisp's nil while preserving wat's existing Option<T>::None / Some(t) discipline. Rename ':wat::core::unit' -> ':wat::core::nil' at the offending site.",
                 span
             ),
             CheckError::BareLegacyContainerHead { head, fqdn, span } => write!(
@@ -730,7 +754,13 @@ impl CheckError {
             CheckError::BareLegacyUnitType { span } => {
                 Diagnostic::new("BareLegacyUnitType")
                     .field("primitive", ":()")
-                    .field("fqdn", ":wat::core::unit")
+                    .field("fqdn", ":wat::core::nil")
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyUnitName { span } => {
+                Diagnostic::new("BareLegacyUnitName")
+                    .field("retired", ":wat::core::unit")
+                    .field("fqdn", ":wat::core::nil")
                     .field("location", format!("{}", span))
             }
             CheckError::BareLegacyContainerHead { head, fqdn, span } => {
@@ -1292,6 +1322,37 @@ pub fn check_program(
         validate_bare_legacy_primitives(form, &mut errors);
     }
 
+    // Arc 153 — signature-position pass for `:wat::core::unit`.
+    // `parse_define_form` extracts param + return types from the
+    // signature into `func.param_types` / `func.ret_type` BEFORE
+    // the body walker runs; without this signature-direct pass,
+    // walker-detected forms wouldn't fire on signature-position
+    // annotations because the keyword token is already consumed.
+    //
+    // Narrow on purpose: only fires `BareLegacyUnitName`. Other
+    // walker errors (BareLegacyPrimitive, etc.) target keyword
+    // SOURCE-spellings preserved by `parse_type_expr_audit`
+    // (canonicalize=false); the stored TypeExpr in `func.ret_type`
+    // is already canonicalized (`:wat::core::i64` -> `:i64`,
+    // `:wat::core::nil` -> `Tuple(vec![])`), which would
+    // false-positive on every stdlib + user function. The
+    // `:wat::core::unit` retired spelling is unique because we
+    // deliberately did NOT canonicalize it (so the walker can
+    // detect the migration); it survives intact in the stored
+    // TypeExpr as `Path(":wat::core::unit")` and fires here.
+    //
+    // The function-decl span isn't preserved on the parsed
+    // TypeExpr; we use `func.body.span()` as a best-effort
+    // pointer back to the user-source site (the body is the
+    // user-source AST so its span carries the correct file).
+    for func in sym.functions.values() {
+        let sig_span = func.body.span();
+        walk_type_for_legacy_unit_name(&func.ret_type, sig_span, &mut errors);
+        for ty in &func.param_types {
+            walk_type_for_legacy_unit_name(ty, sig_span, &mut errors);
+        }
+    }
+
     // Arc 109 slice 9d — refuse the legacy `:wat::std::stream::*`
     // namespace prefix anywhere in the program. The stream stdlib
     // graduated to `:wat::stream::*` per § G's three-tier substrate
@@ -1782,9 +1843,62 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
 /// path matches one of the retired bare primitive names. FQDN
 /// forms (`:wat::core::i64`) are distinct `Path` strings and pass
 /// through silently.
+/// Arc 153 — narrow signature-position walker. Recursively scans a
+/// stored `TypeExpr` (param-type / return-type from
+/// `parse_define_form`) for `Path(":wat::core::unit")` occurrences
+/// and emits `BareLegacyUnitName` per offending site. Unlike
+/// `walk_type_for_bare` (which fires multiple variants over
+/// source-spelled TypeExprs), this walker fires ONLY
+/// `BareLegacyUnitName` because the stored TypeExpr is already
+/// canonicalized — bare primitives have been rewritten to their
+/// internal forms (`:wat::core::i64` -> `:i64`) and would
+/// false-positive on every function. `:wat::core::unit` is unique:
+/// canonicalize=true preserves it (deliberately, for migration
+/// detection), so it survives intact and fires here.
+fn walk_type_for_legacy_unit_name(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) {
+    match ty {
+        TypeExpr::Path(p) => {
+            if p == ":wat::core::unit" {
+                errors.push(CheckError::BareLegacyUnitName {
+                    span: span.clone(),
+                });
+            }
+        }
+        TypeExpr::Parametric { args, .. } => {
+            for a in args {
+                walk_type_for_legacy_unit_name(a, span, errors);
+            }
+        }
+        TypeExpr::Fn { args, ret } => {
+            for a in args {
+                walk_type_for_legacy_unit_name(a, span, errors);
+            }
+            walk_type_for_legacy_unit_name(ret, span, errors);
+        }
+        TypeExpr::Tuple(elements) => {
+            for e in elements {
+                walk_type_for_legacy_unit_name(e, span, errors);
+            }
+        }
+        TypeExpr::Var(_) => {}
+    }
+}
+
 fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) {
     match ty {
         TypeExpr::Path(p) => {
+            // Arc 153 — `:wat::core::unit` retired in favor of
+            // `:wat::core::nil`. Path-arm detection (mirrors the
+            // primitive loop directly below); canonicalize=true in
+            // parse_type_inner does NOT rewrite `:wat::core::unit`,
+            // so the retired spelling reaches the walker as a Path
+            // and we surface the migration error here.
+            if p == ":wat::core::unit" {
+                errors.push(CheckError::BareLegacyUnitName {
+                    span: span.clone(),
+                });
+                return;
+            }
             for (bare, fqdn) in BARE_PRIMITIVES {
                 if p == bare {
                     errors.push(CheckError::BareLegacyPrimitive {
@@ -2957,6 +3071,18 @@ fn infer(
                 head: "Option".into(),
                 args: vec![fresh.fresh()],
             })
+        }
+        // Arc 153 slice 1a — `:wat::core::nil` at value position
+        // is the nil-value literal. Types as `:wat::core::nil` (the
+        // singleton type, internally `TypeExpr::Tuple(vec![])`);
+        // evaluates to `Value::Unit` (see runtime.rs). This is
+        // ADDITIVE — other keywords (including `:wat::core::None`,
+        // user-enum unit variants, registered functions, and bare
+        // keywords as `:wat::core::keyword` values) keep their
+        // existing typing paths. Special-case is narrow: only the
+        // exact FQDN string `:wat::core::nil`.
+        WatAST::Keyword(k, _) if k == ":wat::core::nil" => {
+            Some(TypeExpr::Tuple(vec![]))
         }
         // Arc 048 — user-enum unit variant. The bare keyword resolves
         // to the enum's type (e.g. `:trading::types::PhaseLabel::Valley`
@@ -12544,24 +12670,24 @@ mod tests {
     fn arc_128_outer_scope_deadlock_still_fires() {
         let src = r#"
             (:wat::core::define
-              (:my::deadlock-at-outer -> :wat::core::unit)
+              (:my::deadlock-at-outer -> :wat::core::nil)
               (:wat::core::let*
                 (((pair :wat::kernel::Channel<wat::core::i64>)
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1))
                  ((rx :wat::kernel::Receiver<wat::core::i64>)
                   (:wat::core::second pair))
-                 ((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
+                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
                   (:wat::kernel::spawn-thread
                     (:wat::core::lambda
-                      ((_in :wat::kernel::Receiver<wat::core::unit>)
+                      ((_in :wat::kernel::Receiver<wat::core::nil>)
                        (_out :wat::kernel::Sender<wat::core::i64>)
-                       -> :wat::core::unit)
-                      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::unit
+                       -> :wat::core::nil)
+                      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
                         ((:wat::core::Ok _) ())
                         ((:wat::core::Err _) ()))))))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Ok _) ())
                   ((:wat::core::Err _) ()))))
         "#;
@@ -12594,24 +12720,24 @@ mod tests {
                       (_stdin  :wat::io::IOReader)
                       (_stdout :wat::io::IOWriter)
                       (_stderr :wat::io::IOWriter)
-                      -> :wat::core::unit)
+                      -> :wat::core::nil)
                     (:wat::core::let*
                       (((pair :wat::kernel::Channel<wat::core::i64>)
                         (:wat::kernel::make-bounded-channel :wat::core::i64 1))
                        ((rx :wat::kernel::Receiver<wat::core::i64>)
                         (:wat::core::second pair))
-                       ((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
+                       ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
                         (:wat::kernel::spawn-thread
                           (:wat::core::lambda
-                            ((_in :wat::kernel::Receiver<wat::core::unit>)
+                            ((_in :wat::kernel::Receiver<wat::core::nil>)
                              (_out :wat::kernel::Sender<wat::core::i64>)
-                             -> :wat::core::unit)
-                            (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::unit
+                             -> :wat::core::nil)
+                            (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
                               ((:wat::core::Ok _) ())
                               ((:wat::core::Err _) ()))))))
                       (:wat::core::match
                         (:wat::kernel::Thread/join-result thr)
-                        -> :wat::core::unit
+                        -> :wat::core::nil
                         ((:wat::core::Ok _) ())
                         ((:wat::core::Err _) ())))))
                 (:wat::core::Vector :wat::core::String)
@@ -12650,19 +12776,19 @@ mod tests {
         let src = r#"
             (:wat::core::define
               (:my::helper-verb
-                (tx :wat::kernel::Sender<wat::core::unit>)
-                (rx :wat::kernel::Receiver<wat::core::unit>)
-                -> :wat::core::unit)
+                (tx :wat::kernel::Sender<wat::core::nil>)
+                (rx :wat::kernel::Receiver<wat::core::nil>)
+                -> :wat::core::nil)
               ())
 
             (:wat::core::define
-              (:my::caller (_d :wat::core::unit) -> :wat::core::unit)
+              (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
               (:wat::core::let*
-                (((pair :wat::kernel::Channel<wat::core::unit>)
-                  (:wat::kernel::make-bounded-channel :wat::core::unit 1))
-                 ((tx :wat::kernel::Sender<wat::core::unit>)
+                (((pair :wat::kernel::Channel<wat::core::nil>)
+                  (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                 ((tx :wat::kernel::Sender<wat::core::nil>)
                   (:wat::core::first pair))
-                 ((rx :wat::kernel::Receiver<wat::core::unit>)
+                 ((rx :wat::kernel::Receiver<wat::core::nil>)
                   (:wat::core::second pair)))
                 (:my::helper-verb tx rx)))
         "#;
@@ -12689,21 +12815,21 @@ mod tests {
         let src = r#"
             (:wat::core::define
               (:my::helper-verb
-                (tx :wat::kernel::Sender<wat::core::unit>)
-                (rx :wat::kernel::Receiver<wat::core::unit>)
-                -> :wat::core::unit)
+                (tx :wat::kernel::Sender<wat::core::nil>)
+                (rx :wat::kernel::Receiver<wat::core::nil>)
+                -> :wat::core::nil)
               ())
 
             (:wat::core::define
-              (:my::caller (_d :wat::core::unit) -> :wat::core::unit)
+              (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
               (:wat::core::let*
-                (((pair-a :wat::kernel::Channel<wat::core::unit>)
-                  (:wat::kernel::make-bounded-channel :wat::core::unit 1))
-                 ((pair-b :wat::kernel::Channel<wat::core::unit>)
-                  (:wat::kernel::make-bounded-channel :wat::core::unit 1))
-                 ((tx :wat::kernel::Sender<wat::core::unit>)
+                (((pair-a :wat::kernel::Channel<wat::core::nil>)
+                  (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                 ((pair-b :wat::kernel::Channel<wat::core::nil>)
+                  (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                 ((tx :wat::kernel::Sender<wat::core::nil>)
                   (:wat::core::first pair-a))
-                 ((rx :wat::kernel::Receiver<wat::core::unit>)
+                 ((rx :wat::kernel::Receiver<wat::core::nil>)
                   (:wat::core::second pair-b)))
                 (:my::helper-verb tx rx)))
         "#;
@@ -12737,35 +12863,35 @@ mod tests {
         // ends but holds them at separate-anchor positions.
         let src = r#"
             (:wat::core::typealias :my::Handle
-              :(wat::kernel::Sender<wat::core::unit>,wat::kernel::Receiver<wat::core::unit>))
+              :(wat::kernel::Sender<wat::core::nil>,wat::kernel::Receiver<wat::core::nil>))
 
             (:wat::core::define
-              (:my::pop-handle (_d :wat::core::unit) -> :my::Handle)
+              (:my::pop-handle (_d :wat::core::nil) -> :my::Handle)
               (:wat::core::let*
-                (((p :wat::kernel::Channel<wat::core::unit>)
-                  (:wat::kernel::make-bounded-channel :wat::core::unit 1))
-                 ((q :wat::kernel::Channel<wat::core::unit>)
-                  (:wat::kernel::make-bounded-channel :wat::core::unit 1))
-                 ((req-tx :wat::kernel::Sender<wat::core::unit>)
+                (((p :wat::kernel::Channel<wat::core::nil>)
+                  (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                 ((q :wat::kernel::Channel<wat::core::nil>)
+                  (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                 ((req-tx :wat::kernel::Sender<wat::core::nil>)
                   (:wat::core::first p))
-                 ((ack-rx :wat::kernel::Receiver<wat::core::unit>)
+                 ((ack-rx :wat::kernel::Receiver<wat::core::nil>)
                   (:wat::core::second q)))
                 (:wat::core::Tuple req-tx ack-rx)))
 
             (:wat::core::define
               (:my::helper-verb
-                (tx :wat::kernel::Sender<wat::core::unit>)
-                (rx :wat::kernel::Receiver<wat::core::unit>)
-                -> :wat::core::unit)
+                (tx :wat::kernel::Sender<wat::core::nil>)
+                (rx :wat::kernel::Receiver<wat::core::nil>)
+                -> :wat::core::nil)
               ())
 
             (:wat::core::define
-              (:my::caller (_d :wat::core::unit) -> :wat::core::unit)
+              (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
               (:wat::core::let*
                 (((handle :my::Handle) (:my::pop-handle))
-                 ((req-tx :wat::kernel::Sender<wat::core::unit>)
+                 ((req-tx :wat::kernel::Sender<wat::core::nil>)
                   (:wat::core::first handle))
-                 ((ack-rx :wat::kernel::Receiver<wat::core::unit>)
+                 ((ack-rx :wat::kernel::Receiver<wat::core::nil>)
                   (:wat::core::second handle)))
                 (:my::helper-verb req-tx ack-rx)))
         "#;
@@ -12794,19 +12920,19 @@ mod tests {
         let src = r#"
             (:wat::core::define
               (:my::helper-verb
-                (tx :wat::kernel::Sender<wat::core::unit>)
-                (rx :wat::kernel::Receiver<wat::core::unit>)
-                -> :wat::core::unit)
+                (tx :wat::kernel::Sender<wat::core::nil>)
+                (rx :wat::kernel::Receiver<wat::core::nil>)
+                -> :wat::core::nil)
               ())
 
             (:wat::core::define
-              (:my::caller (_d :wat::core::unit) -> :wat::core::unit)
+              (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
               (:wat::core::let*
-                (((pair :wat::kernel::Channel<wat::core::unit>)
-                  (:wat::kernel::make-bounded-channel :wat::core::unit 1))
-                 ((tx :wat::kernel::Sender<wat::core::unit>)
+                (((pair :wat::kernel::Channel<wat::core::nil>)
+                  (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                 ((tx :wat::kernel::Sender<wat::core::nil>)
                   (:wat::core::first pair))
-                 ((rx :wat::kernel::Receiver<wat::core::unit>)
+                 ((rx :wat::kernel::Receiver<wat::core::nil>)
                   (:wat::core::second pair)))
                 (:my::helper-verb tx rx)))
         "#;
@@ -12840,22 +12966,22 @@ mod tests {
                 (:wat::core::forms
                   (:wat::core::define
                     (:my::helper-verb
-                      (tx :wat::kernel::Sender<wat::core::unit>)
-                      (rx :wat::kernel::Receiver<wat::core::unit>)
-                      -> :wat::core::unit)
+                      (tx :wat::kernel::Sender<wat::core::nil>)
+                      (rx :wat::kernel::Receiver<wat::core::nil>)
+                      -> :wat::core::nil)
                     ())
                   (:wat::core::define
                     (:user::main
                       (_stdin  :wat::io::IOReader)
                       (_stdout :wat::io::IOWriter)
                       (_stderr :wat::io::IOWriter)
-                      -> :wat::core::unit)
+                      -> :wat::core::nil)
                     (:wat::core::let*
-                      (((pair :wat::kernel::Channel<wat::core::unit>)
-                        (:wat::kernel::make-bounded-channel :wat::core::unit 1))
-                       ((tx :wat::kernel::Sender<wat::core::unit>)
+                      (((pair :wat::kernel::Channel<wat::core::nil>)
+                        (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                       ((tx :wat::kernel::Sender<wat::core::nil>)
                         (:wat::core::first pair))
-                       ((rx :wat::kernel::Receiver<wat::core::unit>)
+                       ((rx :wat::kernel::Receiver<wat::core::nil>)
                         (:wat::core::second pair)))
                       (:my::helper-verb tx rx))))
                 (:wat::core::Vector :wat::core::String)
@@ -12908,25 +13034,25 @@ mod tests {
         // hang, no deadlock, and the rule should not fire.
         let src = r#"
             (:wat::core::define
-              (:my::deadlock-via-handlepool -> :wat::core::unit)
+              (:my::deadlock-via-handlepool -> :wat::core::nil)
               (:wat::core::let*
                 (((pool :wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>)
                   (:wat::kernel::HandlePool::new
                     "pool"
                     (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
-                 ((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
+                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
                   (:wat::kernel::spawn-thread
                     (:wat::core::lambda
-                      ((_in :wat::kernel::Receiver<wat::core::unit>)
+                      ((_in :wat::kernel::Receiver<wat::core::nil>)
                        (_out :wat::kernel::Sender<wat::core::i64>)
-                       -> :wat::core::unit)
+                       -> :wat::core::nil)
                       (:wat::core::match (:wat::kernel::recv _in)
-                        -> :wat::core::unit
+                        -> :wat::core::nil
                         ((:wat::core::Ok _) ())
                         ((:wat::core::Err _) ()))))))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Ok _) ())
                   ((:wat::core::Err _) ()))))
         "#;
@@ -12958,22 +13084,22 @@ mod tests {
     fn arc_131_handlepool_without_sender_silent() {
         let src = r#"
             (:wat::core::define
-              (:my::no-deadlock-on-bare-handlepool -> :wat::core::unit)
+              (:my::no-deadlock-on-bare-handlepool -> :wat::core::nil)
               (:wat::core::let*
                 (((pool :wat::kernel::HandlePool<wat::core::i64>)
                   (:wat::kernel::HandlePool::new
                     "pool"
                     (:wat::core::Vector :wat::core::i64)))
-                 ((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
+                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
                   (:wat::kernel::spawn-thread
                     (:wat::core::lambda
-                      ((_in :wat::kernel::Receiver<wat::core::unit>)
+                      ((_in :wat::kernel::Receiver<wat::core::nil>)
                        (_out :wat::kernel::Sender<wat::core::i64>)
-                       -> :wat::core::unit)
+                       -> :wat::core::nil)
                       ()))))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Ok _) ())
                   ((:wat::core::Err _) ()))))
         "#;
@@ -13018,25 +13144,25 @@ mod tests {
         // test's body is recv-bearing so the rule still fires.
         let src = r#"
             (:wat::core::define
-              (:my::typed-name-still-fires -> :wat::core::unit)
+              (:my::typed-name-still-fires -> :wat::core::nil)
               (:wat::core::let*
                 (((pool :wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>)
                   (:wat::kernel::HandlePool::new
                     "pool"
                     (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
-                 ((thr :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
+                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
                   (:wat::kernel::spawn-thread
                     (:wat::core::lambda
-                      ((_in :wat::kernel::Receiver<wat::core::unit>)
+                      ((_in :wat::kernel::Receiver<wat::core::nil>)
                        (_out :wat::kernel::Sender<wat::core::i64>)
-                       -> :wat::core::unit)
+                       -> :wat::core::nil)
                       (:wat::core::match (:wat::kernel::recv _in)
-                        -> :wat::core::unit
+                        -> :wat::core::nil
                         ((:wat::core::Ok _) ())
                         ((:wat::core::Err _) ()))))))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Ok _) ())
                   ((:wat::core::Err _) ()))))
         "#;
@@ -13085,29 +13211,29 @@ mod tests {
         // so that `process_let_binding`'s destructure arm fires.
         let src = r#"
             (:wat::core::define
-              (:my::spawn-svc -> :(wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>,wat::kernel::Thread<wat::core::unit,wat::core::i64>))
+              (:my::spawn-svc -> :(wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>,wat::kernel::Thread<wat::core::nil,wat::core::i64>))
               (:wat::core::let*
                 (((pool :wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>)
                   (:wat::kernel::HandlePool::new
                     "pool"
                     (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
-                 ((driver :wat::kernel::Thread<wat::core::unit,wat::core::i64>)
+                 ((driver :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
                   (:wat::kernel::spawn-thread
                     (:wat::core::lambda
-                      ((_in :wat::kernel::Receiver<wat::core::unit>)
+                      ((_in :wat::kernel::Receiver<wat::core::nil>)
                        (_out :wat::kernel::Sender<wat::core::i64>)
-                       -> :wat::core::unit)
+                       -> :wat::core::nil)
                       ()))))
                 (:wat::core::Tuple pool driver)))
 
             (:wat::core::define
-              (:my::caller-via-destructure -> :wat::core::unit)
+              (:my::caller-via-destructure -> :wat::core::nil)
               (:wat::core::let*
                 (((pool driver)
                   (:my::spawn-svc)))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result driver)
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Ok _) ())
                   ((:wat::core::Err _) ()))))
         "#;
@@ -13146,26 +13272,26 @@ mod tests {
     fn arc_133_tuple_destructure_silent_when_clean() {
         let src = r#"
             (:wat::core::define
-              (:my::spawn-clean -> :(wat::core::i64,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
+              (:my::spawn-clean -> :(wat::core::i64,wat::kernel::Thread<wat::core::nil,wat::core::nil>))
               (:wat::core::let*
                 (((counter :wat::core::i64) 42)
-                 ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                 ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
                   (:wat::kernel::spawn-thread
                     (:wat::core::lambda
-                      ((_in :wat::kernel::Receiver<wat::core::unit>)
-                       (_out :wat::kernel::Sender<wat::core::unit>)
-                       -> :wat::core::unit)
+                      ((_in :wat::kernel::Receiver<wat::core::nil>)
+                       (_out :wat::kernel::Sender<wat::core::nil>)
+                       -> :wat::core::nil)
                       ()))))
                 (:wat::core::tuple counter driver)))
 
             (:wat::core::define
-              (:my::clean-caller -> :wat::core::unit)
+              (:my::clean-caller -> :wat::core::nil)
               (:wat::core::let*
                 (((counter driver)
                   (:my::spawn-clean)))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result driver)
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Ok _) ())
                   ((:wat::core::Err _) ()))))
         "#;
@@ -13204,11 +13330,11 @@ mod tests {
               (:my::helper-pair
                 (tx :wat::kernel::Sender<wat::core::i64>)
                 (rx :wat::kernel::Receiver<wat::core::i64>)
-                -> :wat::core::unit)
+                -> :wat::core::nil)
               ())
 
             (:wat::core::define
-              (:my::caller-destructure (_d :wat::core::unit) -> :wat::core::unit)
+              (:my::caller-destructure (_d :wat::core::nil) -> :wat::core::nil)
               (:wat::core::let*
                 (((tx rx)
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1)))
@@ -13249,10 +13375,10 @@ mod tests {
               (:my::worker
                 (in :wat::kernel::Receiver<wat::core::i64>)
                 (out :wat::kernel::Sender<wat::core::i64>)
-                -> :wat::core::unit)
+                -> :wat::core::nil)
               ())
 
-            (:wat::core::define (:my::caller -> :wat::core::unit)
+            (:wat::core::define (:my::caller -> :wat::core::nil)
               (:wat::core::let*
                 (((thr :wat::kernel::Thread<wat::core::i64,wat::core::i64>)
                   (:wat::kernel::spawn-thread :my::worker))
@@ -13262,7 +13388,7 @@ mod tests {
                   (:wat::kernel::Thread/output thr)))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Ok _) ())
                   ((:wat::core::Err _) ()))))
         "#;
@@ -13299,10 +13425,10 @@ mod tests {
             (:wat::core::define
               (:my::worker
                 (in :wat::kernel::Receiver<wat::core::i64>)
-                -> :wat::core::unit)
+                -> :wat::core::nil)
               ())
 
-            (:wat::core::define (:my::caller -> :wat::core::unit)
+            (:wat::core::define (:my::caller -> :wat::core::nil)
               (:wat::core::let*
                 (((pair :wat::kernel::Channel<wat::core::i64>)
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1))
@@ -13310,11 +13436,11 @@ mod tests {
                   (:wat::core::first pair))
                  ((rx :wat::kernel::Receiver<wat::core::i64>)
                   (:wat::core::second pair))
-                 ((thr :wat::kernel::Thread<wat::core::i64,wat::core::unit>)
+                 ((thr :wat::kernel::Thread<wat::core::i64,wat::core::nil>)
                   (:wat::kernel::spawn-thread :my::worker)))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Ok _) ())
                   ((:wat::core::Err _) ()))))
         "#;
@@ -13354,13 +13480,13 @@ mod tests {
             (:wat::core::define
               (:my::sender-helper
                 (tx :wat::kernel::Sender<wat::core::i64>)
-                -> :wat::core::unit)
+                -> :wat::core::nil)
               (:wat::core::match (:wat::kernel::send tx 7)
-                -> :wat::core::unit
+                -> :wat::core::nil
                 ((:wat::core::Ok _) ())
                 ((:wat::core::Err _) ())))
 
-            (:wat::core::define (:my::caller -> :wat::core::unit)
+            (:wat::core::define (:my::caller -> :wat::core::nil)
               (:wat::core::let*
                 (((pair :wat::kernel::Channel<wat::core::i64>)
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1))
@@ -13368,16 +13494,16 @@ mod tests {
                   (:wat::core::first pair))
                  ((rx :wat::kernel::Receiver<wat::core::i64>)
                   (:wat::core::second pair))
-                 ((thr :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
                   (:wat::kernel::spawn-thread
                     (:wat::core::lambda
-                      ((_in :wat::kernel::Receiver<wat::core::unit>)
-                       (_out :wat::kernel::Sender<wat::core::unit>)
-                       -> :wat::core::unit)
+                      ((_in :wat::kernel::Receiver<wat::core::nil>)
+                       (_out :wat::kernel::Sender<wat::core::nil>)
+                       -> :wat::core::nil)
                       (:my::sender-helper tx)))))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Ok _) ())
                   ((:wat::core::Err _) ()))))
         "#;

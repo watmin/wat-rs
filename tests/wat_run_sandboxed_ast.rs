@@ -49,7 +49,7 @@ fn ast_entry_prints_hello() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((forms :wat::core::Vector<wat::WatAST>)
               (:wat::core::Vector :wat::WatAST
@@ -59,7 +59,7 @@ fn ast_entry_prints_hello() {
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
-                                       -> :wat::core::unit)
+                                       -> :wat::core::nil)
                     (:wat::io::IOWriter/println stdout "hello")))))
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :wat::core::None))
@@ -88,7 +88,7 @@ fn ast_entry_captures_assertion_failure() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((forms :wat::core::Vector<wat::WatAST>)
               (:wat::core::Vector :wat::WatAST
@@ -98,13 +98,13 @@ fn ast_entry_captures_assertion_failure() {
                                        (stdin  :wat::io::IOReader)
                                        (stdout :wat::io::IOWriter)
                                        (stderr :wat::io::IOWriter)
-                                       -> :wat::core::unit)
+                                       -> :wat::core::nil)
                     (:wat::test::assert-eq 1 2)))))
              ((r :wat::kernel::RunResult)
               (:wat::kernel::run-sandboxed-ast forms (:wat::core::Vector :wat::core::String) :wat::core::None))
              ((fail :wat::core::Option<wat::kernel::Failure>)
               (:wat::kernel::RunResult/failure r)))
-            (:wat::core::match fail -> :wat::core::unit
+            (:wat::core::match fail -> :wat::core::nil
               ((:wat::core::Some f) (:wat::io::IOWriter/println stdout
                           (:wat::kernel::Failure/message f)))
               (:wat::core::None    (:wat::io::IOWriter/println stdout "NO-FAILURE")))))

@@ -171,27 +171,27 @@ fn alias_over_fn_type_works_at_spawn() {
 
         (:wat::core::typealias
           :my::Job
-          :fn(rust::crossbeam_channel::Sender<wat::core::i64>)->wat::core::unit)
+          :fn(rust::crossbeam_channel::Sender<wat::core::i64>)->wat::core::nil)
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((job :my::Job)
-              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
+              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
                 (:wat::core::do
-                  (:wat::core::Result/expect -> :wat::core::unit (:wat::kernel::send tx 7) "test producer: tx disconnected")
+                  (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 7) "test producer: tx disconnected")
                   ())))
              ((pair :(rust::crossbeam_channel::Sender<wat::core::i64>,rust::crossbeam_channel::Receiver<wat::core::i64>))
               (:wat::kernel::make-bounded-channel :wat::core::i64 1))
              ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) (:wat::core::first pair))
              ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>) (:wat::core::second pair))
-             ((h :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+             ((h :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
               (:wat::kernel::spawn-thread
                 (:wat::core::lambda
-                  ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-                   (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-                   -> :wat::core::unit)
+                  ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+                   (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+                   -> :wat::core::nil)
                   (job tx))))
-             ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+             ((_ :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
               (:wat::kernel::Thread/join-result h)))
             (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::i64
               ((:wat::core::Ok (:wat::core::Some v)) v)

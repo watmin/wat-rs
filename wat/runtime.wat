@@ -18,7 +18,7 @@
   (:wat::runtime::define-alias
     (alias-name :AST<wat::core::keyword>)
     (target-name :AST<wat::core::keyword>)
-    -> :AST<wat::core::unit>)
+    -> :AST<wat::core::nil>)
   `(:wat::core::define
      ,(:wat::runtime::rename-callable-name
         (:wat::core::Option/expect -> :wat::holon::HolonAST

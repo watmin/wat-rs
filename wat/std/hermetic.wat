@@ -16,7 +16,7 @@
 ;; Arc 112 — fork-program-ast now returns the unified
 ;; :wat::kernel::Program<I,O> (same struct spawn-program-ast returns).
 ;; The wait mechanism is hidden inside ProgramHandle's Forked variant;
-;; (:wat::kernel::Process/join-result proc) produces wat::core::Result<wat::core::unit,
+;; (:wat::kernel::Process/join-result proc) produces wat::core::Result<wat::core::nil,
 ;; ProcessDiedError> uniformly. The pre-arc-112 ForkedChild +
 ;; wait-child + per-exit-code prefix logic collapsed: the substrate
 ;; renders exit-code interpretation directly in the ProcessDiedError
@@ -96,7 +96,7 @@
         ;; (< pipe buffer), the child's writes complete without
         ;; the parent needing to drain. This keeps the drain
         ;; code single-threaded — no spawn + join ceremony.
-        ((joined-result :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ProcessDiedError>>)
+        ((joined-result :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
          (:wat::kernel::Process/join-result proc))
         ((stdout-r :wat::io::IOReader)
          (:wat::kernel::Process/stdout proc))

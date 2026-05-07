@@ -11,6 +11,6 @@
      ((a :wat::core::i64) (:wat::core::first triple))
      ((b :wat::core::bool) (:wat::core::second triple))
      ((c :wat::core::String) (:wat::core::third triple))
-     ((_ :wat::core::unit) (:wat::test::assert-eq a 42))
-     ((_ :wat::core::unit) (:wat::test::assert-eq b true)))
+     ((_ :wat::core::nil) (:wat::test::assert-eq a 42))
+     ((_ :wat::core::nil) (:wat::test::assert-eq b true)))
     (:wat::test::assert-eq c "hello")))

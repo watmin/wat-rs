@@ -173,35 +173,35 @@
   (:wat::telemetry::sqlite/log-loop
     (cursor :wat::telemetry::sqlite::LogCursor)
     (tx :wat::kernel::Sender<wat::telemetry::Event>)
-    -> :wat::core::unit)
+    -> :wat::core::nil)
   (:wat::core::match
     (:wat::telemetry::sqlite::LogCursor/step! cursor)
-    -> :wat::core::unit
-    (:wat::core::None ())
+    -> :wat::core::nil
+    (:wat::core::None :wat::core::nil)
     ((:wat::core::Some event)
       (:wat::core::match
         (:wat::kernel::send tx event)
-        -> :wat::core::unit
+        -> :wat::core::nil
         ((:wat::core::Ok _)
           (:wat::telemetry::sqlite/log-loop cursor tx))
-        ((:wat::core::Err _) ())))))
+        ((:wat::core::Err _) :wat::core::nil)))))
 
 (:wat::core::define
   (:wat::telemetry::sqlite/metric-loop
     (cursor :wat::telemetry::sqlite::MetricCursor)
     (tx :wat::kernel::Sender<wat::telemetry::Event>)
-    -> :wat::core::unit)
+    -> :wat::core::nil)
   (:wat::core::match
     (:wat::telemetry::sqlite::MetricCursor/step! cursor)
-    -> :wat::core::unit
-    (:wat::core::None ())
+    -> :wat::core::nil
+    (:wat::core::None :wat::core::nil)
     ((:wat::core::Some event)
       (:wat::core::match
         (:wat::kernel::send tx event)
-        -> :wat::core::unit
+        -> :wat::core::nil
         ((:wat::core::Ok _)
           (:wat::telemetry::sqlite/metric-loop cursor tx))
-        ((:wat::core::Err _) ())))))
+        ((:wat::core::Err _) :wat::core::nil)))))
 
 ;; (sqlite/stream-logs handle query) -> Stream<Event>
 ;;
@@ -218,7 +218,7 @@
     (((path :wat::core::String) (:wat::sqlite::ReadHandle/path handle)))
     (:wat::stream::spawn-producer
       (:wat::core::lambda
-        ((tx :wat::kernel::Sender<wat::telemetry::Event>) -> :wat::core::unit)
+        ((tx :wat::kernel::Sender<wat::telemetry::Event>) -> :wat::core::nil)
         (:wat::core::let*
           (((local-handle :wat::sqlite::ReadHandle)
             (:wat::sqlite::open-readonly path))
@@ -235,7 +235,7 @@
     (((path :wat::core::String) (:wat::sqlite::ReadHandle/path handle)))
     (:wat::stream::spawn-producer
       (:wat::core::lambda
-        ((tx :wat::kernel::Sender<wat::telemetry::Event>) -> :wat::core::unit)
+        ((tx :wat::kernel::Sender<wat::telemetry::Event>) -> :wat::core::nil)
         (:wat::core::let*
           (((local-handle :wat::sqlite::ReadHandle)
             (:wat::sqlite::open-readonly path))

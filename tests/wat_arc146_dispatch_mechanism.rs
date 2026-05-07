@@ -96,7 +96,7 @@ fn dispatch_dispatches_to_i64_arm() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout (:test::describe 42)))
         "##,
         preamble = PREAMBLE,
@@ -115,7 +115,7 @@ fn dispatch_dispatches_to_f64_arm() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout (:test::describe 3.14)))
         "##,
         preamble = PREAMBLE,
@@ -140,7 +140,7 @@ fn dispatch_no_arm_match_check_time() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout (:test::describe "not-a-number")))
         "##,
         preamble = PREAMBLE,
@@ -175,7 +175,7 @@ fn lookup_form_returns_dispatch_binding() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :test::describe))
@@ -213,10 +213,10 @@ fn signature_of_dispatch_returns_declaration() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::signature-of :test::describe)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
         "##,
@@ -238,10 +238,10 @@ fn body_of_dispatch_returns_none() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::body-of :test::describe)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
         "##,
@@ -276,7 +276,7 @@ fn define_dispatch_arity_mismatch_errors() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout (:test::arity-mismatched 7)))
     "##;
     let err = try_startup(src).expect_err("expected check-time arity mismatch");

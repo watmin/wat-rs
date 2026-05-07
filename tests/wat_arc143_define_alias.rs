@@ -79,7 +79,7 @@ fn define_alias_foldl_to_user_fold_delegates_correctly() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout
             (:wat::edn::write
               (:user::my-fold
@@ -114,7 +114,7 @@ fn define_alias_length_to_user_size_delegates_correctly() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout
             (:wat::edn::write
               (:user::my-size
@@ -150,7 +150,7 @@ fn define_alias_unknown_target_panics_at_expand_time() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout "should not reach"))
     "##;
     let result = std::panic::catch_unwind(|| {

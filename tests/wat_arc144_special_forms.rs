@@ -75,7 +75,7 @@ fn three_probes(name_keyword: &str) -> Vec<String> {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define {name}))
@@ -91,7 +91,7 @@ fn three_probes(name_keyword: &str) -> Vec<String> {
               (:wat::io::IOWriter/println stdout def-rendered)
               (:wat::io::IOWriter/println stdout sig-rendered)
               (:wat::core::match body-opt
-                -> :wat::core::unit
+                -> :wat::core::nil
                 ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "body-fail"))
                 (:wat::core::None    (:wat::io::IOWriter/println stdout "body-pass"))))))
     "##,
@@ -301,7 +301,7 @@ fn lookup_form_unknown_special_form_name_returns_none() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((d-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :wat::core::not-a-special-form))
@@ -310,15 +310,15 @@ fn lookup_form_unknown_special_form_name_returns_none() {
              ((b-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::body-of    :wat::core::not-a-special-form)))
             (:wat::core::match d-opt
-              -> :wat::core::unit
+              -> :wat::core::nil
               ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-d"))
               (:wat::core::None
                 (:wat::core::match s-opt
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-s"))
                   (:wat::core::None
                     (:wat::core::match b-opt
-                      -> :wat::core::unit
+                      -> :wat::core::nil
                       ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-b"))
                       (:wat::core::None    (:wat::io::IOWriter/println stdout "pass")))))))))
     "##;

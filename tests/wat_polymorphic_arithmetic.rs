@@ -73,7 +73,7 @@ fn poly_add_i64_i64_returns_i64() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((sum :wat::core::i64) (:wat::core::+ 2 3)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string sum))))
     "##;
@@ -88,7 +88,7 @@ fn poly_add_f64_f64_returns_f64() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((sum :wat::core::f64) (:wat::core::+ 2.0 3.5)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string sum))))
     "##;
@@ -105,7 +105,7 @@ fn poly_add_i64_f64_promotes_to_f64() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((sum :wat::core::f64) (:wat::core::+ 1 2.5)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string sum))))
     "##;
@@ -120,7 +120,7 @@ fn poly_add_f64_i64_promotes_to_f64() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((sum :wat::core::f64) (:wat::core::+ 2.5 1)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string sum))))
     "##;
@@ -135,7 +135,7 @@ fn poly_sub_mixed_promotes() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((d :wat::core::f64) (:wat::core::- 5 1.5)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string d))))
     "##;
@@ -150,7 +150,7 @@ fn poly_mul_mixed_promotes() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((p :wat::core::f64) (:wat::core::* 3 1.5)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string p))))
     "##;
@@ -165,7 +165,7 @@ fn poly_div_i64_i64_returns_i64() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((q :wat::core::i64) (:wat::core::/ 7 2)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string q))))
     "##;
@@ -180,7 +180,7 @@ fn poly_div_mixed_returns_f64() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((q :wat::core::f64) (:wat::core::/ 7 2.0)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string q))))
     "##;
@@ -197,7 +197,7 @@ fn poly_div_i64_zero_errors() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((q :wat::core::i64) (:wat::core::/ 5 0)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string q))))
     "##;
@@ -214,7 +214,7 @@ fn poly_div_f64_zero_errors() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((q :wat::core::f64) (:wat::core::/ 5.0 0.0)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string q))))
     "##;
@@ -231,7 +231,7 @@ fn poly_div_mixed_zero_errors() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((q :wat::core::f64) (:wat::core::/ 5 0.0)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string q))))
     "##;
@@ -250,8 +250,8 @@ fn poly_lt_mixed_i64_f64() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
-          (:wat::core::if (:wat::core::< 1 2.5) -> :wat::core::unit
+            -> :wat::core::nil)
+          (:wat::core::if (:wat::core::< 1 2.5) -> :wat::core::nil
             (:wat::io::IOWriter/println stdout "less")
             (:wat::io::IOWriter/println stdout "not less")))
     "##;
@@ -266,8 +266,8 @@ fn poly_eq_mixed_promotes() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
-          (:wat::core::if (:wat::core::= 3 3.0) -> :wat::core::unit
+            -> :wat::core::nil)
+          (:wat::core::if (:wat::core::= 3 3.0) -> :wat::core::nil
             (:wat::io::IOWriter/println stdout "equal")
             (:wat::io::IOWriter/println stdout "not equal")))
     "##;
@@ -283,8 +283,8 @@ fn poly_eq_strings_still_works() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
-          (:wat::core::if (:wat::core::= "a" "a") -> :wat::core::unit
+            -> :wat::core::nil)
+          (:wat::core::if (:wat::core::= "a" "a") -> :wat::core::nil
             (:wat::io::IOWriter/println stdout "yes")
             (:wat::io::IOWriter/println stdout "no")))
     "##;
@@ -312,8 +312,8 @@ fn typed_strict_i64_eq_homogeneous_works() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
-          (:wat::core::if (:my::test::eq-i64 3 3) -> :wat::core::unit
+            -> :wat::core::nil)
+          (:wat::core::if (:my::test::eq-i64 3 3) -> :wat::core::nil
             (:wat::io::IOWriter/println stdout "yes")
             (:wat::io::IOWriter/println stdout "no")))
     "##;
@@ -331,8 +331,8 @@ fn typed_strict_i64_eq_rejects_f64_arg() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
-          (:wat::core::if (:my::test::eq-i64 3 3.0) -> :wat::core::unit
+            -> :wat::core::nil)
+          (:wat::core::if (:my::test::eq-i64 3 3.0) -> :wat::core::nil
             (:wat::io::IOWriter/println stdout "yes")
             (:wat::io::IOWriter/println stdout "no")))
     "##;
@@ -352,8 +352,8 @@ fn typed_strict_f64_lt_homogeneous_works() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
-          (:wat::core::if (:my::test::lt-f64 1.5 2.5) -> :wat::core::unit
+            -> :wat::core::nil)
+          (:wat::core::if (:my::test::lt-f64 1.5 2.5) -> :wat::core::nil
             (:wat::io::IOWriter/println stdout "less")
             (:wat::io::IOWriter/println stdout "not less")))
     "##;
@@ -371,8 +371,8 @@ fn typed_strict_f64_lt_rejects_i64_arg() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
-          (:wat::core::if (:my::test::lt-f64 1 2.5) -> :wat::core::unit
+            -> :wat::core::nil)
+          (:wat::core::if (:my::test::lt-f64 1 2.5) -> :wat::core::nil
             (:wat::io::IOWriter/println stdout "less")
             (:wat::io::IOWriter/println stdout "not less")))
     "##;
@@ -391,7 +391,7 @@ fn poly_add_string_rejected_at_check() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((bad :i64) (:wat::core::+ "hello" 1)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string bad))))
     "##;
@@ -412,7 +412,7 @@ fn typed_strict_arithmetic_coexists() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((a :wat::core::i64) (:wat::core::i64::+,2 1 2))
              ((b :wat::core::f64) (:wat::core::f64::+,2 1.0 2.0))
@@ -438,7 +438,7 @@ fn slice4_variadic_add_three_i64_args_folds() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((sum :wat::core::i64) (:wat::core::+ 1 2 3 4 5)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string sum))))
     "##;
@@ -455,7 +455,7 @@ fn slice4_variadic_add_mixed_numerics_design_worked_example() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((sum :wat::core::f64) (:wat::core::+ 0 40.0 2)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string sum))))
     "##;
@@ -471,7 +471,7 @@ fn slice4_variadic_add_zero_ary_returns_i64_zero() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((zero :wat::core::i64) (:wat::core::+)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string zero))))
     "##;
@@ -487,7 +487,7 @@ fn slice4_variadic_mul_zero_ary_returns_i64_one() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((one :wat::core::i64) (:wat::core::*)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string one))))
     "##;
@@ -503,7 +503,7 @@ fn slice4_variadic_sub_one_ary_negates_i64() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((neg :wat::core::i64) (:wat::core::- 5)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string neg))))
     "##;
@@ -519,7 +519,7 @@ fn slice4_variadic_sub_one_ary_negates_f64() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((neg :wat::core::f64) (:wat::core::- 5.5)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string neg))))
     "##;
@@ -535,7 +535,7 @@ fn slice4_variadic_div_one_ary_reciprocal_i64_truncates() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((r :wat::core::i64) (:wat::core::/ 5)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string r))))
     "##;
@@ -551,7 +551,7 @@ fn slice4_variadic_sub_zero_ary_errors() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((bad :wat::core::i64) (:wat::core::-)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string bad))))
     "##;
@@ -569,7 +569,7 @@ fn slice4_variadic_div_zero_ary_errors() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((bad :wat::core::i64) (:wat::core::/)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string bad))))
     "##;
@@ -587,7 +587,7 @@ fn slice4_same_type_variadic_i64_add_works() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((sum :wat::core::i64) (:wat::core::i64::+ 1 2 3 4 5)))
             (:wat::io::IOWriter/println stdout (:wat::core::i64::to-string sum))))
     "##;
@@ -602,7 +602,7 @@ fn slice4_same_type_variadic_f64_mul_works() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((p :wat::core::f64) (:wat::core::f64::* 1.0 2.0 3.0)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string p))))
     "##;
@@ -618,7 +618,7 @@ fn slice4_mixed_type_leaf_directly_callable() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((s :wat::core::f64) (:wat::core::+,i64-f64 1 2.0)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string s))))
     "##;
@@ -634,7 +634,7 @@ fn slice4_binary_dispatch_directly_callable() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let* (((s :wat::core::f64) (:wat::core::+,2 1 2.0)))
             (:wat::io::IOWriter/println stdout (:wat::core::f64::to-string s))))
     "##;

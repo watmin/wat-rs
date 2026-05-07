@@ -25,7 +25,7 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
             (stdin :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((proc :wat::kernel::Program<wat::core::i64,wat::core::i64>)
               (:wat::kernel::fork-program-ast
@@ -33,12 +33,12 @@ fn arc112_slice2b_schemes_wire_through_typechecker() {
              ;; process-send: must be matched (slice 3 grammar rule).
              ;; Use Result/expect to panic on disconnect; same shape
              ;; sandbox.wat / hermetic.wat use for write paths.
-             ((_sent :wat::core::unit)
-              (:wat::core::Result/expect -> :wat::core::unit
+             ((_sent :wat::core::nil)
+              (:wat::core::Result/expect -> :wat::core::nil
                 (:wat::kernel::process-send proc 42)
                 "send to forked program failed")))
             ;; process-recv: matched as scrutinee — three-state shape.
-            (:wat::core::match (:wat::kernel::process-recv proc) -> :wat::core::unit
+            (:wat::core::match (:wat::kernel::process-recv proc) -> :wat::core::nil
               ((:wat::core::Ok (:wat::core::Some _v))    ())
               ((:wat::core::Ok :wat::core::None)        ())
               ((:wat::core::Err _died)       ()))))

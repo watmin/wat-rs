@@ -58,10 +58,10 @@ fn assert_signature_of_some(name: &str) -> Vec<String> {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::signature-of {name})
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
         "##,
@@ -221,10 +221,10 @@ fn body_of_length_returns_none() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::body-of :wat::core::length)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
     "##;
@@ -250,7 +250,7 @@ fn lookup_define_length_renders_primitive_sentinel() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :wat::core::Vector/length))

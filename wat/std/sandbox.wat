@@ -21,7 +21,7 @@
 ;;   On (Err startup-err), drive-sandbox synthesizes a RunResult
 ;;   with empty stdout/stderr + Some(Failure) carrying the error
 ;;   message. Same shape the deleted substrate produced.
-;; - join-result returns :wat::core::Result<wat::core::unit, :ThreadDiedError> after a
+;; - join-result returns :wat::core::Result<wat::core::nil, :ThreadDiedError> after a
 ;;   successful spawn. On (Err thread-died), drive-sandbox builds
 ;;   a Failure with ThreadDiedError/message extracting the panic
 ;;   or runtime-error message regardless of variant. Captured
@@ -102,12 +102,12 @@
     (((stdin-w :wat::io::IOWriter)   (:wat::kernel::Process/stdin proc))
      ((joined  :wat::core::String)              (:wat::core::string::join "\n" stdin))
      ((_n      :wat::core::i64)                 (:wat::io::IOWriter/write-string stdin-w joined))
-     ((_close  :wat::core::unit)                  (:wat::io::IOWriter/close stdin-w))
+     ((_close  :wat::core::nil)                  (:wat::io::IOWriter/close stdin-w))
      ((stdout-r :wat::io::IOReader)  (:wat::kernel::Process/stdout proc))
      ((stderr-r :wat::io::IOReader)  (:wat::kernel::Process/stderr proc))
      ((stdout-lines :wat::core::Vector<wat::core::String>)    (:wat::kernel::drain-lines stdout-r))
      ((stderr-lines :wat::core::Vector<wat::core::String>)    (:wat::kernel::drain-lines stderr-r))
-     ((joined-result :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ProcessDiedError>>)
+     ((joined-result :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
       (:wat::kernel::Process/join-result proc))
      ;; Arc 113 slice 3 — symmetry with the thread cascade. When
      ;; the forked child panicked with an upstream-chain-bearing

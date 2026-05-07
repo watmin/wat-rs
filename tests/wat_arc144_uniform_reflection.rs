@@ -91,7 +91,7 @@ fn user_function_lookup_define_emits_define_head() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :user::greet))
@@ -129,17 +129,17 @@ fn user_function_signature_and_body_return_some() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((sig-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::signature-of :user::add))
              ((body-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::body-of :user::add)))
             (:wat::core::match sig-opt
-              -> :wat::core::unit
+              -> :wat::core::nil
               ((:wat::core::Some _)
                 (:wat::core::match body-opt
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
                   (:wat::core::None    (:wat::io::IOWriter/println stdout "fail-body"))))
               (:wat::core::None (:wat::io::IOWriter/println stdout "fail-sig")))))
@@ -164,10 +164,10 @@ fn macro_lookup_define_smoke() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::lookup-define :my::id)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -190,17 +190,17 @@ fn primitive_lookup_define_and_signature_smoke() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :wat::core::foldl))
              ((sig-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::signature-of :wat::core::foldl)))
             (:wat::core::match def-opt
-              -> :wat::core::unit
+              -> :wat::core::nil
               ((:wat::core::Some _)
                 (:wat::core::match sig-opt
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
                   (:wat::core::None    (:wat::io::IOWriter/println stdout "fail-sig"))))
               (:wat::core::None (:wat::io::IOWriter/println stdout "fail-def")))))
@@ -223,7 +223,7 @@ fn special_form_lookup_define_smoke() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :wat::core::if))
@@ -264,7 +264,7 @@ fn type_lookup_define_smoke() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :my::Pair))
@@ -303,7 +303,7 @@ fn dispatch_length_lookup_define_emits_define_dispatch_head() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :wat::core::length))
@@ -350,17 +350,17 @@ fn dispatch_length_signature_and_body_shape() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((sig-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::signature-of :wat::core::length))
              ((body-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::body-of :wat::core::length)))
             (:wat::core::match sig-opt
-              -> :wat::core::unit
+              -> :wat::core::nil
               ((:wat::core::Some _)
                 (:wat::core::match body-opt
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-body-some"))
                   (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
               (:wat::core::None (:wat::io::IOWriter/println stdout "fail-sig-none")))))
@@ -388,7 +388,7 @@ fn length_canary_hashmap_via_define_alias() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::io::IOWriter/println stdout
             (:wat::edn::write
               (:user::size

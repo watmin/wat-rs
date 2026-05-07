@@ -49,11 +49,11 @@
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :wat::core::unit)
+              -> :wat::core::nil)
             (:wat::test::assert-eq 42 43)))
         (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
-    (:wat::core::match fail -> :wat::core::unit
+    (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f) (:wat::test::assert-eq
                   (:wat::kernel::Failure/message f)
                   "assert-eq failed"))
@@ -79,21 +79,21 @@
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :wat::core::unit)
+              -> :wat::core::nil)
             (:wat::test::assert-contains "hello" "xyz")))
         (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
-    (:wat::core::match fail -> :wat::core::unit
+    (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f)
         (:wat::core::let*
           (((actual :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/actual f))
            ((expected :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/expected f))
-           ((_ :wat::core::unit)
-            (:wat::core::match actual -> :wat::core::unit
+           ((_ :wat::core::nil)
+            (:wat::core::match actual -> :wat::core::nil
               ((:wat::core::Some a) (:wat::test::assert-eq a "hello"))
               (:wat::core::None (:wat::kernel::assertion-failed!
                        "actual slot empty" :wat::core::None :wat::core::None)))))
-          (:wat::core::match expected -> :wat::core::unit
+          (:wat::core::match expected -> :wat::core::nil
             ((:wat::core::Some e) (:wat::test::assert-eq e "xyz"))
             (:wat::core::None (:wat::kernel::assertion-failed!
                      "expected slot empty" :wat::core::None :wat::core::None)))))
@@ -125,17 +125,17 @@
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :wat::core::unit)
+              -> :wat::core::nil)
             (:wat::test::assert-coincident
               (:wat::holon::Atom "alice")
               (:wat::holon::Atom "charlie"))))
         (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
-    (:wat::core::match fail -> :wat::core::unit
+    (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f)
         (:wat::core::let*
           (((actual :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/actual f)))
-          (:wat::core::match actual -> :wat::core::unit
+          (:wat::core::match actual -> :wat::core::nil
             ((:wat::core::Some a)
               (:wat::core::do
                 (:wat::test::assert-contains a "cosine")
@@ -164,7 +164,7 @@
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :wat::core::unit)
+              -> :wat::core::nil)
             (:wat::core::do
               (:wat::io::IOWriter/println stdout "alpha")
               (:wat::io::IOWriter/println stdout "beta")
@@ -186,7 +186,7 @@
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :wat::core::unit)
+              -> :wat::core::nil)
             (:wat::io::IOWriter/println stderr "error: code 42")))
         (:wat::core::Vector :wat::core::String))))
     (:wat::test::assert-stderr-matches inner "code [0-9]+")))
@@ -206,7 +206,7 @@
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :wat::core::unit)
+              -> :wat::core::nil)
             (:wat::core::let*
               (((silent :wat::kernel::RunResult)
                 (:wat::test::run-ast
@@ -216,17 +216,17 @@
                         (stdin  :wat::io::IOReader)
                         (stdout :wat::io::IOWriter)
                         (stderr :wat::io::IOWriter)
-                        -> :wat::core::unit)
+                        -> :wat::core::nil)
                       ()))
                   (:wat::core::Vector :wat::core::String))))
               (:wat::test::assert-stderr-matches silent "my-pattern"))))
         (:wat::core::Vector :wat::core::String)))
      ((fail :wat::core::Option<wat::kernel::Failure>) (:wat::kernel::RunResult/failure r)))
-    (:wat::core::match fail -> :wat::core::unit
+    (:wat::core::match fail -> :wat::core::nil
       ((:wat::core::Some f)
         (:wat::core::let*
           (((expected :wat::core::Option<wat::core::String>) (:wat::kernel::Failure/expected f)))
-          (:wat::core::match expected -> :wat::core::unit
+          (:wat::core::match expected -> :wat::core::nil
             ((:wat::core::Some e) (:wat::test::assert-eq e "my-pattern"))
             (:wat::core::None (:wat::kernel::assertion-failed!
                      "expected slot empty" :wat::core::None :wat::core::None)))))
@@ -249,7 +249,7 @@
                               (stdin  :wat::io::IOReader)
                               (stdout :wat::io::IOWriter)
                               (stderr :wat::io::IOWriter)
-                              -> :wat::core::unit)
+                              -> :wat::core::nil)
            (:wat::io::IOWriter/println stdout \"from-string\"))"
         (:wat::core::Vector :wat::core::String)))
      ((expected :wat::core::Vector<wat::core::String>) (:wat::core::Vector :wat::core::String "from-string")))
@@ -268,7 +268,7 @@
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :wat::core::unit)
+              -> :wat::core::nil)
             (:wat::io::IOWriter/println stdout "from-ast")))
         (:wat::core::Vector :wat::core::String)))
      ((expected :wat::core::Vector<wat::core::String>) (:wat::core::Vector :wat::core::String "from-ast")))
@@ -315,7 +315,7 @@
     (:wat::eval-ast!
       (:wat::core::macroexpand-1
         (:wat::core::quote (:wat::core::i64::+,2 2 2))))
-    -> :wat::core::unit
+    -> :wat::core::nil
     ((:wat::core::Ok _) (:wat::test::assert-eq true true))
     ((:wat::core::Err _) (:wat::test::assert-eq true false))))
 
@@ -327,6 +327,6 @@
     (:wat::eval-ast!
       (:wat::core::macroexpand
         (:wat::core::quote (:wat::core::i64::*,2 3 4))))
-    -> :wat::core::unit
+    -> :wat::core::nil
     ((:wat::core::Ok _) (:wat::test::assert-eq true true))
     ((:wat::core::Err _) (:wat::test::assert-eq true false))))

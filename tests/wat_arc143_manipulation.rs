@@ -77,7 +77,7 @@ fn rename_callable_name_happy_path_foldl_to_reduce() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -131,7 +131,7 @@ fn rename_callable_name_no_type_params() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -189,7 +189,7 @@ fn rename_callable_name_error_from_mismatch() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -241,7 +241,7 @@ fn extract_arg_names_foldl_returns_three_names() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -300,7 +300,7 @@ fn extract_arg_names_zero_args_returns_empty() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -337,7 +337,7 @@ fn extract_arg_names_stops_before_return_type() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST
@@ -387,7 +387,7 @@ fn extract_arg_names_error_non_bundle() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((leaf :wat::holon::HolonAST)
               (:wat::holon::Atom :wat::core::foldl))
@@ -439,7 +439,7 @@ fn rename_then_extract_preserves_arg_names() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((sig :wat::holon::HolonAST)
               (:wat::core::Option/expect -> :wat::holon::HolonAST

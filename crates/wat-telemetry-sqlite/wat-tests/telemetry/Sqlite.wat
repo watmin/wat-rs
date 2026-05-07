@@ -21,14 +21,14 @@
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::install-noop
        (_db :wat::sqlite::Db)
-       -> :wat::core::unit)
+       -> :wat::core::nil)
      ())
 
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::dispatch-noop
        (_db :wat::sqlite::Db)
        (_entries :wat::core::Vector<wat::core::i64>)
-       -> :wat::core::unit)
+       -> :wat::core::nil)
      ())
 
    (:wat::core::define
@@ -48,13 +48,13 @@
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::pragma-wal
        (db :wat::sqlite::Db)
-       -> :wat::core::unit)
+       -> :wat::core::nil)
      (:wat::sqlite::pragma db "journal_mode" "WAL"))
 
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::install-events
        (db :wat::sqlite::Db)
-       -> :wat::core::unit)
+       -> :wat::core::nil)
      (:wat::sqlite::execute-ddl db
        "CREATE TABLE IF NOT EXISTS events (n INTEGER)"))
 
@@ -66,7 +66,7 @@
      (:wat-telemetry-sqlite::Sqlite::insert-one-event
        (db :wat::sqlite::Db)
        (entry :wat::core::i64)
-       -> :wat::core::unit)
+       -> :wat::core::nil)
      (:wat::core::let*
        (((sql :wat::core::String)
          (:wat::core::string::concat
@@ -85,9 +85,9 @@
      (:wat-telemetry-sqlite::Sqlite::dispatch-events
        (db :wat::sqlite::Db)
        (entries :wat::core::Vector<wat::core::i64>)
-       -> :wat::core::unit)
+       -> :wat::core::nil)
      (:wat::core::foldl entries ()
-       (:wat::core::lambda ((_acc :wat::core::unit) (entry :wat::core::i64) -> :wat::core::unit)
+       (:wat::core::lambda ((_acc :wat::core::nil) (entry :wat::core::i64) -> :wat::core::nil)
          (:wat-telemetry-sqlite::Sqlite::insert-one-event db entry))))
 
 
@@ -99,7 +99,7 @@
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::spawn-and-drop
        (path :wat::core::String)
-       -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+       -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Spawn<wat::core::i64>)
          (:wat::telemetry::Sqlite/spawn
@@ -111,9 +111,9 @@
            :wat-telemetry-sqlite::Sqlite::translate-empty))
         ((pool :wat::telemetry::HandlePool<wat::core::i64>)
          (:wat::core::first spawn))
-        ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+        ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
          (:wat::core::second spawn))
-        ((_inner :wat::core::unit)
+        ((_inner :wat::core::nil)
          (:wat-telemetry-sqlite::Sqlite::drop-one-handle pool)))
        driver))
 
@@ -122,11 +122,11 @@
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::drop-one-handle
        (pool :wat::telemetry::HandlePool<wat::core::i64>)
-       -> :wat::core::unit)
+       -> :wat::core::nil)
      (:wat::core::let*
        (((_handle :wat::telemetry::Handle<wat::core::i64>)
          (:wat::kernel::HandlePool::pop pool))
-        ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
+        ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool)))
        ()))
 
    ;; Spawn + batch-log three entries + drop. Same lockstep shape as
@@ -134,7 +134,7 @@
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::spawn-and-batch
        (path :wat::core::String)
-       -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+       -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Spawn<wat::core::i64>)
          (:wat::telemetry::Sqlite/spawn
@@ -146,9 +146,9 @@
            :wat-telemetry-sqlite::Sqlite::translate-empty))
         ((pool :wat::telemetry::HandlePool<wat::core::i64>)
          (:wat::core::first spawn))
-        ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+        ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
          (:wat::core::second spawn))
-        ((_inner :wat::core::unit)
+        ((_inner :wat::core::nil)
          (:wat-telemetry-sqlite::Sqlite::send-three pool)))
        driver))
 
@@ -158,18 +158,18 @@
    (:wat::core::define
      (:wat-telemetry-sqlite::Sqlite::send-three
        (pool :wat::telemetry::HandlePool<wat::core::i64>)
-       -> :wat::core::unit)
+       -> :wat::core::nil)
      (:wat::core::let*
        (((handle :wat::telemetry::Handle<wat::core::i64>)
          (:wat::kernel::HandlePool::pop pool))
-        ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
+        ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
         ((req-tx :wat::telemetry::ReqTx<wat::core::i64>)
          (:wat::core::first handle))
         ((ack-rx :wat::telemetry::AckRx)
          (:wat::core::second handle))
         ((entries :wat::core::Vector<wat::core::i64>)
          (:wat::core::Vector :wat::core::i64 7 11 13))
-        ((_log :wat::core::unit)
+        ((_log :wat::core::nil)
          (:wat::telemetry::batch-log
            req-tx ack-rx entries)))
        ()))))
@@ -179,10 +179,10 @@
 
 (:deftest :wat-telemetry-sqlite::Sqlite::test-spawn-drop
   (:wat::core::let*
-    (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+    (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat-telemetry-sqlite::Sqlite::spawn-and-drop
         "/tmp/wat-sqlite-test-spawn-001.db"))
-     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))
 
@@ -191,9 +191,9 @@
 
 (:deftest :wat-telemetry-sqlite::Sqlite::test-batch-log
   (:wat::core::let*
-    (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+    (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat-telemetry-sqlite::Sqlite::spawn-and-batch
         "/tmp/wat-sqlite-test-batch-001.db"))
-     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

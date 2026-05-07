@@ -89,8 +89,8 @@
    ;; Reply channel for the Ack verb — unit reply. Aliased because it
    ;; recurs at every Ack call site (request body + caller's reply
    ;; channel both reference it).
-   (:wat::core::typealias :svc::AckReplyTx :wat::kernel::Sender<wat::core::unit>)
-   (:wat::core::typealias :svc::AckReplyRx :wat::kernel::Receiver<wat::core::unit>)
+   (:wat::core::typealias :svc::AckReplyTx :wat::kernel::Sender<wat::core::nil>)
+   (:wat::core::typealias :svc::AckReplyRx :wat::kernel::Receiver<wat::core::nil>)
 
    ;; Get's reply channel carries the full State struct. Inlined in
    ;; the variant declaration below — domain-payload reply types are
@@ -114,12 +114,12 @@
    ;; instead of ProgramHandle<State>. Final-state delivery is via the
    ;; thread's output Sender; the Thread/join-result confirms exit.
    (:wat::core::typealias :svc::Spawn
-     :(svc::ReqTxPool,wat::kernel::Thread<wat::core::unit,svc::State>))
+     :(svc::ReqTxPool,wat::kernel::Thread<wat::core::nil,svc::State>))
 
    ;; The substrate-allocated `_in` Receiver is unused by the service
    ;; driver (the service's request channels are the real inputs).
    ;; Aliased for clarity at the spawn-thread call site.
-   (:wat::core::typealias :svc::DriverIn  :rust::crossbeam_channel::Receiver<wat::core::unit>)
+   (:wat::core::typealias :svc::DriverIn  :rust::crossbeam_channel::Receiver<wat::core::nil>)
    (:wat::core::typealias :svc::DriverOut :rust::crossbeam_channel::Sender<svc::State>)
 
 
@@ -147,8 +147,8 @@
        ;; the program tree learns the breakage instead of silent drop.
        ((:svc::Request::Ack reply-tx)
          (:wat::core::let*
-           (((_ack :wat::core::unit)
-             (:wat::core::Result/expect -> :wat::core::unit
+           (((_ack :wat::core::nil)
+             (:wat::core::Result/expect -> :wat::core::nil
                (:wat::kernel::send reply-tx ())
                "Service/handle Ack: reply-tx disconnected — caller died?")))
            (:svc::State/new
@@ -160,8 +160,8 @@
        ;; not look like a mutation).
        ((:svc::Request::Get reply-tx)
          (:wat::core::let*
-           (((_send :wat::core::unit)
-             (:wat::core::Result/expect -> :wat::core::unit
+           (((_send :wat::core::nil)
+             (:wat::core::Result/expect -> :wat::core::nil
                (:wat::kernel::send reply-tx state)
                "Service/handle Get: reply-tx disconnected — caller died?")))
            state))))
@@ -181,20 +181,20 @@
        (req-rxs :wat::core::Vector<svc::ReqRx>)
        (state :svc::State)
        (out :svc::DriverOut)
-       -> :wat::core::unit)
-     (:wat::core::if (:wat::core::empty? req-rxs) -> :wat::core::unit
+       -> :wat::core::nil)
+     (:wat::core::if (:wat::core::empty? req-rxs) -> :wat::core::nil
        ;; Empty — every client gone. Deliver final state via `out`.
        ;; `expect` panics if the parent dropped its Receiver — that's
        ;; a substrate-tree breakage worth surfacing, not silently
        ;; eating.
-       (:wat::core::Result/expect -> :wat::core::unit
+       (:wat::core::Result/expect -> :wat::core::nil
          (:wat::kernel::send out state)
          "Service/loop: out disconnected — parent dropped Thread/output before recv?")
        (:wat::core::let*
          (((chosen :wat::kernel::Chosen<svc::Request>) (:wat::kernel::select req-rxs))
           ((idx :wat::core::i64) (:wat::core::first chosen))
           ((maybe :wat::kernel::CommResult<svc::Request>) (:wat::core::second chosen)))
-         (:wat::core::match maybe -> :wat::core::unit
+         (:wat::core::match maybe -> :wat::core::nil
            ((:wat::core::Ok (:wat::core::Some req))
              (:wat::core::let*
                (((next :svc::State) (:svc::Service/handle req state)))
@@ -241,12 +241,12 @@
         ((pool :svc::ReqTxPool)
          (:wat::kernel::HandlePool::new "svc-template" req-txs))
 
-        ((thr :wat::kernel::Thread<wat::core::unit,svc::State>)
+        ((thr :wat::kernel::Thread<wat::core::nil,svc::State>)
          (:wat::kernel::spawn-thread
            (:wat::core::lambda
              ((_in :svc::DriverIn)
               (out :svc::DriverOut)
-              -> :wat::core::unit)
+              -> :wat::core::nil)
              (:svc::Service/loop req-rxs (:svc::State::fresh) out)))))
        (:wat::core::Tuple pool thr)))
 
@@ -261,15 +261,15 @@
    ;; Inner-let* lockstep per SERVICE-PROGRAMS.md § "The lockstep" and
    ;; arc 131. Pop-before-finish per arc 130 edge-case guidance.
    (:wat::core::define
-     (:test::svc-spawn-and-shutdown -> :wat::core::unit)
+     (:test::svc-spawn-and-shutdown -> :wat::core::nil)
      (:wat::core::let*
-       (((driver :wat::kernel::Thread<wat::core::unit,svc::State>)
+       (((driver :wat::kernel::Thread<wat::core::nil,svc::State>)
          (:wat::core::let*
            (((spawn :svc::Spawn) (:svc::Service 1))
             ((pool :svc::ReqTxPool) (:wat::core::first spawn))
-            ((d :wat::kernel::Thread<wat::core::unit,svc::State>) (:wat::core::second spawn))
+            ((d :wat::kernel::Thread<wat::core::nil,svc::State>) (:wat::core::second spawn))
             ((_req-tx :svc::ReqTx) (:wat::kernel::HandlePool::pop pool))
-            ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool)))
+            ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool)))
            d))
         ((final-rx :rust::crossbeam_channel::Receiver<svc::State>)
          (:wat::kernel::Thread/output driver))
@@ -279,7 +279,7 @@
              (:wat::kernel::recv final-rx)
              "svc-spawn-and-shutdown: thread died before delivering final state")
            "svc-spawn-and-shutdown: thread output closed without delivering final state"))
-        ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+        ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
          (:wat::kernel::Thread/join-result driver)))
        ()))
 
@@ -293,8 +293,8 @@
      (:test::svc-send-push
        (req-tx :svc::ReqTx)
        (v :wat::core::i64)
-       -> :wat::core::unit)
-     (:wat::core::Result/expect -> :wat::core::unit
+       -> :wat::core::nil)
+     (:wat::core::Result/expect -> :wat::core::nil
        (:wat::kernel::send req-tx (:svc::Request::Push v))
        "svc-send-push: req-tx disconnected — driver died?"))
 
@@ -309,15 +309,15 @@
        (state :svc::State)
        (push-expected :wat::core::i64)
        (ack-expected :wat::core::i64)
-       -> :wat::core::unit)
+       -> :wat::core::nil)
      (:wat::core::let*
-       (((_pc :wat::core::unit)
+       (((_pc :wat::core::nil)
          (:wat::core::if (:wat::core::= (:svc::State/push-count state) push-expected)
-           -> :wat::core::unit
+           -> :wat::core::nil
            ()
            (:wat::test::assert-eq "push-count mismatch" ""))))
        (:wat::core::if (:wat::core::= (:svc::State/ack-count state) ack-expected)
-         -> :wat::core::unit
+         -> :wat::core::nil
          ()
          (:wat::test::assert-eq "ack-count mismatch" ""))))
 
@@ -339,18 +339,18 @@
    ;; Arc 126's deadlock checker never sees both halves at one call site
    ;; → no channel-pair-deadlock fires.
    (:wat::core::define
-     (:test::svc-full-sequence-and-verify -> :wat::core::unit)
+     (:test::svc-full-sequence-and-verify -> :wat::core::nil)
      (:wat::core::let*
-       (((thr :wat::kernel::Thread<wat::core::unit,svc::State>)
+       (((thr :wat::kernel::Thread<wat::core::nil,svc::State>)
          (:wat::core::let*
            (((spawn :svc::Spawn) (:svc::Service 1))
             ((pool :svc::ReqTxPool) (:wat::core::first spawn))
-            ((d :wat::kernel::Thread<wat::core::unit,svc::State>) (:wat::core::second spawn))
+            ((d :wat::kernel::Thread<wat::core::nil,svc::State>) (:wat::core::second spawn))
             ((req-tx :svc::ReqTx) (:wat::kernel::HandlePool::pop pool))
-            ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
+            ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
             ;; Ack reply channel — tx embedded in Request payload; rx recvd separately.
-            ((ack-pair :wat::kernel::Channel<wat::core::unit>)
-             (:wat::kernel::make-bounded-channel :wat::core::unit 1))
+            ((ack-pair :wat::kernel::Channel<wat::core::nil>)
+             (:wat::kernel::make-bounded-channel :wat::core::nil 1))
             ((ack-tx :svc::AckReplyTx) (:wat::core::first ack-pair))
             ((ack-rx :svc::AckReplyRx) (:wat::core::second ack-pair))
             ;; Get reply channel — tx embedded in Request payload; rx recvd separately.
@@ -359,20 +359,20 @@
             ((get-tx :wat::kernel::Sender<svc::State>) (:wat::core::first get-pair))
             ((get-rx :wat::kernel::Receiver<svc::State>) (:wat::core::second get-pair))
             ;; Drive: 2 Pushes, 1 Ack, 1 Get, check snap1, 1 Push, 1 Get, check snap2.
-            ((_ :wat::core::unit) (:test::svc-send-push req-tx 100))
-            ((_ :wat::core::unit) (:test::svc-send-push req-tx 200))
-            ((_ :wat::core::unit)
-             (:wat::core::Result/expect -> :wat::core::unit
+            ((_ :wat::core::nil) (:test::svc-send-push req-tx 100))
+            ((_ :wat::core::nil) (:test::svc-send-push req-tx 200))
+            ((_ :wat::core::nil)
+             (:wat::core::Result/expect -> :wat::core::nil
                (:wat::kernel::send req-tx (:svc::Request::Ack ack-tx))
                "svc-full-sequence: send Ack: req-tx disconnected"))
-            ((_ :wat::core::unit)
-             (:wat::core::Option/expect -> :wat::core::unit
-               (:wat::core::Result/expect -> :wat::core::Option<wat::core::unit>
+            ((_ :wat::core::nil)
+             (:wat::core::Option/expect -> :wat::core::nil
+               (:wat::core::Result/expect -> :wat::core::Option<wat::core::nil>
                  (:wat::kernel::recv ack-rx)
                  "svc-full-sequence: recv ack: peer died")
                "svc-full-sequence: recv ack: clean disconnect"))
-            ((_ :wat::core::unit)
-             (:wat::core::Result/expect -> :wat::core::unit
+            ((_ :wat::core::nil)
+             (:wat::core::Result/expect -> :wat::core::nil
                (:wat::kernel::send req-tx (:svc::Request::Get get-tx))
                "svc-full-sequence: send Get #1: req-tx disconnected"))
             ((snap1 :svc::State)
@@ -381,10 +381,10 @@
                  (:wat::kernel::recv get-rx)
                  "svc-full-sequence: recv get #1: peer died")
                "svc-full-sequence: recv get #1: clean disconnect"))
-            ((_ :wat::core::unit) (:test::svc-assert-state snap1 2 1))
-            ((_ :wat::core::unit) (:test::svc-send-push req-tx 300))
-            ((_ :wat::core::unit)
-             (:wat::core::Result/expect -> :wat::core::unit
+            ((_ :wat::core::nil) (:test::svc-assert-state snap1 2 1))
+            ((_ :wat::core::nil) (:test::svc-send-push req-tx 300))
+            ((_ :wat::core::nil)
+             (:wat::core::Result/expect -> :wat::core::nil
                (:wat::kernel::send req-tx (:svc::Request::Get get-tx))
                "svc-full-sequence: send Get #2: req-tx disconnected"))
             ((snap2 :svc::State)
@@ -393,7 +393,7 @@
                  (:wat::kernel::recv get-rx)
                  "svc-full-sequence: recv get #2: peer died")
                "svc-full-sequence: recv get #2: clean disconnect"))
-            ((_ :wat::core::unit) (:test::svc-assert-state snap2 3 1)))
+            ((_ :wat::core::nil) (:test::svc-assert-state snap2 3 1)))
            d))
         ((final-rx :rust::crossbeam_channel::Receiver<svc::State>)
          (:wat::kernel::Thread/output thr))
@@ -403,9 +403,9 @@
              (:wat::kernel::recv final-rx)
              "svc-full-sequence: thread died before delivering final state")
            "svc-full-sequence: thread output closed without delivering final state"))
-        ((join-result :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+        ((join-result :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
          (:wat::kernel::Thread/join-result thr)))
-       (:wat::core::match join-result -> :wat::core::unit
+       (:wat::core::match join-result -> :wat::core::nil
          ((:wat::core::Ok _)
            (:test::svc-assert-state final-state 3 1))
          ((:wat::core::Err _) (:wat::test::assert-eq "driver-died" "")))))
@@ -429,14 +429,14 @@
 ;; final state on Thread/output → recv (discarded) → join.
 (:deftest :svc::test-svc-send-push
   (:wat::core::let*
-    (((thr :wat::kernel::Thread<wat::core::unit,svc::State>)
+    (((thr :wat::kernel::Thread<wat::core::nil,svc::State>)
       (:wat::core::let*
         (((spawn :svc::Spawn) (:svc::Service 1))
          ((pool :svc::ReqTxPool) (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<wat::core::unit,svc::State>) (:wat::core::second spawn))
+         ((d :wat::kernel::Thread<wat::core::nil,svc::State>) (:wat::core::second spawn))
          ((req-tx :svc::ReqTx) (:wat::kernel::HandlePool::pop pool))
-         ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-         ((_ :wat::core::unit) (:test::svc-send-push req-tx 42)))
+         ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
+         ((_ :wat::core::nil) (:test::svc-send-push req-tx 42)))
         d))
      ((final-rx :rust::crossbeam_channel::Receiver<svc::State>)
       (:wat::kernel::Thread/output thr))
@@ -446,7 +446,7 @@
           (:wat::kernel::recv final-rx)
           "test-svc-send-push: thread died before delivering final state")
         "test-svc-send-push: thread output closed without delivering final state"))
-     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result thr)))
     ()))
 

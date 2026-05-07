@@ -81,7 +81,7 @@ fn spawn_program_ast_child_writes_stdout_parent_reads_line() {
         (:wat::core::define (:user::main
                              -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
-            (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
+            (((proc :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::core::Result/try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
@@ -89,7 +89,7 @@ fn spawn_program_ast_child_writes_stdout_parent_reads_line() {
                                          (stdin  :wat::io::IOReader)
                                          (stdout :wat::io::IOWriter)
                                          (stderr :wat::io::IOWriter)
-                                         -> :wat::core::unit)
+                                         -> :wat::core::nil)
                       (:wat::io::IOWriter/println stdout "hello-from-thread")))
                   :wat::core::None)))
              ((out-r :wat::io::IOReader)
@@ -111,7 +111,7 @@ fn spawn_program_ast_round_trip_via_pipes() {
         (:wat::core::define (:user::main
                              -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
-            (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
+            (((proc :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::core::Result/try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
@@ -119,8 +119,8 @@ fn spawn_program_ast_round_trip_via_pipes() {
                                          (stdin  :wat::io::IOReader)
                                          (stdout :wat::io::IOWriter)
                                          (stderr :wat::io::IOWriter)
-                                         -> :wat::core::unit)
-                      (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::unit
+                                         -> :wat::core::nil)
+                      (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil
                         (:wat::core::None ())
                         ((:wat::core::Some line)
                          (:wat::io::IOWriter/println stdout
@@ -128,7 +128,7 @@ fn spawn_program_ast_round_trip_via_pipes() {
                   :wat::core::None)))
              ((in-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin proc))
              ((out-r :wat::io::IOReader) (:wat::kernel::Process/stdout proc))
-             ((_ :wat::core::unit) (:wat::io::IOWriter/println in-w "ping")))
+             ((_ :wat::core::nil) (:wat::io::IOWriter/println in-w "ping")))
             (:wat::core::Ok (:wat::io::IOReader/read-line out-r))))
     "#;
     assert_eq!(unwrap_some_string(unwrap_ok(run(src))), "pingping");
@@ -148,7 +148,7 @@ fn spawn_program_ast_stdout_eof_after_child_returns() {
         (:wat::core::define (:user::main
                              -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
-            (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
+            (((proc :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::core::Result/try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
@@ -156,16 +156,16 @@ fn spawn_program_ast_stdout_eof_after_child_returns() {
                                          (stdin  :wat::io::IOReader)
                                          (stdout :wat::io::IOWriter)
                                          (stderr :wat::io::IOWriter)
-                                         -> :wat::core::unit)
+                                         -> :wat::core::nil)
                       (:wat::io::IOWriter/println stdout "only-line")))
                   :wat::core::None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc))
              ((first :wat::core::Option<wat::core::String>)
               (:wat::io::IOReader/read-line out-r))
-             ((_check :wat::core::unit)
-              (:wat::core::match first -> :wat::core::unit
-                ((:wat::core::Some s) (:wat::core::if (:wat::core::= s "only-line") -> :wat::core::unit
+             ((_check :wat::core::nil)
+              (:wat::core::match first -> :wat::core::nil
+                ((:wat::core::Some s) (:wat::core::if (:wat::core::= s "only-line") -> :wat::core::nil
                             ()
                             (:wat::core::panic! "wrong line")))
                 (:wat::core::None (:wat::core::panic! "expected first line")))))
@@ -185,7 +185,7 @@ fn spawn_program_ast_stderr_is_separate_pipe() {
         (:wat::core::define (:user::main
                              -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
-            (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
+            (((proc :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::core::Result/try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
@@ -193,7 +193,7 @@ fn spawn_program_ast_stderr_is_separate_pipe() {
                                          (stdin  :wat::io::IOReader)
                                          (stdout :wat::io::IOWriter)
                                          (stderr :wat::io::IOWriter)
-                                         -> :wat::core::unit)
+                                         -> :wat::core::nil)
                       (:wat::io::IOWriter/println stderr "diag-line")))
                   :wat::core::None)))
              ((err-r :wat::io::IOReader)
@@ -209,13 +209,13 @@ fn spawn_program_ast_stderr_is_separate_pipe() {
 fn spawn_program_ast_join_returns_unit_on_clean_exit() {
     // Inner main returns :() cleanly; Process/join-result yields
     // Ok(:()) on the success arm. Arc 114: ProgramHandle<R> retired;
-    // every clean Process/Thread join returns :wat::core::Result<:wat::core::unit, :wat::core::Vector<...>>.
+    // every clean Process/Thread join returns :wat::core::Result<:wat::core::nil, :wat::core::Vector<...>>.
     let src = r#"
 
         (:wat::core::define (:user::main
-                             -> :wat::core::Result<wat::core::unit,wat::kernel::StartupError>)
+                             -> :wat::core::Result<wat::core::nil,wat::kernel::StartupError>)
           (:wat::core::let*
-            (((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
+            (((proc :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::core::Result/try
                 (:wat::kernel::spawn-program-ast
                   (:wat::test::program
@@ -223,12 +223,12 @@ fn spawn_program_ast_join_returns_unit_on_clean_exit() {
                                          (stdin  :wat::io::IOReader)
                                          (stdout :wat::io::IOWriter)
                                          (stderr :wat::io::IOWriter)
-                                         -> :wat::core::unit)
+                                         -> :wat::core::nil)
                       ()))
                   :wat::core::None)))
-             ((joined :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ProcessDiedError>>)
+             ((joined :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
               (:wat::kernel::Process/join-result proc)))
-            (:wat::core::match joined -> :wat::core::Result<wat::core::unit,wat::kernel::StartupError>
+            (:wat::core::match joined -> :wat::core::Result<wat::core::nil,wat::kernel::StartupError>
               ((:wat::core::Ok _)   (:wat::core::Ok ()))
               ((:wat::core::Err _e) (:wat::core::Ok ())))))
     "#;
@@ -245,8 +245,8 @@ fn spawn_program_source_string_entry() {
                              -> :wat::core::Result<wat::core::Option<wat::core::String>,wat::kernel::StartupError>)
           (:wat::core::let*
             (((inner-src :wat::core::String)
-              "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::unit) (:wat::io::IOWriter/println stdout \"from-source\"))")
-             ((proc :wat::kernel::Program<wat::core::unit,wat::core::unit>)
+              "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::nil) (:wat::io::IOWriter/println stdout \"from-source\"))")
+             ((proc :wat::kernel::Program<wat::core::nil,wat::core::nil>)
               (:wat::core::Result/try (:wat::kernel::spawn-program inner-src :wat::core::None)))
              ((out-r :wat::io::IOReader)
               (:wat::kernel::Process/stdout proc)))

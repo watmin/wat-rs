@@ -57,7 +57,7 @@ fn named_define_is_a_function_value() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((f :fn(wat::core::i64)->wat::core::i64) :my::double)
              ((result :wat::core::i64) (f 21)))
@@ -77,11 +77,11 @@ fn named_define_is_a_function_value() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((f :fn(wat::core::i64)->wat::core::i64) :my::double)
              ((result :wat::core::i64) (f 21)))
-            (:wat::core::if (:wat::core::= result 42) -> :wat::core::unit
+            (:wat::core::if (:wat::core::= result 42) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -109,10 +109,10 @@ fn named_define_passes_to_higher_order_fn() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((result :wat::core::i64) (:my::apply-twice :my::inc 5)))
-            (:wat::core::if (:wat::core::= result 7) -> :wat::core::unit
+            (:wat::core::if (:wat::core::= result 7) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -137,10 +137,10 @@ fn polymorphic_named_define_instantiates_at_use_site() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((result :wat::core::i64) (:my::apply :my::identity 99)))
-            (:wat::core::if (:wat::core::= result 99) -> :wat::core::unit
+            (:wat::core::if (:wat::core::= result 99) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -161,11 +161,11 @@ fn unregistered_keyword_still_a_literal() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((tag :wat::core::keyword) :my-app::tag::user-event)
              ((same? :wat::core::bool) (:wat::core::= tag :my-app::tag::user-event)))
-            (:wat::core::if same? -> :wat::core::unit
+            (:wat::core::if same? -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -188,19 +188,19 @@ fn named_define_as_stream_map_fn() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::unit)
+                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
                   (:wat::core::do
-                    (:wat::core::Result/expect -> :wat::core::unit
+                    (:wat::core::Result/expect -> :wat::core::nil
                       (:wat::kernel::send tx 1)
                       "producer: tx disconnected on send 1")
-                    (:wat::core::Result/expect -> :wat::core::unit
+                    (:wat::core::Result/expect -> :wat::core::nil
                       (:wat::kernel::send tx 2)
                       "producer: tx disconnected on send 2")
-                    (:wat::core::Result/expect -> :wat::core::unit
+                    (:wat::core::Result/expect -> :wat::core::nil
                       (:wat::kernel::send tx 3)
                       "producer: tx disconnected on send 3")
                     ()))))
@@ -213,7 +213,7 @@ fn named_define_as_stream_map_fn() {
                 (:wat::core::None -1)))
              ((len :wat::core::i64) (:wat::core::length collected)))
             (:wat::core::if (:wat::core::and (:wat::core::= first 2) (:wat::core::= len 3))
-              -> :wat::core::unit
+              -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
               (:wat::io::IOWriter/println stdout "fail"))))
     "##;

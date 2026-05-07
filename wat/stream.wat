@@ -9,9 +9,9 @@
 ;;   (let* (((rx1 h1) (stream::spawn-producer :my::source))
 ;;          ((rx2 h2) (stream::map rx1 :my::transform))
 ;;          ((result :()) (stream::for-each rx2 :my::handler))
-;;          ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+;;          ((_ :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
 ;;           (:wat::kernel::Thread/join-result h2))
-;;          ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+;;          ((_ :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
 ;;           (:wat::kernel::Thread/join-result h1)))
 ;;     result)
 ;;
@@ -47,13 +47,13 @@
 ;; substrate's `_in` / `_out` are unit-typed and unused).
 (:wat::core::typealias
   :wat::stream::Stream<T>
-  :(wat::kernel::Receiver<T>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
+  :(wat::kernel::Receiver<T>,wat::kernel::Thread<wat::core::nil,wat::core::nil>))
 
 ;; Producer<T> — the function shape spawn-producer accepts: takes the
 ;; Sender end of a bounded queue, writes values, returns when done.
 (:wat::core::typealias
   :wat::stream::Producer<T>
-  :fn(wat::kernel::Sender<T>)->wat::core::unit)
+  :fn(wat::kernel::Sender<T>)->wat::core::nil)
 
 ;; --- with-state step shapes ---
 ;;
@@ -90,12 +90,12 @@
       (:wat::kernel::make-bounded-channel :T 1))
      ((tx :wat::kernel::Sender<T>) (:wat::core::first pair))
      ((rx :wat::kernel::Receiver<T>) (:wat::core::second pair))
-     ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-           -> :wat::core::unit)
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+           -> :wat::core::nil)
           (producer tx)))))
     (:wat::core::Tuple rx handle)))
 
@@ -115,7 +115,7 @@
 (:wat::core::define
   (:wat::stream::from-receiver<T>
     (rx :wat::kernel::Receiver<T>)
-    (handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+    (handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
     -> :wat::stream::Stream<T>)
   (:wat::core::Tuple rx handle))
 
@@ -132,16 +132,16 @@
     (in :wat::kernel::Receiver<T>)
     (out :wat::kernel::Sender<U>)
     (f :fn(T)->U)
-    -> :wat::core::unit)
-  (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
+    -> :wat::core::nil)
+  (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
     ((:wat::core::Ok (:wat::core::Some v))
       (:wat::core::let*
         (((u :U) (f v)))
-        (:wat::core::match (:wat::kernel::send out u) -> :wat::core::unit
+        (:wat::core::match (:wat::kernel::send out u) -> :wat::core::nil
           ((:wat::core::Ok _) (:wat::stream::map-worker in out f))
-          ((:wat::core::Err _) ()))))
-    ((:wat::core::Ok :wat::core::None) ())
-    ((:wat::core::Err _died) ())))
+          ((:wat::core::Err _) :wat::core::nil))))
+    ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+    ((:wat::core::Err _died) :wat::core::nil)))
 
 (:wat::core::define
   (:wat::stream::map<T,U>
@@ -154,12 +154,12 @@
       (:wat::kernel::make-bounded-channel :U 1))
      ((tx :wat::kernel::Sender<U>) (:wat::core::first pair))
      ((rx :wat::kernel::Receiver<U>) (:wat::core::second pair))
-     ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-           -> :wat::core::unit)
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+           -> :wat::core::nil)
           (:wat::stream::map-worker up-rx tx f)))))
     (:wat::core::Tuple rx handle)))
 
@@ -173,28 +173,28 @@
 (:wat::core::define
   (:wat::stream::for-each-drain<T>
     (rx :wat::kernel::Receiver<T>)
-    (handler :fn(T)->wat::core::unit)
-    -> :wat::core::unit)
-  (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::unit
+    (handler :fn(T)->wat::core::nil)
+    -> :wat::core::nil)
+  (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
     ((:wat::core::Ok (:wat::core::Some v))
       (:wat::core::do
         (handler v)
         (:wat::stream::for-each-drain rx handler)))
-    ((:wat::core::Ok :wat::core::None) ())
-    ((:wat::core::Err _died) ())))
+    ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+    ((:wat::core::Err _died) :wat::core::nil)))
 
 (:wat::core::define
   (:wat::stream::for-each<T>
     (stream :wat::stream::Stream<T>)
-    (handler :fn(T)->wat::core::unit)
-    -> :wat::core::unit)
+    (handler :fn(T)->wat::core::nil)
+    -> :wat::core::nil)
   (:wat::core::let*
     (((rx :wat::kernel::Receiver<T>) (:wat::core::first stream))
-     ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second stream))
-     ((_ :wat::core::unit) (:wat::stream::for-each-drain rx handler))
-     ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::second stream))
+     ((_ :wat::core::nil) (:wat::stream::for-each-drain rx handler))
+     ((_ :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result handle)))
-    ()))
+    :wat::core::nil))
 
 ;; --- collect ---
 ;;
@@ -220,10 +220,10 @@
     -> :wat::core::Vector<T>)
   (:wat::core::let*
     (((rx :wat::kernel::Receiver<T>) (:wat::core::first stream))
-     ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second stream))
+     ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::second stream))
      ((items :wat::core::Vector<T>)
       (:wat::stream::collect-drain rx (:wat::core::Vector :T)))
-     ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((_ :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result handle)))
     items))
 
@@ -237,16 +237,16 @@
     (in :wat::kernel::Receiver<T>)
     (out :wat::kernel::Sender<T>)
     (pred :fn(T)->wat::core::bool)
-    -> :wat::core::unit)
-  (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
+    -> :wat::core::nil)
+  (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
     ((:wat::core::Ok (:wat::core::Some v))
-      (:wat::core::if (pred v) -> :wat::core::unit
-        (:wat::core::match (:wat::kernel::send out v) -> :wat::core::unit
+      (:wat::core::if (pred v) -> :wat::core::nil
+        (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
           ((:wat::core::Ok _) (:wat::stream::filter-worker in out pred))
-          ((:wat::core::Err _) ()))
+          ((:wat::core::Err _) :wat::core::nil))
         (:wat::stream::filter-worker in out pred)))
-    ((:wat::core::Ok :wat::core::None) ())
-    ((:wat::core::Err _died) ())))
+    ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+    ((:wat::core::Err _died) :wat::core::nil)))
 
 (:wat::core::define
   (:wat::stream::filter<T>
@@ -259,12 +259,12 @@
       (:wat::kernel::make-bounded-channel :T 1))
      ((tx :wat::kernel::Sender<T>) (:wat::core::first pair))
      ((rx :wat::kernel::Receiver<T>) (:wat::core::second pair))
-     ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-           -> :wat::core::unit)
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+           -> :wat::core::nil)
           (:wat::stream::filter-worker up-rx tx pred)))))
     (:wat::core::Tuple rx handle)))
 
@@ -280,22 +280,22 @@
   (:wat::stream::inspect-worker<T>
     (in :wat::kernel::Receiver<T>)
     (out :wat::kernel::Sender<T>)
-    (f :fn(T)->wat::core::unit)
-    -> :wat::core::unit)
-  (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
+    (f :fn(T)->wat::core::nil)
+    -> :wat::core::nil)
+  (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
     ((:wat::core::Ok (:wat::core::Some v))
       (:wat::core::do
         (f v)
-        (:wat::core::match (:wat::kernel::send out v) -> :wat::core::unit
+        (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
           ((:wat::core::Ok _) (:wat::stream::inspect-worker in out f))
-          ((:wat::core::Err _) ()))))
-    ((:wat::core::Ok :wat::core::None) ())
-    ((:wat::core::Err _died) ())))
+          ((:wat::core::Err _) :wat::core::nil))))
+    ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+    ((:wat::core::Err _died) :wat::core::nil)))
 
 (:wat::core::define
   (:wat::stream::inspect<T>
     (upstream :wat::stream::Stream<T>)
-    (f :fn(T)->wat::core::unit)
+    (f :fn(T)->wat::core::nil)
     -> :wat::stream::Stream<T>)
   (:wat::core::let*
     (((up-rx :wat::kernel::Receiver<T>) (:wat::core::first upstream))
@@ -303,12 +303,12 @@
       (:wat::kernel::make-bounded-channel :T 1))
      ((tx :wat::kernel::Sender<T>) (:wat::core::first pair))
      ((rx :wat::kernel::Receiver<T>) (:wat::core::second pair))
-     ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-           -> :wat::core::unit)
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+           -> :wat::core::nil)
           (:wat::stream::inspect-worker up-rx tx f)))))
     (:wat::core::Tuple rx handle)))
 
@@ -338,9 +338,9 @@
     -> :Acc)
   (:wat::core::let*
     (((rx :wat::kernel::Receiver<T>) (:wat::core::first stream))
-     ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second stream))
+     ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::second stream))
      ((result :Acc) (:wat::stream::fold-drain rx init f))
-     ((_ :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((_ :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result handle)))
     result))
 
@@ -377,21 +377,21 @@
   (:wat::stream::drain-items<U>
     (out :wat::kernel::Sender<U>)
     (items :wat::core::Vector<U>)
-    -> :wat::core::Option<wat::core::unit>)
+    -> :wat::core::Option<wat::core::nil>)
   ;; Tail-recursive helper: send every item in `items`, stop early
   ;; (returning :None) if the consumer dropped. Returns (Some ()) on
   ;; full drain; returns :None if any send failed, signaling the
   ;; caller to exit.
-  (:wat::core::if (:wat::core::empty? items) -> :wat::core::Option<wat::core::unit>
-    (:wat::core::Some ())
+  (:wat::core::if (:wat::core::empty? items) -> :wat::core::Option<wat::core::nil>
+    (:wat::core::Some :wat::core::nil)
     ;; Vec is non-empty (just checked); first returns Some<U> via
     ;; arc 047. The :None arm is unreachable but the type checker
     ;; demands totality.
-    (:wat::core::match (:wat::core::first items) -> :wat::core::Option<wat::core::unit>
+    (:wat::core::match (:wat::core::first items) -> :wat::core::Option<wat::core::nil>
       ((:wat::core::Some item)
         (:wat::core::let*
           (((rest-items :wat::core::Vector<U>) (:wat::core::rest items)))
-          (:wat::core::match (:wat::kernel::send out item) -> :wat::core::Option<wat::core::unit>
+          (:wat::core::match (:wat::kernel::send out item) -> :wat::core::Option<wat::core::nil>
             ((:wat::core::Ok _)
               (:wat::stream::drain-items out rest-items))
             ((:wat::core::Err _) :wat::core::None))))
@@ -404,29 +404,29 @@
     (step :fn(Acc,T)->(Acc,wat::core::Vector<U>))
     (flush :fn(Acc)->wat::core::Vector<U>)
     (acc :Acc)
-    -> :wat::core::unit)
-  (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
+    -> :wat::core::nil)
+  (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
     ((:wat::core::Ok (:wat::core::Some item))
       (:wat::core::let*
         (((stepped :(Acc,wat::core::Vector<U>)) (step acc item))
          ((new-acc :Acc) (:wat::core::first stepped))
          ((to-emit :wat::core::Vector<U>) (:wat::core::second stepped))
-         ((drain-result :wat::core::Option<wat::core::unit>)
+         ((drain-result :wat::core::Option<wat::core::nil>)
           (:wat::stream::drain-items out to-emit)))
-        (:wat::core::match drain-result -> :wat::core::unit
+        (:wat::core::match drain-result -> :wat::core::nil
           ((:wat::core::Some _)
             (:wat::stream::with-state-worker in out step flush new-acc))
-          (:wat::core::None ()))))
+          (:wat::core::None :wat::core::nil))))
     ((:wat::core::Ok :wat::core::None)
       ;; Upstream disconnected. Flush final state; drain whatever it
       ;; produced. Consumer-dropped during flush is swallowed silently
       ;; — same behavior chunks had for its final partial buffer.
       (:wat::core::let*
         (((final-emits :wat::core::Vector<U>) (flush acc))
-         ((_ :wat::core::Option<wat::core::unit>)
+         ((_ :wat::core::Option<wat::core::nil>)
           (:wat::stream::drain-items out final-emits)))
-        ()))
-    ((:wat::core::Err _died) ())))
+        :wat::core::nil))
+    ((:wat::core::Err _died) :wat::core::nil)))
 
 (:wat::core::define
   (:wat::stream::with-state<T,U,Acc>
@@ -441,12 +441,12 @@
       (:wat::kernel::make-bounded-channel :U 1))
      ((tx :wat::kernel::Sender<U>) (:wat::core::first pair))
      ((rx :wat::kernel::Receiver<U>) (:wat::core::second pair))
-     ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-           -> :wat::core::unit)
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+           -> :wat::core::nil)
           (:wat::stream::with-state-worker up-rx tx step flush init)))))
     (:wat::core::Tuple rx handle)))
 
@@ -651,18 +651,18 @@
     (in :wat::kernel::Receiver<T>)
     (out :wat::kernel::Sender<T>)
     (remaining :wat::core::i64)
-    -> :wat::core::unit)
-  (:wat::core::if (:wat::core::<= remaining 0) -> :wat::core::unit
-    ()
-    (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
+    -> :wat::core::nil)
+  (:wat::core::if (:wat::core::<= remaining 0) -> :wat::core::nil
+    :wat::core::nil
+    (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
       ((:wat::core::Ok (:wat::core::Some v))
-        (:wat::core::match (:wat::kernel::send out v) -> :wat::core::unit
+        (:wat::core::match (:wat::kernel::send out v) -> :wat::core::nil
           ((:wat::core::Ok _)
             (:wat::stream::take-worker in out
               (:wat::core::i64::-,2 remaining 1)))
-          ((:wat::core::Err _) ())))
-      ((:wat::core::Ok :wat::core::None) ())
-      ((:wat::core::Err _died) ()))))
+          ((:wat::core::Err _) :wat::core::nil)))
+      ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+      ((:wat::core::Err _died) :wat::core::nil))))
 
 (:wat::core::define
   (:wat::stream::take<T>
@@ -675,12 +675,12 @@
       (:wat::kernel::make-bounded-channel :T 1))
      ((tx :wat::kernel::Sender<T>) (:wat::core::first pair))
      ((rx :wat::kernel::Receiver<T>) (:wat::core::second pair))
-     ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-           -> :wat::core::unit)
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+           -> :wat::core::nil)
           (:wat::stream::take-worker up-rx tx n)))))
     (:wat::core::Tuple rx handle)))
 
@@ -702,24 +702,24 @@
     (out :wat::kernel::Sender<U>)
     (f :fn(T)->wat::core::Vector<U>)
     (pending :wat::core::Vector<U>)
-    -> :wat::core::unit)
-  (:wat::core::if (:wat::core::empty? pending) -> :wat::core::unit
-    (:wat::core::match (:wat::kernel::recv in) -> :wat::core::unit
+    -> :wat::core::nil)
+  (:wat::core::if (:wat::core::empty? pending) -> :wat::core::nil
+    (:wat::core::match (:wat::kernel::recv in) -> :wat::core::nil
       ((:wat::core::Ok (:wat::core::Some v))
         (:wat::stream::flat-map-worker in out f (f v)))
-      ((:wat::core::Ok :wat::core::None) ())
-      ((:wat::core::Err _died) ()))
+      ((:wat::core::Ok :wat::core::None) :wat::core::nil)
+      ((:wat::core::Err _died) :wat::core::nil))
     ;; pending is non-empty; first returns Some<U> via arc 047.
     ;; :None arm is unreachable but type-required.
-    (:wat::core::match (:wat::core::first pending) -> :wat::core::unit
+    (:wat::core::match (:wat::core::first pending) -> :wat::core::nil
       ((:wat::core::Some item)
         (:wat::core::let*
           (((rest-items :wat::core::Vector<U>) (:wat::core::rest pending)))
-          (:wat::core::match (:wat::kernel::send out item) -> :wat::core::unit
+          (:wat::core::match (:wat::kernel::send out item) -> :wat::core::nil
             ((:wat::core::Ok _)
               (:wat::stream::flat-map-worker in out f rest-items))
-            ((:wat::core::Err _) ()))))
-      (:wat::core::None ()))))
+            ((:wat::core::Err _) :wat::core::nil))))
+      (:wat::core::None :wat::core::nil))))
 
 (:wat::core::define
   (:wat::stream::flat-map<T,U>
@@ -732,11 +732,11 @@
       (:wat::kernel::make-bounded-channel :U 1))
      ((tx :wat::kernel::Sender<U>) (:wat::core::first pair))
      ((rx :wat::kernel::Receiver<U>) (:wat::core::second pair))
-     ((handle :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((handle :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-           -> :wat::core::unit)
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+           -> :wat::core::nil)
           (:wat::stream::flat-map-worker up-rx tx f (:wat::core::Vector :U))))))
     (:wat::core::Tuple rx handle)))

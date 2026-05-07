@@ -90,10 +90,10 @@
      (:test::assert-stdout-has
        (stdout :wat::core::Vector<wat::core::String>)
        (msg :wat::core::String)
-       -> :wat::core::unit)
+       -> :wat::core::nil)
      (:wat::core::if (:test::stdout-contains-one? stdout msg)
-       -> :wat::core::unit
-       ()
+       -> :wat::core::nil
+       :wat::core::nil
        (:wat::test::assert-eq msg "not found exactly once in stdout")))
 
    ))
@@ -185,29 +185,29 @@
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :wat::core::unit)
+              -> :wat::core::nil)
             (:wat::core::let*
               ;; Outer holds Console driver Thread. Inner owns the
               ;; spawn-tuple, pool, handle, and the out call. Inner
               ;; returns the Thread; pool drops at inner exit; outer
               ;; joins. SERVICE-PROGRAMS.md § "The lockstep" + arc 117
               ;; + arc 131.
-              (((console-driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+              (((console-driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
                 (:wat::core::let*
                   (((spawn :wat::console::Spawn)
                     (:wat::console::spawn stdout stderr 1))
                    ((pool :wat::kernel::HandlePool<wat::console::Handle>)
                     (:wat::core::first spawn))
-                   ((cd :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                   ((cd :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
                     (:wat::core::second spawn))
                    ((handle :wat::console::Handle)
                     (:wat::kernel::HandlePool::pop pool))
-                   ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-                   ((_out :wat::core::unit)
+                   ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
+                   ((_out :wat::core::nil)
                     (:wat::console::out handle "hello via Console")))
                   cd)))
-              (:wat::core::match (:wat::kernel::Thread/join-result console-driver) -> :wat::core::unit
-                ((:wat::core::Ok _) ())
+              (:wat::core::match (:wat::kernel::Thread/join-result console-driver) -> :wat::core::nil
+                ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) (:wat::test::assert-eq "console-driver-died" ""))))))
         (:wat::core::Vector :wat::core::String)))
      ((stdout :wat::core::Vector<wat::core::String>) (:test::stdout-from-result r))
@@ -236,14 +236,14 @@
             (:my::worker
               (handle :wat::console::Handle)
               (msg :wat::core::String)
-              -> :wat::core::unit)
+              -> :wat::core::nil)
             (:wat::console::out handle msg))
           (:wat::core::define
             (:user::main
               (stdin  :wat::io::IOReader)
               (stdout :wat::io::IOWriter)
               (stderr :wat::io::IOWriter)
-              -> :wat::core::unit)
+              -> :wat::core::nil)
             (:wat::core::let*
               ;; Outer holds only the console-driver Thread.
               ;; Middle owns spawn-tuple + pool + cd; the worker
@@ -253,59 +253,59 @@
               ;; join-result is a structural deadlock). Inner-most
               ;; returns unit; middle returns cd; outer joins the
               ;; console driver. SERVICE-PROGRAMS.md § "The lockstep".
-              (((console-driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+              (((console-driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
                 (:wat::core::let*
                   (((spawn :wat::console::Spawn)
                     (:wat::console::spawn stdout stderr 3))
                    ((pool :wat::kernel::HandlePool<wat::console::Handle>)
                     (:wat::core::first spawn))
-                   ((cd :wat::kernel::Thread<wat::core::unit,wat::core::unit>) (:wat::core::second spawn))
-                   ((_workers :wat::core::unit)
+                   ((cd :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::second spawn))
+                   ((_workers :wat::core::nil)
                     (:wat::core::let*
-                      (((w0 :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                      (((w0 :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
                         (:wat::core::let*
                           (((h0 :wat::console::Handle)
                             (:wat::kernel::HandlePool::pop pool)))
                           (:wat::kernel::spawn-thread
                             (:wat::core::lambda
-                              ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-                               (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-                               -> :wat::core::unit)
+                              ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+                               (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+                               -> :wat::core::nil)
                               (:my::worker h0 "alpha\n")))))
-                       ((w1 :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                       ((w1 :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
                         (:wat::core::let*
                           (((h1 :wat::console::Handle)
                             (:wat::kernel::HandlePool::pop pool)))
                           (:wat::kernel::spawn-thread
                             (:wat::core::lambda
-                              ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-                               (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-                               -> :wat::core::unit)
+                              ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+                               (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+                               -> :wat::core::nil)
                               (:my::worker h1 "bravo\n")))))
-                       ((w2 :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+                       ((w2 :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
                         (:wat::core::let*
                           (((h2 :wat::console::Handle)
                             (:wat::kernel::HandlePool::pop pool)))
                           (:wat::kernel::spawn-thread
                             (:wat::core::lambda
-                              ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-                               (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-                               -> :wat::core::unit)
+                              ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+                               (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+                               -> :wat::core::nil)
                               (:my::worker h2 "charlie\n")))))
-                       ((_0 :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
-                       ((_1 :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+                       ((_0 :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
+                       ((_1 :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                         (:wat::kernel::Thread/join-result w0))
-                       ((_2 :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+                       ((_2 :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                         (:wat::kernel::Thread/join-result w1))
-                       ((_3 :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+                       ((_3 :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
                         (:wat::kernel::Thread/join-result w2)))
-                      ())))
+                      :wat::core::nil)))
                   cd)))
-              (:wat::core::match (:wat::kernel::Thread/join-result console-driver) -> :wat::core::unit
-                ((:wat::core::Ok _) ())
+              (:wat::core::match (:wat::kernel::Thread/join-result console-driver) -> :wat::core::nil
+                ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) (:wat::test::assert-eq "console-driver-died" ""))))))
         (:wat::core::Vector :wat::core::String)))
      ((stdout :wat::core::Vector<wat::core::String>) (:test::stdout-from-result r))
-     ((_ :wat::core::unit) (:test::assert-stdout-has stdout "alpha"))
-     ((_ :wat::core::unit) (:test::assert-stdout-has stdout "bravo")))
+     ((_ :wat::core::nil) (:test::assert-stdout-has stdout "alpha"))
+     ((_ :wat::core::nil) (:test::assert-stdout-has stdout "bravo")))
     (:test::assert-stdout-has stdout "charlie")))

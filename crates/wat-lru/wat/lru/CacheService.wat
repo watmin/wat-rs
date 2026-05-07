@@ -105,7 +105,7 @@
 ;; handle (arc 114). Caller pops N handles, finishes the pool,
 ;; scoped-drops at end → driver exits. Mirrors Console::Spawn.
 (:wat::core::typealias :wat::lru::Spawn<K,V>
-  :(wat::kernel::HandlePool<wat::lru::Handle<K,V>>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
+  :(wat::kernel::HandlePool<wat::lru::Handle<K,V>>,wat::kernel::Thread<wat::core::nil,wat::core::nil>))
 
 ;; ─── Reporting contract — non-negotiable ───────────────────────
 ;;
@@ -139,24 +139,24 @@
   (tick :fn(G,wat::lru::Stats)->(G,wat::core::bool)))
 
 (:wat::core::typealias :wat::lru::Reporter
-  :fn(wat::lru::Report)->wat::core::unit)
+  :fn(wat::lru::Report)->wat::core::nil)
 
 ;; null-metrics-cadence — fresh `MetricsCadence<()>` whose tick
 ;; never fires. Use when metrics are a deliberate opt-out.
 (:wat::core::define
   (:wat::lru::null-metrics-cadence
-    -> :wat::lru::MetricsCadence<wat::core::unit>)
+    -> :wat::lru::MetricsCadence<wat::core::nil>)
   (:wat::lru::MetricsCadence/new
-    ()
+    :wat::core::nil
     (:wat::core::lambda
-      ((gate :wat::core::unit) (_stats :wat::lru::Stats) -> :(wat::core::unit,wat::core::bool))
+      ((gate :wat::core::nil) (_stats :wat::lru::Stats) -> :(wat::core::nil,wat::core::bool))
       (:wat::core::Tuple gate false))))
 
 ;; null-reporter — discards every Report variant.
 (:wat::core::define
   (:wat::lru::null-reporter
-    (_report :wat::lru::Report) -> :wat::core::unit)
-  ())
+    (_report :wat::lru::Report) -> :wat::core::nil)
+  :wat::core::nil)
 
 ;; Fresh zero-counters Stats. Used at startup and after each
 ;; gate-fire (window-rolling reset).
@@ -221,8 +221,8 @@
            ;; Arc 110: in-memory peer-death is catastrophic; panic with a
            ;; meaningful message rather than silently dropping the reply.
            ;; Arc 130: send Reply::GetResult variant on the slot's reply-tx.
-           ((_send :wat::core::unit)
-            (:wat::core::Result/expect -> :wat::core::unit
+           ((_send :wat::core::nil)
+            (:wat::core::Result/expect -> :wat::core::nil
               (:wat::kernel::send reply-tx (:wat::lru::Reply::GetResult results))
               "CacheService/handle: reply-tx disconnected — client died mid-request?"))
            ((stats' :wat::lru::Stats)
@@ -247,8 +247,8 @@
            ;; Arc 110: same discipline — driver dying mid-protocol is
            ;; catastrophic; panic with a meaningful message.
            ;; Arc 130: send Reply::PutAck variant on the slot's reply-tx.
-           ((_send :wat::core::unit)
-            (:wat::core::Result/expect -> :wat::core::unit
+           ((_send :wat::core::nil)
+            (:wat::core::Result/expect -> :wat::core::nil
               (:wat::kernel::send reply-tx (:wat::lru::Reply::PutAck))
               "CacheService/handle: reply-tx disconnected — client died mid-request?"))
            ((stats' :wat::lru::Stats)
@@ -292,7 +292,7 @@
             (:wat::lru::Stats/misses stats)
             (:wat::lru::Stats/puts stats)
             (:wat::lru::LocalCache::len cache)))
-         ((_ :wat::core::unit) (reporter (:wat::lru::Report::Metrics final-stats)))
+         ((_ :wat::core::nil) (reporter (:wat::lru::Report::Metrics final-stats)))
          ((state' :wat::lru::State<K,V>)
           (:wat::lru::State/new
             cache (:wat::lru::Stats/zero))))
@@ -314,8 +314,8 @@
     (state :wat::lru::State<K,V>)
     (reporter :wat::lru::Reporter)
     (metrics-cadence :wat::lru::MetricsCadence<G>)
-    -> :wat::core::unit)
-  (:wat::core::match (:wat::core::get driver-pairs idx) -> :wat::core::unit
+    -> :wat::core::nil)
+  (:wat::core::match (:wat::core::get driver-pairs idx) -> :wat::core::nil
     ((:wat::core::Some pair)
       (:wat::core::let*
         (((reply-tx :wat::lru::ReplyTx<V>)
@@ -331,7 +331,7 @@
           (:wat::core::second step)))
         (:wat::lru::loop-step
           next-state driver-pairs reporter cadence')))
-    (:wat::core::None ())))
+    (:wat::core::None :wat::core::nil)))
 
 ;; Driver entry — allocates the LocalCache INSIDE the driver thread
 ;; (LocalCache is thread-owned; creating it in the caller and passing
@@ -347,7 +347,7 @@
     (driver-pairs :wat::core::Vector<wat::lru::DriverPair<K,V>>)
     (reporter :wat::lru::Reporter)
     (metrics-cadence :wat::lru::MetricsCadence<G>)
-    -> :wat::core::unit)
+    -> :wat::core::nil)
   (:wat::core::let*
     (((cache :wat::lru::LocalCache<K,V>)
       (:wat::lru::LocalCache::new capacity))
@@ -367,9 +367,9 @@
     (driver-pairs :wat::core::Vector<wat::lru::DriverPair<K,V>>)
     (reporter :wat::lru::Reporter)
     (metrics-cadence :wat::lru::MetricsCadence<G>)
-    -> :wat::core::unit)
-  (:wat::core::if (:wat::core::empty? driver-pairs) -> :wat::core::unit
-    ()
+    -> :wat::core::nil)
+  (:wat::core::if (:wat::core::empty? driver-pairs) -> :wat::core::nil
+    :wat::core::nil
     (:wat::core::let*
       (((req-rxs :wat::core::Vector<wat::lru::ReqRx<K,V>>)
         (:wat::core::map driver-pairs
@@ -381,7 +381,7 @@
        ((idx :wat::core::i64) (:wat::core::first chosen))
        ((maybe :wat::kernel::CommResult<wat::lru::Request<K,V>>)
         (:wat::core::second chosen)))
-      (:wat::core::match maybe -> :wat::core::unit
+      (:wat::core::match maybe -> :wat::core::nil
         ((:wat::core::Ok (:wat::core::Some req))
           (:wat::lru::reply-at driver-pairs idx req state reporter metrics-cadence))
         ((:wat::core::Ok :wat::core::None)
@@ -389,7 +389,7 @@
             state
             (:wat::std::list::remove-at driver-pairs idx)
             reporter metrics-cadence))
-        ((:wat::core::Err _died) ())))))
+        ((:wat::core::Err _died) :wat::core::nil)))))
 
 ;; --- Client helpers ---
 ;;
@@ -419,8 +419,8 @@
      ;; dying means our state-of-the-world claim is invalid. Panic
      ;; with a meaningful message rather than silently returning
      ;; :None and pretending we got a "miss."
-     ((_send :wat::core::unit)
-      (:wat::core::Result/expect -> :wat::core::unit
+     ((_send :wat::core::nil)
+      (:wat::core::Result/expect -> :wat::core::nil
         (:wat::kernel::send req-tx (:wat::lru::Request::Get probes))
         "lru::get: req-tx disconnected — driver died?"))
      ((reply :wat::lru::Reply<V>)
@@ -438,7 +438,7 @@
   (:wat::lru::put<K,V>
     (handle :wat::lru::Handle<K,V>)
     (entries :wat::core::Vector<wat::lru::Entry<K,V>>)
-    -> :wat::core::unit)
+    -> :wat::core::nil)
   (:wat::core::let*
     (((req-tx :wat::lru::ReqTx<K,V>)
       (:wat::core::first handle))
@@ -447,8 +447,8 @@
      ;; Arc 110: same as lru::get — driver dying mid-protocol
      ;; is catastrophic; panic with a meaningful message rather than
      ;; silently absorbing the disconnect.
-     ((_send :wat::core::unit)
-      (:wat::core::Result/expect -> :wat::core::unit
+     ((_send :wat::core::nil)
+      (:wat::core::Result/expect -> :wat::core::nil
         (:wat::kernel::send req-tx (:wat::lru::Request::Put entries))
         "lru::put: req-tx disconnected — driver died?"))
      ((reply :wat::lru::Reply<V>)
@@ -457,8 +457,8 @@
           (:wat::kernel::recv reply-rx)
           "lru::put: reply-rx disconnected — driver died mid-request?")
         "lru::put: reply channel closed — driver dropped reply-tx?")))
-    (:wat::core::match reply -> :wat::core::unit
-      ((:wat::lru::Reply::PutAck) ())
+    (:wat::core::match reply -> :wat::core::nil
+      ((:wat::lru::Reply::PutAck) :wat::core::nil)
       ((:wat::lru::Reply::GetResult _)
         (:wat::core::panic! "lru::put: driver sent GetResult on Put reply channel")))))
 
@@ -516,12 +516,12 @@
             (:wat::core::first p)))))
      ((pool :wat::kernel::HandlePool<wat::lru::Handle<K,V>>)
       (:wat::kernel::HandlePool::new "CacheService" handles))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-           -> :wat::core::unit)
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+           -> :wat::core::nil)
           (:wat::lru::loop
             capacity driver-pairs reporter metrics-cadence)))))
     (:wat::core::Tuple pool driver)))

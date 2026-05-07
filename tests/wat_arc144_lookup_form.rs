@@ -75,7 +75,7 @@ fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :my::ident))
@@ -108,10 +108,10 @@ fn signature_of_macro_returns_some() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::signature-of :my::ident)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -131,10 +131,10 @@ fn body_of_macro_returns_some_with_template() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::body-of :my::ident)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -159,7 +159,7 @@ fn lookup_define_struct_returns_some_and_emits_struct_head() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :my::Bar))
@@ -194,10 +194,10 @@ fn signature_of_struct_returns_some() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::signature-of :my::Point)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -218,10 +218,10 @@ fn body_of_struct_returns_none() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::body-of :my::Tick)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
     "##;
@@ -245,10 +245,10 @@ fn lookup_define_user_function_still_returns_some_post_refactor() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::lookup-define :user::my-add)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -265,10 +265,10 @@ fn signature_of_substrate_primitive_still_returns_some_post_refactor() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::signature-of :wat::core::foldl)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -289,7 +289,7 @@ fn all_three_primitives_return_none_on_unknown_name() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((d-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :no::such::thing))
@@ -298,15 +298,15 @@ fn all_three_primitives_return_none_on_unknown_name() {
              ((b-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::body-of    :no::such::thing)))
             (:wat::core::match d-opt
-              -> :wat::core::unit
+              -> :wat::core::nil
               ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-d"))
               (:wat::core::None
                 (:wat::core::match s-opt
-                  -> :wat::core::unit
+                  -> :wat::core::nil
                   ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-s"))
                   (:wat::core::None
                     (:wat::core::match b-opt
-                      -> :wat::core::unit
+                      -> :wat::core::nil
                       ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail-b"))
                       (:wat::core::None    (:wat::io::IOWriter/println stdout "pass")))))))))
     "##;

@@ -9,5 +9,5 @@
       (:test::make-pair 42 true))
      ((a :wat::core::i64) (:wat::core::first pair))
      ((b :wat::core::bool) (:wat::core::second pair))
-     ((_ :wat::core::unit) (:wat::test::assert-eq a 42)))
+     ((_ :wat::core::nil) (:wat::test::assert-eq a 42)))
     (:wat::test::assert-eq b true)))

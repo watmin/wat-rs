@@ -316,7 +316,7 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
                    (_out :rust::crossbeam_channel::Sender<()>)
                    -> :())
                   ())))
-             ((result :wat::core::Result<wat::core::unit,Vec<wat::kernel::ThreadDiedError>>)
+             ((result :wat::core::Result<wat::core::nil,Vec<wat::kernel::ThreadDiedError>>)
               (:wat::kernel::Thread/join-result handle))
              ((chain :wat::core::Vector<wat::kernel::ThreadDiedError>)
               (:wat::core::match result -> :wat::core::Vector<wat::kernel::ThreadDiedError>

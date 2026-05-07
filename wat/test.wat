@@ -47,9 +47,9 @@
   (:wat::test::assert-eq<T>
     (actual :T)
     (expected :T)
-    -> :wat::core::unit)
-  (:wat::core::if (:wat::core::= actual expected) -> :wat::core::unit
-    ()
+    -> :wat::core::nil)
+  (:wat::core::if (:wat::core::= actual expected) -> :wat::core::nil
+    :wat::core::nil
     (:wat::kernel::assertion-failed!
       "assert-eq failed"
       (:wat::core::Some (:wat::core::show actual))
@@ -64,9 +64,9 @@
   (:wat::test::assert-contains
     (haystack :wat::core::String)
     (needle :wat::core::String)
-    -> :wat::core::unit)
-  (:wat::core::if (:wat::core::string::contains? haystack needle) -> :wat::core::unit
-    ()
+    -> :wat::core::nil)
+  (:wat::core::if (:wat::core::string::contains? haystack needle) -> :wat::core::nil
+    :wat::core::nil
     (:wat::kernel::assertion-failed!
       "assert-contains failed"
       (:wat::core::Some haystack)
@@ -98,14 +98,14 @@
   (:wat::test::assert-coincident
     (a :wat::holon::HolonAST)
     (b :wat::holon::HolonAST)
-    -> :wat::core::unit)
+    -> :wat::core::nil)
   (:wat::core::let*
     (((expl :wat::holon::CoincidentExplanation)
       (:wat::holon::coincident-explain a b))
      ((ok :wat::core::bool)
       (:wat::holon::CoincidentExplanation/coincident expl)))
-    (:wat::core::if ok -> :wat::core::unit
-      ()
+    (:wat::core::if ok -> :wat::core::nil
+      :wat::core::nil
       (:wat::kernel::assertion-failed!
         "assert-coincident failed — holons not at the same point"
         (:wat::core::Some (:wat::test::render-coincident-explanation expl))
@@ -147,11 +147,11 @@
   (:wat::test::assert-stdout-is
     (result :wat::kernel::RunResult)
     (expected :wat::core::Vector<wat::core::String>)
-    -> :wat::core::unit)
+    -> :wat::core::nil)
   (:wat::core::let*
     (((actual :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout result)))
-    (:wat::core::if (:wat::core::= actual expected) -> :wat::core::unit
-      ()
+    (:wat::core::if (:wat::core::= actual expected) -> :wat::core::nil
+      :wat::core::nil
       (:wat::kernel::assertion-failed!
         "assert-stdout-is failed"
         (:wat::core::Some (:wat::core::string::join "\n" actual))
@@ -175,11 +175,11 @@
   (:wat::test::assert-stderr-matches
     (result :wat::kernel::RunResult)
     (pattern :wat::core::String)
-    -> :wat::core::unit)
+    -> :wat::core::nil)
   (:wat::core::let*
     (((stderr-lines :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stderr result)))
-    (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) -> :wat::core::unit
-      ()
+    (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) -> :wat::core::nil
+      :wat::core::nil
       (:wat::kernel::assertion-failed!
         "assert-stderr-matches failed — no stderr line matched pattern"
         (:wat::core::Some (:wat::core::string::join "\n" stderr-lines))
@@ -303,10 +303,10 @@
 ;;       :None))
 (:wat::core::defmacro
   (:wat::test::deftest
-    (name :AST<wat::core::unit>)
-    (prelude :AST<wat::core::unit>)
-    (body :AST<wat::core::unit>)
-    -> :AST<wat::core::unit>)
+    (name :AST<wat::core::nil>)
+    (prelude :AST<wat::core::nil>)
+    (body :AST<wat::core::nil>)
+    -> :AST<wat::core::nil>)
   `(:wat::core::define (,name -> :wat::test::TestResult)
      (:wat::kernel::run-sandboxed-ast
        (:wat::core::forms
@@ -316,7 +316,7 @@
              (stdin  :wat::io::IOReader)
              (stdout :wat::io::IOWriter)
              (stderr :wat::io::IOWriter)
-             -> :wat::core::unit)
+             -> :wat::core::nil)
            ,body))
        (:wat::core::Vector :wat::core::String)
        :wat::core::None)))
@@ -334,10 +334,10 @@
 ;; (including loaded deps) + committed Config (arc 031) via COW.
 (:wat::core::defmacro
   (:wat::test::deftest-hermetic
-    (name :AST<wat::core::unit>)
-    (prelude :AST<wat::core::unit>)
-    (body :AST<wat::core::unit>)
-    -> :AST<wat::core::unit>)
+    (name :AST<wat::core::nil>)
+    (prelude :AST<wat::core::nil>)
+    (body :AST<wat::core::nil>)
+    -> :AST<wat::core::nil>)
   `(:wat::core::define (,name -> :wat::test::TestResult)
      (:wat::kernel::run-sandboxed-hermetic-ast
        (:wat::core::forms
@@ -347,7 +347,7 @@
              (stdin  :wat::io::IOReader)
              (stdout :wat::io::IOWriter)
              (stderr :wat::io::IOWriter)
-             -> :wat::core::unit)
+             -> :wat::core::nil)
            ,body))
        (:wat::core::Vector :wat::core::String)
        :wat::core::None)))
@@ -386,14 +386,14 @@
 ;; parameters and fire when the user calls the configured variant.
 (:wat::core::defmacro
   (:wat::test::make-deftest
-    (name :AST<wat::core::unit>)
-    (default-prelude :AST<wat::core::unit>)
-    -> :AST<wat::core::unit>)
+    (name :AST<wat::core::nil>)
+    (default-prelude :AST<wat::core::nil>)
+    -> :AST<wat::core::nil>)
   `(:wat::core::defmacro
      (,name
-       (test-name :AST<wat::core::unit>)
-       (body :AST<wat::core::unit>)
-       -> :AST<wat::core::unit>)
+       (test-name :AST<wat::core::nil>)
+       (body :AST<wat::core::nil>)
+       -> :AST<wat::core::nil>)
      `(:wat::test::deftest ,test-name ,,default-prelude ,body)))
 
 ;; ─── make-deftest-hermetic — fork-isolated configured variant ─────────
@@ -403,14 +403,14 @@
 ;; spawn driver threads and need subprocess isolation.
 (:wat::core::defmacro
   (:wat::test::make-deftest-hermetic
-    (name :AST<wat::core::unit>)
-    (default-prelude :AST<wat::core::unit>)
-    -> :AST<wat::core::unit>)
+    (name :AST<wat::core::nil>)
+    (default-prelude :AST<wat::core::nil>)
+    -> :AST<wat::core::nil>)
   `(:wat::core::defmacro
      (,name
-       (test-name :AST<wat::core::unit>)
-       (body :AST<wat::core::unit>)
-       -> :AST<wat::core::unit>)
+       (test-name :AST<wat::core::nil>)
+       (body :AST<wat::core::nil>)
+       -> :AST<wat::core::nil>)
      `(:wat::test::deftest-hermetic ,test-name ,,default-prelude ,body)))
 
 ;; ─── Per-test attributes (arc 122) — :ignore + :should-panic ──────────
@@ -434,12 +434,12 @@
 ;; An annotation attaches to the IMMEDIATELY NEXT deftest; intervening
 ;; non-annotation forms clear the pending annotation.
 (:wat::core::define
-  (:wat::test::ignore (_reason :wat::core::String) -> :wat::core::unit)
-  ())
+  (:wat::test::ignore (_reason :wat::core::String) -> :wat::core::nil)
+  :wat::core::nil)
 
 (:wat::core::define
-  (:wat::test::should-panic (_expected :wat::core::String) -> :wat::core::unit)
-  ())
+  (:wat::test::should-panic (_expected :wat::core::String) -> :wat::core::nil)
+  :wat::core::nil)
 
 ;; Arc 123 — :time-limit annotation. Sibling-form preceding a
 ;; deftest: when present, the proc macro wraps the generated
@@ -459,5 +459,5 @@
 ;;   (:wat::test::time-limit "5m")         ;; supported
 ;;   (:wat::test::deftest :my::test () body)
 (:wat::core::define
-  (:wat::test::time-limit (_dur :wat::core::String) -> :wat::core::unit)
-  ())
+  (:wat::test::time-limit (_dur :wat::core::String) -> :wat::core::nil)
+  :wat::core::nil)

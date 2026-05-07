@@ -45,11 +45,11 @@
    (:wat::core::define
      (:test::reader::write-three
        (pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
-       -> :wat::core::unit)
+       -> :wat::core::nil)
      (:wat::core::let*
        (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
          (:wat::kernel::HandlePool::pop pool))
-        ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
+        ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
         ((req-tx :wat::telemetry::ReqTx<wat::telemetry::Event>)
          (:wat::core::first handle))
         ((ack-rx :wat::telemetry::AckRx)
@@ -59,7 +59,7 @@
            (:test::reader::make-log 1000 "first")
            (:test::reader::make-log 2000 "second")
            (:test::reader::make-log 3000 "third")))
-        ((_log :wat::core::unit)
+        ((_log :wat::core::nil)
          (:wat::telemetry::batch-log
            req-tx ack-rx entries)))
        ()))
@@ -68,7 +68,7 @@
    (:wat::core::define
      (:test::reader::write-fixture
        (path :wat::core::String)
-       -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+       -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
@@ -78,9 +78,9 @@
            :wat::telemetry::Sqlite/null-pre-install))
         ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
          (:wat::core::first spawn))
-        ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+        ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
          (:wat::core::second spawn))
-        ((_inner :wat::core::unit)
+        ((_inner :wat::core::nil)
          (:test::reader::write-three pool)))
        driver))))
 
@@ -104,9 +104,9 @@
      ;; test runs.
      ((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:test::reader::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
 
      ;; Phase 2 — open as ReadHandle and stream the rows back.
@@ -131,9 +131,9 @@
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:test::reader::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
 
      ((handle :wat::sqlite::ReadHandle)
@@ -159,9 +159,9 @@
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:test::reader::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
 
      ((handle :wat::sqlite::ReadHandle)
@@ -185,9 +185,9 @@
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:test::reader::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
 
      ((handle :wat::sqlite::ReadHandle)
@@ -216,9 +216,9 @@
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:test::reader::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))
@@ -252,9 +252,9 @@
   (:wat::core::let*
     (((tf :wat::io::TempFile) (:wat::io::TempFile/new))
      ((path :wat::core::String) (:wat::io::TempFile/path tf))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:test::reader::write-fixture path))
-     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver))
      ((handle :wat::sqlite::ReadHandle)
       (:wat::sqlite::open-readonly path))

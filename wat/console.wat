@@ -63,9 +63,9 @@
 ;; internal pairs hold the matching (ReqRx, AckTx) — paired by
 ;; index inside spawn.
 (:wat::core::typealias :wat::console::AckTx
-  :wat::kernel::Sender<wat::core::unit>)
+  :wat::kernel::Sender<wat::core::nil>)
 (:wat::core::typealias :wat::console::AckRx
-  :wat::kernel::Receiver<wat::core::unit>)
+  :wat::kernel::Receiver<wat::core::nil>)
 (:wat::core::typealias :wat::console::AckChannel
   :(wat::console::AckTx,wat::console::AckRx))
 (:wat::core::typealias :wat::console::Handle
@@ -80,7 +80,7 @@
 ;; handle (arc 114). Caller pops N Handles, finishes the pool,
 ;; scoped-drops at end → driver exits.
 (:wat::core::typealias :wat::console::Spawn
-  :(wat::kernel::HandlePool<wat::console::Handle>,wat::kernel::Thread<wat::core::unit,wat::core::unit>))
+  :(wat::kernel::HandlePool<wat::console::Handle>,wat::kernel::Thread<wat::core::nil,wat::core::nil>))
 
 ;; --- Driver loop ---
 ;;
@@ -108,9 +108,9 @@
     (pairs :wat::core::Vector<wat::console::DriverPair>)
     (stdout :wat::io::IOWriter)
     (stderr :wat::io::IOWriter)
-    -> :wat::core::unit)
-  (:wat::core::if (:wat::core::empty? pairs) -> :wat::core::unit
-    ()
+    -> :wat::core::nil)
+  (:wat::core::if (:wat::core::empty? pairs) -> :wat::core::nil
+    :wat::core::nil
     (:wat::core::let*
       (((rxs :wat::core::Vector<wat::console::ReqRx>)
         (:wat::core::map pairs
@@ -123,7 +123,7 @@
        ((idx :wat::core::i64) (:wat::core::first chosen))
        ((maybe :wat::kernel::CommResult<wat::console::Message>)
         (:wat::core::second chosen)))
-      (:wat::core::match maybe -> :wat::core::unit
+      (:wat::core::match maybe -> :wat::core::nil
         ((:wat::core::Ok (:wat::core::Some tagged))
           (:wat::core::let*
             (((tag :wat::core::i64) (:wat::core::first tagged))
@@ -131,7 +131,7 @@
              ((_ :wat::core::i64) (:wat::core::if (:wat::core::= tag 0) -> :wat::core::i64
                         (:wat::io::IOWriter/write-string stdout msg)
                         (:wat::io::IOWriter/write-string stderr msg)))
-             ((_ack :wat::core::unit)
+             ((_ack :wat::core::nil)
               (:wat::console::ack-at pairs idx)))
             (:wat::console::loop pairs stdout stderr)))
         ((:wat::core::Ok :wat::core::None)
@@ -157,16 +157,16 @@
   (:wat::console::ack-at
     (pairs :wat::core::Vector<wat::console::DriverPair>)
     (idx :wat::core::i64)
-    -> :wat::core::unit)
-  (:wat::core::match (:wat::core::get pairs idx) -> :wat::core::unit
+    -> :wat::core::nil)
+  (:wat::core::match (:wat::core::get pairs idx) -> :wat::core::nil
     ((:wat::core::Some pair)
       (:wat::core::let*
         (((ack-tx :wat::console::AckTx)
           (:wat::core::second pair)))
-        (:wat::core::Result/expect -> :wat::core::unit
-          (:wat::kernel::send ack-tx ())
+        (:wat::core::Result/expect -> :wat::core::nil
+          (:wat::kernel::send ack-tx :wat::core::nil)
           "Console/ack-at: ack-tx disconnected — producer scope died mid-write?")))
-    (:wat::core::None ())))
+    (:wat::core::None :wat::core::nil)))
 
 ;; --- Client helpers ---
 ;;
@@ -189,37 +189,37 @@
   (:wat::console::out
     (handle :wat::console::Handle)
     (msg :wat::core::String)
-    -> :wat::core::unit)
+    -> :wat::core::nil)
   (:wat::core::let*
     (((tx :wat::console::ReqTx) (:wat::core::first handle))
      ((ack-rx :wat::console::AckRx) (:wat::core::second handle))
-     ((_send :wat::core::unit)
-      (:wat::core::Result/expect -> :wat::core::unit
+     ((_send :wat::core::nil)
+      (:wat::core::Result/expect -> :wat::core::nil
         (:wat::kernel::send tx (:wat::core::Tuple 0 msg))
         "Console/out: tx disconnected — Console driver died?"))
-     ((_ack :wat::core::Option<wat::core::unit>)
-      (:wat::core::Result/expect -> :wat::core::Option<wat::core::unit>
+     ((_ack :wat::core::Option<wat::core::nil>)
+      (:wat::core::Result/expect -> :wat::core::Option<wat::core::nil>
         (:wat::kernel::recv ack-rx)
         "Console/out: ack-rx disconnected — Console driver died mid-write?")))
-    ()))
+    :wat::core::nil))
 
 (:wat::core::define
   (:wat::console::err
     (handle :wat::console::Handle)
     (msg :wat::core::String)
-    -> :wat::core::unit)
+    -> :wat::core::nil)
   (:wat::core::let*
     (((tx :wat::console::ReqTx) (:wat::core::first handle))
      ((ack-rx :wat::console::AckRx) (:wat::core::second handle))
-     ((_send :wat::core::unit)
-      (:wat::core::Result/expect -> :wat::core::unit
+     ((_send :wat::core::nil)
+      (:wat::core::Result/expect -> :wat::core::nil
         (:wat::kernel::send tx (:wat::core::Tuple 1 msg))
         "Console/err: tx disconnected — Console driver died?"))
-     ((_ack :wat::core::Option<wat::core::unit>)
-      (:wat::core::Result/expect -> :wat::core::Option<wat::core::unit>
+     ((_ack :wat::core::Option<wat::core::nil>)
+      (:wat::core::Result/expect -> :wat::core::Option<wat::core::nil>
         (:wat::kernel::recv ack-rx)
         "Console/err: ack-rx disconnected — Console driver died mid-write?")))
-    ()))
+    :wat::core::nil))
 
 ;; --- Console setup ---
 ;;
@@ -257,7 +257,7 @@
         (:wat::core::lambda
           ((_i :wat::core::i64)
            -> :(wat::console::AckTx,wat::console::AckRx))
-          (:wat::kernel::make-bounded-channel :wat::core::unit 1))))
+          (:wat::kernel::make-bounded-channel :wat::core::nil 1))))
      ;; Producer-side: pop a Handle = (req-Tx, ack-Rx).
      ((handles :wat::core::Vector<wat::console::Handle>)
       (:wat::std::list::zip
@@ -288,11 +288,11 @@
             (:wat::core::first p)))))
      ((pool :wat::kernel::HandlePool<wat::console::Handle>)
       (:wat::kernel::HandlePool::new "Console" handles))
-     ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
         (:wat::core::lambda
-          ((_in :rust::crossbeam_channel::Receiver<wat::core::unit>)
-           (_out :rust::crossbeam_channel::Sender<wat::core::unit>)
-           -> :wat::core::unit)
+          ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
+           (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
+           -> :wat::core::nil)
           (:wat::console::loop driver-pairs stdout stderr)))))
     (:wat::core::Tuple pool driver)))

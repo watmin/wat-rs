@@ -18,7 +18,7 @@ fn main_body(body: &str) -> String {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           {})
         "##,
         DIMS_AND_MODE, body
@@ -45,8 +45,8 @@ fn harness_injects_stdin_lines() {
     // top-level form, not an expression.
     let src = format!(
         r##"{}
-        (:wat::core::define (:echo-loop (r :wat::io::IOReader) (w :wat::io::IOWriter) -> :wat::core::unit)
-          (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::unit
+        (:wat::core::define (:echo-loop (r :wat::io::IOReader) (w :wat::io::IOWriter) -> :wat::core::nil)
+          (:wat::core::match (:wat::io::IOReader/read-line r) -> :wat::core::nil
             ((:wat::core::Some line)
               (:wat::core::do
                 (:wat::io::IOWriter/println w line)
@@ -57,7 +57,7 @@ fn harness_injects_stdin_lines() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:echo-loop stdin stdout))
         "##,
         DIMS_AND_MODE

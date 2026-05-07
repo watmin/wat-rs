@@ -30,11 +30,11 @@
    (:wat::core::define
      (:test::send-events
        (pool :wat::telemetry::HandlePool<test::Event>)
-       -> :wat::core::unit)
+       -> :wat::core::nil)
      (:wat::core::let*
        (((handle :wat::telemetry::Handle<test::Event>)
          (:wat::kernel::HandlePool::pop pool))
-        ((_finish :wat::core::unit) (:wat::kernel::HandlePool::finish pool))
+        ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
         ((req-tx :wat::telemetry::ReqTx<test::Event>)
          (:wat::core::first handle))
         ((ack-rx :wat::telemetry::AckRx)
@@ -43,7 +43,7 @@
          (:wat::core::Vector :test::Event
            (:test::Event::Buy 100.5 7)
            (:test::Event::Sell 102.25 3 "stop-loss" true)))
-        ((_log :wat::core::unit)
+        ((_log :wat::core::nil)
          (:wat::telemetry::batch-log
            req-tx ack-rx entries)))
        ()))
@@ -52,7 +52,7 @@
    (:wat::core::define
      (:test::auto-spawn-events
        (path :wat::core::String)
-       -> :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+       -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
      (:wat::core::let*
        (((spawn :wat::telemetry::Spawn<test::Event>)
          (:wat::telemetry::Sqlite/auto-spawn
@@ -62,18 +62,18 @@
            :wat::telemetry::Sqlite/null-pre-install))
         ((pool :wat::telemetry::HandlePool<test::Event>)
          (:wat::core::first spawn))
-        ((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+        ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
          (:wat::core::second spawn))
-        ((_inner :wat::core::unit)
+        ((_inner :wat::core::nil)
          (:test::send-events pool)))
        driver))))
 
 
 (:deftest :wat-telemetry-sqlite::auto-spawn::test-event-roundtrip
   (:wat::core::let*
-    (((driver :wat::kernel::Thread<wat::core::unit,wat::core::unit>)
+    (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:test::auto-spawn-events
         "/tmp/wat-sqlite-test-auto-001.db"))
-     ((_join :wat::core::Result<wat::core::unit,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

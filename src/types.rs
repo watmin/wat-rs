@@ -400,20 +400,48 @@ fn register_builtin_types(env: &mut TypeEnv) {
         },
     }));
 
-    // :wat::core::unit — arc 109 slice 1d. The unit type is the
-    // type with one inhabitant (the empty-tuple value `()`). Arc
-    // 109 § A: unit gets an honest name under :wat::core::*, the
-    // same home as the other named primitives (:wat::core::i64,
-    // :wat::core::f64, ...).
+    // :wat::core::nil — arc 153. Renamed from `:wat::core::unit`
+    // (which arc 109 slice 1d minted). Same type-theoretic role as
+    // Rust's `()`: singleton type, one inhabitant, "no meaningful
+    // return value." The name `nil` ships the marker effect the
+    // user wants without collapsing wat's existing
+    // `Option<T>::None` / `Some(t)` discipline (per arc 153
+    // DESIGN — `nil` ≠ `None` ≠ `false` ≠ empty-list).
     //
-    //   typealias :wat::core::unit = :()
+    //   typealias :wat::core::nil = :()
     //
-    // Both spellings type-check during the deprecation window;
-    // unify resolves them via the alias. The walker
-    // `validate_bare_legacy_primitives` flags `TypeExpr::Tuple(vec![])`
-    // (the bare-source spelling `:()`) and steers consumers toward
-    // the FQDN form. The empty-tuple LITERAL VALUE `()` is a list
-    // literal, not a type expression, and stays untouched.
+    // The bare empty-tuple type spelling `:()` continues to fire
+    // `BareLegacyUnitType` per arc 109 slice 1d; the FQDN spelling
+    // `:wat::core::unit` fires the new `BareLegacyUnitName` per
+    // arc 153 slice 1a. Both walkers steer consumers toward
+    // `:wat::core::nil`. The empty-tuple LITERAL VALUE `()` at
+    // value position is a list literal and stays untouched; sweep
+    // 1b transforms `()` value-position to the `:wat::core::nil`
+    // keyword (additive recognition; both continue to evaluate to
+    // the nil singleton).
+    env.register_builtin(TypeDef::Alias(AliasDef {
+        name: ":wat::core::nil".into(),
+        type_params: vec![],
+        expr: TypeExpr::Tuple(vec![]),
+    }));
+
+    // :wat::core::unit — RETIRED (arc 153) but the typealias stays
+    // registered during the deprecation window so unification still
+    // resolves the legacy spelling to the empty-tuple singleton.
+    // Without this alias, every stdlib + consumer site that names
+    // `:wat::core::unit` parses to `Path(":wat::core::unit")`,
+    // expand_alias returns it unchanged, and unification against
+    // `:()` (Tuple(vec![])) fails with cascading TypeMismatch noise.
+    //
+    // The walker `walk_type_for_bare` (check.rs) detects the
+    // retired Path spelling and fires `BareLegacyUnitName` per
+    // offending site — that's the migration channel. The typealias
+    // resolves quietly underneath so the migration error is the
+    // ONLY signal the consumer sees (no spurious TypeMismatch
+    // noise from the rename).
+    //
+    // Sweep 1b will rewrite every consumer site to
+    // `:wat::core::nil`; once that lands, this typealias retires.
     env.register_builtin(TypeDef::Alias(AliasDef {
         name: ":wat::core::unit".into(),
         type_params: vec![],
@@ -1751,13 +1779,17 @@ fn parse_type_inner(
     // resulting Path. Slice 1c retires bare at the parser level
     // once the user-code sweep is complete.
     //
-    // Arc 109 slice 1d: `:wat::core::unit` is the FQDN spelling of
-    // the unit type. When canonicalizing, reduce to the internal
-    // empty-tuple form so unify sees it as identical to the legacy
-    // `:()` spelling and to validators (e.g. user::main return-type
-    // check) that compare against `TypeExpr::Tuple(vec![])`.
+    // Arc 153 (was arc 109 slice 1d): `:wat::core::nil` is the
+    // FQDN spelling of the unit/nil type. When canonicalizing,
+    // reduce to the internal empty-tuple form so unify sees it as
+    // identical to the legacy `:()` spelling and to validators
+    // (e.g. user::main return-type check) that compare against
+    // `TypeExpr::Tuple(vec![])`. The retired `:wat::core::unit`
+    // spelling is NOT canonicalized here — it stays as `Path(":wat::core::unit")`
+    // so the `walk_type_for_bare` walker (check.rs) can detect it
+    // and fire `BareLegacyUnitName`.
     let raw_path = format!(":{}", s);
-    if canonicalize && raw_path == ":wat::core::unit" {
+    if canonicalize && raw_path == ":wat::core::nil" {
         return Ok(TypeExpr::Tuple(vec![]));
     }
     let path = if canonicalize {

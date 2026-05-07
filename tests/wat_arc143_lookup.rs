@@ -69,10 +69,10 @@ fn lookup_define_user_define_returns_some() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::lookup-define :user::my-add)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -90,10 +90,10 @@ fn lookup_define_substrate_primitive_returns_some() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::lookup-define :wat::core::foldl)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -110,10 +110,10 @@ fn lookup_define_unknown_name_returns_none() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::lookup-define :user::this-does-not-exist)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
     "##;
@@ -136,10 +136,10 @@ fn signature_of_user_define_returns_some() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::signature-of :user::my-mul)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -156,10 +156,10 @@ fn signature_of_substrate_primitive_returns_some() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::signature-of :wat::core::foldl)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -175,10 +175,10 @@ fn signature_of_unknown_name_returns_none() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::signature-of :no::such::function)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
     "##;
@@ -201,10 +201,10 @@ fn body_of_user_define_returns_some() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::body-of :user::my-neg)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "pass"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "fail"))))
     "##;
@@ -222,10 +222,10 @@ fn body_of_substrate_primitive_returns_none() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::body-of :wat::core::foldl)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
     "##;
@@ -241,10 +241,10 @@ fn body_of_unknown_name_returns_none() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::match
             (:wat::runtime::body-of :totally::unknown)
-            -> :wat::core::unit
+            -> :wat::core::nil
             ((:wat::core::Some _) (:wat::io::IOWriter/println stdout "fail"))
             (:wat::core::None    (:wat::io::IOWriter/println stdout "pass"))))
     "##;
@@ -266,7 +266,7 @@ fn signature_of_foldl_renders_synthesised_shape() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((sig-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::signature-of :wat::core::foldl))
@@ -324,7 +324,7 @@ fn lookup_define_user_function_contains_define_keyword() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((def-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::lookup-define :user::my-square))

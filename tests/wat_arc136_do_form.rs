@@ -112,7 +112,7 @@ fn do_multi_form_evaluates_left_to_right_returns_final() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::do
             (:wat::io::IOWriter/println stdout "log-1")
             (:wat::io::IOWriter/println stdout "log-2")
@@ -199,7 +199,7 @@ fn do_reflection_round_trip_emits_variadic_sketch() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::let*
             (((sig-opt :wat::core::Option<wat::holon::HolonAST>)
               (:wat::runtime::signature-of :wat::core::do))
@@ -257,7 +257,7 @@ fn do_nested_compose_cleanly() {
             (stdin  :wat::io::IOReader)
             (stdout :wat::io::IOWriter)
             (stderr :wat::io::IOWriter)
-            -> :wat::core::unit)
+            -> :wat::core::nil)
           (:wat::core::do
             (:wat::core::do
               (:wat::io::IOWriter/println stdout "inner")
