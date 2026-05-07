@@ -2,6 +2,44 @@
 
 **Status:** opened 2026-05-03. Arc 135 closed (unblocked).
 
+**Revised 2026-05-06 (FOURTH amendment — drop `-> :T`):** after arc
+145's back-out (closed as foundation-correction-non-shipping), the
+substrate's existing inference + recipient unification provides
+the static check arc 145 was attempting to add via REQUIRED
+`-> :T`. Per the user direction:
+
+> *"right now... let and a supposed do form is already implicitly
+> typed so the type declaration is just unnecessary noise"*
+
+> *"if we look at the clojure example.. wrap a ret val in a print
+> via do would make an annoying as shit ux"*
+
+`(:wat::core::do f1 f2 ... fN)` — no `-> :T` slot. Substrate
+infers the do's type from the final form; recipient unification
+verifies against whatever consumes the do. Pure Clojure-faithful
+shape with the substrate's existing static-check machinery.
+
+The four questions ran on the no-`-> :T` shape (2026-05-06):
+1. Obvious? YES — three forms, no declaration tax
+2. Simple? YES — substrate special form mirrors infer/eval pattern of `if`/`let*`/`try` minus the `-> :T` slot
+3. Honest? YES — substrate infers from final form; recipient slot is the contract
+4. Good UX? YES — `(do (println "LOG") (+ 1 1))` reads cleanly; debug breadcrumbs free
+
+REQUIRED `-> :T` failed Good UX (the print-then-return idiom example);
+the no-`-> :T` shape passes all four.
+
+**Cross-arc:** arc 145 closed as a non-shipping foundation-correction
+(see arc 145 DESIGN); arc 136 inherits the realization.
+
+Per `feedback_inscription_immutable.md` the prior amendments
+(below) stay as historical record — the lock on Option B
+(substrate special form) STILL HOLDS; only the typed-form
+discipline is dropped.
+
+---
+
+# Earlier amendments (historical record)
+
 **Revised 2026-05-06** through three user clarifications:
 
 1. *"do is value bearing, so it should be typed"* — REQUIRES `-> :T`

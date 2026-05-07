@@ -1,5 +1,90 @@
 # Arc 145 — Typed `let` + `let*` (`-> :T` declaration on both)
 
+**Status:** **CLOSED 2026-05-06 as foundation-correction-non-shipping.**
+
+This arc explored REQUIRED `-> :T` declarations on `let`/`let*`.
+Sweep 1a substrate edits + sweep 1b consumer migration brief were
+drafted, sonnet 1a shipped substrate (5/10 tests passing in
+isolation, MalformedForm migration-hint pattern verified), sweep
+1b sonnet ran ~30 min before being killed.
+
+**The realization that closed the arc** (user direction 2026-05-06):
+
+> *"right now... let and a supposed do form is already implicitly
+> typed so the type declaration is just unnecessary noise"*
+
+> *"if we look at the clojure example.. wrap a ret val in a print
+> via do would make an annoying as shit ux"*
+
+The substrate ALREADY type-checks `let`/`let*` end-to-end via
+inference + recipient unification:
+- Each binding's slot (`(name :Type)`) is the local contract; RHS unifies against it
+- The let's overall inferred type IS the body's inferred type
+- Whatever consumes the let (binding slot, function declared return,
+  argument position) is the form's recipient; recipient unifies
+  against the let's inferred type
+- Body drift → TypeMismatch fires at recipient
+
+Adding REQUIRED `-> :T` would have provided ONE thing — error
+locality (mismatch fires at the form site, not at recipient). It
+would NOT have added any new static safety. The static check was
+already complete via the recipient slot.
+
+**The four questions on REQUIRED `-> :T`** (run 2026-05-06):
+1. Obvious? YES
+2. Simple? YES
+3. Honest? YES (declared contract; both ends verify)
+4. **Good UX? NO.** The casual "wrap a return in a print" idiom
+   `(do (println "LOG") value)` would have required a type
+   declaration: `(do -> :T (println "LOG") value)` — verbose for
+   a debug breadcrumb that adds zero static safety.
+
+UX failed where the alternative (substrate inference + recipient
+verification — what's already in place) passes all four. Pick
+the alternative.
+
+**Back-out actions (executed 2026-05-06):**
+- Sonnet 1b killed by user
+- Sweep 1a substrate edits reverted (`git checkout -- src/`)
+- New test file `tests/wat_arc145_typed_let.rs` removed
+- 8 wat files sweep 1b had begun migrating reverted
+- Migration helper script removed
+- Workspace returned to pre-arc-145 baseline (0 failed)
+- This DESIGN amended forward with the realization
+- Arc 136 DESIGN amended forward (do form no longer needs `-> :T`)
+
+**What stays as historical record (per `feedback_inscription_immutable.md`):**
+- Commit `e173bd5` (BRIEF + EXPECTATIONS for sweep 1a)
+- Commit `0f0f011` (BRIEF + EXPECTATIONS for sweep 1b)
+- Commit `b3ea8c0` (arc 136 DESIGN locked Option B + REQUIRED `-> :T` —
+  itself amended forward by a later commit)
+- The original DESIGN content (REQUIRED `-> :T` framing) preserved
+  below the line as historical record.
+
+**The deliverable arc 145 actually shipped:** the realization that
+the substrate's existing inference + recipient unification IS the
+typed-let discipline. No code change needed. The arc's value was
+the foundation-correction insight.
+
+**Why this isn't an INSCRIPTION:** INSCRIPTION = DONE = shipped
+artifact. Arc 145 didn't ship code. The closure is this DESIGN
+amendment + the historical-record commits naming the path
+explored. Per FM 11 + recovery doc § 11 pre-INSCRIPTION grep: the
+language "deferred"/"future arc"/"TODO" does not apply here
+because there's nothing to defer — the work doesn't need to
+happen. The realization replaces the work.
+
+**Cross-arc impact:**
+- Arc 109 v1 closure: arc 145 was a blocker; closure now satisfied
+- Arc 136 (do form): no longer needs `-> :T`; minimal Clojure-faithful
+  substrate special form
+- Task #236 (arc 145 slice 1): closed (foundation-correction)
+- Task #239 (arc 145 slice 2 closure): closed (this DESIGN is the closure)
+
+---
+
+# Historical record (original DESIGN, pre-back-out)
+
 **Status:** drafted 2026-05-03 (mid-arc-144-slice-2-closure).
 **Revised** 2026-05-03 after user clarified the scope.
 
