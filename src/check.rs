@@ -234,12 +234,15 @@ pub enum CheckError {
     /// `Option<T>::None` / `Some(t)` discipline (per arc 153
     /// DESIGN — `nil` ≠ `None` ≠ `false` ≠ empty-list).
     ///
-    /// Detected via TypeExpr walker (Pattern 3 per arc 109 slice
-    /// 1d's `BareLegacyUnitType` precedent). Fires on every
-    /// `TypeExpr::Path(":wat::core::unit")` site post-parse;
-    /// canonicalize=true does NOT rewrite `:wat::core::unit` (only
-    /// `:wat::core::nil`), so the retired spelling reaches the
-    /// walker as a Path.
+    /// **Slice 2 retirement.** The walker bodies that emitted
+    /// this variant (`walk_type_for_legacy_unit_name` plus the
+    /// Path-arm in `walk_type_for_bare`) retired in arc 153 slice
+    /// 2 closure per substrate-as-teacher § "Retire the hint when
+    /// its window closes." The variant + Display remain as
+    /// orphaned scaffolding (arc 113 precedent — variant
+    /// preserved for testing/teaching; only the firing body
+    /// retires). Future symbol-migration arcs reintroduce the
+    /// firing path with new variants per Pattern 3.
     BareLegacyUnitName {
         /// Source location of the keyword carrying the retired
         /// `:wat::core::unit` token.
@@ -1322,36 +1325,11 @@ pub fn check_program(
         validate_bare_legacy_primitives(form, &mut errors);
     }
 
-    // Arc 153 — signature-position pass for `:wat::core::unit`.
-    // `parse_define_form` extracts param + return types from the
-    // signature into `func.param_types` / `func.ret_type` BEFORE
-    // the body walker runs; without this signature-direct pass,
-    // walker-detected forms wouldn't fire on signature-position
-    // annotations because the keyword token is already consumed.
-    //
-    // Narrow on purpose: only fires `BareLegacyUnitName`. Other
-    // walker errors (BareLegacyPrimitive, etc.) target keyword
-    // SOURCE-spellings preserved by `parse_type_expr_audit`
-    // (canonicalize=false); the stored TypeExpr in `func.ret_type`
-    // is already canonicalized (`:wat::core::i64` -> `:i64`,
-    // `:wat::core::nil` -> `Tuple(vec![])`), which would
-    // false-positive on every stdlib + user function. The
-    // `:wat::core::unit` retired spelling is unique because we
-    // deliberately did NOT canonicalize it (so the walker can
-    // detect the migration); it survives intact in the stored
-    // TypeExpr as `Path(":wat::core::unit")` and fires here.
-    //
-    // The function-decl span isn't preserved on the parsed
-    // TypeExpr; we use `func.body.span()` as a best-effort
-    // pointer back to the user-source site (the body is the
-    // user-source AST so its span carries the correct file).
-    for func in sym.functions.values() {
-        let sig_span = func.body.span();
-        walk_type_for_legacy_unit_name(&func.ret_type, sig_span, &mut errors);
-        for ty in &func.param_types {
-            walk_type_for_legacy_unit_name(ty, sig_span, &mut errors);
-        }
-    }
+    // Arc 153 slice 2 — signature-position walker call retired
+    // (paired with `walk_type_for_legacy_unit_name` body
+    // retirement). Migration window for `:wat::core::unit` ->
+    // `:wat::core::nil` closed; in-tree consumers swept; the
+    // walker pass would no longer fire.
 
     // Arc 109 slice 9d — refuse the legacy `:wat::std::stream::*`
     // namespace prefix anywhere in the program. The stream stdlib
@@ -1838,67 +1816,26 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
     ("Vec", "wat::core::Vector"),       // slice 1f — rename + move
 ];
 
-/// Recursively walk a parsed [`TypeExpr`], emitting
-/// [`CheckError::BareLegacyPrimitive`] for every `Path` node whose
-/// path matches one of the retired bare primitive names. FQDN
-/// forms (`:wat::core::i64`) are distinct `Path` strings and pass
-/// through silently.
-/// Arc 153 — narrow signature-position walker. Recursively scans a
-/// stored `TypeExpr` (param-type / return-type from
-/// `parse_define_form`) for `Path(":wat::core::unit")` occurrences
-/// and emits `BareLegacyUnitName` per offending site. Unlike
-/// `walk_type_for_bare` (which fires multiple variants over
-/// source-spelled TypeExprs), this walker fires ONLY
-/// `BareLegacyUnitName` because the stored TypeExpr is already
-/// canonicalized — bare primitives have been rewritten to their
-/// internal forms (`:wat::core::i64` -> `:i64`) and would
-/// false-positive on every function. `:wat::core::unit` is unique:
-/// canonicalize=true preserves it (deliberately, for migration
-/// detection), so it survives intact and fires here.
-fn walk_type_for_legacy_unit_name(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) {
-    match ty {
-        TypeExpr::Path(p) => {
-            if p == ":wat::core::unit" {
-                errors.push(CheckError::BareLegacyUnitName {
-                    span: span.clone(),
-                });
-            }
-        }
-        TypeExpr::Parametric { args, .. } => {
-            for a in args {
-                walk_type_for_legacy_unit_name(a, span, errors);
-            }
-        }
-        TypeExpr::Fn { args, ret } => {
-            for a in args {
-                walk_type_for_legacy_unit_name(a, span, errors);
-            }
-            walk_type_for_legacy_unit_name(ret, span, errors);
-        }
-        TypeExpr::Tuple(elements) => {
-            for e in elements {
-                walk_type_for_legacy_unit_name(e, span, errors);
-            }
-        }
-        TypeExpr::Var(_) => {}
-    }
-}
+// Arc 153 slice 2 — `walk_type_for_legacy_unit_name` retired
+// per substrate-as-teacher § "Retire the hint when its window
+// closes." The walker shipped in slice 1a as the
+// signature-position migration channel for `:wat::core::unit`
+// → `:wat::core::nil`; sweep 1b migrated every in-tree consumer;
+// closure retires the body. The `BareLegacyUnitName` variant +
+// Display stay as orphaned scaffolding (per arc 113 precedent —
+// variant preserved for testing/teaching; only the firing body
+// retires). Future symbol-migration arcs reintroduce the pattern
+// with new variants per Pattern 3.
 
 fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) {
     match ty {
         TypeExpr::Path(p) => {
-            // Arc 153 — `:wat::core::unit` retired in favor of
-            // `:wat::core::nil`. Path-arm detection (mirrors the
-            // primitive loop directly below); canonicalize=true in
-            // parse_type_inner does NOT rewrite `:wat::core::unit`,
-            // so the retired spelling reaches the walker as a Path
-            // and we surface the migration error here.
-            if p == ":wat::core::unit" {
-                errors.push(CheckError::BareLegacyUnitName {
-                    span: span.clone(),
-                });
-                return;
-            }
+            // Arc 153 slice 2 — `:wat::core::unit` Path-arm
+            // detection retired per substrate-as-teacher §
+            // "Retire the hint when its window closes." Migration
+            // window closed; in-tree consumers swept. The
+            // `BareLegacyUnitName` variant remains as orphaned
+            // scaffolding (arc 113 precedent).
             for (bare, fqdn) in BARE_PRIMITIVES {
                 if p == bare {
                     errors.push(CheckError::BareLegacyPrimitive {
@@ -2564,7 +2501,7 @@ fn contains_join_on_thread(node: &WatAST, thread_binding: &str) -> bool {
 /// deadlock shape. Called from `check_program` adjacent to
 /// `validate_scope_deadlock`. Uses the TypeEnv to resolve aliases —
 /// arguments typed `:PutAckTx` (an alias for
-/// `:wat::kernel::Sender<wat::core::unit>`) are detected structurally,
+/// `:wat::kernel::Sender<wat::core::nil>`) are detected structurally,
 /// not by surface-name matching.
 fn validate_channel_pair_deadlock(
     node: &WatAST,
@@ -2823,10 +2760,10 @@ fn trace_to_pair_anchor(
 /// Shape: `((name1 name2 ...) (:wat::kernel::make-bounded-channel ...))`.
 ///
 /// Creates:
-///   - A synthetic anchor entry `("__arc133_pair_N", ":wat::kernel::Channel<wat::core::unit>", rhs)`
+///   - A synthetic anchor entry `("__arc133_pair_N", ":wat::kernel::Channel<wat::core::nil>", rhs)`
 ///     so `trace_to_pair_anchor` finds the allocation at the anchor name.
 ///   - One entry per name pointing to `(first anchor)` or `(second anchor)`
-///     projection ASTs, with fabricated `Sender<unit>` / `Receiver<unit>`
+///     projection ASTs, with fabricated `Sender<nil>` / `Receiver<nil>`
 ///     type annotations (index 0 → Sender, index 1 → Receiver, beyond → no entry).
 ///     The type-annotation head is all that matters for classification;
 ///     the `<unit>` element type is a safe placeholder (the classifier
@@ -2883,7 +2820,7 @@ fn extend_pair_scope_with_tuple_destructure(
     *synthetic_counter += 1;
     scope.push((
         anchor_name.clone(),
-        ":wat::kernel::Channel<wat::core::unit>".into(),
+        ":wat::kernel::Channel<wat::core::nil>".into(),
         rhs.clone(),
     ));
 
@@ -2892,8 +2829,8 @@ fn extend_pair_scope_with_tuple_destructure(
     // classification; further names in wider tuples don't represent
     // channel halves and are ignored.
     let projections = [
-        (":wat::core::first", ":wat::kernel::Sender<wat::core::unit>"),
-        (":wat::core::second", ":wat::kernel::Receiver<wat::core::unit>"),
+        (":wat::core::first", ":wat::kernel::Sender<wat::core::nil>"),
+        (":wat::core::second", ":wat::kernel::Receiver<wat::core::nil>"),
     ];
     for (idx, name) in names.into_iter().enumerate() {
         if idx >= projections.len() {
@@ -10262,7 +10199,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // satisfying the same Program contract — input channel, output
     // channel, error mechanism via join. Body is a function whose
     // signature MUST be
-    //   :Fn(:Receiver<I>, :Sender<O>) -> :wat::core::unit
+    //   :Fn(:Receiver<I>, :Sender<O>) -> :wat::core::nil
     // (the body reads from the input half, writes to the output half;
     // values flow only through channels — never via a return).
     //

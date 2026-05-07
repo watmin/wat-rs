@@ -3389,6 +3389,13 @@ fn value_matches_type_pattern(v: &Value, pattern: &crate::types::TypeExpr) -> bo
             // bare form (`:i64`) — both are legal user spellings; the
             // type system treats them as the same type via parse-time
             // canonicalization.
+            // Arc 153 slice 2 — `("wat::core::unit", "()")` arm
+            // retired alongside the typealias + walker (per
+            // substrate-as-teacher § "Retire the hint when its
+            // window closes"). All in-tree consumers spell the
+            // canonical `:wat::core::nil`; the parsed Path
+            // canonicalizes to `Tuple(vec![])` and uses the
+            // existing `()` tag match below.
             stripped == value_tag
                 || matches!(
                     (stripped, value_tag),
@@ -3398,7 +3405,6 @@ fn value_matches_type_pattern(v: &Value, pattern: &crate::types::TypeExpr) -> bo
                         | ("wat::core::u8", "u8")
                         | ("wat::core::String", "String")
                         | ("wat::core::keyword", "wat::core::keyword")
-                        | ("wat::core::unit", "()")
                 )
         }
         TypeExpr::Parametric { head, .. } => {
@@ -14689,8 +14695,8 @@ fn eval_kernel_process_join_result(
 
 /// `(:wat::kernel::spawn-thread body) -> :wat::kernel::Thread<I,O>` —
 /// arc 114 slice 1. Body is a function whose signature is
-///   `:Fn(:Receiver<I>, :Sender<O>) -> :wat::core::unit`
-/// (read input, write output, return unit). The body's "return value"
+///   `:Fn(:Receiver<I>, :Sender<O>) -> :wat::core::nil`
+/// (read input, write output, return nil). The body's "return value"
 /// is a marker for "completed without panic," not a value carrier.
 /// Values flow only through channels — this is the Program contract.
 ///

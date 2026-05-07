@@ -624,6 +624,49 @@ Keyword-path names supported: `(:my::app::deeply::nested::fn ...)`.
 User code lives under its own prefix (`:my::`, `:project::`, `:alice::`);
 `:wat::*` / `:rust::*` are reserved.
 
+### `:wat::core::nil` — the singleton type and value (arc 153)
+
+`:wat::core::nil` is wat's name for the unit type — the type
+with one inhabitant; the role Rust spells `()`. Same name in
+both positions:
+
+```scheme
+;; Type position — "this function returns nothing meaningful":
+(:wat::core::define (:my::app::log-and-continue (msg :wat::core::String)
+                                                 -> :wat::core::nil)
+  (:wat::console::log msg))
+
+;; Value position — explicit nil literal:
+(:wat::core::define (:my::app::nothing -> :wat::core::nil)
+  :wat::core::nil)
+
+;; Side-effect chain terminating in nil:
+(:wat::core::define (:my::app::side-effect -> :wat::core::nil)
+  (:wat::core::do
+    (:my::app::log-and-continue "ok")
+    :wat::core::nil))
+```
+
+The empty-list literal `()` continues to evaluate to the same
+singleton (transitional spelling kept for cross-form ergonomics).
+
+The triplet `nil` / `Some(t)` / `None` reads cleanly across
+substrate and user code — orthogonal roles, type system enforces:
+
+| Form | Role |
+|---|---|
+| `:wat::core::nil` | Unit type / singleton: "no meaningful return value." |
+| `:wat::core::None` | `Option<T>`'s absence variant. |
+| `:wat::core::Some(t)` | `Option<T>`'s presence variant. |
+
+No "null pointer exception" semantics; no sentinel-value lies.
+Wat's `nil` is honest: a singleton-valued type, not a pointer.
+
+History: arc 109 slice 1d minted `:wat::core::unit` (retiring
+the bare `:()` type-position spelling); arc 153 renamed to
+`:wat::core::nil` for the marker effect; the legacy FQDN +
+migration scaffolding retired in arc 153 slice 2.
+
 ### `lambda` — anonymous function
 
 ```scheme

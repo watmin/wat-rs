@@ -1,18 +1,13 @@
-//! Integration tests for arc 153 slice 1a — rename
-//! `:wat::core::unit` -> `:wat::core::nil` (canonical FQDN for the
-//! singleton type) plus value-position recognition.
+//! Integration tests for arc 153 — rename `:wat::core::unit` ->
+//! `:wat::core::nil` (canonical FQDN for the singleton type)
+//! plus value-position recognition.
 //!
-//! Two coordinated substrate changes ship together:
+//! Two coordinated substrate changes shipped in slice 1a:
 //!
-//!   1. **Type-position rename.** `:wat::core::unit` is RETIRED;
-//!      `:wat::core::nil` is the canonical FQDN. The walker
-//!      (`walk_type_for_bare`) emits `BareLegacyUnitName` per
-//!      offending site (substrate-as-teacher Pattern 3, mirroring
-//!      arc 109 slice 1d's `BareLegacyUnitType`). The
-//!      `:wat::core::unit` typealias stays registered through the
-//!      deprecation window so unification keeps resolving the
-//!      legacy spelling to the empty-tuple singleton; the walker
-//!      is the only signal consumers see.
+//!   1. **Type-position rename.** `:wat::core::nil` is the
+//!      canonical FQDN; the legacy `:wat::core::unit` spelling
+//!      retired across slices 1a (mint nil) -> 1b (consumer
+//!      sweep) -> slice 2 (retire migration scaffold).
 //!
 //!   2. **Value-position recognition.** `:wat::core::nil` at
 //!      value position parses as a Keyword; the substrate's
@@ -20,25 +15,31 @@
 //!      `TypeExpr::Tuple(vec![])`); the runtime's `eval` arm
 //!      returns `Value::Unit`. The empty-list literal `()` at
 //!      value position continues to evaluate to `Value::Unit`
-//!      too -- both spellings produce the same singleton
-//!      (transitional; sweep 1b transforms `()` -> `:wat::core::nil`).
+//!      too -- both spellings produce the same singleton.
 //!
-//! ## Test design across slice 1a + 1b
+//! ## Slice 2 closure — substrate retirement
 //!
-//! Slice 1a substrate shipped BEFORE sweep 1b touched stdlib +
-//! consumer wat. During the slice-1a-only window, every
-//! `:wat::core::unit` site in stdlib fired `BareLegacyUnitName` at
-//! startup, so `startup_from_source` could not succeed even if the
-//! user-source code was canonical. After sweep 1b scrubbed stdlib +
-//! consumer wat, the noise disappeared; positive-shape tests now
-//! assert full startup success.
+//! Per substrate-as-teacher § "Retire the hint when its window
+//! closes": the `walk_type_for_legacy_unit_name` body, the
+//! `walk_type_for_bare` Path-arm `:wat::core::unit` detection,
+//! and the `:wat::core::unit` typealias all retired in slice 2.
+//! `BareLegacyUnitName`'s variant + Display remain as orphaned
+//! scaffolding (arc 113 precedent — variant preserved for
+//! testing/teaching; only the firing body retires).
+//!
+//! Tests #1 + #6 + #10 originally verified that the walker fired
+//! on user-source `:wat::core::unit` sites. Post-retirement they
+//! assert the new shape: `:wat::core::unit` parses to
+//! `Path(":wat::core::unit")`, `expand_alias` returns it
+//! unchanged (no longer registered), unification surfaces
+//! `ReturnTypeMismatch` with `expected: ":wat::core::unit"` and
+//! `got: ":()"`. Test #10 additionally asserts the variant no
+//! longer fires anywhere.
 //!
 //! Tests come in two shapes:
 //!
-//!   - **Negative-case tests** (verify migration error fires on
-//!     user-source `:wat::core::unit`): assert the error stream
-//!     contains a `<entry>`-spanned `BareLegacyUnitName`. Use
-//!     `startup_err`.
+//!   - **Negative-case tests**: assert specific error variants
+//!     surface from `startup_err`.
 //!
 //!   - **Positive-case tests** (verify the canonical
 //!     `:wat::core::nil` flow works): assert that
@@ -67,15 +68,23 @@ fn startup_ok(src: &str) {
     }
 }
 
-// --- 1. Type-position retired: :wat::core::unit fires migration --------
+// --- 1. Type-position retired: :wat::core::unit now unknown FQDN -------
 
 #[test]
-fn type_position_unit_fires_bare_legacy_unit_name() {
-    // `:wat::core::unit` at type position (function return) is
-    // retired. The substrate walker emits `BareLegacyUnitName`
-    // pointing the consumer at the canonical `:wat::core::nil`
-    // form. Per arc 153 slice 1a, this is Pattern 3
-    // substrate-as-teacher.
+fn type_position_unit_post_retirement_is_unknown_fqdn() {
+    // Arc 153 slice 2 — substrate retirement closed the
+    // `BareLegacyUnitName` migration window. The walker body
+    // retired (substrate-as-teacher § "Retire the hint when its
+    // window closes"); the typealias `:wat::core::unit -> :()`
+    // also retired. Post-retirement behavior: `:wat::core::unit`
+    // parses as `Path(":wat::core::unit")`, expand_alias returns
+    // it unchanged (no longer registered), and unification
+    // against the body's inferred `:()` (Tuple(vec![])) fails
+    // with `ReturnTypeMismatch` carrying `expected:
+    // ":wat::core::unit"` and `got: ":()"`. The variant +
+    // Display for `BareLegacyUnitName` are retained as orphaned
+    // scaffolding (arc 113 precedent — variant stays for
+    // testing/teaching; only the firing body retires).
     let src = r#"
         (:wat::core::define (:my::probe -> :wat::core::unit)
           ())
@@ -85,17 +94,10 @@ fn type_position_unit_fires_bare_legacy_unit_name() {
     "#;
     let err = startup_err(src);
     assert!(
-        err.contains("BareLegacyUnitName"),
-        "expected BareLegacyUnitName naming the retired token; got: {}",
-        err
-    );
-    // The error stream MUST include a `<entry>`-spanned
-    // `BareLegacyUnitName` -- proves the walker fires on the
-    // user-source `:wat::core::unit` (not just on unswept stdlib
-    // usages bleeding through).
-    assert!(
-        err.contains(r#"BareLegacyUnitName { span: Span { file: "<entry>""#),
-        "expected user-source-spanned BareLegacyUnitName; got: {}",
+        err.contains("ReturnTypeMismatch")
+            && err.contains(r#"expected: ":wat::core::unit""#)
+            && err.contains(r#"got: ":()""#),
+        "expected ReturnTypeMismatch surfacing :wat::core::unit as unknown FQDN; got: {}",
         err
     );
 }
@@ -193,15 +195,18 @@ fn mixed_empty_list_body_with_nil_sig_unifies() {
     startup_ok(src);
 }
 
-// --- 6. Reverse mixed: :wat::core::nil body, retired :unit sig fires ---
+// --- 6. Reverse mixed: :wat::core::nil body, retired :unit sig --------
 
 #[test]
-fn reverse_mixed_nil_body_with_retired_unit_sig_fires_migration() {
-    // The body is `:wat::core::nil` (canonical, types as nil).
-    // The signature is `-> :wat::core::unit` (RETIRED). The
-    // walker fires `BareLegacyUnitName` against the SIG; the body
-    // itself is fine. Verifies that the migration error attaches
-    // to the type-position site, not the value-position site.
+fn reverse_mixed_nil_body_with_retired_unit_sig_post_retirement() {
+    // Arc 153 slice 2 — post-retirement shape (paired with test 1).
+    // The body is `:wat::core::nil` (canonical, types as the nil
+    // singleton). The signature is `-> :wat::core::unit` (retired
+    // FQDN, no longer registered). The walker hint is gone;
+    // unification surfaces `ReturnTypeMismatch` with
+    // `expected: ":wat::core::unit"` against `got: ":()"`. The
+    // body-side spelling is fine; the error attaches to the
+    // signature mismatch as expected.
     let src = r#"
         (:wat::core::define (:my::probe -> :wat::core::unit)
           :wat::core::nil)
@@ -211,8 +216,10 @@ fn reverse_mixed_nil_body_with_retired_unit_sig_fires_migration() {
     "#;
     let err = startup_err(src);
     assert!(
-        err.contains(r#"BareLegacyUnitName { span: Span { file: "<entry>""#),
-        "expected user-source-spanned BareLegacyUnitName against the retired sig; got: {}",
+        err.contains("ReturnTypeMismatch")
+            && err.contains(r#"expected: ":wat::core::unit""#)
+            && err.contains(r#"got: ":()""#),
+        "expected ReturnTypeMismatch against retired sig; got: {}",
         err
     );
 }
@@ -285,29 +292,31 @@ fn other_keywords_still_type_as_keyword() {
     startup_ok(src);
 }
 
-// --- 10. Walker hits inside parametric: Option<wat::core::unit> -------
+// --- 10. Walker scaffold retired: BareLegacyUnitName no longer fires --
 
 #[test]
-fn walker_fires_inside_parametric_arg() {
-    // The retired `:wat::core::unit` token nested inside a
-    // parametric (here a `:wat::core::Option<wat::core::unit>`
-    // annotation) still reaches the walker recursion through the
-    // Parametric arm and fires `BareLegacyUnitName`. Validates
-    // walker recursion mirrors arc 109 slice 1d's
-    // `BareLegacyUnitType` recursion through Parametric/Fn/Tuple
-    // arms.
+fn bare_legacy_unit_name_walker_retired() {
+    // Arc 153 slice 2 — substrate-as-teacher § "Retire the hint
+    // when its window closes." The walker body retired; Path-arm
+    // detection in `walk_type_for_bare` retired; signature-pass
+    // call site retired. Sanity: even a top-level
+    // `:wat::core::unit` annotation no longer produces
+    // `BareLegacyUnitName` anywhere in the error stream. The
+    // variant + Display remain as orphaned scaffolding for
+    // testing/teaching (arc 113 precedent); future
+    // symbol-migration arcs reintroduce the firing path with new
+    // variants.
     let src = r#"
-        (:wat::core::define
-          (:my::probe -> :wat::core::Option<wat::core::unit>)
-          :wat::core::None)
+        (:wat::core::define (:my::probe -> :wat::core::unit)
+          ())
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           42)
     "#;
     let err = startup_err(src);
     assert!(
-        err.contains(r#"BareLegacyUnitName { span: Span { file: "<entry>""#),
-        "expected user-source-spanned BareLegacyUnitName against the nested retired token; got: {}",
+        !err.contains("BareLegacyUnitName"),
+        "BareLegacyUnitName walker retired in arc 153 slice 2; should not fire; got: {}",
         err
     );
 }

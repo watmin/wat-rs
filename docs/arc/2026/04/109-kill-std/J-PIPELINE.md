@@ -217,18 +217,15 @@ surfaced during slice work, are real, but rank below the planned
 slices.
 
 - **1d post-rename: `:wat::core::unit` → `:wat::core::Unit`.**
-  Surfaced during slice 1d via /gaze. Lowercase `unit` mumbles in
-  the company of `Vec`/`Option`/`Result`/`HashMap`/`HashSet`
-  (substrate-named PascalCase types) and borderline-lies by
-  pattern-matching to the lowercase verb-path family
-  (`:wat::core::map`, `:wat::core::filter`, etc.). The Rust-
-  primitive-lowercase argument doesn't apply: Rust has no `unit`
-  keyword, so the wat name is invented and falls under wat's
-  nominal-type taxonomy, where typed-things are PascalCase. Cheap
-  to flip post-1d-sweep: `s/::unit/::Unit/g` plus walker emit
-  string + alias name; substrate-as-teacher mechanism re-runs to
-  verify. Do AFTER slice 1d's sweep finishes — small judgment
-  call, big-blast-radius rename, but the mechanism is rehearsed.
+  ~~Surfaced during slice 1d via /gaze.~~ **SUPERSEDED by arc
+  153 (rename `:wat::core::unit` → `:wat::core::nil`).** User
+  direction 2026-05-06 chose `nil` over `Unit`: the marker
+  effect of a Lisp's `nil` is what the user wants the singleton
+  to read as, not the type-theoretic "Unit." The triplet `nil` /
+  `Some(t)` / `None` reads cleanly across the codebase and
+  preserves wat's existing Option discipline. Closed by arc 153
+  slice 2 retirement; see
+  `docs/arc/2026/05/153-rename-unit-to-nil/INSCRIPTION.md`.
 
 - **`Queue*` → `Channel` rename across the kernel-channel
   family.** Surfaced during slice 1d via /gaze. The current

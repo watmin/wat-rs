@@ -52,10 +52,33 @@ like `:Sender<T>` or `:Receiver<T>` — those are not registered.
 | `:Receiver<T>` | `:rust::crossbeam_channel::Receiver<T>` |
 | `:i64` | `:wat::core::i64` (in user code post-arc-109/1c) |
 | `:String` | `:wat::core::String` (same) |
+| `:wat::core::unit` | `:wat::core::nil` (arc 153 — same type, new name) |
 
 Type aliases CAN be defined in user code (`:wat::core::typealias`)
 but are not auto-registered for substrate types. See arc 109's
 J-PIPELINE.md for the FQDN sweep.
+
+### `:wat::core::nil` — the singleton (arc 153)
+
+`:wat::core::nil` is wat's name for the unit type — the type
+with one inhabitant, the role Rust spells `()`. Same name in
+both positions:
+
+- **Type position.** `(:my::probe -> :wat::core::nil)` declares
+  "this function returns nothing meaningful." The empty-tuple
+  spelling `:()` is bare and retires per arc 109 slice 1d; the
+  legacy FQDN `:wat::core::unit` retired arc 153.
+- **Value position.** `:wat::core::nil` evaluates to the nil
+  singleton. The empty-list literal `()` continues to evaluate
+  to the same singleton (transitional spelling kept for
+  cross-form ergonomics).
+
+The triplet `nil` / `Some(t)` / `None` reads cleanly and stays
+orthogonal — `:wat::core::nil` is the unit type (singleton),
+`:wat::core::None` is `Option<T>`'s absence variant,
+`:wat::core::Some(t)` is the presence variant. The type system
+enforces the split. No "null pointer exception" semantics; no
+sentinel-value lies.
 
 ## 4. Comm-call position rule
 
@@ -132,9 +155,9 @@ wat types.
 | `:wat::kernel::try-recv receiver` | `:Result<Option<T>,:Vec<wat::kernel::ThreadDiedError>>` |
 | `:wat::kernel::select [(rx-1 ...) (rx-2 ...)]` | `:Result<Chosen<T>,:Vec<wat::kernel::ThreadDiedError>>` |
 | `:wat::kernel::spawn-thread body` | `:wat::kernel::Thread<I,O>` (arc 114) |
-| `:wat::kernel::Thread/join-result thr` | `:Result<:(),:Vec<wat::kernel::ThreadDiedError>>` |
+| `:wat::kernel::Thread/join-result thr` | `:Result<wat::core::nil,:Vec<wat::kernel::ThreadDiedError>>` |
 | `:wat::kernel::spawn-program src scope` | `:Result<wat::kernel::Process<I,O>,wat::kernel::StartupError>` |
-| `:wat::kernel::Process/join-result proc` | `:Result<:(),:Vec<wat::kernel::ProcessDiedError>>` |
+| `:wat::kernel::Process/join-result proc` | `:Result<wat::core::nil,:Vec<wat::kernel::ProcessDiedError>>` |
 
 Arc 113 widened every Err arm to `:Vec<*DiedError>` (chain).
 Arc 114 retired `:wat::kernel::spawn` / `join` / `join-result`
@@ -228,12 +251,12 @@ the channel alive even when the receiving thread dies.
 ;; never sees EOF if the worker dies; caller's tx clone
 ;; keeps the channel open.
 (:wat::core::let*
-  (((pair :wat::kernel::Channel<wat::core::unit>)
-    (:wat::kernel::make-bounded-channel :wat::core::unit 1))
-   ((tx :wat::kernel::Sender<wat::core::unit>)   (:wat::core::first  pair))
-   ((rx :wat::kernel::Receiver<wat::core::unit>) (:wat::core::second pair))
+  (((pair :wat::kernel::Channel<wat::core::nil>)
+    (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+   ((tx :wat::kernel::Sender<wat::core::nil>)   (:wat::core::first  pair))
+   ((rx :wat::kernel::Receiver<wat::core::nil>) (:wat::core::second pair))
    ...
-   ((_ :wat::core::unit) (:my::helper-verb tx rx ...)))
+   ((_ :wat::core::nil) (:my::helper-verb tx rx ...)))
   ...)
 
 ;; Canonical — pair-by-index via HandlePool. Each producer
@@ -243,9 +266,9 @@ the channel alive even when the receiving thread dies.
 (:wat::core::let*
   (((handle :svc::Handle)                (:wat::kernel::HandlePool::pop pool))
    ((req-tx :svc::ReqTx<...>)            (:wat::core::first  handle))
-   ((ack-rx :svc::AckRx<wat::core::unit>) (:wat::core::second handle))
+   ((ack-rx :svc::AckRx<wat::core::nil>) (:wat::core::second handle))
    ...
-   ((_ :wat::core::unit) (:my::helper-verb req-tx ack-rx ...)))
+   ((_ :wat::core::nil) (:my::helper-verb req-tx ack-rx ...)))
   ...)
 ```
 

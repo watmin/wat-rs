@@ -550,9 +550,10 @@ Shape:
 - **Get** — `(get probes :Vec<K>) -> Vec<Option<V>>`. Data-bearing
   reply (Pattern B back-edge). Each probe maps to its slot in
   the result vec; missing keys come back as `:None`.
-- **Put** — `(put entries :Vec<Entry<K,V>>) -> unit`. Unit-ack
-  release (Pattern A back-edge). Caller blocks until the batch
-  is durable in the service's state.
+- **Put** — `(put entries :Vec<Entry<K,V>>) -> :wat::core::nil`.
+  Nil-ack release (Pattern A back-edge; arc 153 renamed
+  `:wat::core::unit` → `:wat::core::nil`). Caller blocks until
+  the batch is durable in the service's state.
 
 Both verbs are lock-step. Caller cannot continue until the
 service confirms (Mini-TCP discipline per `ZERO-MUTEX.md`).

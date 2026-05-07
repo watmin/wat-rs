@@ -411,39 +411,21 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //   typealias :wat::core::nil = :()
     //
     // The bare empty-tuple type spelling `:()` continues to fire
-    // `BareLegacyUnitType` per arc 109 slice 1d; the FQDN spelling
-    // `:wat::core::unit` fires the new `BareLegacyUnitName` per
-    // arc 153 slice 1a. Both walkers steer consumers toward
-    // `:wat::core::nil`. The empty-tuple LITERAL VALUE `()` at
-    // value position is a list literal and stays untouched; sweep
-    // 1b transforms `()` value-position to the `:wat::core::nil`
-    // keyword (additive recognition; both continue to evaluate to
-    // the nil singleton).
+    // `BareLegacyUnitType` per arc 109 slice 1d (steering toward
+    // `:wat::core::nil`). The empty-tuple LITERAL VALUE `()` at
+    // value position is a list literal and stays untouched; the
+    // `:wat::core::nil` keyword is also accepted at value position
+    // (additive recognition; both spellings evaluate to the nil
+    // singleton).
+    //
+    // Note: the retired `:wat::core::unit` typealias was removed in
+    // arc 153 slice 2 closure per substrate-as-teacher § "Retire
+    // the hint when its window closes." All in-tree consumers
+    // migrated during sweep 1b; out-of-tree callers spelling
+    // `:wat::core::unit` now produce a TypeMismatch resolving the
+    // unknown FQDN against `:()`.
     env.register_builtin(TypeDef::Alias(AliasDef {
         name: ":wat::core::nil".into(),
-        type_params: vec![],
-        expr: TypeExpr::Tuple(vec![]),
-    }));
-
-    // :wat::core::unit — RETIRED (arc 153) but the typealias stays
-    // registered during the deprecation window so unification still
-    // resolves the legacy spelling to the empty-tuple singleton.
-    // Without this alias, every stdlib + consumer site that names
-    // `:wat::core::unit` parses to `Path(":wat::core::unit")`,
-    // expand_alias returns it unchanged, and unification against
-    // `:()` (Tuple(vec![])) fails with cascading TypeMismatch noise.
-    //
-    // The walker `walk_type_for_bare` (check.rs) detects the
-    // retired Path spelling and fires `BareLegacyUnitName` per
-    // offending site — that's the migration channel. The typealias
-    // resolves quietly underneath so the migration error is the
-    // ONLY signal the consumer sees (no spurious TypeMismatch
-    // noise from the rename).
-    //
-    // Sweep 1b will rewrite every consumer site to
-    // `:wat::core::nil`; once that lands, this typealias retires.
-    env.register_builtin(TypeDef::Alias(AliasDef {
-        name: ":wat::core::unit".into(),
         type_params: vec![],
         expr: TypeExpr::Tuple(vec![]),
     }));
@@ -1785,9 +1767,11 @@ fn parse_type_inner(
     // identical to the legacy `:()` spelling and to validators
     // (e.g. user::main return-type check) that compare against
     // `TypeExpr::Tuple(vec![])`. The retired `:wat::core::unit`
-    // spelling is NOT canonicalized here — it stays as `Path(":wat::core::unit")`
-    // so the `walk_type_for_bare` walker (check.rs) can detect it
-    // and fire `BareLegacyUnitName`.
+    // FQDN spelling was supported during the migration window via
+    // `BareLegacyUnitName` walker scaffolding; both the typealias
+    // and the walker firing path retired at arc 153 slice 2 per
+    // substrate-as-teacher § "Retire the hint when its window
+    // closes."
     let raw_path = format!(":{}", s);
     if canonicalize && raw_path == ":wat::core::nil" {
         return Ok(TypeExpr::Tuple(vec![]));
