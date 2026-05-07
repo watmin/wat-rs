@@ -678,10 +678,10 @@ Same signature shape as `define`. Produces a `:fn(i64,i64)->i64`
 value — a first-class function you can pass around, store in a Vec,
 put in a struct.
 
-### `let*` — sequential binding
+### `let` — sequential binding (arc 154)
 
 ```scheme
-(:wat::core::let*
+(:wat::core::let
   (((a :i64) 10)
    ((b :i64) 20)
    ((sum :i64) (:wat::core::i64::+ a b)))
@@ -690,6 +690,14 @@ put in a struct.
 
 Every binding is typed. Sequential — later bindings can reference
 earlier ones. Body after the bindings is the result.
+
+Single-letform vocabulary (Clojure-faithful). Pre-arc-154 wat had
+both `:wat::core::let` (parallel) and `:wat::core::let*` (sequential);
+arc 154 collapsed them: `:wat::core::let` is sequential; the `let*`
+spelling retired (silently aliases to `let` via runtime scaffolding;
+documentation discouraged; the walker that flagged `let*` shipped in
+slice 1a then retired in slice 2 per substrate-as-teacher § "Retire
+the hint when its window closes").
 
 ### `do` — sequential evaluation (arc 136)
 

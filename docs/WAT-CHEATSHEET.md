@@ -135,7 +135,7 @@ handled at every comm site.
 |---|---|
 | `:wat::core::if` | `(if cond -> :T then else)` — arc 108 made `-> :T` mandatory |
 | `:wat::core::cond` | `(cond -> :T (test-1 result-1) (test-2 result-2) ... (else default))` |
-| `:wat::core::let*` | `(let* ((name :T expr) ...) body)` |
+| `:wat::core::let` | `(let ((name :T expr) ...) body)` — arc 154; sequential semantics (Clojure-faithful single-letform vocabulary; `let*` retired) |
 | `:wat::core::do` | `(do form_1 form_2 ... form_N)` — arc 136; non-finals' types unconstrained, final form's type IS the do's type |
 | `:wat::core::match` | `(match scrutinee -> :T (pattern body) ...)` |
 | `:wat::core::define` | `(define (:user::name (arg :T) -> :Ret) body)` |

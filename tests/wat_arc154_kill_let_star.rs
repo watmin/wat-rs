@@ -77,22 +77,29 @@ fn let_accepts_sequential_bindings() {
 // --- 2. :wat::core::let* fires migration error -------------------------
 
 #[test]
-fn let_star_at_operator_position_fires_migration_error() {
-    // The `validate_legacy_let_star` walker emits one
-    // `BareLegacyLetStar` per `:wat::core::let*` site. Sweep 1b
-    // consumes this diagnostic stream as the work list.
+fn let_star_post_retirement_silently_aliases_to_let() {
+    // Arc 154 slice 2: `validate_legacy_let_star` walker body retired
+    // per substrate-as-teacher § "Retire the hint when its window
+    // closes." Runtime dispatch arms for `:wat::core::let*` keep
+    // functional fall-through to `:wat::core::let` (sequential) —
+    // mirrors arc 113's "variant + Display + dispatch scaffolding
+    // stays; firing retires" pattern.
+    //
+    // User-facing discipline: `:wat::core::let` is the single-letform
+    // spelling; `:wat::core::let*` works but is undocumented and
+    // discouraged. The walker no longer fires; sweep 1b cleared all
+    // in-tree consumers; future writers learn the canonical form via
+    // documentation, not via migration hints.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let*
             (((a :wat::core::i64) 5))
             a))
     "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("BareLegacyLetStar"),
-        "expected BareLegacyLetStar walker firing on retired :wat::core::let*; got: {}",
-        err
-    );
+    // Source uses retired keyword; startup succeeds via dispatch
+    // fall-through to sequential `let`. The walker body retirement
+    // is the load-bearing change — no `BareLegacyLetStar` fires.
+    startup_ok(src);
 }
 
 // --- 3. Type-mismatch in let body still surfaces -----------------------
@@ -221,13 +228,14 @@ fn walker_narrowness_other_keywords_unaffected() {
     startup_ok(src);
 }
 
-// --- 9. Multiple let* sites — walker fires per site -------------------
+// --- 9. Multiple let* sites post-retirement — silent fall-through ---
 
 #[test]
-fn multiple_let_star_sites_all_flagged() {
-    // The walker is per-site (not first-occurrence-and-stop). Two
-    // separate `:wat::core::let*` forms in one program produce two
-    // BareLegacyLetStar errors. Sweep 1b consumes the full stream.
+fn multiple_let_star_sites_post_retirement_silently_alias() {
+    // Post-arc-154-slice-2: BareLegacyLetStar walker retired; runtime
+    // dispatch arms for `:wat::core::let*` fall through to sequential
+    // `:wat::core::let`. Multiple `:wat::core::let*` source forms in
+    // one program all silently work (arc 113 scaffolding pattern).
     let src = r#"
         (:wat::core::define (:user::a -> :wat::core::i64)
           (:wat::core::let*
@@ -242,14 +250,8 @@ fn multiple_let_star_sites_all_flagged() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::i64::+,2 (:user::a) (:user::b)))
     "#;
-    let err = startup_err(src);
-    let count = err.matches("BareLegacyLetStar").count();
-    assert!(
-        count >= 2,
-        "expected >=2 BareLegacyLetStar firings (one per site); got {} in: {}",
-        count,
-        err
-    );
+    // Both let* forms fall through to sequential `let` semantics.
+    startup_ok(src);
 }
 
 // --- 10. Reflection — :wat::core::let resolves with sequential semantics

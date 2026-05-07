@@ -1357,18 +1357,20 @@ pub fn check_program(
     // `:wat::core::nil` closed; in-tree consumers swept; the
     // walker pass would no longer fire.
 
-    // Arc 154 — refuse the retired `:wat::core::let*` keyword
-    // anywhere in the program. Sequential semantics moved under
-    // `:wat::core::let` (single-letform vocabulary; Clojure-faithful).
-    // Per Pattern 3: walks every keyword token in the AST and emits
-    // one `BareLegacyLetStar` per occurrence. Sweep 1b consumes the
-    // diagnostic stream as the work list.
-    for func in sym.functions.values() {
-        validate_legacy_let_star(&func.body, &mut errors);
-    }
-    for form in forms {
-        validate_legacy_let_star(form, &mut errors);
-    }
+    // Arc 154 slice 2 — `validate_legacy_let_star` walker retired
+    // per substrate-as-teacher § "Retire the hint when its window
+    // closes." Walker shipped in slice 1a as the migration channel
+    // for `:wat::core::let*` → `:wat::core::let`; sweep 1b migrated
+    // every in-tree consumer (~806 sites); closure retires the
+    // firing body. `BareLegacyLetStar` variant + Display stay as
+    // orphaned scaffolding (arc 113 precedent). Runtime dispatch
+    // arms for `:wat::core::let*` keep functional fall-through to
+    // `:wat::core::let` (sequential) — the keyword remains as
+    // transitional runtime scaffolding mirroring arc 113's pattern
+    // (variant stays; firing retires). User-facing discipline:
+    // `:wat::core::let` is the single-letform spelling; `:wat::core::let*`
+    // works but is undocumented and discouraged.
+
 
     // Arc 109 slice 9d — refuse the legacy `:wat::std::stream::*`
     // namespace prefix anywhere in the program. The stream stdlib
@@ -1855,37 +1857,19 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
     ("Vec", "wat::core::Vector"),       // slice 1f — rename + move
 ];
 
-/// Arc 154 — walk every `WatAST` node looking for a Keyword
-/// carrying the retired `:wat::core::let*` FQDN (any position —
-/// operator head, quoted form, etc.). Emit one
-/// `CheckError::BareLegacyLetStar` per offending site. Pattern 3
-/// (substrate-as-teacher § "Three migration patterns") mirroring
-/// arc 153's `walk_type_for_legacy_unit_name` precedent + arc 109
-/// slice 9d's `walk_for_legacy_stream` keyword-prefix shape.
-///
-/// Pure-keyword detection: `:wat::core::let*` is a fully-qualified
-/// keyword string (parses to `WatAST::Keyword`), not a TypeExpr —
-/// no parametric containment, no inner-position recursion needed.
-/// Single-token equality is sufficient. Sweep 1b reads the
-/// diagnostic stream and applies a mechanical 1:1 transform to
-/// `:wat::core::let` at each site.
-fn validate_legacy_let_star(node: &WatAST, errors: &mut Vec<CheckError>) {
-    match node {
-        WatAST::Keyword(s, span) => {
-            if s == ":wat::core::let*" {
-                errors.push(CheckError::BareLegacyLetStar {
-                    span: span.clone(),
-                });
-            }
-        }
-        WatAST::List(items, _) => {
-            for item in items {
-                validate_legacy_let_star(item, errors);
-            }
-        }
-        _ => {}
-    }
-}
+// Arc 154 slice 2 — `validate_legacy_let_star` walker retired
+// per substrate-as-teacher § "Retire the hint when its window
+// closes." Body shipped in slice 1a + sweep 1b cleared all
+// in-tree `:wat::core::let*` consumers; closure retires the
+// firing body. Variant + Display preserved as orphaned
+// scaffolding per arc 113 precedent.
+//
+// Reintroduction recipe (if a future arc needs walker-driven
+// migration on a similar single-token keyword retirement):
+// match `WatAST::Keyword(s, span)` for the retired FQDN; recurse
+// into `WatAST::List(items, _)` children; emit one CheckError
+// per offending site. Mirror arc 153's `walk_type_for_legacy_unit_name`
+// or git blame this file at the arc 154 sweep 1a commit.
 
 // Arc 153 slice 2 — `walk_type_for_legacy_unit_name` retired
 // per substrate-as-teacher § "Retire the hint when its window
