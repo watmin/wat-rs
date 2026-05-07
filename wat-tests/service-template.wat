@@ -225,17 +225,17 @@
        (((pairs :wat::core::Vector<wat::kernel::Channel<svc::Request>>)
          (:wat::core::map
            (:wat::core::range 0 count)
-           (:wat::core::lambda ((_i :wat::core::i64) -> :wat::kernel::Channel<svc::Request>)
+           (:wat::core::fn ((_i :wat::core::i64) -> :wat::kernel::Channel<svc::Request>)
              (:wat::kernel::make-bounded-channel :svc::Request 1))))
 
         ((req-txs :wat::core::Vector<svc::ReqTx>)
          (:wat::core::map pairs
-           (:wat::core::lambda ((p :wat::kernel::Channel<svc::Request>) -> :svc::ReqTx)
+           (:wat::core::fn ((p :wat::kernel::Channel<svc::Request>) -> :svc::ReqTx)
              (:wat::core::first p))))
 
         ((req-rxs :wat::core::Vector<svc::ReqRx>)
          (:wat::core::map pairs
-           (:wat::core::lambda ((p :wat::kernel::Channel<svc::Request>) -> :svc::ReqRx)
+           (:wat::core::fn ((p :wat::kernel::Channel<svc::Request>) -> :svc::ReqRx)
              (:wat::core::second p))))
 
         ((pool :svc::ReqTxPool)
@@ -243,7 +243,7 @@
 
         ((thr :wat::kernel::Thread<wat::core::nil,svc::State>)
          (:wat::kernel::spawn-thread
-           (:wat::core::lambda
+           (:wat::core::fn
              ((_in :svc::DriverIn)
               (out :svc::DriverOut)
               -> :wat::core::nil)

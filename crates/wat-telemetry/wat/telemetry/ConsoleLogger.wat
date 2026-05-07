@@ -44,7 +44,7 @@
 (:wat::core::struct :wat::telemetry::ConsoleLogger
   (con-handle :wat::console::Handle)
   (caller :wat::core::keyword)
-  (now-fn :fn(wat::core::nil)->wat::time::Instant)
+  (now-fn :wat::core::Fn(wat::core::nil)->wat::time::Instant)
   (format :wat::telemetry::Console::Format))
 
 
@@ -112,7 +112,7 @@
     (entry :E)
     -> :wat::core::nil)
   (:wat::core::let
-    (((now-fn :fn(wat::core::nil)->wat::time::Instant)
+    (((now-fn :wat::core::Fn(wat::core::nil)->wat::time::Instant)
       (:wat::telemetry::ConsoleLogger/now-fn logger))
      ((now :wat::time::Instant) (now-fn :wat::core::nil))
      ((line :wat::core::String)

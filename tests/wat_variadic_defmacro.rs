@@ -96,7 +96,7 @@ fn variadic_macro_mixes_fixed_params_and_rest() {
           `(:wat::core::foldl
               (:wat::core::Vector :wat::core::i64 ,@items)
               ,init
-              (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+              (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
                 (:wat::core::i64::+,2 acc x))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
@@ -122,7 +122,7 @@ fn variadic_macro_requires_at_least_fixed_arity() {
           `(:wat::core::foldl
               (:wat::core::Vector :wat::core::i64 ,@items)
               ,init
-              (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+              (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
                 (:wat::core::i64::+,2 acc x))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)

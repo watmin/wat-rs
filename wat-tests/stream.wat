@@ -24,9 +24,9 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
+        (:wat::core::fn ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
           (:wat::core::foldl source :wat::core::nil
-            (:wat::core::lambda ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
+            (:wat::core::fn ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) :wat::core::nil)))))))
@@ -44,9 +44,9 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3 4 5))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
+        (:wat::core::fn ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
           (:wat::core::foldl source :wat::core::nil
-            (:wat::core::lambda ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
+            (:wat::core::fn ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) :wat::core::nil)))))))
@@ -65,7 +65,7 @@
   (:wat::core::let
     (((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil) :wat::core::nil)))
+        (:wat::core::fn ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil) :wat::core::nil)))
      ((chunked :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
       (:wat::stream::chunks stream 3))
      ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect chunked))
@@ -86,15 +86,15 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 1 2 2 2 3 1 1))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
+        (:wat::core::fn ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
           (:wat::core::foldl source :wat::core::nil
-            (:wat::core::lambda ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
+            (:wat::core::fn ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) :wat::core::nil)))))))
      ((initial :wat::core::Option<wat::core::i64>) :wat::core::None)
-     ((step :fn(wat::core::Option<wat::core::i64>,wat::core::i64)->(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>))
-      (:wat::core::lambda ((last :wat::core::Option<wat::core::i64>) (item :wat::core::i64) -> :(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>))
+     ((step :wat::core::Fn(wat::core::Option<wat::core::i64>,wat::core::i64)->(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>))
+      (:wat::core::fn ((last :wat::core::Option<wat::core::i64>) (item :wat::core::i64) -> :(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>))
         (:wat::core::match last -> :(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>)
           (:wat::core::None
             (:wat::core::Tuple (:wat::core::Some item) (:wat::core::Vector :wat::core::i64 item)))
@@ -102,8 +102,8 @@
             (:wat::core::if (:wat::core::= prev item) -> :(wat::core::Option<wat::core::i64>,wat::core::Vector<wat::core::i64>)
               (:wat::core::Tuple last (:wat::core::Vector :wat::core::i64))
               (:wat::core::Tuple (:wat::core::Some item) (:wat::core::Vector :wat::core::i64 item)))))))
-     ((flush :fn(wat::core::Option<wat::core::i64>)->wat::core::Vector<wat::core::i64>)
-      (:wat::core::lambda ((_last :wat::core::Option<wat::core::i64>) -> :wat::core::Vector<wat::core::i64>)
+     ((flush :wat::core::Fn(wat::core::Option<wat::core::i64>)->wat::core::Vector<wat::core::i64>)
+      (:wat::core::fn ((_last :wat::core::Option<wat::core::i64>) -> :wat::core::Vector<wat::core::i64>)
         (:wat::core::Vector :wat::core::i64)))
      ((deduped :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::with-state stream initial step flush))
@@ -122,17 +122,17 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 10 20 30))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
+        (:wat::core::fn ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
           (:wat::core::foldl source :wat::core::nil
-            (:wat::core::lambda ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
+            (:wat::core::fn ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) :wat::core::nil)))))))
-     ((step :fn(wat::core::Vector<wat::core::i64>,wat::core::i64)->(wat::core::Vector<wat::core::i64>,wat::core::Vector<wat::core::i64>))
-      (:wat::core::lambda ((buf :wat::core::Vector<wat::core::i64>) (item :wat::core::i64) -> :(wat::core::Vector<wat::core::i64>,wat::core::Vector<wat::core::i64>))
+     ((step :wat::core::Fn(wat::core::Vector<wat::core::i64>,wat::core::i64)->(wat::core::Vector<wat::core::i64>,wat::core::Vector<wat::core::i64>))
+      (:wat::core::fn ((buf :wat::core::Vector<wat::core::i64>) (item :wat::core::i64) -> :(wat::core::Vector<wat::core::i64>,wat::core::Vector<wat::core::i64>))
         (:wat::core::Tuple (:wat::core::conj buf item) (:wat::core::Vector :wat::core::i64))))
-     ((flush :fn(wat::core::Vector<wat::core::i64>)->wat::core::Vector<wat::core::i64>)
-      (:wat::core::lambda ((buf :wat::core::Vector<wat::core::i64>) -> :wat::core::Vector<wat::core::i64>) buf))
+     ((flush :wat::core::Fn(wat::core::Vector<wat::core::i64>)->wat::core::Vector<wat::core::i64>)
+      (:wat::core::fn ((buf :wat::core::Vector<wat::core::i64>) -> :wat::core::Vector<wat::core::i64>) buf))
      ((buffered :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::with-state stream
         (:wat::core::Vector :wat::core::i64)
@@ -150,8 +150,8 @@
   ()
   (:wat::core::let
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
-     ((double :fn(wat::core::i64)->wat::core::i64)
-      (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
+     ((double :wat::core::Fn(wat::core::i64)->wat::core::i64)
+      (:wat::core::fn ((n :wat::core::i64) -> :wat::core::i64)
         (:wat::core::* n 2)))
      ((doubled :wat::core::Vector<wat::core::i64>) (:wat::core::map source double))
      ((expected :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 2 4 6)))
@@ -166,14 +166,14 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 1 2 3 3 3 1))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
+        (:wat::core::fn ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
           (:wat::core::foldl source :wat::core::nil
-            (:wat::core::lambda ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
+            (:wat::core::fn ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) :wat::core::nil)))))))
-     ((id :fn(wat::core::i64)->wat::core::i64)
-      (:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64) x))
+     ((id :wat::core::Fn(wat::core::i64)->wat::core::i64)
+      (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64) x))
      ((grouped :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
       (:wat::stream::chunks-by stream id))
      ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect grouped))
@@ -192,14 +192,14 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
+        (:wat::core::fn ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
           (:wat::core::foldl source :wat::core::nil
-            (:wat::core::lambda ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
+            (:wat::core::fn ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) :wat::core::nil)))))))
-     ((id :fn(wat::core::i64)->wat::core::i64)
-      (:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64) x))
+     ((id :wat::core::Fn(wat::core::i64)->wat::core::i64)
+      (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64) x))
      ((grouped :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
       (:wat::stream::chunks-by stream id))
      ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect grouped))
@@ -216,9 +216,9 @@
   (:wat::core::let
     (((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil) :wat::core::nil)))
-     ((id :fn(wat::core::i64)->wat::core::i64)
-      (:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64) x))
+        (:wat::core::fn ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil) :wat::core::nil)))
+     ((id :wat::core::Fn(wat::core::i64)->wat::core::i64)
+      (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64) x))
      ((grouped :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
       (:wat::stream::chunks-by stream id))
      ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect grouped))
@@ -234,9 +234,9 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3 4 5))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
+        (:wat::core::fn ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
           (:wat::core::foldl source :wat::core::nil
-            (:wat::core::lambda ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
+            (:wat::core::fn ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) :wat::core::nil)))))))
@@ -257,9 +257,9 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
+        (:wat::core::fn ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
           (:wat::core::foldl source :wat::core::nil
-            (:wat::core::lambda ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
+            (:wat::core::fn ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) :wat::core::nil)))))))
@@ -278,9 +278,9 @@
     (((source :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
      ((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
+        (:wat::core::fn ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil)
           (:wat::core::foldl source :wat::core::nil
-            (:wat::core::lambda ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
+            (:wat::core::fn ((_ :wat::core::nil) (item :wat::core::i64) -> :wat::core::nil)
               (:wat::core::match (:wat::kernel::send tx item) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) :wat::core::nil)))))))
@@ -298,7 +298,7 @@
   (:wat::core::let
     (((stream :wat::stream::Stream<wat::core::i64>)
       (:wat::stream::spawn-producer
-        (:wat::core::lambda ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil) :wat::core::nil)))
+        (:wat::core::fn ((tx :wat::kernel::Sender<wat::core::i64>) -> :wat::core::nil) :wat::core::nil)))
      ((windowed :wat::stream::Stream<wat::core::Vector<wat::core::i64>>)
       (:wat::stream::window stream 3))
      ((collected :wat::core::Vector<wat::core::Vector<wat::core::i64>>) (:wat::stream::collect windowed))

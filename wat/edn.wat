@@ -22,8 +22,8 @@
 ;; HolonAST either way.
 ;;
 ;; Constructors auto-derived per arc 049:
-;;   `:wat::edn::Tagged/new` — `(:fn(:wat::holon::HolonAST) -> :wat::edn::Tagged)`
-;;   `:wat::edn::NoTag/new`  — `(:fn(:wat::holon::HolonAST) -> :wat::edn::NoTag)`
+;;   `:wat::edn::Tagged/new` — `(:wat::core::Fn(:wat::holon::HolonAST) -> :wat::edn::Tagged)`
+;;   `:wat::edn::NoTag/new`  — `(:wat::core::Fn(:wat::holon::HolonAST) -> :wat::edn::NoTag)`
 ;; Plus accessors `:wat::edn::Tagged/0` and `:wat::edn::NoTag/0` for the
 ;; inner HolonAST (mirrors Rust tuple-struct `.0`).
 

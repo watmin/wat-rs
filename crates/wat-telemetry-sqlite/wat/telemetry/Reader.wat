@@ -217,7 +217,7 @@
   (:wat::core::let
     (((path :wat::core::String) (:wat::sqlite::ReadHandle/path handle)))
     (:wat::stream::spawn-producer
-      (:wat::core::lambda
+      (:wat::core::fn
         ((tx :wat::kernel::Sender<wat::telemetry::Event>) -> :wat::core::nil)
         (:wat::core::let
           (((local-handle :wat::sqlite::ReadHandle)
@@ -234,7 +234,7 @@
   (:wat::core::let
     (((path :wat::core::String) (:wat::sqlite::ReadHandle/path handle)))
     (:wat::stream::spawn-producer
-      (:wat::core::lambda
+      (:wat::core::fn
         ((tx :wat::kernel::Sender<wat::telemetry::Event>) -> :wat::core::nil)
         (:wat::core::let
           (((local-handle :wat::sqlite::ReadHandle)

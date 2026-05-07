@@ -136,10 +136,10 @@
 ;; invariant.
 (:wat::core::struct :wat::lru::MetricsCadence<G>
   (gate :G)
-  (tick :fn(G,wat::lru::Stats)->(G,wat::core::bool)))
+  (tick :wat::core::Fn(G,wat::lru::Stats)->(G,wat::core::bool)))
 
 (:wat::core::typealias :wat::lru::Reporter
-  :fn(wat::lru::Report)->wat::core::nil)
+  :wat::core::Fn(wat::lru::Report)->wat::core::nil)
 
 ;; null-metrics-cadence — fresh `MetricsCadence<()>` whose tick
 ;; never fires. Use when metrics are a deliberate opt-out.
@@ -148,7 +148,7 @@
     -> :wat::lru::MetricsCadence<wat::core::nil>)
   (:wat::lru::MetricsCadence/new
     :wat::core::nil
-    (:wat::core::lambda
+    (:wat::core::fn
       ((gate :wat::core::nil) (_stats :wat::lru::Stats) -> :(wat::core::nil,wat::core::bool))
       (:wat::core::Tuple gate false))))
 
@@ -207,11 +207,11 @@
         (:wat::core::let
           (((results :wat::core::Vector<wat::core::Option<V>>)
             (:wat::core::map probes
-              (:wat::core::lambda ((k :K) -> :wat::core::Option<V>)
+              (:wat::core::fn ((k :K) -> :wat::core::Option<V>)
                 (:wat::lru::LocalCache::get cache k))))
            ((hit-count :wat::core::i64)
             (:wat::list::reduce results 0
-              (:wat::core::lambda
+              (:wat::core::fn
                 ((acc :wat::core::i64) (slot :wat::core::Option<V>) -> :wat::core::i64)
                 (:wat::core::match slot -> :wat::core::i64
                   ((:wat::core::Some _) (:wat::core::i64::+,2 acc 1))
@@ -237,7 +237,7 @@
         (:wat::core::let
           (((_ :wat::core::Vector<wat::core::Option<(K,V)>>)
             (:wat::core::map entries
-              (:wat::core::lambda
+              (:wat::core::fn
                 ((entry :wat::lru::Entry<K,V>) -> :wat::core::Option<(K,V)>)
                 (:wat::core::let
                   (((k :K) (:wat::core::first entry))
@@ -274,7 +274,7 @@
       (:wat::lru::State/stats state))
      ((gate :G)
       (:wat::lru::MetricsCadence/gate metrics-cadence))
-     ((tick-fn :fn(G,wat::lru::Stats)->(G,wat::core::bool))
+     ((tick-fn :wat::core::Fn(G,wat::lru::Stats)->(G,wat::core::bool))
       (:wat::lru::MetricsCadence/tick metrics-cadence))
      ((tick :(G,wat::core::bool)) (tick-fn gate stats))
      ((gate' :G) (:wat::core::first tick))
@@ -373,7 +373,7 @@
     (:wat::core::let
       (((req-rxs :wat::core::Vector<wat::lru::ReqRx<K,V>>)
         (:wat::core::map driver-pairs
-          (:wat::core::lambda
+          (:wat::core::fn
             ((p :wat::lru::DriverPair<K,V>) -> :wat::lru::ReqRx<K,V>)
             (:wat::core::first p))))
        ((chosen :wat::kernel::Chosen<wat::lru::Request<K,V>>)
@@ -489,36 +489,36 @@
     (((req-pairs :wat::core::Vector<wat::lru::ReqChannel<K,V>>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda ((_i :wat::core::i64) -> :wat::lru::ReqChannel<K,V>)
+        (:wat::core::fn ((_i :wat::core::i64) -> :wat::lru::ReqChannel<K,V>)
           (:wat::kernel::make-bounded-channel :wat::lru::Request<K,V> 1))))
      ((reply-pairs :wat::core::Vector<wat::lru::ReplyChannel<V>>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda ((_i :wat::core::i64) -> :wat::lru::ReplyChannel<V>)
+        (:wat::core::fn ((_i :wat::core::i64) -> :wat::lru::ReplyChannel<V>)
           (:wat::kernel::make-bounded-channel :wat::lru::Reply<V> 1))))
      ;; Client-side: Handle = (ReqTx, ReplyRx).
      ((handles :wat::core::Vector<wat::lru::Handle<K,V>>)
       (:wat::std::list::zip
         (:wat::core::map req-pairs
-          (:wat::core::lambda ((p :wat::lru::ReqChannel<K,V>) -> :wat::lru::ReqTx<K,V>)
+          (:wat::core::fn ((p :wat::lru::ReqChannel<K,V>) -> :wat::lru::ReqTx<K,V>)
             (:wat::core::first p)))
         (:wat::core::map reply-pairs
-          (:wat::core::lambda ((p :wat::lru::ReplyChannel<V>) -> :wat::lru::ReplyRx<V>)
+          (:wat::core::fn ((p :wat::lru::ReplyChannel<V>) -> :wat::lru::ReplyRx<V>)
             (:wat::core::second p)))))
      ;; Driver-side: DriverPair = (ReqRx, ReplyTx) at matching index.
      ((driver-pairs :wat::core::Vector<wat::lru::DriverPair<K,V>>)
       (:wat::std::list::zip
         (:wat::core::map req-pairs
-          (:wat::core::lambda ((p :wat::lru::ReqChannel<K,V>) -> :wat::lru::ReqRx<K,V>)
+          (:wat::core::fn ((p :wat::lru::ReqChannel<K,V>) -> :wat::lru::ReqRx<K,V>)
             (:wat::core::second p)))
         (:wat::core::map reply-pairs
-          (:wat::core::lambda ((p :wat::lru::ReplyChannel<V>) -> :wat::lru::ReplyTx<V>)
+          (:wat::core::fn ((p :wat::lru::ReplyChannel<V>) -> :wat::lru::ReplyTx<V>)
             (:wat::core::first p)))))
      ((pool :wat::kernel::HandlePool<wat::lru::Handle<K,V>>)
       (:wat::kernel::HandlePool::new "CacheService" handles))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
-        (:wat::core::lambda
+        (:wat::core::fn
           ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
            (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
            -> :wat::core::nil)

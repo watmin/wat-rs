@@ -311,7 +311,7 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
           (:wat::core::let
             (((handle :wat::kernel::Thread<(),()>)
               (:wat::kernel::spawn-thread
-                (:wat::core::lambda
+                (:wat::core::fn
                   ((_in :rust::crossbeam_channel::Receiver<()>)
                    (_out :rust::crossbeam_channel::Sender<()>)
                    -> :())

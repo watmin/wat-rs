@@ -44,7 +44,7 @@
        (:wat::core::=
          (:wat::core::length
            (:wat::core::filter stdout
-             (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
+             (:wat::core::fn ((s :wat::core::String) -> :wat::core::bool)
                (:wat::core::= s msg))))
          1)
        -> :wat::core::nil
@@ -150,7 +150,7 @@
           ;; App-level concrete aliases. Two layers — Row is the
           ;; entry shape; Dispatcher is the dispatcher's concrete
           ;; type. Every signature site reads `:my::Dispatcher`
-          ;; instead of `:fn(wat::core::Vector<wat::core::Vector<i64>>)->()` or
+          ;; instead of `:wat::core::Fn(wat::core::Vector<wat::core::Vector<i64>>)->()` or
           ;; `:wat::telemetry::Console::Dispatcher<wat::core::Vector<i64>>`.
           (:wat::core::typealias :my::Row :wat::core::Vector<wat::core::i64>)
           (:wat::core::typealias :my::Dispatcher

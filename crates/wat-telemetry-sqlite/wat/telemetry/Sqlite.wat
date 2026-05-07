@@ -5,7 +5,7 @@
 ;; pattern with the substrate Service shell, different sink discipline.
 ;;
 ;; Console (arc 081) is a pure dispatcher factory: takes con-tx +
-;; format, returns :fn(E)->() built in the caller's thread. Sqlite
+;; format, returns :wat::core::Fn(E)->() built in the caller's thread. Sqlite
 ;; cannot be a pure factory — Db is thread-owned (CIRCUIT.md rule 1).
 ;; The worker that opens the Db must be the one that uses it. So the
 ;; substrate ships a worker entry (Sqlite/run) that opens the Db
@@ -15,18 +15,18 @@
 ;;
 ;; TWO FLAT HOOKS — the consumer's seam:
 ;;
-;;   schema-install :fn(Db)->()      Runs once at startup. The body
+;;   schema-install :wat::core::Fn(Db)->()      Runs once at startup. The body
 ;;                                    issues `(execute-ddl db ddl)`
 ;;                                    calls for each schema.
 ;;
-;;   dispatcher     :fn(Db,E)->()    Runs per entry. Reads naturally
+;;   dispatcher     :wat::core::Fn(Db,E)->()    Runs per entry. Reads naturally
 ;;                                    on the consumer side (Db +
 ;;                                    entry as positional args). The
 ;;                                    substrate curries Db before
-;;                                    handing :fn(E)->() to
+;;                                    handing :wat::core::Fn(E)->() to
 ;;                                    Service/loop.
 ;;
-;; A single nested hook (`:fn(Db)->fn(E)->()` returning the dispatcher
+;; A single nested hook (`:wat::core::Fn(Db)->fn(E)->()` returning the dispatcher
 ;; closure) was considered and rejected: verbose is honest. Two flat
 ;; hooks compose without anticipating shared state no consumer needs.
 
@@ -65,7 +65,7 @@
 ;;                       not schema-install.
 ;;
 ;;   3. dispatcher — runs per drained batch. Per-batch contract since
-;;                   arc 089 slice 3 — `:fn(Db,wat::core::Vector<E>)->()`. The
+;;                   arc 089 slice 3 — `:wat::core::Fn(Db,wat::core::Vector<E>)->()`. The
 ;;                   per-batch shape lets sinks observe the work-unit
 ;;                   boundary and decide what to do with it (BEGIN/COMMIT
 ;;                   wrap, single combined INSERT, etc.).
@@ -74,23 +74,23 @@
     (path :wat::core::String)
     (pairs :wat::core::Vector<wat::telemetry::DriverPair<E>>)
     (cadence :wat::telemetry::MetricsCadence<G>)
-    (pre-install :fn(wat::sqlite::Db)->wat::core::nil)
-    (schema-install :fn(wat::sqlite::Db)->wat::core::nil)
-    (dispatcher :fn(wat::sqlite::Db,wat::core::Vector<E>)->wat::core::nil)
-    (stats-translator :fn(wat::telemetry::Stats)->wat::core::Vector<E>)
+    (pre-install :wat::core::Fn(wat::sqlite::Db)->wat::core::nil)
+    (schema-install :wat::core::Fn(wat::sqlite::Db)->wat::core::nil)
+    (dispatcher :wat::core::Fn(wat::sqlite::Db,wat::core::Vector<E>)->wat::core::nil)
+    (stats-translator :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>)
     -> :wat::core::nil)
   (:wat::core::let
     (((db :wat::sqlite::Db) (:wat::sqlite::open path))
      ((_pre :wat::core::nil) (pre-install db))
      ((_install :wat::core::nil) (schema-install db))
-     ((curried :fn(wat::core::Vector<E>)->wat::core::nil)
-      (:wat::core::lambda ((entries :wat::core::Vector<E>) -> :wat::core::nil)
+     ((curried :wat::core::Fn(wat::core::Vector<E>)->wat::core::nil)
+      (:wat::core::fn ((entries :wat::core::Vector<E>) -> :wat::core::nil)
         (dispatcher db entries))))
     (:wat::telemetry::run
       pairs cadence curried stats-translator)))
 
 
-;; null-pre-install — fresh `:fn(Db)->()` that runs no pragmas.
+;; null-pre-install — fresh `:wat::core::Fn(Db)->()` that runs no pragmas.
 ;; The opt-out for "I'm fine with sqlite's defaults." Mirrors
 ;; `:wat::telemetry::null-metrics-cadence` in shape:
 ;; explicit zero, not implicit silence.
@@ -113,17 +113,17 @@
     (path :wat::core::String)
     (count :wat::core::i64)
     (cadence :wat::telemetry::MetricsCadence<G>)
-    (pre-install :fn(wat::sqlite::Db)->wat::core::nil)
-    (schema-install :fn(wat::sqlite::Db)->wat::core::nil)
-    (dispatcher :fn(wat::sqlite::Db,wat::core::Vector<E>)->wat::core::nil)
-    (stats-translator :fn(wat::telemetry::Stats)->wat::core::Vector<E>)
+    (pre-install :wat::core::Fn(wat::sqlite::Db)->wat::core::nil)
+    (schema-install :wat::core::Fn(wat::sqlite::Db)->wat::core::nil)
+    (dispatcher :wat::core::Fn(wat::sqlite::Db,wat::core::Vector<E>)->wat::core::nil)
+    (stats-translator :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>)
     -> :wat::telemetry::Spawn<E>)
   (:wat::core::let
     (;; N request channels (client write, server read).
      ((req-pairs :wat::core::Vector<wat::telemetry::ReqChannel<E>>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda
+        (:wat::core::fn
           ((_i :wat::core::i64) -> :wat::telemetry::ReqChannel<E>)
           (:wat::kernel::make-bounded-channel
             :wat::telemetry::Request<E> 1))))
@@ -133,14 +133,14 @@
      ((ack-pairs :wat::core::Vector<wat::telemetry::AckChannel>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda
+        (:wat::core::fn
           ((_i :wat::core::i64) -> :wat::telemetry::AckChannel)
           (:wat::kernel::make-bounded-channel :wat::core::nil 1))))
      ;; Client-side Handles — (req-tx, ack-rx) pairs.
      ((handles :wat::core::Vector<wat::telemetry::Handle<E>>)
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)
-        (:wat::core::lambda
+        (:wat::core::fn
           ((rp+ap :wat::telemetry::Connection<E>)
            -> :wat::telemetry::Handle<E>)
           (:wat::core::let
@@ -153,7 +153,7 @@
      ((driver-pairs :wat::core::Vector<wat::telemetry::DriverPair<E>>)
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)
-        (:wat::core::lambda
+        (:wat::core::fn
           ((rp+ap :wat::telemetry::Connection<E>)
            -> :wat::telemetry::DriverPair<E>)
           (:wat::core::let
@@ -167,7 +167,7 @@
         "wat::telemetry::Sqlite" handles))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
-        (:wat::core::lambda
+        (:wat::core::fn
           ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
            (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
            -> :wat::core::nil)
@@ -228,7 +228,7 @@
     (((_b :wat::core::nil) (:wat::sqlite::begin db))
      ((_d :wat::core::nil)
       (:wat::core::foldl entries :wat::core::nil
-        (:wat::core::lambda ((_acc :wat::core::nil) (e :E) -> :wat::core::nil)
+        (:wat::core::fn ((_acc :wat::core::nil) (e :E) -> :wat::core::nil)
           (:rust::sqlite::auto-dispatch db enum-name e)))))
     (:wat::sqlite::commit db)))
 
@@ -239,16 +239,16 @@
     (path :wat::core::String)
     (count :wat::core::i64)
     (cadence :wat::telemetry::MetricsCadence<G>)
-    (pre-install :fn(wat::sqlite::Db)->wat::core::nil)
+    (pre-install :wat::core::Fn(wat::sqlite::Db)->wat::core::nil)
     -> :wat::telemetry::Spawn<E>)
   (:wat::core::let
     (((_prep :wat::core::nil) (:rust::sqlite::auto-prep enum-name)))
     (:wat::telemetry::Sqlite/spawn
       path count cadence
       pre-install
-      (:wat::core::lambda ((db :wat::sqlite::Db) -> :wat::core::nil)
+      (:wat::core::fn ((db :wat::sqlite::Db) -> :wat::core::nil)
         (:rust::sqlite::auto-install-schemas db enum-name))
-      (:wat::core::lambda ((db :wat::sqlite::Db) (entries :wat::core::Vector<E>) -> :wat::core::nil)
+      (:wat::core::fn ((db :wat::sqlite::Db) (entries :wat::core::Vector<E>) -> :wat::core::nil)
         (:wat::telemetry::Sqlite::auto-dispatch-batch
           enum-name db entries))
       :wat::telemetry::Sqlite::auto-empty-translator)))

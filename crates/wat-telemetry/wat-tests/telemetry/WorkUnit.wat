@@ -38,20 +38,20 @@
      (:wat-telemetry::default-ns -> :wat::holon::HolonAST)
      (:wat::holon::Atom :wat-telemetry::test::ns))
 
-   ;; Probe helper — `:fn(X)->fn(Y)->Z`. Locks the substrate's
+   ;; Probe helper — `:wat::core::Fn(X)->fn(Y)->Z`. Locks the substrate's
    ;; nested-fn-return capability that WorkUnit/make-scope needs.
    (:wat::core::define
      (:wat-telemetry::probe::make-adder
-       (x :wat::core::i64) -> :fn(wat::core::i64)->wat::core::i64)
-     (:wat::core::lambda ((y :wat::core::i64) -> :wat::core::i64)
+       (x :wat::core::i64) -> :wat::core::Fn(wat::core::i64)->wat::core::i64)
+     (:wat::core::fn ((y :wat::core::i64) -> :wat::core::i64)
        (:wat::core::+ x y)))
 
    ;; Rank-2 probe — generic factory returning generic-T closure.
    ;; Each call instantiates T at the call site.
    (:wat::core::define
      (:wat-telemetry::probe::make-runner<T>
-       (_label :wat::core::String) -> :fn(fn()->T)->T)
-     (:wat::core::lambda ((body :fn()->T) -> :T)
+       (_label :wat::core::String) -> :wat::core::Fn(fn()->T)->T)
+     (:wat::core::fn ((body :wat::core::Fn()->T) -> :T)
        (body)))
 
    ;; Stub dispatcher for the make-scope ship test — closes over
@@ -61,10 +61,10 @@
    (:wat::core::define
      (:wat-telemetry::scope::make-stub-dispatcher
        (stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
-       -> :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
-     (:wat::core::lambda ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::nil)
+       -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
+     (:wat::core::fn ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::nil)
        (:wat::core::foldl entries :wat::core::nil
-         (:wat::core::lambda ((_acc :wat::core::nil) (e :wat::telemetry::Event) -> :wat::core::nil)
+         (:wat::core::fn ((_acc :wat::core::nil) (e :wat::telemetry::Event) -> :wat::core::nil)
            (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::nil
              ((:wat::core::Ok _) :wat::core::nil)
              ((:wat::core::Err _) :wat::core::nil))))))
@@ -76,8 +76,8 @@
    (:wat::core::define
      (:wat-telemetry::scope::make-count-dispatcher
        (count-tx :wat::kernel::Sender<wat::core::i64>)
-       -> :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
-     (:wat::core::lambda ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::nil)
+       -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
+     (:wat::core::fn ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::nil)
        (:wat::core::match
          (:wat::kernel::send count-tx (:wat::core::length entries)) -> :wat::core::nil
          ((:wat::core::Ok _) :wat::core::nil)
@@ -108,7 +108,7 @@
    ;;   outer = (Thread, (String, Receiver))
    (:wat::core::define
      (:test::wu-spawn-stub-scope-str
-       (body :fn(wat::telemetry::WorkUnit)->wat::core::String)
+       (body :wat::core::Fn(wat::telemetry::WorkUnit)->wat::core::String)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
      (:wat::core::let
        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
@@ -117,7 +117,7 @@
          (:wat::core::first stub-pair))
         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
          (:wat::core::second stub-pair))
-        ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
+        ((dispatcher :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
          (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
         ((cadence :wat::telemetry::MetricsCadence<wat::core::nil>)
          (:wat::telemetry::null-metrics-cadence))
@@ -147,7 +147,7 @@
    ;; Specialized for bodies that return unit (tests 3, 4).
    (:wat::core::define
      (:test::wu-spawn-stub-scope-unit
-       (body :fn(wat::telemetry::WorkUnit)->wat::core::nil)
+       (body :wat::core::Fn(wat::telemetry::WorkUnit)->wat::core::nil)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::telemetry::Event>))
      (:wat::core::let
        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
@@ -156,7 +156,7 @@
          (:wat::core::first stub-pair))
         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
          (:wat::core::second stub-pair))
-        ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
+        ((dispatcher :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
          (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
         ((cadence :wat::telemetry::MetricsCadence<wat::core::nil>)
          (:wat::telemetry::null-metrics-cadence))
@@ -186,7 +186,7 @@
    ;; Specialized for bodies that return i64 (test 5 — result passthrough).
    (:wat::core::define
      (:test::wu-spawn-stub-scope-i64
-       (body :fn(wat::telemetry::WorkUnit)->wat::core::i64)
+       (body :wat::core::Fn(wat::telemetry::WorkUnit)->wat::core::i64)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::i64,wat::kernel::Receiver<wat::telemetry::Event>)))
      (:wat::core::let
        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
@@ -195,7 +195,7 @@
          (:wat::core::first stub-pair))
         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
          (:wat::core::second stub-pair))
-        ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
+        ((dispatcher :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
          (:wat-telemetry::scope::make-stub-dispatcher stub-tx))
         ((cadence :wat::telemetry::MetricsCadence<wat::core::nil>)
          (:wat::telemetry::null-metrics-cadence))
@@ -228,7 +228,7 @@
    ;; Body returns unit (the count-dispatcher test doesn't need a T payload).
    (:wat::core::define
      (:test::wu-spawn-count-and-scope
-       (body :fn(wat::telemetry::WorkUnit)->wat::core::nil)
+       (body :wat::core::Fn(wat::telemetry::WorkUnit)->wat::core::nil)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
      (:wat::core::let
        (((count-pair :wat::kernel::Channel<wat::core::i64>)
@@ -237,7 +237,7 @@
          (:wat::core::first count-pair))
         ((count-rx :wat::kernel::Receiver<wat::core::i64>)
          (:wat::core::second count-pair))
-        ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
+        ((dispatcher :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
          (:wat-telemetry::scope::make-count-dispatcher count-tx))
         ((cadence :wat::telemetry::MetricsCadence<wat::core::nil>)
          (:wat::telemetry::null-metrics-cadence))
@@ -303,7 +303,7 @@
   (:wat::core::let
     (((thr-rx :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::telemetry::Event>))
       (:test::wu-spawn-stub-scope-unit
-        (:wat::core::lambda ((_wu :wat::telemetry::WorkUnit) -> :wat::core::nil) ())))
+        (:wat::core::fn ((_wu :wat::telemetry::WorkUnit) -> :wat::core::nil) ())))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::first thr-rx))
      ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
       (:wat::kernel::Thread/join-result driver)))
@@ -316,7 +316,7 @@
   (:wat::core::let
     (((thr-cnt :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
       (:test::wu-spawn-count-and-scope
-        (:wat::core::lambda ((_wu :wat::telemetry::WorkUnit) -> :wat::core::nil) ())))
+        (:wat::core::fn ((_wu :wat::telemetry::WorkUnit) -> :wat::core::nil) ())))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::first thr-cnt))
      ((cnt :wat::core::i64) (:wat::core::second thr-cnt))
      ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
@@ -339,7 +339,7 @@
   (:wat::core::let
     (((thr-rx :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::telemetry::Event>))
       (:test::wu-spawn-stub-scope-unit
-        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::nil)
+        (:wat::core::fn ((wu :wat::telemetry::WorkUnit) -> :wat::core::nil)
           (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits)))))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::first thr-rx))
      ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>) (:wat::core::second thr-rx))
@@ -441,7 +441,7 @@
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :sql-fetch))
      ((result :wat::core::i64)
       (:wat::telemetry::WorkUnit/timed wu name
-        (:wat::core::lambda (-> :wat::core::i64) 99)))
+        (:wat::core::fn (-> :wat::core::i64) 99)))
      ((counter :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name))
      ((dts :wat::core::Vector<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name))
      ((n-dts :wat::core::i64) (:wat::core::length dts))
@@ -459,10 +459,10 @@
      ((name :wat::holon::HolonAST) (:wat::holon::Atom :work))
      ((_r1 :wat::core::i64)
       (:wat::telemetry::WorkUnit/timed wu name
-        (:wat::core::lambda (-> :wat::core::i64) 1)))
+        (:wat::core::fn (-> :wat::core::i64) 1)))
      ((_r2 :wat::core::i64)
       (:wat::telemetry::WorkUnit/timed wu name
-        (:wat::core::lambda (-> :wat::core::i64) 2)))
+        (:wat::core::fn (-> :wat::core::i64) 2)))
      ((counter :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu name))
      ((dts :wat::core::Vector<wat::core::f64>) (:wat::telemetry::WorkUnit/durations wu name))
      ((n-dts :wat::core::i64) (:wat::core::length dts))
@@ -514,7 +514,7 @@
      ((ns     :wat::holon::HolonAST) (:wat-telemetry::default-ns))
      ((result :wat::core::i64)
       (:wat::telemetry::WorkUnit/scope ns tags
-        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
+        (:wat::core::fn ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
           (:wat::core::do
             (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))
             42)))))
@@ -534,7 +534,7 @@
     ;; wu-spawn-stub-scope-str internalizes spawn + stub-channel + pop + scope.
     (((thr-and-pair :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
       (:test::wu-spawn-stub-scope-str
-        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::String)
+        (:wat::core::fn ((wu :wat::telemetry::WorkUnit) -> :wat::core::String)
           (:wat::core::do
             (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :requests))
             (:wat::telemetry::WorkUnit/uuid wu)))))
@@ -560,7 +560,7 @@
     ;; wu-spawn-stub-scope-str internalizes spawn + stub-channel + pop + scope.
     (((thr-and-pair :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::String,wat::kernel::Receiver<wat::telemetry::Event>)))
       (:test::wu-spawn-stub-scope-str
-        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::String)
+        (:wat::core::fn ((wu :wat::telemetry::WorkUnit) -> :wat::core::String)
           (:wat::core::do
             (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5)
             (:wat::telemetry::WorkUnit/uuid wu)))))
@@ -587,7 +587,7 @@
     ;; Body: no mutations. wu-spawn-count-and-scope drains the count internally.
     (((thr-cnt :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
       (:test::wu-spawn-count-and-scope
-        (:wat::core::lambda ((_wu :wat::telemetry::WorkUnit) -> :wat::core::nil) ())))
+        (:wat::core::fn ((_wu :wat::telemetry::WorkUnit) -> :wat::core::nil) ())))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::first thr-cnt))
      ((cnt :wat::core::i64) (:wat::core::second thr-cnt))
      ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
@@ -620,7 +620,7 @@
     ;; Returns (Thread, stub-rx); we drain TWO events from stub-rx.
     (((thr-rx :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::telemetry::Event>))
       (:test::wu-spawn-stub-scope-unit
-        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::nil)
+        (:wat::core::fn ((wu :wat::telemetry::WorkUnit) -> :wat::core::nil)
           (:wat::core::let
             (((_a :wat::core::nil) (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 0.5))
              ((_b :wat::core::nil) (:wat::telemetry::WorkUnit/append-dt! wu (:wat::holon::Atom :sql-page) 1.5)))
@@ -644,7 +644,7 @@
 ;; lambda value.
 (:deftest :wat-telemetry::WorkUnit::probe-fn-returning-fn
   (:wat::core::let
-    (((adder :fn(wat::core::i64)->wat::core::i64)
+    (((adder :wat::core::Fn(wat::core::i64)->wat::core::i64)
       (:wat-telemetry::probe::make-adder 10))
      ((sum :wat::core::i64) (adder 5)))
     (:wat::test::assert-eq sum 15)))
@@ -674,9 +674,9 @@
 ;; for WorkUnit/scope handles works directly.
 (:deftest :wat-telemetry::WorkUnit::probe-rank-2-i64
   (:wat::core::let
-    (((runner :fn(fn()->wat::core::i64)->wat::core::i64)
+    (((runner :wat::core::Fn(fn()->wat::core::i64)->wat::core::i64)
       (:wat-telemetry::probe::make-runner "i64-runner"))
-     ((result :wat::core::i64) (runner (:wat::core::lambda (-> :wat::core::i64) 42))))
+     ((result :wat::core::i64) (runner (:wat::core::fn (-> :wat::core::i64) 42))))
     (:wat::test::assert-eq result 42)))
 
 
@@ -709,7 +709,7 @@
     ;; Returns (Thread, (i64, stub-rx)); we drain ONE event from stub-rx.
     (((thr-and-pair :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,(wat::core::i64,wat::kernel::Receiver<wat::telemetry::Event>)))
       (:test::wu-spawn-stub-scope-i64
-        (:wat::core::lambda ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
+        (:wat::core::fn ((wu :wat::telemetry::WorkUnit) -> :wat::core::i64)
           (:wat::core::do
             (:wat::telemetry::WorkUnit/incr! wu (:wat::holon::Atom :hits))
             42))))

@@ -80,7 +80,7 @@
     -> :wat::telemetry::ConsoleLogger)
   (:wat::telemetry::ConsoleLogger/new
     handle caller
-    (:wat::core::lambda ((_u :wat::core::nil) -> :wat::time::Instant)
+    (:wat::core::fn ((_u :wat::core::nil) -> :wat::time::Instant)
       (:wat::time::now))
     format))
 

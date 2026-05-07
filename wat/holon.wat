@@ -19,7 +19,7 @@
 ;; ─── Hologram/get filter factories ──────────────────────────────────
 ;;
 ;; The arc-074 Hologram/get takes a user-supplied filter
-;; `:fn(:wat::core::f64) -> :wat::core::bool` that decides whether the
+;; `:wat::core::Fn(:wat::core::f64) -> :wat::core::bool` that decides whether the
 ;; highest-cosine candidate is "close enough" to return. The substrate
 ;; ships three opinionated factories so consumers don't have to
 ;; hand-roll the canonical thresholds.
@@ -63,11 +63,11 @@
 ;; entire store carries the same threshold.
 (:wat::core::define
   (:wat::holon::filter-coincident
-    -> :fn(wat::core::f64)->wat::core::bool)
+    -> :wat::core::Fn(wat::core::f64)->wat::core::bool)
   (:wat::core::let
     (((floor :wat::core::f64)
       (:wat::holon::coincident-floor (:wat::config::dim-count))))
-    (:wat::core::lambda ((cos :wat::core::f64) -> :wat::core::bool)
+    (:wat::core::fn ((cos :wat::core::f64) -> :wat::core::bool)
       (:wat::core::< (:wat::core::- 1.0 cos) floor))))
 
 ;; ─── filter-present — looser, "signal detected above noise" ───────
@@ -80,11 +80,11 @@
 ;; Arc 076: d is read from the ambient `:wat::config::dim-count`.
 (:wat::core::define
   (:wat::holon::filter-present
-    -> :fn(wat::core::f64)->wat::core::bool)
+    -> :wat::core::Fn(wat::core::f64)->wat::core::bool)
   (:wat::core::let
     (((floor :wat::core::f64)
       (:wat::holon::presence-floor (:wat::config::dim-count))))
-    (:wat::core::lambda ((cos :wat::core::f64) -> :wat::core::bool)
+    (:wat::core::fn ((cos :wat::core::f64) -> :wat::core::bool)
       (:wat::core::> cos floor))))
 
 ;; ─── filter-accept-any — null gate, returns whatever scored best ──
@@ -95,5 +95,5 @@
 ;; their own gate downstream.
 (:wat::core::define
   (:wat::holon::filter-accept-any
-    -> :fn(wat::core::f64)->wat::core::bool)
-  (:wat::core::lambda ((_ :wat::core::f64) -> :wat::core::bool) true))
+    -> :wat::core::Fn(wat::core::f64)->wat::core::bool)
+  (:wat::core::fn ((_ :wat::core::f64) -> :wat::core::bool) true))

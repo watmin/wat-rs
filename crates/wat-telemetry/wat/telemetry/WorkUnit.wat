@@ -122,7 +122,7 @@
 ;; ─── WorkUnit/scope<T> — measurement HOF ─────────────────────────
 ;;
 ;; Opens a fresh WorkUnit, runs body with it, returns body's value.
-;; Body is `:fn(WorkUnit) -> T` — 1-arity, receives the wu so it
+;; Body is `:wat::core::Fn(WorkUnit) -> T` — 1-arity, receives the wu so it
 ;; can incr! / append-dt! / read tags / etc. The scope HOF is
 ;; pure-wat; no Rust-side eval needed.
 ;;
@@ -136,7 +136,7 @@
   (:wat::telemetry::WorkUnit/scope<T>
     (namespace :wat::holon::HolonAST)
     (tags      :wat::telemetry::Tags)
-    (body      :fn(wat::telemetry::WorkUnit)->T)
+    (body      :wat::core::Fn(wat::telemetry::WorkUnit)->T)
     -> :T)
   (:wat::core::let
     (((wu     :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new namespace tags))
@@ -161,7 +161,7 @@
     (handle    :wat::telemetry::SinkHandles)
     (namespace :wat::holon::HolonAST)
     -> :wat::telemetry::WorkUnit::Scope<T>)
-  (:wat::core::lambda
+  (:wat::core::fn
     ((tags :wat::telemetry::Tags)
      (body :wat::telemetry::WorkUnit::Body<T>)
      -> :T)
@@ -199,7 +199,7 @@
   (:wat::telemetry::WorkUnit/timed<T>
     (wu   :wat::telemetry::WorkUnit)
     (name :wat::holon::HolonAST)
-    (body :fn()->T)
+    (body :wat::core::Fn()->T)
     -> :T)
   (:wat::core::let
     (((_bump      :wat::core::nil)  (:wat::telemetry::WorkUnit/incr! wu name))
@@ -290,7 +290,7 @@
     -> :wat::core::Vector<wat::telemetry::Event>)
   (:wat::core::foldl samples
     (:wat::core::Vector :wat::telemetry::Event)
-    (:wat::core::lambda
+    (:wat::core::fn
       ((acc    :wat::core::Vector<wat::telemetry::Event>)
        (sample :wat::core::f64)
        -> :wat::core::Vector<wat::telemetry::Event>)
@@ -320,7 +320,7 @@
      ((counter-events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::core::foldl counter-keys
         (:wat::core::Vector :wat::telemetry::Event)
-        (:wat::core::lambda
+        (:wat::core::fn
           ((acc :wat::core::Vector<wat::telemetry::Event>)
            (key :wat::holon::HolonAST)
            -> :wat::core::Vector<wat::telemetry::Event>)
@@ -334,7 +334,7 @@
      ((duration-events :wat::core::Vector<wat::telemetry::Event>)
       (:wat::core::foldl duration-keys
         (:wat::core::Vector :wat::telemetry::Event)
-        (:wat::core::lambda
+        (:wat::core::fn
           ((acc :wat::core::Vector<wat::telemetry::Event>)
            (key :wat::holon::HolonAST)
            -> :wat::core::Vector<wat::telemetry::Event>)

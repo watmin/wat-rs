@@ -42,7 +42,7 @@
 ;;
 ;; Pattern mirrors archive's programs/stdlib/cache.rs::cache(can_emit,
 ;; emit) — same callback-injection idea, lifted to wat's stateful-
-;; values-up shape: the cadence's tick is `:fn(G, Stats) -> :(G, bool)`
+;; values-up shape: the cadence's tick is `:wat::core::Fn(G, Stats) -> :(G, bool)`
 ;; so the user threads time / counters / whatever through the loop
 ;; without reaching for Mutex.
 ;;
@@ -195,10 +195,10 @@
 ;; through the loop; the tick function itself is invariant.
 (:wat::core::struct :wat::holon::lru::HologramCacheService::MetricsCadence<G>
   (gate :G)
-  (tick :fn(G,wat::holon::lru::HologramCacheService::Stats)->(G,wat::core::bool)))
+  (tick :wat::core::Fn(G,wat::holon::lru::HologramCacheService::Stats)->(G,wat::core::bool)))
 
 (:wat::core::typealias :wat::holon::lru::HologramCacheService::Reporter
-  :fn(wat::holon::lru::HologramCacheService::Report)->wat::core::nil)
+  :wat::core::Fn(wat::holon::lru::HologramCacheService::Report)->wat::core::nil)
 
 ;; null-metrics-cadence — fresh `MetricsCadence<()>` whose tick
 ;; never fires. Use when metrics are a deliberate opt-out.
@@ -207,7 +207,7 @@
     -> :wat::holon::lru::HologramCacheService::MetricsCadence<wat::core::nil>)
   (:wat::holon::lru::HologramCacheService::MetricsCadence/new
     :wat::core::nil
-    (:wat::core::lambda
+    (:wat::core::fn
       ((gate :wat::core::nil) (_stats :wat::holon::lru::HologramCacheService::Stats) -> :(wat::core::nil,wat::core::bool))
       (:wat::core::Tuple gate false))))
 
@@ -274,11 +274,11 @@
         (:wat::core::let
           (((results :wat::core::Vector<wat::core::Option<wat::holon::HolonAST>>)
             (:wat::core::map probes
-              (:wat::core::lambda ((probe :wat::holon::HolonAST) -> :wat::core::Option<wat::holon::HolonAST>)
+              (:wat::core::fn ((probe :wat::holon::HolonAST) -> :wat::core::Option<wat::holon::HolonAST>)
                 (:wat::holon::lru::HologramCache/get cache probe))))
            ((hit-count :wat::core::i64)
             (:wat::list::reduce results 0
-              (:wat::core::lambda
+              (:wat::core::fn
                 ((acc :wat::core::i64) (slot :wat::core::Option<wat::holon::HolonAST>) -> :wat::core::i64)
                 (:wat::core::match slot -> :wat::core::i64
                   ((:wat::core::Some _) (:wat::core::i64::+,2 acc 1))
@@ -306,7 +306,7 @@
            ;; Map entries, discard results (all units).
            ((_ :wat::core::Vector<wat::core::nil>)
             (:wat::core::map entries
-              (:wat::core::lambda
+              (:wat::core::fn
                 ((entry :wat::holon::lru::HologramCacheService::Entry) -> :wat::core::nil)
                 (:wat::core::let
                   (((k :wat::holon::HolonAST) (:wat::core::first entry))
@@ -353,7 +353,7 @@
       (:wat::holon::lru::HologramCacheService::State/stats state))
      ((gate :G)
       (:wat::holon::lru::HologramCacheService::MetricsCadence/gate metrics-cadence))
-     ((tick-fn :fn(G,wat::holon::lru::HologramCacheService::Stats)->(G,wat::core::bool))
+     ((tick-fn :wat::core::Fn(G,wat::holon::lru::HologramCacheService::Stats)->(G,wat::core::bool))
       (:wat::holon::lru::HologramCacheService::MetricsCadence/tick metrics-cadence))
      ((tick :(G,wat::core::bool)) (tick-fn gate stats))
      ((gate' :G) (:wat::core::first tick))
@@ -454,7 +454,7 @@
     (:wat::core::let
       (((req-rxs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReqRx>)
         (:wat::core::map driver-pairs
-          (:wat::core::lambda
+          (:wat::core::fn
             ((p :wat::holon::lru::HologramCacheService::DriverPair) -> :wat::holon::lru::HologramCacheService::ReqRx)
             (:wat::core::first p))))
        ((chosen :wat::kernel::Chosen<wat::holon::lru::HologramCacheService::Request>)
@@ -571,36 +571,36 @@
     (((req-pairs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReqChannel>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda ((_i :wat::core::i64) -> :wat::holon::lru::HologramCacheService::ReqChannel)
+        (:wat::core::fn ((_i :wat::core::i64) -> :wat::holon::lru::HologramCacheService::ReqChannel)
           (:wat::kernel::make-bounded-channel :wat::holon::lru::HologramCacheService::Request 1))))
      ((reply-pairs :wat::core::Vector<wat::holon::lru::HologramCacheService::ReplyChannel>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda ((_i :wat::core::i64) -> :wat::holon::lru::HologramCacheService::ReplyChannel)
+        (:wat::core::fn ((_i :wat::core::i64) -> :wat::holon::lru::HologramCacheService::ReplyChannel)
           (:wat::kernel::make-bounded-channel :wat::holon::lru::HologramCacheService::Reply 1))))
      ;; Client-side: Handle = (ReqTx, ReplyRx).
      ((handles :wat::core::Vector<wat::holon::lru::HologramCacheService::Handle>)
       (:wat::std::list::zip
         (:wat::core::map req-pairs
-          (:wat::core::lambda ((p :wat::holon::lru::HologramCacheService::ReqChannel) -> :wat::holon::lru::HologramCacheService::ReqTx)
+          (:wat::core::fn ((p :wat::holon::lru::HologramCacheService::ReqChannel) -> :wat::holon::lru::HologramCacheService::ReqTx)
             (:wat::core::first p)))
         (:wat::core::map reply-pairs
-          (:wat::core::lambda ((p :wat::holon::lru::HologramCacheService::ReplyChannel) -> :wat::holon::lru::HologramCacheService::ReplyRx)
+          (:wat::core::fn ((p :wat::holon::lru::HologramCacheService::ReplyChannel) -> :wat::holon::lru::HologramCacheService::ReplyRx)
             (:wat::core::second p)))))
      ;; Driver-side: DriverPair = (ReqRx, ReplyTx) at matching index.
      ((driver-pairs :wat::core::Vector<wat::holon::lru::HologramCacheService::DriverPair>)
       (:wat::std::list::zip
         (:wat::core::map req-pairs
-          (:wat::core::lambda ((p :wat::holon::lru::HologramCacheService::ReqChannel) -> :wat::holon::lru::HologramCacheService::ReqRx)
+          (:wat::core::fn ((p :wat::holon::lru::HologramCacheService::ReqChannel) -> :wat::holon::lru::HologramCacheService::ReqRx)
             (:wat::core::second p)))
         (:wat::core::map reply-pairs
-          (:wat::core::lambda ((p :wat::holon::lru::HologramCacheService::ReplyChannel) -> :wat::holon::lru::HologramCacheService::ReplyTx)
+          (:wat::core::fn ((p :wat::holon::lru::HologramCacheService::ReplyChannel) -> :wat::holon::lru::HologramCacheService::ReplyTx)
             (:wat::core::first p)))))
      ((pool :wat::kernel::HandlePool<wat::holon::lru::HologramCacheService::Handle>)
       (:wat::kernel::HandlePool::new "hologram-cache-service" handles))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
-        (:wat::core::lambda
+        (:wat::core::fn
           ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
            (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
            -> :wat::core::nil)

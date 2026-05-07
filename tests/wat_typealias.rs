@@ -164,19 +164,19 @@ fn alias_over_hashmap_passes_through_std_get() {
 
 #[test]
 fn alias_over_fn_type_works_at_spawn() {
-    // `:my::Job` aliases :fn(Sender<wat::core::i64>)->:(). The spawn-extract-Fn
+    // `:my::Job` aliases :wat::core::Fn(Sender<wat::core::i64>)->:(). The spawn-extract-Fn
     // site at infer_spawn must see through the alias to find the Fn
     // shape.
     let src = r#"
 
         (:wat::core::typealias
           :my::Job
-          :fn(rust::crossbeam_channel::Sender<wat::core::i64>)->wat::core::nil)
+          :wat::core::Fn(rust::crossbeam_channel::Sender<wat::core::i64>)->wat::core::nil)
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
             (((job :my::Job)
-              (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
+              (:wat::core::fn ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
                 (:wat::core::do
                   (:wat::core::Result/expect -> :wat::core::nil (:wat::kernel::send tx 7) "test producer: tx disconnected")
                   ())))
@@ -186,7 +186,7 @@ fn alias_over_fn_type_works_at_spawn() {
              ((rx :rust::crossbeam_channel::Receiver<wat::core::i64>) (:wat::core::second pair))
              ((h :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
               (:wat::kernel::spawn-thread
-                (:wat::core::lambda
+                (:wat::core::fn
                   ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
                    (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
                    -> :wat::core::nil)

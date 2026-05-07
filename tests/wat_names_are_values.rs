@@ -2,8 +2,8 @@
 //!
 //! A registered user/stdlib define's keyword-path evaluates to a
 //! `Value::wat__core__lambda` in expression position; the type
-//! checker infers a `:fn(params)->ret` scheme for the same position.
-//! Callers pass named defines to `:fn(...)`-typed parameters without
+//! checker infers a `:wat::core::Fn(params)->ret` scheme for the same position.
+//! Callers pass named defines to `:wat::core::Fn(...)`-typed parameters without
 //! a pass-through lambda wrapper — the asymmetry with
 //! `:wat::kernel::spawn-thread`'s long-standing accept-by-name
 //! convention dissolves.
@@ -59,7 +59,7 @@ fn named_define_is_a_function_value() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((f :fn(wat::core::i64)->wat::core::i64) :my::double)
+            (((f :wat::core::Fn(wat::core::i64)->wat::core::i64) :my::double)
              ((result :wat::core::i64) (f 21)))
             (:wat::io::IOWriter/println stdout
               (:wat::core::string::join ""
@@ -79,7 +79,7 @@ fn named_define_is_a_function_value() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((f :fn(wat::core::i64)->wat::core::i64) :my::double)
+            (((f :wat::core::Fn(wat::core::i64)->wat::core::i64) :my::double)
              ((result :wat::core::i64) (f 21)))
             (:wat::core::if (:wat::core::= result 42) -> :wat::core::nil
               (:wat::io::IOWriter/println stdout "pass")
@@ -94,14 +94,14 @@ fn named_define_is_a_function_value() {
 #[test]
 fn named_define_passes_to_higher_order_fn() {
     // A user-defined higher-order function `:my::apply-twice` takes
-    // `:fn(wat::core::i64)->wat::core::i64` and an `:i64`; calling it with `:my::inc` and
+    // `:wat::core::Fn(wat::core::i64)->wat::core::i64` and an `:i64`; calling it with `:my::inc` and
     // `5` via the bare keyword path — no lambda wrapper — yields 7.
     let src = r##"
 
         (:wat::core::define (:my::inc (n :wat::core::i64) -> :wat::core::i64)
           (:wat::core::i64::+,2 n 1))
 
-        (:wat::core::define (:my::apply-twice (f :fn(wat::core::i64)->wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+        (:wat::core::define (:my::apply-twice (f :wat::core::Fn(wat::core::i64)->wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
           (f (f x)))
 
         (:wat::core::define
@@ -124,12 +124,12 @@ fn named_define_passes_to_higher_order_fn() {
 #[test]
 fn polymorphic_named_define_instantiates_at_use_site() {
     // Polymorphic `:my::identity<T>`. Passed to a monomorphic
-    // `:fn(wat::core::i64)->wat::core::i64` slot; the scheme's `T` instantiates to `i64`.
+    // `:wat::core::Fn(wat::core::i64)->wat::core::i64` slot; the scheme's `T` instantiates to `i64`.
     let src = r##"
 
         (:wat::core::define (:my::identity<T> (x :T) -> :T) x)
 
-        (:wat::core::define (:my::apply (f :fn(wat::core::i64)->wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+        (:wat::core::define (:my::apply (f :wat::core::Fn(wat::core::i64)->wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
           (f x))
 
         (:wat::core::define
@@ -192,7 +192,7 @@ fn named_define_as_stream_map_fn() {
           (:wat::core::let
             (((source :wat::stream::Stream<wat::core::i64>)
               (:wat::stream::spawn-producer
-                (:wat::core::lambda ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
+                (:wat::core::fn ((tx :rust::crossbeam_channel::Sender<wat::core::i64>) -> :wat::core::nil)
                   (:wat::core::do
                     (:wat::core::Result/expect -> :wat::core::nil
                       (:wat::kernel::send tx 1)

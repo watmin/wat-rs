@@ -85,7 +85,7 @@ fn define_alias_foldl_to_user_fold_delegates_correctly() {
               (:user::my-fold
                 (:wat::core::Vector :wat::core::i64 1 2 3 4)
                 0
-                (:wat::core::lambda
+                (:wat::core::fn
                   ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
                   (:wat::core::+ acc x))))))
     "##;

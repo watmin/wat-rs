@@ -168,7 +168,7 @@
     (lines :wat::core::Vector<wat::core::String>)
     -> :wat::core::bool)
   (:wat::core::foldl lines false
-    (:wat::core::lambda ((acc :wat::core::bool) (line :wat::core::String) -> :wat::core::bool)
+    (:wat::core::fn ((acc :wat::core::bool) (line :wat::core::String) -> :wat::core::bool)
       (:wat::core::or acc (:wat::core::regex::matches? pattern line)))))
 
 (:wat::core::define

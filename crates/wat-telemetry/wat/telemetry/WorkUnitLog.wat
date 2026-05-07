@@ -55,7 +55,7 @@
   ;; Clock injection — a closure taking unit, returning a wall-
   ;; clock Instant. Tests pass a deterministic now-fn; production
   ;; passes (lambda (_) (:wat::time::now)). Same pattern as arc 087.
-  (now-fn :fn(wat::core::nil)->wat::time::Instant))
+  (now-fn :wat::core::Fn(wat::core::nil)->wat::time::Instant))
 
 
 ;; ─── /log — universal form (caller passes level explicitly) ─────
@@ -75,7 +75,7 @@
       (:wat::telemetry::WorkUnitLog/handle logger))
      ((caller :wat::core::keyword)
       (:wat::telemetry::WorkUnitLog/caller logger))
-     ((now-fn :fn(wat::core::nil)->wat::time::Instant)
+     ((now-fn :wat::core::Fn(wat::core::nil)->wat::time::Instant)
       (:wat::telemetry::WorkUnitLog/now-fn logger))
      ((now :wat::time::Instant) (now-fn :wat::core::nil))
      ((time-ns :wat::core::i64) (:wat::time::epoch-nanos now))

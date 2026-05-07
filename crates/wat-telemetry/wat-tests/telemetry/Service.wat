@@ -34,10 +34,10 @@
    (:wat::core::define
      (:test::svc-tel-make-dispatcher
        (stub-tx :wat::kernel::Sender<wat::core::i64>)
-       -> :fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
-     (:wat::core::lambda ((entries :wat::core::Vector<wat::core::i64>) -> :wat::core::nil)
+       -> :wat::core::Fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
+     (:wat::core::fn ((entries :wat::core::Vector<wat::core::i64>) -> :wat::core::nil)
        (:wat::core::foldl entries :wat::core::nil
-         (:wat::core::lambda ((_acc :wat::core::nil) (e :wat::core::i64) -> :wat::core::nil)
+         (:wat::core::fn ((_acc :wat::core::nil) (e :wat::core::i64) -> :wat::core::nil)
            (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::nil
              ((:wat::core::Ok _) :wat::core::nil)
              ((:wat::core::Err _) :wat::core::nil))))))
@@ -48,8 +48,8 @@
    ;; need cadence-fired entries.
    (:wat::core::define
      (:test::svc-tel-null-translator
-       -> :fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
-     (:wat::core::lambda
+       -> :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
+     (:wat::core::fn
        ((_s :wat::telemetry::Stats) -> :wat::core::Vector<wat::core::i64>)
        (:wat::core::Vector :wat::core::i64)))
 
@@ -59,8 +59,8 @@
    ;; distinguish a cadence-triggered entry from a user-submitted one.
    (:wat::core::define
      (:test::svc-tel-active-translator
-       -> :fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
-     (:wat::core::lambda
+       -> :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
+     (:wat::core::fn
        ((_s :wat::telemetry::Stats) -> :wat::core::Vector<wat::core::i64>)
        (:wat::core::Vector :wat::core::i64 -1)))
 
@@ -80,9 +80,9 @@
            (((stub-pair :wat::kernel::Channel<wat::core::i64>)
              (:wat::kernel::make-bounded-channel :wat::core::i64 16))
             ((stub-tx :wat::kernel::Sender<wat::core::i64>) (:wat::core::first stub-pair))
-            ((dispatcher :fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
+            ((dispatcher :wat::core::Fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
              (:test::svc-tel-make-dispatcher stub-tx))
-            ((translator :fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
+            ((translator :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
              (:test::svc-tel-null-translator))
             ((cadence :wat::telemetry::MetricsCadence<wat::core::nil>)
              (:wat::telemetry::null-metrics-cadence))
@@ -111,7 +111,7 @@
    (:wat::core::define
      (:test::svc-tel-spawn-and-log
        (entries :wat::core::Vector<wat::core::i64>)
-       (translator :fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
+       (translator :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
        (cadence :wat::telemetry::MetricsCadence<wat::core::i64>)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::core::i64>))
      (:wat::core::let
@@ -121,7 +121,7 @@
              (:wat::kernel::make-bounded-channel :wat::core::i64 16))
             ((stub-tx :wat::kernel::Sender<wat::core::i64>) (:wat::core::first stub-pair))
             ((stub-rx :wat::kernel::Receiver<wat::core::i64>) (:wat::core::second stub-pair))
-            ((dispatcher :fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
+            ((dispatcher :wat::core::Fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
              (:test::svc-tel-make-dispatcher stub-tx))
             ((spawn :wat::telemetry::Spawn<wat::core::i64>)
              (:wat::telemetry::spawn 1 cadence dispatcher translator))
@@ -195,7 +195,7 @@
       (:wat::kernel::make-bounded-channel :wat::core::i64 4))
      ((stub-tx :wat::kernel::Sender<wat::core::i64>) (:wat::core::first stub-pair))
      ((stub-rx :wat::kernel::Receiver<wat::core::i64>) (:wat::core::second stub-pair))
-     ((dispatcher :fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
+     ((dispatcher :wat::core::Fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
       (:test::svc-tel-make-dispatcher stub-tx))
      ((_ :wat::core::nil)
       (dispatcher (:wat::core::Vector :wat::core::i64 42)))
@@ -210,7 +210,7 @@
 ;; Layer 0 — null-translator: returns empty vector.
 (:deftest :wat-telemetry::test-svc-tel-null-translator
   (:wat::core::let
-    (((t :fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
+    (((t :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
       (:test::svc-tel-null-translator))
      ((result :wat::core::Vector<wat::core::i64>)
       (t (:wat::telemetry::Stats/new 1 2 3))))
@@ -220,7 +220,7 @@
 ;; Layer 0 — active-translator: returns [-1].
 (:deftest :wat-telemetry::test-svc-tel-active-translator
   (:wat::core::let
-    (((t :fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
+    (((t :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
       (:test::svc-tel-active-translator))
      ((result :wat::core::Vector<wat::core::i64>)
       (t (:wat::telemetry::Stats/new 0 0 0))))
@@ -242,7 +242,7 @@
         (:test::svc-tel-null-translator)
         (:wat::telemetry::MetricsCadence/new
           0
-          (:wat::core::lambda
+          (:wat::core::fn
             ((g :wat::core::i64) (_s :wat::telemetry::Stats) -> :(wat::core::i64,wat::core::bool))
             (:wat::core::Tuple 0 false)))))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
@@ -300,7 +300,7 @@
         (:test::svc-tel-null-translator)
         (:wat::telemetry::MetricsCadence/new
           0
-          (:wat::core::lambda
+          (:wat::core::fn
             ((g :wat::core::i64) (_s :wat::telemetry::Stats) -> :(wat::core::i64,wat::core::bool))
             (:wat::core::Tuple 0 false)))))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
@@ -322,7 +322,7 @@
         (:test::svc-tel-active-translator)
         (:wat::telemetry::MetricsCadence/new
           0
-          (:wat::core::lambda
+          (:wat::core::fn
             ((g :wat::core::i64) (_s :wat::telemetry::Stats) -> :(wat::core::i64,wat::core::bool))
             (:wat::core::Tuple 0 true)))))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)

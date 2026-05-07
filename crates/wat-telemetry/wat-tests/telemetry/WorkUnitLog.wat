@@ -38,18 +38,18 @@
    ;; mirrors arc 087's ConsoleLogger).
    (:wat::core::define
      (:wat-telemetry::log-test::fixed-now-fn
-       -> :fn(wat::core::nil)->wat::time::Instant)
-     (:wat::core::lambda ((_u :wat::core::nil) -> :wat::time::Instant)
+       -> :wat::core::Fn(wat::core::nil)->wat::time::Instant)
+     (:wat::core::fn ((_u :wat::core::nil) -> :wat::time::Instant)
        (:wat::time::now)))
 
    ;; Stub dispatcher — same shape as the make-scope tests'.
    (:wat::core::define
      (:wat-telemetry::log-test::make-stub-dispatcher
        (stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
-       -> :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
-     (:wat::core::lambda ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::nil)
+       -> :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
+     (:wat::core::fn ((entries :wat::core::Vector<wat::telemetry::Event>) -> :wat::core::nil)
        (:wat::core::foldl entries :wat::core::nil
-         (:wat::core::lambda ((_acc :wat::core::nil) (e :wat::telemetry::Event) -> :wat::core::nil)
+         (:wat::core::fn ((_acc :wat::core::nil) (e :wat::telemetry::Event) -> :wat::core::nil)
            (:wat::core::match (:wat::kernel::send stub-tx e) -> :wat::core::nil
              ((:wat::core::Ok _) :wat::core::nil)
              ((:wat::core::Err _) :wat::core::nil))))))
@@ -106,7 +106,7 @@
    ;; on the keyword.
    (:wat::core::define
      (:test::wul-spawn-stub-and-emit-drain
-       (body :fn(wat::telemetry::WorkUnitLog,wat::telemetry::WorkUnit,wat::kernel::Receiver<wat::telemetry::Event>)->wat::core::keyword)
+       (body :wat::core::Fn(wat::telemetry::WorkUnitLog,wat::telemetry::WorkUnit,wat::kernel::Receiver<wat::telemetry::Event>)->wat::core::keyword)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword))
      (:wat::core::let
        (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
@@ -115,7 +115,7 @@
          (:wat::core::first stub-pair))
         ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
          (:wat::core::second stub-pair))
-        ((dispatcher :fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
+        ((dispatcher :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
          (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))
         ((cadence :wat::telemetry::MetricsCadence<wat::core::nil>)
          (:wat::telemetry::null-metrics-cadence))
@@ -161,7 +161,7 @@
   (:wat::core::let
     (((thr-kw :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword))
       (:test::wul-spawn-stub-and-emit-drain
-        (:wat::core::lambda
+        (:wat::core::fn
           ((_logger :wat::telemetry::WorkUnitLog)
            (_wu :wat::telemetry::WorkUnit)
            (_stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
@@ -186,7 +186,7 @@
     ;; pop + wu + logger. Body lambda is the embedded test fixture.
     (((thr-kw :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword))
       (:test::wul-spawn-stub-and-emit-drain
-        (:wat::core::lambda
+        (:wat::core::fn
           ((logger :wat::telemetry::WorkUnitLog)
            (wu :wat::telemetry::WorkUnit)
            (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
@@ -217,7 +217,7 @@
     ;; pop + wu + logger. Body lambda is the embedded test fixture.
     (((thr-kw :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword))
       (:test::wul-spawn-stub-and-emit-drain
-        (:wat::core::lambda
+        (:wat::core::fn
           ((logger :wat::telemetry::WorkUnitLog)
            (wu :wat::telemetry::WorkUnit)
            (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)

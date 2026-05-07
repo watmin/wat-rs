@@ -134,10 +134,21 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     );
 
     // ─── Lambdas / functions ────────────────────────────────────────────
-    // Dispatch sites: `src/check.rs:3381` (lambda), `src/check.rs:3392-3397`
-    // (define + defmacro return None at expression position; freeze
-    // handles them as top-level forms — `src/freeze.rs:831-832`).
-    insert(&mut m, ":wat::core::lambda", &["<params>", "<body>+"]);
+    // Arc 155 — `:wat::core::fn` is the canonical operator for function
+    // values (Clojure-faithful lowercase verb; mirrors arc 154's let* →
+    // let recipe). `:wat::core::lambda` is retained as orphaned
+    // scaffolding per spawn-family precedent (arc 114 Pattern 2 poison):
+    // the keyword silently aliases to `:wat::core::fn` at runtime;
+    // reflection sees both entries; user-facing discipline uses `fn`.
+    // Dispatch sites: `src/check.rs` (infer_fn from both :fn + :lambda
+    // arms) + `src/runtime.rs` (eval_fn from both :fn + :lambda arms).
+    // Top-level forms (`src/freeze.rs:831-832`) are unchanged.
+    insert(&mut m, ":wat::core::fn", &["<params>", "<body>+"]);
+    // Arc 155 — `:wat::core::lambda` retired in favor of `:wat::core::fn`.
+    // Registry entry retained per spawn-family precedent (arc 114 Pattern 2
+    // poison). Slot value `<retired-use-fn>` documents retirement for
+    // reflection consumers; runtime dispatch falls through to `eval_fn`.
+    insert(&mut m, ":wat::core::lambda", &["<retired-use-fn>"]);
     insert(&mut m, ":wat::core::define", &["<head>", "<body>"]);
     insert(&mut m, ":wat::core::defmacro", &["<head>", "<template>"]);
     // Arc 146 slice 1 — dispatch declaration form. Each <arm> is

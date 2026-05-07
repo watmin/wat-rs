@@ -76,7 +76,7 @@ fn variadic_define_with_zero_rest_args_binds_empty_vec() {
         (:wat::core::define
           (:my::sum-of (init :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
           (:wat::core::foldl xs init
-            (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::+,2 acc x))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
@@ -94,7 +94,7 @@ fn variadic_define_with_one_rest_arg() {
         (:wat::core::define
           (:my::sum-of (init :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
           (:wat::core::foldl xs init
-            (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::+,2 acc x))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
@@ -112,7 +112,7 @@ fn variadic_define_with_many_rest_args() {
         (:wat::core::define
           (:my::sum-of (init :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
           (:wat::core::foldl xs init
-            (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::+,2 acc x))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
@@ -132,7 +132,7 @@ fn variadic_define_with_no_fixed_params_only_rest() {
         (:wat::core::define
           (:my::sum & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
           (:wat::core::foldl xs 0
-            (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::+,2 acc x))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
@@ -148,7 +148,7 @@ fn variadic_define_with_no_fixed_params_zero_args_returns_seed() {
         (:wat::core::define
           (:my::sum & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
           (:wat::core::foldl xs 0
-            (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::+,2 acc x))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
@@ -187,7 +187,7 @@ fn variadic_define_arity_error_below_fixed_arity() {
         (:wat::core::define
           (:my::sum-of (init :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
           (:wat::core::foldl xs init
-            (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::+,2 acc x))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
@@ -211,7 +211,7 @@ fn variadic_define_type_error_on_mismatched_rest_arg() {
         (:wat::core::define
           (:my::sum-of (init :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
           (:wat::core::foldl xs init
-            (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::+,2 acc x))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
@@ -240,7 +240,7 @@ fn signature_of_variadic_define_returns_rest_shape() {
         (:wat::core::define
           (:my::sum-of (init :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
           (:wat::core::foldl xs init
-            (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::+,2 acc x))))
 
         (:wat::core::define
@@ -283,7 +283,7 @@ fn variadic_define_uses_foldl_over_rest_args() {
         (:wat::core::define
           (:my::add-all (seed :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
           (:wat::core::foldl xs seed
-            (:wat::core::lambda ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
+            (:wat::core::fn ((acc :wat::core::i64) (x :wat::core::i64) -> :wat::core::i64)
               (:wat::core::i64::+,2 acc x))))
 
         (:wat::core::define (:user::main -> :wat::core::i64)

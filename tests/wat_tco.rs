@@ -247,8 +247,8 @@ fn lambda_tail_call_via_let_bound_symbol() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            (((f :fn(wat::core::i64)->wat::core::i64)
-              (:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
+            (((f :wat::core::Fn(wat::core::i64)->wat::core::i64)
+              (:wat::core::fn ((n :wat::core::i64) -> :wat::core::i64)
                 (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64 0 n))))
             (f 42)))
     "#;
@@ -263,7 +263,7 @@ fn inline_lambda_literal_tail_call() {
     let src = r#"
 
         (:wat::core::define (:user::main -> :wat::core::i64)
-          ((:wat::core::lambda ((n :wat::core::i64) -> :wat::core::i64)
+          ((:wat::core::fn ((n :wat::core::i64) -> :wat::core::i64)
              (:wat::core::i64::*,2 n 2))
            21))
     "#;
@@ -279,15 +279,15 @@ fn named_define_tail_calls_lambda_param() {
     let src = r#"
 
         (:wat::core::define (:app::invoke
-                             (f :fn(wat::core::i64)->wat::core::i64)
+                             (f :wat::core::Fn(wat::core::i64)->wat::core::i64)
                              (n :wat::core::i64)
                              -> :wat::core::i64)
           (f n))
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            (((double :fn(wat::core::i64)->wat::core::i64)
-              (:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64)
+            (((double :wat::core::Fn(wat::core::i64)->wat::core::i64)
+              (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
                 (:wat::core::i64::*,2 x 2))))
             (:app::invoke double 21)))
     "#;
@@ -299,7 +299,7 @@ fn inline_lambda_named_alternation_at_high_depth() {
     // The high-depth test that requires BOTH stages. `:app::go`
     // (named) recursion is Stage 1 TCO; each call creates a FRESH
     // inline lambda literal in tail position and invokes it
-    // `((:wat::core::lambda ...) state n)` — Stage 2 TCO on the
+    // `((:wat::core::fn ...) state n)` — Stage 2 TCO on the
     // List-head path. The lambda body, running inside the
     // trampoline's next iteration, tail-calls go again (Stage 1).
     //
@@ -316,7 +316,7 @@ fn inline_lambda_named_alternation_at_high_depth() {
         (:wat::core::define (:app::go (state :wat::core::i64) (n :wat::core::i64) -> :wat::core::i64)
           (:wat::core::if (:wat::core::= n 0) -> :wat::core::i64
             state
-            ((:wat::core::lambda ((s :wat::core::i64) (k :wat::core::i64) -> :wat::core::i64)
+            ((:wat::core::fn ((s :wat::core::i64) (k :wat::core::i64) -> :wat::core::i64)
                (:app::go (:wat::core::i64::+,2 s 1) (:wat::core::i64::-,2 k 1)))
              state n)))
 

@@ -2557,7 +2557,19 @@ fn dispatch_keyword_head(
     match head {
         // Language forms
         ":wat::core::define" => Err(RuntimeError::DefineInExpressionPosition(list_span.clone())),
-        ":wat::core::lambda" => eval_lambda(args, env),
+        // Arc 155 — `:wat::core::fn` is the canonical operator for
+        // function values (Clojure-faithful lowercase verb; mirrors
+        // arc 154's let* → let recipe). Routes to `eval_fn`
+        // (formerly `eval_lambda`).
+        ":wat::core::fn" => eval_fn(args, env),
+        // Arc 155 — `:wat::core::lambda` retired; type checker fires
+        // `BareLegacyLambda` walker on any source-level appearance.
+        // Fall through to the canonical `eval_fn` so a stray runtime
+        // call (post-checker bypass) executes with the correct
+        // semantics rather than panicking on an unknown head.
+        // Transitional runtime scaffolding; mirrors arc 154's let*
+        // fall-through pattern.
+        ":wat::core::lambda" => eval_fn(args, env),
         ":wat::core::let" => eval_let(args, list_span, env, sym),
         // Arc 154 — `:wat::core::let*` retired; type checker fires
         // `BareLegacyLetStar` walker on any source-level appearance.
@@ -3460,14 +3472,19 @@ fn eval_dispatch_call(
 
 // ─── Language forms ─────────────────────────────────────────────────────
 
-fn eval_lambda(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
+/// Arc 155 — formerly `eval_lambda`; renamed to `eval_fn` per the
+/// `:wat::core::lambda` → `:wat::core::fn` operator rename. Body
+/// unchanged; only the function name updated. Dispatch arms for
+/// both `:wat::core::fn` (canonical) and `:wat::core::lambda`
+/// (retired fall-through) route here.
+fn eval_fn(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError> {
     if args.len() != 2 {
-        // arc 138: no span — eval_lambda's signature predates list_span
+        // arc 138: no span — eval_fn's signature predates list_span
         // threading; the synthetic-AST branch (no source form) goes here.
         return Err(RuntimeError::MalformedForm {
-            head: ":wat::core::lambda".into(),
+            head: ":wat::core::fn".into(),
             reason: format!(
-                "expected (:wat::core::lambda signature body); got {} args",
+                "expected (:wat::core::fn signature body); got {} args",
                 args.len()
             ),
             span: Span::unknown(),
@@ -3489,13 +3506,18 @@ fn eval_lambda(args: &[WatAST], env: &Environment) -> Result<Value, RuntimeError
     })))
 }
 
-/// Parse a lambda signature list `((p1 :T1) (p2 :T2) ... -> :R)`.
+/// Parse a fn signature list `((p1 :T1) (p2 :T2) ... -> :R)`.
 ///
-/// Per 058-029, lambdas carry the SAME typing discipline as `define`:
-/// every parameter is `(name :Type)` and the return type is required.
-/// No "untyped lambda" exists in wat — the language is strongly typed
-/// at every function boundary. This parser rejects a signature that
-/// omits a type annotation or the `-> :Return` tail.
+/// Arc 155 — formerly `parse_lambda_signature`; renamed to mirror
+/// `eval_fn` (formerly `eval_lambda`). Error messages updated to
+/// reference `:wat::core::fn` (canonical form). The arc 138 shape
+/// note and all-typed discipline per 058-029 are preserved.
+///
+/// Per 058-029, fn expressions carry the SAME typing discipline as
+/// `define`: every parameter is `(name :Type)` and the return type
+/// is required. No "untyped fn" exists in wat — the language is
+/// strongly typed at every function boundary. This parser rejects a
+/// signature that omits a type annotation or the `-> :Return` tail.
 fn parse_lambda_signature(
     sig: &WatAST,
 ) -> Result<(Vec<String>, Vec<crate::types::TypeExpr>, crate::types::TypeExpr), RuntimeError> {
@@ -3504,7 +3526,7 @@ fn parse_lambda_signature(
         WatAST::List(items, _) => items,
         _ => {
             return Err(RuntimeError::MalformedForm {
-                head: ":wat::core::lambda".into(),
+                head: ":wat::core::fn".into(),
                 reason: "signature must be a list".into(),
                 span: sig_span,
             });
@@ -3518,7 +3540,7 @@ fn parse_lambda_signature(
         if saw_arrow {
             if ret_type.is_some() {
                 return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::lambda".into(),
+                    head: ":wat::core::fn".into(),
                     reason: "signature has more than one return type after '->'".into(),
                     span: item.span().clone(),
                 });
@@ -3529,7 +3551,7 @@ fn parse_lambda_signature(
                 }
                 other => {
                     return Err(RuntimeError::MalformedForm {
-                        head: ":wat::core::lambda".into(),
+                        head: ":wat::core::fn".into(),
                         reason: format!(
                             "return type after '->' must be a type keyword; got {}",
                             ast_variant_name(other)
@@ -3551,7 +3573,7 @@ fn parse_lambda_signature(
             }
             other => {
                 return Err(RuntimeError::MalformedForm {
-                    head: ":wat::core::lambda".into(),
+                    head: ":wat::core::fn".into(),
                     reason: format!(
                         "unexpected signature element: {}",
                         ast_variant_name(other)
@@ -3562,9 +3584,9 @@ fn parse_lambda_signature(
         }
     }
     let ret_type = ret_type.ok_or_else(|| RuntimeError::MalformedForm {
-        head: ":wat::core::lambda".into(),
+        head: ":wat::core::fn".into(),
         reason:
-            "lambda signature must end with '-> :Type' (typed return is required per 058-029)"
+            "fn signature must end with '-> :Type' (typed return is required per 058-029)"
                 .into(),
         span: sig_span.clone(),
     })?;
@@ -16305,13 +16327,16 @@ fn step_list(
         | ":wat::holon::Blend" => {
             step_holon_descend_then_fire(items, list_span, env, sym)
         }
-        // Bare lambda terminal — Q6 of arc 068 DESIGN. A `(lambda ...)`
+        // Bare fn/lambda terminal — Q6 of arc 068 DESIGN. A `(fn ...)`
         // form is its own canonical-form holon: no captures (a closure-
-        // bearing lambda would have already produced a Function value
-        // with closed_env, not a literal `(lambda ...)` form). Wrap as
+        // bearing fn would have already produced a Function value
+        // with closed_env, not a literal `(fn ...)` form). Wrap as
         // an opaque-identity Atom of the structural lowering so cosine /
         // hash / cache keys see it as a single coordinate.
-        ":wat::core::lambda" => {
+        // Arc 155 — `:wat::core::fn` is the canonical operator; the
+        // `:wat::core::lambda` arm retains fall-through as transitional
+        // runtime scaffolding (mirrors arc 154's let* dispatch retention).
+        ":wat::core::fn" | ":wat::core::lambda" => {
             let form = WatAST::List(items.to_vec(), list_span.clone());
             let h = watast_to_holon(&form);
             Ok(StepValue::Terminal(HolonAST::Atom(Arc::new(h))))
@@ -18240,7 +18265,7 @@ mod tests {
     fn lambda_as_value() {
         // The lambda produces a callable; invoking it inline.
         let result = eval_expr(
-            r#"((:wat::core::lambda ((x :i64) (y :i64) -> :i64)
+            r#"((:wat::core::fn ((x :i64) (y :i64) -> :i64)
                   (:wat::core::i64::+,2 x y))
                 3 4)"#,
         )
@@ -18252,8 +18277,8 @@ mod tests {
     fn closure_captures_let_binding() {
         let result = eval_expr(
             r#"(:wat::core::let
-                 (((adder :fn(i64)->i64)
-                   (:wat::core::lambda ((x :i64) -> :i64)
+                 (((adder :wat::core::Fn(i64)->i64)
+                   (:wat::core::fn ((x :i64) -> :i64)
                      (:wat::core::i64::+,2 x 10))))
                  (adder 5))"#,
         )
@@ -18267,8 +18292,8 @@ mod tests {
         // from a deeper scope, it sees the captured value.
         let result = eval_expr(
             r#"(:wat::core::let (((n :i64) 100))
-                 (:wat::core::let (((f :fn(i64)->i64)
-                                  (:wat::core::lambda ((x :i64) -> :i64)
+                 (:wat::core::let (((f :wat::core::Fn(i64)->i64)
+                                  (:wat::core::fn ((x :i64) -> :i64)
                                     (:wat::core::i64::+,2 x n))))
                    (:wat::core::let (((n :i64) 999))
                      (f 1))))"#,
@@ -20224,7 +20249,7 @@ mod tests {
         let src = r#"
             (:wat::core::map
               (:wat::core::list :i64 1 2 3)
-              (:wat::core::lambda ((x :i64) -> :i64) (:wat::core::i64::*,2 x 2)))
+              (:wat::core::fn ((x :i64) -> :i64) (:wat::core::i64::*,2 x 2)))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -20247,7 +20272,7 @@ mod tests {
             (:wat::core::foldl
               (:wat::core::list :i64 1 2 3 4)
               10
-              (:wat::core::lambda ((acc :i64) (x :i64) -> :i64)
+              (:wat::core::fn ((acc :i64) (x :i64) -> :i64)
                 (:wat::core::i64::+,2 acc x)))
         "#;
         match eval_expr(src).unwrap() {
@@ -20338,7 +20363,7 @@ mod tests {
         let src = r#"
             (:wat::core::find-last-index
               (:wat::core::list :i64 5 12 3 18 7)
-              (:wat::core::lambda ((x :i64) -> :bool) (:wat::core::> x 10)))
+              (:wat::core::fn ((x :i64) -> :bool) (:wat::core::> x 10)))
         "#;
         let v = expect_some(eval_expr(src).unwrap());
         assert_eq!(expect_i64(v), 3); // index of 18 (last x > 10)
@@ -20349,7 +20374,7 @@ mod tests {
         let src = r#"
             (:wat::core::find-last-index
               (:wat::core::list :i64 1 2 3)
-              (:wat::core::lambda ((x :i64) -> :bool) (:wat::core::> x 99)))
+              (:wat::core::fn ((x :i64) -> :bool) (:wat::core::> x 99)))
         "#;
         expect_none(eval_expr(src).unwrap());
     }
@@ -20359,7 +20384,7 @@ mod tests {
         let src = r#"
             (:wat::core::find-last-index
               (:wat::core::list :i64)
-              (:wat::core::lambda ((x :i64) -> :bool) (:wat::core::> x 0)))
+              (:wat::core::fn ((x :i64) -> :bool) (:wat::core::> x 0)))
         "#;
         expect_none(eval_expr(src).unwrap());
     }
@@ -20423,7 +20448,7 @@ mod tests {
         let src = r#"
             (:wat::std::list::map-with-index
               (:wat::core::list :i64 10 20 30)
-              (:wat::core::lambda ((x :i64) (i :i64) -> :i64)
+              (:wat::core::fn ((x :i64) (i :i64) -> :i64)
                 (:wat::core::i64::+,2 x i)))
         "#;
         match eval_expr(src).unwrap() {
@@ -20656,7 +20681,7 @@ mod tests {
                   (:wat::core::vec :i64 3)
                   (:wat::core::vec :i64 4)))
               0
-              (:wat::core::lambda ((acc :i64) (n :i64) -> :i64)
+              (:wat::core::fn ((acc :i64) (n :i64) -> :i64)
                 (:wat::core::i64::+,2 acc n)))
         "#;
         match eval_expr(src).unwrap() {
@@ -20896,7 +20921,7 @@ mod tests {
               (:wat::core::values
                 (:wat::core::HashMap :(String,i64) "a" 10 "b" 20 "c" 30))
               0
-              (:wat::core::lambda ((acc :i64) (v :i64) -> :i64)
+              (:wat::core::fn ((acc :i64) (v :i64) -> :i64)
                 (:wat::core::i64::+,2 acc v)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21166,7 +21191,7 @@ mod tests {
             (:wat::core::foldr
               (:wat::core::list :i64 1 2 3)
               0
-              (:wat::core::lambda ((x :i64) (acc :i64) -> :i64)
+              (:wat::core::fn ((x :i64) (acc :i64) -> :i64)
                 (:wat::core::i64::-,2 x acc)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21182,7 +21207,7 @@ mod tests {
             (:wat::core::foldl
               (:wat::core::list :i64 1 2 3)
               0
-              (:wat::core::lambda ((acc :i64) (x :i64) -> :i64)
+              (:wat::core::fn ((acc :i64) (x :i64) -> :i64)
                 (:wat::core::i64::-,2 acc x)))
         "#;
         match eval_expr(src_l).unwrap() {
@@ -21196,7 +21221,7 @@ mod tests {
         let src = r#"
             (:wat::core::filter
               (:wat::core::list :i64 1 2 3 4 5)
-              (:wat::core::lambda ((x :i64) -> :bool)
+              (:wat::core::fn ((x :i64) -> :bool)
                 (:wat::core::> x 2)))
         "#;
         match eval_expr(src).unwrap() {
@@ -21219,7 +21244,7 @@ mod tests {
         let src = r#"
             (:wat::core::filter
               (:wat::core::list :i64 1 2 3)
-              (:wat::core::lambda ((x :i64) -> :i64) x))
+              (:wat::core::fn ((x :i64) -> :i64) x))
         "#;
         let err = eval_expr(src).unwrap_err();
         assert!(matches!(err, RuntimeError::TypeMismatch { .. }));

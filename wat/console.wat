@@ -114,7 +114,7 @@
     (:wat::core::let
       (((rxs :wat::core::Vector<wat::console::ReqRx>)
         (:wat::core::map pairs
-          (:wat::core::lambda
+          (:wat::core::fn
             ((p :wat::console::DriverPair)
              -> :wat::console::ReqRx)
             (:wat::core::first p))))
@@ -246,7 +246,7 @@
     (((req-pairs :wat::core::Vector<(wat::console::ReqTx,wat::console::ReqRx)>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda
+        (:wat::core::fn
           ((_i :wat::core::i64)
            -> :(wat::console::ReqTx,wat::console::ReqRx))
           (:wat::kernel::make-bounded-channel
@@ -254,7 +254,7 @@
      ((ack-pairs :wat::core::Vector<(wat::console::AckTx,wat::console::AckRx)>)
       (:wat::core::map
         (:wat::core::range 0 count)
-        (:wat::core::lambda
+        (:wat::core::fn
           ((_i :wat::core::i64)
            -> :(wat::console::AckTx,wat::console::AckRx))
           (:wat::kernel::make-bounded-channel :wat::core::nil 1))))
@@ -262,12 +262,12 @@
      ((handles :wat::core::Vector<wat::console::Handle>)
       (:wat::std::list::zip
         (:wat::core::map req-pairs
-          (:wat::core::lambda
+          (:wat::core::fn
             ((p :(wat::console::ReqTx,wat::console::ReqRx))
              -> :wat::console::ReqTx)
             (:wat::core::first p)))
         (:wat::core::map ack-pairs
-          (:wat::core::lambda
+          (:wat::core::fn
             ((p :(wat::console::AckTx,wat::console::AckRx))
              -> :wat::console::AckRx)
             (:wat::core::second p)))))
@@ -277,12 +277,12 @@
      ((driver-pairs :wat::core::Vector<wat::console::DriverPair>)
       (:wat::std::list::zip
         (:wat::core::map req-pairs
-          (:wat::core::lambda
+          (:wat::core::fn
             ((p :(wat::console::ReqTx,wat::console::ReqRx))
              -> :wat::console::ReqRx)
             (:wat::core::second p)))
         (:wat::core::map ack-pairs
-          (:wat::core::lambda
+          (:wat::core::fn
             ((p :(wat::console::AckTx,wat::console::AckRx))
              -> :wat::console::AckTx)
             (:wat::core::first p)))))
@@ -290,7 +290,7 @@
       (:wat::kernel::HandlePool::new "Console" handles))
      ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
       (:wat::kernel::spawn-thread
-        (:wat::core::lambda
+        (:wat::core::fn
           ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
            (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
            -> :wat::core::nil)

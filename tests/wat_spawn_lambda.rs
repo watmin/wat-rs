@@ -103,7 +103,7 @@ fn spawn_thread_inline_lambda_body() {
           (:wat::core::let
             (((thr :wat::kernel::Thread<wat::core::i64,wat::core::i64>)
               (:wat::kernel::spawn-thread
-                (:wat::core::lambda
+                (:wat::core::fn
                   ((in  :rust::crossbeam_channel::Receiver<wat::core::i64>)
                    (out :rust::crossbeam_channel::Sender<wat::core::i64>)
                    -> :wat::core::nil)
@@ -162,8 +162,8 @@ fn spawn_thread_closure_capture() {
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
             (((delta :wat::core::i64) 100)
-             ((body :fn(rust::crossbeam_channel::Receiver<wat::core::i64>,rust::crossbeam_channel::Sender<wat::core::i64>)->wat::core::nil)
-              (:wat::core::lambda
+             ((body :wat::core::Fn(rust::crossbeam_channel::Receiver<wat::core::i64>,rust::crossbeam_channel::Sender<wat::core::i64>)->wat::core::nil)
+              (:wat::core::fn
                 ((in  :rust::crossbeam_channel::Receiver<wat::core::i64>)
                  (out :rust::crossbeam_channel::Sender<wat::core::i64>)
                  -> :wat::core::nil)

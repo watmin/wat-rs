@@ -146,8 +146,8 @@
 (:wat::test::deftest :wat-tests::holon::Hologram::test-filter-always-rejects
   ()
   (:wat::core::let
-    (((reject-all :fn(wat::core::f64)->wat::core::bool)
-      (:wat::core::lambda ((_ :wat::core::f64) -> :wat::core::bool) false))
+    (((reject-all :wat::core::Fn(wat::core::f64)->wat::core::bool)
+      (:wat::core::fn ((_ :wat::core::f64) -> :wat::core::bool) false))
      ((store :wat::holon::Hologram)
       (:wat::holon::Hologram/make reject-all))
      ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))

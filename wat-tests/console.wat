@@ -80,7 +80,7 @@
      (:wat::core::=
        (:wat::core::length
          (:wat::core::filter stdout
-           (:wat::core::lambda ((s :wat::core::String) -> :wat::core::bool)
+           (:wat::core::fn ((s :wat::core::String) -> :wat::core::bool)
              (:wat::core::= s msg))))
        1))
 
@@ -267,7 +267,7 @@
                           (((h0 :wat::console::Handle)
                             (:wat::kernel::HandlePool::pop pool)))
                           (:wat::kernel::spawn-thread
-                            (:wat::core::lambda
+                            (:wat::core::fn
                               ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
                                (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
                                -> :wat::core::nil)
@@ -277,7 +277,7 @@
                           (((h1 :wat::console::Handle)
                             (:wat::kernel::HandlePool::pop pool)))
                           (:wat::kernel::spawn-thread
-                            (:wat::core::lambda
+                            (:wat::core::fn
                               ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
                                (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
                                -> :wat::core::nil)
@@ -287,7 +287,7 @@
                           (((h2 :wat::console::Handle)
                             (:wat::kernel::HandlePool::pop pool)))
                           (:wat::kernel::spawn-thread
-                            (:wat::core::lambda
+                            (:wat::core::fn
                               ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
                                (_out :rust::crossbeam_channel::Sender<wat::core::nil>)
                                -> :wat::core::nil)

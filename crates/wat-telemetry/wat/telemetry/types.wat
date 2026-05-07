@@ -53,10 +53,10 @@
 
 ;; Body lambda's shape for the make-scope HOF — takes the wu the
 ;; factory constructed; returns whatever T the caller wanted.
-;; Aliased so call sites don't smear `:fn(WorkUnit)->T` across
+;; Aliased so call sites don't smear `:wat::core::Fn(WorkUnit)->T` across
 ;; every body declaration.
 (:wat::core::typealias :wat::telemetry::WorkUnit::Body<T>
-  :fn(wat::telemetry::WorkUnit)->T)
+  :wat::core::Fn(wat::telemetry::WorkUnit)->T)
 
 
 ;; The closure that WorkUnit/make-scope produces — takes the per-
@@ -64,4 +64,4 @@
 ;; metrics at scope-close. Generic over T so each make-scope
 ;; instantiation is monomorphic at one return type.
 (:wat::core::typealias :wat::telemetry::WorkUnit::Scope<T>
-  :fn(wat::telemetry::Tags,wat::telemetry::WorkUnit::Body<T>)->T)
+  :wat::core::Fn(wat::telemetry::Tags,wat::telemetry::WorkUnit::Body<T>)->T)

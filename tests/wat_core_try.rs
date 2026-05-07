@@ -258,8 +258,8 @@ fn try_inside_result_returning_lambda_propagates_to_lambda() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            (((f :fn(wat::core::Result<wat::core::i64,wat::core::String>)->wat::core::Result<wat::core::i64,wat::core::String>)
-              (:wat::core::lambda
+            (((f :wat::core::Fn(wat::core::Result<wat::core::i64,wat::core::String>)->wat::core::Result<wat::core::i64,wat::core::String>)
+              (:wat::core::fn
                 ((r :wat::core::Result<wat::core::i64,wat::core::String>) -> :wat::core::Result<wat::core::i64,wat::core::String>)
                 (:wat::core::Ok (:wat::core::Result/try r)))))
             (f (:wat::core::Err "lambda-err"))))
@@ -282,8 +282,8 @@ fn try_inside_non_result_lambda_rejected_at_check() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            (((f :fn(wat::core::Result<wat::core::i64,wat::core::String>)->wat::core::i64)
-              (:wat::core::lambda
+            (((f :wat::core::Fn(wat::core::Result<wat::core::i64,wat::core::String>)->wat::core::i64)
+              (:wat::core::fn
                 ((r :wat::core::Result<wat::core::i64,wat::core::String>) -> :i64)
                 (:wat::core::Result/try r))))
             (:wat::core::Ok (f (:wat::core::Ok 1)))))

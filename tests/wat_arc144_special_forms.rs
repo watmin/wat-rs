@@ -213,13 +213,16 @@ fn lookup_form_let_star_returns_special_form() {
 }
 
 #[test]
-fn lookup_form_lambda_returns_special_form() {
-    assert_special_form(":wat::core::lambda", ":wat::core::lambda");
+fn lookup_form_fn_returns_special_form() {
+    // Arc 155: `:wat::core::fn` is the canonical operator form for function
+    // values (replaced `:wat::core::lambda`). The registry entry carries
+    // the same shape: params + body.
+    assert_special_form(":wat::core::fn", ":wat::core::fn");
     // Pin the load-bearing slot.
-    let out = three_probes(":wat::core::lambda");
+    let out = three_probes(":wat::core::fn");
     assert!(
         out[1].contains("<params>") && out[1].contains("<body>+"),
-        "expected <params>/<body>+ in lambda signature, got: {}",
+        "expected <params>/<body>+ in fn signature, got: {}",
         out[1]
     );
 }

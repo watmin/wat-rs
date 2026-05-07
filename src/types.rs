@@ -1713,7 +1713,19 @@ fn parse_type_inner(
         return parse_tuple_body(inside, original, canonicalize, span);
     }
     // `fn(args)->ret` function type — detect at the start.
+    // Arc 155 — `:wat::core::Fn(args)->ret` is the canonical FQDN
+    // spelling of the function type (Cap'd type head per the
+    // Clojure-faithful capitalization convention; `Fn` = type,
+    // `fn` = verb). Both the bare `fn(` prefix and the FQDN
+    // `wat::core::Fn(` prefix parse to the same `TypeExpr::Fn`
+    // internal representation (canonical-form invariant: the type
+    // unifier sees one shape). The `walk_for_legacy_lowercase_fn`
+    // walker in `src/check.rs` fires `BareLegacyLowercaseFn` per
+    // bare `:fn(...)` site for sweep 1b's mechanical migration.
     if let Some(body) = s.strip_prefix("fn(") {
+        return parse_fn_body(body, original, canonicalize, span);
+    }
+    if let Some(body) = s.strip_prefix("wat::core::Fn(") {
         return parse_fn_body(body, original, canonicalize, span);
     }
     // `Head<args>` parametric.

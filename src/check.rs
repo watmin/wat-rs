@@ -263,6 +263,43 @@ pub enum CheckError {
         /// `:wat::core::let*` token.
         span: Span,
     },
+    /// Arc 155 — `:wat::core::lambda` retired in favor of
+    /// `:wat::core::fn` (Clojure-faithful single-letform vocabulary;
+    /// lowercase verb for function values). Mirror of arc 154's
+    /// `BareLegacyLetStar` shape: walks every `WatAST::Keyword`
+    /// looking for the retired `:wat::core::lambda` FQDN in
+    /// operator position; emits one migration error per offending
+    /// site; sweep 1b uses the diagnostic stream as the work list.
+    ///
+    /// **Slice 2 retirement.** Walker body retires after sweep 1b
+    /// clears all in-tree `:wat::core::lambda` consumer sites. The
+    /// variant + Display remain as orphaned scaffolding per arc 113
+    /// precedent. Runtime dispatch arms for `:wat::core::lambda`
+    /// keep functional fall-through to `eval_fn` as transitional
+    /// runtime scaffolding (mirrors arc 154's let* dispatch
+    /// retention pattern).
+    BareLegacyLambda {
+        /// Source location of the keyword carrying the retired
+        /// `:wat::core::lambda` token.
+        span: Span,
+    },
+    /// Arc 155 — bare `:fn(...)` type-position spelling retired in
+    /// favor of the FQDN `:wat::core::Fn(...)` (Cap'd type head per
+    /// Clojure-faithful capitalization convention: `Fn` = type,
+    /// `fn` = verb; closes arc 109 slice 1e's last ungrabbed
+    /// parametric type head). Pattern 3 walker
+    /// (`walk_for_legacy_lowercase_fn`) detects any keyword whose
+    /// string starts with `:fn(` — the bare-fn type position prefix
+    /// — and emits one migration error per offending site.
+    ///
+    /// **Slice 2 retirement.** Walker body retires after sweep 1b
+    /// clears all in-tree `:fn(...)` type sites. Variant + Display
+    /// stay as orphaned scaffolding per arc 113 precedent.
+    BareLegacyLowercaseFn {
+        /// Source location of the keyword carrying the bare `:fn(`
+        /// type spelling.
+        span: Span,
+    },
     /// Arc 109 slice 1e — a bare substrate-named parametric type
     /// head (`Option`, `Result`, `HashMap`, `HashSet`) appears in
     /// user code. The four containers move under `:wat::core::*`;
@@ -539,6 +576,16 @@ impl fmt::Display for CheckError {
                 "':wat::core::let*' at {} is retired (arc 154); canonical FQDN is ':wat::core::let'. Same sequential semantics, single name (Clojure-faithful: Clojure's user-facing `let` IS the sequential primitive; `let*` is a substrate-internal form not part of normal user code). Rename ':wat::core::let*' -> ':wat::core::let' at the offending site.",
                 span
             ),
+            CheckError::BareLegacyLambda { span } => write!(
+                f,
+                "':wat::core::lambda' at {} is retired (arc 155); canonical FQDN is ':wat::core::fn'. Clojure-faithful single-letform vocabulary: lowercase 'fn' for function values (matches Clojure's user-facing `fn`). Rename ':wat::core::lambda' -> ':wat::core::fn' at the offending site.",
+                span
+            ),
+            CheckError::BareLegacyLowercaseFn { span } => write!(
+                f,
+                "bare ':fn(...)' type at {} is retired (arc 155); canonical FQDN is ':wat::core::Fn(...)'. Cap'd type head per Clojure-faithful capitalization convention: 'Fn' = function type, 'fn' = function value (closes arc 109 slice 1e's last ungrabbed parametric type head). Rename ':fn(args)->ret' -> ':wat::core::Fn(args)->ret' at the offending site.",
+                span
+            ),
             CheckError::BareLegacyContainerHead { head, fqdn, span } => write!(
                 f,
                 "bare container type '{}' at {} is retired (arc 109 slice 1e); canonical FQDN form is '{}'. Substrate-provided container types live under :wat::core::* (see arc 109 § B). Rename '{}' → '{}' at the offending site (works in both outer position like ':{}' → ':{}' and inner position like 'Vec<{}>' → 'Vec<{}>').",
@@ -790,6 +837,18 @@ impl CheckError {
                 Diagnostic::new("BareLegacyLetStar")
                     .field("retired", ":wat::core::let*")
                     .field("fqdn", ":wat::core::let")
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyLambda { span } => {
+                Diagnostic::new("BareLegacyLambda")
+                    .field("retired", ":wat::core::lambda")
+                    .field("fqdn", ":wat::core::fn")
+                    .field("location", format!("{}", span))
+            }
+            CheckError::BareLegacyLowercaseFn { span } => {
+                Diagnostic::new("BareLegacyLowercaseFn")
+                    .field("retired", ":fn(...)->ret")
+                    .field("fqdn", ":wat::core::Fn(...)->ret")
                     .field("location", format!("{}", span))
             }
             CheckError::BareLegacyContainerHead { head, fqdn, span } => {
@@ -1371,6 +1430,34 @@ pub fn check_program(
     // `:wat::core::let` is the single-letform spelling; `:wat::core::let*`
     // works but is undocumented and discouraged.
 
+    // Arc 155 slice 1a — refuse the legacy `:wat::core::lambda`
+    // keyword anywhere in the program. The canonical FQDN operator
+    // is `:wat::core::fn` (Clojure-faithful lowercase verb for
+    // function values). Walks every keyword token in the AST and
+    // emits one BareLegacyLambda per occurrence. Sweep 1b uses the
+    // diagnostic stream as the work list (~156 .wat + ~119 embedded
+    // Rust lambda sites per pre-arc grep).
+    for func in sym.functions.values() {
+        validate_legacy_lambda(&func.body, &mut errors);
+    }
+    for form in forms {
+        validate_legacy_lambda(form, &mut errors);
+    }
+
+    // Arc 155 slice 1a — refuse bare `:fn(...)` type-position
+    // keywords anywhere in the program. The canonical FQDN form is
+    // `:wat::core::Fn(...)` (Cap'd type head; closes arc 109 slice
+    // 1e's last ungrabbed parametric type head). Walks every keyword
+    // token in the AST and emits one BareLegacyLowercaseFn per
+    // occurrence. Sweep 1b uses the diagnostic stream as the work
+    // list (~125 .wat + ~76 embedded Rust type-annotation sites per
+    // pre-arc grep).
+    for func in sym.functions.values() {
+        validate_legacy_lowercase_fn(&func.body, &mut errors);
+    }
+    for form in forms {
+        validate_legacy_lowercase_fn(form, &mut errors);
+    }
 
     // Arc 109 slice 9d — refuse the legacy `:wat::std::stream::*`
     // namespace prefix anywhere in the program. The stream stdlib
@@ -1870,6 +1957,84 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
 // into `WatAST::List(items, _)` children; emit one CheckError
 // per offending site. Mirror arc 153's `walk_type_for_legacy_unit_name`
 // or git blame this file at the arc 154 sweep 1a commit.
+
+// Arc 155 slice 1a — `walk_for_legacy_lambda` fires one
+// `BareLegacyLambda` per `:wat::core::lambda` keyword in the AST.
+// Pattern 3 (substrate-as-teacher § "Three migration patterns"):
+// dedicated CheckError variant + walker; sweep 1b uses the
+// diagnostic stream as the work list. Mirror of arc 154's let*
+// walker recipe (single-token keyword retirement at operator
+// position).
+//
+// Slice 2 retirement recipe: remove the `walk_for_legacy_lambda`
+// body + the `validate_legacy_lambda` call sites in `check_program`.
+// `BareLegacyLambda` variant + Display stay as orphaned scaffolding
+// per arc 113 precedent. Runtime dispatch arms for
+// `:wat::core::lambda` keep functional fall-through to `eval_fn`
+// per the transitional scaffolding pattern.
+fn validate_legacy_lambda(node: &WatAST, errors: &mut Vec<CheckError>) {
+    walk_for_legacy_lambda(node, errors);
+}
+
+fn walk_for_legacy_lambda(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::Keyword(s, span) => {
+            if s.as_str() == ":wat::core::lambda" {
+                errors.push(CheckError::BareLegacyLambda { span: span.clone() });
+            }
+        }
+        WatAST::List(items, _) => {
+            for item in items {
+                walk_for_legacy_lambda(item, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+// Arc 155 slice 1a — `walk_for_legacy_lowercase_fn` fires one
+// `BareLegacyLowercaseFn` per bare `:fn(...)` type-position keyword.
+// Pattern 3 (substrate-as-teacher § "Three migration patterns"):
+// dedicated CheckError variant + walker detects keyword strings
+// starting with `:fn(` (the bare function-type prefix). The FQDN
+// `:wat::core::Fn(...)` does NOT start with `:fn(` and passes
+// through silently. Mirror of arc 109 slice 1e's parametric-head
+// FQDN recipe; closes arc 109's last ungrabbed parametric type head.
+//
+// Detection is keyword-string-level (not parsed-TypeExpr-level)
+// because `TypeExpr::Fn` carries no head name — bare `:fn(...)` and
+// FQDN `:wat::core::Fn(...)` produce the same internal `TypeExpr::Fn`
+// shape post-parse. The source keyword string is the only reliable
+// discriminant.
+//
+// Slice 2 retirement recipe: remove the `walk_for_legacy_lowercase_fn`
+// body + the `validate_legacy_lowercase_fn` call sites in
+// `check_program`. `BareLegacyLowercaseFn` variant + Display stay as
+// orphaned scaffolding per arc 113 precedent.
+fn validate_legacy_lowercase_fn(node: &WatAST, errors: &mut Vec<CheckError>) {
+    walk_for_legacy_lowercase_fn(node, errors);
+}
+
+fn walk_for_legacy_lowercase_fn(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::Keyword(s, span) => {
+            // Detect `:fn(...)` bare function-type prefix. Must NOT
+            // fire on `:wat::core::fn` (operator position keyword) —
+            // that string does not start with `:fn(`. The narrowness
+            // check is purely string-prefix: `:fn(` is the unique
+            // discriminant for bare type-position function types.
+            if s.starts_with(":fn(") {
+                errors.push(CheckError::BareLegacyLowercaseFn { span: span.clone() });
+            }
+        }
+        WatAST::List(items, _) => {
+            for item in items {
+                walk_for_legacy_lowercase_fn(item, errors);
+            }
+        }
+        _ => {}
+    }
+}
 
 // Arc 153 slice 2 — `walk_type_for_legacy_unit_name` retired
 // per substrate-as-teacher § "Retire the hint when its window
@@ -3588,7 +3753,17 @@ fn infer_list(
             ":wat::core::and" | ":wat::core::or" => {
                 return infer_boolean_shortcircuit(args, head_span, env, locals, fresh, subst, errors);
             }
-            ":wat::core::lambda" => return infer_lambda(args, head_span, env, locals, fresh, subst, errors),
+            // Arc 155 — `:wat::core::fn` is the canonical operator for
+            // function values (Clojure-faithful lowercase verb; mirrors
+            // arc 154's let* → let recipe). Routes to `infer_fn`
+            // (formerly `infer_lambda`).
+            ":wat::core::fn" => return infer_fn(args, head_span, env, locals, fresh, subst, errors),
+            // Arc 155 — `:wat::core::lambda` retired; type checker fires
+            // `BareLegacyLambda` walker on any source-level appearance.
+            // Fall through to the canonical `infer_fn` so the form still
+            // type-checks during the migration window (transitional
+            // scaffolding; mirrors arc 154's let* fall-through pattern).
+            ":wat::core::lambda" => return infer_fn(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::use!" => {
                 // use! is a resolve-pass declaration. It validates at
                 // resolve time; the type checker treats it as a no-op
@@ -6271,8 +6446,8 @@ fn rhs_spawn_lambda_has_no_recv(rhs: &WatAST) -> bool {
         WatAST::Keyword(k, _) => k.as_str(),
         _ => return false,
     };
-    if lambda_head != ":wat::core::lambda" { return false; }
-    // Lambda shape: (:wat::core::lambda <param-list> body+)
+    if lambda_head != ":wat::core::fn" && lambda_head != ":wat::core::lambda" { return false; }
+    // Lambda shape: (:wat::core::fn / :wat::core::lambda <param-list> body+)
     // params are at index 1; body forms at index 2..
     let body_forms = &lambda_call[2..];
     !body_forms.iter().any(node_contains_recv)
@@ -8173,11 +8348,17 @@ fn infer_list_constructor(
     })
 }
 
-/// A lambda expression's type is `:fn(<param types>) -> <return type>`.
+/// Arc 155 — formerly `infer_lambda`; renamed to `infer_fn` per the
+/// `:wat::core::lambda` → `:wat::core::fn` operator rename. Body
+/// unchanged; only the function name and this doc comment updated.
+/// Dispatch arms for both `:wat::core::fn` (canonical) and
+/// `:wat::core::lambda` (retired fall-through) route here.
+///
+/// A fn expression's type is `:wat::core::Fn(<param types>) -> <return type>`.
 /// The signature is mandatory per 058-029 — every param and the
 /// return are annotated. The body is checked against the declared
 /// return type (same discipline as `check_function_body`).
-fn infer_lambda(
+fn infer_fn(
     args: &[WatAST],
     _head_span: &Span,
     env: &CheckEnv,
@@ -12402,8 +12583,8 @@ mod tests {
         // passes.
         assert!(check(
             r#"(:wat::core::let
-                 (((doubler :fn(wat::core::i64)->wat::core::i64)
-                   (:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64)
+                 (((doubler :wat::core::Fn(wat::core::i64)->wat::core::i64)
+                   (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
                      (:wat::core::i64::+,2 x x))))
                  true)"#
         )
@@ -12415,8 +12596,8 @@ mod tests {
         // Declared :fn(i64)->bool but lambda produces :fn(i64)->i64.
         let err = check(
             r#"(:wat::core::let
-                 (((f :fn(i64)->bool)
-                   (:wat::core::lambda ((x :i64) -> :i64) x)))
+                 (((f :wat::core::Fn(i64)->bool)
+                   (:wat::core::fn ((x :i64) -> :i64) x)))
                  true)"#,
         )
         .unwrap_err();
@@ -12669,7 +12850,7 @@ mod tests {
                   (:wat::core::second pair))
                  ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
                   (:wat::kernel::spawn-thread
-                    (:wat::core::lambda
+                    (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
                        (_out :wat::kernel::Sender<wat::core::i64>)
                        -> :wat::core::nil)
@@ -12719,7 +12900,7 @@ mod tests {
                         (:wat::core::second pair))
                        ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
                         (:wat::kernel::spawn-thread
-                          (:wat::core::lambda
+                          (:wat::core::fn
                             ((_in :wat::kernel::Receiver<wat::core::nil>)
                              (_out :wat::kernel::Sender<wat::core::i64>)
                              -> :wat::core::nil)
@@ -13033,7 +13214,7 @@ mod tests {
                     (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
                  ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
                   (:wat::kernel::spawn-thread
-                    (:wat::core::lambda
+                    (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
                        (_out :wat::kernel::Sender<wat::core::i64>)
                        -> :wat::core::nil)
@@ -13083,7 +13264,7 @@ mod tests {
                     (:wat::core::Vector :wat::core::i64)))
                  ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
                   (:wat::kernel::spawn-thread
-                    (:wat::core::lambda
+                    (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
                        (_out :wat::kernel::Sender<wat::core::i64>)
                        -> :wat::core::nil)
@@ -13143,7 +13324,7 @@ mod tests {
                     (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
                  ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
                   (:wat::kernel::spawn-thread
-                    (:wat::core::lambda
+                    (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
                        (_out :wat::kernel::Sender<wat::core::i64>)
                        -> :wat::core::nil)
@@ -13210,7 +13391,7 @@ mod tests {
                     (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
                  ((driver :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
                   (:wat::kernel::spawn-thread
-                    (:wat::core::lambda
+                    (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
                        (_out :wat::kernel::Sender<wat::core::i64>)
                        -> :wat::core::nil)
@@ -13268,7 +13449,7 @@ mod tests {
                 (((counter :wat::core::i64) 42)
                  ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
                   (:wat::kernel::spawn-thread
-                    (:wat::core::lambda
+                    (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
                        (_out :wat::kernel::Sender<wat::core::nil>)
                        -> :wat::core::nil)
@@ -13487,7 +13668,7 @@ mod tests {
                   (:wat::core::second pair))
                  ((thr :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
                   (:wat::kernel::spawn-thread
-                    (:wat::core::lambda
+                    (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
                        (_out :wat::kernel::Sender<wat::core::nil>)
                        -> :wat::core::nil)
