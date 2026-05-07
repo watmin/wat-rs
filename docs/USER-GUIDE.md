@@ -624,6 +624,63 @@ Keyword-path names supported: `(:my::app::deeply::nested::fn ...)`.
 User code lives under its own prefix (`:my::`, `:project::`, `:alice::`);
 `:wat::*` / `:rust::*` are reserved.
 
+### `:wat::core::def` — top-level value binding (arc 157)
+
+For module-level constants (and, post `define` retirement, function
+definitions). Type is inferred from the expression — no annotation
+on the form:
+
+```scheme
+(:wat::core::def :pi 3.14159)              ;; :pi registered as :wat::core::f64
+(:wat::core::def :two-pi
+  (:wat::core::f64::*,2 2.0 :pi))          ;; sequential references work
+
+(:wat::core::def :greet
+  (:wat::core::fn ((name :wat::core::String) -> :wat::core::String)
+    (:wat::core::String::++ "hello, " name)))
+```
+
+**Position rule (Clojure top-level splice).** `def` is legal at
+**top-level position only** — file-root, OR direct child of a
+top-level `:wat::core::do`, OR direct child of a top-level
+`:wat::core::let` body (recursive). The `let` body case lets a
+local capture the def's expression as a closure:
+
+```scheme
+(:wat::core::let
+  (((config :wat::core::i64) 42))
+  (:wat::core::def :get-config
+    (:wat::core::fn (-> :wat::core::i64) config)))
+;; :get-config is registered; calling it returns 42 — config
+;; stays local to the let; only :get-config enters the module env.
+```
+
+Conditional positions (`if` / `cond` / `match` / `Result/try` /
+`Option/try`), function bodies, and iteration constructs all
+reject `def` with a `DefNotTopLevel` diagnostic — they violate
+the once-per-load-time-execution contract `def` needs.
+
+**Re-binding is an error by default.** Two `(:wat::core::def :a
+...)` forms in a row fire `DefRedefForbidden` naming the prior
+location. Opt in via the config setters:
+
+```scheme
+;; File-level opt-in (config preamble; processed before any program form):
+(:wat::config::set-redef! :wat::core::true)
+
+(:wat::core::def :a 1)
+(:wat::core::def :a 2)                       ;; permitted (same type :i64)
+(:wat::core::def :a "hello")                 ;; rejected: DefRedefTypeChange
+```
+
+Type-stability is mandatory whenever redef happens — opt-in
+to redef does NOT opt out of the type contract downstream callers
+depend on.
+
+`(:wat::config::set-eval-redef! :wat::core::true)` mirrors for
+eval-time redef flow (carrier present; gate inert because eval-time
+def-binding is not wired in arc 157).
+
 ### `:wat::core::nil` — the singleton type and value (arc 153)
 
 `:wat::core::nil` is wat's name for the unit type — the type

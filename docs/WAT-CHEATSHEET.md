@@ -140,9 +140,18 @@ handled at every comm site.
 | `:wat::core::match` | `(match scrutinee -> :T (pattern body) ...)` |
 | `:wat::core::define` | `(define (:user::name (arg :T) -> :Ret) body)` |
 | `:wat::core::fn` | `(fn ((arg :T) -> :Ret) body)` — arc 155; lambda retired (use fn) |
+| `:wat::core::def` | `(def :name expr)` — arc 157; top-level value binding; type inferred from expr; redef is an error by default (opt in via `:wat::config::set-redef!`) |
 
 The `-> :T` is the result-type annotation; required on `if`,
-`cond`, `match`, `define`, and `fn`.
+`cond`, `match`, `define`, and `fn`. NOT on `def` — type
+inferred from the expression (per arc 145's paid-for lesson;
+substrate's existing inference + recipient unification suffices).
+
+`:wat::core::def` is legal at top-level position only — file-root
+or direct child of a top-level `do` / `let` body (recursive
+splice). Conditional positions (`if`/`cond`/`match`/`Result/try`/
+`Option/try`), function bodies, and iteration constructs reject
+it with `DefNotTopLevel`.
 
 ## 6. Special-form arg shapes
 
