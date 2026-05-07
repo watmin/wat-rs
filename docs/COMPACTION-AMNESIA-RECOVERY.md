@@ -579,6 +579,70 @@ The discipline: **if the language reads as 'we'll do this later,'
 it's a violation. Ship it or affirm the scope cut. Nothing
 in between.**
 
+### Failure mode 12 — Calling Opus "sonnet" via implicit model inheritance
+
+**Signature:** spawning agents via `Agent({ ... })` without
+`model: "sonnet"` set. The Agent tool's `model` parameter is
+OPTIONAL; without it, the spawned agent inherits the parent's
+model. When the orchestrator is Opus, "sonnet" delegations
+silently run as Opus — at Opus prices — while the BRIEF /
+EXPECTATIONS / INSCRIPTION / conversational reports all call
+the agent "sonnet."
+
+**Reality check:** every Agent call for a sweep / substrate /
+mechanical sonnet-tier task MUST include `model: "sonnet"`
+explicitly. If you don't see `model: "sonnet"` in the call,
+you're spawning Opus. The protocol's "sonnet" naming is
+load-bearing — it picks the right model for mechanical work
+(Sonnet) over judgment work (Opus).
+
+**Real incident, 2026-05-06:** I spent an entire session
+spawning agents under BRIEFs that said "sonnet" throughout.
+Nine agents shipped substrate edits + sweeps + paperwork. ALL
+NINE were Opus, not Sonnet. User caught the discrepancy via
+billing telemetry: *"are you spawning sonnet or opus? i have
+0% sonnet usage... i'm confused."*
+
+The tenth agent was respawned with `model: "sonnet"` explicit
+after a kill-and-restart. Cost was less than feared but more
+than wanted; user direction: capture the discipline so the
+default state going forward is correct.
+
+**The Agent call shape (mechanical work):**
+
+```
+Agent({
+  description: "...",
+  subagent_type: "general-purpose",
+  model: "sonnet",                 // ← REQUIRED for sonnet-tier
+  run_in_background: true,
+  prompt: "..."
+})
+```
+
+**STOP signal:** about to call `Agent({ ... })` for
+mechanical / sweep / substrate-pattern work? Confirm
+`model: "sonnet"` is in the call. If not, the spawn is wrong
+even if every other field is right.
+
+**Why "sonnet" is the protocol's name:**
+- The BRIEF/EXPECTATIONS discipline calibrates predicted
+  runtimes against Sonnet performance from prior sessions
+- The cost ceiling on mechanical sweeps assumes Sonnet pricing
+- The "trust-but-verify" pattern (orchestrator scores after
+  sonnet's report) makes most sense when the orchestrator is
+  the more-capable model (Opus) verifying the cheaper (Sonnet)
+- Calling Opus "sonnet" breaks all three assumptions
+  silently
+
+**The four questions on this discipline:**
+- Obvious? — calling something "sonnet" while it's Opus FAILS Obvious
+- Honest? — the BRIEF / report / INSCRIPTION become lies about
+  what ran. FAILS Honest
+
+**Cross-reference:** `feedback_agent_model_explicit.md` (memory
+saved 2026-05-06). Carries the discipline across compactions.
+
 ---
 
 ## Section 7 — Sonnet delegation protocol (substrate-informed briefs)
@@ -587,6 +651,9 @@ When you are about to delegate to sonnet via the Agent tool:
 
 ### Pre-flight checklist (MUST PASS before spawning)
 
+- [ ] **`model: "sonnet"` is set on the Agent call** (per FM 12;
+      without this the spawn is Opus inheriting from parent — the
+      BRIEF's "sonnet" naming becomes a lie)
 - [ ] DESIGN.md for the arc exists, is current, and reflects the latest
       scope expansions
 - [ ] BRIEF-SLICE-N.md is committed (not just drafted)
