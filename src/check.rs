@@ -3204,21 +3204,103 @@ fn extend_pair_scope_with_tuple_destructure(
     }
 }
 
-/// Parse a let* binding `((name :type-annotation) rhs)` →
-/// `(name, type_annotation_keyword, rhs)`. Returns `None` on shapes
-/// that don't fit (untyped bindings, tuple-destructure patterns —
-/// the trace gives up conservatively).
+/// Pattern-match a let-binding's RHS to derive the type-ann string
+/// the walker uses, for the closed set of channel-related shapes the
+/// pair-deadlock walker tracks. Returns None if the RHS is not
+/// recognizable as Channel / Sender / Receiver.
+///
+/// Mirrors the RHS pattern-match in
+/// `extend_pair_scope_with_tuple_destructure` (arc 133); arc 158a
+/// extends the recipe to typed-name-position bindings under the new
+/// untyped binding shape `(name rhs)`.
+///
+/// For `make-bounded-channel` / `make-unbounded-channel`: the TYPE
+/// argument keyword's leading `:` is stripped (arc 115
+/// InnerColonInCompoundArg — inner args inside `Channel<...>` must
+/// NOT have a leading `:`), so `:wat::core::i64` → `wat::core::i64`
+/// inside the formed string `:wat::kernel::Channel<wat::core::i64>`.
+///
+/// For `first` / `second`: uses the same
+/// `Sender<wat::core::nil>` / `Receiver<wat::core::nil>` placeholder
+/// that `extend_pair_scope_with_tuple_destructure` uses — the
+/// classifier checks the OUTER head only; the inner element type is
+/// not inspected by `type_is_sender_kind` / `type_is_receiver_kind`.
+fn derive_type_ann_from_rhs(rhs: &WatAST) -> Option<String> {
+    let WatAST::List(items, _) = rhs else { return None; };
+    let head = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        _ => return None,
+    };
+    match head {
+        ":wat::kernel::make-bounded-channel" => {
+            // Args: TYPE N → Channel<TYPE>
+            let type_kw = match items.get(1) {
+                Some(WatAST::Keyword(k, _)) => k.as_str(),
+                _ => return None,
+            };
+            // Strip leading colon: inner args inside Channel<...> must
+            // not carry a leading `:` (arc 115 InnerColonInCompoundArg).
+            let inner = type_kw.trim_start_matches(':');
+            Some(format!(":wat::kernel::Channel<{}>", inner))
+        }
+        ":wat::kernel::make-unbounded-channel" => {
+            let type_kw = match items.get(1) {
+                Some(WatAST::Keyword(k, _)) => k.as_str(),
+                _ => return None,
+            };
+            let inner = type_kw.trim_start_matches(':');
+            Some(format!(":wat::kernel::Channel<{}>", inner))
+        }
+        ":wat::core::first" => {
+            // Placeholder: trace machinery downstream resolves the actual
+            // element type via pair-anchor. Outer head Sender is all the
+            // classifier checks (type_is_sender_kind / type_is_receiver_kind
+            // match on the parametric head, not the inner T).
+            Some(":wat::kernel::Sender<wat::core::nil>".into())
+        }
+        ":wat::core::second" => {
+            Some(":wat::kernel::Receiver<wat::core::nil>".into())
+        }
+        _ => None,
+    }
+}
+
+/// Parse a let* binding — accepts BOTH binding shapes:
+///
+/// - Legacy `((name :type-annotation) rhs)` — reads declared `:T`
+///   from the AST (existing path; unchanged).
+/// - New `(name rhs)` where `name` is a bare Symbol — pattern-matches
+///   RHS via `derive_type_ann_from_rhs` to derive a type-ann string
+///   for the closed set of channel-related shapes the walker tracks.
+///   Unrecognized RHS → returns `None` (walker conservatively gives
+///   up; no false positives).
+///
+/// Both shapes return `(name, type_ann_str, rhs)` feeding the same
+/// `PairScopeEntry`; downstream trace logic is unchanged.
 ///
 /// Sibling to `parse_binding_for_typed_check` (arc 117) — that one
 /// returns the binding span; this one returns the RHS so the trace
 /// can chain across `(first pair)` / `(second pair)` projections.
+///
+/// Arc 158a: extended to handle the new untyped binding shape.
 fn parse_binding_for_pair_check(binding: &WatAST) -> Option<(String, String, WatAST)> {
     let WatAST::List(items, _) = binding else { return None; };
     if items.len() != 2 {
         return None;
     }
-    let pattern = &items[0];
-    let WatAST::List(parts, _) = pattern else { return None; };
+    let rhs = &items[1];
+
+    // New shape: (name rhs) where name is a bare Symbol.
+    // Pattern-match RHS to derive type-ann string for the closed set
+    // of channel-related shapes the walker tracks.
+    if let WatAST::Symbol(id, _) = &items[0] {
+        let name = id.name.clone();
+        let type_ann_str = derive_type_ann_from_rhs(rhs)?;
+        return Some((name, type_ann_str, rhs.clone()));
+    }
+
+    // Legacy shape: ((name :T) rhs) — read declared :T.
+    let WatAST::List(parts, _) = &items[0] else { return None; };
     if parts.len() < 2 {
         return None;
     }
@@ -6793,18 +6875,24 @@ fn infer_result_expect(
 ///
 /// Used by `check_let_star_for_scope_deadlock_inferred` to attach the
 /// thread-binding's source location to the `ScopeDeadlock` diagnostic.
+/// Arc 158a: extended to handle the new untyped binding shape `(name rhs)`.
+/// Both shapes return the span of the FULL binding form when the name matches.
 fn find_binding_span(name: &str, bindings: &[WatAST]) -> Span {
     for binding in bindings {
         let WatAST::List(items, span) = binding else { continue; };
         if items.len() != 2 {
             continue;
         }
-        let WatAST::List(parts, _) = &items[0] else { continue; };
-        // Check whether any symbol in the pattern matches `name`.
-        let found = parts.iter().any(|p| match p {
+        let found = match &items[0] {
+            // New shape: (name rhs) — bare Symbol at position 0.
             WatAST::Symbol(id, _) => id.name == name,
+            // Legacy shape: ((name :T) rhs) or tuple-destructure.
+            WatAST::List(parts, _) => parts.iter().any(|p| match p {
+                WatAST::Symbol(id, _) => id.name == name,
+                _ => false,
+            }),
             _ => false,
-        });
+        };
         if found {
             return span.clone();
         }
@@ -6852,16 +6940,31 @@ fn check_let_star_for_scope_deadlock_inferred(
     // Sender-bearing — they're already in `extended` but are sibling
     // only in their OWN let*, which will be checked when that let*
     // is processed by `infer_let_star`).
+    // Arc 158a — binding_names extraction accepts both shapes:
+    //   Legacy `((name :T) rhs)` → parts is a List; collect all Symbol names.
+    //   New `(name rhs)` → items[0] is a bare Symbol; use that name directly.
+    // Both shapes register names in `extended` during inference; we need
+    // both to appear in `binding_names` for the Sender-bearing / Thread
+    // classification to find them.
     let binding_names: Vec<String> = bindings
         .iter()
         .flat_map(|b| {
             let WatAST::List(items, _) = b else { return vec![]; };
             if items.len() != 2 { return vec![]; }
-            let WatAST::List(parts, _) = &items[0] else { return vec![]; };
-            parts.iter().filter_map(|p| match p {
-                WatAST::Symbol(id, _) => Some(id.name.clone()),
-                _ => None,
-            }).collect()
+            match &items[0] {
+                // New shape: (name rhs) — bare Symbol at position 0.
+                WatAST::Symbol(id, _) => vec![id.name.clone()],
+                // Legacy shape: ((name :T) rhs) or tuple-destructure
+                // ((name1 name2 ...) rhs) — List at position 0.
+                WatAST::List(parts, _) => parts
+                    .iter()
+                    .filter_map(|p| match p {
+                        WatAST::Symbol(id, _) => Some(id.name.clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => vec![],
+            }
         })
         .collect();
 
@@ -14317,5 +14420,301 @@ mod tests {
                 );
             }
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Arc 158a — walker migration: new untyped binding shape `(name rhs)`
+    //
+    // Strategy note: `ScopeDeadlock` fires from
+    // `check_let_star_for_scope_deadlock_inferred` which reads from the
+    // INFERRED type map (`extended`). That map is populated by
+    // `process_let_binding`, which currently silently skips new-shape
+    // `(name rhs)` bindings (arc 158b will add that support).
+    //
+    // `ChannelPairDeadlock` fires from `validate_channel_pair_deadlock`
+    // / `walk_for_pair_deadlock` — a PRE-INFERENCE walker that reads
+    // directly from the raw AST. `parse_binding_for_pair_check` (now
+    // extended to handle both shapes) feeds this walker.
+    //
+    // Tests 1, 2, 6, 7 exercise the `ChannelPairDeadlock` path because
+    // that is what `walk_for_pair_deadlock` + `parse_binding_for_pair_check`
+    // actually detects. The pattern: all three bindings (`pair`, `tx`,
+    // `rx`) in new shape; body passes both `tx` and `rx` to a single
+    // helper-verb → ChannelPairDeadlock fires from the raw-AST walker.
+    //
+    // Tests 3, 4 exercise the `ScopeDeadlock` path (inference-based)
+    // using legacy shape for `pair` (so inference still populates
+    // `extended` with the Channel type) and new shape for projections.
+    // -------------------------------------------------------------------------
+
+    /// Arc 158a test 1 — walker fires on new-shape Channel binding.
+    ///
+    /// All three bindings use the new untyped shape. `parse_binding_for_pair_check`
+    /// derives `Channel<i64>` for `pair` (from `make-bounded-channel` RHS),
+    /// `Sender<nil>` for `tx` (from `first` RHS), and `Receiver<nil>` for
+    /// `rx` (from `second` RHS). The `walk_for_pair_deadlock` walker traces
+    /// both `tx` and `rx` to anchor `pair` and fires `ChannelPairDeadlock`
+    /// when the body passes them both to `(:my::helper-verb tx rx)`.
+    #[test]
+    fn arc_158a_walker_fires_on_new_shape_channel_binding() {
+        let src = r#"
+            (:wat::core::define
+              (:my::helper-verb-158a-1
+                (tx :wat::kernel::Sender<wat::core::i64>)
+                (rx :wat::kernel::Receiver<wat::core::i64>)
+                -> :wat::core::nil)
+              ())
+
+            (:wat::core::define
+              (:my::new-shape-channel-binding (_d :wat::core::nil) -> :wat::core::nil)
+              (:wat::core::let
+                ((pair (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                 (tx (:wat::core::first pair))
+                 (rx (:wat::core::second pair)))
+                (:my::helper-verb-158a-1 tx rx)))
+        "#;
+        let err = check(src).expect_err(
+            "arc 158a: new-shape channel binding must fire ChannelPairDeadlock",
+        );
+        assert!(
+            err.0
+                .iter()
+                .any(|e| matches!(e, CheckError::ChannelPairDeadlock { .. })),
+            "arc 158a test 1: expected ChannelPairDeadlock from new-shape Channel binding; got: {:?}",
+            err.0
+        );
+    }
+
+    /// Arc 158a test 2 — walker traces `(:wat::core::second pair)` in
+    /// new binding shape.
+    ///
+    /// `pair` is new-shape (derives Channel from `make-bounded-channel` RHS).
+    /// `rx` is new-shape (derives Receiver from `second pair` RHS). `tx` is
+    /// new-shape (derives Sender from `first pair` RHS). The trace from `rx`
+    /// → `pair` → make-bounded-channel resolves the pair anchor; same for
+    /// `tx`. Both land at anchor `pair` → `ChannelPairDeadlock` fires.
+    #[test]
+    fn arc_158a_walker_traces_second_in_new_shape() {
+        let src = r#"
+            (:wat::core::define
+              (:my::helper-verb-158a-2
+                (tx :wat::kernel::Sender<wat::core::i64>)
+                (rx :wat::kernel::Receiver<wat::core::i64>)
+                -> :wat::core::nil)
+              ())
+
+            (:wat::core::define
+              (:my::new-shape-trace-second (_d :wat::core::nil) -> :wat::core::nil)
+              (:wat::core::let
+                ((pair (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                 (tx (:wat::core::first pair))
+                 (rx (:wat::core::second pair)))
+                (:my::helper-verb-158a-2 tx rx)))
+        "#;
+        let err = check(src).expect_err(
+            "arc 158a: new-shape second-trace must fire ChannelPairDeadlock",
+        );
+        assert!(
+            err.0
+                .iter()
+                .any(|e| matches!(e, CheckError::ChannelPairDeadlock { .. })),
+            "arc 158a test 2: expected ChannelPairDeadlock tracing (:second pair) in new shape; got: {:?}",
+            err.0
+        );
+    }
+
+    /// Arc 158a test 3 — legacy shape still works (regression check).
+    ///
+    /// The legacy `((pair :wat::kernel::Channel<wat::core::i64>) ...)` shape
+    /// must continue to fire ScopeDeadlock. The existing legacy path in
+    /// `parse_binding_for_pair_check` is unchanged; this test confirms it.
+    #[test]
+    fn arc_158a_legacy_shape_still_fires() {
+        let src = r#"
+            (:wat::core::define
+              (:my::legacy-shape-still-fires -> :wat::core::nil)
+              (:wat::core::let
+                (((pair :wat::kernel::Channel<wat::core::i64>)
+                  (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                 ((rx :wat::kernel::Receiver<wat::core::i64>)
+                  (:wat::core::second pair))
+                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
+                  (:wat::kernel::spawn-thread
+                    (:wat::core::fn
+                      ((_in :wat::kernel::Receiver<wat::core::nil>)
+                       (_out :wat::kernel::Sender<wat::core::i64>)
+                       -> :wat::core::nil)
+                      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
+                        ((:wat::core::Ok _) ())
+                        ((:wat::core::Err _) ()))))))
+                (:wat::core::match
+                  (:wat::kernel::Thread/join-result thr)
+                  -> :wat::core::nil
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))
+        "#;
+        let err = check(src).expect_err(
+            "arc 158a: legacy-shape Channel binding must still fire ScopeDeadlock (regression)",
+        );
+        assert!(
+            err.0
+                .iter()
+                .any(|e| matches!(e, CheckError::ScopeDeadlock { .. })),
+            "arc 158a test 3: regression — legacy shape no longer fires ScopeDeadlock; got: {:?}",
+            err.0
+        );
+    }
+
+    /// Arc 158a test 4 — mixed-shape let: legacy `pair`, new-shape projection.
+    ///
+    /// `pair` is legacy shape (added to `extended` by inference → Channel type
+    /// present for `check_let_star_for_scope_deadlock_inferred`). `rx` is
+    /// new-shape (skipped by inference). The Sender-bearing `pair` (Channel)
+    /// combined with `thr` (Thread) and `Thread/join-result thr` in body
+    /// fires `ScopeDeadlock` via the inferred-type path.
+    #[test]
+    fn arc_158a_mixed_shape_let_fires() {
+        let src = r#"
+            (:wat::core::define
+              (:my::mixed-shape-let -> :wat::core::nil)
+              (:wat::core::let
+                (((pair :wat::kernel::Channel<wat::core::i64>)
+                  (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                 (rx (:wat::core::second pair))
+                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
+                  (:wat::kernel::spawn-thread
+                    (:wat::core::fn
+                      ((_in :wat::kernel::Receiver<wat::core::nil>)
+                       (_out :wat::kernel::Sender<wat::core::i64>)
+                       -> :wat::core::nil)
+                      (:wat::core::match (:wat::kernel::recv rx) -> :wat::core::nil
+                        ((:wat::core::Ok _) ())
+                        ((:wat::core::Err _) ()))))))
+                (:wat::core::match
+                  (:wat::kernel::Thread/join-result thr)
+                  -> :wat::core::nil
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))
+        "#;
+        let err = check(src).expect_err(
+            "arc 158a: mixed-shape let (legacy pair, new-shape rx) must fire ScopeDeadlock",
+        );
+        assert!(
+            err.0
+                .iter()
+                .any(|e| matches!(e, CheckError::ScopeDeadlock { .. })),
+            "arc 158a test 4: mixed-shape let must fire ScopeDeadlock; got: {:?}",
+            err.0
+        );
+    }
+
+    /// Arc 158a test 5 — unrecognized new-shape RHS: walker gives up
+    /// gracefully. No false positive `ChannelPairDeadlock` when the RHS is a
+    /// user-defined function call that the walker doesn't recognize.
+    #[test]
+    fn arc_158a_unrecognized_new_shape_rhs_no_false_positive() {
+        // `(:my::user-make-thing)` is not in the closed set of recognized
+        // RHS shapes. `parse_binding_for_pair_check` returns None → the
+        // walker doesn't track `x` as a Channel/Sender/Receiver. The body
+        // `(:my::user-make-thing)` is a call with no Sender/Receiver args,
+        // so no ChannelPairDeadlock fires. Walker gives up conservatively.
+        let src = r#"
+            (:wat::core::define
+              (:my::user-make-thing -> :wat::core::i64)
+              42)
+
+            (:wat::core::define
+              (:my::unrecognized-rhs-no-false-positive -> :wat::core::i64)
+              (:wat::core::let
+                ((x (:my::user-make-thing)))
+                x))
+        "#;
+        let result = check(src);
+        match result {
+            Ok(_) => {}
+            Err(errors) => {
+                let channel_deadlocks: Vec<_> = errors
+                    .0
+                    .iter()
+                    .filter(|e| matches!(e, CheckError::ChannelPairDeadlock { .. }))
+                    .collect();
+                assert!(
+                    channel_deadlocks.is_empty(),
+                    "arc 158a test 5: unrecognized new-shape RHS must NOT produce false-positive ChannelPairDeadlock; got: {:?}",
+                    channel_deadlocks
+                );
+            }
+        }
+    }
+
+    /// Arc 158a test 6 — arc 126 canonical anti-pattern in new shape.
+    ///
+    /// Mirrors `channel_pair_deadlock_fires_on_canonical_anti_pattern` but
+    /// uses the new untyped binding shape for all three bindings (`pair`,
+    /// `tx`, `rx`). `parse_binding_for_pair_check` now recognizes all three
+    /// shapes; the walker traces both to anchor `pair` and fires
+    /// `ChannelPairDeadlock` at the `(:my::helper-verb tx rx)` call.
+    #[test]
+    fn arc_158a_arc126_pattern_in_new_shape() {
+        let src = r#"
+            (:wat::core::define
+              (:my::helper-verb-158a-6
+                (tx :wat::kernel::Sender<wat::core::nil>)
+                (rx :wat::kernel::Receiver<wat::core::nil>)
+                -> :wat::core::nil)
+              ())
+
+            (:wat::core::define
+              (:my::arc126-in-new-shape (_d :wat::core::nil) -> :wat::core::nil)
+              (:wat::core::let
+                ((pair (:wat::kernel::make-bounded-channel :wat::core::nil 1))
+                 (tx (:wat::core::first pair))
+                 (rx (:wat::core::second pair)))
+                (:my::helper-verb-158a-6 tx rx)))
+        "#;
+        let err = check(src).expect_err(
+            "arc 158a: arc 126 canonical pattern in new shape must fire ChannelPairDeadlock",
+        );
+        assert!(
+            err.0
+                .iter()
+                .any(|e| matches!(e, CheckError::ChannelPairDeadlock { .. })),
+            "arc 158a test 6: arc 126 pattern in new shape; expected ChannelPairDeadlock; got: {:?}",
+            err.0
+        );
+    }
+
+    /// Arc 158a test 7 — make-unbounded-channel in new shape also fires.
+    ///
+    /// Covers the `make-unbounded-channel` branch of `derive_type_ann_from_rhs`.
+    /// All three bindings in new shape; `pair` from `make-unbounded-channel`.
+    #[test]
+    fn arc_158a_unbounded_channel_new_shape_fires() {
+        let src = r#"
+            (:wat::core::define
+              (:my::helper-verb-158a-7
+                (tx :wat::kernel::Sender<wat::core::i64>)
+                (rx :wat::kernel::Receiver<wat::core::i64>)
+                -> :wat::core::nil)
+              ())
+
+            (:wat::core::define
+              (:my::unbounded-new-shape-deadlock (_d :wat::core::nil) -> :wat::core::nil)
+              (:wat::core::let
+                ((pair (:wat::kernel::make-unbounded-channel :wat::core::i64))
+                 (tx (:wat::core::first pair))
+                 (rx (:wat::core::second pair)))
+                (:my::helper-verb-158a-7 tx rx)))
+        "#;
+        let err = check(src).expect_err(
+            "arc 158a: new-shape make-unbounded-channel must fire ChannelPairDeadlock",
+        );
+        assert!(
+            err.0
+                .iter()
+                .any(|e| matches!(e, CheckError::ChannelPairDeadlock { .. })),
+            "arc 158a test 7: make-unbounded-channel new shape; expected ChannelPairDeadlock; got: {:?}",
+            err.0
+        );
     }
 }
