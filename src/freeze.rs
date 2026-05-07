@@ -196,6 +196,16 @@ impl FrozenWorld {
             }));
         }
 
+        // Arc 157 slice 1a-ii — evaluate top-level `def` forms in the
+        // program residue and populate `symbols.runtime_def_values`. Must
+        // run AFTER all capability carriers are installed (encoding_ctx,
+        // sigma fns, etc.) so that def expressions which call substrate
+        // primitives see a fully-equipped SymbolTable. Parallels the
+        // sigma-fn evaluation above — same pattern, broader scope.
+        let env = crate::runtime::Environment::new();
+        crate::runtime::register_runtime_defs(&program, &env, &mut symbols)
+            .map_err(StartupError::Runtime)?;
+
         Ok(FrozenWorld {
             config,
             types,
@@ -903,7 +913,14 @@ fn refuse_mutation_forms(ast: &WatAST) -> Result<(), RuntimeError> {
 fn is_mutation_form(head: &str) -> bool {
     matches!(
         head,
-        ":wat::core::define"
+        // Arc 157 — `:wat::core::def` modifies the module-level value
+        // env (it's a top-level declaration, not a pure expression).
+        // Refused inside `eval_in_frozen` / dynamic-eval paths so that
+        // runtime-received code cannot inject module bindings. Legal
+        // only at startup (the startup pipeline's `check_program` +
+        // `run_program` path; not the frozen `eval_in_frozen` path).
+        ":wat::core::def"
+            | ":wat::core::define"
             | ":wat::core::defmacro"
             | ":wat::core::define-dispatch"
             | ":wat::core::struct"

@@ -469,6 +469,34 @@ pub enum CheckError {
         /// `Span::unknown()` if the outer scope is a built-in.
         outer_define_span: Span,
     },
+    /// Arc 157 — `:wat::core::def` appeared in a non-top-level position.
+    /// `def` is legal only at: (1) direct file top-level, (2) inside a
+    /// top-level `(:wat::core::do ...)` form, or (3) inside a top-level
+    /// `(:wat::core::let ...)` body. These are the "splice-eligible"
+    /// positions: each executes exactly once at module load time.
+    /// Conditional (`if`, `cond`, `match`, …), function body (`fn`,
+    /// `define` body), and iteration forms are all non-splice — `def`
+    /// inside them is rejected. Use a nested `let` for local binding
+    /// without module-env mutation.
+    DefNotTopLevel {
+        /// The enclosing form's head keyword that violates the rule.
+        wrapper: String,
+        /// Source location of the offending `def` form.
+        span: Span,
+    },
+    /// Arc 157 — `:wat::core::def` attempted to redefine a name that
+    /// is already bound in `defined_values`. Slice 1a-i: every
+    /// collision is an error. Slice 1a-ii will introduce
+    /// `(:wat::config::set-redef! true)` to opt in to redef with
+    /// type-stability checking.
+    DefRedefForbidden {
+        /// The name that was already bound.
+        name: String,
+        /// Source location of the prior (first) binding.
+        prior_loc: Span,
+        /// Source location of the new (colliding) binding.
+        current_loc: Span,
+    },
 }
 
 /// Arc 138 slice 1 — render the file:line:col prefix for an error,
@@ -628,6 +656,17 @@ impl fmt::Display for CheckError {
                     span_prefix(call_span), offending_name, define_loc, offending_name
                 )
             }
+            // Arc 157 — `:wat::core::def` position violations.
+            CheckError::DefNotTopLevel { wrapper, span } => write!(
+                f,
+                "{}`:wat::core::def` found inside `{}` — def is only legal at top-level position: (1) direct file top-level, (2) inside a top-level `(:wat::core::do ...)`, or (3) inside a top-level `(:wat::core::let ...)` body. Conditional and function-body wrappers do not splice def (arc 157 § Scope Q1). Use a nested `(:wat::core::let ...)` for local binding without module-env mutation.",
+                span_prefix(span), wrapper
+            ),
+            CheckError::DefRedefForbidden { name, prior_loc, current_loc } => write!(
+                f,
+                "{}`:wat::core::def` redef of `{}`: name already bound at {}. Redef is forbidden in slice 1a-i (arc 157); opt-in gating (`(:wat::config::set-redef! true)`) lands in arc 157 slice 1a-ii. Use a different name, or wait for slice 1a-ii if you intend a redefinition.",
+                span_prefix(current_loc), name, prior_loc
+            ),
         }
     }
 }
@@ -895,6 +934,18 @@ impl CheckError {
                     diag = diag.field("outer_define_span", format!("{}", outer_define_span));
                 }
                 diag
+            }
+            // Arc 157 — def position + redef diagnostics.
+            CheckError::DefNotTopLevel { wrapper, span } => {
+                Diagnostic::new("DefNotTopLevel")
+                    .field("wrapper", wrapper.as_str())
+                    .field("span", format!("{}", span))
+            }
+            CheckError::DefRedefForbidden { name, prior_loc, current_loc } => {
+                Diagnostic::new("DefRedefForbidden")
+                    .field("name", name.as_str())
+                    .field("prior_loc", format!("{}", prior_loc))
+                    .field("current_loc", format!("{}", current_loc))
             }
         }
     }
@@ -1224,6 +1275,21 @@ pub struct CheckEnv {
     /// in `infer_list` BEFORE the substrate-primitive scheme path so
     /// dispatch-declared names route to per-Type arm impls.
     dispatch_registry: Option<Arc<crate::dispatch::DispatchRegistry>>,
+    /// Arc 157 — names bound via `:wat::core::def` at top-level
+    /// position. Maps name → inferred TypeExpr of the binding. Keyword
+    /// references to a `def`'d name resolve here instead of falling
+    /// through to the generic `:wat::core::keyword` type.
+    ///
+    /// Populated incrementally by `check_program` as it processes
+    /// top-level forms left-to-right: after each `def` form is
+    /// type-checked, the bound name + inferred type are inserted so
+    /// subsequent forms can reference it. Also tracks the span for
+    /// redef diagnostics (via `defined_value_spans`).
+    pub defined_values: HashMap<String, TypeExpr>,
+    /// Arc 157 — parallel to `defined_values`: maps name → span of
+    /// the binding site. Used to emit `DefRedefForbidden` with the
+    /// prior location when a collision is detected.
+    pub defined_value_spans: HashMap<String, Span>,
 }
 
 impl CheckEnv {
@@ -1284,6 +1350,8 @@ impl CheckEnv {
             unit_variant_types,
             types,
             dispatch_registry: None,
+            defined_values: HashMap::new(),
+            defined_value_spans: HashMap::new(),
         }
     }
 
@@ -1317,6 +1385,29 @@ impl CheckEnv {
     ) -> Option<&Arc<crate::dispatch::DispatchRegistry>> {
         self.dispatch_registry.as_ref()
     }
+
+    /// Arc 157 — look up the inferred type for a `def`-bound name.
+    /// Returns `Some(&TypeExpr)` when the name was bound via
+    /// `:wat::core::def`; `None` otherwise. Consulted in `infer`
+    /// before the generic keyword fall-through.
+    pub fn get_defined_value_type(&self, name: &str) -> Option<&TypeExpr> {
+        self.defined_values.get(name)
+    }
+
+    /// Arc 157 — look up the span of a prior `def` binding. Used to
+    /// emit `DefRedefForbidden` with the prior location.
+    pub fn get_defined_value_span(&self, name: &str) -> Option<&Span> {
+        self.defined_value_spans.get(name)
+    }
+
+    /// Arc 157 — register a new `def` binding. Called from
+    /// `infer_def` when a `def` form passes position + redef checks.
+    /// Subsequent forms in `check_program`'s sequential loop will see
+    /// this name in `get_defined_value_type`.
+    pub fn register_defined_value(&mut self, name: String, ty: TypeExpr, span: Span) {
+        self.defined_values.insert(name.clone(), ty);
+        self.defined_value_spans.insert(name, span);
+    }
 }
 
 impl Default for CheckEnv {
@@ -1335,7 +1426,9 @@ pub fn check_program(
     sym: &SymbolTable,
     types: &TypeEnv,
 ) -> Result<(), CheckErrors> {
-    let env = CheckEnv::from_symbols(sym, Arc::new(types.clone()));
+    // Arc 157 — `env` must be `mut` so `defined_values` / `defined_value_spans`
+    // can be updated incrementally as top-level `def` forms are processed.
+    let mut env = CheckEnv::from_symbols(sym, Arc::new(types.clone()));
     let mut errors = Vec::new();
     let mut fresh = InferCtx::default();
 
@@ -1509,16 +1602,58 @@ pub fn check_program(
         validate_legacy_kernel_queue_path(form, &mut errors);
     }
 
+    // Arc 157 — refuse `:wat::core::def` in non-top-level positions.
+    // Walk each program form BEFORE type inference so that position
+    // violations surface as structural errors (not type errors). The
+    // walker emits `DefNotTopLevel` naming the nearest enclosing non-
+    // splice form for each violation. Runs on program forms only (not
+    // function bodies — `def` inside a `define` body IS always illegal
+    // and the position checker covers it via function-body descent).
+    validate_def_positions_in_forms(forms, &mut errors);
+    // Also check inside user-defined function bodies (def inside fn body
+    // is always non-top-level regardless of the call site).
+    for func in sym.functions.values() {
+        validate_def_position_with_wrapper(
+            &func.body,
+            DefCtx::NonTopLevel,
+            ":wat::core::define (body)",
+            &mut errors,
+        );
+    }
+
+    // Arc 157 — check program body forms sequentially, accumulating
+    // `def` bindings into `env.defined_values` so subsequent forms
+    // resolve the bound names at type-check time.
+    //
+    // Two-phase per form:
+    // 1. `check_form` — runs `infer` (which checks arity, types, redef
+    //    via the current `env.defined_values` snapshot).
+    // 2. `collect_and_register_splice_defs` — walks the form for top-
+    //    level def (or splice-position def) bindings and registers each
+    //    new (name, type, span) into `env.defined_values` so the NEXT
+    //    form sees the new binding.
+    //
+    // The two-phase split is required because `check_form` borrows `env`
+    // immutably; the write happens after the borrow is released.
+    for form in forms {
+        check_form(form, &env, &mut fresh, &mut errors);
+        // After the immutable borrow is released, register any top-
+        // level def bindings for subsequent forms to resolve.
+        collect_and_register_splice_defs(form, &mut env, &mut fresh, &mut errors);
+    }
+
     // Check each user define's body against its declared return type.
+    // This runs AFTER the def registration loop so that function bodies
+    // that reference `def`-bound names (e.g. `:pi` defined by
+    // `(:wat::core::def :pi 3.14159)` before the `define` form) see the
+    // fully-populated `env.defined_values`. Moving this after the form
+    // loop is safe: function bodies don't depend on each other's
+    // `defined_values` (they read from `env.get()` which has all
+    // function signatures from `from_symbols`, populated before the loop).
     for (path, func) in &sym.functions {
         if let Some(scheme) = env.get(path) {
             check_function_body(path, func, scheme, &env, &mut fresh, &mut errors);
         }
-    }
-
-    // Check every call in the program body (the post-define residue).
-    for form in forms {
-        check_form(form, &env, &mut fresh, &mut errors);
     }
 
     if errors.is_empty() {
@@ -3200,6 +3335,14 @@ fn infer(
         WatAST::Keyword(k, _) if env.unit_variant_type(k).is_some() => {
             Some(env.unit_variant_type(k).expect("guard").clone())
         }
+        // Arc 157 — `:wat::core::def`-bound names. A keyword that was
+        // bound via `def` at top-level resolves to its registered type
+        // rather than the generic `:wat::core::keyword`. This lookup
+        // fires BEFORE the function-scheme lookup so that `def`-bound
+        // values (which are not Function entries) resolve correctly.
+        WatAST::Keyword(k, _) if env.get_defined_value_type(k).is_some() => {
+            Some(env.get_defined_value_type(k).expect("guard").clone())
+        }
         // Arc 009 — names are values. If the keyword is a registered
         // function (user define, stdlib define, or builtin primitive),
         // instantiate its scheme and return a `:fn(...)->Ret` type so
@@ -3250,6 +3393,24 @@ fn infer_list(
             }
         }
         match k.as_str() {
+            // Arc 157 — `:wat::core::def` type-check arm.
+            // Position checking happens via `validate_def_position`
+            // walker BEFORE `check_form` is called for this form;
+            // this arm infers the expr type and registers the binding
+            // into `env.defined_values` (via the mutable CheckEnv
+            // reference threaded through `check_program`'s sequential
+            // loop). Returns the unit type — `def` is a declaration,
+            // not a value-producing expression.
+            //
+            // NOTE: when `infer_def` is reached, the `env` reference
+            // is shared (&CheckEnv) — we cannot mutate `defined_values`
+            // here. Instead, `infer_def` infers the type and records
+            // the redef error if one exists (both via the env read
+            // path). The WRITE to `defined_values` happens in
+            // `check_program`'s sequential processing loop (after this
+            // call returns) using the helper `extract_def_binding`.
+            // This two-phase approach keeps `infer`'s signature pure.
+            ":wat::core::def" => return infer_def(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::if" => return infer_if(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::cond" => return infer_cond(args, head_span, env, locals, fresh, subst, errors),
             ":wat::core::let" => return infer_let(args, head_span, env, locals, fresh, subst, errors),
@@ -5679,6 +5840,325 @@ fn infer_let(
     );
 
     infer(&args[1], env, &extended, fresh, subst, errors)
+}
+
+// ─── Arc 157 — :wat::core::def ──────────────────────────────────────────
+
+/// Arc 157 — type-check arm for `(:wat::core::def :name expr)`.
+///
+/// Shape validation:
+/// 1. Exactly 2 args: the name keyword + the expression.
+/// 2. First arg must be a keyword (the bound name).
+/// 3. Infer the type of `expr`.
+/// 4. Check for redef collision in `env.defined_values`. If found,
+///    emit `DefRedefForbidden` with the prior span.
+///
+/// The binding write (`env.defined_values.insert`) happens in
+/// `check_program`'s sequential loop via `extract_def_binding` AFTER
+/// this function returns, so that the `&CheckEnv` borrow is released.
+/// This keeps `infer`'s signature pure (no `&mut`).
+///
+/// Returns `Some(TypeExpr::Tuple([]))` — the unit type — since `def`
+/// is a declaration, not a value-producing expression.
+fn infer_def(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+    errors: &mut Vec<CheckError>,
+) -> Option<TypeExpr> {
+    if args.len() != 2 {
+        errors.push(CheckError::MalformedForm {
+            head: ":wat::core::def".into(),
+            reason: format!(
+                "expected (:wat::core::def :name expr); got {} args",
+                args.len()
+            ),
+            span: head_span.clone(),
+        });
+        for arg in args {
+            let _ = infer(arg, env, locals, fresh, subst, errors);
+        }
+        return Some(TypeExpr::Tuple(vec![]));
+    }
+
+    // Arg 0 must be a keyword (the name).
+    let name = match &args[0] {
+        WatAST::Keyword(k, _) => k.clone(),
+        other => {
+            errors.push(CheckError::MalformedForm {
+                head: ":wat::core::def".into(),
+                reason: format!(
+                    "first arg must be a keyword name (e.g. `:my::name`); got {:?}",
+                    other
+                ),
+                span: head_span.clone(),
+            });
+            // Still infer the expr so internal errors surface.
+            let _ = infer(&args[1], env, locals, fresh, subst, errors);
+            return Some(TypeExpr::Tuple(vec![]));
+        }
+    };
+
+    // Infer the type of the expression.
+    let _expr_ty = infer(&args[1], env, locals, fresh, subst, errors);
+
+    // Redef check — every collision is an error in slice 1a-i.
+    if let Some(prior_span) = env.get_defined_value_span(&name) {
+        errors.push(CheckError::DefRedefForbidden {
+            name,
+            prior_loc: prior_span.clone(),
+            current_loc: head_span.clone(),
+        });
+    }
+
+    // Return unit — `def` is a declaration, not a value expression.
+    Some(TypeExpr::Tuple(vec![]))
+}
+
+/// Arc 157 — walk a top-level form that may be a `do` or `let`
+/// wrapper (splice positions) and register any nested `def` bindings
+/// into `env.defined_values` in sequential order.
+///
+/// Called from `check_program`'s sequential loop AFTER `check_form`
+/// runs for the current form. The call to `check_form` already did
+/// full type-check + redef error recording; this pass just registers
+/// the successfully-typed names so subsequent forms resolve them.
+///
+/// Only processes the splice-eligible shapes:
+/// - Direct `def` → registered by the caller via `is_top_level_def_form`.
+/// - `do` at TopLevel → each child; recursively handles nested do/let.
+/// - `let` at TopLevel → the body arg; recursively handles nested do/let.
+/// - Everything else → no-op.
+fn collect_and_register_splice_defs(
+    form: &WatAST,
+    env: &mut CheckEnv,
+    fresh: &mut InferCtx,
+    errors: &mut Vec<CheckError>,
+) {
+    collect_splice_defs_ctx(form, true, env, fresh, errors);
+}
+
+fn collect_splice_defs_ctx(
+    form: &WatAST,
+    is_top: bool,
+    env: &mut CheckEnv,
+    fresh: &mut InferCtx,
+    errors: &mut Vec<CheckError>,
+) {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return,
+    };
+    if items.is_empty() {
+        return;
+    }
+    let head = match &items[0] {
+        WatAST::Keyword(k, _) => k.as_str(),
+        _ => return,
+    };
+    match head {
+        ":wat::core::def" if is_top => {
+            if let Some((name, ty, span)) = extract_def_binding(form, env, fresh, errors) {
+                if !env.defined_values.contains_key(&name) {
+                    env.register_defined_value(name, ty, span);
+                }
+            }
+        }
+        ":wat::core::do" if is_top => {
+            for child in &items[1..] {
+                collect_splice_defs_ctx(child, true, env, fresh, errors);
+            }
+        }
+        ":wat::core::let" if is_top => {
+            if items.len() >= 3 {
+                collect_splice_defs_ctx(&items[2], true, env, fresh, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Arc 157 — extract the `(name, TypeExpr, Span)` triple from a
+/// top-level `(:wat::core::def :name expr)` form. Used by
+/// `check_program`'s sequential loop to update `env.defined_values`
+/// AFTER `check_form` finishes (releasing the shared borrow), so that
+/// subsequent forms in the loop see the newly-bound name.
+///
+/// Returns `None` when the form is not a valid `def` (arity error, non-
+/// keyword name, or expr infers as None). Only called for top-level
+/// `def` forms that passed the position check; redef collision has
+/// already been recorded in `check_form`'s error vector.
+fn extract_def_binding(
+    form: &WatAST,
+    env: &CheckEnv,
+    fresh: &mut InferCtx,
+    errors: &mut Vec<CheckError>,
+) -> Option<(String, TypeExpr, Span)> {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return None,
+    };
+    if items.len() != 3 {
+        return None;
+    }
+    match &items[0] {
+        WatAST::Keyword(k, _) if k == ":wat::core::def" => {}
+        _ => return None,
+    }
+    let name = match &items[1] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => return None,
+    };
+    let span = items[0].span().clone();
+    let mut subst = Subst::new();
+    let ty = infer(&items[2], env, &HashMap::new(), fresh, &mut subst, errors)?;
+    let ty = apply_subst(&ty, &subst);
+    Some((name, ty, span))
+}
+
+// ─── Arc 157 — position predicate walker ────────────────────────────────
+
+/// Arc 157 — position context for the `validate_def_position_with_wrapper`
+/// walker. Tracks whether the current form is at a "splice-eligible"
+/// top-level position (i.e., a position where `:wat::core::def` is legal).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DefCtx {
+    /// At file top-level, inside a top-level `do`, or inside a top-
+    /// level `let` body — `def` is legal here.
+    TopLevel,
+    /// Inside a non-splice form (function body, `if`, etc.) — `def`
+    /// would be a position violation.
+    NonTopLevel,
+}
+
+/// Arc 157 — single-pass position validator + wrapper-name annotator.
+/// Threads the current non-splice wrapper name through recursive descent
+/// so that when a `def` is found in a non-top-level position, `wrapper`
+/// names the nearest enclosing non-splice form (for the `DefNotTopLevel`
+/// diagnostic).
+///
+/// Position rules (recursive):
+/// - File top-level → `TopLevel` context (entry via `validate_def_positions_in_forms`).
+/// - `(:wat::core::do form+)` at TopLevel → each child in `TopLevel`.
+/// - `(:wat::core::let bindings body)` at TopLevel → body in `TopLevel`;
+///   bindings RHSs in `NonTopLevel`.
+/// - Everything else at TopLevel → children in `NonTopLevel` with this
+///   form as the `wrapper`.
+/// - Any form at NonTopLevel → children in `NonTopLevel` with this form
+///   as the `wrapper`.
+///
+/// This mirrors the Clojure top-level rule: only sequential, once-per-
+/// load-time-execution positions may splice `def`. See DESIGN § "Scope Q1".
+fn validate_def_positions_in_forms(
+    forms: &[WatAST],
+    errors: &mut Vec<CheckError>,
+) {
+    for form in forms {
+        validate_def_position_with_wrapper(form, DefCtx::TopLevel, "<top-level>", errors);
+    }
+}
+
+/// Arc 157 — single-pass position validator that threads the current
+/// non-splice wrapper name through recursive descent. When a `def` is
+/// found in a non-top-level position, `wrapper` names the nearest
+/// enclosing non-splice form.
+fn validate_def_position_with_wrapper(
+    form: &WatAST,
+    ctx: DefCtx,
+    wrapper: &str,
+    errors: &mut Vec<CheckError>,
+) {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return,
+    };
+    if items.is_empty() {
+        return;
+    }
+
+    let head_kw = match &items[0] {
+        WatAST::Keyword(k, _) => k.clone(),
+        _ => {
+            for child in items {
+                validate_def_position_with_wrapper(child, DefCtx::NonTopLevel, wrapper, errors);
+            }
+            return;
+        }
+    };
+
+    match head_kw.as_str() {
+        ":wat::core::def" => {
+            if ctx == DefCtx::NonTopLevel {
+                errors.push(CheckError::DefNotTopLevel {
+                    wrapper: wrapper.to_string(),
+                    span: form.span().clone(),
+                });
+            }
+            // Recurse on the expr arg (always NonTopLevel).
+            if items.len() >= 3 {
+                validate_def_position_with_wrapper(
+                    &items[2],
+                    DefCtx::NonTopLevel,
+                    ":wat::core::def",
+                    errors,
+                );
+            }
+        }
+        ":wat::core::do" if ctx == DefCtx::TopLevel => {
+            for child in &items[1..] {
+                validate_def_position_with_wrapper(
+                    child,
+                    DefCtx::TopLevel,
+                    ":wat::core::do",
+                    errors,
+                );
+            }
+        }
+        ":wat::core::let" if ctx == DefCtx::TopLevel => {
+            // Bindings: NonTopLevel.
+            if items.len() >= 2 {
+                if let WatAST::List(pairs, _) = &items[1] {
+                    for pair in pairs {
+                        if let WatAST::List(pair_items, _) = pair {
+                            if let Some(rhs) = pair_items.last() {
+                                validate_def_position_with_wrapper(
+                                    rhs,
+                                    DefCtx::NonTopLevel,
+                                    ":wat::core::let (bindings)",
+                                    errors,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            // Body: TopLevel (splice).
+            if items.len() >= 3 {
+                validate_def_position_with_wrapper(
+                    &items[2],
+                    DefCtx::TopLevel,
+                    ":wat::core::let",
+                    errors,
+                );
+            }
+        }
+        _ => {
+            // All other forms are non-splice. Recurse on children with
+            // this form as the "wrapper" for any nested def violation.
+            let child_wrapper = head_kw.clone();
+            for child in &items[1..] {
+                validate_def_position_with_wrapper(
+                    child,
+                    DefCtx::NonTopLevel,
+                    &child_wrapper,
+                    errors,
+                );
+            }
+        }
+    }
 }
 
 /// `(:wat::core::try <result-expr>)` — the error-propagation form.

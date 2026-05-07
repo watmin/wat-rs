@@ -97,6 +97,20 @@ fn insert(m: &mut HashMap<String, SpecialFormDef>, name: &str, slots: &[&str]) {
 fn build_registry() -> HashMap<String, SpecialFormDef> {
     let mut m = HashMap::new();
 
+    // ─── Value binding — top-level ──────────────────────────────────────
+    // Arc 157 — `:wat::core::def` is the foundational top-level value-
+    // binding special form (Clojure-faithful; strongly-typed Clojure on
+    // Rust). Shape: `(:wat::core::def :name expr)`. Legal only at
+    // top-level position: direct file form, inside a top-level
+    // `(:wat::core::do ...)`, or inside a top-level
+    // `(:wat::core::let ...)` body (the splice-eligible positions
+    // per DESIGN § "Scope (Q1)"). The bound name's type is the inferred
+    // type of `expr`; no type annotation on the form.
+    // Dispatch sites: `src/check.rs` (infer_def arm) +
+    // `src/runtime.rs` (dispatch_keyword_head arm). Position enforcement
+    // via the `validate_def_position` walker called in `check_program`.
+    insert(&mut m, ":wat::core::def", &["<name>", "<expr>"]);
+
     // ─── Control / branching ────────────────────────────────────────────
     // Dispatch sites: `src/check.rs:2956-2959` + `src/runtime.rs:2402-2405`.
     insert(&mut m, ":wat::core::if", &["<cond>", "<then>", "<else>"]);
@@ -317,6 +331,7 @@ mod tests {
     fn registry_covers_audited_forms() {
         // Spot-check one entry per group.
         for name in [
+            ":wat::core::def",
             ":wat::core::if",
             ":wat::core::let",
             ":wat::core::fn",

@@ -744,6 +744,32 @@ pub struct SymbolTable {
     /// driver (`spawn::eval_kernel_spawn_program_ast` and siblings)
     /// after the sub-program's freeze completes.
     pub outer_symbols: Option<Arc<SymbolTable>>,
+    /// Arc 157 — names bound via `:wat::core::def` at top-level
+    /// position. Maps name → source location of the binding. Used at
+    /// check time to reject redef collisions (every collision is an
+    /// error in slice 1a-i — opt-in gating lands in slice 1a-ii).
+    /// The type of each binding lives in `CheckEnv.defined_values`
+    /// (built from this map's presence during `check_program`).
+    /// The runtime value of each binding lives in `runtime_def_values`.
+    ///
+    /// Populated by `register_defs` during the startup pipeline
+    /// (step 6c, after `register_defines`). Persists into the frozen
+    /// SymbolTable so check_program can reject redefs against the
+    /// registered locations. Slice 1a-ii will add `redef_allowed` /
+    /// `eval_redef_allowed` bools + type-stability gating.
+    pub defined_values: HashMap<String, (crate::types::TypeExpr, Span)>,
+    /// Arc 157 slice 1a-ii — runtime values bound via `:wat::core::def`.
+    /// Maps name → `Value` produced when the top-level `def` form's
+    /// expression was evaluated during `FrozenWorld::freeze` (step 9.5).
+    /// Consulted in `eval`'s keyword arm after `unit_variants` so that
+    /// a bare keyword reference (`:pi`, `:get-config`, etc.) resolves to
+    /// the bound value at runtime without re-evaluating the expression.
+    ///
+    /// Parallel to `defined_values` (type-check side) — cleaner
+    /// separation: check-time carries `(TypeExpr, Span)`; runtime carries
+    /// `Value`. Populated by `register_runtime_defs` in `FrozenWorld::freeze`
+    /// after all capability carriers are installed.
+    pub runtime_def_values: HashMap<String, Value>,
 }
 
 impl std::fmt::Debug for SymbolTable {
@@ -758,6 +784,8 @@ impl std::fmt::Debug for SymbolTable {
             .field("presence_sigma_fn", &self.presence_sigma_fn.is_some())
             .field("coincident_sigma_fn", &self.coincident_sigma_fn.is_some())
             .field("types", &self.types.is_some())
+            .field("defined_values", &self.defined_values.len())
+            .field("runtime_def_values", &self.runtime_def_values.len())
             .finish()
     }
 }
@@ -1681,6 +1709,137 @@ pub fn register_newtype_methods(
     Ok(())
 }
 
+/// Arc 157 slice 1a-ii — evaluate top-level `def` forms in the program
+/// residue and populate `sym.runtime_def_values` with the resulting values.
+///
+/// Called from `FrozenWorld::freeze` after all capability carriers are
+/// installed on `symbols`. At that point `symbols` is still `mut`, so
+/// this function can write to `runtime_def_values` directly.
+///
+/// Walks only splice-eligible positions (the same predicate enforced by
+/// the type checker's position predicate):
+/// - Direct `(:wat::core::def :name expr)` at top-level → evaluates `expr`
+///   in `env`, inserts `name → value` into `sym.runtime_def_values`.
+/// - `(:wat::core::do ...)` at top-level → recurse on each child.
+/// - `(:wat::core::let (bindings) body)` at top-level → evaluate the
+///   bindings and build a child environment, then recurse into the body
+///   with that env. This enables the closure-capture case:
+///   `(let [config 42] (def :get-config (fn [] config)))` — the fn
+///   closure captures `config` from the let-env at freeze time.
+/// - Everything else → evaluate for side effects (non-def top-level forms)
+///   but don't write to `runtime_def_values`.
+///
+/// The `env` parameter carries any enclosing let-bindings. At the
+/// outermost call (from `FrozenWorld::freeze`) this is `Environment::new()`.
+pub fn register_runtime_defs(
+    program: &[WatAST],
+    env: &Environment,
+    sym: &mut SymbolTable,
+) -> Result<(), RuntimeError> {
+    for form in program {
+        register_runtime_defs_form(form, env, sym)?;
+    }
+    Ok(())
+}
+
+/// Recursive helper for [`register_runtime_defs`]. Processes a single form.
+fn register_runtime_defs_form(
+    form: &WatAST,
+    env: &Environment,
+    sym: &mut SymbolTable,
+) -> Result<(), RuntimeError> {
+    let items = match form {
+        WatAST::List(items, _) => items,
+        _ => return Ok(()), // non-list top-level forms are not def-splice positions
+    };
+    if items.is_empty() {
+        return Ok(());
+    }
+    let head = match &items[0] {
+        WatAST::Keyword(k, _) => k.as_str(),
+        _ => return Ok(()),
+    };
+
+    match head {
+        ":wat::core::def" => {
+            // Shape: (:wat::core::def :name expr)
+            // The type checker already validated shape + position; here we
+            // trust the form is well-formed (same guarantee as the runtime
+            // eval arm).
+            if items.len() != 3 {
+                return Ok(()); // malformed; type checker already caught it
+            }
+            let name = match &items[1] {
+                WatAST::Keyword(k, _) => k.clone(),
+                _ => return Ok(()), // malformed; type checker already caught it
+            };
+            let expr = &items[2];
+            // Evaluate the expr in the current env (which carries any
+            // enclosing let-bindings from a splice-eligible let wrapper).
+            // sym must be passed as immutable here for eval; the write
+            // to runtime_def_values happens after.
+            let sym_ref: &SymbolTable = sym;
+            let value = eval(expr, env, sym_ref)?;
+            sym.runtime_def_values.insert(name, value);
+        }
+        ":wat::core::do" => {
+            // Splice: each child is a potential def position.
+            for child in &items[1..] {
+                register_runtime_defs_form(child, env, sym)?;
+            }
+        }
+        ":wat::core::let" => {
+            // Splice: evaluate the bindings in order, build a child env,
+            // then recurse into the body with the richer env.
+            // Shape: (:wat::core::let (bindings) body)
+            if items.len() != 3 {
+                return Ok(()); // malformed; type checker already caught it
+            }
+            let bindings_form = &items[1];
+            let body = &items[2];
+
+            let binding_pairs = match bindings_form {
+                WatAST::List(pairs, _) => pairs,
+                _ => return Ok(()),
+            };
+
+            // Build the child env from the bindings. Mirror eval_let's
+            // sequential-binding logic: each binding is evaluated in the
+            // env accumulated so far, then extends it.
+            let mut scope = env.clone();
+            for pair in binding_pairs {
+                // Each pair: ((name :Type) expr)
+                let pair_items = match pair {
+                    WatAST::List(it, _) => it,
+                    _ => continue,
+                };
+                if pair_items.len() < 2 {
+                    continue;
+                }
+                let name_type = match &pair_items[0] {
+                    WatAST::List(it, _) => it,
+                    _ => continue,
+                };
+                let binding_name = match name_type.first() {
+                    Some(WatAST::Symbol(ident, _)) => ident.name.clone(),
+                    _ => continue,
+                };
+                let rhs = &pair_items[1];
+                let sym_ref: &SymbolTable = sym;
+                let value = eval(rhs, &scope, sym_ref)?;
+                scope = scope.child().bind(binding_name, value).build();
+            }
+            // Recurse into the body with the let env.
+            register_runtime_defs_form(body, &scope, sym)?;
+        }
+        _ => {
+            // Non-splice top-level form (define, struct, enum, etc.) —
+            // not a def-eligible position. No action needed.
+        }
+    }
+    Ok(())
+}
+
 fn is_define_form(form: &WatAST) -> bool {
     matches!(
         form,
@@ -2466,6 +2625,18 @@ pub fn eval(
             if let Some(ev) = sym.unit_variants.get(k) {
                 return Ok(Value::Enum(Arc::new(ev.clone())));
             }
+            // Arc 157 — top-level `def` bindings. A keyword that was
+            // bound via `(:wat::core::def :name expr)` at top-level
+            // position resolves to the value computed when freeze
+            // evaluated the def form (populated in `runtime_def_values`
+            // by `register_runtime_defs` during `FrozenWorld::freeze`).
+            // Checked AFTER unit_variants (enum constructors take
+            // precedence) and BEFORE the function-value lift (so a
+            // def-bound closure is returned as the stored Value rather
+            // than re-lifted through `sym.get`).
+            if let Some(v) = sym.runtime_def_values.get(k) {
+                return Ok(v.clone());
+            }
             // Arc 009 — names are values. If the keyword is a registered
             // user/stdlib define, lift it to a callable Function value.
             // Parallels `:wat::kernel::spawn`'s long-standing accept-by-
@@ -2556,6 +2727,34 @@ fn dispatch_keyword_head(
     }
     match head {
         // Language forms
+        // Arc 157 — `:wat::core::def` top-level value-binding form.
+        // Evaluates `<expr>` and returns Unit. The type-checker
+        // enforces position rules and redef discipline at startup.
+        // Slice 1a-i: eval arm evaluates the expr (for side-effects
+        // and to surface runtime errors in the expression) and
+        // returns Unit. Module-level value registration (so that
+        // `:name` resolves to the bound value in subsequent eval)
+        // is deferred to slice 1a-ii when the mutable module-env
+        // carrier is wired in. Position check already fired at
+        // check_program time; this arm is only reached for legal
+        // top-level defs.
+        ":wat::core::def" => {
+            if args.len() != 2 {
+                return Err(RuntimeError::MalformedForm {
+                    head: ":wat::core::def".into(),
+                    reason: format!(
+                        "expected (:wat::core::def :name expr); got {} args",
+                        args.len()
+                    ),
+                    span: list_span.clone(),
+                });
+            }
+            // Evaluate the expression for side effects / error propagation.
+            // The resulting value is discarded in slice 1a-i (module-level
+            // value binding wires in 1a-ii).
+            let _value = crate::runtime::eval(&args[1], env, sym)?;
+            Ok(Value::Unit)
+        }
         ":wat::core::define" => Err(RuntimeError::DefineInExpressionPosition(list_span.clone())),
         // Arc 155 — `:wat::core::fn` is the canonical operator for
         // function values (Clojure-faithful lowercase verb; mirrors
@@ -3298,6 +3497,29 @@ fn dispatch_keyword_head(
             let func = match sym.get(canonical) {
                 Some(f) => f.clone(),
                 None => {
+                    // Arc 157 — before the UnknownFunction path, check
+                    // whether the call head names a `def`-bound value.
+                    // A `def`-bound value (e.g. `:get-config`) may be a
+                    // lambda (closure); calling it via `(:get-config ...)`
+                    // should dispatch through `apply_function` rather than
+                    // erroring. The canonical strip is skipped here —
+                    // `def` names are registered verbatim.
+                    if let Some(v) = sym.runtime_def_values.get(other) {
+                        let func = match v {
+                            Value::wat__core__lambda(f) => f.clone(),
+                            other_val => {
+                                return Err(RuntimeError::NotCallable {
+                                    got: other_val.type_name(),
+                                    span: list_span.clone(),
+                                });
+                            }
+                        };
+                        let vals = args
+                            .iter()
+                            .map(|a| eval(a, env, sym))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        return apply_function(func, vals, sym, list_span.clone());
+                    }
                     // Arc 140 slice 1 — sandbox-scope leak detection.
                     // Inner-scope lookup missed; if this SymbolTable
                     // belongs to a sub-program (outer_symbols is
