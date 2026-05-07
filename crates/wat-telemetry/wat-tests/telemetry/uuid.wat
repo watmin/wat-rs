@@ -21,8 +21,8 @@
 (:wat::test::deftest :wat-telemetry::uuid::test-distinct-pair
   ()
   (:wat::core::let
-    (((a :wat::core::String) (:wat::telemetry::uuid::v4))
-     ((b :wat::core::String) (:wat::telemetry::uuid::v4)))
+    ((a (:wat::telemetry::uuid::v4))
+     (b (:wat::telemetry::uuid::v4)))
     (:wat::test::assert-eq (:wat::core::= a b) false)))
 
 
@@ -31,8 +31,8 @@
 (:wat::test::deftest :wat-telemetry::uuid::test-many-distinct
   ()
   (:wat::core::let
-    (((a :wat::core::String) (:wat::telemetry::uuid::v4))
-     ((b :wat::core::String) (:wat::telemetry::uuid::v4))
-     ((c :wat::core::String) (:wat::telemetry::uuid::v4))
-     ((s :wat::core::HashSet<wat::core::String>) (:wat::core::HashSet :wat::core::String a b c)))
+    ((a (:wat::telemetry::uuid::v4))
+     (b (:wat::telemetry::uuid::v4))
+     (c (:wat::telemetry::uuid::v4))
+     (s (:wat::core::HashSet :wat::core::String a b c)))
     (:wat::test::assert-eq (:wat::core::length s) 3)))

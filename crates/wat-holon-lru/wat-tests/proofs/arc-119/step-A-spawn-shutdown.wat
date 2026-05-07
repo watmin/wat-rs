@@ -28,20 +28,20 @@
   ()
   (:wat::core::let
     ;; Outer holds the driver Thread; inner owns everything else.
-    (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+    ((driver
       (:wat::core::let
-        (((spawn :wat::holon::lru::HologramCacheService::Spawn)
+        ((spawn
           (:wat::holon::lru::HologramCacheService/spawn 1 4
             :wat::holon::lru::HologramCacheService/null-reporter
             (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
-         ((pool :wat::kernel::HandlePool<wat::holon::lru::HologramCacheService::Handle>)
+         (pool
           (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+         (d
           (:wat::core::second spawn))
          ;; Pop Handle; finish asserts pool empty.
-         ((_handle :wat::holon::lru::HologramCacheService::Handle)
+         (_handle
           (:wat::kernel::HandlePool::pop pool))
-         ((_finish :wat::core::nil)
+         (_finish
           (:wat::kernel::HandlePool::finish pool)))
         ;; _handle drops here — driver sees disconnect, loop exits.
         d)))

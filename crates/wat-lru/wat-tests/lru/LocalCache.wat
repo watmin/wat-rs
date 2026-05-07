@@ -18,12 +18,12 @@
 (:wat::test::deftest :wat-lru::test-local-cache-put-then-get
   ()
   (:wat::core::let
-    (((cache :wat::lru::LocalCache<wat::core::String,wat::core::i64>)
+    ((cache
       (:wat::lru::LocalCache::new 16))
-     ((_ :wat::core::Option<(wat::core::String,wat::core::i64)>) (:wat::lru::LocalCache::put cache "answer" 42))
-     ((got :wat::core::Option<wat::core::i64>)
+     (_ (:wat::lru::LocalCache::put cache "answer" 42))
+     (got
       (:wat::lru::LocalCache::get cache "answer"))
-     ((result :wat::core::i64)
+     (result
       (:wat::core::match got -> :wat::core::i64
         ((:wat::core::Some v) v)
         (:wat::core::None -1))))
@@ -34,11 +34,11 @@
 (:wat::test::deftest :wat-lru::test-local-cache-miss-returns-none
   ()
   (:wat::core::let
-    (((cache :wat::lru::LocalCache<wat::core::String,wat::core::i64>)
+    ((cache
       (:wat::lru::LocalCache::new 16))
-     ((got :wat::core::Option<wat::core::i64>)
+     (got
       (:wat::lru::LocalCache::get cache "missing"))
-     ((is-none :wat::core::bool)
+     (is-none
       (:wat::core::match got -> :wat::core::bool
         ((:wat::core::Some _v) false)
         (:wat::core::None true))))
@@ -49,13 +49,13 @@
 (:wat::test::deftest :wat-lru::test-local-cache-put-overwrites
   ()
   (:wat::core::let
-    (((cache :wat::lru::LocalCache<wat::core::String,wat::core::i64>)
+    ((cache
       (:wat::lru::LocalCache::new 16))
-     ((_ :wat::core::Option<(wat::core::String,wat::core::i64)>) (:wat::lru::LocalCache::put cache "k" 1))
-     ((_ :wat::core::Option<(wat::core::String,wat::core::i64)>) (:wat::lru::LocalCache::put cache "k" 99))
-     ((got :wat::core::Option<wat::core::i64>)
+     (_ (:wat::lru::LocalCache::put cache "k" 1))
+     (_ (:wat::lru::LocalCache::put cache "k" 99))
+     (got
       (:wat::lru::LocalCache::get cache "k"))
-     ((result :wat::core::i64)
+     (result
       (:wat::core::match got -> :wat::core::i64
         ((:wat::core::Some v) v)
         (:wat::core::None -1))))
@@ -67,14 +67,14 @@
 (:wat::test::deftest :wat-lru::test-local-cache-evict-at-capacity
   ()
   (:wat::core::let
-    (((cache :wat::lru::LocalCache<wat::core::i64,wat::core::i64>)
+    ((cache
       (:wat::lru::LocalCache::new 2))
-     ((_ :wat::core::Option<(wat::core::i64,wat::core::i64)>) (:wat::lru::LocalCache::put cache 1 10))
-     ((_ :wat::core::Option<(wat::core::i64,wat::core::i64)>) (:wat::lru::LocalCache::put cache 2 20))
-     ((_ :wat::core::Option<(wat::core::i64,wat::core::i64)>) (:wat::lru::LocalCache::put cache 3 30))
-     ((got :wat::core::Option<wat::core::i64>)
+     (_ (:wat::lru::LocalCache::put cache 1 10))
+     (_ (:wat::lru::LocalCache::put cache 2 20))
+     (_ (:wat::lru::LocalCache::put cache 3 30))
+     (got
       (:wat::lru::LocalCache::get cache 1))
-     ((is-none :wat::core::bool)
+     (is-none
       (:wat::core::match got -> :wat::core::bool
         ((:wat::core::Some _v) false)
         (:wat::core::None true))))

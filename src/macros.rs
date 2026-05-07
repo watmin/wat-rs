@@ -1133,7 +1133,7 @@ mod tests {
         let forms = expand(
             r#"
             (:wat::core::defmacro (:my::vocab::WithTmp (body :AST) -> :AST)
-              `(:wat::core::let (((tmp :i64) 1)) ,body))
+              `(:wat::core::let ((tmp 1)) ,body))
             (:my::vocab::WithTmp tmp)
             "#,
         )

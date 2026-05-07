@@ -15,7 +15,7 @@
 (:wat::test::deftest :wat-tests::holon::coincident::test-self-coincident
   ()
   (:wat::core::let
-    (((a :wat::holon::HolonAST) (:wat::holon::Atom "rsi")))
+    ((a (:wat::holon::Atom "rsi")))
     (:wat::test::assert-eq
       (:wat::holon::coincident? a a)
       true)))
@@ -25,9 +25,9 @@
 (:wat::test::deftest :wat-tests::holon::coincident::test-structurally-same
   ()
   (:wat::core::let
-    (((a :wat::holon::HolonAST)
+    ((a
       (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v")))
-     ((b :wat::holon::HolonAST)
+     (b
       (:wat::holon::Bind (:wat::holon::Atom "k") (:wat::holon::Atom "v"))))
     (:wat::test::assert-eq
       (:wat::holon::coincident? a b)
@@ -38,8 +38,8 @@
 (:wat::test::deftest :wat-tests::holon::coincident::test-unrelated-not-coincident
   ()
   (:wat::core::let
-    (((a :wat::holon::HolonAST) (:wat::holon::Atom "alice"))
-     ((b :wat::holon::HolonAST) (:wat::holon::Atom "charlie")))
+    ((a (:wat::holon::Atom "alice"))
+     (b (:wat::holon::Atom "charlie")))
     (:wat::test::assert-eq
       (:wat::holon::coincident? a b)
       false)))
@@ -52,17 +52,17 @@
 (:wat::test::deftest :wat-tests::holon::coincident::test-stricter-than-presence
   ()
   (:wat::core::let
-    (((bundled :wat::holon::BundleResult)
+    ((bundled
       (:wat::holon::Bundle
         (:wat::core::Vector :wat::holon::HolonAST
           (:wat::holon::Atom "a")
           (:wat::holon::Atom "b")
           (:wat::holon::Atom "c"))))
-     ((bundle :wat::holon::HolonAST)
+     (bundle
       (:wat::core::match bundled -> :wat::holon::HolonAST
         ((:wat::core::Ok h)  h)
         ((:wat::core::Err _) (:wat::holon::Atom "unreachable"))))
-     ((atom :wat::holon::HolonAST) (:wat::holon::Atom "a")))
+     (atom (:wat::holon::Atom "a")))
     ;; presence? fires (atom's signal IS in the bundle).
     (:wat::test::assert-eq
       (:wat::core::if (:wat::holon::presence? atom bundle)
@@ -84,7 +84,7 @@
 (:wat::test::deftest :wat-tests::holon::coincident::test-self-cosine-within-floor
   ()
   (:wat::core::let
-    (((a :wat::holon::HolonAST)
+    ((a
       (:wat::holon::Bind (:wat::holon::Atom "rsi")
                          (:wat::holon::Thermometer 0.5 -1.0 1.0))))
     ;; Arc 037: coincident? does the per-d threshold comparison

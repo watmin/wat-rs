@@ -30,19 +30,19 @@
    (:wat::core::define
      (:test::lru-spawn-and-drop -> :wat::core::nil)
      (:wat::core::let
-       (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+       ((driver
          (:wat::core::let
-           (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
+           ((spawn
              (:wat::lru::spawn 16 1
                :wat::lru::null-reporter
                (:wat::lru::null-metrics-cadence)))
-            ((pool :wat::kernel::HandlePool<wat::lru::Handle<wat::core::String,wat::core::i64>>)
+            (pool
              (:wat::core::first spawn))
-            ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+            (d
              (:wat::core::second spawn))
-            ((_handle :wat::lru::Handle<wat::core::String,wat::core::i64>)
+            (_handle
              (:wat::kernel::HandlePool::pop pool))
-            ((_finish :wat::core::nil)
+            (_finish
              (:wat::kernel::HandlePool::finish pool)))
            d)))
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::nil
@@ -59,26 +59,26 @@
    (:wat::core::define
      (:test::lru-helper-get-empty -> :wat::core::i64)
      (:wat::core::let
-       (((driver-and-n :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
+       ((driver-and-n
          (:wat::core::let
-           (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
+           ((spawn
              (:wat::lru::spawn 16 1
                :wat::lru::null-reporter
                (:wat::lru::null-metrics-cadence)))
-            ((pool :wat::kernel::HandlePool<wat::lru::Handle<wat::core::String,wat::core::i64>>)
+            (pool
              (:wat::core::first spawn))
-            ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+            (d
              (:wat::core::second spawn))
-            ((handle :wat::lru::Handle<wat::core::String,wat::core::i64>)
+            (handle
              (:wat::kernel::HandlePool::pop pool))
-            ((results :wat::core::Vector<wat::core::Option<wat::core::i64>>)
+            (results
              (:wat::lru::get handle (:wat::core::Vector :wat::core::String)))
-            ((_finish :wat::core::nil)
+            (_finish
              (:wat::kernel::HandlePool::finish pool)))
            (:wat::core::Tuple d (:wat::core::Vector/length results))))
-        ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+        (driver
          (:wat::core::first driver-and-n))
-        ((n :wat::core::i64) (:wat::core::second driver-and-n)))
+        (n (:wat::core::second driver-and-n)))
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) n)
          ((:wat::core::Err _)
@@ -95,23 +95,23 @@
    (:wat::core::define
      (:test::lru-helper-put-one -> :wat::core::i64)
      (:wat::core::let
-       (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+       ((driver
          (:wat::core::let
-           (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
+           ((spawn
              (:wat::lru::spawn 16 1
                :wat::lru::null-reporter
                (:wat::lru::null-metrics-cadence)))
-            ((pool :wat::kernel::HandlePool<wat::lru::Handle<wat::core::String,wat::core::i64>>)
+            (pool
              (:wat::core::first spawn))
-            ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+            (d
              (:wat::core::second spawn))
-            ((handle :wat::lru::Handle<wat::core::String,wat::core::i64>)
+            (handle
              (:wat::kernel::HandlePool::pop pool))
-            ((_put :wat::core::nil)
+            (_put
              (:wat::lru::put handle
                (:wat::core::Vector :wat::lru::Entry<wat::core::String,wat::core::i64>
                  (:wat::core::Tuple "k1" 42))))
-            ((_finish :wat::core::nil)
+            (_finish
              (:wat::kernel::HandlePool::finish pool)))
            d)))
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
@@ -133,13 +133,13 @@
        (v :wat::core::i64)
        -> :wat::core::i64)
      (:wat::core::let
-       (((_put :wat::core::nil)
+       ((_put
          (:wat::lru::put handle
            (:wat::core::Vector :wat::lru::Entry<wat::core::String,wat::core::i64>
              (:wat::core::Tuple k v))))
-        ((results :wat::core::Vector<wat::core::Option<wat::core::i64>>)
+        (results
          (:wat::lru::get handle (:wat::core::Vector :wat::core::String k)))
-        ((slot :wat::core::Option<wat::core::i64>)
+        (slot
          (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
            (:wat::core::get results 0)
            "lru-put-then-get-on-handle: results vec is empty")))
@@ -156,26 +156,26 @@
    (:wat::core::define
      (:test::lru-helper-put-then-get -> :wat::core::i64)
      (:wat::core::let
-       (((driver-and-v :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
+       ((driver-and-v
          (:wat::core::let
-           (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
+           ((spawn
              (:wat::lru::spawn 16 1
                :wat::lru::null-reporter
                (:wat::lru::null-metrics-cadence)))
-            ((pool :wat::kernel::HandlePool<wat::lru::Handle<wat::core::String,wat::core::i64>>)
+            (pool
              (:wat::core::first spawn))
-            ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+            (d
              (:wat::core::second spawn))
-            ((handle :wat::lru::Handle<wat::core::String,wat::core::i64>)
+            (handle
              (:wat::kernel::HandlePool::pop pool))
-            ((v :wat::core::i64)
+            (v
              (:test::lru-put-then-get-on-handle handle "k1" 42))
-            ((_finish :wat::core::nil)
+            (_finish
              (:wat::kernel::HandlePool::finish pool)))
            (:wat::core::Tuple d v)))
-        ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+        (driver
          (:wat::core::first driver-and-v))
-        ((v :wat::core::i64) (:wat::core::second driver-and-v)))
+        (v (:wat::core::second driver-and-v)))
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) v)
          ((:wat::core::Err _)
@@ -205,23 +205,23 @@
        (handle :wat::lru::Handle<wat::core::String,wat::core::i64>)
        -> :wat::core::i64)
      (:wat::core::let
-       (((_put :wat::core::nil)
+       ((_put
          (:wat::lru::put handle
            (:wat::core::Vector :wat::lru::Entry<wat::core::String,wat::core::i64>
              (:wat::core::Tuple "k1" 11)
              (:wat::core::Tuple "k2" 22))))
-        ((results :wat::core::Vector<wat::core::Option<wat::core::i64>>)
+        (results
          (:wat::lru::get handle
            (:wat::core::Vector :wat::core::String "k1" "k2" "k3")))
-        ((p0 :wat::core::i64) (:test::lru-slot-presence
+        (p0 (:test::lru-slot-presence
            (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
              (:wat::core::get results 0)
              "lru-probe-three-on-handle: results[0] missing")))
-        ((p1 :wat::core::i64) (:test::lru-slot-presence
+        (p1 (:test::lru-slot-presence
            (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
              (:wat::core::get results 1)
              "lru-probe-three-on-handle: results[1] missing")))
-        ((p2 :wat::core::i64) (:test::lru-slot-presence
+        (p2 (:test::lru-slot-presence
            (:wat::core::Option/expect -> :wat::core::Option<wat::core::i64>
              (:wat::core::get results 2)
              "lru-probe-three-on-handle: results[2] missing"))))
@@ -237,26 +237,26 @@
    (:wat::core::define
      (:test::lru-helper-get-many-keys -> :wat::core::i64)
      (:wat::core::let
-       (((driver-and-pat :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::i64))
+       ((driver-and-pat
          (:wat::core::let
-           (((spawn :wat::lru::Spawn<wat::core::String,wat::core::i64>)
+           ((spawn
              (:wat::lru::spawn 16 1
                :wat::lru::null-reporter
                (:wat::lru::null-metrics-cadence)))
-            ((pool :wat::kernel::HandlePool<wat::lru::Handle<wat::core::String,wat::core::i64>>)
+            (pool
              (:wat::core::first spawn))
-            ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+            (d
              (:wat::core::second spawn))
-            ((handle :wat::lru::Handle<wat::core::String,wat::core::i64>)
+            (handle
              (:wat::kernel::HandlePool::pop pool))
-            ((pat :wat::core::i64)
+            (pat
              (:test::lru-probe-three-on-handle handle))
-            ((_finish :wat::core::nil)
+            (_finish
              (:wat::kernel::HandlePool::finish pool)))
            (:wat::core::Tuple d pat)))
-        ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+        (driver
          (:wat::core::first driver-and-pat))
-        ((pat :wat::core::i64) (:wat::core::second driver-and-pat)))
+        (pat (:wat::core::second driver-and-pat)))
        (:wat::core::match (:wat::kernel::Thread/join-result driver) -> :wat::core::i64
          ((:wat::core::Ok _) pat)
          ((:wat::core::Err _)

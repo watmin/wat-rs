@@ -10,25 +10,25 @@
 (:wat::test::deftest :wat-tests::edn::test-write-bool
   ()
   (:wat::core::let
-    (((s :wat::core::String) (:wat::edn::write true)))
+    ((s (:wat::edn::write true)))
     (:wat::test::assert-eq s "true")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-i64
   ()
   (:wat::core::let
-    (((s :wat::core::String) (:wat::edn::write 42)))
+    ((s (:wat::edn::write 42)))
     (:wat::test::assert-eq s "42")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-string
   ()
   (:wat::core::let
-    (((s :wat::core::String) (:wat::edn::write "hello")))
+    ((s (:wat::edn::write "hello")))
     (:wat::test::assert-eq s "\"hello\"")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-unit
   ()
   (:wat::core::let
-    (((s :wat::core::String) (:wat::edn::write ())))
+    ((s (:wat::edn::write ())))
     (:wat::test::assert-eq s "nil")))
 
 ;; ─── Vec ─────────────────────────────────────────────────────────
@@ -36,15 +36,15 @@
 (:wat::test::deftest :wat-tests::edn::test-write-vec-i64
   ()
   (:wat::core::let
-    (((v :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
-     ((s :wat::core::String) (:wat::edn::write v)))
+    ((v (:wat::core::Vector :wat::core::i64 1 2 3))
+     (s (:wat::edn::write v)))
     (:wat::test::assert-eq s "[1 2 3]")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-vec-string
   ()
   (:wat::core::let
-    (((v :wat::core::Vector<wat::core::String>) (:wat::core::Vector :wat::core::String "a" "b"))
-     ((s :wat::core::String) (:wat::edn::write v)))
+    ((v (:wat::core::Vector :wat::core::String "a" "b"))
+     (s (:wat::edn::write v)))
     (:wat::test::assert-eq s "[\"a\" \"b\"]")))
 
 ;; ─── Tuple ───────────────────────────────────────────────────────
@@ -52,8 +52,8 @@
 (:wat::test::deftest :wat-tests::edn::test-write-tuple
   ()
   (:wat::core::let
-    (((t :(wat::core::i64,wat::core::String)) (:wat::core::Tuple 7 "x"))
-     ((s :wat::core::String) (:wat::edn::write t)))
+    ((t (:wat::core::Tuple 7 "x"))
+     (s (:wat::edn::write t)))
     (:wat::test::assert-eq s "[7 \"x\"]")))
 
 ;; ─── JSON path ───────────────────────────────────────────────────
@@ -61,14 +61,14 @@
 (:wat::test::deftest :wat-tests::edn::test-write-json-vec
   ()
   (:wat::core::let
-    (((v :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
-     ((s :wat::core::String) (:wat::edn::write-json v)))
+    ((v (:wat::core::Vector :wat::core::i64 1 2 3))
+     (s (:wat::edn::write-json v)))
     (:wat::test::assert-eq s "[1,2,3]")))
 
 (:wat::test::deftest :wat-tests::edn::test-write-json-string
   ()
   (:wat::core::let
-    (((s :wat::core::String) (:wat::edn::write-json "hi")))
+    ((s (:wat::edn::write-json "hi")))
     (:wat::test::assert-eq s "\"hi\"")))
 
 ;; ─── Pretty path — multi-line for nested vec ─────────────────────
@@ -80,6 +80,6 @@
 (:wat::test::deftest :wat-tests::edn::test-write-pretty-flat
   ()
   (:wat::core::let
-    (((v :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 1 2 3))
-     ((s :wat::core::String) (:wat::edn::write-pretty v)))
+    ((v (:wat::core::Vector :wat::core::i64 1 2 3))
+     (s (:wat::edn::write-pretty v)))
     (:wat::test::assert-eq s "[1 2 3]")))

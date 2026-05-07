@@ -40,12 +40,12 @@
        ((:wat::core::Ok h) h)
        ((:wat::core::Err _) (:wat::holon::leaf 0)))))
   (:wat::core::let
-    (((y :wat::holon::HolonAST) (:wat::holon::Atom "y"))
-     ((noise :wat::holon::HolonAST) (:wat::holon::Atom "noise"))
+    ((y (:wat::holon::Atom "y"))
+     (noise (:wat::holon::Atom "noise"))
      ;; x contains y plus a noise atom — x has a real y-component.
-     ((x :wat::holon::HolonAST)
+     (x
       (:wat-tests::holon::Reject::bundle-or-fail y noise))
-     ((residual :wat::holon::HolonAST) (:wat::holon::Reject x y)))
+     (residual (:wat::holon::Reject x y)))
     (:wat::test::assert-eq (:wat::holon::presence? y residual) false)))
 
 
@@ -61,11 +61,11 @@
        ((:wat::core::Ok h) h)
        ((:wat::core::Err _) (:wat::holon::leaf 0)))))
   (:wat::core::let
-    (((y :wat::holon::HolonAST) (:wat::holon::Atom "y"))
-     ((noise :wat::holon::HolonAST) (:wat::holon::Atom "noise"))
+    ((y (:wat::holon::Atom "y"))
+     (noise (:wat::holon::Atom "noise"))
      ;; x contains y plus a noise atom — x has a real y-component
      ;; for Project to preserve.
-     ((x :wat::holon::HolonAST)
+     (x
       (:wat-tests::holon::Reject::bundle-or-fail y noise))
-     ((shadow :wat::holon::HolonAST) (:wat::holon::Project x y)))
+     (shadow (:wat::holon::Project x y)))
     (:wat::test::assert-eq (:wat::holon::presence? y shadow) true)))

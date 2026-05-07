@@ -139,8 +139,8 @@
     (body      :wat::core::Fn(wat::telemetry::WorkUnit)->T)
     -> :T)
   (:wat::core::let
-    (((wu     :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new namespace tags))
-     ((result :T)                        (body wu)))
+    ((wu (:wat::telemetry::WorkUnit::new namespace tags))
+     (result                        (body wu)))
     result))
 
 
@@ -166,16 +166,16 @@
      (body :wat::telemetry::WorkUnit::Body<T>)
      -> :T)
     (:wat::core::let
-      (((wu     :wat::telemetry::WorkUnit) (:wat::telemetry::WorkUnit::new namespace tags))
-       ((result :T)                        (body wu))
-       ((start  :wat::core::i64) (:wat::telemetry::WorkUnit/started-epoch-nanos wu))
-       ((end    :wat::core::i64) (:wat::time::epoch-nanos (:wat::time::now)))
-       ((events :wat::core::Vector<wat::telemetry::Event>)
+      ((wu (:wat::telemetry::WorkUnit::new namespace tags))
+       (result                        (body wu))
+       (start (:wat::telemetry::WorkUnit/started-epoch-nanos wu))
+       (end (:wat::time::epoch-nanos (:wat::time::now)))
+       (events
         (:wat::telemetry::WorkUnit/scope::collect-metric-events wu start end))
-       ((req-tx :wat::telemetry::ReqTx<wat::telemetry::Event>)
+       (req-tx
         (:wat::core::first handle))
-       ((ack-rx :wat::telemetry::AckRx) (:wat::core::second handle))
-       ((_ship  :wat::core::nil)
+       (ack-rx (:wat::core::second handle))
+       (_ship
         (:wat::telemetry::batch-log req-tx ack-rx events)))
       result)))
 
@@ -202,14 +202,14 @@
     (body :wat::core::Fn()->T)
     -> :T)
   (:wat::core::let
-    (((_bump      :wat::core::nil)  (:wat::telemetry::WorkUnit/incr! wu name))
-     ((start      :wat::core::i64) (:wat::time::epoch-nanos (:wat::time::now)))
-     ((result     :T)   (body))
-     ((end        :wat::core::i64) (:wat::time::epoch-nanos (:wat::time::now)))
-     ((delta-ns   :wat::core::i64) (:wat::core::- end start))
-     ((delta-ns-f :wat::core::f64) (:wat::core::i64::to-f64 delta-ns))
-     ((secs       :wat::core::f64) (:wat::core::/ delta-ns-f 1000000000.0))
-     ((_dt        :wat::core::nil)  (:wat::telemetry::WorkUnit/append-dt! wu name secs)))
+    ((_bump  (:wat::telemetry::WorkUnit/incr! wu name))
+     (start (:wat::time::epoch-nanos (:wat::time::now)))
+     (result   (body))
+     (end (:wat::time::epoch-nanos (:wat::time::now)))
+     (delta-ns (:wat::core::- end start))
+     (delta-ns-f (:wat::core::i64::to-f64 delta-ns))
+     (secs (:wat::core::/ delta-ns-f 1000000000.0))
+     (_dt  (:wat::telemetry::WorkUnit/append-dt! wu name secs)))
     result))
 
 
@@ -312,12 +312,12 @@
     (end-time-ns   :wat::core::i64)
     -> :wat::core::Vector<wat::telemetry::Event>)
   (:wat::core::let
-    (((namespace      :wat::holon::HolonAST)        (:wat::telemetry::WorkUnit/namespace wu))
-     ((uuid           :wat::core::String)                     (:wat::telemetry::WorkUnit/uuid wu))
-     ((tags           :wat::telemetry::Tags)        (:wat::telemetry::WorkUnit/tags wu))
-     ((counter-keys   :wat::holon::Holons)   (:wat::telemetry::WorkUnit/counters-keys wu))
-     ((duration-keys  :wat::holon::Holons)   (:wat::telemetry::WorkUnit/durations-keys wu))
-     ((counter-events :wat::core::Vector<wat::telemetry::Event>)
+    ((namespace        (:wat::telemetry::WorkUnit/namespace wu))
+     (uuid                     (:wat::telemetry::WorkUnit/uuid wu))
+     (tags        (:wat::telemetry::WorkUnit/tags wu))
+     (counter-keys   (:wat::telemetry::WorkUnit/counters-keys wu))
+     (duration-keys   (:wat::telemetry::WorkUnit/durations-keys wu))
+     (counter-events
       (:wat::core::foldl counter-keys
         (:wat::core::Vector :wat::telemetry::Event)
         (:wat::core::fn
@@ -325,13 +325,13 @@
            (key :wat::holon::HolonAST)
            -> :wat::core::Vector<wat::telemetry::Event>)
           (:wat::core::let
-            (((count :wat::core::i64) (:wat::telemetry::WorkUnit/counter wu key))
-             ((event :wat::telemetry::Event)
+            ((count (:wat::telemetry::WorkUnit/counter wu key))
+             (event
               (:wat::telemetry::WorkUnit/scope::build-counter-metric
                 start-time-ns end-time-ns namespace uuid tags key count)))
             (:wat::core::concat acc
               (:wat::core::Vector :wat::telemetry::Event event))))))
-     ((duration-events :wat::core::Vector<wat::telemetry::Event>)
+     (duration-events
       (:wat::core::foldl duration-keys
         (:wat::core::Vector :wat::telemetry::Event)
         (:wat::core::fn
@@ -339,9 +339,9 @@
            (key :wat::holon::HolonAST)
            -> :wat::core::Vector<wat::telemetry::Event>)
           (:wat::core::let
-            (((samples :wat::core::Vector<wat::core::f64>)
+            ((samples
               (:wat::telemetry::WorkUnit/durations wu key))
-             ((per-name :wat::core::Vector<wat::telemetry::Event>)
+             (per-name
               (:wat::telemetry::WorkUnit/scope::collect-duration-events-for-name
                 start-time-ns end-time-ns namespace uuid tags key samples)))
             (:wat::core::concat acc per-name))))))

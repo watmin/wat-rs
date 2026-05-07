@@ -112,26 +112,26 @@
   (:wat::core::if (:wat::core::empty? pairs) -> :wat::core::nil
     :wat::core::nil
     (:wat::core::let
-      (((rxs :wat::core::Vector<wat::console::ReqRx>)
+      ((rxs
         (:wat::core::map pairs
           (:wat::core::fn
             ((p :wat::console::DriverPair)
              -> :wat::console::ReqRx)
             (:wat::core::first p))))
-       ((chosen :wat::kernel::Chosen<wat::console::Message>)
+       (chosen
         (:wat::kernel::select rxs))
-       ((idx :wat::core::i64) (:wat::core::first chosen))
-       ((maybe :wat::kernel::CommResult<wat::console::Message>)
+       (idx (:wat::core::first chosen))
+       (maybe
         (:wat::core::second chosen)))
       (:wat::core::match maybe -> :wat::core::nil
         ((:wat::core::Ok (:wat::core::Some tagged))
           (:wat::core::let
-            (((tag :wat::core::i64) (:wat::core::first tagged))
-             ((msg :wat::core::String) (:wat::core::second tagged))
-             ((_ :wat::core::i64) (:wat::core::if (:wat::core::= tag 0) -> :wat::core::i64
+            ((tag (:wat::core::first tagged))
+             (msg (:wat::core::second tagged))
+             (_ (:wat::core::if (:wat::core::= tag 0) -> :wat::core::i64
                         (:wat::io::IOWriter/write-string stdout msg)
                         (:wat::io::IOWriter/write-string stderr msg)))
-             ((_ack :wat::core::nil)
+             (_ack
               (:wat::console::ack-at pairs idx)))
             (:wat::console::loop pairs stdout stderr)))
         ((:wat::core::Ok :wat::core::None)
@@ -161,7 +161,7 @@
   (:wat::core::match (:wat::core::get pairs idx) -> :wat::core::nil
     ((:wat::core::Some pair)
       (:wat::core::let
-        (((ack-tx :wat::console::AckTx)
+        ((ack-tx
           (:wat::core::second pair)))
         (:wat::core::Result/expect -> :wat::core::nil
           (:wat::kernel::send ack-tx :wat::core::nil)
@@ -191,13 +191,13 @@
     (msg :wat::core::String)
     -> :wat::core::nil)
   (:wat::core::let
-    (((tx :wat::console::ReqTx) (:wat::core::first handle))
-     ((ack-rx :wat::console::AckRx) (:wat::core::second handle))
-     ((_send :wat::core::nil)
+    ((tx (:wat::core::first handle))
+     (ack-rx (:wat::core::second handle))
+     (_send
       (:wat::core::Result/expect -> :wat::core::nil
         (:wat::kernel::send tx (:wat::core::Tuple 0 msg))
         "Console/out: tx disconnected — Console driver died?"))
-     ((_ack :wat::core::Option<wat::core::nil>)
+     (_ack
       (:wat::core::Result/expect -> :wat::core::Option<wat::core::nil>
         (:wat::kernel::recv ack-rx)
         "Console/out: ack-rx disconnected — Console driver died mid-write?")))
@@ -209,13 +209,13 @@
     (msg :wat::core::String)
     -> :wat::core::nil)
   (:wat::core::let
-    (((tx :wat::console::ReqTx) (:wat::core::first handle))
-     ((ack-rx :wat::console::AckRx) (:wat::core::second handle))
-     ((_send :wat::core::nil)
+    ((tx (:wat::core::first handle))
+     (ack-rx (:wat::core::second handle))
+     (_send
       (:wat::core::Result/expect -> :wat::core::nil
         (:wat::kernel::send tx (:wat::core::Tuple 1 msg))
         "Console/err: tx disconnected — Console driver died?"))
-     ((_ack :wat::core::Option<wat::core::nil>)
+     (_ack
       (:wat::core::Result/expect -> :wat::core::Option<wat::core::nil>
         (:wat::kernel::recv ack-rx)
         "Console/err: ack-rx disconnected — Console driver died mid-write?")))
@@ -243,7 +243,7 @@
     ;; index of the request pair matches the index of the ack
     ;; pair — this is what makes pair-by-index ack routing
     ;; possible inside Console/loop.
-    (((req-pairs :wat::core::Vector<(wat::console::ReqTx,wat::console::ReqRx)>)
+    ((req-pairs
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
@@ -251,7 +251,7 @@
            -> :(wat::console::ReqTx,wat::console::ReqRx))
           (:wat::kernel::make-bounded-channel
             :wat::console::Message 1))))
-     ((ack-pairs :wat::core::Vector<(wat::console::AckTx,wat::console::AckRx)>)
+     (ack-pairs
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
@@ -259,7 +259,7 @@
            -> :(wat::console::AckTx,wat::console::AckRx))
           (:wat::kernel::make-bounded-channel :wat::core::nil 1))))
      ;; Producer-side: pop a Handle = (req-Tx, ack-Rx).
-     ((handles :wat::core::Vector<wat::console::Handle>)
+     (handles
       (:wat::std::list::zip
         (:wat::core::map req-pairs
           (:wat::core::fn
@@ -274,7 +274,7 @@
      ;; Driver-side: Vec<DriverPair> = (req-Rx, ack-Tx) at the
      ;; matching index. select fires for idx i; pairs[i].second
      ;; is the ack-Tx the driver writes back on.
-     ((driver-pairs :wat::core::Vector<wat::console::DriverPair>)
+     (driver-pairs
       (:wat::std::list::zip
         (:wat::core::map req-pairs
           (:wat::core::fn
@@ -286,9 +286,9 @@
             ((p :(wat::console::AckTx,wat::console::AckRx))
              -> :wat::console::AckTx)
             (:wat::core::first p)))))
-     ((pool :wat::kernel::HandlePool<wat::console::Handle>)
+     (pool
       (:wat::kernel::HandlePool::new "Console" handles))
-     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+     (driver
       (:wat::kernel::spawn-thread
         (:wat::core::fn
           ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)

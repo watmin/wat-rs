@@ -22,9 +22,9 @@
 
 (:deftest :wat-tests::holon::ReciprocalLog::test-expansion-matches-explicit-log
   (:wat::core::let
-    (((sugar :wat::holon::HolonAST)
+    ((sugar
       (:wat::holon::ReciprocalLog 2.0 1.5))
-     ((explicit :wat::holon::HolonAST)
+     (explicit
       (:wat::holon::Log 1.5 0.5 2.0)))
     (:wat::test::assert-eq
       (:wat::holon::coincident? sugar explicit)
@@ -34,9 +34,9 @@
 
 (:deftest :wat-tests::holon::ReciprocalLog::test-value-1-coincides-with-itself
   (:wat::core::let
-    (((a :wat::holon::HolonAST)
+    ((a
       (:wat::holon::ReciprocalLog 2.0 1.0))
-     ((b :wat::holon::HolonAST)
+     (b
       (:wat::holon::ReciprocalLog 2.0 1.0)))
     (:wat::test::assert-eq
       (:wat::holon::coincident? a b)
@@ -46,9 +46,9 @@
 
 (:deftest :wat-tests::holon::ReciprocalLog::test-upper-bound-not-coincident-with-reference
   (:wat::core::let
-    (((ref :wat::holon::HolonAST)
+    ((ref
       (:wat::holon::ReciprocalLog 2.0 1.0))
-     ((upper :wat::holon::HolonAST)
+     (upper
       (:wat::holon::ReciprocalLog 2.0 2.0)))
     (:wat::test::assert-eq
       (:wat::holon::coincident? ref upper)
@@ -58,9 +58,9 @@
 
 (:deftest :wat-tests::holon::ReciprocalLog::test-different-n-differs-for-same-value
   (:wat::core::let
-    (((tight :wat::holon::HolonAST)
+    ((tight
       (:wat::holon::ReciprocalLog 2.0 1.5))
-     ((wide :wat::holon::HolonAST)
+     (wide
       (:wat::holon::ReciprocalLog 10.0 1.5)))
     ;; At N=2, value=1.5 is near the upper saturation (75% of the
     ;; gradient). At N=10, value=1.5 is near the center (just

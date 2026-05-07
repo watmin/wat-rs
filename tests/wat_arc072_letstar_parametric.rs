@@ -70,9 +70,9 @@ fn letstar_result_no_whitespace_simple_payload() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let
-            (((wrapped :wat::core::Result<wat::core::i64,wat::core::String>)
+            ((wrapped
               (:wat::core::Ok 42))
-             ((extracted :wat::core::i64)
+             (extracted
               (:wat::core::match wrapped -> :wat::core::i64
                 ((:wat::core::Ok n) (:wat::core::i64::+,2 n 1))
                 ((:wat::core::Err _) -1))))
@@ -99,9 +99,9 @@ fn letstar_result_no_whitespace_tuple_payload() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let
-            (((wrapped :wat::core::Result<(wat::core::i64,wat::core::i64),wat::core::i64>)
+            ((wrapped
               (:wat::core::Ok (:wat::core::Tuple 7 11)))
-             ((extracted :wat::core::i64)
+             (extracted
               (:wat::core::match wrapped -> :wat::core::i64
                 ((:wat::core::Ok pair) (:wat::core::second pair))
                 ((:wat::core::Err _) -1))))
@@ -128,7 +128,7 @@ fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let
-            (((m :HashMap<String, i64>)
+            ((m
               (:wat::core::HashMap :String :i64)))
             (:wat::io::IOWriter/println stdout "ok")))
     "#;

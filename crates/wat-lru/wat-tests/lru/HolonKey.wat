@@ -25,13 +25,13 @@
 (:wat::test::deftest :wat-lru::test-local-cache-holon-key-roundtrip
   ()
   (:wat::core::let
-    (((cache :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::i64>)
+    ((cache
       (:wat::lru::LocalCache::new 16))
-     ((k :wat::holon::HolonAST)
+     (k
       (:wat::holon::Atom (:wat::core::quote :the-form)))
-     ((_ :wat::core::Option<(wat::holon::HolonAST,wat::core::i64)>) (:wat::lru::LocalCache::put cache k 42))
-     ((got :wat::core::Option<wat::core::i64>) (:wat::lru::LocalCache::get cache k))
-     ((result :wat::core::i64)
+     (_ (:wat::lru::LocalCache::put cache k 42))
+     (got (:wat::lru::LocalCache::get cache k))
+     (result
       (:wat::core::match got -> :wat::core::i64
         ((:wat::core::Some v) v)
         (:wat::core::None -1))))
@@ -45,13 +45,13 @@
 (:wat::test::deftest :wat-lru::test-local-cache-holon-key-distinguishes
   ()
   (:wat::core::let
-    (((cache :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::i64>)
+    ((cache
       (:wat::lru::LocalCache::new 16))
-     ((k1 :wat::holon::HolonAST) (:wat::holon::Atom (:wat::core::quote :a)))
-     ((k2 :wat::holon::HolonAST) (:wat::holon::Atom (:wat::core::quote :b)))
-     ((_ :wat::core::Option<(wat::holon::HolonAST,wat::core::i64)>) (:wat::lru::LocalCache::put cache k1 1))
-     ((got :wat::core::Option<wat::core::i64>) (:wat::lru::LocalCache::get cache k2))
-     ((is-none :wat::core::bool)
+     (k1 (:wat::holon::Atom (:wat::core::quote :a)))
+     (k2 (:wat::holon::Atom (:wat::core::quote :b)))
+     (_ (:wat::lru::LocalCache::put cache k1 1))
+     (got (:wat::lru::LocalCache::get cache k2))
+     (is-none
       (:wat::core::match got -> :wat::core::bool
         ((:wat::core::Some _v) false)
         (:wat::core::None true))))
@@ -68,19 +68,19 @@
 (:wat::test::deftest :wat-lru::test-local-cache-holon-key-structural-equal
   ()
   (:wat::core::let
-    (((cache :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::i64>)
+    ((cache
       (:wat::lru::LocalCache::new 16))
-     ((k1 :wat::holon::HolonAST)
+     (k1
       (:wat::holon::Bind
         (:wat::holon::Atom (:wat::core::quote :role))
         (:wat::holon::Atom (:wat::core::quote :filler))))
-     ((k2 :wat::holon::HolonAST)
+     (k2
       (:wat::holon::Bind
         (:wat::holon::Atom (:wat::core::quote :role))
         (:wat::holon::Atom (:wat::core::quote :filler))))
-     ((_ :wat::core::Option<(wat::holon::HolonAST,wat::core::i64)>) (:wat::lru::LocalCache::put cache k1 99))
-     ((got :wat::core::Option<wat::core::i64>) (:wat::lru::LocalCache::get cache k2))
-     ((result :wat::core::i64)
+     (_ (:wat::lru::LocalCache::put cache k1 99))
+     (got (:wat::lru::LocalCache::get cache k2))
+     (result
       (:wat::core::match got -> :wat::core::i64
         ((:wat::core::Some v) v)
         (:wat::core::None -1))))

@@ -45,7 +45,7 @@ fn ticket_redeems_once_successfully() {
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let
-            (((t :rust::test::Ticket) (:rust::test::Ticket::new 777)))
+            ((t (:rust::test::Ticket::new 777)))
             (:rust::test::Ticket::redeem t)))
     "#;
     let loader = InMemoryLoader::new();
@@ -62,8 +62,8 @@ fn ticket_second_redemption_errors() {
 
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            (((t :rust::test::Ticket) (:rust::test::Ticket::new 42))
-             ((first :wat::core::i64) (:rust::test::Ticket::redeem t)))
+            ((t (:rust::test::Ticket::new 42))
+             (first (:rust::test::Ticket::redeem t)))
             (:rust::test::Ticket::redeem t)))
     "#;
     let loader = InMemoryLoader::new();

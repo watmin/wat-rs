@@ -100,9 +100,9 @@
     (b :wat::holon::HolonAST)
     -> :wat::core::nil)
   (:wat::core::let
-    (((expl :wat::holon::CoincidentExplanation)
+    ((expl
       (:wat::holon::coincident-explain a b))
-     ((ok :wat::core::bool)
+     (ok
       (:wat::holon::CoincidentExplanation/coincident expl)))
     (:wat::core::if ok -> :wat::core::nil
       :wat::core::nil
@@ -149,7 +149,7 @@
     (expected :wat::core::Vector<wat::core::String>)
     -> :wat::core::nil)
   (:wat::core::let
-    (((actual :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stdout result)))
+    ((actual (:wat::kernel::RunResult/stdout result)))
     (:wat::core::if (:wat::core::= actual expected) -> :wat::core::nil
       :wat::core::nil
       (:wat::kernel::assertion-failed!
@@ -177,7 +177,7 @@
     (pattern :wat::core::String)
     -> :wat::core::nil)
   (:wat::core::let
-    (((stderr-lines :wat::core::Vector<wat::core::String>) (:wat::kernel::RunResult/stderr result)))
+    ((stderr-lines (:wat::kernel::RunResult/stderr result)))
     (:wat::core::if (:wat::test::any-line-matches pattern stderr-lines) -> :wat::core::nil
       :wat::core::nil
       (:wat::kernel::assertion-failed!

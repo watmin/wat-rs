@@ -57,17 +57,17 @@
     (val :wat::holon::HolonAST)
     -> :wat::core::nil)
   (:wat::core::let
-    (((h :wat::holon::Hologram) (:wat::holon::lru::HologramCache/hologram store))
-     ((lru :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::nil>)
+    ((h (:wat::holon::lru::HologramCache/hologram store))
+     (lru
       (:wat::holon::lru::HologramCache/lru store))
-     ((_ :wat::core::nil) (:wat::holon::Hologram/put h key val))
-     ((evicted :wat::core::Option<(wat::holon::HolonAST,wat::core::nil)>)
+     (_ (:wat::holon::Hologram/put h key val))
+     (evicted
       (:wat::lru::LocalCache::put lru key :wat::core::nil)))
     (:wat::core::match evicted -> :wat::core::nil
       ((:wat::core::Some pair)
         (:wat::core::let
-          (((evicted-key :wat::holon::HolonAST) (:wat::core::first pair))
-           ((_ :wat::core::Option<wat::holon::HolonAST>)
+          ((evicted-key (:wat::core::first pair))
+           (_
             (:wat::holon::Hologram/remove h evicted-key)))
           :wat::core::nil))
       (:wat::core::None :wat::core::nil))))
@@ -84,17 +84,17 @@
     (probe :wat::holon::HolonAST)
     -> :wat::core::Option<wat::holon::HolonAST>)
   (:wat::core::let
-    (((h :wat::holon::Hologram) (:wat::holon::lru::HologramCache/hologram store))
-     ((lru :wat::lru::LocalCache<wat::holon::HolonAST,wat::core::nil>)
+    ((h (:wat::holon::lru::HologramCache/hologram store))
+     (lru
       (:wat::holon::lru::HologramCache/lru store)))
     (:wat::core::match
       (:wat::holon::Hologram/find h probe)
       -> :wat::core::Option<wat::holon::HolonAST>
       ((:wat::core::Some pair)
         (:wat::core::let
-          (((matched-key :wat::holon::HolonAST) (:wat::core::first pair))
-           ((val :wat::holon::HolonAST) (:wat::core::second pair))
-           ((_ :wat::core::Option<(wat::holon::HolonAST,wat::core::nil)>)
+          ((matched-key (:wat::core::first pair))
+           (val (:wat::core::second pair))
+           (_
             (:wat::lru::LocalCache::put lru matched-key :wat::core::nil)))
           (:wat::core::Some val)))
       (:wat::core::None :wat::core::None))))

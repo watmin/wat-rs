@@ -77,15 +77,15 @@ fn three_probes(name_keyword: &str) -> Vec<String> {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((def-opt :wat::core::Option<wat::holon::HolonAST>)
+            ((def-opt
               (:wat::runtime::lookup-define {name}))
-             ((def-rendered :wat::core::String)
+             (def-rendered
               (:wat::edn::write def-opt))
-             ((sig-opt :wat::core::Option<wat::holon::HolonAST>)
+             (sig-opt
               (:wat::runtime::signature-of {name}))
-             ((sig-rendered :wat::core::String)
+             (sig-rendered
               (:wat::edn::write sig-opt))
-             ((body-opt :wat::core::Option<wat::holon::HolonAST>)
+             (body-opt
               (:wat::runtime::body-of {name})))
             (:wat::core::do
               (:wat::io::IOWriter/println stdout def-rendered)
@@ -306,11 +306,11 @@ fn lookup_form_unknown_special_form_name_returns_none() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((d-opt :wat::core::Option<wat::holon::HolonAST>)
+            ((d-opt
               (:wat::runtime::lookup-define :wat::core::not-a-special-form))
-             ((s-opt :wat::core::Option<wat::holon::HolonAST>)
+             (s-opt
               (:wat::runtime::signature-of :wat::core::not-a-special-form))
-             ((b-opt :wat::core::Option<wat::holon::HolonAST>)
+             (b-opt
               (:wat::runtime::body-of    :wat::core::not-a-special-form)))
             (:wat::core::match d-opt
               -> :wat::core::nil

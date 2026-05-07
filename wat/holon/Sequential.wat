@@ -21,7 +21,7 @@
     (items :AST<List<wat::holon::HolonAST>>)
     -> :AST<wat::holon::HolonAST>)
   `(:wat::core::let
-     (((positioned :wat::holon::Holons)
+     ((positioned
        (:wat::std::list::map-with-index ,items
          (:wat::core::fn ((item :wat::holon::HolonAST) (i :wat::core::i64) -> :wat::holon::HolonAST)
            (:wat::core::if (:wat::core::= i 0) -> :wat::holon::HolonAST

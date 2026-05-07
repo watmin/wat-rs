@@ -51,7 +51,7 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
         (:wat::core::define
           (:user::main -> :wat::core::Vector<wat::core::String>)
           (:wat::core::let
-            (((forms :wat::core::Vector<wat::WatAST>)
+            ((forms
               (:wat::test::program
                 (:wat::core::define (:user::main
                                      (stdin  :wat::io::IOReader)
@@ -59,14 +59,14 @@ fn hermetic_assertion_failure_preserves_actual_and_expected() {
                                      (stderr :wat::io::IOWriter)
                                      -> :wat::core::nil)
                   (:wat::test::assert-eq 1 2))))
-             ((r :wat::kernel::RunResult)
+             (r
               (:wat::kernel::run-sandboxed-hermetic-ast
                 forms
                 (:wat::core::Vector :wat::core::String)
                 :wat::core::None))
-             ((fail :wat::core::Option<wat::kernel::Failure>)
+             (fail
               (:wat::kernel::RunResult/failure r))
-             ((rendered :wat::core::Vector<wat::core::String>)
+             (rendered
               (:wat::core::match fail -> :wat::core::Vector<wat::core::String>
                 ((:wat::core::Some f)
                  (:wat::core::Vector :wat::core::String

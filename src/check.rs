@@ -263,6 +263,23 @@ pub enum CheckError {
         /// `:wat::core::let*` token.
         span: Span,
     },
+    /// Arc 159 — per-binding type annotation `((name :T) expr)` is the
+    /// legacy form; canonical post-arc-159 shape is `(name expr)` where
+    /// the binding type is inferred from the expression (arc 145 lesson
+    /// applied to the inner-binding slot; `def` set the same precedent
+    /// in arc 157). Walker (`walk_for_legacy_typed_let_binding`) fires
+    /// one error per legacy binding site; consumer sweep (slice 2) does
+    /// the mechanical `((name :T) expr)` → `(name expr)` transform.
+    ///
+    /// **Slice 4 retirement.** Walker body retires after sweep clears
+    /// all in-tree legacy sites. Variant + Display stay as orphaned
+    /// scaffolding per arc 113 precedent.
+    LegacyTypedLetBinding {
+        /// Name of the bound variable at the legacy binding site.
+        binding_name: String,
+        /// Source location of the binding pair.
+        span: Span,
+    },
     /// Arc 155 — `:wat::core::lambda` retired in favor of
     /// `:wat::core::fn` (Clojure-faithful single-letform vocabulary;
     /// lowercase verb for function values). Mirror of arc 154's
@@ -621,6 +638,11 @@ impl fmt::Display for CheckError {
                 "':wat::core::let*' at {} is retired (arc 154); canonical FQDN is ':wat::core::let'. Same sequential semantics, single name (Clojure-faithful: Clojure's user-facing `let` IS the sequential primitive; `let*` is a substrate-internal form not part of normal user code). Rename ':wat::core::let*' -> ':wat::core::let' at the offending site.",
                 span
             ),
+            CheckError::LegacyTypedLetBinding { binding_name, span } => write!(
+                f,
+                "let binding '(({} :T) expr)' at {} is the legacy form post-arc-159; canonical shape is '({} expr)' — the type is inferred from the expression (arc 145 lesson applied to the inner-binding slot; same precedent as ':wat::core::def' in arc 157). Remove the type annotation wrapper: change '(({} :T) expr)' to '({} expr)' at the offending binding site.",
+                binding_name, span, binding_name, binding_name, binding_name
+            ),
             CheckError::BareLegacyLambda { span } => write!(
                 f,
                 "':wat::core::lambda' at {} is retired (arc 155); canonical FQDN is ':wat::core::fn'. Clojure-faithful single-letform vocabulary: lowercase 'fn' for function values (matches Clojure's user-facing `fn`). Rename ':wat::core::lambda' -> ':wat::core::fn' at the offending site.",
@@ -899,6 +921,12 @@ impl CheckError {
                 Diagnostic::new("BareLegacyLetStar")
                     .field("retired", ":wat::core::let*")
                     .field("fqdn", ":wat::core::let")
+                    .field("location", format!("{}", span))
+            }
+            CheckError::LegacyTypedLetBinding { binding_name, span } => {
+                Diagnostic::new("LegacyTypedLetBinding")
+                    .field("binding", binding_name.as_str())
+                    .field("canonical", format!("({} expr)", binding_name).as_str())
                     .field("location", format!("{}", span))
             }
             CheckError::BareLegacyLambda { span } => {
@@ -1647,6 +1675,20 @@ pub fn check_program(
         validate_legacy_kernel_queue_path(form, &mut errors);
     }
 
+    // Arc 159 — fire `LegacyTypedLetBinding` on every `((name :T) expr)`
+    // binding inside any `:wat::core::let` form. Runs BEFORE type
+    // inference so legacy binding sites surface as structural migration
+    // errors (not type errors). Consumer sweep (slice 2) uses the
+    // diagnostic stream as the mechanical work list. Walker retires in
+    // slice 4 after the sweep clears all in-tree legacy sites; variant +
+    // Display stay as orphaned scaffolding per arc 113 precedent.
+    for func in sym.functions.values() {
+        validate_legacy_typed_let_binding(&func.body, &mut errors);
+    }
+    for form in forms {
+        validate_legacy_typed_let_binding(form, &mut errors);
+    }
+
     // Arc 157 — refuse `:wat::core::def` in non-top-level positions.
     // Walk each program form BEFORE type inference so that position
     // violations surface as structural errors (not type errors). The
@@ -2177,6 +2219,111 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
 // variant preserved for testing/teaching; only the firing body
 // retires). Future symbol-migration arcs reintroduce the pattern
 // with new variants per Pattern 3.
+
+// Arc 159 — `walk_for_legacy_typed_let_binding` fires one
+// `LegacyTypedLetBinding` per `((name :T) expr)` binding inside
+// any `:wat::core::let` form. Pattern 3 (substrate-as-teacher §
+// "Three migration patterns"): dedicated CheckError variant +
+// walker; consumer sweep (slice 2) uses the diagnostic stream as
+// the work list. Mirror of arc 154's `validate_legacy_let_star`
+// shape (binding-site detection rather than keyword detection).
+//
+// **Binding shape discrimination (critical — arc 158 v1 lesson):**
+// - `(name rhs)` where name is `WatAST::Symbol` → NEW canonical shape;
+//   no-op (not legacy)
+// - `((name :T) rhs)` where binder is List, len==2, [0] Symbol, [1]
+//   Keyword → LEGACY; emit `LegacyTypedLetBinding`
+// - `((a b ...) rhs)` where binder is List, all elements Symbols →
+//   DESTRUCTURE; no-op (not legacy)
+//
+// **Slice 4 retirement.** Walker body retires after sweep clears all
+// in-tree legacy binding sites. `LegacyTypedLetBinding` variant +
+// Display stay as orphaned scaffolding (arc 113 precedent).
+
+/// Arc 159 — public entry point for the `LegacyTypedLetBinding` walker.
+/// Wired into `check_program` after the def-position walker (arc 157
+/// precedent). Walks all `:wat::core::let` forms in `node`, emitting
+/// `LegacyTypedLetBinding` per legacy `((name :T) expr)` binding shape.
+fn validate_legacy_typed_let_binding(node: &WatAST, errors: &mut Vec<CheckError>) {
+    walk_for_legacy_typed_let_binding(node, errors);
+}
+
+fn walk_for_legacy_typed_let_binding(node: &WatAST, errors: &mut Vec<CheckError>) {
+    match node {
+        WatAST::List(items, _) => {
+            // Check if this is a `:wat::core::let` form.
+            let is_let_form = matches!(
+                items.first(),
+                Some(WatAST::Keyword(k, _)) if k == ":wat::core::let"
+            );
+            if is_let_form && items.len() >= 2 {
+                // items[1] is the bindings list.
+                if let WatAST::List(bindings, _) = &items[1] {
+                    for pair in bindings {
+                        check_binding_for_legacy_typed_shape(pair, errors);
+                    }
+                }
+                // Recurse into the body (items[2] and beyond) so nested
+                // let forms are also walked.
+                for child in items.iter().skip(2) {
+                    walk_for_legacy_typed_let_binding(child, errors);
+                }
+                // Also recurse into the bindings' RHS exprs to catch
+                // nested lets inside binding RHSs.
+                if let WatAST::List(bindings, _) = &items[1] {
+                    for pair in bindings {
+                        if let WatAST::List(pair_items, _) = pair {
+                            if let Some(rhs) = pair_items.get(1) {
+                                walk_for_legacy_typed_let_binding(rhs, errors);
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Not a let form — recurse into all children.
+                for child in items {
+                    walk_for_legacy_typed_let_binding(child, errors);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Check one binding pair for the legacy `((name :T) expr)` shape.
+/// Emits `LegacyTypedLetBinding` if the shape matches.
+/// No-op for: new-shape `(name expr)`, destructure `((a b ...) expr)`.
+fn check_binding_for_legacy_typed_shape(pair: &WatAST, errors: &mut Vec<CheckError>) {
+    let pair_items = match pair {
+        WatAST::List(items, _) if items.len() == 2 => items,
+        _ => return,
+    };
+    // New canonical shape: binder is a bare Symbol → no-op.
+    if matches!(&pair_items[0], WatAST::Symbol(_, _)) {
+        return;
+    }
+    // Binder must be a List for either legacy typed or destructure.
+    let binder = match &pair_items[0] {
+        WatAST::List(inner, _) => inner,
+        _ => return,
+    };
+    // Legacy typed: len==2, [0] Symbol, [1] Keyword.
+    // (Destructure: all elements are Symbols — no Keyword at [1].)
+    let is_legacy_typed = binder.len() == 2
+        && matches!(&binder[0], WatAST::Symbol(_, _))
+        && matches!(&binder[1], WatAST::Keyword(_, _));
+    if is_legacy_typed {
+        let binding_name = match &binder[0] {
+            WatAST::Symbol(ident, _) => ident.name.clone(),
+            _ => return,
+        };
+        errors.push(CheckError::LegacyTypedLetBinding {
+            binding_name,
+            span: pair.span().clone(),
+        });
+    }
+    // Destructure (`all elements are Symbols`) → no-op; not legacy.
+}
 
 fn walk_type_for_bare(ty: &TypeExpr, span: &Span, errors: &mut Vec<CheckError>) {
     match ty {
@@ -3947,6 +4094,43 @@ fn infer_list(
                     subst,
                     errors,
                     ":wat::kernel::make-unbounded-queue",
+                    /*with_capacity=*/ false,
+                );
+            }
+            // Arc 159 — canonical channel constructors. Routed through
+            // `infer_make_queue` so new-shape let bindings that use
+            // `make-bounded-channel` / `make-unbounded-channel` as their
+            // RHS get a Tuple(Sender<T>, Receiver<T>) type in `extended`,
+            // enabling the post-inference scope-deadlock walker
+            // (`check_let_star_for_scope_deadlock_inferred`) to see the
+            // Sender-bearing binding and fire `ScopeDeadlock` when
+            // a Thread/join-result sits in the same let body.
+            //
+            // This matches what `derive_type_ann_from_rhs` already does for
+            // the pre-inference walker (`validate_channel_pair_deadlock`).
+            ":wat::kernel::make-bounded-channel" => {
+                return infer_make_queue(
+                    args,
+                    head_span,
+                    env,
+                    locals,
+                    fresh,
+                    subst,
+                    errors,
+                    ":wat::kernel::make-bounded-channel",
+                    /*with_capacity=*/ true,
+                );
+            }
+            ":wat::kernel::make-unbounded-channel" => {
+                return infer_make_queue(
+                    args,
+                    head_span,
+                    env,
+                    locals,
+                    fresh,
+                    subst,
+                    errors,
+                    ":wat::kernel::make-unbounded-channel",
                     /*with_capacity=*/ false,
                 );
             }
@@ -7571,9 +7755,27 @@ fn process_let_binding(
         WatAST::List(items, _) if items.len() == 2 => items,
         _ => return, // runtime parser surfaces the shape error
     };
+
+    // Arc 159 — canonical new shape: `(name rhs)` where `name` is a
+    // bare Symbol. Type is inferred from `rhs`; no annotation needed
+    // (per arc 145 lesson). Walker dependency settled in arc 158a
+    // (pair-deadlock walker pattern-matches RHS for channel-related
+    // shapes). This branch MUST come before the binder-as-List logic so
+    // the destructure path is not accidentally reached for new-shape
+    // bindings.
+    if let WatAST::Symbol(ident, _) = &kv[0] {
+        let name = ident.name.clone();
+        let rhs = &kv[1];
+        let rhs_ty = infer(rhs, env, rhs_scope, fresh, subst, errors);
+        if let Some(ty) = rhs_ty {
+            out_scope.insert(name, ty);
+        }
+        return;
+    }
+
     let binder = match &kv[0] {
         WatAST::List(inner, _) => inner,
-        _ => return, // bare `(name rhs)` refused at runtime; check silently skips
+        _ => return, // shape error surfaced elsewhere
     };
     let rhs = &kv[1];
 
@@ -13274,7 +13476,7 @@ mod tests {
     #[test]
     fn typed_let_binding_matches_rhs() {
         assert!(check(
-            r#"(:wat::core::let (((x :wat::core::i64) 42)) (:wat::core::i64::+,2 x 1))"#
+            r#"(:wat::core::let ((x 42)) (:wat::core::i64::+,2 x 1))"#
         )
         .is_ok());
     }
@@ -13283,7 +13485,7 @@ mod tests {
     fn typed_let_binding_wrong_type_rejected() {
         // Declared :i64 but RHS is :String — unification fails.
         let err = check(
-            r#"(:wat::core::let (((x :i64) "hello")) x)"#,
+            r#"(:wat::core::let ((x "hello")) x)"#,
         )
         .unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
@@ -13293,9 +13495,9 @@ mod tests {
     fn typed_let_binding_multiple() {
         assert!(check(
             r#"(:wat::core::let
-                 (((x :wat::core::i64) 1)
-                  ((y :wat::core::i64) 2)
-                  ((z :wat::core::i64) 3))
+                 ((x 1)
+                  (y 2)
+                  (z 3))
                  (:wat::core::i64::+,2 (:wat::core::i64::+,2 x y) z))"#
         )
         .is_ok());
@@ -13308,7 +13510,7 @@ mod tests {
         // passes.
         assert!(check(
             r#"(:wat::core::let
-                 (((doubler :wat::core::Fn(wat::core::i64)->wat::core::i64)
+                 ((doubler
                    (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64)
                      (:wat::core::i64::+,2 x x))))
                  true)"#
@@ -13321,7 +13523,7 @@ mod tests {
         // Declared :fn(i64)->bool but lambda produces :fn(i64)->i64.
         let err = check(
             r#"(:wat::core::let
-                 (((f :wat::core::Fn(i64)->bool)
+                 ((f
                    (:wat::core::fn ((x :i64) -> :i64) x)))
                  true)"#,
         )
@@ -13569,11 +13771,11 @@ mod tests {
             (:wat::core::define
               (:my::deadlock-at-outer -> :wat::core::nil)
               (:wat::core::let
-                (((pair :wat::kernel::Channel<wat::core::i64>)
+                ((pair
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                 ((rx :wat::kernel::Receiver<wat::core::i64>)
+                 (rx
                   (:wat::core::second pair))
-                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
+                 (thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
@@ -13619,11 +13821,11 @@ mod tests {
                       (_stderr :wat::io::IOWriter)
                       -> :wat::core::nil)
                     (:wat::core::let
-                      (((pair :wat::kernel::Channel<wat::core::i64>)
+                      ((pair
                         (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                       ((rx :wat::kernel::Receiver<wat::core::i64>)
+                       (rx
                         (:wat::core::second pair))
-                       ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
+                       (thr
                         (:wat::kernel::spawn-thread
                           (:wat::core::fn
                             ((_in :wat::kernel::Receiver<wat::core::nil>)
@@ -13681,11 +13883,11 @@ mod tests {
             (:wat::core::define
               (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
               (:wat::core::let
-                (((pair :wat::kernel::Channel<wat::core::nil>)
+                ((pair
                   (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 ((tx :wat::kernel::Sender<wat::core::nil>)
+                 (tx
                   (:wat::core::first pair))
-                 ((rx :wat::kernel::Receiver<wat::core::nil>)
+                 (rx
                   (:wat::core::second pair)))
                 (:my::helper-verb tx rx)))
         "#;
@@ -13720,13 +13922,13 @@ mod tests {
             (:wat::core::define
               (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
               (:wat::core::let
-                (((pair-a :wat::kernel::Channel<wat::core::nil>)
+                ((pair-a
                   (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 ((pair-b :wat::kernel::Channel<wat::core::nil>)
+                 (pair-b
                   (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 ((tx :wat::kernel::Sender<wat::core::nil>)
+                 (tx
                   (:wat::core::first pair-a))
-                 ((rx :wat::kernel::Receiver<wat::core::nil>)
+                 (rx
                   (:wat::core::second pair-b)))
                 (:my::helper-verb tx rx)))
         "#;
@@ -13765,13 +13967,13 @@ mod tests {
             (:wat::core::define
               (:my::pop-handle (_d :wat::core::nil) -> :my::Handle)
               (:wat::core::let
-                (((p :wat::kernel::Channel<wat::core::nil>)
+                ((p
                   (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 ((q :wat::kernel::Channel<wat::core::nil>)
+                 (q
                   (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 ((req-tx :wat::kernel::Sender<wat::core::nil>)
+                 (req-tx
                   (:wat::core::first p))
-                 ((ack-rx :wat::kernel::Receiver<wat::core::nil>)
+                 (ack-rx
                   (:wat::core::second q)))
                 (:wat::core::Tuple req-tx ack-rx)))
 
@@ -13785,10 +13987,10 @@ mod tests {
             (:wat::core::define
               (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
               (:wat::core::let
-                (((handle :my::Handle) (:my::pop-handle))
-                 ((req-tx :wat::kernel::Sender<wat::core::nil>)
+                ((handle (:my::pop-handle))
+                 (req-tx
                   (:wat::core::first handle))
-                 ((ack-rx :wat::kernel::Receiver<wat::core::nil>)
+                 (ack-rx
                   (:wat::core::second handle)))
                 (:my::helper-verb req-tx ack-rx)))
         "#;
@@ -13825,11 +14027,11 @@ mod tests {
             (:wat::core::define
               (:my::caller (_d :wat::core::nil) -> :wat::core::nil)
               (:wat::core::let
-                (((pair :wat::kernel::Channel<wat::core::nil>)
+                ((pair
                   (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                 ((tx :wat::kernel::Sender<wat::core::nil>)
+                 (tx
                   (:wat::core::first pair))
-                 ((rx :wat::kernel::Receiver<wat::core::nil>)
+                 (rx
                   (:wat::core::second pair)))
                 (:my::helper-verb tx rx)))
         "#;
@@ -13874,11 +14076,11 @@ mod tests {
                       (_stderr :wat::io::IOWriter)
                       -> :wat::core::nil)
                     (:wat::core::let
-                      (((pair :wat::kernel::Channel<wat::core::nil>)
+                      ((pair
                         (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-                       ((tx :wat::kernel::Sender<wat::core::nil>)
+                       (tx
                         (:wat::core::first pair))
-                       ((rx :wat::kernel::Receiver<wat::core::nil>)
+                       (rx
                         (:wat::core::second pair)))
                       (:my::helper-verb tx rx))))
                 (:wat::core::Vector :wat::core::String)
@@ -13933,11 +14135,11 @@ mod tests {
             (:wat::core::define
               (:my::deadlock-via-handlepool -> :wat::core::nil)
               (:wat::core::let
-                (((pool :wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>)
+                ((pool
                   (:wat::kernel::HandlePool::new
                     "pool"
                     (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
-                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
+                 (thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
@@ -13983,11 +14185,11 @@ mod tests {
             (:wat::core::define
               (:my::no-deadlock-on-bare-handlepool -> :wat::core::nil)
               (:wat::core::let
-                (((pool :wat::kernel::HandlePool<wat::core::i64>)
+                ((pool
                   (:wat::kernel::HandlePool::new
                     "pool"
                     (:wat::core::Vector :wat::core::i64)))
-                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
+                 (thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
@@ -14043,11 +14245,11 @@ mod tests {
             (:wat::core::define
               (:my::typed-name-still-fires -> :wat::core::nil)
               (:wat::core::let
-                (((pool :wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>)
+                ((pool
                   (:wat::kernel::HandlePool::new
                     "pool"
                     (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
-                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
+                 (thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
@@ -14110,11 +14312,11 @@ mod tests {
             (:wat::core::define
               (:my::spawn-svc -> :(wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>,wat::kernel::Thread<wat::core::nil,wat::core::i64>))
               (:wat::core::let
-                (((pool :wat::kernel::HandlePool<wat::kernel::Sender<wat::core::i64>>)
+                ((pool
                   (:wat::kernel::HandlePool::new
                     "pool"
                     (:wat::core::Vector :wat::kernel::Sender<wat::core::i64>)))
-                 ((driver :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
+                 (driver
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
@@ -14171,8 +14373,8 @@ mod tests {
             (:wat::core::define
               (:my::spawn-clean -> :(wat::core::i64,wat::kernel::Thread<wat::core::nil,wat::core::nil>))
               (:wat::core::let
-                (((counter :wat::core::i64) 42)
-                 ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+                ((counter 42)
+                 (driver
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
@@ -14277,11 +14479,11 @@ mod tests {
 
             (:wat::core::define (:my::caller -> :wat::core::nil)
               (:wat::core::let
-                (((thr :wat::kernel::Thread<wat::core::i64,wat::core::i64>)
+                ((thr
                   (:wat::kernel::spawn-thread :my::worker))
-                 ((tx :wat::kernel::Sender<wat::core::i64>)
+                 (tx
                   (:wat::kernel::Thread/input thr))
-                 ((rx :wat::kernel::Receiver<wat::core::i64>)
+                 (rx
                   (:wat::kernel::Thread/output thr)))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
@@ -14327,13 +14529,13 @@ mod tests {
 
             (:wat::core::define (:my::caller -> :wat::core::nil)
               (:wat::core::let
-                (((pair :wat::kernel::Channel<wat::core::i64>)
+                ((pair
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                 ((tx :wat::kernel::Sender<wat::core::i64>)
+                 (tx
                   (:wat::core::first pair))
-                 ((rx :wat::kernel::Receiver<wat::core::i64>)
+                 (rx
                   (:wat::core::second pair))
-                 ((thr :wat::kernel::Thread<wat::core::i64,wat::core::nil>)
+                 (thr
                   (:wat::kernel::spawn-thread :my::worker)))
                 (:wat::core::match
                   (:wat::kernel::Thread/join-result thr)
@@ -14385,13 +14587,13 @@ mod tests {
 
             (:wat::core::define (:my::caller -> :wat::core::nil)
               (:wat::core::let
-                (((pair :wat::kernel::Channel<wat::core::i64>)
+                ((pair
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                 ((tx :wat::kernel::Sender<wat::core::i64>)
+                 (tx
                   (:wat::core::first pair))
-                 ((rx :wat::kernel::Receiver<wat::core::i64>)
+                 (rx
                   (:wat::core::second pair))
-                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+                 (thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
@@ -14534,11 +14736,11 @@ mod tests {
             (:wat::core::define
               (:my::legacy-shape-still-fires -> :wat::core::nil)
               (:wat::core::let
-                (((pair :wat::kernel::Channel<wat::core::i64>)
+                ((pair
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-                 ((rx :wat::kernel::Receiver<wat::core::i64>)
+                 (rx
                   (:wat::core::second pair))
-                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
+                 (thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
@@ -14578,10 +14780,10 @@ mod tests {
             (:wat::core::define
               (:my::mixed-shape-let -> :wat::core::nil)
               (:wat::core::let
-                (((pair :wat::kernel::Channel<wat::core::i64>)
+                ((pair
                   (:wat::kernel::make-bounded-channel :wat::core::i64 1))
                  (rx (:wat::core::second pair))
-                 ((thr :wat::kernel::Thread<wat::core::nil,wat::core::i64>)
+                 (thr
                   (:wat::kernel::spawn-thread
                     (:wat::core::fn
                       ((_in :wat::kernel::Receiver<wat::core::nil>)
@@ -14714,6 +14916,160 @@ mod tests {
                 .iter()
                 .any(|e| matches!(e, CheckError::ChannelPairDeadlock { .. })),
             "arc 158a test 7: make-unbounded-channel new shape; expected ChannelPairDeadlock; got: {:?}",
+            err.0
+        );
+    }
+
+    // ─── Arc 159 — untyped let bindings walker + regression ─────────────
+
+    /// Arc 159 — walker fires on single legacy binding in new-shape aware
+    /// check context.
+    ///
+    /// Uses the unit-test `check` helper (does not run the full startup
+    /// pipeline, no stdlib .wat files). Verifies `LegacyTypedLetBinding`
+    /// fires for the legacy typed binding shape `((x :wat::core::i64) 2)`.
+    #[test]
+    fn arc159_walker_fires_on_legacy_binding() {
+        let src = r#"
+            (:wat::core::define (:user::main -> :wat::core::i64)
+              (:wat::core::let
+                ((x 2))
+                x))
+        "#;
+        let err = check(src).expect_err("arc 159: legacy typed binding must fire walker");
+        assert!(
+            err.0
+                .iter()
+                .any(|e| matches!(e, CheckError::LegacyTypedLetBinding { binding_name, .. } if binding_name == "x")),
+            "arc 159 walker: expected LegacyTypedLetBinding for `x`; got: {:?}",
+            err.0
+        );
+    }
+
+    /// Arc 159 — new-shape binding passes the walker (no LegacyTypedLetBinding
+    /// for the entry-file binding).
+    ///
+    /// `(let ((x 2)) x)` must NOT fire `LegacyTypedLetBinding` for the
+    /// new-shape binding `x`. During the migration window the stdlib fires
+    /// ~951 entries (expected); this test confirms the ENTRY-FILE new-shape
+    /// binding does NOT appear among the fired errors by checking that no
+    /// error has `binding_name == "arc159_new_shape_x"` (a distinctive name).
+    #[test]
+    fn arc159_walker_does_not_fire_on_new_shape() {
+        // Use a distinctive binding name not found in stdlib.
+        let src = r#"
+            (:wat::core::define (:user::main -> :wat::core::i64)
+              (:wat::core::let
+                ((arc159_new_shape_x 2))
+                arc159_new_shape_x))
+        "#;
+        let result = check(src);
+        // Must not fire LegacyTypedLetBinding for the new-shape binding.
+        if let Err(ref errs) = result {
+            let has_entry_legacy = errs.0.iter().any(|e| {
+                matches!(
+                    e,
+                    CheckError::LegacyTypedLetBinding { binding_name, .. }
+                    if binding_name == "arc159_new_shape_x"
+                )
+            });
+            assert!(
+                !has_entry_legacy,
+                "arc 159 walker: new-shape binding `arc159_new_shape_x` must NOT fire LegacyTypedLetBinding; got: {:?}",
+                errs.0
+            );
+        }
+    }
+
+    /// Arc 159 — destructure binding does NOT fire walker.
+    ///
+    /// `((arc159_dest_a arc159_dest_b) p)` has a List binder with all Symbols
+    /// (no Keyword at [1]). The `is_legacy_typed` check must return false;
+    /// the walker must not fire for these distinctive names. The arc 158 v1
+    /// regression check at the CHECK level: sonnet 1a wrongly treated
+    /// `(a b)` as a legacy typed pair; arc 159 substrate must NOT.
+    #[test]
+    fn arc159_walker_does_not_fire_on_destructure() {
+        // Use distinctive names not found in stdlib.
+        let src = r#"
+            (:wat::core::define (:user::main -> :wat::core::i64)
+              (:wat::core::let
+                (((arc159_dest_a arc159_dest_b) p))
+                (:wat::core::i64::+,2 arc159_dest_a arc159_dest_b)))
+        "#;
+        let result = check(src);
+        if let Err(ref errs) = result {
+            let has_entry_legacy = errs.0.iter().any(|e| {
+                matches!(
+                    e,
+                    CheckError::LegacyTypedLetBinding { binding_name, .. }
+                    if binding_name == "arc159_dest_a" || binding_name == "arc159_dest_b"
+                )
+            });
+            assert!(
+                !has_entry_legacy,
+                "arc 159 walker: destructure names must NOT fire LegacyTypedLetBinding; got: {:?}",
+                errs.0
+            );
+        }
+    }
+
+    /// Arc 159 test 11 — ScopeDeadlock fires on new-shape Channel binding.
+    ///
+    /// Arc 158a INSCRIPTION § honest delta 1: `process_let_binding`
+    /// silently skipped new-shape bindings (returned early before populating
+    /// `extended`). Post-arc-159, `process_let_binding` infers the RHS type
+    /// for new-shape bindings and inserts it into `extended`. The
+    /// `check_let_star_for_scope_deadlock_inferred` walker (post-inference)
+    /// can then see the Channel type via inferred types and fire `ScopeDeadlock`.
+    ///
+    /// Pattern: `pair` is a Channel (inferred from make-bounded-channel);
+    /// `tx` is projected via `(:wat::core::first pair)`; `rx` via second;
+    /// `thr` is spawned from a named worker. Body calls Thread/join-result
+    /// while `tx` (Sender-bearing) is still in scope → ScopeDeadlock.
+    ///
+    /// Port of `arc_134_parent_allocated_channel_still_fires` to new-shape
+    /// (bare Symbol binder at position 0). This is the regression test that
+    /// confirms `process_let_binding`'s new branch populates `extended`
+    /// with inferred Channel/Sender/Thread types so the post-inference
+    /// walker fires correctly.
+    #[test]
+    fn arc159_scope_deadlock_fires_on_new_shape_channel_binding() {
+        // Worker with the spawn-thread-compatible signature:
+        //   fn(Receiver<I>, Sender<O>) -> nil
+        // Named function so spawn_thread_lambda_body_has_no_recv cannot
+        // inspect the body and exempt — the rule fires unconditionally.
+        let src = r#"
+            (:wat::core::define
+              (:my::worker-arc159
+                (in :wat::kernel::Receiver<wat::core::i64>)
+                (out :wat::kernel::Sender<wat::core::nil>)
+                -> :wat::core::nil)
+              ())
+
+            (:wat::core::define (:my::caller-arc159 -> :wat::core::nil)
+              (:wat::core::let
+                ((pair (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+                 (tx (:wat::core::first pair))
+                 (rx (:wat::core::second pair))
+                 (thr (:wat::kernel::spawn-thread :my::worker-arc159)))
+                (:wat::core::match
+                  (:wat::kernel::Thread/join-result thr)
+                  -> :wat::core::nil
+                  ((:wat::core::Ok _) ())
+                  ((:wat::core::Err _) ()))))
+        "#;
+        let err = check(src).expect_err(
+            "arc 159: ScopeDeadlock must fire on new-shape channel binding at outer scope",
+        );
+        let scope_deadlocks: Vec<_> = err
+            .0
+            .iter()
+            .filter(|e| matches!(e, CheckError::ScopeDeadlock { .. }))
+            .collect();
+        assert!(
+            !scope_deadlocks.is_empty(),
+            "arc 159 test 11: expected ScopeDeadlock from new-shape parent-allocated channel sibling to Thread; got: {:?}",
             err.0
         );
     }

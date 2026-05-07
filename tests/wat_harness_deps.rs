@@ -59,8 +59,8 @@ fn harness_composes_multiple_deps_into_user_source() {
                                  (stderr :wat::io::IOWriter)
                                  -> :())
               (:wat::core::let
-                (((_ :wat::core::i64) (:wat::io::IOWriter/writeln stdout (:user::test::dep-a::label)))
-                 ((_ :wat::core::i64) (:wat::io::IOWriter/writeln stdout (:user::test::dep-b::label))))
+                ((_ (:wat::io::IOWriter/writeln stdout (:user::test::dep-a::label)))
+                 (_ (:wat::io::IOWriter/writeln stdout (:user::test::dep-b::label))))
                 ()))
         "#;
         let h = Harness::from_source_with_deps(user, &[DEP_A, DEP_B], &[]).expect("freeze");

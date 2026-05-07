@@ -28,11 +28,11 @@
                      (stderr :wat::io::IOWriter)
                      -> :wat::core::nil)
   (:wat::core::let
-    (((cache :wat::lru::LocalCache<wat::core::String,wat::core::i64>)
+    ((cache
       (:wat::lru::LocalCache::new 16))
-     ((_ :wat::core::Option<(wat::core::String,wat::core::i64)>)
+     (_
       (:wat::lru::LocalCache::put cache "answer" 42))
-     ((got :wat::core::Option<wat::core::i64>)
+     (got
       (:wat::lru::LocalCache::get cache "answer")))
     (:wat::core::match got -> :wat::core::nil
       ((:wat::core::Some v) (:wat::io::IOWriter/println stdout "hit"))

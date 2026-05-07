@@ -111,7 +111,7 @@ fn typed_match_on_none_returns_none_arm() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            (((o :wat::core::Option<wat::core::i64>) :wat::core::None))
+            ((o :wat::core::None))
             (:wat::core::match o -> :wat::core::i64
               ((:wat::core::Some v) v)
               (:wat::core::None -1))))
@@ -251,7 +251,7 @@ fn typed_if_result_flows_into_enclosing_let_bind() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            (((x :wat::core::i64) (:wat::core::if true -> :wat::core::i64 10 20)))
+            ((x (:wat::core::if true -> :wat::core::i64 10 20)))
             x))
     "#;
     assert!(matches!(run(src), Value::i64(10)));
@@ -262,7 +262,7 @@ fn typed_match_result_flows_into_enclosing_let_bind() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::String)
           (:wat::core::let
-            (((s :wat::core::String)
+            ((s
               (:wat::core::match (:wat::core::Some 1) -> :wat::core::String
                 ((:wat::core::Some _) "yes")
                 (:wat::core::None "no"))))
@@ -309,20 +309,20 @@ fn match_bare_symbol_user_variant_pattern_emits_keyword_hint() {
         (:wat::core::define
           (:user::main -> :wat::core::String)
           (:wat::core::let
-            (((handle :wat::kernel::Thread<(),()>)
+            ((handle
               (:wat::kernel::spawn-thread
                 (:wat::core::fn
                   ((_in :rust::crossbeam_channel::Receiver<()>)
                    (_out :rust::crossbeam_channel::Sender<()>)
                    -> :())
                   ())))
-             ((result :wat::core::Result<wat::core::nil,Vec<wat::kernel::ThreadDiedError>>)
+             (result
               (:wat::kernel::Thread/join-result handle))
-             ((chain :wat::core::Vector<wat::kernel::ThreadDiedError>)
+             (chain
               (:wat::core::match result -> :wat::core::Vector<wat::kernel::ThreadDiedError>
                 ((:wat::core::Ok _)   (:wat::core::panic! "test wants Err"))
                 ((:wat::core::Err e)  e)))
-             ((err :wat::kernel::ThreadDiedError)
+             (err
               (:wat::core::match (:wat::core::first chain) -> :wat::kernel::ThreadDiedError
                 ((:wat::core::Some e) e)
                 (:wat::core::None    (:wat::core::panic! "expected non-empty chain")))))

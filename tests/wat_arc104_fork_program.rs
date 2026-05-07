@@ -63,11 +63,11 @@ fn fork_program_child_writes_stdout_parent_reads_line() {
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
           (:wat::core::let
-            (((inner-src :wat::core::String)
+            ((inner-src
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::nil) (:wat::io::IOWriter/println stdout \"hello-from-fork\"))")
-             ((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+             (child
               (:wat::kernel::fork-program inner-src :wat::core::None))
-             ((out-r :wat::io::IOReader)
+             (out-r
               (:wat::kernel::Process/stdout child)))
             (:wat::io::IOReader/read-line out-r)))
     "#;
@@ -86,13 +86,13 @@ fn fork_program_round_trip_via_pipes() {
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
           (:wat::core::let
-            (((inner-src :wat::core::String)
+            ((inner-src
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::nil) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil (:None ()) ((Some line) (:wat::io::IOWriter/println stdout (:wat::core::string::concat line line)))))")
-             ((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+             (child
               (:wat::kernel::fork-program inner-src :wat::core::None))
-             ((in-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin child))
-             ((out-r :wat::io::IOReader) (:wat::kernel::Process/stdout child))
-             ((_ :wat::core::nil) (:wat::io::IOWriter/println in-w "ping")))
+             (in-w (:wat::kernel::Process/stdin child))
+             (out-r (:wat::kernel::Process/stdout child))
+             (_ (:wat::io::IOWriter/println in-w "ping")))
             (:wat::io::IOReader/read-line out-r)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "pingping");
@@ -108,12 +108,12 @@ fn fork_program_clean_exit_code_via_wait_child() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let
-            (((inner-src :wat::core::String)
+            ((inner-src
               "(:wat::core::define (:user::main (stdin :wat::io::IOReader) (stdout :wat::io::IOWriter) (stderr :wat::io::IOWriter) -> :wat::core::nil) (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil (:None ()) ((Some _) ())))")
-             ((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+             (child
               (:wat::kernel::fork-program inner-src :wat::core::None))
-             ((in-w :wat::io::IOWriter) (:wat::kernel::Process/stdin child))
-             ((_close :wat::core::nil) (:wat::io::IOWriter/close in-w)))
+             (in-w (:wat::kernel::Process/stdin child))
+             (_close (:wat::io::IOWriter/close in-w)))
             (:wat::kernel::Process/join-result child)))
     "#;
     assert!(unwrap_ok_result(run(src)), "expected Ok(()) for clean exit");
@@ -130,9 +130,9 @@ fn fork_program_parse_error_surfaces_as_exit_3() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,Vec<wat::kernel::ProcessDiedError>>)
           (:wat::core::let
-            (((bad-src :wat::core::String)
+            ((bad-src
               "(:wat::core::define (:demo::not-main (x :i64) -> :i64) x)")
-             ((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+             (child
               (:wat::kernel::fork-program bad-src :wat::core::None)))
             (:wat::kernel::Process/join-result child)))
     "#;

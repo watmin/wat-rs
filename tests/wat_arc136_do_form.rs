@@ -201,9 +201,9 @@ fn do_reflection_round_trip_emits_variadic_sketch() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((sig-opt :wat::core::Option<wat::holon::HolonAST>)
+            ((sig-opt
               (:wat::runtime::signature-of :wat::core::do))
-             ((rendered :wat::core::String)
+             (rendered
               (:wat::edn::write sig-opt)))
             (:wat::io::IOWriter/println stdout rendered)))
     "##;
@@ -280,7 +280,7 @@ fn do_inside_let_star_body_composes_types_cleanly() {
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           (:wat::core::let
-            (((x :wat::core::i64) 7))
+            ((x 7))
             (:wat::core::do
               (:wat::core::i64::+,2 x 1)
               x)))

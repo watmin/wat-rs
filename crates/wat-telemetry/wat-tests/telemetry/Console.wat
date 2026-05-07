@@ -63,7 +63,7 @@
 ;; Layer 2 — assert-line-once: passes when msg is present exactly once.
 (:deftest :wat-telemetry::Console::test-assert-line-once-pass
   (:wat::core::let
-    (((stdout :wat::core::Vector<wat::core::String>)
+    ((stdout
       (:wat::core::conj
         (:wat::core::conj
           (:wat::core::Vector :wat::core::String)
@@ -79,7 +79,7 @@
 
 (:deftest :wat-telemetry::Console::test-dispatcher-edn
   (:wat::core::let
-    (((r :wat::kernel::RunResult)
+    ((r
       (:wat::test::run-hermetic-ast
         (:wat::test::program
           ;; App-level concrete typealias collapses the substrate's
@@ -101,10 +101,10 @@
               (handle :wat::console::Handle)
               -> :wat::core::nil)
             (:wat::core::let
-              (((d :my::Dispatcher)
+              ((d
                 (:wat::telemetry::Console/dispatcher
                   handle :wat::telemetry::Console::Format::Edn))
-               ((batch :wat::core::Vector<wat::core::i64>) (:wat::core::Vector :wat::core::i64 10 20 30)))
+               (batch (:wat::core::Vector :wat::core::i64 10 20 30)))
               (d batch)))
           ;; Main — outer holds Console driver Thread; inner owns the
           ;; spawn-tuple, pool, handle, and dispatch work; inner returns
@@ -117,26 +117,26 @@
               (stderr :wat::io::IOWriter)
               -> :wat::core::nil)
             (:wat::core::let
-              (((console-driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+              ((console-driver
                 (:wat::core::let
-                  (((spawn :wat::console::Spawn)
+                  ((spawn
                     (:wat::console::spawn stdout stderr 1))
-                   ((pool :wat::kernel::HandlePool<wat::console::Handle>)
+                   (pool
                     (:wat::core::first spawn))
-                   ((cd :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+                   (cd
                     (:wat::core::second spawn))
-                   ((handle :wat::console::Handle)
+                   (handle
                     (:wat::kernel::HandlePool::pop pool))
-                   ((_0 :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
-                   ((_work :wat::core::nil) (:my::dispatch-three-edn handle)))
+                   (_0 (:wat::kernel::HandlePool::finish pool))
+                   (_work (:my::dispatch-three-edn handle)))
                   cd)))
               (:wat::core::match (:wat::kernel::Thread/join-result console-driver) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) (:wat::test::assert-eq "console-driver-died" ""))))))
         (:wat::core::Vector :wat::core::String)))
-     ((stdout :wat::core::Vector<wat::core::String>) (:test::tel-stdout-from-result r))
-     ((_ :wat::core::nil) (:test::tel-assert-line-once stdout "10"))
-     ((_ :wat::core::nil) (:test::tel-assert-line-once stdout "20")))
+     (stdout (:test::tel-stdout-from-result r))
+     (_ (:test::tel-assert-line-once stdout "10"))
+     (_ (:test::tel-assert-line-once stdout "20")))
     (:test::tel-assert-line-once stdout "30")))
 
 
@@ -144,7 +144,7 @@
 
 (:deftest :wat-telemetry::Console::test-dispatcher-json
   (:wat::core::let
-    (((r :wat::kernel::RunResult)
+    ((r
       (:wat::test::run-hermetic-ast
         (:wat::test::program
           ;; App-level concrete aliases. Two layers — Row is the
@@ -164,11 +164,11 @@
               (handle :wat::console::Handle)
               -> :wat::core::nil)
             (:wat::core::let
-              (((d :my::Dispatcher)
+              ((d
                 (:wat::telemetry::Console/dispatcher
                   handle :wat::telemetry::Console::Format::Json))
-               ((row :my::Row) (:wat::core::Vector :wat::core::i64 1 2 3))
-               ((batch :wat::core::Vector<my::Row>)
+               (row (:wat::core::Vector :wat::core::i64 1 2 3))
+               (batch
                 (:wat::core::Vector :my::Row row)))
               (d batch)))
           (:wat::core::define
@@ -181,22 +181,22 @@
               ;; Outer holds Console driver Thread; inner owns the
               ;; spawn-tuple, pool, handle, and dispatch work; inner
               ;; returns the Thread. SERVICE-PROGRAMS.md § "The lockstep".
-              (((console-driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+              ((console-driver
                 (:wat::core::let
-                  (((spawn :wat::console::Spawn)
+                  ((spawn
                     (:wat::console::spawn stdout stderr 1))
-                   ((pool :wat::kernel::HandlePool<wat::console::Handle>)
+                   (pool
                     (:wat::core::first spawn))
-                   ((cd :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+                   (cd
                     (:wat::core::second spawn))
-                   ((handle :wat::console::Handle)
+                   (handle
                     (:wat::kernel::HandlePool::pop pool))
-                   ((_0 :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
-                   ((_work :wat::core::nil) (:my::dispatch-row-json handle)))
+                   (_0 (:wat::kernel::HandlePool::finish pool))
+                   (_work (:my::dispatch-row-json handle)))
                   cd)))
               (:wat::core::match (:wat::kernel::Thread/join-result console-driver) -> :wat::core::nil
                 ((:wat::core::Ok _) :wat::core::nil)
                 ((:wat::core::Err _) (:wat::test::assert-eq "console-driver-died" ""))))))
         (:wat::core::Vector :wat::core::String)))
-     ((stdout :wat::core::Vector<wat::core::String>) (:test::tel-stdout-from-result r)))
+     (stdout (:test::tel-stdout-from-result r)))
     (:test::tel-assert-line-once stdout "[1,2,3]")))

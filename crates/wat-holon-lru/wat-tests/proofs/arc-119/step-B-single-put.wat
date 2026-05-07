@@ -25,28 +25,28 @@
   ()
   (:wat::core::let
     ;; Outer holds the driver Thread; inner owns everything else.
-    (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+    ((driver
       (:wat::core::let
-        (((spawn :wat::holon::lru::HologramCacheService::Spawn)
+        ((spawn
           (:wat::holon::lru::HologramCacheService/spawn 1 4
             :wat::holon::lru::HologramCacheService/null-reporter
             (:wat::holon::lru::HologramCacheService/null-metrics-cadence)))
-         ((pool :wat::kernel::HandlePool<wat::holon::lru::HologramCacheService::Handle>)
+         (pool
           (:wat::core::first spawn))
-         ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+         (d
           (:wat::core::second spawn))
-         ((handle :wat::holon::lru::HologramCacheService::Handle)
+         (handle
           (:wat::kernel::HandlePool::pop pool))
-         ((_finish :wat::core::nil)
+         (_finish
           (:wat::kernel::HandlePool::finish pool))
 
-         ((k :wat::holon::HolonAST) (:wat::holon::leaf :alpha))
-         ((v :wat::holon::HolonAST) (:wat::holon::leaf :av))
+         (k (:wat::holon::leaf :alpha))
+         (v (:wat::holon::leaf :av))
 
          ;; ONE put — batch-of-one. HologramCacheService/put sends
          ;; Request::Put on the slot's req-tx and blocks on reply-rx
          ;; until the driver replies Reply::PutAck.
-         ((_ :wat::core::nil)
+         (_
           (:wat::holon::lru::HologramCacheService/put handle
             (:wat::core::Vector :wat::holon::lru::HologramCacheService::Entry
               (:wat::core::Tuple k v)))))

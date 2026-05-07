@@ -52,10 +52,10 @@ fn counter_increments_and_reads_via_macro_generated_shim() {
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let
-            (((c :rust::test::Counter) (:rust::test::Counter::new 10))
-             ((_ :wat::core::nil) (:rust::test::Counter::increment c))
-             ((_ :wat::core::nil) (:rust::test::Counter::increment c))
-             ((_ :wat::core::nil) (:rust::test::Counter::increment c)))
+            ((c (:rust::test::Counter::new 10))
+             (_ (:rust::test::Counter::increment c))
+             (_ (:rust::test::Counter::increment c))
+             (_ (:rust::test::Counter::increment c)))
             (:rust::test::Counter::read c)))
     "#;
     let loader = InMemoryLoader::new();
@@ -73,7 +73,7 @@ fn counter_ref_read_preserves_state() {
 
         (:wat::core::define (:user::main -> :i64)
           (:wat::core::let
-            (((c :rust::test::Counter) (:rust::test::Counter::new 42)))
+            ((c (:rust::test::Counter::new 42)))
             (:rust::test::Counter::read c)))
     "#;
     let loader = InMemoryLoader::new();

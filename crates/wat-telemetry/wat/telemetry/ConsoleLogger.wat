@@ -59,13 +59,13 @@
     (entry :E)
     -> :wat::core::String)
   (:wat::core::let
-    (((caller :wat::core::keyword)
+    ((caller
       (:wat::telemetry::ConsoleLogger/caller logger))
-     ((format :wat::telemetry::Console::Format)
+     (format
       (:wat::telemetry::ConsoleLogger/format logger))
-     ((line-struct :wat::telemetry::LogLine<E>)
+     (line-struct
       (:wat::telemetry::LogLine/new now level caller entry))
-     ((line :wat::core::String)
+     (line
       (:wat::core::match format -> :wat::core::String
         (:wat::telemetry::Console::Format::Edn
           (:wat::edn::write line-struct))
@@ -91,9 +91,9 @@
     (line :wat::core::String)
     -> :wat::core::nil)
   (:wat::core::let
-    (((handle :wat::console::Handle)
+    ((handle
       (:wat::telemetry::ConsoleLogger/con-handle logger))
-     ((to-stderr :wat::core::bool)
+     (to-stderr
       (:wat::core::or
         (:wat::core::= level :warn)
         (:wat::core::= level :error))))
@@ -112,10 +112,10 @@
     (entry :E)
     -> :wat::core::nil)
   (:wat::core::let
-    (((now-fn :wat::core::Fn(wat::core::nil)->wat::time::Instant)
+    ((now-fn
       (:wat::telemetry::ConsoleLogger/now-fn logger))
-     ((now :wat::time::Instant) (now-fn :wat::core::nil))
-     ((line :wat::core::String)
+     (now (now-fn :wat::core::nil))
+     (line
       (:wat::telemetry::ConsoleLogger::render-line
         logger now level entry)))
     (:wat::telemetry::ConsoleLogger::route-by-level

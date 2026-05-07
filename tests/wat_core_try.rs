@@ -101,8 +101,8 @@ fn try_chains_two_bindings_in_let_star() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            (((a :wat::core::i64) (:wat::core::Result/try (:wat::core::Ok 10)))
-             ((b :wat::core::i64) (:wat::core::Result/try (:wat::core::Ok 32))))
+            ((a (:wat::core::Result/try (:wat::core::Ok 10)))
+             (b (:wat::core::Result/try (:wat::core::Ok 32))))
             (:wat::core::Ok (:wat::core::i64::+,2 a b))))
     "#;
     match run(src) {
@@ -122,8 +122,8 @@ fn try_short_circuits_let_star_on_first_err() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            (((a :wat::core::i64) (:wat::core::Result/try (:wat::core::Err "early")))
-             ((b :wat::core::i64) (:wat::core::Result/try (:wat::core::Ok 99))))
+            ((a (:wat::core::Result/try (:wat::core::Err "early")))
+             (b (:wat::core::Result/try (:wat::core::Ok 99))))
             (:wat::core::Ok (:wat::core::i64::+,2 a b))))
     "#;
     match run(src) {
@@ -258,7 +258,7 @@ fn try_inside_result_returning_lambda_propagates_to_lambda() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            (((f :wat::core::Fn(wat::core::Result<wat::core::i64,wat::core::String>)->wat::core::Result<wat::core::i64,wat::core::String>)
+            ((f
               (:wat::core::fn
                 ((r :wat::core::Result<wat::core::i64,wat::core::String>) -> :wat::core::Result<wat::core::i64,wat::core::String>)
                 (:wat::core::Ok (:wat::core::Result/try r)))))
@@ -282,7 +282,7 @@ fn try_inside_non_result_lambda_rejected_at_check() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::i64,wat::core::String>)
           (:wat::core::let
-            (((f :wat::core::Fn(wat::core::Result<wat::core::i64,wat::core::String>)->wat::core::i64)
+            ((f
               (:wat::core::fn
                 ((r :wat::core::Result<wat::core::i64,wat::core::String>) -> :i64)
                 (:wat::core::Result/try r))))

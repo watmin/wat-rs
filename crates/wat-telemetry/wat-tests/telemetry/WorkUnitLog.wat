@@ -109,33 +109,33 @@
        (body :wat::core::Fn(wat::telemetry::WorkUnitLog,wat::telemetry::WorkUnit,wat::kernel::Receiver<wat::telemetry::Event>)->wat::core::keyword)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword))
      (:wat::core::let
-       (((stub-pair :wat::kernel::Channel<wat::telemetry::Event>)
+       ((stub-pair
          (:wat::kernel::make-bounded-channel :wat::telemetry::Event 16))
-        ((stub-tx :wat::kernel::Sender<wat::telemetry::Event>)
+        (stub-tx
          (:wat::core::first stub-pair))
-        ((stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
+        (stub-rx
          (:wat::core::second stub-pair))
-        ((dispatcher :wat::core::Fn(wat::core::Vector<wat::telemetry::Event>)->wat::core::nil)
+        (dispatcher
          (:wat-telemetry::log-test::make-stub-dispatcher stub-tx))
-        ((cadence :wat::telemetry::MetricsCadence<wat::core::nil>)
+        (cadence
          (:wat::telemetry::null-metrics-cadence))
-        ((spawn :wat::telemetry::Spawn<wat::telemetry::Event>)
+        (spawn
          (:wat::telemetry::spawn 1 cadence dispatcher
            :wat-telemetry::log-test::translate-empty))
-        ((pool :wat::telemetry::HandlePool<wat::telemetry::Event>)
+        (pool
          (:wat::core::first spawn))
-        ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+        (d
          (:wat::core::second spawn))
-        ((kw :wat::core::keyword)
+        (kw
          (:wat::core::let
-           (((handle :wat::telemetry::Handle<wat::telemetry::Event>)
+           ((handle
              (:wat::kernel::HandlePool::pop pool))
-            ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
-            ((wu :wat::telemetry::WorkUnit)
+            (_finish (:wat::kernel::HandlePool::finish pool))
+            (wu
              (:wat::telemetry::WorkUnit::new
                (:wat-telemetry::log-test::default-ns)
                (:wat-telemetry::log-test::empty-tags)))
-            ((logger :wat::telemetry::WorkUnitLog)
+            (logger
              (:wat::telemetry::WorkUnitLog/new
                handle
                (:wat-telemetry::log-test::default-caller)
@@ -159,7 +159,7 @@
 ;; Proves spawn + configure + pop + build wu + build logger lifecycle is clean.
 (:deftest :wat-telemetry::WorkUnitLog::test-wul-spawn-stub-and-emit-drain
   (:wat::core::let
-    (((thr-kw :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword))
+    ((thr-kw
       (:test::wul-spawn-stub-and-emit-drain
         (:wat::core::fn
           ((_logger :wat::telemetry::WorkUnitLog)
@@ -167,9 +167,9 @@
            (_stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
            -> :wat::core::keyword)
           :ok)))
-     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::first thr-kw))
-     ((kw :wat::core::keyword) (:wat::core::second thr-kw))
-     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     (driver (:wat::core::first thr-kw))
+     (kw (:wat::core::second thr-kw))
+     (_join
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq kw :ok)))
 
@@ -184,7 +184,7 @@
     ;; Body: emit one /info, drain one event, return its level keyword.
     ;; wul-spawn-stub-and-emit-drain internalizes spawn + configure +
     ;; pop + wu + logger. Body lambda is the embedded test fixture.
-    (((thr-kw :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword))
+    ((thr-kw
       (:test::wul-spawn-stub-and-emit-drain
         (:wat::core::fn
           ((logger :wat::telemetry::WorkUnitLog)
@@ -192,12 +192,12 @@
            (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
            -> :wat::core::keyword)
           (:wat::core::let
-            (((_log :wat::core::nil)
+            ((_log
               (:wat::telemetry::WorkUnitLog/info logger wu (:wat::core::quote :hello))))
             (:test::wul-recv-level stub-rx)))))
-     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::first thr-kw))
-     ((level-back :wat::core::keyword) (:wat::core::second thr-kw))
-     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     (driver (:wat::core::first thr-kw))
+     (level-back (:wat::core::second thr-kw))
+     (_join
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq level-back :info)))
 
@@ -215,7 +215,7 @@
     ;; assert first three; return the fourth level keyword.
     ;; wul-spawn-stub-and-emit-drain internalizes spawn + configure +
     ;; pop + wu + logger. Body lambda is the embedded test fixture.
-    (((thr-kw :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::core::keyword))
+    ((thr-kw
       (:test::wul-spawn-stub-and-emit-drain
         (:wat::core::fn
           ((logger :wat::telemetry::WorkUnitLog)
@@ -223,20 +223,20 @@
            (stub-rx :wat::kernel::Receiver<wat::telemetry::Event>)
            -> :wat::core::keyword)
           (:wat::core::let
-            (((data :wat::WatAST) (:wat::core::quote :payload))
-             ((_d :wat::core::nil) (:wat::telemetry::WorkUnitLog/debug logger wu data))
-             ((_i :wat::core::nil) (:wat::telemetry::WorkUnitLog/info  logger wu data))
-             ((_w :wat::core::nil) (:wat::telemetry::WorkUnitLog/warn  logger wu data))
-             ((_e :wat::core::nil) (:wat::telemetry::WorkUnitLog/error logger wu data))
-             ((l1 :wat::core::keyword) (:test::wul-recv-level stub-rx))
-             ((l2 :wat::core::keyword) (:test::wul-recv-level stub-rx))
-             ((l3 :wat::core::keyword) (:test::wul-recv-level stub-rx))
-             ((_ :wat::core::nil) (:wat::test::assert-eq l1 :debug))
-             ((_ :wat::core::nil) (:wat::test::assert-eq l2 :info))
-             ((_ :wat::core::nil) (:wat::test::assert-eq l3 :warn)))
+            ((data (:wat::core::quote :payload))
+             (_d (:wat::telemetry::WorkUnitLog/debug logger wu data))
+             (_i (:wat::telemetry::WorkUnitLog/info  logger wu data))
+             (_w (:wat::telemetry::WorkUnitLog/warn  logger wu data))
+             (_e (:wat::telemetry::WorkUnitLog/error logger wu data))
+             (l1 (:test::wul-recv-level stub-rx))
+             (l2 (:test::wul-recv-level stub-rx))
+             (l3 (:test::wul-recv-level stub-rx))
+             (_ (:wat::test::assert-eq l1 :debug))
+             (_ (:wat::test::assert-eq l2 :info))
+             (_ (:wat::test::assert-eq l3 :warn)))
             (:test::wul-recv-level stub-rx)))))
-     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>) (:wat::core::first thr-kw))
-     ((l4 :wat::core::keyword) (:wat::core::second thr-kw))
-     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     (driver (:wat::core::first thr-kw))
+     (l4 (:wat::core::second thr-kw))
+     (_join
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq l4 :error)))

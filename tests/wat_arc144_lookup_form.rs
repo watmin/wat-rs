@@ -77,9 +77,9 @@ fn lookup_define_macro_returns_some_and_emits_defmacro_head() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((def-opt :wat::core::Option<wat::holon::HolonAST>)
+            ((def-opt
               (:wat::runtime::lookup-define :my::ident))
-             ((rendered :wat::core::String)
+             (rendered
               (:wat::edn::write def-opt)))
             (:wat::io::IOWriter/println stdout rendered)))
     "##;
@@ -161,9 +161,9 @@ fn lookup_define_struct_returns_some_and_emits_struct_head() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((def-opt :wat::core::Option<wat::holon::HolonAST>)
+            ((def-opt
               (:wat::runtime::lookup-define :my::Bar))
-             ((rendered :wat::core::String)
+             (rendered
               (:wat::edn::write def-opt)))
             (:wat::io::IOWriter/println stdout rendered)))
     "##;
@@ -291,11 +291,11 @@ fn all_three_primitives_return_none_on_unknown_name() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((d-opt :wat::core::Option<wat::holon::HolonAST>)
+            ((d-opt
               (:wat::runtime::lookup-define :no::such::thing))
-             ((s-opt :wat::core::Option<wat::holon::HolonAST>)
+             (s-opt
               (:wat::runtime::signature-of :no::such::thing))
-             ((b-opt :wat::core::Option<wat::holon::HolonAST>)
+             (b-opt
               (:wat::runtime::body-of    :no::such::thing)))
             (:wat::core::match d-opt
               -> :wat::core::nil

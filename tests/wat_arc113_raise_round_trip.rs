@@ -37,7 +37,7 @@ fn raise_data_round_trips_through_failure_message() {
         (:wat::core::define
           (:user::main -> :wat::core::Option<wat::holon::HolonAST>)
           (:wat::core::let
-            (((forms :wat::core::Vector<wat::WatAST>)
+            ((forms
               (:wat::test::program
                 (:wat::core::define (:user::main
                                      (stdin  :wat::io::IOReader)
@@ -46,12 +46,12 @@ fn raise_data_round_trips_through_failure_message() {
                                      -> :wat::core::nil)
                   (:wat::kernel::raise!
                     (:wat::holon::leaf 42)))))
-             ((r :wat::kernel::RunResult)
+             (r
               (:wat::kernel::run-sandboxed-ast
                 forms (:wat::core::Vector :wat::core::String) :wat::core::None))
-             ((fail :wat::core::Option<wat::kernel::Failure>)
+             (fail
               (:wat::kernel::RunResult/failure r))
-             ((recovered :wat::core::Option<wat::holon::HolonAST>)
+             (recovered
               (:wat::core::match fail -> :wat::core::Option<wat::holon::HolonAST>
                 ((:wat::core::Some f)
                  (:wat::core::Some (:wat::edn::read (:wat::kernel::Failure/message f))))

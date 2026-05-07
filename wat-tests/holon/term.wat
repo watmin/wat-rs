@@ -24,16 +24,16 @@
 (:wat::test::deftest :wat-tests::holon::term::test-template-collapses-tuning
   ()
   (:wat::core::let
-    (((rsi-70 :wat::holon::HolonAST)
+    ((rsi-70
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
         (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     ((rsi-30 :wat::holon::HolonAST)
+     (rsi-30
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
         (:wat::holon::Thermometer 30.0 0.0 100.0)))
-     ((tpl-70 :wat::holon::HolonAST) (:wat::holon::term::template rsi-70))
-     ((tpl-30 :wat::holon::HolonAST) (:wat::holon::term::template rsi-30)))
+     (tpl-70 (:wat::holon::term::template rsi-70))
+     (tpl-30 (:wat::holon::term::template rsi-30)))
     ;; Templates are structural; templates can't go through `encode`
     ;; (SlotMarker is unencodable), so we compare via :wat::core::=
     ;; which uses HolonAST's PartialEq impl directly.
@@ -47,16 +47,16 @@
 (:wat::test::deftest :wat-tests::holon::term::test-template-distinguishes-ranges
   ()
   (:wat::core::let
-    (((a :wat::holon::HolonAST)
+    ((a
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
         (:wat::holon::Thermometer 0.5 0.0 1.0)))
-     ((b :wat::holon::HolonAST)
+     (b
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
         (:wat::holon::Thermometer 0.5 -1.0 1.0)))
-     ((tpl-a :wat::holon::HolonAST) (:wat::holon::term::template a))
-     ((tpl-b :wat::holon::HolonAST) (:wat::holon::term::template b)))
+     (tpl-a (:wat::holon::term::template a))
+     (tpl-b (:wat::holon::term::template b)))
     (:wat::test::assert-eq
       (:wat::core::= tpl-a tpl-b)
       false)))
@@ -69,16 +69,16 @@
 (:wat::test::deftest :wat-tests::holon::term::test-template-distinguishes-atoms
   ()
   (:wat::core::let
-    (((rsi :wat::holon::HolonAST)
+    ((rsi
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
         (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     ((macd :wat::holon::HolonAST)
+     (macd
       (:wat::holon::Bind
         (:wat::holon::leaf :macd-thought)
         (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     ((tpl-rsi :wat::holon::HolonAST) (:wat::holon::term::template rsi))
-     ((tpl-macd :wat::holon::HolonAST) (:wat::holon::term::template macd)))
+     (tpl-rsi (:wat::holon::term::template rsi))
+     (tpl-macd (:wat::holon::term::template macd)))
     (:wat::test::assert-eq
       (:wat::core::= tpl-rsi tpl-macd)
       false)))
@@ -88,17 +88,17 @@
 (:wat::test::deftest :wat-tests::holon::term::test-slots-pre-order
   ()
   (:wat::core::let
-    (((bundled :wat::holon::BundleResult)
+    ((bundled
       (:wat::holon::Bundle
         (:wat::core::Vector :wat::holon::HolonAST
           (:wat::holon::Thermometer 70.0 0.0 100.0)
           (:wat::holon::Thermometer 0.25 -1.0 1.0))))
-     ((form :wat::holon::HolonAST)
+     (form
       (:wat::core::match bundled -> :wat::holon::HolonAST
         ((:wat::core::Ok h)  h)
         ((:wat::core::Err _) (:wat::holon::Atom "unreachable"))))
-     ((slots :wat::core::Vector<wat::core::f64>) (:wat::holon::term::slots form))
-     ((n :wat::core::i64) (:wat::core::length slots)))
+     (slots (:wat::holon::term::slots form))
+     (n (:wat::core::length slots)))
     (:wat::test::assert-eq n 2)))
 
 ;; ─── Slots and ranges parallel in length ──────────────────────────
@@ -106,18 +106,18 @@
 (:wat::test::deftest :wat-tests::holon::term::test-slots-ranges-parallel
   ()
   (:wat::core::let
-    (((bundled :wat::holon::BundleResult)
+    ((bundled
       (:wat::holon::Bundle
         (:wat::core::Vector :wat::holon::HolonAST
           (:wat::holon::Thermometer 70.0 0.0 100.0)
           (:wat::holon::Thermometer 0.25 -1.0 1.0))))
-     ((form :wat::holon::HolonAST)
+     (form
       (:wat::core::match bundled -> :wat::holon::HolonAST
         ((:wat::core::Ok h)  h)
         ((:wat::core::Err _) (:wat::holon::Atom "unreachable"))))
-     ((slot-count :wat::core::i64)
+     (slot-count
       (:wat::core::length (:wat::holon::term::slots form)))
-     ((range-count :wat::core::i64)
+     (range-count
       (:wat::core::length (:wat::holon::term::ranges form))))
     (:wat::test::assert-eq slot-count range-count)))
 
@@ -126,12 +126,12 @@
 (:wat::test::deftest :wat-tests::holon::term::test-slots-empty-for-thermometer-free
   ()
   (:wat::core::let
-    (((form :wat::holon::HolonAST)
+    ((form
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
         (:wat::holon::leaf 42)))
-     ((slots :wat::core::Vector<wat::core::f64>) (:wat::holon::term::slots form))
-     ((n :wat::core::i64) (:wat::core::length slots)))
+     (slots (:wat::holon::term::slots form))
+     (n (:wat::core::length slots)))
     (:wat::test::assert-eq n 0)))
 
 ;; ─── Decomposing a template yields no slots ───────────────────────
@@ -143,13 +143,13 @@
 (:wat::test::deftest :wat-tests::holon::term::test-template-has-no-slots
   ()
   (:wat::core::let
-    (((form :wat::holon::HolonAST)
+    ((form
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
         (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     ((tpl :wat::holon::HolonAST) (:wat::holon::term::template form))
-     ((slots :wat::core::Vector<wat::core::f64>) (:wat::holon::term::slots tpl))
-     ((n :wat::core::i64) (:wat::core::length slots)))
+     (tpl (:wat::holon::term::template form))
+     (slots (:wat::holon::term::slots tpl))
+     (n (:wat::core::length slots)))
     (:wat::test::assert-eq n 0)))
 
 ;; ─── matches? — same form against itself ─────────────────────────
@@ -157,7 +157,7 @@
 (:wat::test::deftest :wat-tests::holon::term::test-matches-self
   ()
   (:wat::core::let
-    (((form :wat::holon::HolonAST)
+    ((form
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
         (:wat::holon::Thermometer 70.0 0.0 100.0))))
@@ -175,11 +175,11 @@
 (:wat::test::deftest :wat-tests::holon::term::test-matches-close-slot
   ()
   (:wat::core::let
-    (((q :wat::holon::HolonAST)
+    ((q
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
         (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     ((s :wat::holon::HolonAST)
+     (s
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
         (:wat::holon::Thermometer 70.5 0.0 100.0))))
@@ -192,11 +192,11 @@
 (:wat::test::deftest :wat-tests::holon::term::test-matches-distant-slot
   ()
   (:wat::core::let
-    (((q :wat::holon::HolonAST)
+    ((q
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
         (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     ((s :wat::holon::HolonAST)
+     (s
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
         (:wat::holon::Thermometer 30.0 0.0 100.0))))
@@ -212,11 +212,11 @@
 (:wat::test::deftest :wat-tests::holon::term::test-matches-different-template
   ()
   (:wat::core::let
-    (((q :wat::holon::HolonAST)
+    ((q
       (:wat::holon::Bind
         (:wat::holon::leaf :rsi-thought)
         (:wat::holon::Thermometer 70.0 0.0 100.0)))
-     ((s :wat::holon::HolonAST)
+     (s
       (:wat::holon::Bind
         (:wat::holon::leaf :macd-thought)
         (:wat::holon::Thermometer 70.0 0.0 100.0))))
@@ -234,11 +234,11 @@
 (:wat::test::deftest :wat-tests::holon::term::test-matches-thermometer-free
   ()
   (:wat::core::let
-    (((q :wat::holon::HolonAST)
+    ((q
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
         (:wat::holon::leaf 42)))
-     ((s :wat::holon::HolonAST)
+     (s
       (:wat::holon::Bind
         (:wat::holon::leaf :x)
         (:wat::holon::leaf 42))))

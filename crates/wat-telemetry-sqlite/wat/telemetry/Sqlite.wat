@@ -80,10 +80,10 @@
     (stats-translator :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<E>)
     -> :wat::core::nil)
   (:wat::core::let
-    (((db :wat::sqlite::Db) (:wat::sqlite::open path))
-     ((_pre :wat::core::nil) (pre-install db))
-     ((_install :wat::core::nil) (schema-install db))
-     ((curried :wat::core::Fn(wat::core::Vector<E>)->wat::core::nil)
+    ((db (:wat::sqlite::open path))
+     (_pre (pre-install db))
+     (_install (schema-install db))
+     (curried
       (:wat::core::fn ((entries :wat::core::Vector<E>) -> :wat::core::nil)
         (dispatcher db entries))))
     (:wat::telemetry::run
@@ -120,7 +120,7 @@
     -> :wat::telemetry::Spawn<E>)
   (:wat::core::let
     (;; N request channels (client write, server read).
-     ((req-pairs :wat::core::Vector<wat::telemetry::ReqChannel<E>>)
+     (req-pairs
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
@@ -130,42 +130,42 @@
      ;; N ack channels (server write, client read). Per arc 095:
      ;; client and server hold opposite ends; nothing crosses in
      ;; the request payload.
-     ((ack-pairs :wat::core::Vector<wat::telemetry::AckChannel>)
+     (ack-pairs
       (:wat::core::map
         (:wat::core::range 0 count)
         (:wat::core::fn
           ((_i :wat::core::i64) -> :wat::telemetry::AckChannel)
           (:wat::kernel::make-bounded-channel :wat::core::nil 1))))
      ;; Client-side Handles — (req-tx, ack-rx) pairs.
-     ((handles :wat::core::Vector<wat::telemetry::Handle<E>>)
+     (handles
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)
         (:wat::core::fn
           ((rp+ap :wat::telemetry::Connection<E>)
            -> :wat::telemetry::Handle<E>)
           (:wat::core::let
-            (((rp :wat::telemetry::ReqChannel<E>) (:wat::core::first rp+ap))
-             ((ap :wat::telemetry::AckChannel) (:wat::core::second rp+ap))
-             ((req-tx :wat::telemetry::ReqTx<E>) (:wat::core::first rp))
-             ((ack-rx :wat::telemetry::AckRx) (:wat::core::second ap)))
+            ((rp (:wat::core::first rp+ap))
+             (ap (:wat::core::second rp+ap))
+             (req-tx (:wat::core::first rp))
+             (ack-rx (:wat::core::second ap)))
             (:wat::core::Tuple req-tx ack-rx)))))
      ;; Server-side DriverPairs — (req-rx, ack-tx) pairs.
-     ((driver-pairs :wat::core::Vector<wat::telemetry::DriverPair<E>>)
+     (driver-pairs
       (:wat::core::map
         (:wat::std::list::zip req-pairs ack-pairs)
         (:wat::core::fn
           ((rp+ap :wat::telemetry::Connection<E>)
            -> :wat::telemetry::DriverPair<E>)
           (:wat::core::let
-            (((rp :wat::telemetry::ReqChannel<E>) (:wat::core::first rp+ap))
-             ((ap :wat::telemetry::AckChannel) (:wat::core::second rp+ap))
-             ((req-rx :wat::telemetry::ReqRx<E>) (:wat::core::second rp))
-             ((ack-tx :wat::telemetry::AckTx) (:wat::core::first ap)))
+            ((rp (:wat::core::first rp+ap))
+             (ap (:wat::core::second rp+ap))
+             (req-rx (:wat::core::second rp))
+             (ack-tx (:wat::core::first ap)))
             (:wat::core::Tuple req-rx ack-tx)))))
-     ((pool :wat::telemetry::HandlePool<E>)
+     (pool
       (:wat::kernel::HandlePool::new
         "wat::telemetry::Sqlite" handles))
-     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+     (driver
       (:wat::kernel::spawn-thread
         (:wat::core::fn
           ((_in :rust::crossbeam_channel::Receiver<wat::core::nil>)
@@ -225,8 +225,8 @@
     (entries :wat::core::Vector<E>)
     -> :wat::core::nil)
   (:wat::core::let
-    (((_b :wat::core::nil) (:wat::sqlite::begin db))
-     ((_d :wat::core::nil)
+    ((_b (:wat::sqlite::begin db))
+     (_d
       (:wat::core::foldl entries :wat::core::nil
         (:wat::core::fn ((_acc :wat::core::nil) (e :E) -> :wat::core::nil)
           (:rust::sqlite::auto-dispatch db enum-name e)))))
@@ -242,7 +242,7 @@
     (pre-install :wat::core::Fn(wat::sqlite::Db)->wat::core::nil)
     -> :wat::telemetry::Spawn<E>)
   (:wat::core::let
-    (((_prep :wat::core::nil) (:rust::sqlite::auto-prep enum-name)))
+    ((_prep (:rust::sqlite::auto-prep enum-name)))
     (:wat::telemetry::Sqlite/spawn
       path count cadence
       pre-install

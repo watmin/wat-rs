@@ -6,11 +6,11 @@
      (:test::make-3tuple<T> (mid :T) -> :(wat::core::i64,T,wat::core::String))
      (:wat::core::Tuple 42 mid "hello")))
   (:wat::core::let
-    (((triple :(wat::core::i64,wat::core::bool,wat::core::String))
+    ((triple
       (:test::make-3tuple true))
-     ((a :wat::core::i64) (:wat::core::first triple))
-     ((b :wat::core::bool) (:wat::core::second triple))
-     ((c :wat::core::String) (:wat::core::third triple))
-     ((_ :wat::core::nil) (:wat::test::assert-eq a 42))
-     ((_ :wat::core::nil) (:wat::test::assert-eq b true)))
+     (a (:wat::core::first triple))
+     (b (:wat::core::second triple))
+     (c (:wat::core::third triple))
+     (_ (:wat::test::assert-eq a 42))
+     (_ (:wat::test::assert-eq b true)))
     (:wat::test::assert-eq c "hello")))

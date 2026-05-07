@@ -70,7 +70,7 @@ fn hermetic_output_evaluated_in_outer_scope() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::holon::HolonAST,wat::core::EvalError>)
           (:wat::core::let
-            (((hermetic-result :wat::kernel::RunResult)
+            ((hermetic-result
               (:wat::kernel::run-sandboxed-hermetic-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -81,9 +81,9 @@ fn hermetic_output_evaluated_in_outer_scope() {
                     (:wat::io::IOWriter/println stdout "(:wat::core::i64::+,2 40 2)")))
                 (:wat::core::Vector :wat::core::String)
                 :wat::core::None))
-             ((lines :wat::core::Vector<wat::core::String>)
+             (lines
               (:wat::kernel::RunResult/stdout hermetic-result))
-             ((captured-src :wat::core::String)
+             (captured-src
               (:wat::core::match (:wat::core::first lines) -> :wat::core::String
                 ((:wat::core::Some s) s)
                 (:wat::core::None ""))))

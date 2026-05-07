@@ -13,7 +13,7 @@
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-roundtrip-via-eval
   ()
   (:wat::core::let
-    (((_outcome :wat::kernel::RunResult)
+    ((_outcome
       (:wat::test::run-ast
         (:wat::test::program
           (:wat::core::struct :my::Pair
@@ -26,9 +26,9 @@
               (_stderr :wat::io::IOWriter)
               -> :wat::core::nil)
             (:wat::core::let
-              (((p :my::Pair) (:my::Pair/new 7 9))
-               ((form :wat::WatAST) (:wat::core::struct->form p))
-               ((roundtrip :wat::holon::HolonAST) (:wat::eval-ast! form))
+              ((p (:my::Pair/new 7 9))
+               (form (:wat::core::struct->form p))
+               (roundtrip (:wat::eval-ast! form))
                ;; Just check the eval succeeded — the struct re-built
                ;; from its lifted form.
                (_ :wat::core::nil (:wat::test::assert-eq true true)))
@@ -40,9 +40,9 @@
 (:wat::test::deftest :wat-rs::std::struct-to-form::test-quasiquote-splices-runtime-values
   ()
   (:wat::core::let
-    (((x :wat::core::i64) 42)
-     ((y :wat::core::String) "hello")
-     ((form :wat::WatAST)
+    ((x 42)
+     (y "hello")
+     (form
       (:wat::core::quasiquote (:my::Foo/new ,x ,y))))
     ;; Quasiquote at runtime: ,x evaluated to 42; ,y to "hello";
     ;; the resulting form is the WatAST `(:my::Foo/new 42 "hello")`.

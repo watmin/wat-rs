@@ -71,7 +71,7 @@
     (format :wat::telemetry::Console::Format)
     -> :wat::core::String)
   (:wat::core::let
-    (((line :wat::core::String)
+    ((line
       (:wat::core::match format -> :wat::core::String
         (:wat::telemetry::Console::Format::Edn
           (:wat::edn::write entry))

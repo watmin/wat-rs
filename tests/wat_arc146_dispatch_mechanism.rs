@@ -177,9 +177,9 @@ fn lookup_form_returns_dispatch_binding() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((def-opt :wat::core::Option<wat::holon::HolonAST>)
+            ((def-opt
               (:wat::runtime::lookup-define :test::describe))
-             ((rendered :wat::core::String)
+             (rendered
               (:wat::edn::write def-opt)))
             (:wat::io::IOWriter/println stdout rendered)))
         "##,

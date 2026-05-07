@@ -11,16 +11,16 @@
 (:wat::test::deftest :wat-tests::holon::Trigram::test-window-participant-above-floor
   ()
   (:wat::core::let
-    (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
-     ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
-     ((c :wat::holon::HolonAST) (:wat::holon::Atom "c"))
-     ((d :wat::holon::HolonAST) (:wat::holon::Atom "d"))
-     ((window-1 :wat::holon::HolonAST)
+    ((a (:wat::holon::Atom "a"))
+     (b (:wat::holon::Atom "b"))
+     (c (:wat::holon::Atom "c"))
+     (d (:wat::holon::Atom "d"))
+     (window-1
       (:wat::holon::Sequential (:wat::core::Vector :wat::holon::HolonAST a b c)))
      ;; Trigram returns :wat::core::Result<HolonAST, CapacityExceeded>. 4 atoms at
      ;; d=1024 is well under the capacity budget; Err is unreachable
      ;; but the type system still demands we acknowledge it.
-     ((full :wat::holon::HolonAST)
+     (full
       (:wat::core::match
         (:wat::holon::Trigram (:wat::core::Vector :wat::holon::HolonAST a b c d))
         -> :wat::holon::HolonAST
@@ -31,12 +31,12 @@
 (:wat::test::deftest :wat-tests::holon::Trigram::test-outsider-below-floor
   ()
   (:wat::core::let
-    (((a :wat::holon::HolonAST) (:wat::holon::Atom "a"))
-     ((b :wat::holon::HolonAST) (:wat::holon::Atom "b"))
-     ((c :wat::holon::HolonAST) (:wat::holon::Atom "c"))
-     ((d :wat::holon::HolonAST) (:wat::holon::Atom "d"))
-     ((z :wat::holon::HolonAST) (:wat::holon::Atom "unrelated-z"))
-     ((full :wat::holon::HolonAST)
+    ((a (:wat::holon::Atom "a"))
+     (b (:wat::holon::Atom "b"))
+     (c (:wat::holon::Atom "c"))
+     (d (:wat::holon::Atom "d"))
+     (z (:wat::holon::Atom "unrelated-z"))
+     (full
       (:wat::core::match
         (:wat::holon::Trigram (:wat::core::Vector :wat::holon::HolonAST a b c d))
         -> :wat::holon::HolonAST

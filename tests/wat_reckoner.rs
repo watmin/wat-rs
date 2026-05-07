@@ -42,15 +42,15 @@ fn reckoner_discrete_construct_dims_labels() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((labels :wat::core::Vector<wat::holon::HolonAST>)
+            ((labels
               (:wat::core::Vector :wat::holon::HolonAST
                 (:wat::holon::Atom "up")
                 (:wat::holon::Atom "down")))
-             ((r :wat::holon::Reckoner)
+             (r
               (:wat::holon::Reckoner/new-discrete "test-rec" 10000 100 labels))
-             ((d :wat::core::i64) (:wat::holon::Reckoner/dims r))
-             ((label-list :wat::core::Vector<wat::core::i64>) (:wat::holon::Reckoner/labels r))
-             ((nlabels :wat::core::i64) (:wat::core::length label-list)))
+             (d (:wat::holon::Reckoner/dims r))
+             (label-list (:wat::holon::Reckoner/labels r))
+             (nlabels (:wat::core::length label-list)))
             (:wat::io::IOWriter/println stdout
               (:wat::core::if
                 (:wat::core::and (:wat::core::= d 10000) (:wat::core::= nlabels 2))
@@ -69,19 +69,19 @@ fn reckoner_observe_then_predict() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((labels :wat::core::Vector<wat::holon::HolonAST>)
+            ((labels
               (:wat::core::Vector :wat::holon::HolonAST
                 (:wat::holon::Atom "up")
                 (:wat::holon::Atom "down")))
-             ((r :wat::holon::Reckoner)
+             (r
               ;; Tiny recalib_interval=1 so discriminants update after every observe.
               (:wat::holon::Reckoner/new-discrete "rec" 10000 1 labels))
-             ((v :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
-             ((u1 :wat::core::nil) (:wat::holon::Reckoner/observe r v 0 1.0))
-             ((u2 :wat::core::nil) (:wat::holon::Reckoner/observe r v 1 1.0))
-             ((pred :(wat::core::Vector<(wat::core::i64,wat::core::f64)>,wat::core::Option<wat::core::i64>,wat::core::f64,wat::core::f64))
+             (v (:wat::holon::encode (:wat::holon::Atom "x")))
+             (u1 (:wat::holon::Reckoner/observe r v 0 1.0))
+             (u2 (:wat::holon::Reckoner/observe r v 1 1.0))
+             (pred
               (:wat::holon::Reckoner/predict r v))
-             ((conviction :wat::core::f64) (:wat::core::third pred)))
+             (conviction (:wat::core::third pred)))
             ;; Predict returns a tuple — we just verify the call ran
             ;; and conviction is a valid f64 (>= 0). Discriminants may
             ;; not be fully resolved after two observations; we don't
@@ -102,9 +102,9 @@ fn reckoner_continuous_construct() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((r :wat::holon::Reckoner)
+            ((r
               (:wat::holon::Reckoner/new-continuous "cont" 10000 100 0.0 16))
-             ((d :wat::core::i64) (:wat::holon::Reckoner/dims r)))
+             (d (:wat::holon::Reckoner/dims r)))
             (:wat::io::IOWriter/println stdout
               (:wat::core::if (:wat::core::= d 10000) -> :wat::core::String "ok" "wrong"))))
     "##;

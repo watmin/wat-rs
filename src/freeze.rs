@@ -1371,7 +1371,7 @@ mod tests {
         "#,
         );
         let ast = crate::parse_one!(
-            r#"(:wat::core::let (((x :i64) 1))
+            r#"(:wat::core::let ((x 1))
                  (:wat::core::define (:evil (y :i64) -> :i64) y))"#,
         )
         .unwrap();

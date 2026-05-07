@@ -75,29 +75,29 @@
    (:wat::core::define
      (:test::svc-tel-spawn-shutdown -> :wat::core::nil)
      (:wat::core::let
-       (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+       ((driver
          (:wat::core::let
-           (((stub-pair :wat::kernel::Channel<wat::core::i64>)
+           ((stub-pair
              (:wat::kernel::make-bounded-channel :wat::core::i64 16))
-            ((stub-tx :wat::kernel::Sender<wat::core::i64>) (:wat::core::first stub-pair))
-            ((dispatcher :wat::core::Fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
+            (stub-tx (:wat::core::first stub-pair))
+            (dispatcher
              (:test::svc-tel-make-dispatcher stub-tx))
-            ((translator :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
+            (translator
              (:test::svc-tel-null-translator))
-            ((cadence :wat::telemetry::MetricsCadence<wat::core::nil>)
+            (cadence
              (:wat::telemetry::null-metrics-cadence))
-            ((spawn :wat::telemetry::Spawn<wat::core::i64>)
+            (spawn
              (:wat::telemetry::spawn 1 cadence dispatcher translator))
-            ((pool :wat::telemetry::HandlePool<wat::core::i64>)
+            (pool
              (:wat::core::first spawn))
-            ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+            (d
              (:wat::core::second spawn))
-            ((_handle :wat::telemetry::Handle<wat::core::i64>)
+            (_handle
              (:wat::kernel::HandlePool::pop pool))
-            ((_finish :wat::core::nil)
+            (_finish
              (:wat::kernel::HandlePool::finish pool)))
            d))
-        ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+        (_join
          (:wat::kernel::Thread/join-result driver)))
        ()))
 
@@ -115,31 +115,31 @@
        (cadence :wat::telemetry::MetricsCadence<wat::core::i64>)
        -> :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::core::i64>))
      (:wat::core::let
-       (((thr-and-rx :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::core::i64>))
+       ((thr-and-rx
          (:wat::core::let
-           (((stub-pair :wat::kernel::Channel<wat::core::i64>)
+           ((stub-pair
              (:wat::kernel::make-bounded-channel :wat::core::i64 16))
-            ((stub-tx :wat::kernel::Sender<wat::core::i64>) (:wat::core::first stub-pair))
-            ((stub-rx :wat::kernel::Receiver<wat::core::i64>) (:wat::core::second stub-pair))
-            ((dispatcher :wat::core::Fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
+            (stub-tx (:wat::core::first stub-pair))
+            (stub-rx (:wat::core::second stub-pair))
+            (dispatcher
              (:test::svc-tel-make-dispatcher stub-tx))
-            ((spawn :wat::telemetry::Spawn<wat::core::i64>)
+            (spawn
              (:wat::telemetry::spawn 1 cadence dispatcher translator))
-            ((pool :wat::telemetry::HandlePool<wat::core::i64>)
+            (pool
              (:wat::core::first spawn))
-            ((d :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+            (d
              (:wat::core::second spawn))
-            ((_inner :wat::core::nil)
+            (_inner
              (:wat::core::let
-               (((handle :wat::telemetry::Handle<wat::core::i64>)
+               ((handle
                  (:wat::kernel::HandlePool::pop pool))
-                ((_finish :wat::core::nil)
+                (_finish
                  (:wat::kernel::HandlePool::finish pool))
-                ((req-tx :wat::telemetry::ReqTx<wat::core::i64>)
+                (req-tx
                  (:wat::core::first handle))
-                ((ack-rx :wat::telemetry::AckRx)
+                (ack-rx
                  (:wat::core::second handle))
-                ((_log :wat::core::nil)
+                (_log
                  (:wat::telemetry::batch-log req-tx ack-rx entries)))
                ())))
            (:wat::core::Tuple d stub-rx))))
@@ -160,23 +160,23 @@
        (e3 :wat::core::i64)
        -> :wat::core::nil)
      (:wat::core::let
-       (((v1 :wat::core::i64)
+       ((v1
          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64
            ((:wat::core::Ok (:wat::core::Some v)) v)
            ((:wat::core::Ok :wat::core::None) -99)
            ((:wat::core::Err _) -99)))
-        ((v2 :wat::core::i64)
+        (v2
          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64
            ((:wat::core::Ok (:wat::core::Some v)) v)
            ((:wat::core::Ok :wat::core::None) -99)
            ((:wat::core::Err _) -99)))
-        ((v3 :wat::core::i64)
+        (v3
          (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64
            ((:wat::core::Ok (:wat::core::Some v)) v)
            ((:wat::core::Ok :wat::core::None) -99)
            ((:wat::core::Err _) -99)))
-        ((_ :wat::core::nil) (:wat::test::assert-eq v1 e1))
-        ((_ :wat::core::nil) (:wat::test::assert-eq v2 e2)))
+        (_ (:wat::test::assert-eq v1 e1))
+        (_ (:wat::test::assert-eq v2 e2)))
        (:wat::test::assert-eq v3 e3)))
 
    ))
@@ -191,15 +191,15 @@
 ;; Proves the closure captures stub-tx correctly: one entry is forwarded.
 (:deftest :wat-telemetry::test-svc-tel-make-dispatcher
   (:wat::core::let
-    (((stub-pair :wat::kernel::Channel<wat::core::i64>)
+    ((stub-pair
       (:wat::kernel::make-bounded-channel :wat::core::i64 4))
-     ((stub-tx :wat::kernel::Sender<wat::core::i64>) (:wat::core::first stub-pair))
-     ((stub-rx :wat::kernel::Receiver<wat::core::i64>) (:wat::core::second stub-pair))
-     ((dispatcher :wat::core::Fn(wat::core::Vector<wat::core::i64>)->wat::core::nil)
+     (stub-tx (:wat::core::first stub-pair))
+     (stub-rx (:wat::core::second stub-pair))
+     (dispatcher
       (:test::svc-tel-make-dispatcher stub-tx))
-     ((_ :wat::core::nil)
+     (_
       (dispatcher (:wat::core::Vector :wat::core::i64 42)))
-     ((v :wat::core::i64)
+     (v
       (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64
         ((:wat::core::Ok (:wat::core::Some v)) v)
         ((:wat::core::Ok :wat::core::None) -1)
@@ -210,9 +210,9 @@
 ;; Layer 0 — null-translator: returns empty vector.
 (:deftest :wat-telemetry::test-svc-tel-null-translator
   (:wat::core::let
-    (((t :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
+    ((t
       (:test::svc-tel-null-translator))
-     ((result :wat::core::Vector<wat::core::i64>)
+     (result
       (t (:wat::telemetry::Stats/new 1 2 3))))
     (:wat::test::assert-eq (:wat::core::length result) 0)))
 
@@ -220,9 +220,9 @@
 ;; Layer 0 — active-translator: returns [-1].
 (:deftest :wat-telemetry::test-svc-tel-active-translator
   (:wat::core::let
-    (((t :wat::core::Fn(wat::telemetry::Stats)->wat::core::Vector<wat::core::i64>)
+    ((t
       (:test::svc-tel-active-translator))
-     ((result :wat::core::Vector<wat::core::i64>)
+     (result
       (t (:wat::telemetry::Stats/new 0 0 0))))
     (:wat::test::assert-eq (:wat::core::first result) (:wat::core::Some -1))))
 
@@ -236,7 +236,7 @@
 ;; Proves the helper by joining and draining one batch [7].
 (:deftest :wat-telemetry::test-svc-tel-spawn-and-log
   (:wat::core::let
-    (((thr-and-rx :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::core::i64>))
+    ((thr-and-rx
       (:test::svc-tel-spawn-and-log
         (:wat::core::Vector :wat::core::i64 7)
         (:test::svc-tel-null-translator)
@@ -245,13 +245,13 @@
           (:wat::core::fn
             ((g :wat::core::i64) (_s :wat::telemetry::Stats) -> :(wat::core::i64,wat::core::bool))
             (:wat::core::Tuple 0 false)))))
-     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+     (driver
       (:wat::core::first thr-and-rx))
-     ((stub-rx :wat::kernel::Receiver<wat::core::i64>)
+     (stub-rx
       (:wat::core::second thr-and-rx))
-     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     (_join
       (:wat::kernel::Thread/join-result driver))
-     ((v :wat::core::i64)
+     (v
       (:wat::core::match (:wat::kernel::recv stub-rx) -> :wat::core::i64
         ((:wat::core::Ok (:wat::core::Some v)) v)
         ((:wat::core::Ok :wat::core::None) -1)
@@ -263,17 +263,17 @@
 ;; Proves with a direct stub channel (no service spawn needed).
 (:deftest :wat-telemetry::test-svc-tel-assert-drain-3
   (:wat::core::let
-    (((pair :wat::kernel::Channel<wat::core::i64>)
+    ((pair
       (:wat::kernel::make-bounded-channel :wat::core::i64 4))
-     ((tx :wat::kernel::Sender<wat::core::i64>) (:wat::core::first pair))
-     ((rx :wat::kernel::Receiver<wat::core::i64>) (:wat::core::second pair))
-     ((_ :wat::core::nil)
+     (tx (:wat::core::first pair))
+     (rx (:wat::core::second pair))
+     (_
       (:wat::core::match (:wat::kernel::send tx 10) -> :wat::core::nil
         ((:wat::core::Ok _) :wat::core::nil) ((:wat::core::Err _) :wat::core::nil)))
-     ((_ :wat::core::nil)
+     (_
       (:wat::core::match (:wat::kernel::send tx 20) -> :wat::core::nil
         ((:wat::core::Ok _) :wat::core::nil) ((:wat::core::Err _) :wat::core::nil)))
-     ((_ :wat::core::nil)
+     (_
       (:wat::core::match (:wat::kernel::send tx 30) -> :wat::core::nil
         ((:wat::core::Ok _) :wat::core::nil) ((:wat::core::Err _) :wat::core::nil))))
     (:test::svc-tel-assert-drain-3 rx 10 20 30)))
@@ -294,7 +294,7 @@
 
 (:deftest :wat-telemetry::test-batch-roundtrip
   (:wat::core::let
-    (((thr-and-rx :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::core::i64>))
+    ((thr-and-rx
       (:test::svc-tel-spawn-and-log
         (:wat::core::Vector :wat::core::i64 10 20 30)
         (:test::svc-tel-null-translator)
@@ -303,11 +303,11 @@
           (:wat::core::fn
             ((g :wat::core::i64) (_s :wat::telemetry::Stats) -> :(wat::core::i64,wat::core::bool))
             (:wat::core::Tuple 0 false)))))
-     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+     (driver
       (:wat::core::first thr-and-rx))
-     ((stub-rx :wat::kernel::Receiver<wat::core::i64>)
+     (stub-rx
       (:wat::core::second thr-and-rx))
-     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     (_join
       (:wat::kernel::Thread/join-result driver)))
     (:test::svc-tel-assert-drain-3 stub-rx 10 20 30)))
 
@@ -316,7 +316,7 @@
 
 (:deftest :wat-telemetry::test-cadence-fires
   (:wat::core::let
-    (((thr-and-rx :(wat::kernel::Thread<wat::core::nil,wat::core::nil>,wat::kernel::Receiver<wat::core::i64>))
+    ((thr-and-rx
       (:test::svc-tel-spawn-and-log
         (:wat::core::Vector :wat::core::i64 100 200)
         (:test::svc-tel-active-translator)
@@ -325,10 +325,10 @@
           (:wat::core::fn
             ((g :wat::core::i64) (_s :wat::telemetry::Stats) -> :(wat::core::i64,wat::core::bool))
             (:wat::core::Tuple 0 true)))))
-     ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+     (driver
       (:wat::core::first thr-and-rx))
-     ((stub-rx :wat::kernel::Receiver<wat::core::i64>)
+     (stub-rx
       (:wat::core::second thr-and-rx))
-     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     (_join
       (:wat::kernel::Thread/join-result driver)))
     (:test::svc-tel-assert-drain-3 stub-rx 100 200 -1)))

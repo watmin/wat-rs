@@ -46,10 +46,10 @@ fn vector_bind_roundtrip() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let
-            (((va :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "a")))
-             ((vb :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "b")))
-             ((c1 :wat::holon::Vector) (:wat::holon::vector-bind va vb))
-             ((c2 :wat::holon::Vector) (:wat::holon::vector-bind va vb)))
+            ((va (:wat::holon::encode (:wat::holon::Atom "a")))
+             (vb (:wat::holon::encode (:wat::holon::Atom "b")))
+             (c1 (:wat::holon::vector-bind va vb))
+             (c2 (:wat::holon::vector-bind va vb)))
             (:wat::io::IOWriter/println stdout
               (:wat::core::if (:wat::core::= c1 c2) -> :wat::core::String "yes" "no"))))
     "##;
@@ -67,11 +67,11 @@ fn vector_bundle_singleton_returns_input() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let
-            (((va :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
-             ((bundled :wat::holon::Vector)
+            ((va (:wat::holon::encode (:wat::holon::Atom "x")))
+             (bundled
               (:wat::holon::vector-bundle (:wat::core::Vector :wat::holon::Vector va)))
              ;; Cosine should be ~1.0 (same sign pattern).
-             ((c :wat::core::f64) (:wat::holon::cosine va bundled)))
+             (c (:wat::holon::cosine va bundled)))
             (:wat::io::IOWriter/println stdout
               (:wat::core::if (:wat::core::> c 0.99) -> :wat::core::String "near-1" "far"))))
     "##;
@@ -89,10 +89,10 @@ fn vector_blend_weighted() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let
-            (((va :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
-             ((vb :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "y")))
-             ((blended :wat::holon::Vector) (:wat::holon::vector-blend va vb 1.0 0.0))
-             ((c :wat::core::f64) (:wat::holon::cosine va blended)))
+            ((va (:wat::holon::encode (:wat::holon::Atom "x")))
+             (vb (:wat::holon::encode (:wat::holon::Atom "y")))
+             (blended (:wat::holon::vector-blend va vb 1.0 0.0))
+             (c (:wat::holon::cosine va blended)))
             ;; Pure a-weight should give very high cosine to a.
             (:wat::io::IOWriter/println stdout
               (:wat::core::if (:wat::core::> c 0.95) -> :wat::core::String "near-1" "far"))))
@@ -111,8 +111,8 @@ fn vector_permute_changes_vector() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let
-            (((va :wat::holon::Vector) (:wat::holon::encode (:wat::holon::Atom "x")))
-             ((shifted :wat::holon::Vector) (:wat::holon::vector-permute va 5)))
+            ((va (:wat::holon::encode (:wat::holon::Atom "x")))
+             (shifted (:wat::holon::vector-permute va 5)))
             (:wat::io::IOWriter/println stdout
               (:wat::core::if (:wat::core::= va shifted) -> :wat::core::String "same" "differs"))))
     "##;

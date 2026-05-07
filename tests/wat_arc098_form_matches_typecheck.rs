@@ -69,9 +69,9 @@ const PROLOGUE_VALID: &str = r#"
     (stderr :wat::io::IOWriter)
     -> :())
   (:wat::core::let
-    (((p :test::PaperResolved)
+    ((p
       (:test::PaperResolved/new "Grace" 7.5))
-     ((b :wat::core::bool)
+     (b
       (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)))
     (:wat::io::IOWriter/println stdout (:wat::core::bool::to-string b))))
 "#;
@@ -91,9 +91,9 @@ const PROLOGUE_INVALID: &str = r#"
     (stderr :wat::io::IOWriter)
     -> :())
   (:wat::core::let
-    (((p :test::PaperResolved)
+    ((p
       (:test::PaperResolved/new "Grace" 7.5))
-     ((b :wat::core::bool)
+     (b
       (:wat::core::if true -> :wat::core::bool true SUBSTITUTE_HERE)))
     (:wat::io::IOWriter/println stdout (:wat::core::bool::to-string b))))
 "#;
@@ -203,7 +203,7 @@ fn rejects_arity_zero() {
             (stderr :wat::io::IOWriter)
             -> :())
           (:wat::core::let
-            (((b :bool) (:wat::core::if true -> :bool true (:wat::form::matches?))))
+            ((b (:wat::core::if true -> :bool true (:wat::form::matches?))))
             (:wat::io::IOWriter/println stdout "ok")))
     "#;
     expect_check_error(src, ":wat::form::matches?");

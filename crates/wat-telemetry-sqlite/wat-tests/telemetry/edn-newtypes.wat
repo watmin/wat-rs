@@ -27,20 +27,20 @@
        (pool :wat::telemetry::HandlePool<test::Edn::Event>)
        -> :wat::core::nil)
      (:wat::core::let
-       (((handle :wat::telemetry::Handle<test::Edn::Event>)
+       ((handle
          (:wat::kernel::HandlePool::pop pool))
-        ((_finish :wat::core::nil) (:wat::kernel::HandlePool::finish pool))
-        ((req-tx :wat::telemetry::ReqTx<test::Edn::Event>)
+        (_finish (:wat::kernel::HandlePool::finish pool))
+        (req-tx
          (:wat::core::first handle))
-        ((ack-rx :wat::telemetry::AckRx)
+        (ack-rx
          (:wat::core::second handle))
-        ((ast :wat::holon::HolonAST) (:wat::holon::Atom "hello"))
-        ((tagged :wat::edn::Tagged)  (:wat::edn::Tagged/new ast))
-        ((notag  :wat::edn::NoTag)   (:wat::edn::NoTag/new  ast))
-        ((entries :wat::core::Vector<test::Edn::Event>)
+        (ast (:wat::holon::Atom "hello"))
+        (tagged  (:wat::edn::Tagged/new ast))
+        (notag   (:wat::edn::NoTag/new  ast))
+        (entries
          (:wat::core::Vector :test::Edn::Event
            (:test::Edn::Event::Log tagged notag)))
-        ((_log :wat::core::nil)
+        (_log
          (:wat::telemetry::batch-log
            req-tx ack-rx entries)))
        ()))
@@ -51,26 +51,26 @@
        (path :wat::core::String)
        -> :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
      (:wat::core::let
-       (((spawn :wat::telemetry::Spawn<test::Edn::Event>)
+       ((spawn
          (:wat::telemetry::Sqlite/auto-spawn
            :test::Edn::Event
            path 1
            (:wat::telemetry::null-metrics-cadence)
            :wat::telemetry::Sqlite/null-pre-install))
-        ((pool :wat::telemetry::HandlePool<test::Edn::Event>)
+        (pool
          (:wat::core::first spawn))
-        ((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+        (driver
          (:wat::core::second spawn))
-        ((_inner :wat::core::nil)
+        (_inner
          (:test::Edn::send-one pool)))
        driver))))
 
 
 (:deftest :wat-telemetry-sqlite::edn-newtypes::test-tagged-and-notag-bind
   (:wat::core::let
-    (((driver :wat::kernel::Thread<wat::core::nil,wat::core::nil>)
+    ((driver
       (:test::Edn::auto-spawn-one
         "/tmp/wat-sqlite-test-edn-newtypes-001.db"))
-     ((_join :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ThreadDiedError>>)
+     (_join
       (:wat::kernel::Thread/join-result driver)))
     (:wat::test::assert-eq true true)))

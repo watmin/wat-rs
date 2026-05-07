@@ -250,9 +250,9 @@ fn signature_of_variadic_define_returns_rest_shape() {
             (stderr :wat::io::IOWriter)
             -> :wat::core::nil)
           (:wat::core::let
-            (((sig-opt :wat::core::Option<wat::holon::HolonAST>)
+            ((sig-opt
               (:wat::runtime::signature-of :my::sum-of))
-             ((rendered :wat::core::String)
+             (rendered
               (:wat::edn::write sig-opt)))
             (:wat::io::IOWriter/println stdout rendered)))
     "##;

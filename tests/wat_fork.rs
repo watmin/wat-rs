@@ -45,7 +45,7 @@ fn fork_child_writes_stdout_parent_reads_line() {
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
           (:wat::core::let
-            (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+            ((child
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -54,7 +54,7 @@ fn fork_child_writes_stdout_parent_reads_line() {
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::nil)
                     (:wat::io::IOWriter/println stdout "hello-from-fork")))))
-             ((out-r :wat::io::IOReader)
+             (out-r
               (:wat::kernel::Process/stdout child)))
             (:wat::io::IOReader/read-line out-r)))
     "#;
@@ -71,7 +71,7 @@ fn fork_child_writes_stderr_parent_reads_line() {
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
           (:wat::core::let
-            (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+            ((child
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -80,7 +80,7 @@ fn fork_child_writes_stderr_parent_reads_line() {
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::nil)
                     (:wat::io::IOWriter/println stderr "diag-line")))))
-             ((err-r :wat::io::IOReader)
+             (err-r
               (:wat::kernel::Process/stderr child)))
             (:wat::io::IOReader/read-line err-r)))
     "#;
@@ -95,7 +95,7 @@ fn wait_child_returns_zero_on_success() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
           (:wat::core::let
-            (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+            ((child
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -131,7 +131,7 @@ fn wait_child_is_idempotent() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
           (:wat::core::let
-            (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+            ((child
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -142,7 +142,7 @@ fn wait_child_is_idempotent() {
                     ()))))
              ;; Process/join-result is the unified wait; idempotency
              ;; is now the substrate's concern under the ProgramHandle.
-             ((joined-result :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
+             (joined-result
               (:wat::kernel::Process/join-result child)))
             joined-result))
     "#;
@@ -158,7 +158,7 @@ fn wait_child_surfaces_startup_error_exit_code() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
           (:wat::core::let
-            (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+            ((child
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -167,7 +167,7 @@ fn wait_child_surfaces_startup_error_exit_code() {
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::nil)
                     (:wat::core::let
-                      (((_ :wat::core::i64) (:wat::core::i64::+,2 1 "two")))
+                      ((_ (:wat::core::i64::+,2 1 "two")))
                       ()))))))
             (:wat::kernel::Process/join-result child)))
     "#;
@@ -183,7 +183,7 @@ fn wait_child_surfaces_panic_exit_code() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
           (:wat::core::let
-            (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+            ((child
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -207,7 +207,7 @@ fn wait_child_surfaces_runtime_error_exit_code() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
           (:wat::core::let
-            (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+            ((child
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -216,7 +216,7 @@ fn wait_child_surfaces_runtime_error_exit_code() {
                                        (stderr :wat::io::IOWriter)
                                        -> :wat::core::nil)
                     (:wat::core::let
-                      (((_ :wat::core::u8) (:wat::core::u8 300)))
+                      ((_ (:wat::core::u8 300)))
                       ()))))))
             (:wat::kernel::Process/join-result child)))
     "#;
@@ -232,7 +232,7 @@ fn multiple_sequential_forks_no_leak() {
 
         (:wat::core::define (:my::one-fork<I,O> -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
           (:wat::core::let
-            (((child :wat::kernel::Program<I,O>)
+            ((child
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -245,9 +245,9 @@ fn multiple_sequential_forks_no_leak() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
           (:wat::core::let
-            (((a :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>) (:my::one-fork))
-             ((b :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>) (:my::one-fork))
-             ((c :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>) (:my::one-fork)))
+            ((a (:my::one-fork))
+             (b (:my::one-fork))
+             (c (:my::one-fork)))
             ;; All three must be Ok; return last as witness.
             c))
     "#;
@@ -266,7 +266,7 @@ fn wait_child_surfaces_nonzero_exit_code() {
 
         (:wat::core::define (:user::main -> :wat::core::Result<wat::core::nil,wat::core::Vector<wat::kernel::ProcessDiedError>>)
           (:wat::core::let
-            (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+            ((child
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main -> :wat::core::i64) 42)))))
@@ -284,7 +284,7 @@ fn fork_child_reads_stdin_from_parent() {
 
         (:wat::core::define (:user::main -> :wat::core::Option<wat::core::String>)
           (:wat::core::let
-            (((child :wat::kernel::Program<wat::core::nil,wat::core::nil>)
+            ((child
               (:wat::kernel::fork-program-ast
                 (:wat::test::program
                   (:wat::core::define (:user::main
@@ -295,9 +295,9 @@ fn fork_child_reads_stdin_from_parent() {
                     (:wat::core::match (:wat::io::IOReader/read-line stdin) -> :wat::core::nil
                       ((:wat::core::Some line) (:wat::io::IOWriter/println stdout line))
                       (:wat::core::None ()))))))
-             ((in-w  :wat::io::IOWriter) (:wat::kernel::Process/stdin child))
-             ((out-r :wat::io::IOReader) (:wat::kernel::Process/stdout child))
-             ((_ :wat::core::i64) (:wat::io::IOWriter/writeln in-w "ping")))
+             (in-w (:wat::kernel::Process/stdin child))
+             (out-r (:wat::kernel::Process/stdout child))
+             (_ (:wat::io::IOWriter/writeln in-w "ping")))
             (:wat::io::IOReader/read-line out-r)))
     "#;
     assert_eq!(unwrap_some_string(run(src)), "ping");

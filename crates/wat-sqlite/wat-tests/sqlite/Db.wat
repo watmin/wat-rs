@@ -14,7 +14,7 @@
 (:wat::test::deftest :wat-tests::sqlite::Db::test-open-drop
   ()
   (:wat::core::let
-    (((db :wat::sqlite::Db)
+    ((db
       (:wat::sqlite::open "/tmp/wat-sqlite-test-001.db")))
     (:wat::test::assert-eq true true)))
 
@@ -24,9 +24,9 @@
 (:wat::test::deftest :wat-tests::sqlite::Db::test-execute-ddl
   ()
   (:wat::core::let
-    (((db :wat::sqlite::Db)
+    ((db
       (:wat::sqlite::open "/tmp/wat-sqlite-test-002.db"))
-     ((_ :wat::core::nil)
+     (_
       (:wat::sqlite::execute-ddl db
         "CREATE TABLE IF NOT EXISTS events (id INTEGER, ts INTEGER)")))
     (:wat::test::assert-eq true true)))
@@ -37,9 +37,9 @@
 (:wat::test::deftest :wat-tests::sqlite::Db::test-execute-params
   ()
   (:wat::core::let
-    (((db :wat::sqlite::Db)
+    ((db
       (:wat::sqlite::open "/tmp/wat-sqlite-test-003.db"))
-     ((_create :wat::core::nil)
+     (_create
       (:wat::sqlite::execute-ddl db
         "CREATE TABLE IF NOT EXISTS rows (
            run_name  TEXT NOT NULL,
@@ -47,9 +47,9 @@
            residue   REAL NOT NULL,
            ok        INTEGER NOT NULL
          );"))
-     ((_clear :wat::core::nil)
+     (_clear
       (:wat::sqlite::execute-ddl db "DELETE FROM rows;"))
-     ((_insert :wat::core::nil)
+     (_insert
       (:wat::sqlite::execute db
         "INSERT INTO rows (run_name, paper_id, residue, ok) VALUES (?1, ?2, ?3, ?4)"
         (:wat::core::Vector :wat::sqlite::Param
@@ -72,13 +72,13 @@
 (:wat::test::deftest :wat-tests::sqlite::Db::test-pragma-wal
   ()
   (:wat::core::let
-    (((db :wat::sqlite::Db)
+    ((db
       (:wat::sqlite::open "/tmp/wat-sqlite-test-004.db"))
-     ((_p :wat::core::nil)
+     (_p
       (:wat::sqlite::pragma db "journal_mode" "WAL"))
-     ((_p2 :wat::core::nil)
+     (_p2
       (:wat::sqlite::pragma db "synchronous" "NORMAL"))
-     ((_create :wat::core::nil)
+     (_create
       (:wat::sqlite::execute-ddl db
         "CREATE TABLE IF NOT EXISTS smoke (n INTEGER NOT NULL);")))
     (:wat::test::assert-eq true true)))
@@ -93,30 +93,30 @@
 (:wat::test::deftest :wat-tests::sqlite::Db::test-begin-commit
   ()
   (:wat::core::let
-    (((db :wat::sqlite::Db)
+    ((db
       (:wat::sqlite::open "/tmp/wat-sqlite-test-005.db"))
-     ((_p :wat::core::nil)
+     (_p
       (:wat::sqlite::pragma db "journal_mode" "WAL"))
-     ((_create :wat::core::nil)
+     (_create
       (:wat::sqlite::execute-ddl db
         "CREATE TABLE IF NOT EXISTS counters (n INTEGER NOT NULL);"))
-     ((_clear :wat::core::nil)
+     (_clear
       (:wat::sqlite::execute-ddl db "DELETE FROM counters;"))
-     ((_b :wat::core::nil) (:wat::sqlite::begin db))
-     ((_i1 :wat::core::nil)
+     (_b (:wat::sqlite::begin db))
+     (_i1
       (:wat::sqlite::execute db
         "INSERT INTO counters (n) VALUES (?1)"
         (:wat::core::Vector :wat::sqlite::Param
           (:wat::sqlite::Param::I64 1))))
-     ((_i2 :wat::core::nil)
+     (_i2
       (:wat::sqlite::execute db
         "INSERT INTO counters (n) VALUES (?1)"
         (:wat::core::Vector :wat::sqlite::Param
           (:wat::sqlite::Param::I64 2))))
-     ((_i3 :wat::core::nil)
+     (_i3
       (:wat::sqlite::execute db
         "INSERT INTO counters (n) VALUES (?1)"
         (:wat::core::Vector :wat::sqlite::Param
           (:wat::sqlite::Param::I64 3))))
-     ((_c :wat::core::nil) (:wat::sqlite::commit db)))
+     (_c (:wat::sqlite::commit db)))
     (:wat::test::assert-eq true true)))
