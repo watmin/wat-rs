@@ -667,6 +667,37 @@ investigate the discipline gap.
 - [ ] Commit BEFORE briefing the next slice (so the calibration is
       preserved across compactions)
 
+### Atomic commit across coordinated sweeps
+
+When sweep B logically requires sweep A's output (e.g., sweep A
+reshapes a substrate that sweep B's tests will exercise), the
+atomic-commit pattern preserves `feedback_no_broken_commits.md`'s
+green-tree-on-disk discipline:
+
+1. Sweep A runs → working tree dirty with A's changes (uncommitted)
+2. Verify A's output is structurally sound (e.g., substrate
+   compiles, expected consumer failures match prediction)
+3. Sweep B runs against the dirty tree (sees A's changes)
+4. Verify B's output (workspace = 0 failed)
+5. Orchestrator commits BOTH A and B as ONE atomic commit when
+   workspace is green; commit message names both sweeps + their
+   SCORE docs
+
+**Real incident, 2026-05-06:** Arc 130 slice 2 split into sweep
+2a (HolonLRU substrate reshape) + sweep 2b (HolonLRU test
+rebuild + retire :should-panic). Sweep 2a deliberately broke
+the consumer tests (TYPE-MISMATCH errors as predicted — old
+helper-verb signatures don't match new). The brief explicitly
+forbade sonnet 2a from committing; sonnet 2b ran against the
+dirty tree; orchestrator committed all 6 files atomically when
+workspace = 0-failed. The chain held.
+
+**The discipline boundary:** mid-sweep brokenness is
+acceptable; on-disk-committed brokenness is not. The atomic
+commit is the moment the working tree state becomes shared
+record. Anything before that is in-progress orchestration the
+orchestrator owns.
+
 ### When sonnet fails (Mode B or worse)
 
 - [ ] Treat the failure as data. The brief is the upstream defect.
