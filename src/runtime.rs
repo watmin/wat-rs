@@ -2562,14 +2562,11 @@ fn dispatch_keyword_head(
         // arc 154's let* → let recipe). Routes to `eval_fn`
         // (formerly `eval_lambda`).
         ":wat::core::fn" => eval_fn(args, env),
-        // Arc 155 — `:wat::core::lambda` retired; type checker fires
-        // `BareLegacyLambda` walker on any source-level appearance.
-        // Fall through to the canonical `eval_fn` so a stray runtime
-        // call (post-checker bypass) executes with the correct
-        // semantics rather than panicking on an unknown head.
-        // Transitional runtime scaffolding; mirrors arc 154's let*
-        // fall-through pattern.
-        ":wat::core::lambda" => eval_fn(args, env),
+        // Arc 155 slice 2 — `:wat::core::lambda` dispatch arm retired.
+        // Single-letform vocabulary; lambda is dead (Clojure-faithful;
+        // `fn` replaces `lambda` per user direction 2026-05-07).
+        // BareLegacyLambda variant + Display retained as orphaned
+        // scaffolding (arc 113 precedent); runtime fall-through retired.
         ":wat::core::let" => eval_let(args, list_span, env, sym),
         // Arc 154 — `:wat::core::let*` retired; type checker fires
         // `BareLegacyLetStar` walker on any source-level appearance.
@@ -16333,10 +16330,9 @@ fn step_list(
         // with closed_env, not a literal `(fn ...)` form). Wrap as
         // an opaque-identity Atom of the structural lowering so cosine /
         // hash / cache keys see it as a single coordinate.
-        // Arc 155 — `:wat::core::fn` is the canonical operator; the
-        // `:wat::core::lambda` arm retains fall-through as transitional
-        // runtime scaffolding (mirrors arc 154's let* dispatch retention).
-        ":wat::core::fn" | ":wat::core::lambda" => {
+        // Arc 155 slice 2 — lambda dispatch arm retired; only
+        // canonical `:wat::core::fn` recognized.
+        ":wat::core::fn" => {
             let form = WatAST::List(items.to_vec(), list_span.clone());
             let h = watast_to_holon(&form);
             Ok(StepValue::Terminal(HolonAST::Atom(Arc::new(h))))

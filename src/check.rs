@@ -1432,32 +1432,18 @@ pub fn check_program(
 
     // Arc 155 slice 1a — refuse the legacy `:wat::core::lambda`
     // keyword anywhere in the program. The canonical FQDN operator
-    // is `:wat::core::fn` (Clojure-faithful lowercase verb for
-    // function values). Walks every keyword token in the AST and
-    // emits one BareLegacyLambda per occurrence. Sweep 1b uses the
-    // diagnostic stream as the work list (~156 .wat + ~119 embedded
-    // Rust lambda sites per pre-arc grep).
-    for func in sym.functions.values() {
-        validate_legacy_lambda(&func.body, &mut errors);
-    }
-    for form in forms {
-        validate_legacy_lambda(form, &mut errors);
-    }
-
-    // Arc 155 slice 1a — refuse bare `:fn(...)` type-position
-    // keywords anywhere in the program. The canonical FQDN form is
-    // `:wat::core::Fn(...)` (Cap'd type head; closes arc 109 slice
-    // 1e's last ungrabbed parametric type head). Walks every keyword
-    // token in the AST and emits one BareLegacyLowercaseFn per
-    // occurrence. Sweep 1b uses the diagnostic stream as the work
-    // list (~125 .wat + ~76 embedded Rust type-annotation sites per
-    // pre-arc grep).
-    for func in sym.functions.values() {
-        validate_legacy_lowercase_fn(&func.body, &mut errors);
-    }
-    for form in forms {
-        validate_legacy_lowercase_fn(form, &mut errors);
-    }
+    // Arc 155 slice 2 — `validate_legacy_lambda` +
+    // `validate_legacy_lowercase_fn` walkers retired per
+    // substrate-as-teacher § "Retire the hint when its window
+    // closes." Both shipped slice 1a; sweep 1b cleared all in-tree
+    // consumers (~476 sites total: ~275 lambda + ~201 bare :fn);
+    // closure retires the firing bodies. `BareLegacyLambda` +
+    // `BareLegacyLowercaseFn` variants + Display retained as
+    // orphaned scaffolding (arc 113 precedent — testing/teaching/
+    // reintroduction surface preserved). Runtime dispatch arms for
+    // `:wat::core::lambda` keep functional fall-through to
+    // `:wat::core::fn` (transitional runtime scaffolding mirroring
+    // arc 154's let* fall-through pattern).
 
     // Arc 109 slice 9d — refuse the legacy `:wat::std::stream::*`
     // namespace prefix anywhere in the program. The stream stdlib
@@ -1966,75 +1952,34 @@ const BARE_CONTAINER_HEADS: &[(&str, &str)] = &[
 // walker recipe (single-token keyword retirement at operator
 // position).
 //
-// Slice 2 retirement recipe: remove the `walk_for_legacy_lambda`
-// body + the `validate_legacy_lambda` call sites in `check_program`.
-// `BareLegacyLambda` variant + Display stay as orphaned scaffolding
-// per arc 113 precedent. Runtime dispatch arms for
-// `:wat::core::lambda` keep functional fall-through to `eval_fn`
-// per the transitional scaffolding pattern.
-fn validate_legacy_lambda(node: &WatAST, errors: &mut Vec<CheckError>) {
-    walk_for_legacy_lambda(node, errors);
-}
-
-fn walk_for_legacy_lambda(node: &WatAST, errors: &mut Vec<CheckError>) {
-    match node {
-        WatAST::Keyword(s, span) => {
-            if s.as_str() == ":wat::core::lambda" {
-                errors.push(CheckError::BareLegacyLambda { span: span.clone() });
-            }
-        }
-        WatAST::List(items, _) => {
-            for item in items {
-                walk_for_legacy_lambda(item, errors);
-            }
-        }
-        _ => {}
-    }
-}
-
-// Arc 155 slice 1a — `walk_for_legacy_lowercase_fn` fires one
-// `BareLegacyLowercaseFn` per bare `:fn(...)` type-position keyword.
-// Pattern 3 (substrate-as-teacher § "Three migration patterns"):
-// dedicated CheckError variant + walker detects keyword strings
-// starting with `:fn(` (the bare function-type prefix). The FQDN
-// `:wat::core::Fn(...)` does NOT start with `:fn(` and passes
-// through silently. Mirror of arc 109 slice 1e's parametric-head
-// FQDN recipe; closes arc 109's last ungrabbed parametric type head.
+// Arc 155 slice 2 — `validate_legacy_lambda` +
+// `walk_for_legacy_lambda` retired per substrate-as-teacher §
+// "Retire the hint when its window closes." Walker shipped slice 1a;
+// sweep 1b cleared all in-tree `:wat::core::lambda` consumers;
+// closure retires the firing body. `BareLegacyLambda` variant +
+// Display preserved as orphaned scaffolding (arc 113 precedent).
+// Runtime dispatch arms for `:wat::core::lambda` keep functional
+// fall-through to `eval_fn` (transitional runtime scaffolding;
+// mirrors arc 154's let* fall-through).
 //
-// Detection is keyword-string-level (not parsed-TypeExpr-level)
-// because `TypeExpr::Fn` carries no head name — bare `:fn(...)` and
-// FQDN `:wat::core::Fn(...)` produce the same internal `TypeExpr::Fn`
-// shape post-parse. The source keyword string is the only reliable
-// discriminant.
-//
-// Slice 2 retirement recipe: remove the `walk_for_legacy_lowercase_fn`
-// body + the `validate_legacy_lowercase_fn` call sites in
-// `check_program`. `BareLegacyLowercaseFn` variant + Display stay as
-// orphaned scaffolding per arc 113 precedent.
-fn validate_legacy_lowercase_fn(node: &WatAST, errors: &mut Vec<CheckError>) {
-    walk_for_legacy_lowercase_fn(node, errors);
-}
+// Reintroduction recipe: see arc 153/154 walker shapes; mirror
+// `WatAST::Keyword(s)` match for the retired FQDN, recurse
+// into `WatAST::List(items, _)` children, emit one CheckError
+// per offending site.
 
-fn walk_for_legacy_lowercase_fn(node: &WatAST, errors: &mut Vec<CheckError>) {
-    match node {
-        WatAST::Keyword(s, span) => {
-            // Detect `:fn(...)` bare function-type prefix. Must NOT
-            // fire on `:wat::core::fn` (operator position keyword) —
-            // that string does not start with `:fn(`. The narrowness
-            // check is purely string-prefix: `:fn(` is the unique
-            // discriminant for bare type-position function types.
-            if s.starts_with(":fn(") {
-                errors.push(CheckError::BareLegacyLowercaseFn { span: span.clone() });
-            }
-        }
-        WatAST::List(items, _) => {
-            for item in items {
-                walk_for_legacy_lowercase_fn(item, errors);
-            }
-        }
-        _ => {}
-    }
-}
+// Arc 155 slice 2 — `validate_legacy_lowercase_fn` +
+// `walk_for_legacy_lowercase_fn` retired per the same § "Retire
+// the hint when its window closes." Walker shipped slice 1a;
+// sweep 1b cleared bare `:fn(...)` consumers (walker-driven for
+// body sites + grep-driven for define-param sites per slice 1a's
+// honest delta). `BareLegacyLowercaseFn` variant + Display
+// preserved as orphaned scaffolding.
+//
+// Detection at slice 1a was keyword-string-level (`s.starts_with(":fn(")`)
+// because `TypeExpr::Fn` carries no head name internally — bare
+// `:fn(...)` and FQDN `:wat::core::Fn(...)` produce the same
+// `TypeExpr::Fn` shape post-parse; source keyword string was the
+// only reliable discriminant.
 
 // Arc 153 slice 2 — `walk_type_for_legacy_unit_name` retired
 // per substrate-as-teacher § "Retire the hint when its window
@@ -3758,12 +3703,10 @@ fn infer_list(
             // arc 154's let* → let recipe). Routes to `infer_fn`
             // (formerly `infer_lambda`).
             ":wat::core::fn" => return infer_fn(args, head_span, env, locals, fresh, subst, errors),
-            // Arc 155 — `:wat::core::lambda` retired; type checker fires
-            // `BareLegacyLambda` walker on any source-level appearance.
-            // Fall through to the canonical `infer_fn` so the form still
-            // type-checks during the migration window (transitional
-            // scaffolding; mirrors arc 154's let* fall-through pattern).
-            ":wat::core::lambda" => return infer_fn(args, head_span, env, locals, fresh, subst, errors),
+            // Arc 155 slice 2 — `:wat::core::lambda` dispatch arm retired.
+            // Lambda is dead (Clojure-faithful; fn replaces lambda per user
+            // direction 2026-05-07). Source-level `:wat::core::lambda`
+            // surfaces standard "unknown form" error post-arc-155.
             ":wat::core::use!" => {
                 // use! is a resolve-pass declaration. It validates at
                 // resolve time; the type checker treats it as a no-op
@@ -6446,8 +6389,9 @@ fn rhs_spawn_lambda_has_no_recv(rhs: &WatAST) -> bool {
         WatAST::Keyword(k, _) => k.as_str(),
         _ => return false,
     };
-    if lambda_head != ":wat::core::fn" && lambda_head != ":wat::core::lambda" { return false; }
-    // Lambda shape: (:wat::core::fn / :wat::core::lambda <param-list> body+)
+    // Arc 155 slice 2 — only canonical `:wat::core::fn` recognized.
+    if lambda_head != ":wat::core::fn" { return false; }
+    // Lambda shape: (:wat::core::fn <param-list> body+)
     // params are at index 1; body forms at index 2..
     let body_forms = &lambda_call[2..];
     !body_forms.iter().any(node_contains_recv)

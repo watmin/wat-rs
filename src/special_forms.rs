@@ -144,11 +144,12 @@ fn build_registry() -> HashMap<String, SpecialFormDef> {
     // arms) + `src/runtime.rs` (eval_fn from both :fn + :lambda arms).
     // Top-level forms (`src/freeze.rs:831-832`) are unchanged.
     insert(&mut m, ":wat::core::fn", &["<params>", "<body>+"]);
-    // Arc 155 — `:wat::core::lambda` retired in favor of `:wat::core::fn`.
-    // Registry entry retained per spawn-family precedent (arc 114 Pattern 2
-    // poison). Slot value `<retired-use-fn>` documents retirement for
-    // reflection consumers; runtime dispatch falls through to `eval_fn`.
-    insert(&mut m, ":wat::core::lambda", &["<retired-use-fn>"]);
+    // Arc 155 slice 2 — `:wat::core::lambda` registry entry retired.
+    // Lambda is dead (Clojure-faithful; fn replaces lambda per user
+    // direction 2026-05-07). BareLegacyLambda variant + Display
+    // retained as orphaned scaffolding (arc 113 precedent); registry +
+    // dispatch arms retired so source-level lambda surfaces standard
+    // "unknown form" error.
     insert(&mut m, ":wat::core::define", &["<head>", "<body>"]);
     insert(&mut m, ":wat::core::defmacro", &["<head>", "<template>"]);
     // Arc 146 slice 1 — dispatch declaration form. Each <arm> is
@@ -317,8 +318,8 @@ mod tests {
         // Spot-check one entry per group.
         for name in [
             ":wat::core::if",
-            ":wat::core::let*",
-            ":wat::core::lambda",
+            ":wat::core::let",
+            ":wat::core::fn",
             ":wat::core::define",
             ":wat::core::struct",
             ":wat::core::Result/try",

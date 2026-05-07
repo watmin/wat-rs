@@ -72,23 +72,23 @@ fn startup_ok(src: &str) {
 // ─── 1. Operator-position retired: :wat::core::lambda fires BareLegacyLambda
 
 #[test]
-fn lambda_keyword_fires_bare_legacy_lambda() {
-    // `:wat::core::lambda` in operator position triggers the
-    // `walk_for_legacy_lambda` walker and surfaces `BareLegacyLambda`.
-    // The form itself still type-checks (fall-through dispatch to
-    // `infer_fn`); the walker fires in addition to inference.
+fn lambda_post_retirement_silently_aliases_to_fn() {
+    // Arc 155 slice 2: `validate_legacy_lambda` walker body retired
+    // per substrate-as-teacher § "Retire the hint when its window
+    // closes." Runtime dispatch arms for `:wat::core::lambda` keep
+    // functional fall-through to `:wat::core::fn` (transitional
+    // runtime scaffolding; mirrors arc 154's let* fall-through).
+    //
+    // User-facing discipline: `:wat::core::fn` is the canonical
+    // operator; `:wat::core::lambda` works but is undocumented and
+    // discouraged.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::lambda ((x :wat::core::i64) -> :wat::core::i64)
              x)
            5))
     "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("BareLegacyLambda"),
-        "expected BareLegacyLambda on :wat::core::lambda usage; got: {}",
-        err
-    );
+    startup_ok(src);
 }
 
 // ─── 2. Operator-position canonical: :wat::core::fn works (positive case;
@@ -135,15 +135,12 @@ fn fn_keyword_operator_position_works() {
 //        check_program runs its walkers.
 
 #[test]
-fn bare_fn_type_fires_bare_legacy_lowercase_fn() {
-    // Bare `:fn(...)` at type position inside an inline fn body signature
-    // triggers `walk_for_legacy_lowercase_fn` and surfaces
-    // `BareLegacyLowercaseFn`. The keyword must be in the BODY expression
-    // (not in the define's own param list) so the walker sees it as a
-    // `WatAST::Keyword` node in `func.body`.
-    //
-    // Syntax: inner args are bare Rust symbols (no `:` prefix) — e.g.,
-    // `:fn(wat::core::i64)->wat::core::i64` per arc 115.
+fn bare_fn_type_post_retirement_walker_silent() {
+    // Arc 155 slice 2: `walk_for_legacy_lowercase_fn` walker body
+    // retired. Bare `:fn(...)` type-position keywords parse as
+    // `TypeExpr::Fn` via the substrate's existing parser; no walker
+    // fires. Documentation discourages bare form; substrate doesn't
+    // enforce. Mirrors arc 113's orphaned-scaffolding pattern.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::fn
@@ -153,12 +150,7 @@ fn bare_fn_type_fires_bare_legacy_lowercase_fn() {
              (g 5))
            (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64) x)))
     "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("BareLegacyLowercaseFn"),
-        "expected BareLegacyLowercaseFn on bare :fn(...) type in body; got: {}",
-        err
-    );
+    startup_ok(src);
 }
 
 // ─── 4. Type-position canonical: :wat::core::Fn(...) works
@@ -253,25 +245,22 @@ fn fqdn_fn_type_does_not_fire_lowercase_fn_walker() {
     );
 }
 
-// ─── 7. Multiple :wat::core::lambda sites — walker fires per site
+// ─── 7. Multiple :wat::core::lambda sites — post-retirement silent fall-through
 
 #[test]
-fn multiple_lambda_sites_each_fire_bare_legacy_lambda() {
-    // Both `:wat::core::lambda` forms in this program fire
-    // `BareLegacyLambda`. The diagnostic stream has entries from
-    // all sites (both the user source and stdlib).
+fn multiple_lambda_sites_post_retirement_silently_alias() {
+    // Post-arc-155-slice-2: walker retired; runtime dispatch arms
+    // for `:wat::core::lambda` fall through to `eval_fn`. Multiple
+    // legacy-spelling forms in one program all silently work
+    // (arc 113 scaffolding pattern; mirrors arc 154's let* sites
+    // post-retirement test).
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::lambda (() -> :wat::core::i64)
              (:wat::core::i64::+,2 1 2))
            ))
     "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("BareLegacyLambda"),
-        "expected BareLegacyLambda on :wat::core::lambda usages; got: {}",
-        err
-    );
+    startup_ok(src);
 }
 
 // ─── 8. Tail-call sanity: :wat::core::fn in body position works
@@ -399,18 +388,15 @@ fn reflection_fn_registry_entry_exists() {
     }
 }
 
-// ─── 12. Both walkers fire together in a mixed-legacy program
+// ─── 12. Both walkers retired post-slice-2 — mixed-legacy program silently runs
 
 #[test]
-fn both_legacy_walkers_fire_in_mixed_program() {
-    // A program with BOTH legacy spellings: `:wat::core::lambda` in
-    // operator position AND bare `:fn(...)` in type position inside a
-    // body expression. Both walkers fire; the error bundle contains
-    // both variant names.
-    //
-    // `:fn(...)` must be in the BODY AST (not in define's own param list)
-    // so the walker sees the raw keyword node (define params are consumed
-    // at registration time before check_program's walker pass).
+fn both_legacy_walkers_retired_silently_alias() {
+    // Post-arc-155-slice-2: both walkers retired; both legacy
+    // spellings (`:wat::core::lambda` operator + bare `:fn(...)` type)
+    // pass through silently via dispatch fall-through (lambda) and
+    // existing parser support (bare fn). Mixed-legacy programs
+    // type-check cleanly. Per arc 113 scaffolding precedent.
     let src = r#"
         (:wat::core::define (:user::main -> :wat::core::i64)
           ((:wat::core::lambda
@@ -420,15 +406,5 @@ fn both_legacy_walkers_fire_in_mixed_program() {
              (g 5))
            (:wat::core::fn ((x :wat::core::i64) -> :wat::core::i64) x)))
     "#;
-    let err = startup_err(src);
-    assert!(
-        err.contains("BareLegacyLambda"),
-        "expected BareLegacyLambda in mixed-legacy program; got: {}",
-        err
-    );
-    assert!(
-        err.contains("BareLegacyLowercaseFn"),
-        "expected BareLegacyLowercaseFn in mixed-legacy program; got: {}",
-        err
-    );
+    startup_ok(src);
 }

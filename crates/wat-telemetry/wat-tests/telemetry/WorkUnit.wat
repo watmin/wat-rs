@@ -50,7 +50,7 @@
    ;; Each call instantiates T at the call site.
    (:wat::core::define
      (:wat-telemetry::probe::make-runner<T>
-       (_label :wat::core::String) -> :wat::core::Fn(fn()->T)->T)
+       (_label :wat::core::String) -> :wat::core::Fn(wat::core::Fn()->T)->T)
      (:wat::core::fn ((body :wat::core::Fn()->T) -> :T)
        (body)))
 
@@ -668,13 +668,13 @@
 ;; ─── Probe: rank-2 — generic factory returning generic-T closure
 ;;
 ;; The pattern WorkUnit/make-scope wants:
-;;   make-runner<T> :: String -> (fn() -> T) -> T
+;;   make-runner<T> :: String -> (:wat::core::Fn() -> T) -> T
 ;; Each call to make-runner with a different T produces a runner
 ;; specific to that T. If wat supports this, the closure factory
 ;; for WorkUnit/scope handles works directly.
 (:deftest :wat-telemetry::WorkUnit::probe-rank-2-i64
   (:wat::core::let
-    (((runner :wat::core::Fn(fn()->wat::core::i64)->wat::core::i64)
+    (((runner :wat::core::Fn(wat::core::Fn()->wat::core::i64)->wat::core::i64)
       (:wat-telemetry::probe::make-runner "i64-runner"))
      ((result :wat::core::i64) (runner (:wat::core::fn (-> :wat::core::i64) 42))))
     (:wat::test::assert-eq result 42)))
