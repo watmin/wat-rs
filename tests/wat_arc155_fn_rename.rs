@@ -34,28 +34,15 @@
 //!
 //! ## Test shapes
 //!
-//!   - **Negative-case tests**: assert specific error variants surface
-//!     from `startup_err`. The two walkers fire per site; code using
-//!     legacy spellings surfaces the appropriate variant deterministically.
-//!
-//!   - **Positive-case tests**: assert `startup_from_source` returns
-//!     Ok via `startup_ok`. Positive tests may be blocked pre-sweep
-//!     if stdlib forms still use legacy spellings (mirrors arc 154's
-//!     slice 1a pattern — stdlib is the first sweep-1b bucket).
+//! Post slice-2 substrate retirement, the legacy spellings silently
+//! alias to canonical (no walker fires; runtime fall-through to
+//! `eval_fn`). All tests assert `startup_from_source` returns Ok
+//! via `startup_ok`. (No `startup_err` helper — the substrate
+//! retirement made every legacy site pass cleanly.)
 
 use std::sync::Arc;
 use wat::freeze::startup_from_source;
 use wat::load::InMemoryLoader;
-
-/// Error string from a startup that MUST fail. Returns the
-/// Debug-formatted CheckErrors bundle so tests can assert which
-/// spans/variants appear.
-fn startup_err(src: &str) -> String {
-    match startup_from_source(src, None, Arc::new(InMemoryLoader::new())) {
-        Ok(_) => panic!("expected startup failure; got Ok"),
-        Err(e) => format!("{:?}", e),
-    }
-}
 
 /// Asserts the given source starts up cleanly (canonical forms;
 /// no legacy spellings in source). Used for positive-case tests that
