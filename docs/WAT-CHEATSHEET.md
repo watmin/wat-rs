@@ -80,6 +80,30 @@ orthogonal — `:wat::core::nil` is the unit type (singleton),
 enforces the split. No "null pointer exception" semantics; no
 sentinel-value lies.
 
+### `:wat::core::do` — sequential evaluation (arc 136)
+
+`(:wat::core::do form_1 form_2 ... form_N)` evaluates each form
+left-to-right; non-final results are discarded; the FINAL form's
+value is returned and its inferred type IS the do form's type.
+Clojure-faithful — non-finals' types are unconstrained.
+
+```wat
+;; The print-then-return idiom, daily verb of any Lisp:
+(:wat::core::do
+  (:wat::console::log "computing...")
+  (:wat::core::i64::+ 1 1))                ;; → :i64
+
+;; Replaces the let*-with-((_ :wat::core::unit) ...) crutch:
+(:wat::core::do
+  (:wat::test::assert-eq v1 e1)
+  (:wat::test::assert-eq v2 e2)
+  (:wat::test::assert-eq v3 e3))           ;; → :wat::core::nil
+```
+
+Empty `(:wat::core::do)` is a parse error. Single-form
+`(:wat::core::do x) ≡ x`. Substrate infers from the final form;
+recipient unification verifies.
+
 ## 4. Comm-call position rule
 
 `:wat::kernel::send` / `recv` / `try-recv` / `select` /
@@ -112,6 +136,7 @@ handled at every comm site.
 | `:wat::core::if` | `(if cond -> :T then else)` — arc 108 made `-> :T` mandatory |
 | `:wat::core::cond` | `(cond -> :T (test-1 result-1) (test-2 result-2) ... (else default))` |
 | `:wat::core::let*` | `(let* ((name :T expr) ...) body)` |
+| `:wat::core::do` | `(do form_1 form_2 ... form_N)` — arc 136; non-finals' types unconstrained, final form's type IS the do's type |
 | `:wat::core::match` | `(match scrutinee -> :T (pattern body) ...)` |
 | `:wat::core::define` | `(define (:user::name (arg :T) -> :Ret) body)` |
 | `:wat::core::lambda` | `(lambda ((arg :T) -> :Ret) body)` |

@@ -691,6 +691,66 @@ put in a struct.
 Every binding is typed. Sequential — later bindings can reference
 earlier ones. Body after the bindings is the result.
 
+### `do` — sequential evaluation (arc 136)
+
+```scheme
+(:wat::core::do
+  (:wat::console::log "computing...")
+  (:wat::core::i64::+ 1 1))
+```
+
+Evaluates each form left-to-right. Non-final forms run for their
+side effects; their results are discarded. The FINAL form's value is
+returned, and the final form's inferred type IS the do form's type.
+
+The print-then-return idiom every Lisp programmer reaches for daily:
+
+```scheme
+(:wat::core::do
+  (:wat::console::log "took the i64 path")
+  (:wat::console::log "with arg: ...")
+  (:wat::core::i64::* x 2))    ;; → :i64
+```
+
+Three forms; the prints run; the doubled `x` returns. Substrate
+infers the do's type from the final form; recipient unification
+verifies (whatever consumes the do — a binding slot, a function
+declared return, an argument position — checks against the
+inferred type).
+
+**Non-finals' types are unconstrained** — Clojure-faithful semantics.
+The form's contract is *"evaluate sequence, return last"*; non-finals
+don't owe a type to that contract. This is more permissive than the
+let*-with-`((_ :wat::core::unit) ...)` crutch arc 136 retires:
+
+```scheme
+;; ❌ The crutch (arc 135 / pre-arc-136). The `_` LIES about being
+;; a binding; five lines of ceremony for what should be three:
+(:wat::core::let*
+  (((_ :wat::core::unit) (:wat::test::assert-eq v1 e1))
+   ((_ :wat::core::unit) (:wat::test::assert-eq v2 e2)))
+  (:wat::test::assert-eq v3 e3))
+
+;; ✓ The clean replacement (arc 136):
+(:wat::core::do
+  (:wat::test::assert-eq v1 e1)
+  (:wat::test::assert-eq v2 e2)
+  (:wat::test::assert-eq v3 e3))
+```
+
+Note: a single-form `do` `(:wat::core::do x)` evaluates to `x`'s
+value (degenerate but accepted; matches Clojure's `(do x) ≡ x`).
+Empty `(:wat::core::do)` is a parse error — the form needs at
+least one body.
+
+History: the let*-with-anonymous-unit-bindings crutch was named
+2026-05-03 mid arc 135 slice 1; arc 136 minted `do` and swept
+~45 transforms across 14 files. The DESIGN went through four
+amendments (Option A pure macro; Option A-revised with REQUIRED
+`-> :T`; Option B substrate special form with `-> :T`; final shape
+without `-> :T` after arc 145's typed-let backout). The shipped
+shape is the shape all four questions pass.
+
 ### `match` — pattern destructure
 
 ```scheme
