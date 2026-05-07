@@ -139,10 +139,10 @@ handled at every comm site.
 | `:wat::core::do` | `(do form_1 form_2 ... form_N)` — arc 136; non-finals' types unconstrained, final form's type IS the do's type |
 | `:wat::core::match` | `(match scrutinee -> :T (pattern body) ...)` |
 | `:wat::core::define` | `(define (:user::name (arg :T) -> :Ret) body)` |
-| `:wat::core::lambda` | `(lambda ((arg :T) -> :Ret) body)` |
+| `:wat::core::fn` | `(fn ((arg :T) -> :Ret) body)` — arc 155; lambda retired (use fn) |
 
 The `-> :T` is the result-type annotation; required on `if`,
-`cond`, `match`, `define`, and `lambda`.
+`cond`, `match`, `define`, and `fn`.
 
 ## 6. Special-form arg shapes
 

@@ -667,16 +667,28 @@ the bare `:()` type-position spelling); arc 153 renamed to
 `:wat::core::nil` for the marker effect; the legacy FQDN +
 migration scaffolding retired in arc 153 slice 2.
 
-### `lambda` — anonymous function
+### `fn` — anonymous function (arc 155)
 
 ```scheme
-(:wat::core::lambda ((x :i64) (y :i64) -> :i64)
-  (:wat::core::i64::+ x y))
+(:wat::core::fn ((x :wat::core::i64) (y :wat::core::i64) -> :wat::core::i64)
+  (:wat::core::i64::+,2 x y))
 ```
 
-Same signature shape as `define`. Produces a `:fn(i64,i64)->i64`
-value — a first-class function you can pass around, store in a Vec,
+Same signature shape as `define`. Produces a
+`:wat::core::Fn(wat::core::i64,wat::core::i64)->wat::core::i64`
+value — a first-class function you can pass around, store in a Vector,
 put in a struct.
+
+Arc 155 collapsed the previous lambda / fn vocabulary into a
+single Clojure-faithful pair:
+- `:wat::core::fn` — operator-position special form (function value)
+- `:wat::core::Fn(...)` — type-position parametric (function type)
+
+Capitalization disambiguates type-position from operator-position.
+`:wat::core::lambda` is dead (arc 155 slice 2 retired the dispatch
+arms — Path B retirement; not aliased). Bare `:fn(...)` retired in
+favor of `:wat::core::Fn(...)` per arc 109's FQDN doctrine (closes
+the fifth parametric type head — the four others FQDN'd in slice 1e).
 
 ### `let` — sequential binding (arc 154)
 
