@@ -106,29 +106,60 @@ correction breaking change; per arc 109's "no bridges" doctrine,
 ship the consistency cleanly. The migration is mechanical —
 sonnet sweep with substrate-informed brief.
 
-## Slice plan (2 slices)
+## Slice plan (3 slices — sweep 1a + 1b atomic; slice 2 closure)
 
-### Slice 1 — Add `-> :T` to BOTH `infer_let` + `infer_let_star` + eval counterparts
+### Slice 1a — Substrate: `-> :T` REQUIRED on `infer_let` + `infer_let_star` + eval counterparts
 
 Extend `infer_let` (check.rs:5184) and `infer_let_star`
-(check.rs:5946) to accept an OPTIONAL `-> :T` arrow + return-type
-keyword AT THE PLACEMENT THE SUBSTRATE'S CONVENTION DICTATES (see
-Q1). When present, validate body's inferred type unifies with `:T`.
-When absent, today's behavior preserved (full backwards compat).
+(check.rs:5946) to REQUIRE `-> :T` arrow + return-type keyword
+AT THE PLACEMENT THE SUBSTRATE'S CONVENTION DICTATES (see Q1).
+Validate body's inferred type unifies with `:T`. Bare
+`(:wat::core::let bindings body)` without `-> :T` becomes a
+parse error.
 
 Mirror at runtime: `eval_let` (runtime.rs:2402+) and `eval_let_star`
 (runtime.rs:2403+). The `-> :T` token doesn't affect runtime
 evaluation; it's a no-op at the eval layer. Tail-call paths
 (`eval_let_tail`, `eval_let_star_tail`) and incremental-step paths
-(`step_let_star`) similarly thread the optional arm-result.
+(`step_let_star`) similarly thread the required arm-result.
 
 Update arc 144 slice 2's special-form registry (`src/special_forms.rs`)
-to reflect the optional `-> :T` slot in the let / let* sketches.
+to reflect the required `-> :T` slot in the let / let* sketches.
 
-~150-300 LOC + 6-10 unit tests covering: typed parallel, typed
-sequential, untyped parallel still works, untyped sequential still
-works, type mismatch on typed parallel, type mismatch on typed
-sequential.
+~150-300 LOC substrate + 6-10 unit tests covering: typed parallel,
+typed sequential, type mismatch on typed parallel, type mismatch
+on typed sequential, parse error on untyped parallel (REQUIRED),
+parse error on untyped sequential (REQUIRED).
+
+**This sweep BREAKS the workspace** — every existing
+`(:wat::core::let ...)` and `(:wat::core::let* ...)` call site
+fails to parse post-substrate-change. Sweep 1b fixes them.
+Per `feedback_no_broken_commits.md`, working tree stays dirty
+between sweep 1a and sweep 1b; orchestrator commits both
+atomically when workspace = 0-failed (per recovery doc § 7
+atomic-commit-across-coordinated-sweeps pattern).
+
+### Slice 1b — Consumer sweep: add `-> :T` to every existing call site
+
+Workspace-wide sweep across:
+- `wat/` substrate sources
+- `wat-tests/` workspace test files
+- `crates/*/wat/` per-crate substrates
+- `crates/*/wat-tests/` per-crate tests
+- Examples (`examples/`)
+- Embedded wat strings in Rust test files (`tests/wat_*.rs`)
+
+Each existing call site gains `-> :T` after the form name, where
+T is the body's inferred return type. Sonnet uses cargo test's
+type-mismatch error messages as the brief (the substrate's
+diagnostic stream IS the work list).
+
+Per "simple is uniform composition" (`feedback_simple_is_uniform_composition.md`):
+N identical one-line additions IS simple.
+
+Lab consumers (`holon-lab-trading/`) — separate workspace; out of
+scope for this arc; lab handles its own migration when consuming
+the new substrate version.
 
 ### Slice 2 — Closure
 
@@ -169,26 +200,37 @@ Slice 1 brief MUST resolve this by reading the actual `infer_if` /
 `infer_match` / `infer_option_expect` placements + matching whichever
 convention is most consistent.
 
-### Q2 — Required or optional `-> :T`?
+### Q2 — Required or optional `-> :T`? **RESOLVED: REQUIRED**
 
-Per user direction "users can make their own choice" — `-> :T` is
-OPTIONAL forever. Backwards compatible; users adopt at their own
-pace if they want explicit value-bearing declaration.
+User direction 2026-05-03 evening (verbatim, captured in Status
+section above):
 
-Consistency note: `Option/expect` and `Result/expect` REQUIRE
-`-> :T` per arc 108. `if` and `match` REQUIRE `-> :T`. `let` and
-`let*` would be the only value-bearing forms where `-> :T` is
-optional.
+> *"the ret val of a let statement /must be declared/ .. the
+> 'user's choice' is whether or not to use let or let* -- both
+> must have a ret val declared.. the let's ret val can be bound
+> to something and used later - just like if, match etc"*
 
-The trade-off:
-- Required: consistency with other value-bearing forms; one less
-  variant in the substrate; readers don't have to handle two
-  shapes.
-- Optional: backwards compat (no breaking change to existing
-  call sites); users opt-in.
+**`-> :T` is REQUIRED on both forms.** The "user's choice" is
+the BINDING STRATEGY (parallel `let` vs sequential `let*`), NOT
+the optionality of the type annotation.
 
-**Per the user direction**: optional. Users choose. Reconsider in
-a future arc if the substrate-wide consistency becomes load-bearing.
+Consistency rationale (now load-bearing):
+- `Option/expect` + `Result/expect` REQUIRE `-> :T` per arc 108
+- `if` + `match` + `cond` REQUIRE `-> :T`
+- `try` REQUIRES `-> :T`
+- `let` + `let*` were the ONLY outliers; arc 145 fixes that
+
+Existing call sites must be migrated (sweep 1b's scope). Per
+arc 109's "no bridges" doctrine + FM 11's no-deferral discipline,
+ship the consistency cleanly rather than papering over with
+"optional forever."
+
+Earlier draft of this section said "OPTIONAL forever" — that
+draft was Q2-wrong. Per `feedback_inscription_immutable.md` the
+correction is captured here in the live DESIGN, with the
+prior-state preservation note that the early draft (committed in
+git history) was the misinterpretation that the user's evening
+clarification corrected.
 
 ### Q3 — Special-form registry sketch
 
