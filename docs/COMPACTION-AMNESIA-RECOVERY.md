@@ -265,6 +265,58 @@ When ordering work: dependency tree IS the order. Build complexity up
 from simplicity composition. Each piece simple; each layer composes
 simple pieces; each layer's surface stays simple.
 
+### Proactive slicing — stepping stones that enable next steps
+
+The four questions decide WHAT to do. When the answer is "this is one
+coherent change," a SECOND-LEVEL decision asks WHETHER TO SPLIT. The
+four questions don't answer that on their own; ask additionally:
+
+1. **Does building a stepping stone EXPLICITLY make the next step more
+   tractable?** Would shipping the smaller piece first reduce the
+   cognitive surface of the follow-up — fewer decisions per BRIEF,
+   clearer "did it work" verification, smaller diffs to debug?
+2. **Are there dependencies that must land first to make the next
+   change ERGONOMIC?** A new carrier field, a settled position
+   predicate, a registered form — once these land, the next step
+   operates on EXISTING infrastructure rather than introducing the
+   infrastructure AND using it in one breath.
+3. **What's the COMPLEXITY COMPOSITION shape?** Bundle = "complex
+   step composed of simple pieces." Split = "simple steps each."
+   Both can be honest. The judgement call is which composition
+   delivers cleaner verification per piece.
+
+**The principle:** simple steps enable complex steps. Friction
+reduction for efficiency.
+
+When the stepping-stone test answers YES, split. The bundled step
+might still ship in similar wall-clock time, but each split piece's
+"did it work" is cleaner; rollback is cheaper; the second sonnet
+spawn operates on settled foundation rather than freshly-built
+foundation.
+
+**This is distinct from reactive stepping stones.** Reactive (memory
+`feedback_iterative_complexity.md`) is "when something deadlocks,
+back up to the smallest wholly-green checkpoint." Proactive is
+"choose the smaller piece BEFORE the work starts, because the
+smaller piece's existence makes the rest easier."
+
+**Anti-pattern:** treating every change as a single atomic slice
+because "the four questions all hold." The four questions can hold
+for a bundle AND for the split. Stepping-stone analysis breaks the
+tie when the second slice would benefit from a settled foundation.
+
+**Worked example, 2026-05-07 (arc 157):** I drafted BRIEF-SLICE-1a
+bundling `:wat::core::def` + 2 config setters + redef discipline +
+position predicate + 15 tests in one 90-min sweep. User direction:
+*"if building stepping stones explicitly makes next steps more
+tractable.. we build the stepping stones … simple steps enable
+complex steps."* Re-evaluation: split into 1a-i (def + position +
+strict-default) + 1a-ii (config setters + opt-in gating). 1a-i ships
+a complete-and-useful form (def with strict redef-error). 1a-ii
+operates on the settled foundation — smaller cognitive surface, the
+gating logic threads around an EXISTING `defined_values` map. Each
+step's verification is cleaner; rollback is per-step.
+
 ---
 
 ## Section 6 — Failure-mode catalog (catch yourself sliding back)
