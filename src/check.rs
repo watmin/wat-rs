@@ -7264,11 +7264,17 @@ fn sender_originates_from_thread_pipe(
     for binding in bindings {
         let WatAST::List(items, _) = binding else { continue; };
         if items.len() != 2 { continue; }
-        let WatAST::List(parts, _) = &items[0] else { continue; };
-        let has_name = parts.iter().any(|p| {
-            matches!(p, WatAST::Symbol(id, _) if id.name == sender_name)
-        });
-        if !has_name { continue; }
+        // Arc 159 — accept both binding shapes.
+        // New shape: `(name rhs)` — items[0] is a bare Symbol.
+        // Legacy shape: `((name :T) rhs)` — items[0] is a List.
+        let matches_name = match &items[0] {
+            WatAST::Symbol(id, _) => id.name == sender_name,
+            WatAST::List(parts, _) => parts.iter().any(|p| {
+                matches!(p, WatAST::Symbol(id, _) if id.name == sender_name)
+            }),
+            _ => continue,
+        };
+        if !matches_name { continue; }
         return rhs_is_thread_input_extractor(&items[1]);
     }
     false
@@ -7317,11 +7323,17 @@ fn spawn_thread_lambda_body_has_no_recv(
     for binding in bindings {
         let WatAST::List(items, _) = binding else { continue; };
         if items.len() != 2 { continue; }
-        let WatAST::List(parts, _) = &items[0] else { continue; };
-        let has_name = parts.iter().any(|p| {
-            matches!(p, WatAST::Symbol(id, _) if id.name == thr_name)
-        });
-        if !has_name { continue; }
+        // Arc 159 — accept both binding shapes.
+        // New shape: `(name rhs)` — items[0] is a bare Symbol.
+        // Legacy shape: `((name :T) rhs)` — items[0] is a List.
+        let matches_name = match &items[0] {
+            WatAST::Symbol(id, _) => id.name == thr_name,
+            WatAST::List(parts, _) => parts.iter().any(|p| {
+                matches!(p, WatAST::Symbol(id, _) if id.name == thr_name)
+            }),
+            _ => continue,
+        };
+        if !matches_name { continue; }
         return rhs_spawn_lambda_has_no_recv(&items[1]);
     }
     false
@@ -13482,16 +13494,6 @@ mod tests {
     }
 
     #[test]
-    fn typed_let_binding_wrong_type_rejected() {
-        // Declared :i64 but RHS is :String — unification fails.
-        let err = check(
-            r#"(:wat::core::let ((x "hello")) x)"#,
-        )
-        .unwrap_err();
-        assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
-    }
-
-    #[test]
     fn typed_let_binding_multiple() {
         assert!(check(
             r#"(:wat::core::let
@@ -13516,19 +13518,6 @@ mod tests {
                  true)"#
         )
         .is_ok());
-    }
-
-    #[test]
-    fn typed_let_binding_lambda_declared_wrong_rejected() {
-        // Declared :fn(i64)->bool but lambda produces :fn(i64)->i64.
-        let err = check(
-            r#"(:wat::core::let
-                 ((f
-                   (:wat::core::fn ((x :i64) -> :i64) x)))
-                 true)"#,
-        )
-        .unwrap_err();
-        assert!(err.0.iter().any(|e| matches!(e, CheckError::TypeMismatch { .. })));
     }
 
     // ─── :Any ban ───────────────────────────────────────────────────────
@@ -14933,7 +14922,7 @@ mod tests {
         let src = r#"
             (:wat::core::define (:user::main -> :wat::core::i64)
               (:wat::core::let
-                ((x 2))
+                (((x :wat::core::i64) 2))
                 x))
         "#;
         let err = check(src).expect_err("arc 159: legacy typed binding must fire walker");

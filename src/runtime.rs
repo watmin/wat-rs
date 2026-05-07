@@ -1851,9 +1851,12 @@ fn register_runtime_defs_form(
             // Build the child env from the bindings. Mirror eval_let's
             // sequential-binding logic: each binding is evaluated in the
             // env accumulated so far, then extends it.
+            //
+            // Arc 159 — accept both binding shapes:
+            //   New shape: (name rhs) — pair_items[0] is a bare Symbol
+            //   Legacy shape: ((name :T) rhs) — pair_items[0] is a List
             let mut scope = env.clone();
             for pair in binding_pairs {
-                // Each pair: ((name :Type) expr)
                 let pair_items = match pair {
                     WatAST::List(it, _) => it,
                     _ => continue,
@@ -1861,12 +1864,12 @@ fn register_runtime_defs_form(
                 if pair_items.len() < 2 {
                     continue;
                 }
-                let name_type = match &pair_items[0] {
-                    WatAST::List(it, _) => it,
-                    _ => continue,
-                };
-                let binding_name = match name_type.first() {
-                    Some(WatAST::Symbol(ident, _)) => ident.name.clone(),
+                let binding_name = match &pair_items[0] {
+                    WatAST::Symbol(ident, _) => ident.name.clone(),
+                    WatAST::List(name_type, _) => match name_type.first() {
+                        Some(WatAST::Symbol(ident, _)) => ident.name.clone(),
+                        _ => continue,
+                    },
                     _ => continue,
                 };
                 let rhs = &pair_items[1];
@@ -18507,23 +18510,6 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn bare_single_let_binding_rejected() {
-        // `(name rhs)` is NOT accepted. Every bound name's type must
-        // be declared at the binding site — the shape is
-        // `((name :Type) rhs)` or destructure `((a b ...) rhs)`.
-        let err = eval_expr(r#"(:wat::core::let ((x 1)) x)"#).unwrap_err();
-        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
-    }
-
-    #[test]
-    fn let_binding_with_any_type_rejected() {
-        // :Any is banned by parse_type_expr; a let binding declaring
-        // :Any halts with a typed-form error.
-        let err = eval_expr(r#"(:wat::core::let ((x 1)) x)"#).unwrap_err();
-        assert!(matches!(err, RuntimeError::MalformedForm { .. }));
-    }
-
     // ─── Define + function call ─────────────────────────────────────────
 
     #[test]
@@ -22855,21 +22841,21 @@ mod tests {
 
     #[test]
     fn step_let_star_substitute() {
-        // `(let* (((x :wat::core::i64) 5)) (* x x))` — RHS canonical, peel,
+        // `(let* ((x 5)) (* x x))` — RHS canonical, peel,
         // substitute, then arithmetic fire.
         let h = step_drive_to_terminal(
-            "(:wat::core::let (((x :wat::core::i64) 5)) (:wat::core::i64::*,2 x x))",
+            "(:wat::core::let ((x 5)) (:wat::core::i64::*,2 x x))",
         );
         assert_eq!(h.as_i64(), Some(25));
     }
 
     #[test]
     fn step_let_star_peel_first() {
-        // Multi-binding: `(let* (((a :wat::core::i64) (+ 1 1)) ((b :wat::core::i64) a)) b)`.
+        // Multi-binding: `(let* ((a (+ 1 1)) (b a)) b)`.
         // a's RHS is non-canonical → descend; then peel a; then peel
         // b; body alone reduces to terminal.
         let h = step_drive_to_terminal(
-            "(:wat::core::let (((a :wat::core::i64) (:wat::core::i64::+,2 1 1)) ((b :wat::core::i64) a)) b)",
+            "(:wat::core::let ((a (:wat::core::i64::+,2 1 1)) (b a)) b)",
         );
         assert_eq!(h.as_i64(), Some(2));
     }
@@ -22963,7 +22949,7 @@ mod tests {
             ("(:wat::core::i64::+,2 2 2)", 4),
             ("(:wat::core::i64::*,2 3 7)", 21),
             ("(:wat::core::if true -> :wat::core::i64 10 20)", 10),
-            ("(:wat::core::let (((x :wat::core::i64) 5)) (:wat::core::i64::+,2 x 1))", 6),
+            ("(:wat::core::let ((x 5)) (:wat::core::i64::+,2 x 1))", 6),
             ("(:wat::core::match (:wat::core::Some 7) -> :wat::core::i64 ((:wat::core::Some n) n) (:wat::core::None 0))", 7),
         ];
         for (form, expected) in forms {

@@ -1138,14 +1138,14 @@ mod tests {
             "#,
         )
         .unwrap();
-        // Expansion: (:wat::core::let (((tmp[macro-scope] :i64) 1)) tmp[user-empty])
+        // Expansion: (:wat::core::let ((tmp[macro-scope] 1)) tmp[user-empty])
         // The two `tmp`s must have DIFFERENT Identifiers.
         let list = match &forms[0] {
             WatAST::List(items, _) => items,
             _ => panic!("expected list"),
         };
-        // (((tmp :i64) 1)) — drill through the bindings list, the
-        // binding, and the typed-name pair to reach tmp.
+        // ((tmp 1)) — new canonical shape: drill through the bindings list
+        // and the binding pair to reach tmp directly at position 0.
         let bindings = match &list[1] {
             WatAST::List(bs, _) => bs,
             _ => panic!("expected bindings list"),
@@ -1154,13 +1154,9 @@ mod tests {
             WatAST::List(b, _) => b,
             _ => panic!("expected binding pair"),
         };
-        let typed_name = match &first_binding[0] {
-            WatAST::List(tn, _) => tn,
-            _ => panic!("expected (name :Type) pair"),
-        };
-        let template_tmp = match &typed_name[0] {
+        let template_tmp = match &first_binding[0] {
             WatAST::Symbol(i, _) => i,
-            _ => panic!("expected Symbol"),
+            _ => panic!("expected Symbol at binding name position"),
         };
         // The body position's `tmp` — user-supplied argument, not macro-origin.
         let user_tmp = match &list[2] {

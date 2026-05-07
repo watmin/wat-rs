@@ -266,7 +266,7 @@ fn struct_type_mismatch_returns_false() {
         (:wat::core::struct :test::Other (x :i64))
         (:wat::core::define (:user::main -> :bool)
           (:wat::core::let
-            (((o :test::Other) (:test::Other/new 42)))
+            ((o (:test::Other/new 42)))
             (:wat::form::matches? o
               (:test::PaperResolved
                 (= ?gr :grace-residue)
